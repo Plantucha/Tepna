@@ -291,7 +291,7 @@ back clean; `Longest Clean Run`'s defect was structural too ("motion = 0 … no 
 surfaced because the word "clean" invited a look. A numeral-keyed extractor finds the cheap half. Not built here. The other 7 nodes are unswept.
 
 ### 2.5c LEAD — `goodDirection` is not compared against anything
-Two inversions found by hand in OxyDex, both corrected here: `ssiIdx` was `'up'` while the DSP scores
+Two inversions found by hand in OxyDex, both corrected there: `ssiIdx` was `'up'` while the DSP scores
 `<0.3` as severity 0, and `nadirBinLt4` was `'up'` while the render treats fewer as better. Nothing
 compares a registry entry's direction against the DSP's severity ordering or the render's colouring, so an
 inverted direction inverts the READING of a number with every gate green. 2 found in one node; 7 nodes
@@ -355,6 +355,23 @@ verify-fixtures' "already current" is correct, not a skip. Otherwise run `verify
 the two sub-cases separately — *stamp reverted AND differs from base* (a real discharge) vs *stamp equals base*
 (nothing owed). Cost of not fixing: a full ~11 min verify lap per false alarm.
 
+**PRE-PUSH INSTRUMENT (2026-09-02, Magpie).** The verdict rule above reasons from a diff; this MEASURES the
+thing itself, in three lines and no suite run — a stamp is valid iff it equals the bundle's CURRENT compute
+identity:
+
+```js
+const MG = require('./manifest-gate.js');
+const ch = await MG.computeHashFromText(fs.readFileSync('OxyDex.html', 'utf8'));
+// every corpus-backed fixture of that bundle must have verifiedUnder === ch
+```
+
+Run before any push that rebased over `provenance/**`. It answers in milliseconds what `verify-fixtures`
+answers after ~11 minutes, and unlike the diff rule it cannot be fooled by a peer's stamp arriving through a
+rebase (the hazard that bit Osprey) — because it compares against the code, not against `origin/main`.
+**LEAD: `rebase-safe` should run this automatically after resolving anything under `provenance/**`** and say
+per fixture whether the stamp is still current, which would make §3.1's over-report self-answering rather
+than merely better-worded.
+
 ### 3.2 A spine PR costs one full verify lap per merge ahead of it
 F13 (`dex-export.js`, 11 bundles) had to re-verify after each node PR merged under it (vf3 → vf4). The
 "land the spine last" order was right; the missing rule is **hold the other lanes' pushes from the moment the
@@ -364,13 +381,42 @@ spine's verify starts until it is pushed** — otherwise each merge burns anothe
 Rebase-safe onto main at idle time when the conflict set is self-owned; the eventual landing is then a
 near fast-forward. One rebase-safe + build, no CI. Adopt as a fleet habit.
 
-### 3.4 `selftest-all` couples two selftests through a mutable local index (primary-box-only flake)
-`npm run check` failed ONCE on `tools/dsp-review-qwen.mjs`'s selftest in F4's chain; passes standalone (21 ok),
-passed in F2's identical chain 20 min earlier, F4 touched no tool. `selftest-all.mjs` runs
-`tools/doc-search.mjs`'s selftest immediately before it and both share the local bge-m3 chunk index — the
-chain-time run was re-embedding. CLAUDE.md says no gate may read doc-search output, yet `selftest-all` runs its
-selftest, so the coupling exists on the primary box and CI never sees it. **Fix candidates:** serialise the two
-behind a lock, or give the qwen selftest a read-only snapshot.
+### 3.4 `selftest-all` could not REPORT a non-assertion failure — cause of the qwen flake still UNKNOWN
+**This section previously named a mechanism that is now falsified, on my say-so (Magpie). Recorded as a
+correction rather than overwritten, because the error is the brief's own subject.**
+
+*Was:* "`doc-search.mjs`'s selftest runs immediately before `dsp-review-qwen.mjs`'s and both share the
+local bge-m3 chunk index" — proposed fix, serialise them behind a lock. That was inferred from
+ADJACENCY (the two run next to each other; standalone runs showed "0 newly embedded" where the
+chain-time run was re-embedding), never from the call path.
+
+**RULED OUT by reading the code:** `docContext()` — the only doc-search caller in that tool — is wrapped
+in try/catch returning `''` with a 30 s timeout, so it **fails soft by construction** and cannot fail a
+run; the selftest never calls it (all 21 assertions are pure: chunker, `parseFindings`, `fnKey`,
+`buildPrompt`, the lens table); and `pipelineBusy`, which looked like process-table inspection, takes the
+`ps` output as an ARGUMENT and is handed literal strings. **There is no index in that selftest's path at
+all, so a lock would have protected nothing.**
+
+**Cause: still UNKNOWN.** What is established: the failure is NOT an assertion failure. Both occurrences
+printed `✗ tools/dsp-review-qwen.mjs FAILED` followed by a BLANK line, and the tool passes standalone
+(21 ok, 0 failed). Live hypothesis, unconfirmed: a load-dependent timeout or crash — `selftest-all` runs
+all 81 tools at once (`Promise.all(files.map(run))`) with a 120 s per-tool timeout, and both failures
+happened inside `npm run check`, where six suite shards run alongside. Against that: a third run under
+the same full-check load PASSED, so load alone does not explain it. **Do not tune the 120 s timeout as a
+first move** — that would be treating a symptom whose cause is unnamed.
+
+**What actually shipped is the INSTRUMENT, not the fix.** The runner filtered a failing tool's output to
+lines containing `✗` or `FAILED` — the signature of an ASSERTION failure — and discarded `err` entirely,
+so a timeout or crash printed a bare "FAILED" and a blank line. The evidence was being thrown away at the
+moment of failure, which is why two reproductions produced zero diagnostic information. Now: the exit
+status is named (`TIMED OUT after 120s (killed, SIGTERM)` · `exited N` · `killed by SIGKILL`), assertion
+lines still lead when present, otherwise the TAIL of whatever the tool did say, and `(no output at all —
+consistent with a timeout or a kill before the tool printed)` when it said nothing, which is itself the
+tell. Verified against a PLANTED hanging tool, which now reports exactly that. 10 assertions pin the
+classifier, including that `killed` outranks `code` (a killed process carries both).
+
+**So the next occurrence will name its own cause, and this row stays OPEN until one does.** §4b's family:
+a report that shows the part matching its expectations and silently drops the rest.
 
 ### 3.6 A `<node>-registry.js` edit is a COMPUTE-PATH change, and a re-tier owes a verify lap
 Editing a registry feels like documentation — it changes a label, a cite, a tier. It is not: every
