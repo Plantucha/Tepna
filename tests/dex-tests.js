@@ -14723,6 +14723,154 @@
       }
     });
 
+    /* ════ ONE TIMING WALK, BOTH LANES — the app's Worker runs the DSP's own scan (DEEP-AUDIT-VI F2) ════
+       The app ingest derived `fs = Math.round(mean ms-delta)` in a hand-written mirror of the parser,
+       ignoring the integer `sensor timestamp [ns]` counter, hostAxis, deviceEpoch and the resync
+       discriminator — so the browser analysed the same bytes on an axis 96–320 ppm from the gated
+       headless one (129.958457 vs 130 on 06-17; 130.012505 vs 130 on 06-25) and its exports carried
+       no timing provenance at all. The fix is a SPLIT, not a port: `ecgTimingScan` (pure, stamp-free,
+       shipped into the Worker by `toString()`) + `ecgTimingResolve` (every decision, main thread).
+       This group pins BOTH halves of that claim — the wiring by source, and the OUTCOME by running
+       the app's real WORKER_SRC text over the committed twin and diffing against `parseECG`. */
+    group('ECGDex app lane and headless resolve ONE axis — the worker runs the DSP’s own scan (DEEP-AUDIT-VI F2)', 'ecgdex-app · ecgdex-dsp · clock · lane-parity', function (T) {
+      var D = env.ECGDSP;
+      var src = env.sources || {};
+      var app = src['ecgdex-app.js'] || '';
+      if (!(D && typeof D.ecgTimingScan === 'function' && typeof D.ecgTimingResolve === 'function')) {
+        T.skip('ECGDSP.ecgTimingScan/ecgTimingResolve available', 'not loaded');
+        return;
+      }
+      // ── the wiring: no mirror may exist to drift ──
+      if (app) {
+        T.ok(
+          'the Worker source is built from ECGDSP.ecgTimingScan.toString() — the DSP’s text, not a copy',
+          /WORKER_SRC\s*=\s*\n?\s*'var ecgTimingScan = '\s*\+\s*\n?\s*ECGDSP\.ecgTimingScan\.toString\(\)/.test(app),
+          'ecgdex-app.js must splice the DSP function in, never restate it'
+        );
+        T.ok('the streaming done-handler resolves through the DSP (no app-side fs derivation)', /DSP\.ecgTimingResolve\(d\.scan\)/.test(app));
+        T.ok('the small-file path delegates to ECGDSP.parseECG (the third copy is deleted)', /runPipeline\(DSP\.parseECG\(e\.target\.result\), file\.name\)/.test(app));
+        T.ok('no app-local timestamp parser survives — one parse site, in the DSP', !/function parseTSfloat/.test(app), 'parseTSfloat is back; an unused parser is a mirror waiting for a caller');
+        T.ok('the app derives no sample rate of its own any more', !/Math\.round\(\s*\(?1000\s*\*\s*stepN/.test(app), 'a mean-delta fs derivation is back in the app');
+      } else T.skip('ecgdex-app.js source in env.sources', 'not available in this runner');
+      // ── the scan is SELF-CONTAINED: a Worker realm has no DexClock and no module scope ──
+      var scanText = D.ecgTimingScan.toString();
+      T.ok('the scan parses no timestamps (it cannot — DexClock does not travel into a Worker)', !/DexClock|parseTimestamp/.test(scanText), 'the scan references a parser it will not have at runtime');
+      T.ok('…and closes over nothing from the module', !/\bECG_[A-Z_]+\b|\bkernel\b/.test(scanText));
+      var standalone = null;
+      try {
+        // Reconstructed the way the Worker gets it: the function TEXT, evaluated with nothing else.
+        standalone = new Function('return (' + scanText + ')')();
+      } catch (e) {
+        standalone = null;
+      }
+      T.ok('the scan text evaluates and runs on its own (this is what the Worker does)', typeof standalone === 'function' && !!standalone(), standalone ? 'ok' : 'threw');
+
+      // ── the OUTCOME: the app lane's own tokenizer + the shared resolve ≡ headless parseECG ──
+      var eq = env.equiv && env.equiv.ecgdex_rich;
+      var text = eq && eq.input;
+      if (!(text && typeof D.parseECG === 'function' && standalone)) {
+        T.skip('committed ECG twin (synthetic_ecgdex_h10.txt) present', 'input absent — it is COMMITTED, so this must run everywhere including CI');
+        return;
+      }
+      /* The Worker's `handle()`, transcribed — this is the ONLY thing the app still owns, and
+         transcribing it is the point: if it drifts from WORKER_SRC the outcome legs below break. */
+      function laneResolve(txt) {
+        var scan = standalone(),
+          n = 0,
+          sawHeader = false;
+        var rows = String(txt).split(/\r?\n/);
+        for (var i = 0; i < rows.length; i++) {
+          var line = rows[i].trim();
+          if (!line) continue;
+          var p = line.split(/[;\t,]/);
+          var v = parseFloat(p[p.length - 1]);
+          if (!isFinite(v)) {
+            if (!sawHeader && n === 0) {
+              sawHeader = true;
+              scan.header(p);
+            }
+            continue;
+          }
+          n++;
+          scan.row(p, n);
+        }
+        return { t: D.ecgTimingResolve(scan.done()), n: n };
+      }
+      var lane = laneResolve(text);
+      var head = D.parseECG(text);
+      T.eq('app lane fs ≡ headless fs — to the last bit, not to the nearest integer', lane.t.fs, head.fs);
+      T.ok(
+        '…and it is NOT the rounded nominal the app used to publish',
+        lane.t.fs !== Math.round(lane.t.fs),
+        'fs ' + lane.t.fs + ' — a rounded fs is the defect, worth −45.9 to −125.5 ppm on real H10 files'
+      );
+      T.eq('app lane t0Ms ≡ headless t0Ms', lane.t.t0Ms, head.t0Ms);
+      T.eq('app lane endEpochMs ≡ headless endEpochMs', lane.t.endEpochMs, head.endEpochMs);
+      T.eq('app lane gaps ≡ headless gaps (idx, ms and BOTH relative edges)', JSON.stringify(lane.t.gaps), JSON.stringify(head.gaps));
+      T.eq('app lane clockResyncs ≡ headless clockResyncs (F1’s re-anchoring reaches the browser)', JSON.stringify(lane.t.clockResyncs), JSON.stringify(head.clockResyncs));
+      T.eq('app lane hostAxis ≡ headless hostAxis (the block the app never had)', JSON.stringify(lane.t.hostAxis), JSON.stringify(head.hostAxis));
+      T.eq('app lane deviceEpoch ≡ headless deviceEpoch (the 2019-origin annotation reaches the browser)', JSON.stringify(lane.t.deviceEpoch), JSON.stringify(head.deviceEpoch));
+      T.ok(
+        'app lane tMsAt agrees with headless on a FRACTIONAL sample index (sub-sample R positions)',
+        Math.abs(lane.t.tMsAt(9999.5) - head.tMsAt(9999.5)) < 1e-9,
+        lane.t.tMsAt(9999.5) + ' vs ' + head.tMsAt(9999.5)
+      );
+      T.eq('app lane sample count ≡ headless sample count', lane.n, head.int16.length);
+      /* THE DEFECT, MEASURED — and it needs a file whose crystal is genuinely off nominal, which the
+         committed twin is not (it runs at 129.99999990 Hz, so the old rounding was wrong by 0.0 ppm
+         there and a "direction" assertion on it would pass vacuously). Plant an H10-layout file at a
+         real 129.9 Hz: the integer ns counter states that rate exactly, while the old app rule —
+         mean `[ms]`-column delta, ROUNDED — reports the nominal 130. That gap, 770 ppm, is 2.2 s
+         across a 7 h night, and it is the axis every browser-produced export used to ride. */
+      var PLANT_FS = 129.9;
+      var plantRows = ['Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]'];
+      var plantStep = 1000 / PLANT_FS;
+      for (var pr = 0; pr < 3000; pr++) {
+        var relMs = pr * plantStep;
+        var stampMs = Date.UTC(2026, 7, 1, 23, 0, 0) + Math.round(relMs);
+        var dd = new Date(stampMs);
+        var two = function (x) {
+          return (x < 10 ? '0' : '') + x;
+        };
+        var stamp =
+          dd.getUTCFullYear() +
+          '-' +
+          two(dd.getUTCMonth() + 1) +
+          '-' +
+          two(dd.getUTCDate()) +
+          'T' +
+          two(dd.getUTCHours()) +
+          ':' +
+          two(dd.getUTCMinutes()) +
+          ':' +
+          two(dd.getUTCSeconds()) +
+          '.' +
+          String(1000 + (Math.round(relMs) % 1000)).slice(1);
+        // the ns counter is an INTEGER at the true rate; the [ms] column is the float the file prints
+        plantRows.push(stamp + ';' + String(Math.round(relMs * 1e6)) + ';' + relMs.toFixed(6) + ';' + (100 * Math.sin(pr / 7)).toFixed(1));
+      }
+      var plantTxt = plantRows.join('\n');
+      var lanePlant = laneResolve(plantTxt),
+        headPlant = D.parseECG(plantTxt);
+      T.eq('planted 129.9 Hz · app lane fs ≡ headless fs', lanePlant.t.fs, headPlant.fs);
+      T.ok('planted 129.9 Hz · the resolved rate is the DEVICE’s, not the nominal', Math.abs(headPlant.fs - PLANT_FS) < 0.01, 'fs ' + headPlant.fs);
+      T.ok(
+        'DEFECT direction · the pre-F2 app rule (mean [ms] delta, ROUNDED) reports 130 — 770 ppm off, 2.2 s across a 7 h night',
+        Math.round(headPlant.fs) === 130 && Math.abs(((130 - headPlant.fs) / headPlant.fs) * 1e6) > 500,
+        'rounded ' + Math.round(headPlant.fs) + ' vs resolved ' + headPlant.fs + ' — ' + Math.abs(((130 - headPlant.fs) / headPlant.fs) * 1e6).toFixed(0) + ' ppm'
+      );
+      /* A GAPPY twin as well: the seam arithmetic is where a raw scan could have gone wrong, because
+         a resync shifts the device axis and the scan deliberately knows nothing about it. */
+      var eq2 = env.equiv && env.equiv.ecgdex_gapped;
+      var gtxt = eq2 && eq2.input;
+      if (gtxt) {
+        var laneG = laneResolve(gtxt),
+          headG = D.parseECG(gtxt);
+        T.eq('gapped twin · app lane fs ≡ headless fs', laneG.t.fs, headG.fs);
+        T.eq('gapped twin · app lane gaps ≡ headless gaps', JSON.stringify(laneG.t.gaps), JSON.stringify(headG.gaps));
+        T.ok('gapped twin · the dropouts are actually there (the leg is not vacuous)', headG.gaps.length > 0, 'gaps ' + headG.gaps.length);
+      } else T.skip('committed gapped ECG twin', 'env.equiv.ecgdex_gapped absent');
+    });
     group('ECGDex rich export ≡ its committed golden — Integrator-facing surface', 'ecgdex-dsp · equiv · integrator-facing', function (T) {
       var eq = env.equiv && env.equiv.ecgdex_rich;
       var E = env.ECGDex;
@@ -18408,13 +18556,17 @@
         //    for a stampless recording — thread null (Clock §2.6), so the render falls to a relative axis
         //    and the node-export startEpochMs stays null (matching the orchestrate path). ──
         T.ok('ecgdex-app retired the _floatNow() now()-fallback (Clock §2.6 — missing stamp → null)', !/function\s+_floatNow\b/.test(app));
-        T.ok(
-          'primary ECG loaders thread null for a missing t0Ms (not a fabricated now())',
-          // DA-V F20/F21: the streaming path's t0Ms now comes from parseTSfloat(d.rawT0) — the worker
-          // ships the raw stamp STRING and no longer parses. The contract is unchanged and is what
-          // this pins: a missing stamp threads null, it is never fabricated.
-          /t0Ms:\s*\(?(?:d\.t0Ms|_t0)\s*!=\s*null\s*\?\s*(?:d\.t0Ms|_t0)\s*:\s*null\)?/.test(app) && /t0Ms:\s*\(?t0Ms\s*!=\s*null\s*\?\s*t0Ms\s*:\s*null\)?/.test(app)
-        );
+        /* DEEP-AUDIT-VI F2: both ingest paths now take `t0Ms` VERBATIM from `ECGDSP.ecgTimingResolve`
+           (streaming) or `ECGDSP.parseECG` (small file), so there is no app-side null-guard left to
+           regex — the guard lives in the DSP. Pin the contract at both ends: the app must not
+           re-derive an anchor, and the resolve must actually thread null for a stampless file. */
+        T.ok('the app derives no anchor of its own — t0Ms comes from the shared resolve', /t0Ms:\s*t\.t0Ms/.test(app) && !/t0Ms\s*=\s*Date\.now|_floatNow/.test(app));
+        var _D = env.ECGDSP;
+        if (_D && typeof _D.parseECG === 'function') {
+          var stampless = _D.parseECG('0;0;0.000000;10\n0;7692288;7.692288;12\n0;15384576;15.384576;9');
+          T.eq('a stampless recording threads t0Ms null (never a fabricated now())', stampless.t0Ms, null);
+          T.eq('…and endEpochMs null with it', stampless.endEpochMs, null);
+        }
         T.ok(
           'RR / Welltory-CSV exporters anchor an undated recording at 0, never now()',
           !/r\.t0Ms\s*!=\s*null\s*\?\s*r\.t0Ms\s*:\s*_floatNow/.test(app) && /r\.t0Ms\s*!=\s*null\s*\?\s*r\.t0Ms\s*:\s*0/.test(app)
@@ -18448,15 +18600,47 @@
       var fallback = src.slice(ci, src.indexOf('}', src.indexOf('for(const line of txt.split', ci)));
       var reread = fallback.indexOf('for(const file of files)');
       T.ok('the fallback re-reads every part', reread > 0, 'no re-read loop in the fallback');
-      // every accumulator handle() mutates must be cleared, and cleared BEFORE the re-read
-      // DA-V F20/F21: the worker no longer parses, so the stamp accumulator it must clear is the RAW
-      // pair (rawT0/rawTEnd), not the parsed t0Ms. The invariant is identical — every accumulator
-      // handle() mutates is cleared before the re-read — only the variable names moved.
-      ['n = 0', 'rawT0 = null', 'rawTEnd = null', 'prevMs = null', 'msStep = null', 'gaps.length = 0'].forEach(function (reset) {
+      /* DEEP-AUDIT-VI F2 collapsed six named accumulators into TWO: the sample buffer (`n`) and the
+         timing scan, which holds every clock accumulator the old list enumerated (rawT0/rawTEnd →
+         headStamps/lastStamp, prevMs, msStep, gaps → candidates, and the ns sums the worker never
+         had). Re-creating the scan clears all of them at once — so the list shrinks, but the
+         invariant is the same one and it is now stated as: nothing handle() mutates may survive
+         into the re-read. */
+      ['n = 0', 'scan = ecgTimingScan()', 'sawHeader = false'].forEach(function (reset) {
         var at = fallback.indexOf(reset);
         T.ok('fallback resets `' + reset + '`', at > 0, 'not reset — the re-read will append to stale state');
         if (at > 0) T.ok('`' + reset + '` happens BEFORE the re-read', at < reread, 'reset is after the re-read loop, so it clears the wrong thing');
       });
+      /* AND NOW EXECUTABLY — the note above says "the harness has no async group, so the invariant is
+         pinned structurally". That was true while the accumulators lived only inside a Worker string;
+         since F2 the scan is `ECGDSP.ecgTimingScan`, so the failure can be REPRODUCED here instead of
+         described: feed a prefix (the mid-stream failure), then do what the fallback does, then feed
+         the whole recording, and the result must equal a clean scan of it. Against the pre-fix
+         behaviour (re-reading WITHOUT re-creating the scan) the candidate/step accumulators carry the
+         prefix twice — which is the 1637-samples-for-1200 defect, in the timing rather than the buffer. */
+      var D = env.ECGDSP;
+      if (D && typeof D.ecgTimingScan === 'function' && typeof D.ecgTimingResolve === 'function') {
+        var rows = [];
+        for (var ri = 0; ri < 400; ri++) rows.push('2026-08-01T23:00:00.000;' + ri * 7692288 + ';' + (ri * 7.692288).toFixed(6) + ';10');
+        function feed(scan, from, to) {
+          for (var k = from; k < to; k++) scan.row(rows[k].split(';'), k - from + 1);
+        }
+        var clean = D.ecgTimingScan();
+        feed(clean, 0, rows.length);
+        var reset = D.ecgTimingScan(); // what the fallback does: a NEW scan, then the whole file again
+        feed(reset, 0, 150); // the failed stream
+        reset = D.ecgTimingScan();
+        feed(reset, 0, rows.length);
+        var stale = D.ecgTimingScan(); // what it did before DEEP-AUDIT-II §4.4: re-read into stale state
+        feed(stale, 0, 150);
+        feed(stale, 0, rows.length);
+        T.eq('a reset fallback reproduces a clean scan exactly (the invariant, executed)', JSON.stringify(D.ecgTimingResolve(reset.done())), JSON.stringify(D.ecgTimingResolve(clean.done())));
+        T.ok(
+          'DEFECT direction · re-reading into a STALE scan does not (the accumulators carry the prefix twice)',
+          JSON.stringify(D.ecgTimingResolve(stale.done())) !== JSON.stringify(D.ecgTimingResolve(clean.done())),
+          'a stale re-read is indistinguishable from a clean one — this leg proves nothing'
+        );
+      } else T.skip('ECGDSP.ecgTimingScan available for the executable leg', 'DSP not co-loaded in this runner');
       // BOTH directions: the STREAMING path must NOT reset, or every part after the first is dropped.
       var tryBlock = src.slice(src.indexOf('try {', src.indexOf('const WORKER_SRC')), ci);
       T.ok('the streaming path does NOT reset the accumulator', tryBlock.indexOf('n = 0') === -1, 'the try-block clears n — parts after the first would be discarded');
@@ -19873,22 +20057,38 @@
             );
           }
 
-          /* ── DEEP-AUDIT-II §4.3 (#5) · fs is the MEAN non-gap interval, at every site ───────────────
-             Three sites compute it: ecgdex-app.js twice (the file path and the inlined WORKER_SRC) and
-             ecgdex-dsp.js once. Mutation-checked: reverting the file path to a single delta reds
-             NOTHING. A single delta taken across a dropout reads one long interval as the sample
-             period, so fs collapses and every downstream duration and rate scales with it. Counted
-             rather than lifted, because one of the three sites lives inside a worker SOURCE STRING and
-             has no expression to execute. */
-          var _fsMean = /\(\s*1000\s*\*\s*stepN\s*\)\s*\/\s*stepSum/g;
-          var _fsSites = ['ecgdex-app.js', 'ecgdex-dsp.js'].reduce(function (a, f) {
+          /* ── DEEP-AUDIT-II §4.3 (#5) · fs is the MEAN non-gap interval — and now at ONE site ────────
+             A single delta taken across a dropout reads one long interval as the sample period, so fs
+             collapses and every downstream duration and rate scales with it. Mutation-checked when
+             this was written: reverting the app's file path to a single delta reds NOTHING.
+             THE COUNT USED TO BE THREE and is now ONE, which is the FIX, not a regression (DEEP-AUDIT-VI
+             F2). The three were ecgdex-app.js twice — the file path and the inlined WORKER_SRC — plus
+             ecgdex-dsp.js once, i.e. two copies of a derivation that had already drifted 320 ppm from
+             the third. Both app copies are deleted: the worker runs the DSP's `ecgTimingScan` and the
+             main thread calls `ecgTimingResolve`, so there is exactly one place left where an interval
+             becomes a rate. This gate therefore asserts the STRONGER property in both directions —
+             the DSP keeps the mean form, and the app derives no rate at all. */
+          var _fsMean = /\(\s*1000\s*\*\s*(?:scan\.)?stepN\s*\)\s*\/\s*(?:scan\.)?stepSum/g;
+          var _fsIn = function (f) {
             var s = _live((env.sources || {})[f]);
-            return a + (s == null ? 0 : (s.match(_fsMean) || []).length);
-          }, 0);
+            return s == null ? null : (s.match(_fsMean) || []).length;
+          };
+          var _fsDsp = _fsIn('ecgdex-dsp.js'),
+            _fsApp = _fsIn('ecgdex-app.js');
           T.ok(
-            '§4.3 · every fs-from-interval site uses the MEAN non-gap interval (3 expected: app ×2 incl. WORKER_SRC, dsp ×1)',
-            _fsSites >= 3,
-            _fsSites + ' mean-form site(s) found — a drop means one regressed to a single delta'
+            '§4.3 · the DSP still derives fs as the MEAN non-gap interval (ANTI-VACUITY: the regex matches something)',
+            _fsDsp >= 1,
+            _fsDsp + ' mean-form site(s) in ecgdex-dsp.js — 0 means it regressed to a single delta, or the form moved'
+          );
+          T.eq('§4.3 · …and the app derives NO rate of its own any more (was 2 — the worker + the inline path)', _fsApp, 0);
+          /* The other half of the same fix: the mean form is the FALLBACK, and the integer ns counter
+             is preferred where the file carries one. Pinned here because a "simplification" that
+             deleted the counter branch would leave the mean form standing and this group green. */
+          var _dspLive = _live((env.sources || {})['ecgdex-dsp.js']) || '';
+          T.ok(
+            '§4.3 · …and the integer ns counter still OUTRANKS the mean form where the file has one',
+            /nsUsable[\s\S]{0,120}fs\s*=\s*\(1000 \* scan\.nsStepN\) \/ scan\.nsStepSum/.test(_dspLive) || /if \(nsUsable\) fs =/.test(_dspLive),
+            'the ns-counter branch is gone — fs is back on the float [ms] column'
           );
         }
       }
@@ -27547,8 +27747,11 @@
       T.ok('ecgdex-app.js source + DexClock.parseTimestamp available', !!app && typeof P === 'function');
       if (!app || typeof P !== 'function') return;
 
-      var i = app.indexOf('const WORKER_SRC = `');
-      T.ok('WORKER_SRC template found', i >= 0);
+      /* WORKER_SRC is no longer one template literal: since F2 it is the DSP's `ecgTimingScan`
+         source spliced in front of the worker body, so the slice runs from the declaration to the
+         next top-level statement. */
+      var i = app.indexOf('const WORKER_SRC =');
+      T.ok('WORKER_SRC declaration found', i >= 0);
       if (i < 0) return;
       // un-escape the template literal exactly as the runtime does when the blob is minted
       /* ONE pass, not two. The former `.replace(/\\\\/g,'\\').replace(/\\`/g,'`')` unescaped in
@@ -27558,7 +27761,7 @@
          right, which is what unescaping a template literal actually means. This reconstructs the
          worker source the equivalence gate below compares against, so getting it wrong would make
          that gate compare the wrong string — a passing gate that checked nothing. */
-      var ws = app.slice(i, app.indexOf('`;', i)).replace(/\\([\\`])/g, '$1');
+      var ws = app.slice(i, app.indexOf('let workerURL = null;', i)).replace(/\\([\\`])/g, '$1');
       // DA-V F20/F21 — THE CONTRACT IS NOW STRONGER THAN A MIRROR, so this group asserts the
       // opposite of what it used to. It required the worker to declare its OWN parser (_ckPF) and
       // then diffed that copy against clock.js case by case. That is the best a mirror can do, and
@@ -27580,24 +27783,23 @@
         ws.indexOf('Date.UTC') < 0,
         'the worker is constructing a timestamp; that belongs to clock.js, which validates the components first'
       );
-      T.ok('the worker captures the RAW first stamp (rawT0)', /rawT0\s*=/.test(ws), 'the anchor stamp is no longer captured');
-      T.ok('the worker captures the RAW last stamp (rawTEnd)', /rawTEnd\s*=/.test(ws), 'endEpochMs has no source — it was never emitted on this path before F21');
+      /* DEEP-AUDIT-VI F2 widened this from stamps to the WHOLE clock. The worker used to capture the
+         raw stamps itself (`rawT0`/`rawTEnd`) and derive its own `fs`/`gaps` beside them — the stamp
+         half was single-sourced, the arithmetic half was a mirror, and the mirror drifted 320 ppm.
+         Now the worker carries the DSP's `ecgTimingScan` and ships its result; the stamps travel
+         inside that scan and every decision is `ecgTimingResolve`'s. So the assertions move up one
+         level: what must be true is that the worker RUNS the DSP's text and DERIVES nothing. */
+      T.ok('the worker runs the DSP scan (spliced by toString, not restated)', /ECGDSP\.ecgTimingScan\.toString\(\)/.test(app) && /var ecgTimingScan = /.test(ws));
+      T.ok('the worker feeds every data row to that scan', /scan\.row\(p,\s*n\)/.test(ws), 'rows are parsed but never scanned — the shipped timing would be empty');
+      T.ok('the worker posts the scan to the main thread', /scan:\s*scan\.done\(\)/.test(ws.slice(ws.indexOf('postMessage', ws.indexOf("type:'done'")) - 200)));
       T.ok(
-        'the worker posts both raw stamps to the main thread',
-        /rawT0/.test(ws.slice(ws.indexOf('postMessage'))) && /rawTEnd/.test(ws.slice(ws.indexOf('postMessage'))),
-        'the stamps are captured but never sent, so the main thread has nothing to parse'
+        'the worker derives NO rate of its own (the 320 ppm mirror is gone)',
+        !/\bfs\s*=/.test(ws) && !/stepSum/.test(ws),
+        'a sample-rate derivation is back in WORKER_SRC — it will drift from the DSP exactly as the last one did'
       );
-      // ── and the ONE surviving parse site must delegate, not re-implement ──
-      T.ok(
-        'parseTSfloat delegates to DexClock.parseTimestamp',
-        /function parseTSfloat[\s\S]{0,300}DexClock\.parseTimestamp\(/.test(app),
-        'the main-thread parser is hand-rolled again — that was the other half of F20'
-      );
-      T.ok(
-        'the main thread parses BOTH worker-shipped stamps',
-        /parseTSfloat\(d\.rawT0\)/.test(app) && /parseTSfloat\(d\.rawTEnd\)/.test(app),
-        't0Ms or endEpochMs is not being derived from the shipped stamp'
-      );
+      // ── and the ONE surviving parse site must be the DSP's, not the app's ──
+      T.ok('no main-thread stamp parser survives in the app', !/function parseTSfloat/.test(app), 'the main-thread parser is hand-rolled again — that was the other half of F20');
+      T.ok('the main thread resolves the worker scan through the DSP', /DSP\.ecgTimingResolve\(d\.scan\)/.test(app), 't0Ms/endEpochMs/fs are not being taken from the shared resolve');
     });
 
     /* ════ CONSENSUS POLARITY — a lone inverted channel must not silently leave the vote (E-5) ════

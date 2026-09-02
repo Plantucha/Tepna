@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-B24HXlnUMzMhkFCkmJbOEHCPHtqDy2ADFPHpIzjH7jc=' 'sha256-ByHzM+YtHsdGdOmID3qx5m90EwEbyr3hm/VS3QUfmoA=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FdibUw6iKPsJQTltd+FEkvUkEpK4OvoG8hOC+UHObXI=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Y9+Z33ppt/JJBWPQv724phf8Nauv0Yw4OjwDLbOiHyQ=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-B24HXlnUMzMhkFCkmJbOEHCPHtqDy2ADFPHpIzjH7jc=' 'sha256-ByHzM+YtHsdGdOmID3qx5m90EwEbyr3hm/VS3QUfmoA=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-Y9+Z33ppt/JJBWPQv724phf8Nauv0Yw4OjwDLbOiHyQ=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-uv2u2lF0rh+tj6+SiiCtZAVr5XfFovvOFkWiHW1sj3Y=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -34487,52 +34487,181 @@ __exports.PpgDex = window.PpgDex;
     parseTimestamp
   };
 
-  // ════════════════════════════════════════════════════════════════════════
-  //  PURE ECG TEXT PARSER  (headless mirror of the app's streaming worker)
-  //  ─────────────────────────────────────────────────────────────────────
-  //  The app streams raw ECG in a Web Worker (built from a Blob so it bundles) —
-  //  but a Worker cannot run in the co-load realm (Data Unifier / OverDex / the
-  //  test suite), so the headless compute() path needs a PURE, DOM-free parser
-  //  for the SAME Polar Sensor Logger `*_ECG.txt` layout the worker reads:
-  //    Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]   (~130 Hz)
-  //  Behaviour mirrors WORKER_SRC / parseTSfloat in ecgdex-app.js byte-for-byte:
-  //  last column = µV sample (clamped Int16), first column = Phone-timestamp →
-  //  t0Ms (via the LOCAL parseTimestamp — Clock Contract §2, no fabrication), and
-  //  the `timestamp [ms]` column (index 2) sets fs from its step. NB the app's
-  //  ingest substitutes _floatNow() when a file carries no stamp; the headless
-  //  parser does NOT — a stampless file keeps t0Ms:null (Clock Contract §2.6: a
-  //  missing anchor stays visible, never now()), and gangliorEvents already emits
-  //  t:null/tMs:null for that case. Returns the SAME rec shape genSynthetic/the
-  //  worker hand analyze(): { int16, fs, gaps, t0Ms, offsetMin, source, durSec }.
-  // ════════════════════════════════════════════════════════════════════════
-  function parseECGText(text) {
-    var lines = String(text == null ? '' : text).split(/\r?\n/);
-    var cap = 1 << 16,
-      arr = new Int16Array(cap),
-      n = 0;
-    var t0Ms = null,
-      offsetMin = null,
-      fs = 130,
-      prevMs = null,
+  /* ════════════════════════════════════════════════════════════════════════════════════════════
+     THE ECG TIMING WALK — ONE implementation, BOTH lanes (DEEP-AUDIT-VI F2, 2026-09-01)
+     ─────────────────────────────────────────────────────────────────────────────────────────────
+     Everything this node knows about an ECG file's CLOCK — the sample rate, the dropouts, the
+     mid-file resyncs, the host discipline, the device epoch — used to exist TWICE: here, and as a
+     hand-written mirror inside `ecgdex-app.js`'s Blob worker. The banner below claimed the two
+     were byte-for-byte; measured 2026-09-01 they were 96–320 ppm apart on real corpus nights,
+     because this side gained the integer ns-counter rate, the host-axis correction and the resync
+     discriminator and the worker's copy gained none of them. The app therefore analysed the same
+     bytes on a different time axis than the gated headless path, and its exports carried no
+     `hostAxis`/`deviceEpoch`/`tMsAt` at all.
+
+     The fix is NOT to port the missing arithmetic into the worker — that is a third mirror, and
+     this file already carries the tombstone of the last one (`CLOCK-UNIFY`, the worker's inline
+     `_ckPF` that silently skipped the Clock Contract §2.7 range guard). It is to split the walk at
+     the ONE line a Worker cannot cross:
+
+       · `ecgTimingScan()`   — pure, SELF-CONTAINED arithmetic over rows. No DexClock, no closure
+                               over module scope: `ecgdex-app.js` builds its worker from this
+                               function's own `toString()`, so the worker RUNS this text rather
+                               than a copy of it (gate: `ecgdex-app · worker runs the DSP's scan`).
+                               It parses no timestamps — every stamp it meets travels out RAW.
+       · `ecgTimingResolve()` — every DECISION, on the main thread where DexClock lives: which
+                               candidates are resyncs, which axis sets `fs`, whether the host
+                               correction is trustworthy, where each sample sits in time.
+
+     WHY A RAW SCAN IS SUFFICIENT — the property that makes the split honest: a resync shifts the
+     device axis by a constant, and every quantity the scan computes is a DIFFERENCE (sample-step
+     sums, gap candidate deltas) or a value carried out verbatim (an anchor's raw counter). All of
+     them are invariant under that shift, so the scan never needs to know a seam happened and
+     `ecgTimingResolve` owns 100 % of the offset arithmetic. A scan that had to apply offsets could
+     not be split from the parser, and this whole section would be a mirror again. */
+  function ecgTimingScan() {
+    // Local, deliberately: this function's TEXT is shipped into the app's Worker, so it may not
+    // reference module scope. The two rate constants are the same numbers `ecgTimingResolve` and
+    // the parser used before the split; the gate asserts the worker's copy of them agrees.
+    var AXIS_EVERY = 500; // ≈3.8 s at 130 Hz → ~4000 anchors on a 434 min file
+    var SAMPLE_MAX_MS = 50; // above this a delta is a dropout candidate, never a sample interval
+    var nsCol = null,
+      sawFirstRow = false;
+    var prevMs = null,
       msStep = null,
       stepSum = 0,
-      stepN = 0;
-    /* HOST-DISCIPLINED AXIS (WEARABLE-HOST-AXIS-2026-08-02 §3). `fs` above is derived from the DEVICE's
-       own `timestamp [ms]` column, so the exported axis has always been the H10's crystal — measured at
-       −27 ppm, i.e. −0.70 s across a 434 min night. Anchoring host↔device 1 row in ECG_AXIS_EVERY makes
-       that removable. A two-point estimate (endEpochMs − t0Ms over lastRelMs − firstRelMs) is already
-       free here and was rejected on purpose: this corpus contains an H10 file with a 3.22 s STEP, which
-       two points cannot distinguish from a rate and would silently smear across the whole recording. */
-    var ecgAxisAnchors = [];
-    var ECG_AXIS_EVERY = 500; // ≈3.8 s at 130 Hz → ~4000 anchors on a 434 min file
-    var gaps = [];
-    // INTEGRATOR-GAP-AWARE-OVERLAP part 2 — the SESSION BOUNDARIES, in the file's own relative-ms
-    // frame. `gaps[i].idx` alone would force a consumer to reconstruct wall-clock from `idx/fs`, which
-    // re-accumulates exactly the rounding the mean-interval fs derivation exists to avoid; the `ms`
-    // column already states both edges of every dropout, so record them and let the caller anchor once
-    // at t0Ms. `firstRelMs` is that anchor's zero. Additive: `idx`/`ms` are untouched.
-    var firstRelMs = null,
+      stepN = 0,
+      firstRelMs = null,
       lastRelMs = null;
+    var prevNsMs = null,
+      firstNsMs = null,
+      nsStepSum = 0,
+      nsStepN = 0;
+    var headStamps = [],
+      lastStamp = null,
+      prevStamp = null;
+    var candidates = [],
+      anchors = [];
+    return {
+      /* Called for the FIRST line only, and only when its last column is non-numeric (i.e. it is a
+         header). Locating the ns column BY HEADER NAME rather than by position is the same rule
+         PpgDex's channel layout follows, and for the same reason: a positional guess is silently
+         wrong on a layout it was not written for. */
+      header: function (cols) {
+        for (var hc = 0; hc < cols.length; hc++) if (/sensor\s*timestamp/i.test(cols[hc])) nsCol = hc;
+      },
+      /* One DATA row. `sampleIdx` is the caller's post-push sample count (1 for the first row), so
+         `sampleIdx - 1` is the index of this row's sample — the `gaps[].idx` first-after-the-hole
+         convention both producers must agree on (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.1). */
+      row: function (p, sampleIdx) {
+        var stamp = p[0] != null && String(p[0]).trim() ? p[0] : null;
+        /* THE RECORDING'S ANCHOR is Clock Contract §4's "tMs of the first VALID sample" — the first
+           stamp that PARSES, not merely the first that is non-empty: one malformed leading row
+           invalidates that row, not the night. The scan cannot parse, so it carries the head stamps
+           out and `ecgTimingResolve` takes the first that resolves.
+           BOUNDED AT 64 (≈0.5 s of ECG), and the bound is stated rather than silent: an unbounded
+           list would be an unbounded worker payload on a file whose stamp column is junk throughout,
+           and a file with 64 consecutive unparseable stamps does not have a clock column this parser
+           understands — `ecgTimingResolve` says exactly that instead of returning a later row's
+           anchor. */
+        if (stamp !== null && headStamps.length < 64) headStamps.push(stamp);
+        /* The LAST valid row's phone stamp is the recording's clock END — kept RAW, empty included,
+           so an unstamped final row resolves to `null` rather than reaching back for an earlier row's
+           clock. READING the end is honest where reconstructing it from `durSec` + `gaps` is not:
+           durSec is DATA seconds, so t0+durSec lands short of the truth by exactly the dropout time.
+           Measured on the 2026-07-16..26 capture corpus, that shortfall put ECGDex's own events
+           outside its declared window on 11 of 11 nights, by +8 min to +326 min. */
+        lastStamp = p[0];
+        sawFirstRow = true;
+        // Device counter for THIS row, in ms, RAW. `Number('')` is 0, not NaN, so the empty-string
+        // case is excluded explicitly rather than by a sign test — and `> 0` would be WRONG: a
+        // counter legitimately STARTS at 0, and rejecting row 0 anchors `firstNsMs` one sample late,
+        // which reads as a 7.692 ms host↔device spread and flips `independent` on a derived column.
+        var nsMs = null,
+          prevNsOfRow = null;
+        if (nsCol !== null && p.length > nsCol) {
+          var nsRaw = p[nsCol];
+          var rawNs = nsRaw === '' || nsRaw == null ? NaN : Number(nsRaw);
+          if (isFinite(rawNs)) {
+            nsMs = rawNs / 1e6;
+            if (firstNsMs === null) firstNsMs = nsMs;
+            if (prevNsMs !== null) {
+              var dn = nsMs - prevNsMs;
+              // The ns column carries no float noise, so it needs no `msStep * 2.5` slack — the same
+              // `< 50` guard the `[ms]` path uses excludes dropout rows from the rate.
+              if (dn > 0 && dn < SAMPLE_MAX_MS) {
+                nsStepSum += dn;
+                nsStepN++;
+              }
+            }
+            /* The resync decision needs the PREVIOUS row's ns value; `prevNsMs` is about to hold
+               THIS row's stepped one, and re-anchoring against that computes the adjustment off the
+               wrong baseline (caught on the real 2026-08-27 seam: +86 s instead of −2.41e11 ms). */
+            prevNsOfRow = prevNsMs;
+            prevNsMs = nsMs;
+          }
+        }
+        if (p.length >= 3) {
+          var ms = parseFloat(p[2]);
+          if (isFinite(ms)) {
+            if (firstRelMs === null) firstRelMs = ms;
+            lastRelMs = ms;
+            if (prevMs !== null) {
+              var d = ms - prevMs;
+              if (d > 0) {
+                if (msStep === null && d < SAMPLE_MAX_MS) msStep = d; // provisional step — anchors the gap threshold
+                if (msStep && d > msStep * 2.5) {
+                  /* A CANDIDATE, not a verdict. Which clock says so is `ecgTimingResolve`'s
+                     question, and answering it needs the phone stamps parsed — so both stamps
+                     travel out and nothing here decides. */
+                  candidates.push({ idx: sampleIdx - 1, d: d, rawMs: ms, prevRawMs: prevMs, rawNsMs: nsMs, prevRawNsMs: prevNsOfRow, stamp: stamp, prevStamp: prevStamp });
+                } else if (d < SAMPLE_MAX_MS) {
+                  stepSum += d;
+                  stepN++;
+                }
+              }
+            }
+            prevMs = ms;
+            /* The seam discriminator's "previous row" is the previous MS-CHAIN row, not simply the
+               previous data row — a row without a usable `[ms]` column took part in neither delta. */
+            prevStamp = p[0];
+          }
+        }
+        /* Host anchor, sampled. Emitted with the RAW device values and the RAW stamp; whether it is
+           usable (does the stamp parse? did a resync invalidate it?) is resolved later. Row 1 is
+           included so anchor 0 is exactly (0,0) once rebased — the node has already anchored `t0Ms`
+           there, and a non-zero start would double-count it. */
+        if (firstRelMs !== null && p.length >= 3 && (sampleIdx === 1 || sampleIdx % AXIS_EVERY === 0) && stamp !== null) {
+          var aRel = parseFloat(p[2]);
+          if (isFinite(aRel) || nsMs !== null) anchors.push({ idx: sampleIdx - 1, rawMs: isFinite(aRel) ? aRel : null, rawNsMs: nsMs, stamp: stamp });
+        }
+      },
+      done: function () {
+        return {
+          nsCol: nsCol,
+          sawFirstRow: sawFirstRow,
+          msStep: msStep,
+          stepSum: stepSum,
+          stepN: stepN,
+          nsStepSum: nsStepSum,
+          nsStepN: nsStepN,
+          firstRelMs: firstRelMs,
+          lastRelMs: lastRelMs,
+          firstNsMs: firstNsMs,
+          headStamps: headStamps,
+          lastStamp: lastStamp,
+          candidates: candidates,
+          anchors: anchors
+        };
+      }
+    };
+  }
+
+  /* Every clock DECISION, from a scan. Runs where DexClock does — the headless parser calls it
+     directly, the app calls it on the main thread with the scan its Worker shipped back — so the
+     two lanes cannot drift: there is one copy of this arithmetic and one copy of the scan's.
+     Returns the timing half of a rec; the caller supplies `int16`/`source`. */
+  function ecgTimingResolve(scan) {
     /* ── MID-FILE CLOCK RESYNC (DEEP-AUDIT-VI F1, 2026-09-01) ─────────────────────────────────────
        The H10 boots on its 2019-01-01 firmware epoch and adopts real time when a sync lands — and
        when that happens MID-FILE, both device columns (`[ms]` and `sensor [ns]`) step by the whole
@@ -34544,193 +34673,83 @@ __exports.PpgDex = window.PpgDex;
        against which the 60 s bound below has 5 orders of headroom. An over-bound step is a
        RE-ANCHOR POINT (session-boundary semantics), never a dropout duration: the device axis is
        shifted so it continues at the phone-measured pace, the real gap (the phone delta) is
-       recorded if it clears the normal gap threshold, and the event is surfaced via
-       `clockResyncs` all the way to the export. When the phone stamps at the seam do not parse,
-       a delta over the 24 h ceiling still re-anchors — with `phoneDeltaMs: null` and NO gap entry,
-       because a duration nothing measured must stay visible as unmeasured (§2.6), never fabricated. */
+       recorded if it clears the normal gap threshold, and the event is surfaced via `clockResyncs`
+       all the way to the export. When the phone stamps at the seam do not parse, a delta over the
+       24 h ceiling still re-anchors — with `phoneDeltaMs: null` and NO gap entry, because a
+       duration nothing measured must stay visible as unmeasured (§2.6), never fabricated. */
     var ECG_RESYNC_BOUND_MS = 60000;
     var ECG_GAP_CEIL_MS = 86400000;
-    var relOffsetMs = 0;
-    var nsOffsetMs = 0;
+    /* THE RECORDING'S ANCHOR — Clock Contract §4: `t0Ms` is the tMs of the FIRST VALID sample, i.e.
+       the first stamp that PARSES. A malformed leading row invalidates that ROW, not the night, so
+       the walk reads on; what it must never do is fabricate one (§2.6), and a file with no parseable
+       stamp in `headStamps` keeps `t0Ms: null`. The app's Worker used to anchor on the first
+       NON-EMPTY stamp instead — a quieter rule that turns one junk row into an anchorless night —
+       and unifying the lanes here means the app adopts the contract's rule, not the reverse. */
+    var t0Ms = null,
+      offsetMin = null;
+    var heads = scan.headStamps || [];
+    for (var hi = 0; hi < heads.length; hi++) {
+      var ht = parseTimestamp(heads[hi]);
+      if (ht && ht.tMs != null) {
+        t0Ms = ht.tMs;
+        offsetMin = ht.offsetMin != null ? ht.offsetMin : null;
+        break;
+      }
+    }
+
+    // ── the seams, in row order: each one may shift the device axis and may leave a real gap ──
+    var gaps = [];
     var clockResyncs = [];
-    var prevRowStamp = null;
-    /* THE DEVICE'S OWN COUNTER, when the file carries one. `timestamp [ms]` is a DERIVED float that
-       loses precision as it grows (see the fs comment below); `sensor timestamp [ns]` beside it is an
-       INTEGER nanosecond counter that loses none. Located BY HEADER NAME, never by position — the
-       same rule PpgDex's channel layout follows, and for the same reason: a positional guess is
-       silently wrong on a layout it was not written for. Absent ⇒ every path below falls back to the
-       `[ms]` column exactly as before. */
-    var nsCol = null;
-    for (var hli = 0; hli < lines.length; hli++) {
-      var hl = lines[hli].trim();
-      if (!hl) continue;
-      var hp = hl.split(/[;\t,]/);
-      if (isFinite(parseFloat(hp[hp.length - 1]))) break; // first row is data — no header to read
-      for (var hc = 0; hc < hp.length; hc++) if (/sensor\s*timestamp/i.test(hp[hc])) nsCol = hc;
-      break;
+    var relOffsetMs = 0,
+      nsOffsetMs = 0;
+    var offsetAt = []; // {idx, relOffsetMs, nsOffsetMs} AFTER the seam at that row — for the anchors
+    var msStep = scan.msStep;
+    for (var ci = 0; ci < scan.candidates.length; ci++) {
+      var c = scan.candidates[ci];
+      var prevAdj = c.prevRawMs + relOffsetMs;
+      /* The phone stamps are parsed lazily, only at candidates. `pdc` clamps the known
+         non-monotonic host stamps (≤287 ms backward) to zero rather than letting a negative
+         "gap" through. */
+      var rsPd = null;
+      if (c.prevStamp != null) {
+        var rsPrev = parseTimestamp(c.prevStamp);
+        var rsCur = c.stamp != null ? parseTimestamp(c.stamp) : null;
+        if (rsPrev && rsPrev.tMs != null && rsCur && rsCur.tMs != null) rsPd = rsCur.tMs - rsPrev.tMs;
+      }
+      var pdc = rsPd != null ? Math.max(0, rsPd) : null;
+      if (pdc != null && c.d - pdc > ECG_RESYNC_BOUND_MS) {
+        // CLOCK RESYNC — re-anchor; the honest gap is the phone delta, if it is a gap at all
+        relOffsetMs -= c.d - pdc;
+        clockResyncs.push({ idx: c.idx, deviceStepMs: Math.round(c.d), phoneDeltaMs: Math.round(Number(pdc)), atRelMs: prevAdj, hostOffsetMs: /** @type {number|null} */ (null) });
+        if (c.rawNsMs != null && c.prevRawNsMs != null) {
+          // the ns chain stepped at the same seam — re-anchor it identically
+          var nsAdj = c.rawNsMs - c.prevRawNsMs - pdc;
+          if (Math.abs(nsAdj) > ECG_RESYNC_BOUND_MS) nsOffsetMs -= nsAdj;
+        }
+        if (msStep && pdc > msStep * 2.5) gaps.push({ idx: c.idx, ms: pdc, atRelMs: prevAdj, endRelMs: prevAdj + pdc });
+      } else if (pdc == null && c.d > ECG_GAP_CEIL_MS) {
+        // over the ceiling with no measurable phone delta: re-anchor, annotate, no gap entry
+        relOffsetMs -= c.d;
+        clockResyncs.push({ idx: c.idx, deviceStepMs: Math.round(c.d), phoneDeltaMs: null, atRelMs: prevAdj, hostOffsetMs: /** @type {number|null} */ (null) });
+      } else {
+        /* a dropout, not a sample interval — excluded from fs.
+           THE `gaps[i].idx` CONVENTION: **`idx` is the FIRST SAMPLE AFTER the dropout — never the
+           last one before it.** Both producers of this structure must agree; `tools/trio-batch.mjs
+           mergeEcg` wrote `idx - 1` until 2026-07-31 and now writes `idx`. The consumer — the
+           dead-time walk earlier in this file — tests `g.idx <= refIdx[k]`, which is only correct
+           under first-after: a beat landing ON the boundary sample is after the hole and must carry
+           the dead time. Pinned by the `gaps[].idx` leg in tests/dex-tests.js. */
+        gaps.push({ idx: c.idx, ms: c.d, atRelMs: prevAdj, endRelMs: c.rawMs + relOffsetMs });
+      }
+      offsetAt.push({ idx: c.idx, relOffsetMs: relOffsetMs, nsOffsetMs: nsOffsetMs });
     }
-    var firstNsMs = null,
-      prevNsMs = null,
-      nsStepSum = 0,
-      nsStepN = 0;
-    var lastTs = null; // phone stamp of the last valid row → the recording's clock end
-    function push(v) {
-      if (n >= cap) {
-        cap *= 2;
-        var na = new Int16Array(cap);
-        na.set(arr);
-        arr = na;
-      }
-      arr[n++] = v;
-    }
-    for (var li = 0; li < lines.length; li++) {
-      var line = lines[li].trim();
-      if (!line) continue;
-      var p = line.split(/[;\t,]/);
-      var v = parseFloat(p[p.length - 1]);
-      if (!isFinite(v)) continue; // header / junk row (non-numeric last column)
-      push(Math.max(-32768, Math.min(32767, Math.round(v))));
-      // The LAST valid row's phone stamp is the recording's clock END. Keep the reference (p is
-      // already allocated by the split, so this costs nothing) and parse it ONCE after the loop —
-      // READING the end is honest where reconstructing it from `durSec` + `gaps` is not: durSec is
-      // DATA seconds, so t0+durSec lands short of the truth by exactly the dropout time. Measured on
-      // the 2026-07-16..26 capture corpus, that shortfall put ECGDex's own events outside its declared
-      // window on 11 of 11 nights, by +8 min to +326 min.
-      lastTs = p[0];
-      // Device counter for THIS row, in ms. Gap rows are excluded by the same `< 50` guard the `[ms]`
-      // path uses; the ns column needs no `msStep * 2.5` slack because it carries no float noise.
-      var devNsMs = null;
-      var nsPrevOfRow = null;
-      if (nsCol !== null && p.length > nsCol) {
-        /* `> 0` would be WRONG and is worth the line: a counter legitimately STARTS at 0, so that guard
-           rejects row 0 and anchors `firstNsMs` one sample late — every anchor then sits a full sample
-           step off the host, which reads as a 7.692 ms spread and flips `independent` to true on a
-           derived column. Real captures hide it (the absolute Polar counter is ~8.4e17), a synthetic
-           starting at 0 does not. `Number('')` is 0, not NaN, so the empty-string case is excluded
-           explicitly rather than by the sign test. */
-        var nsRaw = p[nsCol];
-        var rawNs = nsRaw === '' || nsRaw == null ? NaN : Number(nsRaw);
-        if (isFinite(rawNs)) {
-          // offset-corrected so the anchor/fs chains stay continuous across a mid-file resync
-          devNsMs = rawNs / 1e6 + nsOffsetMs;
-          if (firstNsMs === null) firstNsMs = devNsMs;
-          if (prevNsMs !== null) {
-            var dn = devNsMs - prevNsMs;
-            if (dn > 0 && dn < 50) {
-              nsStepSum += dn;
-              nsStepN++;
-            }
-          }
-          /* The resync handler (in the [ms] block below) needs the PREVIOUS row's ns value — by the
-             time it runs, `prevNsMs` already holds THIS row's stepped value, and re-anchoring against
-             that computes the adjustment off the wrong baseline (caught on the real 2026-08-27 seam:
-             the ns chain got +86 s instead of −2.41e11 ms). */
-          nsPrevOfRow = prevNsMs;
-          prevNsMs = devNsMs;
-        }
-      }
-      if (t0Ms === null) {
-        var pt = parseTimestamp(p[0]);
-        if (pt && pt.tMs != null) {
-          t0Ms = pt.tMs;
-          offsetMin = pt.offsetMin != null ? pt.offsetMin : null;
-        }
-      }
-      if (p.length >= 3) {
-        var ms = parseFloat(p[2]);
-        if (isFinite(ms)) {
-          ms += relOffsetMs; // re-anchored device axis — 0 until a mid-file resync is detected
-          if (firstRelMs === null) firstRelMs = ms;
-          if (prevMs !== null) {
-            var d = ms - prevMs;
-            if (d > 0) {
-              if (msStep === null && d < 50) msStep = d; // provisional step — anchors the gap threshold
-              if (msStep && d > msStep * 2.5) {
-                /* Candidate dropout — FIRST ask which clock says so (see the resync block above).
-                   The phone stamps are parsed lazily, only at candidates, so the per-row cost is one
-                   string assignment. `pdc` clamps the known non-monotonic host stamps (≤287 ms
-                   backward) to zero rather than letting a negative "gap" through. */
-                var rsPd = null;
-                if (prevRowStamp != null) {
-                  var rsPrev = parseTimestamp(prevRowStamp);
-                  var rsCur = parseTimestamp(p[0]);
-                  if (rsPrev && rsPrev.tMs != null && rsCur && rsCur.tMs != null) rsPd = rsCur.tMs - rsPrev.tMs;
-                }
-                var pdc = rsPd != null ? Math.max(0, rsPd) : null;
-                if (pdc != null && d - pdc > ECG_RESYNC_BOUND_MS) {
-                  // CLOCK RESYNC — re-anchor; the honest gap is the phone delta, if it is a gap at all
-                  relOffsetMs -= d - pdc;
-                  ms = parseFloat(p[2]) + relOffsetMs; // this row, on the re-anchored axis
-                  clockResyncs.push({ idx: n - 1, deviceStepMs: Math.round(d), phoneDeltaMs: Math.round(Number(rsPd)), atRelMs: prevMs, hostOffsetMs: /** @type {number|null} */ (null) });
-                  if (devNsMs != null && nsPrevOfRow != null) {
-                    // the ns chain stepped at the same seam — re-anchor it identically, against the
-                    // PREVIOUS row's value (prevNsMs already holds this row's stepped one)
-                    var nsAdj = devNsMs - nsPrevOfRow - pdc;
-                    if (Math.abs(nsAdj) > ECG_RESYNC_BOUND_MS) {
-                      nsOffsetMs -= nsAdj;
-                      devNsMs -= nsAdj;
-                      prevNsMs = devNsMs;
-                    }
-                  }
-                  if (pdc > msStep * 2.5) gaps.push({ idx: n - 1, ms: pdc, atRelMs: prevMs, endRelMs: prevMs + pdc });
-                } else if (pdc == null && d > ECG_GAP_CEIL_MS) {
-                  // over the ceiling with no measurable phone delta: re-anchor, annotate, no gap entry
-                  relOffsetMs -= d;
-                  ms = parseFloat(p[2]) + relOffsetMs;
-                  clockResyncs.push({ idx: n - 1, deviceStepMs: Math.round(d), phoneDeltaMs: null, atRelMs: prevMs, hostOffsetMs: /** @type {number|null} */ (null) });
-                } else {
-                  /* a dropout, not a sample interval — excluded from fs.
-                   THE `gaps[i].idx` CONVENTION, stated here because this is where `gaps` is defined
-                   (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.1, 2026-07-31):
-                   **`idx` is the FIRST SAMPLE AFTER the dropout — never the last one before it.**
-                   `push()` for the current row has already run above, so `n - 1` IS that first
-                   post-gap sample.
-                   Both producers of this structure must agree. `tools/trio-batch.mjs mergeEcg` wrote
-                   `idx - 1` (last-before) until 2026-07-31 and now writes `idx`. The consumer — the
-                   dead-time walk earlier in this file — tests `g.idx <= refIdx[k]`, which is only
-                   correct under first-after: a beat landing ON the boundary sample is after the hole
-                   and must carry the dead time. Pinned by the `gaps[].idx` leg in tests/dex-tests.js. */
-                  gaps.push({ idx: n - 1, ms: d, atRelMs: prevMs, endRelMs: ms });
-                }
-              } else if (d < 50) {
-                stepSum += d;
-                stepN++;
-              }
-            }
-          }
-          prevMs = ms;
-          lastRelMs = ms;
-          prevRowStamp = p[0]; // the resync discriminator's "previous row" is the previous ms-chain row
-        }
-      }
-      // Host anchor, sampled — see ECG_AXIS_EVERY. Placed at the END of the body so `firstRelMs` is
-      // already set on the very first row, which makes anchor 0 exactly (0,0) and keeps the correction
-      // zero at t0Ms — the node has already anchored there, so a non-zero start would double-count it.
-      if (t0Ms !== null && firstRelMs !== null && p.length >= 3 && (n === 1 || n % ECG_AXIS_EVERY === 0)) {
-        var aRel = parseFloat(p[2]);
-        if (isFinite(aRel)) aRel += relOffsetMs; // anchors ride the re-anchored axis (resync block above)
-        var aTs = parseTimestamp(p[0]);
-        /* BOTH candidate device axes are recorded and the choice is made AFTER the loop, once it is
-           known whether the counter actually counts. A column present but STUCK — some writers emit a
-           literal `0` placeholder — is not a clock (Clock Contract §7: "a device whose axis was DRAWN
-           is not a clock"), and preferring it collapses every anchor onto devMs = 0, which hands
-           hostAxis a degenerate axis and silently inverts `independent`. */
-        if (aTs && aTs.tMs != null && (isFinite(aRel) || devNsMs !== null)) {
-          ecgAxisAnchors.push({
-            devMs: isFinite(aRel) ? aRel - firstRelMs : null,
-            devNs: devNsMs !== null && firstNsMs !== null ? devNsMs - firstNsMs : null,
-            hostMs: aTs.tMs - t0Ms,
-            row: n - 1 // so the pre-resync anchors can be told apart after the walk (below)
-          });
-        }
-      }
-    }
-    // DEEP-AUDIT-II §4.3 (#5): derive fs from the MEAN non-gap sample interval — a stamp-span
-    // cross-check, NOT a single delta. The Polar Sensor Logger's `timestamp [ms]` column loses float
-    // precision as the value grows (7.692288 early → integer "8" late), so any ONE delta reads 125–167 Hz
-    // for a true 130 Hz stream (part-files parse at 143/167). Averaging every interval quantises the 7/8 ms
-    // jitter back to ~7.69 ms → 130, and gap dropouts are excluded. Falls back to the provisional step.
-    /* PREFER THE INTEGER COUNTER, AND DO NOT ROUND IT. The `Math.round` below is right for the `[ms]`
+
+    /* DEEP-AUDIT-II §4.3 (#5): derive fs from the MEAN non-gap sample interval — a stamp-span
+       cross-check, NOT a single delta. The Polar Sensor Logger's `timestamp [ms]` column loses float
+       precision as the value grows (7.692288 early → integer "8" late), so any ONE delta reads 125–167 Hz
+       for a true 130 Hz stream (part-files parse at 143/167). Averaging every interval quantises the 7/8 ms
+       jitter back to ~7.69 ms → 130, and gap dropouts are excluded. Falls back to the provisional step.
+       PREFER THE INTEGER COUNTER, AND DO NOT ROUND IT. The `Math.round` below is right for the `[ms]`
        column and WRONG for this one, and the difference is seconds per night. Rounding forces the
        estimate to the NOMINAL 130 and discards the crystal: measured over the box corpus the H10's
        real rate is 129.9866–129.9966 Hz, so the rounded axis runs −45.9 to −125.5 ppm fast, i.e.
@@ -34738,15 +34757,15 @@ __exports.PpgDex = window.PpgDex;
        correcting a rate cannot recover a rate that was quantised away first — the shipped axis
        diverged from the file's OWN host↔device record by up to 2894 ms on 2026-08-03, which is 2.4
        cardiac cycles and is what made PAT unmeasurable (`PAT-SAWTOOTH-ANSWERS-THE-130MS`).
-       The rounding exists for the `[ms]` column's float noise and stays there; an integer ns counter
-       has no such noise, so rounding it only throws information away. */
-    // `nsStepN > 0` IS the "is it a counter" test: a stuck or absent column advances zero times, so it
-    // never reaches here, and the anchors fall back to `[ms]` in the same breath — one condition
-    // governing both, because an fs from one axis and anchors from the other would not compose.
-    var nsUsable = nsStepN > 0;
-    if (nsUsable) fs = (1000 * nsStepN) / nsStepSum;
-    else if (stepN > 0) fs = Math.round((1000 * stepN) / stepSum);
-    else if (msStep && msStep > 0) fs = Math.round(1000 / msStep);
+       `nsStepN > 0` IS the "is it a counter" test: a stuck or absent column advances zero times, so it
+       never reaches here, and the anchors fall back to `[ms]` in the same breath — one condition
+       governing both, because an fs from one axis and anchors from the other would not compose. */
+    var fs = 130;
+    var nsUsable = scan.nsStepN > 0;
+    if (nsUsable) fs = (1000 * scan.nsStepN) / scan.nsStepSum;
+    else if (scan.stepN > 0) fs = Math.round((1000 * scan.stepN) / scan.stepSum);
+    else if (scan.msStep && scan.msStep > 0) fs = Math.round(1000 / scan.msStep);
+
     /* ONE DEVICE CLOCK PER AXIS — anchors from BEFORE the last resync are not on the clock the rest
        of the file is on, so they are dropped before `hostAxis` sees them. The resync block above
        makes the device axis CONTINUOUS across the seam (it imposes the phone delta), but continuity
@@ -34758,30 +34777,59 @@ __exports.PpgDex = window.PpgDex;
        let it into `fs`: 129.968 → 129.903, 500 ppm off the same H10's 6.5 h sibling, which is what
        `trio-batch mergeEcg` refused ("sessions disagree on fs"). A step is REPORTED, never absorbed
        into fs (the maxStepMs paragraph below) — and a clock CHANGE is the hardest step there is.
-       Cost: the pre-seam rows (10 s · 10 s · 268 s on the three affected nights) get the flat
-       out-of-range correction of the first post-seam anchor, and the seam's host↔device offset is
-       surfaced on `clockResyncs[].hostOffsetMs` rather than modelled. */
+       Cost: the pre-seam rows get the flat out-of-range correction of the first post-seam anchor,
+       and the seam's host↔device offset is surfaced on `clockResyncs[].hostOffsetMs`. */
+    /* An anchor is usable only if its own stamp parses — which also settles the "was `t0Ms` known
+       yet?" question the row-walk used to ask: `t0Ms` is the first stamp in the file, so any LATER
+       stamp that parses arrives with the anchor already established. */
+    var parsedAnchors = [];
+    for (var ai = 0; ai < scan.anchors.length; ai++) {
+      var a = scan.anchors[ai];
+      var aTs = t0Ms !== null ? parseTimestamp(a.stamp) : null;
+      if (!(aTs && aTs.tMs != null)) continue;
+      // the offsets in force at this row — the seam arithmetic above, replayed onto the anchors
+      var relOff = 0,
+        nsOff = 0;
+      for (var oi = 0; oi < offsetAt.length; oi++) {
+        if (offsetAt[oi].idx <= a.idx) {
+          relOff = offsetAt[oi].relOffsetMs;
+          nsOff = offsetAt[oi].nsOffsetMs;
+        }
+      }
+      /* BOTH candidate device axes were recorded by the scan and the choice is made HERE, once it is
+         known whether the counter actually counts. A column present but STUCK — some writers emit a
+         literal `0` placeholder — is not a clock (Clock Contract §7: "a device whose axis was DRAWN
+         is not a clock"), and preferring it collapses every anchor onto devMs = 0, which hands
+         hostAxis a degenerate axis and silently inverts `independent`. */
+      var devVal = nsUsable
+        ? a.rawNsMs != null && scan.firstNsMs != null
+          ? a.rawNsMs + nsOff - scan.firstNsMs
+          : null
+        : a.rawMs != null && scan.firstRelMs != null
+          ? a.rawMs + relOff - scan.firstRelMs
+          : null;
+      parsedAnchors.push({ idx: a.idx, devMs: devVal, hostMs: aTs.tMs - t0Ms });
+    }
+    var lastResyncRow = clockResyncs.length ? clockResyncs[clockResyncs.length - 1].idx : null;
     var preResyncAnchorsDropped = 0;
-    if (clockResyncs.length && ecgAxisAnchors.length) {
-      var lastResyncRow = clockResyncs[clockResyncs.length - 1].idx;
+    if (lastResyncRow !== null && parsedAnchors.length) {
       var postResync = [];
-      for (var pi = 0; pi < ecgAxisAnchors.length; pi++) {
-        if (ecgAxisAnchors[pi].row >= lastResyncRow) postResync.push(ecgAxisAnchors[pi]);
+      for (var pi = 0; pi < parsedAnchors.length; pi++) {
+        if (parsedAnchors[pi].idx >= lastResyncRow) postResync.push(parsedAnchors[pi]);
         else preResyncAnchorsDropped++;
       }
       if (postResync.length) {
         var seamAnchor = postResync[0];
-        var seamDev = nsUsable ? seamAnchor.devNs : seamAnchor.devMs;
-        clockResyncs[clockResyncs.length - 1].hostOffsetMs = seamDev != null && isFinite(seamDev) ? Math.round(seamAnchor.hostMs - seamDev) : null;
+        clockResyncs[clockResyncs.length - 1].hostOffsetMs = seamAnchor.devMs != null && isFinite(seamAnchor.devMs) ? Math.round(seamAnchor.hostMs - seamAnchor.devMs) : null;
       }
-      ecgAxisAnchors = postResync;
+      parsedAnchors = postResync;
     }
-    var ecgAxisPicked = [];
-    for (var ai = 0; ai < ecgAxisAnchors.length; ai++) {
-      var av = nsUsable ? ecgAxisAnchors[ai].devNs : ecgAxisAnchors[ai].devMs;
-      if (av != null && isFinite(av)) ecgAxisPicked.push({ devMs: av, hostMs: ecgAxisAnchors[ai].hostMs });
+    var ecgAxisAnchors = [];
+    for (var qi = 0; qi < parsedAnchors.length; qi++) {
+      var qDev = parsedAnchors[qi].devMs;
+      if (qDev != null && isFinite(qDev)) ecgAxisAnchors.push({ devMs: qDev, hostMs: parsedAnchors[qi].hostMs });
     }
-    ecgAxisAnchors = ecgAxisPicked;
+
     /* Discipline `fs` to the host clock. Every beat time in this file is `peaks[k] / fs`, so correcting
        fs is what actually reaches the export — a separate `fsExact` nothing consumed would have been a
        fix in name only. Applied AFTER the integer rounding above, deliberately: that rounding exists to
@@ -34865,18 +34913,14 @@ __exports.PpgDex = window.PpgDex;
 
        WHY NO SPAN GATE HERE, and why that is not the oversight the ppm path was: `correctionAt` is
        linear between anchors and FLAT outside them, so a short fragment receives a small bounded
-       correction rather than an amplified one. That boundedness is precisely what `.ppm` lacks.
-
-       ADDITIVE, and deliberately inert until opted into: `fs`, `t0Ms` and every published field are
-       byte-unchanged, so no export can move until a consumer calls this. A recording with no
-       independent second clock returns uncorrected device time — never a fabricated one (§2.6). */
+       correction rather than an amplified one. That boundedness is precisely what `.ppm` lacks. */
     var _ecgCorrAt = ecgHostAx.ok && ecgHostAx.independent !== false && typeof ecgHostAx.correctionAt === 'function' ? ecgHostAx.correctionAt : null;
     var _ecgMsPerSample = 1000 / fsDevice;
     // endEpochMs — the CLOCK position of the last sample, read from the file, never derived. Null when
     // the row carries no parseable stamp (§2.6: a missing stamp is visible, never fabricated). Kept
     // ALONGSIDE durSec, not instead of it: durSec answers "how much signal do I have", endEpochMs
     // answers "where does this recording end on the clock" — two questions one scalar cannot both answer.
-    var endTs = lastTs != null ? parseTimestamp(lastTs) : null;
+    var endTs = scan.lastStamp != null ? parseTimestamp(scan.lastStamp) : null;
     var endEpochMs = endTs && endTs.tMs != null ? endTs.tMs : null;
     /* ── DEVICE-EPOCH PLAUSIBILITY — the 2019-origin annotation (H10-2019-ORIGIN, 2026-09-01) ─────────
        The H10 boots its sensor clock at a 2019-01-01 firmware default and adopts real time only when a
@@ -34890,19 +34934,14 @@ __exports.PpgDex = window.PpgDex;
        2019-origin one reads ~19.
        ANNOTATE, NEVER REFUSE. These files' uV samples are fine and hostAxis anchoring measures
        divergence relative to the first anchor, so every relative quantity is sound — a first-row
-       absolute-implausibility refusal would throw away 19 % of H10 nights. The annotation says only:
-       the DEVICE's absolute clock is fabricated; absolute time on this recording is host-provenance
-       (t0Ms comes from the Phone column) or nothing.
+       absolute-implausibility refusal would throw away 19 % of H10 nights.
        48 h threshold, deliberately coarse: it must keep the Verity's constant ~4 h offset and any
        zone/DST confusion (≤ ~14 h) on the plausible side — those are wrong-clock problems, not
-       fabricated-epoch problems, and they are the hostAxis machinery's business. The two populations
-       sit at hours vs YEARS; anything between would be a new failure worth seeing (offsetMs is
-       published raw so it would be). */
+       fabricated-epoch problems, and they are the hostAxis machinery's business. */
     var POLAR_EPOCH_MS = Date.UTC(2000, 0, 1); // sensor-ns epoch (capture-host `_POLAR_EPOCH`)
-    var deviceEpochOffsetMs = firstNsMs !== null && t0Ms !== null ? POLAR_EPOCH_MS + firstNsMs - t0Ms : null;
+    var deviceEpochOffsetMs = scan.firstNsMs !== null && t0Ms !== null ? POLAR_EPOCH_MS + scan.firstNsMs - t0Ms : null;
     var deviceEpoch = deviceEpochOffsetMs !== null ? { offsetMs: Math.round(deviceEpochOffsetMs), plausible: Math.abs(deviceEpochOffsetMs) <= 48 * 3600e3 } : null;
     return {
-      int16: arr.slice(0, n),
       fs: fs,
       /* Absolute floating wall-clock ms of sample `i`, host-disciplined where a second clock exists.
          `i` may be fractional — `refinePeaks` returns sub-sample R positions and they must not be
@@ -34923,11 +34962,9 @@ __exports.PpgDex = window.PpgDex;
       gaps: gaps,
       t0Ms: t0Ms,
       offsetMin: offsetMin,
-      source: 'file',
-      durSec: n / fs,
       endEpochMs: endEpochMs,
-      firstRelMs: firstRelMs,
-      lastRelMs: lastRelMs,
+      firstRelMs: scan.firstRelMs,
+      lastRelMs: scan.lastRelMs != null ? scan.lastRelMs + relOffsetMs : null,
       // See the block above — null when the file carries no sensor-ns column or no parseable host stamp.
       deviceEpoch: deviceEpoch,
       /* See the fs block above. `maxStepMs` is the one to read: a step is reported, never corrected.
@@ -34982,6 +35019,74 @@ __exports.PpgDex = window.PpgDex;
             timingSource: 'device',
             anchorsDroppedPreResync: preResyncAnchorsDropped > 0 ? preResyncAnchorsDropped : undefined
           }
+    };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  PURE ECG TEXT PARSER  (the headless lane of the timing walk above)
+  //  ─────────────────────────────────────────────────────────────────────
+  //  The app streams raw ECG in a Web Worker (built from a Blob so it bundles) —
+  //  but a Worker cannot run in the co-load realm (Data Unifier / OverDex / the
+  //  test suite), so the headless compute() path needs a PURE, DOM-free parser
+  //  for the SAME Polar Sensor Logger `*_ECG.txt` layout the worker reads:
+  //    Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]   (~130 Hz)
+  //  It no longer MIRRORS the worker — the two lanes now share `ecgTimingScan`
+  //  (the worker runs its source) and `ecgTimingResolve` (both call it), so the
+  //  only thing this function still owns is reading µV samples out of the text.
+  //  A stampless file keeps t0Ms:null (Clock Contract §2.6: a missing anchor
+  //  stays visible, never now()), and gangliorEvents already emits t:null/tMs:null
+  //  for that case. Returns the SAME rec shape genSynthetic/the worker hand
+  //  analyze(): { int16, fs, gaps, t0Ms, offsetMin, source, durSec, … }.
+  // ════════════════════════════════════════════════════════════════════════
+  function parseECGText(text) {
+    var lines = String(text == null ? '' : text).split(/\r?\n/);
+    var cap = 1 << 16,
+      arr = new Int16Array(cap),
+      n = 0;
+    var scan = ecgTimingScan();
+    var sawHeaderRow = false;
+    function push(v) {
+      if (n >= cap) {
+        cap *= 2;
+        var na = new Int16Array(cap);
+        na.set(arr);
+        arr = na;
+      }
+      arr[n++] = v;
+    }
+    for (var li = 0; li < lines.length; li++) {
+      var line = lines[li].trim();
+      if (!line) continue;
+      var p = line.split(/[;\t,]/);
+      var v = parseFloat(p[p.length - 1]);
+      if (!isFinite(v)) {
+        // header / junk row (non-numeric last column) — only the FIRST one is read for the layout
+        if (!sawHeaderRow && n === 0) {
+          sawHeaderRow = true;
+          scan.header(p);
+        }
+        continue;
+      }
+      push(Math.max(-32768, Math.min(32767, Math.round(v))));
+      scan.row(p, n);
+    }
+    var t = ecgTimingResolve(scan.done());
+    return {
+      int16: arr.slice(0, n),
+      fs: t.fs,
+      tMsAt: t.tMsAt,
+      tMsCorrected: t.tMsCorrected,
+      clockResyncs: t.clockResyncs,
+      gaps: t.gaps,
+      t0Ms: t.t0Ms,
+      offsetMin: t.offsetMin,
+      source: 'file',
+      durSec: n / t.fs,
+      endEpochMs: t.endEpochMs,
+      firstRelMs: t.firstRelMs,
+      lastRelMs: t.lastRelMs,
+      deviceEpoch: t.deviceEpoch,
+      hostAxis: t.hostAxis
     };
   }
 
@@ -35740,6 +35845,13 @@ __exports.PpgDex = window.PpgDex;
   }
 
   global.ECGDSP.parseECG = parseECGText;
+  /* THE TWO HALVES OF THE TIMING WALK, exported because the APP LANE IS A CONSUMER (DEEP-AUDIT-VI F2)
+     — not merely for assertability. `ecgdex-app.js` builds its streaming Worker from
+     `ecgTimingScan.toString()` and calls `ecgTimingResolve` on the scan the Worker ships back, so
+     these two are the app's parser as much as the headless one's. A change here changes both lanes,
+     which is the entire point: the app used to carry a hand-written mirror that was 96–320 ppm off. */
+  global.ECGDSP.ecgTimingScan = ecgTimingScan;
+  global.ECGDSP.ecgTimingResolve = ecgTimingResolve;
   global.ECGDSP.parseDeviceRR = parseDeviceRR;
   global.ECGDSP.parseDeviceHR = parseDeviceHR;
   global.ECGDSP.parseDeviceACC = parseDeviceACC;
