@@ -31,6 +31,29 @@ defect) are one finding, as are the two HRVDex `DexUnits` threshold entries (d_c
 
 #### F1 · CRITICAL — mis-states surfaced numbers AND fabricates absence · `ecgdex-dsp.js:4352` (parseECG gap walk) + `ecgdex-dsp.js:4615` (coverage/export)
 
+> ✅ **FIXED 2026-09-01 (Magpie), same day.** Per the punch-list: the gap walk now parses the seam's
+> phone stamps at candidates (device excess > 60 s over the phone delta ⇒ RE-ANCHOR, never a
+> dropout duration; the honest gap = the phone delta when it clears the normal threshold; the ns
+> chain re-anchors at the same seam; an over-24 h step with unparseable stamps re-anchors with
+> `phoneDeltaMs:null` and NO gap entry), and `clockResyncs` travels rec → analyze reshape →
+> `recording.clockResyncs` (attach-only-when-present). Measured on all three poisoned nights:
+> 08-27 gap 2.42e11 → 86,398 ms with hostAxis flipping from the −999988 ppm refusal to
+> ok/applied/independent; 08-23 → 86 s; 08-26 → 57 s; clean control untouched. 19 committed-twin
+> assertions pin the class incl. the real-dropout control (both clocks tick through a dropout —
+> the discriminator stays silent). **Found by the refold, not the audit — ONE DEVICE CLOCK PER AXIS:**
+> the pre-sync rows' host−device residual is a different oscillator state (08-27: +1508 ms over
+> 9.5 s ≈ 160,000 ppm; 08-23 −10,495 ppm; 08-26 +506 ppm, vs ±20 after) and hostAxis, measuring
+> from its FIRST anchor, quoted it into `fs` (485 ppm — `trio-batch` refused to merge the 08-27 seam
+> file with its sibling, 129.968 vs 129.903). Pre-resync anchors are now dropped before the spine
+> (`hostAxis.anchorsDroppedPreResync`) and the seam offset is a NUMBER (`clockResyncs[].hostOffsetMs`);
+> `mergeEcg` re-bases and carries `clockResyncs` so the two multi-fragment nights surface it too.
+> 8 + 1 more assertions; the skew case verified to FAIL with the drop disabled (−17,086 ppm quoted,
+> under the ±50,000 refusal). Refolded: coveragePct 0 → 97.7 / 99.6 / 97.2, coverage span 2.41e8 s →
+> 18,895 / 31,592 / 25,925 s, events back in 2026. The three trio exports refolded in the same change. The
+> capture-side hardening (rotate the file set on `clock_watchdog` step) remains a SEPARATE unit,
+> as specified. The sibling `_ACC.txt` step (MotionDex/PMDARRIVAL inheritance) is NOT covered by
+> this fix and stays open under this finding.
+
 **Symptom.** A mid-recording H10 clock resync (the strap's 2019-01-01 default epoch adopting real time when a
 sync lands seconds into the night: device-ns column steps **+241,586,765 s** between consecutive rows while
 the phone column advances 86 s) is read as a BLE dropout of 241 billion ms. Three committed corpus exports

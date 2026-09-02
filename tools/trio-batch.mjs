@@ -1752,6 +1752,7 @@ for (const p of work) {
     const out = new Int16Array(n);
     const gaps = [];
     const overlaps = [];
+    const clockResyncs = [];
     let idx = 0,
       prevEndMs = null;
     for (const r of recs) {
@@ -1780,6 +1781,12 @@ for (const p of work) {
         else if (d < 0) overlaps.push({ idx, ms: d });
       }
       for (const g of r.gaps || []) gaps.push({ idx: g.idx + idx, ms: g.ms });
+      /* A mid-file clock resync (DEEP-AUDIT-VI F1) is a property of the NIGHT, not of the fragment it
+         happened in — two of the three poisoned nights (08-23, 08-27) are multi-fragment, and without
+         this line their folded exports carried no `recording.clockResyncs` while the single-fragment
+         08-26 did. `idx` re-bases onto the merged sample index; `atRelMs` onto the merged relative
+         axis via the fragment's wall-clock start, the same axis `gaps[].idx` above lands on. */
+      for (const c of r.clockResyncs || []) clockResyncs.push({ ...c, idx: c.idx + idx, atRelMs: c.atRelMs + (r.t0Ms - recs[0].t0Ms) });
       out.set(r.int16, idx);
       idx += r.int16.length;
       prevEndMs = r.t0Ms + (r.int16.length / fs) * 1000;
@@ -1793,6 +1800,7 @@ for (const p of work) {
       fs,
       gaps,
       overlaps,
+      clockResyncs,
       t0Ms: recs[0].t0Ms,
       offsetMin: recs[0].offsetMin,
       source: 'file',

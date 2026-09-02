@@ -58,9 +58,9 @@
   ],
   "datTimefit": {
     "converged": false,
-    "attempts": 2,
+    "attempts": 1,
     "reason": "no candidate .dat/_SPO2.csv pair produced a converged fit",
-    "dats": 2,
+    "dats": 1,
     "csvs": 1
   }
 }
