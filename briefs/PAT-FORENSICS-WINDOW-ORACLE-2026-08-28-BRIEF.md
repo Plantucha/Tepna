@@ -117,6 +117,27 @@ accepted lags of 8 nights, with a shuffle control:
 > unreproducible from committed code before this change, under some earlier state. **The SHAPE column
 > and every verdict are unchanged — the §6/§6b conclusions stand.** What was wrong is the sample they
 > were computed on, not what they concluded.
+> ### Manifest for the table above — recorded so the next reader need not re-derive it
+>
+> | | |
+> |---|---|
+> | commit | `40474646` plus this PR's picker single-sourcing |
+> | corpus root | `/srv/data/tepna-corpus/smoketest-captures` (48 night directories) |
+> | invocation | `node tools/pat-residual-structure.mjs --dir /srv/data/tepna-corpus/smoketest-captures` |
+> | night selection | the 8 nights §6 originally scored, carried forward verbatim — NOT re-selected, so the rows stay comparable to the published ones |
+> | full run | 43 nights scored under this commit; the 8 below are the §6 subset |
+>
+> ⚠️ **The OLD table's numbers were never attributable and these are** — that is the whole point of the
+> block above. The previous version named no commit, no corpus root, no invocation and no selection
+> rule, which is why `2026-07-18` could sit in it unreproducible from committed code for weeks without
+> anyone being able to tell whether the cohort or the code had moved (logged as **R10**). Anyone who
+> cannot reproduce the rows below can now settle that in one command.
+>
+> **These eight rows are UNCHANGED by this PR's picker fix**, which is itself evidence rather than a
+> non-event: the picker change moved the corpus from 29 scored nights to **43** (14 gained, none lost)
+> and altered only 2 beat counts and **zero verdicts** among the nights already scored — none of them
+> in §6. So the table is now stable across two independent fixes, having been unreproducible before
+> either.
 
 
 **8 of 8 DRIFT-LIKE.** Shuffles collapse to ≈ 0 on every night, so the statistic is measuring temporal
