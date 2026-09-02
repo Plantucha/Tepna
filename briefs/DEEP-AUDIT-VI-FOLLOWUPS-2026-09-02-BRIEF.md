@@ -497,8 +497,47 @@ the box is otherwise idle, cross-session load is refuted too.
 `mutation-crawl` (4.10 s) is the second-most likely to time out and should eventually appear; **if a
 ≤0.30 s tool ever times out, the CPU-demand account is refuted** and something else is at work.
 
-**The timeout is NOT the defect and is not tuned.** The defect is unbounded concurrency over 81 child
-processes; a pool fixes the class rather than this tool. Left for its own unit.
+**The timeout is NOT the defect and is not tuned.**
+
+⚠️ **AND NEITHER IS UNBOUNDED CONCURRENCY — this paragraph used to say it was.** It read *"the defect is
+unbounded concurrency over 81 child processes; a pool fixes the class"*, and a bounded pool was written.
+It was **not shipped**, because the uncensored measurement above says the constraint was never binding:
+6.3 s under deliberately-induced load against a 120 s timeout. Shipping the pool would have been a fix
+for a mechanism the evidence had already refuted — the third such mechanism in this section, and the
+only one that would have been written into code where it reads as a settled diagnosis rather than a
+guess. What shipped instead (#2093) is the INSTRUMENT: per-tool wall time, and `os.loadavg()[0]` at
+sweep start and at each kill, which is what makes the surviving cross-session account falsifiable from
+inside a single session at all.
+
+#### FIRST OBSERVATION FROM THE INSTRUMENT — 2026-09-02, and it discriminates
+
+The instrument fired on its first real failure, during an unrelated full-gate run:
+
+```
+  load average at sweep start: 18.75 (24 cores)
+  ✗ tools/dsp-review-qwen.mjs  FAILED  — TIMED OUT after 120s (killed, SIGTERM)  [120.1 s]  [load 23.45 at the kill, 18.75 at start]
+```
+
+Three numbers, and each one does work the earlier reports could not:
+
+- **18.75 at sweep start.** The box was already loaded *before this session's sweep began*, so the sweep
+  did not cause the load it died under. That is the signature the cross-session account predicts and the
+  one no amount of reasoning from inside a single session could previously supply.
+- **23.45 at the kill**, i.e. not a low-load kill — so the account is **not refuted**. The pre-registered
+  refutation (a kill while the box is otherwise idle) did not occur.
+- **21 ok, 0 failed on an immediate standalone re-run at load 24.38.** The tool is not broken. Note this
+  cuts against a naive "load causes it" reading too: it passed at *higher* load when it was the only
+  thing running, which is why the account is about CONTENTION, not about the load number itself.
+
+The tool that died is `dsp-review-qwen` — **the most expensive of the 81 at 3.6 s**, exactly as the
+CPU-demand account predicts. A kill of a ≤0.30 s tool would have refuted it outright.
+
+**This is ONE observation and is recorded as one.** It is consistent with the account and does not
+establish it; a single instance cannot separate cross-session load from any other cause that correlates
+with a busy box. The standing predictions are unchanged: `mutation-crawl` (4.10 s) should be the next to
+appear, a ≤0.30 s tool timing out refutes CPU demand, and a kill on an idle box refutes cross-session
+load. The value of the instrument is that each future kill now arrives with the evidence attached
+instead of as a bare timeout.
 
 **§4b's family:** 
 a report that shows the part matching its expectations and silently drops the rest.
