@@ -60,6 +60,20 @@ CONSUMERS = ("webmon.py", "alerts.py", "nightqc.py", "timeline.py", "telemetry.p
 # Known-intentional, with the reason. Anything here is reported as ALLOWED rather than silently dropped:
 # a suppression you cannot see is how the next real finding gets hidden behind a stale entry.
 ALLOW_KEYS = {
+    # ── Found 2026-09-02, the first run after `_comments_only` stopped counting prose as a consumer.
+    #    Both are REAL orphans, not intentional publications, and they are listed here to keep the
+    #    gate green-because-explained rather than green-because-blind while they are routed. Each
+    #    names what retires it; if that condition is met and the entry stays, the stale-suppression
+    #    scan below will say so.
+    "autopull": "ORPHAN, not intentional (2026-09-02). capture.py publishes {last,new,trigger} and "
+                "`trigger` is the only runtime evidence that the doff/presence auto-pull ever fired, "
+                "but /api/state does not forward it and nothing reads it — monitor.html names this "
+                "exact field as a past instance of the class in a COMMENT, which is what masked it "
+                "from this scan until now. RETIRES when webmon forwards it beside `radio_switches` "
+                "or the key is deleted.",
+    "updated": "ORPHAN, not intentional (2026-09-02). Written on every status publish; no reader "
+               "anywhere — status_union.instance_health deliberately ages heartbeat_ms instead. "
+               "RETIRES when the key is deleted or given a reader.",
     "oxy_lifecycle": "published to STATUS by the G4 lifecycle wiring (run_oxyii emits the acquisition "
                      "state) for /api/state inspection — the charter's STATUS half; the webmon-forward "
                      "+ monitor lifecycle indicator is a tracked follow-up, same pattern the "
@@ -309,6 +323,40 @@ def _code_only(path: str) -> str:
         return src                               # see the docstring: fail toward OVER-counting uses
 
 
+def _comments_only(path: str) -> str:
+    """A file's text with COMMENTS removed and STRING LITERALS KEPT. For the CONSUMER corpus.
+
+    🔴 WHY THIS IS NOT `_code_only`. The sibling above strips comments *and* string literals, which is
+    right for the FUNCTION scan (a call is an identifier) and catastrophic for the KEY scan: a status
+    key reaches its consumer AS A STRING — `status.get("radio_distress")` — so stripping literals makes
+    every such key read as unwired. Measured 2026-09-02 before writing this: running `_code_only` over
+    `webmon.py` removes `"radio_distress"` and `"host_clock"`, both live consumers. Using it here would
+    have converted a gate that was blind to one defect into a gate that fabricates dozens.
+
+    What the consumer corpus actually needs removed is PROSE. The defect this fixes: the corpus was raw
+    text, so `\bautopull\b` matched a COMMENT in `monitor.html` — a comment whose content is the
+    observation that `STATUS["autopull"]` reaches nobody. The gate's own evidence of the defect was
+    what suppressed the finding.
+
+    ⚠️ `//` is stripped only at the START of a line (after optional whitespace). Mid-line it is far more
+    often a URL than a comment, and this file's doctrine is to fail toward OVER-counting uses: a missed
+    strip costs a missed orphan, a wrong strip invents one."""
+    try:
+        src = open(path, encoding="utf-8", errors="replace").read()
+    except OSError:      # pragma: no cover - unreadable file; contributes nothing either way
+        return ""
+    if path.endswith(".py"):
+        try:
+            return " ".join(t.string for t in tokenize.generate_tokens(io.StringIO(src).readline)
+                            if t.type != tokenize.COMMENT)
+        except (tokenize.TokenError, IndentationError, SyntaxError):
+            return src                           # fail toward over-counting uses, as `_code_only` does
+    src = re.sub(r"<!--.*?-->", " ", src, flags=re.S)      # HTML
+    src = re.sub(r"/\*.*?\*/", " ", src, flags=re.S)       # JS/CSS block
+    src = re.sub(r"(?m)^[ \t]*//.*$", " ", src)            # JS line comment, line-initial only
+    return src
+
+
 def status_keys(src: str) -> set[str]:
     """Every key published through `_set(name, key=…)`, taken from the AST.
 
@@ -452,7 +500,10 @@ def scan(root: "str | None" = None) -> dict:
     for name in CONSUMERS:
         p = os.path.join(root, name)
         if os.path.exists(p):
-            consumers += open(p, encoding="utf-8").read()
+            # COMMENTS OUT, STRINGS IN — see `_comments_only`. Raw text here meant a key named in prose
+            # counted as a key that reached a consumer, and the prose that did it was a comment saying
+            # the field reached nobody.
+            consumers += _comments_only(p)
 
     pop_keys = set()
     pop_top_keys = set()
