@@ -43,7 +43,7 @@
     "pseudo:check": "node tools/extreme-mutate.mjs --baseline --file",
     "pseudo:baseline": "node tools/extreme-mutate.mjs --write-baseline --file",
     "verify:commit-shape": "node tools/commit-shape.mjs",
-    "verify:residue-ids": "node tools/residue-ids.mjs"
+    "verify:residue-ids": "node tools/residue-ids.mjs --base origin/main"
   },
   "engines": {
     "node": ">=18"
