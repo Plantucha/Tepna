@@ -32,6 +32,7 @@ nothing, found only because someone tried to make a fix land.
 | 1.8 | **F3 / F10** | The PpgDex `cvhrFromNN` port (#2073) changes the **denominator** only. The OxyDex §2.6 group's standing note *"PPGDEX cvhrFromNN IS DELIBERATELY NOT PART OF THIS FIX"* governs **nulling `index: 0`** (the refusal marker two goldens pin byte-for-byte) and is UNCHANGED: 0 still means what it meant. Recorded so a third session does not read the port as a violation of that note, or the note as a bar on the port. | — (record only) |
 | 1.9 | **new (from 1.5)** | ~~`detectBreaths().breathRate` divides by WALL duration~~ — **FIXED 2026-09-02 (Osprey).** Now `breaths / mask-on seconds`, matching every sibling ventilation figure beside it (`rrMaskOn`, `tvMaskOn`, `mvMaskOn`, `snMaskOn`, `flMaskOn`), numerator gated too — breaths "detected" while the mask is off are noise crossings, and counting them against a smaller denominator would over-correct. The measured window is surfaced beside the rate as `breathMaskOnSec` (CLAUDE.md §7's ppm rule generalised: never quote a rate without the window it was measured over), and a set with no pressure lane REFUSES with a reason rather than dividing by the recording length. ⚠️ **Two sites and a third object.** `breathRate` is computed per-session (~1180) AND pooled at night level (~1441), both dividing by wall; the export reads the NIGHT one, so fixing only the per-session site changed nothing observable. The night aggregator reads `s._pool`, a lightweight object SEPARATE from `metrics`, so the denominator had to travel there too — until it did, the twin returned `null` with `maskOnSec 0`. Half-wired twice in one unit; enumerating every reader of `breathRate` (dsp ×2 · registry · render tile · fusion row) is what ended it. **Committed twin `cpapdex_maskoff_twin_{BRP,PLD}.edf`** (`tools/gen-maskoff-twin.mjs`): 20 min recorded, mask on for the first 10, ~150 breaths in the on-half. Pre-fix **7.5** br/min, fixed **15.0**; mutation-checked — restoring the wall denominator reds 4 of the group's 5 assertions. **The real corpus is silent, and that is now measured rather than claimed:** mask-on was 1.000 on all 24 nights §1.5 folded, and across every committed CPAP golden the fix moves exactly ONE rate — 16.8 → 16.9 on the synthetic EDF golden, a rounding shift on a ~full-mask-on record — everything else purely additive. | Osprey — **DONE** |
 | 1.10 | **new (from 1.5)** | ~~`respFromEDR` substitutes a hardcoded `15`~~ — **FIXED 2026-09-02 (Osprey): it REFUSES now.** The value was worse than one unmarked substitution, it was two stacked: no dominant EDR period ⇒ echo the Lomb `respHint`; hint out of range ⇒ the constant **15**. The first is self-contradictory — the method's own comment says the rate is measured *"not echoed from the Lomb hint"*, so its stated independence held only on the nights it succeeded. Now: `respFromEDR = null` plus `respFromEDRReason`, carried into the export and rendered as **"no estimate"** on both app surfaces (the pill used to print `null br/min`). `f0` deliberately keeps its 0.25 Hz analysis centre so `crcPLV`/`couplingStrength` are untouched — nulling it would silently move a different metric inside a unit about the breath rate; whether a PLV computed at an ASSUMED centre is quotable is filed as **§1.11**, not answered here. **Committed twin required and built (§2.1):** no committed input took the branch — the clean twin carries 0.25 Hz baseline wander and its rich golden pins 16.3 — so `synthetic_ecgdex_flat_edr.txt` is the clean twin's morphology with the periodic drivers removed AND beats quantised to exact sample boundaries. Pre-fix code returns **11.1** on it (the hint echo), current code returns null. ⚠️ Two constructions FAILED to reach the branch and are recorded so nobody retries them: broadband noise gave a 19.9 br/min "period" (band-passed noise autocorrelates above the 0.1 floor) and a noiseless un-quantised train gave 7.4 (sub-sample phase jitter modulates the sampled R amplitude). A real clip from 2026-07-02 was staged and then REJECTED: real ECG recordings are not committed here (only synthetic are; the equiv leg's clip is gitignored). 🔴 **And this CORRECTS §1.5's own figures.** §1.5 excluded both nights whose rate was exactly 15.0 as fallbacks, detecting them by `=== 15.0` — the test it flagged as unable to separate a real 15.0 from the constant. Run against the fixed code: **2026-07-02 genuinely refuses; 2026-07-06 MEASURES 15.0.** So n = 22 → **23**, MAE 1.90 → **1.82**, LoA width 9.58 → **9.41**, constant-15 control 0.80 → **0.77**. Both bands still fail and the constant still beats the estimator: the re-tier verdict is unchanged, the registry stamp is corrected in this PR. | Osprey — **DONE** |
+| 1.11 | **new (from 1.10)** | **`crcPLV` at an ASSUMED 0.25 Hz centre — MEASURED 2026-09-02 (Osprey): QUOTABLE. No code change, by assignment; the number goes to the owner before any fix is proposed.** §1.10 left `f0` falling back to 0.25 Hz rather than nulling it, which is honest only if the resulting PLV is still worth quoting. Pre-registered band (frozen before the first number, `s1.11-prestatement.md`): per-night `shift = max−min` of `crcPLV` over the sweep ∪ the night's own default centre; across nights `SD_night` = SD of `crcPLV` at the default. **shift > SD_night ⇒ not quotable; ≤ ⇒ quotable.** **Result, n = 24, sweep 9–24 br/min (0.150–0.400 Hz) at 3 br/min steps:** `SD_night` **0.0387**, median per-night shift **0.0060** (**15.5 %** of `SD_night`), max shift **0.0100** (25.9 %). The assumed centre costs about a sixth of the spread the metric already carries between nights, so §1.10's deferral **stands** and `crcPLV` may be quoted at the default centre. **The pre-registered trap did not fire:** a uniformly-floored statistic would be stable for the trivial reason that it cannot move (`defined-is-not-informative`), so nights with default PLV < 0.05 were to be reported separately — there are **zero**; the range is **0.182–0.326**. Stable here means insensitive, not empty. **Paired per-night, `default/shift@centre` (`ref` = `respFromEDR` refuses, so the centre IS 0.25 Hz):** 06-06 0.229/0.007@17.8; 06-07 0.240/0.007@ref; 06-10 0.185/0.009@7.4; 06-11 0.188/0.005@ref; 06-12 0.187/0.005@14.7; 06-14 0.236/0.008@ref; 06-15 0.199/0.006@ref; 06-17 0.196/0.006@ref; 06-20 0.182/0.005@ref; 06-24 0.235/0.006@17.3; 06-25 0.194/0.005@15.5; 06-27 0.206/0.005@ref; 06-28 0.219/0.005@ref; 06-29 0.285/0.006@ref; 06-30 0.249/0.008@ref; 07-01 0.231/0.006@16.9; 07-02 0.223/0.006@ref; 07-04 0.199/0.005@15.6; 07-06 0.252/0.007@15; 07-07 0.195/0.005@ref; 07-08 0.224/0.006@10.5; 07-09 0.323/0.010@17.2; 07-12 0.326/0.009@ref; 07-13 0.223/0.007@20. ⚠️ **How the sweep was driven, and why that is not a code change:** no centre override exists — `f0` is a local `const` in `cardiorespCoupling` (`ecgdex-dsp.js`) and neither `compute` nor `analyze` takes one. The sweep patches the DSP **text in memory** inside the harness's vm realm (the same technique §1.9/§1.10's plant-checks used to run `origin/main`'s DSP beside the working one); the shipped file is untouched and this unit ships no code. Recorded in the pre-statement as an amendment **before** any PLV was computed, so it cannot later read as if the tool had supported a sweep all along. ✅ **The harness was verified against a known answer before the result was read** (`verify-the-plant-was-seen`): on the **13** nights where `respFromEDR` refuses, the default centre *is* 0.25 Hz = 15 br/min, so `defaultPLV` must equal the sweep point at 15 exactly — **13 of 13 match to 1e−9**, and the nights whose measured rate is far from 15 (06-10 at 7.4) differ by the most. Without that check a patch that silently failed to bind would have produced a flat sweep and the same QUOTABLE verdict for the opposite reason. **Residue:** one night (06-10) has a measured centre of 7.4 br/min, **below** the swept floor of 9; its shift (0.009) is computed against its own default and is already among the largest three, so widening the floor moves nothing. | Osprey — **DONE** |
 
 ---
 
@@ -592,6 +593,13 @@ legs are anti-vacuity legs: each was run against the unfixed hook first and had 
 draft leg passed against the unfixed hook (its `cd /tmp` resolved a non-repo, so the guard failed
 open and proved nothing) — that is the §2.1 shape again, in a test I had just written.
 
+⚠️ **Numbering note (Osprey, 2026-09-02).** Two sessions numbering into one `### 3.N` list produce **no
+hunk conflict** — the sections land in different places in the file, git merges both, and the brief ends
+up with two §3.6 and two §3.7. That is the §📌 stale-brief shape with the conflict-free signature, one
+level down from a whole-section overwrite. **Before claiming a §N, `git log` the brief for rows added
+upstream since your merge-base** — the hook checks the file, not the number you are about to reuse. Mine
+were renumbered to §3.8/§3.9 after the fact, which is why this list is not in numeric order.
+
 ### 3.9 A green `run-tests` says NOTHING about the stamping lap when a unit ADDS a committed input
 The two read DIFFERENT corpus roots. `tests/run-tests.mjs` resolves `uploads/` inside the checkout it runs in — your
 worktree — while `tools/verify-fixtures.mjs` resolves `$DEX_UPLOADS` → the **PRIMARY checkout** → this checkout
@@ -620,6 +628,37 @@ A DIFFERENT check from §1.10's, which was about my own edits moving the closure
 **Lead, not built:** `rebase-safe` auto-resolves `provenance/**` as generated and rebuilds, but `build.mjs` cannot write
 `verifiedUnder` — so the rebuild silently leaves a stamp it did not earn. It should PRINT
 `provenance/<Node>.json was in the conflict set → verify-fixtures owed on this tree` whenever a fragment overlapped.
+
+### 3.10 The browser lane is not locally runnable the way CI runs it — ONE fact, and TWO still-open failures
+**The verified fact.** `node tests/browser-gates.mjs` **starts no HTTP server** (0 hits for
+`createServer`/`listen`). CI does, in the workflow step immediately before it
+(`python3 -m http.server 8080 --bind 127.0.0.1 &`), so the tool is correct in CI and simply cannot load a
+page locally. **Serve the directory yourself before running the lane locally.**
+
+⚠️ **Kestrel's port-contention hypothesis is REFUTED, and stating that is the point.** Several sessions
+run gates at once, so contention was plausible and would have sent me hunting a peer's process. Nothing
+in the tool listens, so there is nothing to contend for. A contention hypothesis and a no-server fact
+predict the same silence; only reading the source separates them.
+
+🔴 **But the no-server fact does NOT explain what was actually observed, and an earlier draft of this
+section said it did.** Two corrections, both from re-reading the logs after Kestrel pushed back:
+
+1. **The captured failures never reach navigation.** Both surviving logs die at
+   `browserContext.newPage: Target page, context or browser has been closed` — `browser-gates.mjs:36`,
+   which is **before** the `page.goto` at line 46. The browser was gone by the time a page was requested,
+   so a missing server is not what these runs hit. Candidates, none yet distinguished: a peer's
+   pattern-kill (§3.5's live hazard), an OOM (this box OOMs under refolds), or a Chromium launch failure
+   of the `/dev/shm` class the file's own line-30 comment already warns about.
+2. **83 minutes is not a shape any of this predicts.** `page.goto` carries `timeout: 60000`, so a
+   serverless run should reject inside a minute with a non-zero exit — not sit silently for over an hour.
+   A short log ending mid-`run_main` trace says the process **died while writing its trace**, not that it
+   waited. The duration remains **OPEN**.
+
+**The lesson is not "I was wrong about the server" — that fact is verified and stands.** It is that I
+attached a verified fact to a symptom it does not account for, and the section then read as closed. A
+true premise and an unexplained observation can sit in one paragraph and look like an explanation; the
+check is whether the premise **predicts the observed shape** (here: an error exit in 60 s, versus 83
+minutes of silence), not merely whether it is true.
 
 ### 3.5 Kill only what you own; a pattern is not a name (Osprey / Kestrel, 2026-08-31 → 09-01)
 A pattern kill hit a PEER's gate unit; a clearing sweep globbed `*check*.log` while the evidence sat in
@@ -804,6 +843,82 @@ reported.
 **Owed, as its own PR (not done here):** λ should use `1 − e^(−rate·win)` rather than the linear
 over-approximation, and the residual competition effect should be modelled or stated. Both change a
 reportability gate and must carry their own fixture lap.
+
+### 4.2b The λ fix — SHIPPED 2026-09-02 (Magpie). And the σ=75 s "confirmation" that was not one
+
+§4.2 measured the defect; this is the fix, and the road to it is worth more than the patch.
+
+**What shipped.** The chance-null is now circular-shift surrogates of the real surge train, scored
+through `_matchDesatsToSurges` — the SAME function that produces the published `nConf`. A null that
+models a different statistic than the one published is the original defect; sharing the function makes
+that mismatch impossible by construction rather than by review. Shifts are EventCoupling's fixed
+prime-second set (`shiftsForAlpha(0.05)` → B = 80), so there is **no PRNG and no seed** and identical
+inputs reproduce identical bytes. The shift happens in **covered-time coordinates**, so no surrogate is
+placed in a recording gap where nothing was observing. The analytic λ rides along as
+`expectedConfirmedAnalytic`, now with the exact `1 − e^(−rate·win)` term.
+
+| | published under the code's own homogeneous null |
+|---|---|
+| shipped before | 0.95 % |
+| after | **4.85 %** (attainable size 4.94 %, CI [3.99, 5.89]) |
+
+Controls both fire through the same path: a planted perfect coupling reaches the floor exactly
+(p = 1/81 = 0.0123), 300 planted null nights average p = 0.565. Cost 58 ms/night at B = 80.
+
+🔴 **A "confirmation" that was not one — the finding worth carrying forward.** The σ = 75 s row came in
+anti-conservative (6.71 %, replicated at 6.75 %). Three causes were proposed and the first two were
+wrong. I attributed it to missing coverage handling — impossible, since the simulation was gapless, so
+coverage could not move that number. The coordinator attributed it to the wrap boundary splitting
+clusters, and I built ARM B (buffered, no wrap) which returned 4.35 %, inside the CI. **ARM B was
+confounded and was reported as a confirmation.** It removed the wrap *and* my generator's edge-clipping
+of cluster offspring in one step, so it could not attribute anything to either. The 2×2 that settles it,
+σ = 75 s, N = 2000:
+
+| generator | circular wrap | drop-at-edge |
+|---|---|---|
+| offspring **clipped** at the span edge (the simulation's) | 6.75 % | 6.75 % |
+| **padded**, observed on the interior (physical) | **3.00 %** | 4.35 % |
+
+ARM C decides it: same generator, wrap → drop, and the number does not move at all. **The seam was
+never the cause.** The cause was the simulation — clipping cluster offspring at `[0, SPAN)` depletes the
+observed train's edges while surrogates shift interior clusters into them. A real recording does not
+clip a physiological process; it truncates an ongoing one. The realistic configuration is therefore
+padded-generator + wrap = **3.00 %: conservative, the safe direction**, against 0.00 % for the closed
+form under the same clustering.
+
+The general lesson is not about apnea. **A control that changes two things cannot attribute either**,
+and it is most dangerous when it returns the expected answer — which is when it gets reported as a
+confirmation and stops the investigation. The arm that settled this (ARM C) is the one that changed
+exactly one thing and returned *no* difference.
+
+**Two limitations, measured, neither fixed**, both written into the code comment that replaces the old
+`:1961` note: (1) under real clustering the test is mildly conservative (3.00 % vs 4.94 % attainable);
+(2) a circular shift destroys structure SHARED between the streams, so under a shared slow modulation —
+a REM-dense hour dense in both — it is anti-conservative. The old homogeneous λ had the same blind spot,
+so (2) is not a regression, but it is the assumption the next auditor should attack first.
+
+**Real nights, paired and keyed.** 52 nights from the corpus root produced an apnea fusion (9 more had
+no overlapping desat+cardiac pair and are excluded): **published before 0, published after 1, one flip,
+none in the reverse direction.** The flip is 2026-07-04 — 16 desats, 55 surges, 4 confirmations, where
+the analytic λ read 2.33 against a surrogate mean of 0.88, so p went 0.207 → 0.012 and an AHI of 0.51
+that was withheld is now published. That single night is the user-facing direction of this change.
+
+**Why that night's λ was 2.6× the surrogate mean — measured, because a gap that large beside a
+withheld→published AHI cannot stand unexplained.** The first hypothesis was coverage: that the closed
+form integrates chance over a span the recording never covered. **Refuted** — 2026-07-04 reads
+`recordedFrac: 1, segments: 1`, a single unbroken segment with no uncovered span to integrate over.
+The cause is clustering, and it is countable: **64 of that night's 95 five-minute bins contain no surge
+at all**, with all 56 packed into the other 31 (Fano 1.37, CV 1.31 — at the corpus median, so a typical
+night rather than an outlier). The analytic λ spreads those surges uniformly at 7.1/h and hands every
+desat a 13 % coincidence chance, *including* the desats sitting in the surge-free two-thirds of the
+night; the surrogates keep the real bursts, so a desat in an empty bin has no chance at all. This makes
+the flip more credible rather than less: 4 confirmations occurred despite most of the night carrying no
+surges, which is exactly what a null preserving that structure scores as improbable.
+
+⚠️ **Zero fixtures moved, and that is silence by construction, not evidence.** `regen-integrator-goldens`
+reports 0 moved because the only code-gated Integrator fixture is a *consensus* export with no
+`apneaNullModel` — it cannot exercise this path at all. §4.3 is why. The executed evidence for this
+change is the 52-night corpus run and the 13-assertion gate group, not the fixture ledger.
 
 ### 4.3 The Integrator's code-gated real-data surface is ONE fixture
 
