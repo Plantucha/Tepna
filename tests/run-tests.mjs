@@ -927,6 +927,9 @@ function readEquiv() {
   // DEEP-AUDIT-VI F6 — the Clarity COLUMN-PICK twin: a serial Index counter + "Low" cells. One Low
   // cell used to flip the glucose pick to the Index column (headline metrics on ROW NUMBERS).
   pairCommitted('glucodex_clarity_low', 'synthetic_glucodex_clarity_low.csv', 'synthetic_glucodex_clarity_low_golden.node-export.json');
+  // FOLLOWUPS §1.10 — the DEGENERATE-EDR twin: input only, no golden. Its job is an INVARIANT (a
+  // rate that cannot be measured is refused, never substituted), not a byte pin.
+  pairCommitted('ecgdex_flat_edr', 'synthetic_ecgdex_flat_edr.txt', null);
 
   // ── CPAPDex BINARY-EDF equivalence leg (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P2) ──────────────
   // The fleet's FIRST equiv input that is actually COMMITTED — and therefore the first one whose
