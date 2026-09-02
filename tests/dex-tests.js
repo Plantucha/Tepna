@@ -22908,6 +22908,83 @@
       T.eq('session-level · pbObserved true when the lane is present', ((sScored && sScored.metrics) || {}).pbObserved, true);
     });
 
+    /* ════ DEEP-AUDIT-VI F8 — a set with no PLD file is not a 0.000 h night ════════════════════
+       `buildSessionFromEdf` read the therapy CLOCK from PLD || BRP || SA2 but every pressure-derived
+       number from PLD alone, so a set that lost its PLD (the grouping note records real nights that
+       did) published `usageHours 0.000` — a measured-looking zero on the session table, in the node
+       export, and under every event index — with `maskOnLatency NaN`, while the same set's BRP
+       `Press.40ms` carried the whole mask-on trace (real night 20260613_045505: full set 0.683 h, PLD
+       removed 0.000 h, BRP mask-on fraction 1.000). Three states are asserted, because a fix that
+       nulled the fallback case too would discard a real measurement, and one that let the BRP MASK
+       pressure stand in for PLD's SET pressure would relabel a different quantity (4.57 vs 6.71 cmH₂O
+       on that night). ════ */
+    group('CPAPDex F8 — usage falls back to the BRP mask-on trace, and is null (not 0) with no lane at all', 'cpapdex-dsp · fabricated-zero · regression', function (T) {
+      var D = env.CpapDsp;
+      if (!D || typeof D.buildSessionFromEdf !== 'function' || typeof D._synthEdfSet !== 'function' || typeof D.buildNight !== 'function') {
+        T.ok('env.CpapDsp buildSessionFromEdf + _synthEdfSet + buildNight available', false, 'not wired');
+        return;
+      }
+      var near = function (a, b, tol) {
+        return typeof a === 'number' && Math.abs(a - b) <= tol;
+      };
+      var full = D._synthEdfSet({});
+      var brpOnly = D._synthEdfSet({});
+      delete brpOnly.PLD; // the PLD file never arrived; BRP + EVE + CSL + SA2 still did
+      var noLane = D._synthEdfSet({});
+      delete noLane.PLD;
+      delete noLane.BRP.signals['Press.40ms']; // BRP present (it is still the clock) but carries no pressure
+
+      var sFull = D.buildSessionFromEdf(full, {}),
+        sBrp = D.buildSessionFromEdf(brpOnly, {}),
+        sNone = D.buildSessionFromEdf(noLane, {});
+      var mFull = (sFull && sFull.metrics) || {},
+        mBrp = (sBrp && sBrp.metrics) || {},
+        mNone = (sNone && sNone.metrics) || {};
+
+      // THE FIXTURE: the synthetic set is 600 s fully mask-on on BOTH lanes, so the two must agree.
+      T.ok('control — the full set measures ≈ 0.167 h from PLD', near(mFull.usageHours, 600 / 3600, 1e-3), 'usageHours=' + mFull.usageHours);
+      T.eq('control — …and carries no pressureSource marker (PLD is the default, unmarked)', mFull.pressureSource, undefined);
+      // THE FALLBACK.
+      T.ok('PLD deleted → usageHours is the SAME 0.167 h, read off the BRP mask-on trace', near(mBrp.usageHours, 600 / 3600, 1e-3), 'usageHours=' + mBrp.usageHours);
+      T.eq('…and says where it came from', mBrp.pressureSource, 'BRP');
+      T.eq('…with no usageReason (this IS a measurement)', mBrp.usageReason, undefined);
+      T.ok('…maskOnLatency is a number, not NaN', typeof mBrp.maskOnLatency === 'number' && isFinite(mBrp.maskOnLatency), 'maskOnLatency=' + mBrp.maskOnLatency);
+      T.ok('…residualAHI keeps its denominator', typeof mBrp.residualAHI === 'number', 'residualAHI=' + mBrp.residualAHI);
+      // The MASK pressure must not impersonate the SET pressure: no pressure statistic is published from BRP.
+      T.ok('BRP mask pressure does NOT stand in for medianPressure (unmeasured, not 10.00)', !(mBrp.medianPressure > 0), 'medianPressure=' + mBrp.medianPressure);
+      T.ok('…nor for p95Pressure', !(mBrp.p95Pressure > 0), 'p95Pressure=' + mBrp.p95Pressure);
+      T.eq('…and the session pool carries no pressure samples', ((sBrp && sBrp._pool && sBrp._pool.pressureMaskOn) || []).length, 0);
+      // THE DEFECT: no lane at all is an ABSENCE, never 0.000.
+      T.eq('no pressure lane anywhere → usageHours is null, not 0.000', mNone.usageHours, null);
+      T.eq('…with a named reason', mNone.usageReason, 'no-pressure-channel');
+      T.eq('…maskOnLatency is null, not NaN', mNone.maskOnLatency, null);
+      T.eq('…and the session-level twin agrees', sNone.usageHours, null);
+
+      // NIGHT pooling: one unknown session makes the night's total a LOWER BOUND, so the night is null too.
+      var nMixed = D.buildNight([sFull, sNone]).metrics || {};
+      T.eq('night with one unknown session → usageHours null (a lower bound is not a usage)', nMixed.usageHours, null);
+      T.eq('…and publishes how many sessions were unknown', nMixed.usageUnknownSessions, 1);
+      T.eq('…with the reason', nMixed.usageReason, 'no-pressure-channel');
+      // The unknown session's EVENTS leave the indices with its hours — counting them over the other
+      // session's 0.167 h read 48/h against the single session's 24/h before this was guarded.
+      T.eq('…while the event indices are the rate over the sessions that WERE measured (24, not 48)', nMixed.residualAHI, mFull.residualAHI);
+      var nBrp = D.buildNight([sFull, sBrp]).metrics || {};
+      T.ok('night of PLD + BRP-fallback sessions sums to ≈ 0.333 h', near(nBrp.usageHours, 1200 / 3600, 1e-3), 'usageHours=' + nBrp.usageHours);
+      T.eq('…with no usageReason', nBrp.usageReason, undefined);
+      T.ok("…and its medianPressure is PLD's 10, undiluted by the BRP session", near(nBrp.medianPressure, 10, 0.2), 'medianPressure=' + nBrp.medianPressure);
+      // A fully-known night is byte-identical to before: no marker keys appear.
+      var nFull = D.buildNight([sFull]).metrics || {};
+      T.ok(
+        'control — a fully-PLD night carries neither usageReason nor usageUnknownSessions',
+        !('usageReason' in nFull) && !('usageUnknownSessions' in nFull),
+        JSON.stringify(
+          Object.keys(nFull).filter(function (k) {
+            return /usage/.test(k);
+          })
+        )
+      );
+    });
+
     /* ════ A bare device-scored "Apnea" TEXT must reach residualAHI (DEEP-AUDIT-2026-07-22 §CPAPDex)
        ResMed AirSense writes a bare "Apnea"/"Apnoea" for an apnea its firmware could not type, and its
        own AHI counts these. `classifyAnnotation` mapped that text to a DISTINCT class 'Apnea', but
