@@ -9654,8 +9654,68 @@
             return String.fromCodePoint(+d);
           })
           .replace(/<[^>]*>/g, '')
+
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&plusmn;/g, '\u00b1')
           .trim();
       };
+
+      /* One card → {ids | exempt | unresolved}. Resolution order: declared `data-id` (must be
+         registry keys) → the node resolver on the whole label → the resolver on each ' / '
+         part of a compound label (any resolving part is checked; "SD1 / SD2" is gated by SD1).
+         Returns counts + lists; the caller asserts. */
+      function scanGuideCards(html, R, REG, decode) {
+        var cards = String(html).split('<div class="mc"').slice(1),
+          out = { matched: 0, exempt: 0, mism: [], unresolved: [], badDeclared: [], unregistered: [], staleUnregistered: [] };
+        cards.forEach(function (c) {
+          var open = c.slice(0, c.indexOf('>') + 1),
+            nm = c.match(/class="ma">([^<]+)</),
+            gm = c.match(/ev-corner ev-(measured|validated|emerging|experimental|heuristic)/);
+          if (!nm || !gm) return;
+          var label = decode(nm[1]),
+            kind = (open.match(/data-kind="([^"]+)"/) || [])[1],
+            declared = (open.match(/data-id="([^"]+)"/) || [])[1];
+          if (kind === 'citation' || kind === 'pipeline') {
+            out.exempt++;
+            return;
+          }
+          if (kind === 'unregistered') {
+            // A surfaced metric the node's registry does not carry: a REGISTRATION DEBT, declared
+            // so it is counted rather than silently un-gated. The moment the registry learns the
+            // label, the declaration is stale — that red is how the debt discharges.
+            var known = R.idForLabel(label);
+            if (known && REG[known]) out.staleUnregistered.push(label + ' → ' + known);
+            else out.unregistered.push(label);
+            return;
+          }
+          var ids = [];
+          if (declared) {
+            declared.split(/\s+/).forEach(function (id) {
+              if (REG[id]) ids.push(id);
+              else out.badDeclared.push(label + ' data-id=' + id);
+            });
+          } else {
+            var whole = R.idForLabel(label);
+            if (whole && REG[whole]) ids.push(whole);
+            else
+              label.split(/\s*\/\s*/).forEach(function (part) {
+                var k = part.trim() ? R.idForLabel(part.trim()) : null;
+                if (k && REG[k] && ids.indexOf(k) < 0) ids.push(k);
+              });
+          }
+          if (!ids.length) {
+            if (!declared) out.unresolved.push(label + ' [' + gm[1] + ']');
+            return;
+          }
+          out.matched++;
+          ids.forEach(function (id) {
+            if (REG[id].evidence !== gm[1]) out.mism.push(label + ' doc=' + gm[1] + ' reg[' + id + ']=' + REG[id].evidence);
+          });
+        });
+        return out;
+      }
 
       T.ok('engine exposes BADGE_CSS', !!engineCss, engineCss ? '' : 'MetricRegistry.BADGE_CSS missing');
       T.ok('dex-badges.css provided', mirrorCss != null);
@@ -9672,9 +9732,54 @@
       // node's engine CSS + own registry. Parameterized so every node guide is
       // gated identically (grade join uses the node's OWN idForLabel resolver).
       var NODES = [
-        { doc: 'OxyDex Reference.html', reg: env.OXY_REGISTRY, resolver: env.OxyRegistry },
-        { doc: 'ECGDex Reference.html', reg: env.ECG_REGISTRY, resolver: env.EcgRegistry },
-        { doc: 'PpgDex Reference.html', reg: env.PPG_REGISTRY, resolver: env.PpgRegistry },
+        {
+          doc: 'OxyDex Reference.html',
+          reg: env.OXY_REGISTRY,
+          resolver: env.OxyRegistry,
+          // Surfaced in the guide, absent from OXY_REGISTRY (DEEP-AUDIT-VI-FOLLOWUPS §2.5 sweep,
+          // 2026-09-02): 35 metrics the DSP exports and the reference grades, with no registry
+          // entry to grade them against. A registration debt, not an exemption — the list may
+          // only SHRINK (register the metric, drop its `data-kind="unregistered"`, remove it here).
+          unregistered: [
+            'BLUNTED AROUSAL Flag',
+            'Breathing Irregularity CV (biCV)',
+            'CS Score',
+            'Circadian HR Amplitude / Nadir Hour',
+            'Clustering Index',
+            'Desaturation Asymmetry',
+            'Dip Slope',
+            'HR Asymmetry',
+            'HR CV',
+            'HR Deceleration Runs',
+            'HR Nadir Timing',
+            'HR Quartile Trend',
+            'IEI',
+            'Intra-Night NSI',
+            'LF / HF Power',
+            'Longest Clean Run',
+            'MODL',
+            'Motion Bursts',
+            'O\u2082-HR Efficiency',
+            'Post-Dip HR Response',
+            'RMSSD Arc',
+            'Recovery CV',
+            'Recovery Slope',
+            'Sleep Pressure Index (SPI)',
+            'SpO\u2082 Autocorrelation lag-1',
+            'SpO\u2082 Ceiling',
+            'SpO\u2082 Nadir Timing',
+            'SpO\u2082 SampEn',
+            'SpO\u2082\u2013HR Decoupling %',
+            'SpO\u2082\u2013HR Lag',
+            'Stable SpO\u2082 Windows',
+            'UARS Score',
+            'Vagal Index',
+            'Worst 10-min SpO\u2082',
+            'Worst 30-min T95'
+          ]
+        },
+        { doc: 'ECGDex Reference.html', reg: env.ECG_REGISTRY, resolver: env.EcgRegistry, unregistered: ['Data Gaps'] },
+        { doc: 'PpgDex Reference.html', reg: env.PPG_REGISTRY, resolver: env.PpgRegistry, unregistered: ['Heading', 'Mag interference'] },
         { doc: 'CPAPDex Reference.html', reg: env.CPAP_REGISTRY, resolver: env.CpapRegistry },
         { doc: 'PulseDex Reference.html', reg: env.PULSE_REGISTRY, resolver: env.PulseRegistry },
         { doc: 'HRVDex Reference.html', reg: env.HRV_REGISTRY, resolver: env.HrvRegistry },
@@ -9706,24 +9811,61 @@
         T.ok(node.doc + ' badge classes are all canonical', bad.length === 0, bad.slice(0, 6).join(', '));
 
         // (b) every reference card the node's OWN resolver maps MUST carry the
-        //     registry's grade. No hand crosswalk.
+        //     registry's grade. No hand crosswalk in the TEST — but a card may DECLARE its
+        //     registry id (`data-id="oxyCrash"`, space-separated for a compound card) or an
+        //     exempt kind (`data-kind="citation|pipeline"` — a literature reference or a
+        //     processing stage carries no metric grade to compare). DEEP-AUDIT-VI-FOLLOWUPS
+        //     §2.5: an UNREGISTERED surfaced label is an UNCHECKED grade — 127 of 414 graded
+        //     cards (96 in OxyDex) resolved to nothing, so their tiers were compared with
+        //     nothing; the ECGDex posture card sat one tier high that way. The rule now:
+        //     every graded card resolves (label · '/'-split parts · declared id) or is
+        //     explicitly exempt; a declared id that is not a registry key is a red, not an
+        //     exemption (a typo must not silently un-gate a card).
         var R = node.resolver,
           REG = node.reg;
         if (R && R.idForLabel && REG) {
-          var cards = String(refHtml).split('<div class="mc"').slice(1),
-            matched = 0,
-            mism = [];
-          cards.forEach(function (c) {
-            var nm = c.match(/class="ma">([^<]+)</),
-              gm = c.match(/ev-corner ev-(measured|validated|emerging|experimental|heuristic)/);
-            if (!nm || !gm) return;
-            var key = R.idForLabel(dec(nm[1]));
-            if (!key || !REG[key]) return;
-            matched++;
-            if (REG[key].evidence !== gm[1]) mism.push(dec(nm[1]) + ' doc=' + gm[1] + ' reg=' + REG[key].evidence);
-          });
-          T.ok(node.doc + '↔registry metrics matched', matched >= 10, matched + ' matched (registry-backed cards)');
-          T.ok(node.doc + '↔registry grades all agree', mism.length === 0, mism.slice(0, 8).join(' · '));
+          var scan = scanGuideCards(refHtml, R, REG, dec);
+          T.ok(node.doc + '↔registry metrics matched', scan.matched >= 10, scan.matched + ' matched (registry-backed cards)');
+          T.ok(node.doc + '↔registry grades all agree', scan.mism.length === 0, scan.mism.slice(0, 8).join(' · '));
+          T.ok(node.doc + ' declared data-id keys all exist in the registry', scan.badDeclared.length === 0, scan.badDeclared.slice(0, 6).join(' · '));
+          T.ok(
+            node.doc + ' every graded card resolves to a registry id or declares an exempt kind (§2.5)',
+            scan.unresolved.length === 0,
+            scan.unresolved.length + ' unresolved: ' + scan.unresolved.slice(0, 8).join(' · ')
+          );
+          // Registration debt is COUNTED, not exempted: the set of `data-kind="unregistered"`
+          // cards must equal the list declared above — a new one reds (register it instead),
+          // and a declaration the registry has since learned reds (drop it; the list shrinks).
+          T.eq(node.doc + ' unregistered-metric cards ≡ the declared registration debt (§2.5)', scan.unregistered.slice().sort(), (node.unregistered || []).slice().sort());
+          T.ok(node.doc + ' no card declares unregistered a label the registry resolves', scan.staleUnregistered.length === 0, scan.staleUnregistered.slice(0, 6).join(' · '));
+          // Control: the scan must SEE an unresolvable graded card (a scan that examines
+          // nothing reports 0 unresolved too). Plant one and require it to be counted.
+          var planted = scanGuideCards(
+            refHtml + '<div class="mc"><div class="mh"><div class="mi"><span class="ma">Zzz Planted Unregistered Metric</span></div></div><span class="ev-corner ev-measured"></span></div>',
+            R,
+            REG,
+            dec
+          );
+          T.eq(node.doc + ' §2.5 control: a planted unregistered graded card is counted', planted.unresolved.length, scan.unresolved.length + 1);
+          var typo = scanGuideCards(
+            '<div class="mc" data-id="zzzNotAKey"><div class="mh"><div class="mi"><span class="ma">Zzz Typo</span></div></div><span class="ev-corner ev-measured"></span></div>',
+            R,
+            REG,
+            dec
+          );
+          T.eq(node.doc + ' §2.5 control: a declared id that is not a registry key is a red, not an exemption', typo.badDeclared.length, 1);
+          // Control: an `unregistered` declaration on a label the registry DOES resolve is stale.
+          // Use the first registry entry's own label so the plant is node-agnostic.
+          var firstId = Object.keys(REG)[0],
+            stale = scanGuideCards(
+              '<div class="mc" data-kind="unregistered"><div class="mh"><div class="mi"><span class="ma">' +
+                REG[firstId].label +
+                '</span></div></div><span class="ev-corner ev-measured"></span></div>',
+              R,
+              REG,
+              dec
+            );
+          T.eq(node.doc + ' §2.5 control: a stale unregistered declaration is a red', stale.staleUnregistered.length, 1);
         } else {
           T.ok(node.doc + ' grade-equivalence inputs present', false, 'resolver / registry not provided');
         }

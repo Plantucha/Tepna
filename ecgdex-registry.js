@@ -211,7 +211,30 @@
     rsaAmplitude: { label: 'RSA amplitude', unit: 'bpm', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Peak-to-trough HR swing across the respiratory cycle' },
     crcPLV: { label: 'CRC PLV', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'RR↔respiration phase-locking value — coupling strength' },
     couplingStrength: { label: 'Coupling strength', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'CSI-style cardiorespiratory sync index' },
-    edrResp: { label: 'EDR resp rate', unit: 'br/min', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'Respiration from R-peak amplitude modulation (EDR) — surrogate' },
+    /* ADJUDICATED emerging → experimental, 2026-09-02 (DEEP-AUDIT-VI-FOLLOWUPS §1.5, the sibling of
+       #1455's `rraccRate` re-tier). Measured against the CPAP device's own mask-on `RespRate.2s`
+       channel on 22 co-recorded nights (24 paired, 2 excluded as fallback-15), bands frozen before
+       the run: MAE **1.90** br/min (bar ≤1.5) · Bland-Altman bias −1.01, LoA [−5.80, +3.78],
+       width **9.58** (bar ≤6). Both fail, so the tier claim "externally validated" fails with them.
+       ⚠️ `r` is NOT cited as evidence here: the reference varies by only 0.54 br/min SD across
+       nights (14.8–16.8), so a correlation is suppressed by range restriction by construction —
+       the honest statistics on a near-constant truth are the absolute-agreement ones.
+       🔴 The decisive control: a CONSTANT 15.0 br/min — this metric's own hardcoded fallback
+       (`ecgdex-dsp.js` respFromEDR) — scores MAE **0.80** against the same reference, and a
+       constant 15.8 scores 0.42. The estimator is beaten by the constant it falls back to, with
+       ~5× the reference's spread (est SD 2.50 vs 0.54) and misses to 7.4 and 20.0 br/min against a
+       truth that never left 14.8–16.8. Directional only — which is what `experimental` means.
+       NOTE the sibling `respRate` (line 54) is a DIFFERENT estimator (per-epoch median, not
+       whole-record autocorrelation) and is NOT adjudicated by this measurement; it keeps its grade
+       until measured on its own. */
+    edrResp: {
+      label: 'EDR resp rate',
+      unit: 'br/min',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Respiration from R-peak amplitude modulation (EDR) — surrogate; re-tiered 2026-09-02 against CPAP RespRate on 22 nights (MAE 1.90, LoA width 9.58; a constant 15 scores MAE 0.80)'
+    },
 
     /* CPC high-frequency coupling (Thomas 2005). ONLY HFC is registered, and the reason is the
        validation rather than the literature: across 39 nights paired to device-scored ResMed

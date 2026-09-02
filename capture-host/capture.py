@@ -218,6 +218,15 @@ def absorbed_shift_sec() -> float:
     return _civil_shift
 
 
+def heartbeat_ms() -> int:
+    """Wall-clock ms for the LIVENESS heartbeat — real time, never the capture frame.
+
+    A separate function because which clock this reads is the whole content of the decision, and a
+    bare expression inside status_loop cannot be tested without re-implementing it in the test (a
+    mirror passes whatever the code does, including the defect). See the comment at its call site."""
+    return int(_time.time() * 1000)
+
+
 def _now() -> _dt.datetime:
     global _civil_shift
     if _anchor_wall is None:
@@ -4274,7 +4283,23 @@ async def status_loop(root: str, data_stale_sec: float = 120.0):
         # HEARTBEAT + identity. `updated` is an ISO string a reader must parse and trust; this is a
         # monotonic-independent wall-clock ms the union reader ages directly. Without it a dead
         # instance is indistinguishable from a live one whose file simply has not changed.
-        STATUS["heartbeat_ms"] = int(_now().timestamp() * 1000)
+        #
+        # REAL wall time, NOT `_now()` — the two answer different questions and only one of them is
+        # being asked here. `_now()` is the CAPTURE frame: across a DST transition with a recording
+        # open it deliberately absorbs the relabelling (§A1) so the file being written stays
+        # monotonic, which means its stamps are knowingly off civil time by `absorbed_shift_sec()`
+        # until the session ends. `updated` above keeps that frame on purpose — it belongs to the
+        # recording's timeline. Liveness does not: `instance_health` ages this field against real
+        # `time.time()`, so stamping it in a deliberately-shifted frame compares two clocks that are
+        # an hour apart. Measured end-to-end (tests/test_status_union_dst_heartbeat.py): after
+        # fall-back a daemon WEDGED for 30 min read `live, age_ms 0` — the heartbeat sat an hour in
+        # the future and `max(0, …)` clamped the age — which is precisely the up-but-wedged case this
+        # layer exists to catch; after spring-forward a HEALTHY daemon read `stale, age 3600000` from
+        # ~61 min on, so `degraded` was true all night for a working box.
+        # Correcting by `absorbed_shift_sec()` reaches the same number through two parts that must be
+        # kept in step, and publishing the shift for readers to apply spreads the correction across
+        # every consumer instead of fixing it once. Taking real time here removes the coupling.
+        STATUS["heartbeat_ms"] = heartbeat_ms()
         STATUS["instance"] = INSTANCE
         STATUS["adapter"] = ADAPTER
         STATUS["recording"] = publish_recording(_time.monotonic(), data_stale_sec)
