@@ -25,7 +25,7 @@ nothing, found only because someone tried to make a fix land.
 | 1.1 | **F1** | The sibling **`_ACC.txt` clock step** (MotionDex / PMDARRIVAL inheritance) — F1's repro verified the ns step IS present in the ACC file of the same night; the ECG fix bounds the ECG gap walk by the phone-column delta, but the ACC consumer's consequence was **never executed**, and nothing bounds that stream. First step is to run it, not to port the fix. | Magpie (JS) |
 | 1.2 | **F1** | **Capture-side hardening**: rotate the file set on a `clock_watchdog` step so a resynced night lands as two fragments instead of one poisoned file. Specified as a SEPARATE unit in F1's stamp; not built. | Heron |
 | 1.3 | **F1** | **ONE DEVICE CLOCK PER AXIS** — the refold, not the audit, found that pre-resync anchors carry a *different oscillator state* (08-27: +1508 ms over 9.5 s ≈ 160,000 ppm) and `hostAxis` quoted it into `fs`. Fixed for ECGDex (`anchorsDroppedPreResync`, `clockResyncs[].hostOffsetMs`); **the principle is not yet stated in the Clock Contract §7** — an axis must be built from anchors of ONE clock state, and a resync boundary is a state change. Add the paragraph; then check PpgDex's `hostAxis` call site for the same pre-resync exposure. | Kestrel (CLAUDE.md §7) → Magpie (PpgDex check) |
-| 1.4 | **F2** | Both lanes now resolve `t0Ms` by Clock Contract §4 "first VALID sample". **If a real night ever shows the old app rule ("first non-empty, null if unparseable") choosing a different row, quote the row here** — do not regenerate on the assumption. No such night was found in the 45-night check. | any, on sighting |
+| 1.4 | **F2** | Both lanes now resolve `t0Ms` by Clock Contract §4 "first VALID sample". **If a real night ever shows the old app rule ("first non-empty, null if unparseable") choosing a different row, quote the row here** — do not regenerate on the assumption. **Not checked by any sweep**: F2's six-file parser-parity run (2 committed twins + the equiv clip + the three resync nights) asserts that the two PARSERS agree, not that the two ANCHOR RULES pick the same row, and the old rule no longer exists in either lane to run. A watch item with no supporting measurement behind it. | any, on sighting |
 | 1.5 | **F4** | `rraccRate` was re-tiered emerging → **experimental** on 45 real H10 nights (median r 0.07, MAE 2.5 br/min, LoA −4…+7.5). **`edrResp`'s own `emerging` grade was NOT adjudicated** — it needs a reference the corpus lacks (CPAP flow is the candidate reference once the co-imported nights are aligned). Until measured it is probably also experimental; do not re-grade on this sentence alone. | Osprey (measurement) |
 | 1.6 | **F8** | CPAPDex **`therapyHours` = wall duration** feeds the usage KPI and `compliancePct` in the night summary, where mask-on usage is the clinically meant quantity (the F8 fix corrected `usageHours`; `therapyHours` still reads the session span). Measure the gap on the real corpus before deciding whether it is a relabel or a recompute. | Kestrel |
 | 1.7 | **contested** | `capture-host/status_union.py:77` heartbeat-across-DST — still the disposition the audit gave: **drive `_now()` through a real faked-tz transition with a writer open**; only then confirm and pick among the three fixes. Not touched this pass. | Heron |
@@ -37,8 +37,13 @@ nothing, found only because someone tried to make a fix land.
 
 ### 2.1 A fixture corpus can only falsify what it can express — bitten TWICE in one night
 `verify-fixtures` reported "1 stamped / 13 current, no fixture moved" for the PpgDex port, which reads as
-"the new export field is inert". It is not inert: **every committed PpgDex golden is a short synthetic whose
-`cvhrIndex` is null**, so `cvhrHours` can never attach to any of them. Same for F3: no ECGDex golden is a
+"the new export field is inert". It is not inert: **none of the six committed PpgDex fixtures can take the
+`cvhrHours` attach branch, by TWO independent mechanisms** (enumerated from `provenance/PpgDex.json`): the three
+rich-route goldens (`synthetic_ppgdex_rich_golden` · `_o2ring_finger_golden` · `_inverted_golden`) carry an apnea
+block with `cvhrIndex: null`; the other three (`PpgDex_2026-06-27_equiv` — a REAL corpus night, not a synthetic —
+`synthetic_ppgdex_golden` · `_gapped_golden`) were produced on the non-rich route, which never emits the block at
+all. *(#2073's own commit text and an earlier draft of this line said "every golden is a short synthetic with a null
+index" — falsifiable by one glance at the equiv night; corrected on Magpie's enumeration.)* Same for F3: no ECGDex golden is a
 long non-ambulatory night, so none carries an `apnea` block at all — and there the wire was genuinely
 **dead** (the `analyze()` reshape allowlist dropped `denomSec`; the source-scan assertion passed on a regex
 while nothing travelled). A green fixture gate and a passing source scan coexisted with a wire that had
