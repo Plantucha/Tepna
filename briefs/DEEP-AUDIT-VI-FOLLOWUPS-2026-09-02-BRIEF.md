@@ -564,12 +564,19 @@ a retired monitor in the same turn you retire it.
 
 ## 4 · The standing empty cells — DEEP-AUDIT-VII opens HERE, not with a new charter pass
 
-One cell the audit named as unexamined is **still unexamined after all 18 fixes landed**, because no fix
-touched it. The other was stale as written — see §4.1.
+**Both cells are now addressed, and neither turned out to be what it said.** One was stale as written — the
+lane it called unbooted is booted on every PR (§4.1). The other was real, and the measurement inverted its
+expected direction: the fusion arithmetic is sound, and the null model errs toward SUPPRESSING findings
+rather than inventing them (§4.2). Each cell's original text is kept below unedited — what it claimed is
+part of the record.
 
 1. ~~**The browser lane was not booted.**~~ **CLOSED 2026-09-02 (Magpie) — see §4.1.** The cell was true
    of the *audit session*, and false of the repo: CI boots the browser lane on every PR.
-2. **Integrator noisy-OR posterior · `effConf` · Poisson-null / event-coupling surrogate** — **three
+2. ~~**Integrator noisy-OR posterior · `effConf` · Poisson-null / event-coupling surrogate**~~ — **MEASURED
+   2026-09-02 (Magpie), see §4.2.** The noisy-OR and `effConf` hold on 13/13 pre-stated properties; the
+   Poisson null is mis-calibrated ~5× CONSERVATIVE under its own assumptions (λ overstates chance by 21 %),
+   which suppresses real findings. A code fix is owed and is deliberately NOT in that unit. Historical
+   framing kept below for the record — **three
    consecutive audits** unexamined. F11 fixed the grouping that feeds it; the arithmetic downstream has never
    had an executed lens. This is the largest unverified surface in the suite and it must be the FIRST finder
    in the next workflow, not the tenth.
@@ -642,6 +649,110 @@ present** — that is the only configuration in which a check is genuinely runni
 gets is the one that cannot be acted on — a count without its filter, in the gate's own reporter. A
 one-line change to `browser-gates.mjs` could print the skip causes grouped by tag, the way it already prints
 boot-skips. Not done here: this unit is a doc close, and the reporter change belongs with a gate PR.
+
+### 4.2 The Integrator fusion arithmetic — MEASURED 2026-09-02 (Magpie). The noisy-OR is sound; the Poisson null is mis-calibrated, in the SUPPRESSING direction
+
+§4 item 2 named three surfaces unexamined across three consecutive audits. All three now have an executed
+lens. **Bars were written down before any measurement** and are reproduced here with their results, so no
+threshold below was chosen after seeing a number. This is a measurement unit — **no code changed**.
+
+#### (a)+(b) noisy-OR and `effConf` — 13/13 properties hold
+
+`combineConf` (`integrator-dsp.js:91`) and `effConf` (`:137`), driven over a planted grid
+`{0, .001, .05, .2, .5, .73, .9, .97, .999, 1}`:
+
+order-independent across all 1000 permuted triples (0 order-dependent) · a 0-conf source is inert over 100
+pairs · `combineConf([])` → `null` while `[0]` → `0` (absence is not zero) · a non-finite entry is skipped,
+not read as zero-evidence · all-non-finite → `null` · the 0.97 cap **saturates**, never inverts ·
+`effConf ≤ conf` · a null `conf` → `null` · `sqi=null` is quality-**neutral** (≡ 1, not 0) · the fused value
+never below the largest single input · out-of-range `conf` clamped.
+
+🔴 **One pre-registered property was VACUOUS, and only a planted mutant said so.** The bar was written as
+*"raising one cᵢ never lowers the output"* and tested exactly that — raising a **value** with the source
+count held at 3. The mutant `v − 0.02·n` (a per-source penalty: literally "adding evidence lowers the fused
+value", the defect the bar names) **SURVIVED**, because the source count never varied in any comparison the
+check made. "Adding evidence" has two operationalisations and the bar covered one:
+
+| | check | real function | the mutant |
+|---|---|---|---|
+| **a2a** | raise one input's value | holds (900 raises, 0 inversions) | **survives** |
+| **a2b** | add a source | holds (1000 additions, 0 that lowered) | **caught** |
+
+Both hold on the shipped code, so the finding is not about the Integrator — it is about the *instrument*.
+Without the anti-vacuity pass this section would have reported "monotone, 900 comparisons, 0 inversions":
+true, and empty. Every other property here has a mutant it demonstrably rejects, and the real function
+passes all five controls first.
+
+#### (c) The Poisson null — the prediction was FALSIFIED, and the real defect points the other way
+
+`λ = nDesats · min(1, surgeRate·window)`; `belowChance = nConf===0 || nConf ≤ λ || P(≥nConf|λ) ≥ 0.05`
+(`:1948–1954`), and `confirmedAHIReportable = !belowChance && nConf > 0` (`:2014`) — so **`belowChance=true`
+WITHHOLDS** the index.
+
+Burst parameters were fixed from real data before any p-value was computed. Across the 4 distinct committed
+ECGDex nights carrying absolute `tMs` (5.3–6.9 h spans, 4.5–7.4 surges/h): **Fano 1.46 at 5-min bins, CV of
+inter-arrivals 1.40** — real surges are genuinely over-dispersed (Poisson ⇒ both 1.00). The simulation drives
+the **real `fuseApneaEvents`** through the real `normalizeFile` ingestion; N = 2000 nights per condition,
+6.5 h, 60 desats, 6.2 surges/h, 75 s window — the corpus's own geometry.
+
+| condition | published rate (`belowChance === false`) |
+|---|---|
+| **c1** homogeneous Poisson — the code's OWN assumption | **0.95 %** |
+| **c3** bursty, same total rate, σ = 15 / 37.5 / 75 / 150 / 300 / 600 s | 0.00 / 0.00 / 0.00 / 0.00 / 1.40 / 0.00 % |
+| the code's own α | 5 % (95 % CI at N=2000: **[4.04 %, 5.96 %]**) |
+
+**c1 is the finding.** Under its own assumptions the test publishes at **0.95 %** against a nominal 5 % —
+five times more conservative than it claims, far outside the CI. Quantified at the source over 1500 null
+nights: **λ = 8.28 against E[nConf] = 6.84, a 21.0 % overstatement of chance.** 6.6 pp of that is the linear
+approximation — the code uses `min(1, rate·win) = 0.1292` where the true P(≥1 surge in the window) is
+`1 − e^(−rate·win) = 0.1212`; the remainder is that overlapping desat windows compete for the same surges,
+so distinct confirmations fall short of the independent-trials count λ assumes.
+
+⚠️ **The direction matters more than the magnitude, and it is the bad one.** An overstated λ makes
+`belowChance` fire too often, so **real findings are withheld** — the same failure direction the brief
+already records at `:1921` for the §1.2 surge-rate defect, and for the reason stated there: *"a number that
+is too high eventually gets questioned, a missing one does not."*
+
+🔴 **The pre-registered prediction was WRONG, and is recorded as wrong.** Both the coordinator and I
+predicted clustering would make the memoryless null **anti-conservative** — a too-low `pSpurious` publishing
+a chance finding. It does the opposite: clustering makes it **more** conservative still. Mechanism, measured
+rather than reasoned — at a fixed total surge count (41.0 bursty vs 40.6 homogeneous, verified, so "same
+rate" is a checked fact and not a generator assumption), the number of **distinct 75 s-separated** surges
+collapses from ~35 to **~27**. λ is built from the raw surge COUNT, but a confirmation needs a surge in a
+*distinct* window — so clustering cuts achievable `nConf` while leaving λ untouched. The realistic null sits
+*further* from publishing, not closer.
+
+**`EventCoupling` does not cover this**, and that argument stands whichever way c3 had gone: `:1961` states
+the λ "ignores the surges' internal structure", and `EventCoupling` is the answer to exactly that — but it
+is documented as *additive; does not change reportability*, so the headline `belowChance` still rides the
+memoryless null. A mitigation that does not reach the reportable path is not a mitigation of it.
+
+**Discreteness — why no KS statistic is quoted.** `pSpurious` is discrete; the shipped fusions read
+`0, 0, 0, 0.401, 1`, with atoms at exactly 0 and exactly 1. A KS against a continuous Uniform reds on that
+support by construction and would have been a statement about the support, not the calibration. The
+published-rate comparison against the code's own α needs no continuity assumption, so that is what is
+reported.
+
+**Owed, as its own PR (not done here):** λ should use `1 − e^(−rate·win)` rather than the linear
+over-approximation, and the residual competition effect should be modelled or stated. Both change a
+reportability gate and must carry their own fixture lap.
+
+### 4.3 The Integrator's code-gated real-data surface is ONE fixture
+
+Surfaced while assembling §4.2's real-data leg, recorded separately because it is a standing exposure rather
+than a calibration result. `provenance/Integrator.json` carries three fixtures:
+
+| fixture | code-gated |
+|---|---|
+| `integrator_tch_golden.node-export.json` | **yes** |
+| `integrator_fusion_2026-06-11.json` | no — `historical:true` |
+| `integrator_fusion_2026-06-13.json` | no — `historical:true` |
+
+A `historical` fixture is byte-pinned only (CLAUDE.md §🔏): its producing code has moved on, so its stability
+is **not** evidence that current code is correct, and reading it as verification is exactly what the flag
+exists to prevent. So the largest fusion surface in the suite is held by a single code-gated fixture. Note
+`integrator_fusion_2026-06-13.json` carries `findings: 0` and an empty `apneaNullModel`, so it could not
+exercise the §4.2 path at all even if it were code-gated.
 
 ---
 
