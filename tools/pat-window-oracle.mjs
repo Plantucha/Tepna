@@ -352,7 +352,17 @@ function selftest() {
   );
   ok(resShort.lo === undefined && resShort.mid === undefined && resShort.hi === undefined, 'a refusal carries NO split fields — the refusal object stays field-free');
 
-  const TOTAL = 25;
+  /* pickPair is the SINGLE picker (2026-09-02). Four tools were choosing input files four ways;
+     these assert the contract the callers rely on, since the failure mode of a shared helper is a
+     caller quietly re-implementing it. The `missing` shape is asserted because it is the one thing
+     that differed between the copies — each reported absence its own way, so the helper must RETURN
+     the reason and never print it. */
+  const vMissing = pickPair('/nowhere', ['only_ECG.txt']);
+  ok(vMissing.missing !== undefined && /_PPG\.txt/.test(vMissing.missing) && vMissing.eF === undefined, `pickPair NAMES the absent stream and returns no pair, got ${JSON.stringify(vMissing)}`);
+  const vNone = pickPair('/nowhere', []);
+  ok(vNone.missing !== undefined && /_ECG\.txt/.test(vNone.missing), 'an empty directory names the ECG too');
+
+  const TOTAL = 27;
   console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${TOTAL})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${TOTAL}/${TOTAL})`);
   return fails.length === 0;
 }
@@ -394,6 +404,112 @@ export function rootLayoutVerdict(nightDirs, looseRecordings) {
       `recording file(s) at depth 1. Scoring the directories would silently drop the loose files ` +
       `and report a plausible tally over part of the tree. Found loose: ${shown}${more}.`
   };
+}
+
+/* ── ONE PICKER, EXPORTED — three tools were choosing their input files three ways ────────────
+   #2082 fixed this pairing inside `main()` and left `pat-residual-structure.mjs` and
+   `pat-drift-attribution.mjs` each carrying their OWN copy of the pre-fix version: two independent
+   size-sorts plus a `readFileSync(b).length` comparator that fully re-read every candidate
+   O(n log n) times. Both copies were still live on main after #2082 and after #2111.
+
+   **Three instances in one family is not three bugs, it is one absent abstraction.** Fixing the two
+   copies would have been the THIRD correct fix of one defect while leaving the mechanism that
+   produced copies 2 and 3 fully intact — the next tool needing a picker writes a fourth. So the
+   picker is exported and imported; the pairing behaviour is merely what it carries.
+
+   Returns `{ eF, pF }`, or `{ missing }` naming which stream is absent so the CALLER decides how to
+   report it (the oracle tallies a named refusal, the analysis tools skip) — the one thing that
+   differed between the copies, and the reason a shared helper must not report for its callers. */
+export function pickPair(dir, files) {
+  /* ── PAIR THE FRAGMENTS BY TIME, NOT BY SIZE (FOLLOWUPS §5 lead, inverted) ──────────────────
+     This used to take the LARGEST `_ECG.txt` and the LARGEST Verity `_PPG.txt` in two INDEPENDENT
+     size-sorts. On a fragmented night the two winners are from different hours, so the trains do
+     not overlap and `oracleNight` refuses "no overlap between the two trains" — a TOOL artifact
+     reported as a data verdict. Measured on the 48-night box tree: 15 nights refused that way, and
+     EVERY one has an overlapping pair available (2026-08-28: largest-pair 0.00 h, best-pair
+     6.31 h; 08-16: 0.00 vs 6.02 across 237 PPG fragments). #2052 made those refusals visible and I
+     then filed them as a capture-session fact; they were this function.
+
+     So: choose the (ECG, PPG) pair with the greatest temporal OVERLAP. Spans come from the first
+     and last timestamp in each file — an 8 KB read at each end, never a parse.
+
+     ⚠️ NOT concatenating fragments per stream: a concatenated train spans the inter-fragment gaps
+     and a lag computed across a gap is meaningless. Per-pair scoring is the honest shape;
+     gap-aware segmentation would be its own unit.
+     ⚠️ A night whose best pair is genuinely 0 still refuses by the same name — the fix removes the
+     artifact, not the refusal. And it cannot manufacture beats: 2026-08-20's best pair is 0.04 h
+     (~140 R at 60 bpm) and is expected to refuse on the ≥200-in-overlap bar instead, which is a
+     different and defensible reason. */
+  const fragSpan = (p) => {
+    try {
+      const sz = statSync(p).size;
+      if (!sz) return null;
+      const fd = openSync(p, 'r');
+      const CH = 8192;
+      const head = Buffer.alloc(Math.min(CH, sz));
+      readSync(fd, head, 0, head.length, 0);
+      const tail = Buffer.alloc(Math.min(CH, sz));
+      readSync(fd, tail, 0, tail.length, Math.max(0, sz - tail.length));
+      closeSync(fd);
+      const stamp = (s) => {
+        const m = s.match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+        return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null;
+      };
+      const hs = head
+        .toString('latin1')
+        .split('\n')
+        .filter((l) => /\d{4}-\d{2}-\d{2}/.test(l));
+      const ts = tail
+        .toString('latin1')
+        .split('\n')
+        .filter((l) => /\d{4}-\d{2}-\d{2}/.test(l));
+      if (!hs.length || !ts.length) return null;
+      const a = stamp(hs[0]);
+      const b = stamp(ts[ts.length - 1]);
+      return a != null && b != null && b >= a ? { path: p, a, b, size: sz } : null;
+    } catch {
+      return null;
+    }
+  };
+  /* `statSync(p).size`, not `readFileSync(p).length`: the old comparator FULLY READ every candidate
+     O(n log n) times just to learn its length — 237 PPG fragments on 2026-08-16, read repeatedly. */
+  const cands = (re) =>
+    files
+      .filter((f) => re.test(f))
+      .map((f) => join(dir, f))
+      .sort((a, b) => statSync(b).size - statSync(a).size);
+  const eC = cands(/_ECG\.txt$/);
+  // Verity-first preference preserved exactly: fall back to any _PPG.txt only when no Verity exists.
+  const pC = cands(/Verity.*_PPG\.txt$/i).length ? cands(/Verity.*_PPG\.txt$/i) : cands(/_PPG\.txt$/);
+  if (!eC.length || !pC.length)
+    return {
+      missing: `missing ${eC.length ? '' : '_ECG.txt'}${!eC.length && !pC.length ? ' and ' : ''}${pC.length ? '' : '_PPG.txt'}`
+    };
+  /* Default: the largest of each, i.e. exactly today's choice — so a single-fragment night, and a
+     night whose spans cannot be read, are byte-identical to the old behaviour. */
+  let eF = eC[0];
+  let pF = pC[0];
+  if (eC.length > 1 || pC.length > 1) {
+    const eS = eC.map(fragSpan).filter(Boolean);
+    const pS = pC.map(fragSpan).filter(Boolean);
+    let bestOv = 0; // only a POSITIVE overlap displaces the default
+    let bestSize = -1;
+    for (const e of eS) {
+      for (const p of pS) {
+        const ov = Math.min(e.b, p.b) - Math.max(e.a, p.a);
+        const size = e.size + p.size;
+        // strictly greater overlap wins; equal overlap breaks on combined size, so the pick is
+        // deterministic across runs and independent of readdir order
+        if (ov > bestOv || (ov === bestOv && ov > 0 && size > bestSize)) {
+          bestOv = ov;
+          bestSize = size;
+          eF = e.path;
+          pF = p.path;
+        }
+      }
+    }
+  }
+  return { eF, pF };
 }
 
 async function main() {
@@ -452,94 +568,12 @@ async function main() {
       refuse(n, `unreadable night dir (${String(e.message).slice(0, 60)})`);
       continue;
     }
-    /* ── PAIR THE FRAGMENTS BY TIME, NOT BY SIZE (FOLLOWUPS §5 lead, inverted) ──────────────────
-       This used to take the LARGEST `_ECG.txt` and the LARGEST Verity `_PPG.txt` in two INDEPENDENT
-       size-sorts. On a fragmented night the two winners are from different hours, so the trains do
-       not overlap and `oracleNight` refuses "no overlap between the two trains" — a TOOL artifact
-       reported as a data verdict. Measured on the 48-night box tree: 15 nights refused that way, and
-       EVERY one has an overlapping pair available (2026-08-28: largest-pair 0.00 h, best-pair
-       6.31 h; 08-16: 0.00 vs 6.02 across 237 PPG fragments). #2052 made those refusals visible and I
-       then filed them as a capture-session fact; they were this function.
-
-       So: choose the (ECG, PPG) pair with the greatest temporal OVERLAP. Spans come from the first
-       and last timestamp in each file — an 8 KB read at each end, never a parse.
-
-       ⚠️ NOT concatenating fragments per stream: a concatenated train spans the inter-fragment gaps
-       and a lag computed across a gap is meaningless. Per-pair scoring is the honest shape;
-       gap-aware segmentation would be its own unit.
-       ⚠️ A night whose best pair is genuinely 0 still refuses by the same name — the fix removes the
-       artifact, not the refusal. And it cannot manufacture beats: 2026-08-20's best pair is 0.04 h
-       (~140 R at 60 bpm) and is expected to refuse on the ≥200-in-overlap bar instead, which is a
-       different and defensible reason. */
-    const fragSpan = (p) => {
-      try {
-        const sz = statSync(p).size;
-        if (!sz) return null;
-        const fd = openSync(p, 'r');
-        const CH = 8192;
-        const head = Buffer.alloc(Math.min(CH, sz));
-        readSync(fd, head, 0, head.length, 0);
-        const tail = Buffer.alloc(Math.min(CH, sz));
-        readSync(fd, tail, 0, tail.length, Math.max(0, sz - tail.length));
-        closeSync(fd);
-        const stamp = (s) => {
-          const m = s.match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
-          return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null;
-        };
-        const hs = head
-          .toString('latin1')
-          .split('\n')
-          .filter((l) => /\d{4}-\d{2}-\d{2}/.test(l));
-        const ts = tail
-          .toString('latin1')
-          .split('\n')
-          .filter((l) => /\d{4}-\d{2}-\d{2}/.test(l));
-        if (!hs.length || !ts.length) return null;
-        const a = stamp(hs[0]);
-        const b = stamp(ts[ts.length - 1]);
-        return a != null && b != null && b >= a ? { path: p, a, b, size: sz } : null;
-      } catch {
-        return null;
-      }
-    };
-    /* `statSync(p).size`, not `readFileSync(p).length`: the old comparator FULLY READ every candidate
-       O(n log n) times just to learn its length — 237 PPG fragments on 2026-08-16, read repeatedly. */
-    const cands = (re) =>
-      files
-        .filter((f) => re.test(f))
-        .map((f) => join(dir, f))
-        .sort((a, b) => statSync(b).size - statSync(a).size);
-    const eC = cands(/_ECG\.txt$/);
-    // Verity-first preference preserved exactly: fall back to any _PPG.txt only when no Verity exists.
-    const pC = cands(/Verity.*_PPG\.txt$/i).length ? cands(/Verity.*_PPG\.txt$/i) : cands(/_PPG\.txt$/);
-    if (!eC.length || !pC.length) {
-      refuse(n, `missing ${eC.length ? '' : '_ECG.txt'}${!eC.length && !pC.length ? ' and ' : ''}${pC.length ? '' : '_PPG.txt'}`);
+    const paired = pickPair(dir, files);
+    if (paired.missing) {
+      refuse(n, paired.missing);
       continue;
     }
-    /* Default: the largest of each, i.e. exactly today's choice — so a single-fragment night, and a
-       night whose spans cannot be read, are byte-identical to the old behaviour. */
-    let eF = eC[0];
-    let pF = pC[0];
-    if (eC.length > 1 || pC.length > 1) {
-      const eS = eC.map(fragSpan).filter(Boolean);
-      const pS = pC.map(fragSpan).filter(Boolean);
-      let bestOv = 0; // only a POSITIVE overlap displaces the default
-      let bestSize = -1;
-      for (const e of eS) {
-        for (const p of pS) {
-          const ov = Math.min(e.b, p.b) - Math.max(e.a, p.a);
-          const size = e.size + p.size;
-          // strictly greater overlap wins; equal overlap breaks on combined size, so the pick is
-          // deterministic across runs and independent of readdir order
-          if (ov > bestOv || (ov === bestOv && ov > 0 && size > bestSize)) {
-            bestOv = ov;
-            bestSize = size;
-            eF = e.path;
-            pF = p.path;
-          }
-        }
-      }
-    }
+    const { eF, pF } = paired;
     let E;
     let P;
     try {
