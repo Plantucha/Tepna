@@ -1,0 +1,34 @@
+<!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
+
+**Status:** REFERENCE (living residue ledger — rows are appended and closed, never deleted or edited; undated filename on purpose, it is a stable cross-reference target like `DOCS-INDEX.md`) · **Ledger-opened:** 2026-09-02 (owner-ratified, replaces "spawn a follow-up brief" — CLAUDE.md §📌)
+
+# Residue ledger — defects a brief left behind, one row each, promoted on pickup
+
+**What this is.** When a brief is executed or triaged and something verified is still wrong, it goes
+here as **one row**, not as a new `-FOLLOWUPS-` brief. A follow-up brief is written **only by the
+session that picks the row up to execute it** — so every follow-up brief has an owner the moment it
+exists. Measured 2026-09-02 (the drain): 27 of 77 open briefs were `-FOLLOWUPS-` files created at
+execution time, and none of them had an owner, because "spawn a follow-up" creates the file before
+anyone has decided to do the work.
+
+**Row contract** (gate-backed — `docs-ledger` check 8 in `tests/dex-tests.js`):
+
+| column | rule |
+|---|---|
+| `R<n>` | unique, monotonic, never reused |
+| logged | `YYYY-MM-DD` the row was written |
+| source | backticked `*-BRIEF.md` that left the residue — must exist, and its **Status:** line must carry `**Residue:** R<n>` (bidirectional, like `Superseded-by`) |
+| defect | what is wrong — a verified defect, not a wish; **no `\|` in the cell** (a pipe splits the row and blinds the gate — measured on DOCS-INDEX 2026-09-02) |
+| evidence | the line / hash / count / command that shows it — prose is not evidence |
+| state | `OPEN` · `→ \`<NAME>-BRIEF.md\`` (promoted to a brief at pickup — that brief must exist) · `fixed #NNNN` (closed by one PR, no brief needed) |
+
+A row is closed by changing **only** its state cell. Nothing else on a row is ever edited; a wrong
+row gets a new row that says so. Open count: `grep -c '| OPEN |' briefs/RESIDUE.md`.
+
+**Not retro-applied.** The `-FOLLOWUPS-` briefs that already exist keep their files and headers; this
+ledger starts empty except for the residue named in the 2026-09-02 drain headers.
+
+| # | logged | source | defect | evidence | state |
+|---|---|---|---|---|---|
+| R1 | 2026-09-02 | `KNOWN-CLOCK-ADVERSARIAL-CAPTURE-FOLLOWUPS-2026-08-14-BRIEF.md` | a DRAWN (zero-device-span) axis passes `DexClock.hostAxis` with `ok:true, ppm≈0, independent:true` — the `independent` gate (spreadMs > 2 ms) was built for the 0.13–1 ms derived-host case and is inert here because spreadMs is huge; the §7 discriminator (≥99 % single inter-sample delta) lives only in node `quality.timingSource`, so a caller reading `hostAxis` alone spends a drawn axis as a second clock | blind run 2026-09-02: the 50 `inapplicable` streams in `tools/known-clock-recovery.mjs blindScore` are exactly the zero-span streams; whether `hostAxis` should refuse them is a compute-path change on the 5 `clock.js` bundles (owner's timing) | OPEN |
+| R2 | 2026-09-02 | `VIGIL-DEEP-ANALYSIS-2026-07-22-BRIEF.md` | the 5–15 Hz IIR bandpass before `detectRs` / `detectPulses` on the box is absent — the detector runs on the raw buffer and returns no beats under baseline wander | verified 2026-09-02 in the brief's own header (Kestrel); needs a live-H10 session on the box to validate the fix, lane Heron | OPEN |
