@@ -1940,10 +1940,22 @@
      `cvhrIndex: 0` is this guard's fabricated value, byte-pinned and enforced by GATE-B.
      `events` stays `[]`: the event list genuinely is empty, and a list's absence is not a number
      awaiting measurement. Only the INDEX becomes null. */
+  // DEEP-AUDIT-VI F10 — upper bound on a beat-time span before a consumer sizes arrays from it. TWO
+  // consumers: `cvhrFromNN` below (the port of ECGDex detectCVHR that shipped WITHOUT the #1800 guard)
+  // and the `beatConfidence` call in analyze(), which is fed TIME-derived pseudo-indices
+  // (`round(footSec·fs)`) — so unlike the ECG original it is NOT bounded by beat count. `tt`/`footSec`
+  // are gap-ACCUMULATED, so one mid-file sensor-clock rebase (+2792 days, the real H10 shape ECGDex
+  // measured) survives parsePPG into relSec — hostAxis refuses at ±50000 ppm, so the raw jump stays —
+  // and analyze() died allocating span-sized arrays (RangeError at 7.7 GB; >50 GB before OOM in
+  // #1800), killing the whole night's export. 48 h, as ECGDex `CVHR_MAX_SPAN_S`: over twice any real
+  // recording, so a gappy night still fits. Refusal ⇒ null with a reason, never a fabricated 0.
+  const PPG_MAX_SPAN_S = 48 * 3600;
   function cvhrFromNN(nn, tt) {
     const N = nn.length;
     if (N < 60 || !tt || tt.length !== N) return { events: [], index: null };
     const tEnd = tt[N - 1];
+    // F10 — refuse an implausible SPAN before `M` sizes six arrays from it (see PPG_MAX_SPAN_S).
+    if (!isFinite(tEnd) || tEnd > PPG_MAX_SPAN_S) return { events: [], index: null, reason: 'implausible-span' };
     const M = Math.floor(tEnd);
     if (M < 120) return { events: [], index: null }; // < 2 min → no apnea-band train can be RESOLVED, so no index exists
     const hr = new Float64Array(M);
@@ -3679,17 +3691,30 @@
        constant offset between the two largely cancels; the residual difference is real and is why the
        re-fitted σ is not expected to reproduce the old figure to the last decimal. */
     const _confSpine = footSpineOK ? footSec : peakSec;
-    const _pConfMap = beatConfidence(
-      _confSpine.map((s) => Math.round(s * rec.fs)),
-      sqi,
-      rec.fs,
-      rec.t0Ms || 0
-    );
+    /* DEEP-AUDIT-VI F10 — `beatConfidence` sizes four Float64Array(S) from the SPAN of what it is
+       handed, and here it is handed time-derived pseudo-indices (`round(footSec·fs)`), not sample
+       indices — so the ECGDex note "beatConfidence is safe by construction" is true for ECG and false
+       at this call. One in-file sensor-clock rebase stretches footSec by years and the allocation
+       killed the whole night's export. Refuse the span here rather than inside the mirror (which is
+       genuinely count-bounded on ECG): ppiConf becomes null, which the export site already tolerates
+       (`conf: … : null`), and the rest of the record survives. */
+    const _confSpanS = _confSpine.length > 1 ? _confSpine[_confSpine.length - 1] - _confSpine[0] : 0;
+    const _confSpanOK = isFinite(_confSpanS) && _confSpanS <= PPG_MAX_SPAN_S;
+    const _pConfMap = _confSpanOK
+      ? beatConfidence(
+          _confSpine.map((s) => Math.round(s * rec.fs)),
+          sqi,
+          rec.fs,
+          rec.t0Ms || 0
+        )
+      : null;
     const _t0 = rec.t0Ms || 0;
-    const ppiConf = corr.tt.map((s) => {
-      const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));
-      return Number.isFinite(c) ? +c.toFixed(3) : 1;
-    });
+    const ppiConf = _pConfMap
+      ? corr.tt.map((s) => {
+          const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));
+          return Number.isFinite(c) ? +c.toFixed(3) : 1;
+        })
+      : null;
     // OXYDEX-PULSE-RESOURCING §Phase 4: whole-record CVHR from the corrected NN series (autonomic
     // apnea correlate). Emitted for every PPG record; the Integrator only corroborates the FINGER one
     // (the O2Ring's own pleth) against ECGDex cardiac CVHR. index = events/hour (0 = none detected).
@@ -4114,6 +4139,9 @@
       sdnnRobustBasis,
       cvhrIndex: _cvhr.index, // §Phase 4 — CVHR events/hour from the finger PPI NN series (autonomic apnea correlate)
       cvhrEvents: _cvhr.events.length,
+      // F10 — present ONLY when the span refusal fired, so a refused null is told apart from a
+      // too-short one; absent otherwise (no committed fixture moves for an inert key).
+      ...(_cvhr.reason ? { cvhrReason: _cvhr.reason } : {}),
       sd2Robust,
       lfRobust,
       hfRobust,
@@ -4128,6 +4156,7 @@
       ppiFlags: corr.flags,
       // Aligned with nn/tt the same way — the fused-hat per-beat weight (see the block above).
       ppiConf,
+      ...(_confSpanOK ? {} : { ppiConfReason: 'implausible-span' }), // F10 — see the beatConfidence call
       poincareNN: nn,
       sd1: poin ? poin.sd1 : null,
       sd2: poin ? poin.sd2 : null,

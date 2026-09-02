@@ -7411,6 +7411,110 @@
       T.eq('…and reports no events', brief.cvhrEvents, 0);
     });
 
+    /* DEEP-AUDIT-VI F10 — two unguarded siblings of the span refusals ECGDex received in #1800/#2030.
+       `beatConfidence` is handed time-derived pseudo-indices (round(footSec·fs)) and `cvhrFromNN`
+       sizes six arrays from floor(tt[N-1]); neither bounded the SPAN. One mid-file sensor-clock rebase
+       (+2792 days — the shape a real H10 night carried) survives parsePPG into relSec (hostAxis
+       correctly REFUSES at ±50000 ppm, so the raw jump stays) and `analyze()` died allocating
+       span-sized arrays — the whole night's PPG export lost (measured: RangeError at 4 GB, >50 GB
+       uncapped before OOM). Both sites now refuse past `PPG_MAX_SPAN_S` (48 h, the ECGDex bound) with
+       null + a `reason`, and the rest of the record survives.
+       ⚠ On the unguarded code this group does not merely fail — it attempts a ~7.7 GB allocation.
+       Pair-verify under `ulimit -v`. */
+    group('PpgDex F10 — an in-file sensor-clock rebase REFUSES the span; the export survives (beatConfidence + cvhrFromNN)', 'ppgdex-dsp · clock · refusal · DEEP-AUDIT-VI', function (T) {
+      var P = env.PPGDSP;
+      if (!P || typeof P.parsePPG !== 'function' || typeof P.analyze !== 'function') {
+        T.skip('PPGDSP.parsePPG + analyze available', 'PPGDSP not co-loaded in this runner');
+        return;
+      }
+      var p2 = function (x) {
+        return String(x).padStart(2, '0');
+      };
+      /* Same three-LED 60 bpm pulse as the cvhrFromNN group; `jumpDays` rebases the SENSOR column
+         once at the midpoint while the phone column keeps its cadence — exactly the measured shape. */
+      var ppg = function (sec, jumpDays) {
+        var fs = 135;
+        var out = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+        var n = Math.round(sec * fs),
+          step = 1000 / fs,
+          devMs = 0,
+          hostMs = 0,
+          ph = 0,
+          rr = 1000,
+          half = Math.floor(n / 2);
+        for (var i = 0; i < n; i++) {
+          devMs += step;
+          hostMs += step;
+          if (jumpDays && i === half) devMs += jumpDays * 86400000;
+          ph += step / rr;
+          if (ph >= 1) ph -= 1;
+          var w = Math.exp(-Math.pow((ph - 0.15) / 0.07, 2)) + 0.35 * Math.exp(-Math.pow((ph - 0.42) / 0.1, 2)) - 0.15 * Math.exp(-Math.pow((ph - 0.75) / 0.25, 2));
+          var v = 20000 + 800 * w;
+          var t = new Date(Date.UTC(2026, 6, 1, 0, 0, 0) + Math.round(hostMs));
+          var ts =
+            t.getUTCFullYear() +
+            '-' +
+            p2(t.getUTCMonth() + 1) +
+            '-' +
+            p2(t.getUTCDate()) +
+            ' ' +
+            p2(t.getUTCHours()) +
+            ':' +
+            p2(t.getUTCMinutes()) +
+            ':' +
+            p2(t.getUTCSeconds()) +
+            '.' +
+            String(t.getUTCMilliseconds()).padStart(3, '0');
+          out.push(ts + ';' + Math.round(devMs * 1e6) + ';' + Math.round(v) + ';' + Math.round(v * 0.95 + 30) + ';' + Math.round(v * 1.03 - 25) + ';400');
+        }
+        return out.join('\n');
+      };
+      var run = function (sec, jumpDays) {
+        try {
+          return P.analyze(P.parsePPG(ppg(sec, jumpDays), undefined), null);
+        } catch (e) {
+          return { error: String(e.message) };
+        }
+      };
+
+      // ── 1 · CONTROL — an unrebased record carries a per-beat confidence and no refusal keys ────
+      var ctl = run(300, 0);
+      T.ok('control: the synthetic PPG yields a beat train', ctl.nBeats > 250, 'nBeats=' + ctl.nBeats + (ctl.error ? ' error=' + ctl.error : ''));
+      T.ok(
+        'control: ppiConf is a per-beat array aligned with nn',
+        Array.isArray(ctl.ppiConf) && ctl.ppiConf.length === (ctl.nn || []).length && ctl.ppiConf.length > 0,
+        'ppiConf=' + (Array.isArray(ctl.ppiConf) ? ctl.ppiConf.length : String(ctl.ppiConf)) + ' nn=' + (ctl.nn || []).length
+      );
+      T.ok('control: no ppiConfReason key', !('ppiConfReason' in ctl));
+      T.ok('control: no cvhrReason key', !('cvhrReason' in ctl));
+      T.eq('control: cvhrIndex resolved (0 — a flat rate)', ctl.cvhrIndex, 0);
+
+      // ── 2 · THE REBASE — +2792 days mid-file, the measured H10 shape ──────────────────────────
+      var reb = run(300, 2792);
+      T.ok('rebased: analyze() returns instead of dying on a span-sized allocation', !reb.error, reb.error || 'ok');
+      T.ok('rebased: the raw jump survives parsePPG into relSec (hostAxis refuses, it does not repair)', reb.nBeats > 250, 'nBeats=' + reb.nBeats);
+      T.eq('rebased: ppiConf is REFUSED (null), not a fabricated array', reb.ppiConf, null);
+      T.eq('rebased: …and says why', reb.ppiConfReason, 'implausible-span');
+      T.eq('rebased: cvhrIndex is REFUSED (null)', reb.cvhrIndex, null);
+      T.eq('rebased: …and says why', reb.cvhrReason, 'implausible-span');
+      T.eq('rebased: …with no events', reb.cvhrEvents, 0);
+      // The refusal is scoped — the metrics that never touched the span are still measured.
+      T.ok('rebased: the export SURVIVES — hr is still measured at 60 bpm', Math.abs((reb.hr || 0) - 60) <= 3, 'hr=' + reb.hr);
+      T.ok('rebased: …and rMSSD is finite', isFinite(reb.rmssd), 'rmssd=' + reb.rmssd);
+
+      // ── 3 · THE BOUND IS 48 h, not "any long night" — a 47 h-equivalent gap is inside it ───────
+      /* A rebase of 1.9 days keeps the span under PPG_MAX_SPAN_S, so neither site refuses; the
+         allocation is ~164 k doubles and cheap. This pins the constant from below. */
+      var near = run(300, 1.9);
+      T.ok(
+        'a 1.9-day in-file gap is INSIDE the 48 h bound — ppiConf still computed',
+        Array.isArray(near.ppiConf),
+        'ppiConf=' + String(near.ppiConf && near.ppiConf.length) + (near.error ? ' error=' + near.error : '')
+      );
+      T.ok('…and no ppiConfReason', !('ppiConfReason' in near));
+      T.ok('…and no cvhrReason', !('cvhrReason' in near));
+    });
+
     group('OxyDex waveform SpO2 trend — self-calibrated, refuses without its pair, experimental tier', 'oxydex-dsp · oxydex-registry · spo2w', function (T) {
       var P = (env.OxyDex && env.OxyDex._bare && env.OxyDex._bare.spo2WaveformTrend ? env.OxyDex._bare : null) || env.OxyDex;
       if (!P || typeof P.spo2WaveformTrend !== 'function') {
