@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-B24HXlnUMzMhkFCkmJbOEHCPHtqDy2ADFPHpIzjH7jc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-b7jblkQvNJsh8+q6Gkz4taDqv++uEdRuN3wVJFMau4U=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-VviyIiH/dyQyjJb4zbnG+HupXpOBO/jGCX8s1jgswQE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.9.0</title>
@@ -5381,9 +5381,14 @@ body.light .cov-grid td.cg-node{ background:#fff; }
  * `lift` = observedPct / chancePct. Honest edges: chance 0 & observed 0 → NaN ("no information",
  * NOT 1.0); chance 0 & observed > 0 → Infinity. Never fabricated, per the suite's never-invent rule.
  *
- * Standalone spine module — NOT co-loaded into any bundle (no app consumes it yet, so wiring it
- * into dex-coload.js would re-bundle all 8 apps to carry inert code; it rides the first node that
- * actually uses it). Dual-realm.   Self-test:  node event-coupling.js --selftest
+ * Standalone spine module — NOT in dex-coload.js (wiring it there would re-bundle all 8 apps to
+ * carry code most of them do not use); it rides the nodes that actually consume it. The INTEGRATOR
+ * now does, twice: `apneaCoupling` (integrator-dsp.js, the desat<->surge coupling verdict) and the
+ * apnea chance-null, which scores circular-shift surrogates through the published matching and
+ * takes its shift set from `shiftsForAlpha` below (DEEP-AUDIT-VI-FOLLOWUPS §4.2). So it IS inlined
+ * into Integrator.html — this line used to say "no app consumes it yet", which stopped being true
+ * when the Integrator picked it up and was still being read as current.
+ * Dual-realm.   Self-test:  node event-coupling.js --selftest
  * ═══════════════════════════════════════════════════════════════════════════════════════ */
 (function (root) {
   'use strict';
@@ -7707,6 +7712,90 @@ function _overlapCoverage(oxyRecs, cardiacRecs, u, totHrs) {
   };
 }
 
+/* ── THE MATCHING, EXTRACTED (DEEP-AUDIT-VI-FOLLOWUPS §4.2) ────────────────────────────────
+   Each desat takes the nearest UNUSED surge inside the directionality gate, greedy in desat-time
+   order. Pulled out of fuseApneaEvents for ONE reason: the chance-null below must score the SAME
+   statistic this produces. A null that models a different statistic than the one published is the
+   defect §4.2 measured — the analytic lambda modelled independent per-desat trials while the code
+   counts an exclusive matching, and overstated chance by 21%. Sharing this function makes that
+   class of mismatch impossible by construction rather than by review.
+   Returns the matched [desatIdx, surgeIdx] pairs in desat order; the caller builds findings. */
+/* The surrogate shift set — EventCoupling's own, so the resonance work is not re-derived here.
+   shiftsForAlpha(0.05) buys enough shifts that p < 0.05 is REACHABLE at all (its default 10 floor
+   p at 1/11 = 0.091). Falls back to the module default if the primitive is absent from a lane. */
+function _EC_SHIFTS() {
+  var EC = (typeof EventCoupling !== 'undefined' && EventCoupling) || (typeof window !== 'undefined' && window.EventCoupling) || null;
+  if (EC && typeof EC.shiftsForAlpha === 'function') return EC.shiftsForAlpha(0.05);
+  return [];
+}
+
+function _matchDesatsToSurges(desats, surges, leadMaxSec, trailMaxSec) {
+  var pairs = [],
+    usedSurge = new Set();
+  for (var di = 0; di < desats.length; di++) {
+    var d = desats[di],
+      best = null,
+      bd = Infinity;
+    for (var si = 0; si < surges.length; si++) {
+      if (usedSurge.has(si)) continue;
+      var lat = (surges[si].tMs - d.tMs) / 1000; // +ve = surge AFTER desat
+      if (lat < -leadMaxSec || lat > trailMaxSec) continue; // directionality gate
+      var dd = Math.abs(surges[si].tMs - d.tMs);
+      if (dd < bd) {
+        bd = dd;
+        best = si;
+      }
+    }
+    if (best != null) {
+      usedSurge.add(best);
+      pairs.push([di, best]);
+    }
+  }
+  return pairs;
+}
+
+/* ── COVERED-TIME CIRCULAR SHIFT ───────────────────────────────────────────────────────────
+   A surrogate surge that lands in a RECORDING GAP is unobservable, so counting it as a chance
+   opportunity biases the null. Wrapping in wall time does exactly that on a gappy night. So the
+   shift happens in COVERED-TIME coordinates: map each surge onto cumulative covered ms, displace
+   circularly modulo the total covered duration, map back. The surge COUNT is preserved exactly and
+   no surrogate is ever placed where nothing was observing. On a gapless night this reduces to a
+   plain circular shift within the span. */
+function _coveredShift(surges, merged, shiftMs) {
+  if (!merged || !merged.length) return surges;
+  var tot = 0,
+    cum = [];
+  for (var i = 0; i < merged.length; i++) {
+    cum.push(tot);
+    tot += merged[i][1] - merged[i][0];
+  }
+  if (!(tot > 0)) return surges;
+  var out = [];
+  for (var k = 0; k < surges.length; k++) {
+    var t = surges[k].tMs,
+      c = null;
+    for (var j = 0; j < merged.length; j++) {
+      if (t >= merged[j][0] && t < merged[j][1]) {
+        c = cum[j] + (t - merged[j][0]);
+        break;
+      }
+    }
+    if (c == null) continue; // observed outside coverage — not an opportunity either
+    var d2 = (c + shiftMs) % tot;
+    if (d2 < 0) d2 += tot;
+    for (var m = merged.length - 1; m >= 0; m--) {
+      if (d2 >= cum[m]) {
+        out.push({ tMs: merged[m][0] + (d2 - cum[m]) });
+        break;
+      }
+    }
+  }
+  out.sort(function (a, b) {
+    return a.tMs - b.tMs;
+  });
+  return out;
+}
+
 function fuseApneaEvents(recs, dtMs, gate) {
   // CARDIAC surge sources: ECGDex (primary) + PpgDex (PPG-derived). A desat is
   // confirmable by an autonomic surge from EITHER — PpgDex is a first-class node
@@ -7804,19 +7893,13 @@ function fuseApneaEvents(recs, dtMs, gate) {
   var findings = [],
     unmatchedDesat = [],
     usedSurge = new Set();
-  desats.forEach(function (d) {
-    var best = /** @type {any} */ (null),
-      bd = Infinity;
-    surges.forEach(function (s, si) {
-      if (usedSurge.has(si)) return;
-      var lat = (s.tMs - d.tMs) / 1000; // +ve = surge AFTER desat
-      if (lat < -leadMaxSec || lat > trailMaxSec) return; // directionality gate
-      var dd = Math.abs(s.tMs - d.tMs);
-      if (dd < bd) {
-        bd = dd;
-        best = si;
-      }
-    });
+  /* §4.2 — the pairs come from _matchDesatsToSurges so the chance-null below scores THIS statistic
+     through the same function. `usedSurge` is still populated because unmatchedSurge reads it. */
+  var _pairs = _matchDesatsToSurges(desats, surges, leadMaxSec, trailMaxSec),
+    _pairBy = new Map();
+  for (var _pi = 0; _pi < _pairs.length; _pi++) _pairBy.set(_pairs[_pi][0], _pairs[_pi][1]);
+  desats.forEach(function (d, _di) {
+    var best = _pairBy.has(_di) ? _pairBy.get(_di) : null;
     if (best != null) {
       usedSurge.add(best);
       var s = surges[best];
@@ -7920,11 +8003,53 @@ function fuseApneaEvents(recs, dtMs, gate) {
   var _rateCount = _rateNode ? _surgeByNode[_rateNode] : surges.length;
   var surgeRate = unionSec > 0 ? _rateCount / unionSec : 0; // surges per second, from ONE observer
   var winSec = leadMaxSec + trailMaxSec;
-  var pPerDesat = Math.min(1, surgeRate * winSec);
+  /* §4.2 — EXACT per-desat probability. `min(1, rate*win)` is the linear approximation and
+     overstates P(at least one surge in the window) by 6.6% at this corpus's rate/window
+     (0.1292 vs 0.1212). Diagnostic only now, but a wrong diagnostic is still wrong. */
+  var pPerDesat = 1 - Math.exp(-surgeRate * winSec);
   var lambda = desats.length * pPerDesat; // expected confirmations by chance
   var nConf = findings.length;
-  var pAtLeast = _poissonSf(nConf, lambda); // P(≥ nConf | chance)
-  var belowChance = nConf === 0 || nConf <= lambda || pAtLeast >= 0.05;
+  /* ── THE CHANCE-NULL IS NOW A SURROGATE TEST, NOT A CLOSED FORM (§4.2, measured 2026-09-02) ──
+     The analytic lambda above modelled INDEPENDENT PER-DESAT TRIALS. The statistic is an EXCLUSIVE
+     greedy matching (_matchDesatsToSurges), so the two described different quantities and lambda
+     overstated chance by 21% (8.28 vs E[nConf] 6.84 on 1500 simulated null nights). That is not a
+     rounding error in a diagnostic: it gates `confirmedAHIReportable`, so it WITHHELD real findings
+     — measured 0.95% published against its own nominal 5%.
+     The null is now circular-shift surrogates of the real surge train scored through the SAME
+     matching function. Three properties the closed form could not have:
+       · it models the published statistic, because it calls the same code;
+       · it keeps the surge train's real structure. Surges are over-dispersed (Fano 1.46, CV 1.40
+         across the committed ECGDex nights), and a Poisson lambda assumes they are not — the
+         assumption this block used to make;
+       · it is DETERMINISTIC. Shifts are EventCoupling's fixed prime-second set, so there is no RNG
+         and no seed: identical inputs reproduce identical fixture bytes.
+     Prime shifts are load-bearing, not decoration: whole-minute shifts re-phase any round-periodic
+     stream onto itself (event-coupling.js:120 — a 60s-periodic stream scored a PLANTED PERFECT
+     coupling at lift 1.006 under them).
+     ⚠️ TWO LIMITATIONS, both measured, neither fixed here.
+     (1) Under real clustering the test is mildly CONSERVATIVE — 3.00% published against a 4.94%
+         attainable size. That is the safe direction and a large improvement on the 0.00% the
+         closed form gave under the same clustering, but it is not exact.
+     (2) A circular shift preserves the surge train's own structure and DESTROYS structure SHARED
+         with the desat train. Under a shared slow modulation — a REM-dense hour dense in both
+         streams — the surrogates are less coupled than reality and the test is ANTI-conservative.
+         The old homogeneous lambda had the same blind spot, so this is not a regression; it is
+         written here because it is the assumption the next auditor should attack first.
+     `belowChance`'s 0.05 threshold is unchanged. The analytic lambda rides along as a DIAGNOSTIC
+     (nullModel.expectedConfirmedAnalytic) so a reader can see how far the closed form was off. */
+  var _shifts = _EC_SHIFTS();
+  var _surrN = [],
+    _ge = 0;
+  for (var _si2 = 0; _si2 < _shifts.length; _si2++) {
+    var _sur = _coveredShift(surges, merged, _shifts[_si2]);
+    var _n = _matchDesatsToSurges(desats, _sur, leadMaxSec, trailMaxSec).length;
+    _surrN.push(_n);
+    if (_n >= nConf) _ge++;
+  }
+  /* +1 in BOTH terms: a p of exactly 0 is not something a finite surrogate set can license, and
+     the floor 1/(B+1) is the smallest claim these shifts can support (event-coupling.js:304). */
+  var pAtLeast = _shifts.length ? (1 + _ge) / (1 + _shifts.length) : _poissonSf(nConf, lambda);
+  var belowChance = nConf === 0 || pAtLeast >= 0.05;
   findings.forEach(function (f) {
     f.belowChance = belowChance;
     f.pSpurious = +pAtLeast.toFixed(3);
@@ -8000,8 +8125,27 @@ function fuseApneaEvents(recs, dtMs, gate) {
     unmatched: { desat: unmatchedDesat, surge: unmatchedSurge },
     consequence: consequence,
     nullModel: {
-      expectedConfirmed: +lambda.toFixed(2),
-      pAtLeastObserved: +pAtLeast.toFixed(3),
+      /* §4.2 — `expectedConfirmed` is the SURROGATE mean (the null the verdict actually uses).
+         `expectedConfirmedAnalytic` is the closed form kept as a DIAGNOSTIC, now with the exact
+         per-desat term 1-e^(-rate*win) instead of the linear min(1, rate*win) that overstated it
+         by a further 6.6%. A reader comparing the two sees how far the closed form was off; nothing
+         reads the analytic value for a verdict. */
+      expectedConfirmed: _surrN.length
+        ? +(
+            _surrN.reduce(function (a, b) {
+              return a + b;
+            }, 0) / _surrN.length
+          ).toFixed(2)
+        : +lambda.toFixed(2),
+      expectedConfirmedAnalytic: +lambda.toFixed(2),
+      nullMethod: _surrN.length ? 'circular-shift surrogates, covered-time, scored by the published matching' : 'analytic Poisson (surrogate primitive unavailable in this lane)',
+      nullDraws: _surrN.length,
+      pFloor: _surrN.length ? +(1 / (1 + _surrN.length)).toFixed(4) : null,
+      /* 4 dp, not 3: a surrogate p arrives in 1/(B+1) steps and the floor is 1/81 = 0.0123, which
+         rounds to 0.012 at 3 dp — i.e. the exported p would sit BELOW the exported pFloor, which is
+         incoherent on its face and exactly what the floor exists to rule out. Caught by this
+         change's own test group, not by review. */
+      pAtLeastObserved: +pAtLeast.toFixed(4),
       belowChance: belowChance,
       surgeRatePerHr: +(surgeRate * 3600).toFixed(1),
       // which observer the rate came from, and who else saw surges — so a reader can tell a

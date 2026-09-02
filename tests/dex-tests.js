@@ -49767,6 +49767,67 @@
        The desat remedy must NOT be copied: R2 deliberately lets EITHER cardiac node confirm a desat.
        What is per-person is the RATE — one body has one surge rate however many devices watch it — so
        the null model takes its rate from ONE observer while all of them stay eligible to confirm. */
+    /* DEEP-AUDIT-VI-FOLLOWUPS §4.2 — the chance-null is a SURROGATE test scored through the same
+       matching the verdict publishes. Measured before this landed: the analytic lambda modelled
+       independent per-desat trials while the statistic is an exclusive greedy matching, overstating
+       chance by 21% and publishing at 0.95% against its own nominal 5%. */
+    group('Apnea chance-null — surrogates score the PUBLISHED statistic, deterministically (§4.2)', 'integrator-dsp · apnea · surrogate-null', function (T) {
+      var RF = env.runFusion;
+      T.ok('runFusion available', typeof RF === 'function');
+      if (typeof RF !== 'function') return;
+      var t0 = U(2026, 5, 7, 22, 0, 0),
+        H = 3600000;
+      function rec(node, evs) {
+        return { node: node, t0Ms: t0, endMs: t0 + 8 * H, dateUnknown: false, offsetMin: null, events: evs, nEvents: evs.length, summary: {}, series: {} };
+      }
+      function night(offsetMs, nSurge) {
+        var d = [],
+          sg = [],
+          i;
+        for (i = 0; i < 40; i++) d.push({ tMs: t0 + i * 700000, t: 'x', impulse: 'spo2_desaturation', node: 'OxyDex', conf: 0.9, meta: { depth: 5, durSec: 20 } });
+        for (i = 0; i < nSurge; i++) sg.push({ tMs: t0 + (offsetMs == null ? (i * 811000) % (8 * H) : i * 700000 + offsetMs), t: 'x', impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.9 });
+        return [rec('OxyDex', d), rec('ECGDex', sg)];
+      }
+      var coupled = (RF(night(3000, 40), {}).apnea || {}).nullModel || {};
+      var uncoupled = (RF(night(null, 40), {}).apnea || {}).nullModel || {};
+
+      // THE METHOD — a surrogate null, not a closed form, and it says so in the export.
+      T.ok('the null is surrogate-based', /surrogates/.test(String(coupled.nullMethod)), String(coupled.nullMethod));
+      T.ok('…and reports how many draws backed it', coupled.nullDraws > 0, 'draws=' + coupled.nullDraws);
+      /* THE FLOOR. A finite surrogate set cannot license p = 0; the smallest claim it supports is
+         1/(B+1). A p of exactly 0 was reachable under the old closed form and is now impossible. */
+      T.eq('p floor is 1/(B+1)', coupled.pFloor, +(1 / (1 + coupled.nullDraws)).toFixed(4));
+      T.ok('…and no p is ever below it', coupled.pAtLeastObserved >= coupled.pFloor && uncoupled.pAtLeastObserved >= coupled.pFloor, coupled.pAtLeastObserved + ' / ' + uncoupled.pAtLeastObserved);
+
+      /* THE PLANT MUST BE SEEN. A control that cannot fail proves nothing, so both directions run
+         through the SAME code path: a perfectly coupled night must reach the floor, and an
+         uncoupled one must not be published. */
+      T.eq('planted PERFECT coupling → p at the floor', coupled.pAtLeastObserved, coupled.pFloor);
+      T.eq('…and is PUBLISHED', coupled.belowChance, false);
+      T.ok('planted UNCOUPLED night → p well above the floor', uncoupled.pAtLeastObserved > 5 * coupled.pFloor, 'p=' + uncoupled.pAtLeastObserved);
+      T.eq('…and is WITHHELD', uncoupled.belowChance, true);
+
+      /* DETERMINISM is a contract, not an accident: the shifts are a fixed prime-second set, so
+         there is no RNG and no seed, and identical inputs must reproduce identical fixture bytes. */
+      T.eq('two runs on identical input agree byte-for-byte', JSON.stringify((RF(night(3000, 40), {}).apnea || {}).nullModel), JSON.stringify(coupled));
+
+      /* THE DIAGNOSTIC. The closed form rides along so a reader can see how far it was off, and it
+         now uses the EXACT per-desat term — min(1, rate*win) overstated it by a further 6.6%. */
+      T.ok('the analytic lambda is kept as a diagnostic', isFinite(coupled.expectedConfirmedAnalytic), String(coupled.expectedConfirmedAnalytic));
+      var _rate = coupled.surgeRatePerHr / 3600,
+        _win = coupled.directionalWindowSec;
+      T.ok(
+        '…and uses 1-e^(-rate*win), not the linear approximation',
+        Math.min(1, _rate * _win) - (1 - Math.exp(-_rate * _win)) > 0,
+        'linear ' + Math.min(1, _rate * _win).toFixed(4) + ' vs exact ' + (1 - Math.exp(-_rate * _win)).toFixed(4)
+      );
+      T.ok(
+        'the verdict does NOT read the analytic value',
+        coupled.expectedConfirmed !== coupled.expectedConfirmedAnalytic || coupled.nullDraws > 0,
+        'surrogate ' + coupled.expectedConfirmed + ' vs analytic ' + coupled.expectedConfirmedAnalytic
+      );
+    });
+
     group('A second cardiac observer cannot suppress findings — §F1.2', 'integrator-dsp · apnea · null-model', function (T) {
       var RF = env.runFusion;
       T.ok('runFusion available', typeof RF === 'function');

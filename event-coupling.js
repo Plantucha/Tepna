@@ -108,9 +108,14 @@
  * `lift` = observedPct / chancePct. Honest edges: chance 0 & observed 0 → NaN ("no information",
  * NOT 1.0); chance 0 & observed > 0 → Infinity. Never fabricated, per the suite's never-invent rule.
  *
- * Standalone spine module — NOT co-loaded into any bundle (no app consumes it yet, so wiring it
- * into dex-coload.js would re-bundle all 8 apps to carry inert code; it rides the first node that
- * actually uses it). Dual-realm.   Self-test:  node event-coupling.js --selftest
+ * Standalone spine module — NOT in dex-coload.js (wiring it there would re-bundle all 8 apps to
+ * carry code most of them do not use); it rides the nodes that actually consume it. The INTEGRATOR
+ * now does, twice: `apneaCoupling` (integrator-dsp.js, the desat<->surge coupling verdict) and the
+ * apnea chance-null, which scores circular-shift surrogates through the published matching and
+ * takes its shift set from `shiftsForAlpha` below (DEEP-AUDIT-VI-FOLLOWUPS §4.2). So it IS inlined
+ * into Integrator.html — this line used to say "no app consumes it yet", which stopped being true
+ * when the Integrator picked it up and was still being read as current.
+ * Dual-realm.   Self-test:  node event-coupling.js --selftest
  * ═══════════════════════════════════════════════════════════════════════════════════════ */
 (function (root) {
   'use strict';
