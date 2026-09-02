@@ -178,6 +178,7 @@
 <!-- §F1.5 — the TCH golden's input builder, shared with tools/regen-integrator-goldens.mjs. MUST load
      BEFORE dex-tests.js: the equivalence gate reads it as a global in this lane. -->
 <script src="tests/tch-golden-inputs.js"></script>
+<script src="tests/apnea-null-twins.js"></script>
 <script src="tests/dex-tests.js"></script>
 
 <script>
@@ -502,7 +503,8 @@ async function main(){
   for (const [k, fxF] of [
     ['cpapdex_golden', 'cpapdex_synthetic_golden.node-export.json'],
     ['cpapdex_multinight_golden', 'cpapdex_synthetic_multinight_golden.node-export.json'],
-    ['integrator_tch_golden', 'integrator_tch_golden.node-export.json']
+    ['integrator_tch_golden', 'integrator_tch_golden.node-export.json'],
+    ['integrator_apnea_null_twins', 'integrator_apnea_null_twins.node-export.json']
   ]) {
     try { setEquiv(k, null, await fetchJSON('uploads/' + encodeURIComponent(fxF)), fxF); } catch (e) { /* self-skips */ }
   }
@@ -651,6 +653,10 @@ async function main(){
       }
     },
     adaptEnvelopeNode: window.adaptEnvelopeNode,
+    // §4.3 — the apnea fusion + the twins' input builder, so the browser lane runs the same equiv
+    // leg the Node lane does rather than self-skipping (a skip here is a gate that examines nothing).
+    fuseApneaEvents: window.fuseApneaEvents,
+    apneaNullTwins: (typeof apneaNullTwins !== 'undefined' ? apneaNullTwins : null),
     recWindow: window.recWindow,
     overlapInterval: window.overlapInterval,
     fuseHRVConsensus: window.fuseHRVConsensus,

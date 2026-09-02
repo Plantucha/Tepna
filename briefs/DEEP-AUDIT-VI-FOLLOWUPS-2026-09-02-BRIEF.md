@@ -920,7 +920,7 @@ reports 0 moved because the only code-gated Integrator fixture is a *consensus* 
 `apneaNullModel` — it cannot exercise this path at all. §4.3 is why. The executed evidence for this
 change is the 52-night corpus run and the 13-assertion gate group, not the fixture ledger.
 
-### 4.3 The Integrator's code-gated real-data surface is ONE fixture
+### 4.3 The Integrator's code-gated real-data surface was ONE fixture — CLOSED 2026-09-02 (Magpie), four committed twins
 
 Surfaced while assembling §4.2's real-data leg, recorded separately because it is a standing exposure rather
 than a calibration result. `provenance/Integrator.json` carries three fixtures:
@@ -936,6 +936,54 @@ is **not** evidence that current code is correct, and reading it as verification
 exists to prevent. So the largest fusion surface in the suite is held by a single code-gated fixture. Note
 `integrator_fusion_2026-06-13.json` carries `findings: 0` and an empty `apneaNullModel`, so it could not
 exercise the §4.2 path at all even if it were code-gated.
+
+#### CLOSED — `integrator_apnea_null_twins.node-export.json`, four twins, `outputHash c72e924109399ee0`
+
+§4.2b proved the cost rather than argued it: a real behavioural change to the reportability gate landed
+and `regen-integrator-goldens` reported **0 fixtures moved**, because nothing committed could express it.
+Silence by construction. The twins close that. Inputs are rebuilt **in-code** by
+`tests/apnea-null-twins.js` (seeded mulberry32, no clock read, `inputHashes:{}`) — the
+`tch-golden-inputs.js` pattern, one builder shared by the regen tool and the equivalence gate so the two
+cannot drift. Minted through `newRecord`, never hand-written; code-gated in `provenance/Integrator.json`;
+8 assertions in the equiv leg, both lanes.
+
+**FOUR twins, not two, and the mutant table is why.** The bar was that a mutant to the shipped path must
+MOVE these bytes — a fixture that stays byte-identical has restated the exposure, not closed it. Measured:
+
+| mutant to the shipped null | which twin sees it |
+|---|---|
+| revert the null to the analytic Poisson (pre-§4.2b) | all four |
+| revert the exact term to the linear approximation | all four |
+| lose the +1 p-floor correction | all four |
+| **drop the covered-time shift (plain wall-clock wrap)** | **`gapped` only** |
+| **null no longer scores the PUBLISHED matching (non-exclusive)** | **`contended` only** |
+
+With the two obvious twins (`coupled`/`uncoupled` — the gate's two directions, because a corpus that only
+ever publishes cannot fail against a null that publishes everything) the last two mutants were
+**INVISIBLE**. So:
+
+- **`gapped`** declares `recording.coverage.segments` with a 100-min hole. On a single-segment night
+  `_coveredShift` and a wall-clock wrap are byte-identical — measured, not assumed — so without a real gap
+  the covered-time work shipped in §4.2b had no witness at all.
+- **`contended`** clusters desats 12 s apart so several compete for one surge. Everywhere else an exclusive
+  and a non-exclusive scorer agree, which left **§4.2b's central claim — that the null scores the published
+  statistic — unwitnessed by the corpus.**
+
+⚠️ **A twin can be present and still examine nothing.** The first `contended` version spaced its clusters
+45 min apart; every surrogate then scored zero, both scorers agreed trivially (surrogate mean **0.00**) and
+the mutant stayed invisible. Densifying to ~11.5-min clusters made the scorer expressible. That is this
+section's own failure class reproduced *inside the fix for it*, which is why the table above is recorded
+rather than the file count: four files prove nothing, and a later reader cannot infer coverage from them.
+
+**Presence is ASSERTED, not skipped.** `uploads/*` is gitignored, so the fixture reaches a fresh clone only
+through an explicit `!` negation. If that negation is lost the file vanishes from CI, and a `T.skip` would
+report green for a gate that examined nothing (§4b). The leg fails instead — verified by removing the file
+and watching it red.
+
+Verdicts, both directions and well clear of boundaries: `coupled` PUBLISHED at the floor (p 0.0123),
+`uncoupled` WITHHELD (p 0.6296), `gapped` PUBLISHED, `contended` WITHHELD (p 0.1605). The
+`coupled`/`uncoupled` pair holds event counts identical (surrogate mean 5.64 vs 5.65), so a verdict
+difference cannot be attributed to event density. The two historical snapshots are untouched.
 
 ---
 

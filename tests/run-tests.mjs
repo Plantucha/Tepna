@@ -1113,6 +1113,17 @@ function readEquiv() {
       }
     }
   }
+  // §4.3 — the apnea chance-null twins. Fixture-only: the gate rebuilds all four nights in-code.
+  {
+    const fxA = join(ROOT, 'uploads', 'integrator_apnea_null_twins.node-export.json');
+    if (existsSync(fxA)) {
+      try {
+        out.integrator_apnea_null_twins = { fixture: JSON.parse(readFileSync(fxA, 'utf8')), fixtureFile: 'integrator_apnea_null_twins.node-export.json' };
+      } catch {
+        /* gate self-skips */
+      }
+    }
+  }
   return out;
 }
 
@@ -1961,6 +1972,8 @@ async function main() {
     recWindow: ctx.recWindow,
     overlapInterval: ctx.overlapInterval,
     fuseHRVConsensus: ctx.fuseHRVConsensus,
+    // §4.3 — the apnea fusion, so the twins' equiv leg drives the same seam the regen tool does.
+    fuseApneaEvents: ctx.fuseApneaEvents,
     fusePeriodicBreathing: ctx.fusePeriodicBreathing,
     dedupeRecs: ctx.dedupeRecs,
     runFusion: ctx.runFusion,
@@ -2178,6 +2191,15 @@ async function main() {
     tchGoldenInputs: (() => {
       try {
         return require(join(ROOT, 'tests', 'tch-golden-inputs.js')).tchGoldenInputs;
+      } catch {
+        return null;
+      }
+    })(),
+    // §4.3 — the apnea-null twins' input builder, shared with tools/regen-integrator-goldens.mjs so
+    // the gate and the tool cannot drift (the sibling-divergence class §F1.5 fixed for the TCH golden).
+    apneaNullTwins: (() => {
+      try {
+        return require(join(ROOT, 'tests', 'apnea-null-twins.js')).apneaNullTwins;
       } catch {
         return null;
       }

@@ -47,6 +47,7 @@ const require = createRequire(import.meta.url);
 const ManifestGate = require(path.join(REPO, 'manifest-gate.js'));
 const DexBuild = require(path.join(REPO, 'tools', 'build-core.js'));
 const { tchGoldenInputs } = require(path.join(REPO, 'tests', 'tch-golden-inputs.js'));
+const { apneaNullTwins } = require(path.join(REPO, 'tests', 'apnea-null-twins.js'));
 
 /* Integrator.src.html script order (headless subset — no render/app/DOM shell). */
 function realm() {
@@ -117,6 +118,7 @@ const ctx = realm();
    them the same way the gate's runner does — one seam, no second convention. */
 const adaptEnvelopeNode = ctx.adaptEnvelopeNode;
 const fuseHRVConsensus = ctx.fuseHRVConsensus;
+const fuseApneaEvents = ctx.fuseApneaEvents;
 
 /* adapt → fuseHRVConsensus, exactly the seam the equivalence gate drives. */
 const buildTch = () => {
@@ -132,7 +134,57 @@ const buildTch = () => {
   };
 };
 
-const FIXTURES = [{ name: 'integrator_tch_golden.node-export.json', real: false, build: buildTch }];
+/* The APNEA-NULL twins (DEEP-AUDIT-VI-FOLLOWUPS §4.3). Before these, the Integrator's only
+   code-gated fixture was the TCH consensus above, which carries no `apneaNullModel` at all — so
+   §4.2b changed the reportability gate and `regen` reported "0 moved" because NOTHING COMMITTED
+   COULD EXPRESS THE CHANGE. That is silence by construction, the failure class this repo keeps
+   finding, and it is what these close.
+   FOUR twins, and each earns its place by catching a mutant the others miss:
+     coupled/uncoupled — the two DIRECTIONS of the gate (published / withheld). A corpus with one
+       direction can only half-fail: a null that published everything would go green on `coupled`.
+     gapped            — the ONLY twin that sees `_coveredShift`; on a single-segment night a
+       covered-time wrap and a wall-clock wrap are identical, measured.
+     contended         — the ONLY twin that sees the null scoring the PUBLISHED matching. Its desats
+       cluster 12 s apart so they compete for one surge; elsewhere an exclusive and a non-exclusive
+       scorer agree, so the central claim of §4.2b was unwitnessed.
+   ONE fixture, four twins: any byte of any twin moving reds the ledger. */
+const buildApneaTwins = () => {
+  if (typeof adaptEnvelopeNode !== 'function' || typeof fuseApneaEvents !== 'function') return null;
+  const T = apneaNullTwins();
+  const out = {
+    schema: {
+      name: 'ganglior.integrator-apnea-null-twins',
+      version: '1.0',
+      doc: 'Committed synthetic twins for the apnea chance-null (DEEP-AUDIT-VI-FOLLOWUPS §4.3). Inputs rebuilt in-code by tests/apnea-null-twins.js, the same builder the equivalence gate uses.'
+    },
+    twins: {}
+  };
+  for (const k of ['coupled', 'uncoupled', 'gapped', 'contended']) {
+    const recs = T[k].map((x) => adaptEnvelopeNode(x.json, x.node, x.node)[0]);
+    const fused = fuseApneaEvents(recs, 120000, {});
+    out.twins[k] = fused
+      ? { nullModel: fused.nullModel, nConf: fused.findings.length, confirmedAHI: fused.confirmedAHI, confirmedAHIReportable: fused.confirmedAHIReportable, overlapHours: fused.overlapHours }
+      : null;
+  }
+  return out;
+};
+
+const FIXTURES = [
+  { name: 'integrator_tch_golden.node-export.json', real: false, build: buildTch },
+  {
+    name: 'integrator_apnea_null_twins.node-export.json',
+    real: false,
+    build: buildApneaTwins,
+    // `newRecord` = MINT this fixture's ledger entry if absent, rather than skip. Without it,
+    // standing up a new fixture means hand-writing an export AND a ledger record — the two things
+    // §🔏 forbids outright. With it the bytes come from the real modules and the hashes from the gates.
+    newRecord: {
+      added: '2026-09-02',
+      inputs: [],
+      note: "ADDED 2026-09-02 (DEEP-AUDIT-VI-FOLLOWUPS §4.3). The Integrator's only code-gated fixture was integrator_tch_golden, a TCH consensus export carrying NO apneaNullModel — so when §4.2b replaced the apnea reportability gate's chance-null, `regen` reported \"0 fixtures moved\" because no committed artifact could express the change. Silence by construction, not evidence. FOUR twins, inputs rebuilt in-code by tests/apnea-null-twins.js (the same builder the equiv gate uses, so the two cannot drift): `coupled` and `uncoupled` are the two DIRECTIONS of the gate (published at the surrogate floor / withheld mid-range) because a corpus expressing one direction can only half-fail; `gapped` declares recording.coverage.segments with a 100-min hole and is the ONLY twin that can see _coveredShift, since on a single-segment night a covered-time wrap and a wall-clock wrap are byte-identical; `contended` clusters desats 12 s apart so several compete for one surge, and is the ONLY twin that can see the null scoring the PUBLISHED exclusive matching — elsewhere an exclusive and a non-exclusive scorer agree, leaving §4.2b's central claim unwitnessed. Each of the five mutants tried against this fixture moves its bytes; the last two are each caught by exactly one twin. Generated by re-running the real modules via tools/regen-integrator-goldens.mjs, never hand-edited."
+    }
+  }
+];
 
 const rerecord = makeRerecord({ repo: REPO, node: 'Integrator', bundle: 'Integrator.html', fixturesDir: UP, corpusDir: CORPUS, ManifestGate });
 await runRegen({
