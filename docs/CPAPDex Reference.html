@@ -616,15 +616,15 @@ body.light .mob-drawer-panel{background:#FFFFFF}
 <div class="sh"><div class="si sig">&#x1F50C;</div><div><div class="st">Pipeline &amp; Data Provenance</div><div class="sd">How a ResMed therapy log becomes the numbers above</div></div></div>
 <div class="co co-i"><span class="co-ic">&#x2139;&#xFE0F;</span><div><strong>Input format.</strong> CPAPDex reads the machine&#x2019;s on-card <strong>EDF / EDF+</strong> files &#x2014; <code>BRP</code> (25&#x202F;Hz raw flow), <code>PLD</code> (~0.5&#x202F;Hz pressure / leak / RR / TV / MV / snore / flow-limitation), <code>SA2</code> (1&#x202F;Hz SpO&#x2082; / pulse when an oximeter is attached), and the <code>EVE</code> / <code>CSL</code> annotation streams that carry firmware-scored events. Nothing else in the suite reads EDF.</div></div>
 <div class="mg">
-<div class="mc">
+<div class="mc" data-kind="pipeline">
   <div class="mh"><div class="mi"><span class="ma">EDF / EVE / CSL</span><span class="mf">Binary Decode &amp; Event Annotations</span></div><span class="mt tc">Core</span></div>
   <p class="md">CPAPDex decodes the EDF header (labels, sample rates, physical scaling) and each signal&#x2019;s records, then parses the EVE/CSL annotation TALs into classed events with absolute timestamps. Physical units are validated on decode.</p><div class="fb"><div class="fl">Method</div><div class="ft">header &#x2192; signals &#x2192; EVE/CSL TAL parse &#x2192; classed events</div></div><div class="no-norm-note">Decode integrity check; pressure in cmH&#x2082;O, leak in L/min validated.</div>
 <span class="ev-corner ev-measured" title="Measured &#x2014; EDF/EDF+ binary decode and EVE/CSL annotation parse"></span></div>
-<div class="mc">
+<div class="mc" data-kind="pipeline">
   <div class="mh"><div class="mi"><span class="ma">Clock &amp; Sessions</span><span class="mf">One Night, Multiple Sessions</span></div><span class="mt tc">Core</span></div>
   <p class="md">The EDF start date/time maps to a floating wall-clock anchor per the Clock Contract (read back with UTC getters so displayed time is viewer-timezone-independent). A night can contain multiple sessions separated by an off-mask gap &#x2014; CPAPDex stitches them while preserving the gap.</p><div class="fb"><div class="fl">Method</div><div class="ft">t0Ms = Date.UTC(startdate, starttime); sessions stitched on off-mask gap</div></div><div class="no-norm-note">One night = N sessions; gaps preserved, not merged away.</div>
 <span class="ev-corner ev-measured" title="Measured &#x2014; EDF startdate/starttime &#x2192; floating t0Ms; sessions stitched with off-mask gaps"></span></div>
-<div class="mc">
+<div class="mc" data-kind="pipeline">
   <div class="mh"><div class="mi"><span class="ma">Oximeter Self-Gate</span><span class="mf">Perfusion / Plausibility Pre-Filter</span></div><span class="mt tc">Core</span></div>
   <p class="md">On the SA2 lane, CPAPDex applies the same self-gate as OxyDex before counting desaturations &#x2014; rejecting perfusion-collapse and edge artifacts so a squeeze-artifact dip never inflates the ODI. Missing samples surface as gaps, never fabricated.</p><div class="fb"><div class="fl">Method</div><div class="ft">gate desats on perfusion + edge-collapse plausibility before ODI</div></div><div class="no-norm-note">Mirrors the OxyDex self-gate; absence stays visible.</div>
 <span class="ev-corner ev-measured" title="Measured &#x2014; oximeter perfusion/plausibility self-gate before ODI scoring"></span></div>
