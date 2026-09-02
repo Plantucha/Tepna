@@ -9736,47 +9736,11 @@
           doc: 'OxyDex Reference.html',
           reg: env.OXY_REGISTRY,
           resolver: env.OxyRegistry,
-          // Surfaced in the guide, absent from OXY_REGISTRY (DEEP-AUDIT-VI-FOLLOWUPS §2.5 sweep,
-          // 2026-09-02): 35 metrics the DSP exports and the reference grades, with no registry
-          // entry to grade them against. A registration debt, not an exemption — the list may
-          // only SHRINK (register the metric, drop its `data-kind="unregistered"`, remove it here).
-          unregistered: [
-            'BLUNTED AROUSAL Flag',
-            'Breathing Irregularity CV (biCV)',
-            'CS Score',
-            'Circadian HR Amplitude / Nadir Hour',
-            'Clustering Index',
-            'Desaturation Asymmetry',
-            'Dip Slope',
-            'HR Asymmetry',
-            'HR CV',
-            'HR Deceleration Runs',
-            'HR Nadir Timing',
-            'HR Quartile Trend',
-            'IEI',
-            'Intra-Night NSI',
-            'LF / HF Power',
-            'Longest Clean Run',
-            'MODL',
-            'Motion Bursts',
-            'O\u2082-HR Efficiency',
-            'Post-Dip HR Response',
-            'RMSSD Arc',
-            'Recovery CV',
-            'Recovery Slope',
-            'Sleep Pressure Index (SPI)',
-            'SpO\u2082 Autocorrelation lag-1',
-            'SpO\u2082 Ceiling',
-            'SpO\u2082 Nadir Timing',
-            'SpO\u2082 SampEn',
-            'SpO\u2082\u2013HR Decoupling %',
-            'SpO\u2082\u2013HR Lag',
-            'Stable SpO\u2082 Windows',
-            'UARS Score',
-            'Vagal Index',
-            'Worst 10-min SpO\u2082',
-            'Worst 30-min T95'
-          ]
+          /* §2.5 DISCHARGED 2026-09-02: all 35 are registered in `oxydex-registry.js`, graded from
+             the code, and their cards no longer declare `data-kind="unregistered"`. The list is
+             empty rather than deleted so the next node's debt has a shape to follow, and so a
+             re-appearance is an addition to an empty set rather than a new concept. */
+          unregistered: []
         },
         { doc: 'ECGDex Reference.html', reg: env.ECG_REGISTRY, resolver: env.EcgRegistry, unregistered: ['Data Gaps'] },
         { doc: 'PpgDex Reference.html', reg: env.PPG_REGISTRY, resolver: env.PpgRegistry, unregistered: ['Heading', 'Mag interference'] },

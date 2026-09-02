@@ -130,7 +130,14 @@
         'unconditionally and fabricated a cycle on featureless nights (~42 % of pure AR(1) runs). ' +
         'Corpus support: 19/103 nights at the band edge against a 42 % null, p = 3.3e-7.'
     },
-    ahiEst: { label: 'CVHR / AHI est', unit: '/hr', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'CVHR-derived AHI estimate — oximetry surrogate, not PSG' },
+    ahiEst: {
+      label: 'ODI-4 / AHI est',
+      unit: '/hr',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'emerging',
+      cite: 'AHI estimate = ODI-4 × 1.1 (oxydex-dsp.js computeAHIestimates) — an OXIMETRY surrogate, not PSG and NOT CVHR-derived; CVHR is the separate cvhrIndex entry'
+    },
     cvhrIndex: { label: 'CVHR index', unit: '/hr', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'Cyclical-variation-of-HR index (Hayano)' },
     sleepEff: { label: 'Sleep Eff', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'emerging', cite: 'Motion-derived sleep efficiency — actigraphy proxy, not EEG' },
     spo2Drift: { label: 'SpO₂ drift', unit: '%/night', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: '7-day rolling chronic-drift indicator' },
@@ -297,9 +304,16 @@
       goodDirection: 'up',
       depth: 'research',
       evidence: 'emerging',
-      cite: 'Peng detrended fluctuation α1 — established method, computed here on PULSE rate rather than ECG RR; that transfer is not validated here'
+      cite: "Peng detrended fluctuation α1 — established method, computed here on the SpO₂ SERIES (oxydex-dsp.js computeDFA maps r.spo2), not on pulse rate and not on ECG RR; HR-DFA thresholds do not apply, as the DSP's own dfaLabel says"
     },
-    ssiIdx: { label: 'SSI', unit: '', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: "Sleep-stability index, this suite's own construction" },
+    ssiIdx: {
+      label: 'SSI',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: "Sympathetic-surge index (oxydex-dsp.js computeSympSurge: 0.4·spikeRate + 0.4·postDipAct + 0.2·aaiLoad), surfaced as 'Symp Surge' — this suite's own construction. NOT a sleep-stability index, which is what this cite said while the DSP scored it as surge; direction corrected with it (the DSP scores <0.3 as severity 0, so LOWER is better)"
+    },
     cdiIdx: { label: 'CDI', unit: '/h', goodDirection: 'down', depth: 'research', evidence: 'experimental', cite: 'Cyclic desaturation index, bespoke detector' },
     hypLoad: {
       label: 'HypLoad',
@@ -393,10 +407,38 @@
       cite: 'Conditional mean of SpO₂ while below 94% — a statistic of the sensed series'
     },
     condPctBelow94: { label: 'Cond %', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Share of the recording below 94%' },
-    nadirBinLt4: { label: 'Nadir<4%', unit: 'count', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Histogram bin of sensed nadir depths (<4% drop)' },
-    nadirBin46: { label: 'Nadir 4-6', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Histogram bin of sensed nadir depths (4–6%)' },
-    nadirBin69: { label: 'Nadir 6-9', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Histogram bin (6–9%)' },
-    nadirBinGt9: { label: 'Nadir>9%', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Histogram bin (>9%), summed from the two deepest bins' },
+    nadirBinLt4: {
+      label: 'Nadir >91%',
+      unit: 'count',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Histogram bin of sensed event nadirs by ABSOLUTE LEVEL (nadir >91%), not by drop depth — oxydex-dsp.js:4524 bins on `nad`; the level and the depth are different quantities (baseline 99→92 is a 7% drop and still >91%). Direction corrected with it: the render treats fewer as better'
+    },
+    nadirBin46: {
+      label: 'Nadir 90-91%',
+      unit: 'count',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Histogram bin of sensed event nadirs by ABSOLUTE LEVEL (90–91%), not by drop depth — see nadirBinLt4'
+    },
+    nadirBin69: {
+      label: 'Nadir 88-89%',
+      unit: 'count',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Histogram bin of sensed event nadirs by ABSOLUTE LEVEL (88–89%), not by drop depth — see nadirBinLt4'
+    },
+    nadirBinGt9: {
+      label: 'Nadir <88%',
+      unit: 'count',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Histogram bin of sensed event nadirs by ABSOLUTE LEVEL (<88%, summed from the two lowest bins), not by drop depth — see nadirBinLt4'
+    },
     rmssdProxy: {
       label: 'RMSSD proxy',
       unit: 'ms',
@@ -548,6 +590,303 @@
       depth: 'advanced',
       evidence: 'experimental',
       cite: 'Periodic-breathing / Cheyne-Stokes oscillation episode — derived SpO₂ oscillation signature, not an airflow-scored event'
+    },
+
+    /* ── §2.5 REGISTRATION SWEEP (DEEP-AUDIT-VI-FOLLOWUPS, 2026-09-02) ─────────────────────────
+       35 metrics the OxyDex reference GRADES and the DSP computes, with no registry entry to grade
+       them against: `cohesion-badges` could not compare a tier it had no authority for, so each card
+       carried a badge nothing backed. Grades are derived from the CODE, by one rule stated once:
+         · `measured`     — a direct readout of sensed values; no tuned threshold, no model
+         · `heuristic`    — a tuned or rule-of-thumb threshold decides the number
+         · `experimental` — a bespoke composite/score, or an established method transferred to a
+                            signal it was not validated on (the `dfaAlpha1` precedent: name the
+                            transfer in the cite rather than inheriting the method's standing)
+       WHERE THAT RULE WOULD RAISE A BADGE, IT IS NOT TAKEN. Eight entries (MODL, HR Nadir Timing,
+       Circadian HR Amplitude, LF/HF Power, O₂-HR Efficiency, RMSSD Arc, SPI, Vagal Index) keep the
+       guide's more conservative `heuristic`: a grade that understates trust is not a false claim,
+       and upgrading one on a rule I authored is the fabricated authority the badge mandate exists to
+       prevent. They are recorded in the FOLLOWUPS stamp so a later pass can decide deliberately.
+       Four entries go the other way and the guide is corrected with them — it claimed `measured`,
+       which means DIRECTLY SENSED, for two threshold counts and two derived estimates. */
+    bluntedArousalFlag: {
+      label: 'BLUNTED AROUSAL Flag',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'Flag: PB divergence >=75% AND >=6 oscillation episodes (oxydex-dsp.js:3767) — two tuned cuts, not a validated criterion'
+    },
+    biCv: {
+      label: 'Breathing Irregularity CV (biCV)',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'CV of the inter-event interval series (see IEI) — a dispersion ratio over a bespoke interval definition'
+    },
+    csScore: {
+      label: 'CS Score',
+      unit: '/3',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'experimental',
+      cite: 'Constructed 0-3 indicator count for CSR-like breathing (cycle 40-130 s + BLUNTED_AROUSAL + CRC<0.2 + low-ODI/high-PB). Not a likelihood and not validated: night-level agreement with CPAP PB scoring was kappa -0.039'
+    },
+    circadianHrAmp: {
+      label: 'Circadian HR Amplitude / Nadir Hour',
+      unit: 'bpm',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'Least-squares cosine fit to the nightly HR vector — the cosinor method applied to a single night, a transfer this suite has not validated'
+    },
+    clusteringIdx: {
+      label: 'Clustering Index',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Fraction of desaturation nadirs in the second half of the recording; the >0.6 / <0.4 reading is a rule of thumb'
+    },
+    desatAsym: {
+      label: 'Desaturation Asymmetry',
+      unit: 'ratio',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: "|mean dip slope| / |mean recovery slope| (oxydex-dsp.js:2360); the >1.5 abrupt / <0.7 gradual bands are this suite's own"
+    },
+    dipSlope: {
+      label: 'Dip Slope',
+      unit: '%/s',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Mean rate of fall from baseline to nadir, negative %/s — descriptive of the detected event set, no validated cut'
+    },
+    hrAsym: {
+      label: 'HR Asymmetry',
+      unit: 'bpm/s',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'Mean HR acceleration rate minus mean deceleration rate over 10-sample rolling windows — a bespoke difference'
+    },
+    hrCv: {
+      label: 'HR CV',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'SD/mean x100 of motion-free HR — an SDNN proxy normalised by rate, not an HRV standard'
+    },
+    hrDecelRuns: {
+      label: 'HR Deceleration Runs',
+      unit: 'count',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'Runs with a >=3 bpm decrease sustained >=30 s (oxydex-dsp.js:1623) — two tuned cuts'
+    },
+    hrNadirTiming: {
+      label: 'HR Nadir Timing',
+      unit: 'h',
+      goodDirection: '',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Hour from recording start of the lowest 5-min smoothed HR — a readout of sensed HR, no model'
+    },
+    hrQuartileTrend: {
+      label: 'HR Quartile Trend',
+      unit: 'bpm',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'Mean HR in Q4 minus Q1 of the recording — a bespoke trend contrast'
+    },
+    iei: {
+      label: 'IEI',
+      unit: 's',
+      goodDirection: '',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'Mean and SD of the QUIET interval between desaturation events (next start minus previous end, oxydex-dsp.js computeIEI) — an inter-event gap, not a nadir-to-nadir cycle length'
+    },
+    intraNightNsi: {
+      label: 'Intra-Night NSI',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'experimental',
+      cite: 'The Nocturnal Stress Index computed over three 90-min epochs — a bespoke composite, per-epoch'
+    },
+    lfHfPower: {
+      label: 'LF / HF Power',
+      unit: 'ms2',
+      goodDirection: '',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'DFT band power 0.04-0.15 Hz (LF) and 0.15-0.40 Hz (HF) (oxydex-dsp.js:4934) — the Task-Force HRV bands applied to oximeter PULSE rate, a transfer this suite has not validated'
+    },
+    longestCleanRun: {
+      label: 'Longest Clean Run',
+      unit: 'min',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Longest uninterrupted run of SpO2 > 95% (oxydex-dsp.js:1481) — a single tuned threshold; it does not test motion or artifact flags'
+    },
+    modl: {
+      label: 'MODL',
+      unit: '%',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Mean SpO2 of samples inside detected desaturation events — a readout of sensed SpO2 over the detected set'
+    },
+    motionBursts: {
+      label: 'Motion Bursts',
+      unit: 'count',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Count of motion runs lasting >=3 consecutive samples (oxydex-dsp.js:1465) — a tuned minimum length'
+    },
+    o2HrEfficiency: {
+      label: 'O₂-HR Efficiency',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: "Per-event HR rise divided by SpO2 drop — a bespoke coupling ratio; the <0.3 blunted / <0.8 moderate bands are this suite's own"
+    },
+    postDipHrResponse: {
+      label: 'Post-Dip HR Response',
+      unit: 'bpm',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'measured',
+      cite: 'Mean HR difference between each desaturation nadir and 60 s later — a difference of sensed HR at defined offsets'
+    },
+    rmssdArc: {
+      label: 'RMSSD Arc',
+      unit: 'ms/h',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'OLS slope of 30-min windowed RMSSD across the night — a bespoke trend over a pulse-rate RMSSD proxy'
+    },
+    recoveryCv: {
+      label: 'Recovery CV',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'SD/mean x100 of the inter-event interval series — same source as IEI, expressed as a percentage'
+    },
+    recoverySlope: {
+      label: 'Recovery Slope',
+      unit: '%/s',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Mean rate of resaturation from nadir to event close — descriptive of the detected event set'
+    },
+    sleepPressureIdx: {
+      label: 'Sleep Pressure Index (SPI)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Weighted composite of WASO (0.4), motion bursts (0.15) and sleep-onset latency — a bespoke construction with authored weights'
+    },
+    spo2Autocorr1: {
+      label: 'SpO₂ Autocorrelation lag-1',
+      unit: 'r',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Pearson correlation of consecutive SpO2 samples — a standard statistic used here as a bespoke smoothness index'
+    },
+    spo2Ceiling: {
+      label: 'SpO₂ Ceiling',
+      unit: 'count',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'Count of runs of >=5 consecutive samples at SpO2 >= 99% (oxydex-dsp.js computeSpO2Ceiling) — two tuned cuts; a sensor-ceiling indicator, not a physiological measurement'
+    },
+    spo2NadirTiming: {
+      label: 'SpO₂ Nadir Timing',
+      unit: 'h',
+      goodDirection: '',
+      depth: 'secondary',
+      evidence: 'measured',
+      cite: 'Hours from recording start of the first and last detected desaturation nadir — a readout of event times'
+    },
+    spo2SampEn: {
+      label: 'SpO₂ SampEn',
+      unit: '',
+      goodDirection: '',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Sample entropy of the SpO2 series — an established complexity measure applied to oximetry, a transfer this suite has not validated'
+    },
+    spo2HrDecouplingPct: {
+      label: 'SpO₂–HR Decoupling %',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'experimental',
+      cite: 'Percentage of 30-s windows in which SpO2 and HR move in opposite directions (oxydex-dsp.js:1654) — a constructed agreement statistic, not a sensed quantity'
+    },
+    spo2HrLag: {
+      label: 'SpO₂–HR Lag',
+      unit: 's',
+      goodDirection: '',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'MEDIAN of per-window argmax SpO2-HR cross-correlation lag, searched over 0-120 s (oxydex-dsp.js:5085) — an estimate, not a sensed quantity'
+    },
+    spo2StableWindows: {
+      label: 'Stable SpO₂ Windows',
+      unit: 'count',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Count of 5-min windows with SpO2 SD < 1% (oxydex-dsp.js:1566) — a single tuned threshold'
+    },
+    uarsScore: {
+      label: 'UARS Score',
+      unit: '/3',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'experimental',
+      cite: 'Constructed 0-3 indicator count for upper-airway resistance (cycle <40 s + AAI>=3 + low-ODI/oscillations + SFI>=2). Not a likelihood and not validated'
+    },
+    vagalIndex: {
+      label: 'Vagal Index',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Weighted composite of pNN3, HR floor and longest clean run — a bespoke construction with authored weights'
+    },
+    worst10MinSpo2: {
+      label: 'Worst 10-min SpO₂',
+      unit: '%',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'measured',
+      cite: 'Lowest mean SpO2 over any 10-min sliding window — a readout of sensed SpO2'
+    },
+    worst30MinT95: {
+      label: 'Worst 30-min T95',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Highest T95 over any 30-min rolling window; T95 itself is a threshold statistic (time below 95%)'
     }
   };
 
@@ -632,6 +971,15 @@
     'spo₂ iqr': 'spo2IQR',
     'cond mean': 'condMeanBelow94',
     'cond %': 'condPctBelow94',
+    /* BOTH SPELLINGS RESOLVE. The depth-shaped labels ('nadir<4%' …) were what the render displayed
+       until 2026-09-02, when they were corrected to the LEVEL the code actually bins on; they stay
+       here so any surface still carrying the old string keeps its badge instead of falling through to
+       the fabricated-`experimental` path. New labels added beside them, not instead of them. */
+    'nadir >91%': 'nadirBinLt4',
+    'nadir 90-91%': 'nadirBin46',
+    'nadir 88-89%': 'nadirBin69',
+    'nadir <88%': 'nadirBinGt9',
+    'odi-4 / ahi est': 'ahiEst',
     'nadir<4%': 'nadirBinLt4',
     'nadir 4-6': 'nadirBin46',
     'nadir 6-9': 'nadirBin69',
