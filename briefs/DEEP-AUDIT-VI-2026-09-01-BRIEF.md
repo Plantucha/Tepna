@@ -118,6 +118,29 @@ no headless fixture should move (headless path untouched) — verify, don't asse
 
 #### F3 · MAJOR — mis-states a surfaced number (bug class 3a) · `ecgdex-dsp.js:2006` + sibling `ppgdex-dsp.js:2024`
 
+> ✅ **FIXED 2026-09-01 (Magpie) — ECGDex leg only; the PpgDex port is still open under this finding.**
+> `detectCVHR(nn, tt, activeSec)` takes the observed seconds as an OPTIONAL LAST argument (back-compat:
+> a two-arg caller still gets an index, on the span, because that is all it supplied; `activeSec = 0`
+> falls back to the span rather than dividing by zero), `analyze()` passes `nnRes.activeSec` — the same
+> seconds `durSec` is built from — and the basis TRAVELS with the number: `cvhr.denomSec` through the
+> analyze reshape, `apnea.cvhrHours` on both builders (`ecgBuildNodeExport`'s rich block and the app
+> lane's `buildV2`, per that block's own SHARED-SHAPE mandate), attached only when the index was
+> computed. A refusal (N < 60) carries no denominator — there is no basis for a number it did not
+> compute. **Measured:** on the audit's planted geometry the index is 119.7 gap-free vs 119.4 with 1.5 h
+> dead (the wall-span quotient is 59.7 — the halving the audit reproduced); through `analyze()` on the
+> 3 h synthetic, a folded 1.5 h gap grows the span 3.0 h → 4.5 h while the denominator stays at the
+> base's ~2.98 observed hours and the index moves 29.8 → 29.5. **The reshape was the live wire:**
+> `denomSec` was returned by `detectCVHR` and read by the export and reached nothing, because the
+> analyze() result reshape is an allowlist — the source-scan assertion passed while the wire was dead,
+> and only the analyze-level leg caught it. 21 assertions, incl. the defect direction both at the unit
+> and the analyze level so a "simplification" back to the span cannot pass. No fixture moved: no
+> committed ECGDex golden is a long non-ambulatory night, so none carries an `apnea` block.
+>
+> ⚠️ **The `rec.gaps` fold does NOT remove beats** — it adds the dead time to every later beat, so a
+> folded night keeps its active seconds and grows only its span. That is the defect in its purest form
+> (same beats, same events, longer span, smaller index) and it is why the analyze-level assertions pin
+> the denominator EQUAL to the gap-free night's rather than halved.
+
 **Symptom.** `cvhrIndex` divides events by the gap-folded **wall** span (`hours = tt[N-1]/3600`) instead of
 observed time, so sensor dead-time inflates the denominator: a 1.5 h dropout in a 3 h night halves the
 shipped apnea-surrogate index (29.7 → 14) on unchanged physiology. PpgDex `cvhrFromNN` ports the identical

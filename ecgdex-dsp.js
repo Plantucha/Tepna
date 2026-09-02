@@ -1890,7 +1890,10 @@
   // sibling guard added after 2026-08-23's +2792-day sensor rebase OOM-killed the fold there).
   // 48 h — over twice any real recording, so a gappy night still fits.
   const CVHR_MAX_SPAN_S = 48 * 3600;
-  function detectCVHR(nn, tt) {
+  // `activeSec` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) is the beat-COVERED time
+  // the caller measured (nnRes.activeSec — inter-beat deltas ≤ GAP_S summed); when it is > 0 it is
+  // the index denominator instead of the wall span. See the "events per hour" comment at the bottom.
+  function detectCVHR(nn, tt, activeSec) {
     const N = nn.length;
     /* REFUSE (§2.6). `index: 0` IS the exported `cvhrIndex`, and 0 reads as "we looked for cyclic
        variation and there was none" — a clinically meaningful negative — when the truth is that
@@ -2002,10 +2005,20 @@
         }
       }
     }
-    // CVHR index = events per hour
-    const hours = tEnd / 3600;
+    /* CVHR index = events per hour OF OBSERVED RECORDING (DEEP-AUDIT-VI F3). This divided by the
+       wall span `tEnd` — the gap-folded end stamp — so sensor DEAD TIME sat in the denominator: a
+       1.5 h strap-off in a 3 h night halved the shipped index (29.7 → 14.0, reproduced on planted
+       physiology that did not change), while meanRR/rMSSD/SDNN beside it correctly ignored the gap.
+       Events can only arise in covered seconds (the 1 Hz resample holds the last beat's HR flat
+       through a gap, so `res` decays to 0 there and the ENV_ON gate stays shut), so covered time is
+       the coherent basis — the same "per hour of analyzable recording" convention OxyDex's ODI
+       uses. `activeSec` is what analyze() measured (nnRes.activeSec); absent or 0 it falls back to
+       the span, which is exact for a gap-free series (activeSec ≡ tEnd − tt[0] there). `denomSec`
+       is returned so a consumer can see the basis rather than infer it. */
+    const denomSec = activeSec > 0 ? activeSec : tEnd;
+    const hours = denomSec / 3600;
     const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;
-    return { events, index, hrSeries: Array.from(sm), resSeries: Array.from(res), M };
+    return { events, index, hrSeries: Array.from(sm), resSeries: Array.from(res), M, denomSec };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -2604,7 +2617,8 @@
       sd2v = pg.sd2 == null ? null : +pg.sd2.toFixed(2);
 
     prog(92, 'CVHR / apnea detection…');
-    const cvhrRaw = detectCVHR(nn, tt);
+    // Denominator = the same ACTIVE seconds `durSec` is built from (F3): dead time is not observed time.
+    const cvhrRaw = detectCVHR(nn, tt, nnRes.activeSec);
     // MOTION BEFORE STAGING (see epochMotion). The chest ACC is parsed and on hand here; computing
     // it after the stager — as this did — is what left the classifier blind to the one feature that
     // most improves it.
@@ -2820,7 +2834,9 @@
       stages,
       stageMin,
       totSleep: +totSleep.toFixed(0),
-      cvhr: { index: cvhr.index, events: cvhr.events, hrSeries: cvhr.hrSeries, resSeries: cvhr.resSeries },
+      // `denomSec` rides along (F3): this reshape is an ALLOWLIST, so a field detectCVHR returns and
+      // the export reads is dead unless it is named here — the analyze-level assertion is what shows it.
+      cvhr: { index: cvhr.index, events: cvhr.events, hrSeries: cvhr.hrSeries, resSeries: cvhr.resSeries, denomSec: cvhr.denomSec },
       hrvStab,
       surgeEsc,
       crc,
@@ -5390,6 +5406,12 @@
               surgeEscalationPct: r.surgeEsc ? r.surgeEsc.escalationPct : null
             }
           : null;
+      /* The index's DENOMINATOR travels with it (DEEP-AUDIT-VI F3): `cvhrIndex` is events per
+         hour of OBSERVED recording (nnRes.activeSec), not per hour of wall span, and a consumer
+         reading "N /h" should be able to see which hours. Attached only when the index was
+         computed — a refusal (N<60, implausible span) carries no basis, and the no-null-key
+         discipline keeps the common export byte-stable on the refusal path. */
+      if (out.apnea && out.apnea.cvhrIndex != null && r.cvhr && r.cvhr.denomSec > 0) out.apnea.cvhrHours = +(r.cvhr.denomSec / 3600).toFixed(2);
       out.hrvStability = r.hrvStab
         ? {
             sigma_lnRMSSD_slope: r.hrvStab.sigma_lnRMSSD_slope,
