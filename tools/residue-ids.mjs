@@ -25,8 +25,13 @@
  *
  * WHAT IT ASSERTS, against the merge-base of `origin/main`:
  *   1. no id added on this branch already exists on main            (the collision)
- *   2. ids added on this branch extend main's maximum, monotonically (never reused, never
- *      backfilled into a gap — a gap means a row was deleted, which the contract forbids)
+ *   2. ids added on this branch extend main's maximum, monotonically — never re-used, never
+ *      back-filled into a gap. ⚠️ A GAP IS NOT A DELETED ROW: measured 2026-09-02, R7 is a gap
+ *      nobody ever committed (`git log -S"| R7 |"` returns nothing). It was announced in a
+ *      cross-session message, other sessions minted R8+ around it, and the row it was reserved
+ *      for was never written. Ids are burned by ANNOUNCEMENT, not only by use — so an id that
+ *      was quoted somewhere must never come back meaning something else. A gap is permanent,
+ *      and that is cheap; ambiguity is not.
  *   3. no row that exists on main was REMOVED or had a non-state cell edited
  *      (rows are appended and closed; a wrong row gets a new row saying so)
  *
@@ -71,27 +76,48 @@ export function parseRows(text) {
 /**
  * Pure core. Compares this branch's ledger against the base's.
  *
- * @param {string} baseText  ledger as of the merge base / origin/main
+ * ⚠️ TWO POPULATIONS, DELIBERATELY, and conflating them makes the tool wrong in a way that
+ * looks right. `baseText` is the MERGE BASE — what this branch actually started from — and it
+ * is the only honest reference for "was a row removed or edited", because a branch that is
+ * merely BEHIND has not removed anything. `tipText` is `origin/main` NOW, and it is the only
+ * honest reference for "does this id collide", because that is where concurrent mints land.
+ * Measured on this tool's own branch: comparing removals against the tip reported R11 as
+ * deleted when the branch simply predated it. Behind is not deleted.
+ *
+ * @param {string} baseText  ledger at the merge base (removals / edits)
  * @param {string} headText  ledger on this branch
+ * @param {string} [tipText] ledger at origin/main now (collisions / high-water); defaults to baseText
  * @returns {{collisions: string[], nonMonotonic: string[], mutated: string[], added: string[], baseMax: number}}
  */
-export function verdict(baseText, headText) {
+export function verdict(baseText, headText, tipText) {
   const base = parseRows(baseText);
   const head = parseRows(headText);
+  const tip = parseRows(tipText == null ? baseText : tipText);
   const baseById = new Map(base.map((r) => [r.id, r]));
+  const tipById = new Map(tip.map((r) => [r.id, r]));
   const collisions = [];
   const nonMonotonic = [];
   const mutated = [];
   const added = [];
-  const baseMax = base.reduce((a, r) => Math.max(a, r.n), 0);
+  const baseMax = tip.reduce((a, r) => Math.max(a, r.n), 0);
 
   for (const r of head) {
     const prior = baseById.get(r.id);
     if (!prior) {
+      // present on the tip but not on the base ⇒ someone else minted it concurrently
+      if (tipById.has(r.id)) {
+        collisions.push(`${r.id} — already used on origin/main by another branch`);
+        continue;
+      }
       added.push(r.id);
-      // An id at or below main's high-water mark is a collision even when main has no such
-      // row today: ids are never reused, so a gap is a deleted row, not a free slot.
-      if (r.n <= baseMax) collisions.push(`${r.id} — main's ledger already reaches R${baseMax}`);
+      // An id at or below the base's high-water mark is refused even when the base has no such
+      // row. ⚠️ NOT because a gap means a deleted row — measured 2026-09-02, R7 is a gap that was
+      // never committed by anyone: it was announced in a cross-session message, other sessions
+      // minted R8+ around it, and the row it was reserved for was never written. So ids are
+      // BURNED BY ANNOUNCEMENT, not only by use, and an id that was quoted somewhere must never
+      // come back meaning something else. Allocation is one-way; a gap is permanent and cheap.
+      if (r.n <= baseMax)
+        collisions.push(`${r.id} — at or below the base’s high-water mark R${baseMax}; ids are allocated once, never re-used or back-filled (a gap may have been announced elsewhere)`);
       continue;
     }
     if (prior.key !== r.key) mutated.push(`${r.id} — a non-state cell was edited (rows are append-and-close)`);
@@ -144,9 +170,19 @@ function main() {
   }
 
   let baseText;
+  let tipText;
+  let mergeBase = base;
   try {
     git(['rev-parse', '--verify', base]);
-    baseText = readAt(base);
+    // Removals/edits are judged against the MERGE BASE (what this branch started from); a branch
+    // that is merely BEHIND has removed nothing. Collisions are judged against the tip.
+    try {
+      mergeBase = git(['merge-base', 'HEAD', base]).trim() || base;
+    } catch {
+      mergeBase = base;
+    }
+    baseText = readAt(mergeBase);
+    tipText = readAt(base);
   } catch {
     refuse(`cannot resolve base ref \`${base}\`.`, ['Fetch it (`git fetch origin main`) or pass --base <ref>.']);
   }
@@ -159,7 +195,7 @@ function main() {
     refuse(`\`${LEDGER_PATH}\` does not exist at HEAD.`, ['The ledger is committed on main; a branch must not delete it.']);
   }
 
-  const v = verdict(baseText, headText);
+  const v = verdict(baseText, headText, tipText);
   const problems = [...v.collisions, ...v.nonMonotonic, ...v.mutated];
 
   if (asJson) {
@@ -203,9 +239,20 @@ if (process.argv.includes('--selftest')) {
   v = verdict([row('R1')].join('\n'), [row('R1'), row('R2')].join('\n'));
   assert(v.collisions.length === 0 && v.added.join() === 'R2', 'appending the next id above the base max is clean');
 
-  // 2 — an id at or below main's high-water mark, with no such row on main: a deleted-row gap is not a free slot
+  // 2 — an id at or below the base's high-water mark with no such row on the base: back-filling a GAP.
+  //     This is the R7 case (announced, never committed), not a deleted row — see the header.
   v = verdict([row('R1'), row('R3')].join('\n'), [row('R1'), row('R2'), row('R3')].join('\n'));
-  assert(v.collisions.length === 1 && v.collisions[0].startsWith('R2'), 'backfilling a gap below main’s max FIRES');
+  assert(v.collisions.length === 1 && v.collisions[0].startsWith('R2'), 'back-filling a gap below the base’s max FIRES');
+  // ...and a pre-existing gap on BOTH sides is not itself an error: the ledger carries one today
+  v = verdict([row('R1'), row('R3')].join('\n'), [row('R1'), row('R3'), row('R4')].join('\n'));
+  assert(v.collisions.length === 0 && v.nonMonotonic.length === 0 && v.added.join() === 'R4', 'an existing gap is not an error — only filling it is');
+
+  // 2b — BEHIND IS NOT DELETED. The branch predates a row that landed on the tip: no removal, and
+  //      the tip's row is a collision only if the branch also minted that id itself.
+  v = verdict([row('R1')].join('\n'), [row('R1'), row('R3')].join('\n'), [row('R1'), row('R2')].join('\n'));
+  assert(v.mutated.length === 0 && v.collisions.length === 0 && v.added.join() === 'R3', 'a branch behind the tip has removed nothing');
+  v = verdict([row('R1')].join('\n'), [row('R1'), row('R2')].join('\n'), [row('R1'), row('R2', 'someone else’s row')].join('\n'));
+  assert(v.collisions.length === 1 && v.collisions[0].includes('another branch'), 'an id minted concurrently on the tip FIRES as a collision');
 
   // 3 — rows are append-and-close: a removal and a non-state edit both fire; a STATE change does not
   v = verdict(BASE, [row('R1')].join('\n'));
@@ -227,7 +274,7 @@ if (process.argv.includes('--selftest')) {
 
   // Phrased so `selftest-all.mjs` can PARSE the count: a tool that silently drops from 8
   // assertions to 1 still exits 0, and only a readable number makes that visible.
-  console.log('selftest: all 8 selftests passed');
+  console.log('selftest: all 11 selftests passed');
   process.exit(0);
 }
 
