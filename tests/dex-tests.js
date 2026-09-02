@@ -11006,6 +11006,163 @@
       } else T.skip('detectCVHR exported', 'not on this build');
     });
 
+    /* ════ CVHR index denominator — events per hour of OBSERVED recording, not of wall span (DEEP-AUDIT-VI F3) ════
+       `cvhrIndex` divided by `tt[N-1]` — the gap-folded wall span — so sensor dead time sat in the
+       denominator: the audit's reproduction planted a 1.5 h dropout into a 3 h night and the shipped
+       apnea-surrogate index halved (29.7 → 14.0) on unchanged physiology, while meanRR/rMSSD/SDNN
+       beside it correctly ignored the gap. Events can only arise in covered seconds (the 1 Hz resample
+       holds HR flat through a gap), so covered time is the coherent basis — OxyDex's ODI convention
+       ("per hour of analyzable recording"). Both the unit surface (the optional `activeSec` arg) and
+       the analyze() wiring are pinned, and the DEFECT direction is asserted alongside the fix so a
+       future "simplification" back to the span cannot pass. */
+    group('ECGDex cvhrIndex divides by OBSERVED time — a dropout no longer halves the index (DEEP-AUDIT-VI F3)', 'ecgdex-dsp · cvhr · denominator', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.detectCVHR === 'function')) {
+        T.skip('ECGDSP.detectCVHR available', 'not loaded');
+        return;
+      }
+      /* Planted CVHR physiology: HR 60 bpm with a 30 s-period, ±8 bpm oscillation — squarely in the
+         20–45 s apnea band, well over the 2.6 bpm envelope gate and the 5 bpm rebound floor. */
+      function plant(sec, gapAtSec, gapSec) {
+        var nn = [],
+          tt = [],
+          t = 0;
+        while (t < sec) {
+          var hr = 60 + 8 * Math.sin((2 * Math.PI * t) / 30);
+          var rr = 60000 / hr;
+          nn.push(rr);
+          tt.push(t);
+          t += rr / 1000;
+          if (gapSec && gapAtSec != null && t >= gapAtSec && t < gapAtSec + gapSec) t = gapAtSec + gapSec;
+        }
+        var active = 0;
+        for (var k = 1; k < tt.length; k++) {
+          var d = tt[k] - tt[k - 1];
+          if (d > 0 && d <= 10) active += d; // nnRes.activeSec's own rule (GAP_S = 10)
+        }
+        return { nn: nn, tt: tt, activeSec: active };
+      }
+      var HOUR = 3600;
+      var base = plant(3 * HOUR);
+      var b = D.detectCVHR(base.nn, base.tt, base.activeSec);
+      T.ok(
+        'control · the planted 30 s oscillation IS detected as CVHR (the test is not vacuous)',
+        !!b && b.events.length > 50 && b.index > 0,
+        'events ' + (b && b.events.length) + ' index ' + (b && b.index)
+      );
+      T.ok(
+        'control · gap-free: activeSec ≡ span, so the denominator is the same either way',
+        !!b && Math.abs(b.denomSec - base.tt[base.tt.length - 1]) < 2,
+        'denom ' + (b && b.denomSec) + ' span ' + base.tt[base.tt.length - 1]
+      );
+
+      // ── the audit's geometry: 1.5 h dead in the middle of a 3 h night ──
+      var gap = plant(3 * HOUR, 0.75 * HOUR, 1.5 * HOUR);
+      var g = D.detectCVHR(gap.nn, gap.tt, gap.activeSec);
+      var wallHours = gap.tt[gap.tt.length - 1] / HOUR;
+      var wallIndex = +(g.events.length / wallHours).toFixed(1);
+      T.ok(
+        'the dropout removes about half the EVENTS (physiology is unchanged where it is observed)',
+        g.events.length > 0.4 * b.events.length && g.events.length < 0.6 * b.events.length,
+        'base ' + b.events.length + ' gap ' + g.events.length
+      );
+      T.ok(
+        '…and the index divides by the 1.5 h that was OBSERVED, so it matches the gap-free night (±10 %)',
+        Math.abs(g.index - b.index) <= 0.1 * b.index,
+        'base ' + b.index + ' gap ' + g.index + ' denomSec ' + g.denomSec
+      );
+      T.eq('…the denominator IS the caller-measured active seconds', g.denomSec, gap.activeSec);
+      T.ok(
+        'DEFECT direction · the wall-span quotient would have HALVED it — the number the audit reproduced (29.7 → 14)',
+        wallIndex < 0.6 * b.index,
+        'wall-span index ' + wallIndex + ' vs ' + b.index
+      );
+      /* Back-compat: the third argument is OPTIONAL (added LAST per §🧪). A legacy two-arg caller
+         still gets an index — on the span, because that is all it supplied. */
+      var legacy = D.detectCVHR(gap.nn, gap.tt);
+      T.ok(
+        'legacy 2-arg call still computes, on the span (no throw, no null)',
+        !!legacy && legacy.index === wallIndex && Math.abs(legacy.denomSec - gap.tt[gap.tt.length - 1]) < 1e-9,
+        'legacy ' + (legacy && legacy.index) + ' denom ' + (legacy && legacy.denomSec)
+      );
+      T.ok('activeSec = 0 falls back to the span rather than dividing by zero', D.detectCVHR(gap.nn, gap.tt, 0).index === wallIndex);
+      T.eq('a refusal (N < 60) carries NO denominator — there is no basis for a number it did not compute', D.detectCVHR(gap.nn.slice(0, 30), gap.tt.slice(0, 30), 100).denomSec, undefined);
+
+      // ── the wiring: analyze() passes ITS active seconds, and the export carries the basis ──
+      var src = env.sources && env.sources['ecgdex-dsp.js'];
+      if (typeof src === 'string') {
+        T.ok('analyze() calls detectCVHR with nnRes.activeSec — the same seconds durSec is built from', /detectCVHR\(nn,\s*tt,\s*nnRes\.activeSec\)/.test(src));
+        T.ok('the export attaches apnea.cvhrHours from cvhr.denomSec, only when the index was computed', /out\.apnea\.cvhrIndex\s*!=\s*null[^\n]*denomSec\s*>\s*0[^\n]*cvhrHours\s*=/.test(src));
+      } else T.skip('ecgdex-dsp.js source in env.sources', 'not available in this runner');
+      /* End-to-end through analyze() on the real synthetic. NOTE the geometry: a `rec.gaps` entry is
+         folded by ADDING its dead time to every later beat — it removes no beats — so the gap night
+         keeps the base night's ~3 h of ACTIVE seconds while its wall SPAN grows to ~4.5 h. That is the
+         audit's defect exactly (the same beats, the same events, a longer span, a smaller index), and
+         it is why the assertions below pin the denominator EQUAL to the base and the span LARGER. */
+      if (typeof D.analyze === 'function' && typeof D.genSynthetic === 'function') {
+        var rec = D.genSynthetic({ durSec: 3 * HOUR });
+        var rB = D.analyze(rec, function () {});
+        var mid = Math.floor(rec.int16.length / 2);
+        var rG = D.analyze(Object.assign({}, rec, { gaps: [{ idx: mid, ms: 1.5 * HOUR * 1000 }] }), function () {});
+        var spanG = rG.tt && rG.tt[rG.tt.length - 1];
+        var spanB = rB.tt && rB.tt[rB.tt.length - 1];
+        T.ok('analyze · the synthetic night carries a CVHR index', rB.cvhr && rB.cvhr.index > 0, 'index ' + (rB.cvhr && rB.cvhr.index));
+        T.ok('analyze · the folded 1.5 h gap grew the wall span by ≥ 1.4 h (the fold is real)', spanG > spanB + 1.4 * HOUR, 'span base ' + spanB + ' gap ' + spanG);
+        T.ok(
+          'analyze · the gap night’s denominator is its ACTIVE seconds — the SAME seconds as the base (±1 %), not the grown span',
+          rG.cvhr && Math.abs(rG.cvhr.denomSec - rB.cvhr.denomSec) < 0.01 * rB.cvhr.denomSec && rG.cvhr.denomSec < spanG - HOUR,
+          'denom base ' + rB.cvhr.denomSec + ' gap ' + (rG.cvhr && rG.cvhr.denomSec) + ' span ' + spanG
+        );
+        T.ok(
+          'analyze · the index therefore moves by < 5 % across the fold (it fell by a third before F3)',
+          rG.cvhr && Math.abs(rG.cvhr.index - rB.cvhr.index) <= 0.05 * rB.cvhr.index,
+          'base ' + rB.cvhr.index + ' gap ' + (rG.cvhr && rG.cvhr.index)
+        );
+        T.ok(
+          'DEFECT direction · the same events over the folded span would read < 75 % of the index (the audit’s 29.7 → 14 on its geometry)',
+          rG.cvhr && rG.cvhr.events.length / (spanG / HOUR) < 0.75 * rG.cvhr.index,
+          'span-quotient ' + (rG.cvhr && +(rG.cvhr.events.length / (spanG / HOUR)).toFixed(1)) + ' vs ' + (rG.cvhr && rG.cvhr.index)
+        );
+        /* THE EXPORT LEG — the field must survive the node's own builder, not just the internal
+           result. The analyze() result reshape is an allowlist: on the first cut `denomSec` was
+           returned by detectCVHR, read by the export, and reached NOTHING, because the reshape
+           between them dropped it — the source-scan above passed while the wire was dead. The apnea
+           block is part of the RICH export (opts.rich — the orchestrate route); the common Ganglior
+           stream never carried it and must stay byte-identical. */
+        var build = D.buildNodeExport || D._build;
+        if (typeof build === 'function') {
+          var xB = build(rB, { rich: true }) || {};
+          var xG = build(rG, { rich: true }) || {};
+          var xPlain = build(rG, {}) || {};
+          T.ok(
+            'export · apnea.cvhrHours REACHES the rich export on a long night (≈ 3 observed hours)',
+            xB.apnea && xB.apnea.cvhrHours > 2.8 && xB.apnea.cvhrHours <= 3.05,
+            'cvhrHours ' + (xB.apnea && xB.apnea.cvhrHours)
+          );
+          T.ok(
+            'export · …and still reads the OBSERVED ≈ 3 h on the gap night whose span is 4.5 h',
+            xG.apnea && xG.apnea.cvhrHours > 2.8 && xG.apnea.cvhrHours <= 3.05,
+            'cvhrHours ' + (xG.apnea && xG.apnea.cvhrHours)
+          );
+          T.ok(
+            'export · cvhrIndex × cvhrHours reproduces the event count (the basis is legible)',
+            xG.apnea && Math.abs(xG.apnea.cvhrIndex * xG.apnea.cvhrHours - xG.apnea.cvhrEvents) < 0.05 * xG.apnea.cvhrEvents + 1,
+            JSON.stringify(xG.apnea && { i: xG.apnea.cvhrIndex, h: xG.apnea.cvhrHours, n: xG.apnea.cvhrEvents })
+          );
+          T.ok('export · the common (non-rich) Ganglior stream carries no apnea block — unchanged by F3', !('apnea' in xPlain));
+        } else T.skip('ECGDex.buildNodeExport available', 'not on this build');
+      }
+      /* The app-lane builder (ecgdex-app.js buildV2) MIRRORS the rich block field-for-field — the
+         SHARED-SHAPE mandate the rich builder's own comment states — so the same line must exist there. */
+      var appSrc = env.sources && env.sources['ecgdex-app.js'];
+      if (typeof appSrc === 'string')
+        T.ok(
+          'ecgdex-app.js buildV2 attaches apnea.cvhrHours the same way (shape parity with the rich export)',
+          /out\.apnea\.cvhrIndex\s*!=\s*null[^\n]*denomSec\s*>\s*0[^\n]*cvhrHours\s*=/.test(appSrc)
+        );
+      else T.skip('ecgdex-app.js source in env.sources', 'not available in this runner');
+    });
+
     group('ECGDSP frequency-domain HRV — LF/HF band split known-answer (deep-scout §EP)', 'ecgdex-dsp · spectral · known-answer', function (T) {
       var D = env.ECGDSP;
       if (!D || typeof D.lombScargle !== 'function') {

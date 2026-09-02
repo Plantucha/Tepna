@@ -2692,6 +2692,10 @@ self.onmessage = async (e) => {
         glucoseSource: 'GlucoDex'
       }
     };
+    /* The index's DENOMINATOR travels with it (DEEP-AUDIT-VI F3) — mirrors ecgBuildNodeExport
+       field-for-field (SHARED-SHAPE mandate): `cvhrIndex` is events per hour of OBSERVED recording
+       (nnRes.activeSec), not of wall span. Attached only when the index was computed. */
+    if (out.apnea && out.apnea.cvhrIndex != null && r.cvhr && r.cvhr.denomSec > 0) out.apnea.cvhrHours = +(r.cvhr.denomSec / 3600).toFixed(2);
     return out;
   }
   function exportJSON() {
