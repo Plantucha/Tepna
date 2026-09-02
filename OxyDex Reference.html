@@ -983,7 +983,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">MODL = mean( SpO&#x2082;[t] for t inside any desaturation event )</div></div>
 
 <div class="no-norm-note">Normative ranges not yet established — values are relative; compare across recordings.</div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-measured" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 
 <div class="mc" data-tier="secondary">
   <div class="mh"><div class="mi"><span class="ma">Dip Slope</span><span class="mf">Mean Desaturation Rate (%/s)</span></div><span class="mt ta">Advanced</span></div>
@@ -1182,7 +1182,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">O&#x2082;HReff = &#x0394;SpO&#x2082;_recovery / meanHR_recovery</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>O&#x2082;-HR Efficiency</th><th>Interpretation</th></tr><tr class="ok"><td>> 0.10</td><td class="nr">Efficient resaturation</td></tr><tr class="wn"><td>0.05 &#x2013; 0.10</td><td class="nr">Moderate</td></tr><tr class="bd"><td>< 0.05</td><td class="nr">Impaired efficiency</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="secondary">
   <div class="mh">
     <div class="mi"><span class="ma">Post-Dip HR Response</span><span class="mf">Mean HR Change 60 s After Nadir</span></div>
@@ -1365,7 +1365,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="mh"><div class="mi"><span class="ma">RMSSD Arc</span><span class="mf">RMSSD Trajectory Across Night</span></div><span class="mt tr">Research</span></div>
   <p class="md">OLS slope of 30-min windowed RMSSD values across the night (bpm/hr). Rising arc = increasing vagal tone (good recovery). Flat or declining = impaired autonomic recovery.</p>
   <div class="fb"><div class="fl">Formula</div><div class="ft">RMSSD[w] = proxy over 30-min window w&#x0A;Arc = OLS slope of RMSSD[w] vs. w</div></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
+<span class="ev-corner ev-experimental" title="Heuristic — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
 
 </div></div><!-- /hrv-proxy -->
 
@@ -1382,7 +1382,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <tr class="ok"><td>0.5&#x202F;&#x2013;&#x202F;2.0</td><td class="nr">Vagal dominant (normal sleep)</td></tr>
   <tr class="wn"><td>2.0&#x202F;&#x2013;&#x202F;4.0</td><td class="nr">Mild sympathetic activation</td></tr>
   <tr class="bd"><td>&gt;&#x202F;4.0</td><td class="nr">Sympathetic dominant</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 
 <div class="mc" data-tier="research">
   <div class="mh"><div class="mi"><span class="ma">ApEn</span><span class="mf">Approximate Entropy (Pincus 1991)</span></div><span class="mt tr">Research</span></div>
@@ -1481,7 +1481,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">y = A&middot;cos(2&#x03C0;t/T) + C&#x000A;A = amplitude; nadir at t = T/(2&#x03C0;) &times; atan2(B, A)</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>Amplitude (bpm)</th><th>Interpretation</th></tr><tr class="ok"><td>> 5</td><td class="nr">Strong circadian HR swing</td></tr><tr class="wn"><td>2 &#x2013; 5</td><td class="nr">Moderate</td></tr><tr class="bd"><td>< 2</td><td class="nr">Flat &#x2014; suppressed circadian rhythm</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="secondary">
   <div class="mh">
     <div class="mi"><span class="ma">HR Nadir Timing</span><span class="mf">Hour of Lowest HR</span></div>
@@ -1489,7 +1489,7 @@ body.light .ev-measured { border-color:var(--surface); }
   </div>
   <p class="md">Hour from recording start at which the lowest 5-minute smoothed HR is observed. Normally occurs in the first half of sleep during deep NREM. Late nadir (after 60% of recording) may indicate REM-heavy sleep architecture or delayed parasympathetic activation.</p>
   <div class="nt-wrap"><table class="nt"><tr><th>HR Nadir Timing</th><th>Interpretation</th></tr><tr class="ok"><td>First 40% of recording</td><td class="nr">Normal NREM-associated dip</td></tr><tr class="wn"><td>40 &#x2013; 60%</td><td class="nr">Mid-night &#x2014; indeterminate</td></tr><tr class="wn"><td>Last 40%</td><td class="nr">Late nadir &#x2014; check for REM bias or fragmentation</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-measured" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="secondary" data-id="nocDip">
   <div class="mh">
     <div class="mi"><span class="ma">Nocturnal HR Dip</span><span class="mf">Intra-Night HR Dip % (hrnDip)</span></div>
@@ -1511,7 +1511,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fn">longestCleanRun in seconds. No published normal values &#x2014; use for intra-individual trending.</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>Vagal Index</th><th>Relative tone</th></tr><tr class="ok"><td>> 0.05</td><td class="nr">High vagal tone</td></tr><tr class="wn"><td>0.01 &#x2013; 0.05</td><td class="nr">Moderate</td></tr><tr class="bd"><td>< 0.01</td><td class="nr">Low vagal tone</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
+<span class="ev-corner ev-experimental" title="Heuristic — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
 <div class="mc" data-tier="secondary" data-id="ssiIdx">
   <div class="mh">
     <div class="mi"><span class="ma">Sympathetic Surge Index (SSI)</span><span class="mf">Composite Arousal&#x2013;Sympathetic Load</span></div>
@@ -1683,7 +1683,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">SPI = WASO_min&times;0.4 + bursts&times;0.15 + SOL_min&times;0.25</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>SPI</th><th>Sleep pressure</th></tr><tr class="ok"><td>< 5</td><td class="nr">Low &#x2014; restorative night</td></tr><tr class="wn"><td>5 &#x2013; 15</td><td class="nr">Moderate</td></tr><tr class="bd"><td>15 &#x2013; 30</td><td class="nr">High &#x2014; poor sleep quality</td></tr><tr class="cr"><td>> 30</td><td class="nr">Very high &#x2014; significant sleep debt</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="research">
   <div class="mh">
     <div class="mi"><span class="ma">Breathing Irregularity CV (biCV)</span><span class="mf">CV of Inter-Nadir Intervals</span></div>

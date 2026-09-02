@@ -31,7 +31,7 @@ nothing, found only because someone tried to make a fix land.
 | 1.7 | **contested** | `capture-host/status_union.py:77` heartbeat-across-DST — **CONFIRMED and FIXED 2026-09-02** (Heron, PR #2077; see §1.7a below for the measurement, including the one correction it forces on the audit's own description). | Heron |
 | 1.8 | **F3 / F10** | The PpgDex `cvhrFromNN` port (#2073) changes the **denominator** only. The OxyDex §2.6 group's standing note *"PPGDEX cvhrFromNN IS DELIBERATELY NOT PART OF THIS FIX"* governs **nulling `index: 0`** (the refusal marker two goldens pin byte-for-byte) and is UNCHANGED: 0 still means what it meant. Recorded so a third session does not read the port as a violation of that note, or the note as a bar on the port. | — (record only) |
 | 1.9 | **new (from 1.5)** | **`cpapdex-dsp.js detectBreaths().breathRate` divides by WALL duration** (`durSec = recordsRead × recDur`) while every sibling ventilation figure computed beside it (`rrMaskOn`, `tvMaskOn`, `mvMaskOn`, `snMaskOn`, `flMaskOn`) is mask-on filtered. A surfaced breaths/min is therefore **diluted by mask-off time**, per night, by a varying factor — the same shape as 1.6's `therapyHours`. Found by trying to USE it as a reference and rejecting it; **not fixed inside the grading unit** on purpose. Mask-on fraction was 1.000 on all 24 nights measured, so the corpus does not yet show the error's size — that is coverage, not absolution. | unassigned |
-| 1.10 | **new (from 1.5)** | **`respFromEDR` substitutes a hardcoded `15` when `_autocorrPeriod` returns null** (`ecgdex-dsp.js:1788`, after a `respHint` fallback), and the surfaced value carries no marker distinguishing a measurement from the constant. 2 of 24 nights measured returned exactly 15.0. §1.5 had to detect them by value equality, which cannot separate a genuine 15.0 from the fallback — the refusal-vs-fabrication line this suite draws everywhere else (`#2044`, `#2052`). Either surface a flag or refuse. | unassigned |
+| 1.10 | **new (from 1.5)** | ~~`respFromEDR` substitutes a hardcoded `15`~~ — **FIXED 2026-09-02 (Osprey): it REFUSES now.** The value was worse than one unmarked substitution, it was two stacked: no dominant EDR period ⇒ echo the Lomb `respHint`; hint out of range ⇒ the constant **15**. The first is self-contradictory — the method's own comment says the rate is measured *"not echoed from the Lomb hint"*, so its stated independence held only on the nights it succeeded. Now: `respFromEDR = null` plus `respFromEDRReason`, carried into the export and rendered as **"no estimate"** on both app surfaces (the pill used to print `null br/min`). `f0` deliberately keeps its 0.25 Hz analysis centre so `crcPLV`/`couplingStrength` are untouched — nulling it would silently move a different metric inside a unit about the breath rate; whether a PLV computed at an ASSUMED centre is quotable is filed as **§1.11**, not answered here. **Committed twin required and built (§2.1):** no committed input took the branch — the clean twin carries 0.25 Hz baseline wander and its rich golden pins 16.3 — so `synthetic_ecgdex_flat_edr.txt` is the clean twin's morphology with the periodic drivers removed AND beats quantised to exact sample boundaries. Pre-fix code returns **11.1** on it (the hint echo), current code returns null. ⚠️ Two constructions FAILED to reach the branch and are recorded so nobody retries them: broadband noise gave a 19.9 br/min "period" (band-passed noise autocorrelates above the 0.1 floor) and a noiseless un-quantised train gave 7.4 (sub-sample phase jitter modulates the sampled R amplitude). A real clip from 2026-07-02 was staged and then REJECTED: real ECG recordings are not committed here (only synthetic are; the equiv leg's clip is gitignored). 🔴 **And this CORRECTS §1.5's own figures.** §1.5 excluded both nights whose rate was exactly 15.0 as fallbacks, detecting them by `=== 15.0` — the test it flagged as unable to separate a real 15.0 from the constant. Run against the fixed code: **2026-07-02 genuinely refuses; 2026-07-06 MEASURES 15.0.** So n = 22 → **23**, MAE 1.90 → **1.82**, LoA width 9.58 → **9.41**, constant-15 control 0.80 → **0.77**. Both bands still fail and the constant still beats the estimator: the re-tier verdict is unchanged, the registry stamp is corrected in this PR. | Osprey — **DONE** |
 
 ---
 
@@ -253,22 +253,25 @@ half-finished fix, since the code comment records being corrected to level while
 followed). The nadir labels are corrected at the render and CSV sites too, with both spellings aliased so
 no surface loses its badge; registry **ids are unchanged**, so no export identity moves.
 
-#### 8 tiers deliberately held BELOW the code rule; decision pending
-Each row's grade would RISE under the rule stated in the registry block. None was taken: understating
-trust is never fabricated authority, and raising a badge on a rule written the same afternoon is exactly
-what the mandate forbids. Listed so the decision is made deliberately, per row, by someone other than the
-author of the rule. Raises belong in a follow-on OxyDex PR (bundle change, one verify lap), not here.
+#### 8 tiers held below the code rule — RULED 2026-09-02 (Kestrel), all 8 raised
+Each row's grade would RISE under the rule stated in the registry block, and none was taken in #2083:
+understating trust is never fabricated authority, and raising a badge on a rule written the same
+afternoon is what the mandate forbids. **All 8 were ruled on 2026-09-02 by Kestrel and RAISED — each on
+a ground independent of that rule**, namely §🎫's own retired-vocabulary mapping (composite→experimental),
+the `dfaAlpha1` transfer precedent, or an existing registry precedent for the same shape. Executed as a
+follow-on OxyDex PR: registry and guide cards in lockstep, ids unchanged, each ground recorded in the
+entry's own cite so the reasoning travels with the grade rather than living only here.
 
-| card | tier now | code rule gives | the code fact behind that |
+| card | tier | ruling | ground (NOT the author's rule) |
 |---|---|---|---|
-| MODL | heuristic | measured | `oxydex-dsp.js:1107` — mean of sensed SpO₂ over the detected event set; no threshold of its own |
-| HR Nadir Timing | heuristic | measured | `computeHRNadirTime` (called at `:2891`) — the hour of the lowest 5-min smoothed HR, a readout |
-| Circadian HR Amplitude / Nadir Hour | heuristic | experimental | `:2146` — a least-squares cosine (cosinor) FIT, a model rather than a rule of thumb |
-| LF / HF Power | heuristic | experimental | `:4934` — Task-Force HRV bands (0.04–0.15, 0.15–0.40 Hz) on oximeter PULSE rate, an unvalidated transfer |
-| O₂-HR Efficiency | heuristic | experimental | `computeO2HREfficiency` (`:2886`) — a bespoke per-event HR-rise / SpO₂-drop ratio |
-| RMSSD Arc | heuristic | experimental | `computeRMSSDarc` (`:2893`) — OLS slope of 30-min windowed RMSSD, a bespoke trend |
-| Sleep Pressure Index (SPI) | heuristic | experimental | `:2283` — `waso·0.4 + bursts·0.15 + sol·0.25`, a composite with authored weights |
-| Vagal Index | heuristic | experimental | `:2250` — `pNN3 / max(hrFloor,1) × ln(1+cleanRun)`, a bespoke non-linear composite |
+| MODL | heuristic → measured | **RULED: raised** — registry precedent `nadirDepth` ("mean depth of those nadirs, in the sensed unit", measured): a mean of sensed values over a threshold-defined set, where the threshold belongs to the DETECTION metric (odi3), not to the mean |
+| HR Nadir Timing | heuristic → measured | **RULED: raised** — registry precedent `minSpo2` ("lowest recorded — direct reading"); the 5-min smoothing window stays named in the cite |
+| Circadian HR Amplitude / Nadir Hour | heuristic → experimental | **RULED: raised** — a fitted model is not a threshold, and cosinor on oximeter pulse rate is the dfaAlpha1 transfer class |
+| LF / HF Power | heuristic → experimental | **RULED: raised** — the dfaAlpha1 precedent verbatim: Task-Force bands transferred to oximeter pulse rate, with the transfer named in the cite |
+| O₂-HR Efficiency | heuristic → experimental | **RULED: raised** — §🎫 retired-vocabulary mapping composite→experimental |
+| RMSSD Arc | heuristic → experimental | **RULED: raised** — §🎫 composite→experimental |
+| Sleep Pressure Index (SPI) | heuristic → experimental | **RULED: raised** — §🎫 composite→experimental |
+| Vagal Index | heuristic → experimental | **RULED: raised** — §🎫 composite→experimental |
 
 *(Vagal Index's card was examined and left alone on a separate point: its `.md` opens "Weighted
 composite", which is loose for a product with a log term — but its `.ft` states the exact formula and the
@@ -288,7 +291,7 @@ back clean; `Longest Clean Run`'s defect was structural too ("motion = 0 … no 
 surfaced because the word "clean" invited a look. A numeral-keyed extractor finds the cheap half. Not built here. The other 7 nodes are unswept.
 
 ### 2.5c LEAD — `goodDirection` is not compared against anything
-Two inversions found by hand in OxyDex, both corrected here: `ssiIdx` was `'up'` while the DSP scores
+Two inversions found by hand in OxyDex, both corrected there: `ssiIdx` was `'up'` while the DSP scores
 `<0.3` as severity 0, and `nadirBinLt4` was `'up'` while the render treats fewer as better. Nothing
 compares a registry entry's direction against the DSP's severity ordering or the render's colouring, so an
 inverted direction inverts the READING of a number with every gate green. 2 found in one node; 7 nodes
@@ -352,6 +355,23 @@ verify-fixtures' "already current" is correct, not a skip. Otherwise run `verify
 the two sub-cases separately — *stamp reverted AND differs from base* (a real discharge) vs *stamp equals base*
 (nothing owed). Cost of not fixing: a full ~11 min verify lap per false alarm.
 
+**PRE-PUSH INSTRUMENT (2026-09-02, Magpie).** The verdict rule above reasons from a diff; this MEASURES the
+thing itself, in three lines and no suite run — a stamp is valid iff it equals the bundle's CURRENT compute
+identity:
+
+```js
+const MG = require('./manifest-gate.js');
+const ch = await MG.computeHashFromText(fs.readFileSync('OxyDex.html', 'utf8'));
+// every corpus-backed fixture of that bundle must have verifiedUnder === ch
+```
+
+Run before any push that rebased over `provenance/**`. It answers in milliseconds what `verify-fixtures`
+answers after ~11 minutes, and unlike the diff rule it cannot be fooled by a peer's stamp arriving through a
+rebase (the hazard that bit Osprey) — because it compares against the code, not against `origin/main`.
+**LEAD: `rebase-safe` should run this automatically after resolving anything under `provenance/**`** and say
+per fixture whether the stamp is still current, which would make §3.1's over-report self-answering rather
+than merely better-worded.
+
 ### 3.2 A spine PR costs one full verify lap per merge ahead of it
 F13 (`dex-export.js`, 11 bundles) had to re-verify after each node PR merged under it (vf3 → vf4). The
 "land the spine last" order was right; the missing rule is **hold the other lanes' pushes from the moment the
@@ -361,13 +381,42 @@ spine's verify starts until it is pushed** — otherwise each merge burns anothe
 Rebase-safe onto main at idle time when the conflict set is self-owned; the eventual landing is then a
 near fast-forward. One rebase-safe + build, no CI. Adopt as a fleet habit.
 
-### 3.4 `selftest-all` couples two selftests through a mutable local index (primary-box-only flake)
-`npm run check` failed ONCE on `tools/dsp-review-qwen.mjs`'s selftest in F4's chain; passes standalone (21 ok),
-passed in F2's identical chain 20 min earlier, F4 touched no tool. `selftest-all.mjs` runs
-`tools/doc-search.mjs`'s selftest immediately before it and both share the local bge-m3 chunk index — the
-chain-time run was re-embedding. CLAUDE.md says no gate may read doc-search output, yet `selftest-all` runs its
-selftest, so the coupling exists on the primary box and CI never sees it. **Fix candidates:** serialise the two
-behind a lock, or give the qwen selftest a read-only snapshot.
+### 3.4 `selftest-all` could not REPORT a non-assertion failure — cause of the qwen flake still UNKNOWN
+**This section previously named a mechanism that is now falsified, on my say-so (Magpie). Recorded as a
+correction rather than overwritten, because the error is the brief's own subject.**
+
+*Was:* "`doc-search.mjs`'s selftest runs immediately before `dsp-review-qwen.mjs`'s and both share the
+local bge-m3 chunk index" — proposed fix, serialise them behind a lock. That was inferred from
+ADJACENCY (the two run next to each other; standalone runs showed "0 newly embedded" where the
+chain-time run was re-embedding), never from the call path.
+
+**RULED OUT by reading the code:** `docContext()` — the only doc-search caller in that tool — is wrapped
+in try/catch returning `''` with a 30 s timeout, so it **fails soft by construction** and cannot fail a
+run; the selftest never calls it (all 21 assertions are pure: chunker, `parseFindings`, `fnKey`,
+`buildPrompt`, the lens table); and `pipelineBusy`, which looked like process-table inspection, takes the
+`ps` output as an ARGUMENT and is handed literal strings. **There is no index in that selftest's path at
+all, so a lock would have protected nothing.**
+
+**Cause: still UNKNOWN.** What is established: the failure is NOT an assertion failure. Both occurrences
+printed `✗ tools/dsp-review-qwen.mjs FAILED` followed by a BLANK line, and the tool passes standalone
+(21 ok, 0 failed). Live hypothesis, unconfirmed: a load-dependent timeout or crash — `selftest-all` runs
+all 81 tools at once (`Promise.all(files.map(run))`) with a 120 s per-tool timeout, and both failures
+happened inside `npm run check`, where six suite shards run alongside. Against that: a third run under
+the same full-check load PASSED, so load alone does not explain it. **Do not tune the 120 s timeout as a
+first move** — that would be treating a symptom whose cause is unnamed.
+
+**What actually shipped is the INSTRUMENT, not the fix.** The runner filtered a failing tool's output to
+lines containing `✗` or `FAILED` — the signature of an ASSERTION failure — and discarded `err` entirely,
+so a timeout or crash printed a bare "FAILED" and a blank line. The evidence was being thrown away at the
+moment of failure, which is why two reproductions produced zero diagnostic information. Now: the exit
+status is named (`TIMED OUT after 120s (killed, SIGTERM)` · `exited N` · `killed by SIGKILL`), assertion
+lines still lead when present, otherwise the TAIL of whatever the tool did say, and `(no output at all —
+consistent with a timeout or a kill before the tool printed)` when it said nothing, which is itself the
+tell. Verified against a PLANTED hanging tool, which now reports exactly that. 10 assertions pin the
+classifier, including that `killed` outranks `code` (a killed process carries both).
+
+**So the next occurrence will name its own cause, and this row stays OPEN until one does.** §4b's family:
+a report that shows the part matching its expectations and silently drops the rest.
 
 ### 3.6 A `<node>-registry.js` edit is a COMPUTE-PATH change, and a re-tier owes a verify lap
 Editing a registry feels like documentation — it changes a label, a cite, a tier. It is not: every

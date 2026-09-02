@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BCRW1wwcZx8rRRFvyChFfcalWu3C7m4Dj8U55aTKt/I=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bu/8g+c1sqihz95o6Zb4ahn/8KD9EG3brkl/c8qZWaU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cGmykNzDyC4lCGbQQPGjXN3GOOZzqygtorqQPcRQeXw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-pmkM4GTQroQlb4GaUI6RBETJs7WVTR03G7v/A4s2QzA=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BCRW1wwcZx8rRRFvyChFfcalWu3C7m4Dj8U55aTKt/I=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bu/8g+c1sqihz95o6Zb4ahn/8KD9EG3brkl/c8qZWaU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-pmkM4GTQroQlb4GaUI6RBETJs7WVTR03G7v/A4s2QzA=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.9.0</title>
@@ -10360,8 +10360,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       unit: 'bpm',
       goodDirection: 'up',
       depth: 'research',
-      evidence: 'heuristic',
-      cite: 'Least-squares cosine fit to the nightly HR vector — the cosinor method applied to a single night, a transfer this suite has not validated'
+      evidence: 'experimental',
+      cite: 'Ground (Kestrel, 2026-09-02): a fitted model is not a threshold, and cosinor on oximeter pulse rate is the same transfer class as dfaAlpha1. Least-squares cosine fit to the nightly HR vector — the cosinor method applied to a single night, a transfer this suite has not validated'
     },
     clusteringIdx: {
       label: 'Clustering Index',
@@ -10416,8 +10416,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       unit: 'h',
       goodDirection: '',
       depth: 'secondary',
-      evidence: 'heuristic',
-      cite: 'Hour from recording start of the lowest 5-min smoothed HR — a readout of sensed HR, no model'
+      evidence: 'measured',
+      cite: "Ground (Kestrel, 2026-09-02): registry precedent `minSpo2` ('lowest recorded — direct reading'); the 5-min smoothing window is named above and does not make the readout a threshold. Hour from recording start of the lowest 5-min smoothed HR — a readout of sensed HR, no model"
     },
     hrQuartileTrend: {
       label: 'HR Quartile Trend',
@@ -10448,8 +10448,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       unit: 'ms2',
       goodDirection: '',
       depth: 'research',
-      evidence: 'heuristic',
-      cite: 'DFT band power 0.04-0.15 Hz (LF) and 0.15-0.40 Hz (HF) (oxydex-dsp.js:4934) — the Task-Force HRV bands applied to oximeter PULSE rate, a transfer this suite has not validated'
+      evidence: 'experimental',
+      cite: "Ground (Kestrel, 2026-09-02): the dfaAlpha1 precedent verbatim — an established method TRANSFERRED to oximeter pulse rate keeps the transfer named rather than inheriting the method's standing. DFT band power 0.04-0.15 Hz (LF) and 0.15-0.40 Hz (HF) (oxydex-dsp.js:4934) — the Task-Force HRV bands applied to oximeter PULSE rate, a transfer this suite has not validated"
     },
     longestCleanRun: {
       label: 'Longest Clean Run',
@@ -10464,8 +10464,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       unit: '%',
       goodDirection: 'up',
       depth: 'secondary',
-      evidence: 'heuristic',
-      cite: 'Mean SpO2 of samples inside detected desaturation events — a readout of sensed SpO2 over the detected set'
+      evidence: 'measured',
+      cite: "Ground (Kestrel, 2026-09-02): registry precedent `nadirDepth` ('mean depth of those nadirs, in the sensed unit', measured) — a mean of sensed values over a threshold-defined set; the threshold belongs to the DETECTION metric (odi3), not to the mean. Mean SpO2 of samples inside detected desaturation events — a readout of sensed SpO2 over the detected set"
     },
     motionBursts: {
       label: 'Motion Bursts',
@@ -10480,8 +10480,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       unit: '',
       goodDirection: 'up',
       depth: 'research',
-      evidence: 'heuristic',
-      cite: "Per-event HR rise divided by SpO2 drop — a bespoke coupling ratio; the <0.3 blunted / <0.8 moderate bands are this suite's own"
+      evidence: 'experimental',
+      cite: "Ground (Kestrel, 2026-09-02): CLAUDE.md §🎫's retired-vocabulary mapping composite→experimental — a bespoke composite at `heuristic` understates the house definition. Per-event HR rise divided by SpO2 drop — a bespoke coupling ratio; the <0.3 blunted / <0.8 moderate bands are this suite's own"
     },
     postDipHrResponse: {
       label: 'Post-Dip HR Response',
@@ -10496,8 +10496,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       unit: 'ms/h',
       goodDirection: 'up',
       depth: 'research',
-      evidence: 'heuristic',
-      cite: 'OLS slope of 30-min windowed RMSSD across the night — a bespoke trend over a pulse-rate RMSSD proxy'
+      evidence: 'experimental',
+      cite: 'Ground (Kestrel, 2026-09-02): §🎫 composite→experimental. OLS slope of 30-min windowed RMSSD across the night — a bespoke trend over a pulse-rate RMSSD proxy'
     },
     recoveryCv: {
       label: 'Recovery CV',
@@ -10520,8 +10520,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       unit: '',
       goodDirection: 'down',
       depth: 'secondary',
-      evidence: 'heuristic',
-      cite: 'Weighted composite of WASO (0.4), motion bursts (0.15) and sleep-onset latency — a bespoke construction with authored weights'
+      evidence: 'experimental',
+      cite: 'Ground (Kestrel, 2026-09-02): §🎫 composite→experimental. Weighted composite of WASO (0.4), motion bursts (0.15) and sleep-onset latency — a bespoke construction with authored weights'
     },
     spo2Autocorr1: {
       label: 'SpO₂ Autocorrelation lag-1',
@@ -10592,8 +10592,8 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       unit: '',
       goodDirection: 'up',
       depth: 'secondary',
-      evidence: 'heuristic',
-      cite: 'Weighted composite of pNN3, HR floor and longest clean run — a bespoke construction with authored weights'
+      evidence: 'experimental',
+      cite: 'Ground (Kestrel, 2026-09-02): §🎫 composite→experimental. Weighted composite of pNN3, HR floor and longest clean run — a bespoke construction with authored weights'
     },
     worst10MinSpo2: {
       label: 'Worst 10-min SpO₂',

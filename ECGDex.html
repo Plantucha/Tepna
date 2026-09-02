@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0mqhj4PCQsNRywYOCDIa/lI1dB/pbF/OnCPxEs9VBIo=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-NMrN+Emdb7Cq8as9C8VRJylQD4tovI7fpBOThO9Za+Q=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-n665YKq/oE7WoR8SrlhH0PwBVUTZhSKoykWFkV1yFT8=' 'sha256-uv2u2lF0rh+tj6+SiiCtZAVr5XfFovvOFkWiHW1sj3Y='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0mqhj4PCQsNRywYOCDIa/lI1dB/pbF/OnCPxEs9VBIo=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-9WtQnELGeJr2siQkvdq1sr9jTTvkljbhvncoWsJqp+Q=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-humLfsum3iuPyxKG/voJNiH8l+wh7lokogz90PMwyJs='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.9.0</title>
@@ -6301,17 +6301,23 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     couplingStrength: { label: 'Coupling strength', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'CSI-style cardiorespiratory sync index' },
     /* ADJUDICATED emerging → experimental, 2026-09-02 (DEEP-AUDIT-VI-FOLLOWUPS §1.5, the sibling of
        #1455's `rraccRate` re-tier). Measured against the CPAP device's own mask-on `RespRate.2s`
-       channel on 22 co-recorded nights (24 paired, 2 excluded as fallback-15), bands frozen before
-       the run: MAE **1.90** br/min (bar ≤1.5) · Bland-Altman bias −1.01, LoA [−5.80, +3.78],
-       width **9.58** (bar ≤6). Both fail, so the tier claim "externally validated" fails with them.
+       channel on 23 co-recorded nights (24 paired, 1 excluded as a genuine refusal), bands frozen before
+       the run: MAE **1.82** br/min (bar ≤1.5) · Bland-Altman bias −0.97, LoA [−5.67, +3.73],
+       width **9.41** (bar ≤6). Both fail, so the tier claim "externally validated" fails with them.
        ⚠️ `r` is NOT cited as evidence here: the reference varies by only 0.54 br/min SD across
        nights (14.8–16.8), so a correlation is suppressed by range restriction by construction —
        the honest statistics on a near-constant truth are the absolute-agreement ones.
        🔴 The decisive control: a CONSTANT 15.0 br/min — this metric's own hardcoded fallback
-       (`ecgdex-dsp.js` respFromEDR) — scores MAE **0.80** against the same reference, and a
+       (`ecgdex-dsp.js` respFromEDR) — scores MAE **0.77** against the same reference, and a
        constant 15.8 scores 0.42. The estimator is beaten by the constant it falls back to, with
        ~5× the reference's spread (est SD 2.50 vs 0.54) and misses to 7.4 and 20.0 br/min against a
        truth that never left 14.8–16.8. Directional only — which is what `experimental` means.
+       ⚠️ CORRECTED 2026-09-02 (FOLLOWUPS §1.10): the first write of this stamp read n=22 / MAE 1.90 /
+       LoA 9.58, having excluded BOTH nights whose rate was exactly 15.0 as fallbacks. Only
+       2026-07-02 actually takes the refusal branch; 2026-07-06 MEASURES 15.0. The `=== 15.0` test
+       could not tell them apart — which is the very defect §1.10 fixes — so the exclusion is now one
+       night and the figures above are the corrected ones. The verdict is unchanged: both bands still
+       fail, and the constant still beats the estimator.
        NOTE the sibling `respRate` (line 54) is a DIFFERENT estimator (per-epoch median, not
        whole-record autocorrelation) and is NOT adjudicated by this measurement; it keeps its grade
        until measured on its own. */
@@ -6321,7 +6327,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       goodDirection: 'down',
       depth: 'advanced',
       evidence: 'experimental',
-      cite: 'Respiration from R-peak amplitude modulation (EDR) — surrogate; re-tiered 2026-09-02 against CPAP RespRate on 22 nights (MAE 1.90, LoA width 9.58; a constant 15 scores MAE 0.80)'
+      cite: 'Respiration from R-peak amplitude modulation (EDR) — surrogate; re-tiered 2026-09-02 against CPAP RespRate on 23 nights (MAE 1.82, LoA width 9.41; a constant 15 scores MAE 0.77)'
     },
 
     /* CPC high-frequency coupling (Thomas 2005). ONLY HFC is registered, and the reason is the
@@ -10402,8 +10408,30 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     // 3) respiration rate measured DIRECTLY from the EDR band (dominant period via
     // autocorrelation), not echoed from the Lomb hint. Center the phase analysis on it.
     const edrPeriod = _autocorrPeriod(edrB, FS, 2.5, 10);
-    const respFromEDR = edrPeriod ? +(60 / edrPeriod).toFixed(1) : respHint && respHint >= 6 && respHint <= 24 ? +respHint.toFixed(1) : 15;
-    const f0 = respFromEDR >= 6 && respFromEDR <= 24 ? respFromEDR / 60 : 0.25;
+    /* 🔴 REFUSE, DO NOT SUBSTITUTE (FOLLOWUPS §1.10, from §1.5's adjudication). This read
+         `edrPeriod ? 60/edrPeriod : (respHint in 6..24 ? respHint : 15)`
+       — two substitutions stacked behind a surfaced number, neither marked. The second is a bare
+       CONSTANT 15, and §1.5 measured what that constant is worth: over 22 co-recorded CPAP nights a
+       flat 15.0 br/min scores MAE 0.80 against the device's own RespRate while the estimator scores
+       1.90, so the fallback OUTPERFORMS the measurement it stands in for — which is precisely why a
+       reader must be able to tell them apart, and could not: §1.5 had to detect fallback nights by
+       testing `=== 15.0`, which cannot separate a genuine 15.0 from the constant.
+       The FIRST substitution is worse than unmarked, it is self-contradictory: the comment two lines
+       up says this rate is "measured DIRECTLY from the EDR band … not echoed from the Lomb hint",
+       and the fallback echoes exactly that hint. A method's stated independence cannot hold only on
+       the nights it succeeds.
+       So: no dominant EDR period ⇒ **null with a reason**, the house rule (#2044 artifact refusal,
+       #2052 named refusals). Consumers already null-guard the export; the app surfaces are fixed in
+       the same change to print the reason instead of a number. */
+    const respFromEDR = edrPeriod ? +(60 / edrPeriod).toFixed(1) : null;
+    const respFromEDRReason = edrPeriod ? null : 'no dominant EDR period in the 2.5–10 s search band — respiration not recoverable from R-peak amplitude on this record';
+    /* `f0` is an ANALYSIS CENTERING FREQUENCY for the narrow-band phase extraction below, not a
+       surfaced quantity: 0.25 Hz keeps the PLV/coupling path running when the rate is unknown, as it
+       already did for an out-of-range rate. It is deliberately NOT nulled here — that would silently
+       change crcPLV/couplingStrength, a different metric with its own grade, inside a unit about the
+       breath rate. ⚠️ Whether a PLV computed at an ASSUMED centre is itself quotable is a real
+       question and is filed as FOLLOWUPS §1.11, not answered here. */
+    const f0 = respFromEDR != null && respFromEDR >= 6 && respFromEDR <= 24 ? respFromEDR / 60 : 0.25;
     const phE = _narrowPhase(edrB, FS, f0),
       phH = _narrowPhase(hrB, FS, f0);
     // windowed PLV — averaged over 60 s windows so slow respiratory-frequency drift
@@ -10484,6 +10512,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     return {
       cpc,
       respFromEDR,
+      respFromEDRReason,
       rsaEfficiencyRatio: +rsaRatio.toFixed(2),
       rsaAmplitudeBpm: +rsaAmp.toFixed(1),
       crcPLV: +plv.toFixed(3),
@@ -13960,6 +13989,12 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           respRate: nz(r.respRate),
           respRateMethod: 'RSA (HF-peak of RR spectrum)',
           respFromEDR: r.crc && r.crc.respFromEDR != null ? nz(r.crc.respFromEDR) : null,
+          /* §1.10: a null `respFromEDR` is a REFUSAL and the export says why — but the reason is
+             emitted ONLY when there is one. A `respFromEDRReason: null` on every measuring night
+             would move every committed ECGDex export to carry a field that says nothing (the rich
+             golden's equiv leg caught exactly that), so the key is present iff the rate is refused.
+             `respFromEDR: null` alone already marks the refusal; this is its diagnostic. */
+          ...(r.crc && r.crc.respFromEDRReason ? { respFromEDRReason: r.crc.respFromEDRReason } : {}),
           respFromEDRMethod: 'EDR (R-peak amplitude modulation)'
         }
       };
@@ -18075,7 +18110,7 @@ self.onmessage = async (e) => {
          <div class="gang-pill">RSA swing <b>${c.rsaAmplitudeBpm}</b> bpm</div>
          <div class="gang-pill" style="border-color:${plvCol};color:${plvCol}"><b>CRC PLV ${c.crcPLV}</b> · phase-lock</div>
          <div class="gang-pill">coupling strength <b>${c.couplingStrength}</b>/1</div>
-         <div class="gang-pill">EDR resp ${c.respFromEDR} br/min</div>
+         <div class="gang-pill">${c.respFromEDR != null ? `EDR resp <b>${c.respFromEDR}</b> br/min` : 'EDR resp — <b>no estimate</b>'}</div>
        </div>` +
       epochChart +
       `<div class="q-note" style="margin-top:8px"><b>All three from the ECG alone — no airflow, no PPG.</b> EDR (R-peak amplitude modulation) gives respiration; locking it to the RR oscillation yields cardiorespiratory coupling. <b>RSA efficiency</b> is the inspiratory:expiratory HR ratio — efficient hearts raise HR on inspiration to minimise cardiac power (Border et al. 2025). <b>PLV</b> is the model-free RR↔respiration phase-lock (arXiv:2508.00773); <b>coupling strength</b> is a CSI-style single-number sync index (arXiv:2605.18802). ${confNote} <span style="opacity:.7">Informational — zero new sensors, computed from existing pipeline outputs.</span></div>`;
@@ -18799,7 +18834,9 @@ self.onmessage = async (e) => {
               r.crc.couplingStrength >= 0.5 ? 'ok' : r.crc.couplingStrength >= 0.3 ? 'warn' : 'bad',
               'CSI-style sync index (arXiv:2605.18802)'
             ],
-            ['EDR resp rate', r.crc.respFromEDR, 'br/min', '12–20', 'neutral', 'Respiration from R-peak amplitude modulation'],
+            // §1.10 — a null EDR rate renders as an explicit refusal, never as a blank that reads
+            // like a missing field or as the constant 15 it used to substitute.
+            ['EDR resp rate', r.crc.respFromEDR != null ? r.crc.respFromEDR : 'no estimate', 'br/min', '12–20', 'neutral', r.crc.respFromEDRReason || 'Respiration from R-peak amplitude modulation'],
             ...(r.crc.plvDuringSurges != null && r.crc.plvBaseline != null
               ? [['PLV surge vs base', r.crc.plvDuringSurges + ' / ' + r.crc.plvBaseline, '0–1', 'drop', 'neutral', 'Coupling drop during CVHR clusters → surge confidence']]
               : [])
