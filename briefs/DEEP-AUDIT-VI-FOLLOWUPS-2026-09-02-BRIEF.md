@@ -213,22 +213,25 @@ half-finished fix, since the code comment records being corrected to level while
 followed). The nadir labels are corrected at the render and CSV sites too, with both spellings aliased so
 no surface loses its badge; registry **ids are unchanged**, so no export identity moves.
 
-#### 8 tiers deliberately held BELOW the code rule; decision pending
-Each row's grade would RISE under the rule stated in the registry block. None was taken: understating
-trust is never fabricated authority, and raising a badge on a rule written the same afternoon is exactly
-what the mandate forbids. Listed so the decision is made deliberately, per row, by someone other than the
-author of the rule. Raises belong in a follow-on OxyDex PR (bundle change, one verify lap), not here.
+#### 8 tiers held below the code rule — RULED 2026-09-02 (Kestrel), all 8 raised
+Each row's grade would RISE under the rule stated in the registry block, and none was taken in #2083:
+understating trust is never fabricated authority, and raising a badge on a rule written the same
+afternoon is what the mandate forbids. **All 8 were ruled on 2026-09-02 by Kestrel and RAISED — each on
+a ground independent of that rule**, namely §🎫's own retired-vocabulary mapping (composite→experimental),
+the `dfaAlpha1` transfer precedent, or an existing registry precedent for the same shape. Executed as a
+follow-on OxyDex PR: registry and guide cards in lockstep, ids unchanged, each ground recorded in the
+entry's own cite so the reasoning travels with the grade rather than living only here.
 
-| card | tier now | code rule gives | the code fact behind that |
+| card | tier | ruling | ground (NOT the author's rule) |
 |---|---|---|---|
-| MODL | heuristic | measured | `oxydex-dsp.js:1107` — mean of sensed SpO₂ over the detected event set; no threshold of its own |
-| HR Nadir Timing | heuristic | measured | `computeHRNadirTime` (called at `:2891`) — the hour of the lowest 5-min smoothed HR, a readout |
-| Circadian HR Amplitude / Nadir Hour | heuristic | experimental | `:2146` — a least-squares cosine (cosinor) FIT, a model rather than a rule of thumb |
-| LF / HF Power | heuristic | experimental | `:4934` — Task-Force HRV bands (0.04–0.15, 0.15–0.40 Hz) on oximeter PULSE rate, an unvalidated transfer |
-| O₂-HR Efficiency | heuristic | experimental | `computeO2HREfficiency` (`:2886`) — a bespoke per-event HR-rise / SpO₂-drop ratio |
-| RMSSD Arc | heuristic | experimental | `computeRMSSDarc` (`:2893`) — OLS slope of 30-min windowed RMSSD, a bespoke trend |
-| Sleep Pressure Index (SPI) | heuristic | experimental | `:2283` — `waso·0.4 + bursts·0.15 + sol·0.25`, a composite with authored weights |
-| Vagal Index | heuristic | experimental | `:2250` — `pNN3 / max(hrFloor,1) × ln(1+cleanRun)`, a bespoke non-linear composite |
+| MODL | heuristic → measured | **RULED: raised** — registry precedent `nadirDepth` ("mean depth of those nadirs, in the sensed unit", measured): a mean of sensed values over a threshold-defined set, where the threshold belongs to the DETECTION metric (odi3), not to the mean |
+| HR Nadir Timing | heuristic → measured | **RULED: raised** — registry precedent `minSpo2` ("lowest recorded — direct reading"); the 5-min smoothing window stays named in the cite |
+| Circadian HR Amplitude / Nadir Hour | heuristic → experimental | **RULED: raised** — a fitted model is not a threshold, and cosinor on oximeter pulse rate is the dfaAlpha1 transfer class |
+| LF / HF Power | heuristic → experimental | **RULED: raised** — the dfaAlpha1 precedent verbatim: Task-Force bands transferred to oximeter pulse rate, with the transfer named in the cite |
+| O₂-HR Efficiency | heuristic → experimental | **RULED: raised** — §🎫 retired-vocabulary mapping composite→experimental |
+| RMSSD Arc | heuristic → experimental | **RULED: raised** — §🎫 composite→experimental |
+| Sleep Pressure Index (SPI) | heuristic → experimental | **RULED: raised** — §🎫 composite→experimental |
+| Vagal Index | heuristic → experimental | **RULED: raised** — §🎫 composite→experimental |
 
 *(Vagal Index's card was examined and left alone on a separate point: its `.md` opens "Weighted
 composite", which is loose for a product with a log term — but its `.ft` states the exact formula and the

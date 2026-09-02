@@ -637,8 +637,8 @@
       unit: 'bpm',
       goodDirection: 'up',
       depth: 'research',
-      evidence: 'heuristic',
-      cite: 'Least-squares cosine fit to the nightly HR vector — the cosinor method applied to a single night, a transfer this suite has not validated'
+      evidence: 'experimental',
+      cite: 'Ground (Kestrel, 2026-09-02): a fitted model is not a threshold, and cosinor on oximeter pulse rate is the same transfer class as dfaAlpha1. Least-squares cosine fit to the nightly HR vector — the cosinor method applied to a single night, a transfer this suite has not validated'
     },
     clusteringIdx: {
       label: 'Clustering Index',
@@ -693,8 +693,8 @@
       unit: 'h',
       goodDirection: '',
       depth: 'secondary',
-      evidence: 'heuristic',
-      cite: 'Hour from recording start of the lowest 5-min smoothed HR — a readout of sensed HR, no model'
+      evidence: 'measured',
+      cite: "Ground (Kestrel, 2026-09-02): registry precedent `minSpo2` ('lowest recorded — direct reading'); the 5-min smoothing window is named above and does not make the readout a threshold. Hour from recording start of the lowest 5-min smoothed HR — a readout of sensed HR, no model"
     },
     hrQuartileTrend: {
       label: 'HR Quartile Trend',
@@ -725,8 +725,8 @@
       unit: 'ms2',
       goodDirection: '',
       depth: 'research',
-      evidence: 'heuristic',
-      cite: 'DFT band power 0.04-0.15 Hz (LF) and 0.15-0.40 Hz (HF) (oxydex-dsp.js:4934) — the Task-Force HRV bands applied to oximeter PULSE rate, a transfer this suite has not validated'
+      evidence: 'experimental',
+      cite: "Ground (Kestrel, 2026-09-02): the dfaAlpha1 precedent verbatim — an established method TRANSFERRED to oximeter pulse rate keeps the transfer named rather than inheriting the method's standing. DFT band power 0.04-0.15 Hz (LF) and 0.15-0.40 Hz (HF) (oxydex-dsp.js:4934) — the Task-Force HRV bands applied to oximeter PULSE rate, a transfer this suite has not validated"
     },
     longestCleanRun: {
       label: 'Longest Clean Run',
@@ -741,8 +741,8 @@
       unit: '%',
       goodDirection: 'up',
       depth: 'secondary',
-      evidence: 'heuristic',
-      cite: 'Mean SpO2 of samples inside detected desaturation events — a readout of sensed SpO2 over the detected set'
+      evidence: 'measured',
+      cite: "Ground (Kestrel, 2026-09-02): registry precedent `nadirDepth` ('mean depth of those nadirs, in the sensed unit', measured) — a mean of sensed values over a threshold-defined set; the threshold belongs to the DETECTION metric (odi3), not to the mean. Mean SpO2 of samples inside detected desaturation events — a readout of sensed SpO2 over the detected set"
     },
     motionBursts: {
       label: 'Motion Bursts',
@@ -757,8 +757,8 @@
       unit: '',
       goodDirection: 'up',
       depth: 'research',
-      evidence: 'heuristic',
-      cite: "Per-event HR rise divided by SpO2 drop — a bespoke coupling ratio; the <0.3 blunted / <0.8 moderate bands are this suite's own"
+      evidence: 'experimental',
+      cite: "Ground (Kestrel, 2026-09-02): CLAUDE.md §🎫's retired-vocabulary mapping composite→experimental — a bespoke composite at `heuristic` understates the house definition. Per-event HR rise divided by SpO2 drop — a bespoke coupling ratio; the <0.3 blunted / <0.8 moderate bands are this suite's own"
     },
     postDipHrResponse: {
       label: 'Post-Dip HR Response',
@@ -773,8 +773,8 @@
       unit: 'ms/h',
       goodDirection: 'up',
       depth: 'research',
-      evidence: 'heuristic',
-      cite: 'OLS slope of 30-min windowed RMSSD across the night — a bespoke trend over a pulse-rate RMSSD proxy'
+      evidence: 'experimental',
+      cite: 'Ground (Kestrel, 2026-09-02): §🎫 composite→experimental. OLS slope of 30-min windowed RMSSD across the night — a bespoke trend over a pulse-rate RMSSD proxy'
     },
     recoveryCv: {
       label: 'Recovery CV',
@@ -797,8 +797,8 @@
       unit: '',
       goodDirection: 'down',
       depth: 'secondary',
-      evidence: 'heuristic',
-      cite: 'Weighted composite of WASO (0.4), motion bursts (0.15) and sleep-onset latency — a bespoke construction with authored weights'
+      evidence: 'experimental',
+      cite: 'Ground (Kestrel, 2026-09-02): §🎫 composite→experimental. Weighted composite of WASO (0.4), motion bursts (0.15) and sleep-onset latency — a bespoke construction with authored weights'
     },
     spo2Autocorr1: {
       label: 'SpO₂ Autocorrelation lag-1',
@@ -869,8 +869,8 @@
       unit: '',
       goodDirection: 'up',
       depth: 'secondary',
-      evidence: 'heuristic',
-      cite: 'Weighted composite of pNN3, HR floor and longest clean run — a bespoke construction with authored weights'
+      evidence: 'experimental',
+      cite: 'Ground (Kestrel, 2026-09-02): §🎫 composite→experimental. Weighted composite of pNN3, HR floor and longest clean run — a bespoke construction with authored weights'
     },
     worst10MinSpo2: {
       label: 'Worst 10-min SpO₂',
