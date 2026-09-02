@@ -3408,7 +3408,13 @@ async def run_oxyii(dev: dict, root: str):
         ppg_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg", "txt"))
         ppg2w_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg2w", "txt"))
         rtclog_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "rtclog", "csv"))
-        wr = ppgwr = oxyflagwr = ppg2wr = rtcwr = None
+        # `oxy_arr_wr` belongs on THIS line, not only at its construction site below: the finally closes
+        # every one of these, and the try can raise before any of them exists — an absent ring raises
+        # BleakDeviceNotFoundError at connect, which is the common case on a night the ring is not worn.
+        # It was missed when the PMDARRIVAL sidecar was added, so its close read an unbound local and the
+        # guard reported "the arrival writer did not close cleanly" for a writer that was never opened —
+        # a warning about something it had not examined, logged once per reconnect all night.
+        wr = ppgwr = oxyflagwr = ppg2wr = rtcwr = oxy_arr_wr = None
         # The synthesized PPG sample clock (O2RING-PPG-GAP §1 + CAPTURE-HOST-DEEP-AUDIT §A3), per
         # SESSION — a reconnect opens a new file and a new grid, so it is rebuilt with the writers
         # rather than persisting across links. Boxed so the BLE callback can reach it.
@@ -3909,11 +3915,15 @@ async def run_oxyii(dev: dict, root: str):
             # RECORDING axis on link loss: the ring is UNOBSERVABLE, which is not the same fact as
             # not-recording (§5: BLE loss must never read as "recording ended").
             _rec_emit(_oxyrec.observe_link_lost())
-            try:
-                oxy_arr_wr.close()
-            except Exception:
-                log.warning("%s: the arrival writer did not close cleanly — its tail may be unflushed",
-                            name, exc_info=True)
+            # `is not None` rather than a bare try: a writer that was never opened has no tail to
+            # flush, so warning about one states a fact nothing measured. The guard stays for a REAL
+            # close failure, which is the case the message actually describes.
+            if oxy_arr_wr is not None:
+                try:
+                    oxy_arr_wr.close()
+                except Exception:
+                    log.warning("%s: the arrival writer did not close cleanly — its tail may be unflushed",
+                                name, exc_info=True)
             # Report the honest gaps this session inserted. Silence here would re-create the very problem
             # the gap insertion fixes — a lossy link that LOOKS clean. Logged even at zero, so "no gaps"
             # is an observation rather than an absence of evidence.
