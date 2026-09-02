@@ -9073,6 +9073,64 @@
          which is not identifiable from per-device clock wander without a shared clock. So the gate
          must refuse rather than emit a tier. Absent an axis the behaviour is unchanged — only an
          explicit `independent === false` refuses — which is what the last case pins. */
+      /* THE SECOND VERDICT MUST REACH THE CELL (2026-09-02). `vdCorr` was published by
+         `pat-feasibility-worker.js` and read by nobody: the renderer composed its cell inline from
+         `m.vd` alone, so the ACC-corrected verdict crossed the worker boundary and was dropped at the
+         last step. Every test stayed green because they scanned the WORKER (5 references in this file)
+         and never the renderer (0) — the composition lived in an anonymous IIFE with no export surface.
+         It now lives in `PATGate.verdictCell`, pure and reachable, and these are the first assertions
+         that touch the render layer at all.
+
+         The decisive case is DISAGREEMENT: raw DRIFT-DOMINATED while corrected says FEASIBLE is
+         precisely the night the old cell rendered as if the correction did not exist. */
+      /* ANTI-VACUITY, and the assertion that would actually have caught this. The block below pins
+         `verdictCell`'s behaviour, but it CANNOT fail against unfixed code — that code has no such
+         function, so the guard simply skips and proves nothing. The defect was never a wrong function;
+         it was an ABSENT CALL in the renderer. So the load-bearing check is a source scan: the render
+         layer must consume the second verdict, and must not re-compose the cell inline. This one DOES
+         fail against origin/main, where `pat-feasibility.js` contains no `verdictCell`. */
+      {
+        var rsrc = (env.sources || {})['pat-feasibility.js'];
+        T.ok("the RENDERER's source is readable in this lane", !!rsrc, 'pat-feasibility.js not in env.sources — the scan below would read nothing and pass vacuously');
+        if (rsrc) {
+          T.ok('the renderer CONSUMES the second verdict (calls PATGate.verdictCell)', /PATGate\s*&&\s*self\.PATGate\.verdictCell|PATGate\.verdictCell/.test(rsrc));
+          T.ok(
+            'the renderer does not re-compose the verdict cell inline',
+            !/vd\.textContent\s*=\s*m\.vd\.label/.test(rsrc),
+            'found the pre-2026-09-02 inline composition, which read m.vd and never m.vdCorr'
+          );
+        }
+      }
+
+      if (env.PATGate && env.PATGate.verdictCell) {
+        var mDis = {
+          vd: { label: 'DRIFT-DOMINATED', tier: 'no' },
+          cp: { ok: true, driftRange: 88 },
+          cpCorr: { ok: true, driftRange: 41 },
+          vdCorr: { label: 'FEASIBLE' },
+          driftSource: 'raw'
+        };
+        var cDis = env.PATGate.verdictCell(mDis);
+        T.ok(/DRIFT-DOMINATED/.test(cDis.text), 'the cell still leads with the PRIMARY raw verdict');
+        T.ok(/corrected\(acc\): FEASIBLE/.test(cDis.text), 'the ACC-corrected verdict REACHES the cell');
+        T.eq('a disagreement is flagged for the reader', cDis.differs, true);
+        T.ok(/DIFFERS from primary/.test(cDis.title), 'the title names the disagreement explicitly');
+        /* The tier is NOT promoted — surfacing decides nothing; promoting on corrected drift is the
+           owner's call and this gate must never quietly consume it. */
+        T.eq('the primary tier is untouched by the corrected verdict', mDis.vd.tier, 'no');
+
+        var mAgree = env.PATGate.verdictCell({
+          vd: { label: 'FEASIBLE', tier: 'go' },
+          cp: { ok: true, driftRange: 20 },
+          vdCorr: { label: 'FEASIBLE' }
+        });
+        T.eq('agreement is reported as agreement, not silence', mAgree.differs, false);
+        T.ok(/\(agrees\)/.test(mAgree.title), 'the title says the two verdicts agree');
+
+        var mNone = env.PATGate.verdictCell({ vd: { label: 'FEASIBLE', tier: 'go' }, cp: { ok: false } });
+        T.ok(/not available for this night/.test(mNone.title) && !/corrected\(acc\)/.test(mNone.text), 'a night with no ACC sync says so rather than implying a correction');
+      }
+
       if (env.PATGate && env.PATGate.verdict) {
         var ovOK = { min: 200 },
           scOK = { ok: true },
@@ -10369,6 +10427,130 @@
 
        Node-lane only — env.nodeSurfaces is fs-read; the browser lane can't readdir, so it SKIPs
        (mirrors docs-ledger / release-ledger / analysis-tools). */
+    /* ── A LAYER NOTHING READS IS A LAYER NOTHING CHECKS ─────────────────────────────────────────
+       Every text-reading assertion in this suite can only see files that reached `env.sources` (Node)
+       or `SOURCE_FILES` (browser). Whatever is in neither is unscannable BY CONSTRUCTION — not
+       untested, but permanently outside the reach of any source-level gate anyone writes later.
+
+       This is not a hypothetical class. `pat-feasibility.js` sat outside both lists while its WORKER
+       was inside them 5 times, and that asymmetry is precisely how a published `vdCorr` crossed the
+       worker boundary, reached no surface, and left every test green (#2117). The prior audit that
+       found the same hole wrote it into this very file — "DEEP-AUDIT-III §1.4 — ecgdex/ppgdex-render.js
+       were not 'classified', they were INVISIBLE" — and those files are STILL outside both lists. A
+       finding recorded as a comment does not fail when the defect recurs; this does.
+
+       ⚠️ RATCHET, NOT PASS/FAIL, and deliberately so. 13 of 112 are invisible today — the UN-BUNDLED
+       tail (cohort tooling, `dex-coload.js`, `dex-contracts.js`, provenance surfaces, standalone
+       analyses). The registries and spine are NOT among them: `readSources()` walks every bundle's
+       `data-inline-src`, so anything inlined is readable for free. Demanding all 112 at once would land red on day one over
+       work nobody has scoped, and a gate that is red by default gets switched off — taking the real
+       finding with it (the argument that kept a coverage threshold out of #1163 and shaped
+       `no-fabricated-tier`'s cap). So the debt is measured, published, and may SHRINK BUT NEVER GROW:
+       a 39th unreadable file reds immediately, and wiring one in forces the cap down.
+
+       Node-lane only (env.sourceVisibility is fs-read); the browser SKIPs, mirroring docs-ledger. */
+    group('Every runtime source layer is readable by at least one lane', 'cohesion · source-visibility · ratchet', function (T) {
+      var SV = env.sourceVisibility;
+      if (!SV || !env.sources) {
+        T.skip('env.sourceVisibility provided to the runner', 'Node-lane only — wire env.sourceVisibility (run-tests.mjs)');
+        return;
+      }
+      /* Anti-vacuity FIRST: an empty inventory or an unparsed browser list would make every file look
+         readable (or every one unreadable) and the count would be a property of the parse, not the
+         tree. Both sides must be demonstrably non-empty before the verdict means anything. */
+      T.ok('the root inventory was actually read', SV.files.length > 50, SV.files.length + ' root *.js');
+      T.ok("the browser lane's SOURCE_FILES parsed", SV.browser.length > 20, SV.browser.length + ' entries');
+      T.ok("the node lane's env.sources is populated", Object.keys(env.sources).length > 20, Object.keys(env.sources).length + ' entries');
+
+      var readable = {};
+      Object.keys(env.sources).forEach(function (f) {
+        readable[f] = true;
+      });
+      SV.browser.forEach(function (f) {
+        readable[f] = true;
+      });
+      var invisible = SV.files.filter(function (f) {
+        return !readable[f];
+      });
+
+      /* The cap. Lower it — never raise it — when a file is wired into either lane. */
+      var INVISIBLE_CAP = 13;
+      T.ok(
+        'no NEW unscannable source layer (ratchet ' + INVISIBLE_CAP + ')',
+        invisible.length <= INVISIBLE_CAP,
+        invisible.length + ' invisible: ' + invisible.slice(0, 8).join(', ') + (invisible.length > 8 ? ', …' : '')
+      );
+      T.ok('the cap is not STALE — lower it when the debt shrinks', invisible.length >= INVISIBLE_CAP, 'only ' + invisible.length + ' invisible now; set INVISIBLE_CAP = ' + invisible.length);
+      /* Published so the debt is legible in the output rather than only in a brief. The invisible set
+         is NOT the bundled runtime: `readSources()` also walks every bundle's `data-inline-src`, so
+         anything inlined into an app is readable for free — the registries and the spine included.
+         What is left over is the un-bundled tail: cohort tooling, `dex-coload.js`, `dex-contracts.js`,
+         the provenance surfaces and the standalone analyses. Those are the files a source-level gate
+         cannot reach today. */
+      T.ok(
+        'the invisible set is the UN-BUNDLED tail, not the shipped runtime',
+        invisible.filter(function (f) {
+          return /-registry\.js$/.test(f) || /^(kernel-constants|metric-registry)\.js$/.test(f);
+        }).length === 0,
+        'registries/spine are inlined into bundles and therefore already readable'
+      );
+    });
+
+    /* ── COMPUTED, CARRIED, NEVER CONSUMED ───────────────────────────────────────────────────────
+       A value crosses a worker boundary and nothing reads it on the other side. The producer is
+       correct, the payload is correct, every test passes — and the number reaches no surface. #2117
+       was exactly this (`vdCorr`), and MotionDex's `respRateMethod` is the same shape in another
+       family, so it is a class rather than an incident.
+
+       Hand-fixing does not find the siblings: `vdCorr` was fixed by reading the code, and this scan
+       found `detailCorr` — emitted at `pat-feasibility-worker.js:513`, appearing exactly ONCE in the
+       whole repo, its own assignment — on its first run.
+
+       ⚠️ Scoped to DECLARED producer/consumer pairs, not inferred. An automatic boundary-finder would
+       false-positive on every object literal in the repo, and a gate that cries wolf gets switched
+       off. Adding a pair is a deliberate act that says "these two files are a boundary". */
+    group('No value crosses a worker boundary unread', 'cohesion · dead-cross-boundary · pat', function (T) {
+      var S = env.sources || {};
+      var PAIRS = [{ producer: 'pat-feasibility-worker.js', consumers: ['pat-feasibility.js', 'pat-gate.js'] }];
+      /* KNOWN, published, ratcheted — same discipline as the visibility cap above. `detailCorr` is
+         the packed per-beat detail for the ACC-CORRECTED coupling. Surfacing it is a UI decision (a
+         second scatter, or a toggle on the existing one), not a mechanical wiring, and inventing that
+         surface here would consume a design call the way promoting the tier would have in #2117. It
+         is rowed as residue instead; this gate holds the line at one so a SECOND dead key reds. */
+      var KNOWN_DEAD = ['detailCorr'];
+      PAIRS.forEach(function (pair) {
+        var prod = S[pair.producer];
+        T.ok(pair.producer + ' · producer source readable', !!prod, prod ? prod.length + ' bytes' : 'ABSENT from env.sources');
+        if (!prod) return;
+        var consumerText = pair.consumers
+          .map(function (c) {
+            return S[c] || '';
+          })
+          .join('\n');
+        T.ok(pair.producer + ' · at least one consumer readable', consumerText.length > 0, 'consumers: ' + pair.consumers.join(', '));
+        if (!consumerText.length) return;
+        var keys = {},
+          km;
+        var KEY_RE = /\bout\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
+        while ((km = KEY_RE.exec(prod))) keys[km[1]] = true;
+        T.ok(pair.producer + ' · payload keys found to check', Object.keys(keys).length > 0, Object.keys(keys).join(', '));
+        var dead = Object.keys(keys).filter(function (k) {
+          return !new RegExp('[.\\b]' + k + '\\b').test(consumerText) && KNOWN_DEAD.indexOf(k) < 0;
+        });
+        T.eq(pair.producer + ' · no UNDECLARED dead key crosses the boundary', dead.join(',') || 'none', 'none');
+        /* Anti-vacuity: the known-dead key must still BE dead, or the gate is pinning a fiction and
+           the cap should drop. This is the leg that fails if someone surfaces `detailCorr` and forgets
+           to remove it from KNOWN_DEAD. */
+        KNOWN_DEAD.forEach(function (k) {
+          T.ok(
+            'the declared dead key ' + k + ' is still genuinely unread',
+            !new RegExp('[.\\b]' + k + '\\b').test(consumerText),
+            k + ' now appears in a consumer — surface it and remove it from KNOWN_DEAD'
+          );
+        });
+      });
+    });
+
     group('Field hints never write to an id no surface defines', 'cohesion · dead-field-hints · render', function (T) {
       var NS = env.nodeSurfaces;
       if (!NS) {
@@ -50072,6 +50254,121 @@
        54 of 54 hrv blocks non-zero), which is exactly why it survived: a shape no committed input can
        trigger is invisible to every gate that runs on committed inputs. So it is pinned by SOURCE
        SCAN plus one executed leg, not by hoping a fixture reaches it. */
+    /* Heron's cross-family consumer trace, verified 2026-09-02. PpgDex's RSA respiration rate was
+       computed, exported at `hrv.frequency.respRate`, and read by nothing: `summary.respRateBrpm` was
+       assigned only inside the ECGDex and MotionDex branches. Two comments — one in ppgdex-dsp.js's
+       own export block, one in a brief — asserted the link already existed; both were true of ECGDex
+       and false of PpgDex, which is why nobody looked. */
+    group('PpgDex respiration reaches the fusion — the third, optical estimate (cross-family trace)', 'integrator-dsp · ppgdex · resp-rate · export-boundary', function (T) {
+      var A = env.adaptEnvelopeNode;
+      T.ok('adaptEnvelopeNode available', typeof A === 'function');
+      if (typeof A !== 'function') return;
+      var t0 = U(2026, 5, 27, 22, 0, 0);
+      function exp(node, freq) {
+        return {
+          schema: { name: 'ganglior.node-export', bus: 'ganglior', node: node },
+          node: node,
+          recording: { startEpochMs: t0, node: node },
+          hrv: { time: { rmssd: 30, sdnn: 50 }, frequency: freq },
+          ganglior_events: []
+        };
+      }
+      /* THE FIX: a PpgDex export carrying a respiration rate now reaches summary. */
+      var ppg = A(exp('PpgDex', { respRate: 15.4, respRateMethod: 'RSA (HF-peak of RR spectrum)', lfhf: 1.2 }), 'PpgDex', 'PpgDex')[0];
+      T.eq('a PpgDex RSA respiration rate reaches summary.respRateBrpm', ppg.summary.respRateBrpm, 15.4);
+      T.eq('…carrying the method the node declared, not a hardcoded string', ppg.summary.respRateMethod, 'RSA (HF-peak of RR spectrum)');
+      /* NORMALISATION mirrors ECGDex: 0 means "not estimated" in the spectral path and must become
+         null, never a published 0 bpm — the fabricated-absence class this suite keeps finding. */
+      var zero = A(exp('PpgDex', { respRate: 0, lfhf: 1.2 }), 'PpgDex', 'PpgDex')[0];
+      T.eq('a 0 bpm spectral non-estimate is null, not a measured zero', zero.summary.respRateBrpm, null);
+      T.eq('…and its method is null too, not a string beside no value', zero.summary.respRateMethod, null);
+      /* A node that declares no method still gets one, so the fusion can always attribute. */
+      var noM = A(exp('PpgDex', { respRate: 12, lfhf: 1 }), 'PpgDex', 'PpgDex')[0];
+      T.eq('an undeclared method falls back to a NAMED optical default', noM.summary.respRateMethod, 'RSA (PPG)');
+      /* THE CONTROL — the other two nodes in this shared block must be UNAFFECTED. Neither exports
+         the key, so both stay null; if this ever changes, the guard is doing something unintended. */
+      var pulse = A(exp('PulseDex', { lfhf: 1.1 }), 'PulseDex', 'PulseDex')[0];
+      var hrvd = A(exp('HRVDex', { lfhf: 1.1 }), 'HRVDex', 'HRVDex')[0];
+      T.eq('PulseDex, which exports no respRate, stays null', pulse.summary.respRateBrpm, null);
+      T.eq('HRVDex, likewise', hrvd.summary.respRateBrpm, null);
+      /* ECGDex's own assignment must not be disturbed — it runs in its own branch and the new guard
+         only fires when nothing has been assigned yet. */
+      var ecg = A(
+        {
+          schema: { name: 'ganglior.node-export', bus: 'ganglior', node: 'ECGDex' },
+          node: 'ECGDex',
+          recording: { startEpochMs: t0, node: 'ECGDex' },
+          hrv: { time: { rmssd: 30, sdnn: 50 }, frequency: { respRate: 16.1, respRateMethod: 'RSA (HF-peak of RR spectrum)' } },
+          ganglior_events: []
+        },
+        'ECGDex',
+        'ECGDex'
+      )[0];
+      T.eq('ECGDex still reports its own respiration rate', ecg.summary.respRateBrpm, 16.1);
+    });
+
+    /* Heron's cross-family trace, verified 2026-09-02. PpgDex published the axis VERDICT
+       (`timingSource`) and dropped the measurements behind it, while ECGDex has emitted the full
+       block all along. Asserted as PARITY against ECGDex rather than as a field list, so the two
+       cannot drift apart again and a future field added to one is owed by the other. */
+    group('PpgDex publishes the axis MEASUREMENTS, not only its verdict — parity with ECGDex', 'ppgdex-dsp · ecgdex-dsp · export-boundary · host-axis', function (T) {
+      var src = env.sources || {};
+      var P = String(src['ppgdex-dsp.js'] || ''),
+        E = String(src['ecgdex-dsp.js'] || '');
+      if (!P || !E) {
+        T.skip('both DSP sources in env.sources', 'not wired in this lane');
+        return;
+      }
+      /* THE §7 DISCRIMINATORS. CLAUDE.md instructs a consumer to read `independent`, never a ~0 ppm —
+         which it cannot do if the producer never emits it. These are the fields that decide whether a
+         host column is a second clock at all. */
+      var need = ['independent', 'spreadMs', 'ppm', 'stability'];
+      /* BALANCED-BRACE extraction, not a regex to a fixed indent. ⚠️ The first version of this gate
+         matched `\n {6}\};` and OVERSHOT PpgDex's block by 4.5 kB into `out.hrv`, because the block
+         is nested inside an `if` and closes at 8 spaces. Every field assertion below then passed
+         partly on text from a different object — a gate reading the wrong region and reporting
+         confidently about it, which is the class this whole group exists to catch. Caught by the
+         char count (5598 vs ECGDex's 1069), not by the green. */
+      function axisBlock(srcText) {
+        var at = srcText.indexOf('out.recording.hostAxis = {');
+        if (at < 0) return '';
+        var i = srcText.indexOf('{', at),
+          depth = 0;
+        for (var k = i; k < srcText.length; k++) {
+          if (srcText[k] === '{') depth++;
+          else if (srcText[k] === '}') {
+            depth--;
+            if (depth === 0) return srcText.slice(at, k + 1);
+          }
+        }
+        return '';
+      }
+      var pBlock = axisBlock(P),
+        eBlock = axisBlock(E);
+      T.ok(
+        'ECGDex emits a recording.hostAxis block (the reference emitter)',
+        eBlock.length > 0,
+        eBlock ? eBlock.length + ' chars' : 'ABSENT — the parity reference is gone, so this gate proves nothing'
+      );
+      T.ok('PpgDex emits a recording.hostAxis block', pBlock.length > 0, pBlock ? pBlock.length + ' chars' : 'ABSENT — the axis measurements never leave the node');
+      if (!pBlock || !eBlock) return;
+      var missP = need.filter(function (k) {
+        return pBlock.indexOf(k + ':') < 0;
+      });
+      var missE = need.filter(function (k) {
+        return eBlock.indexOf(k + ':') < 0;
+      });
+      T.eq('PpgDex carries every §7 discriminator', missP.sort(), []);
+      T.eq('ECGDex carries every §7 discriminator', missE.sort(), []);
+      /* PpgDex additionally publishes the REASON DexClock gave when it refused independence — a
+         consumer that sees `independent:false` can read why instead of inferring it. */
+      T.ok('…and the inertReason DexClock wrote when it said no', pBlock.indexOf('inertReason') >= 0, 'the verdict carries its sentence');
+      /* CONDITIONAL, so a night with no axis omits the block rather than gaining a wall of nulls —
+         which is what keeps every committed export byte-identical. */
+      T.ok('the block is conditional on an axis existing', /if \(r\.hostAxis && r\.hostAxis\.ok\)/.test(P), 'guarded emission');
+      /* ANTI-VACUITY: the field list must be non-empty, or every assertion above passes trivially. */
+      T.ok('the discriminator set is non-empty (the gate is not vacuous)', need.length >= 4, need.length + ' fields required of both');
+    });
     group('An ABSENT value is not a measured zero — the || 0 fleet pattern (DEEP-AUDIT-IV §3)', 'oxydex-dsp · oxydex-render · integrator-dsp · fabricated-absence', function (T) {
       var src = env.sources || {};
       /* THE SHAPE ITSELF. `git grep '|| 0).toFixed'` over the root *.js returned exactly three

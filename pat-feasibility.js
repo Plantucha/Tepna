@@ -214,8 +214,18 @@
       if (lg) lg.textContent = m.cp.med.toFixed(0) + ' ms';
     }
     if (vd) {
-      var corrTxt = m.cpCorr && m.cpCorr.ok && isFinite(m.cpCorr.driftRange) ? ' → ' + m.cpCorr.driftRange.toFixed(0) + 'ms✦' : m.accSync && !m.accSync.available ? ' (no ACC)' : '';
-      vd.textContent = m.vd.label + (m.cp.ok && isFinite(m.cp.driftRange) ? ' · ' + m.cp.driftRange.toFixed(0) + 'ms' : '') + corrTxt;
+      /* SURFACE THE SECOND VERDICT (2026-09-02) — composed by `PATGate.verdictCell`, not here.
+         The worker publishes TWO gate results (`vd` on raw drift, `vdCorr` on ACC-corrected) and this
+         cell read only the first, so `vdCorr` crossed the worker boundary and was dropped at the last
+         step. It lived inline in this file, which is an anonymous IIFE with no export surface — so no
+         test could reach it, and `dex-tests.js` scanned the worker 5 times and the renderer 0. The
+         composition now lives beside the gate where it is pure and tested.
+
+         ⚠️ The tier COLOUR is deliberately unchanged: promoting on corrected drift is the owner's
+         scientific call, which this surfaces rather than decides. */
+      var cell = (self.PATGate && self.PATGate.verdictCell)(m);
+      vd.textContent = cell.text;
+      vd.title = cell.title;
       vd.style.color = tierColor(m.vd.tier);
     }
   }

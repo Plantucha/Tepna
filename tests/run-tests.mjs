@@ -619,6 +619,11 @@ function readSources() {
     // arguments its one runtime caller passes, and that caller is a Web Worker no behavioural test can
     // drive (O2RING-PHASE4-PREMISE-REVIEW §4).
     'pat-feasibility-worker.js',
+    /* The RENDERER, added 2026-09-02. The worker above was scanned and this file was not, and that
+       asymmetry is exactly how `vdCorr` was published, carried across the worker boundary and dropped
+       at the render step while every test stayed green. A layer nothing reads is a layer nothing
+       checks. */
+    'pat-feasibility.js',
     'signal-orchestrate.js',
     'dex-ingest.js',
     'cpapdex-dsp.js',
@@ -2137,6 +2142,29 @@ async function main() {
     /* BADGE-COVERAGE-AUDIT (corrected) — every node's UI-layer source, so the badge gate can read the
        literal ids each `evBadge(...)` call site passes and resolve them against that node's OWN
        registry. Node-lane only (readdir); the browser lane SKIPs, as docs-ledger does. */
+    /* WHICH SOURCE LAYERS CAN A SCAN READ AT ALL? Measured 2026-09-02: 38 of 112 root-level runtime
+       `*.js` are in NEITHER lane's source list, so no text-reading assertion can see them — including
+       all eight `*-registry.js` (CLAUDE.md §🎫's "Grade source of truth") and the spine modules
+       `kernel-constants.js` / `metric-registry.js`.
+
+       That blind spot is not hypothetical: `pat-feasibility.js` was outside both lists while its
+       WORKER was in them 5 times, and that asymmetry is exactly how a published `vdCorr` reached no
+       surface with the whole suite green. A layer nothing reads is a layer nothing checks.
+
+       The NODE side is taken from the runner's own assembled sources rather than re-parsed, so it
+       cannot drift from what the lane actually has. Node-lane only (readdir); the browser SKIPs. */
+    sourceVisibility: (() => {
+      try {
+        const files = readdirSync(ROOT).filter((f) => /^[a-z0-9][a-z0-9-]*\.js$/.test(f));
+        const suite = readFileSync(join(ROOT, 'Dex-Test-Suite.html'), 'utf8');
+        const j = suite.indexOf('SOURCE_FILES');
+        const seg = j >= 0 ? suite.slice(j, suite.indexOf('];', j)) : '';
+        const browser = [...seg.matchAll(/'([A-Za-z0-9_.\-]+\.(?:js|mjs|html|css))'/g)].map((m) => m[1]);
+        return { files, browser };
+      } catch {
+        return null;
+      }
+    })(),
     nodeUiSources: (() => {
       try {
         const out = {};
