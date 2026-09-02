@@ -245,7 +245,16 @@ class FakeGattClient:
 
     async def start_notify(self, _c, cb): self.notify = cb
     async def stop_notify(self, _c): pass
-    async def read_gatt_char(self, _c): return b"\x64"     # battery 100
+    # Dispatches on UUID: the runner reads BOTH the battery and (once per connection) the Firmware
+    # Revision String, and a fake that returns the battery byte for every characteristic would hand the
+    # firmware reader a one-character version it never saw on a device.
+    fw = b"2D010002"                                       # what this box's ring actually reports
+    async def read_gatt_char(self, c):
+        if str(c).lower() == capture.FIRMWARE_UUID:
+            if isinstance(self.fw, Exception):
+                raise self.fw
+            return self.fw
+        return b"\x64"                                     # battery 100
     async def write_gatt_char(self, char, data, response=False):
         self.writes.append(bytes(data))
         if self.on_live:
@@ -5436,3 +5445,58 @@ def test_run_oxyii_still_warns_when_a_real_arrival_close_fails(tmp_path, monkeyp
         _run(capture.run_oxyii(_o2dev(name="RingBad"), str(tmp_path)))
     assert any("arrival writer did not close" in r.getMessage() for r in caplog.records), \
         "a genuine close failure must still be reported"
+
+
+# ── ring firmware revision (the observable the AES-session trigger needs) ────────────────────────────
+def test_run_oxyii_publishes_the_rings_firmware_revision(tmp_path, monkeypatch):
+    """The measured-plaintext firmware reaches STATUS and says nothing alarming."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_oxyii(_o2dev(name="RingFw"), str(tmp_path)))
+    assert capture.STATUS["devices"]["RingFw"]["firmware"] == "2D010002"
+
+
+def test_run_oxyii_names_an_unmeasured_firmware_rather_than_letting_it_surface_as_a_stall(
+        tmp_path, monkeypatch, caplog):
+    """A newer firmware keys an AES session after AUTH, and AUTH is written fire-and-forget with no
+    reply to inspect — so the ONLY way the box can state it is this read. Without it the failure
+    arrives as 'connects, auths, no decoded frames', which reads as a bad link."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient(); c.fw = b"2D010099"
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level(logging.WARNING):
+        _run(capture.run_oxyii(_o2dev(name="RingNew"), str(tmp_path)))
+    assert capture.STATUS["devices"]["RingNew"]["firmware"] == "2D010099"
+    msg = " ".join(r.getMessage() for r in caplog.records)
+    assert "2D010099" in msg and "AES" in msg, \
+        "an unmeasured firmware must be named at connect, with the decode failure it predicts"
+
+
+def test_run_oxyii_treats_an_unreadable_firmware_as_a_skip_not_a_lost_session(tmp_path, monkeypatch):
+    """A ring that does not implement DIS must still record. And the field must stay ABSENT rather than
+    becoming a fabricated 'unknown', which would read as a measurement that was taken."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient(); c.fw = RuntimeError("no such characteristic")
+    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(name="RingNoDis"), str(tmp_path)))
+    st = capture.STATUS["devices"]["RingNoDis"]
+    assert "firmware" not in st, "an unread revision must be absent, never a fabricated value"
+    assert st.get("spo2") is not None, "the session must survive a ring without DIS"
+
+
+@pytest.mark.parametrize("raw,label", [(b"", "empty read"), (b"\x00\x00  ", "NUL/space padding")])
+def test_run_oxyii_does_not_publish_an_empty_firmware_string(tmp_path, monkeypatch, raw, label):
+    """A padded or empty DIS value is not a version. Same rule as above: absent beats fabricated.
+    Both shapes are exercised because they leave the reader by DIFFERENT branches — a falsy read
+    never reaches the decode, a padded one is only empty after stripping."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient(); c.fw = raw
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_oxyii(_o2dev(name="RingBlank"), str(tmp_path)))
+    assert "firmware" not in capture.STATUS["devices"]["RingBlank"], f"{label} must publish nothing"
