@@ -382,8 +382,8 @@ function exportCSV() {
         '  Cond Mean <94% SpO2,' + n.spo2Adv.condMeanBelow94,
         '  Cond % <94,' + n.spo2Adv.condPctBelow94,
         '  Nadir Depth <4%,' + n.spo2Adv.nadirBins.above91,
-        '  Nadir 4-6%,' + n.spo2Adv.nadirBins.b90_91,
-        '  Nadir 6-9%,' + n.spo2Adv.nadirBins.b88_89,
+        '  Nadir 90-91%,' + n.spo2Adv.nadirBins.b90_91,
+        '  Nadir 88-89%,' + n.spo2Adv.nadirBins.b88_89,
         '  Nadir >9%,' + (n.spo2Adv.nadirBins.b85_87 + n.spo2Adv.nadirBins.below85)
       );
     }

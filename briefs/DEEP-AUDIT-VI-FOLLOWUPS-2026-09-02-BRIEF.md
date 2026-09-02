@@ -175,6 +175,94 @@ guide: an undeclared unregistered card is counted, a bad `data-id` is a red, a s
   absolute-LEVEL bins (`above91 … below85`). Partial compound registration: ODI-2/ODI-1, T94…T80, kurtosis,
   HD90/HD88 and SD2 have no entry (their cards are gated by the sibling that does).
 
+**OxyDex DISCHARGED 2026-09-02 (Magpie) — and the sweep found the debt was not the defect.**
+All 35 OxyDex cards are registered, graded from the CODE by one rule stated in the registry block:
+`measured` = a direct readout of sensed values, no tuned threshold and no model · `heuristic` = a tuned
+or rule-of-thumb threshold decides the number · `experimental` = a bespoke composite, or an established
+method transferred to a signal it was not validated on (the `dfaAlpha1` precedent — name the transfer
+rather than inherit the method's standing). Result: 23 grades agree with the guide, **4 the guide
+OVERSTATED** and are corrected (`SpO₂ Ceiling` and `Stable SpO₂ Windows` claimed `measured` for threshold
+counts; `SpO₂–HR Decoupling %` and `SpO₂–HR Lag` claimed it for a constructed statistic and an estimate —
+`measured` means DIRECTLY SENSED), and **8 where the rule would RAISE the badge are left alone**
+(MODL, HR Nadir Timing, Circadian HR Amplitude, LF/HF Power, O₂-HR Efficiency, RMSSD Arc, SPI, Vagal
+Index). That asymmetry is deliberate: a grade that understates trust is not a false claim, while
+upgrading one on a rule its author wrote that afternoon is the fabricated authority the mandate exists to
+prevent. Those 8 are listed here so a later pass can decide them deliberately rather than inheriting my
+restraint as a verdict.
+
+⚠️ **THE REGISTRATION WAS THE SMALL HALF. Registering a metric puts a registry-backed badge on its
+card, so the card's text was verified first — and it does not hold up: 13 of the 35 cards make a
+checkable numeric claim, 13 were verified against the code, and 5 were WRONG.**
+
+| card | the card claimed | the code does |
+|---|---|---|
+| Longest Clean Run | "motion = 0, SpO₂ in 70–100 %, no HR artifact flags" | `spo2[i] > 95` alone — none of the three conditions exist |
+| IEI | `IEI_i = nadirTime_i − nadirTime_{i−1}` | `start_i − (start_{i−1} + duration_{i−1})` — the QUIET gap between events, not a nadir-to-nadir cycle |
+| SpO₂–HR Lag | `argmax` over `lag ∈ [0..90 s]` | searches `lag <= 120` and reports the MEDIAN of per-window argmaxes |
+| Motion Bursts | runs "separated by ≥30 s of quiet" | a run ends at the first quiet sample; counted if `burstLen >= 3` |
+| SpO₂ Ceiling | "exactly 100 % for ≥30 consecutive" | `spo2 >= 99`, `run >= 5` |
+
+All five corrected DOC→CODE (the code shipped, is fixture-backed, and produced every number a user has
+seen). Eight were correct as written — including the two most intricate, CS Score and UARS Score, whose
+four-criterion `.ft` lists match the code exactly — so this is specific drift, not uniform decay. The four
+registry-side leads are corrected in the same pass with their code lines: `dfaAlpha1` (cite said PULSE
+rate; `computeDFA` maps `r.spo2`), `ahiEst` (label AND cite said CVHR; the value is `odi4Rate × 1.1`),
+`ssiIdx` (cite said sleep-stability; `computeSympSurge` and the DSP's own row say 'Symp Surge'), and the
+`nadirBin*` family (labels and cites said DEPTH; oxydex-dsp.js:4524 bins on absolute LEVEL — a
+half-finished fix, since the code comment records being corrected to level while the labels never
+followed). The nadir labels are corrected at the render and CSV sites too, with both spellings aliased so
+no surface loses its badge; registry **ids are unchanged**, so no export identity moves.
+
+#### 8 tiers deliberately held BELOW the code rule; decision pending
+Each row's grade would RISE under the rule stated in the registry block. None was taken: understating
+trust is never fabricated authority, and raising a badge on a rule written the same afternoon is exactly
+what the mandate forbids. Listed so the decision is made deliberately, per row, by someone other than the
+author of the rule. Raises belong in a follow-on OxyDex PR (bundle change, one verify lap), not here.
+
+| card | tier now | code rule gives | the code fact behind that |
+|---|---|---|---|
+| MODL | heuristic | measured | `oxydex-dsp.js:1107` — mean of sensed SpO₂ over the detected event set; no threshold of its own |
+| HR Nadir Timing | heuristic | measured | `computeHRNadirTime` (called at `:2891`) — the hour of the lowest 5-min smoothed HR, a readout |
+| Circadian HR Amplitude / Nadir Hour | heuristic | experimental | `:2146` — a least-squares cosine (cosinor) FIT, a model rather than a rule of thumb |
+| LF / HF Power | heuristic | experimental | `:4934` — Task-Force HRV bands (0.04–0.15, 0.15–0.40 Hz) on oximeter PULSE rate, an unvalidated transfer |
+| O₂-HR Efficiency | heuristic | experimental | `computeO2HREfficiency` (`:2886`) — a bespoke per-event HR-rise / SpO₂-drop ratio |
+| RMSSD Arc | heuristic | experimental | `computeRMSSDarc` (`:2893`) — OLS slope of 30-min windowed RMSSD, a bespoke trend |
+| Sleep Pressure Index (SPI) | heuristic | experimental | `:2283` — `waso·0.4 + bursts·0.15 + sol·0.25`, a composite with authored weights |
+| Vagal Index | heuristic | experimental | `:2250` — `pNN3 / max(hrFloor,1) × ln(1+cleanRun)`, a bespoke non-linear composite |
+
+*(Vagal Index's card was examined and left alone on a separate point: its `.md` opens "Weighted
+composite", which is loose for a product with a log term — but its `.ft` states the exact formula and the
+`.md` goes on to name the multiplicative form. The checkable claim is correct, so it is not counted among
+the 5 corrections. Recorded because the looser phrase is the kind of thing a future sweep will re-flag.)*
+
+### 2.5b LEAD — nothing compares a card's DESCRIPTION against the code it describes
+`cohesion-badges` gates the tier, `registry-defs-parity` the crossnight projection, `citation-ledger` the
+DOI attribution. The sentence that tells a user what a number MEANS is ungated across all eight guides.
+Hand rate on the one node swept: **5 of 13 checkable numeric claims wrong**, plus 4 registry-side
+descriptions, none of which any gate could see. Candidate mechanism: a checkable-claim extractor —
+thresholds, windows and units stated in a card's `.ft`/`.md` versus the constants in the node's DSP — which
+would have caught all five. ⚠️ **It would also have a blind spot worth designing around from the start:**
+the 5 were found by keying on NUMERALS, and a claim can be structural without one — "weighted composite",
+"median", "consecutive", "uninterrupted". Vagal Index was checked by hand for exactly that reason and came
+back clean; `Longest Clean Run`'s defect was structural too ("motion = 0 … no artifact flags") and only
+surfaced because the word "clean" invited a look. A numeral-keyed extractor finds the cheap half. Not built here. The other 7 nodes are unswept.
+
+### 2.5c LEAD — `goodDirection` is not compared against anything
+Two inversions found by hand in OxyDex, both corrected here: `ssiIdx` was `'up'` while the DSP scores
+`<0.3` as severity 0, and `nadirBinLt4` was `'up'` while the render treats fewer as better. Nothing
+compares a registry entry's direction against the DSP's severity ordering or the render's colouring, so an
+inverted direction inverts the READING of a number with every gate green. 2 found in one node; 7 nodes
+unswept. Distinct from 2.5b: that one is about what a number means, this one about which way is good.
+
+### 2.5d Write the §2.6 case as a TEST, not a comment — it caught a bug in the fix itself
+FOLLOWUPS §1.1's MotionDex fix (#2080) re-anchors a stepped device counter. The §2.6 branch — an
+over-24 h step whose seam stamps do NOT parse — was handled in code and described in a comment. Written
+as a test leg instead, it immediately failed: the unparseable-stamp fallback re-anchored to the STEPPED
+counter and published a 241,586,834 s span, while every other leg in the group was green. The §2.6
+branches ("a duration nothing measured stays unmeasured") are exactly the ones a happy-path fixture never
+enters, so a comment describing one is a claim nothing checks. **Rule: when a fix has a
+refuse/unmeasured branch, that branch owes a test leg, not a sentence.** Same family as 2.1.
+
 ### 2.6 The dormant-surface alias matcher: an alias shorter than a word is not a surface token
 MotionDex `uprightFrac`'s bare alias `upright` matched a posture ENUM value in `POS_ORDER` — a false
 positive. Matcher (#2072) now admits the label always, an alias only if multi-word or ≥ 8 chars; negative
@@ -187,6 +275,16 @@ gap-geometry test — the intuitive "gaps subtract" model produces assertions th
 ---
 
 ## 3 · Tooling and process residue
+
+**Endpoint-to-endpoint drift lied by 100× against a median-of-decile (2026-09-02, #2080).** Checking
+whether the MotionDex re-anchor worked, the natural measure — host−device residual at the first row vs the
+last — read **2081 ppm** on 2026-08-27 and suggested the fix had not held. The jitter-robust
+median-of-first/last-decile reads **−18 ppm**, an ordinary H10 crystal, and the three nights agree
+(−18/−21/−16). The endpoint figure was one BLE batch-delivery outlier at the final row, which is also the
+whole of an apparent 7.6 s span discrepancy. Clock Contract §7 already warns that two points cannot
+separate a step from a rate for `hostAxis`; the same trap sits one layer out, in the check you write to
+prove your own fix worked, and first-vs-last is the natural way to write it. Prefer a median of deciles
+whenever a residual is compared across a recording.
 
 ### 3.1 `rebase-safe` "THIS REBASE DISCHARGED N VERIFICATION(S)" over-reports by design
 Seen on F11, F12, F13 (Kestrel) and F2 (Magpie): it reports every stamp that reverted to the base's, not
@@ -212,6 +310,31 @@ passed in F2's identical chain 20 min earlier, F4 touched no tool. `selftest-all
 chain-time run was re-embedding. CLAUDE.md says no gate may read doc-search output, yet `selftest-all` runs its
 selftest, so the coupling exists on the primary box and CI never sees it. **Fix candidates:** serialise the two
 behind a lock, or give the qwen selftest a read-only snapshot.
+
+### 3.6 A `<node>-registry.js` edit is a COMPUTE-PATH change, and a re-tier owes a verify lap
+Editing a registry feels like documentation — it changes a label, a cite, a tier. It is not: every
+`<node>-registry.js` is inlined into its node's bundle and sits inside that node's **compute closure**
+(`manifest-gate.js`'s closure is a DENYLIST, so an unlisted asset is inside it by construction). A
+re-tier therefore moves `computeHash`, and every corpus-backed fixture of that node owes a
+re-verification.
+
+**Measured 2026-09-02:** #2078 re-tiered `edrResp` in `ecgdex-registry.js`, rebuilt, and re-stamped
+`manifestHash` — but `ECGDex_2026-06-27_equiv`'s `verifiedUnder` stayed at `302dead99e51`, the value
+produced by #2080 BEFORE that edit. `origin/main` therefore carried a corpus-backed ECGDex fixture
+verified under pre-#2078 code: the state `tools/release.mjs` refuses to cut a release over, and the one
+CI reports without blocking. Discharged by the §2.5 OxyDex PR, whose `verify-fixtures` run re-earned it
+honestly (302dead99e51 → 65e8a013d842) and which names whose stamp it is rather than absorbing it —
+the `verify-fixtures-discharges-others-debt` shape.
+
+**Nothing malfunctioned — and that is exactly why it is dangerous.** `build.mjs` re-stamped the hash it
+can compute and is FORBIDDEN to write `verifiedUnder`, because that one requires actually running the app
+(§🔏 — auto-writing it is how a stale fixture shipped once already). So after a registry edit the fixture
+**LOOKS verified**: GATE A and GATE B are static, they re-reconcile against the freshly-written
+`manifestHash`, and both go green over a compute path that has moved underneath them. A static green
+across a moved compute path is SILENCE, not evidence — the one signal that would have spoken,
+`verifiedUnder`, is precisely the one no builder is allowed to forge. The gap was the author's model of the file, not the tooling: "docs-only"
+is a property of a diff's INTENT, never of a file's position in the closure. **Rule of thumb: if the
+file is inlined into a bundle, the PR owes `verify-fixtures`, whatever the change reads like.**
 
 ### 3.5 Kill only what you own; a pattern is not a name (Osprey / Kestrel, 2026-08-31 → 09-01)
 A pattern kill hit a PEER's gate unit; a clearing sweep globbed `*check*.log` while the evidence sat in
