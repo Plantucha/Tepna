@@ -273,8 +273,10 @@ async function main() {
     const F = Array.from(P.times);
     const orc = oracleNight(R, F, HW);
     if (!orc || orc.refusal || !Number.isFinite(orc.narrowSd)) continue; // a named refusal is a truthy object
-    const mid = R[Math.floor(R.length / 2)];
-    const rB = R.filter((t) => t >= mid);
+    /* The oracle's OWN split, not a recomputed one — it derives `mid` from the two trains' overlap
+       and its second half is bounded by `hi`, so scoring `t >= mid` over all of R would re-admit the
+       beats after the PPG ends that #2034 removed. */
+    const rB = R.filter((t) => t >= orc.mid && t <= orc.hi);
     const { lags, rrs } = acceptedSeries(rB, F, orc.mode, HW);
     if (lags.length < 50) continue;
     const r1 = autocorr1(lags);

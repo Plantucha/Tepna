@@ -190,6 +190,14 @@ export function oracleNight(rTimes, fTimes, halfWidth) {
   const modeB = lagMode(lagsB);
 
   return {
+    /* THE SPLIT TRAVELS WITH THE RESULT (2026-09-02). #2034 moved this split onto the OVERLAP of the
+       two trains, but only inside this function — it was not returned, so every sibling tool kept
+       computing the pre-fix `R[floor(R.length/2)]` on the ECG's extent alone and silently diverged
+       from the oracle it was reading `mode` from. Returning the split is the repair; a consumer
+       recomputing it is the defect, because the next fix here would desynchronise them again. */
+    lo,
+    mid,
+    hi,
     mode,
     modeB,
     nB: rB.length,
@@ -333,7 +341,18 @@ function selftest() {
   ok(rootLayoutVerdict(['2026-07-24', '2026-08-17'], []).ok === true, 'a well-formed root passes');
   ok(rootLayoutVerdict([], []).ok === true, 'a genuinely empty root is NOT a layout refusal');
 
-  const TOTAL = 23;
+  /* The SPLIT must travel with the result (2026-09-02). Without this, a consumer has no way to score
+     the same half the mode was fitted against except by recomputing it — which is the defect that
+     survived #2034 in two sibling tools for a week. Asserted on the success object AND on a refusal,
+     because the consumers' guard is `orc.refusal` and a refusal carrying score-shaped fields would
+     let a caller read a split that was never computed. */
+  ok(
+    Number.isFinite(res.lo) && Number.isFinite(res.mid) && Number.isFinite(res.hi) && res.lo <= res.mid && res.mid <= res.hi,
+    `the overlap split travels with the result, got lo=${res?.lo} mid=${res?.mid} hi=${res?.hi}`
+  );
+  ok(resShort.lo === undefined && resShort.mid === undefined && resShort.hi === undefined, 'a refusal carries NO split fields — the refusal object stays field-free');
+
+  const TOTAL = 25;
   console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${TOTAL})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${TOTAL}/${TOTAL})`);
   return fails.length === 0;
 }

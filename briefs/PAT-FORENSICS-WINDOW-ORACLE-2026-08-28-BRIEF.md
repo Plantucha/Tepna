@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **TRIAGED 2026-09-01 (Osprey): tool BUILT and selftest-clean (`tools/pat-window-oracle.mjs --selftest` = 8/8) but NEVER RUN on a corpus and its results are referenced in no brief, audit or doc. **CORRECTED 2026-09-01: NOT blocked — the raw corpus IS local.** My first stamp said this machine has zero `_ECG.txt`; that was wrong because I searched only the repo's `uploads/` tree, which holds node-export JSON. The canonical root is **`/srv/data/tepna-corpus/` (125 GB, 1131 raw `_ECG.txt`)** with per-night raw dirs under `smoketest-captures/` (box), `uploads/vigil-archive/captures/` (daily mirror) and `uploads/Ecg nightly/` (phone). Pointed at `uploads/trio` the oracle exits 0 with `TALLY: {}` — a WRONG-ROOT failure, not a negative result, which is what made the absence look real. Now running against the real root.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§11/§13 oracle) · **Interlocks:** `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey) — RE-RUN under #2082 executed; see the RE-RUN section.** Regression band held exactly (07-24 405->405, 08-17 215->215). Corpus is **48 nights, not 87** — the vigil mirror is a strict subset and one of its nights is an incomplete copy. The unscored-nights Done-when box is **CLOSED**. **Still IN-PROGRESS on one box only:** whether the 20-40 ms residual is slow physiology or an instrumental effect — a research question no run of this tool closes. **Owner: Osprey. Next step:** the phone root's flat-layout defect (50 `_ECG.txt` invisible to the oracle) is the one actionable residue.
+**Status:** IN-PROGRESS · **TRIAGED 2026-09-01 (Osprey): tool BUILT and selftest-clean (`tools/pat-window-oracle.mjs --selftest` = 8/8) but NEVER RUN on a corpus and its results are referenced in no brief, audit or doc. **CORRECTED 2026-09-01: NOT blocked — the raw corpus IS local.** My first stamp said this machine has zero `_ECG.txt`; that was wrong because I searched only the repo's `uploads/` tree, which holds node-export JSON. The canonical root is **`/srv/data/tepna-corpus/` (125 GB, 1131 raw `_ECG.txt`)** with per-night raw dirs under `smoketest-captures/` (box), `uploads/vigil-archive/captures/` (daily mirror) and `uploads/Ecg nightly/` (phone). Pointed at `uploads/trio` the oracle exits 0 with `TALLY: {}` — a WRONG-ROOT failure, not a negative result, which is what made the absence look real. Now running against the real root.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§11/§13 oracle) · **Interlocks:** `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey) — RE-RUN under #2082 executed; see the RE-RUN section.** Regression band held exactly (07-24 405->405, 08-17 215->215). Corpus is **48 nights, not 87** — the vigil mirror is a strict subset and one of its nights is an incomplete copy. The unscored-nights Done-when box is **CLOSED**. **Still IN-PROGRESS on one box only:** whether the 20-40 ms residual is slow physiology or an instrumental effect — a research question no run of this tool closes. **Owner: Osprey. Next step:** the phone root's flat-layout defect (50 `_ECG.txt` invisible to the oracle) is the one actionable residue. · **Residue:** R9, R10 · **2026-09-02 (Osprey):** the overlap split #2034 introduced is now RETURNED by `oracleNight` (`lo`/`mid`/`hi`) and consumed by both sibling tools — see PR body. It had been computed but not returned, so `pat-residual-structure.mjs` and `pat-drift-attribution.mjs` each recomputed the pre-fix ECG-extent midpoint and silently diverged from the oracle they read `mode` from. **A fix that lands in one place while its copies survive is this repo's recurring shape** — which is why the repair is the RETURN VALUE, not a third correct copy.
 
 # There IS signal under the window — the acceptance window is mis-specified, not merely wide
 
@@ -103,11 +103,21 @@ accepted lags of 8 nights, with a shuffle control:
 | 2026-07-24 | 1476 | 15.3 | 0.943 | 0.816 | 0.545 | −0.001 | **none** | DRIFT-LIKE | +0.028 |
 | 2026-07-28 | 3855 | 37.2 | 0.987 | 0.941 | 0.741 | 0.016 | **none** | DRIFT-LIKE | −0.086 |
 | 2026-08-02 | 2167 | 38.2 | 0.985 | 0.963 | 0.908 | −0.034 | **none** | DRIFT-LIKE | −0.225 |
-| 2026-08-13 | 6839 | 37.1 | 0.963 | 0.939 | 0.898 | 0.009 | **none** | DRIFT-LIKE | +0.462 |
-| 2026-08-17 | 1622 | 17.9 | 0.754 | 0.587 | 0.504 | 0.005 | **none** | DRIFT-LIKE | +0.121 |
-| 2026-08-24 | 5246 | 44.9 | 0.958 | 0.927 | 0.812 | 0.008 | **none** | DRIFT-LIKE | −0.008 |
-| 2026-07-18 | 2415 | 27.9 | 0.981 | 0.929 | 0.710 | 0.022 | **none** | DRIFT-LIKE | +0.108 |
-| 2026-07-20 | 7714 | 42.3 | 0.966 | 0.941 | 0.844 | 0.005 | **none** | DRIFT-LIKE | −0.343 |
+| 2026-08-13 | 6864 | 37.0 | 0.963 | 0.939 | 0.898 | 0.009 | **none** | DRIFT-LIKE | +0.459 |
+| 2026-08-17 | 1604 | 18.0 | 0.753 | 0.587 | 0.507 | 0.033 | **none** | DRIFT-LIKE | +0.120 |
+| 2026-08-24 | 5340 | 44.6 | 0.958 | 0.927 | 0.813 | 0.007 | **none** | DRIFT-LIKE | −0.008 |
+| 2026-07-18 | 3884 | 25.8 | 0.977 | 0.924 | 0.735 | −0.028 | **none** | DRIFT-LIKE | +0.049 |
+| 2026-07-20 | 8155 | 42.2 | 0.967 | 0.941 | 0.844 | 0.001 | **none** | DRIFT-LIKE | −0.296 |
+
+> ⚠️ **This table was RE-MEASURED 2026-09-02** under the returned-split fix, and the numbers above
+> are the current ones. Two facts about the previous version, both verified by paired re-runs against
+> unmodified `main`: **five of the eight `n` values moved** under the fix (07-18, 07-20, 08-13, 08-17,
+> 08-24), because the consumer had been splitting on the ECG's extent instead of the overlap; and
+> **07-18's published `n` was 2415 while unmodified `main` produces 2224**, so that one row was already
+> unreproducible from committed code before this change, under some earlier state. **The SHAPE column
+> and every verdict are unchanged — the §6/§6b conclusions stand.** What was wrong is the sample they
+> were computed on, not what they concluded.
+
 
 **8 of 8 DRIFT-LIKE.** Shuffles collapse to ≈ 0 on every night, so the statistic is measuring temporal
 order and nothing else.
