@@ -766,6 +766,82 @@ reported.
 over-approximation, and the residual competition effect should be modelled or stated. Both change a
 reportability gate and must carry their own fixture lap.
 
+### 4.2b The λ fix — SHIPPED 2026-09-02 (Magpie). And the σ=75 s "confirmation" that was not one
+
+§4.2 measured the defect; this is the fix, and the road to it is worth more than the patch.
+
+**What shipped.** The chance-null is now circular-shift surrogates of the real surge train, scored
+through `_matchDesatsToSurges` — the SAME function that produces the published `nConf`. A null that
+models a different statistic than the one published is the original defect; sharing the function makes
+that mismatch impossible by construction rather than by review. Shifts are EventCoupling's fixed
+prime-second set (`shiftsForAlpha(0.05)` → B = 80), so there is **no PRNG and no seed** and identical
+inputs reproduce identical bytes. The shift happens in **covered-time coordinates**, so no surrogate is
+placed in a recording gap where nothing was observing. The analytic λ rides along as
+`expectedConfirmedAnalytic`, now with the exact `1 − e^(−rate·win)` term.
+
+| | published under the code's own homogeneous null |
+|---|---|
+| shipped before | 0.95 % |
+| after | **4.85 %** (attainable size 4.94 %, CI [3.99, 5.89]) |
+
+Controls both fire through the same path: a planted perfect coupling reaches the floor exactly
+(p = 1/81 = 0.0123), 300 planted null nights average p = 0.565. Cost 58 ms/night at B = 80.
+
+🔴 **A "confirmation" that was not one — the finding worth carrying forward.** The σ = 75 s row came in
+anti-conservative (6.71 %, replicated at 6.75 %). Three causes were proposed and the first two were
+wrong. I attributed it to missing coverage handling — impossible, since the simulation was gapless, so
+coverage could not move that number. The coordinator attributed it to the wrap boundary splitting
+clusters, and I built ARM B (buffered, no wrap) which returned 4.35 %, inside the CI. **ARM B was
+confounded and was reported as a confirmation.** It removed the wrap *and* my generator's edge-clipping
+of cluster offspring in one step, so it could not attribute anything to either. The 2×2 that settles it,
+σ = 75 s, N = 2000:
+
+| generator | circular wrap | drop-at-edge |
+|---|---|---|
+| offspring **clipped** at the span edge (the simulation's) | 6.75 % | 6.75 % |
+| **padded**, observed on the interior (physical) | **3.00 %** | 4.35 % |
+
+ARM C decides it: same generator, wrap → drop, and the number does not move at all. **The seam was
+never the cause.** The cause was the simulation — clipping cluster offspring at `[0, SPAN)` depletes the
+observed train's edges while surrogates shift interior clusters into them. A real recording does not
+clip a physiological process; it truncates an ongoing one. The realistic configuration is therefore
+padded-generator + wrap = **3.00 %: conservative, the safe direction**, against 0.00 % for the closed
+form under the same clustering.
+
+The general lesson is not about apnea. **A control that changes two things cannot attribute either**,
+and it is most dangerous when it returns the expected answer — which is when it gets reported as a
+confirmation and stops the investigation. The arm that settled this (ARM C) is the one that changed
+exactly one thing and returned *no* difference.
+
+**Two limitations, measured, neither fixed**, both written into the code comment that replaces the old
+`:1961` note: (1) under real clustering the test is mildly conservative (3.00 % vs 4.94 % attainable);
+(2) a circular shift destroys structure SHARED between the streams, so under a shared slow modulation —
+a REM-dense hour dense in both — it is anti-conservative. The old homogeneous λ had the same blind spot,
+so (2) is not a regression, but it is the assumption the next auditor should attack first.
+
+**Real nights, paired and keyed.** 52 nights from the corpus root produced an apnea fusion (9 more had
+no overlapping desat+cardiac pair and are excluded): **published before 0, published after 1, one flip,
+none in the reverse direction.** The flip is 2026-07-04 — 16 desats, 55 surges, 4 confirmations, where
+the analytic λ read 2.33 against a surrogate mean of 0.88, so p went 0.207 → 0.012 and an AHI of 0.51
+that was withheld is now published. That single night is the user-facing direction of this change.
+
+**Why that night's λ was 2.6× the surrogate mean — measured, because a gap that large beside a
+withheld→published AHI cannot stand unexplained.** The first hypothesis was coverage: that the closed
+form integrates chance over a span the recording never covered. **Refuted** — 2026-07-04 reads
+`recordedFrac: 1, segments: 1`, a single unbroken segment with no uncovered span to integrate over.
+The cause is clustering, and it is countable: **64 of that night's 95 five-minute bins contain no surge
+at all**, with all 56 packed into the other 31 (Fano 1.37, CV 1.31 — at the corpus median, so a typical
+night rather than an outlier). The analytic λ spreads those surges uniformly at 7.1/h and hands every
+desat a 13 % coincidence chance, *including* the desats sitting in the surge-free two-thirds of the
+night; the surrogates keep the real bursts, so a desat in an empty bin has no chance at all. This makes
+the flip more credible rather than less: 4 confirmations occurred despite most of the night carrying no
+surges, which is exactly what a null preserving that structure scores as improbable.
+
+⚠️ **Zero fixtures moved, and that is silence by construction, not evidence.** `regen-integrator-goldens`
+reports 0 moved because the only code-gated Integrator fixture is a *consensus* export with no
+`apneaNullModel` — it cannot exercise this path at all. §4.3 is why. The executed evidence for this
+change is the 52-night corpus run and the 13-assertion gate group, not the fixture ledger.
+
 ### 4.3 The Integrator's code-gated real-data surface is ONE fixture
 
 Surfaced while assembling §4.2's real-data leg, recorded separately because it is a standing exposure rather
