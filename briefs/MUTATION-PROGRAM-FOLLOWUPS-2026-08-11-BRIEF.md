@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED — 2026-08-11 · **Created:** 2026-08-11
+**Status:** PROPOSED — 2026-08-11 · **Created:** 2026-08-11 · **DRAIN 2026-09-02 (Osprey):** verified 3 ticked / **11 open** Done-when boxes — the largest open surface in the family and correctly still PROPOSED. **Owner: Osprey. Next step:** triage the 11 into keep/drop before any execution; a follow-ups brief this wide is a backlog, not a work-unit.
 
 # MUTATION PROGRAM — FOLLOW-UPS
 

@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-08-09 · **Folds:** `MUTATION-EQUIVALENCE-2026-08-04-BRIEF.md`, `CAPTURE-HOST-MUTATION-FLEET-2026-08-04-BRIEF.md`, `JS-DSP-MUTATION-FLEET-2026-08-08-BRIEF.md`, `PPGDEX-TESTABLE-SURFACE-2026-08-08-BRIEF.md` · **Affects:** `tools/mutate.mjs`, `tools/mutate-equivalence.json`, `capture-host/tools/mutate_diff.py`, `tests/dex-tests.js`
+**Status:** IN-PROGRESS · **Created:** 2026-08-09 · **Folds:** `MUTATION-EQUIVALENCE-2026-08-04-BRIEF.md`, `CAPTURE-HOST-MUTATION-FLEET-2026-08-04-BRIEF.md`, `JS-DSP-MUTATION-FLEET-2026-08-08-BRIEF.md`, `PPGDEX-TESTABLE-SURFACE-2026-08-08-BRIEF.md` · **Affects:** `tools/mutate.mjs`, `tools/mutate-equivalence.json`, `capture-host/tools/mutate_diff.py`, `tests/dex-tests.js` · **DRAIN 2026-09-02 (Osprey):** charter head — folds four briefs, 5 of 12 Done-when boxes ticked. Kept as the family's index; it closes when its children do, not on its own. **Owner: Osprey. Next step:** none directly — drive the children (COVERAGE-SELECTION is nearest at 9/10).
 
 # The mutation program — one denominator, two fleets, and the property that predicts what a pass is worth
 

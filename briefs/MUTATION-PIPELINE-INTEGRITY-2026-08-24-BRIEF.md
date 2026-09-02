@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-28 (**two of §6's five items shipped and were never stamped here** — their closure is recorded in a *sibling* brief. Audited item-by-item against the code and the on-disk corpus 2026-08-28; the three that remain now carry numbers instead of adjectives. See §6a.) · **Created:** 2026-08-24 · **Follows:** `MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md` (§3e) · **Affects:** `tools/mutation-ai-probe.mjs`, `tools/mutation-crawl.mjs`, `tools/mutate_diff.py`, `tools/ai-probe-overnight.sh`
+**Status:** IN-PROGRESS — 2026-08-28 (**two of §6's five items shipped and were never stamped here** — their closure is recorded in a *sibling* brief. Audited item-by-item against the code and the on-disk corpus 2026-08-28; the three that remain now carry numbers instead of adjectives. See §6a.) · **Created:** 2026-08-24 · **Follows:** `MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md` (§3e) · **Affects:** `tools/mutation-ai-probe.mjs`, `tools/mutation-crawl.mjs`, `tools/mutate_diff.py`, `tools/ai-probe-overnight.sh` · **DRAIN 2026-09-02 (Osprey):** verified 1 of 8 Done-when boxes ticked, 7 open — the least-advanced brief in this family. **Owner: Osprey. Next step:** re-scope before executing; 7 open boxes is more than one work-unit and the brief should be split or trimmed rather than picked up whole.
 
 # The mutation pipeline reported converged for three days while discarding its own results
 
