@@ -323,9 +323,58 @@ function selftest() {
   ok(resShort !== null && /^too few beats \(r=50, f=50/.test(resShort.refusal || ''), `a short night names its counts, got ${JSON.stringify(resShort)}`);
   ok(resShort.mode === undefined && resShort.narrowSd === undefined, 'a refusal carries NO score fields a caller could mistakenly consume');
 
-  const TOTAL = 19;
+  /* ── Root-layout refusals (2026-09-02). Anti-vacuity: these four assertions cannot pass against
+     the pre-fix tool, which exports no `rootLayoutVerdict` at all — verified by running this exact
+     selftest against origin/main's copy before the fix landed. */
+  const vFlat = rootLayoutVerdict([], ['Polar_H10_02849638_20260627_235834_ECG.txt']);
+  ok(vFlat.ok === false && /ZERO night directories/.test(vFlat.reason) && /_ECG\.txt/.test(vFlat.reason), `a flat root refuses and names what it looked for, got ${JSON.stringify(vFlat)}`);
+  const vMixed = rootLayoutVerdict(['2026-07-24'], ['a_ECG.txt', 'b_PPG.txt']);
+  ok(vMixed.ok === false && /MIXED layout/.test(vMixed.reason) && /silently drop/.test(vMixed.reason), `a MIXED root refuses rather than scoring the dirs, got ${JSON.stringify(vMixed)}`);
+  ok(rootLayoutVerdict(['2026-07-24', '2026-08-17'], []).ok === true, 'a well-formed root passes');
+  ok(rootLayoutVerdict([], []).ok === true, 'a genuinely empty root is NOT a layout refusal');
+
+  const TOTAL = 23;
   console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${TOTAL})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${TOTAL}/${TOTAL})`);
   return fails.length === 0;
+}
+
+/* ── Root layout: a root holding RECORDINGS but no night directories must REFUSE ──────────────
+   `nights` below filters `readdirSync(DIR)` on /^2026-/, so a root whose recordings sit FLAT
+   (`Polar_H10_<serial>_YYYYMMDD_HHMMSS_ECG.txt`) yields an empty night list, an empty TALLY and
+   **exit 0** — the tool reporting success about a tree it never examined. Measured 2026-09-02 on
+   `uploads/Ecg nightly`: 50 `_ECG.txt` present, `TALLY: {}`, exit 0. This brief's own status header
+   already documented the identical shape one directory level up (`uploads/trio` -> `TALLY: {}`), so
+   the warning existed as prose and the failure recurred anyway; hence a refusal in the tool.
+
+   ⚠️ The MIXED case (loose recordings BESIDE night dirs) refuses too, and that is the more dangerous
+   half: scoring the dirs and dropping the files yields a PLAUSIBLE tally over part of the tree,
+   where the flat case at least yields an obviously empty one. Green-and-wrong beats red-and-blind
+   only in the wrong direction. `uploads/Ecg nightly` is in fact mixed (3 subdirectories beside its
+   flat files), so this is the live case, not a hypothetical.
+
+   NOT decided here: whether a flat root should be ACCEPTED as a corpus. It holds 36 distinct dates,
+   so "flat root = one night" would fuse 36 nights' beat trains and manufacture a cross-night overlap
+   that never existed — a fabricated timebase, not a lenient reader. Accepting the layout is a
+   separate change keyed off the YYYYMMDD token; refusing is a correctness fix and stands alone. */
+export function rootLayoutVerdict(nightDirs, looseRecordings) {
+  if (looseRecordings.length === 0) return { ok: true };
+  const shown = looseRecordings.slice(0, 3).join(', ');
+  const more = looseRecordings.length > 3 ? `, +${looseRecordings.length - 3} more` : '';
+  if (nightDirs.length === 0)
+    return {
+      ok: false,
+      reason:
+        `root holds ${looseRecordings.length} recording file(s) at depth 1 and ZERO night ` +
+        `directories — looked for entries matching /^2026-/ containing *_ECG.txt/*_PPG.txt. ` +
+        `Found loose: ${shown}${more}. This layout is not scored; it is not an empty corpus.`
+    };
+  return {
+    ok: false,
+    reason:
+      `MIXED layout — ${nightDirs.length} night director(ies) BESIDE ${looseRecordings.length} ` +
+      `recording file(s) at depth 1. Scoring the directories would silently drop the loose files ` +
+      `and report a plausible tally over part of the tree. Found loose: ${shown}${more}.`
+  };
 }
 
 async function main() {
@@ -352,9 +401,15 @@ async function main() {
   }
   const { getDsps, ecgRpeakTimes, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
   getDsps();
-  const nights = readdirSync(DIR)
-    .filter((n) => /^2026-/.test(n))
-    .sort();
+  const entries = readdirSync(DIR);
+  const nights = entries.filter((n) => /^2026-/.test(n)).sort();
+  /* Refuse a root whose recordings sit outside night directories — see rootLayoutVerdict. */
+  const loose = entries.filter((e) => /_(ECG|PPG)\.txt$/i.test(e) && statSync(join(DIR, e)).isFile());
+  const layout = rootLayoutVerdict(nights, loose);
+  if (!layout.ok) {
+    console.error(`\u26d4 REFUSED (${DIR}): ${layout.reason}`);
+    process.exit(3);
+  }
   console.log(
     `half-width ±${HW} ms · fiducial ${FID} · ecg-axis ${AXIS} · mode search 0–${MODE_SEARCH_MAX} ms · bands: <=${BAND_RECOVERED} RECOVERED, <${BAND_PARTIAL} PARTIAL, else NO RECOVERY; null must be beaten\n`
   );
