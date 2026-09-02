@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-09-01
+**Status:** PROPOSED (drain triage 2026-09-02 — SURVIVES as a real owner-mandated work-unit, not parked. Owner: Kestrel (P0 heap profile of one box night through `trio-batch`, on rig-x870, at a fresh-budget window) → Heron (the protected-tenant units on the box, owner-authorized). Next step: P0 — measure where the 17–25 GB/worker goes before designing anything) · **Created:** 2026-09-01
 
 # Vigil self-sustained folding — fit a night's fold into an 8 GB box that is also capturing
 

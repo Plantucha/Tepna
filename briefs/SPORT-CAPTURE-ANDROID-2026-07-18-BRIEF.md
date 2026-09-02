@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-07-18 · **Extends:** `POLAR-SDK-CAPTURE-2026-07-07-BRIEF.md` (Track B1) · **Related:** `CAPTURE-HOST-2026-06-29-BRIEF.md` (the bedside sibling — owns the *how*), `MOTIONDEX-BUILD-2026-07-17-BRIEF.md` (a downstream consumer), `AMBULATORY-MODE-BRIEF.md` (why "a walk isn't a sleep")
+**Status:** PROPOSED (parked 2026-09-02 — drain triage, Kestrel: an Android capture app is a NEW LANE — §14 requires the owner's explicit greenlight, no fleet session owns an Android toolchain, and no unit of it is startable from the repo. Owner: the owner (greenlight or decline); next step: none until then. Untouched since creation) · **Created:** 2026-07-18 · **Extends:** `POLAR-SDK-CAPTURE-2026-07-07-BRIEF.md` (Track B1) · **Related:** `CAPTURE-HOST-2026-06-29-BRIEF.md` (the bedside sibling — owns the *how*), `MOTIONDEX-BUILD-2026-07-17-BRIEF.md` (a downstream consumer), `AMBULATORY-MODE-BRIEF.md` (why "a walk isn't a sleep")
 
 # Sport Capture Host — a native Android capture companion for on-body, in-motion recording
 

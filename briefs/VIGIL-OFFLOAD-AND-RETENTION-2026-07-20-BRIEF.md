@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (all three stated blockers have MOVED — re-measured on the live box 2026-08-04; the requirement stands, but its urgency and its shape both changed) · **Created:** 2026-07-20
+**Status:** PROPOSED (parked 2026-09-02 — drain triage, Kestrel: the off-box copy the done-when demands NOW EXISTS in one form — `tepna-archive-pull.timer` on the dev box pulls `vigil:/srv/tepna/captures/` daily at 13:30 into `/srv/data/tepna-corpus/` (last run 2026-09-01, `Result=success`; the 2026-09-01 night is present) — but the owner ruled 2026-09-01 that production vigil has NO dev box (`VIGIL-SELF-SUSTAINED-FOLDING-2026-09-01`), so the production target is still the unmade owner decision in §Open items, and `storage.keep_nights` off 0 is a box-config change that is owner-authorized only. Owner: the owner (target + root setup) → Heron (config + first pruned round-trip). Next step: pick the transport; nothing else moves first. Previously: all three stated blockers have MOVED — re-measured on the live box 2026-08-04; the requirement stands, but its urgency and its shape both changed) · **Created:** 2026-07-20
 
 _Executes E6 of `VIGIL-OBSERVED-ERRORS-2026-07-20-BRIEF.md` (retention + offload are configured off).
 Deployment / config work — no `*-dsp.js` or bundle change._
