@@ -2903,10 +2903,10 @@ function nightDetail(n, idx) {
           sa.condPctBelow94 != null ? (sa.condPctBelow94 < 5 ? 'good' : sa.condPctBelow94 < 15 ? 'warn' : 'bad') : '',
           'secondary'
         ) +
-        metric('Nadir<4%', sa.nadirBins.above91, 'events shallow', sa.nadirBins.above91 < 3 ? 'good' : 'warn', 'secondary') +
-        metric('Nadir 4-6', sa.nadirBins.b90_91, 'moderate', sa.nadirBins.b90_91 === 0 ? 'good' : sa.nadirBins.b90_91 < 3 ? 'warn' : 'bad', 'secondary') +
-        metric('Nadir 6-9', sa.nadirBins.b88_89, 'deep', sa.nadirBins.b88_89 === 0 ? 'good' : 'bad', 'secondary') +
-        metric('Nadir>9%', sa.nadirBins.b85_87 + sa.nadirBins.below85, 'severe', sa.nadirBins.b85_87 + sa.nadirBins.below85 === 0 ? 'good' : 'bad', 'secondary') +
+        metric('Nadir >91%', sa.nadirBins.above91, 'nadir above 91%', sa.nadirBins.above91 < 3 ? 'good' : 'warn', 'secondary') +
+        metric('Nadir 90-91%', sa.nadirBins.b90_91, 'nadir 90-91%', sa.nadirBins.b90_91 === 0 ? 'good' : sa.nadirBins.b90_91 < 3 ? 'warn' : 'bad', 'secondary') +
+        metric('Nadir 88-89%', sa.nadirBins.b88_89, 'nadir 88-89%', sa.nadirBins.b88_89 === 0 ? 'good' : 'bad', 'secondary') +
+        metric('Nadir <88%', sa.nadirBins.b85_87 + sa.nadirBins.below85, 'nadir below 88%', sa.nadirBins.b85_87 + sa.nadirBins.below85 === 0 ? 'good' : 'bad', 'secondary') +
         '</div>';
     }
     if (n.hrAdv && n.hrAdv.hrIQR != null) {
