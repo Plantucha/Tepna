@@ -141,6 +141,22 @@ const git = (args, d = null) => {
    Absence is a real state here, not an error — hence the null. */
 const blob = (rev, path) => git(['rev-parse', `${rev}:${path}`], null);
 
+/* WHICH REF DOES `--pr <N>` INSPECT? Pure, because this is the decision the whole mode exists to
+   make and it must be pinned: **the OID, never the branch name.** A merged branch is reaped by
+   `delete_branch_on_merge`, so the name is gone while the head commit remains retrievable — the
+   failure this replaces was a lookup keyed on a name that no longer exists, not a closed window and
+   not an unfetchable commit. A future refactor that "simplifies" this back to `headRefName` would
+   restore the exact bug with every test still green, which is why the assertion is on the CHOICE
+   rather than on the output. */
+export function prRefChoice(pr) {
+  if (!pr || typeof pr.headRefOid !== 'string' || !/^[0-9a-f]{7,40}$/.test(pr.headRefOid)) return { refuse: 'PR has no usable headRefOid' };
+  return {
+    ref: pr.headRefOid,
+    label: '#' + pr.number + ' (' + (pr.headRefName || '<branch deleted>') + ' @ ' + pr.headRefOid.slice(0, 9) + ')',
+    usedName: false
+  };
+}
+
 if (IS_MAIN && has('--selftest')) {
   let pass = 0,
     fail = 0;
@@ -202,14 +218,83 @@ if (IS_MAIN && has('--selftest')) {
   eq('fewer than two distinctive lines — DECLINES, diverged stands', refineDiverged(['x'], 'x').verdict, 'diverged');
   eq('no lines at all — declines rather than declaring landed', refineDiverged([], 'anything').verdict, 'diverged');
 
+  /* THE DELETED-BRANCH CASE — the only case `--pr` exists for, and the one the pre-existing tests
+     structurally could not reach because every one of them addressed a branch by NAME. */
+  {
+    var gone = prRefChoice({ number: 2102, headRefOid: '363a09271312c83fe2e2bc65e3dbbb4b935173f3', headRefName: null });
+    eq('a reaped branch resolves to its head OID', gone.ref, '363a09271312c83fe2e2bc65e3dbbb4b935173f3');
+    eq('the ref is the OID, never the branch name', gone.usedName, false);
+    eq('the label says the branch is gone rather than printing null', /<branch deleted>/.test(gone.label), true);
+    var live = prRefChoice({ number: 7, headRefOid: 'abc1234def5', headRefName: 'claude/x' });
+    eq('a live branch still resolves by OID — one path, not two', live.ref, 'abc1234def5');
+    eq('the label keeps the branch name when there is one', /claude\/x/.test(live.label), true);
+    eq('no usable OID REFUSES rather than falling back to the name', !!prRefChoice({ number: 1, headRefOid: null }).refuse, true);
+    eq('a missing payload refuses', !!prRefChoice(null).refuse, true);
+  }
+
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
 }
 
 if (IS_MAIN && !has('--selftest')) {
-  const branch = opt('--branch', git(['rev-parse', '--abbrev-ref', 'HEAD'], null));
+  /* ── `--pr <N>`: ask by NUMBER, resolve by OID ────────────────────────────────────────────────
+     `delete_branch_on_merge` is true repo-wide, so the branch this tool wants to inspect is usually
+     GONE by the time anyone runs it — and every path below addressed it by NAME, so the check was
+     unavailable for exactly the merges it exists to audit.
+
+     ⚠️ The cause is none of the three things it looks like. It is **not a closed window** (nothing
+     expires), **not an unfetchable commit** (the head SHA is still retrievable long after the branch
+     is reaped), and not a permissions problem. It is **a lookup keyed on a name that no longer
+     exists** — `gh pr view <branch>` cannot resolve a deleted ref, so `state` came back UNKNOWN and
+     the tool correctly declined on its own terms.
+
+     `gh pr view` already accepts a PR NUMBER, so this is one invocation rather than a new
+     integration: the same call that answers `state`/`mergedAt` also yields `headRefOid`, which is
+     fetched by SHA and used everywhere a branch ref was. A deleted branch is unreachable by NAME,
+     not by OID. */
+  const prNum = opt('--pr', null);
+  let branch = null;
+  let prState = null,
+    prMergedAt = null,
+    prLabel = null;
+  if (prNum != null) {
+    if (!/^\d+$/.test(String(prNum))) {
+      console.error('✗ --pr takes a PR NUMBER, got: ' + prNum);
+      process.exit(2);
+    }
+    let j = null;
+    try {
+      j = JSON.parse(
+        execFileSync('gh', ['pr', 'view', String(prNum), '--json', 'state,mergedAt,headRefOid,headRefName'], {
+          encoding: 'utf8'
+        })
+      );
+    } catch (_) {
+      console.error(`✗ could not read PR #${prNum} from gh — is it a real PR, and is gh authenticated?`);
+      process.exit(2);
+    }
+    prState = j.state;
+    prMergedAt = j.mergedAt;
+    /* Fetch the head by SHA. This is the step that makes a reaped branch inspectable, so a failure
+       here is a REFUSAL naming what it wanted, never a silent fallback to the branch name — falling
+       back would re-introduce the exact name lookup this mode exists to replace. */
+    git(['fetch', '-q', 'origin', j.headRefOid]);
+    if (!git(['cat-file', '-t', j.headRefOid], null)) {
+      console.error(`✗ PR #${prNum}: head ${String(j.headRefOid).slice(0, 12)} is not retrievable from origin — cannot inspect it.`);
+      process.exit(2);
+    }
+    const choice = prRefChoice({ ...j, number: prNum });
+    if (choice.refuse) {
+      console.error(`✗ PR #${prNum}: ${choice.refuse}`);
+      process.exit(2);
+    }
+    branch = choice.ref;
+    prLabel = choice.label;
+  } else {
+    branch = opt('--branch', git(['rev-parse', '--abbrev-ref', 'HEAD'], null));
+  }
   if (!branch || branch === 'HEAD') {
-    console.error('✗ cannot determine the branch — pass --branch <name>.');
+    console.error('✗ cannot determine the branch — pass --branch <name> or --pr <N>.');
     process.exit(2);
   }
   /* ⚠️ THE QUESTION ONLY MEANS ANYTHING FOR A MERGED PR. An in-flight branch legitimately holds
@@ -218,17 +303,20 @@ if (IS_MAIN && !has('--selftest')) {
      real finding with it (the same argument that kept a coverage threshold out of #1163). So the
      merge state is a PRECONDITION, checked first, and an unmerged branch is reported as
      not-applicable rather than as a pass — those are different answers. */
-  let state = null,
-    mergedAt = null;
-  try {
-    const j = JSON.parse(execFileSync('gh', ['pr', 'view', branch, '--json', 'state,mergedAt'], { encoding: 'utf8' }));
-    state = j.state;
-    mergedAt = j.mergedAt;
-  } catch (_) {
-    /* no PR, or no gh — handled below */
+  let state = prState,
+    mergedAt = prMergedAt;
+  if (prNum == null) {
+    try {
+      const j = JSON.parse(execFileSync('gh', ['pr', 'view', branch, '--json', 'state,mergedAt'], { encoding: 'utf8' }));
+      state = j.state;
+      mergedAt = j.mergedAt;
+    } catch (_) {
+      /* no PR, or no gh — handled below */
+    }
   }
+  const shown = prLabel || branch;
   if (state !== 'MERGED') {
-    console.log(`\n▸ ${branch}: PR state ${state || 'UNKNOWN'} — nothing to check.`);
+    console.log(`\n▸ ${shown}: PR state ${state || 'UNKNOWN'} — nothing to check.`);
     console.log('  Content missing from main is EXPECTED on an unmerged branch. This tool answers');
     console.log('  "did the merge carry everything", which only has an answer after a merge.');
     process.exit(0);
