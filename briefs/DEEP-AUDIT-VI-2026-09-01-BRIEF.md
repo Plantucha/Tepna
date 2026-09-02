@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-09-01 (the audit ran and this IS its report; execution of the punch-list is the open work. F1 assigned on creation day) · **Created:** 2026-09-01 · **Method:** ultracode workflow wf_4e31c7e3-ac7 — 56 agents (10 charter-guided finders per AUDIT-PROMPT.md · 2 adversarial executed-verification lenses per finding · synthesis), 41 raw → 20 confirmed (2/2 lenses) + 1 contested, ~31 min, 7.1M tokens
+**Status:** DONE — 2026-09-02 (all 18 findings BUILT and merged in 20 PRs by 2026-09-02 05:11Z — Magpie #2059 · #2068 · #2064 + #2073 · #2072; Osprey #2055 · #2058 · #2066 · #2070; Kestrel #2056 · #2060 · #2061 · #2062 · #2063 · #2065 · #2067 · #2069; Heron #2057 + #2071 — verified 2026-09-02 against the merged-PR set, every fix gate-backed in its PR. Residue: `DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`; the browser lane and the Integrator noisy-OR cell remain UNEXAMINED and open DEEP-AUDIT-VII. The contested `status_union` DST item is NOT closed by this stamp) · **Created:** 2026-09-01 · **Method:** ultracode workflow wf_4e31c7e3-ac7 — 56 agents (10 charter-guided finders per AUDIT-PROMPT.md · 2 adversarial executed-verification lenses per finding · synthesis), 41 raw → 20 confirmed (2/2 lenses) + 1 contested, ~31 min, 7.1M tokens
 
 # Tepna Deep Audit — Synthesis Report — 2026-09-01
 
@@ -155,7 +155,7 @@ no headless fixture should move (headless path untouched) — verify, don't asse
 
 #### F3 · MAJOR — mis-states a surfaced number (bug class 3a) · `ecgdex-dsp.js:2006` + sibling `ppgdex-dsp.js:2024`
 
-> ✅ **FIXED 2026-09-01 (Magpie) — ECGDex leg only; the PpgDex port is still open under this finding.**
+> ✅ **FIXED 2026-09-01 (Magpie, #2064) — ECGDex leg; the PpgDex port landed 2026-09-02 as #2073 (Magpie), see the Status line below.**
 > `detectCVHR(nn, tt, activeSec)` takes the observed seconds as an OPTIONAL LAST argument (back-compat:
 > a two-arg caller still gets an index, on the span, because that is all it supplied; `activeSec = 0`
 > falls back to the span rather than dividing by zero), `analyze()` passes `nnRes.activeSec` — the same
@@ -194,6 +194,8 @@ cvhrIndex 29.7, observed 2.98 h (29.8/observed-h). GAP: 42 events, cvhrIndex 14,
 OxyDex's ODI ("per hour of analyzable recording", `oxydex-dsp.js:~2740`). Two gated changes: (1)
 `ecgdex-dsp.js` → ECGDex re-bundle + fixture regen/verify; (2) the same port in `ppgdex-dsp.js` → PpgDex
 re-bundle + its 6 fixtures. Do not fold both into one PR with unrelated work.
+
+**Status (PpgDex port):** BUILT — verified 2026-09-02 (Magpie, PR #2073). Same shape as the ECGDex leg: optional last arg, `denomSec` returned, `cvhrHours` on the export, attach-only-when-computed. Seconds are measured from the BEAT series (not `ppgCoverage`, which answers where the SAMPLE stream was recording) with the same 10 s cut as ECGDex `GAP_S`. New cross-node leg: ECGDex and PpgDex return the SAME index and SAME denominator on identical input — the property the Integrator's corroboration rests on, previously unasserted. ⚠️ The OxyDex §2.6 group's note *"PPGDEX cvhrFromNN IS DELIBERATELY NOT PART OF THIS FIX"* governs nulling `index: 0` (pinned by two goldens), NOT the denominator — that note is unchanged and 0 still means what it meant. No committed PpgDex golden can exercise `cvhrHours` (all are short synthetics with `cvhrIndex: null`), so an executed 900 s end-to-end leg was added instead of relying on the fixture gate — FOLLOWUPS §2.1.
 
 #### F4 · MAJOR — evidence-badge mandate (class 7/13, the MISSING class) · `ecgdex-app.js:1073`
 
@@ -291,6 +293,8 @@ threshold), make CVI monotonic across the boundary, and surface the flag (`d_cvi
 moves — that is spine-adjacent; check its other consumers first) → HRVDex re-bundle, fixtures re-verify;
 `registry-defs-parity` and cohesion gates re-run.
 
+**Status:** BUILT — verified 2026-09-01 (Osprey, PR #2058 — "a derived dispersion is not an RR interval — severe-low HRV no longer renders healthy"). Gate-backed in the PR; HRVDex fixtures re-verified.
+
 ### GlucoDex
 
 #### F6 · MAJOR — mis-states every headline number (classes 1/15) · `glucodex-dsp.js:291`
@@ -309,6 +313,8 @@ header-name hints `/glucose/i`, or require physiologic variance); refuse with a 
 within-one-hit tie. One gated change in `glucodex-dsp.js` → GlucoDex re-bundle + orchestrators/analysis/docs;
 compute-path → regen/verify the 3 GlucoDex fixtures; add a "Low"-bearing committed synthetic twin so CI
 holds the line (the adversarial-committed-twin pattern §🔏 prescribes).
+
+**Status:** BUILT — verified 2026-09-01 (Osprey, PR #2055 — "a serial Index counter is never the glucose column"). "Low"-bearing committed synthetic twin added per the sketch; GlucoDex fixtures re-verified.
 
 ### CPAPDex
 
@@ -329,6 +335,8 @@ all 'perfusion-collapse'.
 no pulse channel exists, keep kinetics-only gating, surface a lane-level 'pulse-lane-absent' quality note.
 One gated change in `cpapdex-dsp.js` → CPAPDex re-bundle; regen/verify the 5 CPAP fixtures
 (`tools/regen-cpap-goldens.mjs`).
+
+**Status:** BUILT — verified 2026-09-01 (Kestrel, PR #2056 — "a missing Pulse channel is an absent lane, not an all-zero one"). OxyDex optional-gating ported: null pulse skips the perfusion/edge legs, kinetics-only gating kept, lane-level `pulse-lane-absent` quality note surfaced. CPAP fixtures re-verified.
 
 #### F8 · MAJOR — fabricates absence in a surfaced adherence number · `cpapdex-dsp.js:918`
 
@@ -509,6 +517,8 @@ for the boundary) and either refuse with 'multiple admissible sigma triples' or 
 kernel's own doctrine is REFUSAL, not a fabricated number. `analysis-stats.js` → `build-analysis.mjs`
 tools re-bundle + `verify:analysis`; extend the known-answer plants with a multi-root case.
 
+**Status:** BUILT — verified 2026-09-01 (Osprey, PR #2066 — "a silently returned TCH root is a fabricated σ — multi-root systems refuse and quote every admissible triple"). Multi-root plant added; `verify:analysis` green.
+
 #### F16 · MAJOR — mis-states a surfaced CI (estimator mixing) · `sigma-no-reference-analysis.js:396`
 
 **Symptom.** On the sole LIVE data path (folder drop → processFolder → windowFromWorker, engaged whenever
@@ -525,6 +535,8 @@ Verity/O2 corners agree between estimators and stay inside, isolating the mechan
 **Fix sketch + gate cost.** Pass cH/cV/cO through the window object and bootstrap `tchSigmasFused` (same
 estimator as the point) — or label the CI classic-estimator and detach it from the fused point.
 `sigma-no-reference-analysis.js` → `build-analysis.mjs` + `verify:analysis`.
+
+**Status:** BUILT — verified 2026-09-01 (Osprey, PR #2070 — "the bootstrap CI's estimator follows the point's — a fused σ no longer renders outside its own CI").
 
 ### capture-host (Python lane — gate is `./check.sh`, not npm)
 
@@ -615,25 +627,27 @@ recording is open (`_civil_shift` ±3600 s, capture.py §A1) — but `instance_h
 ## Prioritized punch-list (correctness first; one gated change per line)
 
 1. **F1** ECGDex mid-file clock-step → bound the gap walk by the phone-column delta / re-anchor; then refold
-   the three poisoned 2026-08 trio exports. (Critical; three committed corpus exports are wrong today.)
-2. **F6** GlucoDex column pick — one "Low" cell flips every headline metric to row numbers.
-3. **F5** HRVDex d_cvi/d_csi/d_si unit misclassification — rendered clinical verdicts invert.
-4. **F7** CPAPDex fabricated zero-pulse → fabricated clean oximetry night (port OxyDex optional gating).
-5. **F13** dex-export scrub leak — privacy acceptance violated on every scrubbed export (spine; serialize). — **BUILT 2026-09-01** (Kestrel; lands last).
+   the three poisoned 2026-08 trio exports. (Critical; three committed corpus exports are wrong today.) — **FIXED 2026-09-01** (Magpie, PR #2059; exports refolded in the same change).
+2. **F6** GlucoDex column pick — one "Low" cell flips every headline metric to row numbers. — **BUILT 2026-09-01** (Osprey, PR #2055).
+3. **F5** HRVDex d_cvi/d_csi/d_si unit misclassification — rendered clinical verdicts invert. — **BUILT 2026-09-01** (Osprey, PR #2058).
+4. **F7** CPAPDex fabricated zero-pulse → fabricated clean oximetry night (port OxyDex optional gating). — **BUILT 2026-09-01** (Kestrel, PR #2056).
+5. **F13** dex-export scrub leak — privacy acceptance violated on every scrubbed export (spine; serialize). — **BUILT 2026-09-01** (Kestrel, PR #2069; landed last, 2026-09-02).
 6. **F9** t-only +24 h roll in oxydex-fusion + cpapdex-coimport (port the 12 h slack + tMs fast-path). — **BUILT 2026-09-01** (Kestrel, PR #2060).
-7. **F3** cvhrIndex wall-span denominator (ECGDex, then the PpgDex port as its own change).
-8. **F10** PpgDex span-refusal ports (beatConfidence + cvhrFromNN) — whole-night export crash. — **beatConfidence BUILT 2026-09-01** (Kestrel, PR #2061); cvhrFromNN rides with F3.
-9. **F11** Integrator union-find grouping — order-independent fusion. — **BUILT 2026-09-01** (Kestrel).
+7. **F3** cvhrIndex wall-span denominator (ECGDex, then the PpgDex port as its own change). — **BUILT** ECGDex 2026-09-01 (Magpie, PR #2064); PpgDex port 2026-09-02 (Magpie, PR #2073).
+8. **F10** PpgDex span-refusal ports (beatConfidence + cvhrFromNN) — whole-night export crash. — **beatConfidence BUILT 2026-09-01** (Kestrel, PR #2061); **cvhrFromNN BUILT 2026-09-02** (Magpie, PR #2073 — its own PR, NOT folded into F3's #2064; an earlier version of this line said "rides with F3", which F3's own do-not-fold rule made false).
+9. **F11** Integrator union-find grouping — order-independent fusion. — **BUILT 2026-09-01** (Kestrel, PR #2065).
 10. **F12** dex-ingest sidecar routing (CLOCKSYNC/OXYLIFE/CPAP-INVENTORY/_RR) — fails open today on every
-    vigil folder import. — **BUILT 2026-09-01** (Kestrel).
-11. **F8** CPAPDex usageHours 0.000 on PLD-less sets (BRP fallback or honest null). — **BUILT 2026-09-01** (Kestrel).
-12. **F2** ECGDex app-lane fs/provenance parity with the headless DSP.
+    vigil folder import. — **BUILT 2026-09-01** (Kestrel, PR #2063).
+11. **F8** CPAPDex usageHours 0.000 on PLD-less sets (BRP fallback or honest null). — **BUILT 2026-09-01** (Kestrel, PR #2067).
+12. **F2** ECGDex app-lane fs/provenance parity with the headless DSP. — **FIXED 2026-09-01** (Magpie, PR #2068 — as a split, see F2's stamp).
 13. **F18** capture-host stale autostart relabel; **F17** CWD-relative cfg paths (both Python lane, both
     small, deploy to vigil after). — **BUILT 2026-09-01** (Heron, PR #2057; deploy via the hourly
     `tepna-update.timer`).
-14. **F14** computeHash closure: remove oxydex-profile.js from the denylist. — **BUILT 2026-09-01** (Kestrel).
-15. **F15** tch multi-root disclosure/refusal; **F16** fused-point/classic-CI mixing.
-16. **F4** ACC card badges (+ extend the badge DOM-walk selectors so the gate can see this class).
+14. **F14** computeHash closure: remove oxydex-profile.js from the denylist. — **BUILT 2026-09-01** (Kestrel, PR #2062).
+15. **F15** tch multi-root disclosure/refusal; **F16** fused-point/classic-CI mixing. — **BUILT 2026-09-01** (Osprey, PRs #2066 · #2070).
+16. **F4** ACC card badges (+ extend the badge DOM-walk selectors so the gate can see this class). — **FIXED 2026-09-01** (Magpie, PR #2072; `rraccRate` re-tiered on measurement, see F4's stamp).
+
+**All 16 lines landed by 2026-09-02 05:11Z. What execution found that the audit did not: `DEEP-AUDIT-VI-FOLLOWUPS-2026-09-02-BRIEF.md`.**
 
 ---
 
