@@ -3612,6 +3612,106 @@
       }
     });
 
+    /* ════ 5-F11 · INTEGRATOR overlap grouping is a CONNECTED-COMPONENT partition, not a greedy first-fit
+       (DEEP-AUDIT-VI F11, 2026-09-01) ════
+       fuseHRVConsensus / fuseStagingConsensus / fusePeriodicBreathing all group sources by temporal overlap.
+       The old loop placed each record in the FIRST existing group whose SEED it overlapped — so with A (21–23h),
+       B (02–06h next day) and C (21h–07h, spanning both), A and B never overlap each other and the partition
+       depended on which record happened to be seeded first: [A,B,C] fused all three, [B,A,C] fused only B+C and
+       dropped A on the floor. Two consequences the audit measured: (1) the fused-node SET (and therefore every
+       consensus statistic and its N) was a function of file-selection order; (2) fusePeriodicBreathing's
+       corroboration count — a surfaced CLINICAL claim — read 3 observers at conf 0.885 in one order and 2 at
+       0.697 / 0.752 in the other two. Overlap is symmetric but not transitive, so the only order-free grouping
+       is the transitive closure: connected components of the overlap graph (`_overlapComponents`). */
+    group('Integrator overlap grouping — connected components, order-independent (DEEP-AUDIT-VI F11)', 'integrator-dsp', function (T) {
+      var FC = env.fuseHRVConsensus,
+        FPB = env.fusePeriodicBreathing;
+      if (typeof FC !== 'function' || typeof FPB !== 'function') {
+        T.ok('fuseHRVConsensus + fusePeriodicBreathing present', false);
+        return;
+      }
+      var D = U(2026, 5, 10),
+        H = 3600000;
+      var rec = function (node, startH, endH, summary) {
+        return {
+          node: node,
+          dateUnknown: false,
+          offsetMin: null,
+          t0Ms: D + startH * H,
+          endMs: D + endH * H,
+          events: [],
+          series: {},
+          summary: summary
+        };
+      };
+      /* HRV leg: A 21–23h · B 02–06h (next day) · C 21h–07h spans both; A∩B = ∅. */
+      var A = rec('PulseDex', 21, 23, { rmssd: 40, sdnn: 50 }),
+        B = rec('ECGDex', 26, 30, { rmssd: 42, sdnn: 52 }),
+        C = rec('HRVDex', 21, 31, { rmssd: 44, sdnn: 54 });
+      var orders = [
+        ['A,B,C', [A, B, C]],
+        ['C,A,B', [C, A, B]],
+        ['B,A,C', [B, A, C]],
+        ['B,C,A', [B, C, A]]
+      ];
+      var nodesOf = function (res) {
+        return res && res.blocks
+          ? res.blocks.map(function (b) {
+              return b.nodes.slice().sort().join('+');
+            })
+          : null;
+      };
+      var ref = FC(orders[0][1], 120000);
+      T.ok('HRV · [A,B,C] produced one consensus block', !!ref && ref.blocks && ref.blocks.length === 1);
+      T.eq('HRV · [A,B,C] fuses all three (C bridges A and B)', nodesOf(ref), ['ECGDex+HRVDex+PulseDex']);
+      for (var i = 1; i < orders.length; i++) {
+        var r = FC(orders[i][1], 120000);
+        T.eq('HRV · order [' + orders[i][0] + '] fuses the same node set', nodesOf(r), nodesOf(ref));
+        T.eq(
+          'HRV · order [' + orders[i][0] + '] reports the same rmssd values (same N, same members)',
+          r && r.blocks[0] && r.blocks[0].rmssd && r.blocks[0].rmssd.values,
+          ref.blocks[0].rmssd && ref.blocks[0].rmssd.values
+        );
+      }
+      /* Two genuinely disjoint components must STAY two blocks — closure must not over-merge. */
+      var Dd = rec('HRVDex', 26.5, 29, { rmssd: 46, sdnn: 56 });
+      var split = FC([A, B, Dd], 120000);
+      T.eq('HRV · A alone + {B,D} overlapping → exactly one block (A is a singleton, not a block)', nodesOf(split), ['ECGDex+HRVDex']);
+      /* Osprey's control (folded 2026-09-01): TWO disjoint multi-member components must stay TWO blocks in every
+         order. A union-find that unions on the wrong predicate passes every bridge assertion and fails only this. */
+      var E = rec('ECGDex', 21.5, 22.5, { rmssd: 41, sdnn: 51 });
+      var twoRef = nodesOf(FC([A, E, B, Dd], 120000));
+      T.eq('HRV · {A,E} + {B,D} disjoint pairs → two blocks, not one', twoRef && twoRef.slice().sort(), ['ECGDex+HRVDex', 'ECGDex+PulseDex']);
+      [
+        [B, A, Dd, E],
+        [Dd, E, A, B]
+      ].forEach(function (o, i) {
+        var r = nodesOf(FC(o, 120000));
+        T.eq('HRV · disjoint pairs stay two blocks in order #' + (i + 2), r && r.slice().sort(), twoRef && twoRef.slice().sort());
+      });
+      /* PB leg: ECGDex 22:00–23:30 · CPAPDex 00:00–06:00 · OxyDex 22:00–06:30. ECG∩CPAP = ∅, Oxy bridges. */
+      var ecg = rec('ECGDex', 22, 23.5, { cvhrIndex: 20 }),
+        cpap = rec('CPAPDex', 24, 30, { periodicBreathingPct: 12 }),
+        oxy = rec('OxyDex', 22, 30.5, { periodicBreathingPct: 8 });
+      var pbOf = function (res) {
+        return res && res.blocks
+          ? res.blocks.map(function (b) {
+              return { nodes: b.observerNodes.slice().sort(), n: b.nObservers, conf: b.conf };
+            })
+          : null;
+      };
+      var pbRef = FPB([oxy, ecg, cpap]);
+      T.ok('PB · [oxy,ecg,cpap] produced one corroborated block', !!pbRef && pbRef.blocks && pbRef.blocks.length === 1);
+      T.eq('PB · all three observers corroborate', pbRef && pbRef.blocks[0] && pbRef.blocks[0].nObservers, 3);
+      [
+        ['ecg,cpap,oxy', [ecg, cpap, oxy]],
+        ['cpap,ecg,oxy', [cpap, ecg, oxy]],
+        ['cpap,oxy,ecg', [cpap, oxy, ecg]]
+      ].forEach(function (o) {
+        T.eq('PB · order [' + o[0] + '] → identical observers, N and conf', pbOf(FPB(o[1])), pbOf(pbRef));
+      });
+    });
+
     /* ════ 5a · INTEGRATOR HRV consensus uses PpgDex's ROBUST SDNN axis (DEEP-AUDIT 2026-07-22 finding A) ════
      PpgDex's bare hrv.time.sdnn is a WHOLE-RECORD optical SDNN, baseline-wander-inflated (~+26% vs ECG per its
      own sdnnNote); hrv.time.sdnnRobust is the cross-node-comparable axis (~+3.5%), the one fuseHrvResource
