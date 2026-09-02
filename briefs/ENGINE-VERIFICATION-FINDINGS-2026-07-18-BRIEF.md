@@ -471,6 +471,17 @@ gate, evaluates it on the drift-corrected `cpCorr` and publishes `vdCorr`; the t
 constants, and `verdict()` has its first executed test (`§1.5 published bar met ⇒ FEASIBLE`, plus the
 below-`COUPLING_MIN` negative).
 
+> ⚠️ **Amended 2026-09-02 (Osprey) — this sentence is TRUE and it is not the whole chain.** "Publishes
+> `vdCorr`" was accurate at the worker and stayed accurate; what nothing said is that **no consumer ever
+> read it**. `pat-feasibility.js` rendered `m.vd` and never `m.vdCorr`, so the second verdict was
+> computed, carried across the worker boundary, and dropped at the last step — for the whole period this
+> phase read ✅ DONE. Phase 3's own claim is not withdrawn: the gate IS single-sourced and `vdCorr` IS
+> published, which is why this is an amendment and not a correction. **The lesson is the one this brief
+> exists to teach, one layer out: "publishes X" and "X reaches a surface" are different assertions, and
+> a phase can be honestly DONE on the first while the second was never checked.** Fixed by surfacing the
+> corrected verdict in the renderer, tagged by `driftSource`; the tier is untouched, since promoting on
+> corrected drift remains the owner's call.
+
 **Phase 4 — respiration chain (§1.6). ◐ HALF.** The Integrator half is closed by
 `MULTI-SENSOR-DERIVATIONS` (`summary.respRateBrpm`). **The PpgDex half is open**: `lombScargle` still never
 retains the HF argmax. ⚠️ `ppgdex-dsp.js` is heavily contended — check open PRs before touching it.

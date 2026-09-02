@@ -32,8 +32,19 @@
  * On (2) this module deliberately does NOT change the meaning of the primary verdict —
  * whether the tier SHOULD reflect corrected drift is a scientific call for the owner, not
  * a refactor. Instead the caller now ALSO evaluates the gate on cpCorr and reports both,
- * each tagged with its `driftSource`. Nothing is silently discarded and nothing is
- * silently promoted. See INTEGRATOR-PAT-VASCULAR Phase 0.
+ * each tagged with its `driftSource`. Nothing is silently promoted.
+ *
+ * ⚠️ **"Nothing is silently discarded" was FALSE from the day it was written, and is true again as of
+ * 2026-09-02.** The caller did evaluate the gate on `cpCorr` and publish `vdCorr` — but only as far as
+ * the WORKER. `pat-feasibility.js` read `m.vd` and never `m.vdCorr`, so the second verdict crossed the
+ * worker boundary and was dropped at the last step: computed, carried, never consumed. The claim was
+ * checked at the layer that produced the value and not at the layer that renders it, which is exactly
+ * how an invariant asserted in a comment outlives the thing it describes. The renderer now surfaces
+ * the corrected verdict beside the primary, tagged by the drift it reflects.
+ *
+ * The tier is STILL decided on raw drift and that is still deliberate — see (2) above. Surfacing the
+ * second verdict decides nothing; promoting on it remains the owner's call.
+ * See INTEGRATOR-PAT-VASCULAR Phase 0.
  * ──────────────────────────────────────────────────────────────────────── */
 (function (root) {
   'use strict';
@@ -312,9 +323,37 @@
     return xs[0];
   }
 
+  /* HOW THE VERDICT PAIR IS PRESENTED — pure, so it is testable without a DOM (2026-09-02).
+     `pat-feasibility.js` is an anonymous IIFE with no export surface, so the composition it used to
+     do inline was unreachable from any test: `dex-tests.js` references the WORKER five times and the
+     renderer zero. That asymmetry is why `vdCorr` could be published, cross the worker boundary and
+     be dropped at the render step while every test stayed green — the tests scanned the layer that
+     produced the value and never the layer that consumes it.
+
+     Returns the cell TEXT and TITLE for a night's payload. It reads `vdCorr` and never decides with
+     it: the tier stays the caller's, on raw drift, because promoting on corrected drift is the
+     owner's scientific call (see (2) above). */
+  function verdictCell(m) {
+    if (!m || !m.vd) return { text: '', title: '' };
+    var t = m.vd.label;
+    if (m.cp && m.cp.ok && isFinite(m.cp.driftRange)) t += ' \u00b7 ' + m.cp.driftRange.toFixed(0) + 'ms';
+    if (m.cpCorr && m.cpCorr.ok && isFinite(m.cpCorr.driftRange)) t += ' \u2192 ' + m.cpCorr.driftRange.toFixed(0) + 'ms\u2726';
+    var hasCorr = !!(m.vdCorr && m.vdCorr.label);
+    if (hasCorr) t += ' \u00b7 corrected(acc): ' + m.vdCorr.label;
+    var title =
+      'primary verdict on ' +
+      (m.driftSource || 'raw') +
+      ' drift: ' +
+      m.vd.label +
+      '\n' +
+      (hasCorr ? 'ACC-corrected verdict: ' + m.vdCorr.label + (m.vdCorr.label === m.vd.label ? ' (agrees)' : ' (DIFFERS from primary)') : 'ACC-corrected verdict: not available for this night');
+    return { text: t, title: title, differs: hasCorr && m.vdCorr.label !== m.vd.label };
+  }
+
   root.PATGate = {
     PAT_GATE: PAT_GATE,
     verdict: verdict,
+    verdictCell: verdictCell,
     worstAxis: worstAxis,
     sharedClock: sharedClock,
     driftStats: driftStats,
