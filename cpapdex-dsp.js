@@ -778,7 +778,9 @@
    floor). I:E = inspiratory-flow time / expiratory-flow time. Cross-checks the
    device-reported RespRate. O(n) single pass.
    ════════════════════════════════════════════════════════════════════════ */
-  function detectBreaths(flowCh, durSec) {
+  /* ⚠️ `opts.maskOn` / `opts.maskFs` are REQUIRED for a rate (FOLLOWUPS §1.9). Without them this
+     returns the count and I:E but `breathRate: null` — see the denominator note below. */
+  function detectBreaths(flowCh, durSec, opts) {
     if (!flowCh || !flowCh.data || !flowCh.data.length) return null;
     var flow = flowCh.data,
       fs = flowCh.fs || 25,
@@ -798,7 +800,18 @@
     for (var a = 0; a < n; a++) ps[a + 1] = ps[a] + flow[a];
     var lastCrossIdx = -1,
       minBreathSamp = Math.round(fs * 1.2); // ≥1.2 s/breath (≤50 brpm ceiling)
+    // mask index for sample i: the flow grid (25 Hz) and the pressure grid (0.5 Hz) differ, so map
+    // by time rather than by index — off-mask samples take part in neither the count nor I:E.
+    var mOn = opts && opts.maskOn && opts.maskOn.length && opts.maskFs > 0 ? opts.maskOn : null;
+    var mRatio = mOn ? opts.maskFs / fs : 0;
     for (var i = 0; i < n; i++) {
+      if (mOn) {
+        var mi = Math.min(mOn.length - 1, Math.floor(i * mRatio));
+        if (!mOn[mi]) {
+          lastSign = 0;
+          continue;
+        }
+      }
       var lo = Math.max(0, i - W),
         hi = Math.min(n, i + W);
       var base = (ps[hi] - ps[lo]) / (hi - lo);
@@ -815,9 +828,33 @@
         lastSign = -1;
       }
     }
-    var breathRate = durSec > 0 ? +(breaths / (durSec / 60)).toFixed(1) : null;
+    /* 🔴 THE DENOMINATOR IS MASK-ON SECONDS, NOT WALL SECONDS (FOLLOWUPS §1.9). This divided by
+       `durSec` — the whole recording — while EVERY sibling ventilation figure computed beside it
+       (`rrMaskOn`, `tvMaskOn`, `mvMaskOn`, `snMaskOn`, `flMaskOn`) is `_filterBy(..., maskOn)`. A
+       surfaced breaths/min was therefore diluted by however long the mask was off, by a different
+       factor every night — the same shape as F8's `usageHours` and §1.6's `therapyHours`.
+       Found by trying to USE this number as the reference for §1.5's grade adjudication and having
+       to reject it on that ground, which is why the fix is here and not in a grading unit.
+       ⚠️ The corpus CANNOT show the error's size: mask-on was 1.000 on all 24 nights measured, so
+       those nights are silent about this by construction — a committed mask-off twin is the only
+       thing that can red the old form, and that is what pins it.
+       The numerator is gated too: breaths "detected" while the mask is off are noise crossings, and
+       counting them against a smaller denominator would over-correct rather than correct. */
+    var onSec = null;
+    if (opts && opts.maskOn && opts.maskOn.length && opts.maskFs > 0) {
+      var onN = 0;
+      for (var q = 0; q < opts.maskOn.length; q++) if (opts.maskOn[q]) onN++;
+      onSec = onN / opts.maskFs;
+    }
+    var breathRate = onSec != null && onSec > 0 ? +(breaths / (onSec / 60)).toFixed(1) : null;
+    var breathRateReason =
+      onSec == null
+        ? 'no mask-on window (no pressure channel) — a breaths/min needs a measured denominator, not the recording length'
+        : onSec > 0
+          ? null
+          : 'mask never on — no measured time to divide by';
     var ieRatio = expSamp > 0 ? +(inspSamp / expSamp).toFixed(2) : null;
-    return { breathCount: breaths, breathRate: breathRate, ieRatio: ieRatio };
+    return { breathCount: breaths, breathRate: breathRate, ieRatio: ieRatio, breathMaskOnSec: onSec, ...(breathRateReason ? { breathRateReason: breathRateReason } : {}) };
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -1028,7 +1065,8 @@
     var flMaskOn = flCh ? _filterBy(flCh.data, maskOn) : [];
 
     // ── breath detection from 25 Hz BRP Flow ──
-    var breath = detectBreaths(chan(set.BRP, 'Flow'), durSec);
+    // §1.9: the rate needs the MEASURED window, so mask-on rides in with its own cadence.
+    var breath = detectBreaths(chan(set.BRP, 'Flow'), durSec, { maskOn: maskOn, maskFs: fs });
 
     // ── SA2 oximetry QC lane (self-gated) ──
     var oxi = oximetryLane(set.SA2, durSec);
@@ -1140,6 +1178,9 @@
       // Breath detection (flow-derived — validates device RespRate)
       breathCount: breath ? breath.breathCount : null,
       breathRate: breath ? breath.breathRate : null,
+      // §1.9 — the MEASURED window this session's rate was divided by, so the night-level pool can
+      // sum mask-on seconds instead of re-deriving a wall duration.
+      breathMaskOnSec: breath ? breath.breathMaskOnSec : null,
       ieRatio: breath ? breath.ieRatio : null
     };
     // F8 — say WHERE the pressure lane came from only when it is not the usual one, and WHY usage is
@@ -1189,6 +1230,11 @@
         snMaskOn: snMaskOn,
         flMaskOn: flMaskOn,
         breathCount: breath ? breath.breathCount : null,
+        /* §1.9 — the pool is a SEPARATE lightweight object from `metrics`, so a per-session field
+           added to `metrics` alone never reaches `nightMetrics`. The night-level breathRate reads
+           HERE, so the measured denominator has to travel here too; adding it to `metrics` and not
+           to `_pool` is what made the mask-off twin report null with maskOnSec 0. */
+        breathMaskOnSec: breath ? breath.breathMaskOnSec : null,
         ieRatio: breath ? breath.ieRatio : null,
         eprDelta: eprDelta,
         maskOnLatency: metrics.maskOnLatency,
@@ -1230,6 +1276,7 @@
       eprs = [],
       breaths = 0,
       haveBreaths = false,
+      breathOnSec = 0,
       ieW = 0,
       ieWsum = 0;
     var usageUnknown = 0; // F8 — sessions whose usage is null (no pressure lane), not zero
@@ -1269,6 +1316,8 @@
         breaths += p.breathCount;
         haveBreaths = true;
       }
+      // §1.9 — pool the MEASURED denominator alongside the numerator (see the breathRate note below)
+      if (p.breathMaskOnSec != null && isFinite(p.breathMaskOnSec)) breathOnSec += p.breathMaskOnSec;
       // I:E is a ratio, so it pools as a usage-weighted mean, not a sum
       if (p.ieRatio != null && isFinite(p.ieRatio) && p.usageHours != null) {
         ieWsum += p.ieRatio * p.usageHours;
@@ -1384,8 +1433,13 @@
       snorePressureCorr: SN.length && SN.length === P.length ? +_pearson(SN, P).toFixed(2) : null,
       // ── Breath detection (flow-derived) ──
       breathCount: haveBreaths ? breaths : null,
-      // rate over TOTAL therapy time — not a mean of per-session rates
-      breathRate: haveBreaths && durSec > 0 ? +(breaths / (durSec / 60)).toFixed(1) : null,
+      /* Rate over the MEASURED (mask-on) time — not a mean of per-session rates, and NOT over wall
+         duration (§1.9). This divided by `durSec`, the pooled wall span, exactly as the per-session
+         site did; the sibling ventilation figures beside it (RR/TV/MV/SN/FL) are all mask-on pools,
+         so this one number was diluted by mask-off time while its neighbours were not. Fixing only
+         the per-session site would have left THIS one wrong — the night-level export reads here. */
+      breathRate: haveBreaths && breathOnSec > 0 ? +(breaths / (breathOnSec / 60)).toFixed(1) : null,
+      breathMaskOnSec: haveBreaths ? breathOnSec : null,
       ieRatio: ieW > 0 ? +(ieWsum / ieW).toFixed(2) : null
     };
     if (usageUnknown) {

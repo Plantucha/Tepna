@@ -965,6 +965,25 @@ function readEquiv() {
     }
     rec.fixtureFile = 'cpapdex_synthetic_edf_golden.node-export.json';
     if (rec.input !== undefined || rec.fixture !== undefined) out.cpapdex_edf = rec;
+
+    /* FOLLOWUPS §1.9 — the MASK-OFF twin: a 20-min set whose mask is on for only the first 10 min.
+       Input only, no golden: the assertion is an INVARIANT (a breaths/min is divided by the MEASURED
+       window, not the recording length), and the real corpus cannot express it — mask-on was 1.000 on
+       all 24 nights §1.5 folded, so every real night has wall ≡ mask-on and is silent by construction. */
+    {
+      const mo = {};
+      let ok2 = true;
+      for (const k of ['BRP', 'PLD']) {
+        const p2 = join(UPLOADS, `cpapdex_maskoff_twin_${k}.edf`);
+        if (!existsSync(p2)) {
+          ok2 = false;
+          break;
+        }
+        const b2 = readFileSync(p2);
+        mo[k] = b2.buffer.slice(b2.byteOffset, b2.byteOffset + b2.byteLength);
+      }
+      if (ok2) out.cpapdex_maskoff = { input: mo };
+    }
   }
 
   // ── CPAPDex LIVE-vs-SD COMPARATOR leg (CPAPDEX-LIVE-SD-COMPARATOR brief) ──────────────────────
