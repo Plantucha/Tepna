@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-15 (**§2 SUPERSEDED** — the blocking state it describes no longer exists, measured on the box; **§3 EXECUTED**. §4 open — the H10 pull path. §5 needs no code) · **Created:** 2026-08-11
+**Status:** IN-PROGRESS (parked 2026-09-02 — drain triage, Kestrel: §4's CODE is built — the H10 RR-acceptance probe endpoint landed in #2042 (`webmon.py`, second allowlist + readback) — and what remains is the EXPERIMENT on a strapped idle H10, owner-scheduled box time; owner: Heron, next step: run the probe in the Phase B window and write its verdict into §4. Re-verified this date: `power.drop_not_worn_sec` is back at 180 (`capture.py:1791`, `settings_schema.py:34`) so §2's restore step 4 holds. Previously 2026-08-15: **§2 SUPERSEDED** — the blocking state it describes no longer exists, measured on the box; **§3 EXECUTED**. §5 needs no code) · **Created:** 2026-08-11
 
 > **What this is.** What the 2026-08-10/11 hardware session surfaced that the parent brief does not
 > cover. Four fixes already shipped; three items remain, and one of them is holding a safety setting

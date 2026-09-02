@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-16 (⚠️ **§2 RETRACTED the same day it shipped** — it claimed the adapter-recovery ladder is disarmed; the capability was already granted and the ladder is running. Only §1's field re-measurement is genuinely open here.) · **Supersedes:** `VIGIL-COEXISTENCE-AND-RANGE-2026-07-26-BRIEF.md` (DONE — 2026-08-16) · **Affects:** `capture-host/`, the box's privilege model — **no code in the repo**
+**Status:** PROPOSED (parked 2026-09-02 — drain triage, Kestrel: the one open item, §1's field re-measurement, is a PHYSICAL test — the owner walking the phone/adapters out of range of the box while a night runs — with no code on either side. Owner: the owner + Heron reading the box; next step: one deliberate walk-away during a capture, RSSI + reconnect ladder logged) · **Created:** 2026-08-16 (⚠️ **§2 RETRACTED the same day it shipped** — it claimed the adapter-recovery ladder is disarmed; the capability was already granted and the ladder is running. Only §1's field re-measurement is genuinely open here.) · **Supersedes:** `VIGIL-COEXISTENCE-AND-RANGE-2026-07-26-BRIEF.md` (DONE — 2026-08-16) · **Affects:** `capture-host/`, the box's privilege model — **no code in the repo**
 
 # What outlives VIGIL-COEXISTENCE — two items, neither of them code
 
