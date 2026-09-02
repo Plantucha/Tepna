@@ -163,7 +163,7 @@ async function main() {
     process.exit(2);
   }
   const { getDsps, ecgRpeakTimes, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
-  const { oracleNight } = await import(join(HERE, 'pat-window-oracle.mjs'));
+  const { oracleNight, pickPair } = await import(join(HERE, 'pat-window-oracle.mjs'));
   const { acceptedSeries } = await import(join(HERE, 'pat-residual-structure.mjs'));
   const { ECGDSP, PPGDSP } = getDsps();
   console.log(`bands on |obs-pred|/|obs|: <=${BAND_EXPLAINS} CLOCK EXPLAINS · <=${BAND_PARTIAL} PARTIAL · else CLOCK DOES NOT EXPLAIN\n`);
@@ -178,13 +178,13 @@ async function main() {
     } catch {
       continue;
     }
-    const pick = (re) => {
-      const c = files.filter((f) => re.test(f)).map((f) => join(dir, f));
-      return c.length ? c.sort((a, b) => readFileSync(b).length - readFileSync(a).length)[0] : null;
-    };
-    const eF = pick(/_ECG\.txt$/);
-    const pF = pick(/Verity.*_PPG\.txt$/i) || pick(/_PPG\.txt$/);
-    if (!eF || !pF) continue;
+    /* The oracle's picker, imported — NOT a third local copy. This file used to carry its own
+       pre-#2082 version (two independent size-sorts, `readFileSync` in the comparator), so on a
+       fragmented night it paired the largest ECG with the largest PPG from a different hour and
+       then scored the result. See `pickPair`'s header. */
+    const paired = pickPair(dir, files);
+    if (paired.missing) continue;
+    const { eF, pF } = paired;
     let E;
     let P;
     let eAx;
