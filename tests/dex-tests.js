@@ -47624,6 +47624,243 @@
      (scan backward, like `parsePPG` does for `endEpochMs`); and a stream with NO resolvable time must
      publish `null`, not a number and not a zero — a zero-length recording is a CLAIM, and
      NODE-EXPORT-RECORDING-DURATION shows a node making it collapses to a point in the fold. */
+    /* ════ A MID-FILE CLOCK RESYNC IS A RE-ANCHOR, NOT A 7.66-YEAR RECORDING (FOLLOWUPS §1.1) ════
+       F1 fixed this class in ECGDex's `_ECG.txt` gap walk and recorded that the SIBLING `_ACC.txt`
+       carries the identical ns step, with the consequence NOT executed. Executed 2026-09-02 on the
+       real 2026-08-27 file: the counter jumps +241,586,764 s at row 470 while the phone advances
+       85.8 s, `relSecOf` PREFERS that counter, and MotionDex published `recording.durSec`
+       **241,589,697 — 7.66 years for a 50-minute recording** — declaring a window that ends
+       2034-04-22, which is what the Integrator's gap-aware overlap tests against. It does not crash;
+       it returns a plausible-looking summary in 1.9 s, which is why nothing caught it.
+       CENSUS over the whole corpus (1278 ACC files): 137 files' worst step is a REAL DROPOUT (device
+       delta ≈ phone delta — both clocks ticked, and the counter is right about those, so they are
+       left alone) and exactly 3 are resyncs — the same three nights F1 found on the ECG side. */
+    /* ════ §1.3 · PpgDex's step exposure is REAL but UNREACHED — and the refusal guards the RATE ════
+       FOLLOWUPS §1.3 asks whether the ONE-DEVICE-CLOCK-PER-AXIS split ECGDex needed (F1) and MotionDex
+       needed (§1.1) is owed in PpgDex too. Measured 2026-09-02 before writing any code:
+         · `grep -i resync ppgdex-dsp.js` is EMPTY — there is no step detection on this lane at all.
+         · Census of the whole corpus: **0 of 3674 `_PPG.txt` files carry a clock resync** (84 have a
+           real dropout, where device delta ≈ phone delta and the counter is right; 402 have no ns
+           column). The resync is H10 FIRMWARE behaviour — the 2019-01-01 epoch adopting real time —
+           and the PPG stream comes from the Verity, which does not do it. So the fix is NOT owed:
+           there is no night it would change.
+       THE EXPOSURE IS STILL REAL, and this group pins exactly how far the existing guard reaches.
+       Planted with the true 2026-08-27 step magnitude: `hostAxis` REFUSES (±50000 ppm bound), so `fs`
+       cannot be corrected by a fabricated rate — that guard works. But the refusal protects the RATE
+       and NOT THE AXIS: `relSec` still spans 2.416e8 s, and every duration, epoch grid and export
+       window downstream is built from that. It is the same distinction Clock Contract §7 draws
+       between quoting `.ppm` and consuming `correctionAt()`, one level up: **a refusal on one
+       quantity is not protection of another.**
+       DELIBERATELY NOT FIXED (the audit's own discipline: the fix is owed only where the defect can
+       occur). This group is the tripwire — if a Verity firmware change, an H10 PPG stream, or a new
+       capture path ever produces a stepped `_PPG.txt`, the second leg starts failing and the split
+       becomes owed. Re-run the census before concluding otherwise. */
+    group('PpgDex · a stepped device counter REFUSES the rate but still spans the axis — exposure pinned, not fixed (FOLLOWUPS §1.3)', 'ppgdex-dsp · clock · exposure · DEEP-AUDIT-VI', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.parsePPG === 'function')) {
+        T.skip('PPGDSP.parsePPG available', 'ppgdex-dsp not wired in this lane');
+        return;
+      }
+      var HZ = 135,
+        T0 = Date.UTC(2026, 7, 27, 23, 24, 42),
+        STEP_S = 241586764; // the real 2026-08-27 magnitude
+      function ppg(nBefore, nAfter, gapSec, stepSec) {
+        var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+        var ns = 599616005396855516,
+          ms = 0,
+          ph = 0;
+        var p2 = function (x) {
+          return String(x).padStart(2, '0');
+        };
+        var emit = function () {
+          var d = new Date(T0 + Math.round(ms));
+          var v = 20000 + 800 * Math.exp(-Math.pow((ph - 0.15) / 0.07, 2));
+          rows.push(
+            d.getUTCFullYear() +
+              '-' +
+              p2(d.getUTCMonth() + 1) +
+              '-' +
+              p2(d.getUTCDate()) +
+              ' ' +
+              p2(d.getUTCHours()) +
+              ':' +
+              p2(d.getUTCMinutes()) +
+              ':' +
+              p2(d.getUTCSeconds()) +
+              '.' +
+              String(d.getUTCMilliseconds()).padStart(3, '0') +
+              ';' +
+              ns +
+              ';' +
+              Math.round(v) +
+              ';' +
+              Math.round(v * 0.95 + 30) +
+              ';' +
+              Math.round(v * 1.03 - 25) +
+              ';400'
+          );
+        };
+        for (var i = 0; i < nBefore; i++) {
+          emit();
+          ms += 1000 / HZ;
+          ph = (ph + 1 / HZ) % 1;
+          ns += Math.round(1e9 / HZ);
+        }
+        ms += gapSec * 1000;
+        ns += Math.round(stepSec * 1e9);
+        for (var j = 0; j < nAfter; j++) {
+          emit();
+          ms += 1000 / HZ;
+          ph = (ph + 1 / HZ) % 1;
+          ns += Math.round(1e9 / HZ);
+        }
+        return rows.join('\n');
+      }
+      var spanOf = function (rec) {
+        var r = rec && rec.relSec;
+        return r && r.length ? r[r.length - 1] - r[0] : null;
+      };
+      var clean = P.parsePPG(ppg(20000, 0, 0, 0), undefined);
+      T.ok('ANTI-VACUITY · the clean plant parses and spans its own ~148 s', spanOf(clean) > 100 && spanOf(clean) < 200, 'span ' + (spanOf(clean) || 0).toFixed(1) + ' s');
+      T.ok(
+        'control · a clean stream resolves a host axis (so the refusal below is a CHANGE, not the norm)',
+        !!(clean.hostAxis && clean.hostAxis.ok),
+        JSON.stringify(clean.hostAxis && { ok: clean.hostAxis.ok, ppm: clean.hostAxis.ppm })
+      );
+      var stepped = P.parsePPG(ppg(2000, 20000, 86, STEP_S), undefined);
+      T.ok(
+        'THE GUARD THAT WORKS · hostAxis REFUSES a stepped counter — fs is never corrected by a fabricated rate',
+        !!(stepped.hostAxis && stepped.hostAxis.ok === false && /implausible/i.test(String(stepped.hostAxis.reason || ''))),
+        JSON.stringify(stepped.hostAxis && { ok: stepped.hostAxis.ok, reason: String(stepped.hostAxis.reason || '').slice(0, 70) })
+      );
+      T.eq('…and fs stays the device rate rather than a corrected one', stepped.fs, clean.fs);
+      /* THE EXPOSURE, ASSERTED AS IT IS. Not a bug being introduced — a limit being recorded, so the
+         day the input class arrives this leg says so instead of a brief sentence nobody re-reads. */
+      T.ok(
+        'EXPOSURE · the refusal does NOT bound the AXIS — relSec still spans the step',
+        spanOf(stepped) > 1e8,
+        'relSec span ' + (spanOf(stepped) || 0).toExponential(3) + ' s — if this ever FAILS, a step-bounding fix landed and this group should be re-aimed'
+      );
+      T.ok(
+        '…which is why §1.3 records it rather than fixing it: 0 of 3674 corpus _PPG.txt files carry a resync',
+        true,
+        'census 2026-09-02 — 84 real dropouts, 0 resyncs; the H10 firmware step cannot reach a Verity PPG stream'
+      );
+    });
+    group('MotionDex re-anchors a mid-file device-clock resync instead of publishing a 7.66-year night (FOLLOWUPS §1.1)', 'motiondex-dsp · clock · resync · DEEP-AUDIT-VI', function (T) {
+      var MD = env.MOTIONDSP || env.MotionDex;
+      if (!(MD && typeof MD.parseSensorXYZ === 'function' && typeof MD.compute === 'function')) {
+        T.skip('MotionDex.parseSensorXYZ + compute available', 'motiondex-dsp not wired in this lane');
+        return;
+      }
+      var HZ = 50,
+        STEP_S = 241586764, // the real 2026-08-27 magnitude (2019-epoch → real time)
+        T0 = Date.UTC(2026, 7, 27, 23, 24, 42);
+      /* `gapSec` is the REAL time the phone measured across the seam; `stepSec` is what the DEVICE
+         counter jumped. Equal ⇒ a dropout (both clocks ticked). Wildly unequal ⇒ a resync. */
+      function acc(nBefore, nAfter, gapSec, stepSec, opts) {
+        opts = opts || {};
+        var rows = ['Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]'];
+        var ns = 599616005396855516; // a real 2019-epoch counter value
+        var ms = 0;
+        var push = function (i) {
+          var d = new Date(T0 + Math.round(ms));
+          var p2 = function (x) {
+            return String(x).padStart(2, '0');
+          };
+          var stamp =
+            opts.blindSeam && i === nBefore
+              ? '' // the seam's stamps do not parse — an unmeasured duration stays unmeasured
+              : d.getUTCFullYear() +
+                '-' +
+                p2(d.getUTCMonth() + 1) +
+                '-' +
+                p2(d.getUTCDate()) +
+                'T' +
+                p2(d.getUTCHours()) +
+                ':' +
+                p2(d.getUTCMinutes()) +
+                ':' +
+                p2(d.getUTCSeconds()) +
+                '.' +
+                String(d.getUTCMilliseconds()).padStart(3, '0');
+          rows.push(stamp + ';' + String(ns) + ';' + Math.round(20 * Math.sin(i / 9)) + ';25;985');
+        };
+        for (var i = 0; i < nBefore; i++) {
+          push(i);
+          ms += 1000 / HZ;
+          ns += Math.round(1e9 / HZ);
+        }
+        ms += gapSec * 1000; // what the PHONE saw
+        ns += Math.round(stepSec * 1e9); // what the DEVICE counter did
+        for (var j = 0; j < nAfter; j++) {
+          push(nBefore + j);
+          ms += 1000 / HZ;
+          ns += Math.round(1e9 / HZ);
+        }
+        return rows.join('\n');
+      }
+      var spanOf = function (rows) {
+        return (rows[rows.length - 1].relNs - rows[0].relNs) / 1e9;
+      };
+
+      // ── 1 · THE RESYNC: device steps 7.66 years, phone advances 86 s ───────────────────────────
+      var r = MD.parseSensorXYZ(acc(500, 3000, 86, STEP_S));
+      T.ok('ANTI-VACUITY · the plant parses and is long enough to matter', r.length === 3500, 'rows ' + r.length);
+      T.ok('the resync is DETECTED and reported', !!(r._clockResyncs && r._clockResyncs.length === 1), JSON.stringify(r._clockResyncs || null));
+      if (r._clockResyncs && r._clockResyncs[0]) {
+        T.ok('…with the device step recorded as the number it was', Math.abs(r._clockResyncs[0].deviceStepMs - STEP_S * 1000) < 2000, 'deviceStepMs ' + r._clockResyncs[0].deviceStepMs);
+        T.ok('…and the phone delta as the honest gap', Math.abs(r._clockResyncs[0].phoneDeltaMs - 86000) < 200, 'phoneDeltaMs ' + r._clockResyncs[0].phoneDeltaMs);
+      }
+      var span = spanOf(r);
+      T.ok('the axis spans the RECORDING, not the step — ~156 s, not 7.66 years', span > 100 && span < 220, 'span ' + span.toFixed(1) + ' s');
+      T.ok('DEFECT direction · trusting the counter would have published > 100 000 000 s', STEP_S > 1e8, 'the planted step is ' + STEP_S + ' s, so this leg is not vacuous');
+      var out = MD.compute({ acc: r });
+      var sum = out.summary || out;
+      T.ok('compute() publishes a plausible durSec (was 241,589,697 on the real file)', sum.durSec != null && sum.durSec > 100 && sum.durSec < 220, 'durSec ' + sum.durSec);
+      if (typeof MD.buildNodeExport === 'function') {
+        var ex = MD.buildNodeExport(out, {}) || {};
+        var rec = ex.recording || {};
+        if (rec.startEpochMs != null && rec.durSec > 0) {
+          var endY = new Date(rec.startEpochMs + rec.durSec * 1000).getUTCFullYear();
+          T.eq('the DECLARED WINDOW ends in the recording’s own year, not 2034', endY, 2026);
+        }
+      }
+
+      // ── 2 · THE CONTROL: a real dropout, where the counter is RIGHT ────────────────────────────
+      /* 137 of 1278 corpus ACC files look like this. Through a dropout both clocks tick, so the
+         device delta ≈ the phone delta — nothing is re-anchored and the dead time is preserved. */
+      var d = MD.parseSensorXYZ(acc(500, 3000, 120, 120));
+      T.ok('control · a real 120 s DROPOUT raises no resync — the counter agreed with the phone', !d._clockResyncs, JSON.stringify(d._clockResyncs || null));
+      var dSpan = spanOf(d);
+      T.ok('control · …and the dropout is still IN the span (dead time is not deleted)', dSpan > 180 && dSpan < 210, 'span ' + dSpan.toFixed(1) + ' s — 70 s of data + 120 s of hole');
+
+      // ── 3 · A CLEAN stream is byte-stable: no key appears ──────────────────────────────────────
+      var c = MD.parseSensorXYZ(acc(1000, 0, 0, 0));
+      T.ok('clean stream · `_clockResyncs` is ABSENT, not an empty array', !('_clockResyncs' in c), 'a clean file must keep today’s bytes');
+
+      // ── 4 · BLIND SEAM: an over-24h step whose stamps do not parse still re-anchors ────────────
+      /* §2.6 — a duration nothing measured stays visibly unmeasured: it re-anchors with
+         `phoneDeltaMs: null` rather than inventing the gap it could not read. */
+      var b = MD.parseSensorXYZ(acc(500, 3000, 86, STEP_S, { blindSeam: true }));
+      T.ok('blind seam · still re-anchored (the step alone clears the 24 h ceiling)', !!(b._clockResyncs && b._clockResyncs.length === 1), JSON.stringify(b._clockResyncs || null));
+      if (b._clockResyncs && b._clockResyncs[0]) T.eq('blind seam · phoneDeltaMs is NULL — the gap was not measured, so it is not fabricated', b._clockResyncs[0].phoneDeltaMs, null);
+      T.ok('blind seam · the axis is still bounded by the recording', spanOf(b) < 300, 'span ' + spanOf(b).toFixed(1) + ' s');
+
+      // ── 5 · ONE DEVICE CLOCK PER AXIS — the new segment anchors on the HOST, not on the step ───
+      /* Measured on the real 2026-08-27 file: the host−device residual walks 1.449 s across the
+         10.6 s BEFORE the seam (136,064 ppm — the ACC sibling of the +1508 ms/9.5 s F1 measured on
+         the same night's ECG) and holds flat after. Anchoring the new segment to the seam row's own
+         host offset keeps that error on the pre-seam rows instead of offsetting the whole file. */
+      var rr = MD.parseSensorXYZ(acc(500, 3000, 86, STEP_S));
+      var seamIdx = rr._clockResyncs[0].idx;
+      var t0 = rr[0].tMs;
+      var residAt = function (i) {
+        return (rr[i].tMs - t0) / 1000 - rr[i].relNs / 1e9;
+      };
+      T.ok('the post-seam segment starts at ZERO host−device residual (it is host-anchored)', Math.abs(residAt(seamIdx)) < 0.05, 'residual ' + residAt(seamIdx).toFixed(3) + ' s');
+      T.ok('…and stays there to the last row (one clock state per segment)', Math.abs(residAt(rr.length - 1)) < 0.05, 'residual ' + residAt(rr.length - 1).toFixed(3) + ' s');
+    });
     group('MotionDex refuses to invent a duration from an assumed rate — FOLLOWUPS §1', 'motiondex-dsp · export · absence', function (T) {
       var MD = env.MOTIONDSP;
       if (!(MD && typeof MD.compute === 'function' && typeof MD.buildNodeExport === 'function')) {
