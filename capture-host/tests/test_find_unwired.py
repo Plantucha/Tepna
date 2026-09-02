@@ -565,3 +565,54 @@ def test_a_key_published_through_BOTH_shapes_is_counted_once_and_under_set(tmp_p
     rows = find_unwired.scan(_tree(tmp_path, {"capture.py": src}))["orphan_status_keys"]
     assert [r["key"] for r in rows] == ["both"], rows
     assert rows[0]["shape"] == "_set(name, key=…)"
+
+
+def test_a_status_key_named_only_in_a_COMMENT_is_reported_unwired(tmp_path, monkeypatch, capsys):
+    """The gate for this defect class was blind to the defect class.
+
+    Measured 2026-09-02: the consumer corpus was raw file text, so `\\bautopull\\b` matched a COMMENT in
+    `monitor.html` — and that comment's content was the observation that `STATUS["autopull"]` reaches
+    nobody. The gate's own evidence of the defect is what suppressed the finding. Two real fields were
+    masked this way (`autopull`, `updated`), one of which had to be found by hand-tracing instead.
+
+    Fails without `_comments_only`: with a raw-text corpus the commented mention counts as a consumer
+    and the key is reported wired."""
+    root = _tree(tmp_path, {
+        "capture.py": 'def f(name):\n    _set(name, only_in_a_comment=1)\n',
+        "webmon.py": '# only_in_a_comment is published but nothing reads it — see the 2026-09-02 trace\nX = 1\n',
+    })
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    find_unwired.main([])
+    out = capsys.readouterr().out
+    assert "only_in_a_comment" in out, "a key named only in prose must still be reported unwired"
+
+
+def test_a_status_key_read_as_a_STRING_LITERAL_is_still_wired(tmp_path, monkeypatch, capsys):
+    """The paired direction, and the reason this uses `_comments_only` rather than `_code_only`.
+
+    A status key reaches its consumer AS A STRING — `status.get("radio_distress")`. `_code_only` strips
+    string literals (right for the function scan, where a call is an identifier), so using it here
+    would flip every such key to unwired. Verified against the real tree before this was written:
+    `_code_only('webmon.py')` removes `"radio_distress"` and `"host_clock"`, both live consumers. This
+    leg fails if anyone later 'simplifies' the two strippers into one."""
+    root = _tree(tmp_path, {
+        "capture.py": 'def f(name):\n    _set(name, read_as_a_literal=1)\n',
+        "webmon.py": 'def block(status):\n    return {"read_as_a_literal": status.get("read_as_a_literal")}\n',
+    })
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    find_unwired.main([])
+    out = capsys.readouterr().out
+    assert "read_as_a_literal" not in out, "a key read as a string literal is wired, not an orphan"
+
+
+def test_comments_only_falls_back_to_RAW_TEXT_on_a_broken_file(tmp_path):
+    """Same failure direction as `_code_only`'s twin above, for the consumer corpus.
+
+    A syntactically broken consumer must contribute its raw text rather than nothing: contributing
+    nothing would make every key that file reads look unwired, inventing orphans across the tree from
+    one bad parse. Over-counting uses is the safe direction here — a missed orphan costs a finding, a
+    fabricated one costs trust in the whole report."""
+    f = tmp_path / "broken_consumer.py"
+    f.write_text('status.get("read_by_a_broken_file")\ndef oops(  # unclosed\n', encoding="utf-8")
+    out = find_unwired._comments_only(str(f))
+    assert "read_by_a_broken_file" in out, "a broken consumer still contributes its references"
