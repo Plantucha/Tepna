@@ -590,20 +590,36 @@ A DIFFERENT check from §1.10's, which was about my own edits moving the closure
 `verifiedUnder` — so the rebuild silently leaves a stamp it did not earn. It should PRINT
 `provenance/<Node>.json was in the conflict set → verify-fixtures owed on this tree` whenever a fragment overlapped.
 
-### 3.10 The browser lane is not locally runnable the way CI runs it — and it presents as a hang
-`node tests/browser-gates.mjs` **starts no HTTP server**. CI does, in the workflow step immediately
-before it (`python3 -m http.server 8080 --bind 127.0.0.1 &`), so the tool is correct in CI and simply
-never loads a page locally. Measured 2026-09-02: it sat **83 minutes** with no output before I looked at
-it, because a browser lane that boots rigs for 30–50 s legitimately looks slow, and "slow" and "loaded
-nothing" are the same picture from outside. The tell was the **61-byte log**, which ended mid-
-`node:internal/modules/run_main` trace — an absence again (§4b), not an error.
+### 3.10 The browser lane is not locally runnable the way CI runs it — ONE fact, and TWO still-open failures
+**The verified fact.** `node tests/browser-gates.mjs` **starts no HTTP server** (0 hits for
+`createServer`/`listen`). CI does, in the workflow step immediately before it
+(`python3 -m http.server 8080 --bind 127.0.0.1 &`), so the tool is correct in CI and simply cannot load a
+page locally. **Serve the directory yourself before running the lane locally.**
 
-⚠️ **State the refutation, because the first hypothesis was wrong and looked righter.** Kestrel proposed
-**port contention** with a peer's server — plausible, since several sessions run gates at once, and it
-would have sent me hunting a peer's process. It is **refuted** by two readings that cost seconds: the
-tool's source starts no listener at all, so there is nothing to contend for, and the workflow file shows
-the server is a separate CI step. A contention hypothesis and a no-server fact predict the same silence;
-only reading the source separates them. Serve the directory yourself before running the lane locally.
+⚠️ **Kestrel's port-contention hypothesis is REFUTED, and stating that is the point.** Several sessions
+run gates at once, so contention was plausible and would have sent me hunting a peer's process. Nothing
+in the tool listens, so there is nothing to contend for. A contention hypothesis and a no-server fact
+predict the same silence; only reading the source separates them.
+
+🔴 **But the no-server fact does NOT explain what was actually observed, and an earlier draft of this
+section said it did.** Two corrections, both from re-reading the logs after Kestrel pushed back:
+
+1. **The captured failures never reach navigation.** Both surviving logs die at
+   `browserContext.newPage: Target page, context or browser has been closed` — `browser-gates.mjs:36`,
+   which is **before** the `page.goto` at line 46. The browser was gone by the time a page was requested,
+   so a missing server is not what these runs hit. Candidates, none yet distinguished: a peer's
+   pattern-kill (§3.5's live hazard), an OOM (this box OOMs under refolds), or a Chromium launch failure
+   of the `/dev/shm` class the file's own line-30 comment already warns about.
+2. **83 minutes is not a shape any of this predicts.** `page.goto` carries `timeout: 60000`, so a
+   serverless run should reject inside a minute with a non-zero exit — not sit silently for over an hour.
+   A short log ending mid-`run_main` trace says the process **died while writing its trace**, not that it
+   waited. The duration remains **OPEN**.
+
+**The lesson is not "I was wrong about the server" — that fact is verified and stands.** It is that I
+attached a verified fact to a symptom it does not account for, and the section then read as closed. A
+true premise and an unexplained observation can sit in one paragraph and look like an explanation; the
+check is whether the premise **predicts the observed shape** (here: an error exit in 60 s, versus 83
+minutes of silence), not merely whether it is true.
 
 ### 3.5 Kill only what you own; a pattern is not a name (Osprey / Kestrel, 2026-08-31 → 09-01)
 A pattern kill hit a PEER's gate unit; a clearing sweep globbed `*check*.log` while the evidence sat in
