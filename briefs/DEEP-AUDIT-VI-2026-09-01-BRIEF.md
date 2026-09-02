@@ -95,6 +95,43 @@ records the event but the vendor file still fuses two epochs) is complementary a
 
 #### F2 · MAJOR — mis-states a surfaced number (app lane) + contract drift · `ecgdex-app.js:107`
 
+> ✅ **FIXED 2026-09-01 (Magpie) — as a SPLIT, not the port this entry sketched.** Porting the
+> ns-counter rate and host discipline into `WORKER_SRC` would have made a THIRD copy of the clock
+> logic — including F1's resync discriminator, three days old — and this file already carries the
+> tombstone of the last one (`CLOCK-UNIFY`: the worker's inline `_ckPF`, which silently skipped the
+> Clock Contract §2.7 range guard). The walk is instead cut at the one line a Worker cannot cross:
+> **`ecgTimingScan()`** — pure, self-contained, parses NO timestamps; `ecgdex-app.js` builds its Blob
+> worker from this function's own `toString()`, so the worker RUNS the DSP's text rather than a copy
+> of it — and **`ecgTimingResolve(scan)`** — every decision (resync vs dropout, ns-vs-`[ms]` rate,
+> the span + independence gates, `tMsAt`, `deviceEpoch`), on the main thread where DexClock lives.
+> Both lanes call resolve. What makes the split honest: **a resync shifts the device axis by a
+> constant, and every quantity the scan computes is a difference or a value carried out verbatim** —
+> all invariant under that shift — so resolve owns 100 % of the offset arithmetic and the scan never
+> needs to know a seam happened. The small-file branch (a THIRD ingest copy, with its own row loop
+> and its own rounded fs) is deleted outright: it calls `ECGDSP.parseECG`. `parseTSfloat` is gone —
+> an unused parser is a mirror waiting for its next caller.
+>
+> **Measured.** Headless output is byte-identical before/after on every file checked — the two
+> committed twins, the equiv clip, and the three real resync nights (08-27 fs 129.96475470405264,
+> gaps, `clockResyncs`, `hostOffsetMs`, `anchorsDroppedPreResync` and the whole `hostAxis` block all
+> unchanged) — so this is a refactor on the gated lane and a fix on the app one. The app lane now
+> resolves *the same object*: 24 assertions diff app-vs-headless field by field (fs to the last bit,
+> t0Ms, endEpochMs, gaps with both relative edges, clockResyncs, hostAxis, deviceEpoch, `tMsAt` at a
+> FRACTIONAL sample index, sample count) on the clean twin, the gapped twin, and a planted 129.9 Hz
+> file where the old rule (mean `[ms]` delta, ROUNDED) reports 130 — **770 ppm, 2.2 s across a 7 h
+> night**. The committed twin could not carry that leg: it runs at 129.99999990 Hz, where the old
+> rounding was wrong by 0.0 ppm and a direction assertion would have passed vacuously.
+>
+> ⚠️ **Three existing gates asserted the old worker's SHAPE and had to be re-aimed at the contract**
+> (the stream-fallback reset list named six accumulators that are now two; the worker-clock group
+> sliced `WORKER_SRC` as a single template literal; the t0Ms leg regexed an app-side null guard that
+> now lives in the DSP). Each was rewritten to test what must be true rather than how it was spelled,
+> and the fallback group gained the EXECUTABLE leg its own note said the harness could not have:
+> `DEEP-AUDIT-II §4.4`'s stale-re-read is now reproduced against the scan, with its defect direction.
+> **t0Ms follows Clock Contract §4 unchanged** — the first stamp that PARSES, not the first non-empty
+> (the app worker's quieter rule, which turns one junk row into an anchorless night); the scan
+> carries the head stamps out bounded at 64 rows and resolve picks the first that resolves.
+
 **Symptom.** The ECGDex **app** ingest (streaming `WORKER_SRC` and the small-file inline path) derives
 `fs = Math.round(mean ms-delta)` and ignores the sensor-ns column, hostAxis, deviceEpoch and gap rel-ms edges
 — so the browser app analyzes the same bytes on a time axis 96–320 ppm different from the gated headless
