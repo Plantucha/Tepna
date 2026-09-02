@@ -197,8 +197,39 @@ touched them:
 
 ## 5 · Leads not assigned (cheap first probes)
 
-- **15 of 48 box nights have NO ECG/PPG beat-train overlap** (Osprey, from #2052's un-blinding; formerly
-  hidden as "too few beats"). A capture-session fact, not a DSP one. First probe: a per-night span table from
-  the raw files. Heron-lane candidate.
+- ~~**15 of 48 box nights have NO ECG/PPG beat-train overlap** — a capture-session fact, not a DSP one~~
+  🔴 **REFUTED AND FIXED 2026-09-02. The lead was mine and it was wrong: it was my own tool.** Heron's probe
+  inverted it (46 of 48 nights carry both streams and every one of the 15 has hours of real wall-clock
+  overlap), and the cause was `pat-window-oracle.mjs pick()` selecting the LARGEST `_ECG.txt` and the LARGEST
+  Verity `_PPG.txt` in two INDEPENDENT size-sorts — so on a fragmented night the two winners come from
+  different hours. #2052 made those refusals *visible* and I then attributed them to the capture without
+  checking whether my own file selection could manufacture them: a tool artifact reported as a data verdict,
+  which is the class #2044/#2052 exist to prevent, committed one layer up. Verified independently before
+  building (largest-pair / best-pair / night-level, my numbers ≡ Heron's on 4 spot-checked nights: 08-28
+  0.00/6.31/23.75 h · 08-20 0.00/0.04/19.40 · 08-16 0.00/6.02/6.08 · 07-29 0.00/0.54/3.11).
+  **Fixed by pairing fragments on temporal OVERLAP** (spans from an 8 KB read at each end, never a parse;
+  largest-of-each remains the default so single-fragment nights are byte-identical). Measured on the 48-night
+  tree: bare "no overlap" refusals **15 → 0**, 14 nights newly score, 27 of 29 previously-scoring nights
+  unchanged, and the 2 that changed did so on strictly greater overlap (07-31 0.65→0.87 h, n 1029→1245,
+  narrowSD 38.1→29.0; 08-18 0.86→1.54 h, n 315→1982, mode 355→815 ms ⇒ artifact refusal — ECG side
+  unchanged, a PPG fragment swap, and NOT a clock-step artifact: 3,461,952 samples scanned, zero
+  sensor-counter steps >2000 ms, max phone-stamp backward jump 554 ms).
+  ⚠️ **NOT concatenating fragments per stream** (Heron): a concatenated train spans the inter-fragment gaps
+  and a lag computed across a gap is meaningless. Per-pair scoring only.
+  **2026-08-20 still refuses, and legitimately** — its trains are genuinely disjoint (R 04:28–04:34 vs feet
+  04:36–05:00, disjoint by 2 min; the other PPG fragment holds 2 feet). A ruling to re-word this as a
+  beat-count failure was declined: 0.04 h was FILE-span, not train-span, and printing it would have stated an
+  overlap the trains do not have. The refusal now carries its own extents and gap instead, and the selftest
+  requires them, so the bare phrase cannot return.
+  Sibling defect fixed in the same function: the pick comparator called `readFileSync(b).length` INSIDE the
+  sort — every candidate fully read O(n log n) times to learn a size (237 PPG fragments on 08-16). `statSync`.
+- **§2.4 dormant sweep — EXECUTED 2026-09-02 (Osprey): ZERO false flags.** 23 real `dormant: true` entries
+  (motiondex 2 · ppgdex 21 · ecgdex 0), each checked against its id, label and aliases in that node's
+  app/render/dsp. #1455's two false flags were already corrected by F4; nothing else is silently live.
+  ⚠️ **Extractor caveat, because my first pass reproduced §2.4's own error class:** walking back from each
+  `dormant: true` occurrence to the nearest `ident: {` attributed a flag to `ecgdex lfhf` — a live, surfaced,
+  guide-carded metric — because the match was inside a COMMENT quoting the phrase. Raw grep counts over-read
+  for the same reason (motiondex 4 vs 2 real, ppgdex 22 vs 21). A dormant sweep must be comment-aware; the
+  check that caught it was reconciling the grep count against the extracted id count and chasing the gap.
 - *(Closed while drafting: DEEP-AUDIT-II §12.1's fallen FALSE-POSITIVE row was already re-stamped by #2062 —
   checked in `git show 3411f069`, not assumed.)*
