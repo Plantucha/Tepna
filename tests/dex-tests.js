@@ -30107,6 +30107,91 @@
       }
     });
 
+    /* ── FOLLOWUPS §1.10 — a rate that cannot be measured is REFUSED, never substituted ─────────
+       `respFromEDR` stacked TWO unmarked substitutions behind a surfaced number: it echoed the Lomb
+       `respHint` when autocorrelation found no dominant EDR period, and fell to a hardcoded **15**
+       when the hint was out of range. Neither was marked, so a reader could not tell a measured
+       15.0 from the constant — §1.5's adjudication had to detect fallback nights by testing
+       `=== 15.0`, and that test was WRONG on one of the two nights it flagged (2026-07-06 measures a
+       genuine 15.0; only 2026-07-02 takes the branch). The hint echo is worse than unmarked, it is
+       self-contradictory: the method's own comment says the rate is measured "not echoed from the
+       Lomb hint".
+       NO COMMITTED INPUT TOOK THE BRANCH (§2.1: "no fixture moved" would be silence by construction)
+       — the clean twin carries 0.25 Hz baseline wander and its rich golden pins 16.3. This twin is
+       the clean twin's morphology with the periodic drivers removed AND the beats quantised to exact
+       sample boundaries, so every R samples the identical value and the EDR carrier is degenerate.
+       Two earlier constructions FAILED to reach the branch and are recorded so nobody retries them:
+       broadband noise gave a 19.9 br/min "period" (band-passed noise autocorrelates above the 0.1
+       floor) and a noiseless un-quantised train gave 7.4 (sub-sample phase jitter modulates the
+       sampled R amplitude). Pre-fix code returns 11.1 on this input; current code returns null. */
+    group('ECGDex EDR rate — unmeasurable is refused, not substituted (FOLLOWUPS §1.10)', 'ecgdex-dsp · refusal · adversarial-twin', function (T) {
+      var E = env.ECGDSP || env.ECGDex;
+      var EQ = env.equiv || {};
+      var flat = EQ.ecgdex_flat_edr && EQ.ecgdex_flat_edr.input;
+      if (!E || typeof E.parseECG !== 'function' || typeof E.analyze !== 'function') {
+        T.ok('env.ECGDSP parseECG/analyze available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      if (!flat) {
+        T.ok('committed degenerate-EDR twin wired into env.equiv', false, 'it is a COMMITTED input — present in every environment, including CI');
+        return;
+      }
+      var r = E.analyze(E.parseECG(flat));
+      var c = r && r.crc;
+      T.ok('the twin computes a crc block at all (the refusal is about the RATE, not a broken parse)', !!c);
+      if (!c) return;
+      T.eq('respFromEDR is NULL — no dominant EDR period, so no number is invented', c.respFromEDR, null);
+      T.ok('…and the refusal NAMES its reason', typeof c.respFromEDRReason === 'string' && /no dominant EDR period/.test(c.respFromEDRReason), String(c.respFromEDRReason));
+      T.ok('the value is not the old constant, and not the Lomb hint either', c.respFromEDR !== 15 && c.respFromEDR !== 11.1);
+      // the coupling path must SURVIVE the refusal — f0 falls back to an analysis centre by design
+      T.ok('crcPLV still computed (f0 centring is an analysis choice, not a surfaced rate)', c.crcPLV != null && isFinite(c.crcPLV), 'crcPLV = ' + c.crcPLV);
+      /* ── THE EXPORT PATH, BOTH DIRECTIONS ────────────────────────────────────────────────────
+         The assertions above read the `crc` object. The EXPORT emits `respFromEDRReason` only when
+         there IS one — deliberately, so a measuring night is not churned with a null field — and a
+         key emitted only on a branch no committed fixture takes is SILENCE BY CONSTRUCTION: the
+         equiv legs stay green whether the conditional works or not. So drive both inputs through
+         `compute({rich:true})` and assert presence AND absence. The absence half is the regression
+         guard: if the key leaks back into every export the rich golden's equiv leg reds, but only
+         after the churn is committed; this fails first and says why. */
+      var EX = env.ECGDex;
+      if (EX && typeof EX.compute === 'function') {
+        var fqR = (EX.compute({ text: flat }, { rich: true }) || {}).hrv;
+        fqR = fqR && fqR.frequency;
+        T.ok('export · a REFUSING record carries respFromEDR null', !!fqR && fqR.respFromEDR === null, fqR ? JSON.stringify(fqR.respFromEDR) : 'no frequency block');
+        T.ok(
+          'export · …and CARRIES the reason key',
+          !!fqR && Object.prototype.hasOwnProperty.call(fqR, 'respFromEDRReason') && /no dominant EDR period/.test(fqR.respFromEDRReason || ''),
+          fqR ? String(fqR.respFromEDRReason) : '-'
+        );
+      } else {
+        T.skip('export path reachable (ECGDex.compute)', 'env.ECGDex.compute unavailable in this lane');
+      }
+
+      // CONTROL: the clean twin still MEASURES, so the refusal is not blanket
+      var cleanIn = EQ.ecgdex_synth && EQ.ecgdex_synth.input ? EQ.ecgdex_synth.input : EQ.ecgdex_rich && EQ.ecgdex_rich.input;
+      if (cleanIn) {
+        var c2 = E.analyze(E.parseECG(cleanIn));
+        var crc2 = c2 && c2.crc;
+        T.ok(
+          'control · the CLEAN twin still returns a measured rate with no reason',
+          !!crc2 && crc2.respFromEDR != null && !crc2.respFromEDRReason,
+          crc2 ? 'respFromEDR = ' + crc2.respFromEDR : 'no crc'
+        );
+        if (EX && typeof EX.compute === 'function') {
+          var fqO = (EX.compute({ text: cleanIn }, { rich: true }) || {}).hrv;
+          fqO = fqO && fqO.frequency;
+          T.ok('export · a MEASURING record carries a number…', !!fqO && typeof fqO.respFromEDR === 'number', fqO ? JSON.stringify(fqO.respFromEDR) : 'no frequency block');
+          T.ok(
+            'export · …and the reason key is ABSENT, not null — no churn on measuring nights',
+            !!fqO && !Object.prototype.hasOwnProperty.call(fqO, 'respFromEDRReason'),
+            fqO && Object.prototype.hasOwnProperty.call(fqO, 'respFromEDRReason') ? 'key present = ' + JSON.stringify(fqO.respFromEDRReason) : 'absent'
+          );
+        }
+      } else {
+        T.skip('control · clean twin reachable', 'ecgdex_synth/ecgdex_rich input not wired in this lane');
+      }
+    });
+
     /* DEEP-AUDIT-VI F6 — the COLUMN PICK must survive a Dexcom Clarity layout: a serial Index counter
        whose values sit inside locateColumns' [2,600] band, plus the "Low" string Clarity writes for
        below-range readings. The score `inBand/total − dateHits/total` had no penalty for a serial

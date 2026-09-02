@@ -768,7 +768,7 @@ self.onmessage = async (e) => {
          <div class="gang-pill">RSA swing <b>${c.rsaAmplitudeBpm}</b> bpm</div>
          <div class="gang-pill" style="border-color:${plvCol};color:${plvCol}"><b>CRC PLV ${c.crcPLV}</b> · phase-lock</div>
          <div class="gang-pill">coupling strength <b>${c.couplingStrength}</b>/1</div>
-         <div class="gang-pill">EDR resp ${c.respFromEDR} br/min</div>
+         <div class="gang-pill">${c.respFromEDR != null ? `EDR resp <b>${c.respFromEDR}</b> br/min` : 'EDR resp — <b>no estimate</b>'}</div>
        </div>` +
       epochChart +
       `<div class="q-note" style="margin-top:8px"><b>All three from the ECG alone — no airflow, no PPG.</b> EDR (R-peak amplitude modulation) gives respiration; locking it to the RR oscillation yields cardiorespiratory coupling. <b>RSA efficiency</b> is the inspiratory:expiratory HR ratio — efficient hearts raise HR on inspiration to minimise cardiac power (Border et al. 2025). <b>PLV</b> is the model-free RR↔respiration phase-lock (arXiv:2508.00773); <b>coupling strength</b> is a CSI-style single-number sync index (arXiv:2605.18802). ${confNote} <span style="opacity:.7">Informational — zero new sensors, computed from existing pipeline outputs.</span></div>`;
@@ -1492,7 +1492,9 @@ self.onmessage = async (e) => {
               r.crc.couplingStrength >= 0.5 ? 'ok' : r.crc.couplingStrength >= 0.3 ? 'warn' : 'bad',
               'CSI-style sync index (arXiv:2605.18802)'
             ],
-            ['EDR resp rate', r.crc.respFromEDR, 'br/min', '12–20', 'neutral', 'Respiration from R-peak amplitude modulation'],
+            // §1.10 — a null EDR rate renders as an explicit refusal, never as a blank that reads
+            // like a missing field or as the constant 15 it used to substitute.
+            ['EDR resp rate', r.crc.respFromEDR != null ? r.crc.respFromEDR : 'no estimate', 'br/min', '12–20', 'neutral', r.crc.respFromEDRReason || 'Respiration from R-peak amplitude modulation'],
             ...(r.crc.plvDuringSurges != null && r.crc.plvBaseline != null
               ? [['PLV surge vs base', r.crc.plvDuringSurges + ' / ' + r.crc.plvBaseline, '0–1', 'drop', 'neutral', 'Coupling drop during CVHR clusters → surge confidence']]
               : [])

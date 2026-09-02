@@ -1785,8 +1785,30 @@
     // 3) respiration rate measured DIRECTLY from the EDR band (dominant period via
     // autocorrelation), not echoed from the Lomb hint. Center the phase analysis on it.
     const edrPeriod = _autocorrPeriod(edrB, FS, 2.5, 10);
-    const respFromEDR = edrPeriod ? +(60 / edrPeriod).toFixed(1) : respHint && respHint >= 6 && respHint <= 24 ? +respHint.toFixed(1) : 15;
-    const f0 = respFromEDR >= 6 && respFromEDR <= 24 ? respFromEDR / 60 : 0.25;
+    /* 🔴 REFUSE, DO NOT SUBSTITUTE (FOLLOWUPS §1.10, from §1.5's adjudication). This read
+         `edrPeriod ? 60/edrPeriod : (respHint in 6..24 ? respHint : 15)`
+       — two substitutions stacked behind a surfaced number, neither marked. The second is a bare
+       CONSTANT 15, and §1.5 measured what that constant is worth: over 22 co-recorded CPAP nights a
+       flat 15.0 br/min scores MAE 0.80 against the device's own RespRate while the estimator scores
+       1.90, so the fallback OUTPERFORMS the measurement it stands in for — which is precisely why a
+       reader must be able to tell them apart, and could not: §1.5 had to detect fallback nights by
+       testing `=== 15.0`, which cannot separate a genuine 15.0 from the constant.
+       The FIRST substitution is worse than unmarked, it is self-contradictory: the comment two lines
+       up says this rate is "measured DIRECTLY from the EDR band … not echoed from the Lomb hint",
+       and the fallback echoes exactly that hint. A method's stated independence cannot hold only on
+       the nights it succeeds.
+       So: no dominant EDR period ⇒ **null with a reason**, the house rule (#2044 artifact refusal,
+       #2052 named refusals). Consumers already null-guard the export; the app surfaces are fixed in
+       the same change to print the reason instead of a number. */
+    const respFromEDR = edrPeriod ? +(60 / edrPeriod).toFixed(1) : null;
+    const respFromEDRReason = edrPeriod ? null : 'no dominant EDR period in the 2.5–10 s search band — respiration not recoverable from R-peak amplitude on this record';
+    /* `f0` is an ANALYSIS CENTERING FREQUENCY for the narrow-band phase extraction below, not a
+       surfaced quantity: 0.25 Hz keeps the PLV/coupling path running when the rate is unknown, as it
+       already did for an out-of-range rate. It is deliberately NOT nulled here — that would silently
+       change crcPLV/couplingStrength, a different metric with its own grade, inside a unit about the
+       breath rate. ⚠️ Whether a PLV computed at an ASSUMED centre is itself quotable is a real
+       question and is filed as FOLLOWUPS §1.11, not answered here. */
+    const f0 = respFromEDR != null && respFromEDR >= 6 && respFromEDR <= 24 ? respFromEDR / 60 : 0.25;
     const phE = _narrowPhase(edrB, FS, f0),
       phH = _narrowPhase(hrB, FS, f0);
     // windowed PLV — averaged over 60 s windows so slow respiratory-frequency drift
@@ -1867,6 +1889,7 @@
     return {
       cpc,
       respFromEDR,
+      respFromEDRReason,
       rsaEfficiencyRatio: +rsaRatio.toFixed(2),
       rsaAmplitudeBpm: +rsaAmp.toFixed(1),
       crcPLV: +plv.toFixed(3),
@@ -5343,6 +5366,12 @@
           respRate: nz(r.respRate),
           respRateMethod: 'RSA (HF-peak of RR spectrum)',
           respFromEDR: r.crc && r.crc.respFromEDR != null ? nz(r.crc.respFromEDR) : null,
+          /* §1.10: a null `respFromEDR` is a REFUSAL and the export says why — but the reason is
+             emitted ONLY when there is one. A `respFromEDRReason: null` on every measuring night
+             would move every committed ECGDex export to carry a field that says nothing (the rich
+             golden's equiv leg caught exactly that), so the key is present iff the rate is refused.
+             `respFromEDR: null` alone already marks the refusal; this is its diagnostic. */
+          ...(r.crc && r.crc.respFromEDRReason ? { respFromEDRReason: r.crc.respFromEDRReason } : {}),
           respFromEDRMethod: 'EDR (R-peak amplitude modulation)'
         }
       };
