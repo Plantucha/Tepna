@@ -1026,7 +1026,7 @@ self.onmessage = async (e) => {
     // posture
     const postureIcon = { Supine: '🛏️', Prone: '🛌', Upright: '🧍', Inverted: '🙃', 'Left side': '↩️', 'Right side': '↪️', 'Head-down': '🙃' }[a.posture] || '🧭';
     const longPosture = a.postureBreakdown && a.postureBreakdown.length > 1;
-    const posturePills = longPosture ? a.postureBreakdown.map((p) => `<div class="gang-pill">${p.label} <b>${p.pct}%</b></div>`).join('') : '';
+    const posturePills = longPosture ? a.postureBreakdown.map((p) => `<div class="gang-pill">${evBadge('Body position')}${p.label} <b>${p.pct}%</b></div>`).join('') : '';
     // motion tie: how many high-motion epochs fall in Wake/REM (vs deep/light)
     const stageAt = {};
     (r.stages || []).forEach((s) => (stageAt[s.tMin.toFixed(1)] = s.stage));
@@ -1055,30 +1055,38 @@ self.onmessage = async (e) => {
     }
 
     const quiet = hi.length === 0;
+    /* Built FIRST because it computes (and caches on `r._accEx`) the paired-epoch agreement the note
+       below must quote — the alternative was a second heavy pass over the whole ACC record. */
+    const extraCards = accExtraCards(r);
+    const ag = r._accEx && r._accEx.agreement;
     $('accBody').innerHTML =
       `
     <div class="acc-posture">
       <div class="acc-posture-main">
         <span class="acc-posture-icon">${postureIcon}</span>
         <div>
-          <div class="acc-posture-label">${a.posture}</div>
+          <div class="acc-posture-label">${evBadge('Body position')}${a.posture}</div>
           <div class="acc-posture-sub">body position · tilt ${a.tiltDeg}° from horizontal${a.postureTransitions ? ` · ${a.postureTransitions} position change${a.postureTransitions > 1 ? 's' : ''}` : ''}</div>
         </div>
       </div>
       ${longPosture ? `<div class="gang-summary" style="margin:0">${posturePills}</div>` : ''}
     </div>
     <div class="gang-summary">
-      <div class="gang-pill"><b>ACC breathing ${accResp != null ? accResp + ' br/min' : '—'}</b>${accResp != null ? ' · axis ' + a.respAxis : ' (motion-limited)'}</div>
-      ${edrResp != null ? `<div class="gang-pill">ECG/EDR breathing <b>${edrResp}</b> br/min</div>` : ''}
-      ${dResp != null ? `<div class="gang-pill" style="border-color:${dResp < 2 ? UI.COLORS.green : dResp < 4 ? UI.COLORS.amber : UI.COLORS.red}">Δ ${dResp} br/min ${respPill}</div>` : ''}
+      <div class="gang-pill">${evBadge('ACC breathing')}<b>ACC breathing ${accResp != null ? accResp + ' br/min' : '—'}</b>${accResp != null ? ' · axis ' + a.respAxis : ' (motion-limited)'}</div>
+      ${edrResp != null ? `<div class="gang-pill">${evBadge('ECG/EDR breathing')}ECG/EDR breathing <b>${edrResp}</b> br/min</div>` : ''}
+      ${dResp != null ? `<div class="gang-pill" style="border-color:${dResp < 2 ? UI.COLORS.green : dResp < 4 ? UI.COLORS.amber : UI.COLORS.red}">${evBadge('Δ br/min')}Δ ${dResp} br/min ${respPill}</div>` : ''}
     </div>
     ${motionChart}
     <div class="q-note" style="margin-top:8px"><b>Three ties to the ECG, no extra interpretation needed.</b>
       <b>Posture:</b> body position from the accelerometer gravity vector (tilt ${a.tiltDeg}° → ${a.posture}) — context the ECG can't give on its own (e.g. orthostatic vs supine HRV).
-      <b>Breathing:</b> respiration from chest-axis ACC movement vs the ECG-derived (EDR) respiration${dResp != null ? ` — they ${dResp < 2 ? 'agree to within ' + dResp + ' br/min, cross-validating both' : 'differ by ' + dResp + ' br/min'}` : ''}.
+      <b>${evBadge('RRacc–EDR Agreement')}Breathing:</b> respiration from chest-axis ACC movement vs the ECG-derived (EDR) respiration. ${
+        ag
+          ? `Across <b>${ag.n}</b> paired 5-min epochs the 95% limits of agreement are <b>${ag.loa[0]} … +${ag.loa[1]}</b> br/min (bias ${ag.meanDelta > 0 ? '+' : ''}${ag.meanDelta}), and <b>${ag.disagreeRate}%</b> of epochs differ by more than 3 br/min — so the two are a cross-CHECK, not a cross-validation of each other. Over 45 real nights this comparison does not establish agreement (median r 0.07, limits −4 … +7.5 br/min); read each rate on its own evidence badge.`
+          : 'Too few paired epochs to state agreement — no agreement claim is made.'
+      }${dResp != null ? ` The whole-night means differ by ${dResp} br/min, which compares two averages and is not an agreement statistic.` : ''}
       ${quiet ? '<b>Motion:</b> little movement in this recording — consistent with a still, ' + a.posture.toLowerCase() + ' measurement.' : `<b>Motion:</b> ${hi.length} high-motion epoch${hi.length > 1 ? 's' : ''} — <b>${stagePct}%</b> in Wake/REM (where movement is expected, corroborating the ECG-only sleep staging)${nearSurge ? `, ${nearSurge} coinciding with CVHR clusters` : ''}.`}
       <span style="opacity:.7">${r.source === 'synthetic' ? 'ACC here is synthetic ground truth. ' : ''}Posture labelling depends on sensor mounting; tilt angle is mount-independent. Informational.</span></div>` +
-      accExtraCards(r);
+      extraCards;
     $('accCard').style.display = 'block';
   }
 

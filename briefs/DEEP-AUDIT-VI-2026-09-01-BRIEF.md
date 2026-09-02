@@ -197,6 +197,53 @@ re-bundle + its 6 fixtures. Do not fold both into one PR with unrelated work.
 
 #### F4 · MAJOR — evidence-badge mandate (class 7/13, the MISSING class) · `ecgdex-app.js:1073`
 
+> ✅ **FIXED 2026-09-01 (Magpie) — and the badge could not be wired without first MEASURING what it
+> would assert.** The chips are badged through `EcgRegistry` as specified ('ACC breathing' →
+> `rraccRate`, 'ECG/EDR breathing' → `edrResp`, the Δ chip → `edrAgreement`, posture → a new
+> `accPosture` entry), the aliases resolve the card's own prose strings, and the posture %-pills badge
+> too. But this finding says the registry "already grades exactly these metrics", and checking what
+> that grade rested on turned up two things it did not know:
+>
+> **(1) Two entries carried `dormant: true` — which asserts "no compute site exists, so the metric
+> reaches no export and no surface" — and the flag was FALSE when it was written.** `rraccRate` is
+> computed by `accExtras` and surfaced by `_accCardRR`; `edrDisagree` is surfaced by
+> `_accCardAgreement` and exported as `disagreementRatePct`. Both since the initial commit
+> (2026-07-01); the flag arrived 2026-08-18 (#1455) claiming a sweep had "confirmed per-name — id,
+> label and every alias". Not stale — wrong on day one, i.e. the examined-nothing shape: a check that
+> reported on surfaces it never read. A new fleet gate (`badges · registry · dormant-surface`) now
+> asks the one question the flag makes, negative-control verified. On its FIRST run it flagged a third
+> entry — MotionDex `uprightFrac` — which turned out to be its bare alias `upright` matching a posture
+> ENUM VALUE in `POS_ORDER`, not a label; the matcher now admits the LABEL always and an alias only if
+> multi-word or ≥8 chars, with that case named, because a gate that cries wolf on its first run is a
+> gate that gets deleted.
+>
+> **(2) The flag's own contract requires re-adjudicating the grade at the moment of promotion — so it
+> was adjudicated, by measurement, and it went DOWN.** 45 real H10 nights through the shipped
+> `accExtras` agreement block: RRacc vs EDR gives median **r 0.07** (-0.34 ... +0.58), MAE **2.5
+> br/min**, bias **+1.58** (one-signed on 45 of 45 nights), 95 % limits typically **-4 ... +7.5
+> br/min** — ±44 % of a ~16 br/min mean — and a median **27 %** of paired epochs >3 br/min apart. The
+> card's standing defence (a low r reflects EDR's narrow range; Bland-Altman governs when the spread
+> is small) does not rescue it: by the statistic it nominates, the two do not agree. `rraccRate`
+> **`emerging` → `experimental`**, with the numbers in its cite and the per-night table at
+> [`docs/ECGDEX-RRACC-EDR-AGREEMENT-2026-09-01.md`](../docs/ECGDEX-RRACC-EDR-AGREEMENT-2026-09-01.md)
+> so the grade is re-checkable rather than asserted in a cite string. `edrAgreement` keeps its tier —
+> it is the agreement STATISTIC, whose standing does not depend on the answer being positive — but its
+> cite no longer calls itself "a cross-validation of two surrogate respiration signals", which is the
+> claim the measurement refutes. `edrDisagree` keeps `heuristic`.
+>
+> **The strongest evidence claim on the card was prose, not a badge.** It printed "they agree to within
+> N br/min, **cross-validating both**" whenever the two WHOLE-NIGHT means differed by <2 — an agreement
+> claim from a comparison of two averages, while a quarter of the paired epochs behind them differ by
+> >3 br/min. Replaced with the paired-epoch statistic (limits of agreement, bias, the >3 br/min share)
+> and an explicit line that a whole-night delta is not an agreement statistic.
+>
+> ⚠️ **The ECGDex Reference guide graded posture `measured` — the TOP tier — for a mount-dependent
+> convention.** It was invisible because 'Posture' resolved to no registry id, so `cohesion-badges` had
+> nothing to compare; registering `accPosture` made the contradiction visible on the next run. Fixed in
+> the DOC per §🎫 (the registry wins): `experimental`, matching MotionDex's `supineFrac` for the same
+> gravity-vector quantity, and the card now separates the mount-INdependent tilt angle from the named
+> position, which is the part that is a convention.
+
 **Symptom.** The ACC Cross-Check card surfaces physiological measurements — 'ACC breathing N br/min',
 'ECG/EDR breathing N br/min', the Δ br/min agreement chip, the posture %-pills — with **no evidence badge**,
 while `ECG_REGISTRY` already grades exactly these metrics (`rraccRate`/`edrResp` = emerging). Invisible to
