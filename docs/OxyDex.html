@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PhVnuPp2/l9tBOv4vDof3+ya+kH1bxHAC+PBeVTcIU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RjMMOHYFWUY/PR4ye4KSAj/Tc4DVHJOvR3fJVzMX0x4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-d/fY1ggGH+dOgrHCOKz19Csyb6MrnZ6RivEEwg+WDEo=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-ibthVwnHAm8V3L4QxpSuywLhy9DElV6PFhEVR7s1FRM=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PhVnuPp2/l9tBOv4vDof3+ya+kH1bxHAC+PBeVTcIU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RjMMOHYFWUY/PR4ye4KSAj/Tc4DVHJOvR3fJVzMX0x4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-d/fY1ggGH+dOgrHCOKz19Csyb6MrnZ6RivEEwg+WDEo=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-pmkM4GTQroQlb4GaUI6RBETJs7WVTR03G7v/A4s2QzA=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.9.0</title>
@@ -23904,6 +23904,13 @@ function _oxyEcgDate(startEpochMs) {
 }
 // "HH:MM:SS" → absolute floating ms anchored on startEpochMs's civil date,
 // rolled forward past midnight (monotonic relative to prevMs).
+// DEEP-AUDIT-VI F9 — the chained roll used a 1 s tolerance, so ONE ≥2 s backwards step (a jittered/
+// duplicated row, or a lexically-sorted legacy export) rolled that event AND every later one a day
+// forward; surges shifted +24 h overlap zero desats and confPct read a confident 0. A genuine wrap is
+// ~23 h backwards, so the threshold is a FRACTION OF A DAY, never a jitter allowance — the 12 h clock.js
+// settled on as `CK_ROLL_SLACK_MS` (DEEP-AUDIT-III §1.2). Kept local so this file has no DexClock
+// dependency (it is inlined into OxyDex and both orchestrators).
+var OXY_ROLL_SLACK_MS = 43200000; // 12 h
 function _oxyHHMMSStoMs(startEpochMs, hhmmss, prevMs) {
   if (startEpochMs == null || !hhmmss) return null;
   var p = String(hhmmss).split(':');
@@ -23913,7 +23920,7 @@ function _oxyHHMMSStoMs(startEpochMs, hhmmss, prevMs) {
   // allow the first event to sit slightly before the anchor; otherwise roll forward
   while (base < startEpochMs - 3600000) base += 86400000;
   if (prevMs != null) {
-    while (base < prevMs - 1000) base += 86400000;
+    while (base < prevMs - OXY_ROLL_SLACK_MS) base += 86400000; // F9: 12 h, not 1 s
   }
   return base;
 }
@@ -24121,7 +24128,9 @@ function oxyComputeFusion(n, ecg) {
     var prev = null;
     ecg.ganglior_events.forEach(function (ev) {
       if (!ev || ev.impulse !== 'autonomic_surge') return;
-      var ms = _oxyHHMMSStoMs(rec.startEpochMs, ev.t, prev);
+      // Clock §6 — a modern emitter writes absolute floating `tMs`; use it verbatim before any
+      // reconstruction from the date-less `t` (F9: this site ignored it, cpapdex-coimport did not).
+      var ms = typeof ev.tMs === 'number' && isFinite(ev.tMs) ? ev.tMs : _oxyHHMMSStoMs(rec.startEpochMs, ev.t, prev);
       if (ms != null) {
         surges.push(ms);
         prev = ms;

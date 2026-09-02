@@ -32,6 +32,13 @@
   var PEERS = { oxy: [], ecg: [] }; // accumulated, normalized peer recordings
 
   /* ── floating-ms helpers (getUTC* only) ── */
+  // DEEP-AUDIT-VI F9 — the chained midnight roll used a 1 s tolerance, so ONE ≥2 s backwards step (a
+  // jittered/duplicated row, or a lexically-sorted legacy export) rolled that event AND every later one
+  // a day forward; surges shifted +24 h overlap zero apneas and corroboratedPct read a confident 0. A
+  // genuine wrap is ~23 h backwards, so the threshold is a FRACTION OF A DAY, never a jitter allowance —
+  // the 12 h clock.js settled on as `CK_ROLL_SLACK_MS` (DEEP-AUDIT-III §1.2). A local constant, because
+  // this bundle does not inline clock.js and `DexClock` is undefined here.
+  var CI_ROLL_SLACK_MS = 43200000; // 12 h
   function _hmsToMs(startMs, t, prevMs) {
     if (startMs == null || !t) return null;
     var m = /(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(String(t));
@@ -46,7 +53,7 @@
     // (device clock skew) without being thrown a whole day forward.
     // The sibling oxydex-fusion.js `_oxyHHMMSStoMs` already carried this line; it was all that was missing.
     while (ms < startMs - 3600000) ms += 86400000;
-    while (prevMs != null && ms < prevMs - 1000) ms += 86400000; // roll past midnight, monotonic
+    while (prevMs != null && ms < prevMs - CI_ROLL_SLACK_MS) ms += 86400000; // roll past midnight (F9: 12 h, not 1 s)
     return ms;
   }
 

@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1L7/G1EvG76HKsQWQSX8ZbDbDHAP6ISMTWQglc609cM=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-GLYV3WVKEqaZkSNNkLPg/Dq0ASN7PnKF6N3U8hwey68=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h6h5P//RbelDud05c/HcsYeUxGoEXGat4RJkGjquIWE=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1L7/G1EvG76HKsQWQSX8ZbDbDHAP6ISMTWQglc609cM=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-GLYV3WVKEqaZkSNNkLPg/Dq0ASN7PnKF6N3U8hwey68=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h6h5P//RbelDud05c/HcsYeUxGoEXGat4RJkGjquIWE=' 'sha256-k+RI3eu7O1dogNihbuES+Db93asgjhSxBjBsgNI3xYs=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.9.0</title>
@@ -10944,6 +10944,13 @@ __exports.CpapRender = window.CpapRender;
   var PEERS = { oxy: [], ecg: [] }; // accumulated, normalized peer recordings
 
   /* ── floating-ms helpers (getUTC* only) ── */
+  // DEEP-AUDIT-VI F9 — the chained midnight roll used a 1 s tolerance, so ONE ≥2 s backwards step (a
+  // jittered/duplicated row, or a lexically-sorted legacy export) rolled that event AND every later one
+  // a day forward; surges shifted +24 h overlap zero apneas and corroboratedPct read a confident 0. A
+  // genuine wrap is ~23 h backwards, so the threshold is a FRACTION OF A DAY, never a jitter allowance —
+  // the 12 h clock.js settled on as `CK_ROLL_SLACK_MS` (DEEP-AUDIT-III §1.2). A local constant, because
+  // this bundle does not inline clock.js and `DexClock` is undefined here.
+  var CI_ROLL_SLACK_MS = 43200000; // 12 h
   function _hmsToMs(startMs, t, prevMs) {
     if (startMs == null || !t) return null;
     var m = /(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(String(t));
@@ -10958,7 +10965,7 @@ __exports.CpapRender = window.CpapRender;
     // (device clock skew) without being thrown a whole day forward.
     // The sibling oxydex-fusion.js `_oxyHHMMSStoMs` already carried this line; it was all that was missing.
     while (ms < startMs - 3600000) ms += 86400000;
-    while (prevMs != null && ms < prevMs - 1000) ms += 86400000; // roll past midnight, monotonic
+    while (prevMs != null && ms < prevMs - CI_ROLL_SLACK_MS) ms += 86400000; // roll past midnight (F9: 12 h, not 1 s)
     return ms;
   }
 
