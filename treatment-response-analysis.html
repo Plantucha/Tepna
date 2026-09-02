@@ -2126,26 +2126,97 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     function F(v) {
       return [v[0] * v[0] + v[1] * v[1] - 2 * rAB * v[0] * v[1] - vAB, v[0] * v[0] + v[2] * v[2] - 2 * rAC * v[0] * v[2] - vAC, v[1] * v[1] + v[2] * v[2] - 2 * rBC * v[1] * v[2] - vBC];
     }
-    for (var it = 0; it < 100; it++) {
-      var f = F(x);
-      if (Math.abs(f[0]) < 1e-12 && Math.abs(f[1]) < 1e-12 && Math.abs(f[2]) < 1e-12) break;
-      // analytic Jacobian — each equation involves exactly two of the three unknowns
-      var J = [
-        [2 * x[0] - 2 * rAB * x[1], 2 * x[1] - 2 * rAB * x[0], 0],
-        [2 * x[0] - 2 * rAC * x[2], 0, 2 * x[2] - 2 * rAC * x[0]],
-        [0, 2 * x[1] - 2 * rBC * x[2], 2 * x[2] - 2 * rBC * x[1]]
-      ];
-      var d = _solve3(J, [-f[0], -f[1], -f[2]]);
-      if (!d) return { ok: false, reason: 'Jacobian singular at iteration ' + it + ' — no locally unique solution for this (variance, ρ) combination' };
-      // damped step: a full Newton step can overshoot a σ straight through zero
-      var damp = 1;
-      for (var k = 0; k < 3; k++) if (x[k] + damp * d[k] <= 0) damp = Math.min(damp, (0.5 * x[k]) / Math.abs(d[k] || 1e-12));
-      x = [x[0] + damp * d[0], x[1] + damp * d[1], x[2] + damp * d[2]];
+    /* One damped-Newton descent from a given seed. Returns the converged PHYSICAL root, or a refusal
+       tag. Extracted so the multi-root hunt below can descend from many seeds with the identical
+       arithmetic — the primary root (from the same seed policy as always) is bit-identical to the
+       pre-F15 answer. */
+    function solveFrom(x0) {
+      var v = [x0[0], x0[1], x0[2]];
+      for (var it = 0; it < 100; it++) {
+        var f = F(v);
+        if (Math.abs(f[0]) < 1e-12 && Math.abs(f[1]) < 1e-12 && Math.abs(f[2]) < 1e-12) break;
+        // analytic Jacobian — each equation involves exactly two of the three unknowns
+        var J = [
+          [2 * v[0] - 2 * rAB * v[1], 2 * v[1] - 2 * rAB * v[0], 0],
+          [2 * v[0] - 2 * rAC * v[2], 0, 2 * v[2] - 2 * rAC * v[0]],
+          [0, 2 * v[1] - 2 * rBC * v[2], 2 * v[2] - 2 * rBC * v[1]]
+        ];
+        var d = _solve3(J, [-f[0], -f[1], -f[2]]);
+        if (!d) return { fail: 'singular', it: it };
+        // damped step: a full Newton step can overshoot a σ straight through zero
+        var damp = 1;
+        for (var k = 0; k < 3; k++) if (v[k] + damp * d[k] <= 0) damp = Math.min(damp, (0.5 * v[k]) / Math.abs(d[k] || 1e-12));
+        v = [v[0] + damp * d[0], v[1] + damp * d[1], v[2] + damp * d[2]];
+      }
+      var fin0 = F(v);
+      var w = Math.max(Math.abs(fin0[0]), Math.abs(fin0[1]), Math.abs(fin0[2]));
+      if (!(w < 1e-6)) return { fail: 'no-converge', residual: w };
+      if (!(v[0] > 0 && v[1] > 0 && v[2] > 0) || !isFinite(v[0] + v[1] + v[2])) return { fail: 'non-physical' };
+      return { x: v, residual: w };
     }
-    var fin = F(x);
-    var worst = Math.max(Math.abs(fin[0]), Math.abs(fin[1]), Math.abs(fin[2]));
-    if (!(worst < 1e-6)) return { ok: false, reason: 'Newton did not converge (residual ' + worst.toExponential(2) + ') — this (variance, ρ) combination admits no consistent σ triple' };
-    if (!(x[0] > 0 && x[1] > 0 && x[2] > 0) || !isFinite(x[0] + x[1] + x[2])) return { ok: false, reason: 'solution is not physical (a σ is ≤ 0 or non-finite)' };
+    var primary = solveFrom(x);
+    if (primary.fail === 'singular') return { ok: false, reason: 'Jacobian singular at iteration ' + primary.it + ' — no locally unique solution for this (variance, ρ) combination' };
+    if (primary.fail === 'no-converge')
+      return { ok: false, reason: 'Newton did not converge (residual ' + primary.residual.toExponential(2) + ') — this (variance, ρ) combination admits no consistent σ triple' };
+    if (primary.fail === 'non-physical') return { ok: false, reason: 'solution is not physical (a σ is ≤ 0 or non-finite)' };
+    x = primary.x;
+    var worst = primary.residual;
+    /* ── MULTI-ROOT HUNT (DEEP-AUDIT-VI F15) ──────────────────────────────────────────────────────
+       With any ρ ≠ 0 this quadratic system frequently admits MORE THAN ONE positive triple that
+       reproduces the observed variances exactly (measured on the production single-ρ shape: 12 of 53
+       planted physical systems; in 4 the seed's basin held a NON-planted root — one corner off 76 %,
+       another 4×). Newton reports whichever root its seed reaches, so "the σ" was a property of the
+       seed, not of the data — and a tiny ρ perturbation could jump it discontinuously. The kernel's
+       doctrine is REFUSAL, not a fabricated number: descend from a deterministic spread of seeds, and
+       if a DISTINCT admissible root exists, refuse and quote both. Skipped on internal probe calls
+       (`_noCrit`: tchRhoCrit's ~120-step bisection and the sensitivity probe ask a different question
+       — "does a solution exist HERE" — and their known answers must not move). */
+    if (!(rho && rho._noCrit) && (rAB || rAC || rBC)) {
+      var scale = Math.max(x[0], x[1], x[2]);
+      var roots = [x];
+      var SCALES = [0.25, 4];
+      var seeds = [];
+      for (var sc = 0; sc < SCALES.length; sc++) {
+        seeds.push([x[0] * SCALES[sc], x[1] * SCALES[sc], x[2] * SCALES[sc]]);
+        for (var ci = 0; ci < 3; ci++) {
+          var s2 = [x[0], x[1], x[2]];
+          s2[ci] *= SCALES[sc];
+          seeds.push(s2);
+        }
+      }
+      for (var si = 0; si < seeds.length; si++) {
+        var alt = solveFrom(seeds[si]);
+        if (alt.fail) continue;
+        var isNew = true;
+        for (var ri = 0; ri < roots.length && isNew; ri++) {
+          var dd = Math.max(Math.abs(alt.x[0] - roots[ri][0]), Math.abs(alt.x[1] - roots[ri][1]), Math.abs(alt.x[2] - roots[ri][2]));
+          if (dd <= 1e-4 * (1 + scale)) isNew = false;
+        }
+        if (isNew) roots.push(alt.x);
+      }
+      if (roots.length > 1) {
+        var quoted = roots
+          .map(function (r) {
+            return (
+              '(' +
+              r
+                .map(function (q) {
+                  return q.toFixed(4);
+                })
+                .join('/') +
+              ')'
+            );
+          })
+          .join(' vs ');
+        return {
+          ok: false,
+          reason: 'multiple admissible sigma triples — ' + roots.length + ' distinct positive roots reproduce these variances under this ρ, so the data do not identify σ: ' + quoted,
+          roots: roots.map(function (r) {
+            return { a: r[0], b: r[1], c: r[2] };
+          })
+        };
+      }
+    }
     /* ADDITIVE — a new field, so every existing caller is byte-unchanged. `_noCrit` breaks the
        recursion: tchRhoCrit calls this function ~120 times while bisecting, and each of those must not
        start its own bisection. */

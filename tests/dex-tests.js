@@ -10197,16 +10197,54 @@
           var p1 = plant(2, 3, 4, 0.42, 0, 0);
           T.approx('pairwise · recovers planted σ under a single correlated pair (a)', p1.a, 2, 1e-6);
           T.approx('pairwise · …and does not disturb the uncorrelated corner (c)', p1.c, 4, 1e-6);
-          var p2 = plant(3, 3, 3, 0.5, 0.5, 0.5);
-          T.approx('pairwise · recovers planted σ with all three pairs correlated', p2.b, 3, 1e-6);
-          var p3 = plant(1.5, 1.5, 5, 0.6, -0.2, 0.3);
-          /* This triple's CLASSIC seed is non-physical — a negative variance. That is the symptom of
-             correlated corners, i.e. exactly the case this generalisation exists for, so refusing
-             here would make it useless where it is needed. Caught by this assertion during
-             development: the first implementation seeded only from the classic solve and refused. */
+          /* F15 REWROTE THE TWO PLANTS BELOW, and the reason is the finding itself. The originals —
+             (3,3,3, ρ 0.5/0.5/0.5) and (1.5,1.5,5, ρ 0.6/−0.2/0.3) — are BOTH multi-root systems
+             (4 and 2 distinct positive triples respectively, each reproducing the variances to
+             ≤1e-12), and their "recovers planted σ" greens were the Newton seed happening to land in
+             the planted root's basin: a known answer that pinned seed luck, not identifiability.
+             They return below as REFUSAL cases, which is what they always truly were. The
+             replacement plants are measured single-root (multi-start hunt finds no sibling) and keep
+             every property the originals claimed — all three pairs correlated, classic seed
+             non-physical, planted σ recovered exactly. */
+          var p2 = plant(3.856, 1.708, 4.235, 0.09, -0.48, -0.06);
+          T.approx('pairwise · recovers planted σ with all three pairs correlated', p2.b, 1.708, 1e-6);
+          var p3 = plant(4.767, 0.566, 2.028, -0.75, -0.68, 0.28);
           T.ok('pairwise · solves a triple whose CLASSIC seed is non-physical', p3.ok === true, p3.ok ? '' : p3.reason);
-          T.approx('pairwise · …and recovers its planted σ (mixed-sign ρ)', p3.c, 5, 1e-6);
+          T.approx('pairwise · …and recovers its planted σ (mixed-sign ρ)', p3.c, 2.028, 1e-6);
           T.eq('pairwise · reports that the classic seed was unusable', p3.classicWasNonPhysical, true);
+          /* ── DEEP-AUDIT-VI F15 — a silently returned root is a fabricated σ ─────────────────────
+             With ρ ≠ 0 this system frequently admits ≥2 positive triples reproducing the observed
+             variances EXACTLY (audit probe2: 12 of 53 planted physical systems; 4 returned a
+             NON-planted root, one corner off 76 %). The kernel's doctrine is refusal: multi-start
+             the descent and refuse when a distinct admissible root exists, quoting all of them. */
+          var m1 = plant(1.5, 1.5, 5, 0.6, -0.2, 0.3); // the suite's own former plant — unidentifiable
+          T.eq('multi-root · the old mixed-sign plant REFUSES (its green was seed luck)', m1.ok, false);
+          T.ok('multi-root · the refusal names the class', /multiple admissible sigma triples/.test(m1.reason || ''), m1.reason);
+          T.ok(
+            'multi-root · the planted triple is AMONG the quoted roots — refused for ambiguity, not lost',
+            (m1.roots || []).some(function (r) {
+              return Math.abs(r.a - 1.5) < 1e-3 && Math.abs(r.b - 1.5) < 1e-3 && Math.abs(r.c - 5) < 1e-3;
+            }),
+            JSON.stringify(m1.roots)
+          );
+          // The audit's executed repro: planted 3.017/0.442/2.549 at ρ_bc=0.447 (the real ~0.42
+          // regime) — the old kernel returned the OTHER root (2.947/0.780/2.629, corner b off 76 %).
+          var m2 = plant(3.017, 0.442, 2.549, 0, 0, 0.447);
+          T.eq('multi-root · the audit probe2 case refuses', m2.ok, false);
+          T.ok(
+            'multi-root · …quoting BOTH the planted root and the 76%-off sibling the old kernel returned as THE σ',
+            (m2.roots || []).some(function (r) {
+              return Math.abs(r.b - 0.442) < 1e-3;
+            }) &&
+              (m2.roots || []).some(function (r) {
+                return Math.abs(r.b - 0.7796) < 1e-3;
+              }),
+            JSON.stringify(m2.roots)
+          );
+          /* Internal probes (`_noCrit`) keep the single-descent fast path — tchRhoCrit's bisection
+             asks "does a solution exist here", not "is it unique" — so its known answer must hold. */
+          var mI = S.tchSigmasPairwiseFromVars(mkV(1.5, 1.5, 0.6), mkV(1.5, 5, -0.2), mkV(1.5, 5, 0.3), { ab: 0.6, ac: -0.2, bc: 0.3, _noCrit: true });
+          T.eq('multi-root · _noCrit internal calls keep the fast single-descent path', mI.ok, true);
           /* Refusal is a first-class outcome: a (variance, ρ) combination can admit no consistent σ
              triple, and producing a number anyway is the failure this whole generalisation objects
              to. ρ=0.95 on the brief's own triplet is past where a solution exists. */
