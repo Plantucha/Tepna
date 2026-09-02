@@ -282,6 +282,15 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
     adapter: "AC:A7:F1:29:9D:1D"   # or: hci1
     # creds_path: as11_creds.json   # AS11 pairing creds (masterPairKey/clientId/ble_addr); default is
                                      # beside this config file. Written by the pairing flow / operator probe.
+                                     # A RELATIVE value resolves against THIS FILE's directory (never the
+                                     # daemon's cwd — DEEP-AUDIT-VI F17: it did, and every AS11 feature
+                                     # silently read as "not paired").
+    # On-disk sinks for the live stream. Both OFF when absent (bus-only / no raw record). A RELATIVE
+    # value resolves against the box `root` above, like the spool root — never the daemon's cwd, which
+    # is an accident of its unit file (the #2046 shape: a night's only EDF written into the /opt checkout).
+    # The resolved absolutes are logged once at wiring: "CPAP live stream wired: creds … edf_dir …".
+    # edf_dir: captures/cpap-ble          # → /srv/tepna/captures/cpap-ble; its OWN root, never the harvest dest
+    # raw_record_dir: captures/cpap-raw   # → /srv/tepna/captures/cpap-raw; the authoritative JSONL record
     # ACTING — end the live stream when the machine stops delivering therapy. OFF by default: this is
     # the first thing in the CPAP path that ACTS rather than observes.
     # It reads the stream's OWN flow channel, NOT the session detector — the AS11 takes one connection,

@@ -5345,6 +5345,44 @@ def _night_window_ms(night_name):
     return (start.timestamp() * 1000.0, end.timestamp() * 1000.0)
 
 
+# How far the auto-start loop's session key may sit from the journal's own first Therapy sighting and
+# still be THAT session. A boot-seeded key IS the sighting (`_cpap_autostart_boot` walks the journal);
+# a live key is the loop's own tick, at most one 5 s poll after the detector wrote the row. 2 min is
+# 20× that and three orders of magnitude under the spacing of two nights — wide enough never to reject
+# tonight's own record, narrow enough that yesterday's cannot reach.
+_AUTOSTART_KEY_SLACK_MS = 120_000.0
+
+
+def _therapy_onsets_ms(rows, since_ms=None, until_ms=None):
+    """PURE: the host stamp at which each uninterrupted Therapy run was FIRST sighted, ascending —
+    the same instant `_cpap_autostart_boot` keys a session on. A journal that already opens in
+    Therapy counts its first row as an onset, exactly as the boot walk-back lands there. Bounded to
+    the half-open `[since, until)` window when one is given."""
+    onsets = []
+    prev = None
+    for ms, fg in rows:
+        if fg == "Therapy" and prev != "Therapy":
+            if (since_ms is None or ms >= since_ms) and (until_ms is None or ms < until_ms):
+                onsets.append(ms)
+        prev = fg
+    return onsets
+
+
+def _autostart_record_in_night(rec, since_ms, until_ms, rows, slack_ms=_AUTOSTART_KEY_SLACK_MS) -> bool:
+    """PURE: does the persisted auto-start record describe a therapy session THIS night's figures
+    cover? Keyed the way `_cpap_autostart_load` keys — against the session's therapy-start — not
+    against a span. The record is admitted only if its `session_ms` sits within `slack_ms` of a
+    Therapy-run onset the journal observed INSIDE the night window; a record whose key matches no
+    onset in the window belongs to another night and is ignored, however recent. With no window
+    (unparseable night name) every observed onset is eligible — the run must still be one the
+    journal saw. A record with no usable key is never admitted."""
+    try:
+        key = float(rec.get("session_ms"))
+    except (TypeError, ValueError):
+        return False
+    return any(abs(key - onset) <= slack_ms for onset in _therapy_onsets_ms(rows, since_ms, until_ms))
+
+
 def _cpap_stream_watch_row(cfg, root, night_name):
     """Gather the two durations and ask `cpap_stream_watch.assess`. All I/O; no decisions.
 
@@ -5358,6 +5396,7 @@ def _cpap_stream_watch_row(cfg, root, night_name):
     unreachable = None
     recoveries = []
     rows = []
+    _since, _until = _night_window_ms(night_name)
     try:
         with open(os.path.join(root, "SESSIONDETECT.csv"), encoding="utf-8", errors="replace") as fh:
             text = fh.read()
@@ -5367,7 +5406,6 @@ def _cpap_stream_watch_row(cfg, root, night_name):
         # therapy (6.45 days' worth) against 321 stream min, reported as "died-early, 25.2 %".
         # The bounds are the SAME d-1..d+1 span the EDF glob below already walks, so the numerator
         # and the denominator finally describe the same stretch of time.
-        _since, _until = _night_window_ms(night_name)
         therapy = cpap_stream_watch.therapy_minutes(text, since_ms=_since, until_ms=_until)
         # WHY the journal could not be read, when it knows. Read from the SAME text so the reason
         # always describes the night the number came from — reading it separately would let the two
@@ -5380,18 +5418,23 @@ def _cpap_stream_watch_row(cfg, root, night_name):
         rows = cpap_live.journal_rows(text)
     except OSError:
         pass                              # detector off, or journal absent — stays None, i.e. UNKNOWN
-    # Auto-start's attempt record, but ONLY if it describes the therapy this journal covers. The record
-    # is keyed by therapy-start; a key outside the journal's own span belongs to a session this night's
-    # figures do not include, and carrying it in would let a previous night's failures relabel tonight.
-    # Matching by the journal's OBSERVED span is a check, not an age heuristic — the same reason the
-    # record is keyed rather than timestamped.
+    # Auto-start's attempt record, but ONLY if it describes a therapy session this night's figures
+    # cover. The record is keyed by therapy-start, and the key is matched against the Therapy-run
+    # onsets the journal observed inside the SAME d-1..d+1 window `therapy` was just summed over —
+    # not against the journal's observed span. That span is the never-rotated file's first-to-last
+    # row (6.45 days on vigil, 2026-09-01), so it admitted ~every record: DEEP-AUDIT-VI F18 reproduced
+    # a marker from a failed night four days earlier relabelling tonight's honest NEVER_STARTED as
+    # "auto-start-failed … 5 time(s)", quoting the old night's error — and `assess` says itself those
+    # two verdicts demand OPPOSITE responses. The window ALONE is not enough either: it spans three
+    # days, so yesterday's record would still pass it. Onset keying is `_cpap_autostart_load`'s
+    # exact-session rule with the journal standing in for the session the watchdog does not hold.
     attempts, last_error = 0, None
     if rows:
         rec = _cpap_autostart_record(root)
-        if rec is not None and rows[0][0] <= rec.get("session_ms", -1) <= rows[-1][0]:
+        if rec is not None and _autostart_record_in_night(rec, _since, _until, rows):
             attempts, last_error = rec.get("attempts") or 0, rec.get("last_error")
     headers = []
-    edf_dir = ((cfg.get("cpap") or {}).get("ble_stream") or {}).get("edf_dir")
+    edf_dir = resolve_cpap_dir(((cfg.get("cpap") or {}).get("ble_stream") or {}).get("edf_dir"), root)
     if edf_dir:
         # ⚠️ The night folder here is the CPAP DEVICE's date, and this box's AS11 clock runs ~21 min
         # ahead of the host (measured 2026-08-27: device stamp 23:57:06 logged at host 23:35:49). So a
@@ -6044,7 +6087,8 @@ def _cpap_inventory_report(result, cfg, root, dest):
     nd = os.path.join(root, "captures", night)
     return cpap_inventory_adapter.on_harvest_complete(
         result, dest_root=dest,
-        envelope_root=((cfg.get("cpap") or {}).get("ble_stream") or {}).get("edf_dir"),
+        envelope_root=resolve_cpap_dir(((cfg.get("cpap") or {}).get("ble_stream") or {}).get("edf_dir"),
+                                       root),
         spool_root=root,
         qc_path=os.path.join(nd, "QC-SUMMARY.json"),
         journal_path=os.path.join(nd, "CPAP-INVENTORY.jsonl"),
@@ -6571,7 +6615,7 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
     adapter defaults to hci1 (the free radio — never hci0, which the wearables capture on)."""
     import cpap_stream
     cbs = (cfg.get("cpap", {}) or {}).get("ble_stream", {}) or {}
-    creds_path = cbs.get("creds_path") or os.path.join(os.path.dirname(config_path), "as11_creds.json")
+    creds_path = resolve_creds_path(cbs.get("creds_path"), config_path)
     hci = cbs.get("adapter", "hci1")
 
     # A PERSON IS WATCHING THIS ONE. Measured on the owner's box 2026-08-30: an absent CPAP made the
@@ -6591,7 +6635,8 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
     # (config, else "UNKNOWN"); the canonical serial AND the flow factor are both pinned from the same SD
     # card in the CPAP-EDF-WRITER follow-up. No edf_dir → bus-only, the prior behaviour unchanged.
     edf_sink_factory = None
-    edf_dir = cbs.get("edf_dir")
+    box_root = _cpap_box_root(cfg, config_path)
+    edf_dir = resolve_cpap_dir(cbs.get("edf_dir"), box_root)
     if edf_dir:
         import cpap_edf_writer
 
@@ -6611,7 +6656,7 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
     # not conflate the two identities. P2 follow-up: AcqLifecycle becomes the id ISSUER — a generator
     # swap only, the record shape and P4's committed-store consumption are unchanged. No dir → no record.
     raw_record_factory = None
-    raw_dir = cbs.get("raw_record_dir")
+    raw_dir = resolve_cpap_dir(cbs.get("raw_record_dir"), box_root)
     if raw_dir:
         import cpap_record
 
@@ -6632,6 +6677,11 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
     # describe: with no raw_record_dir there is no authoritative artifact, and an envelope about
     # nothing would be a fabricated acquisition fact.
     acq_evidence_out = _cpap_acq_evidence_writer() if raw_record_factory is not None else None
+
+    # The RESOLVED absolutes, said once at wiring time — the same line #2046 added for the spool root.
+    # A relative value in config is only diagnosable if the path the daemon actually uses is on record.
+    log.info("CPAP live stream wired: creds %s · edf_dir %s · raw_record_dir %s",
+             creds_path, edf_dir or "(off — bus-only)", raw_dir or "(off — no raw record)")
 
     return cpap_stream.LiveStreamController(
         bus, connect, lambda: _load_as11_creds(creds_path), lambda: STATUS.get("devices", {}),
@@ -6783,7 +6833,7 @@ def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
 
     cbs = (cfg.get("cpap", {}) or {}).get("ble_stream", {}) or {}
     adcfg = cfg.get("as11_detector", {}) or {}
-    creds_path = cbs.get("creds_path") or os.path.join(os.path.dirname(config_path), "as11_creds.json")
+    creds_path = resolve_creds_path(cbs.get("creds_path"), config_path)
     hci = cbs.get("adapter", "hci1")
     creds = (load_creds or _load_as11_creds)(creds_path)
     if not creds:
@@ -7115,6 +7165,40 @@ def resolve_spool_root(configured, box_root: str) -> str:
     return configured if os.path.isabs(configured) else os.path.join(box_root, configured)
 
 
+def resolve_creds_path(configured, config_path: str) -> str:
+    """Where the AS11 pairing creds live. PURE. The documented default is "beside this config file",
+    and a RELATIVE `creds_path` resolves against that same directory — never the process cwd.
+
+    DEEP-AUDIT-VI F17: uncommenting `config.example.yaml`'s own suggested value (`creds_path:
+    as11_creds.json`, whose comment promises config-dir resolution) resolved against the daemon's
+    cwd, `open()` failed, `_load_as11_creds` swallowed the OSError into None, and every AS11 feature
+    — live stream, shadow detector, spool pull — silently degraded to "not paired". The example's
+    promise is now what the code does."""
+    base = os.path.dirname(config_path)
+    if not configured:
+        return os.path.join(base, "as11_creds.json")
+    return configured if os.path.isabs(configured) else os.path.join(base, configured)
+
+
+def resolve_cpap_dir(configured, box_root: str):
+    """Where a CPAP on-disk sink (`edf_dir` / `raw_record_dir`) lives, or None when the sink is
+    OFF. PURE; the same rule as `resolve_spool_root` — a RELATIVE value resolves against the BOX
+    ROOT, never the process cwd (DEEP-AUDIT-VI F17, the sibling of the #2046 spool-root bug: a
+    relative `edf_dir` wrote the only copy of a night's EDF into the /opt checkout the daemon happens
+    to run from, and the dirty tree then blocked every deploy). `None`/empty stays None: absence is
+    the documented "bus-only" switch and must not grow a default directory here."""
+    if not configured:
+        return None
+    return configured if os.path.isabs(configured) else os.path.join(box_root, configured)
+
+
+def _cpap_box_root(cfg, config_path: str) -> str:
+    """The anchor for relative CPAP sink paths: the box root. A config with no `root` exists only in
+    test fixtures (main() indexes `cfg["root"]` unconditionally); the config file's directory is the
+    nearest deterministic anchor there — still never the cwd."""
+    return cfg.get("root") or os.path.dirname(config_path)
+
+
 def _maybe_start_cpap_spool_pull(cfg, config_path, root, cpap_ctl, tasks, *,
                                  load_creds=None, connect_factory=None, create_task=None):
     """Start the scheduled stored-spool pull if `cpap.spool_pull.enabled` — otherwise a no-op.
@@ -7145,7 +7229,7 @@ def _maybe_start_cpap_spool_pull(cfg, config_path, root, cpap_ctl, tasks, *,
     ccfg = cfg.get("cpap", {}) or {}
     scfg = ccfg.get("spool_pull", {}) or {}
     cbs = ccfg.get("ble_stream", {}) or {}
-    creds_path = cbs.get("creds_path") or os.path.join(os.path.dirname(config_path), "as11_creds.json")
+    creds_path = resolve_creds_path(cbs.get("creds_path"), config_path)
     creds = (load_creds or _load_as11_creds)(creds_path)
     if not creds:
         log.info("CPAP stored-spool pull armed but no as11_creds — skipping (pair the AS11 first)")
