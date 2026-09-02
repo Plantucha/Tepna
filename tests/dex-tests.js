@@ -34395,6 +34395,87 @@
       }
     });
 
+    /* ════ SELF-INGEST §5 ACCEPTANCE — a scrubbed export names NO file, serial or input hash (DEEP-AUDIT-VI F13) ════
+     The scrub used to reduce `schema.provenance` and strip `recording.{device,serial,model}` and stop
+     there — so with scrub ON, OxyDex's `nights[].file` (the upload name VERBATIM, which for an O2Ring
+     embeds the device serial and can embed a person's name), PpgDex's `sessions[].source` (= r.fname)
+     and every night's own `provenance` copy (inputs[].name / sha256 / lastModifiedMs) all shipped.
+     Measured on the real envelope shape (oxydex-app.js:185 · oxydex-dsp.js:6951 · ppgdex-app.js:971):
+     "Jane_Smith_O2Ring S 2100_20260612230016.csv" survived a scrub. This group is the §5 acceptance
+     stated as a LEAK CHECK on the serialised output, over every carrier the fleet writes; a node that
+     adds a fourth route lands a new planted token here, not a new branch in the scrub. */
+    group('Self-ingest §5 acceptance — scrubExport leaves no filename, serial, input hash or mtime on ANY carrier', 'dex-export · scrub · privacy · F13', function (T) {
+      var DX = env.DexExport;
+      if (!(DX && typeof DX.scrubExport === 'function')) {
+        T.ok('env.DexExport.scrubExport available', false, 'namespace not wired — gate skipped');
+        return;
+      }
+      var prov = {
+        buildHash: 'abc123',
+        generated: '2026-06-13T07:00:00Z',
+        inputs: [{ name: 'PLANT_INPUT_NAME.csv', bytes: 512345, lastModifiedMs: 1781390000777, sha256: 'PLANT_SHA_deadbeefcafe0123' }]
+      };
+      var TOKENS = ['PLANT_PERSON', 'PLANT_SERIAL', 'PLANT_SHA', 'PLANT_INPUT_NAME', '1781390000777', 'PLANT_MODEL', 'PLANT_PATH'];
+      var envelope = {
+        kernel: { hash: 'k' },
+        schema: { name: 'ganglior.node-export', version: '2.0', node: 'OxyDex', generated: '2026-06-13T07:00:00Z', provenance: prov },
+        recording: {
+          startEpochMs: 1781383783000,
+          contentId: 'cid-keep',
+          device: 'O2Ring',
+          serial: 'PLANT_SERIAL-77',
+          model: 'PLANT_MODEL',
+          source: 'PLANT_PATH/PLANT_PERSON_O2Ring S 2100_20260612230016.csv'
+        },
+        nights: [
+          {
+            date: '2026-06-13',
+            t0Ms: 1781383783000,
+            file: 'PLANT_PERSON_O2Ring S 2100_20260612230016.csv',
+            fname: 'PLANT_PERSON_x.csv',
+            provenance: prov,
+            recording: { device: 'O2Ring', serial: 'PLANT_SERIAL-77' },
+            stats: { mean: 95.1 }
+          }
+        ],
+        // ECGDex/PulseDex carrier: `source` here is a SEMANTIC TAG and must survive
+        recordings: [{ filename: 'PLANT_PERSON.txt', sourceFile: 'PLANT_PATH\\PLANT_PERSON.edf', recording: { source: 'file', device: 'H10', serial: 'PLANT_SERIAL-H10', sampleRateHz: 130 } }],
+        // PpgDex carrier: `source` here is r.fname — a FILENAME — and must go
+        sessions: [{ source: 'PLANT_PERSON_Polar_Verity_20260613_PPG.txt', fileName: 'PLANT_PERSON.txt', hrvScore: 42 }],
+        ganglior_events: [{ t: '01:02:03', impulse: 'desat', node: 'OxyDex', conf: 0.9, meta: { source: 'welltory-composite' } }]
+      };
+      var before = JSON.stringify(envelope);
+      var scr = DX.scrubExport(envelope);
+      var s = JSON.stringify(scr);
+      // the plant is seen: every token IS in the unscrubbed serialisation (a control against a vacuous pass)
+      TOKENS.forEach(function (tok) {
+        T.ok('control · the planted token is present BEFORE the scrub: ' + tok, before.indexOf(tok) >= 0);
+      });
+      TOKENS.forEach(function (tok) {
+        T.ok('§5 · no trace of ' + tok + ' anywhere in the scrubbed JSON', s.indexOf(tok) < 0);
+      });
+      T.ok('§5 · nights[].file / fname are gone', !('file' in scr.nights[0]) && !('fname' in scr.nights[0]));
+      T.ok(
+        '§5 · nights[].provenance is reduced like schema.provenance (bytes only, scrubbed:true)',
+        scr.nights[0].provenance && scr.nights[0].provenance.scrubbed === true && scr.nights[0].provenance.inputs.length === 1 && Object.keys(scr.nights[0].provenance.inputs[0]).join() === 'bytes'
+      );
+      T.eq('§5 · a coarse build stamp survives on the per-night copy too', scr.nights[0].provenance.buildHash, 'abc123');
+      T.ok('§5 · sessions[].source (a filename) is gone', !('source' in scr.sessions[0]));
+      T.ok('§5 · recording.source (a path) is gone', !('source' in scr.recording));
+      T.eq('§5 · recordings[].recording.source SEMANTIC TAG survives — the scrub removes identity, not meaning', scr.recordings[0].recording.source, 'file');
+      T.eq('§5 · an event meta.source tag survives untouched', scr.ganglior_events[0].meta.source, 'welltory-composite');
+      T.eq('§5 · recording.contentId (identity-free) is kept', scr.recording.contentId, 'cid-keep');
+      T.eq(
+        '§5 · clinical content survives (nights[].stats, sessions[].hrvScore, recordings[].sampleRateHz)',
+        [scr.nights[0].stats.mean, scr.sessions[0].hrvScore, scr.recordings[0].recording.sampleRateHz].join(),
+        '95.1,42,130'
+      );
+      T.eq("§5 · the scrub is a PURE clone — the caller's envelope is byte-identical afterwards", JSON.stringify(envelope), before);
+      // a source-tag whose text merely CONTAINS a dot mid-string (a version) is not filename-shaped
+      var tagOnly = DX.scrubExport({ schema: {}, recording: { source: 'ResMed AirSense 11 (EDF set)' }, sessions: [{ source: 'firmware 2.1 build' }] });
+      T.ok('§5 · tag-shaped source strings survive (no extension, no separator)', tagOnly.recording.source === 'ResMed AirSense 11 (EDF set)' && tagOnly.sessions[0].source === 'firmware 2.1 build');
+    });
+
     /* ════ SELF-INGEST (CPAPDex) — cpapLoadOwnExport clinical reload (SELF-INGEST-FOLLOWUPS-2026-07-03 · CPAPDex pass) ════
      Mirror of the OxyDex §7 group for the CPAPDex port: reload CPAPDex's OWN v2.0 export back into
      CPAPDex as a FAITHFUL, review-mode clinical view — never recompute, re-grade, or re-stamp. Runs
