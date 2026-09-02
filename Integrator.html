@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-VviyIiH/dyQyjJb4zbnG+HupXpOBO/jGCX8s1jgswQE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-MDC/COeufOc63WCpBEWdL+mv0pgLA4uwsndx+klQAgg=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.9.0</title>
@@ -7903,6 +7903,10 @@ function fuseApneaEvents(recs, dtMs, gate) {
     if (best != null) {
       usedSurge.add(best);
       var s = surges[best];
+      /* Hoisted so the null check NARROWS — calling effConf() twice leaves the second call unnarrowed
+         (TS2531) and recomputes a value we already have. */
+      var _ecD = effConf(d),
+        _ecS = effConf(s);
       findings.push({
         tMs: d.tMs,
         durSec: (d.meta && d.meta.durSec) || null,
@@ -7916,8 +7920,14 @@ function fuseApneaEvents(recs, dtMs, gate) {
            is that, mirrored. */
         nodes: [d.node || 'OxyDex', s.node || 'ECGDex'],
         sources: [
-          { node: d.node || 'OxyDex', impulse: d.impulse, tMs: d.tMs, conf: d.conf, sqi: d.sqi != null ? d.sqi : null, effConf: +(effConf(d) || 0).toFixed(3) },
-          { node: s.node || 'ECGDex', impulse: s.impulse, tMs: s.tMs, conf: s.conf, sqi: s.sqi != null ? s.sqi : null, effConf: +(effConf(s) || 0).toFixed(3) }
+          /* DEEP-AUDIT-IV §3-RESULT — `|| 0` wrote `effConf: 0` beside `conf: null` when conf was
+             absent, contradicting this tool's own published formula (`effConf = conf × (sqi ?? 1)`,
+             surfaced at the schema note below, which also tells the reader these fields are RETAINED
+             here). The brief's own dismissal — "no evidence arguably IS 0" — is the same reasoning
+             that produced a fabricated GREEN one bullet above it, so it is now a null. The posterior
+             is untouched: `:1934` passes effConf() UNROUNDED to combineConf, which skips nulls. */
+          { node: d.node || 'OxyDex', impulse: d.impulse, tMs: d.tMs, conf: d.conf, sqi: d.sqi != null ? d.sqi : null, effConf: _ecD == null ? null : +_ecD.toFixed(3) },
+          { node: s.node || 'ECGDex', impulse: s.impulse, tMs: s.tMs, conf: s.conf, sqi: s.sqi != null ? s.sqi : null, effConf: _ecS == null ? null : +_ecS.toFixed(3) }
         ],
         meta: { desatDepth: d.meta && d.meta.depth, nadir: d.meta && d.meta.nadir, latencySec: +((s.tMs - d.tMs) / 1000).toFixed(0), desatNode: d.node || 'OxyDex', surgeNode: s.node || 'ECGDex' },
         note: 'O₂ desaturation confirmed by a directionally-consistent autonomic surge (' + '−' + leadMaxSec + 's…+' + trailMaxSec + 's). Neither node alone can assert this.'
