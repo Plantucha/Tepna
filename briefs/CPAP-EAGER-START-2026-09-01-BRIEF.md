@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS (code BUILT 2026-09-01 — eager start + retention shipped with the acceptance below pre-stated; remaining: the real-night measurement against bar (1)) · **Created:** 2026-09-01
+**Status:** DONE — 2026-09-02 (code BUILT 2026-09-01; bar (1) MEASURED 2026-09-02 on the 2026-09-01 night at `alignmentOffsetSec` 9.12/9.16 s against ≤ ~30 s, with the pre-stated instrument and with provenance that the night ran under the code. Bar (2) recorded NOT-YET-EXERCISED per its own clause — no real false start has occurred, and the first one is still owed an observation) · **Created:** 2026-09-01
 
 # CPAP eager start — the 120 s rule moves from the gate to retention
 
@@ -71,6 +71,23 @@ Two supporting changes the inversion forced:
 
 - [x] Eager fire + retention verdict + budget-through-success pinned pure (`cpap_live`), the
       discard/journal/no-orphan path pinned behavioral (`test_cpap_autostart_wire`).
-- [ ] One real night measured against bar (1): `alignmentOffsetSec ≤ ~30 s`, recorded here with the
-      night named.
-- [ ] Bar (2) observed on the first real false start (or noted as not-yet-exercised at bar-1 time).
+- [x] One real night measured against bar (1): **2026-09-01 — `alignmentOffsetSec` 9.12 s (Flow.40ms)
+      / 9.16 s (Press.40ms)**, against the bar of ≤ ~30 s and the ~147 s this unit set out to fix.
+      Measured 2026-09-02 with the pre-stated instrument — `CPAPCross.cpapCompare` over
+      `buildCompareSets`, on `CpapEdf.readEDF` of the real pair (BLE live
+      `cpap-ble/DATALOG/20260901/20260901_224844_BRP.edf` vs SD `cpap/DATALOG/20260901/20260901_224835_BRP.edf`),
+      real modules co-loaded through `DexBuild.classicify`.
+      ⚠️ **Read the 9.12 s as a START-TIME difference, not as misalignment.** `clockOffsetSec` is 9 s on
+      both channels — the two files' headers differ by exactly that (SD 22:48:35, BLE 22:48:44) — so the
+      residual after alignment is only **0.12–0.16 s**. The signals agree to a sixth of a second; what
+      remains is when live capture *began*, which is the quantity bar (1) is about.
+      Provenance, checked before treating it as evidence FOR the eager path rather than merely after it:
+      `CPAP auto-start: ARMED — EAGER` at 22:10:46 on the last daemon restart before the session, therapy
+      start 22:48:44. **n = 1 night**, which is what the bar asked for; it is not a distribution.
+- [x] Bar (2) **NOT-YET-EXERCISED, recorded as such at bar-1 time** (the clause this box allows): no false
+      start occurred on 2026-09-01 — zero discard lines in the session window — so the discard path has
+      not run on real hardware. It stays pinned behaviourally by `test_cpap_autostart_wire` (five
+      consecutive false starts, budget and no-orphan). The first real false start is still owed an
+      observation; nothing here should be read as having seen one.
+- [x] Bar (3) — therapy-end auto-stop and #2027's night-scoped accounting behaved normally on the same
+      night: `CPAP harvest armed by therapy end (therapy ended and held for 3882s)` at 06:23.

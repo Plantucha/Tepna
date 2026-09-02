@@ -100,6 +100,7 @@ uploads/*
 # envelope. The only committed input in the repo that exercises `recording.coverage`; every other
 # equiv fixture is gapless, which is precisely why the gap-aware defect shipped green.
 !uploads/synthetic_ecgdex_h10_gapped.txt
+!uploads/synthetic_ecgdex_flat_edr.txt
 !uploads/synthetic_oxydex_golden.node-export.json
 !uploads/synthetic_pulsedex_golden.node-export.json
 !uploads/synthetic_hrvdex_golden.node-export.json

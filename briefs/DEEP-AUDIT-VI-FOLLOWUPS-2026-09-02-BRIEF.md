@@ -23,7 +23,7 @@ nothing, found only because someone tried to make a fix land.
 | # | under | what stays open | lane |
 |---|---|---|---|
 | 1.1 | **F1** | The sibling **`_ACC.txt` clock step** (MotionDex / PMDARRIVAL inheritance) — F1's repro verified the ns step IS present in the ACC file of the same night; the ECG fix bounds the ECG gap walk by the phone-column delta, but the ACC consumer's consequence was **never executed**, and nothing bounds that stream. First step is to run it, not to port the fix. **✅ RAN IT, then fixed it — 2026-09-02 (Magpie).** The consequence, executed on the real 2026-08-27 ACC file: `relSecOf` PREFERS the device counter, so MotionDex published `recording.durSec` **241,589,697 — 7.66 years for a 50-minute recording** — declaring a window ending **2034-04-22**, the window the Integrator's gap-aware overlap tests against. It does NOT crash (1.9 s, plausible-looking summary), which is why nothing caught it. **Census, 1278 ACC files:** 137 files' worst step is a real DROPOUT (device delta ≈ phone delta — the counter is right about those, left untouched) and exactly **3 are resyncs** — the same three nights F1 found on the ECG side; 0 seams unparseable. Fixed with F1's discriminator, deliberately identical. The new segment anchors on the seam row's **host offset** rather than by subtracting the step, per §7's ONE DEVICE CLOCK PER AXIS (#2075): the pre-seam residual walks 1.449 s over 10.6 s (136,064 ppm — the ACC sibling of F1's +1508 ms/9.5 s on the same night's ECG), so subtracting alone would carry that error across all 148,860 rows instead of the 469 pre-seam ones. After: durSec 3,019 s; post-seam drift **−18/−21/−16 ppm** across the three nights (one consistent H10 crystal, median-of-decile — an endpoint-only read gives 2081 ppm because the last row is a BLE batch-jitter outlier). 16 assertions incl. a real-dropout control, a clean-stream byte-stability leg, and a blind-seam leg that **caught a bug in my own first fix** (the unparseable-stamp fallback re-admitted the step). | Magpie (JS) |
-| 1.2 | **F1** | **Capture-side hardening**: rotate the file set on a `clock_watchdog` step so a resynced night lands as two fragments instead of one poisoned file. Specified as a SEPARATE unit in F1's stamp; not built. | Heron |
+| 1.2 | **F1** | **Capture-side hardening**: rotate the file set on a `clock_watchdog` step so a resynced night lands as two fragments instead of one poisoned file. **SPECIFIED 2026-09-02 (Heron) — see §1.2a below; NOT built:** it is a capture-daemon change and waits on owner authorization, not on a free slot. | Heron |
 | 1.3 | **F1** | **ONE DEVICE CLOCK PER AXIS** — the refold, not the audit, found that pre-resync anchors carry a *different oscillator state* (08-27: +1508 ms over 9.5 s ≈ 160,000 ppm) and `hostAxis` quoted it into `fs`. Fixed for ECGDex (`anchorsDroppedPreResync`, `clockResyncs[].hostOffsetMs`); **the principle is not yet stated in the Clock Contract §7** — an axis must be built from anchors of ONE clock state, and a resync boundary is a state change. Add the paragraph; then check PpgDex's `hostAxis` call site for the same pre-resync exposure. **§7 paragraph BUILT 2026-09-02 (Kestrel)** — the contract now names the split, the ECGDex fields, and the rule that a node which detects no steps has not shown it has none. **PpgDex check OPEN**: `ppgdex-dsp.js` has NO step detection at all (`grep -i resync` → 0), so the question is first whether `_PPG.txt` ever carries a counter step on a resynced night, then the split. **✅ CHECKED — the split is NOT owed, measured 2026-09-02 (Magpie).** Answering §7's own rule that *a node which detects no steps has not shown it has none*: **0 of 3674 corpus `_PPG.txt` files carry a resync** (84 real dropouts, 402 without an ns column). The resync is H10 FIRMWARE behaviour — the 2019-01-01 epoch adopting real time — and the PPG stream is the Verity's, so there is no night the fix would change. **The exposure is real but unreached, and the existing guard is narrower than it looks:** planted with the true step magnitude, `hostAxis` REFUSES (±50,000 ppm) so `fs` is never corrected by a fabricated rate — that guard works — but the refusal protects the RATE and **not the AXIS**: `relSec` still spans 2.416e8 s, and every duration, epoch grid and export window downstream is built from it. The same distinction §7 draws between quoting `.ppm` and consuming `correctionAt()`, one level up: **a refusal on one quantity is not protection of another.** Recorded as a 6-assertion TRIPWIRE group rather than a prose caveat — if a firmware change or a new capture path ever produces a stepped `_PPG.txt`, the exposure leg starts failing and the split becomes owed. | Kestrel (CLAUDE.md §7 — DONE) → Magpie (PpgDex check — DONE) |
 | 1.4 | **F2** | Both lanes now resolve `t0Ms` by Clock Contract §4 "first VALID sample". **If a real night ever shows the old app rule ("first non-empty, null if unparseable") choosing a different row, quote the row here** — do not regenerate on the assumption. **Not checked by any sweep**: F2's six-file parser-parity run (2 committed twins + the equiv clip + the three resync nights) asserts that the two PARSERS agree, not that the two ANCHOR RULES pick the same row, and the old rule no longer exists in either lane to run. A watch item with no supporting measurement behind it. | any, on sighting |
 | 1.5 | **F4** | ~~`edrResp`'s own `emerging` grade was NOT adjudicated~~ — **ADJUDICATED 2026-09-02 (Osprey): re-tiered emerging → `experimental`.** The brief's premise that *"it needs a reference the corpus lacks"* was **stale**: 33 nights carry both a raw `_ECG.txt` and a CPAP `*BRP.edf`, and **24 pass a pre-registered overlap rule** (≥4 h AND ≥60 % of the shorter recording); 24 paired, 2 excluded as fallback-15, **n = 22**. Bands frozen before the run. Reference: the device's own mask-on **`RespRate.2s`** — *not* `detectBreaths().breathRate`, which was **rejected on a pre-registered structural criterion** (it divides breaths by WALL duration while every sibling ventilation metric in that block is `_filterBy(..., maskOn)`, so it is diluted by mask-off time — see 1.9). Result: **MAE 1.90** br/min (bar ≤1.5) · bias −1.01 · **LoA [−5.80, +3.78], width 9.58** (bar ≤6) — both fail. ⚠️ **`r` is not cited**: the reference's between-night SD is 0.54 br/min (range 14.8–16.8), so a correlation is range-restricted by construction. 🔴 **The decisive control:** a CONSTANT **15.0** br/min — the metric's own hardcoded fallback — scores **MAE 0.80** on the same nights, and a constant 15.8 scores 0.42. The estimator is beaten by the constant it falls back to, carries ~5× the reference's spread (2.50 vs 0.54) and misses to 7.4 and 20.0 against a truth that never leaves 14.8–16.8. **Not adjudicated by this and still `emerging`: the SIBLING `respRate` (registry line 54)** — a different estimator (per-epoch median, not whole-record autocorrelation) that the Reference guide's 'Resp Rate' card actually maps to. Do not read this re-tier onto it. | Osprey — **DONE** |
@@ -31,7 +31,7 @@ nothing, found only because someone tried to make a fix land.
 | 1.7 | **contested** | `capture-host/status_union.py:77` heartbeat-across-DST — **CONFIRMED and FIXED 2026-09-02** (Heron, PR #2077; see §1.7a below for the measurement, including the one correction it forces on the audit's own description). | Heron |
 | 1.8 | **F3 / F10** | The PpgDex `cvhrFromNN` port (#2073) changes the **denominator** only. The OxyDex §2.6 group's standing note *"PPGDEX cvhrFromNN IS DELIBERATELY NOT PART OF THIS FIX"* governs **nulling `index: 0`** (the refusal marker two goldens pin byte-for-byte) and is UNCHANGED: 0 still means what it meant. Recorded so a third session does not read the port as a violation of that note, or the note as a bar on the port. | — (record only) |
 | 1.9 | **new (from 1.5)** | **`cpapdex-dsp.js detectBreaths().breathRate` divides by WALL duration** (`durSec = recordsRead × recDur`) while every sibling ventilation figure computed beside it (`rrMaskOn`, `tvMaskOn`, `mvMaskOn`, `snMaskOn`, `flMaskOn`) is mask-on filtered. A surfaced breaths/min is therefore **diluted by mask-off time**, per night, by a varying factor — the same shape as 1.6's `therapyHours`. Found by trying to USE it as a reference and rejecting it; **not fixed inside the grading unit** on purpose. Mask-on fraction was 1.000 on all 24 nights measured, so the corpus does not yet show the error's size — that is coverage, not absolution. | unassigned |
-| 1.10 | **new (from 1.5)** | **`respFromEDR` substitutes a hardcoded `15` when `_autocorrPeriod` returns null** (`ecgdex-dsp.js:1788`, after a `respHint` fallback), and the surfaced value carries no marker distinguishing a measurement from the constant. 2 of 24 nights measured returned exactly 15.0. §1.5 had to detect them by value equality, which cannot separate a genuine 15.0 from the fallback — the refusal-vs-fabrication line this suite draws everywhere else (`#2044`, `#2052`). Either surface a flag or refuse. | unassigned |
+| 1.10 | **new (from 1.5)** | ~~`respFromEDR` substitutes a hardcoded `15`~~ — **FIXED 2026-09-02 (Osprey): it REFUSES now.** The value was worse than one unmarked substitution, it was two stacked: no dominant EDR period ⇒ echo the Lomb `respHint`; hint out of range ⇒ the constant **15**. The first is self-contradictory — the method's own comment says the rate is measured *"not echoed from the Lomb hint"*, so its stated independence held only on the nights it succeeded. Now: `respFromEDR = null` plus `respFromEDRReason`, carried into the export and rendered as **"no estimate"** on both app surfaces (the pill used to print `null br/min`). `f0` deliberately keeps its 0.25 Hz analysis centre so `crcPLV`/`couplingStrength` are untouched — nulling it would silently move a different metric inside a unit about the breath rate; whether a PLV computed at an ASSUMED centre is quotable is filed as **§1.11**, not answered here. **Committed twin required and built (§2.1):** no committed input took the branch — the clean twin carries 0.25 Hz baseline wander and its rich golden pins 16.3 — so `synthetic_ecgdex_flat_edr.txt` is the clean twin's morphology with the periodic drivers removed AND beats quantised to exact sample boundaries. Pre-fix code returns **11.1** on it (the hint echo), current code returns null. ⚠️ Two constructions FAILED to reach the branch and are recorded so nobody retries them: broadband noise gave a 19.9 br/min "period" (band-passed noise autocorrelates above the 0.1 floor) and a noiseless un-quantised train gave 7.4 (sub-sample phase jitter modulates the sampled R amplitude). A real clip from 2026-07-02 was staged and then REJECTED: real ECG recordings are not committed here (only synthetic are; the equiv leg's clip is gitignored). 🔴 **And this CORRECTS §1.5's own figures.** §1.5 excluded both nights whose rate was exactly 15.0 as fallbacks, detecting them by `=== 15.0` — the test it flagged as unable to separate a real 15.0 from the constant. Run against the fixed code: **2026-07-02 genuinely refuses; 2026-07-06 MEASURES 15.0.** So n = 22 → **23**, MAE 1.90 → **1.82**, LoA width 9.58 → **9.41**, constant-15 control 0.80 → **0.77**. Both bands still fail and the constant still beats the estimator: the re-tier verdict is unchanged, the registry stamp is corrected in this PR. | Osprey — **DONE** |
 
 ---
 
@@ -76,6 +76,46 @@ arithmetic. The dissent was right that the earlier repro set the anchors; it doe
   choice behind the same seam — the three verdict tests fail, the absorb-branch guard still passes.
 
 ---
+
+---
+
+### 1.2a · Spec — rotating the file set on a device clock resync (NOT built; owner-authorized box work)
+
+F1 bounded the ECG gap walk so a mid-file resync reads as a re-anchor rather than a 2.41e8-second
+dropout, and §1.1/#2080 did the same for the ACC sibling. Both repair the READER. The capture side still
+writes one file that fuses two epochs, and this is the spec for not doing that. Written against the code,
+not the description; each numbered point is a decision a builder would otherwise have to rediscover.
+
+1. **Trigger on the JUMP verdict `clock_watchdog` already computes, never on "skew != 0".** The function's
+   own docstring is the reason: the Verity stamps PMD samples 4 h ahead of the clock we set and no
+   re-syncing changes it, so an offset-triggered rotation would rotate every cycle forever. The existing
+   `clock_resync_reason` already separates a jump from a constant offset — reuse that verdict, do not
+   re-derive it, and rotate only where it says `resynced` after a jump.
+2. **It needs cross-task signalling; the watchdog must not close the writers itself.** `clock_watchdog` and
+   the device runner are separate tasks and the writers are the runner's locals. The watchdog can only set
+   a per-address "rotate requested" flag; the runner acts on it at its next loop turn. That bounds the rows
+   written between the sync landing and the seam — state that bound, do not pretend it is zero, and record
+   the seam in the night's `CLOCKSYNC.csv` (which already carries the resync verdict) so a reader can
+   reconcile the two fragments rather than infer the boundary.
+3. **🔴 Reopen BEFORE closing. This is the trap, and it is not obvious.** `_now()`'s fast path re-anchors and
+   DISCARDS an absorbed civil shift the moment `open_sample_writers() == 0` (capture.py, the §A1 rule-2
+   branch). A rotation that closes the old writers first would momentarily drop the count to zero, and on a
+   night that had absorbed a DST relabelling the shift would expire mid-recording — stepping the NEW
+   fragment's stamps by the width of the transition, silently, while fixing a different clock problem.
+   Order is load-bearing: open the successor, then close the predecessor, so the count never reaches zero.
+4. **Rotate every stream of that device, not just the one that carries the step.** F1's own repro found the
+   identical ns step in the sibling `_ACC.txt`; rotating `_ECG.txt` alone would leave ACC fused across two
+   epochs and reproduce the defect one file over.
+5. **Do not rotate the sidecars.** `LinkLogWriter`/`HostClockLogWriter` are deliberately excluded from the
+   writer count (writers.py says why: counting them would make the count never reach zero and §A1's expiry
+   would never fire). They roll per calendar day and their consumer medians per bucket; leave them.
+6. **Acceptance is a real resync, not a synthetic one.** A test must drive `clock_watchdog` to a jump verdict
+   with a writer open and assert two fragments whose stamps do not overlap, plus the §A1 property from (3):
+   an absorbed shift SURVIVES the rotation. The second assertion is the one that would have caught the
+   ordering bug, and it fails on nothing else.
+
+Gate: `capture-host/check.sh`. Deploy: the hourly `tepna-update.timer` like any code change — but the
+DECISION to change capture behaviour on a live box is the owner's, which is why this is a spec and not a PR.
 
 ## 2 · Gate classes found by trying to land a fix (each a sweep candidate)
 
@@ -277,6 +317,24 @@ gap-geometry test — the intuitive "gaps subtract" model produces assertions th
 
 ---
 
+### 2.8 A fixture that STUBS the thing under test makes its whole file structurally blind
+
+`test_capture_clock_and_health.py`'s `clock` fixture patches `capture._utcoffset` with a fixed
+`timedelta`. That is what makes the transition tests cheap and deterministic — and it also means no real
+offset conversion ever happens in that file. §1.7's defect lives ENTIRELY in how a naive stamp in one
+offset frame converts to an epoch under another, so the file that exists to test DST could not have
+caught it at any effort level. It is not a missing test; it is a test surface that cannot express the
+failure, which is §2.1's shape one layer up: there the corpus could not express it, here the fixture
+cannot.
+
+The tell is cheap to check and worth making a habit: **name the function whose behaviour the test is
+asserting, then confirm the fixture does not replace it.** A stub of the thing under test reads exactly
+like a stub of its environment.
+
+The fix is not to un-stub that fixture — its determinism is worth having — but to add a sibling that
+fakes only the clock SOURCE and lets the real zone, real `astimezone()` and real `timestamp()` run
+(`tests/test_status_union_dst_heartbeat.py`, #2077). Two fixtures, two questions.
+
 ## 3 · Tooling and process residue
 
 **Endpoint-to-endpoint drift lied by 100× against a median-of-decile (2026-09-02, #2080).** Checking
@@ -364,6 +422,18 @@ touched them:
 ---
 
 ## 5 · Leads not assigned (cheap first probes)
+
+- **A post-auth decode failure should be named by CAUSE, not left to read as a link stall** (Heron, from the
+  O2Ring AES work-unit). Newer O2Ring-S firmware keys an AES/ECB session after AUTH; our BLE handshake writes
+  AUTH `response=False` and reads no reply, so on such a ring the `0x10` ack and `0x04` frames fail the
+  `[0xA5][cmd][~cmd]` header check or CRC-8 and the ring **connects, auths "successfully", and delivers no
+  decoded frames** — indistinguishable from a bad link, and already reported as a stall by the path that
+  exists. The misattribution cost is the whole point: an operator would chase a radio problem that is not
+  there. #2084 arms the observable half (the ring's DIS firmware revision reaches `STATUS`, and an
+  unmeasured version is named at connect). The remaining half is the decoder saying so by name — after N
+  consecutive header/CRC rejections on a link that authed cleanly, report "frames failed header/CRC after
+  auth — firmware may key the session" rather than a stall. Cheap first probe: count those rejections
+  separately from the stall counter and see whether the two are already distinguishable in today's data.
 
 - ~~**15 of 48 box nights have NO ECG/PPG beat-train overlap** — a capture-session fact, not a DSP one~~
   🔴 **REFUTED AND FIXED 2026-09-02. The lead was mine and it was wrong: it was my own tool.** Heron's probe
