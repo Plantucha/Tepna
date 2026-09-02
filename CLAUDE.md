@@ -1236,6 +1236,24 @@ correction**; call `hostAxis` and consume `correctionAt()`.
   inter-sample deltas concentrate on one value (≥99 %) was constructed as `sample_index × an assumed
   rate` and carries no independent timing. It may be placed on the host timeline, but it must never be
   spent as a second clock — see `quality.timingSource` (`device+host` · `host` · `none`).
+- **ONE DEVICE CLOCK PER AXIS — a resync boundary is a change of clock, and anchors from before it must
+  not feed `hostAxis`.** `hostAxis` measures every divergence *relative to its first anchor*, so it assumes
+  all its anchors were read off ONE oscillator state. A capture-side resync (`clock_watchdog` re-anchoring
+  the device counter; the `_ECG.txt` ns step of DEEP-AUDIT-VI F1) violates that: the pre-seam counter is a
+  different clock, and the seam arithmetic that makes the device axis *continuous* across it does not make
+  it the *same*. Measured on the real 2026-08-27 seam file (resync 9.5 s in, 50 min long): the host−device
+  residual walks **+1508 ms across the first 9.5 s** (≈160,000 ppm) and then holds flat at 38 ppm — with
+  anchor 0 inside the pre-seam segment `hostAxis` read that step as a rate, quoted **484.7 ppm**, and the
+  span gate let it into `fs` (129.968 → 129.903, 500 ppm off the same H10's 6.5 h sibling — the disagreement
+  `trio-batch mergeEcg` refused). A clock CHANGE is the hardest step there is, and the `maxStepMs` rule
+  already says a step is reported, never absorbed. The contract: **build the axis from anchors at or after
+  the LAST resync only**; rows before it get the flat out-of-range correction of the first post-seam anchor
+  (§7 "flat outside them"); count what was dropped (`hostAxis.anchorsDroppedPreResync` on the rec) and surface the seam's
+  host↔device offset (`clockResyncs[].hostOffsetMs`) so the pre-seam segment is *visible*, not silently
+  re-timed. ECGDex implements this (`ecgdex-dsp.js`, the "ONE DEVICE CLOCK PER AXIS" block). **Any node that
+  detects a device-counter step and then calls `hostAxis` owes the same split** — a node that detects no
+  steps (PpgDex today) has not shown its stream has none, only that it has not looked; the `_ACC.txt` of the
+  same night carries the F1 step (FOLLOWUPS-VI §1.1), and the Verity's `_PPG.txt` is unchecked (§1.3).
 
 ### Verification any time you touch time
 Round-trip (first/last shown == raw file exactly) · bin==CSV identical `t0Ms`/`tMs` (OxyDex) ·
