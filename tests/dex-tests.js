@@ -26758,6 +26758,39 @@
       });
       T.eq('§3.1 · every corpus-backed fixture carries a verifiedUnder (a claim nothing in CI can re-run must record what DID)', unstamped.sort(), []);
       T.ok('§3.1 · the corpus-backed set is non-empty (the gate is not vacuous)', owing.length > 0, owing.length + ' fixture(s) owe a verification');
+      /* ── THE BOOTSTRAP EXEMPTION IS LOCKED TO THIS LABEL ────────────────────────────────────────
+         verify-fixtures.mjs may stamp a FIRST-GENERATION fixture even though §3.1 above is failing,
+         because a first stamp cannot exist before the stamp (the deadlock measured 2026-09-02 while
+         standing up the apnea-null twins). It recognises that case by MATCHING THIS ASSERTION'S
+         LABEL in the suite output. So the label is a contract between two files: rename it here and
+         the tool stops recognising the exemption — the deadlock returns, silently, and the next
+         person to add a fixture pays for it without knowing why. Assert the two are byte-equal. */
+      var _vfSrc = (env.sources && (env.sources['tools/verify-fixtures.mjs'] || env.sources['verify-fixtures.mjs'])) || null;
+      if (!_vfSrc) {
+        T.skip('§3.1 · the bootstrap exemption is locked to this label', 'tools/verify-fixtures.mjs not in env.sources in this lane');
+      } else {
+        var _lab = _vfSrc.match(/const S31_LABEL = '([^']+)'/);
+        T.ok('§3.1 · verify-fixtures declares the label it matches', !!_lab, _lab ? _lab[1] : 'S31_LABEL not found — the exemption cannot be audited');
+        if (_lab) T.eq('§3.1 · …and it is byte-equal to this assertion’s own label', _lab[1], '§3.1 · every corpus-backed fixture carries a verifiedUnder');
+        /* The exemption must be DERIVED, not claimed: no operator flag may name a fixture as new.
+           ⚠️ Assert the flag is never READ FROM argv, not that the string is absent — the header
+           comment deliberately names `--bootstrap` to record why it was rejected, and a
+           string-presence test fails on that documentation. (It did, on the first run: the assertion
+           encoded the wrong thing and reported a defect in the explanation of the design.) */
+        T.ok('§3.1 · the exemption is derived from the ledger, not read from argv', !/argv[\s\S]{0,120}bootstrap/i.test(_vfSrc), 'no --bootstrap is parsed from process.argv');
+        T.ok('§3.1 · …and the rejection of that flag is recorded for the next reader', /WHY NOT A `--bootstrap/.test(_vfSrc), 'the header states why an operator claim was refused');
+        /* ANTI-VACUITY on the refusal itself: the tool must still refuse when ANY non-§3.1 line fails.
+           Asserted on the source because running the real tool here costs a >10-min corpus lap. */
+        T.ok('§3.1 · …and it requires EVERY failing line to be §3.1', /failLines\.every\(\(l\) => l\.includes\(S31_LABEL\)\)/.test(_vfSrc), 'only31 predicate present');
+        T.ok('§3.1 · …and the named fixtures to be a SUBSET of the first-generation set', /named\.every\(\(n\) => firstStamp\.includes\(n\)\)/.test(_vfSrc), 'allFirst predicate present');
+        /* It must read EVERY failing line, not the 8 it prints — deciding on a truncated view is the
+           §4b family and is how the old code would have gone wrong if it had branched at all. */
+        T.ok(
+          '§3.1 · …decided over ALL failing lines, not the printed sample',
+          /const failLines = out\.split/.test(_vfSrc) && !/\.slice\(0, 8\)\s*;\s*\n\s*console\.error\(paint\('✕ the suite is RED/.test(_vfSrc),
+          'failLines is unsliced at the decision'
+        );
+      }
     });
 
     /* ════ MANIFESTGATE — GATE A/B VERDICTS RED ON DRIFT (provenance-meta · TEST-AUDIT-FINDINGS-2026-07-18 §73/§74/§75) ════
