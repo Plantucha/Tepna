@@ -368,6 +368,50 @@ const emit = (name, text) => {
   emit('synthetic_glucodex_lingo_gap.csv', rows.join('\n') + '\n');
 }
 
+/* ── 4c · GlucoDex ADVERSARIAL twin — Dexcom Clarity layout: an Index counter + "Low" cells ──
+   WHY THIS FILE EXISTS (DEEP-AUDIT-VI F6). Clarity's first column is a serial row counter whose
+   values sit inside locateColumns' [2, 600] band for the entire 60-row sample, so it scored within
+   ONE hit of the real glucose column — and the "Low" string Clarity writes for below-range readings
+   costs the glucose column exactly that hit. One Low cell in the sample flipped the pick to the
+   Index column and every headline metric (mean, GMI, TIR, LBGI) was computed on ROW NUMBERS,
+   silently. Neither committed Lingo twin can express this: Lingo has no counter column and no Low
+   sentinel. This twin has both — Index 1..576 ascending, six "Low" cells in a planted nocturnal
+   hypo — plus the decoy surfaces that must NOT win: a Transmitter Time long-integer column
+   (numeric, out of band, step 300 — not a ±1 counter) and a Glucose Rate of Change column whose
+   header also matches /gluco/i but whose values are rarely in band. The invariant gate asserts the
+   planted arithmetic (n = 570 measured readings, mean inside the planted 70–200 band); pre-F6 code
+   reports mean ≈ 288.5 — the average of 1..576 — and reds by construction. */
+{
+  const HEAD =
+    'Index,Timestamp (YYYY-MM-DDThh:mm:ss),Event Type,Event Subtype,Patient Info,Device Info,Source Device ID,Glucose Value (mg/dL),Insulin Value (u),Carb Value (grams),Duration (hh:mm:ss),Glucose Rate of Change (mg/dL/min),Transmitter Time (Long Integer),Transmitter ID';
+  const rows = [HEAD];
+  const t0 = Date.UTC(2026, 4, 10, 0, 0, 0);
+  const N = 2 * 24 * 12; // 2 days @ 5-min, Index ascending like the vendor export
+  let prevG = null;
+  for (let i = 0; i < N; i++) {
+    const ms = t0 + i * 5 * 60000;
+    const d = new Date(ms);
+    const hod = d.getUTCHours() + d.getUTCMinutes() / 60;
+    const day = Math.floor(i / 288);
+    let g = 95 + 6 * Math.sin((2 * Math.PI * hod) / 24);
+    for (const [mh, amp] of [
+      [8, 45],
+      [13, 55],
+      [19, 50]
+    ]) {
+      const dt = hod - mh;
+      if (dt >= 0 && dt < 3) g += amp * Math.exp(-Math.pow(dt - 0.8, 2) / 0.5);
+    }
+    // night-1 hypo 03:00–03:25 dips below Dexcom's 40 mg/dL display floor → the vendor writes "Low"
+    const low = day === 0 && hod >= 3 && hod < 3.5;
+    const gCell = low ? 'Low' : String(Math.round(g));
+    const rate = prevG == null || low ? '' : (Math.round(((g - prevG) / 5) * 10) / 10).toFixed(1);
+    prevG = low ? null : g;
+    rows.push(`${i + 1},${iso(ms)},EGV,,,G7,SN-1,${gCell},,,,${rate},${1730000000 + i * 300},8ABC12`);
+  }
+  emit('synthetic_glucodex_clarity_low.csv', rows.join('\n') + '\n');
+}
+
 /* ── 5 · PpgDex — Polar Verity Sense raw PPG (3 LEDs + ambient, ~135 Hz) ───── */
 {
   const HEAD = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient';

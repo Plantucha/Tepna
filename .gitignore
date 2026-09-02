@@ -85,6 +85,7 @@ uploads/*
 !uploads/synthetic_hrvdex_welltory.csv
 !uploads/synthetic_glucodex_lingo.csv
 !uploads/synthetic_glucodex_lingo_gap.csv
+!uploads/synthetic_glucodex_clarity_low.csv
 !uploads/synthetic_ppgdex_verity.txt
 # The FRAGMENTED Verity twin (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2). The clean twin above is
 # contiguous, so PpgDex's coverage() returns null on it and nothing COMMITTED exercised the emitter —
@@ -104,6 +105,7 @@ uploads/*
 !uploads/synthetic_hrvdex_golden.node-export.json
 !uploads/synthetic_glucodex_golden.node-export.json
 !uploads/synthetic_glucodex_gap_golden.node-export.json
+!uploads/synthetic_glucodex_clarity_low_golden.node-export.json
 !uploads/synthetic_ppgdex_golden.node-export.json
 # …and its FRAGMENTED sibling (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2) — the golden for the
 # two-hole Verity twin, so recording.coverage has a committed equiv/GATE-C leg like ECGDex's.

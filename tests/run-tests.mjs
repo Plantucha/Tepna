@@ -924,6 +924,9 @@ function readEquiv() {
   // resolves against ROOT/uploads and cannot be hidden by a DEX_UPLOADS override aimed at a real corpus —
   // same reasoning as the OxyDex adversarial twins.
   pairCommitted('glucodex_gap', 'synthetic_glucodex_lingo_gap.csv', 'synthetic_glucodex_gap_golden.node-export.json');
+  // DEEP-AUDIT-VI F6 — the Clarity COLUMN-PICK twin: a serial Index counter + "Low" cells. One Low
+  // cell used to flip the glucose pick to the Index column (headline metrics on ROW NUMBERS).
+  pairCommitted('glucodex_clarity_low', 'synthetic_glucodex_clarity_low.csv', 'synthetic_glucodex_clarity_low_golden.node-export.json');
 
   // ── CPAPDex BINARY-EDF equivalence leg (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P2) ──────────────
   // The fleet's FIRST equiv input that is actually COMMITTED — and therefore the first one whose
