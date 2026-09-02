@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1L7/G1EvG76HKsQWQSX8ZbDbDHAP6ISMTWQglc609cM=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h6h5P//RbelDud05c/HcsYeUxGoEXGat4RJkGjquIWE=' 'sha256-mZUYObioUvS00ftLy1itP+4kiWf4Mwu3woStEoryyCg=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1L7/G1EvG76HKsQWQSX8ZbDbDHAP6ISMTWQglc609cM=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-GLYV3WVKEqaZkSNNkLPg/Dq0ASN7PnKF6N3U8hwey68=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-VpWuZ12v6gKyhjlOT8TLlSMYiBs1ZGSWaJlXOiFIlAo=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-bp7Fi2OoOx/XooWuTGpmF1SiV+A8ZCvEpRBCsq2nxes=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-h6h5P//RbelDud05c/HcsYeUxGoEXGat4RJkGjquIWE=' 'sha256-mj10h/YL+APHDH63Cf0GOj2V1PkBzWSTOsXSR+ASVTM='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>CPAPDex — PAP Therapy Analyzer · v2.9.0</title>
@@ -6305,8 +6305,16 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     var spo2Ch = chan(sa2, 'SpO2'),
       pulseCh = chan(sa2, 'Pulse');
     if (!spo2Ch || !spo2Ch.data || !spo2Ch.data.length) return { available: false, reason: 'no-spo2-channel', coverage: 0 };
+    /* DEEP-AUDIT-VI F7 — a missing Pulse channel is an ABSENT lane, not an all-zero one. This line
+       used to substitute `new Float32Array(spo2.length)` (every sample 0 bpm) for a file that carries
+       SpO2 but no Pulse, so selfGateDesat read pulseValid = 0 on EVERY event, stamped every genuine
+       desat 'perfusion-collapse', and the lane published ODI 0.00 / desatCount 0 — a fabricated clean
+       oximetry night (executed: five clean 5 % desats → odi 7.5 with pulse, odi 0 without). The
+       mirror source, oxydex-dsp.js detectODI, treats pulseSeries as OPTIONAL and degrades to
+       ungated detection; selfGateDesat already returns unflagged on a null series. Pass null, and
+       say so (`pulseLane`) so the consumer can see the self-gate did not run. */
     var spo2 = spo2Ch.data,
-      pulse = pulseCh ? pulseCh.data : new Float32Array(spo2.length);
+      pulse = pulseCh && pulseCh.data && pulseCh.data.length ? pulseCh.data : null;
     var n = spo2.length,
       valid = 0;
     for (var i = 0; i < n; i++) if (_spo2Valid(spo2[i])) valid++;
@@ -6351,12 +6359,15 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       }
     }
     var pv = [];
-    for (var m = 0; m < pulse.length; m++) {
+    for (var m = 0; pulse && m < pulse.length; m++) {
       var p = pulse[m];
       if (p >= SELFGATE.PULSE_MIN && p <= SELFGATE.PULSE_MAX) pv.push(p);
     }
     return {
       available: true,
+      // 'present' ⇒ the perfusion/edge self-gate ran; 'absent' ⇒ no Pulse channel, desats are
+      // kinetics-ungated (F7). A consumer must not read artifactCount 0 as "no artifacts" when absent.
+      pulseLane: pulse ? 'present' : 'absent',
       coverage: +coverage.toFixed(3),
       odi: hours > 0 ? +(real.length / hours).toFixed(2) : null,
       desatCount: real.length,
