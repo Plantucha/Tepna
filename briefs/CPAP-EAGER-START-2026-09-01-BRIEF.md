@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** DONE — 2026-09-02 (code BUILT 2026-09-01; bar (1) MEASURED 2026-09-02 on the 2026-09-01 night at `alignmentOffsetSec` 9.12/9.16 s against ≤ ~30 s, with the pre-stated instrument and with provenance that the night ran under the code. Bar (2) recorded NOT-YET-EXERCISED per its own clause — no real false start has occurred, and the first one is still owed an observation) · **Created:** 2026-09-01
+**Status:** DONE — 2026-09-02 (code BUILT 2026-09-01; bar (1) MEASURED 2026-09-02 on the 2026-09-01 night at `alignmentOffsetSec` 9.12/9.16 s against ≤ ~30 s, with the pre-stated instrument and with provenance that the night ran under the code. Bar (2) REOPENED 2026-09-02: still not exercised in the field, AND the claim that it was "pinned behaviourally" was false — the test stubbed the very seam the bar names, and the real discard path would have crashed the auto-start loop on the first false start. Fixed and pinned against the real sinks the same day; the bar itself stays open until a real false start is observed) · **Created:** 2026-09-01
 
 # CPAP eager start — the 120 s rule moves from the gate to retention
 
@@ -84,10 +84,21 @@ Two supporting changes the inversion forced:
       Provenance, checked before treating it as evidence FOR the eager path rather than merely after it:
       `CPAP auto-start: ARMED — EAGER` at 22:10:46 on the last daemon restart before the session, therapy
       start 22:48:44. **n = 1 night**, which is what the bar asked for; it is not a distribution.
-- [x] Bar (2) **NOT-YET-EXERCISED, recorded as such at bar-1 time** (the clause this box allows): no false
-      start occurred on 2026-09-01 — zero discard lines in the session window — so the discard path has
-      not run on real hardware. It stays pinned behaviourally by `test_cpap_autostart_wire` (five
-      consecutive false starts, budget and no-orphan). The first real false start is still owed an
-      observation; nothing here should be read as having seen one.
+- [ ] Bar (2) **NOT-YET-EXERCISED IN THE FIELD, and the pinning claim recorded here on 2026-09-02 was
+      FALSE — corrected the same day.** No false start has occurred, so the discard path has still not
+      run on real hardware; that half of the record stands. What was wrong is the next sentence, which
+      said the path "stays pinned behaviourally by `test_cpap_autostart_wire`". That test drives the
+      loop with `get_last_paths=lambda: ["/x/raw.jsonl", "/x/night.edf"]` — literal strings — so it
+      pinned the loop's BOOKKEEPING and never asked the controller what it would really return. It
+      returned `[None]`: `RawRecordSink` publishes `_path` and was filtered out by a `hasattr(s,
+      "path")` test, and `EdfSink.path` is None until its first dated batch, which had not happened
+      when the old code snapshotted at `_start`. `unlink(None)` raises TypeError — neither
+      FileNotFoundError nor OSError — so it escaped the discard loop and would have killed
+      `_cpap_autostart_loop` for the rest of the night, silently, on the first real false start. Fixed
+      2026-09-02 (lazy path resolution + a falsy-path guard + the `.meta.json` sidecar, which is
+      written for a false start too and could never appear in that list). The SEAM is now pinned by
+      three tests against the real `RawRecordSink`/`EdfSink`, each watched failing without the fix.
+      **The BAR is not: it needs a real false start on hardware, and this box stays open until one is
+      observed.**
 - [x] Bar (3) — therapy-end auto-stop and #2027's night-scoped accounting behaved normally on the same
       night: `CPAP harvest armed by therapy end (therapy ended and held for 3882s)` at 06:23.
