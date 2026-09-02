@@ -85,6 +85,7 @@ def _install_logging(stream=None) -> logging.Formatter:
 
 HR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"   # standard Heart Rate Measurement (RR intervals)
 BATTERY_UUID = "00002a19-0000-1000-8000-00805f9b34fb"   # standard Battery Level (0x2A19) — uint8 percent
+FIRMWARE_UUID = "00002a26-0000-1000-8000-00805f9b34fb"  # standard Firmware Revision String (0x2A26) — ASCII
 log = logging.getLogger("tepna-capture")
 _POLAR_EPOCH = _dt.datetime(2000, 1, 1)   # Polar device-time epoch (TimeSystemExplained.md)
 STATUS: dict = {"updated": None, "devices": {}}
@@ -3358,6 +3359,44 @@ def _emit_oxy_live_evidence(name, dev, started, spo2_kept, grid, ledger):
         log.exception("%s: acquisition-evidence sidecar failed — the capture itself is unaffected", name)
 
 
+O2RING_PLAINTEXT_FW = "2D010002"   # the firmware this box's ring runs, and the only one measured plaintext
+
+
+async def _publish_ring_firmware(client, name: str) -> None:
+    """Read the ring's Firmware Revision String (0x2A26) once per connection into STATUS.
+
+    WHY THIS EXISTS, since a version string on a card looks cosmetic: the BLE `oxyii` handshake sends
+    AUTH (0xFF) fire-and-forget — the frame is written `response=False` and NOTHING reads a reply, by
+    design, because this firmware sends none. Finch verified from the Lepu SDK that newer O2Ring-S
+    firmware keys an AES/ECB session after AUTH. On such a ring our plaintext decoder would see the
+    0x10 ack and the 0x04 live frames fail the `[0xA5][cmd][~cmd]` header check or CRC-8 — the ring
+    would connect, auth "successfully", and deliver no decoded frames, which is indistinguishable from
+    a bad link and is already reported as a stall. The porting trigger was first written as "a ring
+    answering AUTH with flag==1", a condition NOTHING on this box can observe: there is no AUTH reply
+    to inspect. A DIS read is a fact the box can actually state.
+
+    Cosmetic in the same sense the battery read is, and wrapped the same way: a ring that does not
+    implement DIS, or a slow read, is a SKIP that never costs a session. Absent ⇒ the field stays
+    ABSENT — never a fabricated "unknown", which would read as a measurement that was taken."""
+    try:
+        raw = await _bounded_setup(client.read_gatt_char(FIRMWARE_UUID))
+    except Exception as e:
+        log.info("%s firmware revision unread (%s) — the ring may not implement DIS", name, type(e).__name__)
+        return
+    if not raw:
+        return
+    fw = bytes(raw).decode("utf-8", "replace").strip("\x00").strip()
+    if not fw:
+        return
+    _set(name, firmware=fw)
+    if fw != O2RING_PLAINTEXT_FW:
+        # Once per connection, by NAME, because the alternative is meeting it as an unexplained decode
+        # failure at 03:00. Not an error: an unmeasured firmware may well be plaintext too.
+        log.warning("%s reports firmware %s, not the measured-plaintext %s — if frames stop decoding "
+                    "after a clean auth, suspect an AES-keyed session rather than the link",
+                    name, fw, O2RING_PLAINTEXT_FW)
+
+
 async def run_oxyii(dev: dict, root: str):
     """Wellue O2Ring-S / T8520 ("S8-AW…") — live SpO2 + pulse over the OxyII protocol (NOT legacy Viatom).
     No bonding. Flow: connect → auth(0xFF) → setup(0x10) → poll cmd=0x04 ~1/s. Emits the ViHealth CSV
@@ -3447,6 +3486,7 @@ async def run_oxyii(dev: dict, root: str):
                 if not (wch and nch):
                     _set(name, last_error="OxyII service absent (ring in recording mode? press its button)")
                     raise RuntimeError("no oxyii chars")
+                await _publish_ring_firmware(client, name)
                 wr = Spo2CsvWriter(path)
                 # The 125 Hz pleth is togglable (Settings). It is ~191 MB/night — the second largest
                 # stream on the box — so it must be possible to turn off. Absent streams list => both on,
