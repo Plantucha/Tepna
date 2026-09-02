@@ -2276,6 +2276,70 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     return x;
   }
   // Series-level sibling of `tchSigmas`, taking a per-PAIR ρ instead of assuming independence.
+  /* ── Block-bootstrap CI whose ESTIMATOR FOLLOWS THE POINT (DEEP-AUDIT-VI F16) ─────────────────
+     The sigma-no-reference live path pairs a FUSED-hat point (per-second DSP confidences
+     down-weighting artifact bursts) with a CI bootstrapped from the CLASSIC unweighted hat — two
+     different estimators, and on an artifact-flagged night the rendered σ sits entirely OUTSIDE its
+     own rendered 95 % CI (measured: σ_H10 = 1.009 against [7.296, 12.801]). Single-sourced here so
+     the page DELEGATES and the known-answer group can execute it: when the per-corner confidence
+     arrays are supplied they are resampled in LOCKSTEP with the same block indices and every
+     replicate runs tchSigmasFused — the same estimator as the point; without them every replicate
+     runs the classic tchSigmas, which is what the committed-TRIOS path pairs with its classic
+     point. `rand` is injectable so a test can pin the resampling exactly. */
+  function tchBlockBootstrapCI(hh, vv, oo, opts) {
+    opts = opts || {};
+    var cH = opts.cH || null,
+      cV = opts.cV || null,
+      cO = opts.cO || null;
+    var fused = !!(cH && cV && cO);
+    var B = opts.B || 200,
+      rand = opts.rand || Math.random;
+    var n = hh.length,
+      bl = Math.min(n, opts.blockS || 300),
+      nb = Math.ceil(n / bl);
+    var q = function (sorted, p) {
+      return sorted[Math.max(0, Math.min(sorted.length - 1, Math.floor(p * sorted.length)))];
+    };
+    var acc = { h10: [], verity: [], o2: [] };
+    for (var b = 0; b < B; b++) {
+      var H = [],
+        V = [],
+        O = [],
+        CH = fused ? [] : null,
+        CV = fused ? [] : null,
+        CO = fused ? [] : null;
+      for (var k = 0; k < nb; k++) {
+        var st = Math.floor(rand() * (n - bl + 1));
+        for (var j = 0; j < bl; j++) {
+          H.push(hh[st + j]);
+          V.push(vv[st + j]);
+          O.push(oo[st + j]);
+          if (fused) {
+            CH.push(cH[st + j]);
+            CV.push(cV[st + j]);
+            CO.push(cO[st + j]);
+          }
+        }
+      }
+      var s = fused ? tchSigmasFused(H, V, O, CH, CV, CO) : tchSigmas(H, V, O);
+      var keys = ['h10', 'verity', 'o2'];
+      for (var ki = 0; ki < 3; ki++) {
+        var kk = keys[ki];
+        if (s[kk] != null && isFinite(s[kk])) acc[kk].push(s[kk]);
+      }
+    }
+    var out = { estimator: fused ? 'fused' : 'classic' };
+    var keys2 = ['h10', 'verity', 'o2'];
+    for (var ko = 0; ko < 3; ko++) {
+      var kn = keys2[ko];
+      var a = acc[kn].sort(function (p1, p2) {
+        return p1 - p2;
+      });
+      out[kn] = a.length >= 20 ? { lo: q(a, 0.025), hi: q(a, 0.975) } : null;
+    }
+    return out;
+  }
+
   function tchSigmasPairwise(hh, vv, oo, rho) {
     var dHV = [],
       dHO = [],
@@ -2663,6 +2727,7 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     threeCorneredHat: threeCorneredHat,
     tchSigmas: tchSigmas,
     tchSigmasFused: tchSigmasFused,
+    tchBlockBootstrapCI: tchBlockBootstrapCI,
     tchSigmasPairwise: tchSigmasPairwise,
     tchSigmasPairwiseFromVars: tchSigmasPairwiseFromVars,
     tchRhoCrit: tchRhoCrit,
