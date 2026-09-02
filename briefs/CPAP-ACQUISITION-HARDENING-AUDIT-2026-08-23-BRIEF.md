@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-23 · **Follows:** `CPAP-BLE-CAPTURE-2026-08-21-BRIEF.md` (the AS11 link + live stream this hardens), `RESMED-AS11-PROTOCOL-REFERENCE-2026-08-21-BRIEF.md` (the protocol facts), `CPAP-AUTOHARVEST-FOLLOWUPS-II-2026-08-03-BRIEF.md` (the mature WiFi-SD path whose patterns this reuses) · **Lead:** Mutator (multi-device acquisition-hardening; this is the CPAP arm, aligned to Mutator's shared-seam constraints) · **Affects (audit only — no code in this brief):** `capture-host/as11_*.py`, `capture-host/cpap_*.py`
+**Status:** PROPOSED (parked 2026-09-02 — the living CHARTER for the P1–P5 programme; it outlives its phases and cannot be closed by them. P1 (#1679-era `cpap_record.py`) and P2 (`cpap_acq.py`) are DONE, P4 is one hardware capture from done. Two things hold the master checklist open: **P3 has no brief at all** (`briefs/CPAP-ACQ-P3-*` does not exist) while §8 records INV7 as *module built, held* and INV8 as *pending P3 brief*; and **INV8 and INV11 have no artifact** — there is no `continuity_status` field anywhere in `capture-host/`, and no owner/lock for INV11's one-acquisition-owner-at-a-time rule, which §8 itself marks *pending wiring*. Ten of twelve invariants are code-backed and cited. **Owner:** lead (spawn P3) · **Next step:** the P3 executable brief — INV8 and INV11 both hang off it) · **Created:** 2026-08-23
 
 # CPAP acquisition hardening — PHASE 0 audit (the tree is not greenfield)
 

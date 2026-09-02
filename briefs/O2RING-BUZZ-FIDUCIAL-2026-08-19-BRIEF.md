@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-19 (§3 steps 1–2 DONE; §5 results measured: pairwise + 3-way all detected; matched-filter estimator owed) · **Created:** 2026-08-19 · **Follows:** `O2RING-OPCODE-SURFACE-2026-08-03-BRIEF.md` (0x83=VIBRATE, confirmed on hardware), `KNOWN-CLOCK-ADVERSARIAL-CAPTURE-2026-08-14-BRIEF.md` (target 1's aperiodic marker)
+**Status:** PROPOSED (parked 2026-09-02 — ⚠ the previous status line said the matched-filter estimator was *owed*; it was MET in 08ad7476 (#1561) at SE 19 ms, inside the pre-stated 30 ms band. Corrected here. The remaining item is the aperiodic-buzz correlation: the TOOL exists (`tools/buzz-fiducial-correlate.mjs`, ca2a4a5b, 11 selftest assertions) and the RUN does not — repo-wide, the only mentions of a host-axis residual are the brief and the tool's own docstring, so no result has ever been recorded. It needs the ring WORN (the motion channel must carry the ~1.1 s spikes) firing a commanded aperiodic schedule with gaps > 1.1 s. **Owner:** Heron · **Next step:** run the tool on a worn night and record the residual EITHER WAY — a null result closes this item too) · **Created:** 2026-08-19
 
 # The commanded buzz as a self-written timing fiducial — removing the human from the marker
 
