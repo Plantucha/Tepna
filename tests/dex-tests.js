@@ -6343,6 +6343,14 @@
         /hostAxis[\s\S]{0,900}?timingSource[\s\S]{0,200}?'device\+host'/.test(body),
         'no timingSource fold in mergeEcg return'
       );
+      // DEEP-AUDIT-VI F1: a mid-file resync is a property of the NIGHT — re-based onto the merged
+      // sample index and relative axis, then returned, or the two multi-fragment poisoned nights
+      // (08-23, 08-27) fold with no `recording.clockResyncs` while single-fragment 08-26 has one.
+      T.ok(
+        '…and clockResyncs re-based onto the merged axis (idx + offset, atRelMs + fragment start)',
+        /r\.clockResyncs[\s\S]{0,200}?idx:\s*c\.idx\s*\+\s*idx[\s\S]{0,120}?atRelMs:\s*c\.atRelMs\s*\+/.test(body) && /^\s*clockResyncs,\s*$/m.test(body),
+        'no clockResyncs carry in mergeEcg'
+      );
     });
 
     /* FINISHED-WORK-IMPROVEMENTS §A 2c (2026-08-22) — the ring's RTC history rolled into the
@@ -13912,6 +13920,110 @@
         !('deviceEpoch' in exMin.recording) && !('timingSource' in exMin.recording) && !('hostAxis' in exMin.recording),
         JSON.stringify(Object.keys(exMin.recording))
       );
+    });
+
+    /* ════ MID-FILE CLOCK RESYNC — THE GAP IS BOUNDED BY THE PHONE DELTA (DEEP-AUDIT-VI F1) ═════════
+       The H10 boots on its 2019 firmware epoch and adopts real time when a sync lands; when that
+       happens MID-FILE both device columns step by the epoch difference (+241,586,765 s on the real
+       2026-08-27 night) while the phone column advances 86 s. The gap walk used to trust the device
+       delta unconditionally: a 2.41e8 s "dropout", coverage segments in 2034, coveragePct 0, and the
+       Integrator silently dropping the night — three committed trio exports were wrong on main.
+       THE DISCRIMINATOR IS PHYSICAL and the control below is the point: through a REAL dropout both
+       clocks keep ticking (device delta ≈ phone delta), so the guard must fire on the resync and
+       stay silent on the dropout — a signal that differs under both hypotheses. Geometry mirrors the
+       real seam (raw rows 1242/1243 of the 2026-08-27 file), committed here as a synthetic twin
+       because the real night is gitignored and CI must stay able to see this class. ════ */
+    group('ECGDex mid-file clock resync — re-anchor, honest gap, surfaced (DEEP-AUDIT-VI F1)', 'ecgdex-dsp · clock-contract', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.ok('ECGDSP.parseECG available', false, 'not loaded');
+        return;
+      }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var BASE = Date.UTC(2026, 7, 27, 23, 24, 41);
+      var POLAR_EPOCH = Date.UTC(2000, 0, 1);
+      var DEV_ORIGIN = Date.UTC(2019, 0, 5); // pre-sync: the firmware-default epoch
+      var STEP_MS = 241586764000; // the real seam's device step, kept at magnitude on purpose
+      var PHONE_GAP_MS = 86398; // what the phone column measured across the same rows
+      var SEAM = 1500;
+      // 3000 rows at 8 ms cadence so `msStep` learns a real sample interval (the 1000 ms fixtures
+      // above never set it and therefore never exercise the gap walk at all).
+      // `preRate` (optional) runs the PRE-seam device counter at a distorted pace — the real seam
+      // files do this (08-27: +1508 ms of host−device residual over the 9.5 s before the sync,
+      // 160,000 ppm; 08-23: −10,495 ppm; 08-26: +506 ppm) because the pre-sync counter is a
+      // different oscillator state, not the crystal the post-sync axis rides.
+      function build(devStepMs, phoneGapMs, junkSeamStamp, preRate) {
+        var rows = [HDR];
+        var pr = preRate || 1;
+        for (var i = 0; i < 3000; i++) {
+          var hostRel = i * 8 + (i >= SEAM ? phoneGapMs - 8 : 0);
+          var devRel = i < SEAM ? i * 8 * pr : SEAM * 8 * pr + (i - SEAM) * 8 + devStepMs - 8;
+          var ns = (DEV_ORIGIN - POLAR_EPOCH + devRel) * 1e6;
+          var stamp = junkSeamStamp && (i === SEAM || i === SEAM - 1) ? 'not-a-stamp' : new Date(BASE + hostRel).toISOString();
+          rows.push(stamp + ';' + ns + ';' + devRel + ';' + (100 + (i % 40)));
+        }
+        return rows.join('\n');
+      }
+      // ── the resync night: device steps 2.41e11 ms, phone advances 86.4 s ──
+      var rec = D.parseECG(build(STEP_MS, PHONE_GAP_MS, false));
+      T.eq('one resync is surfaced', rec.clockResyncs.length, 1);
+      T.approx('…with the device step at full magnitude', rec.clockResyncs[0].deviceStepMs, STEP_MS, 20);
+      T.approx('…and the phone delta beside it', rec.clockResyncs[0].phoneDeltaMs, PHONE_GAP_MS, 20);
+      T.eq('the gap walk records ONE gap', rec.gaps.length, 1);
+      T.approx('…whose duration is the PHONE delta, not the device step', rec.gaps[0].ms, PHONE_GAP_MS, 20);
+      T.approx('…and endRelMs closes at atRelMs + the honest gap', rec.gaps[0].endRelMs - rec.gaps[0].atRelMs, PHONE_GAP_MS, 20);
+      var expectedLast = 2999 * 8 + PHONE_GAP_MS - 8;
+      T.approx('the relative axis is RE-ANCHORED — lastRelMs is the honest span, not 2.4e11', rec.lastRelMs, expectedLast, 30);
+      T.ok(
+        'every sample time stays inside the recording’s own window (the 2034 class)',
+        rec.tMsAt(rec.int16.length - 1) - rec.t0Ms < 7 * 86400e3,
+        'end - t0 = ' + Math.round((rec.tMsAt(rec.int16.length - 1) - rec.t0Ms) / 1000) + ' s'
+      );
+      T.ok(
+        'hostAxis no longer hits the implausible-rate refusal — the anchors are continuous',
+        !!rec.hostAxis && rec.hostAxis.ok !== false,
+        JSON.stringify(rec.hostAxis && (rec.hostAxis.reason || { ok: rec.hostAxis.ok }))
+      );
+      // ── THE CONTROL: a REAL dropout — both clocks advance 86.4 s. The guard must stay silent. ──
+      var ctrl = D.parseECG(build(PHONE_GAP_MS, PHONE_GAP_MS, false));
+      T.eq('a real dropout raises NO resync', ctrl.clockResyncs.length, 0);
+      T.eq('…and keeps exactly its one gap', ctrl.gaps.length, 1);
+      T.approx('…with the same duration either way', ctrl.gaps[0].ms, PHONE_GAP_MS, 20);
+      // ── a PURE resync (phone advances one sample): re-anchor, and NO fabricated gap ──
+      var pure = D.parseECG(build(STEP_MS, 8, false));
+      T.eq('a pure resync (no real dropout) raises the annotation', pure.clockResyncs.length, 1);
+      T.eq('…and fabricates NO gap', pure.gaps.length, 0);
+      // ── unparseable phone stamps at the seam: over-ceiling ⇒ re-anchor, phoneDeltaMs null, NO gap
+      //    entry — a duration nothing measured stays visibly unmeasured (§2.6), never fabricated ──
+      var blind = D.parseECG(build(STEP_MS, PHONE_GAP_MS, true));
+      T.eq('a blind seam still re-anchors', blind.clockResyncs.length, 1);
+      T.eq('…with phoneDeltaMs null, not a guess', blind.clockResyncs[0].phoneDeltaMs, null);
+      T.eq('…and records no gap it could not measure', blind.gaps.length, 0);
+      // ── the Integrator-facing surface: attached only when present ──
+      var ex = D.compute(build(STEP_MS, PHONE_GAP_MS, false), { source: 'polar-h10-ecg' });
+      T.ok('the node export carries recording.clockResyncs', Array.isArray(ex.recording.clockResyncs) && ex.recording.clockResyncs.length === 1, JSON.stringify(ex.recording.clockResyncs));
+      var exCtrl = D.compute(build(PHONE_GAP_MS, PHONE_GAP_MS, false), { source: 'polar-h10-ecg' });
+      T.ok('…and a clean recording attaches NO key (export-shape inertness)', !('clockResyncs' in exCtrl.recording), JSON.stringify(Object.keys(exCtrl.recording)));
+      // ── ONE DEVICE CLOCK PER AXIS: the pre-sync counter runs 16 % fast (the 08-27 magnitude).
+      //    Fed to hostAxis whole, the ramp-then-flat residual reads as −17,086 ppm (measured with the
+      //    drop disabled — the running median smooths the ramp UNDER the ±50,000 refusal, so nothing
+      //    refuses it and on a night long enough to clear the span gate it is QUOTED into fs: the
+      //    "129.968 vs 129.903" merge refusal that first surfaced this). Dropping the pre-resync
+      //    anchors leaves a flat post-seam residual: ok, 0 ppm, and the seam offset as a number. ──
+      var skew = D.parseECG(build(STEP_MS, PHONE_GAP_MS, false, 1.16));
+      T.eq('a skewed pre-sync counter: still exactly one resync', skew.clockResyncs.length, 1);
+      T.ok(
+        'hostAxis is built from the POST-seam anchors only — ok, not the implausible-rate refusal',
+        !!skew.hostAxis && skew.hostAxis.ok === true,
+        JSON.stringify(skew.hostAxis && (skew.hostAxis.reason || { ok: skew.hostAxis.ok }))
+      );
+      T.eq('…the pre-resync anchors are counted as dropped (rows 0/499/999/1499)', skew.hostAxis && skew.hostAxis.anchorsDroppedPreResync, 4);
+      T.eq('…and `anchors` is the post-seam count', skew.hostAxis && skew.hostAxis.anchors, 3);
+      T.ok('…so the quoted rate is the post-sync crystal (|ppm| < 1000), not the seam ramp', skew.hostAxis && Math.abs(skew.hostAxis.ppm) < 1000, 'ppm=' + (skew.hostAxis && skew.hostAxis.ppm));
+      // host − device at the first post-seam anchor: the pre-seam counter ran ahead by 1499·8·0.16 ms.
+      T.approx('the seam host↔device offset is surfaced as hostOffsetMs', skew.clockResyncs[0].hostOffsetMs, -Math.round(SEAM * 8 * 0.16), 40);
+      T.eq('the drop is a property of the RESYNC, not of the skew — the clean-counter resync drops the same 4', rec.hostAxis && rec.hostAxis.anchorsDroppedPreResync, 4);
+      T.eq('…and the real-dropout control (no resync) drops nothing — the key is absent', ctrl.hostAxis && ctrl.hostAxis.anchorsDroppedPreResync, undefined);
     });
 
     group('ECGDex parseECG — mean-interval fs + raw-gap accounting (DEEP-AUDIT-II §4.3/§4.2)', 'ecgdex-dsp', function (T) {

@@ -2843,7 +2843,8 @@
          one node over. A reshape that renames fields must forward the ones it does not rename. */
       hostAxis: rec.hostAxis || null,
       tMsCorrected: rec.tMsCorrected === true,
-      deviceEpoch: rec.deviceEpoch || null
+      deviceEpoch: rec.deviceEpoch || null,
+      clockResyncs: rec.clockResyncs || null
     };
   }
 
@@ -4254,6 +4255,27 @@
     // at t0Ms. `firstRelMs` is that anchor's zero. Additive: `idx`/`ms` are untouched.
     var firstRelMs = null,
       lastRelMs = null;
+    /* ── MID-FILE CLOCK RESYNC (DEEP-AUDIT-VI F1, 2026-09-01) ─────────────────────────────────────
+       The H10 boots on its 2019-01-01 firmware epoch and adopts real time when a sync lands — and
+       when that happens MID-FILE, both device columns (`[ms]` and `sensor [ns]`) step by the whole
+       epoch difference (+241,586,765 s measured, 2026-08-27) while the phone column advances 86 s.
+       The gap walk used to trust the device delta unconditionally, publishing a 2.41e8 s "dropout":
+       coverage segments in 2034, coveragePct 0, and the Integrator silently dropping the night.
+       THE DISCRIMINATOR IS PHYSICAL: through a real BLE dropout both clocks keep ticking, so the
+       device delta ≈ the phone delta; only a clock step makes them disagree — by 7.6 years here,
+       against which the 60 s bound below has 5 orders of headroom. An over-bound step is a
+       RE-ANCHOR POINT (session-boundary semantics), never a dropout duration: the device axis is
+       shifted so it continues at the phone-measured pace, the real gap (the phone delta) is
+       recorded if it clears the normal gap threshold, and the event is surfaced via
+       `clockResyncs` all the way to the export. When the phone stamps at the seam do not parse,
+       a delta over the 24 h ceiling still re-anchors — with `phoneDeltaMs: null` and NO gap entry,
+       because a duration nothing measured must stay visible as unmeasured (§2.6), never fabricated. */
+    var ECG_RESYNC_BOUND_MS = 60000;
+    var ECG_GAP_CEIL_MS = 86400000;
+    var relOffsetMs = 0;
+    var nsOffsetMs = 0;
+    var clockResyncs = [];
+    var prevRowStamp = null;
     /* THE DEVICE'S OWN COUNTER, when the file carries one. `timestamp [ms]` is a DERIVED float that
        loses precision as it grows (see the fs comment below); `sensor timestamp [ns]` beside it is an
        INTEGER nanosecond counter that loses none. Located BY HEADER NAME, never by position — the
@@ -4300,6 +4322,7 @@
       // Device counter for THIS row, in ms. Gap rows are excluded by the same `< 50` guard the `[ms]`
       // path uses; the ns column needs no `msStep * 2.5` slack because it carries no float noise.
       var devNsMs = null;
+      var nsPrevOfRow = null;
       if (nsCol !== null && p.length > nsCol) {
         /* `> 0` would be WRONG and is worth the line: a counter legitimately STARTS at 0, so that guard
            rejects row 0 and anchors `firstNsMs` one sample late — every anchor then sits a full sample
@@ -4310,7 +4333,8 @@
         var nsRaw = p[nsCol];
         var rawNs = nsRaw === '' || nsRaw == null ? NaN : Number(nsRaw);
         if (isFinite(rawNs)) {
-          devNsMs = rawNs / 1e6;
+          // offset-corrected so the anchor/fs chains stay continuous across a mid-file resync
+          devNsMs = rawNs / 1e6 + nsOffsetMs;
           if (firstNsMs === null) firstNsMs = devNsMs;
           if (prevNsMs !== null) {
             var dn = devNsMs - prevNsMs;
@@ -4319,6 +4343,11 @@
               nsStepN++;
             }
           }
+          /* The resync handler (in the [ms] block below) needs the PREVIOUS row's ns value — by the
+             time it runs, `prevNsMs` already holds THIS row's stepped value, and re-anchoring against
+             that computes the adjustment off the wrong baseline (caught on the real 2026-08-27 seam:
+             the ns chain got +86 s instead of −2.41e11 ms). */
+          nsPrevOfRow = prevNsMs;
           prevNsMs = devNsMs;
         }
       }
@@ -4332,13 +4361,47 @@
       if (p.length >= 3) {
         var ms = parseFloat(p[2]);
         if (isFinite(ms)) {
+          ms += relOffsetMs; // re-anchored device axis — 0 until a mid-file resync is detected
           if (firstRelMs === null) firstRelMs = ms;
           if (prevMs !== null) {
             var d = ms - prevMs;
             if (d > 0) {
               if (msStep === null && d < 50) msStep = d; // provisional step — anchors the gap threshold
               if (msStep && d > msStep * 2.5) {
-                /* a dropout, not a sample interval — excluded from fs.
+                /* Candidate dropout — FIRST ask which clock says so (see the resync block above).
+                   The phone stamps are parsed lazily, only at candidates, so the per-row cost is one
+                   string assignment. `pdc` clamps the known non-monotonic host stamps (≤287 ms
+                   backward) to zero rather than letting a negative "gap" through. */
+                var rsPd = null;
+                if (prevRowStamp != null) {
+                  var rsPrev = parseTimestamp(prevRowStamp);
+                  var rsCur = parseTimestamp(p[0]);
+                  if (rsPrev && rsPrev.tMs != null && rsCur && rsCur.tMs != null) rsPd = rsCur.tMs - rsPrev.tMs;
+                }
+                var pdc = rsPd != null ? Math.max(0, rsPd) : null;
+                if (pdc != null && d - pdc > ECG_RESYNC_BOUND_MS) {
+                  // CLOCK RESYNC — re-anchor; the honest gap is the phone delta, if it is a gap at all
+                  relOffsetMs -= d - pdc;
+                  ms = parseFloat(p[2]) + relOffsetMs; // this row, on the re-anchored axis
+                  clockResyncs.push({ idx: n - 1, deviceStepMs: Math.round(d), phoneDeltaMs: Math.round(Number(rsPd)), atRelMs: prevMs, hostOffsetMs: /** @type {number|null} */ (null) });
+                  if (devNsMs != null && nsPrevOfRow != null) {
+                    // the ns chain stepped at the same seam — re-anchor it identically, against the
+                    // PREVIOUS row's value (prevNsMs already holds this row's stepped one)
+                    var nsAdj = devNsMs - nsPrevOfRow - pdc;
+                    if (Math.abs(nsAdj) > ECG_RESYNC_BOUND_MS) {
+                      nsOffsetMs -= nsAdj;
+                      devNsMs -= nsAdj;
+                      prevNsMs = devNsMs;
+                    }
+                  }
+                  if (pdc > msStep * 2.5) gaps.push({ idx: n - 1, ms: pdc, atRelMs: prevMs, endRelMs: prevMs + pdc });
+                } else if (pdc == null && d > ECG_GAP_CEIL_MS) {
+                  // over the ceiling with no measurable phone delta: re-anchor, annotate, no gap entry
+                  relOffsetMs -= d;
+                  ms = parseFloat(p[2]) + relOffsetMs;
+                  clockResyncs.push({ idx: n - 1, deviceStepMs: Math.round(d), phoneDeltaMs: null, atRelMs: prevMs, hostOffsetMs: /** @type {number|null} */ (null) });
+                } else {
+                  /* a dropout, not a sample interval — excluded from fs.
                    THE `gaps[i].idx` CONVENTION, stated here because this is where `gaps` is defined
                    (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.1, 2026-07-31):
                    **`idx` is the FIRST SAMPLE AFTER the dropout — never the last one before it.**
@@ -4349,7 +4412,8 @@
                    dead-time walk earlier in this file — tests `g.idx <= refIdx[k]`, which is only
                    correct under first-after: a beat landing ON the boundary sample is after the hole
                    and must carry the dead time. Pinned by the `gaps[].idx` leg in tests/dex-tests.js. */
-                gaps.push({ idx: n - 1, ms: d, atRelMs: prevMs, endRelMs: ms });
+                  gaps.push({ idx: n - 1, ms: d, atRelMs: prevMs, endRelMs: ms });
+                }
               } else if (d < 50) {
                 stepSum += d;
                 stepN++;
@@ -4358,6 +4422,7 @@
           }
           prevMs = ms;
           lastRelMs = ms;
+          prevRowStamp = p[0]; // the resync discriminator's "previous row" is the previous ms-chain row
         }
       }
       // Host anchor, sampled — see ECG_AXIS_EVERY. Placed at the END of the body so `firstRelMs` is
@@ -4365,6 +4430,7 @@
       // zero at t0Ms — the node has already anchored there, so a non-zero start would double-count it.
       if (t0Ms !== null && firstRelMs !== null && p.length >= 3 && (n === 1 || n % ECG_AXIS_EVERY === 0)) {
         var aRel = parseFloat(p[2]);
+        if (isFinite(aRel)) aRel += relOffsetMs; // anchors ride the re-anchored axis (resync block above)
         var aTs = parseTimestamp(p[0]);
         /* BOTH candidate device axes are recorded and the choice is made AFTER the loop, once it is
            known whether the counter actually counts. A column present but STUCK — some writers emit a
@@ -4375,7 +4441,8 @@
           ecgAxisAnchors.push({
             devMs: isFinite(aRel) ? aRel - firstRelMs : null,
             devNs: devNsMs !== null && firstNsMs !== null ? devNsMs - firstNsMs : null,
-            hostMs: aTs.tMs - t0Ms
+            hostMs: aTs.tMs - t0Ms,
+            row: n - 1 // so the pre-resync anchors can be told apart after the walk (below)
           });
         }
       }
@@ -4402,6 +4469,35 @@
     if (nsUsable) fs = (1000 * nsStepN) / nsStepSum;
     else if (stepN > 0) fs = Math.round((1000 * stepN) / stepSum);
     else if (msStep && msStep > 0) fs = Math.round(1000 / msStep);
+    /* ONE DEVICE CLOCK PER AXIS — anchors from BEFORE the last resync are not on the clock the rest
+       of the file is on, so they are dropped before `hostAxis` sees them. The resync block above
+       makes the device axis CONTINUOUS across the seam (it imposes the phone delta), but continuity
+       is not sameness: the pre-sync H10 counter is a different oscillator, and `hostAxis` measures
+       every divergence RELATIVE TO ITS FIRST ANCHOR. Measured on the real 2026-08-27 seam file
+       (resync 9.5 s in, 50 min long): the host−device residual walks +1508 ms across those first
+       9.5 s and then holds flat (post-seam slope 38 ppm), so with anchor 0 inside the pre-sync
+       segment `hostAxis` read the STEP as a rate — 484.7 ppm — and the span gate (50 min ≥ 40 min)
+       let it into `fs`: 129.968 → 129.903, 500 ppm off the same H10's 6.5 h sibling, which is what
+       `trio-batch mergeEcg` refused ("sessions disagree on fs"). A step is REPORTED, never absorbed
+       into fs (the maxStepMs paragraph below) — and a clock CHANGE is the hardest step there is.
+       Cost: the pre-seam rows (10 s · 10 s · 268 s on the three affected nights) get the flat
+       out-of-range correction of the first post-seam anchor, and the seam's host↔device offset is
+       surfaced on `clockResyncs[].hostOffsetMs` rather than modelled. */
+    var preResyncAnchorsDropped = 0;
+    if (clockResyncs.length && ecgAxisAnchors.length) {
+      var lastResyncRow = clockResyncs[clockResyncs.length - 1].idx;
+      var postResync = [];
+      for (var pi = 0; pi < ecgAxisAnchors.length; pi++) {
+        if (ecgAxisAnchors[pi].row >= lastResyncRow) postResync.push(ecgAxisAnchors[pi]);
+        else preResyncAnchorsDropped++;
+      }
+      if (postResync.length) {
+        var seamAnchor = postResync[0];
+        var seamDev = nsUsable ? seamAnchor.devNs : seamAnchor.devMs;
+        clockResyncs[clockResyncs.length - 1].hostOffsetMs = seamDev != null && isFinite(seamDev) ? Math.round(seamAnchor.hostMs - seamDev) : null;
+      }
+      ecgAxisAnchors = postResync;
+    }
     var ecgAxisPicked = [];
     for (var ai = 0; ai < ecgAxisAnchors.length; ai++) {
       var av = nsUsable ? ecgAxisAnchors[ai].devNs : ecgAxisAnchors[ai].devMs;
@@ -4543,6 +4639,9 @@
          (a REFUSED ppm) is never mistaken for "the time axis is uncorrected too". They are different
          gates now: the ppm is span-gated, the interpolation is not. */
       tMsCorrected: !!_ecgCorrAt,
+      /* Mid-file device clock resyncs (DEEP-AUDIT-VI F1) — [] on every clean recording. Each entry:
+         { idx, deviceStepMs, phoneDeltaMs (null when the seam's phone stamps did not parse), atRelMs }. */
+      clockResyncs: clockResyncs,
       gaps: gaps,
       t0Ms: t0Ms,
       offsetMin: offsetMin,
@@ -4589,6 +4688,10 @@
                6.8-32.7 ppm uncertainty against 20-90 ppm errors is marginal, not wrong). Revisiting it
                needs a bound derived for the estimator `fs` actually uses, which ADEV is not. */
             stability: ecgHostAx.stability || null,
+            /* ONE DEVICE CLOCK PER AXIS (see the resync block above): anchors read off the pre-resync
+               counter were not fed to the spine. Present only when it happened, so clean fixtures keep
+               today's bytes; a consumer reading `anchors` beside this knows the count is post-seam. */
+            anchorsDroppedPreResync: preResyncAnchorsDropped > 0 ? preResyncAnchorsDropped : undefined,
             reason: ecgAxisApplied
               ? undefined
               : 'span ' + Math.round(ecgAxisSpanMs / 1000) + ' s < ' + ECG_AXIS_MIN_SPAN_MS / 1000 + ' s — too short to resolve a crystal rate, fs left on the device clock'
@@ -4598,7 +4701,8 @@
             applied: false,
             reason: ecgHostAx.reason || 'no host anchors',
             // No usable host↔device anchor set ⇒ the published axis rides the device crystal alone.
-            timingSource: 'device'
+            timingSource: 'device',
+            anchorsDroppedPreResync: preResyncAnchorsDropped > 0 ? preResyncAnchorsDropped : undefined
           }
     };
   }
@@ -4994,6 +5098,19 @@
        while every relative/HRV quantity remains sound. Annotate, never refuse. */
     if (r.hostAxis && r.hostAxis.timingSource) out.recording.timingSource = r.hostAxis.timingSource;
     if (r.deviceEpoch) out.recording.deviceEpoch = { offsetMs: r.deviceEpoch.offsetMs, plausible: r.deviceEpoch.plausible };
+    /* Mid-file clock resyncs (DEEP-AUDIT-VI F1) — attached only when one occurred, same
+       no-null-key discipline as every provenance field above, so clean fixtures keep today's bytes.
+       A consumer seeing this knows the device axis was RE-ANCHORED at these points and that the
+       recording fuses two device epochs; the published times are already on the re-anchored axis. */
+    if (Array.isArray(r.clockResyncs) && r.clockResyncs.length)
+      out.recording.clockResyncs = r.clockResyncs.map(function (c) {
+        var rs = { idx: c.idx, deviceStepMs: c.deviceStepMs, phoneDeltaMs: c.phoneDeltaMs, atRelMs: c.atRelMs };
+        /* host−device offset at the seam, measured off the first post-resync anchor — the one place
+           the two epochs' relationship is a NUMBER rather than a rate. Absent when no anchor landed
+           past the seam (a resync inside the last 500 rows). */
+        if (c.hostOffsetMs != null) rs.hostOffsetMs = c.hostOffsetMs;
+        return rs;
+      });
     if (r.deviceRR && r.deviceRR.length) {
       const _v = validateRR(r.nn, r.deviceRR);
       if (_v) {

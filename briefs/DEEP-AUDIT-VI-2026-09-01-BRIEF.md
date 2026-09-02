@@ -31,6 +31,29 @@ defect) are one finding, as are the two HRVDex `DexUnits` threshold entries (d_c
 
 #### F1 · CRITICAL — mis-states surfaced numbers AND fabricates absence · `ecgdex-dsp.js:4352` (parseECG gap walk) + `ecgdex-dsp.js:4615` (coverage/export)
 
+> ✅ **FIXED 2026-09-01 (Magpie), same day.** Per the punch-list: the gap walk now parses the seam's
+> phone stamps at candidates (device excess > 60 s over the phone delta ⇒ RE-ANCHOR, never a
+> dropout duration; the honest gap = the phone delta when it clears the normal threshold; the ns
+> chain re-anchors at the same seam; an over-24 h step with unparseable stamps re-anchors with
+> `phoneDeltaMs:null` and NO gap entry), and `clockResyncs` travels rec → analyze reshape →
+> `recording.clockResyncs` (attach-only-when-present). Measured on all three poisoned nights:
+> 08-27 gap 2.42e11 → 86,398 ms with hostAxis flipping from the −999988 ppm refusal to
+> ok/applied/independent; 08-23 → 86 s; 08-26 → 57 s; clean control untouched. 19 committed-twin
+> assertions pin the class incl. the real-dropout control (both clocks tick through a dropout —
+> the discriminator stays silent). **Found by the refold, not the audit — ONE DEVICE CLOCK PER AXIS:**
+> the pre-sync rows' host−device residual is a different oscillator state (08-27: +1508 ms over
+> 9.5 s ≈ 160,000 ppm; 08-23 −10,495 ppm; 08-26 +506 ppm, vs ±20 after) and hostAxis, measuring
+> from its FIRST anchor, quoted it into `fs` (485 ppm — `trio-batch` refused to merge the 08-27 seam
+> file with its sibling, 129.968 vs 129.903). Pre-resync anchors are now dropped before the spine
+> (`hostAxis.anchorsDroppedPreResync`) and the seam offset is a NUMBER (`clockResyncs[].hostOffsetMs`);
+> `mergeEcg` re-bases and carries `clockResyncs` so the two multi-fragment nights surface it too.
+> 8 + 1 more assertions; the skew case verified to FAIL with the drop disabled (−17,086 ppm quoted,
+> under the ±50,000 refusal). Refolded: coveragePct 0 → 97.7 / 99.6 / 97.2, coverage span 2.41e8 s →
+> 18,895 / 31,592 / 25,925 s, events back in 2026. The three trio exports refolded in the same change. The
+> capture-side hardening (rotate the file set on `clock_watchdog` step) remains a SEPARATE unit,
+> as specified. The sibling `_ACC.txt` step (MotionDex/PMDARRIVAL inheritance) is NOT covered by
+> this fix and stays open under this finding.
+
 **Symptom.** A mid-recording H10 clock resync (the strap's 2019-01-01 default epoch adopting real time when a
 sync lands seconds into the night: device-ns column steps **+241,586,765 s** between consecutive rows while
 the phone column advances 86 s) is read as a BLE dropout of 241 billion ms. Three committed corpus exports
@@ -386,6 +409,15 @@ estimator as the point) — or label the CI classic-estimator and detach it from
 
 #### F17 · MAJOR — silent failure via CWD-relative config paths · `capture-host/capture.py:6574` (+6594, 6614)
 
+**Status:** BUILT — verified 2026-09-01 (Heron, PR #2057 with F18):
+`resolve_creds_path` (relative → config dir, default `<cfgdir>/as11_creds.json`) at all three creds sites;
+`resolve_cpap_dir` (relative → box `root`, else config dir) for `edf_dir` / `raw_record_dir` in the
+controller, the night-QC watchdog and the inventory report; one `CPAP live stream wired: creds … · edf_dir …
+· raw_record_dir …` log line at wiring. `tests/test_audit6_f17_f18.py` pins each path end-to-end (creds
+reach the controller/shadow/spool starters with cwd moved; sinks land under `root`; watchdog and inventory
+read the same resolved dir). `./check.sh`: ruff clean · 5711 passed · 100 % cov (shellcheck absent locally,
+exit 127 — CI runs it). Deploy rides the hourly `tepna-update.timer` once merged.
+
 **Symptom.** Three cfg paths are consumed VERBATIM — exact siblings of the `spool_pull.root` CWD bug fixed
 hours earlier in #2046: `cpap.ble_stream.creds_path`, `edf_dir`, `raw_record_dir`. A relative creds_path —
 including uncommenting `config.example.yaml:283`'s own suggested value, whose comment claims config-dir
@@ -406,6 +438,16 @@ helpers; log the resolved absolute paths at ARMED/startup as #2046 added for the
 separate step.
 
 #### F18 · MAJOR — mis-states the night verdict via stale state · `capture-host/capture.py:5391`
+
+**Status:** BUILT — verified 2026-09-01 (Heron, same PR as F17). The watchdog now admits the record only
+when `session_ms` lies within 120 s of a Therapy-run ONSET the journal observed inside `_night_window_ms`
+(`_therapy_onsets_ms` + `_autostart_record_in_night`). Neither fix-sketch option alone was right: the
+3-day window admits yesterday's marker, and `_cpap_autostart_load`'s exact float equality rejects every
+LIVE-keyed record (the live loop keys `began_at_ms = now_ms` at its own 5 s tick, so only the boot seed
+carries the exact journal stamp). The slack is 20× the poll and three orders below night spacing. The
+adjacent night's onset IS admitted, deliberately — the same window sums its therapy minutes. Tests: the
+brief's repro (08-29 marker, night 09-01 → NEVER_STARTED, no stale error quoted), its mirror, mid-run
+key, live +5 s key, adjacent-night admission, slack/window/state boundaries.
 
 **Symptom.** The night-QC auto-start guard admits a stale record from any previous night:
 `_cpap_stream_watch_row` matches `rec.session_ms` against the WHOLE journal's observed span (rows[0]..[-1]
@@ -466,7 +508,8 @@ recording is open (`_civil_shift` ±3600 s, capture.py §A1) — but `instance_h
 11. **F8** CPAPDex usageHours 0.000 on PLD-less sets (BRP fallback or honest null).
 12. **F2** ECGDex app-lane fs/provenance parity with the headless DSP.
 13. **F18** capture-host stale autostart relabel; **F17** CWD-relative cfg paths (both Python lane, both
-    small, deploy to vigil after).
+    small, deploy to vigil after). — **BUILT 2026-09-01** (Heron, PR #2057; deploy via the hourly
+    `tepna-update.timer`).
 14. **F14** computeHash closure: remove oxydex-profile.js from the denylist.
 15. **F15** tch multi-root disclosure/refusal; **F16** fused-point/classic-CI mixing.
 16. **F4** ACC card badges (+ extend the badge DOM-walk selectors so the gate can see this class).
