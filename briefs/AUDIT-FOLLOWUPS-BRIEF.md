@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED (§1·§2·§3·§4.1·§4.2·§4.3·§6·§7 RESOLVED · §5.3 ANSWERED 2026-08-04 — everything still open is **owner-decision** (§4.4 ratification · §5.4–§5.6 cosmetic), **data-gated** (§5.1 no PSG set · §5.2 no Kubios/NeuroKit2 tooling) or **deferred** (§8); nothing is merely unstarted · ⚠️ **three earlier stamps here were WRONG, all corrected below**) · **Spawns:** `BLANK-ON-PRINT-FLEET-2026-08-03-BRIEF.md` · **Created:** (undated — pre-2026-07-03, grandfathered)
+**Status:** PROPOSED — re-triaged 2026-09-02 (**everything still open is owner-decision**; §1's body was STALE and is corrected in place — `clearSynthetic()`/`filterSynthetic()` ship at `integrator-longitudinal.js:296`/`:318`, verified, while the body still prescribed building them. §5.1/§5.2 remain data-gated, §5.4/§5.6 cosmetic-by-design — the last two *per Heron's read, not independently re-verified*. Prior: §1·§2·§3·§4.1·§4.2·§4.3·§6·§7 RESOLVED · §5.3 ANSWERED 2026-08-04 — everything still open is **owner-decision** (§4.4 ratification · §5.4–§5.6 cosmetic), **data-gated** (§5.1 no PSG set · §5.2 no Kubios/NeuroKit2 tooling) or **deferred** (§8); nothing is merely unstarted · ⚠️ **three earlier stamps here were WRONG, all corrected below**) · **Spawns:** `BLANK-ON-PRINT-FLEET-2026-08-03-BRIEF.md` · **Created:** (undated — pre-2026-07-03, grandfathered)
 
 > **2026-08-04 backlog sweep — what is left, and why none of it is "just do it":**
 > - **§4.3** — ✅ **EXECUTED**, see the §4.3 correction below. (This sweep independently reached the same
@@ -175,7 +175,7 @@
 This is the one squarely-actionable item from **GENERATOR-FOLLOWUPS-II #2** that was never executed.
 Round-I shipped the *data* flag (`rec.synthetic === true` on generated rows; `integrator-longitudinal.js
 ingest()` persists it) but the longitudinal view still cannot filter or clear synthetic rows
-distinctly. There is **no** `clearSynthetic` or `includeSynthetic` in `integrator-longitudinal.js` /
+distinctly. ⚠️ **CORRECTED 2026-09-02 — this paragraph was stale and its own header already said so.** Both functions SHIP: `clearSynthetic()` at `integrator-longitudinal.js:296` and `filterSynthetic()` at `:318` (plus `countSynthetic`/`hasSynthetic`). A reader entering at this body rather than the header would rebuild shipped work, which is why the header's correction was not enough on its own. The original text, for the record: there was ~~**no** `clearSynthetic` or `includeSynthetic` in `integrator-longitudinal.js`~~ /
 `integrator-render.js` today.
 
 Build exactly as GENERATOR-FOLLOWUPS-II §2 specifies (read it for the full step list + pitfalls):

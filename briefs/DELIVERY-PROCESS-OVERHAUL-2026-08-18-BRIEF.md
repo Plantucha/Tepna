@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-08-18 (§1 §3 §4 executed in the founding PR; §2 §5 §6 are owner-gated) · **Created:** 2026-08-18
+**Status:** IN-PROGRESS — 2026-09-02 (§1 §3 §4 executed in the founding PR; §2 §5 §6 owner-gated. ⚠ **§2's ratified cadence is being BREACHED ~3×, measured 2026-09-02**: `git ls-tree origin/main changes/` → **78** pending changesets excluding README, against §2's *"fold at ≥25 pending or weekly"*; last release v2.9.0 (#1983). Not a code defect and not a session's call — v2.10.0 sits in the owner's decision queue and §📦 forbids hand-picking a version. Recorded here because this brief owns the rule and nobody else reads it) · **Created:** 2026-08-18
 
 # Delivery-process overhaul — the friction, measured, and what removes it
 

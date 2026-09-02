@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (NOT a code unit — verified 2026-08-31: §2a DONE 2026-08-03; §2b path BUILT+proven (`tools/nsrr-stage-validate.mjs`) and blocked on NSRR records under a signed DUA the suite cannot fetch — an owner lever, not code; §4 carries a standing don't-wire on `respCv`. Nothing to build until labeled records exist) · **Created:** 2026-08-02 · **Follows:** `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md` (DONE — measured negative) · **Related:** `DEEP-STAGE-DESAT-CONFOUND` §9 · **Affects:** `nsrr-adapter.js`, `ecgdex-dsp.js`, `tests/dex-tests.js`
+**Status:** PROPOSED (NOT a code unit. ⚠ **The blocker CHANGED on 2026-09-02, it did not lift**: NSRR access was approved, so §2b is no longer blocked on *obtaining* records — it is now gated on the owner's condition that NSRR stays closed until the brief drain completes. Re-read this before assuming data-absence. Earlier verification 2026-08-31: §2a DONE 2026-08-03; §2b path BUILT+proven (`tools/nsrr-stage-validate.mjs`) and blocked on NSRR records under a signed DUA the suite cannot fetch — an owner lever, not code; §4 carries a standing don't-wire on `respCv`. Nothing to build until labeled records exist) · **Created:** 2026-08-02 · **Follows:** `REM-STAGING-REDESIGN-2026-07-28-BRIEF.md` (DONE — measured negative) · **Related:** `DEEP-STAGE-DESAT-CONFOUND` §9 · **Affects:** `nsrr-adapter.js`, `ecgdex-dsp.js`, `tests/dex-tests.js`
 
 # Two stages are now blocked on the same missing thing: a label. The adapter for it already exists.
 
