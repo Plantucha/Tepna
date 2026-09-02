@@ -443,6 +443,31 @@ across a moved compute path is SILENCE, not evidence — the one signal that wou
 is a property of a diff's INTENT, never of a file's position in the closure. **Rule of thumb: if the
 file is inlined into a bundle, the PR owes `verify-fixtures`, whatever the change reads like.**
 
+### 3.7 A guard whose ESCAPE HATCH does not work, and which fires on the read it recommends
+
+Both halves measured 2026-09-02 while rebasing #2086 onto #2083, and both are fixed in the same PR.
+
+- **The documented hatch was unreachable from a Bash call.** `guard-stale-brief.sh` tested
+  `CLAUDE_ALLOW_STALE_BRIEF=1` in its OWN environment, and a PreToolUse hook is a separate process
+  that runs BEFORE the command it gates — so `CLAUDE_ALLOW_STALE_BRIEF=1 git rebase …` never reached
+  it. The hook's denial text and CLAUDE.md §📌 both presented that form as working. A session that
+  had done exactly what the guard asks — read the upstream commits, then rebase — was denied twice
+  with no way to distinguish the hatch from a broken guard. It now honours a command-position prefix,
+  and the denial text names `export` as the only form an `Edit`/`Write` can use, because that path
+  carries no command text at all.
+- **It fired on a READ, and specifically on the read its own remedy implies.**
+  `grep -n '<<<<<<<\|=======\|>>>>>>>' briefs/X.md` — how you find conflict hunks mid-rebase —
+  matched the write heuristic, because a run of `>` next to a guarded path looks like a redirect. A
+  run of ≥3 `>` is a conflict marker; shell redirection has only `>` and `>>`, so the heuristic now
+  strips longer runs before testing, and a real `>>` append is still caught (paired leg).
+
+The shape worth carrying: **a guard is not finished when it denies the right things — its ESCAPE and
+its ADVICE are part of the surface.** This one told the operator to run a command it would deny, and
+offered a hatch it could not read. Neither is visible from the deny-path tests, which is why both
+legs are anti-vacuity legs: each was run against the unfixed hook first and had to FAIL there. One
+draft leg passed against the unfixed hook (its `cd /tmp` resolved a non-repo, so the guard failed
+open and proved nothing) — that is the §2.1 shape again, in a test I had just written.
+
 ### 3.5 Kill only what you own; a pattern is not a name (Osprey / Kestrel, 2026-08-31 → 09-01)
 A pattern kill hit a PEER's gate unit; a clearing sweep globbed `*check*.log` while the evidence sat in
 `*vf*.log`; a superseded monitor kept firing with authoritative-sounding text. Standing rules, now in memory
