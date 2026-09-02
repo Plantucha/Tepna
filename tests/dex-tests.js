@@ -49883,6 +49883,65 @@
        matching the verdict publishes. Measured before this landed: the analytic lambda modelled
        independent per-desat trials while the statistic is an exclusive greedy matching, overstating
        chance by 21% and publishing at 0.95% against its own nominal 5%. */
+    /* DEEP-AUDIT-IV §3-RESULT — the fabricated-zero shape, at all three production sites it named.
+       Measured unreachable on the corpus when the audit ran (0 of 3155 fusable events lacked conf;
+       54 of 54 hrv blocks non-zero), which is exactly why it survived: a shape no committed input can
+       trigger is invisible to every gate that runs on committed inputs. So it is pinned by SOURCE
+       SCAN plus one executed leg, not by hoping a fixture reaches it. */
+    group('An ABSENT value is not a measured zero — the || 0 fleet pattern (DEEP-AUDIT-IV §3)', 'oxydex-dsp · oxydex-render · integrator-dsp · fabricated-absence', function (T) {
+      var src = env.sources || {};
+      /* THE SHAPE ITSELF. `git grep '|| 0).toFixed'` over the root *.js returned exactly three
+         production sites when the audit measured it. The count is the assertion: a new one reds. */
+      var hits = [];
+      for (var f in src) {
+        if (!/^[^/]+\.js$/.test(f)) continue;
+        var lines = String(src[f]).split('\n');
+        for (var i = 0; i < lines.length; i++) if (/\|\| 0\)\.toFixed/.test(lines[i])) hits.push(f + ':' + (i + 1));
+      }
+      T.eq('no production site renders an absent value through `|| 0).toFixed`', hits.sort(), []);
+      /* THE CARD. oxydex-render.js:3112 rendered `HR-Var SD 0.00 bpm` for a night where nothing was
+         measured — the same fabricated-absence class as the Recovery green light that brief fixed. */
+      var r = String(src['oxydex-render.js'] || '');
+      if (!r) T.skip('oxydex-render.js in env.sources', 'not wired in this lane');
+      else {
+        T.ok('the HR-Var SD card requires the measurement positively', /hrSdnn == null \|\| !isFinite\(h\.hrSdnn\) \? '—'/.test(r), 'absent → em dash, not 0.00');
+      }
+      /* THE EXPORT. An absent proxy must leave null, not a number nobody computed. */
+      var d = String(src['oxydex-dsp.js'] || '');
+      if (!d) T.skip('oxydex-dsp.js in env.sources', 'not wired in this lane');
+      else T.ok('the node export carries null when neither hrSdnn proxy was measured', /hrSdnn: obj\.hrv\.hrSdnnProxy != null/.test(d), 'null-preserving reshape');
+      /* THE AUDIT TRAIL, EXECUTED — not a source scan. An event with an absent `conf` must reach
+         sources[] as effConf:null beside conf:null, and must NOT change the fused posterior, because
+         combineConf skips nulls and :1934 passes the UNROUNDED value. Both halves asserted. */
+      var RF = env.runFusion;
+      if (typeof RF !== 'function') T.skip('runFusion available', 'not in this lane');
+      else {
+        var t0 = U(2026, 5, 7, 22, 0, 0),
+          H = 3600000;
+        function rec(node, evs) {
+          return { node: node, t0Ms: t0, endMs: t0 + 8 * H, dateUnknown: false, offsetMin: null, events: evs, nEvents: evs.length, summary: {}, series: {} };
+        }
+        var des = [],
+          sur = [],
+          i;
+        for (i = 0; i < 12; i++) {
+          des.push({ tMs: t0 + i * 600000, t: 'x', impulse: 'spo2_desaturation', node: 'OxyDex', conf: i === 3 ? null : 0.9, meta: { depth: 5, durSec: 20 } });
+          sur.push({ tMs: t0 + i * 600000 + 18000, t: 'x', impulse: 'autonomic_surge', node: 'ECGDex', conf: 0.9 });
+        }
+        var ap = (RF([rec('OxyDex', des), rec('ECGDex', sur)], {}) || {}).apnea || {};
+        var f3 = (ap.findings || []).filter(function (x) {
+          return x.sources && x.sources[0] && x.sources[0].conf == null;
+        })[0];
+        T.ok('a desat with an absent conf still produces a finding', !!f3, f3 ? 'found' : 'no finding carried a null conf — the leg did not exercise the branch');
+        if (f3) {
+          T.eq('…and its sources[] effConf is NULL, not 0', f3.sources[0].effConf, null);
+          /* The posterior must still be a real number from the OTHER source — absence removed
+             evidence, it did not zero it. */
+          T.ok('…while the finding conf is still computed from the surge alone', f3.conf > 0, 'conf=' + f3.conf);
+        }
+      }
+    });
+
     group('Apnea chance-null — surrogates score the PUBLISHED statistic, deterministically (§4.2)', 'integrator-dsp · apnea · surrogate-null', function (T) {
       var RF = env.runFusion;
       T.ok('runFusion available', typeof RF === 'function');
