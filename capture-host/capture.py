@@ -7125,14 +7125,27 @@ async def _cpap_autostart_loop(*, root, op, is_running, retain_s, hold_s, max_at
                 # EVERY discarded file gets its own journal line — a fragment that vanishes without
                 # a named reason is the silent-healing shape, inverted.
                 for p in get_last_paths():
-                    try:
-                        unlink(p)
-                        log.warning("CPAP auto-start: FALSE START — discarded %s (%s)", p, verdict_why)
-                    except FileNotFoundError:
-                        pass             # never written, or already gone: no orphan either way
-                    except OSError as e:
-                        log.warning("CPAP auto-start: false-start fragment %s could NOT be removed "
-                                    "(%s) — an orphan the operator should know about", p, e)
+                    if not p:
+                        # DEFENCE IN DEPTH after the 2026-09-02 defect: a falsy path used to reach
+                        # `unlink()` as a TypeError, which is neither of the two exceptions caught
+                        # below, so it escaped this loop and killed the auto-start task for the rest
+                        # of the night. The producer no longer emits one; this makes it unable to
+                        # matter if some future sink does.
+                        continue
+                    # The acquisition-evidence sidecar rides beside the raw record and is written for
+                    # a false start too (it describes an acquisition that is being deleted), so it is
+                    # an orphan by construction unless it is named here. It is not a sink, so it can
+                    # never appear in the list above.
+                    for victim in (p, p + ".meta.json"):
+                        try:
+                            unlink(victim)
+                            log.warning("CPAP auto-start: FALSE START — discarded %s (%s)",
+                                        victim, verdict_why)
+                        except FileNotFoundError:
+                            pass         # never written, or already gone: no orphan either way
+                        except OSError as e:
+                            log.warning("CPAP auto-start: false-start fragment %s could NOT be removed "
+                                        "(%s) — an orphan the operator should know about", victim, e)
                 log.warning("CPAP auto-start: false start judged (%s) — attempt %d/%d for this session",
                             verdict_why, watch.attempts, max_attempts)
                 _cpap_autostart_save(root, watch.began_at_ms, attempts=watch.attempts,

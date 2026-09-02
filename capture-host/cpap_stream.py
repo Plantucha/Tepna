@@ -297,10 +297,19 @@ class LiveStreamController:
         # (should_stop_event) -> a fresh TherapyEndSink for this session, or None for NO acting. Default
         # None keeps every existing controller and test bus-only and non-acting.
         self._therapy_end_factory = therapy_end_factory
-        # The LAST session's on-disk artifacts (raw record + EDF), kept ACROSS the stop — the
-        # eager-start retention decision runs after the stream has ended and must be able to name the
-        # fragment it is discarding. Read-only to consumers; only _start rewrites it.
-        self.last_sink_paths: list = []
+        # The LAST session's SINKS, kept ACROSS the stop — the eager-start retention decision runs
+        # after the stream has ended and must be able to name the fragment it is discarding.
+        #
+        # THE SINKS, NOT THEIR PATHS, AND THAT IS THE WHOLE FIX. This used to snapshot paths eagerly
+        # in `_start` as `[s.path for s in _sinks if hasattr(s, "path")]`, which produced the wrong
+        # answer twice over: `RawRecordSink` names its file `_path` and has no `path`, so the
+        # authoritative raw record was silently filtered OUT of the discard list; and `EdfSink.path`
+        # is its `_final`, which is None until the first dated batch arrives — and the snapshot ran
+        # before the pump task was even scheduled. So the list was `[None]`, and the consumer's
+        # `unlink(None)` raises TypeError, which is neither FileNotFoundError nor OSError: it escaped
+        # the discard loop and killed the auto-start task for the rest of the night, silently.
+        # Resolving at READ time is what makes the answer true whenever it is asked.
+        self._session_sinks: list = []
         self._task = None
         self._stop = None
         self._disconnect = None
@@ -311,6 +320,24 @@ class LiveStreamController:
         # connect/auth. (asyncio.Lock is loop-agnostic at construction on 3.10+, so building the controller
         # outside a running loop — as the daemon does — is fine.)
         self._lock = asyncio.Lock()
+
+    @property
+    def last_sink_paths(self) -> list:
+        """This session's on-disk artifact paths, resolved AT READ TIME. Read-only to consumers.
+
+        Both spellings are accepted deliberately: `EdfSink` publishes a `path` property, while
+        `RawRecordSink` keeps `_path` and has none. The previous code filtered on `hasattr(s, "path")`
+        and so dropped the raw record entirely — the authoritative INV9 artifact, silently surviving
+        every discard it was supposed to be part of. A falsy path is skipped rather than returned: an
+        EDF that never opened has no name, and a None here reaches `unlink()` as a TypeError, which is
+        neither FileNotFoundError nor OSError and so escapes the caller's guard.
+        """
+        out = []
+        for snk in self._session_sinks:
+            p = getattr(snk, "path", None) or getattr(snk, "_path", None)
+            if p:
+                out.append(p)
+        return out
 
     def _keys(self):
         return [key for _did, (key, _l, _u) in self._channels.items()]
@@ -397,10 +424,13 @@ class LiveStreamController:
         # order among sinks, not durable-vs-bus.
         _factories = [f for f in (self._raw_record_factory, self._edf_sink_factory) if f is not None]
         _sinks = [f() for f in _factories]
-        # Remember THIS session's artifact paths across the stop (see __init__): both the raw record
-        # and the EDF — a discarded false start must leave no orphan, and the raw record is an orphan
-        # too when the session it records was never a session.
-        self.last_sink_paths = [s.path for s in _sinks if hasattr(s, "path")]
+        # Remember THIS session's SINKS across the stop (see __init__): both the raw record and the
+        # EDF — a discarded false start must leave no orphan, and the raw record is an orphan too when
+        # the session it records was never a session. The PATHS are resolved when ASKED, not here:
+        # neither sink can answer this question yet (the EDF has no dated name until its first batch,
+        # which the pump below has not produced), so asking now is exactly how the old snapshot came
+        # back `[None]`.
+        self._session_sinks = _sinks
         # ACTING (therapy-end auto-stop). LAST in the list on purpose: the sinks ahead of it persist this
         # batch BEFORE it can set `should_stop`, so the batch that triggers the stop is still written. It
         # sets the SAME cooperative event the monitor's stop button uses, so the pump drains and every
