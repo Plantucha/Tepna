@@ -50130,6 +50130,59 @@
        54 of 54 hrv blocks non-zero), which is exactly why it survived: a shape no committed input can
        trigger is invisible to every gate that runs on committed inputs. So it is pinned by SOURCE
        SCAN plus one executed leg, not by hoping a fixture reaches it. */
+    /* Heron's cross-family consumer trace, verified 2026-09-02. PpgDex's RSA respiration rate was
+       computed, exported at `hrv.frequency.respRate`, and read by nothing: `summary.respRateBrpm` was
+       assigned only inside the ECGDex and MotionDex branches. Two comments — one in ppgdex-dsp.js's
+       own export block, one in a brief — asserted the link already existed; both were true of ECGDex
+       and false of PpgDex, which is why nobody looked. */
+    group('PpgDex respiration reaches the fusion — the third, optical estimate (cross-family trace)', 'integrator-dsp · ppgdex · resp-rate · export-boundary', function (T) {
+      var A = env.adaptEnvelopeNode;
+      T.ok('adaptEnvelopeNode available', typeof A === 'function');
+      if (typeof A !== 'function') return;
+      var t0 = U(2026, 5, 27, 22, 0, 0);
+      function exp(node, freq) {
+        return {
+          schema: { name: 'ganglior.node-export', bus: 'ganglior', node: node },
+          node: node,
+          recording: { startEpochMs: t0, node: node },
+          hrv: { time: { rmssd: 30, sdnn: 50 }, frequency: freq },
+          ganglior_events: []
+        };
+      }
+      /* THE FIX: a PpgDex export carrying a respiration rate now reaches summary. */
+      var ppg = A(exp('PpgDex', { respRate: 15.4, respRateMethod: 'RSA (HF-peak of RR spectrum)', lfhf: 1.2 }), 'PpgDex', 'PpgDex')[0];
+      T.eq('a PpgDex RSA respiration rate reaches summary.respRateBrpm', ppg.summary.respRateBrpm, 15.4);
+      T.eq('…carrying the method the node declared, not a hardcoded string', ppg.summary.respRateMethod, 'RSA (HF-peak of RR spectrum)');
+      /* NORMALISATION mirrors ECGDex: 0 means "not estimated" in the spectral path and must become
+         null, never a published 0 bpm — the fabricated-absence class this suite keeps finding. */
+      var zero = A(exp('PpgDex', { respRate: 0, lfhf: 1.2 }), 'PpgDex', 'PpgDex')[0];
+      T.eq('a 0 bpm spectral non-estimate is null, not a measured zero', zero.summary.respRateBrpm, null);
+      T.eq('…and its method is null too, not a string beside no value', zero.summary.respRateMethod, null);
+      /* A node that declares no method still gets one, so the fusion can always attribute. */
+      var noM = A(exp('PpgDex', { respRate: 12, lfhf: 1 }), 'PpgDex', 'PpgDex')[0];
+      T.eq('an undeclared method falls back to a NAMED optical default', noM.summary.respRateMethod, 'RSA (PPG)');
+      /* THE CONTROL — the other two nodes in this shared block must be UNAFFECTED. Neither exports
+         the key, so both stay null; if this ever changes, the guard is doing something unintended. */
+      var pulse = A(exp('PulseDex', { lfhf: 1.1 }), 'PulseDex', 'PulseDex')[0];
+      var hrvd = A(exp('HRVDex', { lfhf: 1.1 }), 'HRVDex', 'HRVDex')[0];
+      T.eq('PulseDex, which exports no respRate, stays null', pulse.summary.respRateBrpm, null);
+      T.eq('HRVDex, likewise', hrvd.summary.respRateBrpm, null);
+      /* ECGDex's own assignment must not be disturbed — it runs in its own branch and the new guard
+         only fires when nothing has been assigned yet. */
+      var ecg = A(
+        {
+          schema: { name: 'ganglior.node-export', bus: 'ganglior', node: 'ECGDex' },
+          node: 'ECGDex',
+          recording: { startEpochMs: t0, node: 'ECGDex' },
+          hrv: { time: { rmssd: 30, sdnn: 50 }, frequency: { respRate: 16.1, respRateMethod: 'RSA (HF-peak of RR spectrum)' } },
+          ganglior_events: []
+        },
+        'ECGDex',
+        'ECGDex'
+      )[0];
+      T.eq('ECGDex still reports its own respiration rate', ecg.summary.respRateBrpm, 16.1);
+    });
+
     group('An ABSENT value is not a measured zero — the || 0 fleet pattern (DEEP-AUDIT-IV §3)', 'oxydex-dsp · oxydex-render · integrator-dsp · fabricated-absence', function (T) {
       var src = env.sources || {};
       /* THE SHAPE ITSELF. `git grep '|| 0).toFixed'` over the root *.js returned exactly three
