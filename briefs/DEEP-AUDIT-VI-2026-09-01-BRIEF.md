@@ -386,7 +386,7 @@ estimator as the point) — or label the CI classic-estimator and detach it from
 
 #### F17 · MAJOR — silent failure via CWD-relative config paths · `capture-host/capture.py:6574` (+6594, 6614)
 
-**Status:** BUILT — verified 2026-09-01 (Heron, branch `claude/audit6-f17-f18-hrn`, one PR with F18):
+**Status:** BUILT — verified 2026-09-01 (Heron, PR #2057 with F18):
 `resolve_creds_path` (relative → config dir, default `<cfgdir>/as11_creds.json`) at all three creds sites;
 `resolve_cpap_dir` (relative → box `root`, else config dir) for `edf_dir` / `raw_record_dir` in the
 controller, the night-QC watchdog and the inventory report; one `CPAP live stream wired: creds … · edf_dir …
@@ -485,8 +485,8 @@ recording is open (`_civil_shift` ±3600 s, capture.py §A1) — but `instance_h
 11. **F8** CPAPDex usageHours 0.000 on PLD-less sets (BRP fallback or honest null).
 12. **F2** ECGDex app-lane fs/provenance parity with the headless DSP.
 13. **F18** capture-host stale autostart relabel; **F17** CWD-relative cfg paths (both Python lane, both
-    small, deploy to vigil after). — **BUILT 2026-09-01** (Heron, one PR: branch
-    `claude/audit6-f17-f18-hrn`; deploy via the hourly `tepna-update.timer`).
+    small, deploy to vigil after). — **BUILT 2026-09-01** (Heron, PR #2057; deploy via the hourly
+    `tepna-update.timer`).
 14. **F14** computeHash closure: remove oxydex-profile.js from the denylist.
 15. **F15** tch multi-root disclosure/refusal; **F16** fused-point/classic-CI mixing.
 16. **F4** ACC card badges (+ extend the badge DOM-walk selectors so the gate can see this class).
