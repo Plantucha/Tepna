@@ -619,6 +619,11 @@ function readSources() {
     // arguments its one runtime caller passes, and that caller is a Web Worker no behavioural test can
     // drive (O2RING-PHASE4-PREMISE-REVIEW §4).
     'pat-feasibility-worker.js',
+    /* The RENDERER, added 2026-09-02. The worker above was scanned and this file was not, and that
+       asymmetry is exactly how `vdCorr` was published, carried across the worker boundary and dropped
+       at the render step while every test stayed green. A layer nothing reads is a layer nothing
+       checks. */
+    'pat-feasibility.js',
     'signal-orchestrate.js',
     'dex-ingest.js',
     'cpapdex-dsp.js',

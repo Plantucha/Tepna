@@ -9073,6 +9073,64 @@
          which is not identifiable from per-device clock wander without a shared clock. So the gate
          must refuse rather than emit a tier. Absent an axis the behaviour is unchanged — only an
          explicit `independent === false` refuses — which is what the last case pins. */
+      /* THE SECOND VERDICT MUST REACH THE CELL (2026-09-02). `vdCorr` was published by
+         `pat-feasibility-worker.js` and read by nobody: the renderer composed its cell inline from
+         `m.vd` alone, so the ACC-corrected verdict crossed the worker boundary and was dropped at the
+         last step. Every test stayed green because they scanned the WORKER (5 references in this file)
+         and never the renderer (0) — the composition lived in an anonymous IIFE with no export surface.
+         It now lives in `PATGate.verdictCell`, pure and reachable, and these are the first assertions
+         that touch the render layer at all.
+
+         The decisive case is DISAGREEMENT: raw DRIFT-DOMINATED while corrected says FEASIBLE is
+         precisely the night the old cell rendered as if the correction did not exist. */
+      /* ANTI-VACUITY, and the assertion that would actually have caught this. The block below pins
+         `verdictCell`'s behaviour, but it CANNOT fail against unfixed code — that code has no such
+         function, so the guard simply skips and proves nothing. The defect was never a wrong function;
+         it was an ABSENT CALL in the renderer. So the load-bearing check is a source scan: the render
+         layer must consume the second verdict, and must not re-compose the cell inline. This one DOES
+         fail against origin/main, where `pat-feasibility.js` contains no `verdictCell`. */
+      {
+        var rsrc = (env.sources || {})['pat-feasibility.js'];
+        T.ok("the RENDERER's source is readable in this lane", !!rsrc, 'pat-feasibility.js not in env.sources — the scan below would read nothing and pass vacuously');
+        if (rsrc) {
+          T.ok('the renderer CONSUMES the second verdict (calls PATGate.verdictCell)', /PATGate\s*&&\s*self\.PATGate\.verdictCell|PATGate\.verdictCell/.test(rsrc));
+          T.ok(
+            'the renderer does not re-compose the verdict cell inline',
+            !/vd\.textContent\s*=\s*m\.vd\.label/.test(rsrc),
+            'found the pre-2026-09-02 inline composition, which read m.vd and never m.vdCorr'
+          );
+        }
+      }
+
+      if (env.PATGate && env.PATGate.verdictCell) {
+        var mDis = {
+          vd: { label: 'DRIFT-DOMINATED', tier: 'no' },
+          cp: { ok: true, driftRange: 88 },
+          cpCorr: { ok: true, driftRange: 41 },
+          vdCorr: { label: 'FEASIBLE' },
+          driftSource: 'raw'
+        };
+        var cDis = env.PATGate.verdictCell(mDis);
+        T.ok(/DRIFT-DOMINATED/.test(cDis.text), 'the cell still leads with the PRIMARY raw verdict');
+        T.ok(/corrected\(acc\): FEASIBLE/.test(cDis.text), 'the ACC-corrected verdict REACHES the cell');
+        T.eq('a disagreement is flagged for the reader', cDis.differs, true);
+        T.ok(/DIFFERS from primary/.test(cDis.title), 'the title names the disagreement explicitly');
+        /* The tier is NOT promoted — surfacing decides nothing; promoting on corrected drift is the
+           owner's call and this gate must never quietly consume it. */
+        T.eq('the primary tier is untouched by the corrected verdict', mDis.vd.tier, 'no');
+
+        var mAgree = env.PATGate.verdictCell({
+          vd: { label: 'FEASIBLE', tier: 'go' },
+          cp: { ok: true, driftRange: 20 },
+          vdCorr: { label: 'FEASIBLE' }
+        });
+        T.eq('agreement is reported as agreement, not silence', mAgree.differs, false);
+        T.ok(/\(agrees\)/.test(mAgree.title), 'the title says the two verdicts agree');
+
+        var mNone = env.PATGate.verdictCell({ vd: { label: 'FEASIBLE', tier: 'go' }, cp: { ok: false } });
+        T.ok(/not available for this night/.test(mNone.title) && !/corrected\(acc\)/.test(mNone.text), 'a night with no ACC sync says so rather than implying a correction');
+      }
+
       if (env.PATGate && env.PATGate.verdict) {
         var ovOK = { min: 200 },
           scOK = { ok: true },
