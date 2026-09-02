@@ -664,9 +664,10 @@
       r.d_sd1_sd2 = r.d_sd2 > 0 ? r.d_sd1 / r.d_sd2 : NaN;
 
       // ── Toichi CVI / CSI ──
-      // MeanRR through the SAME asSecondsRR detector as MxDMn/Mode above (was a hard /1000 → ~10³× mis-scale
+      // MeanRR through the SAME asSecondsRR detector as Mode above (was a hard /1000 → ~10³× mis-scale
       // on a MeanRR-in-seconds vendor export; latent while both real ingest paths carried MeanRR in ms).
-      const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR).valueS : r._meanRR / 1000;
+      const _mrrQ = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR) : null;
+      const meanRR_s = _mrrQ ? _mrrQ.valueS : r._meanRR / 1000;
       /* Toichi CVI: log10(rMSSD_ms × MeanRR_ms) — typical resting 3.5–4.5, and the render colour rule
          (>4.4 good / >4.1 warn / else bad) is calibrated to that ms×ms band.
          §2.1 — this read `_meanRR` RAW while its neighbours two lines up and down read it through the
@@ -675,14 +676,25 @@
          stayed exactly invariant. DEEP-AUDIT-2026-07-22's REFUTED row dismissed this as "internally
          consistent (both operands from the same vendor)" — ratio-cancellation reasoning, which does
          NOT hold for a LOG OF A PRODUCT: log10(a_s·b_s) = log10(a_ms·b_ms) − 6. Compute in ONE
-         declared unit (seconds, via the same detector) and restate into the published ms×ms band. */
-      const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._rmssd).valueS : r._rmssd / 1000;
+         declared unit (seconds, via the same detector) and restate into the published ms×ms band.
+         F5 (DEEP-AUDIT-VI): rMSSD is a DISPERSION, not an RR interval — through the RR guard a
+         clinically real rMSSD < 10 ms read as SECONDS, inflated CVI by +3 log units, and rendered
+         severe-low-HRV green (8 ms, meanRR 880 → 6.85 'good'; truth 3.85 'bad'). It rides the
+         dispersion guard now, and the flag is SURFACED (d_cvi_flagged mirrors d_si_flagged) — under
+         the dispersion band it finally carries signal, where the RR band flagged every correct
+         value and taught call sites to discard it. */
+      const _rmsQ = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsDispersion ? DexUnits.asSecondsDispersion(r._rmssd) : null;
+      const rmssd_s = _rmsQ ? _rmsQ.valueS : r._rmssd / 1000;
       r.d_cvi = rmssd_s > 0 && meanRR_s > 0 ? Math.log10(rmssd_s * meanRR_s) + 6 : NaN;
+      r.d_cvi_flagged = !!((_rmsQ && _rmsQ.flagged) || (_mrrQ && _mrrQ.flagged));
       // CSI: MxDMn in SECONDS / meanRR in seconds. Uses the SAME guard-normalized MxDMn as d_si
       // (was a hard "assumes seconds" → ~10³× mis-scale on a ms-unit file; -III §1). meanRR_s already
       // converts meanRR ms→s above, so both operands are seconds; do NOT re-fork the threshold.
+      // F5: guardBaevsky now reads MxDMn through the dispersion guard (it is one), so a real
+      // MxDMn < 10 ms no longer arrives here 1000× large; the guard's verdict is surfaced.
       var _mxdmnS = r._baevskyS && r._baevskyS.mxdmnS != null ? r._baevskyS.mxdmnS : r._mxdmn;
       r.d_csi = meanRR_s > 0 && _mxdmnS != null ? _mxdmnS / meanRR_s : NaN;
+      r.d_csi_flagged = !!(r.d_si_flagged || (_mrrQ && _mrrQ.flagged));
 
       // ── Autonomic Balance Score ──
       r.d_abs = _all(r._sns, r._psns) && r._sns + r._psns > 0 ? (r._psns - r._sns) / (r._psns + r._sns) : NaN;

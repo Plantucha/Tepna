@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-14YyZfCk3blco3kCkOqPlk6HvveUldb9rYcoNS1JJf4=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ=' 'sha256-zD32P5Qq149w9F1ShytNrfHouqIjvZwZeGJBVczgDfg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-14YyZfCk3blco3kCkOqPlk6HvveUldb9rYcoNS1JJf4=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ=' 'sha256-zD32P5Qq149w9F1ShytNrfHouqIjvZwZeGJBVczgDfg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -2404,15 +2404,46 @@
     return { valueS: valueS, assumedMs: assumedMs, flagged: flagged };
   }
 
+  /* ── DERIVED-DISPERSION unit guard (DEEP-AUDIT-VI F5) ─────────────────────
+     rMSSD, MxDMn and their siblings are NOT RR intervals — they are dispersion
+     STATISTICS of RR, and their physiologic range CROSSES the RR threshold: a
+     clinically real rMSSD of 8 ms (severe autonomic dysfunction) sits below
+     RR_MS_THRESHOLD=10 and was classified as SECONDS, multiplied 1000×, and
+     inverted the rendered clinical verdict (severe-low-HRV rendered green;
+     measured +2.996 log-unit discontinuity between 10.0 and 9.9 ms). The
+     statistic-appropriate split: a dispersion in SECONDS is ≤ ~0.3 (300 ms of
+     rMSSD is already extreme); in MILLISECONDS it is ≥ ~1. 0.5 separates them
+     in the clinically REAL domain — the residual boundary sits between 0.5 ms
+     (sub-millisecond dispersion, not physiology) and 500 ms (equally not), so
+     the discontinuity no longer lives where patients do. The plausibility band
+     is likewise the dispersion band, not the RR band — under the RR band a
+     CORRECT 38 ms → 0.038 s always flagged, so the flag carried no signal and
+     call sites discarded it. */
+  var DISP_MS_THRESHOLD = 0.5;
+  var DISP_MIN_S = 0.0005,
+    DISP_MAX_S = 0.5;
+
+  function asSecondsDispersion(v) {
+    if (v == null || !isFinite(v)) return { valueS: null, assumedMs: false, flagged: true };
+    var assumedMs = v >= DISP_MS_THRESHOLD;
+    var valueS = assumedMs ? v / 1000 : v;
+    var flagged = !(valueS >= DISP_MIN_S && valueS <= DISP_MAX_S);
+    return { valueS: valueS, assumedMs: assumedMs, flagged: flagged };
+  }
+
   function guardBaevsky(mode, mxdmn) {
+    /* Mode IS an RR magnitude (the most-frequent RR interval) — the RR guard is right for it.
+       MxDMn is a dispersion (max−min of RR) — the RR guard misread every real MxDMn < 10 ms as
+       seconds (d_csi 1000× high, verdict inverted with NO flag; d_si 1000× low). Each operand gets
+       the guard for the quantity it actually is. */
     var m = asSecondsRR(mode),
-      x = asSecondsRR(mxdmn);
+      x = asSecondsDispersion(mxdmn);
     return {
       modeS: m.valueS,
       mxdmnS: x.valueS,
       assumedMs: m.assumedMs || x.assumedMs,
       flagged: m.flagged || x.flagged,
-      reason: m.flagged || x.flagged ? 'Baevsky Mode/MxDMn outside plausible RR range after unit normalization — value surfaced, not silently scaled' : null
+      reason: m.flagged || x.flagged ? 'Baevsky Mode/MxDMn outside its plausible range after unit normalization — value surfaced, not silently scaled' : null
     };
   }
 
@@ -2438,9 +2469,11 @@
     DIM: DIM,
     CANON: CANON,
     asSecondsRR: asSecondsRR,
+    asSecondsDispersion: asSecondsDispersion,
     guardBaevsky: guardBaevsky,
     baevskySI: baevskySI,
-    RR_MS_THRESHOLD: RR_MS_THRESHOLD
+    RR_MS_THRESHOLD: RR_MS_THRESHOLD,
+    DISP_MS_THRESHOLD: DISP_MS_THRESHOLD
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexUnits;
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
@@ -12046,9 +12079,10 @@ __exports.OxyDex = window.OxyDex;
       r.d_sd1_sd2 = r.d_sd2 > 0 ? r.d_sd1 / r.d_sd2 : NaN;
 
       // ── Toichi CVI / CSI ──
-      // MeanRR through the SAME asSecondsRR detector as MxDMn/Mode above (was a hard /1000 → ~10³× mis-scale
+      // MeanRR through the SAME asSecondsRR detector as Mode above (was a hard /1000 → ~10³× mis-scale
       // on a MeanRR-in-seconds vendor export; latent while both real ingest paths carried MeanRR in ms).
-      const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR).valueS : r._meanRR / 1000;
+      const _mrrQ = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR) : null;
+      const meanRR_s = _mrrQ ? _mrrQ.valueS : r._meanRR / 1000;
       /* Toichi CVI: log10(rMSSD_ms × MeanRR_ms) — typical resting 3.5–4.5, and the render colour rule
          (>4.4 good / >4.1 warn / else bad) is calibrated to that ms×ms band.
          §2.1 — this read `_meanRR` RAW while its neighbours two lines up and down read it through the
@@ -12057,14 +12091,25 @@ __exports.OxyDex = window.OxyDex;
          stayed exactly invariant. DEEP-AUDIT-2026-07-22's REFUTED row dismissed this as "internally
          consistent (both operands from the same vendor)" — ratio-cancellation reasoning, which does
          NOT hold for a LOG OF A PRODUCT: log10(a_s·b_s) = log10(a_ms·b_ms) − 6. Compute in ONE
-         declared unit (seconds, via the same detector) and restate into the published ms×ms band. */
-      const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._rmssd).valueS : r._rmssd / 1000;
+         declared unit (seconds, via the same detector) and restate into the published ms×ms band.
+         F5 (DEEP-AUDIT-VI): rMSSD is a DISPERSION, not an RR interval — through the RR guard a
+         clinically real rMSSD < 10 ms read as SECONDS, inflated CVI by +3 log units, and rendered
+         severe-low-HRV green (8 ms, meanRR 880 → 6.85 'good'; truth 3.85 'bad'). It rides the
+         dispersion guard now, and the flag is SURFACED (d_cvi_flagged mirrors d_si_flagged) — under
+         the dispersion band it finally carries signal, where the RR band flagged every correct
+         value and taught call sites to discard it. */
+      const _rmsQ = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsDispersion ? DexUnits.asSecondsDispersion(r._rmssd) : null;
+      const rmssd_s = _rmsQ ? _rmsQ.valueS : r._rmssd / 1000;
       r.d_cvi = rmssd_s > 0 && meanRR_s > 0 ? Math.log10(rmssd_s * meanRR_s) + 6 : NaN;
+      r.d_cvi_flagged = !!((_rmsQ && _rmsQ.flagged) || (_mrrQ && _mrrQ.flagged));
       // CSI: MxDMn in SECONDS / meanRR in seconds. Uses the SAME guard-normalized MxDMn as d_si
       // (was a hard "assumes seconds" → ~10³× mis-scale on a ms-unit file; -III §1). meanRR_s already
       // converts meanRR ms→s above, so both operands are seconds; do NOT re-fork the threshold.
+      // F5: guardBaevsky now reads MxDMn through the dispersion guard (it is one), so a real
+      // MxDMn < 10 ms no longer arrives here 1000× large; the guard's verdict is surfaced.
       var _mxdmnS = r._baevskyS && r._baevskyS.mxdmnS != null ? r._baevskyS.mxdmnS : r._mxdmn;
       r.d_csi = meanRR_s > 0 && _mxdmnS != null ? _mxdmnS / meanRR_s : NaN;
+      r.d_csi_flagged = !!(r.d_si_flagged || (_mrrQ && _mrrQ.flagged));
 
       // ── Autonomic Balance Score ──
       r.d_abs = _all(r._sns, r._psns) && r._sns + r._psns > 0 ? (r._psns - r._sns) / (r._psns + r._sns) : NaN;
