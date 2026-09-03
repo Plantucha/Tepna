@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-02 — §2a's design is delivered and option (C)'s *make the drift loud* half is SHIPPED (`nightqc.system_file_drift`, `monitor.html:2301-2313`, `tests/test_system_file_drift.py`). What is missing is the **owner's A/B/C pick on the box's privilege model** — no decision is recorded anywhere, and nothing else in this brief can move until it is. §4's restart-at-next-idle is likewise an owner call; the 68.6 % number it needed is already measured. ⚠ **Residue, unblocked and unassigned:** §5's consecutive-failure counter is plain desk work — nothing implements it (no counter in `daemon_control.py`/`telemetry.py`/`alerts.py`), and it is what distinguishes *failed once, recovered* from *failing every tick since Tuesday*. Box-side today: `tepna-update.timer` is healthy, last fired 12:41, next 13:45. **Owner:** owner (privilege model) / Heron (§5 counter) · **Next step:** the §5 counter, which needs nobody's permission) · **Created:** 2026-08-14
+**Status:** PROPOSED (parked 2026-09-02 — §2a's design is delivered and option (C)'s *make the drift loud* half is SHIPPED (`nightqc.system_file_drift`, `monitor.html:2301-2313`, `tests/test_system_file_drift.py`). What is missing is the **owner's A/B/C pick on the box's privilege model** — no decision is recorded anywhere, and nothing else in this brief can move until it is. §4's restart-at-next-idle is likewise an owner call; the 68.6 % number it needed is already measured. ✅ **§5's consecutive-failure counter is BUILT (2026-09-03, Heron)** — `tepna-update.sh` `FAIL_MARK` + `_streak_finish`, keyed on the exit status rather than on `die` so it also counts the "cannot establish whether the box is recording" path, which is the one that can run all night; 9 tests, each watched failing against a mutated implementation. That was this brief's only unblocked item, so what remains is **entirely owner decisions**: the A/B/C privilege-model pick (§2a, nothing else in this brief moves until it is recorded) and §4's restart-at-next-idle, whose 68.6 % number is already measured. **Owner:** owner (privilege model + §4) · **Next step:** the A/B/C pick — no session can advance this brief further without it) · **Created:** 2026-08-14
 
 > Spawned by closing `VIGIL-AUTO-UPDATE-2026-08-04-BRIEF.md` (DONE 2026-08-14, §6 met with 41 observed
 > unattended restarts). Everything here was found by *running* the machinery that brief built, mostly on
@@ -202,8 +202,26 @@ went `failed` and the next tick recovered. §5 of the parent brief argues a nonz
 what makes drift visible, so this is working — but a *single* transient failure and a *persistent* one
 look identical in `systemctl status`.
 
-- [ ] Distinguish "failed once, recovered" from "failing every tick since Tuesday". A consecutive-failure
+- [x] Distinguish "failed once, recovered" from "failing every tick since Tuesday". A consecutive-failure
       count in the report, or a `RESTART-OWED`-style marker, would do it.
+      **✅ BUILT 2026-09-03 — `tepna-update.sh` `FAIL_MARK` + `_streak_finish`, 9 tests in
+      `test_vigil_update.py`.** A `RESTART-OWED`-style marker, as this line suggested. Three decisions
+      worth recording, because each was a fork where the obvious choice was the wrong one:
+      - **Keyed on the EXIT STATUS, not on `die`.** The script ends `exit "$drifted"`, so a run can leave
+        the unit `failed` without calling `die` — and that path ("cannot establish whether the box is
+        recording") is the one that can persist for a whole night. A counter hung off `die` would have
+        counted every kind of failure *except* the longest-running kind. Gate-locked: mutating the
+        implementation back to a `die`-only counter reds 3 tests.
+      - **Silent on the FIRST failure, named from the second.** One failure is already visible; a line on
+        every isolated blip is how a new signal becomes noise. The report appears exactly when the
+        distinction this section asks for starts to exist.
+      - **A recovery line on the run that clears the streak**, carrying the count and the span. This is
+        the half that would actually have surfaced 2026-08-04: whoever reads the journal does so *after*
+        the outage, when every failing tick is already behind them.
+      ⚠ The counter cannot be read off `daemon_control.py`/`webmon.py` — the timer's outcome has **no web
+      surface at all**; the monitor only learns about updates when someone presses *Deploy now*. The
+      journal is the consumer, which is what this section names as the surface where the two cases look
+      identical. Giving the timer a web surface is a real item, but it is a different one.
       **📊 MEASURED 2026-08-18 — "failing every tick since Tuesday" is not hypothetical. It happened.**
       Classifying 30 days of `journalctl -u tepna-update`: **38 failure events against 300 success/defer**,
       with consecutive-failure runs of **[30, 5, 3]**.
