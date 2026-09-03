@@ -26685,11 +26685,45 @@
       var RESIDUE_NAME = 'RESIDUE.md';
       function residueRows(text) {
         var out = { rows: [], malformed: [] };
+        /* ⚠️ SPLIT ON UNESCAPED PIPES ONLY. A bare `line.split('|')` is escape-BLIND, so a row
+           quoting a regex, a shell alternation, or any prose with a `\|` in it reads as an extra
+           cell and is rejected as malformed however correctly it was escaped. Measured 2026-09-03:
+           a residue row citing an alternation pattern was refused as "7 cells, want 6"; the escape
+           was right and the counter was not, and the workaround was to reword the evidence — i.e.
+           the gate was silently editing what a row is allowed to say.
+           Scanning (rather than a lookbehind) is what makes it correct at the edge: `\X` is consumed
+           as a unit, so `\|` stays inside its cell while `\\` is a literal backslash followed by a
+           LIVE separator. A `(?<!\\)\|` lookbehind gets that second case wrong.
+           This does NOT loosen the check — a row carrying an escaped pipe must still have exactly
+           six cells. It only stops counting a character the row escaped on purpose. */
+        function splitLedgerCells(line) {
+          var out = [],
+            cur = '',
+            i = 0;
+          while (i < line.length) {
+            var ch = line[i];
+            if (ch === '\\' && i + 1 < line.length) {
+              cur += ch + line[i + 1];
+              i += 2;
+              continue;
+            }
+            if (ch === '|') {
+              out.push(cur);
+              cur = '';
+              i++;
+              continue;
+            }
+            cur += ch;
+            i++;
+          }
+          out.push(cur);
+          return out;
+        }
         String(text)
           .split('\n')
           .forEach(function (line) {
             if (!/^\|\s*\d{4}-\d{2}-\d{2}-[a-z0-9-]+\s*\|/.test(line)) return;
-            var cells = line.split('|');
+            var cells = splitLedgerCells(line);
             // leading '' + 6 cells + trailing '' — anything else means a pipe inside a cell or a missing column
             if (cells.length !== 8 || cells[0].trim() !== '' || cells[7].trim() !== '') {
               out.malformed.push(line.slice(0, 40) + '… (' + (cells.length - 2) + ' cells, want 6)');
@@ -26889,6 +26923,40 @@
         residueVerdict(plantSrc.rows, {}, ['capture-host/tools/find_unwired.py']).badSrc.length === 0 && residueVerdict(plantSrc.rows, {}, ['some/other/file.py']).badSrc.length === 1
       );
       T.ok('self-test · check8f does NOT demand a back-reference from a non-brief source', residueVerdict(plantSrc.rows, {}, ['capture-host/tools/find_unwired.py']).noBackRef.length === 0);
+      /* ── check8b's cell counter now honours the backslash escape ────────────────────────────
+         Planted rows rather than asserted on the live ledger: the live one may contain no escaped
+         pipe at all, and a gate that cannot be shown to fire is decoration. */
+      {
+        var mkRow = function (ev) {
+          return '| 2026-01-02-k9 | 2026-01-02 | `#1234` | a defect | ' + ev + ' | OPEN |';
+        };
+        var plainRow = residueRows(mkRow('no pipes here'));
+        T.ok(
+          'self-test · check8b accepts an ordinary 6-cell row',
+          plainRow.rows.length === 1 && plainRow.malformed.length === 0,
+          JSON.stringify({ rows: plainRow.rows.length, malformed: plainRow.malformed.length })
+        );
+        var escRow = residueRows(mkRow('the pattern `a\\|b` alternates'));
+        T.ok(
+          'self-test · check8b ACCEPTS an ESCAPED pipe inside a cell (a row may quote a regex)',
+          escRow.rows.length === 1 && escRow.malformed.length === 0,
+          escRow.malformed.length ? escRow.malformed[0] : 'accepted'
+        );
+        var bareRow = residueRows(mkRow('a bare | pipe'));
+        T.ok(
+          'self-test · …and still REJECTS a bare pipe, so the check is not loosened',
+          bareRow.rows.length === 0 && bareRow.malformed.length === 1,
+          bareRow.malformed.length ? bareRow.malformed[0].slice(0, 60) : 'NOT rejected — the fix went too far'
+        );
+        /* The edge a `(?<!\\)\|` lookbehind gets WRONG: an escaped BACKSLASH followed by a LIVE pipe.
+           `\\\\|` must still separate cells, or the counter over-accepts. */
+        var dblRow = residueRows(mkRow('ends with an escaped backslash \\\\| and then a cell break'));
+        T.ok(
+          'self-test · an escaped BACKSLASH before a pipe still separates (scan, not lookbehind)',
+          dblRow.malformed.length === 1,
+          dblRow.malformed.length ? 'rejected as expected' : 'ACCEPTED — the scanner mis-reads \\\\|'
+        );
+      }
       var plantBriefs = {
         'A-2026-01-01-BRIEF.md': '**Status:** DONE — 2026-01-02 · **Residue:** 2026-01-02-k1, 2026-01-02-k3',
         'B-2026-01-01-BRIEF.md': '**Status:** PROPOSED',
