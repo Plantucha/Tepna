@@ -65,6 +65,19 @@ GIT_INDEX_FILE=/tmp/r.idx git commit -a -m x
 # 1 · The extension list omitted .py and .sh — i.e. every line of capture-host/, the largest body of
 #     source here, plus its deploy scripts. A Python source revert was invisible to the guard.
 git checkout origin/main -- capture-host/writers.py
+# 6 · A BARE DIRECTORY HAS NO EXTENSION (2026-09-03). The extraction keyed on a file extension, so the
+#     NARROW form denied and the WIDE one — which restores every file in the directory, including every
+#     other session's in-flight work — was allowed. Found after a session ran exactly this in the shared
+#     root and staged 78 briefs into the root's index.
+git checkout origin/main -- briefs
+git checkout origin/main -- briefs/
+git --work-tree=/tmp/t checkout origin/main -- briefs
+git checkout origin/main -- audits
+git checkout origin/main -- capture-host
+git restore --source=origin/main -- tools
+#     provenance is deliberately NOT exempt as a directory: restoring it wholesale discards
+#     verifiedUnder stamps that only a corpus run can re-earn, which is worse than a rebuild.
+git checkout origin/main -- provenance
 # --- adversarial round 2 (2026-08-05). Each line ALLOWED on main @2e82c29c.
 # a traversing path inherited the generated-prefix exemption: #990 fixed the CLASSIFIER, not the hook
 git checkout origin/main -- provenance/../oxydex-dsp.js
