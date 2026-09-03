@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** REFERENCE (living — protocol reverse-engineering, validated on hardware) · **Created:** 2026-07-17
+**Status:** REFERENCE (living — protocol reverse-engineering, validated on hardware. **Substantially extended 2026-09-02** from the vendor SDK + the MIT reverse-engineering reference, with every borrowed claim re-checked against our own corpus where it could be: §3a AES on branch `2D010001` · §3c the 33-opcode map and the `GET_INFO` branch-code correction · byte `[14]` decoded · §5 the full trailer map, re-verified on 30 stored files · §9a the timezone byte and the measured floating-epoch result. Three stale claims corrected: "no AES anywhere", the auth timestamp shift form, and "nonzero status ⇒ suspect sample". See **Sources** at the end for what came from where) · **Residue:** R18, R19, R20 · **Created:** 2026-07-17
 
 > ### ⚠️ The 125.738 Hz calibration below is a REAL FIT AND NOT A TIMEBASE (noted 2026-08-02)
 > §"Rate: 125.738 Hz measured" stands as a measurement — a genuine fit over 12 sessions / 2 616 483
@@ -45,19 +45,45 @@ The BLE **address is Random-Static** and rotates on factory reset (and occasiona
 [0xA5][cmd][~cmd][flag][seq][len_lo][len_hi][payload…][crc8]
 ```
 - `~cmd` = one's-complement of `cmd` (a cheap integrity byte, validated on decode).
-- `flag` 0x00 host→device request, 0x01 device→host response.
+- `flag` 0x00 host→device request, 0x01 device→host response. **The vendor calls it `pkgType`, and on a
+  reply it is the STATUS byte, not merely a direction bit: every ack-only command treats `1` as success
+  and anything else as failure** (SET_UTC_TIME · RESET · FACTORY_RESET · BURN_FACTORY_INFO · DELETE_FILE ·
+  SET_CONFIG · AUTO_RT_SWITCH all branch on it). `seq` is `pkgNo`. Our `decode()` returns both without
+  interpreting them — a failed ack is currently indistinguishable from a successful one.
 - `len` little-endian u16 payload length. Big frames are split across multiple notifications → reassemble
   until a full declared frame is buffered (`oxyii.Reassembler`).
-- **CRC-8, poly 0x07, init 0, no reflection/xorout** over all bytes except the trailing CRC. This is the
-  only integrity mechanism — **no AES anywhere on the live or file path**; auth is a plaintext XOR (§3).
+- The vendor's own frame parser also accepts a **`0x55` lead byte** on a separate branch. We have never
+  seen one from this device and do not handle it; recorded so an unexplained `0x55` is recognised rather
+  than treated as corruption.
+- **CRC-8, poly 0x07, init 0, no reflection/xorout** over all bytes except the trailing CRC.
+  ⚠️ **This is the only integrity mechanism, and on branch `2D010002` it is the only cryptography of any
+  kind — but "no AES anywhere" is FIRMWARE-CONDITIONAL and was stated unconditionally here until
+  2026-09-02.** Branch `2D010001` negotiates an AES-128-ECB session key from the `0xFF` reply and
+  enciphers every payload thereafter (§3a). 🔴 **A passing CRC therefore does not mean a readable
+  payload**: only the *payload* is enciphered, so the envelope and CRC stay valid, `decode()` accepts the
+  frame, and `parse_live` reads ciphertext as fields — **fabricated SpO₂/HR with every structural check
+  green**. That is why the §3a guard is not redundant with the CRC.
 
 ## 3 · Live protocol (real-time SpO₂ / pulse)
 Flow: **connect → auth (0xFF) → setup (0x10) → poll (0x04) ~1/s**.
-- **AUTH `0xFF`** — 16-byte XOR-keyed payload, no reply. Key = a MD5(`"lepucloud"`) salt (first 8 bytes at
-  even indices) + 4 ASCII serial bytes (`"0000"` is the portable default) + 4 timestamp bytes
-  (`(ts>>0,1,2,3)&0xFF` — a faithful, deliberately-odd port of the vendor code), all XOR'd with the full
-  MD5(`"lepucloud"`). No AES.
-- **SETUP `0x10`** — payload `00`, acked.
+- **AUTH `0xFF`** — 16-byte XOR-keyed payload. Key = a MD5(`"lepucloud"`) salt (first 8 bytes at
+  even indices) + 4 ASCII serial bytes (`"0000"` is the portable default) + a **4-byte little-endian
+  uint32 timestamp**, all XOR'd with the full MD5(`"lepucloud"`).
+  ⚠️ **This line read `(ts>>0,1,2,3)&0xFF — a faithful, deliberately-odd port of the vendor code` until
+  2026-09-02, and that was REFUTED on 2026-08-30 by a USB capture** — see `oxyii.auth_payload`'s
+  docstring, which the brief was contradicting. The shift form predicts 14 distinct values of `key[13]`
+  over a 27 s window; LE predicts a constant, and the capture observed `key[13:15]` constant at
+  `2e 94 6a`, which decodes as an LE epoch to the exact minutes the capture was running. The ring never
+  strictly validated the field — it tolerates it as a loose nonce — which is why a real encoding bug sat
+  behind a working link and a confident docstring.
+  **"No reply" is also branch-conditional:** on `2D010002` there is none; on `2D010001` there is (§3a).
+- **`0x10` is NOT an opaque "setup" — it is `AUTO_RT_SWITCH`, and our payload `0x00` DISABLES four
+  device-push streams.** The byte is a bitfield: `bit0` param · `bit1` wave · `bit2` ppg · `bit3` acc, so
+  `0x0F` would enable all four and `0x00` turns them all off. Both this brief and the public
+  reverse-engineering reference recorded it as "purpose unknown"; the vendor exposes it as
+  `oxyAutoSwitch(model, autoParam, autoWave, autoPpg, autoAcc)`. **We have been disabling a push mode we
+  never knew existed** — every sample we hold was obtained by polling instead. Whether pushed streams are
+  preferable is untested; the point is that the choice was never made.
 - **LIVE `0x04`** — empty payload; the device replies with a 24-byte header. Offsets:
   `[5]` contact · `[6]` SpO₂ (%) · `[7]` motion · `[8]` HR (bpm) · `[13]` battery (%).
   **contact:** `0x00` no finger · `0x01` idle-present · `0x03` file-open. SpO₂/HR are `None` off-finger.
@@ -81,7 +107,27 @@ Flow: **connect → auth (0xFF) → setup (0x10) → poll (0x04) ~1/s**.
   | `[11]` | **motion** | was the unidentified byte |
   | `[12]` | batteryState | `0` = not charging |
   | `[13]` | battery % | ✓ as before |
-  | `[14]` | four 2-bit subfields | SDK parses them; not exposed in `RtParam`, so left unparsed |
+  | `[14]` | **four 2-bit alarm states** — decoded 2026-09-02, see below | on the wire; the vendor's own DTO discards them |
+
+  **`[14]` is fully decoded (2026-09-02).** Four 2-bit fields sharing one enum — `0` condition not met ·
+  `1` condition met · `2` **condition met but the device deliberately does not sound the alarm**:
+
+  | bits | field | vendor gloss |
+  |---|---|---|
+  | `[14] & 0x03` | `invalidIvState` | invalid-value alarm |
+  | `([14] >> 2) & 0x03` | `spo2IvState` | SpO₂ alarm |
+  | `([14] >> 4) & 0x03` | `hrIvState` | HR alarm |
+  | `([14] >> 6) & 0x03` | `vectorIvState` | motion alarm |
+
+  The old note — *"SDK parses them; not exposed in `RtParam`"* — was **correct**: they are present on the
+  wire and thrown away by the vendor's public DTO. Value `2` is the interesting one: it distinguishes
+  *"the ring judged this sample alarming"* from *"the ring told the user"*, which is a quality signal no
+  other field carries. Not yet parsed by `oxyii.py`.
+
+  The same source confirms every other row above: `pi = [7]/10.0`, `pr = u16LE([8:10])`, `flag = [10]&1`
+  (bit 0 is the **pulse-beep** flag), `motion = [11]`, plus enums for `runStatus` (0 prep · 1 measurement-
+  prep · 2 measuring · 3 done) and `sensorState` (0 no finger · 1 normal · 2 probe pulled out · 3 sensor
+  or probe fault). Our `[7]`/`[11]` swap and the `[0:4]`-is-duration finding both stand.
 
   **`[7]`/`[11]` were SWAPPED, and it was not cosmetic.** `[7]` was written into the SpO₂ CSV's
   `Motion` column, and OxyDex excludes artifact samples with `r.motion === 0`. Two independent
@@ -106,6 +152,33 @@ Flow: **connect → auth (0xFF) → setup (0x10) → poll (0x04) ~1/s**.
   generations: the legacy `0xAA/0x55` live protocol has `[10]` = PI/signal-strength and `[11]` =
   finger-present, and gen-1 `RtWave` is a third layout again.
 
+### 3a · AES-128 session encryption on branch `2D010001` (added 2026-09-02 — NOT on any ring we own)
+Every ring in this project is branch **`2D010002`** and **never answers `0xFF`**, so everything above is
+the whole story for our hardware. A ring on branch **`2D010001`** answers, and then speaks ciphertext:
+
+- the `0xFF` reply is ~20 bytes; **cyclic-XOR it with MD5(`"lepucloud"`)** (`dec[i] = payload[i] ^
+  MD5[i % 16]`) → `dec[0]` = type (**`0x01` = AES**) · `dec[1]` = key length (16) · `dec[4:20]` = the
+  **AES-128 key**.
+- from then on **every request and reply PAYLOAD is AES-128-ECB** (PKCS7 padding; identical to PKCS5 at a
+  16-byte block — do not "fix" one to match the other). The `0xFF` command itself, the envelope and the
+  CRC stay plaintext.
+- **A reply is not proof of encryption.** On one such ring, the same physical device answered ~20 bytes on
+  the pairing connect and **16 bytes on two later connects**, and those 16-byte sessions worked completely
+  in plaintext — serial, firmware, file list, four file pulls. 16 B is exactly the length of the auth
+  payload we send, so an *echo* is the likely reading — **inferred, not measured**. Key on *"too short to
+  carry a key blob"*, never on *"a reply arrived"*: the latter rule was drafted here on 2026-09-02 and
+  **falsified by the first real capture**, which it would have refused twice out of three connects.
+- so the decision table is: **≥20 B and type/key_len understood → AES · no reply, or too short → plaintext
+  legacy · ≥20 B but not understood → REFUSE and emit nothing.** The refusal is the floor and outlives any
+  firmware revision; the cipher is the feature.
+
+⚠️ **Evidence boundary, and it matters.** The protocol is confirmed **on hardware** — a third party ran an
+independent implementation against a `2D010001` / firmware 1.13.1.0 ring on 2026-09-02 and got correct
+pairing, serial, firmware string and session logging. **Our** implementation has never executed against
+such a ring, because we own none. "Verified" here means the protocol, not our code. The public
+implementation is also **not independent corroboration of the derivation** — it was written after our
+analysis was posted, so it and our code are two expressions of one reading of the vendor SDK.
+
 ### 3b · The `0x04` body is ALSO a ~125 Hz PPG waveform (decoded 2026-07-18)
 Every `0x04` reply carries **more than the 24-byte header** — the rest is the ring's raw plethysmograph.
 This is why `oxyii.Reassembler` exists (the frames span many BLE notifications). Layout, decoded off 90
@@ -114,8 +187,9 @@ against the paired ECG at 49 bpm) — see `oxyii.parse_ppg`:
 
 | Bytes | Meaning |
 |---|---|
-| `[0:24]` | status header (§3 above, `parse_live`) |
-| `[24:26]` | sample count `N` — **`u16` LE** (PR #212). Frames seen so far carry `[25] = 0`, so an earlier `u8` read at `[24]` agreed by accident; it breaks silently above 255 samples/frame. `len(payload) == 24 + 2 + N` holds on every frame. |
+| `[0:20]` | status header (§3 above, `parse_live`) — **the vendor's own split is `[0:20]`, not `[0:24]`** |
+| `[20:24]` | **running sample OFFSET, `u32` LE** — added 2026-09-02. Not padding, and not zeros: the vendor parses `0x04` as `RtParam(payload[0:20])` + `RtWave(payload[20:])`, where the wave block is `{u32 offset, u16 size, samples}`. The public RE reference calls `[14..23]` "zeros padding"; the last four of those are this counter. **It is a second, independent dropped-sample check** alongside the `126 × frames − samples` identity below — and unlike that identity it works on a single frame pair. Not yet read by `oxyii.parse_ppg`. |
+| `[24:26]` | sample count `N` — **`u16` LE** (PR #212). Frames seen so far carry `[25] = 0`, so an earlier `u8` read at `[24]` agreed by accident; it breaks silently above 255 samples/frame. `len(payload) == 24 + 2 + N` holds on every frame. ✓ agrees with the vendor's `size` field. |
 | `[26:26+N]` | `N` **unsigned 8-bit** optical samples, **single channel** |
 
 - **Single channel, not interleaved LEDs** — even/odd samples are near-identical.
@@ -157,6 +231,53 @@ against the paired ECG at 49 bpm) — see `oxyii.parse_ppg`:
 
 ⚠️ The waveform exists **only in live BLE traffic** — the onboard `.dat` (§5) is 1 Hz only, no waveform.
 
+### 3c · The opcode map — 33 commands, we implement 13 (added 2026-09-02)
+Two families share the envelope: a real-time family `0x00–0x14` and a device/file family `0xE0–0xFF`.
+Ticks are what `oxyii.py` implements today.
+
+| cmd | name | ours | note |
+|---|---|---|---|
+| `0x00` / `0x01` | GET_CONFIG / SET_CONFIG | ✅ | ranges in §6 |
+| `0x02` | **RT_PARAM** (polled) | ❌ | **≥ 80-byte reply carries ON-DEVICE SLEEP STAGING** — see below |
+| `0x03` | RT_WAVE | ❌ | the wave half alone |
+| `0x04` | **RT_DATA** = param + wave | ✅ `OP_LIVE` | §3 / §3b |
+| `0x05` | **RT_PPG** | ✅ `OP_RT_PPG` | request payload `{0x07, 0x01}` — matches ours exactly |
+| `0x06`–`0x09` | file list / start / data / end | ❌ | family-A duplicates of `0xF1`–`0xF4` |
+| `0x10` | **AUTO_RT_SWITCH** | ⚠️ `OP_SETUP` | we send `0x00` = disable all four push streams (§3) |
+| `0x11`–`0x13` | auto RT_PARAM / RT_WAVE / RT_PPG | ❌ | the pushed counterparts of `0x02`/`0x03`/`0x05` |
+| `0x14` | **AUTO_RT_ACC** | ❌ | 3-axis accelerometer, `{u16 size, then 6 B/sample: i16 x, y, z}` |
+| `0xC0` | SET_UTC_TIME (8 B) | ✅ | byte `[7]` decoded — §9 |
+| `0xEC` | SET_UTC_TIME (7 B) | ❌ | same but no timezone byte |
+| `0xE0` | ECHO | ❌ | a liveness probe we do not use |
+| `0xE1` | GET_INFO | ✅ | layout corrected — see below |
+| `0xE2` | RESET (soft) | ❌ | |
+| `0xE3` · `0xEE` · `0xEA` | FACTORY_RESET · FACTORY_RESET_ALL · BURN_FACTORY_INFO | ❌ | **destructive — do not probe** |
+| `0xE4` | GET_BATTERY | ✅ | reply `{state, percent, u16 LE millivolts}`; state `0` none · `1` charging · `2` complete · `3` low |
+| `0xE5` · `0xE6` · `0xE7` | *unnamed* | ❌ | request builders exist with no response handler and no name |
+| `0xF1`–`0xF4` | LIST / START / DATA / END | ✅ | §4 |
+| `0xF5` | *unnamed* — 16-B name + u32 + u32 | ❌ | shape suggests a resumable read-start (**inferred**) |
+| `0xF6` · `0xF7` | *unnamed* | ❌ | |
+| `0xF8` | **DELETE_FILE** | ❌ | |
+| `0xFF` | AUTH | ✅ | §3 / §3a |
+
+**The ring computes sleep staging on-device, and `0x04` structurally cannot deliver it.** A `RT_PARAM`
+reply of ≥ 80 bytes carries `startTimestamp`/`endTimestamp` (u32 each), `awakeDuration`, `deepDuration`,
+`lightDuration`, `totalDuration` (u32 each), `wakeCount`, a "quiet" value, and `sleepState`
+(`0` awake · `1` light · `2` deep). Because `0x04` hands its parser only `payload[0:20]` (§3b), these are
+reachable **only by polling `0x02` directly** — which we have never done. Worth knowing before anyone
+builds staging from our own features: the device already ships an opinion, and it is free to ask for.
+
+**`GET_INFO` `0xE1` — the field we call "firmware" is the vendor's `branchCode`.** `payload[9:17]`, the
+8 ASCII characters `2D010002`, is a **branch code**; the firmware *version* is a separate dotted string
+built from bytes `[4].[3].[2].[1]`, with `hwV = [0]` and a bootloader version from `[8]..[5]`. The two
+coexist — the ring in §3a is branch `2D010001` **and** firmware `1.13.1.0`. `oxyii.parse_get_info`
+returns the branch code under the key `"firmware"` and does not expose the real version at all, so a log
+line reading `firmware 2D010002` cannot be compared against a vendor-reported version string. Also in
+that reply and unread by us: `fileV = [17]`, `deviceType = u16LE([20:22])`, `protocolV = "[22].[23]"`,
+`protocolMaxLen = u16LE([31:33])`, and a 6-byte clock at `[24:30]` (u16 LE year, then month, day, hour,
+minute, second). The public RE reference's map of this reply is wrong in five places, including calling
+`[9:17]` the firmware version — **do not import it.**
+
 ## 4 · Stored-session file download (the `.dat`) — §3-derived, hardware-verified
 The ring records **every wearing period to onboard flash** (its backstop). Four opcodes, same envelope:
 
@@ -187,6 +308,37 @@ re-introduce an MTU≥517 precondition.**
 ```
 So `N = (filesize − 10 − 48) / 3` seconds. A 10-h night ≈ 36 000 samples ≈ 108 KB.
 
+**Header and trailer fully mapped, and re-verified on our own 30 stored `.dat` files (2026-09-02).**
+Header: `[0]` fileVersion · `[1]` fileType · **`[8:10]` u16 LE `deviceModel`** — all 30 of our files carry
+the identical header `01 03 00 00 00 00 00 00 04 00`, i.e. deviceModel = 4. The public RE reference reads
+those two bytes as *"the sample interval, possibly tenths-of-a-second"*; **the interval is in the
+trailer**, and ours reads 1 s on every file. Trailer, at `T = filesize − 48`:
+
+| offset | size | field | |
+|---|---|---|---|
+| `T+0` | u32 | `checkSum` | |
+| `T+4` | u32 | `magic` | the `48 12 5a da` anchor `oxyii` already keys on |
+| `T+8` | u32 | **`startTime`** | epoch seconds — see §9, this is the important one |
+| `T+12` | u32 | `size` | sample count — **matches `(len−58)/3` on 30/30 of our files** |
+| `T+16` | u8 | `interval` | seconds per sample (1 on all 30); `recordingTime = size × interval` |
+| `T+17` · `T+18` | u8 | `channelType` · `channelBytes` | pairing **inferred** from read order |
+| `T+32` | u16 | **`asleepTime`** | the RE reference marks this "reserved (zero)" |
+| `T+34` · `T+35` | u8 | `avgSpo2` · `minSpo2` | |
+| `T+36` · `T+37` | u8 | `dropsTimes3Percent` · `dropsTimes4Percent` | |
+| `T+38` | u8 | **`percentLessThan90`** | also marked "reserved" upstream |
+| `T+39` | u16 | `durationTime90Percent` | |
+| `T+41` | u8 | `dropsTimes90Percent` | |
+| `T+42` | u8 | `o2Score` | ✓ as this brief already had it |
+| `T+43` | u32 | **`stepCounter`** | also marked "reserved" upstream |
+| `T+47` | u8 | `avgHr` | |
+
+🔴 **The third sample byte is NOT an opaque "status", and "nonzero ⇒ suspect" is wrong.** It is
+`motion = ([2] & 0x3F) × 2`, plus `bit6` = HR-alarm and `bit7` = SpO₂-alarm. Measured across one of our
+files (25 243 samples): nonzero in **317** of them (1.3 %), **bit6 and bit7 zero throughout**, and
+`max((b & 0x3F) × 2) = 94`. So the 1.3 % is ordinary movement on good samples — discarding them as
+suspect would throw away valid data. ⚠️ Note the **×2 scaling**, which the live `[11]` motion does not
+have: do not compare stored and live motion without it.
+
 ⚠️ **10 h is a HARD CAP, not just a typical night (established 2026-07-18).** The ring stops a session at
 **36 000 samples / 108 058 B** and does not roll over. This is not academic: when the capture host slept
 04:44→08:20, the onboard `.dat` recovered 2.48 h of the 3.6 h gap and the remaining **1.12 h simply did
@@ -199,6 +351,15 @@ saves the raw bytes verbatim as `Wellue_O2Ring-S_<ts>_STORED.dat` + a `.meta.jso
 ## 6 · Operational quirks (the ones that cost hours — READ before automating)
 - **Advertises ONLY when worn (finger-in).** NOT while idle, NOT on the USB charger, NOT just after
   removal. To connect for a download you must physically **wear it**.
+  ⚠️ **This may be an artefact of how we scan, and there is a one-command test we have never run.**
+  The public RE reference reports **two advertising modes on this device class**: a recording mode
+  advertising as `T8520_<last4>` with manufacturer ID **`0x036F`** and a stripped GATT layout where the
+  OxyII service is not reliably discoverable, and a sync mode advertising as **`S8-AW`** with manufacturer
+  ID **`0xF34E`** — and it reports that *pressing the button* is enough to wake it, no wearing required.
+  We resolve **by name**, so a ring advertising under the other name in the other mode would be invisible
+  to us and read as "not advertising". **Test: press the button and scan for manufacturer ID `0xF34E`.**
+  Until someone runs it, treat the rule above as *our observed behaviour with our scanner*, not as a
+  property of the device.
 - **BUT an ESTABLISHED link SURVIVES removal — that is the download window (2026-07-18).** On taking the
   ring off, `contact` goes to "no finger" and `worn=False`, yet the BLE connection stays up (the ring keeps
   showing its Bluetooth symbol). Since the session is finalised on removal, the moment right after taking
@@ -242,6 +403,49 @@ NTP-synced** and drifts from the host. Consequences under CLAUDE.md §🔒:
 - The **stored `.dat`** timestamps are on the **ring's own unsynced clock** → they need a per-download
   **offset correction** (estimated by aligning against a same-window NTP-stamped signal) before the `.dat`
   can be fused with ECG/PPG/etc. Treat onboard-`.dat` time as *approximate* until corrected.
+
+### 9a · `SET_UTC_TIME` byte `[7]` is a timezone, and the stored epoch is FLOATING (measured 2026-09-02)
+The 8th byte of the `0xC0` payload — which `oxyii.set_time_frame` hardcodes as `0xCE` and this brief
+called *"the vendor tail byte"*, while the public RE reference calls it *"unknown … treat as unused"* —
+is the **timezone offset in tenths of an hour, signed**. `0xCE` = −50 = **UTC−5**. That is US Eastern
+*standard* time; this capture host runs `America/New_York`, so the constant is right in winter, one hour
+out in summer, and wrong for anyone else. It is hardcoded rather than derived from the host.
+
+🟢 **But it does not corrupt our stored timestamps, and that is measured rather than assumed.** Across
+six stored `.dat` files, the trailer's `startTime` (u32 at `T+8`), read as **UTC**, equals the filename's
+local wall-clock stamp **exactly — +0.00 h on all six**. If the ring applied the offset we send, the
+delta would be ±5 h. So:
+
+> **`startTime` is a floating wall-clock epoch — local civil time encoded as if it were UTC — which is
+> precisely the Clock Contract's canonical `tMs` form (CLAUDE.md §🔒.1), in seconds.**
+
+Read it with `getUTC*` / `datetime.utcfromtimestamp` and do **not** apply a timezone. The vendor SDK's
+`startTime` handling adds `getTimeZoneOffset()` on **read**, in the phone app — that is the app
+converting a floating stamp to a real instant using the phone's zone, not the ring writing one. The drift
+correction above still applies; what changes is that there is no zone conversion to get wrong on top of
+it. This also explains a puzzle in the public reference, which reads `T+10..11` as *"a u16 counter that
+increments occasionally — once across twenty-two hours"*: those are the **high two bytes of the u32
+epoch**, and the high half of a Unix-second counter ticks once every ~18.2 h.
+
+## Sources, and what each one is good for (added 2026-09-02)
+Everything above marked *measured* is ours — our captures, our corpus, our fits. Where a fact came from
+outside, it came from one of two places, and they are not interchangeable:
+
+- **`nglessner/o2ring-s-protocol`** (MIT, cited in §1 since 2026-07-17) — an independent
+  reverse-engineering reference with a working Python implementation, verified on hardware. Good on
+  observed behaviour and the file-transfer flow. ⚠️ **Its `GET_INFO` map is wrong in five places** (§3c),
+  it calls `0x05` "history?" and `0x10` "purpose unknown", and it reads the trailer epoch's high bytes as
+  a mystery counter (§9a). Take its observations; check its interpretations.
+- **The vendor's own SDK**, shipped as a compiled library in `viatom-develop/LepuDemo` (**no licence
+  declared**), plus that repo's README and sample activity. This is where the opcode names, byte `[14]`,
+  the trailer field names and the timezone byte come from. What is recorded here is **protocol facts** —
+  offsets, bit masks, opcode numbers, field names, arithmetic — needed to interoperate with hardware we
+  own. **No vendor code, structure or source text is reproduced here or in `capture-host/`,** and none
+  should be: re-implement the layout, as `oxyii.py` already does for the fields we knew first.
+
+**Where the two disagree, prefer whichever we have re-measured** — several claims above were confirmed
+against our own 30 stored files and 6 trailer timestamps precisely so that this brief does not rest on
+either upstream alone.
 
 ## Related
 - [`CAPTURE-HOST-FOLLOWUPS-II-2026-07-16-BRIEF.md`](CAPTURE-HOST-FOLLOWUPS-II-2026-07-16-BRIEF.md) — the capture bring-up (O2Ring OxyII live path landed there).
