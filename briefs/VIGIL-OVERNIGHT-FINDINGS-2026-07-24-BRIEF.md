@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-02 — **every software rung is shipped**; what remains is field OBSERVATION, which is why this cannot be flipped DONE by a code search. Verified against artifacts: P1.1 hysteresis ba267b04 (#924); P1.2/P1.3 unbind/bind `tests/test_bluez_wedge.py` + `tepna-btreset.sh`; P1.4 startup self-test 804b5b9f; P1.5 dual-radio failover b364380e (#1583); P2.1 backoff `capture.py:2470-2496`; P2.2 `writers.resumable_stamp`; P3.2 prune gated on `nightarchive.unarchived_nights`; P3.3 dest validated at startup; `vigil.sh` under git with `tests/test_vigil_sh.py`. Open: **the ladder has been seen WORKING but never seen CLEARING A REAL WEDGE** — that waits on an event nobody can schedule; P0.1/P0.2's clean-night counts and the post-P2.2 flappy-night relink rate are box journal reads; and **P3.1's decision was never recorded** (P1.5 implements option (c), which makes (c) the de-facto answer — but inference is not a record). **Owner:** Heron · **Next step:** write P3.1's decision down) · **Created:** 2026-07-24
+**Status:** PROPOSED (parked 2026-09-02 — **every software rung is shipped**; what remains is field OBSERVATION, which is why this cannot be flipped DONE by a code search. Verified against artifacts: P1.1 hysteresis ba267b04 (#924); P1.2/P1.3 unbind/bind `tests/test_bluez_wedge.py` + `tepna-btreset.sh`; P1.4 startup self-test 804b5b9f; P1.5 dual-radio failover b364380e (#1583); P2.1 backoff `capture.py:2470-2496`; P2.2 `writers.resumable_stamp`; P3.2 prune gated on `nightarchive.unarchived_nights`; P3.3 dest validated at startup; `vigil.sh` under git with `tests/test_vigil_sh.py`. Open: **the ladder has been seen WORKING but never seen CLEARING A REAL WEDGE** — that waits on an event nobody can schedule; P0.1/P0.2's clean-night counts and the post-P2.2 flappy-night relink rate are box journal reads; and ✅ **P3.1's decision is RECORDED 2026-09-03** — and it is not the "(c)" this header used to infer. Measured on the box: `radio_switches` is **`null`** (populated from `list(_RADIO_EVENTS)`, so no failover has ever fired) though 3 adapters are present, while `radio_distress` currently rates **Polar Sense `0C301E3F` as `distressed`** (23.2/h vs band 8.0/h, sustained 1085 s, 14 nights). So (c)'s machinery exists and has never operated: **the Polars run single-copy today, which is option (a) whether or not anyone chose it**, and the one device with measured radio pathology is a device with no second copy. (c) is the intent, conditional on a first observed switch; **(b) is NOT rejected** — it is `POLAR-ONBOARD-BACKUP` §6 Q1, probe shipped in #2042, waiting on the Phase B window. **Owner:** Heron · **Next step:** none for P3.1; the remaining opens are the unschedulable wedge-clearing event and two box journal reads) · **Created:** 2026-07-24
 **P2.x VERIFIED IN CODE 2026-08-19, and five of six are SHIPPED — see the P2 verification block below.**
 Genuinely open: none of the software rungs. **P1.5 (dual-radio failover) IMPLEMENTED 2026-08-20** (the L3 rung: on a spent reset budget, repoint ADAPTER to a healthy spare + re-bond there — tested end to end, field-gated on observing it clear a REAL wedge). **P2.2 (resume file-set) SHIPPED** (`writers.resumable_stamp`). · **Created:** 2026-07-24
 
@@ -290,6 +290,39 @@ both a de-suspended dongle and the internal radio fail you.*
   Verity pull 0 files, H10 recordings `[]`). Options: (a) accept it and rely on P0/P1 to keep the radio up;
   (b) investigate periodic offline-record windows when the live view isn't critical; (c) treat dual-radio
   failover (P1.5) as their real protection. **Decision needed — document the choice.**
+
+  ✅ **DECIDED AND RECORDED 2026-09-03 (Heron). The answer is (c) as the INTENT and (a) as the measured
+  REALITY, with (b) still open — and it is deliberately not the one-word "(c)" this brief's own header
+  inferred.** That header said *"P1.5 implements option (c), which makes (c) the de-facto answer — but
+  inference is not a record"*, and then recorded the inference. Checked on the box instead:
+
+  | measured 2026-09-03 | value |
+  |---|---|
+  | `radio_switches` in `/api/state` | **`null`** — populated from `list(_RADIO_EVENTS)` (`capture.py:1345`), so **no failover event has ever been recorded** |
+  | Bluetooth adapters present | **3** (`hci0`/`hci1`/`hci2`) — the hardware for (c) exists |
+  | adapter in use | `00:01:95:CC:53:02` (a single one) |
+  | `radio_distress` · Polar Sense `0C301E3F` | **`distressed`** — 23.2/h against a band of 8.0/h, sustained 1085 s, over 14 nights |
+
+  So (c)'s machinery and hardware are both present and **(c) has never once operated**. That is the same
+  status this brief's header already grants the P0/P1 ladder — *"seen WORKING but never seen CLEARING A
+  REAL WEDGE"* — and an untriggered failover is not protection, it is an untested hypothesis about
+  protection. **Today the Polars run single-copy with no backup path: that is option (a), whether or not
+  anyone chose it.**
+
+  The decision is therefore recorded as: **(a) is the current posture and must be described that way in
+  any data-loss reasoning; (c) remains the intended protection and is CONDITIONAL on a first observed
+  switch; (b) is NOT rejected and is the only option that would produce an actual second copy.**
+
+  - **(b) is live work, not a discarded branch** — `POLAR-ONBOARD-BACKUP-2026-08-01` §6 Q1 (*does an idle
+    H10 accept a recording-start over the same link the box holds*) is exactly this option, its probe
+    endpoint shipped in #2042, and it waits on the owner-scheduled Phase B window. Recording "(c)" flatly
+    would have marked a question closed that another brief is actively trying to answer.
+  - ⚠️ **This is not academic.** The one device carrying live radio pathology — Polar Sense, 23.2/h over
+    band, sustained — is a device with **no second copy**. The exposure P3.1 was written about is
+    currently measurable, not hypothetical.
+  - **What would change this record:** a single entry appearing in `radio_switches` (promotes (c) from
+    intended to demonstrated), or the Phase B probe answering Q1 YES (makes (b) buildable and supersedes
+    both). Until one of those, (a) stands.
 - **P3.2 Gate retention pruning on a verified second copy.** `diskguard.plan_prune()` is purely age-based
   and does not consult `nightarchive`'s `.archived` marker; with the archive disk unmounted (below) it is
   one long absence from deleting the only copy of a night. Skip any night lacking `.archived`, or gate the
