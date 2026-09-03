@@ -53,6 +53,18 @@ RESTART_SH="${TEPNA_RESTART_SH:-/usr/local/lib/tepna/tepna-restart.sh}"
 # ⚠️ It must NOT live inside $REPO_DIR: §1's cleanliness check (`git status --porcelain`) would see it
 # and refuse to update at all. That part of the original reasoning was right and still applies.
 DEPLOYED_MARK="${TEPNA_DEPLOYED_MARK:-/srv/tepna/.tepna-deployed-sha}"
+# CONSECUTIVE-FAILURE STATE — what makes a 9.3-hour outage look different from a blip.
+#
+# `systemctl status` shows `failed` identically for "failed once, the next tick recovered" and "failing
+# every tick since Tuesday". Measured over 30 days of `journalctl -u tepna-update` (2026-08-18):
+# 38 failure events against 300 success/defer, in consecutive runs of [30, 5, 3] — the longest spanning
+# 2026-08-04 22:00:37 → 07:20:44, i.e. 9.3 hours in which the box could not update. Nobody noticed,
+# because there was nothing to notice: every tick logged exactly what a single transient failure logs.
+#
+# Same directory and the same reasoning as DEPLOYED_MARK above — vigil-writable, NOT /run (root-owned
+# 0755, which is what made the deployed-SHA marker inert), and NOT inside $REPO_DIR (§1's cleanliness
+# check would see it and refuse to update at all).
+FAIL_MARK="${TEPNA_FAIL_MARK:-/srv/tepna/.tepna-update-fails}"
 # A recording that has not been heard from in this long means the DAEMON is gone, not that the box is
 # idle — see the fail-safe in `recording_state`.
 MAX_STATUS_AGE="${TEPNA_MAX_STATUS_AGE:-60}"
@@ -65,6 +77,66 @@ read -r -a SUDO <<<"${TEPNA_SUDO:-sudo -n}"
 say()  { printf '%s\n' "$*"; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
 die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
+
+# --- consecutive-failure accounting (see FAIL_MARK) ---------------------------------------------
+# 🔴 KEYED ON THE EXIT STATUS, NOT ON `die`. The foot of this script does `exit "$drifted"`, so a run
+# can leave the unit `failed` without ever calling `die` — and that path, "cannot establish whether the
+# box is recording", is precisely the one that can persist for a whole night. A counter hung off `die`
+# would have counted every kind of failure except the longest-running kind.
+#
+# The marker holds `<count> <epoch of the FIRST failure in the streak>`. Malformed content reads as
+# "no streak" rather than aborting the update: this is an observability aid, and it must never be the
+# reason the box stops updating.
+# shellcheck disable=SC2329  # reached through the EXIT trap below, which shellcheck's
+# reachability analysis does not follow (nor into the calls this makes).
+_streak_read() {
+  local n first
+  read -r n first < "$FAIL_MARK" 2>/dev/null || { printf '0 0\n'; return; }
+  case "$n"     in ''|*[!0-9]*) printf '0 0\n'; return ;; esac
+  case "$first" in ''|*[!0-9]*) printf '0 0\n'; return ;; esac
+  printf '%s %s\n' "$n" "$first"
+}
+
+# Timestamps are rendered in the box's LOCAL civil time on purpose: journalctl stamps its own lines the
+# same way, and these lines exist to be read against them in one view. (The Clock Contract's floating-
+# UTC rule governs recorded SIGNAL time, where a viewer's zone must not change what is displayed; this
+# is an operator log line about this box, compared only against this box's own journal.)
+# shellcheck disable=SC2329  # reached through the EXIT trap below, which shellcheck's
+# reachability analysis does not follow (nor into the calls this makes).
+_streak_stamp() { date -d "@$1" '+%F %T' 2>/dev/null || printf 'unknown'; }
+
+# shellcheck disable=SC2329  # reached through the EXIT trap below, which shellcheck's
+# reachability analysis does not follow (nor into the calls this makes).
+_streak_finish() {
+  local ec=$?
+  local n first now elapsed h m
+  read -r n first <<<"$(_streak_read)"
+  now="$(date +%s)"
+  elapsed=$(( now - first )); h=$(( elapsed / 3600 )); m=$(( (elapsed % 3600) / 60 ))
+
+  if [ "$ec" = 0 ]; then
+    # The recovery line is the other half of the ask. A per-tick failure line can only say "again";
+    # whoever reads the journal AFTER an outage needs to see how long it actually lasted, and by then
+    # every failing tick is behind them.
+    [ "$n" -gt 0 ] && say "recovered after ${n} consecutive failed run(s) spanning ${h}h${m}m — first failed at $(_streak_stamp "$first")"
+    rm -f "$FAIL_MARK" 2>/dev/null || warn "could not clear the failure streak at $FAIL_MARK"
+    return 0
+  fi
+
+  n=$(( n + 1 ))
+  if [ "$n" -le 1 ]; then first="$now"; h=0; m=0; fi
+  printf '%s %s\n' "$n" "$first" > "$FAIL_MARK" 2>/dev/null \
+    || warn "could not record the failure streak at $FAIL_MARK"
+  # A FIRST failure reports nothing extra: it is already visible, and the distinction this exists to
+  # draw does not exist yet. From the second onward the streak is named, so the line answers "since
+  # when" and not merely "again".
+  [ "$n" -gt 1 ] && warn "this is failure ${n} IN A ROW, spanning ${h}h${m}m — first failed at $(_streak_stamp "$first")"
+  return 0
+}
+# Installed before the MODE check, so every nonzero exit counts — including a hand-typed usage error.
+# That can only ever OVER-count, and over-counting is the safe direction: the failure being fixed is an
+# outage that reported nothing at all, and the very next successful run clears the marker.
+trap _streak_finish EXIT
 
 # --- the restart MODE -------------------------------------------------------------------------
 # The timer passes nothing and gets the original behaviour. The two explicit modes exist for the
