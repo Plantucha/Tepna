@@ -353,6 +353,15 @@ buzz, and the H10/Verity remain the fiducial receivers.
   The comment above that line, written the same day, reads "no ring in this project has ever been
   asked to push anything." **This is the load-bearing claim** — it is what keeps "`0x00` for the whole
   archive" true and §9's `auto_switch = 0` sound — and it is the cheapest thing here to re-derive.
+  ⚠️ Re-derive it **repo-wide**, not in one file: the first attempt at this check grepped
+  `capture.py` alone, where one call site is the only answer the query could return. Count callers
+  across `capture-host/`, and note that an untracked working-tree file can add one (`probe_rt_ppg_args.py`
+  is a fifth caller on at least one box and is absent from `origin/main`) — it is also argument-less,
+  so the invariant survives either population.
+- **The default is gate-backed, not merely documented.** `tests/test_monitor_pi_card.py` asserts
+  `setup_frame() == setup_frame(0x00)`, that payload byte 7 is the `AUTO_RT_SWITCH` bitfield, and that
+  `setup_frame(RT_PUSH_ACC)[7] == 0x08`. A change that silently made pushing the default would fail
+  CI rather than quietly alter what every future capture contains.
 - **Reported by the Heron session, NOT verified here** (needs Vigil, unreachable from this box): the
   `/api/state` before-state showing `acc_o2` absent while `acc_vs` and `acc_h10` were present, and the
   8024–8785 magnitude spread read off a live SSE stream.
