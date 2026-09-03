@@ -168,7 +168,15 @@ Per `PAPERS-ROADMAP` §5.2 — *"No number without a tool that reproduces it"*:
 - [x] `motiondex-dsp.js` emits a per-epoch `rateSeries` with confidence, keeping the existing
       return shape back-compatible (added `rateSeries`/`rateEpochSec`/`rateCoverage`/
       `respRateMethod`/`rateBrpmLegacy`; every legacy field gate-asserted present).
-- [x] `respRateMethod: 'acc-spectral-viterbi'` set so `integrator-dsp.js:2441` can attribute it.
+- [ ] `respRateMethod: 'acc-spectral-viterbi'` set so `integrator-dsp.js:2441` can attribute it.
+      ⚠️ **UNTICKED 2026-09-03. The Status header has said this box is unticked since 2026-09-02 and the
+      box stayed `[x]` — a header corrected without its body, which is the same shape the correction was
+      about.** The DSP does set `respRateMethod`, so the first clause is true and that is why it read as
+      done; the box's actual claim is the SECOND clause, and the fusion cannot attribute anything: the
+      node export omits the field entirely and `integrator-dsp.js` hardcodes `'chest-ACC
+      (thoraco-abdominal)'` over it, while the ECGDex leg in the same function reads what its node
+      declared. Tracked as `2026-09-02-motiondex-respratemethod-unexported`; do not re-tick until the
+      value reaches a consumer.
 - [x] Evidence tier **`emerging`** in `motiondex-registry.js`.
 - [x] `tests/dex-tests.js`: synthetic known-answers at 10/15/20 brpm (±0.5); bias-is-opt-in;
       confidence-gate monotonicity; additive-export-shape back-compat.
