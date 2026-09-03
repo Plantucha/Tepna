@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-09-01 · **Residue:** R11
+**Status:** PROPOSED · **Created:** 2026-09-01 · **Residue:** 2026-09-02-oracle-split-duplicated
 
 # PPG-FOOT-PLACEMENT follow-ups — what the closure surfaced
 

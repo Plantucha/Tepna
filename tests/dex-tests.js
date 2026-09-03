@@ -26688,7 +26688,7 @@
         String(text)
           .split('\n')
           .forEach(function (line) {
-            if (!/^\|\s*R\d+\s*\|/.test(line)) return;
+            if (!/^\|\s*\d{4}-\d{2}-\d{2}-[a-z0-9-]+\s*\|/.test(line)) return;
             var cells = line.split('|');
             // leading '' + 6 cells + trailing '' — anything else means a pipe inside a cell or a missing column
             if (cells.length !== 8 || cells[0].trim() !== '' || cells[7].trim() !== '') {
@@ -26725,7 +26725,7 @@
           .filter(function (l) {
             return /^\*\*Status:\*\*/.test(l);
           })[0];
-        var m = line && line.match(/\*\*Residue:\*\*\s*((?:R\d+)(?:\s*,\s*R\d+)*)/);
+        var m = line && line.match(/\*\*Residue:\*\*\s*((?:\d{4}-\d{2}-\d{2}-[a-z0-9-]+)(?:\s*,\s*\d{4}-\d{2}-\d{2}-[a-z0-9-]+)*)/);
         return m ? m[1].split(/\s*,\s*/) : [];
       }
       var ledger = DL.briefs[RESIDUE_NAME];
@@ -26803,23 +26803,25 @@
       );
       /* PLANTED CONTROLS — the ledger is small and clean, so without plants none of the above has been
          shown to fire. */
-      var plantOk = residueRows('| R9 | 2026-09-02 | `' + names[0] + '` | a defect | line 1 | OPEN |');
+      var plantOk = residueRows('| 2026-09-02-k9 | 2026-09-02 | `' + names[0] + '` | a defect | line 1 | OPEN |');
       T.ok('self-test · check8 PARSES a well-formed row', plantOk.rows.length === 1 && plantOk.malformed.length === 0 && plantOk.rows[0].source === names[0]);
-      T.ok('self-test · check8 FIRES on a pipe inside a cell (7 cells)', residueRows('| R9 | 2026-09-02 | `X-BRIEF.md` | med|err| | e | OPEN |').malformed.length === 1);
-      T.ok('self-test · check8 FIRES on a state outside the vocabulary', residueRows('| R9 | 2026-09-02 | `X-BRIEF.md` | d | e | maybe |').malformed.length === 1);
+      T.ok('self-test · check8 FIRES on a pipe inside a cell (7 cells)', residueRows('| 2026-09-02-k9 | 2026-09-02 | `X-BRIEF.md` | med|err| | e | OPEN |').malformed.length === 1);
+      T.ok('self-test · check8 FIRES on a state outside the vocabulary', residueRows('| 2026-09-02-k9 | 2026-09-02 | `X-BRIEF.md` | d | e | maybe |').malformed.length === 1);
       T.ok(
         'self-test · check8 ACCEPTS the two closing states',
-        residueRows('| R9 | 2026-09-02 | `X-BRIEF.md` | d | e | → `Y-BRIEF.md` |\n| R10 | 2026-09-02 | `X-BRIEF.md` | d | e | fixed #2104 |').rows.length === 2
+        residueRows('| 2026-09-02-k9 | 2026-09-02 | `X-BRIEF.md` | d | e | → `Y-BRIEF.md` |\n| 2026-09-02-k10 | 2026-09-02 | `X-BRIEF.md` | d | e | fixed #2104 |').rows.length === 2
       );
       T.ok(
         'self-test · check8 reads **Residue:** ids off a Status line only',
-        residueField('**Status:** DONE — 2026-09-02 · **Residue:** R1, R7 · **Created:** 2026-08-14\n\n**Residue:** R99').join() === 'R1,R7'
+        residueField('**Status:** DONE — 2026-09-02 · **Residue:** 2026-01-01-a, 2026-01-01-b · **Created:** 2026-08-14\n\n**Residue:** 2026-01-01-z').join() === '2026-01-01-a,2026-01-01-b'
       );
       /* the widened source cell: a repo path and a #PR parse as sources, and neither is asked to back-reference */
       var plantSrc = residueRows(
-        ['| R9 | 2026-09-02 | `capture-host/tools/find_unwired.py` | d | e | OPEN |', '| R10 | 2026-09-02 | `#2113` | d | e | OPEN |', '| R11 | 2026-09-02 | `not a source` | d | e | OPEN |'].join(
-          '\n'
-        )
+        [
+          '| 2026-09-02-k9 | 2026-09-02 | `capture-host/tools/find_unwired.py` | d | e | OPEN |',
+          '| 2026-09-02-k10 | 2026-09-02 | `#2113` | d | e | OPEN |',
+          '| 2026-09-02-k11 | 2026-09-02 | `not a source` | d | e | OPEN |'
+        ].join('\n')
       );
       T.ok(
         'self-test · check8 ACCEPTS a repo-path and a #PR source, and still FIRES on free text',
@@ -26832,23 +26834,23 @@
       );
       T.ok('self-test · check8f does NOT demand a back-reference from a non-brief source', residueVerdict(plantSrc.rows, {}, ['capture-host/tools/find_unwired.py']).noBackRef.length === 0);
       var plantBriefs = {
-        'A-2026-01-01-BRIEF.md': '**Status:** DONE — 2026-01-02 · **Residue:** R1, R3',
+        'A-2026-01-01-BRIEF.md': '**Status:** DONE — 2026-01-02 · **Residue:** 2026-01-02-k1, 2026-01-02-k3',
         'B-2026-01-01-BRIEF.md': '**Status:** PROPOSED',
-        'C-2026-01-01-BRIEF.md': '**Status:** PROPOSED · **Residue:** R4'
+        'C-2026-01-01-BRIEF.md': '**Status:** PROPOSED · **Residue:** 2026-01-02-k4'
       };
       var plantRows = residueRows(
         [
-          '| R1 | 2026-01-02 | `A-2026-01-01-BRIEF.md` | d | e | OPEN |', // clean, bidirectional
-          '| R2 | 2026-01-02 | `B-2026-01-01-BRIEF.md` | d | e | OPEN |', // B does not point back
-          '| R3 | 2026-01-02 | `GONE-2026-01-01-BRIEF.md` | d | e | OPEN |', // source missing
-          '| R3 | 2026-01-02 | `A-2026-01-01-BRIEF.md` | d | e | → `A-2026-01-01-BRIEF.md` |', // dup id + promoted to itself
-          '| R4 | 2026-01-02 | `C-2026-01-01-BRIEF.md` | d | e | → `NOPE-2026-01-01-BRIEF.md` |' // promoted target missing
+          '| 2026-01-02-k1 | 2026-01-02 | `A-2026-01-01-BRIEF.md` | d | e | OPEN |', // clean, bidirectional
+          '| 2026-01-02-k2 | 2026-01-02 | `B-2026-01-01-BRIEF.md` | d | e | OPEN |', // B does not point back
+          '| 2026-01-02-k3 | 2026-01-02 | `GONE-2026-01-01-BRIEF.md` | d | e | OPEN |', // source missing
+          '| 2026-01-02-k3 | 2026-01-02 | `A-2026-01-01-BRIEF.md` | d | e | → `A-2026-01-01-BRIEF.md` |', // dup id + promoted to itself
+          '| 2026-01-02-k4 | 2026-01-02 | `C-2026-01-01-BRIEF.md` | d | e | → `NOPE-2026-01-01-BRIEF.md` |' // promoted target missing
         ].join('\n')
       ).rows;
       var PV = residueVerdict(plantRows, plantBriefs, null);
       T.ok(
         'self-test · check8 FIRES on each planted defect exactly once (missing source · missing back-ref · dup id · bad promotion ×2) and NOT on the clean row',
-        PV.badSrc.length === 1 && PV.noBackRef.length === 1 && PV.dupId.join() === 'R3' && PV.badPromo.length === 2 && PV.noBackRef[0].indexOf('R2') === 0,
+        PV.badSrc.length === 1 && PV.noBackRef.length === 1 && PV.dupId.join() === '2026-01-02-k3' && PV.badPromo.length === 2 && PV.noBackRef[0].indexOf('2026-01-02-k2') === 0,
         JSON.stringify(PV)
       );
 
