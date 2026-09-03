@@ -50480,6 +50480,12 @@
          That is this gate's own subject matter one level up: reporting success about what it never
          examined. The excluded set is therefore PINNED, not floored — a node leaving coverage reds
          here and has to be justified, rather than vanishing into a `>= 4`.
+
+         🔴 THE RULE, FOR THE NEXT AUTHOR REACHING FOR `>=`: a FLOOR is a threshold; an EQUALITY is a
+         population. A `>= N` check can NEVER detect exclusion, because the excluded members are
+         exactly the ones it does not count — so it is structurally blind to the failure it looks
+         like it is guarding. Never gate a population with a floor. Pin it as an equality plus a
+         justified exclusion list, so leaving coverage reds and must be argued.
          The two known exclusions, both real and neither yet discharged:
            cpapdex-dsp.js — builds no ganglior.node-export at all; CpapFusion.cpapBuildExport owns it
            oxydex-dsp.js  — DOES build one, under a name this anchor misses, AND carries a proxy
