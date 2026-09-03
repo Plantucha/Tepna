@@ -195,7 +195,7 @@ def test_encode_empty_payload_shape():
 
 
 def test_encode_too_long_raises():
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="frame exceeds 64 bytes"):
         o2ring.encode(0x01, b"\x00" * 56)
 
 
@@ -262,12 +262,18 @@ def test_aes_ecb_pkcs5_roundtrip_and_shapes():
 
 
 def test_aes_ecb_decrypt_rejects_garbage():
+    """Three DIFFERENT failures, and the message is what separates them.
+
+    All three are ValueError, so asserting the type alone cannot tell a truncated ciphertext from
+    a bad pad from a bad key length — a mutation run made the point by replacing every message
+    with `ValueError(None)` and leaving this test green.
+    """
     key = bytes(range(16))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="not a multiple of 16"):
         o2ring.aes_ecb_decrypt(key, b"\x00" * 15)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="bad PKCS5 padding"):
         o2ring.aes_ecb_decrypt(key, b"\x00" * 16)          # decrypts to junk -> bad padding
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="must be 16, 24 or 32 bytes"):
         o2ring._expand_key(b"\x00" * 15)
 
 
@@ -771,3 +777,136 @@ def test_parse_key_reply_rejects_an_unknown_type_byte():
     plain = bytes([0x02, 16, 0, 0]) + key
     blob = bytes(b ^ o2ring._LEPU[i % 16] for i, b in enumerate(plain))
     assert o2ring.parse_key_reply(blob) is None
+
+# ── the paths a real ring reaches only when something goes wrong ─────────────────────────
+#
+# Everything below closes a gap in o2ring.py's own coverage. The module is NEW in this branch,
+# so none of it is inherited debt — it is the branch's to cover, and a partial branch here is a
+# reachable path nobody has ever run.
+
+
+class _Clock:
+    """A controllable `time.time` so the 0.9 s AUTH deadline is deterministic, not slept through.
+
+    The fake device ticks it on every read, which is what lets the deadline expire naturally
+    inside the loop rather than by wall time.
+    """
+
+    def __init__(self, step=0.0):
+        self.t = 1_000_000.0
+        self.step = step
+
+    def __call__(self):
+        return self.t
+
+    def tick(self, dt):
+        self.t += dt
+
+
+class _TickingDev(FakeDev):
+    """FakeDev that advances a clock on each read, so time passes only when the code reads."""
+
+    def __init__(self, clock, dt, replies=None):
+        super().__init__(replies)
+        self._clock, self._dt = clock, dt
+
+    def read(self, size, timeout_ms=0):
+        self._clock.tick(self._dt)
+        return super().read(size, timeout_ms)
+
+
+def test_a_truncated_continuation_yields_no_frame():
+    """A report claiming 0x3f more bytes, with nothing following it.
+
+    Covers both halves of one real fault: the continuation loop breaking on a missing report, and
+    the runt buffer that leaves. A ring that stops mid-frame must produce no message at all —
+    silence is the correct outcome, not a short frame passed on to a parser.
+    """
+    dev = FakeDev([bytes([0x3F, 0xA5, o2ring.OP_HELLO])])
+    assert o2ring.read_reply(dev, want_op=o2ring.OP_HELLO) is None
+
+
+def test_auth_is_quiet_about_a_non_key_reply_when_not_verbose(monkeypatch, capsys):
+    """verbose=False must print nothing, and must still refuse to treat 16 bytes as a key.
+
+    The 16-byte reply is the measured branch-2D010001 case: it is not a key blob, the session
+    stays plaintext, and a quiet caller should see no diagnostics at all.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(o2ring.time, "time", clock)
+    not_a_key = o2ring.encode(o2ring.OP_AUTH, bytes(16), flag=1)
+    dev = _TickingDev(clock, 0.5, [not_a_key, not_a_key, not_a_key])
+
+    assert o2ring.authenticate(dev, timeout_s=8.0, verbose=False) is None
+    assert o2ring.SESSION.key is None, "16 bytes must never install a key"
+    assert capsys.readouterr().out == "", "verbose=False printed anyway"
+
+
+def test_auth_returns_the_key_reply_when_the_hello_never_comes(monkeypatch, capsys):
+    """A key installs, the ring then goes quiet, and the grace window expires.
+
+    GET_INFO decrypting cleanly is the real proof of a session, so a missing HELLO ack after a
+    successful key negotiation is not a failure — but it must be reported as the key reply, not
+    as a hello.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(o2ring.time, "time", clock)
+    key = bytes(range(0x20, 0x30))
+    plain = bytes([0x01, 16, 0, 0]) + key
+    blob = bytes(b ^ o2ring._LEPU[i % 16] for i, b in enumerate(plain))
+    dev = _TickingDev(clock, 3.0, [o2ring.encode(o2ring.OP_AUTH, blob, flag=1)])
+    try:
+        got = o2ring.authenticate(dev, timeout_s=30.0, verbose=False,
+                                  keyed_grace_s=1.0)
+        assert got is not None and got["op"] == o2ring.OP_AUTH
+        assert o2ring.SESSION.key == key
+        assert capsys.readouterr().out == ""
+    finally:
+        o2ring.SESSION.reset()
+
+
+def test_pull_stops_at_max_bytes_when_the_ring_reports_no_size():
+    """FILE_START without a size field: the pull is bounded by max_bytes, not by the ring.
+
+    A reply too short to carry a u32 leaves the size unknown, and an unbounded read against an
+    unknown size is how a pull runs away. The cap is the only thing ending the loop here.
+    """
+    short_start = reply(o2ring.OP_FILE_START, b"\x01\x02")      # < 4 bytes -> size is None
+    chunk = reply(o2ring.OP_FILE_DATA, b"\xAA" * 8)
+    dev = FakeDev([short_start, chunk, reply(o2ring.OP_FILE_END)])
+    data = o2ring.pull_session(dev, SID, max_bytes=4)
+    assert data == b"\xAA" * 8, "the chunk that crossed the cap is kept whole"
+
+
+def test_pull_all_over_a_ring_with_no_recordings(monkeypatch, tmp_path, capsys):
+    """An empty ring is a valid answer: iterate nothing, close the device, say nothing saved."""
+    _main(monkeypatch, ["o2ring.py", "pull-all", "-d", str(tmp_path)], FakeRing({}))
+    assert "saved" not in capsys.readouterr().out
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_selftest_subcommand_exits_with_its_own_status(monkeypatch, capsys):
+    """`o2ring.py selftest` is the offline proof-of-codec path and must not touch a device."""
+    monkeypatch.setattr(o2ring, "open_device",
+                        lambda: pytest.fail("selftest opened a device"))
+    monkeypatch.setattr("sys.argv", ["o2ring.py", "selftest"])
+    with pytest.raises(SystemExit) as exc:
+        o2ring.main()
+    assert exc.value.code == 0, "the shipped self-test does not pass"
+    assert "OK" in capsys.readouterr().out
+
+def test_auth_ignores_a_frame_that_is_neither_auth_nor_hello(monkeypatch, capsys):
+    """The ring interleaves status frames; the handshake must step over them, not stop.
+
+    A `0x15` legacy-poll answer is neither the AUTH key reply nor the HELLO ack, and the loop has
+    to keep going — treating any unexpected frame as terminal would abandon a handshake that was
+    about to succeed.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(o2ring.time, "time", clock)
+    other = reply(0x15, b"\x01\x02")
+    hello = reply(o2ring.OP_HELLO, b"\x01")
+    dev = _TickingDev(clock, 0.1, [other, hello])
+    got = o2ring.authenticate(dev, timeout_s=8.0, verbose=False)
+    assert got is not None and got["op"] == o2ring.OP_HELLO, "the hello after a status frame was lost"
+
