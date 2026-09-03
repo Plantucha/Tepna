@@ -163,11 +163,33 @@ the whole story for our hardware. A ring on branch **`2D010001`** answers, and t
   16-byte block — do not "fix" one to match the other). The `0xFF` command itself, the envelope and the
   CRC stay plaintext.
 - **A reply is not proof of encryption.** On one such ring, the same physical device answered ~20 bytes on
-  the pairing connect and **16 bytes on two later connects**, and those 16-byte sessions worked completely
+  the pairing connect and **16 bytes on later connects**, and those 16-byte sessions worked completely
   in plaintext — serial, firmware, file list, four file pulls. 16 B is exactly the length of the auth
   payload we send, so an *echo* is the likely reading — **inferred, not measured**. Key on *"too short to
   carry a key blob"*, never on *"a reply arrived"*: the latter rule was drafted here on 2026-09-02 and
-  **falsified by the first real capture**, which it would have refused twice out of three connects.
+  **falsified by the first real capture**, which it would have refused the connects that pulled every file.
+- 🔴 **The key blob appears ONLY on the PAIRING connect, and that reproduces across two independent runs**
+  (added 2026-09-03 from the preserved Discussion #180 logs — see *Sources*). Both the "Success!" log and
+  the full-night log show the identical shape, in order:
+
+  | connect | observed |
+  |---|---|
+  | 1st (pairing) | `session key negotiated (AES-128-ECB enabled)` → `device info … (encrypted=1)` → `paired:` → disconnect |
+  | every later one | `OP_AUTH response too short (16 bytes, want >= 20)`, then `no OP_AUTH reply` → `(encrypted=0)` |
+
+  Across both logs: **`encrypted=1` twice — both the pairing connect — and `encrypted=0` six times.**
+  Note the later connects log **both** an over-short reply and then a no-reply, which reads as the client
+  retrying rather than as two separate outcomes.
+
+  **Practical consequence, and it is the one that matters for us:** a ring already paired to a host does
+  not present a key blob, so a client connecting to it sees *too short* or *nothing* and proceeds in
+  plaintext — which is why our BLE path would work against `2D010001` hardware today despite having no
+  cipher. The AES negotiation is a **pairing-time** event, not a per-connection one.
+
+  ⚠️ **This is a property of a client-ring PAIR, not of the ring alone.** The logs cannot separate "the
+  ring only offers a key at pairing" from "the client only asks for one at pairing" — both produce this
+  trace exactly. Do not design as though the ring is the actor until someone captures the wire. It is a
+  reproducible observation with a mechanism that is still inferred.
 - so the decision table is: **≥20 B and type/key_len understood → AES · no reply, or too short → plaintext
   legacy · ≥20 B but not understood → REFUSE and emit nothing.** The refusal is the floor and outlives any
   firmware revision; the cipher is the feature.
@@ -460,6 +482,14 @@ outside, it came from one of two places, and they are not interchangeable:
   observed behaviour and the file-transfer flow. ⚠️ **Its `GET_INFO` map is wrong in five places** (§3c),
   it calls `0x05` "history?" and `0x10` "purpose unknown", and it reads the trailer epoch's high bytes as
   a mystery counter (§9a). Take its observations; check its interpretations.
+- **The Discussion #180 logs, PRESERVED LOCALLY** at
+  `/srv/data/tepna-corpus/uploads/somnotrace-discussion-180/` (five attachments + a README, saved
+  2026-09-03 because the thread is closed and GitHub user-attachments is not a durable store). These are
+  the only hardware evidence anyone has for branch `2D010001`, and they are third-party and public.
+  ⚠️ **They contain NO raw `0xFF` exchange and no key blob** — checked, not assumed: they are ESP-IDF
+  *console* lines, and every hex dump in them (352 and 512 lines) belongs to `as11_ble`, the CPAP. So any
+  fixture encoding the key-blob layout remains **SDK-derived**, and must keep saying so even once real
+  bytes exist, with the capture noted beside it.
 - **The vendor's own SDK**, shipped as a compiled library in `viatom-develop/LepuDemo` (**no licence
   declared**), plus that repo's README and sample activity. This is where the opcode names, byte `[14]`,
   the trailer field names and the timezone byte come from. What is recorded here is **protocol facts** —
