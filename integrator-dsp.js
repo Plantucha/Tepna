@@ -463,6 +463,27 @@ function adaptEnvelopeNode(json, node, filename) {
     summary.sdnn = _dig(json, ['hrv', 'time', 'sdnn']) || _dig(json, ['hrv', 'sdnn']) || _dig(json, ['metrics', 'sdnn']) || (json.sdnn != null ? json.sdnn : null);
     summary.lfhf = _dig(json, ['hrv', 'frequency', 'lfhf']) || _dig(json, ['hrv', 'lfhf']) || (json.lfhf != null ? json.lfhf : null);
     summary.hrvWindow = 'wholeRecord';
+    /* ── RESPIRATION FROM THE OPTICAL NODE (Heron's cross-family trace, verified 2026-09-02) ──
+       PpgDex computes an RSA respiration rate and EXPORTS it at `hrv.frequency.respRate` with its
+       method string — a third estimate, mechanistically independent of ECGDex's ECG-RSA and
+       MotionDex's chest-ACC. It reached no fusion, because `summary.respRateBrpm` was assigned at
+       exactly two sites: `:365` inside `if (node === 'ECGDex')` and `:617` inside
+       `if (node === 'MotionDex')`. This block — the one PpgDex actually flows through — already read
+       `hrv.frequency.lfhf` and simply never read the sibling key beside it.
+       ⚠️ TWO COMMENTS ASSERT THIS WAS ALREADY WIRED, AND BOTH ARE WRONG IN THE SAME WAY.
+       `ppgdex-dsp.js`'s export block says *"the field the Integrator already reads … has assigned
+       `summary.respRateBrpm = _hf.respRate` all along (link 3 was never missing)"*, and a brief
+       records the same. True of ECGDex, false of PpgDex: the assignment they name is inside the
+       ECGDex branch, so adding the field to PpgDex's export could never have been enough. A claim
+       that a link exists, written from the producer's side, is how this stayed shut with the value
+       computed, exported, and one `if` away from its consumer.
+       Normalisation mirrors ECGDex exactly (`> 0` ⇒ 'not estimated' becomes null, never 0 bpm), and
+       the guard leaves PulseDex/HRVDex untouched — neither exports the key, so both stay null. */
+    var _frq = (json.hrv && json.hrv.frequency) || {};
+    if (summary.respRateBrpm == null) {
+      summary.respRateBrpm = _frq.respRate != null && _frq.respRate > 0 ? _frq.respRate : null;
+      summary.respRateMethod = summary.respRateBrpm != null ? _frq.respRateMethod || 'RSA (PPG)' : null;
+    }
     /* DEEP-AUDIT-2026-07-11 §14: HRVDex — THE HRV node — could never join the HRV consensus. Its export
        writes per-reading HRV under `measurements[]` (the 2026-07-04 SELF-INGEST enrichment); this chain
        only knew `hrv.time.*`, so summary.rmssd/sdnn were null on 100 % of HRVDex exports and
@@ -1734,6 +1755,90 @@ function _overlapCoverage(oxyRecs, cardiacRecs, u, totHrs) {
   };
 }
 
+/* ── THE MATCHING, EXTRACTED (DEEP-AUDIT-VI-FOLLOWUPS §4.2) ────────────────────────────────
+   Each desat takes the nearest UNUSED surge inside the directionality gate, greedy in desat-time
+   order. Pulled out of fuseApneaEvents for ONE reason: the chance-null below must score the SAME
+   statistic this produces. A null that models a different statistic than the one published is the
+   defect §4.2 measured — the analytic lambda modelled independent per-desat trials while the code
+   counts an exclusive matching, and overstated chance by 21%. Sharing this function makes that
+   class of mismatch impossible by construction rather than by review.
+   Returns the matched [desatIdx, surgeIdx] pairs in desat order; the caller builds findings. */
+/* The surrogate shift set — EventCoupling's own, so the resonance work is not re-derived here.
+   shiftsForAlpha(0.05) buys enough shifts that p < 0.05 is REACHABLE at all (its default 10 floor
+   p at 1/11 = 0.091). Falls back to the module default if the primitive is absent from a lane. */
+function _EC_SHIFTS() {
+  var EC = (typeof EventCoupling !== 'undefined' && EventCoupling) || (typeof window !== 'undefined' && window.EventCoupling) || null;
+  if (EC && typeof EC.shiftsForAlpha === 'function') return EC.shiftsForAlpha(0.05);
+  return [];
+}
+
+function _matchDesatsToSurges(desats, surges, leadMaxSec, trailMaxSec) {
+  var pairs = [],
+    usedSurge = new Set();
+  for (var di = 0; di < desats.length; di++) {
+    var d = desats[di],
+      best = null,
+      bd = Infinity;
+    for (var si = 0; si < surges.length; si++) {
+      if (usedSurge.has(si)) continue;
+      var lat = (surges[si].tMs - d.tMs) / 1000; // +ve = surge AFTER desat
+      if (lat < -leadMaxSec || lat > trailMaxSec) continue; // directionality gate
+      var dd = Math.abs(surges[si].tMs - d.tMs);
+      if (dd < bd) {
+        bd = dd;
+        best = si;
+      }
+    }
+    if (best != null) {
+      usedSurge.add(best);
+      pairs.push([di, best]);
+    }
+  }
+  return pairs;
+}
+
+/* ── COVERED-TIME CIRCULAR SHIFT ───────────────────────────────────────────────────────────
+   A surrogate surge that lands in a RECORDING GAP is unobservable, so counting it as a chance
+   opportunity biases the null. Wrapping in wall time does exactly that on a gappy night. So the
+   shift happens in COVERED-TIME coordinates: map each surge onto cumulative covered ms, displace
+   circularly modulo the total covered duration, map back. The surge COUNT is preserved exactly and
+   no surrogate is ever placed where nothing was observing. On a gapless night this reduces to a
+   plain circular shift within the span. */
+function _coveredShift(surges, merged, shiftMs) {
+  if (!merged || !merged.length) return surges;
+  var tot = 0,
+    cum = [];
+  for (var i = 0; i < merged.length; i++) {
+    cum.push(tot);
+    tot += merged[i][1] - merged[i][0];
+  }
+  if (!(tot > 0)) return surges;
+  var out = [];
+  for (var k = 0; k < surges.length; k++) {
+    var t = surges[k].tMs,
+      c = null;
+    for (var j = 0; j < merged.length; j++) {
+      if (t >= merged[j][0] && t < merged[j][1]) {
+        c = cum[j] + (t - merged[j][0]);
+        break;
+      }
+    }
+    if (c == null) continue; // observed outside coverage — not an opportunity either
+    var d2 = (c + shiftMs) % tot;
+    if (d2 < 0) d2 += tot;
+    for (var m = merged.length - 1; m >= 0; m--) {
+      if (d2 >= cum[m]) {
+        out.push({ tMs: merged[m][0] + (d2 - cum[m]) });
+        break;
+      }
+    }
+  }
+  out.sort(function (a, b) {
+    return a.tMs - b.tMs;
+  });
+  return out;
+}
+
 function fuseApneaEvents(recs, dtMs, gate) {
   // CARDIAC surge sources: ECGDex (primary) + PpgDex (PPG-derived). A desat is
   // confirmable by an autonomic surge from EITHER — PpgDex is a first-class node
@@ -1831,22 +1936,20 @@ function fuseApneaEvents(recs, dtMs, gate) {
   var findings = [],
     unmatchedDesat = [],
     usedSurge = new Set();
-  desats.forEach(function (d) {
-    var best = /** @type {any} */ (null),
-      bd = Infinity;
-    surges.forEach(function (s, si) {
-      if (usedSurge.has(si)) return;
-      var lat = (s.tMs - d.tMs) / 1000; // +ve = surge AFTER desat
-      if (lat < -leadMaxSec || lat > trailMaxSec) return; // directionality gate
-      var dd = Math.abs(s.tMs - d.tMs);
-      if (dd < bd) {
-        bd = dd;
-        best = si;
-      }
-    });
+  /* §4.2 — the pairs come from _matchDesatsToSurges so the chance-null below scores THIS statistic
+     through the same function. `usedSurge` is still populated because unmatchedSurge reads it. */
+  var _pairs = _matchDesatsToSurges(desats, surges, leadMaxSec, trailMaxSec),
+    _pairBy = new Map();
+  for (var _pi = 0; _pi < _pairs.length; _pi++) _pairBy.set(_pairs[_pi][0], _pairs[_pi][1]);
+  desats.forEach(function (d, _di) {
+    var best = _pairBy.has(_di) ? _pairBy.get(_di) : null;
     if (best != null) {
       usedSurge.add(best);
       var s = surges[best];
+      /* Hoisted so the null check NARROWS — calling effConf() twice leaves the second call unnarrowed
+         (TS2531) and recomputes a value we already have. */
+      var _ecD = effConf(d),
+        _ecS = effConf(s);
       findings.push({
         tMs: d.tMs,
         durSec: (d.meta && d.meta.durSec) || null,
@@ -1860,8 +1963,14 @@ function fuseApneaEvents(recs, dtMs, gate) {
            is that, mirrored. */
         nodes: [d.node || 'OxyDex', s.node || 'ECGDex'],
         sources: [
-          { node: d.node || 'OxyDex', impulse: d.impulse, tMs: d.tMs, conf: d.conf, sqi: d.sqi != null ? d.sqi : null, effConf: +(effConf(d) || 0).toFixed(3) },
-          { node: s.node || 'ECGDex', impulse: s.impulse, tMs: s.tMs, conf: s.conf, sqi: s.sqi != null ? s.sqi : null, effConf: +(effConf(s) || 0).toFixed(3) }
+          /* DEEP-AUDIT-IV §3-RESULT — `|| 0` wrote `effConf: 0` beside `conf: null` when conf was
+             absent, contradicting this tool's own published formula (`effConf = conf × (sqi ?? 1)`,
+             surfaced at the schema note below, which also tells the reader these fields are RETAINED
+             here). The brief's own dismissal — "no evidence arguably IS 0" — is the same reasoning
+             that produced a fabricated GREEN one bullet above it, so it is now a null. The posterior
+             is untouched: `:1934` passes effConf() UNROUNDED to combineConf, which skips nulls. */
+          { node: d.node || 'OxyDex', impulse: d.impulse, tMs: d.tMs, conf: d.conf, sqi: d.sqi != null ? d.sqi : null, effConf: _ecD == null ? null : +_ecD.toFixed(3) },
+          { node: s.node || 'ECGDex', impulse: s.impulse, tMs: s.tMs, conf: s.conf, sqi: s.sqi != null ? s.sqi : null, effConf: _ecS == null ? null : +_ecS.toFixed(3) }
         ],
         meta: { desatDepth: d.meta && d.meta.depth, nadir: d.meta && d.meta.nadir, latencySec: +((s.tMs - d.tMs) / 1000).toFixed(0), desatNode: d.node || 'OxyDex', surgeNode: s.node || 'ECGDex' },
         note: 'O₂ desaturation confirmed by a directionally-consistent autonomic surge (' + '−' + leadMaxSec + 's…+' + trailMaxSec + 's). Neither node alone can assert this.'
@@ -1947,11 +2056,53 @@ function fuseApneaEvents(recs, dtMs, gate) {
   var _rateCount = _rateNode ? _surgeByNode[_rateNode] : surges.length;
   var surgeRate = unionSec > 0 ? _rateCount / unionSec : 0; // surges per second, from ONE observer
   var winSec = leadMaxSec + trailMaxSec;
-  var pPerDesat = Math.min(1, surgeRate * winSec);
+  /* §4.2 — EXACT per-desat probability. `min(1, rate*win)` is the linear approximation and
+     overstates P(at least one surge in the window) by 6.6% at this corpus's rate/window
+     (0.1292 vs 0.1212). Diagnostic only now, but a wrong diagnostic is still wrong. */
+  var pPerDesat = 1 - Math.exp(-surgeRate * winSec);
   var lambda = desats.length * pPerDesat; // expected confirmations by chance
   var nConf = findings.length;
-  var pAtLeast = _poissonSf(nConf, lambda); // P(≥ nConf | chance)
-  var belowChance = nConf === 0 || nConf <= lambda || pAtLeast >= 0.05;
+  /* ── THE CHANCE-NULL IS NOW A SURROGATE TEST, NOT A CLOSED FORM (§4.2, measured 2026-09-02) ──
+     The analytic lambda above modelled INDEPENDENT PER-DESAT TRIALS. The statistic is an EXCLUSIVE
+     greedy matching (_matchDesatsToSurges), so the two described different quantities and lambda
+     overstated chance by 21% (8.28 vs E[nConf] 6.84 on 1500 simulated null nights). That is not a
+     rounding error in a diagnostic: it gates `confirmedAHIReportable`, so it WITHHELD real findings
+     — measured 0.95% published against its own nominal 5%.
+     The null is now circular-shift surrogates of the real surge train scored through the SAME
+     matching function. Three properties the closed form could not have:
+       · it models the published statistic, because it calls the same code;
+       · it keeps the surge train's real structure. Surges are over-dispersed (Fano 1.46, CV 1.40
+         across the committed ECGDex nights), and a Poisson lambda assumes they are not — the
+         assumption this block used to make;
+       · it is DETERMINISTIC. Shifts are EventCoupling's fixed prime-second set, so there is no RNG
+         and no seed: identical inputs reproduce identical fixture bytes.
+     Prime shifts are load-bearing, not decoration: whole-minute shifts re-phase any round-periodic
+     stream onto itself (event-coupling.js:120 — a 60s-periodic stream scored a PLANTED PERFECT
+     coupling at lift 1.006 under them).
+     ⚠️ TWO LIMITATIONS, both measured, neither fixed here.
+     (1) Under real clustering the test is mildly CONSERVATIVE — 3.00% published against a 4.94%
+         attainable size. That is the safe direction and a large improvement on the 0.00% the
+         closed form gave under the same clustering, but it is not exact.
+     (2) A circular shift preserves the surge train's own structure and DESTROYS structure SHARED
+         with the desat train. Under a shared slow modulation — a REM-dense hour dense in both
+         streams — the surrogates are less coupled than reality and the test is ANTI-conservative.
+         The old homogeneous lambda had the same blind spot, so this is not a regression; it is
+         written here because it is the assumption the next auditor should attack first.
+     `belowChance`'s 0.05 threshold is unchanged. The analytic lambda rides along as a DIAGNOSTIC
+     (nullModel.expectedConfirmedAnalytic) so a reader can see how far the closed form was off. */
+  var _shifts = _EC_SHIFTS();
+  var _surrN = [],
+    _ge = 0;
+  for (var _si2 = 0; _si2 < _shifts.length; _si2++) {
+    var _sur = _coveredShift(surges, merged, _shifts[_si2]);
+    var _n = _matchDesatsToSurges(desats, _sur, leadMaxSec, trailMaxSec).length;
+    _surrN.push(_n);
+    if (_n >= nConf) _ge++;
+  }
+  /* +1 in BOTH terms: a p of exactly 0 is not something a finite surrogate set can license, and
+     the floor 1/(B+1) is the smallest claim these shifts can support (event-coupling.js:304). */
+  var pAtLeast = _shifts.length ? (1 + _ge) / (1 + _shifts.length) : _poissonSf(nConf, lambda);
+  var belowChance = nConf === 0 || pAtLeast >= 0.05;
   findings.forEach(function (f) {
     f.belowChance = belowChance;
     f.pSpurious = +pAtLeast.toFixed(3);
@@ -2027,8 +2178,27 @@ function fuseApneaEvents(recs, dtMs, gate) {
     unmatched: { desat: unmatchedDesat, surge: unmatchedSurge },
     consequence: consequence,
     nullModel: {
-      expectedConfirmed: +lambda.toFixed(2),
-      pAtLeastObserved: +pAtLeast.toFixed(3),
+      /* §4.2 — `expectedConfirmed` is the SURROGATE mean (the null the verdict actually uses).
+         `expectedConfirmedAnalytic` is the closed form kept as a DIAGNOSTIC, now with the exact
+         per-desat term 1-e^(-rate*win) instead of the linear min(1, rate*win) that overstated it
+         by a further 6.6%. A reader comparing the two sees how far the closed form was off; nothing
+         reads the analytic value for a verdict. */
+      expectedConfirmed: _surrN.length
+        ? +(
+            _surrN.reduce(function (a, b) {
+              return a + b;
+            }, 0) / _surrN.length
+          ).toFixed(2)
+        : +lambda.toFixed(2),
+      expectedConfirmedAnalytic: +lambda.toFixed(2),
+      nullMethod: _surrN.length ? 'circular-shift surrogates, covered-time, scored by the published matching' : 'analytic Poisson (surrogate primitive unavailable in this lane)',
+      nullDraws: _surrN.length,
+      pFloor: _surrN.length ? +(1 / (1 + _surrN.length)).toFixed(4) : null,
+      /* 4 dp, not 3: a surrogate p arrives in 1/(B+1) steps and the floor is 1/81 = 0.0123, which
+         rounds to 0.012 at 3 dp — i.e. the exported p would sit BELOW the exported pFloor, which is
+         incoherent on its face and exactly what the floor exists to rule out. Caught by this
+         change's own test group, not by review. */
+      pAtLeastObserved: +pAtLeast.toFixed(4),
       belowChance: belowChance,
       surgeRatePerHr: +(surgeRate * 3600).toFixed(1),
       // which observer the rate came from, and who else saw surges — so a reader can tell a
@@ -3220,27 +3390,80 @@ function fuseRespirationRate(recs) {
   };
 }
 
+/* DEEP-AUDIT-VI F11 — temporal-overlap grouping is a CONNECTED COMPONENT, not a greedy first-fit.
+   fuseHRVConsensus / fuseStagingConsensus / fusePeriodicBreathing used to place each record in the
+   first existing group it overlapped and never merged groups, so a record that BRIDGES two groups (an
+   HRVDex envelope spanning days, an oximeter night spanning an evening strap and a therapy session)
+   left membership a function of file-drop order: the same three records in three orders produced
+   three different consensus blocks (['HRVDex+PulseDex'] / ['ECGDex+HRVDex+PulseDex'] /
+   ['ECGDex+HRVDex']) and a periodic-breathing corroboration of conf 0.885 · 0.697 · 0.752 for
+   IDENTICAL data. Union-find over the overlap relation makes each block the transitive closure, and
+   the canonical member order (earliest window start, then node name, then original index as the
+   tiebreak) makes `g[0]` — which fuseHRVConsensus reads for the reference hrvWindow — a function of
+   the data too. `ov(a, b)` is the caller's overlap test on its own element shape. */
+function _overlapComponents(items, ov) {
+  var n = items.length;
+  var parent = new Array(n);
+  for (var i = 0; i < n; i++) parent[i] = i;
+  function find(x) {
+    while (parent[x] !== x) {
+      parent[x] = parent[parent[x]];
+      x = parent[x];
+    }
+    return x;
+  }
+  for (var a = 0; a < n; a++)
+    for (var b = a + 1; b < n; b++) {
+      if (!ov(items[a], items[b])) continue;
+      var ra = find(a),
+        rb = find(b);
+      if (ra !== rb) parent[rb] = ra;
+    }
+  var byRoot = {};
+  for (var k = 0; k < n; k++) {
+    var r = find(k);
+    if (!byRoot[r]) byRoot[r] = [];
+    byRoot[r].push(k);
+  }
+  function startOf(idx) {
+    var w = recWindow(items[idx].rec || items[idx]);
+    return w && isFinite(w.startMs) ? w.startMs : Infinity;
+  }
+  function nodeOf(idx) {
+    var it = items[idx].rec || items[idx];
+    return String((it && it.node) || '');
+  }
+  function cmp(x, y) {
+    var sx = startOf(x),
+      sy = startOf(y);
+    if (sx !== sy) return sx < sy ? -1 : 1;
+    var nx = nodeOf(x),
+      ny = nodeOf(y);
+    if (nx !== ny) return nx < ny ? -1 : 1;
+    return x - y;
+  }
+  return Object.keys(byRoot)
+    .map(function (root) {
+      return byRoot[root].sort(cmp);
+    })
+    .sort(function (g, h) {
+      return cmp(g[0], h[0]);
+    })
+    .map(function (g) {
+      return g.map(function (idx) {
+        return items[idx];
+      });
+    });
+}
+
 function fuseHRVConsensus(recs, dtMs) {
   var sources = recs.filter(function (r) {
     return ['ECGDex', 'PulseDex', 'HRVDex', 'PpgDex'].indexOf(r.node) >= 0 && !r.dateUnknown && r.summary && (r.summary.rmssd != null || r.summary.sdnn != null);
   });
   if (sources.length < 2) return null;
   // only compare sources whose windows overlap
-  var groups = [];
-  sources.forEach(function (s) {
-    var placed = false;
-    for (var i = 0; i < groups.length; i++) {
-      if (
-        groups[i].some(function (o) {
-          return overlapInterval(o, s);
-        })
-      ) {
-        groups[i].push(s);
-        placed = true;
-        break;
-      }
-    }
-    if (!placed) groups.push([s]);
+  var groups = _overlapComponents(sources, function (a, b) {
+    return !!overlapInterval(a, b);
   });
   var blocks = groups
     .filter(function (g) {
@@ -3468,21 +3691,8 @@ function fuseStagingConsensus(recs, remGapThresh) {
   });
   if (src.length < 2) return null;
   // group by temporal overlap (same night)
-  var groups = [];
-  src.forEach(function (s) {
-    var placed = false;
-    for (var i = 0; i < groups.length; i++) {
-      if (
-        groups[i].some(function (o) {
-          return overlapInterval(o, s);
-        })
-      ) {
-        groups[i].push(s);
-        placed = true;
-        break;
-      }
-    }
-    if (!placed) groups.push([s]);
+  var groups = _overlapComponents(src, function (a, b) {
+    return !!overlapInterval(a, b);
   });
   /* DEEP-AUDIT-FOLLOWUPS §C2 — FAIL CLOSED across denominators.
      `remFraction` does not mean the same thing on every leg: ECGDex divides REM by TOTAL SLEEP,
@@ -3631,21 +3841,8 @@ function fusePeriodicBreathing(recs) {
     });
   if (src.length < 2) return null;
   // group by temporal overlap (same night) — identical pattern to staging / HRV consensus
-  var groups = [];
-  src.forEach(function (s) {
-    var placed = false;
-    for (var i = 0; i < groups.length; i++) {
-      if (
-        groups[i].some(function (o) {
-          return overlapInterval(o.rec, s.rec);
-        })
-      ) {
-        groups[i].push(s);
-        placed = true;
-        break;
-      }
-    }
-    if (!placed) groups.push([s]);
+  var groups = _overlapComponents(src, function (a, b) {
+    return !!overlapInterval(a.rec, b.rec);
   });
   var blocks = groups
     .map(function (g) {

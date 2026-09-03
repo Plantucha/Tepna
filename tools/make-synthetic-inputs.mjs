@@ -368,6 +368,50 @@ const emit = (name, text) => {
   emit('synthetic_glucodex_lingo_gap.csv', rows.join('\n') + '\n');
 }
 
+/* ── 4c · GlucoDex ADVERSARIAL twin — Dexcom Clarity layout: an Index counter + "Low" cells ──
+   WHY THIS FILE EXISTS (DEEP-AUDIT-VI F6). Clarity's first column is a serial row counter whose
+   values sit inside locateColumns' [2, 600] band for the entire 60-row sample, so it scored within
+   ONE hit of the real glucose column — and the "Low" string Clarity writes for below-range readings
+   costs the glucose column exactly that hit. One Low cell in the sample flipped the pick to the
+   Index column and every headline metric (mean, GMI, TIR, LBGI) was computed on ROW NUMBERS,
+   silently. Neither committed Lingo twin can express this: Lingo has no counter column and no Low
+   sentinel. This twin has both — Index 1..576 ascending, six "Low" cells in a planted nocturnal
+   hypo — plus the decoy surfaces that must NOT win: a Transmitter Time long-integer column
+   (numeric, out of band, step 300 — not a ±1 counter) and a Glucose Rate of Change column whose
+   header also matches /gluco/i but whose values are rarely in band. The invariant gate asserts the
+   planted arithmetic (n = 570 measured readings, mean inside the planted 70–200 band); pre-F6 code
+   reports mean ≈ 288.5 — the average of 1..576 — and reds by construction. */
+{
+  const HEAD =
+    'Index,Timestamp (YYYY-MM-DDThh:mm:ss),Event Type,Event Subtype,Patient Info,Device Info,Source Device ID,Glucose Value (mg/dL),Insulin Value (u),Carb Value (grams),Duration (hh:mm:ss),Glucose Rate of Change (mg/dL/min),Transmitter Time (Long Integer),Transmitter ID';
+  const rows = [HEAD];
+  const t0 = Date.UTC(2026, 4, 10, 0, 0, 0);
+  const N = 2 * 24 * 12; // 2 days @ 5-min, Index ascending like the vendor export
+  let prevG = null;
+  for (let i = 0; i < N; i++) {
+    const ms = t0 + i * 5 * 60000;
+    const d = new Date(ms);
+    const hod = d.getUTCHours() + d.getUTCMinutes() / 60;
+    const day = Math.floor(i / 288);
+    let g = 95 + 6 * Math.sin((2 * Math.PI * hod) / 24);
+    for (const [mh, amp] of [
+      [8, 45],
+      [13, 55],
+      [19, 50]
+    ]) {
+      const dt = hod - mh;
+      if (dt >= 0 && dt < 3) g += amp * Math.exp(-Math.pow(dt - 0.8, 2) / 0.5);
+    }
+    // night-1 hypo 03:00–03:25 dips below Dexcom's 40 mg/dL display floor → the vendor writes "Low"
+    const low = day === 0 && hod >= 3 && hod < 3.5;
+    const gCell = low ? 'Low' : String(Math.round(g));
+    const rate = prevG == null || low ? '' : (Math.round(((g - prevG) / 5) * 10) / 10).toFixed(1);
+    prevG = low ? null : g;
+    rows.push(`${i + 1},${iso(ms)},EGV,,,G7,SN-1,${gCell},,,,${rate},${1730000000 + i * 300},8ABC12`);
+  }
+  emit('synthetic_glucodex_clarity_low.csv', rows.join('\n') + '\n');
+}
+
 /* ── 5 · PpgDex — Polar Verity Sense raw PPG (3 LEDs + ambient, ~135 Hz) ───── */
 {
   const HEAD = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient';
@@ -540,6 +584,56 @@ const emit = (name, text) => {
     rows.push(`${isoMs(t0 + (i / FS) * 1000)};${ns};${((i / FS) * 1000).toFixed(6)};${Math.round(v)}`);
   }
   emit('synthetic_ecgdex_h10.txt', rows.join('\n') + '\n');
+
+  /* ── 6c · ECGDex ADVERSARIAL twin — NO recoverable EDR period (FOLLOWUPS §1.10) ──────────────
+     WHY THIS FILE EXISTS. `respFromEDR` used to substitute a hardcoded **15 br/min** whenever
+     `_autocorrPeriod` found no dominant period in the EDR band (and, before that, echoed the Lomb
+     hint the method's own comment says it does not echo). Nothing marked either substitution, so a
+     reader could not tell a measured 15.0 from the constant — §1.5 had to detect fallback nights by
+     testing `=== 15.0`, which cannot separate them. NO COMMITTED INPUT TOOK THAT BRANCH: the clean
+     twin carries 0.25 Hz baseline wander and its rich golden pins respFromEDR = 16.3, so "no fixture
+     moved" would have been silence by construction (§2.1's rule).
+     This twin is the clean twin's beat morphology with the periodic drivers REMOVED: no 0.25 Hz
+     baseline wander and constant R amplitude, so the EDR band holds no dominant 2.5–10 s period.
+     It SEPARATES THE TWO CODES: pre-§1.10 emits respFromEDR = 15 (a number the code chose);
+     current code emits null + `respFromEDRReason`. RR stays irregular so Pan–Tompkins still finds
+     the beats — the refusal must be about the RATE being unrecoverable, not about a broken parse. */
+  {
+    const rows2 = [HEAD];
+    const t0b = Date.UTC(2026, 5, 18, 1, 6, 17, 723);
+    const ns0b = 599630059061536896n;
+    let seed = 20260918;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5) * 2;
+    const beats2 = [];
+    /* Beats are QUANTISED TO EXACT SAMPLE BOUNDARIES. Without this the R peak lands at a varying
+       sub-sample offset from beat to beat, so the SAMPLED peak amplitude wobbles with RR jitter and
+       the EDR carrier acquires exactly the modulation this twin must not have — measured: a
+       noiseless constant-amplitude train still yielded a 7.4 br/min "period", and adding broadband
+       noise yielded 19.9 (band-passed noise autocorrelates above the 0.1 floor). Quantising makes
+       every R sample the identical value, so the EDR series is constant and `_autocorrPeriod`
+       refuses on zero energy — which is the branch under test. */
+    for (let t = 0.4; t < SECS; ) {
+      beats2.push(Math.round(t * FS) / FS);
+      t += Math.round(((1000 + 45 * rnd()) / 1000) * FS) / FS; // irregular RR, sample-aligned
+    }
+    for (let i = 0; i < FS * SECS; i++) {
+      const t = i / FS;
+      let v = 0; // NO noise and NO wander: the EDR carrier must be degenerate, not merely aperiodic —
+      //          band-passed broadband noise still autocorrelates above the 0.1 floor (measured: 19.9 br/min)
+      for (const b of beats2) {
+        const d = t - b;
+        if (d < -0.25 || d > 0.45) continue;
+        v += g(d, -0.16, 0.025, 90);
+        v += g(d, -0.02, 0.008, -110);
+        v += g(d, 0.0, 0.01, 1150); // CONSTANT R amplitude — the EDR carrier is flat
+        v += g(d, 0.025, 0.011, -230);
+        v += g(d, 0.22, 0.045, 260);
+      }
+      const ns = ns0b + BigInt(Math.round((i / FS) * 1e9));
+      rows2.push(`${isoMs(t0b + (i / FS) * 1000)};${ns};${((i / FS) * 1000).toFixed(6)};${Math.round(v)}`);
+    }
+    emit('synthetic_ecgdex_flat_edr.txt', rows2.join('\n') + '\n');
+  }
 
   /* ── 6b · ECGDex ADVERSARIAL twin — a FRAGMENTED recording ──────────────────────────────────
      WHY THIS FILE EXISTS. The clean twin above is contiguous, so it exercises none of the

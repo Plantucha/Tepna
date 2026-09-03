@@ -1,0 +1,66 @@
+{
+  "night": "2026-08-27",
+  "packets": 128869,
+  "files": 19,
+  "devices": [
+    {
+      "device": "Polar H10 02849638",
+      "anchors": 80420,
+      "ok": false,
+      "reason": "implausible host/device rate -999893 ppm (bound ±50000) — columns are probably not host+device",
+      "independent": null,
+      "spreadMs": null,
+      "ppm": -999893.1,
+      "maxStepMs": null,
+      "plausibleCrystal": false,
+      "deviceDrawn": null,
+      "drawnShare": null,
+      "offsetMs": 946670400167.4,
+      "offsetMadMs": 71.1,
+      "t0DevMs": 599616005233,
+      "t0HostMs": 1787873081879,
+      "spanSec": 25839
+    },
+    {
+      "device": "Wellue O2Ring-S",
+      "anchors": 25489,
+      "ok": true,
+      "independent": true,
+      "spreadMs": 84003,
+      "ppm": 3197.8,
+      "maxStepMs": 1200,
+      "plausibleCrystal": false,
+      "deviceDrawn": true,
+      "drawnShare": 0.987,
+      "offsetMs": 1787873183942,
+      "offsetMadMs": 26972,
+      "t0DevMs": 1000,
+      "t0HostMs": 1787873129832,
+      "spanSec": 25709
+    },
+    {
+      "device": "Polar Verity Sense",
+      "anchors": 22960,
+      "ok": true,
+      "independent": true,
+      "spreadMs": 8313.28,
+      "ppm": 2.9,
+      "maxStepMs": 2287.3,
+      "plausibleCrystal": true,
+      "deviceDrawn": false,
+      "drawnShare": 0.004,
+      "offsetMs": 946670401363.1,
+      "offsetMadMs": 110.4,
+      "t0DevMs": 841202703239,
+      "t0HostMs": 1787873104373,
+      "spanSec": 25770
+    }
+  ],
+  "datTimefit": {
+    "converged": false,
+    "attempts": 2,
+    "reason": "no candidate .dat/_SPO2.csv pair produced a converged fit",
+    "dats": 2,
+    "csvs": 1
+  }
+}

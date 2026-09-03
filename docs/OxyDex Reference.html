@@ -873,7 +873,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <tr class="cr"><td>&lt;&#x202F;90%</td><td class="nr">Severe hypoxemia</td><td>Clinically significant; urgent evaluation warranted</td></tr></table></div>
 <span class="ev-corner ev-measured" title="Measured — direct sensor reading or raw statistic of the recorded signal"></span></div>
 
-<div class="mc">
+<div class="mc" data-id="odi4 odi3">
   <div class="mh"><div class="mi"><span class="ma">ODI-4 / ODI-3 / ODI-2 / ODI-1</span><span class="mf">Oxygen Desaturation Index</span></div><span class="mt tc">Core</span></div>
   <p class="md">Events per hour where SpO&#x2082; drops &#x2265;&#x202F;N% from a 5-minute rolling baseline and recovers. A rolling baseline (rather than a fixed threshold) compensates for individual differences in baseline SpO&#x2082; and slow overnight drifts. The suffix (1, 2, 3, or 4) is the minimum drop depth in percentage points.</p>
   <div class="fb"><div class="fl">Formula</div><div class="ft">ODI-N = (events where SpO&#x2082; drops &#x2265;&#x202F;N% from rolling baseline) / recording_hours</div><div class="fn">Baseline = mean SpO&#x2082; over preceding 5 min (300-sample O(n) sliding window). Event ends when SpO&#x2082; returns to within 1% of baseline or 120&#x202F;s elapses. Min event: 10&#x202F;s. Refractory: 10&#x202F;s after recovery.</div></div>
@@ -891,7 +891,7 @@ body.light .ev-measured { border-color:var(--surface); }
 <div class="rs" id="spo2-thresh">
 <div class="sh"><div class="si spo2">&#x1F4CA;</div><div><div class="st">Thresholds &amp; T-Index</div><div class="sd">Cumulative time below SpO&#x2082; thresholds &#x2014; the most clinically actionable saturation metrics</div></div></div>
 
-<div class="mc">
+<div class="mc" data-id="t95 t90 t88">
   <div class="mh"><div class="mi"><span class="ma">T95 &#x2013; T80</span><span class="mf">Time Below SpO&#x2082; Threshold</span></div><span class="mt tc">Core</span></div>
   <p class="md">The percentage of total recording time where SpO&#x2082; was below a given absolute threshold. Reported at 10 levels: T95, T94, T93, T92, T91, T90, T89, T88, T85, T80. Precise cumulative seconds are also shown as CT&lt;90, CT&lt;89, CT&lt;88, CT&lt;85.</p>
   <div class="fb"><div class="fl">Formula</div><div class="ft">T_x (%) = (seconds where SpO&#x2082; &lt; x) / total_seconds &#xD7; 100</div></div>
@@ -902,7 +902,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <tr class="cr"><td>&gt;&#x202F;30%</td><td class="nr">Severe</td><td>&gt;&#x202F;30 min</td><td class="nr">Severe</td></tr></table></div>
 <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="auc90Rate">
   <div class="mh"><div class="mi"><span class="ma">AUC-90</span><span class="mf">Hypoxic Burden &#x2014; Area Under Curve below 90%</span></div><span class="mt ta">Advanced</span></div>
   <p class="md">The integral of SpO&#x2082; deficit below 90% over the recording, normalized per hour. Captures both depth and duration &#x2014; a brief dip to 85% contributes 5&#xD7; more than a dip to 89%.</p>
   <div class="fb"><div class="fl">Formula</div><div class="ft">AUC-90 (%-min/hr) = &#x2211; max(0, 90 &#x2212; SpO&#x2082;[t]) / 60 / recording_hours</div></div>
@@ -983,7 +983,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">MODL = mean( SpO&#x2082;[t] for t inside any desaturation event )</div></div>
 
 <div class="no-norm-note">Normative ranges not yet established — values are relative; compare across recordings.</div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-measured" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 
 <div class="mc" data-tier="secondary">
   <div class="mh"><div class="mi"><span class="ma">Dip Slope</span><span class="mf">Mean Desaturation Rate (%/s)</span></div><span class="mt ta">Advanced</span></div>
@@ -1016,7 +1016,7 @@ body.light .ev-measured { border-color:var(--surface); }
 <div class="sh"><div class="si spo2">&#x26A1;</div><div><div class="st">Advanced SpO&#x2082; Metrics</div><div class="sd">Signal dynamics, periodicity, and nonlinear analysis</div></div></div>
 <div class="mg">
 
-<div class="mc" data-tier="research">
+<div class="mc" data-tier="research" data-id="dfaAlpha1">
   <div class="mh"><div class="mi"><span class="ma">DFA &#x3B1;1</span><span class="mf">Detrended Fluctuation Analysis &#x3B1;1</span></div><span class="mt tr">Research</span></div>
   <p class="md">Self-similarity of SpO&#x2082; fluctuations on short timescales (4&#x202F;&#x2013;&#x202F;16&#x202F;s). &#x3B1;1 near 0.5 = random; near 1.0 = long-range correlated (OSA/PB); &gt;1.0 = non-stationary.</p>
   <div class="fb"><div class="fl">Method</div><div class="ft">1. Integrate mean-subtracted SpO&#x2082;&#x0A;2. Detrend windows of size n&#x0A;3. F(n) = &#x221A;(mean squared residual)&#x0A;4. &#x3B1;1 = slope of log F(n) vs log n (n=4&#x202F;&#x2013;&#x202F;16&#x202F;s)</div></div>
@@ -1024,7 +1024,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <tr class="ok"><td>0.5&#x202F;&#x2013;&#x202F;0.75</td><td class="nr">Normal (mild correlations)</td></tr>
   <tr class="wn"><td>0.75&#x202F;&#x2013;&#x202F;1.0</td><td class="nr">PB/OSA pattern</td></tr>
   <tr class="cr"><td>&gt;&#x202F;1.0</td><td class="nr">Non-stationary &#x2014; severe cyclic hypoxemia</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-emerging" title="Emerging — derived from other metrics or uses approximation"></span></div>
 
 <div class="mc" data-tier="research">
   <div class="mh"><div class="mi"><span class="ma">SpO&#x2082; SampEn</span><span class="mf">Sample Entropy</span></div><span class="mt tr">Research</span></div>
@@ -1058,7 +1058,7 @@ body.light .ev-measured { border-color:var(--surface); }
 
 </div>
 
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="tAucWeighted">
   <div class="mh">
     <div class="mi"><span class="ma">T-AUC Weighted</span><span class="mf">Weighted Time-Area Hypoxic Load</span></div>
     <span class="mt ta">Advanced</span>
@@ -1068,7 +1068,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fn">CT(x) = cumulative seconds below threshold x. Thresholds: 95, 94, 93, 92, 91, 90, 89, 88, 85, 80.</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>WtAUC</th><th>Grade</th></tr><tr class="ok"><td>< 5</td><td class="nr">Normal</td></tr><tr class="wn"><td>5 &#x2013; 20</td><td class="nr">Mild</td></tr><tr class="bd"><td>20 &#x2013; 60</td><td class="nr">Moderate</td></tr><tr class="cr"><td>> 60</td><td class="nr">Severe</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Experimental — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="secondary">
   <div class="mh">
     <div class="mi"><span class="ma">SpO&#x2082; CoV</span><span class="mf">Coefficient of Variation of SpO&#x2082;</span></div>
@@ -1089,7 +1089,7 @@ body.light .ev-measured { border-color:var(--surface); }
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>AC1</th><th>Interpretation</th></tr><tr class="ok"><td>> 0.90</td><td class="nr">Normal slow-moving signal</td></tr><tr class="wn"><td>0.70 &#x2013; 0.90</td><td class="nr">Moderate fluctuation</td></tr><tr class="bd"><td>< 0.70</td><td class="nr">Rapid noise or severe cycling</td></tr></table></div>
 <span class="ev-corner ev-experimental" title="Experimental — plausible node-computed composite, not externally validated"></span></div>
-<div class="mc" data-tier="research">
+<div class="mc" data-tier="research" data-id="spo2Skew">
   <div class="mh">
     <div class="mi"><span class="ma">SpO&#x2082; Kurtosis / Skewness</span><span class="mf">Distribution Shape Metrics</span></div>
     <span class="mt tr">Research</span>
@@ -1099,7 +1099,7 @@ body.light .ev-measured { border-color:var(--surface); }
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>Metric</th><th>Normal range</th><th>Elevated pattern</th></tr><tr class="ok"><td>Kurtosis</td><td class="nr">2 &#x2013; 4</td><td>Kurtosis &gt; 6 &#x2014; Frequent deep dips &#x2014; obstructive</td></tr><tr class="wn"><td>Skewness</td><td class="nr">&#x2212;0.5 to 0</td><td>Skewness &lt; &#x2212;1 &#x2014; Heavy low-SpO&#x2082; tail</td></tr></table></div>
 <span class="ev-corner ev-experimental" title="Experimental — plausible node-computed composite, not externally validated"></span></div>
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="condMeanBelow94 condPctBelow94">
   <div class="mh">
     <div class="mi"><span class="ma">Cond. Mean &lt;94 / Cond. % &lt;94</span><span class="mf">Conditional SpO&#x2082; Statistics</span></div>
     <span class="mt ta">Advanced</span>
@@ -1108,15 +1108,15 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">CondMean = mean(SpO&#x2082;[t] | SpO&#x2082;[t] &lt; 94)&#x000A;CondPct  = count(SpO&#x2082;[t] &lt; 94) / n &times; 100</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>Cond. Mean &lt;94 (%)</th><th>Interpretation</th></tr><tr class="ok"><td>91 &#x2013; 93</td><td class="nr">Mild; marginal dips only</td></tr><tr class="wn"><td>88 &#x2013; 91</td><td class="nr">Moderate hypoxemic depth</td></tr><tr class="cr"><td>< 88</td><td class="nr">Severe mean depth during exposure</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
-<div class="mc" data-tier="secondary">
+<span class="ev-corner ev-measured" title="Measured — derived from other metrics or uses approximation"></span></div>
+<div class="mc" data-tier="secondary" data-id="nadirBinLt4 nadirBin46 nadirBin69 nadirBinGt9">
   <div class="mh">
     <div class="mi"><span class="ma">Nadir Depth Bins</span><span class="mf">5-Tier Nadir Depth Histogram</span></div>
     <span class="mt ta">Advanced</span>
   </div>
   <p class="md">Desaturation nadir events are bucketed into five depth tiers: above 91%, 90&#x2013;91%, 88&#x2013;89%, 85&#x2013;87%, and below 85%. Provides a richer picture than simple ODI counts &#x2014; an ODI-4 of 20/hr is clinically very different if all events land in the above-91 bin vs. the below-85 bin.</p>
   <div class="nt-wrap"><table class="nt"><tr><th>Bin</th><th>SpO&#x2082; Nadir</th><th>Clinical weight</th></tr><tr class="ok"><td>above91</td><td class="nr">> 91%</td><td>Mild; common in CS/PB</td></tr><tr class="wn"><td>b9091</td><td class="nr">90 &#x2013; 91%</td><td>Mild&#x2013;moderate</td></tr><tr class="wn"><td>b8889</td><td class="nr">88 &#x2013; 89%</td><td>Moderate</td></tr><tr class="bd"><td>b8587</td><td class="nr">85 &#x2013; 87%</td><td>Significant</td></tr><tr class="cr"><td>below85</td><td class="nr">< 85%</td><td>Severe</td></tr></table><div class="no-norm-note">The five bins are an internal OxyDex histogram, not a published grading &#x2014; read the distribution across your own nights rather than any single bin as a threshold.</div></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-measured" title="Measured — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="secondary">
   <div class="mh">
     <div class="mi"><span class="ma">SpO&#x2082; IQR</span><span class="mf">Interquartile Range of SpO&#x2082;</span></div>
@@ -1132,8 +1132,8 @@ body.light .ev-measured { border-color:var(--surface); }
     <div class="mi"><span class="ma">IEI</span><span class="mf">Inter-Event Interval (mean / SD)</span></div>
     <span class="mt tr">Research</span>
   </div>
-  <p class="md">Mean and standard deviation of the time between consecutive desaturation nadir timestamps (seconds). Regular IEI (low SD) with a period matching the clinical CS range (40&#x2013;90 s) supports a periodic breathing pattern. Highly variable IEI favours obstructive fragmentation.</p>
-  <div class="fb"><div class="fl">Formula</div><div class="ft">IEI_i = nadirTime_i &#x2212; nadirTime_{i&#x2212;1}&#x000A;mean/SD computed over all intervals</div>
+  <p class="md">Mean and standard deviation of the QUIET interval between consecutive desaturation events (seconds) &#x2014; measured from the end of one event to the start of the next, so it excludes the events&rsquo; own durations and is <em>not</em> a nadir-to-nadir cycle length. Regular IEI (low SD) with a period matching the clinical CS range (40&#x2013;90 s) supports a periodic breathing pattern. Highly variable IEI favours obstructive fragmentation.</p>
+  <div class="fb"><div class="fl">Formula</div><div class="ft">IEI_i = start_i &#x2212; (start_{i&#x2212;1} + duration_{i&#x2212;1})&#x000A;mean/SD over all positive intervals&#x000A;NB a cycle length would include the event durations; this does not, so compare it with the clinical CS range only with that in mind</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>IEI SD (s)</th><th>Pattern</th></tr><tr class="ok"><td>< 15</td><td class="nr">Regular spacing &#x2014; PB/CS pattern</td></tr><tr class="wn"><td>15 &#x2013; 40</td><td class="nr">Semi-regular</td></tr><tr class="bd"><td>> 40</td><td class="nr">Irregular &#x2014; obstructive or mixed</td></tr></table></div>
 <span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
@@ -1170,9 +1170,9 @@ body.light .ev-measured { border-color:var(--surface); }
     <div class="mi"><span class="ma">SpO&#x2082; Ceiling</span><span class="mf">Firmware Saturation Artifact</span></div>
     <span class="mt tr">Research</span>
   </div>
-  <p class="md">Count of samples where SpO&#x2082; is fixed at exactly 100% for &ge;30 consecutive seconds. Consumer-grade devices clip the signal at 100; long runs of exactly 100% indicate sensor contact issues, firmware clamping, or device removal rather than true perfect saturation. Flagged as a signal quality warning.</p>
+  <p class="md">Count of runs where SpO&#x2082; is &ge;99% for &ge;5 consecutive seconds. Consumer-grade devices clip the signal at 100; long runs of exactly 100% indicate sensor contact issues, firmware clamping, or device removal rather than true perfect saturation. Flagged as a signal quality warning.</p>
   <div class="nt-wrap"><table class="nt"><tr><th>Ceiling runs</th><th>Signal quality</th></tr><tr class="ok"><td>0</td><td class="nr">Clean signal</td></tr><tr class="wn"><td>1 &#x2013; 3</td><td class="nr">Minor artifact</td></tr><tr class="cr"><td>> 3</td><td class="nr">Significant data quality concern</td></tr></table></div>
-<span class="ev-corner ev-measured" title="Measured — direct sensor reading or raw statistic of the recorded signal"></span></div>
+<span class="ev-corner ev-heuristic" title="Measured — direct sensor reading or raw statistic of the recorded signal"></span></div>
 <div class="mc" data-tier="research">
   <div class="mh">
     <div class="mi"><span class="ma">O&#x2082;-HR Efficiency</span><span class="mf">SpO&#x2082; Recovery Cost per Heartbeat</span></div>
@@ -1182,7 +1182,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">O&#x2082;HReff = &#x0394;SpO&#x2082;_recovery / meanHR_recovery</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>O&#x2082;-HR Efficiency</th><th>Interpretation</th></tr><tr class="ok"><td>> 0.10</td><td class="nr">Efficient resaturation</td></tr><tr class="wn"><td>0.05 &#x2013; 0.10</td><td class="nr">Moderate</td></tr><tr class="bd"><td>< 0.05</td><td class="nr">Impaired efficiency</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="secondary">
   <div class="mh">
     <div class="mi"><span class="ma">Post-Dip HR Response</span><span class="mf">Mean HR Change 60 s After Nadir</span></div>
@@ -1193,7 +1193,7 @@ body.light .ev-measured { border-color:var(--surface); }
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>Post-Dip HR &#x0394; (bpm)</th><th>Arousal coupling</th></tr><tr class="ok"><td>> 5</td><td class="nr">Strong arousal response</td></tr><tr class="wn"><td>2 &#x2013; 5</td><td class="nr">Moderate</td></tr><tr class="bd"><td>< 2</td><td class="nr">Blunted &#x2014; impaired arousal</td></tr><tr class="cr"><td>< 0</td><td class="nr">Paradoxical &#x2014; HR deceleration after dip</td></tr></table></div>
 <span class="ev-corner ev-measured" title="Measured — direct sensor reading or raw statistic of the recorded signal"></span></div>
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="oxyCrash">
   <div class="mh">
     <div class="mi"><span class="ma">OxyCrash Count / Rate</span><span class="mf">Acute SpO&#x2082; Drops &ge;5% in 30 s</span></div>
     <span class="mt ta">Advanced</span>
@@ -1202,8 +1202,8 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">Crash if SpO&#x2082;[t&#x2212;30] &#x2212; SpO&#x2082;[t] &ge; 5&#x000A;Rate = count / recHrs</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>OxyCrash rate (/hr)</th><th>Grade</th></tr><tr class="ok"><td>< 2</td><td class="nr">Normal</td></tr><tr class="wn"><td>2 &#x2013; 8</td><td class="nr">Mildly elevated</td></tr><tr class="bd"><td>8 &#x2013; 20</td><td class="nr">Significant rapid desaturation</td></tr><tr class="cr"><td>> 20</td><td class="nr">Severe &#x2014; markedly elevated for this metric</td></tr></table><div class="no-norm-note">These cut-points are internal to OxyDex and have <strong>no published equivalent</strong> &#x2014; OxyCrash is a heuristic built on a 5&#x202F;pp/30&#x202F;s rule of our own choosing, not a scored clinical index. Read the bands <strong>relative to your own nights</strong>, not as diagnostic thresholds.</div></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
-<div class="mc" data-tier="secondary">
+<span class="ev-corner ev-experimental" title="Experimental — derived from other metrics or uses approximation"></span></div>
+<div class="mc" data-tier="secondary" data-id="ahiEst">
   <div class="mh">
     <div class="mi"><span class="ma">AHI Estimate</span><span class="mf">Proxy AHI from ODI-4</span></div>
     <span class="mt ta">Advanced</span>
@@ -1213,7 +1213,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fn">Uncertainty &plusmn;5 events/hr at the individual level. Overestimates AHI in CS/central-dominant patterns (ODI events without arousal). Use as a screening flag only.</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>AHI Estimate</th><th>OSA Grade</th></tr><tr class="ok"><td>< 5</td><td class="nr">No OSA</td></tr><tr class="wn"><td>5 &#x2013; 15</td><td class="nr">Mild</td></tr><tr class="bd"><td>15 &#x2013; 30</td><td class="nr">Moderate</td></tr><tr class="cr"><td>> 30</td><td class="nr">Severe</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-emerging" title="Emerging — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="secondary">
   <div class="mh">
     <div class="mi"><span class="ma">Worst 10-min SpO&#x2082;</span><span class="mf">Rolling Minimum 10-Minute Mean SpO&#x2082;</span></div>
@@ -1235,9 +1235,9 @@ body.light .ev-measured { border-color:var(--surface); }
     <div class="mi"><span class="ma">Stable SpO&#x2082; Windows</span><span class="mf">Count of 5-min Stable SpO&#x2082; Periods</span></div>
     <span class="mt ta">Advanced</span>
   </div>
-  <p class="md">Number of consecutive 5-minute windows where SpO&#x2082; SD &lt;1% and mean &gt;94%. Represents the fraction of the night with truly stable oxygenation. Complements LCSP &#x2014; LCSP measures the longest single run while stable windows counts the total number of high-quality periods.</p>
+  <p class="md">Number of 5-minute windows where SpO&#x2082; SD &lt;1%. The window&rsquo;s mean level is <em>not</em> tested &#x2014; a stable window may sit at any saturation. Represents the fraction of the night with truly stable oxygenation. Complements LCSP &#x2014; LCSP measures the longest single run while stable windows counts the total number of high-quality periods.</p>
   <div class="nt-wrap"><table class="nt"><tr><th>Stable windows</th><th>Interpretation</th></tr><tr class="ok"><td>> 30</td><td class="nr">Predominantly stable night</td></tr><tr class="wn"><td>15 &#x2013; 30</td><td class="nr">Moderately stable</td></tr><tr class="bd"><td>5 &#x2013; 15</td><td class="nr">Fragmented oxygenation</td></tr><tr class="cr"><td>< 5</td><td class="nr">Pervasive instability</td></tr></table></div>
-<span class="ev-corner ev-measured" title="Measured — direct sensor reading or raw statistic of the recorded signal"></span></div>
+<span class="ev-corner ev-heuristic" title="Measured — direct sensor reading or raw statistic of the recorded signal"></span></div>
 </div><!-- /spo2-adv -->
 
 <!-- ═══ CLINICAL VALIDATED ═══ -->
@@ -1276,7 +1276,7 @@ body.light .ev-measured { border-color:var(--surface); }
 <div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Naming caution:</strong> The card below is a <em>fixed-threshold whole-night integral</em> (area below a flat 94% line). The <em>validated</em> Azarbarzin 2019 &ldquo;hypoxic burden&rdquo; is different: it is the area under each respiratory event&#x2019;s <em>own pre-event baseline</em> (max SpO&#x2082; in the 100&#x202F;s before event end), summed across events and divided by sleep time (%&#xB7;min/hr). The <strong>Hypoxic Load</strong> card further down is this app&#x2019;s closest approximation to that event-based metric.</div></div>
 <div class="mg">
 
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="hypoxicBurden">
   <div class="mh"><div class="mi"><span class="ma">CHA-94</span><span class="mf">Cumulative Hypoxemia Area below 94% (fixed threshold)</span></div><span class="mt ta">Advanced</span></div>
   <p class="md">Total area under the SpO&#x2082; curve below a fixed 94% line, per recording hour. A simple whole-night exposure proxy &#x2014; <strong>not</strong> the validated event-based hypoxic burden (see caution above). Captures mild hypoxemia even when CT&lt;90 is near zero.</p>
   <div class="fb"><div class="fl">Formula</div><div class="ft">CHA-94 (%-min/hr) = &#x2211; max(0, 94 &#x2212; SpO&#x2082;[t]) / 60 / rec_hrs</div></div>
@@ -1285,15 +1285,15 @@ body.light .ev-measured { border-color:var(--surface); }
   <tr class="wn"><td>2&#x202F;&#x2013;&#x202F;10</td><td class="nr">Mild burden</td></tr>
   <tr class="bd"><td>10&#x202F;&#x2013;&#x202F;25</td><td class="nr">Moderate</td></tr>
   <tr class="cr"><td>&gt;&#x202F;25</td><td class="nr">High &#x2014; daytime SBP correlation</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Experimental — derived from other metrics or uses approximation"></span></div>
 
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="hd94">
   <div class="mh"><div class="mi"><span class="ma">HD94 / HD90 / HD88</span><span class="mf">Hypoxic Dose (Azarbarzin 2019/2020)</span></div><span class="mt ta">Advanced</span></div>
   <p class="md">Per-hour depth&#x2013;duration product of desaturation events relative to a threshold. Higher hypoxic dose tracks higher daytime systolic BP in cohort studies (Kim/MESA 2020).</p>
   <div class="fb"><div class="fl">Formula</div><div class="ft">HD_x = &#x2211; event (thresh_x &#x2212; nadir_SpO&#x2082;) &#xD7; duration_s / 60 / rec_hrs</div></div>
 <span class="ev-corner ev-experimental" title="Experimental — internal fixed-threshold hypoxic-dose composite, not externally validated"></span></div>
 
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="hypLoad">
   <div class="mh"><div class="mi"><span class="ma">Hypoxic Load</span><span class="mf">Event-based approximation of Azarbarzin 2019 HB</span></div><span class="mt ta">Advanced</span></div>
   <p class="md">This app&#x2019;s closest approximation to the validated sleep-apnea-specific hypoxic burden (Azarbarzin et al., <em>Eur Heart J</em> 2019), which predicts CV mortality. Uses the depth&#xD7;duration of desaturation events (the triangular-area estimate) rather than ODI counts alone. Combines ODI-3 rate, mean nadir depth, and mean event duration.</p>
   <div class="fb"><div class="fl">Formula</div><div class="ft">HL = ODI-3_rate &#xD7; mean_depth_% &#xD7; mean_duration_min / k</div><div class="fn">Approximation, not a literal reimplementation of the per-event baseline method. Grade labels: minimal / low / moderate / high / very high</div></div>
@@ -1335,7 +1335,7 @@ body.light .ev-measured { border-color:var(--surface); }
 <div class="sh"><div class="si hr">&#x1F493;</div><div><div class="st">HRV Proxy Metrics</div><div class="sd">Variability estimates from 1&#x202F;Hz HR &#x2014; directional autonomic indicators only</div></div></div>
 <div class="mg">
 
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="hrVarSd">
   <div class="mh"><div class="mi"><span class="ma">SDNN proxy</span><span class="mf">SD of HR (1&#x202F;Hz)</span></div><span class="mt ta">Advanced</span></div>
   <p class="md">Standard deviation of all motion-free HR values. Analogous to clinical SDNN but numerically different (1&#x202F;Hz integer data vs. beat-to-beat ms). Higher = greater autonomic variability = healthier cardiac regulation.</p>
   <div class="fb"><div class="fl">Formula</div><div class="ft">SDNN_proxy = SD(HR[motion=0]) bpm</div></div>
@@ -1343,7 +1343,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <tr class="ok"><td>&gt;&#x202F;6</td><td class="nr">Good variability</td></tr>
   <tr class="wn"><td>3&#x202F;&#x2013;&#x202F;6</td><td class="nr">Moderate</td></tr>
   <tr class="bd"><td>&lt;&#x202F;3</td><td class="nr">Low &#x2014; possible autonomic suppression</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
+<span class="ev-corner ev-experimental" title="Experimental — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
 
 <div class="mc" data-tier="secondary">
   <div class="mh"><div class="mi"><span class="ma">RMSSD proxy</span><span class="mf">Root Mean Square Successive HR Differences</span></div><span class="mt ta">Advanced</span></div>
@@ -1365,7 +1365,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="mh"><div class="mi"><span class="ma">RMSSD Arc</span><span class="mf">RMSSD Trajectory Across Night</span></div><span class="mt tr">Research</span></div>
   <p class="md">OLS slope of 30-min windowed RMSSD values across the night (bpm/hr). Rising arc = increasing vagal tone (good recovery). Flat or declining = impaired autonomic recovery.</p>
   <div class="fb"><div class="fl">Formula</div><div class="ft">RMSSD[w] = proxy over 30-min window w&#x0A;Arc = OLS slope of RMSSD[w] vs. w</div></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
+<span class="ev-corner ev-experimental" title="Heuristic — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
 
 </div></div><!-- /hrv-proxy -->
 
@@ -1382,7 +1382,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <tr class="ok"><td>0.5&#x202F;&#x2013;&#x202F;2.0</td><td class="nr">Vagal dominant (normal sleep)</td></tr>
   <tr class="wn"><td>2.0&#x202F;&#x2013;&#x202F;4.0</td><td class="nr">Mild sympathetic activation</td></tr>
   <tr class="bd"><td>&gt;&#x202F;4.0</td><td class="nr">Sympathetic dominant</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 
 <div class="mc" data-tier="research">
   <div class="mh"><div class="mi"><span class="ma">ApEn</span><span class="mf">Approximate Entropy (Pincus 1991)</span></div><span class="mt tr">Research</span></div>
@@ -1394,11 +1394,11 @@ body.light .ev-measured { border-color:var(--surface); }
   <tr class="cr"><td>&lt;&#x202F;0.4</td><td class="nr">Low complexity &#x2014; suppressed autonomic variability</td></tr></table></div>
 <span class="ev-corner ev-heuristic" title="Heuristic — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
 
-<div class="mc" data-tier="research">
+<div class="mc" data-tier="research" data-id="sd1 sd1sd2">
   <div class="mh"><div class="mi"><span class="ma">SD1 / SD2</span><span class="mf">Poincar&#xE9; Short/Long-Term HRV</span></div><span class="mt tr">Research</span></div>
   <p class="md">Geometric HRV measures from the Poincar&#xE9; plot (HR[t] vs HR[t+1]). SD1 = beat-to-beat variability (vagal proxy). SD2 = long-term variability (total autonomic proxy). SD1/SD2 = short vs. long-term autonomic balance.</p>
   <div class="fb"><div class="fl">Formula</div><div class="ft">d&#x2081;[t] = (HR[t+1]&#x2212;HR[t])/&#x221A;2; d&#x2082;[t] = (HR[t+1]+HR[t])/&#x221A;2&#x0A;SD1 = SD(d&#x2081;),  SD2 = SD(d&#x2082;)</div></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
+<span class="ev-corner ev-experimental" title="Experimental — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
 
 </div>
 
@@ -1422,7 +1422,7 @@ body.light .ev-measured { border-color:var(--surface); }
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>HR IQR (bpm)</th><th>Interpretation</th></tr><tr class="ok"><td>> 10</td><td class="nr">High variability &#x2014; good autonomic range</td></tr><tr class="wn"><td>5 &#x2013; 10</td><td class="nr">Moderate</td></tr><tr class="bd"><td>< 5</td><td class="nr">Low variability &#x2014; suppressed autonomic range</td></tr></table></div>
 <span class="ev-corner ev-heuristic" title="Heuristic — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
-<div class="mc" data-tier="research">
+<div class="mc" data-tier="research" data-id="hrPbContrast">
   <div class="mh">
     <div class="mi"><span class="ma">PB HR Contrast</span><span class="mf">Mean HR During vs. Outside PB Windows</span></div>
     <span class="mt tr">Research</span>
@@ -1431,8 +1431,8 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">PB_contrast = meanHR(PB windows) &#x2212; meanHR(non-PB windows)</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>PB HR Contrast (bpm)</th><th>Interpretation</th></tr><tr class="ok"><td>< 3</td><td class="nr">Low contrast &#x2014; minimal PB arousal</td></tr><tr class="wn"><td>3 &#x2013; 8</td><td class="nr">Moderate arousal coupling</td></tr><tr class="bd"><td>> 8</td><td class="nr">Strong sympathetic surge during PB</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
-<div class="mc" data-tier="research">
+<span class="ev-corner ev-experimental" title="Experimental — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
+<div class="mc" data-tier="research" data-id="breathsPerMin">
   <div class="mh">
     <div class="mi"><span class="ma">Respiratory Rate (proxy)</span><span class="mf">FFT-Estimated Breathing Rate</span></div>
     <span class="mt tr">Research</span>
@@ -1441,7 +1441,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">RR_proxy = argmax |X(f)|&#xB2; in [0.15, 0.40] Hz &times; 60</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>RR proxy (brpm)</th><th>Interpretation</th></tr><tr class="ok"><td>12 &#x2013; 20</td><td class="nr">Normal</td></tr><tr class="wn"><td>20 &#x2013; 25</td><td class="nr">Mildly elevated</td></tr><tr class="bd"><td>> 25 or < 10</td><td class="nr">Artefact or abnormal pattern</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-emerging" title="Emerging — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="research">
   <div class="mh">
     <div class="mi"><span class="ma">HR Asymmetry</span><span class="mf">HR Rise vs. Fall Imbalance</span></div>
@@ -1481,7 +1481,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">y = A&middot;cos(2&#x03C0;t/T) + C&#x000A;A = amplitude; nadir at t = T/(2&#x03C0;) &times; atan2(B, A)</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>Amplitude (bpm)</th><th>Interpretation</th></tr><tr class="ok"><td>> 5</td><td class="nr">Strong circadian HR swing</td></tr><tr class="wn"><td>2 &#x2013; 5</td><td class="nr">Moderate</td></tr><tr class="bd"><td>< 2</td><td class="nr">Flat &#x2014; suppressed circadian rhythm</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="secondary">
   <div class="mh">
     <div class="mi"><span class="ma">HR Nadir Timing</span><span class="mf">Hour of Lowest HR</span></div>
@@ -1489,8 +1489,8 @@ body.light .ev-measured { border-color:var(--surface); }
   </div>
   <p class="md">Hour from recording start at which the lowest 5-minute smoothed HR is observed. Normally occurs in the first half of sleep during deep NREM. Late nadir (after 60% of recording) may indicate REM-heavy sleep architecture or delayed parasympathetic activation.</p>
   <div class="nt-wrap"><table class="nt"><tr><th>HR Nadir Timing</th><th>Interpretation</th></tr><tr class="ok"><td>First 40% of recording</td><td class="nr">Normal NREM-associated dip</td></tr><tr class="wn"><td>40 &#x2013; 60%</td><td class="nr">Mid-night &#x2014; indeterminate</td></tr><tr class="wn"><td>Last 40%</td><td class="nr">Late nadir &#x2014; check for REM bias or fragmentation</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
-<div class="mc" data-tier="secondary">
+<span class="ev-corner ev-measured" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<div class="mc" data-tier="secondary" data-id="nocDip">
   <div class="mh">
     <div class="mi"><span class="ma">Nocturnal HR Dip</span><span class="mf">Intra-Night HR Dip % (hrnDip)</span></div>
     <span class="mt ta">Advanced</span>
@@ -1500,7 +1500,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fn">hrFloor = 5th-percentile motion-free HR. Not equivalent to daytime resting HR.</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>hrnDip (%)</th><th>Interpretation</th></tr><tr class="ok"><td>> 10</td><td class="nr">Good intra-night dip &#x2014; strong vagal tone</td></tr><tr class="wn"><td>5 &#x2013; 10</td><td class="nr">Moderate dip</td></tr><tr class="bd"><td>< 5</td><td class="nr">Low dip &#x2014; possible autonomic suppression</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-emerging" title="Emerging — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="secondary">
   <div class="mh">
     <div class="mi"><span class="ma">Vagal Index</span><span class="mf">Composite Vagal Tone Proxy</span></div>
@@ -1511,8 +1511,8 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fn">longestCleanRun in seconds. No published normal values &#x2014; use for intra-individual trending.</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>Vagal Index</th><th>Relative tone</th></tr><tr class="ok"><td>> 0.05</td><td class="nr">High vagal tone</td></tr><tr class="wn"><td>0.01 &#x2013; 0.05</td><td class="nr">Moderate</td></tr><tr class="bd"><td>< 0.01</td><td class="nr">Low vagal tone</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
-<div class="mc" data-tier="secondary">
+<span class="ev-corner ev-experimental" title="Heuristic — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
+<div class="mc" data-tier="secondary" data-id="ssiIdx">
   <div class="mh">
     <div class="mi"><span class="ma">Sympathetic Surge Index (SSI)</span><span class="mf">Composite Arousal&#x2013;Sympathetic Load</span></div>
     <span class="mt ta">Advanced</span>
@@ -1522,7 +1522,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fn">spikeRate normalised to 0&#x2013;1 on 0&#x2013;10 spikes/hr scale. postDipNorm = post-dip HR change / 10 bpm (capped). aaiLoad = AAI / 5.</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>SSI</th><th>Interpretation</th></tr><tr class="ok"><td>< 0.5</td><td class="nr">Low sympathetic burden</td></tr><tr class="wn"><td>0.5 &#x2013; 1.5</td><td class="nr">Moderate arousal load</td></tr><tr class="bd"><td>> 1.5</td><td class="nr">High sympathetic surge &#x2014; significant fragmentation</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Experimental — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="research">
   <div class="mh">
     <div class="mi"><span class="ma">HR Deceleration Runs</span><span class="mf">Count of Sustained HR Decreases &ge;3 bpm over &ge;30 s</span></div>
@@ -1542,7 +1542,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">Decoupled if sign(&#x0394;SpO&#x2082;) = sign(&#x0394;HR) over 30-s window&#x000A;Pct = decoupled_count / total_windows &times; 100</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>Decoupling %</th><th>Interpretation</th></tr><tr class="ok"><td>< 30</td><td class="nr">Normal inverse coupling</td></tr><tr class="wn"><td>30 &#x2013; 50</td><td class="nr">Partial decoupling</td></tr><tr class="bd"><td>> 50</td><td class="nr">Majority decoupled &#x2014; central or blunted arousal</td></tr></table></div>
-<span class="ev-corner ev-measured" title="Measured — direct sensor reading or raw statistic of the recorded signal"></span></div>
+<span class="ev-corner ev-experimental" title="Measured — direct sensor reading or raw statistic of the recorded signal"></span></div>
 </div><!-- /hr-adv -->
 
 <!-- ═══ SPIKES ═══ -->
@@ -1622,19 +1622,19 @@ body.light .ev-measured { border-color:var(--surface); }
 <div class="co co-w"><span class="co-ic">&#x26A0;&#xFE0F;</span><div><strong>Not validated sleep staging.</strong> HR-based heuristics only. EEG-grade staging requires polysomnography or a validated multi-sensor wearable. Use for directional tracking only.</div></div>
 <div class="mg">
 
-<div class="mc" data-tier="research">
+<div class="mc" data-tier="research" data-id="remProxy">
   <div class="mh"><div class="mi"><span class="ma">REM Proxy</span><span class="mf">REM-candidate minutes</span></div><span class="mt tr">Research</span></div>
   <p class="md">2-min motion-free windows where HR SD &lt;&#x202F;3&#x202F;bpm and mean HR is within &#xB1;5&#x202F;bpm of the whole-night mean. REM sleep tends to produce HR near the night average with moderately low variance.</p>
   <div class="fb"><div class="fl">Criteria</div><div class="ft">motion=0; SD(HR_win) &lt;&#x202F;3; mean(HR_win) &#x2208; (HR_mean&#x2212;5, HR_mean+5)</div></div>
 <span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 
-<div class="mc" data-tier="research">
+<div class="mc" data-tier="research" data-id="deepProxy">
   <div class="mh"><div class="mi"><span class="ma">NREM-Deep Proxy</span><span class="mf">Slow-wave candidate minutes</span></div><span class="mt tr">Research</span></div>
   <p class="md">2-min motion-free windows where HR SD &lt;&#x202F;4&#x202F;bpm and mean HR &gt;&#x202F;6&#x202F;bpm below the night average. Slow-wave sleep is characterized by strong vagal dominance, pulling HR significantly below the night mean.</p>
   <div class="fb"><div class="fl">Criteria</div><div class="ft">motion=0; SD(HR_win) &lt;&#x202F;4; mean(HR_win) &lt;&#x202F;HR_mean &#x2212; 6</div></div>
 <span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 
-<div class="mc">
+<div class="mc" data-id="sleepStability">
   <div class="mh"><div class="mi"><span class="ma">Sleep Stability Score</span><span class="mf">0&#x202F;&#x2013;&#x202F;100 composite</span></div><span class="mt tc">Core</span></div>
   <p class="md">Six equally weighted sub-scores (SpO&#x2082; SD, HR floor, motion %, oscillation count, hypoxic burden rate, T95), each normalized 0&#x202F;&#x2013;&#x202F;100. Mean of all six gives the final score.</p>
   <div class="fb"><div class="fl">Components</div><div class="ft">s1=f(SpO&#x2082;&#x202F;SD); s2=f(HR floor); s3=f(motion %);&#x0A;s4=f(oscillation count); s5=f(hypoxic burden); s6=f(T95)&#x0A;Score = mean(s1..s6)</div></div>
@@ -1644,7 +1644,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <tr class="wn"><td>50&#x202F;&#x2013;&#x202F;64</td><td class="nr">Fair</td></tr>
   <tr class="bd"><td>35&#x202F;&#x2013;&#x202F;49</td><td class="nr">Poor</td></tr>
   <tr class="cr"><td>&lt;&#x202F;35</td><td class="nr">Very poor</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Experimental — derived from other metrics or uses approximation"></span></div>
 
 </div>
 
@@ -1658,22 +1658,22 @@ body.light .ev-measured { border-color:var(--surface); }
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>WASO %</th><th>Grade</th></tr><tr class="ok"><td>< 5</td><td class="nr">Normal</td></tr><tr class="wn"><td>5 &#x2013; 15</td><td class="nr">Mild</td></tr><tr class="bd"><td>15 &#x2013; 30</td><td class="nr">Significant</td></tr><tr class="cr"><td>> 30</td><td class="nr">Severe fragmentation</td></tr></table></div>
 <span class="ev-corner ev-emerging" title="Emerging — motion-derived wake estimate; actigraphy proxy, not PSG"></span></div>
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="wasoWindows">
   <div class="mh">
     <div class="mi"><span class="ma">WASO Windows</span><span class="mf">Count of 5-min Post-Onset Motion Windows</span></div>
     <span class="mt ta">Advanced</span>
   </div>
   <p class="md">Number of 5-minute windows after sleep onset that contain any motion sample (motion &gt; 0). Provides a discrete count of interrupted sleep periods rather than a continuous time measure. Each window represents a distinct awake episode.</p>
   <div class="nt-wrap"><table class="nt"><tr><th>WASO Windows</th><th>Interpretation</th></tr><tr class="ok"><td>< 4</td><td class="nr">Minimal waking</td></tr><tr class="wn"><td>4 &#x2013; 10</td><td class="nr">Mild fragmentation</td></tr><tr class="bd"><td>10 &#x2013; 20</td><td class="nr">Significant fragmentation</td></tr><tr class="cr"><td>> 20</td><td class="nr">Severely disrupted sleep continuity</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
-<div class="mc" data-tier="secondary">
+<span class="ev-corner ev-experimental" title="Experimental — derived from other metrics or uses approximation"></span></div>
+<div class="mc" data-tier="secondary" data-id="posShifts">
   <div class="mh">
     <div class="mi"><span class="ma">Positional Shifts</span><span class="mf">Count of Body-Position Change Proxies</span></div>
     <span class="mt ta">Advanced</span>
   </div>
   <p class="md">Number of abrupt motion bursts (&ge;3 seconds of motion signal after a &ge;5-minute quiet period) detected across the night. Proxy for major position changes. Very high counts may indicate restless legs syndrome or periodic limb movements. Very low counts (&lt;2) in a long recording suggest complete immobility.</p>
   <div class="nt-wrap"><table class="nt"><tr><th>Positional Shifts</th><th>Interpretation</th></tr><tr class="ok"><td>3 &#x2013; 12</td><td class="nr">Normal sleep repositioning</td></tr><tr class="wn"><td>> 20</td><td class="nr">Restless &#x2014; frequent repositioning</td></tr><tr class="wn"><td>< 2</td><td class="nr">Immobility &#x2014; possible deep sedation or artifact</td></tr></table><div class="no-norm-note">A motion-burst proxy, not actigraphy: the 3/12/20 boundaries are internal to OxyDex with <strong>no published equivalent</strong>. Read relative to your own nights.</div></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Experimental — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="secondary">
   <div class="mh">
     <div class="mi"><span class="ma">Sleep Pressure Index (SPI)</span><span class="mf">Composite Residual Sleep Drive</span></div>
@@ -1683,7 +1683,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">SPI = WASO_min&times;0.4 + bursts&times;0.15 + SOL_min&times;0.25</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>SPI</th><th>Sleep pressure</th></tr><tr class="ok"><td>< 5</td><td class="nr">Low &#x2014; restorative night</td></tr><tr class="wn"><td>5 &#x2013; 15</td><td class="nr">Moderate</td></tr><tr class="bd"><td>15 &#x2013; 30</td><td class="nr">High &#x2014; poor sleep quality</td></tr><tr class="cr"><td>> 30</td><td class="nr">Very high &#x2014; significant sleep debt</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="research">
   <div class="mh">
     <div class="mi"><span class="ma">Breathing Irregularity CV (biCV)</span><span class="mf">CV of Inter-Nadir Intervals</span></div>
@@ -1709,7 +1709,7 @@ body.light .ev-measured { border-color:var(--surface); }
     <div class="mi"><span class="ma">Motion Bursts</span><span class="mf">Count of Discrete Motion Episodes</span></div>
     <span class="mt ta">Advanced</span>
   </div>
-  <p class="md">Number of separate runs of consecutive motion &gt; 0 samples, each separated by &ge;30 seconds of quiet. Distinct from motion% &#x2014; a single 10-minute movement period counts as 1 burst, whereas 30 brief startle movements count as 30 bursts. Higher burst counts at stable motion% suggest fragmented microarousals.</p>
+  <p class="md">Number of separate runs of consecutive motion &gt; 0 samples lasting &ge;3 samples. A run ends at the first quiet sample &#x2014; there is no minimum quiet separation between bursts. Distinct from motion% &#x2014; a single 10-minute movement period counts as 1 burst, whereas 30 brief startle movements count as 30 bursts. Higher burst counts at stable motion% suggest fragmented microarousals.</p>
   <div class="nt-wrap"><table class="nt"><tr><th>Motion Bursts / hr</th><th>Interpretation</th></tr><tr class="ok"><td>< 5</td><td class="nr">Low arousal burden</td></tr><tr class="wn"><td>5 &#x2013; 15</td><td class="nr">Mild</td></tr><tr class="bd"><td>> 15</td><td class="nr">Frequent microarousals</td></tr></table></div>
 <span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="secondary">
@@ -1717,10 +1717,10 @@ body.light .ev-measured { border-color:var(--surface); }
     <div class="mi"><span class="ma">Longest Clean Run</span><span class="mf">Maximum Consecutive Artifact-Free Seconds</span></div>
     <span class="mt ta">Advanced</span>
   </div>
-  <p class="md">Longest uninterrupted run of samples where motion = 0, SpO&#x2082; is in the 70&#x2013;100% range, and no HR artifact flags are set. Indicates the best-quality data window in the recording. Short clean runs (&lt;10 min) indicate poor recording quality throughout and reduce confidence in all derived metrics.</p>
+  <p class="md">Longest uninterrupted run of samples with SpO&#x2082; &gt; 95%. It tests SpO&#x2082; alone &#x2014; motion and HR-artifact flags are <em>not</em> consulted, so &ldquo;clean&rdquo; here means &ldquo;not desaturated&rdquo;, not &ldquo;artifact-free&rdquo;. Indicates the best-quality data window in the recording. Short clean runs (&lt;10 min) indicate poor recording quality throughout and reduce confidence in all derived metrics.</p>
   <div class="nt-wrap"><table class="nt"><tr><th>Longest Clean Run (s)</th><th>Data quality</th></tr><tr class="ok"><td>> 3600</td><td class="nr">Excellent &#x2014; &gt;60 min clean window</td></tr><tr class="wn"><td>1800 &#x2013; 3600</td><td class="nr">Good</td></tr><tr class="bd"><td>600 &#x2013; 1800</td><td class="nr">Fair &#x2014; interpret with caution</td></tr><tr class="cr"><td>< 600</td><td class="nr">Poor &#x2014; metrics unreliable</td></tr></table></div>
 <span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="recIdx">
   <div class="mh">
     <div class="mi"><span class="ma">Recovery Index</span><span class="mf">Resaturation Rate / Desaturation Rate Ratio</span></div>
     <span class="mt ta">Advanced</span>
@@ -1729,7 +1729,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">RI = |meanRecSlope| / |meanDipSlope|</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>Recovery Index</th><th>Pattern</th></tr><tr class="bd"><td>> 1.5</td><td class="nr">Fast recovery &#x2014; brisk arousal</td></tr><tr class="ok"><td>0.8 &#x2013; 1.5</td><td class="nr">Symmetric &#x2014; normal</td></tr><tr class="wn"><td>< 0.8</td><td class="nr">Slow recovery &#x2014; impaired resaturation</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Experimental — derived from other metrics or uses approximation"></span></div>
 </div><!-- /sleep-stage -->
 
 <!-- ═══ COMPOSITE ═══ -->
@@ -1780,21 +1780,21 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">CRC = Pearson r(5-min SpO&#x2082; means, 5-min HR means)&#x0A;Typical range: &#x2212;0.6 to &#x2212;0.2</div></div>
 <span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
 
-<div class="mc" data-tier="research">
+<div class="mc" data-tier="research" data-id="couplingScore">
   <div class="mh"><div class="mi"><span class="ma">Coupling Score</span><span class="mf">% Nadirs Followed by HR Spike</span></div><span class="mt tr">Research</span></div>
   <p class="md">Fraction of ODI-4 nadir events where an HR spike occurs within 60&#x202F;s. Low coupling with high ODI-4 suggests blunted arousal response &#x2014; potentially more dangerous, as arousals are protective.</p>
   <div class="fb"><div class="fl">Formula</div><div class="ft">CouplingScore = (ODI-4 nadirs with spike &#x2264;60&#x202F;s) / total_ODI-4 &#xD7; 100%</div></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Experimental — derived from other metrics or uses approximation"></span></div>
 
 <div class="mc" data-tier="research">
   <div class="mh"><div class="mi"><span class="ma">SpO&#x2082;&#x2013;HR Lag</span><span class="mf">Cross-Correlation Peak Lag (seconds)</span></div><span class="mt tr">Research</span></div>
   <p class="md">Time lag at which SpO&#x2082;&#x2013;HR cross-correlation peaks. 10&#x202F;&#x2013;&#x202F;30&#x202F;s lag (HR rising after SpO&#x2082; drops) = typical obstructive apnea. Very short or negative lag may suggest central mechanism.</p>
-  <div class="fb"><div class="fl">Method</div><div class="ft">lag* = argmax CrossCorr(SpO&#x2082;[t], HR[t+lag]) for lag &#x2208; [0..90&#x202F;s]</div></div>
-<span class="ev-corner ev-measured" title="Measured — direct sensor reading or raw statistic of the recorded signal"></span></div>
+  <div class="fb"><div class="fl">Method</div><div class="ft">per window: lag_w = argmax CrossCorr(SpO&#x2082;[t], HR[t+lag]) for lag &#x2208; [0..120&#x202F;s]&#x000A;reported value = MEDIAN of the per-window lags (each window uses its last &le;1800 samples)</div></div>
+<span class="ev-corner ev-experimental" title="Measured — direct sensor reading or raw statistic of the recorded signal"></span></div>
 
 </div>
 
-<div class="mc" data-tier="research">
+<div class="mc" data-tier="research" data-id="pbDivergeCount pbDivergePct">
   <div class="mh">
     <div class="mi"><span class="ma">PB Diverge Count / %</span><span class="mf">Oscillation Episodes Without HR Arousal</span></div>
     <span class="mt tr">Research</span>
@@ -1803,7 +1803,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">DivergePct = divergeWindows / totalOscWindows &times; 100</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>Diverge %</th><th>Interpretation</th></tr><tr class="ok"><td>< 25</td><td class="nr">Most PB windows have arousal coupling</td></tr><tr class="wn"><td>25 &#x2013; 50</td><td class="nr">Partial blunting</td></tr><tr class="bd"><td>50 &#x2013; 75</td><td class="nr">Majority uncoupled</td></tr><tr class="cr"><td>> 75</td><td class="nr">Severe blunting &#x2014; CS pattern screen</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Experimental — derived from other metrics or uses approximation"></span></div>
 <div class="mc" data-tier="research">
   <div class="mh">
     <div class="mi"><span class="ma">BLUNTED AROUSAL Flag</span><span class="mf">Heuristic Absent-Arousal Flag</span></div>
@@ -1821,7 +1821,7 @@ body.light .ev-measured { border-color:var(--surface); }
 <div class="rs" id="vo2max">
 <div class="sh"><div class="si proj">&#x1F3C3;</div><div><div class="st">VO&#x2082;max Estimate</div><div class="sd">Cardiorespiratory fitness estimate from nocturnal HR data (Uth-S&#xF8;rensen 2004)</div></div></div>
 
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="vo2est">
   <div class="mh"><div class="mi"><span class="ma">VO&#x2082;max</span><span class="mf">Maximum Oxygen Uptake &#x2014; Uth-S&#xF8;rensen Estimate</span></div><span class="mt ta">Advanced</span></div>
   <p class="md">Aerobic capacity estimate (ml/kg/min) from the HRmax/HRrest ratio. HR floor = HRrest proxy. Age-predicted HRmax via Tanaka formula. Overridable with measured HRmax from the profile panel.</p>
   <div class="fb"><div class="fl">Formula (Uth-S&#xF8;rensen 2004)</div><div class="ft">VO&#x2082;max &#x2248; 15.3 &#xD7; (HR_max / HR_rest)&#x0A;HR_max = 208 &#x2212; 0.7 &#xD7; age  (Tanaka formula)&#x0A;&#xB1;SEE = &#xB1;10.8&#x202F;ml/kg/min (r=0.82)</div><div class="fn">RMSSD adjustment: &#xB1;1.5&#x202F;ml/kg/min based on vagal tone proxy. Wide SEE means individual estimates may be off &#x2014; use for trend tracking only.</div></div>
@@ -1844,7 +1844,7 @@ body.light .ev-measured { border-color:var(--surface); }
 <div class="rs" id="karvonen">
 <div class="sh"><div class="si proj">&#x1F3CB;&#xFE0F;</div><div><div class="st">Karvonen Training Zones &amp; Readiness</div><div class="sd">Heart Rate Reserve-based training zones with next-day readiness scoring</div></div></div>
 
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="karvZone">
   <div class="mh"><div class="mi"><span class="ma">Karvonen Z1&#x202F;&#x2013;&#x202F;Z5</span><span class="mf">Heart Rate Reserve Zones</span></div><span class="mt ta">Advanced</span></div>
   <p class="md">Five training intensity zones from HRR (= HRmax &#x2212; HRrest), where HRrest = nocturnal HR floor. Each zone is a percentage range of HRR added to HRrest. HRR-based zones are more individualized than age-predicted fixed-percent zones.</p>
   <div class="fb"><div class="fl">Karvonen formula</div><div class="ft">Z_lo = HR_rest + HRR &#xD7; lo_frac;  Z_hi = HR_rest + HRR &#xD7; hi_frac&#x0A;Z1 Recovery:     50&#x202F;&#x2013;&#x202F;60% HRR&#x0A;Z2 Aerobic Base: 60&#x202F;&#x2013;&#x202F;70% HRR  &#x2190; Zone 2 target&#x0A;Z3 Tempo:        70&#x202F;&#x2013;&#x202F;80% HRR&#x0A;Z4 Threshold:    80&#x202F;&#x2013;&#x202F;90% HRR&#x0A;Z5 VO&#x2082;max:      90&#x202F;&#x2013;&#x202F;100% HRR&#x0A;MAF HR = 180 &#x2212; age  (Maffetone aerobic ceiling), then readiness-adjusted: +5 if readiness &#x2265; 85, &#x2212;10 if readiness &lt; 55, else unadjusted <em>(so the displayed value can sit up to 10 bpm below the bare formula)</em><!-- REFERENCE-GUIDE-AUDIT dim 2, 2026-08-18: the readiness adjustment (oxydex-dsp.js ~6180-6188) was undocumented here, so a reader computing 180-age by hand got a number the app never shows. -->&#x0A;LTHR &#x2248; HRmax &#xD7; 0.88 <em>(Seiler 2010, recreational-athlete estimate &#x2014; a fraction of HRmax, not an HRR/Karvonen fraction)</em><!-- REFERENCE-GUIDE-AUDIT dim 2, 2026-08-18: previously printed `HR_rest + HRR x 0.87`, an HRR-based formula the code has never implemented (code: oxydex-dsp.js ~6192, Math.round(hrMax * 0.88)). The two diverge as a function of HRrest - 164.4 vs 158.4 bpm at HRmax 180 / HRrest 60 - so no constant fix reconciles them. History kept HERE, invisible, per dimension 6: reader-facing text states the final fact only. --></div></div>
@@ -1884,7 +1884,7 @@ body.light .ev-measured { border-color:var(--surface); }
 <span class="ev-corner ev-experimental" title="Experimental — plausible node-computed composite, not externally validated"></span></div>
 
     
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="nsi">
   <div class="mh">
     <div class="mi"><span class="ma">NSI Mean &plusmn; SD</span><span class="mf">Average Nightly Stress Score &plusmn; Variability</span></div>
     <span class="mt ta">Advanced</span>
@@ -1894,7 +1894,7 @@ body.light .ev-measured { border-color:var(--surface); }
 <span class="ev-corner ev-experimental" title="Experimental — plausible node-computed composite, not externally validated"></span></div>
 
     
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="spo2NightCV">
   <div class="mh">
     <div class="mi"><span class="ma">SpO&#x2082; Night CV</span><span class="mf">Night-to-Night SpO&#x2082; Coefficient of Variation</span></div>
     <span class="mt ta">Advanced</span>
@@ -1903,10 +1903,10 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">SpO&#x2082;_NightCV = SD(meanSpO&#x2082;_i) / mean(meanSpO&#x2082;_i) &times; 100</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>Night CV (%)</th><th>Interpretation</th></tr><tr class="ok"><td>< 1.0</td><td class="nr">Stable across nights</td></tr><tr class="wn"><td>1.0 &#x2013; 2.5</td><td class="nr">Mild night-to-night variation</td></tr><tr class="bd"><td>> 2.5</td><td class="nr">High variability &#x2014; investigate cause</td></tr></table></div>
-<span class="ev-corner ev-measured" title="Measured — direct sensor reading or raw statistic of the recorded signal"></span></div>
+<span class="ev-corner ev-experimental" title="Experimental — direct sensor reading or raw statistic of the recorded signal"></span></div>
 
     
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="pbTrend">
   <div class="mh">
     <div class="mi"><span class="ma">PB Episode Trend</span><span class="mf">OLS Slope of PB Episode Count Across Nights</span></div>
     <span class="mt ta">Advanced</span>
@@ -1915,10 +1915,10 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">PB_trend = OLS slope (episodes/hr vs. date)</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>Slope (episodes/night)</th><th>Interpretation</th></tr><tr class="ok"><td>< &#x2212;0.5</td><td class="nr">Improving PB burden</td></tr><tr class="ok"><td>&#x2212;0.5 to +0.5</td><td class="nr">Stable</td></tr><tr class="bd"><td>> +0.5</td><td class="nr">Worsening PB trend</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Experimental — derived from other metrics or uses approximation"></span></div>
 
     
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="poorNightsPct">
   <div class="mh">
     <div class="mi"><span class="ma">Poor Nights %</span><span class="mf">Fraction of Nights with Sleep Stability Score &lt; 50</span></div>
     <span class="mt ta">Advanced</span>
@@ -1927,10 +1927,10 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">PoorNightsPct = count(stabilityScore &lt; 50) / totalNights &times; 100</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>Poor Nights %</th><th>Interpretation</th></tr><tr class="ok"><td>< 20</td><td class="nr">Most nights adequate</td></tr><tr class="wn"><td>20 &#x2013; 40</td><td class="nr">Frequent poor nights</td></tr><tr class="bd"><td>> 40</td><td class="nr">Majority poor &#x2014; treatment inadequate</td></tr></table></div>
-<span class="ev-corner ev-heuristic" title="Heuristic — derived from other metrics or uses approximation"></span></div>
+<span class="ev-corner ev-experimental" title="Experimental — derived from other metrics or uses approximation"></span></div>
 
     
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-id="odi4Delta">
   <div class="mh">
     <div class="mi"><span class="ma">ODI-4 First&#x2192;Last &#x0394;</span><span class="mf">CPAP Efficacy Delta Across Uploaded Nights</span></div>
     <span class="mt ta">Advanced</span>
@@ -1939,7 +1939,7 @@ body.light .ev-measured { border-color:var(--surface); }
   <div class="fb"><div class="fl">Formula</div><div class="ft">&#x0394;ODI-4 = ODI-4_last &#x2212; ODI-4_first</div>
   </div>
   <div class="nt-wrap"><table class="nt"><tr><th>&#x0394;ODI-4 (events/hr)</th><th>Interpretation</th></tr><tr class="ok"><td>< &#x2212;5</td><td class="nr">Significant improvement</td></tr><tr class="ok"><td>&#x2212;5 to 0</td><td class="nr">Mild improvement or stable</td></tr><tr class="wn"><td>0 &#x2013; +5</td><td class="nr">Stable to mildly worse</td></tr><tr class="bd"><td>> +5</td><td class="nr">Worsening &#x2014; review CPAP settings</td></tr></table></div>
-<span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
+<span class="ev-corner ev-experimental" title="Experimental — established, externally validated, clinically meaningful derived metric"></span></div>
 
     
 <div class="mc" data-tier="secondary">
@@ -1960,18 +1960,18 @@ body.light .ev-measured { border-color:var(--surface); }
 <div class="sh"><div class="si sig">&#x1F4E1;</div><div><div class="st">Signal Quality &amp; Artifact Flags</div><div class="sd">How the parser detects and handles data quality issues</div></div></div>
 <div class="mg">
 
-<div class="mc">
+<div class="mc" data-kind="pipeline">
   <div class="mh"><div class="mi"><span class="ma">HR Artifact Cleaning</span></div><span class="mt tc">Core</span></div>
   <p class="md">Before any HR metric is computed, the raw 1&#x202F;Hz stream is cleaned of: (1) Single-sample spikes where HR jumps &gt;25&#x202F;bpm from its 5-sample rolling context; (2) Clock artifacts &#x2014; 30+ consecutive identical values (known O2Ring firmware dropout). Cleaned samples replaced with rolling mean.</p>
 <span class="ev-corner ev-measured" title="Measured — direct sensor reading or raw statistic of the recorded signal"></span></div>
 
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-kind="pipeline">
   <div class="mh"><div class="mi"><span class="ma">HR Flatlines</span><span class="mf">Firmware Dropout Detection</span></div><span class="mt ta">Advanced</span></div>
   <p class="md">Runs of &#x2265;&#x202F;30 consecutive identical integer HR values differing from surrounding context. Indicates sensor contact loss rather than true cardiac events.</p>
   <div class="fb"><div class="fl">Criterion</div><div class="ft">&#x2265;&#x202F;30 consecutive identical HR values AND |value &#x2212; context_mean| &lt;&#x202F;3&#x202F;bpm</div></div>
 <span class="ev-corner ev-measured" title="Measured — direct sensor reading or raw statistic of the recorded signal"></span></div>
 
-<div class="mc" data-tier="secondary">
+<div class="mc" data-tier="secondary" data-kind="pipeline">
   <div class="mh"><div class="mi"><span class="ma">Data Gaps</span><span class="mf">Recording Interruptions &gt;&#x202F;2&#x202F;s</span></div><span class="mt ta">Advanced</span></div>
   <p class="md">Timestamp jumps &gt;&#x202F;2&#x202F;s in the raw CSV. Common causes: device removal, charging interruption, firmware buffer overflow. High gap counts reduce confidence in duration-based metrics.</p>
 <span class="ev-corner ev-measured" title="Measured — direct sensor reading or raw statistic of the recorded signal"></span></div>
@@ -2057,7 +2057,7 @@ body.light .ev-measured { border-color:var(--surface); }
 
     <div class="mg">
 
-      <div class="mc">
+      <div class="mc" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">AASM 2017</span>
@@ -2072,7 +2072,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc">
+      <div class="mc" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">AASM 2012</span>
@@ -2087,7 +2087,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc">
+      <div class="mc" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">AASM 2007</span>
@@ -2102,7 +2102,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc">
+      <div class="mc" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">ICSD-3</span>
@@ -2132,7 +2132,7 @@ body.light .ev-measured { border-color:var(--surface); }
 
     <div class="mg">
 
-      <div class="mc">
+      <div class="mc" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Azarbarzin 2019</span>
@@ -2154,7 +2154,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc">
+      <div class="mc" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Azarbarzin 2020</span>
@@ -2169,7 +2169,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc">
+      <div class="mc" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Azarbarzin 2022</span>
@@ -2184,7 +2184,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc">
+      <div class="mc" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Hui 2024 / SBII</span>
@@ -2224,7 +2224,7 @@ body.light .ev-measured { border-color:var(--surface); }
 
     <div class="mg">
 
-      <div class="mc" data-tier="secondary">
+      <div class="mc" data-tier="secondary" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Nieto 2000</span>
@@ -2239,7 +2239,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc" data-tier="secondary">
+      <div class="mc" data-tier="secondary" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Kulkas 2013</span>
@@ -2254,7 +2254,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc">
+      <div class="mc" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Brouillette 2000</span>
@@ -2269,7 +2269,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc" data-tier="secondary">
+      <div class="mc" data-tier="secondary" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Garg 2014</span>
@@ -2284,7 +2284,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc" data-tier="research">
+      <div class="mc" data-tier="research" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Magalang 2003</span>
@@ -2314,7 +2314,7 @@ body.light .ev-measured { border-color:var(--surface); }
 
     <div class="mg">
 
-      <div class="mc">
+      <div class="mc" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Task Force 1996</span>
@@ -2329,7 +2329,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc" data-tier="research">
+      <div class="mc" data-tier="research" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Peng 1995</span>
@@ -2344,7 +2344,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc" data-tier="research">
+      <div class="mc" data-tier="research" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Richman 2000</span>
@@ -2359,7 +2359,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc" data-tier="secondary">
+      <div class="mc" data-tier="secondary" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Brennan 2001</span>
@@ -2374,7 +2374,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc" data-tier="secondary">
+      <div class="mc" data-tier="secondary" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Tanaka 2001</span>
@@ -2389,7 +2389,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc" data-tier="secondary">
+      <div class="mc" data-tier="secondary" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Uth-S&#xF8;rensen 2004</span>
@@ -2404,7 +2404,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc">
+      <div class="mc" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Karvonen 1957</span>
@@ -2434,7 +2434,7 @@ body.light .ev-measured { border-color:var(--surface); }
 
     <div class="mg">
 
-      <div class="mc">
+      <div class="mc" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Jubran 1999</span>
@@ -2449,7 +2449,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc" data-tier="secondary">
+      <div class="mc" data-tier="secondary" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Allen 2007</span>
@@ -2464,7 +2464,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc" data-tier="secondary">
+      <div class="mc" data-tier="secondary" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">Pépin 2020</span>
@@ -2479,7 +2479,7 @@ body.light .ev-measured { border-color:var(--surface); }
         </div>
       <span class="ev-corner ev-validated" title="Validated — established, externally validated, clinically meaningful derived metric"></span></div>
 
-      <div class="mc">
+      <div class="mc" data-kind="citation">
         <div class="mh">
           <div class="mi">
             <span class="ma">ACSM 2022</span>

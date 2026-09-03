@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (phase (b): §7 fiducial family, §6 R-jitter) · **Interlocks:** `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` §1, `PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md`
+**Status:** IN-PROGRESS · **TRIAGED 2026-09-01 (Osprey): tool BUILT and RUNNABLE LOCALLY — `tools/pat-fiducial-jitter.mjs <ppg-file>` produces real output here (fiducial-family pairwise within-SD **6.55–9.84 ms**, IQR 8.75–12.92, every pair `NOT-DOMINANT`; TCH decomposition REFUSED on negative variance for three triplets, consistent with the known onset law). Run against 2 repo-tree files the `between-file SD` is empty, so those numbers only show the method works. **The real corpus is local after all** (`/srv/data/tepna-corpus/`, 1131 raw `_ECG.txt`, 43 usable box nights once `2026-08-23` is excluded), so this IS closable here — execution-bound, not access-bound.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (phase (b): §7 fiducial family, §6 R-jitter) · **Interlocks:** `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` §1, `PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey):** re-verified — `tools/pat-fiducial-jitter.mjs` present and runnable locally. Unchanged since the 2026-09-01 triage. **Owner: Osprey. Next step:** one corpus run; pre-register the band first, as the oracle run did.
 
 # The fiducial family is not a lever — every family agrees to under 6.2 ms
 

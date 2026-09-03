@@ -1,24 +1,24 @@
 {
   "night": "2026-08-12",
-  "packets": 256212,
-  "files": 49,
+  "packets": 262547,
+  "files": 379,
   "devices": [
     {
       "device": "Polar Verity Sense",
-      "anchors": 137273,
+      "anchors": 143608,
       "ok": true,
       "independent": true,
-      "spreadMs": 3013.23,
-      "ppm": 44,
+      "spreadMs": 3122.87,
+      "ppm": 38.9,
       "maxStepMs": 2130.1,
       "plausibleCrystal": true,
       "deviceDrawn": false,
-      "drawnShare": 0.022,
-      "offsetMs": 946670398975.2,
-      "offsetMadMs": 205.4,
+      "drawnShare": 0.021,
+      "offsetMs": 946670398995.1,
+      "offsetMadMs": 214.5,
       "t0DevMs": 839895058758,
       "t0HostMs": 1786565458332,
-      "spanSec": 32309
+      "spanSec": 34651
     },
     {
       "device": "Polar H10 02849638",

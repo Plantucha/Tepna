@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-25 (Task 1 flash executed on the SDC path; timestamping + Task 2 probe still open) · **Created:** 2026-08-23
+**Status:** IN-PROGRESS (parked 2026-09-02 — drain triage, Kestrel: the remainder is ON-BOX HARDWARE work — controller-side timestamping is a rebuild+reflash of the dongle (owner, rig-side) and the Task 2 jitter probe needs `btmon` with `CAP_NET_RAW` on vigil's free adapter, a daytime paired session the brief itself says not to run as an interrupt; nothing is blocked on repo code. Owner: Heron with the owner present; next step: Task 2 on hci2 against one beacon, Zephyr vs Realtek. Previously 2026-08-25: Task 1 flash executed on the SDC path; timestamping + Task 2 probe still open) · **Created:** 2026-08-23
 
 # Zephyr dongle as the open BLE timing instrument — flash + jitter probe (paired daytime task)
 

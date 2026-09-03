@@ -54,20 +54,66 @@ def test_leaving_therapy_ends_the_session_and_clears_the_attempt_state():
     assert w.began_at_ms is None and w.attempts == 0 and w.next_try_ms is None
 
 
-# ── the debounce ───────────────────────────────────────────────────────────────────────────────
+# ── eager start + retention (the 120 s rule's new home) ────────────────────────────────────────
 
 
-def test_a_MASK_FIT_BLIP_shorter_than_the_debounce_never_fires():
-    """The reason a start debounce exists at all: a brief Therapy reading while the mask is fitted."""
+def test_the_FIRST_sighting_fires_and_a_blip_is_handled_by_RETENTION_not_a_gate():
+    """🔴 THE INVERSION (owner-queued 2026-09-01). The old debounce held every genuine night's stream
+    back 120 s; a mask-fit blip is now allowed to START — its harm is bounded BLE churn, the benign
+    failure direction — and the 120 s question is answered afterward by `false_start_verdict`, which
+    discards the fragment and spends an attempt."""
     w = L.observe_start(L.StartWatch(), True, T0)
-    assert L.autostart_due(w, T0 + 60_000)[0] is False
-    w = L.observe_start(w, False, T0 + 90_000)  # blip over
-    assert L.autostart_due(w, T0 + 200_000)[0] is False
+    due, why = L.autostart_due(w, T0)
+    assert due is True and "eagerly" in why
+    # the blip's stream ends at ~the auto-stop hold; the verdict names it a false start
+    discard, vwhy = L.false_start_verdict(T0, T0 + 125_000, manual=False)
+    assert discard is True and "false start" in vwhy
+    # ...and a real night's stream is retained
+    keep, kwhy = L.false_start_verdict(T0, T0 + 6 * 3600_000, manual=False)
+    assert keep is False and "real session" in kwhy
 
 
-def test_it_fires_once_the_debounce_is_satisfied():
-    due, why = L.autostart_due(_armed(), T0 + 121_000)
-    assert due is True and "therapy running for 121s" in why
+def test_the_discard_window_is_retain_PLUS_hold_not_retain_alone():
+    """A false start's stream lives ~hold_s before the flat-flow auto-stop can end it, so a bare
+    `< retain_s` window would MISS almost every false start (they die at ~125 s against a 120 s
+    window). Both boundaries pinned."""
+    just_under = L.false_start_verdict(T0, T0 + 239_000, manual=False, retain_s=120, hold_s=120)
+    at_window = L.false_start_verdict(T0, T0 + 240_000, manual=False, retain_s=120, hold_s=120)
+    assert just_under[0] is True and at_window[0] is False
+
+
+def test_a_MANUAL_stop_is_never_a_false_start_whatever_the_age():
+    """Discarding on intent would delete the one fragment somebody explicitly chose to make."""
+    assert L.false_start_verdict(T0, T0 + 10_000, manual=True)[0] is False
+
+
+def test_unusable_timestamps_RETAIN_because_a_discard_cannot_be_undone():
+    assert L.false_start_verdict(None, T0, manual=False)[0] is False
+    assert L.false_start_verdict(T0 + 9_000, T0, manual=False)[0] is False  # ended before started
+
+
+def test_a_false_start_spends_an_attempt_and_reopens_the_session_for_retry():
+    """`note_started` marked the session fired; without clearing `fired_for` a machine still in
+    Therapy could never earn a retry — and the attempt count plus backoff are what bound the churn."""
+    w = L.note_started(_armed())
+    w = L.note_false_start(w, T0 + 240_000)
+    assert w.attempts == 1 and w.fired_for is None and w.next_try_ms is not None
+    assert w.began_at_ms == float(T0), "re-keying the session would hand the retry a fresh budget"
+    due, why = L.autostart_due(w, T0 + 240_000)
+    assert due is False and "backing off" in why
+    assert L.autostart_due(w, T0 + 400_000)[0] is True
+
+
+def test_repeated_false_starts_EXHAUST_the_budget_even_through_successful_starts():
+    """🔴 The interaction that would unbound the churn: `note_started` used to zero the attempt
+    count, so start→discard→start→discard would never exhaust. The budget is per-SESSION and must
+    survive a successful start."""
+    w = _armed()
+    for _ in range(5):
+        w = L.note_started(w)
+        w = L.note_false_start(w, T0 + 240_000)
+    assert w.attempts == 5
+    assert L.autostart_due(w, T0 + 10_000_000)[1].startswith("5 failed start(s)")
 
 
 def test_it_fires_ONCE_per_session():
@@ -218,5 +264,6 @@ def test_the_walk_back_STOPS_at_the_previous_session_not_the_top_of_the_file():
     )  # tonight's, still running
     w, _ = L.boot_start_state(rows, None, None, T0 + 33 * 30_000)
     assert w.began_at_ms == float(T0 + 30 * 30_000), "the walk-back ran past an intervening Standby"
-    assert L.autostart_due(w, T0 + 30 * 30_000 + 60_000)[0] is False, "the debounce was defeated"
-    assert L.autostart_due(w, T0 + 30 * 30_000 + 121_000)[0] is True
+    # Under eager start the stake is the session KEY, not a gate: mis-dating tonight's session onto
+    # the earlier one would mis-scope the attempt budget and manual intent. The eager fire is due.
+    assert L.autostart_due(w, T0 + 30 * 30_000 + 60_000)[0] is True

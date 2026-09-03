@@ -272,6 +272,11 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         # stored .dat timebase is suspect from this instant until the next verified push.
                         "ring_rtc_reset_suspect": st.get("ring_rtc_reset_suspect"),
                         "charging": bool(st.get("charging")),
+                        # How many of this device's flushes have FAILED. Distinct from `last_error`,
+                        # which is about the LINK: a write failure means the samples arrived and may
+                        # not have reached the disk, so the card can read perfectly live while the
+                        # night is being lost. Zero on every healthy device.
+                        "flush_failures": st.get("flush_failures"),
                         "last_error": st.get("last_error")})
         return out
 
@@ -344,6 +349,22 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # this answers "is therapy running right now", from the AS11 shadow detector, aged HERE at
             # serve time. Null when there is no cpap block at all.
             "cpap_live": _cpap_live_block(status.get("cpap")),
+            # PER-DEVICE reconnect distress against that device's own per-adapter baseline. Forwarded
+            # so it EXISTS for a human at all: it was published to STATUS and read by nothing — not
+            # this projection, not the monitor, not the failover ladder — so a distressed radio was
+            # computed nightly and seen by nobody (enumerated 2026-09-01).
+            #
+            # ⚠️ THE PER-DEVICE VERDICTS DO NOT DRIVE FAILOVER. The per-ADAPTER fold below is the
+            # verdict at the granularity a switch actually moves (`link_distress.adapter_verdict`,
+            # ≥2 rated links distressed together); it ships REPORT-ONLY behind
+            # `watchdog.distress_failover` (default off — arming is the owner's, against the
+            # criterion pre-stated in RADIO-FAILOVER-DISTRESS-SIGNAL §6).
+            "radio_distress": status.get("radio_distress"),
+            "radio_distress_adapter": status.get("radio_distress_adapter"),
+            # Every switch as an EVENT with its cause — the brief's item 4. Was published to STATUS
+            # and read by nothing (the find_unwired top-level-STATUS blind spot, sibling of the
+            # radio_distress case this same file records above).
+            "radio_switches": status.get("radio_switches"),
         })
 
     # ── CPAP manual pull ────────────────────────────────────────────────────────────────────────
@@ -651,7 +672,9 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                     continue
                 await resp.write(f"data: {json.dumps(msg)}\n\n".encode())
         except (asyncio.CancelledError, ConnectionResetError, ConnectionError):
-            pass
+            pass       # THE NORMAL END OF AN SSE STREAM: the operator closed the tab. All three
+                       # are the client going away, not a fault, and the `finally` below does the
+                       # only thing that matters — unsubscribe, so the bus stops filling a dead queue
         finally:
             _live_queues.discard(q)
             bus.unsubscribe(q)
@@ -747,7 +770,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 try:
                     os.unlink(tmp)             # never leave a stray .config.*.yaml.tmp behind
                 except OSError:
-                    pass
+                    pass   # already on the failure path, and the caller is being told the SAVE
+                           # failed — a stray temp file must not displace that report
 
     # ── Clock / NTP / timezone (Clock Contract §🔒 — the box's wall clock stamps every capture) ──
     _clock_sudo = (cfg.get("clock") or {}).get("sudo", True)
@@ -960,7 +984,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 #
                 # The rule: anything `run_oxyii` can open a writer for MUST appear here, or enabling it
                 # is unreachable and keeping it is impossible. Gate-backed below.
-                supported = ["spo2", "ppg", "ppg2w"]
+                supported = ["spo2", "ppg", "ppg2w", "acc"]
             # SDK MODE IS OFFERED ONLY WHERE THE DEVICE ADVERTISES IT (feature bit 0x9), and the
             # capability is DERIVED, never inferred from vendor or model: a switch that cannot work is
             # worse than an absent one, because the operator sets it and the config then claims a mode
@@ -1136,7 +1160,12 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 import shutil
                 shutil.copyfile(cfg_path, cfg_path + ".bak")
             except Exception:
-                pass
+                # THE SAFETY NET IS GONE, and the write proceeds anyway — the right call, since
+                # refusing a settings change because a backup failed strands the operator. But it
+                # must not be SILENT: without this line, the one moment the .bak is needed is the
+                # one moment nobody knows it is missing.
+                _log.warning("settings: could not back up %s — writing WITHOUT a rollback copy",
+                            cfg_path, exc_info=True)
             # A FAILED WRITE IS NOT A SUCCESS (CAPTURE-HOST-DEEP-AUDIT §D2, closing the last caller of
             # VIGIL-DEEP-ANALYSIS §2A). `_save()`'s return value was discarded here while its three
             # siblings — /api/remember, /api/forget, /api/storage — all report 500. The in-memory cfg
@@ -1434,6 +1463,38 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             return web.json_response({"ok": False, "busy": e.holder, "error": str(e)}, status=409)
         except Exception as e:
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
+
+    async def polar_recording(req):
+        """POST /api/polar/recording {address, action: status|start|stop, sample_type?: rr|hr}.
+
+        The H10 ONBOARD-recording control (POLAR-ONBOARD-BACKUP §6 Q1 / FOLLOWUPS §4) — through
+        `_polar_run`, so the op owns the device's single BLE link instead of racing run_polar; the
+        brief forbids a standalone script for exactly that reason. `start` defaults to RR because the
+        RR-acceptance probe is this endpoint's reason to exist; the response carries the device's own
+        READBACK (`recording_on` + identifier), never an echo of the request — see
+        polar_psftp.recording_control. A device REFUSAL (the §6 Q1 'no') arrives as the 502 with the
+        PS-FTP error text: a measurement, so it must reach the caller verbatim, not be flattened."""
+        body = await _body(req)
+        if body is BAD_BODY:
+            return _bad_body_response()
+        address, action = body.get("address", ""), body.get("action", "")
+        if not _polar_dev(address):
+            return web.json_response({"ok": False, "error": "unknown or non-Polar address"}, status=400)
+        if action not in ("status", "start", "stop"):
+            return web.json_response({"ok": False, "error": "action must be status|start|stop"}, status=400)
+        st_word = body.get("sample_type", "rr")
+        if st_word not in ("rr", "hr"):
+            return web.json_response({"ok": False, "error": "sample_type must be rr|hr"}, status=400)
+        st = polar_psftp.SAMPLE_TYPE_RR_INTERVAL if st_word == "rr" else polar_psftp.SAMPLE_TYPE_HEART_RATE
+        try:
+            out = await _polar_run(address, lambda: polar_psftp.recording_control(
+                address, action, sample_type=st))
+            return web.json_response({"ok": True, **out})
+        except offline_lock.OfflineBusy as e:
+            return web.json_response({"ok": False, "busy": e.holder, "error": str(e)}, status=409)
+        except Exception as e:
+            return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=502)
+
     async def version_get(_req):
         """GET /api/version — what code is running, and since when.
 
@@ -1523,6 +1584,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/timesync/all", timesync_all),
         web.get("/api/polar/recordings", polar_recordings),
         web.post("/api/polar/pull", polar_pull),
+        web.post("/api/polar/recording", polar_recording),
         web.get("/api/stream/{key}", stream),
         web.get("/api/clock", clock_get),
         web.post("/api/clock", clock_set),

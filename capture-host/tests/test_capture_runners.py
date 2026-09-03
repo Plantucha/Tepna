@@ -245,7 +245,16 @@ class FakeGattClient:
 
     async def start_notify(self, _c, cb): self.notify = cb
     async def stop_notify(self, _c): pass
-    async def read_gatt_char(self, _c): return b"\x64"     # battery 100
+    # Dispatches on UUID: the runner reads BOTH the battery and (once per connection) the Firmware
+    # Revision String, and a fake that returns the battery byte for every characteristic would hand the
+    # firmware reader a one-character version it never saw on a device.
+    fw = b"2D010002"                                       # what this box's ring actually reports
+    async def read_gatt_char(self, c):
+        if str(c).lower() == capture.FIRMWARE_UUID:
+            if isinstance(self.fw, Exception):
+                raise self.fw
+            return self.fw
+        return b"\x64"                                     # battery 100
     async def write_gatt_char(self, char, data, response=False):
         self.writes.append(bytes(data))
         if self.on_live:
@@ -5066,7 +5075,7 @@ def test_run_polar_resumes_a_recent_fileset(tmp_path, monkeypatch, caplog):
     monkeypatch.setattr(capture.bonding, "ensure_bonded", _bonded)
     monkeypatch.setattr(capture.bonding, "is_bonded", _bonded)
 
-    async def _no_sync(name, addr):
+    async def _no_sync(name, addr, root=None):
         return None                        # the real one runs a ~30 s BLE discovery — not in a unit test
     monkeypatch.setattr(capture, "auto_sync_clock", _no_sync)
     def _no_ble(addr):
@@ -5094,7 +5103,7 @@ def test_run_polar_resume_disabled_by_zero_window(tmp_path, monkeypatch):
     monkeypatch.setattr(capture.bonding, "ensure_bonded", _bonded)
     monkeypatch.setattr(capture.bonding, "is_bonded", _bonded)
 
-    async def _no_sync(name, addr):
+    async def _no_sync(name, addr, root=None):
         return None                        # the real one runs a ~30 s BLE discovery — not in a unit test
     monkeypatch.setattr(capture, "auto_sync_clock", _no_sync)
 
@@ -5387,3 +5396,236 @@ def test_run_oxyii_journals_an_interruption_on_a_stall(tmp_path, monkeypatch):
     life = (tmp_path / "captures").rglob("OXYLIFE.csv")
     txt = "".join(p.read_text() for p in life)
     assert "interrupted" in txt, "a stall must journal an INTERRUPTED transition"
+
+
+def test_run_oxyii_absent_ring_does_not_claim_an_unflushed_arrival_tail(tmp_path, monkeypatch, caplog):
+    """A ring that never advertises raises BEFORE any writer exists — so the finally must close
+    nothing and, above all, must not report a tail it never opened.
+
+    Observed on vigil 2026-09-01: BleakDeviceNotFoundError at connect, then a full traceback plus
+    'the arrival writer did not close cleanly — its tail may be unflushed', once per reconnect for
+    hours. `oxy_arr_wr` was the one writer missing from the pre-try None binding, so its close read an
+    unbound local; the guard caught it and warned about data that was never written. The existing
+    'recording mode' test could not see this: it asserts only that nothing propagated, which stayed
+    true the whole time.
+    """
+    from bleak.exc import BleakDeviceNotFoundError
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+
+    def _boom(addr, *a, **k):
+        raise BleakDeviceNotFoundError("O2Ring not advertising (wear it finger-in + close the phone app)")
+
+    monkeypatch.setattr(capture, "_connect_scan", _boom)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level(logging.WARNING):
+        _run(capture.run_oxyii(_o2dev(name="RingGone"), str(tmp_path)))
+    assert "BleakDeviceNotFoundError" in capture.STATUS["devices"]["RingGone"]["last_error"], \
+        "the link error is still reported — this test must not pass by skipping the failure path"
+    assert not any("arrival writer did not close" in r.getMessage() for r in caplog.records), \
+        "no writer was opened, so there is no tail to warn about"
+    assert not any(r.exc_info and r.exc_info[0] is UnboundLocalError for r in caplog.records), \
+        "the finally must not read an unbound local"
+
+
+def test_run_oxyii_still_warns_when_a_real_arrival_close_fails(tmp_path, monkeypatch, caplog):
+    """The guard is not being removed: a writer that WAS opened and fails to close still warns,
+    because that message describes a real unflushed tail."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+
+    class _BadClose:
+        rows = []
+        def write(self, *a, **k): pass
+        def close(self): raise OSError("disk went away")
+
+    monkeypatch.setattr(capture, "PmdArrivalLogWriter", lambda *a, **k: _BadClose())
+    c = FakeGattClient()
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 2)
+    with caplog.at_level(logging.WARNING):
+        _run(capture.run_oxyii(_o2dev(name="RingBad"), str(tmp_path)))
+    assert any("arrival writer did not close" in r.getMessage() for r in caplog.records), \
+        "a genuine close failure must still be reported"
+
+
+# ── ring firmware revision (the observable the AES-session trigger needs) ────────────────────────────
+def test_run_oxyii_publishes_the_rings_firmware_revision(tmp_path, monkeypatch):
+    """The measured-plaintext firmware reaches STATUS and says nothing alarming."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_oxyii(_o2dev(name="RingFw"), str(tmp_path)))
+    assert capture.STATUS["devices"]["RingFw"]["firmware"] == "2D010002"
+
+
+def test_run_oxyii_names_an_unmeasured_firmware_rather_than_letting_it_surface_as_a_stall(
+        tmp_path, monkeypatch, caplog):
+    """A newer firmware keys an AES session after AUTH, and AUTH is written fire-and-forget with no
+    reply to inspect — so the ONLY way the box can state it is this read. Without it the failure
+    arrives as 'connects, auths, no decoded frames', which reads as a bad link."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient(); c.fw = b"2D010099"
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level(logging.WARNING):
+        _run(capture.run_oxyii(_o2dev(name="RingNew"), str(tmp_path)))
+    assert capture.STATUS["devices"]["RingNew"]["firmware"] == "2D010099"
+    msg = " ".join(r.getMessage() for r in caplog.records)
+    assert "2D010099" in msg and "AES" in msg, \
+        "an unmeasured firmware must be named at connect, with the decode failure it predicts"
+
+
+def test_run_oxyii_treats_an_unreadable_firmware_as_a_skip_not_a_lost_session(tmp_path, monkeypatch):
+    """A ring that does not implement DIS must still record. And the field must stay ABSENT rather than
+    becoming a fabricated 'unknown', which would read as a measurement that was taken."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient(); c.fw = RuntimeError("no such characteristic")
+    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(name="RingNoDis"), str(tmp_path)))
+    st = capture.STATUS["devices"]["RingNoDis"]
+    assert "firmware" not in st, "an unread revision must be absent, never a fabricated value"
+    assert st.get("spo2") is not None, "the session must survive a ring without DIS"
+
+
+@pytest.mark.parametrize("raw,label", [(b"", "empty read"), (b"\x00\x00  ", "NUL/space padding")])
+def test_run_oxyii_does_not_publish_an_empty_firmware_string(tmp_path, monkeypatch, raw, label):
+    """A padded or empty DIS value is not a version. Same rule as above: absent beats fabricated.
+    Both shapes are exercised because they leave the reader by DIFFERENT branches — a falsy read
+    never reaches the decode, a padded one is only empty after stripping."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient(); c.fw = raw
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_oxyii(_o2dev(name="RingBlank"), str(tmp_path)))
+    assert "firmware" not in capture.STATUS["devices"]["RingBlank"], f"{label} must publish nothing"
+
+
+def test_run_oxyii_publishes_the_perfusion_index(tmp_path, monkeypatch):
+    """PI is the field that says WHY an SpO2 reading is poor. It was parsed and written to the sidecar
+    for weeks without ever being published, so no card could exist. Driven through the production
+    callback rather than scanned for in the source."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    seen = []
+    monkeypatch.setattr(capture.BUS, "push",
+                        lambda stream, values, *a, **k: seen.append((stream, values)))
+    c = FakeGattClient()
+    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    assert [v for s, v in seen if s == "pi_o2"][:1] == [[1.4]], "pi is [7]/10, in percent"
+
+
+def test_run_oxyii_treats_a_zero_perfusion_index_as_a_READING(tmp_path, monkeypatch):
+    """0.0 is a real perfusion index — the ring reporting no usable pulse — and the guard is
+    `is not None` precisely so it survives. A falsy-but-present value dropped by a truthiness test is
+    how "no signal" becomes "no data", which are different facts.
+
+    ⚠️ The frame is REBUILT, never patched in place: editing an encoded frame invalidates its CRC-8, so
+    `decode()` drops it and nothing is published — which reads exactly like the guard working."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    seen = []
+    monkeypatch.setattr(capture.BUS, "push",
+                        lambda stream, values, *a, **k: seen.append((stream, values)))
+    body = bytearray(24)
+    body[5] = body[10] = 0x01
+    body[6], body[8], body[13] = 96, 55, 90
+    body[7] = 0                                     # the PI byte under test
+    reply = oxyii.encode(oxyii.OP_LIVE, bytes(body))
+    c = FakeGattClient()
+    c.on_live = lambda data: (c.notify(0, reply) if data[1] == oxyii.OP_LIVE else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    assert [v for s, v in seen if s == "pi_o2"][:1] == [[0.0]], "a zero PI is a reading, not an absence"
+
+
+def _o2ring_acc_reply(samples=((-2000, 16, 1000),)):
+    body = bytearray(len(samples).to_bytes(2, "little"))
+    for x, y, z in samples:
+        for a in (x, y, z):
+            body += int(a).to_bytes(2, "little", signed=True)
+    return oxyii.encode(oxyii.OP_RT_ACC, bytes(body), flag=1)
+
+
+def test_run_oxyii_captures_a_pushed_acc_frame_when_acc_was_requested(tmp_path, monkeypatch):
+    """The ring's 3-axis accelerometer arrives UNSOLICITED — nothing polls it; it appears only because
+    the AUTO_RT_SWITCH handshake asked for it. Driven through the production callback."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    seen, reg = [], []
+    monkeypatch.setattr(capture.BUS, "push",
+                        lambda stream, values, *a, **k: seen.append((stream, values)))
+    monkeypatch.setattr(capture.BUS, "register", lambda key, *a, **k: reg.append((key, a, k)))
+    c = FakeGattClient()
+
+    def _feed(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+            c.notify(0, _o2ring_acc_reply())
+
+    c.on_live = _feed
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(streams=["spo2", "acc"]), str(tmp_path)))
+    acc = [v for s, v in seen if s == "acc_o2"]
+    assert acc and [list(map(int, r)) for r in acc[0]] == [[-2000, 16, 1000]], \
+        f"a requested ACC push must parse as signed 3-axis, got {acc}"
+    decl = [k for k in reg if k[0] == "acc_o2"]
+    assert decl, "acc_o2 must be REGISTERED before it is pushed — the bus treats shape as declared"
+    assert decl[0][2].get("chans") == 3, "three axes, like the H10's"
+    assert "raw" in decl[0][1], "unit stays raw: no scale is published for this ring"
+
+
+def test_run_oxyii_drops_an_acc_frame_nobody_asked_for(tmp_path, monkeypatch, caplog):
+    """A stream nobody enabled becoming data nobody can explain is the failure this guards. The frame is
+    logged ONCE per link — a fact about the ring worth seeing — and never parsed.
+
+    Its own session, deliberately: two `run_oxyii` runs inside one test share module state and the second
+    silently does not drive the callback, which reads exactly like the drop working."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    seen = []
+    monkeypatch.setattr(capture.BUS, "push",
+                        lambda stream, values, *a, **k: seen.append((stream, values)))
+    c = FakeGattClient()
+
+    def _feed(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+            c.notify(0, _o2ring_acc_reply())
+            c.notify(0, _o2ring_acc_reply())      # a second one must NOT log again
+
+    c.on_live = _feed
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    with caplog.at_level("WARNING"):
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    assert not [v for s, v in seen if s == "acc_o2"], "an unrequested ACC frame must not become data"
+    warned = [r for r in caplog.records if "never asked for" in r.getMessage()]
+    assert len(warned) == 1, f"warn ONCE per link, got {len(warned)} — a per-frame warning is a flood"
+
+
+def test_run_oxyii_ignores_an_EMPTY_acc_frame_without_publishing(tmp_path, monkeypatch):
+    """A requested ACC push whose record count is zero must publish nothing rather than an empty frame.
+
+    This exists because the coverage floor found `if _acc:` had never been false — every test fed a
+    frame with samples in it, so the empty path was reachable code nothing had reached. An empty push
+    would put a zero-length frame on the bus, which `push()` drops anyway, but `note_data` would still
+    mark the stream as having delivered — a stream reporting liveness on no data."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    seen = []
+    monkeypatch.setattr(capture.BUS, "push",
+                        lambda stream, values, *a, **k: seen.append((stream, values)))
+    c = FakeGattClient()
+
+    def _feed(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+            c.notify(0, _o2ring_acc_reply(samples=()))     # count 0, no records
+
+    c.on_live = _feed
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(_o2dev(streams=["spo2", "acc"]), str(tmp_path)))
+    assert not [v for s, v in seen if s == "acc_o2"], "an empty ACC frame must publish nothing"

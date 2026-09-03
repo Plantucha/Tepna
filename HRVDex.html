@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-D6xYyZ7MuqkiI/CCtXll6fjdTgw/eCjZyzMFtBaRaHQ=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-wSIy7RZCIYM9pqzZEyYipybzXeFfizctBahhpd6lXvg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-D6xYyZ7MuqkiI/CCtXll6fjdTgw/eCjZyzMFtBaRaHQ=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-wSIy7RZCIYM9pqzZEyYipybzXeFfizctBahhpd6lXvg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>HRVDex — Heart Rate Variability Analyzer · v2.9.0</title>
@@ -5520,42 +5520,61 @@ body.light .topbar::after{ opacity:.25; }
   // ONE implementation for every node (D1) — OxyDex shipped its own oxyScrubExport in the pilot; it
   // folds into this on OxyDex's next re-bundle (leaving it now avoids an export-inert OxyDex churn).
   // Default OFF at every call site, so a normal export stays byte-identical. DOM-free; node:vm-safe.
+  /* DEEP-AUDIT-VI F13 — the scrub is KEY-DRIVEN, never node-enumerated. A filename is an identifier
+     (an O2Ring export embeds the device serial and can embed a personal name), and it reaches the
+     envelope by three routes: `nights[].file` (OxyDex, `n.fname` verbatim), `sessions[].source`
+     (PpgDex, `r.fname`), and the per-element `provenance` copy every OxyDex night carries — the same
+     `inputs[].name / sha256 / lastModifiedMs` block the schema-level scrub already reduces. The 07-xx
+     scrub handled only `schema.provenance` + `recording.{device,serial,model}`, so with scrub ON the
+     export still named the upload (measured: `Jane_Smith_O2Ring S 2100_20260612230016.csv` survived).
+     SELF-INGEST §5 acceptance: a scrubbed JSON contains no device serial, filename or input sha256. */
+  var _SCRUB_FILE_KEYS = ['file', 'fname', 'filename', 'fileName', 'sourceFile'];
+  // `source` is overloaded: ECGDex/GlucoDex write a semantic tag ('file', 'welltory'), PpgDex writes the
+  // raw filename. Strip it only when it is filename-SHAPED (a path separator or a dotted extension) —
+  // a tag has neither, and deleting a tag would change a scrubbed export's meaning, not its identity.
+  var _FILE_SHAPE_RE = /[\\/]|\.[A-Za-z0-9]{1,5}$/;
+  function _scrubProv(prov) {
+    if (!prov || typeof prov !== 'object') return prov;
+    return {
+      buildHash: prov.buildHash != null ? prov.buildHash : null, // COARSE build stamp KEPT (integrity)
+      generated: prov.generated != null ? prov.generated : null,
+      scrubbed: true,
+      // inputs keep only NON-identifying integrity (byte count); drop name + sha256 + device serial/mtime.
+      inputs: (Array.isArray(prov.inputs) ? prov.inputs : []).map(function (inp) {
+        return { bytes: inp && inp.bytes != null ? inp.bytes : null };
+      })
+    };
+  }
+  function _scrubRecordingBlock(rec) {
+    if (!rec || typeof rec !== 'object') return;
+    delete rec.device;
+    delete rec.serial;
+    delete rec.model;
+    if (typeof rec.source === 'string' && _FILE_SHAPE_RE.test(rec.source)) delete rec.source;
+  }
+  function _scrubElement(el) {
+    if (!el || typeof el !== 'object') return;
+    _SCRUB_FILE_KEYS.forEach(function (k) {
+      if (k in el) delete el[k];
+    });
+    if (typeof el.source === 'string' && _FILE_SHAPE_RE.test(el.source)) delete el.source;
+    if (el.provenance && typeof el.provenance === 'object') el.provenance = _scrubProv(el.provenance);
+    _scrubRecordingBlock(el.recording);
+  }
   function scrubExport(envelope) {
     if (!envelope || typeof envelope !== 'object') return envelope;
     var out = JSON.parse(JSON.stringify(envelope)); // deep clone — never mutate the caller
     var sc = out.schema || (out.schema = {});
-    var prov = sc.provenance;
-    if (prov && typeof prov === 'object') {
-      sc.provenance = {
-        buildHash: prov.buildHash != null ? prov.buildHash : null, // COARSE build stamp KEPT (integrity)
-        generated: prov.generated != null ? prov.generated : null,
-        scrubbed: true,
-        // inputs keep only NON-identifying integrity (byte count); drop name + sha256 + device serial/mtime.
-        inputs: (Array.isArray(prov.inputs) ? prov.inputs : []).map(function (inp) {
-          return { bytes: inp && inp.bytes != null ? inp.bytes : null };
-        })
-      };
-    }
+    if (sc.provenance && typeof sc.provenance === 'object') sc.provenance = _scrubProv(sc.provenance);
     sc.scrubbed = true;
-    // recording.contentId (identity-free) is KEPT; strip any device serial / model a node may carry.
-    if (out.recording && typeof out.recording === 'object') {
-      delete out.recording.device;
-      delete out.recording.serial;
-      delete out.recording.model;
-    }
-    // Multi-record wrappers: strip the same identifying keys from each per-element recording block.
+    // recording.contentId (identity-free) is KEPT; strip any device serial / model / filename a node may carry.
+    _scrubRecordingBlock(out.recording);
+    // Multi-record wrappers: strip the same identifying keys from each per-element block.
     // EVERY known carrier (SELF-INGEST-FOLLOWUPS-II §F1 — was nights[]-only, leaking device/serial on
     // multi ECGDex/PulseDex `recordings[]` + PpgDex `sessions[]` exports): nights[] (OxyDex/CPAPDex),
     // recordings[] (ECGDex/PulseDex), sessions[] (PpgDex).
     ['nights', 'recordings', 'sessions'].forEach(function (key) {
-      if (Array.isArray(out[key]))
-        out[key].forEach(function (el) {
-          if (el && el.recording && typeof el.recording === 'object') {
-            delete el.recording.device;
-            delete el.recording.serial;
-            delete el.recording.model;
-          }
-        });
+      if (Array.isArray(out[key])) out[key].forEach(_scrubElement);
     });
     return out;
   }
@@ -7879,15 +7898,46 @@ body.light .topbar::after{ opacity:.25; }
     return { valueS: valueS, assumedMs: assumedMs, flagged: flagged };
   }
 
+  /* ── DERIVED-DISPERSION unit guard (DEEP-AUDIT-VI F5) ─────────────────────
+     rMSSD, MxDMn and their siblings are NOT RR intervals — they are dispersion
+     STATISTICS of RR, and their physiologic range CROSSES the RR threshold: a
+     clinically real rMSSD of 8 ms (severe autonomic dysfunction) sits below
+     RR_MS_THRESHOLD=10 and was classified as SECONDS, multiplied 1000×, and
+     inverted the rendered clinical verdict (severe-low-HRV rendered green;
+     measured +2.996 log-unit discontinuity between 10.0 and 9.9 ms). The
+     statistic-appropriate split: a dispersion in SECONDS is ≤ ~0.3 (300 ms of
+     rMSSD is already extreme); in MILLISECONDS it is ≥ ~1. 0.5 separates them
+     in the clinically REAL domain — the residual boundary sits between 0.5 ms
+     (sub-millisecond dispersion, not physiology) and 500 ms (equally not), so
+     the discontinuity no longer lives where patients do. The plausibility band
+     is likewise the dispersion band, not the RR band — under the RR band a
+     CORRECT 38 ms → 0.038 s always flagged, so the flag carried no signal and
+     call sites discarded it. */
+  var DISP_MS_THRESHOLD = 0.5;
+  var DISP_MIN_S = 0.0005,
+    DISP_MAX_S = 0.5;
+
+  function asSecondsDispersion(v) {
+    if (v == null || !isFinite(v)) return { valueS: null, assumedMs: false, flagged: true };
+    var assumedMs = v >= DISP_MS_THRESHOLD;
+    var valueS = assumedMs ? v / 1000 : v;
+    var flagged = !(valueS >= DISP_MIN_S && valueS <= DISP_MAX_S);
+    return { valueS: valueS, assumedMs: assumedMs, flagged: flagged };
+  }
+
   function guardBaevsky(mode, mxdmn) {
+    /* Mode IS an RR magnitude (the most-frequent RR interval) — the RR guard is right for it.
+       MxDMn is a dispersion (max−min of RR) — the RR guard misread every real MxDMn < 10 ms as
+       seconds (d_csi 1000× high, verdict inverted with NO flag; d_si 1000× low). Each operand gets
+       the guard for the quantity it actually is. */
     var m = asSecondsRR(mode),
-      x = asSecondsRR(mxdmn);
+      x = asSecondsDispersion(mxdmn);
     return {
       modeS: m.valueS,
       mxdmnS: x.valueS,
       assumedMs: m.assumedMs || x.assumedMs,
       flagged: m.flagged || x.flagged,
-      reason: m.flagged || x.flagged ? 'Baevsky Mode/MxDMn outside plausible RR range after unit normalization — value surfaced, not silently scaled' : null
+      reason: m.flagged || x.flagged ? 'Baevsky Mode/MxDMn outside its plausible range after unit normalization — value surfaced, not silently scaled' : null
     };
   }
 
@@ -7913,9 +7963,11 @@ body.light .topbar::after{ opacity:.25; }
     DIM: DIM,
     CANON: CANON,
     asSecondsRR: asSecondsRR,
+    asSecondsDispersion: asSecondsDispersion,
     guardBaevsky: guardBaevsky,
     baevskySI: baevskySI,
-    RR_MS_THRESHOLD: RR_MS_THRESHOLD
+    RR_MS_THRESHOLD: RR_MS_THRESHOLD,
+    DISP_MS_THRESHOLD: DISP_MS_THRESHOLD
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexUnits;
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
@@ -9327,9 +9379,10 @@ body.light .topbar::after{ opacity:.25; }
       r.d_sd1_sd2 = r.d_sd2 > 0 ? r.d_sd1 / r.d_sd2 : NaN;
 
       // ── Toichi CVI / CSI ──
-      // MeanRR through the SAME asSecondsRR detector as MxDMn/Mode above (was a hard /1000 → ~10³× mis-scale
+      // MeanRR through the SAME asSecondsRR detector as Mode above (was a hard /1000 → ~10³× mis-scale
       // on a MeanRR-in-seconds vendor export; latent while both real ingest paths carried MeanRR in ms).
-      const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR).valueS : r._meanRR / 1000;
+      const _mrrQ = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR) : null;
+      const meanRR_s = _mrrQ ? _mrrQ.valueS : r._meanRR / 1000;
       /* Toichi CVI: log10(rMSSD_ms × MeanRR_ms) — typical resting 3.5–4.5, and the render colour rule
          (>4.4 good / >4.1 warn / else bad) is calibrated to that ms×ms band.
          §2.1 — this read `_meanRR` RAW while its neighbours two lines up and down read it through the
@@ -9338,14 +9391,25 @@ body.light .topbar::after{ opacity:.25; }
          stayed exactly invariant. DEEP-AUDIT-2026-07-22's REFUTED row dismissed this as "internally
          consistent (both operands from the same vendor)" — ratio-cancellation reasoning, which does
          NOT hold for a LOG OF A PRODUCT: log10(a_s·b_s) = log10(a_ms·b_ms) − 6. Compute in ONE
-         declared unit (seconds, via the same detector) and restate into the published ms×ms band. */
-      const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._rmssd).valueS : r._rmssd / 1000;
+         declared unit (seconds, via the same detector) and restate into the published ms×ms band.
+         F5 (DEEP-AUDIT-VI): rMSSD is a DISPERSION, not an RR interval — through the RR guard a
+         clinically real rMSSD < 10 ms read as SECONDS, inflated CVI by +3 log units, and rendered
+         severe-low-HRV green (8 ms, meanRR 880 → 6.85 'good'; truth 3.85 'bad'). It rides the
+         dispersion guard now, and the flag is SURFACED (d_cvi_flagged mirrors d_si_flagged) — under
+         the dispersion band it finally carries signal, where the RR band flagged every correct
+         value and taught call sites to discard it. */
+      const _rmsQ = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsDispersion ? DexUnits.asSecondsDispersion(r._rmssd) : null;
+      const rmssd_s = _rmsQ ? _rmsQ.valueS : r._rmssd / 1000;
       r.d_cvi = rmssd_s > 0 && meanRR_s > 0 ? Math.log10(rmssd_s * meanRR_s) + 6 : NaN;
+      r.d_cvi_flagged = !!((_rmsQ && _rmsQ.flagged) || (_mrrQ && _mrrQ.flagged));
       // CSI: MxDMn in SECONDS / meanRR in seconds. Uses the SAME guard-normalized MxDMn as d_si
       // (was a hard "assumes seconds" → ~10³× mis-scale on a ms-unit file; -III §1). meanRR_s already
       // converts meanRR ms→s above, so both operands are seconds; do NOT re-fork the threshold.
+      // F5: guardBaevsky now reads MxDMn through the dispersion guard (it is one), so a real
+      // MxDMn < 10 ms no longer arrives here 1000× large; the guard's verdict is surfaced.
       var _mxdmnS = r._baevskyS && r._baevskyS.mxdmnS != null ? r._baevskyS.mxdmnS : r._mxdmn;
       r.d_csi = meanRR_s > 0 && _mxdmnS != null ? _mxdmnS / meanRR_s : NaN;
+      r.d_csi_flagged = !!(r.d_si_flagged || (_mrrQ && _mrrQ.flagged));
 
       // ── Autonomic Balance Score ──
       r.d_abs = _all(r._sns, r._psns) && r._sns + r._psns > 0 ? (r._psns - r._sns) / (r._psns + r._sns) : NaN;

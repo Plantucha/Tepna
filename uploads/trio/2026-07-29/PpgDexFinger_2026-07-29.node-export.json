@@ -9,7 +9,7 @@
     "node": "PpgDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-08-15T16:25:02.807Z",
+    "generated": "2026-09-01T02:46:42.955Z",
     "provenance": null,
     "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -2022,10 +2022,10 @@
       "method": "Lomb-Scargle",
       "lowConfidence": false,
       "hfRobustLowMotion": null,
-      "wholeRecordLf": 2354,
-      "wholeRecordHf": 3065,
-      "wholeRecordLfhf": 0.77,
-      "respRate": 16.62,
+      "wholeRecordLf": 1892,
+      "wholeRecordHf": 1978,
+      "wholeRecordLfhf": 0.96,
+      "respRate": 9.18,
       "respRateMethod": "RSA (HF-peak of RR spectrum)"
     },
     "confidence": {
@@ -3451,7 +3451,7 @@
         "hr": 58,
         "hrStat": "rate-of-mean",
         "rmssd": 69.9,
-        "sdnn": 104.6,
+        "sdnn": 102.9,
         "lfhf": 0.42,
         "motionIndex": null,
         "ledAgreementPct": null,
@@ -3466,7 +3466,7 @@
       "spine": "foot",
       "n": 24825,
       "tSec": [
-        0.756,
+        0.762,
         2.425,
         3.484,
         5.389,
@@ -28287,10 +28287,10 @@
         29820.263,
         29821.099,
         29821.525,
-        29825.493,
-        29826.848,
+        29825.405,
+        29826.845,
         29827.954,
-        29828.715
+        29828.806
       ],
       "ms": [
         1199,
@@ -53116,8 +53116,8 @@
         874,
         874,
         874,
-        1106,
-        761
+        1109,
+        852
       ],
       "corrected": [
         1,

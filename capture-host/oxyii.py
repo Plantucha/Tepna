@@ -81,8 +81,61 @@ def auth_payload(serial: str = "0000", ts: int | None = None) -> bytes:
 def auth_frame(serial: str = "0000") -> bytes:
     return encode(OP_AUTH, auth_payload(serial))
 
-def setup_frame() -> bytes:
-    return encode(OP_SETUP, b"\x00")
+OP_RT_ACC = 0x14          # device-PUSHED 3-axis accelerometer; enabled via AUTO_RT_SWITCH bit 3
+
+# AUTO_RT_SWITCH (0x10) bitfield. This command was recorded as an opaque "setup, payload 00, purpose
+# unknown" by both this project and the public reverse-engineering reference until 2026-09-02; the
+# vendor exposes it as `oxyAutoSwitch(model, autoParam, autoWave, autoPpg, autoAcc)` and builds the
+# payload by OR-ing four booleans into one byte. So the `0x00` we have always sent does not mean
+# "default" — it DISABLES all four device-push streams, and every sample this project holds was
+# obtained by polling because of it. See O2RING-PROTOCOL §3 and residue 2026-09-02-oxyii-autortswitch-unexamined.
+RT_PUSH_PARAM, RT_PUSH_WAVE, RT_PUSH_PPG, RT_PUSH_ACC = 0x01, 0x02, 0x04, 0x08
+
+
+def setup_frame(push: int = 0x00) -> bytes:
+    """AUTO_RT_SWITCH (0x10) — which device-pushed streams the ring should send unprompted.
+
+    `push` is the OR of the RT_PUSH_* bits; the default `0x00` preserves the historical behaviour
+    exactly (all pushing off, everything polled), so no caller changes meaning by not passing it.
+
+    ⚠️ **Enabling a push stream changes what arrives on the notify characteristic for the whole
+    session** — unsolicited frames with opcodes our dispatcher has never seen. That is a live-capture
+    behaviour change on a device we cannot re-run, so it is config-gated at the caller rather than
+    switched on here, and it has never been exercised against hardware: no ring in this project has
+    ever been asked to push. Treat a first run as an experiment with a night at stake, not a setting."""
+    if not 0 <= push <= 0x0F:
+        raise ValueError(f"AUTO_RT_SWITCH payload is a 4-bit field, got {push:#x}")
+    return encode(OP_SETUP, bytes([push]))
+
+
+def parse_rt_acc(payload: bytes) -> list[tuple[int, int, int]]:
+    """cmd=0x14 reply → [(x, y, z), ...] as SIGNED 16-bit counts, or [] when there are no records.
+
+    Layout: `[0:2]` u16 LE record count, then 6 bytes per sample — three i16 LE axes.
+
+    SIGNED, and that is the half worth pinning: the sibling `parse_rt_ppg` shipped its first revision
+    reading unsigned and its statistics were wrong by an order of magnitude, because small negative
+    values wrap to ~2**32. An accelerometer at rest sits near zero on two axes and at ±1 g on the
+    third, so unsigned reads turn every downward tilt into a huge positive number that still looks
+    like data.
+
+    ⚠️ UNITS ARE NOT KNOWN. The vendor publishes raw counts with no scale factor, and no ring here has
+    ever been asked to push this stream, so there is nothing to calibrate against yet. Counts are
+    returned as counts. Do NOT invent a g conversion — a plausible-looking acceleration is worse than
+    an obviously raw one."""
+    if len(payload) < 2:
+        return []
+    n = int.from_bytes(payload[0:2], "little")
+    avail = max(0, (len(payload) - 2) // 6)
+    out = []
+    for i in range(min(n, avail)):
+        o = 2 + i * 6
+        out.append((
+            int.from_bytes(payload[o:o + 2], "little", signed=True),
+            int.from_bytes(payload[o + 2:o + 4], "little", signed=True),
+            int.from_bytes(payload[o + 4:o + 6], "little", signed=True),
+        ))
+    return out
 
 def live_frame() -> bytes:
     return encode(OP_LIVE, b"")
@@ -657,22 +710,62 @@ def parse_oxy_trailer(data: bytes) -> dict | None:
 
     `data` is the whole file; the trailer is its last 48 bytes. Returns None (not an exception) when the
     file is too short OR not finalised — a caller re-pulls in a later sync cycle rather than trusting a
-    half-written summary. `o2_score_x10` is 0xFF on short sessions → surfaced as None."""
+    half-written summary. `o2_score_x10` is 0xFF on short sessions → surfaced as None.
+
+    ── `start_t_ms` IS THE FIELD THIS PARSER WAS MISSING (added 2026-09-02) ─────────────────────────
+    `T+8` is a u32 recording start time and was never read here, so every stored `.dat` we hold carried
+    its own start stamp and we inferred one from the filename instead.
+
+    ⚠️ **It is a FLOATING wall-clock epoch, not a real instant, and that is measured rather than assumed.**
+    Across six stored files the value read as UTC equals the filename's LOCAL wall-clock stamp to +0.00 h
+    on all six; if the ring applied the timezone we push in `set_time_frame` the delta would be ±5 h.
+    So it is local civil time encoded as if it were UTC — exactly CLAUDE.md §🔒.1's canonical `tMs`, in
+    seconds. Returned as `start_t_ms` (× 1000) so a caller can use it directly with `getUTC*`/
+    `utcfromtimestamp` semantics. **Do NOT apply a timezone to it, and do not call it UTC.** The vendor's
+    own SDK adds a zone offset when it reads this field — that is the phone app converting a floating
+    stamp to an instant with the phone's zone, not the ring having written one.
+    The ring's clock is still unsynced and drifts (§9), so this is an honest floating stamp, not an
+    accurate one — it needs the same per-download offset correction as before. What it removes is the
+    guess, not the drift.
+
+    ── `total_seconds` is a SAMPLE COUNT, and it is right only because `interval` is 1 ──────────────
+    `T+12` is the u32 sample count and `T+16` is the seconds-per-sample interval; the recording duration
+    is their product. This function read `T+12` as a u16 and named it `total_seconds`.
+    ⚠️ **That is not a live defect and is not being reported as one.** Measured over all 30 stored files:
+    every `interval` is 1, the u16 and u32 reads are identical on 30/30, and the largest session is
+    36 000 samples against a u16 wrap at 65 536 — §5's 10 h hard cap keeps it below the wrap by
+    construction. It is read at its true width here for honesty, and `sample_count`/`interval_s` are
+    surfaced so a future firmware with `interval != 1` cannot silently redefine `total_seconds`.
+    **What would make it bite** (name the condition, not just today's safety): a ring whose session cap
+    exceeds 65 536 samples, or any `interval` other than 1 — the first truncates the count silently, the
+    second makes `total_seconds` a count rather than a duration. Either way `duration_s` stays correct
+    and `total_seconds` does not, so prefer `duration_s` in new code.
+
+    Back-compat: every pre-existing key keeps its name, type and value. New keys are additive."""
     if len(data) < _TRAILER_LEN:
         return None
     t = data[-_TRAILER_LEN:]
     if t[4:8] != _TRAILER_SUBMAGIC:
         return None                                        # not finalised (or not Format A)
     score = t[42]
+    samples = int.from_bytes(t[12:16], "little")
+    interval = t[16]
     return {
         "finalized": True,
-        "total_seconds": t[12] | (t[13] << 8),
+        "total_seconds": samples,                          # == duration only while interval == 1
+        "sample_count": samples,
+        "interval_s": interval,
+        "duration_s": samples * interval,
+        "start_t_ms": int.from_bytes(t[8:12], "little") * 1000,   # FLOATING wall clock — see above
         "avg_spo2": t[34],
         "min_spo2": t[35],
         "desat_ge3": t[36],
         "desat_ge4": t[37],
         "seconds_below_90": t[39] | (t[40] << 8),
         "episodes_below_90": t[41],
+        "asleep_seconds": t[32] | (t[33] << 8),
+        "pct_below_90": t[38],
+        "steps": int.from_bytes(t[43:47], "little"),
         "o2_score_x10": None if score == 0xFF else score,
         "avg_hr": t[47],
     }

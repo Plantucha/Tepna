@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-24 · **Owner-issued spec** (§1–27, verbatim in the appendix) · **Interlocks:** `OXYII-PRESENCE-MODEL-2026-08-23-BRIEF.md` (recording axis, `IDLE_UNWORN` emit) · **Affects:** `capture-host/capture.py`
+**Status:** PROPOSED (parked 2026-09-02 — the code arms are DONE: the RECORDING state machine f127d88c (#1751)/d9c66a91 (#1760), the T3 `VERIFYING` emit 954720bc (#1761), and the arming diagnostics with both-direction controls (`test_on_close_NEVER_INHERITS_unlike_on_doff`, `test_presence_wire.py:368`). What remains: **§24's real-ring tests** need a worn advertising/recording ring, and the **T-series ledger has never been written in production** — verify at the next auto-pull from `inventory.jsonl` on the box. ⚠ **Residue, unblocked and unassigned:** §22's restart matrix is 5 of 8; the 3 missing cases are the recording-axis ones and their dependency cleared when #1751 landed — three tests, nobody assigned. **Owner:** Heron · **Next step:** the 3 restart-matrix tests) · **Created:** 2026-08-24
 
 # O2Ring `.dat` auto-harvest — and the event path that has never armed
 

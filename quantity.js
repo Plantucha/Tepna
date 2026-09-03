@@ -141,15 +141,46 @@
     return { valueS: valueS, assumedMs: assumedMs, flagged: flagged };
   }
 
+  /* ── DERIVED-DISPERSION unit guard (DEEP-AUDIT-VI F5) ─────────────────────
+     rMSSD, MxDMn and their siblings are NOT RR intervals — they are dispersion
+     STATISTICS of RR, and their physiologic range CROSSES the RR threshold: a
+     clinically real rMSSD of 8 ms (severe autonomic dysfunction) sits below
+     RR_MS_THRESHOLD=10 and was classified as SECONDS, multiplied 1000×, and
+     inverted the rendered clinical verdict (severe-low-HRV rendered green;
+     measured +2.996 log-unit discontinuity between 10.0 and 9.9 ms). The
+     statistic-appropriate split: a dispersion in SECONDS is ≤ ~0.3 (300 ms of
+     rMSSD is already extreme); in MILLISECONDS it is ≥ ~1. 0.5 separates them
+     in the clinically REAL domain — the residual boundary sits between 0.5 ms
+     (sub-millisecond dispersion, not physiology) and 500 ms (equally not), so
+     the discontinuity no longer lives where patients do. The plausibility band
+     is likewise the dispersion band, not the RR band — under the RR band a
+     CORRECT 38 ms → 0.038 s always flagged, so the flag carried no signal and
+     call sites discarded it. */
+  var DISP_MS_THRESHOLD = 0.5;
+  var DISP_MIN_S = 0.0005,
+    DISP_MAX_S = 0.5;
+
+  function asSecondsDispersion(v) {
+    if (v == null || !isFinite(v)) return { valueS: null, assumedMs: false, flagged: true };
+    var assumedMs = v >= DISP_MS_THRESHOLD;
+    var valueS = assumedMs ? v / 1000 : v;
+    var flagged = !(valueS >= DISP_MIN_S && valueS <= DISP_MAX_S);
+    return { valueS: valueS, assumedMs: assumedMs, flagged: flagged };
+  }
+
   function guardBaevsky(mode, mxdmn) {
+    /* Mode IS an RR magnitude (the most-frequent RR interval) — the RR guard is right for it.
+       MxDMn is a dispersion (max−min of RR) — the RR guard misread every real MxDMn < 10 ms as
+       seconds (d_csi 1000× high, verdict inverted with NO flag; d_si 1000× low). Each operand gets
+       the guard for the quantity it actually is. */
     var m = asSecondsRR(mode),
-      x = asSecondsRR(mxdmn);
+      x = asSecondsDispersion(mxdmn);
     return {
       modeS: m.valueS,
       mxdmnS: x.valueS,
       assumedMs: m.assumedMs || x.assumedMs,
       flagged: m.flagged || x.flagged,
-      reason: m.flagged || x.flagged ? 'Baevsky Mode/MxDMn outside plausible RR range after unit normalization — value surfaced, not silently scaled' : null
+      reason: m.flagged || x.flagged ? 'Baevsky Mode/MxDMn outside its plausible range after unit normalization — value surfaced, not silently scaled' : null
     };
   }
 
@@ -175,9 +206,11 @@
     DIM: DIM,
     CANON: CANON,
     asSecondsRR: asSecondsRR,
+    asSecondsDispersion: asSecondsDispersion,
     guardBaevsky: guardBaevsky,
     baevskySI: baevskySI,
-    RR_MS_THRESHOLD: RR_MS_THRESHOLD
+    RR_MS_THRESHOLD: RR_MS_THRESHOLD,
+    DISP_MS_THRESHOLD: DISP_MS_THRESHOLD
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexUnits;
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);

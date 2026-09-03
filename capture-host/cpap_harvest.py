@@ -598,7 +598,8 @@ def _wpa_dir(root: str | None = None) -> str:
             os.makedirs(c, mode=0o700, exist_ok=True)
             return c
         except OSError:
-            continue
+            continue  # this candidate is unusable; the loop tries the next, and the last line
+                      # hands back a path the CALLER warns about — the refusal is reported there
     return cands[-1]                                    # nothing worked; the caller warns and carries on
 
 
@@ -638,7 +639,8 @@ def associated(iface: str, sysfs: str = "/sys/class/net") -> bool | None:
                 if fh.read().strip() == "down":
                     return False
         except OSError:
-            pass
+            pass      # operstate was unreadable too, so we still do not know — and `None` below is
+                      # that answer. Never False: an unreadable link is not a DOWN link.
         return None
 
 
@@ -754,7 +756,12 @@ def _wpa_up(iface: str, ssid: str, psk: str, addr: str, timeout: float, root: st
         try:
             os.unlink(conf)                            # the PSK does not outlive the association
         except OSError:
-            pass
+            # THE LINE ABOVE IS A SECURITY INVARIANT, and this is the one path that breaks it. The
+            # file holds a Wi-Fi PSK and was written to be ephemeral; if it survives, it survives
+            # SILENTLY and nothing else in the system will ever look for it. The directory is
+            # mode 0700, which bounds the exposure — it does not end it, and only a human can.
+            log.warning("cpap: could NOT remove %s — it still holds a Wi-Fi PSK; delete it by hand",
+                        conf, exc_info=True)
 
 
 def _wpa_down(iface: str, root: str | None = None) -> bool:

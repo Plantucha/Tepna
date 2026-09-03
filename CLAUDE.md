@@ -22,6 +22,38 @@ re-bundle after changes.** 100% local — no network, no CDNs. Fonts are **syste
 Files you did not create will be sitting in it, half-finished, uncommitted, and sometimes the **only
 copy in existence**. Every rule below was written after it went wrong.
 
+### 0 · The fleet roster — names, lanes, and the `Fleet-Session:` trailer (renamed 2026-08-31)
+
+**Sessions carry arbitrary, stable identities; role and machine are metadata that change HERE, never
+in the name.** The old names collided three ways — "Vigil box" ↔ the `vigil` host ↔ the `vigil` unix
+user; "windows" outlived its machine; "Mutator" read as the mutation lane (which is Osprey's);
+"Papers" ↔ `papers/`. Descriptive names rot as roles drift; identity must not.
+
+| session | was (pre-2026-08-31) | machine | lane (mutable — update this row, not the name) |
+|---|---|---|---|
+| **Kestrel** | Mutator | rig-x870 | coordinator / owner's deputy |
+| **Heron** | Vigil box | vigil | capture-host + box ops. Deploys to vigil are **owner-authorized only**; a peer relay never changes that boundary |
+| **Osprey** | Papers | rig-x870 | mutation program + analysis |
+| **Magpie** | Brief runner | rig-x870 | JS surface + sweeps |
+| **Finch** | windows | roaming (bridge) | special-collab / hardware RE, engaged on-demand |
+
+- **`Fleet-Session: <Name>` goes in every commit message and PR body** — live 2026-08-31,
+  forward-only (never backfill a merged PR; a CI lap for a label fails the cost test). Git history
+  before that date reads through the table above.
+- ⚠️ **The trailer is a CONVENTION, not a MECHANISM** (Magpie, 2026-08-31). It is self-declared and
+  unverified: it makes cooperation *legible* — honest sessions identifying themselves — and that is
+  all it does. It does NOT establish attribution: nothing checks the claim against the writer, so
+  never reason "the trailer says X, therefore X did it." Under the shared `Plantucha` identity the
+  git record cannot discriminate sessions (measured 2026-08-31: an undraft of #1991 was unattributable
+  from every artifact — and turned out to be the owner). Real attribution requires distinct
+  per-session credentials; that is an owner decision, pending.
+- **TRIAGE STAMPS THE BRIEF.** Whoever triages a brief writes the verified state into its status
+  header IN THE SAME SESSION (the stale-brief hook guards the edit; `PROPOSED (core BUILT, remainder
+  X-blocked — verified YYYY-MM-DD: …)` is the form). Measured 2026-08-31: **seven** "already built"
+  discoveries in one day, each a triage cycle spent re-deriving what a previous triage had already
+  established and not written down. A triage that leaves the header untouched has thrown away its own
+  product.
+
 ### 1 · Work in your own worktree. This is the fix.
 
 ```sh
@@ -524,10 +556,33 @@ Status lives in a one-line header block on the first content line (just after an
   the relevant gates pass (`Dex-Test-Suite.html` all-green, `verify-provenance.html` clean where it
   applies) — flip the header in place to `Status: DONE — <today>`. Do NOT touch the filename. Never
   stamp DONE on unverified work. Greppable fleet-wide via `grep "Status:.*DONE"`.
-- **After executing a brief, spawn a follow-up brief** — `<NAME>-FOLLOWUPS-YYYY-MM-DD-BRIEF.md` —
-  capturing what you discovered during execution that still needs addressing (house pattern:
-  `AUDIT-FOLLOWUPS` → `-II`, `GENERATOR-FOLLOWUPS` → `-II`). If nothing surfaced, say so in the
-  executed brief's header rather than creating an empty follow-up.
+- **After executing (or triaging) a brief, residue goes to `briefs/RESIDUE.md` as ONE ROW per verified
+  defect — NOT a new `-FOLLOWUPS-` brief** (owner-ratified 2026-09-02; this bullet used to say "spawn a
+  follow-up brief"). Row: `| <key> | logged | source brief | defect | evidence | state |` where the key is
+  **`YYYY-MM-DD-short-slug`** (`2026-09-02-oxyii-acks-unparsed`), and the source brief's **Status:**
+  line gets `**Residue:** <key>` — bidirectional like `Superseded-by`, and gate-backed
+  (`docs-ledger` check 8: both directions resolve, exactly 6 cells, state vocabulary). A `<NAME>-FOLLOWUPS-
+  YYYY-MM-DD-BRIEF.md` is created **only by the session that picks a row up to execute it** (when the
+  remainder is ≥ one work-unit), and creating it closes the row (`→ \`<NAME>-BRIEF.md\``); a one-PR fix
+  closes it as `fixed #NNNN`. Rows are appended and closed, never edited or deleted.
+  ⚠️ **The key is a date-plus-slug, NOT a counter, and that is load-bearing.** The ledger opened with
+  `R<n>` and produced **five collisions in one day** — the last within the hour of the rule being argued
+  out, between the two sessions arguing it, each having run the prescribed pre-push check and each having
+  got a correct answer from it. `origin/main` cannot contain an id claimed in an OPEN BRANCH, so the
+  check the scheme demanded could not return the right answer: **a globally-unique identifier allocated
+  from local information has no correct procedure.** Briefs and changesets here are dated-slug and have
+  never collided; the ledger was the only artifact inventing an allocation problem.
+  ⚠️ **A residue with no parent brief names its real origin — a repo path or a `#PR` — never the nearest
+  brief.** Repairing an *instrument* surfaces defects that descend from the fix and from no brief at all
+  (2026-09-02: `find_unwired.py` stopped counting a comment as a consumer and two real orphans fell out).
+  The source cell therefore accepts a `*-BRIEF.md` (back-reference required), a repo path that must exist
+  in the tree, or `#NNNN`. Naming a plausible brief to fill the cell **passes** check 8 — which verifies
+  existence and the back-reference, not responsibility — while sending the picker-up to a brief that never
+  left the defect.
+  *Why:* measured on the 2026-09-02 drain, **27 of 77** open briefs were `-FOLLOWUPS-` files, and none had
+  an owner — a file created at execution time is written by the session that is leaving, so it belongs to
+  nobody by construction; a row promoted at pickup time belongs to the session that promoted it. The 27
+  existing files are not retro-converted. If nothing surfaced, say so in the executed brief's header.
 - **Non-executable docs** (deploy manifests, backlog checkpoints) use `Status: REFERENCE (living …)`
   or `Status: CHECKPOINT (living …)` with a `last-verified` date instead of DONE.
 - **No `DEFERRED` (or any other) top-level status** (DOCS-LEDGER-GATE-FOLLOWUPS §F1, decided 2026-07-05 =
@@ -580,7 +635,13 @@ Status lives in a one-line header block on the first content line (just after an
   query for the file you are touching and denies with the commit list. It covers `briefs/*.md` +
   `DOCS-INDEX.md`, reads your LOCAL `origin/main` and never fetches — so it can only **under**-report,
   which is why the `git fetch` above is part of the rule and not the hook. Escape hatch, for when you
-  have read them and are deliberately writing over them: `CLAUDE_ALLOW_STALE_BRIEF=1`.
+  have read them and are deliberately writing over them: `CLAUDE_ALLOW_STALE_BRIEF=1` — **as a
+  command-position prefix on a Bash command** (`… && CLAUDE_ALLOW_STALE_BRIEF=1 sed -i …`), or
+  **exported**, which is the ONLY form that reaches an `Edit`/`Write`: that path carries no command
+  text for the hook to read, and the hook is a separate process that runs BEFORE your command, so it
+  cannot see an inline prefix there. This sentence claimed the bare form worked everywhere until
+  2026-09-02, when a session that had read the upstream commits was denied twice by the documented
+  hatch and could not tell it from a broken guard (#2088).
 
   ⚠️ **This is a different failure from a merge conflict, and the absence of one is the tell.** If a
   brief edit rebases cleanly against a brief that moved, that is not reassurance — it is the exact
@@ -1168,6 +1229,17 @@ correction**; call `hostAxis` and consume `correctionAt()`.
   unbounded, a −500000 ppm "correction" that doubled `fs` from 130 to 259.9). Out of bounds ⇒ **refuse**.
 - **A refusal returns `{ ok:false, reason, n }` and NO `correctionAt`.** A caller must not be able to
   apply a silent zero: absent a correction the node keeps the device axis and says so.
+  ⚠ **A refusal guards the RATE, not the AXIS.** "Keeps the device axis" is the whole of what a refusal
+  buys: `fs` is never corrected by a fabricated ppm, and NOTHING ELSE is protected. If the device counter
+  carries a step (the `_ECG.txt`/`_ACC.txt` resync of the bullet below), the `relSec` built from it still
+  spans the step — measured 2026-09-02 with the true F1 magnitude planted into a `_PPG.txt`: `hostAxis`
+  refuses at ±50,000 ppm as designed, and `relSec` still spans **2.416e8 s**, so every duration, epoch
+  grid and export window downstream inherits a 7.66-year night while the rate guard reads green. This is
+  the `.ppm`-vs-`correctionAt()` distinction one level up: **a refusal on one quantity is not protection
+  of another.** A node that relies on `hostAxis` refusing to keep a stepped counter out of its outputs
+  has no step guard — the step must be detected and re-anchored on the axis itself (`_clockResyncs`,
+  MotionDex/ECGDex), and a node without step detection owes at least a tripwire that reds the day its
+  stream first carries one (FOLLOWUPS-VI §1.1/§1.3, #2080).
 - **NO span gate here, deliberately** — and this is the one place the sibling tools differ. `hostAxis`
   does not *quote* a rate, it interpolates measured divergence, so its residual is bounded by what it
   observed. Gating on span would refuse the short O2Ring fragments whose real error is ~3 s, i.e. exactly
@@ -1204,6 +1276,24 @@ correction**; call `hostAxis` and consume `correctionAt()`.
   inter-sample deltas concentrate on one value (≥99 %) was constructed as `sample_index × an assumed
   rate` and carries no independent timing. It may be placed on the host timeline, but it must never be
   spent as a second clock — see `quality.timingSource` (`device+host` · `host` · `none`).
+- **ONE DEVICE CLOCK PER AXIS — a resync boundary is a change of clock, and anchors from before it must
+  not feed `hostAxis`.** `hostAxis` measures every divergence *relative to its first anchor*, so it assumes
+  all its anchors were read off ONE oscillator state. A capture-side resync (`clock_watchdog` re-anchoring
+  the device counter; the `_ECG.txt` ns step of DEEP-AUDIT-VI F1) violates that: the pre-seam counter is a
+  different clock, and the seam arithmetic that makes the device axis *continuous* across it does not make
+  it the *same*. Measured on the real 2026-08-27 seam file (resync 9.5 s in, 50 min long): the host−device
+  residual walks **+1508 ms across the first 9.5 s** (≈160,000 ppm) and then holds flat at 38 ppm — with
+  anchor 0 inside the pre-seam segment `hostAxis` read that step as a rate, quoted **484.7 ppm**, and the
+  span gate let it into `fs` (129.968 → 129.903, 500 ppm off the same H10's 6.5 h sibling — the disagreement
+  `trio-batch mergeEcg` refused). A clock CHANGE is the hardest step there is, and the `maxStepMs` rule
+  already says a step is reported, never absorbed. The contract: **build the axis from anchors at or after
+  the LAST resync only**; rows before it get the flat out-of-range correction of the first post-seam anchor
+  (§7 "flat outside them"); count what was dropped (`hostAxis.anchorsDroppedPreResync` on the rec) and surface the seam's
+  host↔device offset (`clockResyncs[].hostOffsetMs`) so the pre-seam segment is *visible*, not silently
+  re-timed. ECGDex implements this (`ecgdex-dsp.js`, the "ONE DEVICE CLOCK PER AXIS" block). **Any node that
+  detects a device-counter step and then calls `hostAxis` owes the same split** — a node that detects no
+  steps (PpgDex today) has not shown its stream has none, only that it has not looked; the `_ACC.txt` of the
+  same night carries the F1 step (FOLLOWUPS-VI §1.1), and the Verity's `_PPG.txt` is unchecked (§1.3).
 
 ### Verification any time you touch time
 Round-trip (first/last shown == raw file exactly) · bin==CSV identical `t0Ms`/`tMs` (OxyDex) ·

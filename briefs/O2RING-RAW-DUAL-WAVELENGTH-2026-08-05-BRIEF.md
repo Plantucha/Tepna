@@ -2,7 +2,9 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-05
+**Status:** PROPOSED (parked 2026-09-02 — five of the six §5 follow-ups are discharged: IR-vs-RED settled, the rate measured with zero hardware (`tools/ppg2w-rate.mjs`, a8e85415), the OxyDex SpO₂ route closed as dead 2026-08-17, the upstream contribution made (`README.md:462`), and the config-opcode question answered by `ring_config.py` (0cb3ab34) rather than the hoped-for JSON route. The ONE open item is **PPGDex two-channel ingest** — `ppgdex-dsp.js:559` still branches `nCh === 1 ? [ch0] : [ch0, ch1, ch2]` with no `nCh === 2` path. It is not hardware-blocked: it is gated on a decision to open the heavy JS release gate (three build systems re-bundled, GATE A/B, `computeHash` re-verification against the real corpus). **Owner:** owner/lead (gate decision) · **Next step:** decide whether a two-channel ingest is wanted before anyone builds it) · **Created:** 2026-08-05
+
+> **TRIAGED 2026-09-01 — protocol decoded across two hardware runs; the remainder is HARDWARE-shaped.** §1.2 (2026-08-05) answered three of four questions on the box; §1.3's second run established that `0x05` is **not** a plethysmogram and `0x03` is — the wire format in §2 follows from it. §3.1 is ANSWERED (which channel is which wavelength), kept for its reasoning. What is left needs the device and a supervised run, not an edit. ⚠️ §5's three FAILED optical experiments are recorded precisely so they are not repeated; §5.1 records that sunlight is the source that does solve it (owner observation).
 **Supersedes:** O2RING-RAW-STREAMS-ABSENT-2026-08-04-BRIEF.md
 
 # O2Ring `cmd 0x05` — a two-channel raw optical stream we concluded did not exist

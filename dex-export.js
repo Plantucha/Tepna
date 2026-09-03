@@ -177,42 +177,61 @@
   // ONE implementation for every node (D1) — OxyDex shipped its own oxyScrubExport in the pilot; it
   // folds into this on OxyDex's next re-bundle (leaving it now avoids an export-inert OxyDex churn).
   // Default OFF at every call site, so a normal export stays byte-identical. DOM-free; node:vm-safe.
+  /* DEEP-AUDIT-VI F13 — the scrub is KEY-DRIVEN, never node-enumerated. A filename is an identifier
+     (an O2Ring export embeds the device serial and can embed a personal name), and it reaches the
+     envelope by three routes: `nights[].file` (OxyDex, `n.fname` verbatim), `sessions[].source`
+     (PpgDex, `r.fname`), and the per-element `provenance` copy every OxyDex night carries — the same
+     `inputs[].name / sha256 / lastModifiedMs` block the schema-level scrub already reduces. The 07-xx
+     scrub handled only `schema.provenance` + `recording.{device,serial,model}`, so with scrub ON the
+     export still named the upload (measured: `Jane_Smith_O2Ring S 2100_20260612230016.csv` survived).
+     SELF-INGEST §5 acceptance: a scrubbed JSON contains no device serial, filename or input sha256. */
+  var _SCRUB_FILE_KEYS = ['file', 'fname', 'filename', 'fileName', 'sourceFile'];
+  // `source` is overloaded: ECGDex/GlucoDex write a semantic tag ('file', 'welltory'), PpgDex writes the
+  // raw filename. Strip it only when it is filename-SHAPED (a path separator or a dotted extension) —
+  // a tag has neither, and deleting a tag would change a scrubbed export's meaning, not its identity.
+  var _FILE_SHAPE_RE = /[\\/]|\.[A-Za-z0-9]{1,5}$/;
+  function _scrubProv(prov) {
+    if (!prov || typeof prov !== 'object') return prov;
+    return {
+      buildHash: prov.buildHash != null ? prov.buildHash : null, // COARSE build stamp KEPT (integrity)
+      generated: prov.generated != null ? prov.generated : null,
+      scrubbed: true,
+      // inputs keep only NON-identifying integrity (byte count); drop name + sha256 + device serial/mtime.
+      inputs: (Array.isArray(prov.inputs) ? prov.inputs : []).map(function (inp) {
+        return { bytes: inp && inp.bytes != null ? inp.bytes : null };
+      })
+    };
+  }
+  function _scrubRecordingBlock(rec) {
+    if (!rec || typeof rec !== 'object') return;
+    delete rec.device;
+    delete rec.serial;
+    delete rec.model;
+    if (typeof rec.source === 'string' && _FILE_SHAPE_RE.test(rec.source)) delete rec.source;
+  }
+  function _scrubElement(el) {
+    if (!el || typeof el !== 'object') return;
+    _SCRUB_FILE_KEYS.forEach(function (k) {
+      if (k in el) delete el[k];
+    });
+    if (typeof el.source === 'string' && _FILE_SHAPE_RE.test(el.source)) delete el.source;
+    if (el.provenance && typeof el.provenance === 'object') el.provenance = _scrubProv(el.provenance);
+    _scrubRecordingBlock(el.recording);
+  }
   function scrubExport(envelope) {
     if (!envelope || typeof envelope !== 'object') return envelope;
     var out = JSON.parse(JSON.stringify(envelope)); // deep clone — never mutate the caller
     var sc = out.schema || (out.schema = {});
-    var prov = sc.provenance;
-    if (prov && typeof prov === 'object') {
-      sc.provenance = {
-        buildHash: prov.buildHash != null ? prov.buildHash : null, // COARSE build stamp KEPT (integrity)
-        generated: prov.generated != null ? prov.generated : null,
-        scrubbed: true,
-        // inputs keep only NON-identifying integrity (byte count); drop name + sha256 + device serial/mtime.
-        inputs: (Array.isArray(prov.inputs) ? prov.inputs : []).map(function (inp) {
-          return { bytes: inp && inp.bytes != null ? inp.bytes : null };
-        })
-      };
-    }
+    if (sc.provenance && typeof sc.provenance === 'object') sc.provenance = _scrubProv(sc.provenance);
     sc.scrubbed = true;
-    // recording.contentId (identity-free) is KEPT; strip any device serial / model a node may carry.
-    if (out.recording && typeof out.recording === 'object') {
-      delete out.recording.device;
-      delete out.recording.serial;
-      delete out.recording.model;
-    }
-    // Multi-record wrappers: strip the same identifying keys from each per-element recording block.
+    // recording.contentId (identity-free) is KEPT; strip any device serial / model / filename a node may carry.
+    _scrubRecordingBlock(out.recording);
+    // Multi-record wrappers: strip the same identifying keys from each per-element block.
     // EVERY known carrier (SELF-INGEST-FOLLOWUPS-II §F1 — was nights[]-only, leaking device/serial on
     // multi ECGDex/PulseDex `recordings[]` + PpgDex `sessions[]` exports): nights[] (OxyDex/CPAPDex),
     // recordings[] (ECGDex/PulseDex), sessions[] (PpgDex).
     ['nights', 'recordings', 'sessions'].forEach(function (key) {
-      if (Array.isArray(out[key]))
-        out[key].forEach(function (el) {
-          if (el && el.recording && typeof el.recording === 'object') {
-            delete el.recording.device;
-            delete el.recording.serial;
-            delete el.recording.model;
-          }
-        });
+      if (Array.isArray(out[key])) out[key].forEach(_scrubElement);
     });
     return out;
   }

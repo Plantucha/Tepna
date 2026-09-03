@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0wrnC0lVV+CrxqFX7kyOj6IsM0aoYU6jEFEXzId9FCU=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-6MkYjFL8AUMsZnVhLy1QgbmzwD3A13rRXBA+9vJaxsk=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7WiPgSW+CChXxmEGoIUMKLLfdkxkQaZjxy/HN9Vm+OQ=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-W7m5EJur7zz9xJVj4s2diLK2Ex8nuYlUeh9vJ0nqr8U=' 'sha256-YQ8ZwmVPBGeVcn9fjAt2YEFv3p3GyTFVbMCdUwMfNbA=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hxt6smjtwBVloFlNoKmD3JaqThlaSwoXZ4nkm+NBl9k=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-rWqh0krcQ5j4KEgHto+YSbUvoGUVzFyv7ucsRx/6K5s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-9WtQnELGeJr2siQkvdq1sr9jTTvkljbhvncoWsJqp+Q=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-TIargK1gR+9Pvq0fH2Z6p0RBgHEuxPvG+Zhv7GJEox0=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hfWm0E4m3miRXxd/D2vdNh3vekQBb+w35MUeysCvjS4=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -2404,15 +2404,46 @@
     return { valueS: valueS, assumedMs: assumedMs, flagged: flagged };
   }
 
+  /* ── DERIVED-DISPERSION unit guard (DEEP-AUDIT-VI F5) ─────────────────────
+     rMSSD, MxDMn and their siblings are NOT RR intervals — they are dispersion
+     STATISTICS of RR, and their physiologic range CROSSES the RR threshold: a
+     clinically real rMSSD of 8 ms (severe autonomic dysfunction) sits below
+     RR_MS_THRESHOLD=10 and was classified as SECONDS, multiplied 1000×, and
+     inverted the rendered clinical verdict (severe-low-HRV rendered green;
+     measured +2.996 log-unit discontinuity between 10.0 and 9.9 ms). The
+     statistic-appropriate split: a dispersion in SECONDS is ≤ ~0.3 (300 ms of
+     rMSSD is already extreme); in MILLISECONDS it is ≥ ~1. 0.5 separates them
+     in the clinically REAL domain — the residual boundary sits between 0.5 ms
+     (sub-millisecond dispersion, not physiology) and 500 ms (equally not), so
+     the discontinuity no longer lives where patients do. The plausibility band
+     is likewise the dispersion band, not the RR band — under the RR band a
+     CORRECT 38 ms → 0.038 s always flagged, so the flag carried no signal and
+     call sites discarded it. */
+  var DISP_MS_THRESHOLD = 0.5;
+  var DISP_MIN_S = 0.0005,
+    DISP_MAX_S = 0.5;
+
+  function asSecondsDispersion(v) {
+    if (v == null || !isFinite(v)) return { valueS: null, assumedMs: false, flagged: true };
+    var assumedMs = v >= DISP_MS_THRESHOLD;
+    var valueS = assumedMs ? v / 1000 : v;
+    var flagged = !(valueS >= DISP_MIN_S && valueS <= DISP_MAX_S);
+    return { valueS: valueS, assumedMs: assumedMs, flagged: flagged };
+  }
+
   function guardBaevsky(mode, mxdmn) {
+    /* Mode IS an RR magnitude (the most-frequent RR interval) — the RR guard is right for it.
+       MxDMn is a dispersion (max−min of RR) — the RR guard misread every real MxDMn < 10 ms as
+       seconds (d_csi 1000× high, verdict inverted with NO flag; d_si 1000× low). Each operand gets
+       the guard for the quantity it actually is. */
     var m = asSecondsRR(mode),
-      x = asSecondsRR(mxdmn);
+      x = asSecondsDispersion(mxdmn);
     return {
       modeS: m.valueS,
       mxdmnS: x.valueS,
       assumedMs: m.assumedMs || x.assumedMs,
       flagged: m.flagged || x.flagged,
-      reason: m.flagged || x.flagged ? 'Baevsky Mode/MxDMn outside plausible RR range after unit normalization — value surfaced, not silently scaled' : null
+      reason: m.flagged || x.flagged ? 'Baevsky Mode/MxDMn outside its plausible range after unit normalization — value surfaced, not silently scaled' : null
     };
   }
 
@@ -2438,9 +2469,11 @@
     DIM: DIM,
     CANON: CANON,
     asSecondsRR: asSecondsRR,
+    asSecondsDispersion: asSecondsDispersion,
     guardBaevsky: guardBaevsky,
     baevskySI: baevskySI,
-    RR_MS_THRESHOLD: RR_MS_THRESHOLD
+    RR_MS_THRESHOLD: RR_MS_THRESHOLD,
+    DISP_MS_THRESHOLD: DISP_MS_THRESHOLD
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.DexUnits;
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
@@ -9982,7 +10015,10 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           odi3: obj.odi3 || { rate: 0, count: 0 },
           hrv: obj.hrv
             ? {
-                hrSdnn: obj.hrv.hrSdnnProxy || obj.hrv.hrSdnn || 0,
+                /* DEEP-AUDIT-IV §3-RESULT — `|| 0` turned an absent proxy into a measured 0.00 in the
+                   export a consumer reads. The two proxies are still tried in order; what changes is
+                   that "neither was measured" now leaves null instead of a number nobody computed. */
+                hrSdnn: obj.hrv.hrSdnnProxy != null && isFinite(obj.hrv.hrSdnnProxy) ? obj.hrv.hrSdnnProxy : obj.hrv.hrSdnn != null && isFinite(obj.hrv.hrSdnn) ? obj.hrv.hrSdnn : null,
                 pnn3: obj.hrv.pnn3 || 0,
                 hrFloor: obj.hrv.hrFloor || 0,
                 hrSlope: obj.hrv.hrSlope || 0,
@@ -12046,9 +12082,10 @@ __exports.OxyDex = window.OxyDex;
       r.d_sd1_sd2 = r.d_sd2 > 0 ? r.d_sd1 / r.d_sd2 : NaN;
 
       // ── Toichi CVI / CSI ──
-      // MeanRR through the SAME asSecondsRR detector as MxDMn/Mode above (was a hard /1000 → ~10³× mis-scale
+      // MeanRR through the SAME asSecondsRR detector as Mode above (was a hard /1000 → ~10³× mis-scale
       // on a MeanRR-in-seconds vendor export; latent while both real ingest paths carried MeanRR in ms).
-      const meanRR_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR).valueS : r._meanRR / 1000;
+      const _mrrQ = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._meanRR) : null;
+      const meanRR_s = _mrrQ ? _mrrQ.valueS : r._meanRR / 1000;
       /* Toichi CVI: log10(rMSSD_ms × MeanRR_ms) — typical resting 3.5–4.5, and the render colour rule
          (>4.4 good / >4.1 warn / else bad) is calibrated to that ms×ms band.
          §2.1 — this read `_meanRR` RAW while its neighbours two lines up and down read it through the
@@ -12057,14 +12094,25 @@ __exports.OxyDex = window.OxyDex;
          stayed exactly invariant. DEEP-AUDIT-2026-07-22's REFUTED row dismissed this as "internally
          consistent (both operands from the same vendor)" — ratio-cancellation reasoning, which does
          NOT hold for a LOG OF A PRODUCT: log10(a_s·b_s) = log10(a_ms·b_ms) − 6. Compute in ONE
-         declared unit (seconds, via the same detector) and restate into the published ms×ms band. */
-      const rmssd_s = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsRR ? DexUnits.asSecondsRR(r._rmssd).valueS : r._rmssd / 1000;
+         declared unit (seconds, via the same detector) and restate into the published ms×ms band.
+         F5 (DEEP-AUDIT-VI): rMSSD is a DISPERSION, not an RR interval — through the RR guard a
+         clinically real rMSSD < 10 ms read as SECONDS, inflated CVI by +3 log units, and rendered
+         severe-low-HRV green (8 ms, meanRR 880 → 6.85 'good'; truth 3.85 'bad'). It rides the
+         dispersion guard now, and the flag is SURFACED (d_cvi_flagged mirrors d_si_flagged) — under
+         the dispersion band it finally carries signal, where the RR band flagged every correct
+         value and taught call sites to discard it. */
+      const _rmsQ = typeof DexUnits !== 'undefined' && DexUnits && DexUnits.asSecondsDispersion ? DexUnits.asSecondsDispersion(r._rmssd) : null;
+      const rmssd_s = _rmsQ ? _rmsQ.valueS : r._rmssd / 1000;
       r.d_cvi = rmssd_s > 0 && meanRR_s > 0 ? Math.log10(rmssd_s * meanRR_s) + 6 : NaN;
+      r.d_cvi_flagged = !!((_rmsQ && _rmsQ.flagged) || (_mrrQ && _mrrQ.flagged));
       // CSI: MxDMn in SECONDS / meanRR in seconds. Uses the SAME guard-normalized MxDMn as d_si
       // (was a hard "assumes seconds" → ~10³× mis-scale on a ms-unit file; -III §1). meanRR_s already
       // converts meanRR ms→s above, so both operands are seconds; do NOT re-fork the threshold.
+      // F5: guardBaevsky now reads MxDMn through the dispersion guard (it is one), so a real
+      // MxDMn < 10 ms no longer arrives here 1000× large; the guard's verdict is surfaced.
       var _mxdmnS = r._baevskyS && r._baevskyS.mxdmnS != null ? r._baevskyS.mxdmnS : r._mxdmn;
       r.d_csi = meanRR_s > 0 && _mxdmnS != null ? _mxdmnS / meanRR_s : NaN;
+      r.d_csi_flagged = !!(r.d_si_flagged || (_mrrQ && _mrrQ.flagged));
 
       // ── Autonomic Balance Score ──
       r.d_abs = _all(r._sns, r._psns) && r._sns + r._psns > 0 ? (r._psns - r._sns) / (r._psns + r._sns) : NaN;
@@ -14830,15 +14878,28 @@ __exports.PulseDex = window.PulseDex;
     // a timestamp column parses as a date.
     const sample = rows.slice(0, Math.min(rows.length, 60));
     const ncol = Math.max(...sample.map((r) => r.split(delim).length));
+    const headCells = (sample[0] || '').split(delim);
     let tsCol = -1,
       gCol = -1,
       gScore = -1;
     for (let c = 0; c < ncol; c++) {
       let dateHits = 0,
         numHits = 0,
+        intHits = 0,
         inBand = 0,
         total = 0,
         sum = 0;
+      /* SERIAL-INTEGER DETECTION (DEEP-AUDIT-VI F6). Dexcom Clarity's first column is a row
+         counter (Index = 1, 2, 3, …) whose values sit inside the [2, 600] "physiologic" band for
+         the whole 60-row sample — so it scored within ONE hit of the real glucose column, and a
+         single non-numeric glucose cell (the "Low" Clarity writes for below-range readings)
+         flipped the pick to it: every headline metric was then computed on ROW NUMBERS, silently.
+         A column whose numeric cells are all integers advancing by exactly ±1 is a counter, not a
+         measurement — it is disqualified from glucose candidacy outright rather than down-scored,
+         because no amount of in-band coverage makes a serial index a glucose series. */
+      let prevNum = null,
+        stepSign = 0,
+        serial = true;
       for (const line of sample) {
         const cells = line.split(delim);
         if (c >= cells.length) continue;
@@ -14851,12 +14912,26 @@ __exports.PulseDex = window.PulseDex;
           numHits++;
           sum += num;
           if ((num >= 2 && num <= 30) || (num >= 30 && num <= 600)) inBand++;
+          if (Number.isInteger(num)) intHits++;
+          if (prevNum !== null) {
+            const st = num - prevNum;
+            if (Math.abs(st) !== 1 || (stepSign !== 0 && st !== stepSign)) serial = false;
+            else stepSign = st;
+          }
+          prevNum = num;
         }
       }
       if (total < 3) continue;
       if (dateHits / total > 0.6 && tsCol < 0) tsCol = c;
-      // prefer the numeric column with the most physiologic in-band hits (not the date)
-      const sc = inBand / total - dateHits / total;
+      const serialCol = serial && numHits >= 5 && intHits === numHits;
+      if (serialCol) continue; // a row counter can be a fine tsCol tiebreak-loser, never the glucose
+      /* Prefer the numeric column with the most physiologic in-band hits (not the date). A header
+         cell naming glucose outranks band statistics (+1 exceeds the whole sc range): the vendor
+         DECLARED the column, and the declaration cannot be outvoted by a lucky integer column —
+         but only a column that is still mostly numeric may claim the bonus, so a text column
+         with a glucose-ish header cannot win. */
+      const gHead = /gluco/i.test((headCells[c] || '').trim());
+      const sc = inBand / total - dateHits / total + (gHead ? 1 : 0);
       if (numHits / total > 0.6 && sc > gScore) {
         gScore = sc;
         gCol = c;
@@ -18721,10 +18796,29 @@ __exports.GlucoDex = window.GlucoDex;
      `cvhrIndex: 0` is this guard's fabricated value, byte-pinned and enforced by GATE-B.
      `events` stays `[]`: the event list genuinely is empty, and a list's absence is not a number
      awaiting measurement. Only the INDEX becomes null. */
-  function cvhrFromNN(nn, tt) {
+  // DEEP-AUDIT-VI F10 — upper bound on a beat-time span before a consumer sizes arrays from it. TWO
+  // consumers: `cvhrFromNN` below (the port of ECGDex detectCVHR that shipped WITHOUT the #1800 guard)
+  // and the `beatConfidence` call in analyze(), which is fed TIME-derived pseudo-indices
+  // (`round(footSec·fs)`) — so unlike the ECG original it is NOT bounded by beat count. `tt`/`footSec`
+  // are gap-ACCUMULATED, so one mid-file sensor-clock rebase (+2792 days, the real H10 shape ECGDex
+  // measured) survives parsePPG into relSec — hostAxis refuses at ±50000 ppm, so the raw jump stays —
+  // and analyze() died allocating span-sized arrays (RangeError at 7.7 GB; >50 GB before OOM in
+  // #1800), killing the whole night's export. 48 h, as ECGDex `CVHR_MAX_SPAN_S`: over twice any real
+  // recording, so a gappy night still fits. Refusal ⇒ null with a reason, never a fabricated 0.
+  const PPG_MAX_SPAN_S = 48 * 3600;
+  /* `activeSec` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) is the beat-COVERED time the
+     caller measured — inter-beat deltas ≤ PPG_CVHR_GAP_S summed. When it is > 0 it is the index's
+     denominator; absent or 0 falls back to the wall span, which is exact for a gap-free series.
+     Ports the ECGDex fix of the same defect (DEEP-AUDIT-VI F3/F10): both nodes now count events per
+     hour OF OBSERVED RECORDING, so the two `apnea.cvhrIndex` values the Integrator corroborates
+     against each other are on the same basis. Divide one by wall span and the other by covered time
+     and the corroboration measures the dropouts, not the physiology. */
+  function cvhrFromNN(nn, tt, activeSec) {
     const N = nn.length;
     if (N < 60 || !tt || tt.length !== N) return { events: [], index: null };
     const tEnd = tt[N - 1];
+    // F10 — refuse an implausible SPAN before `M` sizes six arrays from it (see PPG_MAX_SPAN_S).
+    if (!isFinite(tEnd) || tEnd > PPG_MAX_SPAN_S) return { events: [], index: null, reason: 'implausible-span' };
     const M = Math.floor(tEnd);
     if (M < 120) return { events: [], index: null }; // < 2 min → no apnea-band train can be RESOLVED, so no index exists
     const hr = new Float64Array(M);
@@ -18802,9 +18896,17 @@ __exports.GlucoDex = window.GlucoDex;
         }
       }
     }
-    const hours = tEnd / 3600;
+    /* CVHR index = events per hour OF OBSERVED RECORDING (DEEP-AUDIT-VI F3, ported from ECGDex).
+       This divided by the wall span `tEnd`, so sensor DEAD TIME sat in the denominator of a metric
+       the Integrator corroborates against ECGDex's — and the Verity is the fleet's worst offender for
+       dropouts (24 segments in one corpus night against the H10's 3), so the PPG leg carried the
+       larger error of the two. Events can only arise in covered seconds: the 1 Hz resample above
+       holds the last beat's HR flat across a hole, so `res` decays to 0 there and the ENV_ON gate
+       stays shut. `denomSec` is returned so a consumer can see the basis instead of inferring it. */
+    const denomSec = activeSec > 0 ? activeSec : tEnd;
+    const hours = denomSec / 3600;
     const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;
-    return { events, index };
+    return { events, index, denomSec };
   }
   // `omit` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) marks intervals that are NOT
   // MEASUREMENTS AT ALL — currently only those straddling a time discontinuity (O2RING-PPG-GAP §2).
@@ -20460,21 +20562,45 @@ __exports.GlucoDex = window.GlucoDex;
        constant offset between the two largely cancels; the residual difference is real and is why the
        re-fitted σ is not expected to reproduce the old figure to the last decimal. */
     const _confSpine = footSpineOK ? footSec : peakSec;
-    const _pConfMap = beatConfidence(
-      _confSpine.map((s) => Math.round(s * rec.fs)),
-      sqi,
-      rec.fs,
-      rec.t0Ms || 0
-    );
+    /* DEEP-AUDIT-VI F10 — `beatConfidence` sizes four Float64Array(S) from the SPAN of what it is
+       handed, and here it is handed time-derived pseudo-indices (`round(footSec·fs)`), not sample
+       indices — so the ECGDex note "beatConfidence is safe by construction" is true for ECG and false
+       at this call. One in-file sensor-clock rebase stretches footSec by years and the allocation
+       killed the whole night's export. Refuse the span here rather than inside the mirror (which is
+       genuinely count-bounded on ECG): ppiConf becomes null, which the export site already tolerates
+       (`conf: … : null`), and the rest of the record survives. */
+    const _confSpanS = _confSpine.length > 1 ? _confSpine[_confSpine.length - 1] - _confSpine[0] : 0;
+    const _confSpanOK = isFinite(_confSpanS) && _confSpanS <= PPG_MAX_SPAN_S;
+    const _pConfMap = _confSpanOK
+      ? beatConfidence(
+          _confSpine.map((s) => Math.round(s * rec.fs)),
+          sqi,
+          rec.fs,
+          rec.t0Ms || 0
+        )
+      : null;
     const _t0 = rec.t0Ms || 0;
-    const ppiConf = corr.tt.map((s) => {
-      const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));
-      return Number.isFinite(c) ? +c.toFixed(3) : 1;
-    });
+    const ppiConf = _pConfMap
+      ? corr.tt.map((s) => {
+          const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));
+          return Number.isFinite(c) ? +c.toFixed(3) : 1;
+        })
+      : null;
     // OXYDEX-PULSE-RESOURCING §Phase 4: whole-record CVHR from the corrected NN series (autonomic
     // apnea correlate). Emitted for every PPG record; the Integrator only corroborates the FINGER one
     // (the O2Ring's own pleth) against ECGDex cardiac CVHR. index = events/hour (0 = none detected).
-    const _cvhr = cvhrFromNN(corr.nn, corr.tt);
+    /* OBSERVED seconds for the index's denominator (DEEP-AUDIT-VI F3 port). Measured here with the
+       SAME rule ECGDex applies to its own beat series — inter-beat deltas over the gap cut are dead
+       time, not a long interval — rather than reusing `ppgCoverage`, which answers the neighbouring
+       question about the SAMPLE stream: a hole in the samples and a hole in the accepted beat series
+       are not the same set, and the denominator has to match the series the events came from. */
+    const PPG_CVHR_GAP_S = 10; // ECGDex `GAP_S` — one cut, so the two nodes' indices stay comparable
+    let _cvhrActiveSec = 0;
+    for (let k = 1; k < corr.tt.length; k++) {
+      const _d = corr.tt[k] - corr.tt[k - 1];
+      if (_d > 0 && _d <= PPG_CVHR_GAP_S) _cvhrActiveSec += _d;
+    }
+    const _cvhr = cvhrFromNN(corr.nn, corr.tt, _cvhrActiveSec);
     // §4: per-interval CLEAN-adjacency mask — interval i (between beat i & i+1) is clean when it
     // was NOT correction-flagged AND both endpoint beats cleared SQI≥0.5 (SQI folds the 3-LED
     // agreement, §5). rMSSD/pNN50/SD1 are computed over clean adjacent pairs so sub-ectopy optical
@@ -20895,6 +21021,12 @@ __exports.GlucoDex = window.GlucoDex;
       sdnnRobustBasis,
       cvhrIndex: _cvhr.index, // §Phase 4 — CVHR events/hour from the finger PPI NN series (autonomic apnea correlate)
       cvhrEvents: _cvhr.events.length,
+      // The index's BASIS travels with it (F3 port) — present only when one was computed, so a
+      // refusal path stays byte-stable and no committed fixture moves for an inert key.
+      ...(_cvhr.denomSec > 0 ? { cvhrDenomSec: _cvhr.denomSec } : {}),
+      // F10 — present ONLY when the span refusal fired, so a refused null is told apart from a
+      // too-short one; absent otherwise (no committed fixture moves for an inert key).
+      ...(_cvhr.reason ? { cvhrReason: _cvhr.reason } : {}),
       sd2Robust,
       lfRobust,
       hfRobust,
@@ -20909,6 +21041,7 @@ __exports.GlucoDex = window.GlucoDex;
       ppiFlags: corr.flags,
       // Aligned with nn/tt the same way — the fused-hat per-beat weight (see the block above).
       ppiConf,
+      ...(_confSpanOK ? {} : { ppiConfReason: 'implausible-span' }), // F10 — see the beatConfidence call
       poincareNN: nn,
       sd1: poin ? poin.sd1 : null,
       sd2: poin ? poin.sd2 : null,
@@ -21326,6 +21459,13 @@ __exports.GlucoDex = window.GlucoDex;
     correctRR,
     beatSQI,
     beatConfidence,
+    /* ADDITIVE EXPORT (DEEP-AUDIT-VI F3 port), mirroring ECGDex, which exports `detectCVHR` for the
+       same reason: the denominator and the refusal guards become directly assertable, and — the part
+       only an export makes possible — the two nodes' implementations can be run on IDENTICAL input in
+       one assertion. The Integrator corroborates `apnea.cvhrIndex` across them, so "same quantity" is
+       a contract between the nodes, not an internal detail of either. No existing caller reaches it
+       through this surface; `analyze` still calls it directly. */
+    cvhrFromNN,
     timeDomain,
     poincare,
     lombScargle,
@@ -21558,6 +21698,46 @@ __exports.GlucoDex = window.GlucoDex;
         // so every committed Verity export stays byte-identical; only a finger export carries it.
         ...(r.timebase ? { timebase: r.timebase } : {})
       };
+      /* ── THE AXIS MEASUREMENTS, NOT ONLY ITS VERDICT (Heron's cross-family trace, 2026-09-02) ──
+         `quality` above published the CONCLUSION — `timingSource`, `axisDrawn`, `axisQuantizedShare`
+         — and dropped every number that produced it. A consumer could read `'device+host'` and had
+         no way to check whether the host column was actually a second clock, which is precisely what
+         CLAUDE.md §7 instructs it to read ("read `independent`, never a ~0 ppm"). ECGDex has emitted
+         the full block at `ecgdex-dsp.js:5210+` all along; PpgDex computed the same values (`:760`)
+         and this reshape named none of them.
+         ⚠️ The comment at `:740` predicted this exact failure — `independent`/`spreadMs`/`inertReason`
+         "DROPPED here … discarded one line after it was computed" — and the block one layer down warns
+         that a reshape drops anything it does not name, citing `stability` vanishing at this very seam
+         on the first real-data run. The file documented the defect and nothing read the file.
+         Field set mirrors ECGDex so the two are comparable by construction; CONDITIONAL on an axis
+         existing, so a night without one omits the block and every committed export stays
+         byte-identical rather than gaining a wall of nulls. */
+      if (r.hostAxis && r.hostAxis.ok) {
+        out.recording.hostAxis = {
+          anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
+          ppm: nz(r.hostAxis.ppm),
+          maxStepMs: nz(r.hostAxis.maxStepMs),
+          totalMs: nz(r.hostAxis.totalMs),
+          /* The three §7 discriminators. `independent` is the verdict on whether the host column is a
+             SECOND CLOCK at all; `spreadMs` is the residual it was decided on; `inertReason` is the
+             sentence DexClock wrote when it said no. Publishing the reason means a reader sees WHY,
+             not just false. */
+          independent: r.hostAxis.independent == null ? null : r.hostAxis.independent,
+          spreadMs: nz(r.hostAxis.spreadMs),
+          inertReason: r.hostAxis.inertReason || null,
+          drawn: r.hostAxis.drawn == null ? null : r.hostAxis.drawn,
+          quantizedShare: nz(r.hostAxis.quantizedShare),
+          timingSource: r.timingSource || null,
+          stability: r.hostAxis.stability
+            ? {
+                tau0: nz(r.hostAxis.stability.tau0),
+                noiseType: r.hostAxis.stability.noiseType || null,
+                slope: nz(r.hostAxis.stability.slope),
+                ppmUncertainty: nz(r.hostAxis.stability.ppmUncertainty)
+              }
+            : null
+        };
+      }
       out.hrv = {
         time: {
           meanRR: nz(r.meanRR),
@@ -21610,6 +21790,14 @@ __exports.GlucoDex = window.GlucoDex;
             /* §1.6 link 2 — the field the Integrator already reads. `integrator-dsp` has assigned
                `summary.respRateBrpm = _hf.respRate` all along (link 3 was never missing); it simply had
                nothing to read, because this block carried no frequency-valued key at any level.
+               🔴 CORRECTED 2026-09-02 — the two sentences above are WRONG and this key alone was never
+               enough. The Integrator's assignment they name lives inside `if (node === 'ECGDex')`
+               (`integrator-dsp.js:365`); the whole file assigns that field at exactly two sites, the
+               other being MotionDex's. The branch PpgDex actually flows through never read it, so this
+               export published a respiration rate that reached no fusion for a month. Wired on the
+               consumer side 2026-09-02 and gated. Left standing rather than deleted because a producer
+               asserting its consumer is wired is the failure worth seeing: nothing here could have
+               detected it, since the claim is about a file this one does not read.
                WHOLE-RECORD deliberately, not the epoch median: respiration is being reported as ONE
                number for the recording, and `fq` is the whole-record spectrum — the same scale ECGDex
                reports its `respRate` on, which is what makes the two comparable in the fusion. The
@@ -21628,6 +21816,11 @@ __exports.GlucoDex = window.GlucoDex;
       out.apnea = {
         cvhrIndex: r.cvhrIndex != null ? r.cvhrIndex : null,
         cvhrEvents: r.cvhrEvents != null ? r.cvhrEvents : null,
+        /* WHICH HOURS the index divided by (F3 port) — attached only when the index was computed, so
+           a refusal carries no basis it does not have. The Integrator reads this block from BOTH
+           nodes; without the denominator a consumer cannot tell a 5 /h from a 40 % covered night
+           apart from a 5 /h from a clean one. */
+        ...(r.cvhrIndex != null && r.cvhrDenomSec > 0 ? { cvhrHours: +(r.cvhrDenomSec / 3600).toFixed(2) } : {}),
         cvhrMethod: 'CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)',
         cvhrTier: 'emerging'
       };
@@ -23591,8 +23784,20 @@ __exports.PpgDex = window.PpgDex;
     // 2) resample EDR · HRresp · HRabs onto a uniform 4 Hz grid
     const FS = 4,
       t0 = tt[0],
-      t1 = tt[n - 1],
-      M = Math.max(16, Math.floor((t1 - t0) * FS));
+      t1 = tt[n - 1];
+    /* REFUSE an implausible SPAN — the SIBLING of detectCVHR's guard (#1800), missed when that fix
+       landed because the instance was fixed, not the class. `tt` is the gap-ACCUMULATED beat-time
+       axis, so one in-file sensor-clock rebase stretches it arbitrarily: measured 2026-08-23 (H10,
+       raw line 1316), the sensor stamp jumps +2792 DAYS ten seconds in, making t1−t0 = 241,259,871 s.
+       M would be 965 million and every Float64Array below ~7.7 GB — external memory, invisible to
+       V8's heap cap, so the process dies by cgroup/kernel OOM with no stack (>50 GB observed before
+       any bound). detectCVHR REFUSED this night correctly while this sibling three calls later
+       killed the fold. Same bound, same reason; `null` is this function's established refusal shape
+       (the M<16 path below) and every consumer already handles it. The only other span-to-grid
+       consumer of `tt` is detectCVHR itself — `beatConfidence` is safe by construction (sample-index
+       seconds, bounded by count). */
+    if (!isFinite(t1 - t0) || t1 - t0 > CVHR_MAX_SPAN_S) return null;
+    const M = Math.max(16, Math.floor((t1 - t0) * FS));
     if (M < 16) return null;
     const grid = new Float64Array(M);
     for (let i = 0; i < M; i++) grid[i] = t0 + i / FS;
@@ -23618,8 +23823,30 @@ __exports.PpgDex = window.PpgDex;
     // 3) respiration rate measured DIRECTLY from the EDR band (dominant period via
     // autocorrelation), not echoed from the Lomb hint. Center the phase analysis on it.
     const edrPeriod = _autocorrPeriod(edrB, FS, 2.5, 10);
-    const respFromEDR = edrPeriod ? +(60 / edrPeriod).toFixed(1) : respHint && respHint >= 6 && respHint <= 24 ? +respHint.toFixed(1) : 15;
-    const f0 = respFromEDR >= 6 && respFromEDR <= 24 ? respFromEDR / 60 : 0.25;
+    /* 🔴 REFUSE, DO NOT SUBSTITUTE (FOLLOWUPS §1.10, from §1.5's adjudication). This read
+         `edrPeriod ? 60/edrPeriod : (respHint in 6..24 ? respHint : 15)`
+       — two substitutions stacked behind a surfaced number, neither marked. The second is a bare
+       CONSTANT 15, and §1.5 measured what that constant is worth: over 22 co-recorded CPAP nights a
+       flat 15.0 br/min scores MAE 0.80 against the device's own RespRate while the estimator scores
+       1.90, so the fallback OUTPERFORMS the measurement it stands in for — which is precisely why a
+       reader must be able to tell them apart, and could not: §1.5 had to detect fallback nights by
+       testing `=== 15.0`, which cannot separate a genuine 15.0 from the constant.
+       The FIRST substitution is worse than unmarked, it is self-contradictory: the comment two lines
+       up says this rate is "measured DIRECTLY from the EDR band … not echoed from the Lomb hint",
+       and the fallback echoes exactly that hint. A method's stated independence cannot hold only on
+       the nights it succeeds.
+       So: no dominant EDR period ⇒ **null with a reason**, the house rule (#2044 artifact refusal,
+       #2052 named refusals). Consumers already null-guard the export; the app surfaces are fixed in
+       the same change to print the reason instead of a number. */
+    const respFromEDR = edrPeriod ? +(60 / edrPeriod).toFixed(1) : null;
+    const respFromEDRReason = edrPeriod ? null : 'no dominant EDR period in the 2.5–10 s search band — respiration not recoverable from R-peak amplitude on this record';
+    /* `f0` is an ANALYSIS CENTERING FREQUENCY for the narrow-band phase extraction below, not a
+       surfaced quantity: 0.25 Hz keeps the PLV/coupling path running when the rate is unknown, as it
+       already did for an out-of-range rate. It is deliberately NOT nulled here — that would silently
+       change crcPLV/couplingStrength, a different metric with its own grade, inside a unit about the
+       breath rate. ⚠️ Whether a PLV computed at an ASSUMED centre is itself quotable is a real
+       question and is filed as FOLLOWUPS §1.11, not answered here. */
+    const f0 = respFromEDR != null && respFromEDR >= 6 && respFromEDR <= 24 ? respFromEDR / 60 : 0.25;
     const phE = _narrowPhase(edrB, FS, f0),
       phH = _narrowPhase(hrB, FS, f0);
     // windowed PLV — averaged over 60 s windows so slow respiratory-frequency drift
@@ -23700,6 +23927,7 @@ __exports.PpgDex = window.PpgDex;
     return {
       cpc,
       respFromEDR,
+      respFromEDRReason,
       rsaEfficiencyRatio: +rsaRatio.toFixed(2),
       rsaAmplitudeBpm: +rsaAmp.toFixed(1),
       crcPLV: +plv.toFixed(3),
@@ -23718,10 +23946,15 @@ __exports.PpgDex = window.PpgDex;
   //  Detect dips/cycles in the per-second HR envelope with 20–60 s period and
   //  the characteristic bradycardia→tachycardia rebound. Returns events + index.
   // ════════════════════════════════════════════════════════════════════════
-  // Upper bound on a beat series' span before `detectCVHR` refuses to resample it (see the refusal
-  // below). 48 h — over twice any real recording, so a gappy night still fits.
+  // Upper bound on a beat series' span before a consumer refuses to resample it onto a uniform
+  // grid — TWO consumers: `detectCVHR` (the #1800 refusal below) and `cardiorespCoupling` (the
+  // sibling guard added after 2026-08-23's +2792-day sensor rebase OOM-killed the fold there).
+  // 48 h — over twice any real recording, so a gappy night still fits.
   const CVHR_MAX_SPAN_S = 48 * 3600;
-  function detectCVHR(nn, tt) {
+  // `activeSec` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) is the beat-COVERED time
+  // the caller measured (nnRes.activeSec — inter-beat deltas ≤ GAP_S summed); when it is > 0 it is
+  // the index denominator instead of the wall span. See the "events per hour" comment at the bottom.
+  function detectCVHR(nn, tt, activeSec) {
     const N = nn.length;
     /* REFUSE (§2.6). `index: 0` IS the exported `cvhrIndex`, and 0 reads as "we looked for cyclic
        variation and there was none" — a clinically meaningful negative — when the truth is that
@@ -23833,10 +24066,20 @@ __exports.PpgDex = window.PpgDex;
         }
       }
     }
-    // CVHR index = events per hour
-    const hours = tEnd / 3600;
+    /* CVHR index = events per hour OF OBSERVED RECORDING (DEEP-AUDIT-VI F3). This divided by the
+       wall span `tEnd` — the gap-folded end stamp — so sensor DEAD TIME sat in the denominator: a
+       1.5 h strap-off in a 3 h night halved the shipped index (29.7 → 14.0, reproduced on planted
+       physiology that did not change), while meanRR/rMSSD/SDNN beside it correctly ignored the gap.
+       Events can only arise in covered seconds (the 1 Hz resample holds the last beat's HR flat
+       through a gap, so `res` decays to 0 there and the ENV_ON gate stays shut), so covered time is
+       the coherent basis — the same "per hour of analyzable recording" convention OxyDex's ODI
+       uses. `activeSec` is what analyze() measured (nnRes.activeSec); absent or 0 it falls back to
+       the span, which is exact for a gap-free series (activeSec ≡ tEnd − tt[0] there). `denomSec`
+       is returned so a consumer can see the basis rather than infer it. */
+    const denomSec = activeSec > 0 ? activeSec : tEnd;
+    const hours = denomSec / 3600;
     const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;
-    return { events, index, hrSeries: Array.from(sm), resSeries: Array.from(res), M };
+    return { events, index, hrSeries: Array.from(sm), resSeries: Array.from(res), M, denomSec };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -24435,7 +24678,8 @@ __exports.PpgDex = window.PpgDex;
       sd2v = pg.sd2 == null ? null : +pg.sd2.toFixed(2);
 
     prog(92, 'CVHR / apnea detection…');
-    const cvhrRaw = detectCVHR(nn, tt);
+    // Denominator = the same ACTIVE seconds `durSec` is built from (F3): dead time is not observed time.
+    const cvhrRaw = detectCVHR(nn, tt, nnRes.activeSec);
     // MOTION BEFORE STAGING (see epochMotion). The chest ACC is parsed and on hand here; computing
     // it after the stager — as this did — is what left the classifier blind to the one feature that
     // most improves it.
@@ -24651,7 +24895,9 @@ __exports.PpgDex = window.PpgDex;
       stages,
       stageMin,
       totSleep: +totSleep.toFixed(0),
-      cvhr: { index: cvhr.index, events: cvhr.events, hrSeries: cvhr.hrSeries, resSeries: cvhr.resSeries },
+      // `denomSec` rides along (F3): this reshape is an ALLOWLIST, so a field detectCVHR returns and
+      // the export reads is dead unless it is named here — the analyze-level assertion is what shows it.
+      cvhr: { index: cvhr.index, events: cvhr.events, hrSeries: cvhr.hrSeries, resSeries: cvhr.resSeries, denomSec: cvhr.denomSec },
       hrvStab,
       surgeEsc,
       crc,
@@ -24663,7 +24909,19 @@ __exports.PpgDex = window.PpgDex;
       deviceHR: rec.deviceHR || null,
       deviceACC: rec.deviceACC || null,
       accFs: rec.accFs || null,
-      t0Ms: rec.t0Ms || null
+      t0Ms: rec.t0Ms || null,
+      /* TIMING PROVENANCE, carried through the reshape (H10-2019-ORIGIN, 2026-09-01). Like `endEpochMs`
+         above these are properties of the RECORDING, not of the analysis — and until this line they
+         were DROPPED here, which made `ecgBuildNodeExport`'s `recording.hostAxis` block (HOSTAXIS-
+         STABILITY §4.2) dead on every real path: `compute()` and the app both route parse → analyze →
+         buildNodeExport, so `r.hostAxis` was always undefined and no shipped export ever carried it
+         (verified on the 2026-09-01 refolded corpus — zero `hostAxis`/`timingSource` keys). The same
+         reshape-drop class trio-batch's PPG merge already fixed (WEARABLE-HOST-AXIS-FOLLOWUPS §F3),
+         one node over. A reshape that renames fields must forward the ones it does not rename. */
+      hostAxis: rec.hostAxis || null,
+      tMsCorrected: rec.tMsCorrected === true,
+      deviceEpoch: rec.deviceEpoch || null,
+      clockResyncs: rec.clockResyncs || null
     };
   }
 
@@ -26022,189 +26280,275 @@ __exports.PpgDex = window.PpgDex;
        reaches them through this surface, and the internal call sites are unchanged. */
     poincareGeo,
     detectCVHR,
+    cardiorespCoupling,
     dfaAlpha1,
     sampEn,
     parseTimestamp
   };
 
-  // ════════════════════════════════════════════════════════════════════════
-  //  PURE ECG TEXT PARSER  (headless mirror of the app's streaming worker)
-  //  ─────────────────────────────────────────────────────────────────────
-  //  The app streams raw ECG in a Web Worker (built from a Blob so it bundles) —
-  //  but a Worker cannot run in the co-load realm (Data Unifier / OverDex / the
-  //  test suite), so the headless compute() path needs a PURE, DOM-free parser
-  //  for the SAME Polar Sensor Logger `*_ECG.txt` layout the worker reads:
-  //    Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]   (~130 Hz)
-  //  Behaviour mirrors WORKER_SRC / parseTSfloat in ecgdex-app.js byte-for-byte:
-  //  last column = µV sample (clamped Int16), first column = Phone-timestamp →
-  //  t0Ms (via the LOCAL parseTimestamp — Clock Contract §2, no fabrication), and
-  //  the `timestamp [ms]` column (index 2) sets fs from its step. NB the app's
-  //  ingest substitutes _floatNow() when a file carries no stamp; the headless
-  //  parser does NOT — a stampless file keeps t0Ms:null (Clock Contract §2.6: a
-  //  missing anchor stays visible, never now()), and gangliorEvents already emits
-  //  t:null/tMs:null for that case. Returns the SAME rec shape genSynthetic/the
-  //  worker hand analyze(): { int16, fs, gaps, t0Ms, offsetMin, source, durSec }.
-  // ════════════════════════════════════════════════════════════════════════
-  function parseECGText(text) {
-    var lines = String(text == null ? '' : text).split(/\r?\n/);
-    var cap = 1 << 16,
-      arr = new Int16Array(cap),
-      n = 0;
-    var t0Ms = null,
-      offsetMin = null,
-      fs = 130,
-      prevMs = null,
+  /* ════════════════════════════════════════════════════════════════════════════════════════════
+     THE ECG TIMING WALK — ONE implementation, BOTH lanes (DEEP-AUDIT-VI F2, 2026-09-01)
+     ─────────────────────────────────────────────────────────────────────────────────────────────
+     Everything this node knows about an ECG file's CLOCK — the sample rate, the dropouts, the
+     mid-file resyncs, the host discipline, the device epoch — used to exist TWICE: here, and as a
+     hand-written mirror inside `ecgdex-app.js`'s Blob worker. The banner below claimed the two
+     were byte-for-byte; measured 2026-09-01 they were 96–320 ppm apart on real corpus nights,
+     because this side gained the integer ns-counter rate, the host-axis correction and the resync
+     discriminator and the worker's copy gained none of them. The app therefore analysed the same
+     bytes on a different time axis than the gated headless path, and its exports carried no
+     `hostAxis`/`deviceEpoch`/`tMsAt` at all.
+
+     The fix is NOT to port the missing arithmetic into the worker — that is a third mirror, and
+     this file already carries the tombstone of the last one (`CLOCK-UNIFY`, the worker's inline
+     `_ckPF` that silently skipped the Clock Contract §2.7 range guard). It is to split the walk at
+     the ONE line a Worker cannot cross:
+
+       · `ecgTimingScan()`   — pure, SELF-CONTAINED arithmetic over rows. No DexClock, no closure
+                               over module scope: `ecgdex-app.js` builds its worker from this
+                               function's own `toString()`, so the worker RUNS this text rather
+                               than a copy of it (gate: `ecgdex-app · worker runs the DSP's scan`).
+                               It parses no timestamps — every stamp it meets travels out RAW.
+       · `ecgTimingResolve()` — every DECISION, on the main thread where DexClock lives: which
+                               candidates are resyncs, which axis sets `fs`, whether the host
+                               correction is trustworthy, where each sample sits in time.
+
+     WHY A RAW SCAN IS SUFFICIENT — the property that makes the split honest: a resync shifts the
+     device axis by a constant, and every quantity the scan computes is a DIFFERENCE (sample-step
+     sums, gap candidate deltas) or a value carried out verbatim (an anchor's raw counter). All of
+     them are invariant under that shift, so the scan never needs to know a seam happened and
+     `ecgTimingResolve` owns 100 % of the offset arithmetic. A scan that had to apply offsets could
+     not be split from the parser, and this whole section would be a mirror again. */
+  function ecgTimingScan() {
+    // Local, deliberately: this function's TEXT is shipped into the app's Worker, so it may not
+    // reference module scope. The two rate constants are the same numbers `ecgTimingResolve` and
+    // the parser used before the split; the gate asserts the worker's copy of them agrees.
+    var AXIS_EVERY = 500; // ≈3.8 s at 130 Hz → ~4000 anchors on a 434 min file
+    var SAMPLE_MAX_MS = 50; // above this a delta is a dropout candidate, never a sample interval
+    var nsCol = null,
+      sawFirstRow = false;
+    var prevMs = null,
       msStep = null,
       stepSum = 0,
-      stepN = 0;
-    /* HOST-DISCIPLINED AXIS (WEARABLE-HOST-AXIS-2026-08-02 §3). `fs` above is derived from the DEVICE's
-       own `timestamp [ms]` column, so the exported axis has always been the H10's crystal — measured at
-       −27 ppm, i.e. −0.70 s across a 434 min night. Anchoring host↔device 1 row in ECG_AXIS_EVERY makes
-       that removable. A two-point estimate (endEpochMs − t0Ms over lastRelMs − firstRelMs) is already
-       free here and was rejected on purpose: this corpus contains an H10 file with a 3.22 s STEP, which
-       two points cannot distinguish from a rate and would silently smear across the whole recording. */
-    var ecgAxisAnchors = [];
-    var ECG_AXIS_EVERY = 500; // ≈3.8 s at 130 Hz → ~4000 anchors on a 434 min file
-    var gaps = [];
-    // INTEGRATOR-GAP-AWARE-OVERLAP part 2 — the SESSION BOUNDARIES, in the file's own relative-ms
-    // frame. `gaps[i].idx` alone would force a consumer to reconstruct wall-clock from `idx/fs`, which
-    // re-accumulates exactly the rounding the mean-interval fs derivation exists to avoid; the `ms`
-    // column already states both edges of every dropout, so record them and let the caller anchor once
-    // at t0Ms. `firstRelMs` is that anchor's zero. Additive: `idx`/`ms` are untouched.
-    var firstRelMs = null,
+      stepN = 0,
+      firstRelMs = null,
       lastRelMs = null;
-    /* THE DEVICE'S OWN COUNTER, when the file carries one. `timestamp [ms]` is a DERIVED float that
-       loses precision as it grows (see the fs comment below); `sensor timestamp [ns]` beside it is an
-       INTEGER nanosecond counter that loses none. Located BY HEADER NAME, never by position — the
-       same rule PpgDex's channel layout follows, and for the same reason: a positional guess is
-       silently wrong on a layout it was not written for. Absent ⇒ every path below falls back to the
-       `[ms]` column exactly as before. */
-    var nsCol = null;
-    for (var hli = 0; hli < lines.length; hli++) {
-      var hl = lines[hli].trim();
-      if (!hl) continue;
-      var hp = hl.split(/[;\t,]/);
-      if (isFinite(parseFloat(hp[hp.length - 1]))) break; // first row is data — no header to read
-      for (var hc = 0; hc < hp.length; hc++) if (/sensor\s*timestamp/i.test(hp[hc])) nsCol = hc;
-      break;
-    }
-    var firstNsMs = null,
-      prevNsMs = null,
+    var prevNsMs = null,
+      firstNsMs = null,
       nsStepSum = 0,
       nsStepN = 0;
-    var lastTs = null; // phone stamp of the last valid row → the recording's clock end
-    function push(v) {
-      if (n >= cap) {
-        cap *= 2;
-        var na = new Int16Array(cap);
-        na.set(arr);
-        arr = na;
-      }
-      arr[n++] = v;
-    }
-    for (var li = 0; li < lines.length; li++) {
-      var line = lines[li].trim();
-      if (!line) continue;
-      var p = line.split(/[;\t,]/);
-      var v = parseFloat(p[p.length - 1]);
-      if (!isFinite(v)) continue; // header / junk row (non-numeric last column)
-      push(Math.max(-32768, Math.min(32767, Math.round(v))));
-      // The LAST valid row's phone stamp is the recording's clock END. Keep the reference (p is
-      // already allocated by the split, so this costs nothing) and parse it ONCE after the loop —
-      // READING the end is honest where reconstructing it from `durSec` + `gaps` is not: durSec is
-      // DATA seconds, so t0+durSec lands short of the truth by exactly the dropout time. Measured on
-      // the 2026-07-16..26 capture corpus, that shortfall put ECGDex's own events outside its declared
-      // window on 11 of 11 nights, by +8 min to +326 min.
-      lastTs = p[0];
-      // Device counter for THIS row, in ms. Gap rows are excluded by the same `< 50` guard the `[ms]`
-      // path uses; the ns column needs no `msStep * 2.5` slack because it carries no float noise.
-      var devNsMs = null;
-      if (nsCol !== null && p.length > nsCol) {
-        /* `> 0` would be WRONG and is worth the line: a counter legitimately STARTS at 0, so that guard
-           rejects row 0 and anchors `firstNsMs` one sample late — every anchor then sits a full sample
-           step off the host, which reads as a 7.692 ms spread and flips `independent` to true on a
-           derived column. Real captures hide it (the absolute Polar counter is ~8.4e17), a synthetic
-           starting at 0 does not. `Number('')` is 0, not NaN, so the empty-string case is excluded
-           explicitly rather than by the sign test. */
-        var nsRaw = p[nsCol];
-        var rawNs = nsRaw === '' || nsRaw == null ? NaN : Number(nsRaw);
-        if (isFinite(rawNs)) {
-          devNsMs = rawNs / 1e6;
-          if (firstNsMs === null) firstNsMs = devNsMs;
-          if (prevNsMs !== null) {
-            var dn = devNsMs - prevNsMs;
-            if (dn > 0 && dn < 50) {
-              nsStepSum += dn;
-              nsStepN++;
-            }
-          }
-          prevNsMs = devNsMs;
-        }
-      }
-      if (t0Ms === null) {
-        var pt = parseTimestamp(p[0]);
-        if (pt && pt.tMs != null) {
-          t0Ms = pt.tMs;
-          offsetMin = pt.offsetMin != null ? pt.offsetMin : null;
-        }
-      }
-      if (p.length >= 3) {
-        var ms = parseFloat(p[2]);
-        if (isFinite(ms)) {
-          if (firstRelMs === null) firstRelMs = ms;
-          if (prevMs !== null) {
-            var d = ms - prevMs;
-            if (d > 0) {
-              if (msStep === null && d < 50) msStep = d; // provisional step — anchors the gap threshold
-              if (msStep && d > msStep * 2.5) {
-                /* a dropout, not a sample interval — excluded from fs.
-                   THE `gaps[i].idx` CONVENTION, stated here because this is where `gaps` is defined
-                   (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.1, 2026-07-31):
-                   **`idx` is the FIRST SAMPLE AFTER the dropout — never the last one before it.**
-                   `push()` for the current row has already run above, so `n - 1` IS that first
-                   post-gap sample.
-                   Both producers of this structure must agree. `tools/trio-batch.mjs mergeEcg` wrote
-                   `idx - 1` (last-before) until 2026-07-31 and now writes `idx`. The consumer — the
-                   dead-time walk earlier in this file — tests `g.idx <= refIdx[k]`, which is only
-                   correct under first-after: a beat landing ON the boundary sample is after the hole
-                   and must carry the dead time. Pinned by the `gaps[].idx` leg in tests/dex-tests.js. */
-                gaps.push({ idx: n - 1, ms: d, atRelMs: prevMs, endRelMs: ms });
-              } else if (d < 50) {
-                stepSum += d;
-                stepN++;
+    var headStamps = [],
+      lastStamp = null,
+      prevStamp = null;
+    var candidates = [],
+      anchors = [];
+    return {
+      /* Called for the FIRST line only, and only when its last column is non-numeric (i.e. it is a
+         header). Locating the ns column BY HEADER NAME rather than by position is the same rule
+         PpgDex's channel layout follows, and for the same reason: a positional guess is silently
+         wrong on a layout it was not written for. */
+      header: function (cols) {
+        for (var hc = 0; hc < cols.length; hc++) if (/sensor\s*timestamp/i.test(cols[hc])) nsCol = hc;
+      },
+      /* One DATA row. `sampleIdx` is the caller's post-push sample count (1 for the first row), so
+         `sampleIdx - 1` is the index of this row's sample — the `gaps[].idx` first-after-the-hole
+         convention both producers must agree on (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.1). */
+      row: function (p, sampleIdx) {
+        var stamp = p[0] != null && String(p[0]).trim() ? p[0] : null;
+        /* THE RECORDING'S ANCHOR is Clock Contract §4's "tMs of the first VALID sample" — the first
+           stamp that PARSES, not merely the first that is non-empty: one malformed leading row
+           invalidates that row, not the night. The scan cannot parse, so it carries the head stamps
+           out and `ecgTimingResolve` takes the first that resolves.
+           BOUNDED AT 64 (≈0.5 s of ECG), and the bound is stated rather than silent: an unbounded
+           list would be an unbounded worker payload on a file whose stamp column is junk throughout,
+           and a file with 64 consecutive unparseable stamps does not have a clock column this parser
+           understands — `ecgTimingResolve` says exactly that instead of returning a later row's
+           anchor. */
+        if (stamp !== null && headStamps.length < 64) headStamps.push(stamp);
+        /* The LAST valid row's phone stamp is the recording's clock END — kept RAW, empty included,
+           so an unstamped final row resolves to `null` rather than reaching back for an earlier row's
+           clock. READING the end is honest where reconstructing it from `durSec` + `gaps` is not:
+           durSec is DATA seconds, so t0+durSec lands short of the truth by exactly the dropout time.
+           Measured on the 2026-07-16..26 capture corpus, that shortfall put ECGDex's own events
+           outside its declared window on 11 of 11 nights, by +8 min to +326 min. */
+        lastStamp = p[0];
+        sawFirstRow = true;
+        // Device counter for THIS row, in ms, RAW. `Number('')` is 0, not NaN, so the empty-string
+        // case is excluded explicitly rather than by a sign test — and `> 0` would be WRONG: a
+        // counter legitimately STARTS at 0, and rejecting row 0 anchors `firstNsMs` one sample late,
+        // which reads as a 7.692 ms host↔device spread and flips `independent` on a derived column.
+        var nsMs = null,
+          prevNsOfRow = null;
+        if (nsCol !== null && p.length > nsCol) {
+          var nsRaw = p[nsCol];
+          var rawNs = nsRaw === '' || nsRaw == null ? NaN : Number(nsRaw);
+          if (isFinite(rawNs)) {
+            nsMs = rawNs / 1e6;
+            if (firstNsMs === null) firstNsMs = nsMs;
+            if (prevNsMs !== null) {
+              var dn = nsMs - prevNsMs;
+              // The ns column carries no float noise, so it needs no `msStep * 2.5` slack — the same
+              // `< 50` guard the `[ms]` path uses excludes dropout rows from the rate.
+              if (dn > 0 && dn < SAMPLE_MAX_MS) {
+                nsStepSum += dn;
+                nsStepN++;
               }
             }
+            /* The resync decision needs the PREVIOUS row's ns value; `prevNsMs` is about to hold
+               THIS row's stepped one, and re-anchoring against that computes the adjustment off the
+               wrong baseline (caught on the real 2026-08-27 seam: +86 s instead of −2.41e11 ms). */
+            prevNsOfRow = prevNsMs;
+            prevNsMs = nsMs;
           }
-          prevMs = ms;
-          lastRelMs = ms;
         }
+        if (p.length >= 3) {
+          var ms = parseFloat(p[2]);
+          if (isFinite(ms)) {
+            if (firstRelMs === null) firstRelMs = ms;
+            lastRelMs = ms;
+            if (prevMs !== null) {
+              var d = ms - prevMs;
+              if (d > 0) {
+                if (msStep === null && d < SAMPLE_MAX_MS) msStep = d; // provisional step — anchors the gap threshold
+                if (msStep && d > msStep * 2.5) {
+                  /* A CANDIDATE, not a verdict. Which clock says so is `ecgTimingResolve`'s
+                     question, and answering it needs the phone stamps parsed — so both stamps
+                     travel out and nothing here decides. */
+                  candidates.push({ idx: sampleIdx - 1, d: d, rawMs: ms, prevRawMs: prevMs, rawNsMs: nsMs, prevRawNsMs: prevNsOfRow, stamp: stamp, prevStamp: prevStamp });
+                } else if (d < SAMPLE_MAX_MS) {
+                  stepSum += d;
+                  stepN++;
+                }
+              }
+            }
+            prevMs = ms;
+            /* The seam discriminator's "previous row" is the previous MS-CHAIN row, not simply the
+               previous data row — a row without a usable `[ms]` column took part in neither delta. */
+            prevStamp = p[0];
+          }
+        }
+        /* Host anchor, sampled. Emitted with the RAW device values and the RAW stamp; whether it is
+           usable (does the stamp parse? did a resync invalidate it?) is resolved later. Row 1 is
+           included so anchor 0 is exactly (0,0) once rebased — the node has already anchored `t0Ms`
+           there, and a non-zero start would double-count it. */
+        if (firstRelMs !== null && p.length >= 3 && (sampleIdx === 1 || sampleIdx % AXIS_EVERY === 0) && stamp !== null) {
+          var aRel = parseFloat(p[2]);
+          if (isFinite(aRel) || nsMs !== null) anchors.push({ idx: sampleIdx - 1, rawMs: isFinite(aRel) ? aRel : null, rawNsMs: nsMs, stamp: stamp });
+        }
+      },
+      done: function () {
+        return {
+          nsCol: nsCol,
+          sawFirstRow: sawFirstRow,
+          msStep: msStep,
+          stepSum: stepSum,
+          stepN: stepN,
+          nsStepSum: nsStepSum,
+          nsStepN: nsStepN,
+          firstRelMs: firstRelMs,
+          lastRelMs: lastRelMs,
+          firstNsMs: firstNsMs,
+          headStamps: headStamps,
+          lastStamp: lastStamp,
+          candidates: candidates,
+          anchors: anchors
+        };
       }
-      // Host anchor, sampled — see ECG_AXIS_EVERY. Placed at the END of the body so `firstRelMs` is
-      // already set on the very first row, which makes anchor 0 exactly (0,0) and keeps the correction
-      // zero at t0Ms — the node has already anchored there, so a non-zero start would double-count it.
-      if (t0Ms !== null && firstRelMs !== null && p.length >= 3 && (n === 1 || n % ECG_AXIS_EVERY === 0)) {
-        var aRel = parseFloat(p[2]);
-        var aTs = parseTimestamp(p[0]);
-        /* BOTH candidate device axes are recorded and the choice is made AFTER the loop, once it is
-           known whether the counter actually counts. A column present but STUCK — some writers emit a
-           literal `0` placeholder — is not a clock (Clock Contract §7: "a device whose axis was DRAWN
-           is not a clock"), and preferring it collapses every anchor onto devMs = 0, which hands
-           hostAxis a degenerate axis and silently inverts `independent`. */
-        if (aTs && aTs.tMs != null && (isFinite(aRel) || devNsMs !== null)) {
-          ecgAxisAnchors.push({
-            devMs: isFinite(aRel) ? aRel - firstRelMs : null,
-            devNs: devNsMs !== null && firstNsMs !== null ? devNsMs - firstNsMs : null,
-            hostMs: aTs.tMs - t0Ms
-          });
-        }
+    };
+  }
+
+  /* Every clock DECISION, from a scan. Runs where DexClock does — the headless parser calls it
+     directly, the app calls it on the main thread with the scan its Worker shipped back — so the
+     two lanes cannot drift: there is one copy of this arithmetic and one copy of the scan's.
+     Returns the timing half of a rec; the caller supplies `int16`/`source`. */
+  function ecgTimingResolve(scan) {
+    /* ── MID-FILE CLOCK RESYNC (DEEP-AUDIT-VI F1, 2026-09-01) ─────────────────────────────────────
+       The H10 boots on its 2019-01-01 firmware epoch and adopts real time when a sync lands — and
+       when that happens MID-FILE, both device columns (`[ms]` and `sensor [ns]`) step by the whole
+       epoch difference (+241,586,765 s measured, 2026-08-27) while the phone column advances 86 s.
+       The gap walk used to trust the device delta unconditionally, publishing a 2.41e8 s "dropout":
+       coverage segments in 2034, coveragePct 0, and the Integrator silently dropping the night.
+       THE DISCRIMINATOR IS PHYSICAL: through a real BLE dropout both clocks keep ticking, so the
+       device delta ≈ the phone delta; only a clock step makes them disagree — by 7.6 years here,
+       against which the 60 s bound below has 5 orders of headroom. An over-bound step is a
+       RE-ANCHOR POINT (session-boundary semantics), never a dropout duration: the device axis is
+       shifted so it continues at the phone-measured pace, the real gap (the phone delta) is
+       recorded if it clears the normal gap threshold, and the event is surfaced via `clockResyncs`
+       all the way to the export. When the phone stamps at the seam do not parse, a delta over the
+       24 h ceiling still re-anchors — with `phoneDeltaMs: null` and NO gap entry, because a
+       duration nothing measured must stay visible as unmeasured (§2.6), never fabricated. */
+    var ECG_RESYNC_BOUND_MS = 60000;
+    var ECG_GAP_CEIL_MS = 86400000;
+    /* THE RECORDING'S ANCHOR — Clock Contract §4: `t0Ms` is the tMs of the FIRST VALID sample, i.e.
+       the first stamp that PARSES. A malformed leading row invalidates that ROW, not the night, so
+       the walk reads on; what it must never do is fabricate one (§2.6), and a file with no parseable
+       stamp in `headStamps` keeps `t0Ms: null`. The app's Worker used to anchor on the first
+       NON-EMPTY stamp instead — a quieter rule that turns one junk row into an anchorless night —
+       and unifying the lanes here means the app adopts the contract's rule, not the reverse. */
+    var t0Ms = null,
+      offsetMin = null;
+    var heads = scan.headStamps || [];
+    for (var hi = 0; hi < heads.length; hi++) {
+      var ht = parseTimestamp(heads[hi]);
+      if (ht && ht.tMs != null) {
+        t0Ms = ht.tMs;
+        offsetMin = ht.offsetMin != null ? ht.offsetMin : null;
+        break;
       }
     }
-    // DEEP-AUDIT-II §4.3 (#5): derive fs from the MEAN non-gap sample interval — a stamp-span
-    // cross-check, NOT a single delta. The Polar Sensor Logger's `timestamp [ms]` column loses float
-    // precision as the value grows (7.692288 early → integer "8" late), so any ONE delta reads 125–167 Hz
-    // for a true 130 Hz stream (part-files parse at 143/167). Averaging every interval quantises the 7/8 ms
-    // jitter back to ~7.69 ms → 130, and gap dropouts are excluded. Falls back to the provisional step.
-    /* PREFER THE INTEGER COUNTER, AND DO NOT ROUND IT. The `Math.round` below is right for the `[ms]`
+
+    // ── the seams, in row order: each one may shift the device axis and may leave a real gap ──
+    var gaps = [];
+    var clockResyncs = [];
+    var relOffsetMs = 0,
+      nsOffsetMs = 0;
+    var offsetAt = []; // {idx, relOffsetMs, nsOffsetMs} AFTER the seam at that row — for the anchors
+    var msStep = scan.msStep;
+    for (var ci = 0; ci < scan.candidates.length; ci++) {
+      var c = scan.candidates[ci];
+      var prevAdj = c.prevRawMs + relOffsetMs;
+      /* The phone stamps are parsed lazily, only at candidates. `pdc` clamps the known
+         non-monotonic host stamps (≤287 ms backward) to zero rather than letting a negative
+         "gap" through. */
+      var rsPd = null;
+      if (c.prevStamp != null) {
+        var rsPrev = parseTimestamp(c.prevStamp);
+        var rsCur = c.stamp != null ? parseTimestamp(c.stamp) : null;
+        if (rsPrev && rsPrev.tMs != null && rsCur && rsCur.tMs != null) rsPd = rsCur.tMs - rsPrev.tMs;
+      }
+      var pdc = rsPd != null ? Math.max(0, rsPd) : null;
+      if (pdc != null && c.d - pdc > ECG_RESYNC_BOUND_MS) {
+        // CLOCK RESYNC — re-anchor; the honest gap is the phone delta, if it is a gap at all
+        relOffsetMs -= c.d - pdc;
+        clockResyncs.push({ idx: c.idx, deviceStepMs: Math.round(c.d), phoneDeltaMs: Math.round(Number(pdc)), atRelMs: prevAdj, hostOffsetMs: /** @type {number|null} */ (null) });
+        if (c.rawNsMs != null && c.prevRawNsMs != null) {
+          // the ns chain stepped at the same seam — re-anchor it identically
+          var nsAdj = c.rawNsMs - c.prevRawNsMs - pdc;
+          if (Math.abs(nsAdj) > ECG_RESYNC_BOUND_MS) nsOffsetMs -= nsAdj;
+        }
+        if (msStep && pdc > msStep * 2.5) gaps.push({ idx: c.idx, ms: pdc, atRelMs: prevAdj, endRelMs: prevAdj + pdc });
+      } else if (pdc == null && c.d > ECG_GAP_CEIL_MS) {
+        // over the ceiling with no measurable phone delta: re-anchor, annotate, no gap entry
+        relOffsetMs -= c.d;
+        clockResyncs.push({ idx: c.idx, deviceStepMs: Math.round(c.d), phoneDeltaMs: null, atRelMs: prevAdj, hostOffsetMs: /** @type {number|null} */ (null) });
+      } else {
+        /* a dropout, not a sample interval — excluded from fs.
+           THE `gaps[i].idx` CONVENTION: **`idx` is the FIRST SAMPLE AFTER the dropout — never the
+           last one before it.** Both producers of this structure must agree; `tools/trio-batch.mjs
+           mergeEcg` wrote `idx - 1` until 2026-07-31 and now writes `idx`. The consumer — the
+           dead-time walk earlier in this file — tests `g.idx <= refIdx[k]`, which is only correct
+           under first-after: a beat landing ON the boundary sample is after the hole and must carry
+           the dead time. Pinned by the `gaps[].idx` leg in tests/dex-tests.js. */
+        gaps.push({ idx: c.idx, ms: c.d, atRelMs: prevAdj, endRelMs: c.rawMs + relOffsetMs });
+      }
+      offsetAt.push({ idx: c.idx, relOffsetMs: relOffsetMs, nsOffsetMs: nsOffsetMs });
+    }
+
+    /* DEEP-AUDIT-II §4.3 (#5): derive fs from the MEAN non-gap sample interval — a stamp-span
+       cross-check, NOT a single delta. The Polar Sensor Logger's `timestamp [ms]` column loses float
+       precision as the value grows (7.692288 early → integer "8" late), so any ONE delta reads 125–167 Hz
+       for a true 130 Hz stream (part-files parse at 143/167). Averaging every interval quantises the 7/8 ms
+       jitter back to ~7.69 ms → 130, and gap dropouts are excluded. Falls back to the provisional step.
+       PREFER THE INTEGER COUNTER, AND DO NOT ROUND IT. The `Math.round` below is right for the `[ms]`
        column and WRONG for this one, and the difference is seconds per night. Rounding forces the
        estimate to the NOMINAL 130 and discards the crystal: measured over the box corpus the H10's
        real rate is 129.9866–129.9966 Hz, so the rounded axis runs −45.9 to −125.5 ppm fast, i.e.
@@ -26212,21 +26556,79 @@ __exports.PpgDex = window.PpgDex;
        correcting a rate cannot recover a rate that was quantised away first — the shipped axis
        diverged from the file's OWN host↔device record by up to 2894 ms on 2026-08-03, which is 2.4
        cardiac cycles and is what made PAT unmeasurable (`PAT-SAWTOOTH-ANSWERS-THE-130MS`).
-       The rounding exists for the `[ms]` column's float noise and stays there; an integer ns counter
-       has no such noise, so rounding it only throws information away. */
-    // `nsStepN > 0` IS the "is it a counter" test: a stuck or absent column advances zero times, so it
-    // never reaches here, and the anchors fall back to `[ms]` in the same breath — one condition
-    // governing both, because an fs from one axis and anchors from the other would not compose.
-    var nsUsable = nsStepN > 0;
-    if (nsUsable) fs = (1000 * nsStepN) / nsStepSum;
-    else if (stepN > 0) fs = Math.round((1000 * stepN) / stepSum);
-    else if (msStep && msStep > 0) fs = Math.round(1000 / msStep);
-    var ecgAxisPicked = [];
-    for (var ai = 0; ai < ecgAxisAnchors.length; ai++) {
-      var av = nsUsable ? ecgAxisAnchors[ai].devNs : ecgAxisAnchors[ai].devMs;
-      if (av != null && isFinite(av)) ecgAxisPicked.push({ devMs: av, hostMs: ecgAxisAnchors[ai].hostMs });
+       `nsStepN > 0` IS the "is it a counter" test: a stuck or absent column advances zero times, so it
+       never reaches here, and the anchors fall back to `[ms]` in the same breath — one condition
+       governing both, because an fs from one axis and anchors from the other would not compose. */
+    var fs = 130;
+    var nsUsable = scan.nsStepN > 0;
+    if (nsUsable) fs = (1000 * scan.nsStepN) / scan.nsStepSum;
+    else if (scan.stepN > 0) fs = Math.round((1000 * scan.stepN) / scan.stepSum);
+    else if (scan.msStep && scan.msStep > 0) fs = Math.round(1000 / scan.msStep);
+
+    /* ONE DEVICE CLOCK PER AXIS — anchors from BEFORE the last resync are not on the clock the rest
+       of the file is on, so they are dropped before `hostAxis` sees them. The resync block above
+       makes the device axis CONTINUOUS across the seam (it imposes the phone delta), but continuity
+       is not sameness: the pre-sync H10 counter is a different oscillator, and `hostAxis` measures
+       every divergence RELATIVE TO ITS FIRST ANCHOR. Measured on the real 2026-08-27 seam file
+       (resync 9.5 s in, 50 min long): the host−device residual walks +1508 ms across those first
+       9.5 s and then holds flat (post-seam slope 38 ppm), so with anchor 0 inside the pre-sync
+       segment `hostAxis` read the STEP as a rate — 484.7 ppm — and the span gate (50 min ≥ 40 min)
+       let it into `fs`: 129.968 → 129.903, 500 ppm off the same H10's 6.5 h sibling, which is what
+       `trio-batch mergeEcg` refused ("sessions disagree on fs"). A step is REPORTED, never absorbed
+       into fs (the maxStepMs paragraph below) — and a clock CHANGE is the hardest step there is.
+       Cost: the pre-seam rows get the flat out-of-range correction of the first post-seam anchor,
+       and the seam's host↔device offset is surfaced on `clockResyncs[].hostOffsetMs`. */
+    /* An anchor is usable only if its own stamp parses — which also settles the "was `t0Ms` known
+       yet?" question the row-walk used to ask: `t0Ms` is the first stamp in the file, so any LATER
+       stamp that parses arrives with the anchor already established. */
+    var parsedAnchors = [];
+    for (var ai = 0; ai < scan.anchors.length; ai++) {
+      var a = scan.anchors[ai];
+      var aTs = t0Ms !== null ? parseTimestamp(a.stamp) : null;
+      if (!(aTs && aTs.tMs != null)) continue;
+      // the offsets in force at this row — the seam arithmetic above, replayed onto the anchors
+      var relOff = 0,
+        nsOff = 0;
+      for (var oi = 0; oi < offsetAt.length; oi++) {
+        if (offsetAt[oi].idx <= a.idx) {
+          relOff = offsetAt[oi].relOffsetMs;
+          nsOff = offsetAt[oi].nsOffsetMs;
+        }
+      }
+      /* BOTH candidate device axes were recorded by the scan and the choice is made HERE, once it is
+         known whether the counter actually counts. A column present but STUCK — some writers emit a
+         literal `0` placeholder — is not a clock (Clock Contract §7: "a device whose axis was DRAWN
+         is not a clock"), and preferring it collapses every anchor onto devMs = 0, which hands
+         hostAxis a degenerate axis and silently inverts `independent`. */
+      var devVal = nsUsable
+        ? a.rawNsMs != null && scan.firstNsMs != null
+          ? a.rawNsMs + nsOff - scan.firstNsMs
+          : null
+        : a.rawMs != null && scan.firstRelMs != null
+          ? a.rawMs + relOff - scan.firstRelMs
+          : null;
+      parsedAnchors.push({ idx: a.idx, devMs: devVal, hostMs: aTs.tMs - t0Ms });
     }
-    ecgAxisAnchors = ecgAxisPicked;
+    var lastResyncRow = clockResyncs.length ? clockResyncs[clockResyncs.length - 1].idx : null;
+    var preResyncAnchorsDropped = 0;
+    if (lastResyncRow !== null && parsedAnchors.length) {
+      var postResync = [];
+      for (var pi = 0; pi < parsedAnchors.length; pi++) {
+        if (parsedAnchors[pi].idx >= lastResyncRow) postResync.push(parsedAnchors[pi]);
+        else preResyncAnchorsDropped++;
+      }
+      if (postResync.length) {
+        var seamAnchor = postResync[0];
+        clockResyncs[clockResyncs.length - 1].hostOffsetMs = seamAnchor.devMs != null && isFinite(seamAnchor.devMs) ? Math.round(seamAnchor.hostMs - seamAnchor.devMs) : null;
+      }
+      parsedAnchors = postResync;
+    }
+    var ecgAxisAnchors = [];
+    for (var qi = 0; qi < parsedAnchors.length; qi++) {
+      var qDev = parsedAnchors[qi].devMs;
+      if (qDev != null && isFinite(qDev)) ecgAxisAnchors.push({ devMs: qDev, hostMs: parsedAnchors[qi].hostMs });
+    }
+
     /* Discipline `fs` to the host clock. Every beat time in this file is `peaks[k] / fs`, so correcting
        fs is what actually reaches the export — a separate `fsExact` nothing consumed would have been a
        fix in name only. Applied AFTER the integer rounding above, deliberately: that rounding exists to
@@ -26310,21 +26712,35 @@ __exports.PpgDex = window.PpgDex;
 
        WHY NO SPAN GATE HERE, and why that is not the oversight the ppm path was: `correctionAt` is
        linear between anchors and FLAT outside them, so a short fragment receives a small bounded
-       correction rather than an amplified one. That boundedness is precisely what `.ppm` lacks.
-
-       ADDITIVE, and deliberately inert until opted into: `fs`, `t0Ms` and every published field are
-       byte-unchanged, so no export can move until a consumer calls this. A recording with no
-       independent second clock returns uncorrected device time — never a fabricated one (§2.6). */
+       correction rather than an amplified one. That boundedness is precisely what `.ppm` lacks. */
     var _ecgCorrAt = ecgHostAx.ok && ecgHostAx.independent !== false && typeof ecgHostAx.correctionAt === 'function' ? ecgHostAx.correctionAt : null;
     var _ecgMsPerSample = 1000 / fsDevice;
     // endEpochMs — the CLOCK position of the last sample, read from the file, never derived. Null when
     // the row carries no parseable stamp (§2.6: a missing stamp is visible, never fabricated). Kept
     // ALONGSIDE durSec, not instead of it: durSec answers "how much signal do I have", endEpochMs
     // answers "where does this recording end on the clock" — two questions one scalar cannot both answer.
-    var endTs = lastTs != null ? parseTimestamp(lastTs) : null;
+    var endTs = scan.lastStamp != null ? parseTimestamp(scan.lastStamp) : null;
     var endEpochMs = endTs && endTs.tMs != null ? endTs.tMs : null;
+    /* ── DEVICE-EPOCH PLAUSIBILITY — the 2019-origin annotation (H10-2019-ORIGIN, 2026-09-01) ─────────
+       The H10 boots its sensor clock at a 2019-01-01 firmware default and adopts real time only when a
+       sync lands. Measured over the full corpus: 87 of 455 H10 ECG files START on that fabricated
+       origin and 84 of them never sync — a fifth of the H10 nights, internally perfect (130.00 Hz,
+       monotonic) and absolutely wrong by ~7.6 years. Nothing in the capture persisted the sync outcome
+       per night (live STATUS is a snapshot, journald rotates), so the file itself is the only evidence
+       channel that survives — and the evidence IS in the file: the sensor-ns column counts from the
+       Polar device epoch (2000-01-01, written in LOCAL wall time by the capture host's sync, so it
+       compares against floating tMs with no zone term), and a synced device reads ~26 years where a
+       2019-origin one reads ~19.
+       ANNOTATE, NEVER REFUSE. These files' uV samples are fine and hostAxis anchoring measures
+       divergence relative to the first anchor, so every relative quantity is sound — a first-row
+       absolute-implausibility refusal would throw away 19 % of H10 nights.
+       48 h threshold, deliberately coarse: it must keep the Verity's constant ~4 h offset and any
+       zone/DST confusion (≤ ~14 h) on the plausible side — those are wrong-clock problems, not
+       fabricated-epoch problems, and they are the hostAxis machinery's business. */
+    var POLAR_EPOCH_MS = Date.UTC(2000, 0, 1); // sensor-ns epoch (capture-host `_POLAR_EPOCH`)
+    var deviceEpochOffsetMs = scan.firstNsMs !== null && t0Ms !== null ? POLAR_EPOCH_MS + scan.firstNsMs - t0Ms : null;
+    var deviceEpoch = deviceEpochOffsetMs !== null ? { offsetMs: Math.round(deviceEpochOffsetMs), plausible: Math.abs(deviceEpochOffsetMs) <= 48 * 3600e3 } : null;
     return {
-      int16: arr.slice(0, n),
       fs: fs,
       /* Absolute floating wall-clock ms of sample `i`, host-disciplined where a second clock exists.
          `i` may be fractional — `refinePeaks` returns sub-sample R positions and they must not be
@@ -26339,14 +26755,17 @@ __exports.PpgDex = window.PpgDex;
          (a REFUSED ppm) is never mistaken for "the time axis is uncorrected too". They are different
          gates now: the ppm is span-gated, the interpolation is not. */
       tMsCorrected: !!_ecgCorrAt,
+      /* Mid-file device clock resyncs (DEEP-AUDIT-VI F1) — [] on every clean recording. Each entry:
+         { idx, deviceStepMs, phoneDeltaMs (null when the seam's phone stamps did not parse), atRelMs }. */
+      clockResyncs: clockResyncs,
       gaps: gaps,
       t0Ms: t0Ms,
       offsetMin: offsetMin,
-      source: 'file',
-      durSec: n / fs,
       endEpochMs: endEpochMs,
-      firstRelMs: firstRelMs,
-      lastRelMs: lastRelMs,
+      firstRelMs: scan.firstRelMs,
+      lastRelMs: scan.lastRelMs != null ? scan.lastRelMs + relOffsetMs : null,
+      // See the block above — null when the file carries no sensor-ns column or no parseable host stamp.
+      deviceEpoch: deviceEpoch,
       /* See the fs block above. `maxStepMs` is the one to read: a step is reported, never corrected.
          `applied` is the field that says whether `fs` actually moved — `ok` alone does NOT mean the
          correction reached the axis, because the span gate can measure a rate and still decline to
@@ -26361,6 +26780,13 @@ __exports.PpgDex = window.PpgDex;
                never had a second clock — different problems with different remedies. */
             independent: ecgHostAx.independent != null ? ecgHostAx.independent : null,
             spreadMs: ecgHostAx.spreadMs != null ? ecgHostAx.spreadMs : null,
+            /* PpgDex's provenance lattice (Clock Contract §7), restricted to the arms this layout can
+               reach: the ECG axis is a REAL per-sample device counter here — never drawn — so the
+               'host'/'none' arms do not arise. `independent === false` (every phone capture: the host
+               column is the device stamp rounded, spread ≈ one quantum) means one clock ⇒ 'device';
+               a genuinely independent host column ⇒ 'device+host'. NOTE this says which clocks set the
+               RATE/RELATIVE axis — `deviceEpoch` above is the orthogonal ABSOLUTE-origin fact. */
+            timingSource: ecgHostAx.independent === false ? 'device' : 'device+host',
             totalMs: ecgHostAx.totalMs,
             ppm: ecgHostAx.ppm,
             maxStepMs: ecgHostAx.maxStepMs,
@@ -26376,11 +26802,90 @@ __exports.PpgDex = window.PpgDex;
                6.8-32.7 ppm uncertainty against 20-90 ppm errors is marginal, not wrong). Revisiting it
                needs a bound derived for the estimator `fs` actually uses, which ADEV is not. */
             stability: ecgHostAx.stability || null,
+            /* ONE DEVICE CLOCK PER AXIS (see the resync block above): anchors read off the pre-resync
+               counter were not fed to the spine. Present only when it happened, so clean fixtures keep
+               today's bytes; a consumer reading `anchors` beside this knows the count is post-seam. */
+            anchorsDroppedPreResync: preResyncAnchorsDropped > 0 ? preResyncAnchorsDropped : undefined,
             reason: ecgAxisApplied
               ? undefined
               : 'span ' + Math.round(ecgAxisSpanMs / 1000) + ' s < ' + ECG_AXIS_MIN_SPAN_MS / 1000 + ' s — too short to resolve a crystal rate, fs left on the device clock'
           }
-        : { ok: false, applied: false, reason: ecgHostAx.reason || 'no host anchors' }
+        : {
+            ok: false,
+            applied: false,
+            reason: ecgHostAx.reason || 'no host anchors',
+            // No usable host↔device anchor set ⇒ the published axis rides the device crystal alone.
+            timingSource: 'device',
+            anchorsDroppedPreResync: preResyncAnchorsDropped > 0 ? preResyncAnchorsDropped : undefined
+          }
+    };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  PURE ECG TEXT PARSER  (the headless lane of the timing walk above)
+  //  ─────────────────────────────────────────────────────────────────────
+  //  The app streams raw ECG in a Web Worker (built from a Blob so it bundles) —
+  //  but a Worker cannot run in the co-load realm (Data Unifier / OverDex / the
+  //  test suite), so the headless compute() path needs a PURE, DOM-free parser
+  //  for the SAME Polar Sensor Logger `*_ECG.txt` layout the worker reads:
+  //    Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]   (~130 Hz)
+  //  It no longer MIRRORS the worker — the two lanes now share `ecgTimingScan`
+  //  (the worker runs its source) and `ecgTimingResolve` (both call it), so the
+  //  only thing this function still owns is reading µV samples out of the text.
+  //  A stampless file keeps t0Ms:null (Clock Contract §2.6: a missing anchor
+  //  stays visible, never now()), and gangliorEvents already emits t:null/tMs:null
+  //  for that case. Returns the SAME rec shape genSynthetic/the worker hand
+  //  analyze(): { int16, fs, gaps, t0Ms, offsetMin, source, durSec, … }.
+  // ════════════════════════════════════════════════════════════════════════
+  function parseECGText(text) {
+    var lines = String(text == null ? '' : text).split(/\r?\n/);
+    var cap = 1 << 16,
+      arr = new Int16Array(cap),
+      n = 0;
+    var scan = ecgTimingScan();
+    var sawHeaderRow = false;
+    function push(v) {
+      if (n >= cap) {
+        cap *= 2;
+        var na = new Int16Array(cap);
+        na.set(arr);
+        arr = na;
+      }
+      arr[n++] = v;
+    }
+    for (var li = 0; li < lines.length; li++) {
+      var line = lines[li].trim();
+      if (!line) continue;
+      var p = line.split(/[;\t,]/);
+      var v = parseFloat(p[p.length - 1]);
+      if (!isFinite(v)) {
+        // header / junk row (non-numeric last column) — only the FIRST one is read for the layout
+        if (!sawHeaderRow && n === 0) {
+          sawHeaderRow = true;
+          scan.header(p);
+        }
+        continue;
+      }
+      push(Math.max(-32768, Math.min(32767, Math.round(v))));
+      scan.row(p, n);
+    }
+    var t = ecgTimingResolve(scan.done());
+    return {
+      int16: arr.slice(0, n),
+      fs: t.fs,
+      tMsAt: t.tMsAt,
+      tMsCorrected: t.tMsCorrected,
+      clockResyncs: t.clockResyncs,
+      gaps: t.gaps,
+      t0Ms: t.t0Ms,
+      offsetMin: t.offsetMin,
+      source: 'file',
+      durSec: n / t.fs,
+      endEpochMs: t.endEpochMs,
+      firstRelMs: t.firstRelMs,
+      lastRelMs: t.lastRelMs,
+      deviceEpoch: t.deviceEpoch,
+      hostAxis: t.hostAxis
     };
   }
 
@@ -26749,6 +27254,7 @@ __exports.PpgDex = window.PpgDex;
         spanMs: r.hostAxis.spanMs,
         independent: r.hostAxis.independent,
         spreadMs: r.hostAxis.spreadMs,
+        timingSource: r.hostAxis.timingSource || null,
         tMsCorrected: r.tMsCorrected === true,
         stability: r.hostAxis.stability
           ? {
@@ -26763,6 +27269,30 @@ __exports.PpgDex = window.PpgDex;
         note: 'quote `ppm` WITH `ppmUncertainty`; `stability:null` means there was no second clock (host column ≡ device stamp), not that the clock was perfect'
       };
     }
+    /* TIMING PROVENANCE on the Integrator-facing surface (H10-2019-ORIGIN, 2026-09-01). ATTACHED ONLY
+       WHEN PRESENT, same discipline as `hostAxis`/`validation` above: a null key is still a changed
+       export shape, so recordings the parser could not judge (no ns column, no host stamp — every
+       synthetic rec) keep today's bytes.
+       `recording.timingSource` is a resolution path `integrator-dsp normalizeFile` already honors —
+       which clocks built the RELATIVE axis. `recording.deviceEpoch` is the orthogonal ABSOLUTE fact:
+       `plausible:false` marks a 2019-origin H10 (a fifth of the corpus's H10 nights) whose device
+       clock never adopted real time — absolute time on such a night is host-provenance or nothing,
+       while every relative/HRV quantity remains sound. Annotate, never refuse. */
+    if (r.hostAxis && r.hostAxis.timingSource) out.recording.timingSource = r.hostAxis.timingSource;
+    if (r.deviceEpoch) out.recording.deviceEpoch = { offsetMs: r.deviceEpoch.offsetMs, plausible: r.deviceEpoch.plausible };
+    /* Mid-file clock resyncs (DEEP-AUDIT-VI F1) — attached only when one occurred, same
+       no-null-key discipline as every provenance field above, so clean fixtures keep today's bytes.
+       A consumer seeing this knows the device axis was RE-ANCHORED at these points and that the
+       recording fuses two device epochs; the published times are already on the re-anchored axis. */
+    if (Array.isArray(r.clockResyncs) && r.clockResyncs.length)
+      out.recording.clockResyncs = r.clockResyncs.map(function (c) {
+        var rs = { idx: c.idx, deviceStepMs: c.deviceStepMs, phoneDeltaMs: c.phoneDeltaMs, atRelMs: c.atRelMs };
+        /* host−device offset at the seam, measured off the first post-resync anchor — the one place
+           the two epochs' relationship is a NUMBER rather than a rate. Absent when no anchor landed
+           past the seam (a resync inside the last 500 rows). */
+        if (c.hostOffsetMs != null) rs.hostOffsetMs = c.hostOffsetMs;
+        return rs;
+      });
     if (r.deviceRR && r.deviceRR.length) {
       const _v = validateRR(r.nn, r.deviceRR);
       if (_v) {
@@ -26874,6 +27404,12 @@ __exports.PpgDex = window.PpgDex;
           respRate: nz(r.respRate),
           respRateMethod: 'RSA (HF-peak of RR spectrum)',
           respFromEDR: r.crc && r.crc.respFromEDR != null ? nz(r.crc.respFromEDR) : null,
+          /* §1.10: a null `respFromEDR` is a REFUSAL and the export says why — but the reason is
+             emitted ONLY when there is one. A `respFromEDRReason: null` on every measuring night
+             would move every committed ECGDex export to carry a field that says nothing (the rich
+             golden's equiv leg caught exactly that), so the key is present iff the rate is refused.
+             `respFromEDR: null` alone already marks the refusal; this is its diagnostic. */
+          ...(r.crc && r.crc.respFromEDRReason ? { respFromEDRReason: r.crc.respFromEDRReason } : {}),
           respFromEDRMethod: 'EDR (R-peak amplitude modulation)'
         }
       };
@@ -27042,6 +27578,12 @@ __exports.PpgDex = window.PpgDex;
               surgeEscalationPct: r.surgeEsc ? r.surgeEsc.escalationPct : null
             }
           : null;
+      /* The index's DENOMINATOR travels with it (DEEP-AUDIT-VI F3): `cvhrIndex` is events per
+         hour of OBSERVED recording (nnRes.activeSec), not per hour of wall span, and a consumer
+         reading "N /h" should be able to see which hours. Attached only when the index was
+         computed — a refusal (N<60, implausible span) carries no basis, and the no-null-key
+         discipline keeps the common export byte-stable on the refusal path. */
+      if (out.apnea && out.apnea.cvhrIndex != null && r.cvhr && r.cvhr.denomSec > 0) out.apnea.cvhrHours = +(r.cvhr.denomSec / 3600).toFixed(2);
       out.hrvStability = r.hrvStab
         ? {
             sigma_lnRMSSD_slope: r.hrvStab.sigma_lnRMSSD_slope,
@@ -27108,6 +27650,13 @@ __exports.PpgDex = window.PpgDex;
   }
 
   global.ECGDSP.parseECG = parseECGText;
+  /* THE TWO HALVES OF THE TIMING WALK, exported because the APP LANE IS A CONSUMER (DEEP-AUDIT-VI F2)
+     — not merely for assertability. `ecgdex-app.js` builds its streaming Worker from
+     `ecgTimingScan.toString()` and calls `ecgTimingResolve` on the scan the Worker ships back, so
+     these two are the app's parser as much as the headless one's. A change here changes both lanes,
+     which is the entire point: the app used to carry a hand-written mirror that was 96–320 ppm off. */
+  global.ECGDSP.ecgTimingScan = ecgTimingScan;
+  global.ECGDSP.ecgTimingResolve = ecgTimingResolve;
   global.ECGDSP.parseDeviceRR = parseDeviceRR;
   global.ECGDSP.parseDeviceHR = parseDeviceHR;
   global.ECGDSP.parseDeviceACC = parseDeviceACC;
@@ -27939,6 +28488,22 @@ __exports.ECGDex = window.ECGDex;
     for (var i = 0; i < a.length; i++) if (mask[i]) o.push(a[i]);
     return o;
   }
+  /* F8 — block-mean decimation of a high-rate channel down to `targetFs`. Used to stand the BRP
+     `Press.40ms` lane (25 Hz) in for a missing PLD `Press` (0.5 Hz): the fallback must arrive at
+     the PLD cadence, because nightMetrics CONCATENATES `pressureMaskOn` across sessions and a
+     25 Hz session would out-vote a 0.5 Hz one 50:1 in every pooled percentile. Shape-identical
+     output (`{ fs, data }`) so every downstream site is rate-agnostic. */
+  function _decimateMean(ch, targetFs) {
+    var block = Math.max(1, Math.round((ch.fs || targetFs) / targetFs));
+    var n = Math.floor(ch.data.length / block);
+    var out = new Float32Array(n);
+    for (var i = 0; i < n; i++) {
+      var acc = 0;
+      for (var k = 0; k < block; k++) acc += ch.data[i * block + k];
+      out[i] = acc / block;
+    }
+    return { fs: (ch.fs || targetFs) / block, data: out };
+  }
 
   /* ── CPAP-vs-APAP mode (CPAP-REAL-CORPUS §F2) ─────────────────────────────────────────────
    The OLD rule was `mode = _iqr(pressureMaskOn) > 1.0 ? 'APAP' : 'CPAP'`, and on ~180 real
@@ -28468,8 +29033,16 @@ __exports.ECGDex = window.ECGDex;
     var spo2Ch = chan(sa2, 'SpO2'),
       pulseCh = chan(sa2, 'Pulse');
     if (!spo2Ch || !spo2Ch.data || !spo2Ch.data.length) return { available: false, reason: 'no-spo2-channel', coverage: 0 };
+    /* DEEP-AUDIT-VI F7 — a missing Pulse channel is an ABSENT lane, not an all-zero one. This line
+       used to substitute `new Float32Array(spo2.length)` (every sample 0 bpm) for a file that carries
+       SpO2 but no Pulse, so selfGateDesat read pulseValid = 0 on EVERY event, stamped every genuine
+       desat 'perfusion-collapse', and the lane published ODI 0.00 / desatCount 0 — a fabricated clean
+       oximetry night (executed: five clean 5 % desats → odi 7.5 with pulse, odi 0 without). The
+       mirror source, oxydex-dsp.js detectODI, treats pulseSeries as OPTIONAL and degrades to
+       ungated detection; selfGateDesat already returns unflagged on a null series. Pass null, and
+       say so (`pulseLane`) so the consumer can see the self-gate did not run. */
     var spo2 = spo2Ch.data,
-      pulse = pulseCh ? pulseCh.data : new Float32Array(spo2.length);
+      pulse = pulseCh && pulseCh.data && pulseCh.data.length ? pulseCh.data : null;
     var n = spo2.length,
       valid = 0;
     for (var i = 0; i < n; i++) if (_spo2Valid(spo2[i])) valid++;
@@ -28514,12 +29087,15 @@ __exports.ECGDex = window.ECGDex;
       }
     }
     var pv = [];
-    for (var m = 0; m < pulse.length; m++) {
+    for (var m = 0; pulse && m < pulse.length; m++) {
       var p = pulse[m];
       if (p >= SELFGATE.PULSE_MIN && p <= SELFGATE.PULSE_MAX) pv.push(p);
     }
     return {
       available: true,
+      // 'present' ⇒ the perfusion/edge self-gate ran; 'absent' ⇒ no Pulse channel, desats are
+      // kinetics-ungated (F7). A consumer must not read artifactCount 0 as "no artifacts" when absent.
+      pulseLane: pulse ? 'present' : 'absent',
       coverage: +coverage.toFixed(3),
       odi: hours > 0 ? +(real.length / hours).toFixed(2) : null,
       desatCount: real.length,
@@ -28546,7 +29122,9 @@ __exports.ECGDex = window.ECGDex;
    floor). I:E = inspiratory-flow time / expiratory-flow time. Cross-checks the
    device-reported RespRate. O(n) single pass.
    ════════════════════════════════════════════════════════════════════════ */
-  function detectBreaths(flowCh, durSec) {
+  /* ⚠️ `opts.maskOn` / `opts.maskFs` are REQUIRED for a rate (FOLLOWUPS §1.9). Without them this
+     returns the count and I:E but `breathRate: null` — see the denominator note below. */
+  function detectBreaths(flowCh, durSec, opts) {
     if (!flowCh || !flowCh.data || !flowCh.data.length) return null;
     var flow = flowCh.data,
       fs = flowCh.fs || 25,
@@ -28566,7 +29144,18 @@ __exports.ECGDex = window.ECGDex;
     for (var a = 0; a < n; a++) ps[a + 1] = ps[a] + flow[a];
     var lastCrossIdx = -1,
       minBreathSamp = Math.round(fs * 1.2); // ≥1.2 s/breath (≤50 brpm ceiling)
+    // mask index for sample i: the flow grid (25 Hz) and the pressure grid (0.5 Hz) differ, so map
+    // by time rather than by index — off-mask samples take part in neither the count nor I:E.
+    var mOn = opts && opts.maskOn && opts.maskOn.length && opts.maskFs > 0 ? opts.maskOn : null;
+    var mRatio = mOn ? opts.maskFs / fs : 0;
     for (var i = 0; i < n; i++) {
+      if (mOn) {
+        var mi = Math.min(mOn.length - 1, Math.floor(i * mRatio));
+        if (!mOn[mi]) {
+          lastSign = 0;
+          continue;
+        }
+      }
       var lo = Math.max(0, i - W),
         hi = Math.min(n, i + W);
       var base = (ps[hi] - ps[lo]) / (hi - lo);
@@ -28583,9 +29172,33 @@ __exports.ECGDex = window.ECGDex;
         lastSign = -1;
       }
     }
-    var breathRate = durSec > 0 ? +(breaths / (durSec / 60)).toFixed(1) : null;
+    /* 🔴 THE DENOMINATOR IS MASK-ON SECONDS, NOT WALL SECONDS (FOLLOWUPS §1.9). This divided by
+       `durSec` — the whole recording — while EVERY sibling ventilation figure computed beside it
+       (`rrMaskOn`, `tvMaskOn`, `mvMaskOn`, `snMaskOn`, `flMaskOn`) is `_filterBy(..., maskOn)`. A
+       surfaced breaths/min was therefore diluted by however long the mask was off, by a different
+       factor every night — the same shape as F8's `usageHours` and §1.6's `therapyHours`.
+       Found by trying to USE this number as the reference for §1.5's grade adjudication and having
+       to reject it on that ground, which is why the fix is here and not in a grading unit.
+       ⚠️ The corpus CANNOT show the error's size: mask-on was 1.000 on all 24 nights measured, so
+       those nights are silent about this by construction — a committed mask-off twin is the only
+       thing that can red the old form, and that is what pins it.
+       The numerator is gated too: breaths "detected" while the mask is off are noise crossings, and
+       counting them against a smaller denominator would over-correct rather than correct. */
+    var onSec = null;
+    if (opts && opts.maskOn && opts.maskOn.length && opts.maskFs > 0) {
+      var onN = 0;
+      for (var q = 0; q < opts.maskOn.length; q++) if (opts.maskOn[q]) onN++;
+      onSec = onN / opts.maskFs;
+    }
+    var breathRate = onSec != null && onSec > 0 ? +(breaths / (onSec / 60)).toFixed(1) : null;
+    var breathRateReason =
+      onSec == null
+        ? 'no mask-on window (no pressure channel) — a breaths/min needs a measured denominator, not the recording length'
+        : onSec > 0
+          ? null
+          : 'mask never on — no measured time to divide by';
     var ieRatio = expSamp > 0 ? +(inspSamp / expSamp).toFixed(2) : null;
-    return { breathCount: breaths, breathRate: breathRate, ieRatio: ieRatio };
+    return { breathCount: breaths, breathRate: breathRate, ieRatio: ieRatio, breathMaskOnSec: onSec, ...(breathRateReason ? { breathRateReason: breathRateReason } : {}) };
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -28722,19 +29335,48 @@ __exports.ECGDex = window.ECGDex;
     var mvCh = chan(set.PLD, 'MinVent');
     var snCh = chan(set.PLD, 'Snore');
     var flCh = chan(set.PLD, 'FlowLim');
+    /* DEEP-AUDIT-VI F8 — the pressure lane FALLS BACK like the therapy clock does. `therapy` above
+       already reads PLD || BRP || SA2, but every pressure-derived number read PLD alone, so a set
+       that lost its PLD file (the grouping note records real nights that did) published
+       `usageHours 0.000` — a measured-looking ZERO on the session table and in the node export, and
+       the denominator every event index divides by — plus `maskOnLatency NaN`, `medianPressure NaN`,
+       `residualAHI null`, while the same set's BRP
+       `Press.40ms` carried the whole mask-on trace (real night 20260613_045505: full set 0.683 h,
+       PLD removed 0.000 h, BRP mask-on fraction 1.000 ≈ 0.683 h).
+       The BRP lane is DECIMATED to the PLD cadence (block mean of `round(25 / 0.5)` = 50 samples)
+       and used for the MASK-ON MASK ONLY — usage hours and mask-on latency. It does NOT feed the
+       pressure statistics: `Press.40ms` is the instantaneous MASK pressure (EPR modulation and all),
+       not PLD's delivered set pressure, and on that same night its median reads 4.57 against PLD's
+       6.71 — a different quantity under the same label, which is exactly the fabrication the badge
+       mandate forbids. So with BRP as the source `pressureMaskOn` stays EMPTY and medianPressure /
+       p95 / mode / EPR stay unmeasured, marked by `pressureSource: 'BRP'` on the metrics. When
+       NEITHER file carries pressure there is no measurement at all: usage is `null` with a named
+       reason — never 0.000. */
+    var pressureSource = pressCh ? 'PLD' : null;
+    if (!pressCh) {
+      var brpPress = chan(set.BRP, 'Press') || chan(set.BRP, 'MaskPress');
+      if (brpPress && brpPress.data && brpPress.data.length) {
+        pressCh = _decimateMean(brpPress, 0.5);
+        pressureSource = 'BRP';
+      }
+    }
     var fs = pressCh ? pressCh.fs : 0.5;
     var pressure = pressCh ? pressCh.data : new Float32Array(0);
 
     // mask-on = delivered pressure > 0
     var maskOn = new Uint8Array(pressure.length);
     for (var i = 0; i < pressure.length; i++) maskOn[i] = pressure[i] > 0 ? 1 : 0;
-    var pressureMaskOn = _filterBy(pressure, maskOn);
+    var pressureMaskOn = pressureSource === 'BRP' ? [] : _filterBy(pressure, maskOn); // F8 — mask pressure is not set pressure
     var leakMaskOn = leak ? _filterBy(leak, maskOn) : [];
-    var usageHours =
-      _countWhere(pressure, function (v) {
-        return v > 0;
-      }) /
-      ((fs || 0.5) * 3600);
+    var usageHours = pressureSource
+      ? _countWhere(pressure, function (v) {
+          return v > 0;
+        }) /
+        ((fs || 0.5) * 3600)
+      : null;
+    var usageReason = pressureSource ? null : 'no-pressure-channel';
+    // the index denominator: measured hours, or 0 when there is no measurement (every index → null)
+    var idxHours = usageHours == null ? 0 : usageHours;
 
     // ── events from EVE; PB span from CSL ──
     var events = eveEvents(set.EVE && set.EVE.annotations, t0Ms);
@@ -28767,7 +29409,8 @@ __exports.ECGDex = window.ECGDex;
     var flMaskOn = flCh ? _filterBy(flCh.data, maskOn) : [];
 
     // ── breath detection from 25 Hz BRP Flow ──
-    var breath = detectBreaths(chan(set.BRP, 'Flow'), durSec);
+    // §1.9: the rate needs the MEASURED window, so mask-on rides in with its own cadence.
+    var breath = detectBreaths(chan(set.BRP, 'Flow'), durSec, { maskOn: maskOn, maskFs: fs });
 
     // ── SA2 oximetry QC lane (self-gated) ──
     var oxi = oximetryLane(set.SA2, durSec);
@@ -28781,9 +29424,10 @@ __exports.ECGDex = window.ECGDex;
     var nApnea = aCount('OA') + aCount('CA') + aCount('H') + aCount('UA'); // UA = device-scored untyped apnea, counted toward AHI (kept out of the OA/CA split)
     var metrics = {
       // Usage & Adherence
-      usageHours: +usageHours.toFixed(3),
+      usageHours: usageHours == null ? null : +usageHours.toFixed(3),
       compliancePct: null, // longitudinal (buildLongitudinal)
       maskOnLatency: (function () {
+        if (!pressureSource) return null; // F8 — no pressure lane at all: unknown, not "never"
         for (var i = 0; i < pressure.length; i++) if (pressure[i] > 0) return +(i / (fs * 60)).toFixed(2);
         return NaN;
       })(),
@@ -28798,10 +29442,10 @@ __exports.ECGDex = window.ECGDex;
       epap95: epap95,
       mode: mode,
       // Residual events (device-scored EVE — top tier)
-      residualAHI: usageHours > 0 ? +(nApnea / usageHours).toFixed(2) : null,
-      obstructiveIndex: usageHours > 0 ? +(aCount('OA') / usageHours).toFixed(2) : null,
-      centralIndex: usageHours > 0 ? +(aCount('CA') / usageHours).toFixed(2) : null,
-      hypopneaIndex: usageHours > 0 ? +(aCount('H') / usageHours).toFixed(2) : null,
+      residualAHI: idxHours > 0 ? +(nApnea / idxHours).toFixed(2) : null,
+      obstructiveIndex: idxHours > 0 ? +(aCount('OA') / idxHours).toFixed(2) : null,
+      centralIndex: idxHours > 0 ? +(aCount('CA') / idxHours).toFixed(2) : null,
+      hypopneaIndex: idxHours > 0 ? +(aCount('H') / idxHours).toFixed(2) : null,
       /* MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS §3 — `0.00` on all 197 nights of the reference corpus,
          and not because the subject had no RERAs: this device does not score them AT ALL. Its EVE
          vocabulary is exactly `Central Apnea · Hypopnea · Obstructive Apnea · Arousal · Recording
@@ -28816,7 +29460,7 @@ __exports.ECGDex = window.ECGDex;
 
          `nRE > 0` rather than a capability probe because capability is not knowable from one
          session's annotations — see the multi-night sibling below, which can and does pool. */
-      reraIndex: usageHours > 0 && aCount('RE') > 0 ? +(aCount('RE') / usageHours).toFixed(2) : null,
+      reraIndex: idxHours > 0 && aCount('RE') > 0 ? +(aCount('RE') / idxHours).toFixed(2) : null,
       /* §7 (DEEP-AUDIT-2026-07-14) intended "null on absence" — but the guard it shipped was
          `durSec > 0`, which is the DENOMINATOR, not the channel. So a night whose CSL file never
          existed still published a measured-looking `0.00`, indistinguishable from a night the
@@ -28878,15 +29522,22 @@ __exports.ECGDex = window.ECGDex;
       // Breath detection (flow-derived — validates device RespRate)
       breathCount: breath ? breath.breathCount : null,
       breathRate: breath ? breath.breathRate : null,
+      // §1.9 — the MEASURED window this session's rate was divided by, so the night-level pool can
+      // sum mask-on seconds instead of re-deriving a wall duration.
+      breathMaskOnSec: breath ? breath.breathMaskOnSec : null,
       ieRatio: breath ? breath.ieRatio : null
     };
+    // F8 — say WHERE the pressure lane came from only when it is not the usual one, and WHY usage is
+    // unknown only when it is: a PLD-backed session's export is byte-identical to before.
+    if (pressureSource === 'BRP') metrics.pressureSource = 'BRP';
+    if (usageReason) metrics.usageReason = usageReason;
 
     var sqi = leakSqi(metrics);
     return {
       t0Ms: t0Ms,
       endMs: t0Ms + durSec * 1000, // WALL duration (for off-mask gap math)
       durMin: +(durSec / 60).toFixed(1),
-      usageHours: +usageHours.toFixed(3),
+      usageHours: usageHours == null ? null : +usageHours.toFixed(3),
       mode: mode,
       fname: meta.fname || null,
       truncated: !!therapy.truncated,
@@ -28923,6 +29574,11 @@ __exports.ECGDex = window.ECGDex;
         snMaskOn: snMaskOn,
         flMaskOn: flMaskOn,
         breathCount: breath ? breath.breathCount : null,
+        /* §1.9 — the pool is a SEPARATE lightweight object from `metrics`, so a per-session field
+           added to `metrics` alone never reaches `nightMetrics`. The night-level breathRate reads
+           HERE, so the measured denominator has to travel here too; adding it to `metrics` and not
+           to `_pool` is what made the mask-off twin report null with maskOnSec 0. */
+        breathMaskOnSec: breath ? breath.breathMaskOnSec : null,
         ieRatio: breath ? breath.ieRatio : null,
         eprDelta: eprDelta,
         maskOnLatency: metrics.maskOnLatency,
@@ -28964,18 +29620,27 @@ __exports.ECGDex = window.ECGDex;
       eprs = [],
       breaths = 0,
       haveBreaths = false,
+      breathOnSec = 0,
       ieW = 0,
       ieWsum = 0;
+    var usageUnknown = 0; // F8 — sessions whose usage is null (no pressure lane), not zero
     pools.forEach(function (p) {
       for (var i = 0; i < p.pressureMaskOn.length; i++) P.push(p.pressureMaskOn[i]);
       if (p.epapMaskOn) for (var k = 0; k < p.epapMaskOn.length; k++) E.push(p.epapMaskOn[k]);
       for (var j = 0; j < p.leakMaskOn.length; j++) L.push(p.leakMaskOn[j]);
-      totHours += p.usageHours;
-      nA += p.nApnea;
-      nOA += p.nOA;
-      nCA += p.nCA;
-      nH += p.nH;
-      nRE += p.nRE;
+      /* F8 — a session with no usage measurement leaves the event INDICES entirely: its events
+         happened over hours nobody measured, so counting them over the OTHER sessions' hours
+         doubles the rate (measured on the synthetic pair: 24 → 48 events/h). Numerator and
+         denominator move together, the same way the §3a PB lane below handles an unscored session. */
+      if (p.usageHours == null) usageUnknown++;
+      else {
+        totHours += p.usageHours;
+        nA += p.nApnea;
+        nOA += p.nOA;
+        nCA += p.nCA;
+        nH += p.nH;
+        nRE += p.nRE;
+      }
       pbSec += p.pbSec;
       durSec += p.durSec;
       /* §3a — a session with no CSL lane leaves the PB DENOMINATOR, it does not merely add
@@ -28995,14 +29660,21 @@ __exports.ECGDex = window.ECGDex;
         breaths += p.breathCount;
         haveBreaths = true;
       }
+      // §1.9 — pool the MEASURED denominator alongside the numerator (see the breathRate note below)
+      if (p.breathMaskOnSec != null && isFinite(p.breathMaskOnSec)) breathOnSec += p.breathMaskOnSec;
       // I:E is a ratio, so it pools as a usage-weighted mean, not a sum
-      if (p.ieRatio != null && isFinite(p.ieRatio)) {
+      if (p.ieRatio != null && isFinite(p.ieRatio) && p.usageHours != null) {
         ieWsum += p.ieRatio * p.usageHours;
         ieW += p.usageHours;
       }
     });
-    return {
-      usageHours: +totHours.toFixed(3),
+    /* F8 — a night is only as known as its sessions. If ANY session's usage is unknown, the sum of
+       the others is a LOWER BOUND, and publishing a lower bound as the usage lets a ≥ 4 h night read
+       as non-compliant. The night's usage is then null, with the session count that made it so;
+       the event INDICES still divide by the hours that were measured (a rate over known time is a
+       rate), and every pooled distribution is unaffected. */
+    var night = {
+      usageHours: usageUnknown ? null : +totHours.toFixed(3),
       // maskOnLatency is a NIGHT-onset fact: how long until therapy started. Sessions are
       // sorted chronologically by buildNight(), so the first pool owns it — averaging it
       // across a fragmented night would be meaningless.
@@ -29105,10 +29777,20 @@ __exports.ECGDex = window.ECGDex;
       snorePressureCorr: SN.length && SN.length === P.length ? +_pearson(SN, P).toFixed(2) : null,
       // ── Breath detection (flow-derived) ──
       breathCount: haveBreaths ? breaths : null,
-      // rate over TOTAL therapy time — not a mean of per-session rates
-      breathRate: haveBreaths && durSec > 0 ? +(breaths / (durSec / 60)).toFixed(1) : null,
+      /* Rate over the MEASURED (mask-on) time — not a mean of per-session rates, and NOT over wall
+         duration (§1.9). This divided by `durSec`, the pooled wall span, exactly as the per-session
+         site did; the sibling ventilation figures beside it (RR/TV/MV/SN/FL) are all mask-on pools,
+         so this one number was diluted by mask-off time while its neighbours were not. Fixing only
+         the per-session site would have left THIS one wrong — the night-level export reads here. */
+      breathRate: haveBreaths && breathOnSec > 0 ? +(breaths / (breathOnSec / 60)).toFixed(1) : null,
+      breathMaskOnSec: haveBreaths ? breathOnSec : null,
       ieRatio: ieW > 0 ? +(ieWsum / ieW).toFixed(2) : null
     };
+    if (usageUnknown) {
+      night.usageReason = 'no-pressure-channel';
+      night.usageUnknownSessions = usageUnknown;
+    }
+    return night;
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -30806,8 +31488,16 @@ __exports.CPAPDex = window.CPAPDex;
        sidecar as a recording. The `.CSV` extension is deliberately NOT added to the type list below:
        a genuine waveform legitimately arrives as `.csv`, and excluding by extension would set those
        aside too. Name the file that announces itself, not the container. */
-    if (/_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|QC|SUMMARY|TELEMETRY)\b|_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|QC|SUMMARY|TELEMETRY)\./.test(u)) return true;
-    if (/^QC-|^\.|\.(JSON|MD|LOG|YAML|YML|INI|CFG|PNG|JPG|PDF|ZIP)$/.test(u)) return true;
+    if (/_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|RTCLOG|QC|SUMMARY|TELEMETRY)\b|_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|RTCLOG|QC|SUMMARY|TELEMETRY)\./.test(u)) return true;
+    /* DEEP-AUDIT-VI F12 — the SAME defect a third time. The alternation above requires a LEADING
+       UNDERSCORE, so the capture host's FIXED-NAME sidecars — no device, no stamp, just the name —
+       never matched it: on the real 2026-08-30 folder `planIngest` queued `CPAP-INVENTORY.jsonl` and
+       `OXYLIFE.csv` as ECG RECORDINGS, and `CLOCKSYNC.csv` (added 2026-09-01) routed ecg+ppg the day it
+       landed on disk. Every fixed name capture-host writes into a night folder is listed here, read
+       off the writers (`grep -o '"[A-Z-]*\.\(jsonl\|csv\|json\)"' capture-host/*.py`), and `.JSONL`
+       joins the container list — a line-delimited ledger is never a waveform. `.CSV` still is NOT. */
+    if (/^(CPAP-INVENTORY|OXYLIFE|CLOCKSYNC|SESSIONDETECT|AS11CLOCK|WEDGEFIRE|MANIFEST|QC-SUMMARY)\./.test(u)) return true;
+    if (/^QC-|^\.|\.(JSON|JSONL|MD|LOG|YAML|YML|INI|CFG|PNG|JPG|PDF|ZIP)$/.test(u)) return true;
     return false;
   }
 
@@ -30856,6 +31546,11 @@ __exports.CPAPDex = window.CPAPDex;
     if (/_HR\b|_HR\./.test(u)) return 'hr';
     if (/MARKER/.test(u)) return 'marker';
     if (/_ECG\b|_ECG\./.test(u)) return 'skip';
+    /* DEEP-AUDIT-VI F12 — the H10's firmware `_RR.txt` is ECGDex's companion (`ecgKind` → 'rr');
+       PpgDex's beat-interval companion is the Verity's `_PPI`. With no `_RR` branch the bare-name
+       default queued `Polar_H10_*_RR.txt` as a PPG PRIMARY, and it died in parsePPG. Measured on the
+       real 2026-08-30 folder: 2 of 2. */
+    if (/_RR\b|_RR\./.test(u)) return 'skip';
     if (foreignVendor(name)) return 'skip';
     if (nonSignalName(name)) return 'skip'; // §6.4 — telemetry/sidecar/JSON is not a waveform
     return 'ppg'; // default — assume a bare waveform
@@ -30868,6 +31563,7 @@ __exports.CPAPDex = window.CPAPDex;
     if (/_MAGN?\b|_MAGN?\./.test(u)) return 'magn'; // §6.4 — capture-host writes _MAG.txt, PSL writes _MAGN.txt; motiondex-dsp.js knew both, these did not
     if (/_GYRO\b|_GYRO\./.test(u)) return 'gyro';
     if (/_ECG\b|_ECG\./.test(u)) return 'ecg';
+    if (/_RR\b|_RR\./.test(u)) return 'rr'; // DEEP-AUDIT-VI F12 — the H10 RR companion PpgDex now sets aside
     var fv = foreignVendor(name);
     if (fv) return fv;
     return 'skip';

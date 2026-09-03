@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-24 · **Follows:** `AS11-SESSION-DETECTION-PROTOCOL-INVESTIGATION-2026-08-24-BRIEF.md`
+**Status:** DONE — 2026-09-01 (all three done-when boxes met; the RATE — the last open item — answered from the box's own week of sidecar data: **−4.7 ppm over 160 h**, see Measured · residue: per-EDF sidecar placement + ingest re-anchor live on as #1956's follow-ups, not here) · **Created:** 2026-08-24 · **Follows:** `AS11-SESSION-DETECTION-PROTOCOL-INVESTIGATION-2026-08-24-BRIEF.md`
 
 # AS11 clock discipline — the device RTC watched against the box (a timeshift sidecar)
 
@@ -61,12 +61,21 @@ clock sidecar only.
   Confirmed on **two independent adapters** (hci1 free, hci0 daemon's) agreeing to **sub-second** — so
   the offset is a device-clock property, not transport. **hci2 (Zephyr) cannot do the AS11 encrypted
   GATT** (`BleakGATTProtocolError`), so it is not usable for CPAP capture.
-- **Rate not yet resolved** — 12-second runs give a ~100000 ppm resolution floor; the "is a device
-  minute a real minute?" answer needs a long run across a real session (hours of span → sub-ppm floor).
-  Probe deployed at the box's `/srv/tepna/probe/` for that.
+- ~~**Rate not yet resolved** — 12-second runs give a ~100000 ppm resolution floor~~ **RESOLVED
+  2026-09-01 (Heron), from the daemon sidecar itself** — the very channel increment 2 wired. Ran
+  `as11_clock.analyze` over the box's full `/srv/tepna/AS11CLOCK.csv`: **n = 8,276 anchors,
+  span 160.0 h (2026-08-25 → 09-01), offset −1277.95 s (−21.30 min), slope −4.71 ppm against a
+  1.74 ppm floor → `minute_is_real: false`.** The AS11 RTC ticks measurably slow: ≈ −0.41 s/day
+  (per-day medians walk −1275.94 → −1278.56 s monotonically across the week, ≈ −5 ppm — two routes,
+  one answer). Per-night rates scatter −0.9 to −5.0 ppm on coarser intra-night floors.
+  **What this settles:** a device minute is NOT exactly a real minute, but per-night the drift is
+  ~0.14 s over 8 h — negligible against the −21.3 min offset, so a per-session measured OFFSET (which
+  the sidecar provides) is the right model; a stale offset ages at ~1 s per 2.5 days, so the
+  per-session re-measure the daemon already does is load-bearing, not ceremony.
 
 ## Done when
 - `as11_clock.py` + `probe_as11_clock.py` land with `check.sh` green (ruff, find_unwired, pytest 100%). ✓
 - One session characterised on the box → offset confirmed (−21.26 min ✓) and the RATE answered
-  (fixed vs ppm) from a long run — **rate pending tonight's session.**
+  (fixed vs ppm) from a long run — **✓ answered 2026-09-01: −4.71 ppm over 160 h / 8,276 anchors
+  (floor 1.74 ppm), see Measured.**
 - READ-ONLY + Clock-Contract-untouched confirmed by source scan. ✓

@@ -65,24 +65,30 @@
     lfhf: { label: 'LF/HF', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'LF:HF power ratio — sympatho-vagal balance proxy' },
 
     /* ── EMERGING — companion-accelerometer cross-checks (ACC sub-cards) ─────── */
-    /* 🔒 DORMANT — DECLARED, NOT IMPLEMENTED. `dormant: true` asserts exactly that and nothing more:
-       no compute site exists, so the metric reaches no export and no surface. It is NOT a tier and NOT
-       a claim that the grade below was reviewed — verified 2026-08-17, these entries appear in no
-       `*_DEFS` crossnight projection, no brief and no doc, so there is no adjudication to inherit and
-       nothing in the repo records what was measured or against what. Contrast the PpgDex per-site block,
-       which is backed by PPGDEX-O2RING-FINGER-SITE-2026-07-18-BRIEF.md; these are not.
-       PROMOTION IS REMOVING THE FLAG once the metric is computed AND surfaced — and re-adjudicating the
-       grade at that moment, because shipping the tier below on the strength of its mere presence is the
-       failure this flag exists to make visible. Found by a registry-vs-surface sweep (445 live metrics,
-       44 authored surfaces); "unsurfaced" was confirmed per-name — id, label and every alias. */
+    /* 🔓 WAS FLAGGED DORMANT — AND THE FLAG WAS FALSE (DEEP-AUDIT-VI F4, 2026-09-01). `dormant: true`
+       asserts "no compute site exists, so the metric reaches no export and no surface". This metric is
+       computed in `ECGDSP.accExtras` (`rracc`/`rraccSummary`) and surfaced by `_accCardRR` — both since
+       the initial commit, 2026-07-01 — while the flag arrived 2026-08-18 (#1455) claiming a sweep had
+       "confirmed per-name — id, label and every alias". It was wrong when it was written, not stale:
+       the sweep examined something other than the surfaces it reported on.
+       THE FLAG'S OWN CONTRACT says promotion means removing it AND re-adjudicating the grade. So the
+       grade was adjudicated, by measurement rather than by inheritance — and it went DOWN.
+       MEASURED 2026-09-01 over 45 real H10 nights (whole smoketest corpus, longest ECG fragment per
+       night with its ACC sibling, the shipped `accExtras` agreement block): RRacc vs the ECG-derived
+       EDR respiration gives median r **0.07** (−0.34 … +0.58), median MAE **2.5 br/min** (0.92 … 4.37),
+       median bias **+1.58**, limits of agreement typically **−4 … +7.5 br/min**, and a median **27 %**
+       of paired 5-min epochs disagreeing by more than 3 br/min. Against a mean RRacc near 16 br/min
+       those limits are ±44 %. The card's standing defence — that a low r reflects EDR's narrow nightly
+       range and Bland–Altman governs when the spread is small — does not rescue it: by the statistic
+       it nominates, the two do not agree. Full per-night table:
+       docs/ECGDEX-RRACC-EDR-AGREEMENT-2026-09-01.md. `experimental` is what that supports. */
     rraccRate: {
-      dormant: true,
       label: 'ACC Resp Rate',
       unit: 'br/min',
       goodDirection: 'down',
       depth: 'advanced',
-      evidence: 'emerging',
-      cite: 'Respiration from chest-axis accelerometer FFT (0.15–0.45 Hz) — device-dependent surrogate'
+      evidence: 'experimental',
+      cite: 'Respiration from chest-axis accelerometer FFT (0.15–0.45 Hz) — device-dependent surrogate. Against EDR over 45 real nights: median r 0.07, MAE 2.5 br/min, LoA −4…+7.5 br/min (docs/ECGDEX-RRACC-EDR-AGREEMENT-2026-09-01.md) — not cross-validated by the ECG'
     },
     edrAgreement: {
       label: 'RRacc–EDR Agreement',
@@ -90,26 +96,37 @@
       goodDirection: 'up',
       depth: 'advanced',
       evidence: 'emerging',
-      cite: 'Bland–Altman agreement of ACC-respiration vs ECG-derived respiration — a cross-validation of two surrogate respiration signals'
+      cite: 'Bland–Altman agreement of ACC-respiration vs ECG-derived respiration. It is the AGREEMENT STATISTIC, not a verdict — and measured over 45 real nights the verdict is negative (median r 0.07, LoA −4…+7.5 br/min on a ~16 br/min mean; docs/ECGDEX-RRACC-EDR-AGREEMENT-2026-09-01.md). Read the number; it does not certify either signal'
     },
-    /* 🔒 DORMANT — DECLARED, NOT IMPLEMENTED. `dormant: true` asserts exactly that and nothing more:
-       no compute site exists, so the metric reaches no export and no surface. It is NOT a tier and NOT
-       a claim that the grade below was reviewed — verified 2026-08-17, these entries appear in no
-       `*_DEFS` crossnight projection, no brief and no doc, so there is no adjudication to inherit and
-       nothing in the repo records what was measured or against what. Contrast the PpgDex per-site block,
-       which is backed by PPGDEX-O2RING-FINGER-SITE-2026-07-18-BRIEF.md; these are not.
-       PROMOTION IS REMOVING THE FLAG once the metric is computed AND surfaced — and re-adjudicating the
-       grade at that moment, because shipping the tier below on the strength of its mere presence is the
-       failure this flag exists to make visible. Found by a registry-vs-surface sweep (445 live metrics,
-       44 authored surfaces); "unsurfaced" was confirmed per-name — id, label and every alias. */
+    /* 🔓 WAS FLAGGED DORMANT — AND THE FLAG WAS FALSE, the same way (see `rraccRate` above). This one
+       is surfaced by `_accCardAgreement` ("Disagreement", ecgdex-app.js) AND reaches the node export as
+       `respiration.disagreementRatePct`, which is the second half of what `dormant` denies. The grade
+       needs no re-adjudication: `heuristic` was already the honest tier for a >3 br/min rule of thumb,
+       and the 45-night measurement (median 27 % of pairs over that threshold) is consistent with it. */
     edrDisagree: {
-      dormant: true,
       label: 'EDR Disagreement',
       unit: '%',
       goodDirection: 'down',
       depth: 'advanced',
       evidence: 'heuristic',
       cite: 'Share of paired epochs with |RRacc − EDR| > 3 br/min — an internal rule-of-thumb threshold flag, not a validated agreement statistic (Pearson r / MAE / bias are the agreement stats)'
+    },
+    /* THE ACC CARD'S POSTURE, registered so it can be badged (DEEP-AUDIT-VI F4). The card surfaces a
+       named body position, a tilt angle and per-posture % pills — measurements reaching the eye, so
+       the coverage mandate applies and they needed a graded id rather than a deny.
+       `experimental`, inherited from the FLEET SIBLING rather than invented here: MotionDex's
+       `supineFrac` grades the same gravity-vector quantity `experimental` because the device frame is
+       uncalibrated and the named posture is a convention, not a measurement — and a chest strap adds
+       mount-orientation dependence on top. The card's own prose has always said so ("Posture
+       labelling depends on sensor mounting; tilt angle is mount-independent"); the badge now says it
+       where the mandate requires, beside the number. */
+    accPosture: {
+      label: 'Body position',
+      unit: '%',
+      goodDirection: 'neutral',
+      depth: 'basic',
+      evidence: 'experimental',
+      cite: 'Gravity-vector body position from the chest-strap accelerometer — UNCALIBRATED device frame, mount-orientation dependent; the named posture is a convention. Fleet sibling: MotionDex supineFrac, same quantity, same tier'
     },
     stageConsensus: {
       label: 'Stage Consensus',
@@ -194,7 +211,36 @@
     rsaAmplitude: { label: 'RSA amplitude', unit: 'bpm', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'Peak-to-trough HR swing across the respiratory cycle' },
     crcPLV: { label: 'CRC PLV', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'RR↔respiration phase-locking value — coupling strength' },
     couplingStrength: { label: 'Coupling strength', unit: '', goodDirection: 'up', depth: 'research', evidence: 'emerging', cite: 'CSI-style cardiorespiratory sync index' },
-    edrResp: { label: 'EDR resp rate', unit: 'br/min', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'Respiration from R-peak amplitude modulation (EDR) — surrogate' },
+    /* ADJUDICATED emerging → experimental, 2026-09-02 (DEEP-AUDIT-VI-FOLLOWUPS §1.5, the sibling of
+       #1455's `rraccRate` re-tier). Measured against the CPAP device's own mask-on `RespRate.2s`
+       channel on 23 co-recorded nights (24 paired, 1 excluded as a genuine refusal), bands frozen before
+       the run: MAE **1.82** br/min (bar ≤1.5) · Bland-Altman bias −0.97, LoA [−5.67, +3.73],
+       width **9.41** (bar ≤6). Both fail, so the tier claim "externally validated" fails with them.
+       ⚠️ `r` is NOT cited as evidence here: the reference varies by only 0.54 br/min SD across
+       nights (14.8–16.8), so a correlation is suppressed by range restriction by construction —
+       the honest statistics on a near-constant truth are the absolute-agreement ones.
+       🔴 The decisive control: a CONSTANT 15.0 br/min — this metric's own hardcoded fallback
+       (`ecgdex-dsp.js` respFromEDR) — scores MAE **0.77** against the same reference, and a
+       constant 15.8 scores 0.42. The estimator is beaten by the constant it falls back to, with
+       ~5× the reference's spread (est SD 2.50 vs 0.54) and misses to 7.4 and 20.0 br/min against a
+       truth that never left 14.8–16.8. Directional only — which is what `experimental` means.
+       ⚠️ CORRECTED 2026-09-02 (FOLLOWUPS §1.10): the first write of this stamp read n=22 / MAE 1.90 /
+       LoA 9.58, having excluded BOTH nights whose rate was exactly 15.0 as fallbacks. Only
+       2026-07-02 actually takes the refusal branch; 2026-07-06 MEASURES 15.0. The `=== 15.0` test
+       could not tell them apart — which is the very defect §1.10 fixes — so the exclusion is now one
+       night and the figures above are the corrected ones. The verdict is unchanged: both bands still
+       fail, and the constant still beats the estimator.
+       NOTE the sibling `respRate` (line 54) is a DIFFERENT estimator (per-epoch median, not
+       whole-record autocorrelation) and is NOT adjudicated by this measurement; it keeps its grade
+       until measured on its own. */
+    edrResp: {
+      label: 'EDR resp rate',
+      unit: 'br/min',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'experimental',
+      cite: 'Respiration from R-peak amplitude modulation (EDR) — surrogate; re-tiered 2026-09-02 against CPAP RespRate on 23 nights (MAE 1.82, LoA width 9.41; a constant 15 scores MAE 0.77)'
+    },
 
     /* CPC high-frequency coupling (Thomas 2005). ONLY HFC is registered, and the reason is the
        validation rather than the literature: across 39 nights paired to device-scored ResMed
@@ -348,6 +394,15 @@
     'plv surge vs base': 'crcPLV',
     'coupling strength': 'couplingStrength',
     'edr resp rate': 'edrResp',
+    /* THE ACC CROSS-CHECK CARD'S OWN STRINGS (DEEP-AUDIT-VI F4). The card renders prose labels, not
+       registry labels — 'ACC breathing', 'ECG/EDR breathing', 'Δ br/min' — so every one of them
+       resolved to nothing and the chips shipped unbadged while the registry graded all three. Aliased
+       to the ids that OWN each quantity, verified against the value each chip prints. */
+    'acc breathing': 'rraccRate',
+    'ecg/edr breathing': 'edrResp',
+    'δ br/min': 'edrAgreement',
+    'body position': 'accPosture',
+    posture: 'accPosture',
     /* 'cvhr/h' is the hero subscore's short label. It resolves to `cvhrIndex` so that surface is
        BADGED — it previously read 'Apnea/h', which mapped to nothing, so the mandate-required badge
        silently rendered empty (CLAUDE.md §🎫). Retired alongside it: 'est. ahi' / 'apnea risk'. */

@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (program plan for owner ratification; P0 items are idle-lane-safe to start) · **Created:** 2026-08-27 · **Owner-issued charter** (direct, 2026-08-27 — condensed capture in the Appendix) · **Interlocks:** `MUTATION-FLEET-EXPANSION-2026-08-25-BRIEF.md` (§0 invariant), `OPERATIONAL-MATURITY-ROADMAP-2026-08-27-BRIEF.md` (§22 echoes its charter), `DEVELOPMENT-METHODOLOGY-2026-08-27-BRIEF.md` §7
+**Status:** PROPOSED (parked 2026-09-02 — drain triage, Kestrel: a PROGRAM PLAN awaiting owner ratification; the only piece that runs without it is the P0 idle-lane DSP review, which is already the standing qwen idle behaviour and needs no brief to continue. Owner: the owner (ratify or decline); next step: none for the fleet until ratified. Previously: program plan for owner ratification; P0 items are idle-lane-safe to start) · **Created:** 2026-08-27 · **Owner-issued charter** (direct, 2026-08-27 — condensed capture in the Appendix) · **Interlocks:** `MUTATION-FLEET-EXPANSION-2026-08-25-BRIEF.md` (§0 invariant), `OPERATIONAL-MATURITY-ROADMAP-2026-08-27-BRIEF.md` (§22 echoes its charter), `DEVELOPMENT-METHODOLOGY-2026-08-27-BRIEF.md` §7
 
 # The qwen engineering program — Tech Lead audit + plan
 

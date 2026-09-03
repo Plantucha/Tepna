@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-08-08 · **Follows:** `CAPTURE-HOST-MUTATION-FLEET-2026-08-04-BRIEF.md` §4.1
+**Status:** IN-PROGRESS · **Created:** 2026-08-08 · **Follows:** `CAPTURE-HOST-MUTATION-FLEET-2026-08-04-BRIEF.md` §4.1 · **DRAIN 2026-09-02 (Osprey):** section 6's `SKIP anchor` item **CLOSED** with evidence (see it — the string never existed in code; the mechanism's absence is what confirms retirement). **ONE item remains open** and it is real work, not a stamp: *the 45 timeouts re-run un-contended and reclassified*. **Owner: Osprey. Next step:** that re-run is one work-unit under the full gate; the brief flips DONE when it lands.
 
 # `capture.run_polar` — the pass the fleet brief called the prize, and the one-line reason it was blocked
 
@@ -354,6 +354,16 @@ printed `SKIP anchor` under-measured by however many it skipped.
   them apart, so `--list` first is the only cheap discriminator.
   **and the text-anchor kill-checker is retired repo-wide in favour of §5.4's verified line map** —
   any earlier pass that printed `SKIP anchor` under-measured by however many it skipped.
-  ⚠️ *This second half is UNVERIFIED by me: no tool under `tools/` or `capture-host/tools/` still
-  emits `SKIP anchor`, which is consistent with retirement but is equally consistent with it never
-  having lived there. Left open rather than ticked on absence-of-evidence.*
+  ✅ *This second half is **RESOLVED 2026-09-02 (Osprey, drain)** — and the original doubt was
+  well-placed, because the instrument was mis-specified rather than the claim being wrong.*
+  **`SKIP anchor` never existed in code at all.** `git log -S 'SKIP anchor' --all` over the WHOLE
+  tree returns **5 commits**, and every one touches only prose — `MUTATION-AUDIT-RUNBOOK`, this
+  brief, and four changesets. Scoped to `tools/` + `capture-host/` it returns **0**, which is the
+  query that produced the original "consistent with either" verdict: it searched for a literal
+  output string that no tool ever emitted, so its silence could not discriminate. (Both queries
+  positive-controlled first — the same `-S` over those paths finds `pat-window-oracle` in 6 commits
+  and `mutate_triage` in 7, so the zero is a measurement, not a blind query.)
+  **The claim itself holds, on the right evidence:** no anchor mechanism survives in the mutation
+  tools — `grep -niE 'anchor' capture-host/tools/mutate_{diff,pure,triage}.py` returns nothing while
+  a `def ` control returns 6/8/6 on those same files. Retirement confirmed by the absence of the
+  MECHANISM, which is checkable, not by the absence of a STRING, which was not.*

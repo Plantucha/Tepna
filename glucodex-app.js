@@ -770,13 +770,28 @@ import './glucodex-profile.js';
     }
     sec.style.display = 'block';
     const catCol = { light: UI.COLORS.green, medium: UI.COLORS.amber, heavy: UI.COLORS.red };
+    /* ⚠️ `evBadge(m.label, FALSE)` — the second argument is load-bearing, do not drop it.
+       `m.label` is the MEAL GROUP NAME and it comes from the user's CSV (`glucodex-dsp.js` builds
+       `label: cells[ci.group] || 'Meal'`), so it is arbitrary user text — "Breakfast", "Dinner",
+       "my weird lunch". `evBadge(label, fallback)` calls `badgeForLabel(label, fallback !== false)`,
+       so OMITTING the argument means fallback=true, and an unresolvable, non-denylisted label gets
+       the invented `experimental` disc. Measured 2026-08-31 against the real registry: every meal
+       name rendered a fabricated `experimental` grade — an evidence tier asserted about a string the
+       user typed. A deny-list cannot fix this, because the labels are unbounded.
+       `fallback=false` suppresses ONLY the invention: a label that genuinely resolves still badges
+       at its real tier (verified — "Mean glucose" reads `measured` under both settings).
+       ⚠️ NOTE the meal name is this card's SUBJECT, not a metric. The card's four measurements —
+       peak rise, time-to-peak, +2 h delta, returned-to-baseline — are absent from
+       `glucodex-registry.js` entirely and are therefore unbadged; that is a GRADING decision (a
+       metric's tier is a node fact, never invented ad hoc) and is recorded in
+       `audits/BADGE-DYNAMIC-LABEL-FINDINGS-2026-08-31.md`, not silently patched here. */
     const cards = pp
       .map((m) => {
         const col = catCol[m.category] || UI.COLORS.teal;
         const sev = m.peakDelta == null ? 'neutral' : m.peakDelta < 40 ? 'ok' : m.peakDelta < 70 ? 'warn' : 'bad';
         const ret = m.returnedPct;
         return `<div class="q-stat" style="border-left:3px solid ${col}">
-      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><div class="q-lbl" style="margin:0">${typeof evBadge === 'function' ? evBadge(m.label) : ''}${m.label}</div><span style="font-size:9.5px;color:var(--text4);font-family:'IBM Plex Mono',monospace">${m.nDays}d · ${m.category}</span></div>
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><div class="q-lbl" style="margin:0">${typeof evBadge === 'function' ? evBadge(m.label, false) : ''}${m.label}</div><span style="font-size:9.5px;color:var(--text4);font-family:'IBM Plex Mono',monospace">${m.nDays}d · ${m.category}</span></div>
       <div class="q-val ${sev}" style="margin-top:6px">+${m.peakDelta == null ? '—' : window.GluDisp.val(m.peakDelta)}<span style="font-size:12px;font-weight:600;color:var(--text3)"> ${window.GluDisp.label()} peak</span></div>
       <div class="q-sub" style="margin-top:5px;line-height:1.7">
         peak at <b style="color:var(--text2)">${m.timeToPeakMin == null ? '—' : m.timeToPeakMin} min</b> · +2 h Δ <b style="color:var(--text2)">${m.delta2h == null ? '—' : (m.delta2h > 0 ? '+' : '') + window.GluDisp.val(m.delta2h)}</b><br>

@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-26 · **Created:** 2026-07-17
+**Status:** IN-PROGRESS (parked 2026-09-02 — drain triage, Kestrel: both open done-when items are HARDWARE-gated, not code-gated — the `.BPB` decoder has no input until an onboard exercise session is pulled off a real H10, and the on-box web-pull demonstration needs an idle strapped H10 on vigil, which is the same experiment as `POLAR-ONBOARD-BACKUP-FOLLOWUPS` §4 / `POLAR-ONBOARD-BACKUP` §6 Q1 and now runs through the #2042 probe endpoint. Owner: Heron, in the owner-scheduled Phase B window; next step: one recorded pull over the web path, then the `.BPB` bytes exist to decode. Previously: pull core + charger/doff triggers SHIPPED and gate-tested; verified 2026-09-01 against the done-when: the `.BPB` decoder is still UNLANDED — the only `BPB` mentions in the tree are `polar_mirror.py`'s PII/bonding-table notes, no decoder module — and the on-box web-pull demonstration is still unrecorded, so this stays open on both counts. Related but not closing it: the H10 RR-acceptance probe endpoint (`POLAR-ONBOARD-BACKUP-FOLLOWUPS` §4) is in flight 2026-09-01) · **Created:** 2026-07-17
 
 # Polar onboard offline-recording download (PS-FTP), wired into the Vigil monitor
 

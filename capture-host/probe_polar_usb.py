@@ -191,7 +191,8 @@ def find_device(vid: str = "0da4", pid: str = "0008") -> tuple[str, str] | None:
         try:
             ue = open(os.path.join(node, "device", "uevent"), encoding="utf-8").read()
         except OSError:
-            continue
+            continue   # a node that vanished mid-walk (hotplug) or exposes no uevent is not a
+                       # candidate; the caller reports finding nothing, which is the honest answer
         hid_id = next((l.split("=", 1)[1] for l in ue.splitlines() if l.startswith("HID_ID=")), "")
         if vid.lower() in hid_id.lower() and pid.lower() in hid_id.lower():
             uniq = next((l.split("=", 1)[1] for l in ue.splitlines() if l.startswith("HID_UNIQ=")), "")

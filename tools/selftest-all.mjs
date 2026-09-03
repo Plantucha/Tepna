@@ -39,6 +39,7 @@
  *   node tools/selftest-all.mjs --list   # just show what would run
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFile } from 'node:child_process';
+import os from 'node:os';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -92,6 +93,31 @@ const files = readdirSync(TOOLS)
 /* This script is excluded from its own DISCOVERY list, which would leave its predicates ungated — the
    exact shape it exists to catch. `--selftest` therefore runs them; the CI loop finds this file by that
    same literal and runs it, so the detector is gated by the mechanism it guards. */
+const TOOL_TIMEOUT_MS = 120000;
+
+/* WHY a tool failed, not just THAT it did. `err` from execFile carries the only evidence that exists
+   for a timeout (`killed`, SIGTERM) or a crash (a non-zero `code`, a stack on stderr), and it was
+   discarded entirely — so every NON-assertion failure reported as a bare "FAILED" with a blank line
+   under it. Ordered most-specific first: a killed process ALSO carries an exit code, so testing
+   `killed` before `code` is load-bearing, and a selftest leg pins that order. */
+export function whyFailed(err, timeoutMs) {
+  if (!err) return null;
+  if (err.killed || err.signal === 'SIGTERM') return `TIMED OUT after ${timeoutMs / 1000}s (killed, ${err.signal || 'no signal'})`;
+  if (err.code != null) return `exited ${err.code}`;
+  if (err.signal) return `killed by ${err.signal}`;
+  return String(err.message || 'failed').split('\n')[0];
+}
+
+/* WHICH LINES to show. Assertion lines lead when the tool printed any; otherwise the TAIL of whatever
+   it did say. An empty return means it said nothing at all — itself the tell for a timeout — and the
+   caller prints that in words rather than as a blank line. */
+export function failureLines(out) {
+  const all = String(out || '').split('\n');
+  const marked = all.filter((l) => l.includes('\u2717') || l.includes('FAILED'));
+  if (marked.length) return marked.slice(0, 4);
+  return all.filter((l) => l.trim()).slice(-6);
+}
+
 if (argv.includes('--selftest')) {
   let n = 0;
   const eq = (c, m) => {
@@ -110,6 +136,22 @@ if (argv.includes('--selftest')) {
   eq(declaresNearMissSelftest('export function selfTest() { return 3; }'), 'selftest machinery with no reachable flag is a near miss');
   eq(!declaresNearMissSelftest("if (argv.includes('--selftest')) { selfTest(); }"), 'a correctly-enrolled tool is NOT a near miss');
   eq(!declaresNearMissSelftest('export function main() { return 0; }'), 'a tool with no selftest at all is not a near miss');
+  /* THE FAILURE REPORT ITSELF (2026-09-02). This filtered a failing tool's output to lines containing
+     the assertion marker or FAILED — the shape of an ASSERTION failure — and dropped `err`, so a
+     timeout or a crash printed a bare "FAILED" and a BLANK line. Measured: two independent
+     `dsp-review-qwen` failures printed exactly that while the tool passes standalone, so the cause
+     could not be diagnosed — the runner had thrown the evidence away. Verified against a planted
+     hanging tool, which now reports `TIMED OUT after 120s (killed, SIGTERM)`. */
+  eq(whyFailed(null, 120000) === null, 'a successful run has no failure reason');
+  eq(whyFailed({ killed: true, signal: 'SIGTERM' }, 120000).startsWith('TIMED OUT after 120s'), 'a killed process is reported as a TIMEOUT, in seconds');
+  eq(whyFailed({ killed: true, signal: 'SIGTERM', code: 1 }, 120000).includes('TIMED OUT'), 'timeout wins over an exit code — a killed process also carries one');
+  eq(whyFailed({ code: 7 }, 120000) === 'exited 7', 'a non-zero exit reports its code');
+  eq(whyFailed({ signal: 'SIGKILL' }, 120000) === 'killed by SIGKILL', 'a signal kill (OOM) is named, not swallowed');
+  eq(whyFailed({ message: 'spawn ENOENT\nstack' }, 120000) === 'spawn ENOENT', 'a spawn failure reports its first line only');
+  eq(failureLines('ok\n  \u2717 parse: junk\nmore').length === 1, 'assertion lines lead when the tool printed any');
+  eq(failureLines('a\nb\nc\nd\ne\nf\ng\nh').length === 6, 'otherwise the TAIL is shown, capped at 6 lines');
+  eq(failureLines('').length === 0, 'no output at all returns nothing — the caller says so in words');
+  eq(failureLines('  \n\n  ').length === 0, 'whitespace-only output is no output');
   console.log(`all ${n} selftests passed`);
   process.exit(0);
 }
@@ -121,10 +163,14 @@ if (argv.includes('--list')) {
 
 const run = (f) =>
   new Promise((res) => {
-    execFile(process.execPath, [join(TOOLS, f), '--selftest'], { cwd: ROOT, timeout: 120000, maxBuffer: 1 << 24 }, (err, stdout, stderr) => {
+    const t0 = Date.now();
+    execFile(process.execPath, [join(TOOLS, f), '--selftest'], { cwd: ROOT, timeout: TOOL_TIMEOUT_MS, maxBuffer: 1 << 24 }, (err, stdout, stderr) => {
+      const ms = Date.now() - t0;
       const out = String(stdout || '') + String(stderr || '');
       const m = out.match(/all (\d+) selftests passed/) || out.match(/all green/);
-      res({ f, ok: !err, n: m && m[1] ? Number(m[1]) : null, readable: !!m, out });
+      /* Load is sampled AT THE KILL, not at the end: by the time the sweep finishes the spike that
+         killed the tool is gone, and an average taken then would describe a different machine. */
+      res({ f, ms, load: err ? os.loadavg()[0] : null, ok: !err, n: m && m[1] ? Number(m[1]) : null, readable: !!m, out, why: whyFailed(err, TOOL_TIMEOUT_MS) });
     });
   });
 
@@ -139,22 +185,36 @@ const nearMiss = readdirSync(TOOLS)
   })
   .sort();
 
+/* LOAD AT SWEEP START, and again at every kill (below). §3.4's surviving hypothesis is that the kills
+   come from CROSS-SESSION load — several fleet sessions running full gates on one box — which is
+   invisible from inside any single session. Printing the 1-minute load average is what turns that from a
+   narrative into something falsifiable: a kill at LOW load refutes it outright, and a kill at high load
+   with no other gate running refutes it differently. Costs one syscall. */
+const load0 = os.loadavg()[0];
+console.log(`  load average at sweep start: ${load0.toFixed(2)} (${os.cpus().length} cores)`);
 const results = await Promise.all(files.map(run));
+/* Wall time is printed for the tools that can actually approach the timeout, so the §3.4 account stays
+   testable on every run rather than only when something dies: if a ≤0.3 s tool ever times out, the
+   CPU-demand explanation is refuted, and these numbers are how anyone would notice. */
+const slow = (r) => (r && r.ms >= 1000 ? `  [${(r.ms / 1000).toFixed(1)} s]` : '');
 let failed = 0,
   warned = 0,
   total = 0;
 for (const r of results) {
   if (!r.ok) {
     failed++;
-    console.log(`  ✗ tools/${r.f}  FAILED`);
-    console.log(
-      r.out
-        .split('\n')
-        .filter((l) => l.includes('✗') || l.includes('FAILED'))
-        .slice(0, 4)
-        .map((l) => '      ' + l.trim())
-        .join('\n')
-    );
+    console.log(`  ✗ tools/${r.f}  FAILED${r.why ? '  — ' + r.why : ''}${slow(r)}${r.load != null ? `  [load ${r.load.toFixed(2)} at the kill, ${load0.toFixed(2)} at start]` : ''}`);
+    /* PRINT THE EVIDENCE THAT EXISTS, not only the evidence of one failure shape. This filtered the
+       tool's output to lines containing `✗` or `FAILED` — the signature of an ASSERTION failure — so a
+       timeout, a crash or any non-zero exit whose output carries neither token printed a BLANK LINE and
+       the run said only that something failed. Measured 2026-09-02: two independent `dsp-review-qwen`
+       failures both printed exactly that blank, while the tool passes standalone (21 ok, 0 failed) —
+       the cause could not be diagnosed because the runner had thrown it away. §4b's family: a report
+       that shows the part matching its expectations and silently drops the rest. Assertion lines still
+       lead when present; otherwise the tail of whatever the tool did say, and `(no output at all)` when
+       it said nothing, which is itself the tell for a timeout. */
+    const shown = failureLines(r.out);
+    console.log(shown.length ? shown.map((l) => '      ' + l.trim()).join('\n') : '      (no output at all — consistent with a timeout or a kill before the tool printed)');
   } else if (!r.readable) {
     /* Exited 0 but printed nothing this script recognises. WARN, do not fail.
        The EXIT CODE is the contract a tool actually declares; "must also print a summary I can parse"
@@ -163,10 +223,10 @@ for (const r of results) {
        off, and then the real failures it would have caught go with it — the same argument that kept a
        coverage threshold out of #1163. */
     warned++;
-    console.log(`  ⚠ tools/${r.f}  green (exit 0), but no parseable summary — cannot report an assertion count`);
+    console.log(`  ⚠ tools/${r.f}  green (exit 0), but no parseable summary — cannot report an assertion count${slow(r)}`);
   } else {
     total += r.n || 0;
-    console.log(`  ✓ tools/${r.f}${r.n ? '  ' + r.n + ' assertions' : '  green'}`);
+    console.log(`  ✓ tools/${r.f}${r.n ? '  ' + r.n + ' assertions' : '  green'}${slow(r)}`);
   }
 }
 for (const f of nearMiss) {

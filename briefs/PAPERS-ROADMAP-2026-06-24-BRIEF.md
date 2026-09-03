@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** REFERENCE (living — the forward papers agenda; candidates flip to DONE in the tables as they ship) · **last-verified:** 2026-08-25 · **Created:** 2026-06-24
+**Status:** REFERENCE (living — the forward papers agenda; candidates flip to DONE in the tables as they ship) · **last-verified:** 2026-08-25 · **Created:** 2026-06-24 · **Residue:** 2026-09-02-papers-remedy-unavailable, 2026-09-02-papers-cohort-never-recorded
 
 > **Agenda refreshed 2026-08-25** (owner-directed sweep; the papers.html index/page agreement fixes ship
 > in the same change). What moved: **§2.3's and §3.1's adapter dependency is SATISFIED** — the adapter

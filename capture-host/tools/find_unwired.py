@@ -28,6 +28,13 @@ failure one level up. Exit is always 0; the report is the product.
      anticipate (`tool` was reported orphaned while `webmon` and the monitor both read it). Scan 1 there-
      fore walks the AST and takes only the keywords of the `_set` call itself.
 
+  3. And covering ONE publication shape while reporting an unqualified "0 unexplained" (2026-09-01):
+     scan 1 saw only `_set(name, key=…)` — the per-DEVICE shape — so top-level `STATUS["k"] = …`
+     publications were invisible, and `STATUS["radio_distress"]` (computed nightly, read by nothing,
+     #2031) then `STATUS["radio_switches"]` sailed past a green gate. `top_status_keys` closes the
+     shape, and the report now prints WHICH shapes were enumerated with their counts, so the zero
+     carries its filter.
+
 Usage:
     python3 tools/find_unwired.py            # report (always exits 0)
     python3 tools/find_unwired.py --json     # machine-readable
@@ -53,6 +60,20 @@ CONSUMERS = ("webmon.py", "alerts.py", "nightqc.py", "timeline.py", "telemetry.p
 # Known-intentional, with the reason. Anything here is reported as ALLOWED rather than silently dropped:
 # a suppression you cannot see is how the next real finding gets hidden behind a stale entry.
 ALLOW_KEYS = {
+    # ── Found 2026-09-02, the first run after `_comments_only` stopped counting prose as a consumer.
+    #    Both are REAL orphans, not intentional publications, and they are listed here to keep the
+    #    gate green-because-explained rather than green-because-blind while they are routed. Each
+    #    names what retires it; if that condition is met and the entry stays, the stale-suppression
+    #    scan below will say so.
+    "autopull": "ORPHAN, not intentional (2026-09-02). capture.py publishes {last,new,trigger} and "
+                "`trigger` is the only runtime evidence that the doff/presence auto-pull ever fired, "
+                "but /api/state does not forward it and nothing reads it — monitor.html names this "
+                "exact field as a past instance of the class in a COMMENT, which is what masked it "
+                "from this scan until now. RETIRES when webmon forwards it beside `radio_switches` "
+                "or the key is deleted.",
+    "updated": "ORPHAN, not intentional (2026-09-02). Written on every status publish; no reader "
+               "anywhere — status_union.instance_health deliberately ages heartbeat_ms instead. "
+               "RETIRES when the key is deleted or given a reader.",
     "oxy_lifecycle": "published to STATUS by the G4 lifecycle wiring (run_oxyii emits the acquisition "
                      "state) for /api/state inspection — the charter's STATUS half; the webmon-forward "
                      "+ monitor lifecycle indicator is a tracked follow-up, same pattern the "
@@ -61,6 +82,16 @@ ALLOW_KEYS = {
                      "inspection — the same charter pattern as oxy_lifecycle directly above, with the "
                      "same tracked monitor-draw follow-up; the close-triggered pull (DAT-AUTO-HARVEST "
                      "unit 2) is its first in-daemon consumer and lands next",
+    # ── top-level shape (STATUS[key]= / setdefault) — covered since 2026-09-01 ──────────────────────
+    "heartbeat_ms": "read by status_union.read_instance (staleness verdict) — the §3.6 merge layer of "
+                    "PER-DEVICE-ADAPTER-PINNING, itself in ALLOW_MODULES as PENDING with its missing "
+                    "producer named; when that brief lands or is retired, this entry goes with it",
+    "instance": "same consumer and same pending brief as heartbeat_ms directly above — the identity "
+                "field status_union folds N instances by",
+    "cpap_wedge": "the DURABLE record is the on-disk WEDGEFIRE journal (_wedge_fire_record), written "
+                  "at the same site — this STATUS copy is the live snapshot for a monitor draw that "
+                  "is a tracked follow-up (bluez_wedge.py's own comment names the journal as the "
+                  "outcome channel precisely because status.json snapshots cannot be one)",
 }
 # Fields the API publishes that the monitor does not draw — either for a consumer OTHER than the monitor,
 # or a monitor draw that is PENDING and tracked. `/api/state` is not the monitor's private channel — but
@@ -70,6 +101,28 @@ ALLOW_RENDERED: dict = {}
 
 # Handlers defined in monitor.html that nothing calls. Same rule, same reason.
 ALLOW_JS: dict = {}
+
+# SCAN 6's allowlist: modules nothing imports. Keyed by MODULE, not by function — the whole point is
+# that the module is unreachable, so exempting it function-by-function would restate the bug.
+ALLOW_MODULES = {
+    "status_union": (
+        "the §3.6 merge layer of PER-DEVICE-ADAPTER-PINNING-2026-08-26-BRIEF. PENDING, and the "
+        "consumer it waits on is NAMED: nothing yet writes the per-instance status.<instance>.json "
+        "that read_instance() expects, because the systemd-instance half of that brief is unbuilt. "
+        "Retires when the writer lands; if that brief is abandoned, DELETE this module with the entry"),
+    "adapter_ab": (
+        "an offline A/B analysis tool, not daemon code — it answers 'which radio receives better' "
+        "from real per-advertisement scans and is invoked by hand, which is why it has no importer "
+        "and why tools/mutate.py SKIPs it. LIVE, not dead: it produced the three-adapter table in "
+        "PER-DEVICE-ADAPTER-PINNING-2026-08-26-BRIEF §1. Its individual functions already carry the "
+        "same reason in ALLOW_FUNCS; this entry says it at the module level, which is the level at "
+        "which it is unreachable"),
+    "adapter_pool": (
+        "swappability's per-device reassignment core. ASPIRATIONAL for the same architecture reason "
+        "its individual functions already carry: the daemon repoints ONE global ADAPTER pin, so a "
+        "{device: adapter} map has no consumer and cannot have one without per-device pinning. Kept "
+        "for the design it encodes; DELETE with this entry if per-device pinning is not taken up"),
+}
 
 ALLOW_FUNCS = {
     # ── Swappability pure core (2026-08-30). ⚠️ THE ORIGINAL REASON HERE WAS WRONG AND IS CORRECTED.
@@ -270,6 +323,40 @@ def _code_only(path: str) -> str:
         return src                               # see the docstring: fail toward OVER-counting uses
 
 
+def _comments_only(path: str) -> str:
+    """A file's text with COMMENTS removed and STRING LITERALS KEPT. For the CONSUMER corpus.
+
+    🔴 WHY THIS IS NOT `_code_only`. The sibling above strips comments *and* string literals, which is
+    right for the FUNCTION scan (a call is an identifier) and catastrophic for the KEY scan: a status
+    key reaches its consumer AS A STRING — `status.get("radio_distress")` — so stripping literals makes
+    every such key read as unwired. Measured 2026-09-02 before writing this: running `_code_only` over
+    `webmon.py` removes `"radio_distress"` and `"host_clock"`, both live consumers. Using it here would
+    have converted a gate that was blind to one defect into a gate that fabricates dozens.
+
+    What the consumer corpus actually needs removed is PROSE. The defect this fixes: the corpus was raw
+    text, so `\bautopull\b` matched a COMMENT in `monitor.html` — a comment whose content is the
+    observation that `STATUS["autopull"]` reaches nobody. The gate's own evidence of the defect was
+    what suppressed the finding.
+
+    ⚠️ `//` is stripped only at the START of a line (after optional whitespace). Mid-line it is far more
+    often a URL than a comment, and this file's doctrine is to fail toward OVER-counting uses: a missed
+    strip costs a missed orphan, a wrong strip invents one."""
+    try:
+        src = open(path, encoding="utf-8", errors="replace").read()
+    except OSError:      # pragma: no cover - unreadable file; contributes nothing either way
+        return ""
+    if path.endswith(".py"):
+        try:
+            return " ".join(t.string for t in tokenize.generate_tokens(io.StringIO(src).readline)
+                            if t.type != tokenize.COMMENT)
+        except (tokenize.TokenError, IndentationError, SyntaxError):
+            return src                           # fail toward over-counting uses, as `_code_only` does
+    src = re.sub(r"<!--.*?-->", " ", src, flags=re.S)      # HTML
+    src = re.sub(r"/\*.*?\*/", " ", src, flags=re.S)       # JS/CSS block
+    src = re.sub(r"(?m)^[ \t]*//.*$", " ", src)            # JS line comment, line-initial only
+    return src
+
+
 def status_keys(src: str) -> set[str]:
     """Every key published through `_set(name, key=…)`, taken from the AST.
 
@@ -292,6 +379,36 @@ def status_keys(src: str) -> set[str]:
                 for k in kw.value.keys:
                     if isinstance(k, ast.Constant) and isinstance(k.value, str):
                         keys.add(k.value)
+    return keys
+
+
+def top_status_keys(src: str) -> set[str]:
+    """Every key published TOP-LEVEL — `STATUS["k"] = …` and `STATUS.setdefault("k", …)` — from the AST.
+
+    THE BLIND SPOT THIS CLOSES (2026-09-01): `status_keys` covers `_set(name, key=…)`, the per-DEVICE
+    shape, and NOTHING covered the top-level shape — so `STATUS["radio_distress"]` was computed
+    nightly and read by nobody while the gate reported 0 unexplained, and `STATUS["radio_switches"]`
+    repeated the pattern the same week. A count is only evidence over the population it enumerated;
+    the report now names both shapes WITH their counts so "0 unexplained" carries its filter.
+
+    Two shapes, deliberately narrow: a Subscript ASSIGN with a constant key, and a `setdefault` call's
+    first constant argument (which creates the key whether or not the value is later mutated in
+    place). Reads (`STATUS.get`, `STATUS["k"]` on the right-hand side) are not publications and are
+    not collected."""
+    keys: set[str] = set()
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for t in node.targets:
+                if (isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name)
+                        and t.value.id == "STATUS" and isinstance(t.slice, ast.Constant)
+                        and isinstance(t.slice.value, str)):
+                    keys.add(t.slice.value)
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "setdefault" and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "STATUS" and node.args
+                and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str)):
+            keys.add(node.args[0].value)
     return keys
 
 
@@ -318,6 +435,59 @@ def public_functions(src: str) -> set[str]:
     return out
 
 
+
+# ── SCAN 6's population helper ────────────────────────────────────────────────────────────────────
+def importers(root: str, module: str) -> set:
+    """Files under `root` that IMPORT `module`, excluding tests and the module itself. PURE-ish.
+
+    Matches `import m`, `import m as x`, `from m import ...` — anchored so `import status_union_x`
+    cannot satisfy `status_union`, and so the word appearing in prose or a call cannot either. Only
+    an IMPORT counts, because that is the only thing that makes a module reachable."""
+    # ⚠️ A STATIC `import` IS NOT THE ONLY WAY IN, and assuming it was produced a FALSE POSITIVE on
+    # the first run: `tools/mutate_diff.py` loads `mmeta` with
+    # `importlib.util.spec_from_file_location("mmeta", HERE / "mmeta.py")` + `exec_module`, which no
+    # import-line regex can see. A reachability gate that cries wolf gets switched off, so the
+    # dynamic form counts too — matched ONLY on the module name as the first argument of
+    # `spec_from_file_location`, which is how a file-location load necessarily spells it.
+    #
+    # ⚠️ AND NOT ON A BARE "<module>.py" LITERAL, which was my first attempt and was WORSE than the
+    # bug it fixed. `tools/mutate.py:121` holds `SKIP = {..., "adapter_ab.py"}` — a SKIP LIST, the
+    # exact opposite of reachability — and matching the literal counted it as an import, silencing a
+    # genuine orphan. A pattern loose enough to be satisfied by a file being EXCLUDED is not evidence
+    # of anything.
+    esc = re.escape(module)
+    pat = re.compile(
+        r"^\s*(?:import\s+%s(?:\s+as\s+\w+)?\s*$|from\s+%s\s+import\b)" % (esc, esc)
+        + r"|spec_from_file_location\(\s*[\'\"]%s[\'\"]" % esc, re.M)
+    found = set()
+    for dirpath, _dirs, names in os.walk(root):
+        if os.sep + "tests" in dirpath or "node_modules" in dirpath or os.sep + ".venv" in dirpath:
+            continue
+        for n in names:
+            if not n.endswith(".py") or n == module + ".py":
+                continue
+            try:
+                # COMMENTS STRIPPED: `timeline.py` names `adapter_ab.night_profile` in a comment, and
+                # counting prose as reachability is the masking this whole tool exists to refuse —
+                # the same lesson `_code_only` records for the function scan.
+                raw = open(os.path.join(dirpath, n), encoding="utf-8").read()
+                decommented = re.sub(r"(?m)#.*$", "", raw)
+                if pat.search(decommented):
+                    found.add(os.path.relpath(os.path.join(dirpath, n), root))
+            except OSError:
+                continue   # a file we cannot read cannot be shown to import anything, so this scan
+                           # FAILS TOWARD "unwired" — toward reporting, never toward hiding
+    return found
+
+
+def is_entry_point(text: str) -> bool:
+    """True when a module is runnable on its own — `if __name__ == "__main__"`.
+
+    An entry point is reachable BY BEING RUN, so nothing needs to import it and its absence from
+    every import line says nothing. Omitting this test would flag every script in the tree."""
+    return bool(re.search(r'if\s+__name__\s*==\s*[\'"]__main__[\'"]', text))
+
+
 def scan(root: "str | None" = None) -> dict:
     # `root=None` then `root or HERE`, NOT `root=HERE` as a default. A default argument binds at DEF
     # time, so `HERE` was frozen at import and `main()` could not be redirected at all — patching the
@@ -330,18 +500,30 @@ def scan(root: "str | None" = None) -> dict:
     for name in CONSUMERS:
         p = os.path.join(root, name)
         if os.path.exists(p):
-            consumers += open(p, encoding="utf-8").read()
+            # COMMENTS OUT, STRINGS IN — see `_comments_only`. Raw text here meant a key named in prose
+            # counted as a key that reached a consumer, and the prose that did it was a comment saying
+            # the field reached nobody.
+            consumers += _comments_only(p)
 
     pop_keys = set()
+    pop_top_keys = set()
     pop_rendered = set()
     pop_js = set()
     orphan_keys = []
     if "capture.py" in src:
         pop_keys = status_keys(src["capture.py"])
-        for key in sorted(pop_keys):
-            if re.search(r"\b%s\b" % re.escape(key), consumers):
-                continue
-            orphan_keys.append({"key": key, "allowed": ALLOW_KEYS.get(key)})
+        pop_top_keys = top_status_keys(src["capture.py"])
+        # BOTH publication shapes, each row saying WHICH it came through. One rule (a key named in no
+        # consumer reaches nobody), two populations — and the report prints both counts, because a
+        # "0 unexplained" that does not name what it enumerated is the examined-nothing shape one
+        # level up (the top-level shape was invisible here while STATUS["radio_distress"] and then
+        # STATUS["radio_switches"] sat unread).
+        for shape, population in (("_set(name, key=…)", pop_keys),
+                                  ("STATUS[key]= / STATUS.setdefault(key,…)", pop_top_keys - pop_keys)):
+            for key in sorted(population):
+                if re.search(r"\b%s\b" % re.escape(key), consumers):
+                    continue
+                orphan_keys.append({"key": key, "shape": shape, "allowed": ALLOW_KEYS.get(key)})
 
     # every .py including probes, plus the shell helpers and tools — a function called only by a probe
     # or a helper script is wired, just not from the daemon.
@@ -411,6 +593,39 @@ def scan(root: "str | None" = None) -> dict:
             defs = len(re.findall(r"def\s+%s\b" % re.escape(fn), everything))
             if uses - defs <= 0:
                 orphan_funcs.append({"module": f, "func": fn, "allowed": ALLOW_FUNCS.get(fn)})
+    # ── SCAN 6 · A MODULE NOTHING IMPORTS ───────────────────────────────────────────────────────────
+    # 🔴 THE DIRECTION THIS TOOL COULD NOT LOOK, found 2026-08-31 while triaging the adapter-pinning
+    # brief. Every scan above asks "is this FUNCTION wired". None asks "is this MODULE reachable at
+    # all" — and a whole module built, tested, and imported by nothing slips through, green.
+    #
+    # `status_union.py` was the proof: the entire §3.6 merge layer, complete with tests, imported by
+    # nothing but its own test file, and it appeared NOWHERE in this report. TWO masks operated at
+    # once, which is why neither the function scan nor a reader caught it:
+    #
+    #   1. INTERNAL CALLS COVER THE LEAVES. `merge()` calls expected_instances / read_instance /
+    #      instance_health, so each has uses=2, defs=1 and passes `uses - defs > 0`. A module's own
+    #      cohesion made it look wired.
+    #   2. A GENERIC NAME COVERS THE ROOT. `merge` also occurs in nightqc.py, cpap_inventory.py and
+    #      capture.py, all unrelated. The word-boundary scan cannot tell those from a call.
+    #
+    # `adapter_pool` has the same shape: its three leaf entry points were flagged and allowlisted,
+    # while `usable_pool` and `assign` were masked by internal calls the entire time — so the report
+    # showed three explained orphans in a module that is wholly unreachable.
+    #
+    # ⚠️ IMPORT IS THE ONLY EVIDENCE ACCEPTED, and an ENTRY POINT is exempt. A module with
+    # `if __name__ == "__main__"` is reachable by being RUN, so its absence from every import line
+    # says nothing about it. Without that exemption every script in the tree would flag.
+    orphan_modules = []
+    for f in files:
+        mod = f[:-3]
+        text = src[f]
+        if is_entry_point(text) or not public_functions(text):
+            continue
+        if importers(root, mod):
+            continue
+        orphan_modules.append({"module": mod, "funcs": sorted(public_functions(text)),
+                               "allowed": ALLOW_MODULES.get(mod)})
+
     # ── SCAN 5 · A SUPPRESSION THAT EXCUSES NOTHING ─────────────────────────────────────────────────
     # THE BLIND SPOT IN THIS TOOL'S OWN DESIGN, found 2026-08-26 while wiring `cpap_spool.sync_spool`.
     # Every scan above answers "is this wired?"; none answers "is this EXCUSE still needed?" When a
@@ -449,13 +664,19 @@ def scan(root: "str | None" = None) -> dict:
         # the entry. (A first attempt gated on "is this the full tree", which was the wrong axis: a
         # fixture that sets HERE to itself IS the full tree by that test, and still knows nothing
         # about `close_harvest_decision`.)
-        applies = {"ALLOW_FUNCS": defined, "ALLOW_KEYS": pop_keys,
+        applies = {"ALLOW_FUNCS": defined, "ALLOW_KEYS": pop_keys | pop_top_keys,
                    "ALLOW_RENDERED": pop_rendered, "ALLOW_JS": pop_js}[label]
         for name in sorted((set(allow) & applies) - reported):
             stale.append({"list": label, "name": name, "allowed": None,
                           "reason": allow[name]})
 
     return {"orphan_status_keys": orphan_keys, "orphan_functions": orphan_funcs,
+            # The FILTER, beside the count it qualifies: which publication shapes scan 1 enumerated,
+            # and how many keys each contributed. "0 unexplained" without this is a claim about an
+            # unnamed population — the exact hole the top-level shape hid in.
+            "examined_status_shapes": {"_set(name, key=…)": len(pop_keys),
+                                       "STATUS[key]= / STATUS.setdefault(key,…)": len(pop_top_keys - pop_keys)},
+            "orphan_modules": orphan_modules,
             "orphan_rendered": orphan_rendered, "orphan_js": orphan_js,
             "stale_allowlist": stale,
             # ⚠️ STALENESS IS ONLY MEANINGFUL AGAINST THE TREE THE ALLOWLIST DESCRIBES. `ALLOW_FUNCS`
@@ -473,13 +694,17 @@ def main(argv: list[str]) -> int:
         return 0
     for label, rows, fmt in (
             ("status keys published by capture.py and read by nothing",
-             res["orphan_status_keys"], lambda r: r["key"]),
+             res["orphan_status_keys"], lambda r: "%-24s via %s" % (r["key"], r.get("shape", "?"))),
             ("public functions referenced only by tests",
              res["orphan_functions"], lambda r: "%s  %s" % (r["module"], r["func"])),
             ("fields webmon forwards that monitor.html never draws",
              res["orphan_rendered"], lambda r: r["key"]),
             ("monitor.html handlers with no control that calls them",
-             res["orphan_js"], lambda r: r["func"])):
+             res["orphan_js"], lambda r: r["func"]),
+            ("modules NOTHING imports — every public function in them is unreachable",
+             res.get("orphan_modules", []),
+             lambda r: "%s  (%d public fn%s)" % (r["module"], len(r["funcs"]),
+                                                 "" if len(r["funcs"]) == 1 else "s"))):
         live = [r for r in rows if not r["allowed"]]
         print("\n== %s ==" % label)
         for r in live:
@@ -488,6 +713,11 @@ def main(argv: list[str]) -> int:
             if r["allowed"]:
                 print("   (allowed) %-34s %s" % (fmt(r), r["allowed"]))
         print("   %d unexplained, %d allowed" % (len(live), len(rows) - len(live)))
+        if rows is res["orphan_status_keys"]:
+            # The count's FILTER, printed beside it: which shapes were enumerated, and how many keys
+            # each held. A "0 unexplained" over an unnamed population is the examined-nothing shape.
+            print("   shapes examined: " + " · ".join(
+                "%s ×%d" % (s, n) for s, n in res["examined_status_shapes"].items()))
     print("\n== allowlist entries that excuse nothing (the suppression is spent) ==")
     for r in res["stale_allowlist"]:
         print("   %s[%r] — %s" % (r["list"], r["name"], r["reason"][:90]))
@@ -504,10 +734,22 @@ def main(argv: list[str]) -> int:
     # exists to catch and the moment it is cheapest to fix. The allowlist remains the escape hatch, and
     # every entry must state WHY — so silencing a finding costs a sentence of justification, not a flag.
     if "--check" in argv:
+        # ⚠️ `orphan_modules` IS IN THIS SUM, and leaving it out was the first version of scan 6.
+        # It printed its findings and `--check` still exited 0 — a scan that reports without gating,
+        # which is the decorative half of the failure this tool exists to name. A finding nobody is
+        # forced to answer is a finding that gets scrolled past.
+        # ⚠️ NO `full_tree` GUARD HERE, AND I TRIED ONE FIRST. Scoping module orphans to a full-tree
+        # scan looked like the right mirror of the staleness rule — but `main()` always calls `scan()`
+        # with no root, so `full_tree` is unconditionally True at this point and the guard was DEAD:
+        # a branch coverage cannot reach because nothing can make it false. Defensive code that cannot
+        # execute is the same class of thing this tool reports; a fixture tree that should not be
+        # judged says so through `ALLOW_MODULES`, which is visible, rather than through a condition
+        # that silently never fires.
         n = sum(1 for r in res["orphan_status_keys"] + res["orphan_functions"]
-                + res["orphan_rendered"] + res["orphan_js"] if not r["allowed"])
+                + res["orphan_rendered"] + res["orphan_js"] + res["orphan_modules"]
+                if not r["allowed"])
         if n:
-            print("\n✖ %d unexplained — wire it, or allowlist it WITH A REASON in ALLOW_KEYS/ALLOW_FUNCS" % n)
+            print("\n✖ %d unexplained — wire it, or allowlist it WITH A REASON in ALLOW_KEYS/ALLOW_FUNCS/ALLOW_MODULES" % n)
             return 1
         # A spent suppression REDS, at the same severity as an unwired function, and deliberately so:
         # its cost is not cosmetic. The entry names a symbol, so it pre-silences any FUTURE finding

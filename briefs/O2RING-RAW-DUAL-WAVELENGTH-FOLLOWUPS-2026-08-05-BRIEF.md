@@ -2,7 +2,9 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-05
+**Status:** PROPOSED (parked 2026-09-02 — this is the protocol-TRUTH record and it survives alongside its parent, which owns the BUILD questions; do not retire either (they overlap only on the upstream contribution). The shipped signed-read defect is fixed (340166f5) and the stream is captured nightly (`ppg2wr` at `capture.py:3520`, `nightqc.ppg2w_contact`). Open: **§7.2 wavelength identity** needs an optical stimulus the lab cannot supply (§5's catch-22) — the named cheapest route is the ring WORN on a daylight walk with capture running; and §7.3's marker-rate anomaly and §7.4's 0x03-112.9 Hz-vs-125-ADC discrepancy have NO probe and no attempt on record, so they are unmeasured rather than blocked. **Owner:** owner (daylight walk) / Heron (§7.3, §7.4 probes) · **Next step:** the daylight walk — it is the only one needing weather) · **Created:** 2026-08-05
+
+> **TRIAGED 2026-09-01 — one open question, and it is a MEASUREMENT question.** §1's defect (signed channels read unsigned) is stated; §2 CONFIRMED `rows − markers = 124.91 Hz`, independently reproducing the 125.000 ADC, and §2.1a's 2026-08-20 update REFUTES the 100 Hz reading — the delivered rate is the **cap**, not the device. §3 is WITHDRAWN (again) — 'AC/DC is ten times too large' does not hold. §4 identifies `0x03` as the real waveform, a different stream from `0x05`. **§2.1 is the sole open item: the marker rate is not the heart rate**, and settling it needs device time rather than code.
 
 # `cmd 0x05` follow-ups — the channels are SIGNED, and `0x03` is the real waveform
 

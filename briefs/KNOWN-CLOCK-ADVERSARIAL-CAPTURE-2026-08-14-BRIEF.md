@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-08-14 · **Follows:** `ALLAN-DEVIATION-2026-08-12-BRIEF.md`, `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md` · **Affects:** `capture-host/`, `clock.js` §7, `ecgdex-dsp.js`, `ppgdex-dsp.js`, `oxydex-dsp.js`
+**Status:** IN-PROGRESS (parked 2026-09-02 — drain triage, Kestrel: **the remainder is a CAPTURE CAMPAIGN, not code** — the null night and perturbed targets 6–8 need new box nights recorded under the preregistered frame, which is owner-authorized vigil time; owner: Heron, next step: one perturbed night + one null night on the box when the owner schedules it. Two done-when items below are ticked on the FOLLOWUPS brief's evidence — target 1 on the deliberate O2Ring buzz marker (2026-08-20, outside this frame but the evaluation the item asks for) and adapter held fixed across 257/258 sessions (2026-08-18). Phase 1 EXECUTED 2026-08-14 with two confirmed defects; verified 2026-09-01: **Defect A is REMEDIATED and gate-backed** — the `deviceDrawn` refusals now sit in every tool that spends a clock and the suite's `drawn-axis · source-scan` group pins them (checked green this date, per the documented-failure-is-not-open-failure rule) — while the null night, targets 6–8, and target 1's aperiodic-marker evaluation remain OPEN; target 1 is now UNBLOCKED by the proven buzz fiducial (5/5 in H10 ACC and 5/5 in Verity ACC on the pairwise night) but has not been run in this experiment's preregistered frame) · **Created:** 2026-08-14 · **Follows:** `ALLAN-DEVIATION-2026-08-12-BRIEF.md`, `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md` · **Affects:** `capture-host/`, `clock.js` §7, `ecgdex-dsp.js`, `ppgdex-dsp.js`, `oxydex-dsp.js`
 
 > **Phase 1 EXECUTED 2026-08-14** — post-capture injection layer run against a real three-device box
 > night. Preregistered criteria, results, and two confirmed defects in **§Findings** below. The
@@ -278,7 +278,7 @@ and *no* end-to-end timing test — outside the experiment entirely, which would
       counter reset makes the span negative, tripping the plausibility bound). **A preregistered
       prediction that fails is the experiment working**, and leaving it unticked read as though it had
       never been run.
-- [ ] Target 1 is evaluated on an aperiodic marker, not on beat alignment. **Still open, and the
+- [x] **CLOSED 2026-09-02 via the FOLLOWUPS brief** (evaluated 2026-08-20 on the deliberate O2Ring buzz marker, stay-put + injection + three-estimator convergence — see its Done-when item 1). Target 1 is evaluated on an aperiodic marker, not on beat alignment. **Was open, and the
       results table's ✅ for target 1 was VACUOUS** — its criterion cannot fail, since `hostAxis`
       subtracts `r0` and a 1 000 000 ms offset passes `< 0.5 ppm` at float noise. Row re-marked `⊘`;
       see the amendment under the results table.
@@ -300,8 +300,7 @@ and *no* end-to-end timing test — outside the experiment entirely, which would
       Resolution ceiling is one sample at the measured 51.8 Hz ⇒ **~±19 ms**, against the ~0.2 s the host
       route gives on box-captured nights, so the marker is worth capturing correctly — it is ~10× better
       than what it replaces.
-- [ ] Adapter assignment is recorded per night and held fixed across the set. *(Correctly open — needs
-      the multi-night blind set; Phase 1 was a single night.)*
+- [x] **SATISFIED 2026-08-18 (FOLLOWUPS item 2):** every `Tepna_*_LINK.csv` records the adapter MAC and 257/258 sessions sit on one adapter; the outlier is header-identifiable. Adapter assignment is recorded per night and held fixed across the set.
 - [x] **DONE.** The result is written up whether it passes or fails — a failed recovery is the more valuable
       paper, and `papers/dead-ends.html` is where it goes if so.
 

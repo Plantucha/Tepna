@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-24 · **Superseded-by:** `AS11-SESSION-DETECTION-REPORT-2026-08-26-BRIEF.md` · **Follows:** `AS11-AUTO-SESSION-DETECTION-2026-08-24-BRIEF.md`
+**Status:** DONE — 2026-09-01 (verified: the charter's required output — the §19 17-part report + ONE named architecture — exists as the superseding REPORT brief, which also says honestly that it was written AFTER the implementation it was meant to gate; the architecture it names is built and running in shadow on the box. The living content is the REPORT's; nothing here remains executable) · **Created:** 2026-08-24 · **Superseded-by:** `AS11-SESSION-DETECTION-REPORT-2026-08-26-BRIEF.md` · **Follows:** `AS11-AUTO-SESSION-DETECTION-2026-08-24-BRIEF.md`
 
 # AS11 automatic session detection — FINAL protocol investigation before implementation (owner charter)
 

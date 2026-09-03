@@ -398,6 +398,15 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
         <div class="sidebar-data-info" id="storeFree"></div>
         <div class="sidebar-data-info" id="storeTarget"></div>
       </div>
+      <!-- RADIO DISTRESS. Reconnect rate per device against that device's own baseline on this
+           adapter. It was computed nightly and published to status.json where NOTHING read it, so a
+           radio in distress was invisible to every human and every machine. This is that consumer.
+           It REPORTS, it does not switch: the verdict is per-device and the adapter pin is global. -->
+      <div class="sidebar-data-card" style="margin-bottom:8px" id="rdCard" hidden
+           title="Reconnects per hour against each device's own baseline for this adapter. Reporting only — nothing fails over on it.">
+        <div class="data-pill idle" id="rdPill"><span class="data-dot"></span> <span id="rdText">Radio —</span></div>
+        <div class="sidebar-data-info" id="rdDetail"></div>
+      </div>
       <div class="sidebar-data-card">
         <div class="data-pill idle" id="connPill"><span class="data-dot"></span> <span id="connText">No stream</span></div>
         <div class="sidebar-data-info" id="adapterInfo">adapter —</div>
@@ -882,6 +891,15 @@ function streamState(s, dev){
   return {cls:'live', txt:'live', trust:true, why:'Delivering samples at the expected rate.'};
 }
 
+// A WRITE-FAILING device looks perfectly healthy everywhere else on this page: the link is up, rows
+// are climbing, the rate is nominal. What is failing is the last step — bytes to disk — so this is the
+// only place the operator can see it. Absent (not zero) means the daemon has not reported yet.
+function writeFailChip(dev){
+  const n = dev ? dev.flush_failures : null;
+  if(!n) return '';
+  return `<span class="clk bad" title="${n} flush(es) to disk have FAILED for this device. Samples are arriving and may not be reaching the file — check the daemon log for the symbolic errno: ENOSPC means free space, EIO means the drive is failing and the data should be copied off now, EROFS means the filesystem went read-only.">⚠ write failing</span>`;
+}
+
 function chargeChip(dev){
   if(!dev || !dev.charging) return '';
   return `<span class="clk chg" title="On the charger. A Polar refuses new streams outright (PMD 0x0D) and resumes within ~${60}s of coming off the dock; a device already streaming when it went on charge simply goes quiet. Detected from the O2Ring's own battery-state flag, and on a Polar from a rising battery level.">⚡ charging</span>`;
@@ -967,7 +985,7 @@ function deviceForStream(key){
   if(m){ const d = DEVICES.find(x=>_devTag(x)===m[1]); if(d) return d; }
   const base = key.replace(/_(vs|h10|o2)$/,'');
   // Streams the O2Ring produces that are NOT in its configured `streams` list (which is just ['spo2']):
-  // `pr`/`motion` are parsed out of the 1 Hz status header, and `o2ppg` is the ~125 Hz pleth — whose key
+  // `pr`/`motion`/`pi` are parsed out of the 1 Hz status header, and `o2ppg` is the ~125 Hz pleth — whose key
   // is a PREFIX form ('o2ppg'), not a '_o2' suffix, so the tag regex above never matches it. Without this
   // the o2ppg card resolved to no device at all and silently lost its RSSI + battery chips.
   // `pr`/`motion` have no device tag at all; everything else the ring derives uses the `o2` PREFIX
@@ -976,7 +994,7 @@ function deviceForStream(key){
   // its RSSI/battery chips AND — far worse — skipped the `charging` / `not worn` checks in
   // `streamState`, reading "live" while the ring sat on the charger. That is the exact false reading
   // that function exists to prevent. A prefix test cannot go stale when a stream is added.
-  const O2_DERIVED = ['pr', 'motion'];
+  const O2_DERIVED = ['pr', 'motion', 'pi'];
   const isO2Derived = k => O2_DERIVED.includes(k) || /^o2[a-z0-9]/.test(k);
   // AMBIGUITY MUST NOT RESOLVE BY LIST ORDER (issue #410). `find` returns the FIRST device declaring
   // this stream, so when two devices declare the same name — as the Verity and the O2Ring both did for
@@ -1311,6 +1329,45 @@ async function testStorage(btn){
 
 // Sidebar pill — visible in EVERY view, because the two states that lose data (target not ready,
 // retention held) are exactly the ones nobody goes looking for.
+// RADIO DISTRESS — the worst device's verdict, because the question a glance asks is "is any link
+// in trouble", not "what is the mean". A device with no baseline yet reports UNKNOWN and is counted
+// as neither ok nor bad: an unmeasured radio is not a calm one.
+function renderRadioDistress(rd, adapterV, switches){
+  const card = $('#rdCard'), pill = $('#rdPill'), txt = $('#rdText'), det = $('#rdDetail');
+  if(!card) return;
+  const names = Object.keys(rd || {});
+  if(!names.length){ card.hidden = true; return; }   // absent until the scan has run: never a fake ok
+  card.hidden = false;
+  // 'distressed', NOT 'bad' — this ranked a vocabulary link_distress.py never emits, so a real
+  // distress verdict scored 0 (below ok), the worst-pick chose a healthy sibling, and a storm
+  // rendered as “Radio ok · N links”. The renderer was written against a guessed state name; the
+  // producer's constants are ok/distressed/unknown (link_distress.OK/DISTRESSED/UNKNOWN).
+  const rank = {distressed: 3, unknown: 2, ok: 1};
+  let worst = null;
+  for(const n of names){
+    const v = rd[n] || {};
+    if(!worst || (rank[v.state] || 0) > (rank[worst.v.state] || 0)) worst = {n, v};
+  }
+  // The ADAPTER-level fold outranks the per-device pick when present: it is the verdict at the
+  // granularity a failover would actually move, and its detail already names the links.
+  const av = adapterV || null;
+  const st = av && av.state === 'distressed' ? 'distressed' : worst.v.state;
+  const cls = st === 'distressed' ? 'bad' : st === 'unknown' ? 'idle' : 'ok';
+  pill.className = 'data-pill ' + cls;
+  txt.textContent = av && av.state === 'distressed' ? `Radio distress · ADAPTER (${(av.distressed || []).join(', ')})`
+                  : st === 'distressed' ? `Radio distress · ${worst.n}`
+                  : st === 'unknown' ? 'Radio — no baseline yet'
+                  : `Radio ok · ${names.length} link${names.length === 1 ? '' : 's'}`;
+  // The NUMBERS, not just the verdict: a band without the observation it judged is unreadable.
+  const sw = switches || [];
+  det.textContent = (av && av.state === 'distressed' ? av.detail : worst.v.detail || '')
+                  + (sw.length ? ` · ${sw.length} radio switch${sw.length === 1 ? '' : 'es'} this run` : '');
+  det.title = names.map(n => `${n}: ${(rd[n] || {}).detail || '—'}`)
+    .concat(av ? [`adapter: ${av.detail || '—'}`] : [])
+    .concat(sw.map(e => `switch ${e.from} → ${e.to} (${e.cause}): ${e.detail || ''}`))
+    .join('\n');
+}
+
 function renderStoragePill(st){
   st = st || {};
   const held = (st.retention_held||[]).length;
@@ -1483,6 +1540,7 @@ async function loadState(){
   renderSideStats();          // sidebar counters: every view, not just Overview
   renderBoxHealth(s.storage, s.qc, s.host, s.alerts, s.host_clock, s.cpap, s.cpap_live);
   renderStoragePill(s.storage);   // sidebar: visible in every view
+  renderRadioDistress(s.radio_distress, s.radio_distress_adapter, s.radio_switches);
   renderCpap(s.cpap);
   renderDownload(DEVICES);
   renderRemembered(DEVICES);
@@ -1816,6 +1874,7 @@ const RATE_WHY = {
 const STREAM_LABEL = {
   ppg2w: 'raw 2-wavelength optical (ppg2w)',
   spo2: 'oximetry (spo2)',
+  pi: 'perfusion index (pi, %)',
   ppg: 'pleth waveform (ppg)'
 };
 // The advice for one stream on one device, resolved against what the device ACTUALLY offers.
@@ -2132,12 +2191,19 @@ function streamKind(s){
   if(s.key==='ecg'||isPpgKey(s.key)||s.key==='o2ppg') return 'hr';   // waveform → derived ♥ rate (o2ppg = finger pleth)
   if(s.key.indexOf('ppi')===0) return 'ppi';       // per-beat [PP-int, HR]
   if((s.chans||1)>1) return 'multi';               // acc/gyro/mag — raw 3-axis
-  return 'scalar';                                  // spo2/pr/motion/rr
+  return 'scalar';                                  // spo2/pr/motion/pi/rr
 }
 function ovClass(key,val){                          // status color for scalar streams
   if(val==null||!isFinite(val)) return '';
   if(key==='spo2') return val>=95?'ok':val>=90?'warn':'bad';
   if(key==='pr' || key.indexOf('bpm')===0) return (val>=50&&val<=100)?'ok':'warn';
+  // PERFUSION INDEX. Bands are the ring's own observed range, not a clinical threshold: over a real
+  // 5288-row night PI ran 0-18.3 % with a mean of 1.36 %, so the useful question a card can answer is
+  // "is there enough signal to trust the SpO2 next to it" — a PI at or near zero is why a reading goes
+  // bad, and it is the one field that says so. Deliberately NOT colour-graded against a medical cutoff:
+  // we have no validation for one, and inventing a band here would be the fabricated authority the
+  // evidence ladder exists to prevent.
+  if(key==='pi') return val>=1?'ok':val>0?'warn':'bad';
   return '';
 }
 const KIND_FOOT = { hr:'derived rate', scalar:'current', multi:'raw 3-axis', ppi:'per beat' };
@@ -2384,6 +2450,7 @@ function ovRender(){                             // (re)build the cards to match
           <div class="ov-tl-legend"><span id="ovcov-${s.key}">—</span><span id="ovdbm-${s.key}"></span></div>
         </div>
         <div class="ov-pills">
+          <span class="ov-wf" id="ovwf-${s.key}">${writeFailChip(dev)}</span>
           <span class="ov-chg" id="ovchg-${s.key}">${chargeChip(dev)}</span>
           <span class="ov-batt" id="ovbatt-${s.key}">${battChip(dev?dev.battery:null)}</span>
           <span class="ov-sig" id="ovsig-${s.key}">${s.active?rssiChip(dev?dev.rssi:null, s.health, sigTitle(s)):''}</span>

@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED · **Created:** 2026-08-03 · **Follows:** `O2RING-FRAME-SAMPLE-LOCK-2026-08-03-BRIEF.md` §7
+**Status:** PROPOSED (parked 2026-09-02 — 5 of 6 done-when boxes are closed and dated, which the previous bare `PROPOSED` header hid. The single open item is §6, and its blocker is PROCUREMENT, not engineering: every number in the parent brief derives from ONE physical unit (`S8AW2100`) — the 126:1 lock, 126.037 frames/device-second, −3446 ppm, the ±1 s quantization and the +11 ms re-anchor residual — and none of them can be shown to be a property of the MODEL rather than of that individual until a second ring exists. Repo-wide there is exactly one serial. No code closes this. **Owner:** owner (buy or borrow a second O2Ring) · **Next step:** an owner decision on whether a second unit is worth it; if not, record that the constants are single-unit and stop carrying §6) · **Created:** 2026-08-03
 
 # What executing the 126:1 lock left open
 

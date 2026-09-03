@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8PhVnuPp2/l9tBOv4vDof3+ya+kH1bxHAC+PBeVTcIU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OC4dyXxJcAZuzB8qvSPauds8qz9rRucxiGBsMQnuEMo=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RjMMOHYFWUY/PR4ye4KSAj/Tc4DVHJOvR3fJVzMX0x4=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-d/fY1ggGH+dOgrHCOKz19Csyb6MrnZ6RivEEwg+WDEo=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-ibthVwnHAm8V3L4QxpSuywLhy9DElV6PFhEVR7s1FRM=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-Mz2sO/ZQDqrFeY74I0xVBj9h1n3YeW6+cmlIhxPK+CQ=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bu/8g+c1sqihz95o6Zb4ahn/8KD9EG3brkl/c8qZWaU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hfWm0E4m3miRXxd/D2vdNh3vekQBb+w35MUeysCvjS4=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-pmkM4GTQroQlb4GaUI6RBETJs7WVTR03G7v/A4s2QzA=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.9.0</title>
@@ -7307,42 +7307,61 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
   // ONE implementation for every node (D1) — OxyDex shipped its own oxyScrubExport in the pilot; it
   // folds into this on OxyDex's next re-bundle (leaving it now avoids an export-inert OxyDex churn).
   // Default OFF at every call site, so a normal export stays byte-identical. DOM-free; node:vm-safe.
+  /* DEEP-AUDIT-VI F13 — the scrub is KEY-DRIVEN, never node-enumerated. A filename is an identifier
+     (an O2Ring export embeds the device serial and can embed a personal name), and it reaches the
+     envelope by three routes: `nights[].file` (OxyDex, `n.fname` verbatim), `sessions[].source`
+     (PpgDex, `r.fname`), and the per-element `provenance` copy every OxyDex night carries — the same
+     `inputs[].name / sha256 / lastModifiedMs` block the schema-level scrub already reduces. The 07-xx
+     scrub handled only `schema.provenance` + `recording.{device,serial,model}`, so with scrub ON the
+     export still named the upload (measured: `Jane_Smith_O2Ring S 2100_20260612230016.csv` survived).
+     SELF-INGEST §5 acceptance: a scrubbed JSON contains no device serial, filename or input sha256. */
+  var _SCRUB_FILE_KEYS = ['file', 'fname', 'filename', 'fileName', 'sourceFile'];
+  // `source` is overloaded: ECGDex/GlucoDex write a semantic tag ('file', 'welltory'), PpgDex writes the
+  // raw filename. Strip it only when it is filename-SHAPED (a path separator or a dotted extension) —
+  // a tag has neither, and deleting a tag would change a scrubbed export's meaning, not its identity.
+  var _FILE_SHAPE_RE = /[\\/]|\.[A-Za-z0-9]{1,5}$/;
+  function _scrubProv(prov) {
+    if (!prov || typeof prov !== 'object') return prov;
+    return {
+      buildHash: prov.buildHash != null ? prov.buildHash : null, // COARSE build stamp KEPT (integrity)
+      generated: prov.generated != null ? prov.generated : null,
+      scrubbed: true,
+      // inputs keep only NON-identifying integrity (byte count); drop name + sha256 + device serial/mtime.
+      inputs: (Array.isArray(prov.inputs) ? prov.inputs : []).map(function (inp) {
+        return { bytes: inp && inp.bytes != null ? inp.bytes : null };
+      })
+    };
+  }
+  function _scrubRecordingBlock(rec) {
+    if (!rec || typeof rec !== 'object') return;
+    delete rec.device;
+    delete rec.serial;
+    delete rec.model;
+    if (typeof rec.source === 'string' && _FILE_SHAPE_RE.test(rec.source)) delete rec.source;
+  }
+  function _scrubElement(el) {
+    if (!el || typeof el !== 'object') return;
+    _SCRUB_FILE_KEYS.forEach(function (k) {
+      if (k in el) delete el[k];
+    });
+    if (typeof el.source === 'string' && _FILE_SHAPE_RE.test(el.source)) delete el.source;
+    if (el.provenance && typeof el.provenance === 'object') el.provenance = _scrubProv(el.provenance);
+    _scrubRecordingBlock(el.recording);
+  }
   function scrubExport(envelope) {
     if (!envelope || typeof envelope !== 'object') return envelope;
     var out = JSON.parse(JSON.stringify(envelope)); // deep clone — never mutate the caller
     var sc = out.schema || (out.schema = {});
-    var prov = sc.provenance;
-    if (prov && typeof prov === 'object') {
-      sc.provenance = {
-        buildHash: prov.buildHash != null ? prov.buildHash : null, // COARSE build stamp KEPT (integrity)
-        generated: prov.generated != null ? prov.generated : null,
-        scrubbed: true,
-        // inputs keep only NON-identifying integrity (byte count); drop name + sha256 + device serial/mtime.
-        inputs: (Array.isArray(prov.inputs) ? prov.inputs : []).map(function (inp) {
-          return { bytes: inp && inp.bytes != null ? inp.bytes : null };
-        })
-      };
-    }
+    if (sc.provenance && typeof sc.provenance === 'object') sc.provenance = _scrubProv(sc.provenance);
     sc.scrubbed = true;
-    // recording.contentId (identity-free) is KEPT; strip any device serial / model a node may carry.
-    if (out.recording && typeof out.recording === 'object') {
-      delete out.recording.device;
-      delete out.recording.serial;
-      delete out.recording.model;
-    }
-    // Multi-record wrappers: strip the same identifying keys from each per-element recording block.
+    // recording.contentId (identity-free) is KEPT; strip any device serial / model / filename a node may carry.
+    _scrubRecordingBlock(out.recording);
+    // Multi-record wrappers: strip the same identifying keys from each per-element block.
     // EVERY known carrier (SELF-INGEST-FOLLOWUPS-II §F1 — was nights[]-only, leaking device/serial on
     // multi ECGDex/PulseDex `recordings[]` + PpgDex `sessions[]` exports): nights[] (OxyDex/CPAPDex),
     // recordings[] (ECGDex/PulseDex), sessions[] (PpgDex).
     ['nights', 'recordings', 'sessions'].forEach(function (key) {
-      if (Array.isArray(out[key]))
-        out[key].forEach(function (el) {
-          if (el && el.recording && typeof el.recording === 'object') {
-            delete el.recording.device;
-            delete el.recording.serial;
-            delete el.recording.model;
-          }
-        });
+      if (Array.isArray(out[key])) out[key].forEach(_scrubElement);
     });
     return out;
   }
@@ -9834,7 +9853,14 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
         'unconditionally and fabricated a cycle on featureless nights (~42 % of pure AR(1) runs). ' +
         'Corpus support: 19/103 nights at the band edge against a 42 % null, p = 3.3e-7.'
     },
-    ahiEst: { label: 'CVHR / AHI est', unit: '/hr', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'CVHR-derived AHI estimate — oximetry surrogate, not PSG' },
+    ahiEst: {
+      label: 'ODI-4 / AHI est',
+      unit: '/hr',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'emerging',
+      cite: 'AHI estimate = ODI-4 × 1.1 (oxydex-dsp.js computeAHIestimates) — an OXIMETRY surrogate, not PSG and NOT CVHR-derived; CVHR is the separate cvhrIndex entry'
+    },
     cvhrIndex: { label: 'CVHR index', unit: '/hr', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: 'Cyclical-variation-of-HR index (Hayano)' },
     sleepEff: { label: 'Sleep Eff', unit: '%', goodDirection: 'up', depth: 'advanced', evidence: 'emerging', cite: 'Motion-derived sleep efficiency — actigraphy proxy, not EEG' },
     spo2Drift: { label: 'SpO₂ drift', unit: '%/night', goodDirection: 'down', depth: 'advanced', evidence: 'emerging', cite: '7-day rolling chronic-drift indicator' },
@@ -10001,9 +10027,16 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       goodDirection: 'up',
       depth: 'research',
       evidence: 'emerging',
-      cite: 'Peng detrended fluctuation α1 — established method, computed here on PULSE rate rather than ECG RR; that transfer is not validated here'
+      cite: "Peng detrended fluctuation α1 — established method, computed here on the SpO₂ SERIES (oxydex-dsp.js computeDFA maps r.spo2), not on pulse rate and not on ECG RR; HR-DFA thresholds do not apply, as the DSP's own dfaLabel says"
     },
-    ssiIdx: { label: 'SSI', unit: '', goodDirection: 'up', depth: 'research', evidence: 'experimental', cite: "Sleep-stability index, this suite's own construction" },
+    ssiIdx: {
+      label: 'SSI',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: "Sympathetic-surge index (oxydex-dsp.js computeSympSurge: 0.4·spikeRate + 0.4·postDipAct + 0.2·aaiLoad), surfaced as 'Symp Surge' — this suite's own construction. NOT a sleep-stability index, which is what this cite said while the DSP scored it as surge; direction corrected with it (the DSP scores <0.3 as severity 0, so LOWER is better)"
+    },
     cdiIdx: { label: 'CDI', unit: '/h', goodDirection: 'down', depth: 'research', evidence: 'experimental', cite: 'Cyclic desaturation index, bespoke detector' },
     hypLoad: {
       label: 'HypLoad',
@@ -10097,10 +10130,38 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       cite: 'Conditional mean of SpO₂ while below 94% — a statistic of the sensed series'
     },
     condPctBelow94: { label: 'Cond %', unit: '%', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Share of the recording below 94%' },
-    nadirBinLt4: { label: 'Nadir<4%', unit: 'count', goodDirection: 'up', depth: 'advanced', evidence: 'measured', cite: 'Histogram bin of sensed nadir depths (<4% drop)' },
-    nadirBin46: { label: 'Nadir 4-6', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Histogram bin of sensed nadir depths (4–6%)' },
-    nadirBin69: { label: 'Nadir 6-9', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Histogram bin (6–9%)' },
-    nadirBinGt9: { label: 'Nadir>9%', unit: 'count', goodDirection: 'down', depth: 'advanced', evidence: 'measured', cite: 'Histogram bin (>9%), summed from the two deepest bins' },
+    nadirBinLt4: {
+      label: 'Nadir >91%',
+      unit: 'count',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Histogram bin of sensed event nadirs by ABSOLUTE LEVEL (nadir >91%), not by drop depth — oxydex-dsp.js:4524 bins on `nad`; the level and the depth are different quantities (baseline 99→92 is a 7% drop and still >91%). Direction corrected with it: the render treats fewer as better'
+    },
+    nadirBin46: {
+      label: 'Nadir 90-91%',
+      unit: 'count',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Histogram bin of sensed event nadirs by ABSOLUTE LEVEL (90–91%), not by drop depth — see nadirBinLt4'
+    },
+    nadirBin69: {
+      label: 'Nadir 88-89%',
+      unit: 'count',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Histogram bin of sensed event nadirs by ABSOLUTE LEVEL (88–89%), not by drop depth — see nadirBinLt4'
+    },
+    nadirBinGt9: {
+      label: 'Nadir <88%',
+      unit: 'count',
+      goodDirection: 'down',
+      depth: 'advanced',
+      evidence: 'measured',
+      cite: 'Histogram bin of sensed event nadirs by ABSOLUTE LEVEL (<88%, summed from the two lowest bins), not by drop depth — see nadirBinLt4'
+    },
     rmssdProxy: {
       label: 'RMSSD proxy',
       unit: 'ms',
@@ -10252,6 +10313,303 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       depth: 'advanced',
       evidence: 'experimental',
       cite: 'Periodic-breathing / Cheyne-Stokes oscillation episode — derived SpO₂ oscillation signature, not an airflow-scored event'
+    },
+
+    /* ── §2.5 REGISTRATION SWEEP (DEEP-AUDIT-VI-FOLLOWUPS, 2026-09-02) ─────────────────────────
+       35 metrics the OxyDex reference GRADES and the DSP computes, with no registry entry to grade
+       them against: `cohesion-badges` could not compare a tier it had no authority for, so each card
+       carried a badge nothing backed. Grades are derived from the CODE, by one rule stated once:
+         · `measured`     — a direct readout of sensed values; no tuned threshold, no model
+         · `heuristic`    — a tuned or rule-of-thumb threshold decides the number
+         · `experimental` — a bespoke composite/score, or an established method transferred to a
+                            signal it was not validated on (the `dfaAlpha1` precedent: name the
+                            transfer in the cite rather than inheriting the method's standing)
+       WHERE THAT RULE WOULD RAISE A BADGE, IT IS NOT TAKEN. Eight entries (MODL, HR Nadir Timing,
+       Circadian HR Amplitude, LF/HF Power, O₂-HR Efficiency, RMSSD Arc, SPI, Vagal Index) keep the
+       guide's more conservative `heuristic`: a grade that understates trust is not a false claim,
+       and upgrading one on a rule I authored is the fabricated authority the badge mandate exists to
+       prevent. They are recorded in the FOLLOWUPS stamp so a later pass can decide deliberately.
+       Four entries go the other way and the guide is corrected with them — it claimed `measured`,
+       which means DIRECTLY SENSED, for two threshold counts and two derived estimates. */
+    bluntedArousalFlag: {
+      label: 'BLUNTED AROUSAL Flag',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'Flag: PB divergence >=75% AND >=6 oscillation episodes (oxydex-dsp.js:3767) — two tuned cuts, not a validated criterion'
+    },
+    biCv: {
+      label: 'Breathing Irregularity CV (biCV)',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'CV of the inter-event interval series (see IEI) — a dispersion ratio over a bespoke interval definition'
+    },
+    csScore: {
+      label: 'CS Score',
+      unit: '/3',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'experimental',
+      cite: 'Constructed 0-3 indicator count for CSR-like breathing (cycle 40-130 s + BLUNTED_AROUSAL + CRC<0.2 + low-ODI/high-PB). Not a likelihood and not validated: night-level agreement with CPAP PB scoring was kappa -0.039'
+    },
+    circadianHrAmp: {
+      label: 'Circadian HR Amplitude / Nadir Hour',
+      unit: 'bpm',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Ground (Kestrel, 2026-09-02): a fitted model is not a threshold, and cosinor on oximeter pulse rate is the same transfer class as dfaAlpha1. Least-squares cosine fit to the nightly HR vector — the cosinor method applied to a single night, a transfer this suite has not validated'
+    },
+    clusteringIdx: {
+      label: 'Clustering Index',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Fraction of desaturation nadirs in the second half of the recording; the >0.6 / <0.4 reading is a rule of thumb'
+    },
+    desatAsym: {
+      label: 'Desaturation Asymmetry',
+      unit: 'ratio',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: "|mean dip slope| / |mean recovery slope| (oxydex-dsp.js:2360); the >1.5 abrupt / <0.7 gradual bands are this suite's own"
+    },
+    dipSlope: {
+      label: 'Dip Slope',
+      unit: '%/s',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Mean rate of fall from baseline to nadir, negative %/s — descriptive of the detected event set, no validated cut'
+    },
+    hrAsym: {
+      label: 'HR Asymmetry',
+      unit: 'bpm/s',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'Mean HR acceleration rate minus mean deceleration rate over 10-sample rolling windows — a bespoke difference'
+    },
+    hrCv: {
+      label: 'HR CV',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'SD/mean x100 of motion-free HR — an SDNN proxy normalised by rate, not an HRV standard'
+    },
+    hrDecelRuns: {
+      label: 'HR Deceleration Runs',
+      unit: 'count',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'Runs with a >=3 bpm decrease sustained >=30 s (oxydex-dsp.js:1623) — two tuned cuts'
+    },
+    hrNadirTiming: {
+      label: 'HR Nadir Timing',
+      unit: 'h',
+      goodDirection: '',
+      depth: 'secondary',
+      evidence: 'measured',
+      cite: "Ground (Kestrel, 2026-09-02): registry precedent `minSpo2` ('lowest recorded — direct reading'); the 5-min smoothing window is named above and does not make the readout a threshold. Hour from recording start of the lowest 5-min smoothed HR — a readout of sensed HR, no model"
+    },
+    hrQuartileTrend: {
+      label: 'HR Quartile Trend',
+      unit: 'bpm',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'Mean HR in Q4 minus Q1 of the recording — a bespoke trend contrast'
+    },
+    iei: {
+      label: 'IEI',
+      unit: 's',
+      goodDirection: '',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'Mean and SD of the QUIET interval between desaturation events (next start minus previous end, oxydex-dsp.js computeIEI) — an inter-event gap, not a nadir-to-nadir cycle length'
+    },
+    intraNightNsi: {
+      label: 'Intra-Night NSI',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'experimental',
+      cite: 'The Nocturnal Stress Index computed over three 90-min epochs — a bespoke composite, per-epoch'
+    },
+    lfHfPower: {
+      label: 'LF / HF Power',
+      unit: 'ms2',
+      goodDirection: '',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: "Ground (Kestrel, 2026-09-02): the dfaAlpha1 precedent verbatim — an established method TRANSFERRED to oximeter pulse rate keeps the transfer named rather than inheriting the method's standing. DFT band power 0.04-0.15 Hz (LF) and 0.15-0.40 Hz (HF) (oxydex-dsp.js:4934) — the Task-Force HRV bands applied to oximeter PULSE rate, a transfer this suite has not validated"
+    },
+    longestCleanRun: {
+      label: 'Longest Clean Run',
+      unit: 'min',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Longest uninterrupted run of SpO2 > 95% (oxydex-dsp.js:1481) — a single tuned threshold; it does not test motion or artifact flags'
+    },
+    modl: {
+      label: 'MODL',
+      unit: '%',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'measured',
+      cite: "Ground (Kestrel, 2026-09-02): registry precedent `nadirDepth` ('mean depth of those nadirs, in the sensed unit', measured) — a mean of sensed values over a threshold-defined set; the threshold belongs to the DETECTION metric (odi3), not to the mean. Mean SpO2 of samples inside detected desaturation events — a readout of sensed SpO2 over the detected set"
+    },
+    motionBursts: {
+      label: 'Motion Bursts',
+      unit: 'count',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Count of motion runs lasting >=3 consecutive samples (oxydex-dsp.js:1465) — a tuned minimum length'
+    },
+    o2HrEfficiency: {
+      label: 'O₂-HR Efficiency',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: "Ground (Kestrel, 2026-09-02): CLAUDE.md §🎫's retired-vocabulary mapping composite→experimental — a bespoke composite at `heuristic` understates the house definition. Per-event HR rise divided by SpO2 drop — a bespoke coupling ratio; the <0.3 blunted / <0.8 moderate bands are this suite's own"
+    },
+    postDipHrResponse: {
+      label: 'Post-Dip HR Response',
+      unit: 'bpm',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'measured',
+      cite: 'Mean HR difference between each desaturation nadir and 60 s later — a difference of sensed HR at defined offsets'
+    },
+    rmssdArc: {
+      label: 'RMSSD Arc',
+      unit: 'ms/h',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Ground (Kestrel, 2026-09-02): §🎫 composite→experimental. OLS slope of 30-min windowed RMSSD across the night — a bespoke trend over a pulse-rate RMSSD proxy'
+    },
+    recoveryCv: {
+      label: 'Recovery CV',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'SD/mean x100 of the inter-event interval series — same source as IEI, expressed as a percentage'
+    },
+    recoverySlope: {
+      label: 'Recovery Slope',
+      unit: '%/s',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Mean rate of resaturation from nadir to event close — descriptive of the detected event set'
+    },
+    sleepPressureIdx: {
+      label: 'Sleep Pressure Index (SPI)',
+      unit: '',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'experimental',
+      cite: 'Ground (Kestrel, 2026-09-02): §🎫 composite→experimental. Weighted composite of WASO (0.4), motion bursts (0.15) and sleep-onset latency — a bespoke construction with authored weights'
+    },
+    spo2Autocorr1: {
+      label: 'SpO₂ Autocorrelation lag-1',
+      unit: 'r',
+      goodDirection: 'up',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Pearson correlation of consecutive SpO2 samples — a standard statistic used here as a bespoke smoothness index'
+    },
+    spo2Ceiling: {
+      label: 'SpO₂ Ceiling',
+      unit: 'count',
+      goodDirection: 'down',
+      depth: 'research',
+      evidence: 'heuristic',
+      cite: 'Count of runs of >=5 consecutive samples at SpO2 >= 99% (oxydex-dsp.js computeSpO2Ceiling) — two tuned cuts; a sensor-ceiling indicator, not a physiological measurement'
+    },
+    spo2NadirTiming: {
+      label: 'SpO₂ Nadir Timing',
+      unit: 'h',
+      goodDirection: '',
+      depth: 'secondary',
+      evidence: 'measured',
+      cite: 'Hours from recording start of the first and last detected desaturation nadir — a readout of event times'
+    },
+    spo2SampEn: {
+      label: 'SpO₂ SampEn',
+      unit: '',
+      goodDirection: '',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'Sample entropy of the SpO2 series — an established complexity measure applied to oximetry, a transfer this suite has not validated'
+    },
+    spo2HrDecouplingPct: {
+      label: 'SpO₂–HR Decoupling %',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'experimental',
+      cite: 'Percentage of 30-s windows in which SpO2 and HR move in opposite directions (oxydex-dsp.js:1654) — a constructed agreement statistic, not a sensed quantity'
+    },
+    spo2HrLag: {
+      label: 'SpO₂–HR Lag',
+      unit: 's',
+      goodDirection: '',
+      depth: 'research',
+      evidence: 'experimental',
+      cite: 'MEDIAN of per-window argmax SpO2-HR cross-correlation lag, searched over 0-120 s (oxydex-dsp.js:5085) — an estimate, not a sensed quantity'
+    },
+    spo2StableWindows: {
+      label: 'Stable SpO₂ Windows',
+      unit: 'count',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Count of 5-min windows with SpO2 SD < 1% (oxydex-dsp.js:1566) — a single tuned threshold'
+    },
+    uarsScore: {
+      label: 'UARS Score',
+      unit: '/3',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'experimental',
+      cite: 'Constructed 0-3 indicator count for upper-airway resistance (cycle <40 s + AAI>=3 + low-ODI/oscillations + SFI>=2). Not a likelihood and not validated'
+    },
+    vagalIndex: {
+      label: 'Vagal Index',
+      unit: '',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'experimental',
+      cite: 'Ground (Kestrel, 2026-09-02): §🎫 composite→experimental. Weighted composite of pNN3, HR floor and longest clean run — a bespoke construction with authored weights'
+    },
+    worst10MinSpo2: {
+      label: 'Worst 10-min SpO₂',
+      unit: '%',
+      goodDirection: 'up',
+      depth: 'secondary',
+      evidence: 'measured',
+      cite: 'Lowest mean SpO2 over any 10-min sliding window — a readout of sensed SpO2'
+    },
+    worst30MinT95: {
+      label: 'Worst 30-min T95',
+      unit: '%',
+      goodDirection: 'down',
+      depth: 'secondary',
+      evidence: 'heuristic',
+      cite: 'Highest T95 over any 30-min rolling window; T95 itself is a threshold statistic (time below 95%)'
     }
   };
 
@@ -10336,6 +10694,15 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     'spo₂ iqr': 'spo2IQR',
     'cond mean': 'condMeanBelow94',
     'cond %': 'condPctBelow94',
+    /* BOTH SPELLINGS RESOLVE. The depth-shaped labels ('nadir<4%' …) were what the render displayed
+       until 2026-09-02, when they were corrected to the LEVEL the code actually bins on; they stay
+       here so any surface still carrying the old string keeps its badge instead of falling through to
+       the fabricated-`experimental` path. New labels added beside them, not instead of them. */
+    'nadir >91%': 'nadirBinLt4',
+    'nadir 90-91%': 'nadirBin46',
+    'nadir 88-89%': 'nadirBin69',
+    'nadir <88%': 'nadirBinGt9',
+    'odi-4 / ahi est': 'ahiEst',
     'nadir<4%': 'nadirBinLt4',
     'nadir 4-6': 'nadirBin46',
     'nadir 6-9': 'nadirBin69',
@@ -19023,7 +19390,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           odi3: obj.odi3 || { rate: 0, count: 0 },
           hrv: obj.hrv
             ? {
-                hrSdnn: obj.hrv.hrSdnnProxy || obj.hrv.hrSdnn || 0,
+                /* DEEP-AUDIT-IV §3-RESULT — `|| 0` turned an absent proxy into a measured 0.00 in the
+                   export a consumer reads. The two proxies are still tried in order; what changes is
+                   that "neither was measured" now leaves null instead of a number nobody computed. */
+                hrSdnn: obj.hrv.hrSdnnProxy != null && isFinite(obj.hrv.hrSdnnProxy) ? obj.hrv.hrSdnnProxy : obj.hrv.hrSdnn != null && isFinite(obj.hrv.hrSdnn) ? obj.hrv.hrSdnn : null,
                 pnn3: obj.hrv.pnn3 || 0,
                 hrFloor: obj.hrv.hrFloor || 0,
                 hrSlope: obj.hrv.hrSlope || 0,
@@ -23326,10 +23696,10 @@ function nightDetail(n, idx) {
           sa.condPctBelow94 != null ? (sa.condPctBelow94 < 5 ? 'good' : sa.condPctBelow94 < 15 ? 'warn' : 'bad') : '',
           'secondary'
         ) +
-        metric('Nadir<4%', sa.nadirBins.above91, 'events shallow', sa.nadirBins.above91 < 3 ? 'good' : 'warn', 'secondary') +
-        metric('Nadir 4-6', sa.nadirBins.b90_91, 'moderate', sa.nadirBins.b90_91 === 0 ? 'good' : sa.nadirBins.b90_91 < 3 ? 'warn' : 'bad', 'secondary') +
-        metric('Nadir 6-9', sa.nadirBins.b88_89, 'deep', sa.nadirBins.b88_89 === 0 ? 'good' : 'bad', 'secondary') +
-        metric('Nadir>9%', sa.nadirBins.b85_87 + sa.nadirBins.below85, 'severe', sa.nadirBins.b85_87 + sa.nadirBins.below85 === 0 ? 'good' : 'bad', 'secondary') +
+        metric('Nadir >91%', sa.nadirBins.above91, 'nadir above 91%', sa.nadirBins.above91 < 3 ? 'good' : 'warn', 'secondary') +
+        metric('Nadir 90-91%', sa.nadirBins.b90_91, 'nadir 90-91%', sa.nadirBins.b90_91 === 0 ? 'good' : sa.nadirBins.b90_91 < 3 ? 'warn' : 'bad', 'secondary') +
+        metric('Nadir 88-89%', sa.nadirBins.b88_89, 'nadir 88-89%', sa.nadirBins.b88_89 === 0 ? 'good' : 'bad', 'secondary') +
+        metric('Nadir <88%', sa.nadirBins.b85_87 + sa.nadirBins.below85, 'nadir below 88%', sa.nadirBins.b85_87 + sa.nadirBins.below85 === 0 ? 'good' : 'bad', 'secondary') +
         '</div>';
     }
     if (n.hrAdv && n.hrAdv.hrIQR != null) {
@@ -23532,7 +23902,11 @@ function nightDetail(n, idx) {
       '<div class="grid">' +
       // ungraded: the section is already labelled "(relative comparison only)" — a relative measure with a
       // good/warn/bad ladder contradicts its own label, and this ladder disagreed with renderSmartSummary's
-      metric('HR-Var SD', +(h.hrSdnn || 0).toFixed(2) + 'bpm', '1Hz SD (rel. only)', '') +
+      /* DEEP-AUDIT-IV §3-RESULT — an ABSENT hrSdnn used to render `HR-Var SD 0.00 bpm`, a measured
+         zero on a metric card where nothing was measured. Same fabricated-absence shape as the
+         Recovery-index green light one bullet above it in that brief, and the same fix: require the
+         measurement positively, show an em dash otherwise. Render-only ⇒ computeHash is unmoved. */
+      metric('HR-Var SD', h.hrSdnn == null || !isFinite(h.hrSdnn) ? '—' : +h.hrSdnn.toFixed(2) + 'bpm', '1Hz SD (rel. only)', '') +
       metric('pNN3-equiv', h.pnn3 + '%', 'pairs ≥3bpm', h.pnn3 >= 1.5 ? 'good' : h.pnn3 >= 0.5 ? 'warn' : 'bad') +
       metric('HR Floor', h.hrFloor, 'bpm (p5)', '') +
       metric('HR Slope', (h.hrSlope > 0 ? '+' : '') + h.hrSlope, 'bpm/hr', '') +
@@ -23904,6 +24278,13 @@ function _oxyEcgDate(startEpochMs) {
 }
 // "HH:MM:SS" → absolute floating ms anchored on startEpochMs's civil date,
 // rolled forward past midnight (monotonic relative to prevMs).
+// DEEP-AUDIT-VI F9 — the chained roll used a 1 s tolerance, so ONE ≥2 s backwards step (a jittered/
+// duplicated row, or a lexically-sorted legacy export) rolled that event AND every later one a day
+// forward; surges shifted +24 h overlap zero desats and confPct read a confident 0. A genuine wrap is
+// ~23 h backwards, so the threshold is a FRACTION OF A DAY, never a jitter allowance — the 12 h clock.js
+// settled on as `CK_ROLL_SLACK_MS` (DEEP-AUDIT-III §1.2). Kept local so this file has no DexClock
+// dependency (it is inlined into OxyDex and both orchestrators).
+var OXY_ROLL_SLACK_MS = 43200000; // 12 h
 function _oxyHHMMSStoMs(startEpochMs, hhmmss, prevMs) {
   if (startEpochMs == null || !hhmmss) return null;
   var p = String(hhmmss).split(':');
@@ -23913,7 +24294,7 @@ function _oxyHHMMSStoMs(startEpochMs, hhmmss, prevMs) {
   // allow the first event to sit slightly before the anchor; otherwise roll forward
   while (base < startEpochMs - 3600000) base += 86400000;
   if (prevMs != null) {
-    while (base < prevMs - 1000) base += 86400000;
+    while (base < prevMs - OXY_ROLL_SLACK_MS) base += 86400000; // F9: 12 h, not 1 s
   }
   return base;
 }
@@ -24121,7 +24502,9 @@ function oxyComputeFusion(n, ecg) {
     var prev = null;
     ecg.ganglior_events.forEach(function (ev) {
       if (!ev || ev.impulse !== 'autonomic_surge') return;
-      var ms = _oxyHHMMSStoMs(rec.startEpochMs, ev.t, prev);
+      // Clock §6 — a modern emitter writes absolute floating `tMs`; use it verbatim before any
+      // reconstruction from the date-less `t` (F9: this site ignored it, cpapdex-coimport did not).
+      var ms = typeof ev.tMs === 'number' && isFinite(ev.tMs) ? ev.tMs : _oxyHHMMSStoMs(rec.startEpochMs, ev.t, prev);
       if (ms != null) {
         surges.push(ms);
         prev = ms;
@@ -26648,8 +27031,8 @@ function exportCSV() {
         '  Cond Mean <94% SpO2,' + n.spo2Adv.condMeanBelow94,
         '  Cond % <94,' + n.spo2Adv.condPctBelow94,
         '  Nadir Depth <4%,' + n.spo2Adv.nadirBins.above91,
-        '  Nadir 4-6%,' + n.spo2Adv.nadirBins.b90_91,
-        '  Nadir 6-9%,' + n.spo2Adv.nadirBins.b88_89,
+        '  Nadir 90-91%,' + n.spo2Adv.nadirBins.b90_91,
+        '  Nadir 88-89%,' + n.spo2Adv.nadirBins.b88_89,
         '  Nadir >9%,' + (n.spo2Adv.nadirBins.b85_87 + n.spo2Adv.nadirBins.below85)
       );
     }

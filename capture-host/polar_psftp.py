@@ -44,7 +44,9 @@ async def _bt_disconnect(address: str):
         await asyncio.wait_for(p.wait(), timeout=6.0)
         await asyncio.sleep(2.0)   # let the controller settle before re-connecting
     except Exception:
-        pass
+        pass    # BEST-EFFORT BY CONSTRUCTION. This clears a link that may not exist, before a
+                # reconnect that reports its own failure — so there is no outcome here worth
+                # raising: if the disconnect mattered and did not happen, the connect says so.
 
 # Three attempts must fit inside the caller's 300 s offline-op watchdog (capture._OFFLINE_OP_TIMEOUT_S)
 # with room for the backoffs, or the retry cannot run and the watchdog reports "abandoned" instead of the
@@ -181,12 +183,31 @@ class _Seq:
 SET_SYSTEM_TIME, SET_LOCAL_TIME, GET_LOCAL_TIME = 1, 3, 4
 _ALLOWED_QUERIES = frozenset({SET_SYSTEM_TIME, SET_LOCAL_TIME, GET_LOCAL_TIME})
 
+# ── onboard-recording queries (POLAR-ONBOARD-BACKUP §6 Q1 / FOLLOWUPS §4) ───────────────────────────
+# A SECOND, deliberately separate allowlist — NOT a widening of `_ALLOWED_QUERIES`. `query()` and every
+# time path keep the strict three-id set, so no accidental id can start a recording; the recording ids
+# are reachable ONLY through the named `recording_*` methods below, which exist for exactly one
+# purpose: the H10 RR-acceptance probe and the onboard-backup leg it gates. PREPARE_FIRMWARE_UPDATE
+# (12) and the sync/exercise ids stay unreachable from every path in this module, deliberately.
+# Wire facts verified against polarofficial/polar-ble-sdk `pftp_request.proto` / `pftp_response.proto`
+# / `types.proto` (2026-09-01): REQUEST_START_RECORDING=14 · STOP=15 · STATUS=16;
+# PbPFtpRequestStartRecordingParams{sample_type=1 (enum), recording_interval=2 (PbDuration),
+# sample_data_identifier=3 (string)}; PbDuration{hours=1,minutes=2,seconds=3,millis=4};
+# PbSampleType: SAMPLE_TYPE_HEART_RATE=1, SAMPLE_TYPE_RR_INTERVAL=16;
+# PbRequestRecordingStatusResult{recording_on=1 (bool), sample_data_identifier=2 (string)}.
+REQUEST_START_RECORDING, REQUEST_STOP_RECORDING, REQUEST_RECORDING_STATUS = 14, 15, 16
+SAMPLE_TYPE_HEART_RATE, SAMPLE_TYPE_RR_INTERVAL = 1, 16
+_RECORDING_QUERIES = frozenset({REQUEST_START_RECORDING, REQUEST_STOP_RECORDING,
+                                REQUEST_RECORDING_STATUS})
 
-def _encode_query_header(query_id: int, params: bytes = b"") -> bytes:
-    if query_id not in _ALLOWED_QUERIES:
+
+def _encode_query_header(query_id: int, params: bytes = b"", recording: bool = False) -> bytes:
+    allowed = _ALLOWED_QUERIES | (_RECORDING_QUERIES if recording else frozenset())
+    if query_id not in allowed:
         raise ValueError(f"refusing PS-FTP query id {query_id}: not a time query (allowlist "
-                         f"{sorted(_ALLOWED_QUERIES)}) — this module must not trigger firmware "
-                         f"update / recording / sync operations")
+                         f"{sorted(allowed)}) — this module must not trigger firmware "
+                         f"update / sync operations, and recording ids are reachable only "
+                         f"through the deliberate recording_* path")
     return bytes([query_id & 0xFF, ((query_id >> 8) & 0x7F) | 0x80]) + params   # top bit 1 = QUERY
 
 
@@ -227,6 +248,35 @@ def encode_set_system_time(dt_local) -> bytes:
             + _pb_uint(3, 1))
 
 
+def _pb_str(field: int, value: str) -> bytes:
+    return _pb_msg(field, value.encode("utf-8"))
+
+
+def encode_start_recording(sample_type: int, interval_s: int = 1, identifier: str | None = None) -> bytes:
+    """PbPFtpRequestStartRecordingParams{sample_type=1, recording_interval=2 (PbDuration),
+    sample_data_identifier=3}. `interval_s` rides PbDuration.seconds (=3); 1 s is the H10's documented
+    sampletime and the probe's only need — hours/minutes/millis stay unsent (proto2 optional, default 0)."""
+    p = _pb_uint(1, sample_type) + _pb_msg(2, _pb_uint(3, interval_s))
+    if identifier:
+        p += _pb_str(3, identifier)
+    return p
+
+
+def parse_recording_status(raw: bytes) -> tuple[bool | None, str | None]:
+    """PbRequestRecordingStatusResult{recording_on=1 (bool), sample_data_identifier=2 (string)} →
+    (recording_on, identifier). (None, None) when the reply does not parse — the honest absence,
+    never a fabricated False: "not recording" and "could not read the status" are different claims."""
+    try:
+        f = _parse_pb_fields(raw)
+    except Exception:
+        return None, None
+    on = f.get(1)
+    if not isinstance(on, int):
+        return None, None
+    ident = f.get(2)
+    return bool(on), ident.decode("utf-8", "replace") if isinstance(ident, bytes) else None
+
+
 def _chunk_rfc76(stream: bytes, frame_mtu: int) -> list[bytes]:
     packets, seq, nxt, i, n = [], _Seq(), 0, 0, len(stream)
     while True:
@@ -246,8 +296,8 @@ def _build_request_packets(protobuf: bytes, frame_mtu: int) -> list[bytes]:
     return _chunk_rfc76(bytes([hs & 0xFF, (hs >> 8) & 0x7F]) + protobuf, frame_mtu)  # top bit 0 = REQUEST
 
 
-def _build_query_packets(query_id: int, params: bytes, frame_mtu: int) -> list[bytes]:
-    return _chunk_rfc76(_encode_query_header(query_id, params), frame_mtu)
+def _build_query_packets(query_id: int, params: bytes, frame_mtu: int, recording: bool = False) -> list[bytes]:
+    return _chunk_rfc76(_encode_query_header(query_id, params, recording=recording), frame_mtu)
 
 
 class PolarPsFtp:
@@ -282,13 +332,16 @@ class PolarPsFtp:
                 if hasattr(self._client, "_acquire_mtu"):
                     await self._client._acquire_mtu()
             except Exception:
-                pass
+                pass          # OPTIONAL negotiation on a private bleak API. Failing it costs speed,
+                              # never correctness: the line below falls back to the advertised
+                              # mtu_size, or to the BLE minimum of 23 if even that is absent.
             self._frame_mtu = max(20, (getattr(self._client, "mtu_size", 23) or 23) - 3)
             await self._client.start_notify(MTU_CHAR, lambda _s, d: self._q.put_nowait(bytes(d)))
         except Exception:
             # never leak a half-open link — a lingering connection blocks the device's single BLE slot
             try: await self._client.disconnect()
-            except Exception: pass
+            except Exception: pass    # already failing, and `raise` below carries the REAL error —
+                                      # a cleanup failure must not replace the cause with itself
             raise
         return self
 
@@ -306,7 +359,12 @@ class PolarPsFtp:
                 try:
                     await asyncio.wait_for(make_op(), self._TEARDOWN_TIMEOUT_S)
                 except Exception:
-                    pass
+                    # BOUNDED, so this must not raise (see the note above) — but it is not free: a
+                    # disconnect that never completed leaves the device's single BLE slot occupied,
+                    # and the NEXT pull is the one that pays. Debug rather than warning because the
+                    # bounded timeout firing during a cancel is ordinary, not a fault.
+                    log.debug("psftp teardown step did not complete within %.0fs",
+                              self._TEARDOWN_TIMEOUT_S, exc_info=True)
 
     async def _read_response(self, timeout: float) -> bytes:
         seq, out, expect_next = _Seq(), bytearray(), 0
@@ -404,6 +462,37 @@ class PolarPsFtp:
         except (KeyError, TypeError, ValueError):
             return None
 
+    # ── onboard recording (H10 leg — POLAR-ONBOARD-BACKUP §6 Q1 / FOLLOWUPS §4) ─────────────────────
+    # The ONLY path to the recording query ids. Deliberately named methods rather than a widened
+    # `query()`, so the time paths keep their strict allowlist and a wrong id still refuses.
+    async def _recording_query(self, query_id: int, params: bytes = b"", timeout: float = 20.0) -> bytes:
+        if query_id not in _RECORDING_QUERIES:
+            raise ValueError(f"not a recording query id: {query_id}")
+        client = self._client
+        if client is None:
+            raise RuntimeError("not connected — recording queries need an open PS-FTP session")
+        for pkt in _build_query_packets(query_id, params, self._frame_mtu, recording=True):
+            await client.write_gatt_char(MTU_CHAR, pkt, response=False)
+        return await self._read_response(timeout)
+
+    async def recording_status(self) -> tuple[bool | None, str | None]:
+        """REQUEST_RECORDING_STATUS (16) → (recording_on, sample_data_identifier). Read-only."""
+        return parse_recording_status(await self._recording_query(REQUEST_RECORDING_STATUS))
+
+    async def start_recording(self, sample_type: int, interval_s: int = 1,
+                              identifier: str | None = None) -> None:
+        """REQUEST_START_RECORDING (14). WRITES DEVICE STATE: the H10 holds ONE onboard slot, and a
+        recording left running fills it and blocks the next (FOLLOWUPS §4's fabricated-absence class) —
+        a caller that starts must own stopping. The device answers a PS-FTP error frame if it refuses
+        the sample type (`_read_response` raises), which is exactly the §6 Q1 measurement."""
+        await self._recording_query(REQUEST_START_RECORDING,
+                                    encode_start_recording(sample_type, interval_s, identifier))
+
+    async def stop_recording(self) -> None:
+        """REQUEST_STOP_RECORDING (15). Idempotence is the DEVICE's business: stopping when nothing
+        records may error — callers treat that as a state report, not a failure."""
+        await self._recording_query(REQUEST_STOP_RECORDING)
+
     async def walk(self, path: str = USER_ROOT, maxdepth: int = 6, _depth: int = 0, descend=None):
         """Yield (full_path, size, is_dir) for everything under `path`.
 
@@ -497,6 +586,37 @@ def _session_descend(full: str) -> bool:
     return True                                               # inside a session: take everything
 
 
+async def recording_control(address: str, action: str,
+                            sample_type: int = SAMPLE_TYPE_RR_INTERVAL,
+                            adapter: str | None = None) -> dict:
+    """One connection, one recording op, and — after any WRITE — a status READBACK in the same session.
+
+    `action` ∈ status | start | stop. The readback is the point, not a nicety: a write that timed out
+    may still have taken effect on the device, so the wrapper's answer is what the device now REPORTS,
+    never what we asked for (the same claim-vs-readback discipline the O2Ring RTC path keeps). For the
+    §6 Q1 probe the acceptance answer IS the readback: start(RR) followed by `recording_on: true` with
+    an RR identifier is a yes; a PS-FTP error frame from the start is the no, and it propagates as the
+    raised error so the refusal code is visible rather than flattened into False.
+
+    NO retry, deliberately — `_with_retry` is for reads. Blindly re-sending a START that may have
+    landed converts "unknown outcome" into "two claims and no knowledge"; the caller re-runs `status`
+    instead."""
+    async def _once():
+        async with PolarPsFtp(address, adapter) as fs:
+            if action == "status":
+                on, ident = await fs.recording_status()
+                return {"recording_on": on, "sample_data_identifier": ident}
+            if action == "start":
+                await fs.start_recording(sample_type)
+            elif action == "stop":
+                await fs.stop_recording()
+            else:
+                raise ValueError(f"unknown recording action: {action!r} (status|start|stop)")
+            on, ident = await fs.recording_status()
+            return {"recording_on": on, "sample_data_identifier": ident, "readback": True}
+    return await _once()
+
+
 async def list_recordings(address: str, adapter: str | None = None) -> list[dict]:
     """Enumerate real recordings on the device: exercise sessions (/U/0/DATE/E/TIME/) and offline
     recordings (/U/0/DATE/R/TIME/). Returns one dict per session with its files + total bytes."""
@@ -566,7 +686,8 @@ async def pull_recording(address: str, session: str, out_dir: str, adapter: str 
                         try:
                             on_progress(done, total)
                         except Exception:
-                            pass
+                            pass   # a PROGRESS callback must never fail a transfer that is
+                                   # succeeding — the caller loses a readout, not the recording
                     continue
                 data = await fs.get(full, timeout=180.0)
                 # A SHORT READ IS NOT A VALID FILE — the standard `cpap_harvest.short_read` states for

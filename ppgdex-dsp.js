@@ -1940,10 +1940,29 @@
      `cvhrIndex: 0` is this guard's fabricated value, byte-pinned and enforced by GATE-B.
      `events` stays `[]`: the event list genuinely is empty, and a list's absence is not a number
      awaiting measurement. Only the INDEX becomes null. */
-  function cvhrFromNN(nn, tt) {
+  // DEEP-AUDIT-VI F10 — upper bound on a beat-time span before a consumer sizes arrays from it. TWO
+  // consumers: `cvhrFromNN` below (the port of ECGDex detectCVHR that shipped WITHOUT the #1800 guard)
+  // and the `beatConfidence` call in analyze(), which is fed TIME-derived pseudo-indices
+  // (`round(footSec·fs)`) — so unlike the ECG original it is NOT bounded by beat count. `tt`/`footSec`
+  // are gap-ACCUMULATED, so one mid-file sensor-clock rebase (+2792 days, the real H10 shape ECGDex
+  // measured) survives parsePPG into relSec — hostAxis refuses at ±50000 ppm, so the raw jump stays —
+  // and analyze() died allocating span-sized arrays (RangeError at 7.7 GB; >50 GB before OOM in
+  // #1800), killing the whole night's export. 48 h, as ECGDex `CVHR_MAX_SPAN_S`: over twice any real
+  // recording, so a gappy night still fits. Refusal ⇒ null with a reason, never a fabricated 0.
+  const PPG_MAX_SPAN_S = 48 * 3600;
+  /* `activeSec` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) is the beat-COVERED time the
+     caller measured — inter-beat deltas ≤ PPG_CVHR_GAP_S summed. When it is > 0 it is the index's
+     denominator; absent or 0 falls back to the wall span, which is exact for a gap-free series.
+     Ports the ECGDex fix of the same defect (DEEP-AUDIT-VI F3/F10): both nodes now count events per
+     hour OF OBSERVED RECORDING, so the two `apnea.cvhrIndex` values the Integrator corroborates
+     against each other are on the same basis. Divide one by wall span and the other by covered time
+     and the corroboration measures the dropouts, not the physiology. */
+  function cvhrFromNN(nn, tt, activeSec) {
     const N = nn.length;
     if (N < 60 || !tt || tt.length !== N) return { events: [], index: null };
     const tEnd = tt[N - 1];
+    // F10 — refuse an implausible SPAN before `M` sizes six arrays from it (see PPG_MAX_SPAN_S).
+    if (!isFinite(tEnd) || tEnd > PPG_MAX_SPAN_S) return { events: [], index: null, reason: 'implausible-span' };
     const M = Math.floor(tEnd);
     if (M < 120) return { events: [], index: null }; // < 2 min → no apnea-band train can be RESOLVED, so no index exists
     const hr = new Float64Array(M);
@@ -2021,9 +2040,17 @@
         }
       }
     }
-    const hours = tEnd / 3600;
+    /* CVHR index = events per hour OF OBSERVED RECORDING (DEEP-AUDIT-VI F3, ported from ECGDex).
+       This divided by the wall span `tEnd`, so sensor DEAD TIME sat in the denominator of a metric
+       the Integrator corroborates against ECGDex's — and the Verity is the fleet's worst offender for
+       dropouts (24 segments in one corpus night against the H10's 3), so the PPG leg carried the
+       larger error of the two. Events can only arise in covered seconds: the 1 Hz resample above
+       holds the last beat's HR flat across a hole, so `res` decays to 0 there and the ENV_ON gate
+       stays shut. `denomSec` is returned so a consumer can see the basis instead of inferring it. */
+    const denomSec = activeSec > 0 ? activeSec : tEnd;
+    const hours = denomSec / 3600;
     const index = hours > 0 ? +(events.length / hours).toFixed(1) : 0;
-    return { events, index };
+    return { events, index, denomSec };
   }
   // `omit` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) marks intervals that are NOT
   // MEASUREMENTS AT ALL — currently only those straddling a time discontinuity (O2RING-PPG-GAP §2).
@@ -3679,21 +3706,45 @@
        constant offset between the two largely cancels; the residual difference is real and is why the
        re-fitted σ is not expected to reproduce the old figure to the last decimal. */
     const _confSpine = footSpineOK ? footSec : peakSec;
-    const _pConfMap = beatConfidence(
-      _confSpine.map((s) => Math.round(s * rec.fs)),
-      sqi,
-      rec.fs,
-      rec.t0Ms || 0
-    );
+    /* DEEP-AUDIT-VI F10 — `beatConfidence` sizes four Float64Array(S) from the SPAN of what it is
+       handed, and here it is handed time-derived pseudo-indices (`round(footSec·fs)`), not sample
+       indices — so the ECGDex note "beatConfidence is safe by construction" is true for ECG and false
+       at this call. One in-file sensor-clock rebase stretches footSec by years and the allocation
+       killed the whole night's export. Refuse the span here rather than inside the mirror (which is
+       genuinely count-bounded on ECG): ppiConf becomes null, which the export site already tolerates
+       (`conf: … : null`), and the rest of the record survives. */
+    const _confSpanS = _confSpine.length > 1 ? _confSpine[_confSpine.length - 1] - _confSpine[0] : 0;
+    const _confSpanOK = isFinite(_confSpanS) && _confSpanS <= PPG_MAX_SPAN_S;
+    const _pConfMap = _confSpanOK
+      ? beatConfidence(
+          _confSpine.map((s) => Math.round(s * rec.fs)),
+          sqi,
+          rec.fs,
+          rec.t0Ms || 0
+        )
+      : null;
     const _t0 = rec.t0Ms || 0;
-    const ppiConf = corr.tt.map((s) => {
-      const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));
-      return Number.isFinite(c) ? +c.toFixed(3) : 1;
-    });
+    const ppiConf = _pConfMap
+      ? corr.tt.map((s) => {
+          const c = _pConfMap.get(Math.floor((_t0 + s * 1000) / 1000));
+          return Number.isFinite(c) ? +c.toFixed(3) : 1;
+        })
+      : null;
     // OXYDEX-PULSE-RESOURCING §Phase 4: whole-record CVHR from the corrected NN series (autonomic
     // apnea correlate). Emitted for every PPG record; the Integrator only corroborates the FINGER one
     // (the O2Ring's own pleth) against ECGDex cardiac CVHR. index = events/hour (0 = none detected).
-    const _cvhr = cvhrFromNN(corr.nn, corr.tt);
+    /* OBSERVED seconds for the index's denominator (DEEP-AUDIT-VI F3 port). Measured here with the
+       SAME rule ECGDex applies to its own beat series — inter-beat deltas over the gap cut are dead
+       time, not a long interval — rather than reusing `ppgCoverage`, which answers the neighbouring
+       question about the SAMPLE stream: a hole in the samples and a hole in the accepted beat series
+       are not the same set, and the denominator has to match the series the events came from. */
+    const PPG_CVHR_GAP_S = 10; // ECGDex `GAP_S` — one cut, so the two nodes' indices stay comparable
+    let _cvhrActiveSec = 0;
+    for (let k = 1; k < corr.tt.length; k++) {
+      const _d = corr.tt[k] - corr.tt[k - 1];
+      if (_d > 0 && _d <= PPG_CVHR_GAP_S) _cvhrActiveSec += _d;
+    }
+    const _cvhr = cvhrFromNN(corr.nn, corr.tt, _cvhrActiveSec);
     // §4: per-interval CLEAN-adjacency mask — interval i (between beat i & i+1) is clean when it
     // was NOT correction-flagged AND both endpoint beats cleared SQI≥0.5 (SQI folds the 3-LED
     // agreement, §5). rMSSD/pNN50/SD1 are computed over clean adjacent pairs so sub-ectopy optical
@@ -4114,6 +4165,12 @@
       sdnnRobustBasis,
       cvhrIndex: _cvhr.index, // §Phase 4 — CVHR events/hour from the finger PPI NN series (autonomic apnea correlate)
       cvhrEvents: _cvhr.events.length,
+      // The index's BASIS travels with it (F3 port) — present only when one was computed, so a
+      // refusal path stays byte-stable and no committed fixture moves for an inert key.
+      ...(_cvhr.denomSec > 0 ? { cvhrDenomSec: _cvhr.denomSec } : {}),
+      // F10 — present ONLY when the span refusal fired, so a refused null is told apart from a
+      // too-short one; absent otherwise (no committed fixture moves for an inert key).
+      ...(_cvhr.reason ? { cvhrReason: _cvhr.reason } : {}),
       sd2Robust,
       lfRobust,
       hfRobust,
@@ -4128,6 +4185,7 @@
       ppiFlags: corr.flags,
       // Aligned with nn/tt the same way — the fused-hat per-beat weight (see the block above).
       ppiConf,
+      ...(_confSpanOK ? {} : { ppiConfReason: 'implausible-span' }), // F10 — see the beatConfidence call
       poincareNN: nn,
       sd1: poin ? poin.sd1 : null,
       sd2: poin ? poin.sd2 : null,
@@ -4545,6 +4603,13 @@
     correctRR,
     beatSQI,
     beatConfidence,
+    /* ADDITIVE EXPORT (DEEP-AUDIT-VI F3 port), mirroring ECGDex, which exports `detectCVHR` for the
+       same reason: the denominator and the refusal guards become directly assertable, and — the part
+       only an export makes possible — the two nodes' implementations can be run on IDENTICAL input in
+       one assertion. The Integrator corroborates `apnea.cvhrIndex` across them, so "same quantity" is
+       a contract between the nodes, not an internal detail of either. No existing caller reaches it
+       through this surface; `analyze` still calls it directly. */
+    cvhrFromNN,
     timeDomain,
     poincare,
     lombScargle,
@@ -4777,6 +4842,46 @@
         // so every committed Verity export stays byte-identical; only a finger export carries it.
         ...(r.timebase ? { timebase: r.timebase } : {})
       };
+      /* ── THE AXIS MEASUREMENTS, NOT ONLY ITS VERDICT (Heron's cross-family trace, 2026-09-02) ──
+         `quality` above published the CONCLUSION — `timingSource`, `axisDrawn`, `axisQuantizedShare`
+         — and dropped every number that produced it. A consumer could read `'device+host'` and had
+         no way to check whether the host column was actually a second clock, which is precisely what
+         CLAUDE.md §7 instructs it to read ("read `independent`, never a ~0 ppm"). ECGDex has emitted
+         the full block at `ecgdex-dsp.js:5210+` all along; PpgDex computed the same values (`:760`)
+         and this reshape named none of them.
+         ⚠️ The comment at `:740` predicted this exact failure — `independent`/`spreadMs`/`inertReason`
+         "DROPPED here … discarded one line after it was computed" — and the block one layer down warns
+         that a reshape drops anything it does not name, citing `stability` vanishing at this very seam
+         on the first real-data run. The file documented the defect and nothing read the file.
+         Field set mirrors ECGDex so the two are comparable by construction; CONDITIONAL on an axis
+         existing, so a night without one omits the block and every committed export stays
+         byte-identical rather than gaining a wall of nulls. */
+      if (r.hostAxis && r.hostAxis.ok) {
+        out.recording.hostAxis = {
+          anchors: r.hostAxis.anchors != null ? r.hostAxis.anchors : null,
+          ppm: nz(r.hostAxis.ppm),
+          maxStepMs: nz(r.hostAxis.maxStepMs),
+          totalMs: nz(r.hostAxis.totalMs),
+          /* The three §7 discriminators. `independent` is the verdict on whether the host column is a
+             SECOND CLOCK at all; `spreadMs` is the residual it was decided on; `inertReason` is the
+             sentence DexClock wrote when it said no. Publishing the reason means a reader sees WHY,
+             not just false. */
+          independent: r.hostAxis.independent == null ? null : r.hostAxis.independent,
+          spreadMs: nz(r.hostAxis.spreadMs),
+          inertReason: r.hostAxis.inertReason || null,
+          drawn: r.hostAxis.drawn == null ? null : r.hostAxis.drawn,
+          quantizedShare: nz(r.hostAxis.quantizedShare),
+          timingSource: r.timingSource || null,
+          stability: r.hostAxis.stability
+            ? {
+                tau0: nz(r.hostAxis.stability.tau0),
+                noiseType: r.hostAxis.stability.noiseType || null,
+                slope: nz(r.hostAxis.stability.slope),
+                ppmUncertainty: nz(r.hostAxis.stability.ppmUncertainty)
+              }
+            : null
+        };
+      }
       out.hrv = {
         time: {
           meanRR: nz(r.meanRR),
@@ -4829,6 +4934,14 @@
             /* §1.6 link 2 — the field the Integrator already reads. `integrator-dsp` has assigned
                `summary.respRateBrpm = _hf.respRate` all along (link 3 was never missing); it simply had
                nothing to read, because this block carried no frequency-valued key at any level.
+               🔴 CORRECTED 2026-09-02 — the two sentences above are WRONG and this key alone was never
+               enough. The Integrator's assignment they name lives inside `if (node === 'ECGDex')`
+               (`integrator-dsp.js:365`); the whole file assigns that field at exactly two sites, the
+               other being MotionDex's. The branch PpgDex actually flows through never read it, so this
+               export published a respiration rate that reached no fusion for a month. Wired on the
+               consumer side 2026-09-02 and gated. Left standing rather than deleted because a producer
+               asserting its consumer is wired is the failure worth seeing: nothing here could have
+               detected it, since the claim is about a file this one does not read.
                WHOLE-RECORD deliberately, not the epoch median: respiration is being reported as ONE
                number for the recording, and `fq` is the whole-record spectrum — the same scale ECGDex
                reports its `respRate` on, which is what makes the two comparable in the fusion. The
@@ -4847,6 +4960,11 @@
       out.apnea = {
         cvhrIndex: r.cvhrIndex != null ? r.cvhrIndex : null,
         cvhrEvents: r.cvhrEvents != null ? r.cvhrEvents : null,
+        /* WHICH HOURS the index divided by (F3 port) — attached only when the index was computed, so
+           a refusal carries no basis it does not have. The Integrator reads this block from BOTH
+           nodes; without the denominator a consumer cannot tell a 5 /h from a 40 % covered night
+           apart from a 5 /h from a clean one. */
+        ...(r.cvhrIndex != null && r.cvhrDenomSec > 0 ? { cvhrHours: +(r.cvhrDenomSec / 3600).toFixed(2) } : {}),
         cvhrMethod: 'CVHR events/h from finger PPI NN (Hayano apnea-band 20–45 s; ports ECGDex detectCVHR)',
         cvhrTier: 'emerging'
       };

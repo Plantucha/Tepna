@@ -212,3 +212,88 @@ def test_the_driver_bounds_a_SINGLE_mutant_not_just_the_module():
     assert "timeout_multiplier = 3.0" in table, (
         "the per-mutant timeout is unset inside [tool.mutmut] — a runaway mutant will hang the whole "
         f"run behind the module cap, which cannot distinguish it from honest work. Table was:\n{table}")
+
+
+def test_the_CLEAN_RUN_applies_the_deselections_too():
+    """The baseline must run the SAME selection the mutants will, or it licenses a different thing.
+
+    This is the defect that kept `capture.py` unmeasurable through #1954, #1959 and a re-run against
+    current main. `deselect_args()` was wired into the mutmut CONFIG — so MUTANT runs honoured it —
+    and NOT into `clean_run_seconds`. The two tests that ask git about the tree they run in therefore
+    failed in the baseline (mutmut's scratch is a copy, not a repo), `clean_ok` came back False, and
+    every glob died with "no budget: the clean run did not pass", so `mutate_diff` REFUSED. The gate
+    reported a failure that looked like a mutation finding and was a harness gap.
+
+    Reproduced 2026-08-31 by `git archive origin/main | tar -x` into a non-git dir: exactly 2 failed,
+    5537 passed — both of them entries in DESELECTED_TESTS. With the args applied, the same two files
+    give 42 passed, 2 deselected.
+
+    Anchored on the FUNCTION via ast, not on a substring: `deselect_args` also appears at the config
+    site and in this module's imports, so a bare `in src` would pass while the baseline still ignored
+    it — the same first-occurrence trap that bit the timeout pin above.
+    """
+    import ast
+
+    src = (HERE / "tools" / "mutate.py").read_text(encoding="utf-8")
+    fn = next((n for n in ast.walk(ast.parse(src))
+               if isinstance(n, ast.FunctionDef) and n.name == "clean_run_seconds"), None)
+    assert fn is not None, "clean_run_seconds is gone — this pin is stale, not passing"
+    calls = {ast.unparse(c.func) for c in ast.walk(fn) if isinstance(c, ast.Call)}
+    assert "deselect_args" in calls, (
+        "clean_run_seconds no longer applies deselect_args(), so the baseline runs a DIFFERENT "
+        "selection than the mutants. A test that cannot pass in a scratch tree then fails the clean "
+        "run, and every mutant reports 'no budget' — a harness gap wearing the shape of a finding.")
+
+
+def test_a_refusing_clean_run_SAYS_WHICH_TEST_FAILED():
+    """A refusal must carry its reason, or the run that already knows makes you go find out.
+
+    `clean_run_seconds` passes `capture_output=True` and used to throw the report away, returning only
+    `False`. Downstream that became "no budget: the clean run did not pass, so its duration measures
+    nothing" and then `mutate-diff: REFUSING` — honest, and undiagnosable. Three CI runs and a local
+    reproduction went into identifying a test the failing run had already named to itself.
+
+    The failure here is almost always a test that cannot pass in mutmut's scratch tree (a COPY, not a
+    repo), and the remedy is a `DESELECTED_TESTS` entry — which you can only write if you are told the
+    node id.
+
+    Pinned structurally on the function, not on a substring: `r.stdout` and `returncode` appear
+    elsewhere in the module, so `in src` would pass while this function stayed silent."""
+    import ast
+
+    src = (HERE / "tools" / "mutate.py").read_text(encoding="utf-8")
+    fn = next((n for n in ast.walk(ast.parse(src))
+               if isinstance(n, ast.FunctionDef) and n.name == "clean_run_seconds"), None)
+    assert fn is not None, "clean_run_seconds is gone — this pin is stale, not passing"
+    assert any(isinstance(n, ast.Call) and getattr(n.func, "id", "") == "print"
+               for n in ast.walk(fn)), (
+        "clean_run_seconds no longer reports the failure it captured — a refusal that cannot name "
+        "the failing test sends the next reader through the whole diagnosis again")
+    assert any(isinstance(n, ast.If) for n in ast.walk(fn)), \
+        "the report must be conditional on failure, not printed over a passing run"
+
+
+def test_the_clean_run_report_includes_the_ASSERTION_BODY_not_just_the_summary():
+    """pytest's `FAILED …` line carries only the FIRST line of an assertion message.
+
+    The body is where the reason lives. Reporting the summary alone produced
+    `AssertionError: shellcheck findings:` with nothing after it — and that emptiness was read as
+    evidence the tool had printed nothing, which sent a diagnosis down a wrong branch. It was the
+    reporter truncating, not the tool being silent.
+
+    A reporter that drops the body is worse than one that reports nothing: it manufactures a confident
+    wrong conclusion out of its own filtering. Verified against a plant whose detail lines exist only
+    in the body.
+
+    Anchored on the function via ast; `FAILURES` is a common enough token that a substring check over
+    the module would pass while this function still printed only the summary."""
+    import ast
+
+    src = (HERE / "tools" / "mutate.py").read_text(encoding="utf-8")
+    fn = next((n for n in ast.walk(ast.parse(src))
+               if isinstance(n, ast.FunctionDef) and n.name == "clean_run_seconds"), None)
+    assert fn is not None, "clean_run_seconds is gone — this pin is stale, not passing"
+    consts = {n.value for n in ast.walk(fn) if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+    assert any("FAILURES" in c for c in consts), (
+        "clean_run_seconds no longer reads pytest's FAILURES section, so a refusal reports only the "
+        "first line of the assertion — the part that says WHAT failed is dropped")

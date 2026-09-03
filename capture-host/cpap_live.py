@@ -21,8 +21,9 @@ from __future__ import annotations
 __all__ = ["DETECTOR_STALE_MULTIPLE", "stale_after_s", "detector_age_s", "live_view",
            "EndWatch", "observe", "harvest_due",
            "CATCH_UP_MAX_AGE_S", "journal_rows", "last_therapy_end", "boot_state",
-           "AUTOSTART_DEBOUNCE_S", "AUTOSTART_MAX_ATTEMPTS", "AUTOSTART_BACKOFF_S",
+           "AUTOSTART_RETAIN_S", "AUTOSTART_MAX_ATTEMPTS", "AUTOSTART_BACKOFF_S",
            "AUTOSTART_BACKOFF_MAX_S", "StartWatch", "observe_start", "autostart_due",
+           "false_start_verdict", "note_false_start",
            "note_start_failed", "note_manual_stop", "note_started", "boot_start_state"]
 
 # ── how old is too old ─────────────────────────────────────────────────────────────────────────
@@ -207,7 +208,8 @@ def journal_rows(text):
         try:
             ms = float(parts[0])
         except ValueError:
-            continue
+            continue   # a journal row with no parseable timestamp cannot be placed in the session
+                       # it belongs to — and guessing one would fabricate therapy time
         rows.append((ms, parts[8].strip()))
     rows.sort()
     return rows
@@ -286,7 +288,16 @@ def boot_state(end_ms, ended, fired_for, now_ms, max_age_s: float = CATCH_UP_MAX
 # reinstating a refusal the owner removed: `LiveStreamController` still applies whatever the gate is
 # set to, and this module never second-guesses it. (The monitor's hint claiming the stream "refuses
 # while a wearable is capturing" is STALE for the same reason, and is corrected in this change.)
-AUTOSTART_DEBOUNCE_S = 120.0
+# THE 120 s RULE MOVED FROM THE GATE TO RETENTION (owner-queued, 2026-09-01). It was
+# AUTOSTART_DEBOUNCE_S — therapy had to run 120 s before the stream would START, which cost every
+# night a guaranteed 120 s head gap on top of detector latency (measured decomposition, night of
+# 2026-08-31: 147.44 s total = ~120 s gate + ~27 s poll latency + ~1.3 s connect; the SD record
+# covers the head, so closing this buys live-path completeness + redundancy, not archive recovery).
+# Now the stream starts at the FIRST Therapy sighting and the 120 s question is answered AFTERWARD,
+# by `false_start_verdict`: a session that failed to sustain is DISCARDED and costs an attempt.
+# The failure directions are asymmetric and this is the benign one: an eager start's harm is bounded
+# BLE churn (capped by the same attempt budget), where the old gate's harm was data loss every night.
+AUTOSTART_RETAIN_S = 120.0
 AUTOSTART_MAX_ATTEMPTS = 5
 AUTOSTART_BACKOFF_S = 60.0
 AUTOSTART_BACKOFF_MAX_S = 900.0
@@ -339,9 +350,15 @@ def observe_start(watch: StartWatch, therapy, now_ms) -> StartWatch:
                       watch.attempts, watch.next_try_ms)
 
 
-def autostart_due(watch: StartWatch, now_ms, *, debounce_s: float = AUTOSTART_DEBOUNCE_S,
+def autostart_due(watch: StartWatch, now_ms, *,
                   max_attempts: int = AUTOSTART_MAX_ATTEMPTS, already_streaming: bool = False):
     """`(due, reason)` — should the live stream be started right now? Pure.
+
+    EAGER, deliberately: it fires at the FIRST Therapy sighting. The 120 s continuous-therapy
+    question that used to gate here is now answered AFTER the fact by `false_start_verdict` — a start
+    that turns out false is discarded and costs an attempt, where the old gate cost every genuine
+    night a 120 s head gap. See AUTOSTART_RETAIN_S for the measured decomposition and the
+    failure-direction argument.
 
     Every refusal names itself, because an auto-start that declines silently is indistinguishable from
     one that is broken — and that is the exact failure this whole feature exists to end."""
@@ -359,8 +376,6 @@ def autostart_due(watch: StartWatch, now_ms, *, debounce_s: float = AUTOSTART_DE
         held = (float(now_ms) - float(watch.began_at_ms)) / 1000.0
     except (TypeError, ValueError):
         return False, "unusable timestamps"
-    if held < float(debounce_s):
-        return False, f"therapy started {held:.0f}s ago; debounce is {float(debounce_s):.0f}s"
     if watch.next_try_ms is not None:
         try:
             if float(now_ms) < float(watch.next_try_ms):
@@ -368,7 +383,52 @@ def autostart_due(watch: StartWatch, now_ms, *, debounce_s: float = AUTOSTART_DE
                 return False, f"backing off after {watch.attempts} failed start(s); {wait:.0f}s to go"
         except (TypeError, ValueError):
             return False, "unusable timestamps"
-    return True, f"therapy running for {held:.0f}s"
+    return True, f"therapy sighted {held:.0f}s ago — starting eagerly (retention decides the 120 s question)"
+
+
+def false_start_verdict(started_ms, ended_ms, *, manual: bool,
+                        retain_s: float = AUTOSTART_RETAIN_S, hold_s: float = 120.0):
+    """`(discard, reason)` — was this eagerly-started session a FALSE START? Pure.
+
+    Decided from the STREAM'S OWN LIFETIME, because nothing else can see: while a stream runs the
+    detector defers entirely (every reading is None), so "did therapy sustain?" cannot be asked of
+    FGState — but the stream already answers it. Genuine therapy runs for hours; a false start's flow
+    goes flat immediately, the therapy-end auto-stop's hold (`hold_sec`, default 120 s) times out,
+    and the stream ends at roughly `hold_s` old. So the discard window is `retain_s + hold_s`, NOT
+    `retain_s`: a session that sustained therapy for `retain_s` lives at least `retain_s + hold_s`
+    before any flat-flow stop can end it, and a false start structurally cannot reach that age.
+    (With both at their 120 s defaults: discard below 240 s of stream life.)
+
+    A MANUAL stop is never a false start, whatever the age — the operator ending a short session is
+    intent, and discarding data on intent would delete the one fragment somebody explicitly chose to
+    make. An unparseable timestamp retains: when the verdict cannot be computed, keeping data is the
+    error that can be undone."""
+    if manual:
+        return False, "operator-stopped — a manual stop is intent, never a false start"
+    try:
+        lived = (float(ended_ms) - float(started_ms)) / 1000.0
+        window = float(retain_s) + float(hold_s)
+    except (TypeError, ValueError):
+        return False, "unusable timestamps — retaining (a discard cannot be undone)"
+    if lived < 0:
+        return False, "stream ended before it started? — retaining (clock disagreement, not evidence)"
+    if lived < window:
+        return True, (f"stream lived {lived:.0f}s < {window:.0f}s (retain {float(retain_s):.0f}s + "
+                      f"auto-stop hold {float(hold_s):.0f}s) — therapy did not sustain; false start")
+    return False, f"stream lived {lived:.0f}s ≥ {window:.0f}s — a real session"
+
+
+def note_false_start(watch: StartWatch, now_ms, *, backoff_s: float = AUTOSTART_BACKOFF_S,
+                     backoff_max_s: float = AUTOSTART_BACKOFF_MAX_S) -> StartWatch:
+    """A started stream turned out to be a false start. Pure.
+
+    Counts against the SAME attempt budget as a failed connect — the budget bounds BLE churn per
+    session however the churn arises — and CLEARS `fired_for`, because `note_started` marked this
+    session as already-fired and without the clear the machine still sitting in Therapy could never
+    earn a retry. `began_at_ms` is deliberately untouched: the session key is the first sighting,
+    and re-keying it would hand the retry a fresh attempt budget."""
+    w = note_start_failed(watch, now_ms, backoff_s=backoff_s, backoff_max_s=backoff_max_s)
+    return StartWatch(w.began_at_ms, None, w.manual_stop_for, w.attempts, w.next_try_ms)
 
 
 def note_start_failed(watch: StartWatch, now_ms, *, backoff_s: float = AUTOSTART_BACKOFF_S,
@@ -398,8 +458,13 @@ def note_manual_stop(watch: StartWatch) -> StartWatch:
 
 
 def note_started(watch: StartWatch) -> StartWatch:
-    """A start succeeded. Pure. Fires once per session, and clears the attempt/backoff state."""
-    return StartWatch(watch.began_at_ms, watch.began_at_ms, watch.manual_stop_for, 0, None)
+    """A start succeeded. Pure. Clears the backoff, and — since eager start — KEEPS the attempt
+    count: the budget is per-SESSION and a false start spends from it after `note_started` has
+    already run, so zeroing here would hand every started-then-discarded stream a fresh budget and
+    unbound exactly the churn the budget exists to bound. (It zeroed before retention existed, when
+    nothing could spend an attempt after a successful start.)"""
+    return StartWatch(watch.began_at_ms, watch.began_at_ms, watch.manual_stop_for,
+                      watch.attempts, None)
 
 
 def boot_start_state(rows, fired_for, manual_stop_for, now_ms,
@@ -420,7 +485,8 @@ def boot_start_state(rows, fired_for, manual_stop_for, now_ms,
     if ended or rows[-1][1] != "Therapy":
         return StartWatch(None, fired_for, manual_stop_for), "the journal does not end in therapy"
     # Walk back to the first row of this uninterrupted Therapy run — the session's real start, not the
-    # last row's stamp. Debouncing against the last row would restart the 120 s clock at every boot.
+    # last row's stamp. The session KEY is the first sighting (attempts, fired_for and manual intent
+    # are all scoped by it), so re-keying at every boot would hand each reboot a fresh budget.
     began = rows[-1][0]
     for ms, fg in reversed(rows):
         if fg != "Therapy":

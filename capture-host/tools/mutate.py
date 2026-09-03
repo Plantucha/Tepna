@@ -149,7 +149,8 @@ def tests_for(module: str) -> list[str]:
         try:
             candidates.append((f"tests/{t.name}", t.read_text(encoding="utf-8")))
         except OSError:
-            continue
+            continue   # an unreadable test cannot be offered as a killer; missing one WIDENS the
+                       # surviving set, which over-reports rather than falsely greening
     kept, dropped = select_tests(candidates, stem)
     for d in dropped:
         print(f"  note: {d} excluded from {module}'s selection — a mutant killed ONLY by it "
@@ -176,10 +177,62 @@ def clean_run_seconds(tests: list[str]) -> tuple[float, bool]:
 
     This is CLAUDE.md §4b's family: capture the status of the command itself, not a plausible-looking
     number it produced on the way to failing."""
+    # ⚠️ THE DESELECTIONS MUST APPLY HERE TOO, and forgetting that made the whole gate refuse.
+    # `deselect_args()` was wired into the mutmut CONFIG (so MUTANT runs honour it) and not into this
+    # baseline, so the two tests that query git about the tree they run in failed here — mutmut's
+    # scratch is a COPY, not a repo — and `clean_ok` came back False. The caller then reports
+    # "no budget: the clean run did not pass", every glob fails, and `mutate_diff` REFUSES.
+    # Measured 2026-08-31: that is why capture.py never produced a survivor list, on #1954, on #1959,
+    # and on a re-run against current main. Reproduced by `git archive origin/main | tar -x` into a
+    # non-git dir: exactly 2 failed, 5537 passed — both of them entries in DESELECTED_TESTS.
+    # The selection this times must be the selection that will be RUN, or it is timing a different
+    # thing than the one it licenses.
     t0 = time.monotonic()
-    r = subprocess.run([str(VENV_PY), "-m", "pytest", "-q", "-p", "no:cacheprovider", *tests],
+    r = subprocess.run([str(VENV_PY), "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                        *tests, *deselect_args()],
                        cwd=HERE, capture_output=True, text=True, timeout=3600)
-    return time.monotonic() - t0, r.returncode == 0
+    elapsed = time.monotonic() - t0
+    # 🔴 SAY WHICH TEST FAILED. `capture_output=True` collected pytest's report and this function
+    # threw it away, so the only thing reaching a caller was `False` — surfacing downstream as
+    # "no budget: the clean run did not pass, so its duration measures nothing" and, from there, as
+    # `mutate-diff: REFUSING`. Honest, and undiagnosable: three CI runs and a local reproduction were
+    # spent working out WHICH test it was, because the run that already knew did not say.
+    #
+    # A refusal must carry its reason. The failure is nearly always a test that cannot pass in
+    # mutmut's scratch tree (a copy, not a repo) and the remedy is a DESELECTED_TESTS entry — but you
+    # can only write that entry if you are told the node id.
+    if r.returncode != 0:
+        lines = [ln for ln in (r.stdout or "").splitlines()
+                 if ln.startswith(("FAILED", "ERROR")) or " error" in ln.lower()[:40]]
+        print(f"    clean run FAILED (exit {r.returncode}) after {elapsed:.1f}s — "
+              f"{len(lines) or 'no'} FAILED/ERROR line(s):", flush=True)
+        for ln in lines[:20]:
+            print(f"      {ln}", flush=True)
+        # 🔴 THE SUMMARY LINE IS NOT THE REASON. pytest's `FAILED …` line carries only the FIRST line
+        # of the assertion message; the body — which is the part that says WHAT failed — lands in the
+        # FAILURES section above it. Printing the summary alone produced
+        # `AssertionError: shellcheck findings:` with nothing after, and I read that emptiness as
+        # evidence the tool had printed nothing, and started theorising from it. It was this filter
+        # truncating, not the tool being silent. A reporter that drops the body manufactures exactly
+        # the wrong conclusion, which is worse than reporting nothing at all.
+        block = (r.stdout or "")
+        if "= FAILURES =" in block:
+            body = block.split("= FAILURES =", 1)[1].splitlines()
+            keep = [ln for ln in body if ln.strip()][:40]
+            if keep:
+                print("    ---- assertion detail (first 40 non-blank lines of FAILURES) ----",
+                      flush=True)
+                for ln in keep:
+                    print(f"      {ln}", flush=True)
+        if not lines:
+            # No FAILED lines at all is a DIFFERENT failure — a collection error, a missing plugin, an
+            # import crash. Show the tail rather than printing nothing and implying there was nothing.
+            tail = (r.stdout or r.stderr or "").strip().splitlines()[-12:]
+            print("      (no FAILED/ERROR lines — showing the tail, this is likely a collection "
+                  "or import failure rather than a test assertion)", flush=True)
+            for ln in tail:
+                print(f"      {ln}", flush=True)
+    return elapsed, r.returncode == 0
 
 
 
@@ -341,8 +394,16 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     # a run launched in the background surfaces nothing until it exits, so a 26-minute cpap_harvest run
     # is silent to the caller either way. This file is rewritten on every verdict so anyone — a person,
     # or an agent polling it — can answer "how far in, and is it moving" at any instant.
-    seen = {"killed": 0, "survived": 0, "timeout": 0, "n": 0, "ids": set()}
+    # The de-dup set lives SEPARATELY from the counters, and that is a typing fix with a readability
+    # dividend: one dict holding both ints and a set is `dict[str, object]` to mypy, so every `+= 1`,
+    # every `/`, and the `.add` became an error on a structure that was perfectly correct at runtime.
+    # Splitting them makes the counters a plain `dict[str, int]` and says which is which.
+    seen_ids: "set[str]" = set()
+    seen = {"killed": 0, "survived": 0, "timeout": 0, "n": 0}
     try:
+        # `proc.stdout` is Optional in the stubs; it is not None here because the Popen above is
+        # created with stdout=PIPE. Asserting states that rather than guarding a case that cannot arise.
+        assert proc.stdout is not None
         for line in proc.stdout:                       # line-buffered; mutmut rewrites one status line
             buf.append(line)
             sys.stderr.write(line)
@@ -363,9 +424,9 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
                               ("\N{ALARM CLOCK}", "timeout"), ("\N{SLIGHTLY FROWNING FACE}", "survived")):
                 if mark in line:
                     mid = re.search(r"[\w.]+__mutmut_\d+", line)
-                    if not mid or mid.group(0) in seen["ids"]:
+                    if not mid or mid.group(0) in seen_ids:
                         break
-                    seen["ids"].add(mid.group(0))
+                    seen_ids.add(mid.group(0))
                     seen[key] += 1
                     seen["n"] += 1
                     el = time.monotonic() - t0

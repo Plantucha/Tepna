@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (phase (a) output: §2 trace + §3 classification) · **Interlocks:** `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` §1, `WEARABLE-HOST-AXIS` lineage
+**Status:** IN-PROGRESS · **TRIAGED 2026-09-01 (Osprey): tool BUILT (`tools/pat-axis-leg-audit.mjs`) and takes `<ppg-file>`, so it shares FIDUCIAL-JITTER's position — runnable locally, but against 2 files rather than the corpus. Not executed this pass.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (phase (a) output: §2 trace + §3 classification) · **Interlocks:** `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` §1, `WEARABLE-HOST-AXIS` lineage · **DRAIN 2026-09-02 (Osprey):** re-verified — `tools/pat-axis-leg-audit.mjs` is present and takes `<ppg-file>`, so it is runnable locally against `/srv/data/tepna-corpus/`. Unchanged since the 2026-09-01 triage. **Owner: Osprey. Next step:** one corpus run, same shape as the WINDOW-ORACLE execute; it needs no new code.
 
 # The two legs of a PAT measurement ride different time axes — and Tepna introduces the difference
 

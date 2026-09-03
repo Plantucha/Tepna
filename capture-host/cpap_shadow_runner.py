@@ -261,4 +261,5 @@ class SessionSidecar:
             self._fh.flush()
             self._fh.close()
         except (OSError, ValueError):
-            pass
+            log.warning("cpap shadow decision log did not close cleanly — its tail may be unwritten",
+                         exc_info=True)

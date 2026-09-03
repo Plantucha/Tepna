@@ -275,34 +275,15 @@
   // aligned (H,V,O) triples, recompute TCH σ each rep → percentile CI per device.
   // This is the SAMPLING uncertainty of one window's σ — used when N<3 windows exist,
   // and clearly labelled as within-window (not the across-window CI the brief targets).
-  function blockBootstrapCI(hh, vv, oo) {
-    const n = hh.length,
-      bl = Math.min(n, BLOCK_S),
-      nb = Math.ceil(n / bl);
-    const acc = { h10: [], verity: [], o2: [] };
-    for (let b = 0; b < B_WITHIN; b++) {
-      const H = [],
-        V = [],
-        O = [];
-      for (let k = 0; k < nb; k++) {
-        const st = Math.floor(Math.random() * (n - bl + 1));
-        for (let j = 0; j < bl; j++) {
-          H.push(hh[st + j]);
-          V.push(vv[st + j]);
-          O.push(oo[st + j]);
-        }
-      }
-      const s = tchSigmas(H, V, O);
-      ['h10', 'verity', 'o2'].forEach((k) => {
-        if (s[k] != null && isFinite(s[k])) acc[k].push(s[k]);
-      });
-    }
-    const out = {};
-    ['h10', 'verity', 'o2'].forEach((k) => {
-      const a = acc[k].sort((p, q) => p - q);
-      out[k] = a.length >= 20 ? { lo: pct(a, 0.025), hi: pct(a, 0.975) } : null;
-    });
-    return out;
+  /* DEEP-AUDIT-VI F16 — the CI's estimator must FOLLOW the point's. Delegated to
+     AnalysisStats.tchBlockBootstrapCI (single-sourced, known-answer-gated): with the per-corner
+     confidence arrays present every replicate runs the FUSED hat — the estimator that produced the
+     live path's point — resampling the confidences in lockstep with the same block indices; without
+     them (the committed-TRIOS path, whose point is classic) every replicate runs the classic hat,
+     exactly as before. The old page-local copy bootstrapped tchSigmas unconditionally, so an
+     artifact-flagged night rendered a fused σ entirely outside its own classic CI. */
+  function blockBootstrapCI(hh, vv, oo, cH, cV, cO) {
+    return AnalysisStats.tchBlockBootstrapCI(hh, vv, oo, { cH, cV, cO, B: B_WITHIN, blockS: BLOCK_S });
   }
 
   // Across-window percentile bootstrap of the median σ (used when N≥3 windows).
@@ -393,7 +374,7 @@
     const N = windows.length,
       totalS = windows.reduce((s, w) => s + w.n, 0);
     const biggest = windows.reduce((a, b) => (b.n > a.n ? b : a), windows[0]);
-    const within = N < N_FOR_ACROSS ? blockBootstrapCI(biggest.hh, biggest.vv, biggest.oo) : null;
+    const within = N < N_FOR_ACROSS ? blockBootstrapCI(biggest.hh, biggest.vv, biggest.oo, biggest.cH, biggest.cV, biggest.cO) : null;
     const dev = {};
     for (const k of keys) {
       const vals = windows.map((w) => w.sigma[k]).filter((v) => v != null);
@@ -1139,7 +1120,7 @@
   }
   // strip bulky per-sample arrays (grids + aligned window series) from the JSON
   function exportStats() {
-    const drop = new Set(['grids', 'hh', 'vv', 'oo', 'keys', 'dHV', 'dHO', 'dVO']);
+    const drop = new Set(['grids', 'hh', 'vv', 'oo', 'cH', 'cV', 'cO', 'keys', 'dHV', 'dHO', 'dVO']);
     dl('sigma-no-reference-stats.json', new Blob([JSON.stringify(RESULT, (k, v) => (drop.has(k) ? undefined : v), 2)], { type: 'application/json;charset=utf-8;' }));
   }
   function exportFig() {
@@ -1399,6 +1380,11 @@
       hh,
       vv,
       oo,
+      // F16: the per-corner DSP confidences ride the window so the within-window CI can bootstrap
+      // the SAME estimator as the point (stripped from stats.json like hh/vv/oo).
+      cH: res.cH,
+      cV: res.cV,
+      cO: res.cO,
       keys: ks,
       source: res.source
     };

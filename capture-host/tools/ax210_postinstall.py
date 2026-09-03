@@ -143,10 +143,20 @@ def assess(*, hciconfig="", status_cpap=None, hci_versions="", devices=None, wan
         checks.append({"name": "devices", "state": OK, "detail": f"{n} configured device(s) present"})
     checks.append(
         {
+            # ⚠️ THIS EXPECTED FOUR ADAPTERS AND THAT WAS WRONG. It assumed the AX210 would JOIN
+            # the pool; it REPLACED one — the old Intel (F0:D5:BF:1E:79:21) is gone, the AX210 took
+            # hci2, and the box still enumerates three. Measured 2026-08-30 by running this very
+            # checker after the swap. The UNKNOWN it returned was the honest answer to a question
+            # wrongly posed, and that is the part that worked: written as a FAIL, a correct install
+            # would have reported broken.
+            #
+            # What matters is not the COUNT but that every pinned MAC still resolves — which
+            # `pinned-adapters` already asserts, and which passed. A count is a proxy; the pins are
+            # the thing. Report-only now, naming the radios rather than judging their number.
             "name": "adapter-count",
-            "state": OK if len(adapters) >= 4 else UNKNOWN,
-            "detail": f"{len(adapters)} adapter(s) enumerated"
-            + ("" if len(adapters) >= 4 else " — expected 4 after the AX210 install"),
+            "state": OK,
+            "detail": f"{len(adapters)} adapter(s): {', '.join(sorted(adapters))} — report-only; a "
+            f"new card may JOIN or REPLACE, and `pinned-adapters` is what decides",
         }
     )
     return {"ok": all(c["state"] == OK for c in checks), "checks": checks}

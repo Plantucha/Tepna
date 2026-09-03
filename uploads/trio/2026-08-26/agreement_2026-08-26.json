@@ -1,0 +1,20 @@
+{
+  "night": "2026-08-26",
+  "tolBpm": 15,
+  "nodes": [
+    "PpgDex",
+    "ECGDex",
+    "OxyDex"
+  ],
+  "compared": 105,
+  "adjudicable": 105,
+  "droppedFragments": 0,
+  "flagged": 0,
+  "flaggedPct": 0,
+  "fault": {
+    "PpgDex": 0,
+    "ECGDex": 0,
+    "OxyDex": 0
+  },
+  "epochs": []
+}

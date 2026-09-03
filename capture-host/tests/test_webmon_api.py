@@ -238,7 +238,7 @@ def test_settings_get_reports_the_ring_streams_despite_no_pmd(tmp_path):
     async def go(c):
         return await (await c.get("/api/settings")).json()
     dev = _serve(app, go)["devices"][0]
-    assert set(dev["supported"]) == {"spo2", "ppg", "ppg2w"}
+    assert set(dev["supported"]) == {"spo2", "ppg", "ppg2w", "acc"}
 
 
 # ── /api/pull ───────────────────────────────────────────────────────────────────────────────────────

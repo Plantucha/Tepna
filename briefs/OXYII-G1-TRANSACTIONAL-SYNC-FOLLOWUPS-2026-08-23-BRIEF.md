@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-27 (**three of six boxes are executed and the label said `PROPOSED`, which means unstarted.** Corrected 2026-08-27 after reading the boxes rather than the header: Layer-3 validation **LANDED** (D-w1), the mutation-cache re-key passed its first-run control (**#1726**, `mmeta.py`), and the zero-mutant-module guard refuses on the induced failure. **NOT DONE** — the three open items are real and one is physically gated: the drop test awaits the next physical session, `pull_session` wiring is unblocked now §4's boundary was ruled 2026-08-24, and the fsync chaos-lane control is unbuilt. Found by `tools/brief-verified-index.mjs`, which ranked this brief as never claiming a verification — it does not, and three of its items shipped anyway.) · **Created:** 2026-08-23 · **Follows:** `OXYII-G1-TRANSACTIONAL-SYNC-2026-08-23-BRIEF.md` (DONE, #1702) · **Affects:** `capture-host/oxy_transfer.py`, `capture-host/pull_session.py`, `capture-host/tools/mutate.py`, `capture-host/tools/mutate_diff.py`
+**Status:** PROPOSED (parked 2026-09-02 — **the header was stale and two of the three open items had already shipped.** Re-verified against artifacts today: `pull_session` wiring LANDED 60501cec (#1733) with the T3 instrumentation 954720bc (#1761); the fsync chaos-lane control LANDED 77ecd8c2 (#1731) — `tests/test_chaos_ordering.py` `TestFsyncCallSites`, which reds if either fsync is removed. ONE item remains and it is physically gated: the drop test that would set `resume_strategy`'s `allow_resume` from measurement rather than leaving it False, which needs a physical doff window with a journal watcher. Note the chaos control licenses *the calls are made*, not *the data is durable* — the true power-loss lane needs root + `dmsetup` on the box and is a separate unit. **Owner:** Heron · **Next step:** the doff-window drop test, next time the ring is worn) · **Created:** 2026-08-23
 
 # G1 follow-ups — what execution left open, and what the gates taught while it shipped
 
@@ -118,11 +118,11 @@ same file. Worth confirming before either starts rather than discovering it in a
 - [x] Layer-3 validation lands, or is re-costed with a decision recorded — never implied to exist. **LANDED (D-w1):** record-boundary walk in `oxy_transfer.verify()`, `VALIDATION_DEPTH → "size+finalised+records"`, held to the shifted-grid control; geometry measured against real `.dat`.
 - [ ] The drop test runs and `resume_strategy`'s flag is set from measurement. *(gated: next physical
       doff window — pull-before-restart order, watcher on the SYSTEM journal)*
-- [ ] `pull_session` wiring lands, with §4's boundary settled first. *(§4 boundary RULED 2026-08-24,
+- [x] `pull_session` wiring lands, with §4's boundary settled first. *(§4 boundary RULED 2026-08-24,
       lead: per `oxy_lifecycle.py`'s own ratified docstring, G4's journal sees the pull only at daemon
       granularity — `PAUSED_FOR_PULL` / `PULLING` — so per-transfer pull lifecycle is the pull layer's
       OWN instrumentation in `pull_session`/`oxy_transfer`, not new G4 journal rows.)*
-- [ ] fsync durability has a chaos-lane control that fails when either fsync is removed.
+- [x] fsync durability has a chaos-lane control that fails when either fsync is removed.
 - [x] The mutation-cache re-key passes its FIRST-run control. *(DONE — #1726, `mmeta.py`: test-tree
       hash keys the reuse scratch; first-run-credits-an-added-killer control passes, mutation-verified.)*
 - [x] The zero-mutant-module guard refuses on the induced failure, and `blind_modules` is either

@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-08-26
+**Status:** PROPOSED (executable core BUILT, remainder is DEPLOYMENT — re-verified 2026-09-02; ⚠ §2's line citations point at unrelated code, see R6; and two of its test done-when legs belong to the design its own §3.3 WITHDREW and should be struck rather than stamped open — *per Heron's read, not independently re-verified*. Earlier verification 2026-08-31: `resolve_adapter_name` (`capture.py:1115`), per-device `adapter:` parsing with inheritance, `apply_instance` (1185), and the `status_union` merge layer all exist; what remains is a `tepna-capture@.service` systemd template, one instance per radio, splitting monitor/nightqc out as services, and a clean Sena re-measure — boot/deployment shape, owner-territory, several units) · **Created:** 2026-08-26 · **Residue:** 2026-09-02-per-device-citations-drifted
 
 # Per-device adapter pinning — make every device swappable, the way the CPAP already is
 

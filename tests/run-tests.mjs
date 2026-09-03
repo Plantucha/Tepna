@@ -530,6 +530,10 @@ function readSources() {
        axis is drawn on every stream measured (20/20). */
     'tools/pat-host-offset.mjs',
     'tools/regen-integrator-goldens.mjs',
+    /* §4.3 — the §3.1 bootstrap exemption is a CONTRACT BETWEEN TWO FILES: this tool matches the
+       §3.1 assertion's label to recognise a first-generation fixture. A rename in dex-tests.js would
+       silently re-close the deadlock, so the label is read out of the tool as text and compared. */
+    'tools/verify-fixtures.mjs',
     /* CLOCK-AXIS-AND-RENDER-SURFACE-FOLLOWUPS §3 — the cohort desat-recall matcher is implemented TWICE
        (cohort-regression.js + cohort-runner.html), independently, with the same [-10s,+60s] window. No
        executable entry spans both, so cross-site agreement is asserted by source scan (the DA-II §2.2
@@ -615,6 +619,11 @@ function readSources() {
     // arguments its one runtime caller passes, and that caller is a Web Worker no behavioural test can
     // drive (O2RING-PHASE4-PREMISE-REVIEW §4).
     'pat-feasibility-worker.js',
+    /* The RENDERER, added 2026-09-02. The worker above was scanned and this file was not, and that
+       asymmetry is exactly how `vdCorr` was published, carried across the worker boundary and dropped
+       at the render step while every test stayed green. A layer nothing reads is a layer nothing
+       checks. */
+    'pat-feasibility.js',
     'signal-orchestrate.js',
     'dex-ingest.js',
     'cpapdex-dsp.js',
@@ -924,6 +933,12 @@ function readEquiv() {
   // resolves against ROOT/uploads and cannot be hidden by a DEX_UPLOADS override aimed at a real corpus —
   // same reasoning as the OxyDex adversarial twins.
   pairCommitted('glucodex_gap', 'synthetic_glucodex_lingo_gap.csv', 'synthetic_glucodex_gap_golden.node-export.json');
+  // DEEP-AUDIT-VI F6 — the Clarity COLUMN-PICK twin: a serial Index counter + "Low" cells. One Low
+  // cell used to flip the glucose pick to the Index column (headline metrics on ROW NUMBERS).
+  pairCommitted('glucodex_clarity_low', 'synthetic_glucodex_clarity_low.csv', 'synthetic_glucodex_clarity_low_golden.node-export.json');
+  // FOLLOWUPS §1.10 — the DEGENERATE-EDR twin: input only, no golden. Its job is an INVARIANT (a
+  // rate that cannot be measured is refused, never substituted), not a byte pin.
+  pairCommitted('ecgdex_flat_edr', 'synthetic_ecgdex_flat_edr.txt', null);
 
   // ── CPAPDex BINARY-EDF equivalence leg (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P2) ──────────────
   // The fleet's FIRST equiv input that is actually COMMITTED — and therefore the first one whose
@@ -959,6 +974,25 @@ function readEquiv() {
     }
     rec.fixtureFile = 'cpapdex_synthetic_edf_golden.node-export.json';
     if (rec.input !== undefined || rec.fixture !== undefined) out.cpapdex_edf = rec;
+
+    /* FOLLOWUPS §1.9 — the MASK-OFF twin: a 20-min set whose mask is on for only the first 10 min.
+       Input only, no golden: the assertion is an INVARIANT (a breaths/min is divided by the MEASURED
+       window, not the recording length), and the real corpus cannot express it — mask-on was 1.000 on
+       all 24 nights §1.5 folded, so every real night has wall ≡ mask-on and is silent by construction. */
+    {
+      const mo = {};
+      let ok2 = true;
+      for (const k of ['BRP', 'PLD']) {
+        const p2 = join(UPLOADS, `cpapdex_maskoff_twin_${k}.edf`);
+        if (!existsSync(p2)) {
+          ok2 = false;
+          break;
+        }
+        const b2 = readFileSync(p2);
+        mo[k] = b2.buffer.slice(b2.byteOffset, b2.byteOffset + b2.byteLength);
+      }
+      if (ok2) out.cpapdex_maskoff = { input: mo };
+    }
   }
 
   // ── CPAPDex LIVE-vs-SD COMPARATOR leg (CPAPDEX-LIVE-SD-COMPARATOR brief) ──────────────────────
@@ -1079,6 +1113,17 @@ function readEquiv() {
     if (existsSync(fxP)) {
       try {
         out.integrator_tch_golden = { fixture: JSON.parse(readFileSync(fxP, 'utf8')), fixtureFile: 'integrator_tch_golden.node-export.json' };
+      } catch {
+        /* gate self-skips */
+      }
+    }
+  }
+  // §4.3 — the apnea chance-null twins. Fixture-only: the gate rebuilds all four nights in-code.
+  {
+    const fxA = join(ROOT, 'uploads', 'integrator_apnea_null_twins.node-export.json');
+    if (existsSync(fxA)) {
+      try {
+        out.integrator_apnea_null_twins = { fixture: JSON.parse(readFileSync(fxA, 'utf8')), fixtureFile: 'integrator_apnea_null_twins.node-export.json' };
       } catch {
         /* gate self-skips */
       }
@@ -1932,6 +1977,8 @@ async function main() {
     recWindow: ctx.recWindow,
     overlapInterval: ctx.overlapInterval,
     fuseHRVConsensus: ctx.fuseHRVConsensus,
+    // §4.3 — the apnea fusion, so the twins' equiv leg drives the same seam the regen tool does.
+    fuseApneaEvents: ctx.fuseApneaEvents,
     fusePeriodicBreathing: ctx.fusePeriodicBreathing,
     dedupeRecs: ctx.dedupeRecs,
     runFusion: ctx.runFusion,
@@ -2095,6 +2142,29 @@ async function main() {
     /* BADGE-COVERAGE-AUDIT (corrected) — every node's UI-layer source, so the badge gate can read the
        literal ids each `evBadge(...)` call site passes and resolve them against that node's OWN
        registry. Node-lane only (readdir); the browser lane SKIPs, as docs-ledger does. */
+    /* WHICH SOURCE LAYERS CAN A SCAN READ AT ALL? Measured 2026-09-02: 38 of 112 root-level runtime
+       `*.js` are in NEITHER lane's source list, so no text-reading assertion can see them — including
+       all eight `*-registry.js` (CLAUDE.md §🎫's "Grade source of truth") and the spine modules
+       `kernel-constants.js` / `metric-registry.js`.
+
+       That blind spot is not hypothetical: `pat-feasibility.js` was outside both lists while its
+       WORKER was in them 5 times, and that asymmetry is exactly how a published `vdCorr` reached no
+       surface with the whole suite green. A layer nothing reads is a layer nothing checks.
+
+       The NODE side is taken from the runner's own assembled sources rather than re-parsed, so it
+       cannot drift from what the lane actually has. Node-lane only (readdir); the browser SKIPs. */
+    sourceVisibility: (() => {
+      try {
+        const files = readdirSync(ROOT).filter((f) => /^[a-z0-9][a-z0-9-]*\.js$/.test(f));
+        const suite = readFileSync(join(ROOT, 'Dex-Test-Suite.html'), 'utf8');
+        const j = suite.indexOf('SOURCE_FILES');
+        const seg = j >= 0 ? suite.slice(j, suite.indexOf('];', j)) : '';
+        const browser = [...seg.matchAll(/'([A-Za-z0-9_.\-]+\.(?:js|mjs|html|css))'/g)].map((m) => m[1]);
+        return { files, browser };
+      } catch {
+        return null;
+      }
+    })(),
     nodeUiSources: (() => {
       try {
         const out = {};
@@ -2149,6 +2219,15 @@ async function main() {
     tchGoldenInputs: (() => {
       try {
         return require(join(ROOT, 'tests', 'tch-golden-inputs.js')).tchGoldenInputs;
+      } catch {
+        return null;
+      }
+    })(),
+    // §4.3 — the apnea-null twins' input builder, shared with tools/regen-integrator-goldens.mjs so
+    // the gate and the tool cannot drift (the sibling-divergence class §F1.5 fixed for the TCH golden).
+    apneaNullTwins: (() => {
+      try {
+        return require(join(ROOT, 'tests', 'apnea-null-twins.js')).apneaNullTwins;
       } catch {
         return null;
       }

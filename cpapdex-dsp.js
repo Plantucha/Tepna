@@ -144,6 +144,22 @@
     for (var i = 0; i < a.length; i++) if (mask[i]) o.push(a[i]);
     return o;
   }
+  /* F8 — block-mean decimation of a high-rate channel down to `targetFs`. Used to stand the BRP
+     `Press.40ms` lane (25 Hz) in for a missing PLD `Press` (0.5 Hz): the fallback must arrive at
+     the PLD cadence, because nightMetrics CONCATENATES `pressureMaskOn` across sessions and a
+     25 Hz session would out-vote a 0.5 Hz one 50:1 in every pooled percentile. Shape-identical
+     output (`{ fs, data }`) so every downstream site is rate-agnostic. */
+  function _decimateMean(ch, targetFs) {
+    var block = Math.max(1, Math.round((ch.fs || targetFs) / targetFs));
+    var n = Math.floor(ch.data.length / block);
+    var out = new Float32Array(n);
+    for (var i = 0; i < n; i++) {
+      var acc = 0;
+      for (var k = 0; k < block; k++) acc += ch.data[i * block + k];
+      out[i] = acc / block;
+    }
+    return { fs: (ch.fs || targetFs) / block, data: out };
+  }
 
   /* ── CPAP-vs-APAP mode (CPAP-REAL-CORPUS §F2) ─────────────────────────────────────────────
    The OLD rule was `mode = _iqr(pressureMaskOn) > 1.0 ? 'APAP' : 'CPAP'`, and on ~180 real
@@ -673,8 +689,16 @@
     var spo2Ch = chan(sa2, 'SpO2'),
       pulseCh = chan(sa2, 'Pulse');
     if (!spo2Ch || !spo2Ch.data || !spo2Ch.data.length) return { available: false, reason: 'no-spo2-channel', coverage: 0 };
+    /* DEEP-AUDIT-VI F7 — a missing Pulse channel is an ABSENT lane, not an all-zero one. This line
+       used to substitute `new Float32Array(spo2.length)` (every sample 0 bpm) for a file that carries
+       SpO2 but no Pulse, so selfGateDesat read pulseValid = 0 on EVERY event, stamped every genuine
+       desat 'perfusion-collapse', and the lane published ODI 0.00 / desatCount 0 — a fabricated clean
+       oximetry night (executed: five clean 5 % desats → odi 7.5 with pulse, odi 0 without). The
+       mirror source, oxydex-dsp.js detectODI, treats pulseSeries as OPTIONAL and degrades to
+       ungated detection; selfGateDesat already returns unflagged on a null series. Pass null, and
+       say so (`pulseLane`) so the consumer can see the self-gate did not run. */
     var spo2 = spo2Ch.data,
-      pulse = pulseCh ? pulseCh.data : new Float32Array(spo2.length);
+      pulse = pulseCh && pulseCh.data && pulseCh.data.length ? pulseCh.data : null;
     var n = spo2.length,
       valid = 0;
     for (var i = 0; i < n; i++) if (_spo2Valid(spo2[i])) valid++;
@@ -719,12 +743,15 @@
       }
     }
     var pv = [];
-    for (var m = 0; m < pulse.length; m++) {
+    for (var m = 0; pulse && m < pulse.length; m++) {
       var p = pulse[m];
       if (p >= SELFGATE.PULSE_MIN && p <= SELFGATE.PULSE_MAX) pv.push(p);
     }
     return {
       available: true,
+      // 'present' ⇒ the perfusion/edge self-gate ran; 'absent' ⇒ no Pulse channel, desats are
+      // kinetics-ungated (F7). A consumer must not read artifactCount 0 as "no artifacts" when absent.
+      pulseLane: pulse ? 'present' : 'absent',
       coverage: +coverage.toFixed(3),
       odi: hours > 0 ? +(real.length / hours).toFixed(2) : null,
       desatCount: real.length,
@@ -751,7 +778,9 @@
    floor). I:E = inspiratory-flow time / expiratory-flow time. Cross-checks the
    device-reported RespRate. O(n) single pass.
    ════════════════════════════════════════════════════════════════════════ */
-  function detectBreaths(flowCh, durSec) {
+  /* ⚠️ `opts.maskOn` / `opts.maskFs` are REQUIRED for a rate (FOLLOWUPS §1.9). Without them this
+     returns the count and I:E but `breathRate: null` — see the denominator note below. */
+  function detectBreaths(flowCh, durSec, opts) {
     if (!flowCh || !flowCh.data || !flowCh.data.length) return null;
     var flow = flowCh.data,
       fs = flowCh.fs || 25,
@@ -771,7 +800,18 @@
     for (var a = 0; a < n; a++) ps[a + 1] = ps[a] + flow[a];
     var lastCrossIdx = -1,
       minBreathSamp = Math.round(fs * 1.2); // ≥1.2 s/breath (≤50 brpm ceiling)
+    // mask index for sample i: the flow grid (25 Hz) and the pressure grid (0.5 Hz) differ, so map
+    // by time rather than by index — off-mask samples take part in neither the count nor I:E.
+    var mOn = opts && opts.maskOn && opts.maskOn.length && opts.maskFs > 0 ? opts.maskOn : null;
+    var mRatio = mOn ? opts.maskFs / fs : 0;
     for (var i = 0; i < n; i++) {
+      if (mOn) {
+        var mi = Math.min(mOn.length - 1, Math.floor(i * mRatio));
+        if (!mOn[mi]) {
+          lastSign = 0;
+          continue;
+        }
+      }
       var lo = Math.max(0, i - W),
         hi = Math.min(n, i + W);
       var base = (ps[hi] - ps[lo]) / (hi - lo);
@@ -788,9 +828,33 @@
         lastSign = -1;
       }
     }
-    var breathRate = durSec > 0 ? +(breaths / (durSec / 60)).toFixed(1) : null;
+    /* 🔴 THE DENOMINATOR IS MASK-ON SECONDS, NOT WALL SECONDS (FOLLOWUPS §1.9). This divided by
+       `durSec` — the whole recording — while EVERY sibling ventilation figure computed beside it
+       (`rrMaskOn`, `tvMaskOn`, `mvMaskOn`, `snMaskOn`, `flMaskOn`) is `_filterBy(..., maskOn)`. A
+       surfaced breaths/min was therefore diluted by however long the mask was off, by a different
+       factor every night — the same shape as F8's `usageHours` and §1.6's `therapyHours`.
+       Found by trying to USE this number as the reference for §1.5's grade adjudication and having
+       to reject it on that ground, which is why the fix is here and not in a grading unit.
+       ⚠️ The corpus CANNOT show the error's size: mask-on was 1.000 on all 24 nights measured, so
+       those nights are silent about this by construction — a committed mask-off twin is the only
+       thing that can red the old form, and that is what pins it.
+       The numerator is gated too: breaths "detected" while the mask is off are noise crossings, and
+       counting them against a smaller denominator would over-correct rather than correct. */
+    var onSec = null;
+    if (opts && opts.maskOn && opts.maskOn.length && opts.maskFs > 0) {
+      var onN = 0;
+      for (var q = 0; q < opts.maskOn.length; q++) if (opts.maskOn[q]) onN++;
+      onSec = onN / opts.maskFs;
+    }
+    var breathRate = onSec != null && onSec > 0 ? +(breaths / (onSec / 60)).toFixed(1) : null;
+    var breathRateReason =
+      onSec == null
+        ? 'no mask-on window (no pressure channel) — a breaths/min needs a measured denominator, not the recording length'
+        : onSec > 0
+          ? null
+          : 'mask never on — no measured time to divide by';
     var ieRatio = expSamp > 0 ? +(inspSamp / expSamp).toFixed(2) : null;
-    return { breathCount: breaths, breathRate: breathRate, ieRatio: ieRatio };
+    return { breathCount: breaths, breathRate: breathRate, ieRatio: ieRatio, breathMaskOnSec: onSec, ...(breathRateReason ? { breathRateReason: breathRateReason } : {}) };
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -927,19 +991,48 @@
     var mvCh = chan(set.PLD, 'MinVent');
     var snCh = chan(set.PLD, 'Snore');
     var flCh = chan(set.PLD, 'FlowLim');
+    /* DEEP-AUDIT-VI F8 — the pressure lane FALLS BACK like the therapy clock does. `therapy` above
+       already reads PLD || BRP || SA2, but every pressure-derived number read PLD alone, so a set
+       that lost its PLD file (the grouping note records real nights that did) published
+       `usageHours 0.000` — a measured-looking ZERO on the session table and in the node export, and
+       the denominator every event index divides by — plus `maskOnLatency NaN`, `medianPressure NaN`,
+       `residualAHI null`, while the same set's BRP
+       `Press.40ms` carried the whole mask-on trace (real night 20260613_045505: full set 0.683 h,
+       PLD removed 0.000 h, BRP mask-on fraction 1.000 ≈ 0.683 h).
+       The BRP lane is DECIMATED to the PLD cadence (block mean of `round(25 / 0.5)` = 50 samples)
+       and used for the MASK-ON MASK ONLY — usage hours and mask-on latency. It does NOT feed the
+       pressure statistics: `Press.40ms` is the instantaneous MASK pressure (EPR modulation and all),
+       not PLD's delivered set pressure, and on that same night its median reads 4.57 against PLD's
+       6.71 — a different quantity under the same label, which is exactly the fabrication the badge
+       mandate forbids. So with BRP as the source `pressureMaskOn` stays EMPTY and medianPressure /
+       p95 / mode / EPR stay unmeasured, marked by `pressureSource: 'BRP'` on the metrics. When
+       NEITHER file carries pressure there is no measurement at all: usage is `null` with a named
+       reason — never 0.000. */
+    var pressureSource = pressCh ? 'PLD' : null;
+    if (!pressCh) {
+      var brpPress = chan(set.BRP, 'Press') || chan(set.BRP, 'MaskPress');
+      if (brpPress && brpPress.data && brpPress.data.length) {
+        pressCh = _decimateMean(brpPress, 0.5);
+        pressureSource = 'BRP';
+      }
+    }
     var fs = pressCh ? pressCh.fs : 0.5;
     var pressure = pressCh ? pressCh.data : new Float32Array(0);
 
     // mask-on = delivered pressure > 0
     var maskOn = new Uint8Array(pressure.length);
     for (var i = 0; i < pressure.length; i++) maskOn[i] = pressure[i] > 0 ? 1 : 0;
-    var pressureMaskOn = _filterBy(pressure, maskOn);
+    var pressureMaskOn = pressureSource === 'BRP' ? [] : _filterBy(pressure, maskOn); // F8 — mask pressure is not set pressure
     var leakMaskOn = leak ? _filterBy(leak, maskOn) : [];
-    var usageHours =
-      _countWhere(pressure, function (v) {
-        return v > 0;
-      }) /
-      ((fs || 0.5) * 3600);
+    var usageHours = pressureSource
+      ? _countWhere(pressure, function (v) {
+          return v > 0;
+        }) /
+        ((fs || 0.5) * 3600)
+      : null;
+    var usageReason = pressureSource ? null : 'no-pressure-channel';
+    // the index denominator: measured hours, or 0 when there is no measurement (every index → null)
+    var idxHours = usageHours == null ? 0 : usageHours;
 
     // ── events from EVE; PB span from CSL ──
     var events = eveEvents(set.EVE && set.EVE.annotations, t0Ms);
@@ -972,7 +1065,8 @@
     var flMaskOn = flCh ? _filterBy(flCh.data, maskOn) : [];
 
     // ── breath detection from 25 Hz BRP Flow ──
-    var breath = detectBreaths(chan(set.BRP, 'Flow'), durSec);
+    // §1.9: the rate needs the MEASURED window, so mask-on rides in with its own cadence.
+    var breath = detectBreaths(chan(set.BRP, 'Flow'), durSec, { maskOn: maskOn, maskFs: fs });
 
     // ── SA2 oximetry QC lane (self-gated) ──
     var oxi = oximetryLane(set.SA2, durSec);
@@ -986,9 +1080,10 @@
     var nApnea = aCount('OA') + aCount('CA') + aCount('H') + aCount('UA'); // UA = device-scored untyped apnea, counted toward AHI (kept out of the OA/CA split)
     var metrics = {
       // Usage & Adherence
-      usageHours: +usageHours.toFixed(3),
+      usageHours: usageHours == null ? null : +usageHours.toFixed(3),
       compliancePct: null, // longitudinal (buildLongitudinal)
       maskOnLatency: (function () {
+        if (!pressureSource) return null; // F8 — no pressure lane at all: unknown, not "never"
         for (var i = 0; i < pressure.length; i++) if (pressure[i] > 0) return +(i / (fs * 60)).toFixed(2);
         return NaN;
       })(),
@@ -1003,10 +1098,10 @@
       epap95: epap95,
       mode: mode,
       // Residual events (device-scored EVE — top tier)
-      residualAHI: usageHours > 0 ? +(nApnea / usageHours).toFixed(2) : null,
-      obstructiveIndex: usageHours > 0 ? +(aCount('OA') / usageHours).toFixed(2) : null,
-      centralIndex: usageHours > 0 ? +(aCount('CA') / usageHours).toFixed(2) : null,
-      hypopneaIndex: usageHours > 0 ? +(aCount('H') / usageHours).toFixed(2) : null,
+      residualAHI: idxHours > 0 ? +(nApnea / idxHours).toFixed(2) : null,
+      obstructiveIndex: idxHours > 0 ? +(aCount('OA') / idxHours).toFixed(2) : null,
+      centralIndex: idxHours > 0 ? +(aCount('CA') / idxHours).toFixed(2) : null,
+      hypopneaIndex: idxHours > 0 ? +(aCount('H') / idxHours).toFixed(2) : null,
       /* MULTINIGHT-CORPUS-FINDINGS-FOLLOWUPS §3 — `0.00` on all 197 nights of the reference corpus,
          and not because the subject had no RERAs: this device does not score them AT ALL. Its EVE
          vocabulary is exactly `Central Apnea · Hypopnea · Obstructive Apnea · Arousal · Recording
@@ -1021,7 +1116,7 @@
 
          `nRE > 0` rather than a capability probe because capability is not knowable from one
          session's annotations — see the multi-night sibling below, which can and does pool. */
-      reraIndex: usageHours > 0 && aCount('RE') > 0 ? +(aCount('RE') / usageHours).toFixed(2) : null,
+      reraIndex: idxHours > 0 && aCount('RE') > 0 ? +(aCount('RE') / idxHours).toFixed(2) : null,
       /* §7 (DEEP-AUDIT-2026-07-14) intended "null on absence" — but the guard it shipped was
          `durSec > 0`, which is the DENOMINATOR, not the channel. So a night whose CSL file never
          existed still published a measured-looking `0.00`, indistinguishable from a night the
@@ -1083,15 +1178,22 @@
       // Breath detection (flow-derived — validates device RespRate)
       breathCount: breath ? breath.breathCount : null,
       breathRate: breath ? breath.breathRate : null,
+      // §1.9 — the MEASURED window this session's rate was divided by, so the night-level pool can
+      // sum mask-on seconds instead of re-deriving a wall duration.
+      breathMaskOnSec: breath ? breath.breathMaskOnSec : null,
       ieRatio: breath ? breath.ieRatio : null
     };
+    // F8 — say WHERE the pressure lane came from only when it is not the usual one, and WHY usage is
+    // unknown only when it is: a PLD-backed session's export is byte-identical to before.
+    if (pressureSource === 'BRP') metrics.pressureSource = 'BRP';
+    if (usageReason) metrics.usageReason = usageReason;
 
     var sqi = leakSqi(metrics);
     return {
       t0Ms: t0Ms,
       endMs: t0Ms + durSec * 1000, // WALL duration (for off-mask gap math)
       durMin: +(durSec / 60).toFixed(1),
-      usageHours: +usageHours.toFixed(3),
+      usageHours: usageHours == null ? null : +usageHours.toFixed(3),
       mode: mode,
       fname: meta.fname || null,
       truncated: !!therapy.truncated,
@@ -1128,6 +1230,11 @@
         snMaskOn: snMaskOn,
         flMaskOn: flMaskOn,
         breathCount: breath ? breath.breathCount : null,
+        /* §1.9 — the pool is a SEPARATE lightweight object from `metrics`, so a per-session field
+           added to `metrics` alone never reaches `nightMetrics`. The night-level breathRate reads
+           HERE, so the measured denominator has to travel here too; adding it to `metrics` and not
+           to `_pool` is what made the mask-off twin report null with maskOnSec 0. */
+        breathMaskOnSec: breath ? breath.breathMaskOnSec : null,
         ieRatio: breath ? breath.ieRatio : null,
         eprDelta: eprDelta,
         maskOnLatency: metrics.maskOnLatency,
@@ -1169,18 +1276,27 @@
       eprs = [],
       breaths = 0,
       haveBreaths = false,
+      breathOnSec = 0,
       ieW = 0,
       ieWsum = 0;
+    var usageUnknown = 0; // F8 — sessions whose usage is null (no pressure lane), not zero
     pools.forEach(function (p) {
       for (var i = 0; i < p.pressureMaskOn.length; i++) P.push(p.pressureMaskOn[i]);
       if (p.epapMaskOn) for (var k = 0; k < p.epapMaskOn.length; k++) E.push(p.epapMaskOn[k]);
       for (var j = 0; j < p.leakMaskOn.length; j++) L.push(p.leakMaskOn[j]);
-      totHours += p.usageHours;
-      nA += p.nApnea;
-      nOA += p.nOA;
-      nCA += p.nCA;
-      nH += p.nH;
-      nRE += p.nRE;
+      /* F8 — a session with no usage measurement leaves the event INDICES entirely: its events
+         happened over hours nobody measured, so counting them over the OTHER sessions' hours
+         doubles the rate (measured on the synthetic pair: 24 → 48 events/h). Numerator and
+         denominator move together, the same way the §3a PB lane below handles an unscored session. */
+      if (p.usageHours == null) usageUnknown++;
+      else {
+        totHours += p.usageHours;
+        nA += p.nApnea;
+        nOA += p.nOA;
+        nCA += p.nCA;
+        nH += p.nH;
+        nRE += p.nRE;
+      }
       pbSec += p.pbSec;
       durSec += p.durSec;
       /* §3a — a session with no CSL lane leaves the PB DENOMINATOR, it does not merely add
@@ -1200,14 +1316,21 @@
         breaths += p.breathCount;
         haveBreaths = true;
       }
+      // §1.9 — pool the MEASURED denominator alongside the numerator (see the breathRate note below)
+      if (p.breathMaskOnSec != null && isFinite(p.breathMaskOnSec)) breathOnSec += p.breathMaskOnSec;
       // I:E is a ratio, so it pools as a usage-weighted mean, not a sum
-      if (p.ieRatio != null && isFinite(p.ieRatio)) {
+      if (p.ieRatio != null && isFinite(p.ieRatio) && p.usageHours != null) {
         ieWsum += p.ieRatio * p.usageHours;
         ieW += p.usageHours;
       }
     });
-    return {
-      usageHours: +totHours.toFixed(3),
+    /* F8 — a night is only as known as its sessions. If ANY session's usage is unknown, the sum of
+       the others is a LOWER BOUND, and publishing a lower bound as the usage lets a ≥ 4 h night read
+       as non-compliant. The night's usage is then null, with the session count that made it so;
+       the event INDICES still divide by the hours that were measured (a rate over known time is a
+       rate), and every pooled distribution is unaffected. */
+    var night = {
+      usageHours: usageUnknown ? null : +totHours.toFixed(3),
       // maskOnLatency is a NIGHT-onset fact: how long until therapy started. Sessions are
       // sorted chronologically by buildNight(), so the first pool owns it — averaging it
       // across a fragmented night would be meaningless.
@@ -1310,10 +1433,20 @@
       snorePressureCorr: SN.length && SN.length === P.length ? +_pearson(SN, P).toFixed(2) : null,
       // ── Breath detection (flow-derived) ──
       breathCount: haveBreaths ? breaths : null,
-      // rate over TOTAL therapy time — not a mean of per-session rates
-      breathRate: haveBreaths && durSec > 0 ? +(breaths / (durSec / 60)).toFixed(1) : null,
+      /* Rate over the MEASURED (mask-on) time — not a mean of per-session rates, and NOT over wall
+         duration (§1.9). This divided by `durSec`, the pooled wall span, exactly as the per-session
+         site did; the sibling ventilation figures beside it (RR/TV/MV/SN/FL) are all mask-on pools,
+         so this one number was diluted by mask-off time while its neighbours were not. Fixing only
+         the per-session site would have left THIS one wrong — the night-level export reads here. */
+      breathRate: haveBreaths && breathOnSec > 0 ? +(breaths / (breathOnSec / 60)).toFixed(1) : null,
+      breathMaskOnSec: haveBreaths ? breathOnSec : null,
       ieRatio: ieW > 0 ? +(ieWsum / ieW).toFixed(2) : null
     };
+    if (usageUnknown) {
+      night.usageReason = 'no-pressure-channel';
+      night.usageUnknownSessions = usageUnknown;
+    }
+    return night;
   }
 
   /* ════════════════════════════════════════════════════════════════════════

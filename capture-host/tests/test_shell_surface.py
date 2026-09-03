@@ -64,10 +64,32 @@ COVERED = {
 UNTESTED: dict[str, str] = {}
 
 
+# mutmut's generated tree. `tools/mutate.py` copies the whole of capture-host into a scratch `work/`
+# dir and mutmut writes `work/mutants/`, a full second copy of the source — including all 24 shell
+# scripts. The tests below then walk a GENERATED tree they were never meant to see, and every one of
+# the six `_all_scripts()` call sites inherits it.
+#
+# The symptom is not a shellcheck finding, which is what made it hard to place: the copies are clean,
+# so `--severity=style` still exits 0. It is `test_the_shell_inventory_is_complete` that breaks, on
+# `unclassified shell script(s): ['mutants/check.sh', 'mutants/deploy/archive-pull.sh', …]` — 24
+# scripts that are real, clean, and simply not in COVERED/UNTESTED because they are copies.
+#
+# Measured 2026-08-31 in a real scratch: the walk saw **48** scripts where the source tree has 24.
+# That failure blocks the capture-host mutation gate entirely — the baseline clean run cannot pass, so
+# every mutant reports "no budget" and `mutate-diff` REFUSES, which is why `capture.py` has never
+# produced a survivor list.
+#
+# Matched as a PATH SEGMENT, not a substring: a bare `"mutants" in root` would also skip a legitimate
+# directory whose name merely contains it.
+_GENERATED_DIRS = {"mutants"}
+
+
 def _all_scripts():
     out = []
     for root, _dirs, files in os.walk(HERE):
         if any(part in root for part in (".venv", "__pycache__", "/tests")):
+            continue
+        if _GENERATED_DIRS & set(os.path.relpath(root, HERE).split(os.sep)):
             continue
         for f in files:
             if f.endswith(".sh"):

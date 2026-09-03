@@ -282,6 +282,15 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
     adapter: "AC:A7:F1:29:9D:1D"   # or: hci1
     # creds_path: as11_creds.json   # AS11 pairing creds (masterPairKey/clientId/ble_addr); default is
                                      # beside this config file. Written by the pairing flow / operator probe.
+                                     # A RELATIVE value resolves against THIS FILE's directory (never the
+                                     # daemon's cwd — DEEP-AUDIT-VI F17: it did, and every AS11 feature
+                                     # silently read as "not paired").
+    # On-disk sinks for the live stream. Both OFF when absent (bus-only / no raw record). A RELATIVE
+    # value resolves against the box `root` above, like the spool root — never the daemon's cwd, which
+    # is an accident of its unit file (the #2046 shape: a night's only EDF written into the /opt checkout).
+    # The resolved absolutes are logged once at wiring: "CPAP live stream wired: creds … edf_dir …".
+    # edf_dir: captures/cpap-ble          # → /srv/tepna/captures/cpap-ble; its OWN root, never the harvest dest
+    # raw_record_dir: captures/cpap-raw   # → /srv/tepna/captures/cpap-raw; the authoritative JSONL record
     # ACTING — end the live stream when the machine stops delivering therapy. OFF by default: this is
     # the first thing in the CPAP path that ACTS rather than observes.
     # It reads the stream's OWN flow channel, NOT the session detector — the AS11 takes one connection,
@@ -316,8 +325,14 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
     # inherits that decision rather than quietly restoring a refusal the owner removed.
     # auto_start:
     #   enabled: false
-    #   debounce_s: 120.0           # continuous Therapy required before starting (mask-fit blips are shorter)
-    #   max_attempts: 5             # failed starts per SESSION before giving up; backoff 60s doubling, capped 900s
+    #   retain_s: 120.0             # EAGER START (2026-09-01): the stream starts at the FIRST Therapy
+    #                               # sighting; a session that fails to sustain this much therapy is
+    #                               # judged a false start AFTER it ends (window = retain_s + the
+    #                               # auto_stop hold_sec), its fragment discarded, and an attempt spent.
+    #                               # The legacy key `debounce_s` is honoured with the same number —
+    #                               # only WHEN the 120 s question is asked has moved (it used to gate
+    #                               # the start, costing every genuine night a 120 s head gap).
+    #   max_attempts: 5             # failed/false starts per SESSION before giving up; backoff 60s doubling, capped 900s
 
   # STORED-SPOOL PULL — the device's own on-board session record, pulled over BLE (CPAP-SPOOL-
   # ACQUISITION Do-3). Distinct from BOTH neighbours above: the Wi-Fi harvest copies the SD card, the
@@ -344,7 +359,12 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
   #                                # last committed cursor is the authority and this is never read again.
   #                                # Deliberately recent: an epochal floor would make run one an
   #                                # unbounded backfill, on the single run a human is watching.
-  #   root: captures/cpap-spool    # committed/ + incomplete/ + cpap_spool_ledger.jsonl
+  #   root: captures/cpap-spool    # committed/ + incomplete/ + cpap_spool_ledger.jsonl.
+  #                                # A RELATIVE value resolves against the box `root:` above — NEVER
+  #                                # against the daemon's working directory. (This very line, copied
+  #                                # verbatim, once resolved against cwd and wrote the only copy of a
+  #                                # pulled spool into the /opt checkout, which then blocked every
+  #                                # hourly auto-deploy: 2026-09-01, capture.resolve_spool_root.)
 
 # AS11 CPAP session detector (SHADOW — observes only, drives nothing). When enabled, a background task
 # short-connects the AS11 on the CPAP free radio (cpap.ble_stream.adapter, hci1) ONLY while the live

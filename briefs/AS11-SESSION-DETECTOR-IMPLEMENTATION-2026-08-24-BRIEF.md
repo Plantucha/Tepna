@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-08-24 · **Created:** 2026-08-24 · **Follows:** `AS11-SESSION-DETECTION-PROTOCOL-INVESTIGATION-2026-08-24-BRIEF.md`
+**Status:** PROPOSED (parked 2026-09-02 — increments 1–2 BUILT and running in production (83befab4 #1746; `/srv/tepna/SESSIONDETECT.csv` is live at 10195 rows, written today), and the boundary review is discharged. The remaining done-when item is increment 3: the acting-mode follow-up brief has never been spawned, and whether acting mode is in scope AT ALL is a lead/owner decision, not a measurement. ⚠ **Residue, unblocked and unassigned:** the READ-ONLY property (no `Set`/`Enter*`/`SetDateTime` in the detector path) is verified only by a manual source scan — zero tests under `capture-host/tests/` assert it, so it can regress silently. That is a source-scan test of about ten lines. **Owner:** Heron · **Next step:** the read-only source-scan control, then ask the lead about increment 3) · **Created:** 2026-08-24
 
 # AS11 session detector — implementation (shadow-mode-first)
 

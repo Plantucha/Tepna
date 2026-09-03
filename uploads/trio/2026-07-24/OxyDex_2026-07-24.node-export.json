@@ -9,7 +9,7 @@
     "node": "OxyDex",
     "nodeVersion": "1.0",
     "multiNight": false,
-    "generated": "2026-08-15T16:24:19.994Z",
+    "generated": "2026-09-01T02:43:38.519Z",
     "provenance": null,
     "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
     "scrubbed": true
@@ -690,30 +690,6 @@
   },
   "ganglior_events": [
     {
-      "t": "22:48:00",
-      "tMs": 1784933280000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.45,
-      "meta": {
-        "cycleLen": 100,
-        "crossings": 6,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "00:16:43",
-      "tMs": 1784938603000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.45,
-      "meta": {
-        "cycleLen": 100,
-        "crossings": 6,
-        "windowSec": 300
-      }
-    },
-    {
       "t": "00:27:13",
       "tMs": 1784939233000,
       "impulse": "desat_event",
@@ -726,30 +702,6 @@
         "nadir": 93,
         "onsetTMs": 1784939228000,
         "endTMs": 1784939243000
-      }
-    },
-    {
-      "t": "03:02:18",
-      "tMs": 1784948538000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.47,
-      "meta": {
-        "cycleLen": 85.7,
-        "crossings": 7,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "03:07:29",
-      "tMs": 1784948849000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.6,
-      "meta": {
-        "cycleLen": 40,
-        "crossings": 15,
-        "windowSec": 300
       }
     },
     {
@@ -768,27 +720,15 @@
       }
     },
     {
-      "t": "03:12:30",
-      "tMs": 1784949150000,
+      "t": "04:01:30",
+      "tMs": 1784952090000,
       "impulse": "periodic_breathing",
       "node": "OxyDex",
-      "conf": 0.6,
+      "conf": 0.3,
       "meta": {
-        "cycleLen": 50,
-        "crossings": 12,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "04:17:13",
-      "tMs": 1784953033000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.47,
-      "meta": {
-        "cycleLen": 85.7,
-        "crossings": 7,
-        "windowSec": 300
+        "cycleLen": null,
+        "crossings": 0,
+        "windowSec": 428
       }
     },
     {
@@ -54975,15 +54915,6 @@
             "cat": null
           },
           {
-            "key": "cs",
-            "label": "Cheyne-Stokes",
-            "value": 3,
-            "displayVal": "3/3 indicators",
-            "score": 9,
-            "sev": "r",
-            "cat": null
-          },
-          {
             "key": "odi1",
             "label": "ODI-1/hr",
             "value": 43.5,
@@ -55002,12 +54933,12 @@
             "cat": null
           },
           {
-            "key": "pbEp",
-            "label": "PB Episodes",
-            "value": 6,
-            "displayVal": "6 eps",
-            "score": 4,
-            "sev": "w",
+            "key": "cs",
+            "label": "Cheyne-Stokes",
+            "value": 2,
+            "displayVal": "2/3 indicators",
+            "score": 6,
+            "sev": "r",
             "cat": null
           },
           {
@@ -55036,15 +54967,6 @@
             "score": 3,
             "sev": "w",
             "cat": "hr"
-          },
-          {
-            "key": "uars",
-            "label": "UARS Pattern",
-            "value": 1,
-            "displayVal": "1/3 indicators",
-            "score": 3,
-            "sev": "w",
-            "cat": null
           },
           {
             "key": "t95",
@@ -55096,6 +55018,15 @@
             "label": "CT<94%",
             "value": 1.4,
             "displayVal": "1.4%",
+            "score": 1,
+            "sev": "g",
+            "cat": null
+          },
+          {
+            "key": "pbEp",
+            "label": "PB Episodes",
+            "value": 1,
+            "displayVal": "1 eps",
             "score": 1,
             "sev": "g",
             "cat": null
@@ -55229,15 +55160,6 @@
             "cat": null
           },
           {
-            "key": "cs",
-            "label": "Cheyne-Stokes",
-            "value": 3,
-            "displayVal": "3/3 indicators",
-            "score": 9,
-            "sev": "r",
-            "cat": null
-          },
-          {
             "key": "odi1",
             "label": "ODI-1/hr",
             "value": 43.5,
@@ -55256,17 +55178,26 @@
             "cat": null
           },
           {
-            "key": "pbEp",
-            "label": "PB Episodes",
-            "value": 6,
-            "displayVal": "6 eps",
-            "score": 4,
-            "sev": "w",
+            "key": "cs",
+            "label": "Cheyne-Stokes",
+            "value": 2,
+            "displayVal": "2/3 indicators",
+            "score": 6,
+            "sev": "r",
             "cat": null
+          },
+          {
+            "key": "sbii",
+            "label": "SBII",
+            "value": 6.952,
+            "displayVal": "6.952 %²·min/hr",
+            "score": 4,
+            "sev": "g",
+            "cat": "spo2"
           }
         ],
-        "impression": "Mild disruption: hypoxic load 5.869, CS indicators 3/3; CS pattern indicators 3/3 — screening signal, no periodicity test.",
-        "overallScore": 8
+        "impression": "Mild disruption: hypoxic load 5.869, ODI-1/hr 43.5/hr; CS pattern indicators 2/3 — screening signal, no periodicity test.",
+        "overallScore": 7
       },
       "odi4": {
         "rate": 0.9,
@@ -55539,8 +55470,8 @@
       "crossSignal": {
         "autoArousalIdx": 0.8,
         "crcIdx": 0.189,
-        "divergeCount": 2,
-        "divergePct": 33,
+        "divergeCount": 0,
+        "divergePct": 0,
         "hrRecovery": null
       },
       "spo2Advanced": {
@@ -55591,13 +55522,13 @@
         "ct85m": 0
       },
       "sleepStability": {
-        "score": 80,
+        "score": 85,
         "grade": "Good",
         "components": {
           "spo2Stab": 67,
           "hrFloor": 100,
           "motion": 78,
-          "pb": 70,
+          "pb": 95,
           "hypoxicBurden": 93,
           "t95": 80
         }
@@ -55629,14 +55560,13 @@
         "periodicity": null
       },
       "oscillations": {
-        "episodeCount": 6,
-        "peakCrossings": 15,
-        "totalCrossings": 53,
-        "first": "22:48:00 24/07/2026",
-        "last": "04:17:13 25/07/2026"
+        "episodeCount": 1,
+        "peakCrossings": 0,
+        "totalCrossings": 0,
+        "first": "04:01:30 25/07/2026",
+        "last": "04:01:30 25/07/2026"
       },
       "flags": [
-        "PERIODIC_BREATHING(6)",
         "HR_ARTIFACT_CLEANED(20)"
       ],
       "newMetrics": {
@@ -56058,7 +55988,7 @@
           "pbCycleLen": 71.7,
           "pbCycleLenSD": 35.9,
           "pbAmplitude": 4,
-          "pbLoad": 6.173,
+          "pbLoad": 1.029,
           "pbFirstThirdRatio": 0,
           "pbEarlyCount": 0,
           "pbLateCount": 8
@@ -56110,18 +56040,24 @@
           ]
         },
         "patScore": {
-          "csScore": 3,
-          "csLabel": "3/3 indicators",
-          "uarsScore": 1,
-          "uarsLabel": "1/3 indicators"
+          "csScore": 2,
+          "csLabel": "2/3 indicators",
+          "uarsScore": 0,
+          "uarsLabel": "0/3 indicators"
         },
         "dfa": {
           "alpha1": 1.663,
           "dfaLabel": "SpO₂ DFA (α1=1.663) — HR-DFA thresholds do not apply to SpO₂ signal"
         },
         "fft": {
-          "peakFreqHz": 0.005,
-          "peakCycSec": 200
+          "peakFreqHz": null,
+          "peakCycSec": null,
+          "snr": 7.55,
+          "threshold": 19.59,
+          "bins": 377,
+          "strided": true,
+          "rhoLag1": 0.9732,
+          "detected": false
         },
         "hrEnt": {
           "sampEn": 1.5023,

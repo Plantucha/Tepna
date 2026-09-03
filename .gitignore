@@ -63,6 +63,8 @@ uploads/*
 # files, sd −159 s ×0.998) reproducing the night pin's identity verdict + 27.35-min overlap geometry.
 # Real patient slices stay gitignored (health data, public repo); only the synthetic twin is committed.
 !uploads/cpapdex_comparator_live_twin_BRP.edf
+!uploads/cpapdex_maskoff_twin_BRP.edf
+!uploads/cpapdex_maskoff_twin_PLD.edf
 !uploads/cpapdex_comparator_sd_twin_BRP.edf
 !uploads/cpapdex_comparator_golden.json
 
@@ -85,6 +87,7 @@ uploads/*
 !uploads/synthetic_hrvdex_welltory.csv
 !uploads/synthetic_glucodex_lingo.csv
 !uploads/synthetic_glucodex_lingo_gap.csv
+!uploads/synthetic_glucodex_clarity_low.csv
 !uploads/synthetic_ppgdex_verity.txt
 # The FRAGMENTED Verity twin (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2). The clean twin above is
 # contiguous, so PpgDex's coverage() returns null on it and nothing COMMITTED exercised the emitter —
@@ -99,11 +102,13 @@ uploads/*
 # envelope. The only committed input in the repo that exercises `recording.coverage`; every other
 # equiv fixture is gapless, which is precisely why the gap-aware defect shipped green.
 !uploads/synthetic_ecgdex_h10_gapped.txt
+!uploads/synthetic_ecgdex_flat_edr.txt
 !uploads/synthetic_oxydex_golden.node-export.json
 !uploads/synthetic_pulsedex_golden.node-export.json
 !uploads/synthetic_hrvdex_golden.node-export.json
 !uploads/synthetic_glucodex_golden.node-export.json
 !uploads/synthetic_glucodex_gap_golden.node-export.json
+!uploads/synthetic_glucodex_clarity_low_golden.node-export.json
 !uploads/synthetic_ppgdex_golden.node-export.json
 # …and its FRAGMENTED sibling (INTEGRATOR-GAP-AWARE-OVERLAP-FOLLOWUPS §2.2) — the golden for the
 # two-hole Verity twin, so recording.coverage has a committed equiv/GATE-C leg like ECGDex's.
@@ -118,6 +123,10 @@ uploads/*
 !uploads/synthetic_motiondex_acc.txt
 !uploads/synthetic_motiondex_golden.node-export.json
 !uploads/integrator_tch_golden.node-export.json
+# DEEP-AUDIT-VI-FOLLOWUPS §4.3 — the apnea chance-null twins. Synthetic (inputs rebuilt in-code by
+# tests/apnea-null-twins.js), so no privacy bar; committed because a fixture nothing can express is
+# the exposure this closes, and an uncommitted one would skip in CI exactly where it is needed.
+!uploads/integrator_apnea_null_twins.node-export.json
 
 # Trio TCH corpus — DERIVED per-night node-exports (tools/trio-batch.mjs), the §6 input contract
 # for `tools/tch-multinight.mjs --dir`. Tracked so a fresh clone reproduces the real σ distribution

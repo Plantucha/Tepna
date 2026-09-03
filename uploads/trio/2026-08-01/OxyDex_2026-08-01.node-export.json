@@ -9,7 +9,7 @@
     "node": "OxyDex",
     "nodeVersion": "1.0",
     "multiNight": false,
-    "generated": "2026-08-14T07:24:36.043Z",
+    "generated": "2026-09-01T09:33:51.740Z",
     "provenance": null,
     "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
     "scrubbed": true
@@ -23,30 +23,6 @@
     "coveragePct": null
   },
   "ganglior_events": [
-    {
-      "t": "00:12:46",
-      "tMs": 1785629566000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.6,
-      "meta": {
-        "cycleLen": 37.5,
-        "crossings": 16,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "00:17:47",
-      "tMs": 1785629867000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.6,
-      "meta": {
-        "cycleLen": 35.3,
-        "crossings": 17,
-        "windowSec": 300
-      }
-    },
     {
       "t": "06:52:10",
       "tMs": 1785653530000,
@@ -67834,15 +67810,6 @@
             "cat": "hr"
           },
           {
-            "key": "cs",
-            "label": "Cheyne-Stokes",
-            "value": 1,
-            "displayVal": "1/3 indicators",
-            "score": 3,
-            "sev": "w",
-            "cat": null
-          },
-          {
             "key": "t95",
             "label": "T95%",
             "value": 1,
@@ -67874,15 +67841,6 @@
             "label": "CT<94%",
             "value": 0.22,
             "displayVal": "0.22%",
-            "score": 1,
-            "sev": "g",
-            "cat": null
-          },
-          {
-            "key": "pbEp",
-            "label": "PB Episodes",
-            "value": 2,
-            "displayVal": "2 eps",
             "score": 1,
             "sev": "g",
             "cat": null
@@ -67922,6 +67880,15 @@
             "score": 0,
             "sev": "g",
             "cat": "spo2"
+          },
+          {
+            "key": "pbEp",
+            "label": "PB Episodes",
+            "value": 0,
+            "displayVal": "0 eps",
+            "score": 0,
+            "sev": "g",
+            "cat": null
           },
           {
             "key": "cdi",
@@ -68383,8 +68350,8 @@
       "crossSignal": {
         "autoArousalIdx": 0.3,
         "crcIdx": 0.218,
-        "divergeCount": 2,
-        "divergePct": 100,
+        "divergeCount": 0,
+        "divergePct": 0,
         "hrRecovery": null
       },
       "spo2Advanced": {
@@ -68435,13 +68402,13 @@
         "ct85m": 0
       },
       "sleepStability": {
-        "score": 87,
+        "score": 89,
         "grade": "Good",
         "components": {
           "spo2Stab": 77,
           "hrFloor": 100,
           "motion": 61,
-          "pb": 90,
+          "pb": 100,
           "hypoxicBurden": 99,
           "t95": 95
         }
@@ -68456,11 +68423,11 @@
         "periodicity": null
       },
       "oscillations": {
-        "episodeCount": 2,
-        "peakCrossings": 17,
-        "totalCrossings": 33,
-        "first": "00:12:46 02/08/2026",
-        "last": "00:17:47 02/08/2026"
+        "episodeCount": 0,
+        "peakCrossings": 0,
+        "totalCrossings": 0,
+        "first": null,
+        "last": null
       },
       "flags": [
         "OK"
@@ -68865,12 +68832,12 @@
           "lastHalfNadirs": 8
         },
         "pbMet": {
-          "pbCycleLen": 107.5,
-          "pbCycleLenSD": 20,
-          "pbAmplitude": 1.33,
-          "pbLoad": 0.514,
-          "pbFirstThirdRatio": 1,
-          "pbEarlyCount": 6,
+          "pbCycleLen": null,
+          "pbCycleLenSD": null,
+          "pbAmplitude": null,
+          "pbLoad": null,
+          "pbFirstThirdRatio": null,
+          "pbEarlyCount": 0,
           "pbLateCount": 0
         },
         "sleepArch": {
@@ -68920,8 +68887,8 @@
           ]
         },
         "patScore": {
-          "csScore": 1,
-          "csLabel": "1/3 indicators",
+          "csScore": 0,
+          "csLabel": "0/3 indicators",
           "uarsScore": 0,
           "uarsLabel": "0/3 indicators"
         },
@@ -68930,8 +68897,14 @@
           "dfaLabel": "SpO₂ DFA (α1=1.666) — HR-DFA thresholds do not apply to SpO₂ signal"
         },
         "fft": {
-          "peakFreqHz": 0.008,
-          "peakCycSec": 125
+          "peakFreqHz": null,
+          "peakCycSec": null,
+          "snr": 11.14,
+          "threshold": 19.58,
+          "bins": 376,
+          "strided": true,
+          "rhoLag1": 0.9725,
+          "detected": false
         },
         "hrEnt": {
           "sampEn": 1.5525,

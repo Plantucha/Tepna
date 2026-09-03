@@ -9,7 +9,7 @@
     "node": "PpgDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-08-15T16:37:55.021Z",
+    "generated": "2026-09-01T09:43:33.878Z",
     "provenance": null,
     "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -825,9 +825,9 @@
       "method": "Lomb-Scargle",
       "lowConfidence": false,
       "hfRobustLowMotion": null,
-      "wholeRecordLf": 1374,
-      "wholeRecordHf": 1717,
-      "wholeRecordLfhf": 0.8,
+      "wholeRecordLf": 1674,
+      "wholeRecordHf": 1182,
+      "wholeRecordLfhf": 1.42,
       "respRate": 14.82,
       "respRateMethod": "RSA (HF-peak of RR spectrum)"
     },

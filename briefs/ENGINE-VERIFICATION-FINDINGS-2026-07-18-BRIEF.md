@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** DONE — 2026-08-18 (all eight findings closed: §1.1/§1.2/§1.4/§1.6/§1.7/§1.8 were already executed+gated in place; §1.3 was fixed at both ends by PPGDEX-O2RING-FINGER-SITE + the site-by-replication guard and gated in both directions, closed here with the evidence; §1.5 closed as MOOT — its "fix before PAT-VASCULAR Phase 0" purpose ended when Phase 0 ran with the coupler fixed as pat-align.js and the PAT question closed terminally. §4 Done-when audited item by item, including the three cross-brief prose corrections. NO follow-up brief spawned: the 2026-08-18 verification pass surfaced nothing new — every remaining item was closed by later, already-gated work, and this close only records where) · **Created:** 2026-07-18
+**Status:** DONE — 2026-08-18 (all eight findings closed: §1.1/§1.2/§1.4/§1.6/§1.7/§1.8 were already executed+gated in place; §1.3 was fixed at both ends by PPGDEX-O2RING-FINGER-SITE + the site-by-replication guard and gated in both directions, closed here with the evidence; §1.5 closed as MOOT — its "fix before PAT-VASCULAR Phase 0" purpose ended when Phase 0 ran with the coupler fixed as pat-align.js and the PAT question closed terminally. §4 Done-when audited item by item, including the three cross-brief prose corrections. NO follow-up brief spawned: the 2026-08-18 verification pass surfaced nothing new — every remaining item was closed by later, already-gated work, and this close only records where) · **Created:** 2026-07-18 · **Residue:** 2026-09-02-pat-detailcorr-unread
 
 # Engine-verification findings — what an executed audit of the Vigil↔suite seam actually found
 
@@ -470,6 +470,17 @@ the consensus vote, so a replicated single sensor reports `ledAgreementPct: null
 gate, evaluates it on the drift-corrected `cpCorr` and publishes `vdCorr`; the thresholds are named
 constants, and `verdict()` has its first executed test (`§1.5 published bar met ⇒ FEASIBLE`, plus the
 below-`COUPLING_MIN` negative).
+
+> ⚠️ **Amended 2026-09-02 (Osprey) — this sentence is TRUE and it is not the whole chain.** "Publishes
+> `vdCorr`" was accurate at the worker and stayed accurate; what nothing said is that **no consumer ever
+> read it**. `pat-feasibility.js` rendered `m.vd` and never `m.vdCorr`, so the second verdict was
+> computed, carried across the worker boundary, and dropped at the last step — for the whole period this
+> phase read ✅ DONE. Phase 3's own claim is not withdrawn: the gate IS single-sourced and `vdCorr` IS
+> published, which is why this is an amendment and not a correction. **The lesson is the one this brief
+> exists to teach, one layer out: "publishes X" and "X reaches a surface" are different assertions, and
+> a phase can be honestly DONE on the first while the second was never checked.** Fixed by surfacing the
+> corrected verdict in the renderer, tagged by `driftSource`; the tier is untouched, since promoting on
+> corrected drift remains the owner's call.
 
 **Phase 4 — respiration chain (§1.6). ◐ HALF.** The Integrator half is closed by
 `MULTI-SENSOR-DERIVATIONS` (`summary.respRateBrpm`). **The PpgDex half is open**: `lombScargle` still never

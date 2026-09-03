@@ -31,14 +31,34 @@ import { ECGUI } from './ecgdex-render.js';
     _loadQueue = [],
     _replaceMode = false;
 
-  // ════════════════════════════════════════════════════════════════════════
-  //  STREAMING PARSE WORKER  (zero-copy Int16Array transfer + gap list)
-  // ════════════════════════════════════════════════════════════════════════
-  const WORKER_SRC = `
+  /* ════════════════════════════════════════════════════════════════════════
+     STREAMING PARSE WORKER  (zero-copy Int16Array transfer + the DSP's own timing scan)
+     ────────────────────────────────────────────────────────────────────────
+     THE WORKER NO LONGER OWNS ANY CLOCK LOGIC — it tokenizes rows and runs the DSP's
+     `ecgTimingScan`, whose SOURCE is spliced in below by `toString()`. Not a copy of it: the
+     function text that executes here is the same text `ecgdex-dsp.js` executes headless.
+
+     Why that matters (DEEP-AUDIT-VI F2). This string used to carry a hand-written mirror of the
+     parser's fs derivation, and mirrors do not track: the DSP gained the integer `sensor
+     timestamp [ns]` rate, the host-axis correction and the mid-file resync discriminator; this copy
+     gained none of them, so the app analysed the same bytes 96–320 ppm away from the gated headless
+     path (measured on two real corpus nights: 129.958457 vs 130 on 06-17, 130.012505 vs 130 on
+     06-25) and the exports it produced carried no `hostAxis`, `deviceEpoch` or `tMsAt` at all. It is
+     the same failure the `CLOCK-UNIFY` note below records for timestamps, one field over.
+
+     The split respects the one line a Worker cannot cross: `ecgTimingScan` parses NO timestamps (it
+     cannot — DexClock closes over module scope and does not travel), so every stamp it meets is
+     carried out RAW and `ECGDSP.ecgTimingResolve` makes every decision on the main thread, where
+     DexClock lives. Both lanes call that same resolve. */
+  const WORKER_SRC =
+    'var ecgTimingScan = ' +
+    ECGDSP.ecgTimingScan.toString() +
+    ';\n' +
+    `
 self.onmessage = async (e) => {
   const files = e.data.files || (e.data.file ? [e.data.file] : []);
   let cap = 1<<20, arr = new Int16Array(cap), n = 0;
-  let rawT0 = null, rawTEnd = null, fs = 130, prevMs = null, msStep = null, stepSum = 0, stepN = 0; const gaps = [];
+  let scan = ecgTimingScan(), sawHeader = false;
   const push = v => { if(n>=cap){ cap*=2; const na=new Int16Array(cap); na.set(arr); arr=na; } arr[n++]=v; };
   // CLOCK-UNIFY: THE WORKER DOES NOT PARSE TIMESTAMPS. It used to carry '_ckPF', an inline copy of
   // the Clock Contract parser, because "workers can't see page scope" — true, but the conclusion was
@@ -48,26 +68,18 @@ self.onmessage = async (e) => {
   // other candidate, but DexClock.parseTimestamp closes over module-scope helpers (_ckMk, _dmy),
   // so a Function.toString() of it alone does not travel — it would need a serializer in the shared
   // spine, which re-stamps all 8 provenance fragments for a bug that lives in one app.
-  // So the worker ships the raw stamp STRINGS back and the main thread parses them once, with
-  // DexClock. Three parsers become one, and the one is the gated one.
+  // So the worker ships the raw stamp STRINGS back (inside the scan) and the main thread resolves
+  // them once, with DexClock. Three parsers become one, and the one is the gated one.
   const handle = (line) => {
     line = line.trim(); if(!line) return;
     const p = line.split(/[;\\t,]/);
     const v = parseFloat(p[p.length-1]);
-    if(!isFinite(v)) return;                       // header / junk row
-    push(Math.max(-32768, Math.min(32767, Math.round(v))));
-    if(rawT0===null && p[0]!=null && String(p[0]).trim()) rawT0 = p[0];
-    if(p[0]!=null && String(p[0]).trim()) rawTEnd = p[0];   // F21: the LAST stamp — endEpochMs was never emitted
-    if(p.length>=3){
-      const ms = parseFloat(p[2]);
-      if(isFinite(ms)){
-        if(prevMs!==null){ const d = ms-prevMs;
-          if(d>0){ if(msStep===null && d<50) msStep=d;
-            if(msStep && d > msStep*2.5){ gaps.push({ idx:n-1, ms:d }); }
-            else if(d<50){ stepSum+=d; stepN++; } } }
-        prevMs = ms;
-      }
+    if(!isFinite(v)){                              // header / junk row
+      if(!sawHeader && n===0){ sawHeader = true; scan.header(p); }
+      return;
     }
+    push(Math.max(-32768, Math.min(32767, Math.round(v))));
+    scan.row(p, n);
   };
   try {
     // Stream each part in numeric order into ONE accumulation. Repeated header
@@ -95,36 +107,29 @@ self.onmessage = async (e) => {
     // record grew by the duplicated span, every sample after the seam sat at the wrong index, and
     // the derived fs/gaps were computed across a discontinuity that never existed in the recording.
     // It fails silently — the output is a plausible, longer ECG — which is why nothing caught it.
-    // The fallback re-reads from byte zero, so it must start from zero state.
-    n = 0; rawT0 = null; rawTEnd = null; prevMs = null; msStep = null; stepSum = 0; stepN = 0; gaps.length = 0;
+    // The fallback re-reads from byte zero, so it must start from zero state — INCLUDING the scan,
+    // whose sums and seam candidates are per-recording accumulations exactly like \`arr\`.
+    n = 0; scan = ecgTimingScan(); sawHeader = false;
     for(const file of files){
       const txt = await file.text();
       for(const line of txt.split(/\\r?\\n/)) handle(line);
     }
   }
-  // DEEP-AUDIT-II §4.3 (#5): fs = mean non-gap interval (stamp-span cross-check), not one delta —
-  // the ms column decays to integer precision so any single delta reads 125–167 Hz for a true 130.
-  if(stepN>0) fs = Math.round((1000*stepN)/stepSum);
-  else if(msStep && msStep>0) fs = Math.round(1000/msStep);
   const out = arr.buffer.slice(0, n*2);
-  self.postMessage({ type:'done', buffer:out, n, gaps, rawT0, rawTEnd, fs }, [out]);
+  self.postMessage({ type:'done', buffer:out, n, scan: scan.done() }, [out]);
 };`;
+
   let workerURL = null;
-  // CLOCK-UNIFY: ONE parser. This used to be a hand-rolled mirror of the worker's `_ckPF`, and both
-  // built `tMs` with a bare `Date.UTC(...)`. Date.UTC SILENTLY ROLLS out-of-range components onto a
-  // plausible WRONG instant, which `clock.js:_ckMk` exists to refuse (Clock Contract §2.7): a stamp
-  // of `2026-02-30T12:00` became 2026-03-02 and `2026-13-45T25:99:99` became 2027-02-15, where
-  // DexClock returns null. Whatever this returns becomes `t0Ms`, the anchor for the WHOLE recording,
-  // so an unvalidated stamp does not corrupt one row — it fabricates the night.
-  //
-  // The fix is not to port the guard into the copies. Two mirrors of a parser drift, and this file
-  // was already proof: the mirrors had diverged from clock.js and from each other. The worker no
-  // longer parses at all (it ships the raw stamp strings back — see WORKER_SRC), so this is now the
-  // single parse site on both paths, and it delegates.
-  function parseTSfloat(raw) {
-    const r = DexClock.parseTimestamp(raw);
-    return r ? r.tMs : null;
-  }
+  /* CLOCK-UNIFY, completed. This file used to hold a hand-rolled `parseTSfloat` beside the worker's
+     inline `_ckPF`, and both built `tMs` with a bare `Date.UTC(...)` — which SILENTLY ROLLS
+     out-of-range components onto a plausible WRONG instant where `clock.js:_ckMk` refuses (Clock
+     Contract §2.7): `2026-02-30T12:00` became 2026-03-02, and that value becomes `t0Ms`, the anchor
+     for the WHOLE recording. Porting the guard into the copies was never the fix — two mirrors of a
+     parser drift, and this file was the proof twice over (the stamp parser, then the fs derivation
+     F2 found 320 ppm out).
+     There is now no parse site here at all: `ECGDSP.ecgTimingResolve` owns every stamp on both
+     lanes, and it calls DexClock. The last local wrapper is deleted rather than kept "just in case"
+     — an unused parser is a mirror waiting for its next caller. */
   function getWorker() {
     if (!workerURL) workerURL = URL.createObjectURL(new Blob([WORKER_SRC], { type: 'application/javascript' }));
     return new Worker(workerURL);
@@ -149,14 +154,31 @@ self.onmessage = async (e) => {
           progress(Math.min(40, 4 + (d.n / 5e6) * 36), 'Parsed ' + (d.n / 1e6).toFixed(1) + 'M samples…');
         } else if (d.type === 'done') {
           w.terminate();
-          // The worker ships raw stamp STRINGS; this is the single parse site (see parseTSfloat).
-          // endEpochMs was never emitted on this path, and ECGDSP.analyze READS rec.endEpochMs — so
-          // every browser-produced export differed from the gated headless one on a field the
-          // headless run fills. A stampless recording keeps null; it is never synthesised from
-          // t0Ms + durSec, which would fabricate an end the file does not state (§2.6).
-          const _t0 = parseTSfloat(d.rawT0);
-          const _tEnd = parseTSfloat(d.rawTEnd);
-          const rec = { int16: new Int16Array(d.buffer), fs: d.fs, gaps: d.gaps, t0Ms: _t0 != null ? _t0 : null, endEpochMs: _tEnd != null ? _tEnd : null, source: 'file', durSec: d.n / d.fs };
+          /* EVERY CLOCK DECISION HAPPENS HERE, IN THE DSP (DEEP-AUDIT-VI F2). The worker ran the
+             DSP's own `ecgTimingScan` and shipped its raw result back; `ecgTimingResolve` is the
+             SAME function the headless `parseECG` calls, so this rec now carries the integer
+             ns-counter fs, the host-axis correction with its span + independence gates, the
+             mid-file resync re-anchoring, `tMsAt` and `deviceEpoch` — none of which this lane had.
+             Fields are taken verbatim from resolve rather than re-derived: a stampless recording
+             keeps t0Ms/endEpochMs null, never synthesised from t0Ms + durSec (§2.6). */
+          const t = DSP.ecgTimingResolve(d.scan);
+          const rec = {
+            int16: new Int16Array(d.buffer),
+            fs: t.fs,
+            gaps: t.gaps,
+            t0Ms: t.t0Ms,
+            offsetMin: t.offsetMin,
+            endEpochMs: t.endEpochMs,
+            source: 'file',
+            durSec: d.n / t.fs,
+            tMsAt: t.tMsAt,
+            tMsCorrected: t.tMsCorrected,
+            clockResyncs: t.clockResyncs,
+            firstRelMs: t.firstRelMs,
+            lastRelMs: t.lastRelMs,
+            deviceEpoch: t.deviceEpoch,
+            hostAxis: t.hostAxis
+          };
           // R1 provenance: the streamed primary ECG bypasses the FileReader hook —
           // attest each part explicitly (name/bytes/mtime) so the export records its true inputs.
           if (window.GangliorProvenance) files.forEach((f) => GangliorProvenance.noteInput(f));
@@ -165,55 +187,18 @@ self.onmessage = async (e) => {
       };
       w.postMessage({ files });
     } else {
-      // small single file → inline parse on main thread (instant)
+      /* SMALL SINGLE FILE → the DSP's own parser, on the main thread (instant).
+         This branch used to be a THIRD copy of the ingest — its own row loop, its own
+         `Math.round(mean delta)` fs, its own gap rule — and it drifted exactly as the worker's did:
+         no ns-counter rate, no host discipline, no resync handling, no `tMsAt`/`hostAxis`/
+         `deviceEpoch`. `ECGDSP.parseECG` IS this loop, gated, and it already returns the rec shape
+         `runPipeline` expects (`source: 'file'` included), so the copy is deleted rather than
+         repaired (DEEP-AUDIT-VI F2). The big-file branch above reaches the same code by another
+         road: the worker runs `ecgTimingScan` and this thread runs `ecgTimingResolve`. */
       const file = files[0];
       const fr = new FileReader();
       fr.onload = (e) => {
-        const txt = e.target.result;
-        const lines = txt.split(/\r?\n/);
-        const arr = [];
-        let rawTEnd = null;
-        let t0Ms = null,
-          prevMs = null,
-          msStep = null,
-          stepSum = 0,
-          stepN = 0;
-        const gaps = [];
-        for (const line of lines) {
-          const t = line.trim();
-          if (!t) continue;
-          const p = t.split(/[;\t,]/);
-          const v = parseFloat(p[p.length - 1]);
-          if (!isFinite(v)) continue;
-          arr.push(Math.max(-32768, Math.min(32767, Math.round(v))));
-          if (t0Ms === null) {
-            const ms = parseTSfloat(p[0]);
-            if (ms != null) t0Ms = ms;
-          }
-          if (p[0] != null && String(p[0]).trim()) rawTEnd = p[0]; // F21: last stamp -> endEpochMs
-          if (p.length >= 3) {
-            const ms = parseFloat(p[2]);
-            if (isFinite(ms)) {
-              if (prevMs !== null) {
-                const d = ms - prevMs;
-                if (d > 0) {
-                  if (msStep === null && d < 50) msStep = d;
-                  if (msStep && d > msStep * 2.5) {
-                    gaps.push({ idx: arr.length - 1, ms: d });
-                  } else if (d < 50) {
-                    stepSum += d;
-                    stepN++;
-                  }
-                }
-              }
-              prevMs = ms;
-            }
-          }
-        }
-        // DEEP-AUDIT-II §4.3 (#5): mean non-gap interval, not a single delta (see WORKER_SRC / DSP).
-        const fs = stepN > 0 ? Math.round((1000 * stepN) / stepSum) : msStep ? Math.round(1000 / msStep) : 130;
-        const _tEndF = parseTSfloat(rawTEnd);
-        runPipeline({ int16: new Int16Array(arr), fs, gaps, t0Ms: t0Ms != null ? t0Ms : null, endEpochMs: _tEndF != null ? _tEndF : null, source: 'file', durSec: arr.length / fs }, file.name);
+        runPipeline(DSP.parseECG(e.target.result), file.name);
       };
       fr.readAsText(file);
     }
@@ -783,7 +768,7 @@ self.onmessage = async (e) => {
          <div class="gang-pill">RSA swing <b>${c.rsaAmplitudeBpm}</b> bpm</div>
          <div class="gang-pill" style="border-color:${plvCol};color:${plvCol}"><b>CRC PLV ${c.crcPLV}</b> · phase-lock</div>
          <div class="gang-pill">coupling strength <b>${c.couplingStrength}</b>/1</div>
-         <div class="gang-pill">EDR resp ${c.respFromEDR} br/min</div>
+         <div class="gang-pill">${c.respFromEDR != null ? `EDR resp <b>${c.respFromEDR}</b> br/min` : 'EDR resp — <b>no estimate</b>'}</div>
        </div>` +
       epochChart +
       `<div class="q-note" style="margin-top:8px"><b>All three from the ECG alone — no airflow, no PPG.</b> EDR (R-peak amplitude modulation) gives respiration; locking it to the RR oscillation yields cardiorespiratory coupling. <b>RSA efficiency</b> is the inspiratory:expiratory HR ratio — efficient hearts raise HR on inspiration to minimise cardiac power (Border et al. 2025). <b>PLV</b> is the model-free RR↔respiration phase-lock (arXiv:2508.00773); <b>coupling strength</b> is a CSI-style single-number sync index (arXiv:2605.18802). ${confNote} <span style="opacity:.7">Informational — zero new sensors, computed from existing pipeline outputs.</span></div>`;
@@ -1041,7 +1026,7 @@ self.onmessage = async (e) => {
     // posture
     const postureIcon = { Supine: '🛏️', Prone: '🛌', Upright: '🧍', Inverted: '🙃', 'Left side': '↩️', 'Right side': '↪️', 'Head-down': '🙃' }[a.posture] || '🧭';
     const longPosture = a.postureBreakdown && a.postureBreakdown.length > 1;
-    const posturePills = longPosture ? a.postureBreakdown.map((p) => `<div class="gang-pill">${p.label} <b>${p.pct}%</b></div>`).join('') : '';
+    const posturePills = longPosture ? a.postureBreakdown.map((p) => `<div class="gang-pill">${evBadge('Body position')}${p.label} <b>${p.pct}%</b></div>`).join('') : '';
     // motion tie: how many high-motion epochs fall in Wake/REM (vs deep/light)
     const stageAt = {};
     (r.stages || []).forEach((s) => (stageAt[s.tMin.toFixed(1)] = s.stage));
@@ -1070,30 +1055,38 @@ self.onmessage = async (e) => {
     }
 
     const quiet = hi.length === 0;
+    /* Built FIRST because it computes (and caches on `r._accEx`) the paired-epoch agreement the note
+       below must quote — the alternative was a second heavy pass over the whole ACC record. */
+    const extraCards = accExtraCards(r);
+    const ag = r._accEx && r._accEx.agreement;
     $('accBody').innerHTML =
       `
     <div class="acc-posture">
       <div class="acc-posture-main">
         <span class="acc-posture-icon">${postureIcon}</span>
         <div>
-          <div class="acc-posture-label">${a.posture}</div>
+          <div class="acc-posture-label">${evBadge('Body position')}${a.posture}</div>
           <div class="acc-posture-sub">body position · tilt ${a.tiltDeg}° from horizontal${a.postureTransitions ? ` · ${a.postureTransitions} position change${a.postureTransitions > 1 ? 's' : ''}` : ''}</div>
         </div>
       </div>
       ${longPosture ? `<div class="gang-summary" style="margin:0">${posturePills}</div>` : ''}
     </div>
     <div class="gang-summary">
-      <div class="gang-pill"><b>ACC breathing ${accResp != null ? accResp + ' br/min' : '—'}</b>${accResp != null ? ' · axis ' + a.respAxis : ' (motion-limited)'}</div>
-      ${edrResp != null ? `<div class="gang-pill">ECG/EDR breathing <b>${edrResp}</b> br/min</div>` : ''}
-      ${dResp != null ? `<div class="gang-pill" style="border-color:${dResp < 2 ? UI.COLORS.green : dResp < 4 ? UI.COLORS.amber : UI.COLORS.red}">Δ ${dResp} br/min ${respPill}</div>` : ''}
+      <div class="gang-pill">${evBadge('ACC breathing')}<b>ACC breathing ${accResp != null ? accResp + ' br/min' : '—'}</b>${accResp != null ? ' · axis ' + a.respAxis : ' (motion-limited)'}</div>
+      ${edrResp != null ? `<div class="gang-pill">${evBadge('ECG/EDR breathing')}ECG/EDR breathing <b>${edrResp}</b> br/min</div>` : ''}
+      ${dResp != null ? `<div class="gang-pill" style="border-color:${dResp < 2 ? UI.COLORS.green : dResp < 4 ? UI.COLORS.amber : UI.COLORS.red}">${evBadge('Δ br/min')}Δ ${dResp} br/min ${respPill}</div>` : ''}
     </div>
     ${motionChart}
     <div class="q-note" style="margin-top:8px"><b>Three ties to the ECG, no extra interpretation needed.</b>
       <b>Posture:</b> body position from the accelerometer gravity vector (tilt ${a.tiltDeg}° → ${a.posture}) — context the ECG can't give on its own (e.g. orthostatic vs supine HRV).
-      <b>Breathing:</b> respiration from chest-axis ACC movement vs the ECG-derived (EDR) respiration${dResp != null ? ` — they ${dResp < 2 ? 'agree to within ' + dResp + ' br/min, cross-validating both' : 'differ by ' + dResp + ' br/min'}` : ''}.
+      <b>${evBadge('RRacc–EDR Agreement')}Breathing:</b> respiration from chest-axis ACC movement vs the ECG-derived (EDR) respiration. ${
+        ag
+          ? `Across <b>${ag.n}</b> paired 5-min epochs the 95% limits of agreement are <b>${ag.loa[0]} … +${ag.loa[1]}</b> br/min (bias ${ag.meanDelta > 0 ? '+' : ''}${ag.meanDelta}), and <b>${ag.disagreeRate}%</b> of epochs differ by more than 3 br/min — so the two are a cross-CHECK, not a cross-validation of each other. Over 45 real nights this comparison does not establish agreement (median r 0.07, limits −4 … +7.5 br/min); read each rate on its own evidence badge.`
+          : 'Too few paired epochs to state agreement — no agreement claim is made.'
+      }${dResp != null ? ` The whole-night means differ by ${dResp} br/min, which compares two averages and is not an agreement statistic.` : ''}
       ${quiet ? '<b>Motion:</b> little movement in this recording — consistent with a still, ' + a.posture.toLowerCase() + ' measurement.' : `<b>Motion:</b> ${hi.length} high-motion epoch${hi.length > 1 ? 's' : ''} — <b>${stagePct}%</b> in Wake/REM (where movement is expected, corroborating the ECG-only sleep staging)${nearSurge ? `, ${nearSurge} coinciding with CVHR clusters` : ''}.`}
       <span style="opacity:.7">${r.source === 'synthetic' ? 'ACC here is synthetic ground truth. ' : ''}Posture labelling depends on sensor mounting; tilt angle is mount-independent. Informational.</span></div>` +
-      accExtraCards(r);
+      extraCards;
     $('accCard').style.display = 'block';
   }
 
@@ -1499,7 +1492,9 @@ self.onmessage = async (e) => {
               r.crc.couplingStrength >= 0.5 ? 'ok' : r.crc.couplingStrength >= 0.3 ? 'warn' : 'bad',
               'CSI-style sync index (arXiv:2605.18802)'
             ],
-            ['EDR resp rate', r.crc.respFromEDR, 'br/min', '12–20', 'neutral', 'Respiration from R-peak amplitude modulation'],
+            // §1.10 — a null EDR rate renders as an explicit refusal, never as a blank that reads
+            // like a missing field or as the constant 15 it used to substitute.
+            ['EDR resp rate', r.crc.respFromEDR != null ? r.crc.respFromEDR : 'no estimate', 'br/min', '12–20', 'neutral', r.crc.respFromEDRReason || 'Respiration from R-peak amplitude modulation'],
             ...(r.crc.plvDuringSurges != null && r.crc.plvBaseline != null
               ? [['PLV surge vs base', r.crc.plvDuringSurges + ' / ' + r.crc.plvBaseline, '0–1', 'drop', 'neutral', 'Coupling drop during CVHR clusters → surge confidence']]
               : [])
@@ -2692,6 +2687,10 @@ self.onmessage = async (e) => {
         glucoseSource: 'GlucoDex'
       }
     };
+    /* The index's DENOMINATOR travels with it (DEEP-AUDIT-VI F3) — mirrors ecgBuildNodeExport
+       field-for-field (SHARED-SHAPE mandate): `cvhrIndex` is events per hour of OBSERVED recording
+       (nnRes.activeSec), not of wall span. Attached only when the index was computed. */
+    if (out.apnea && out.apnea.cvhrIndex != null && r.cvhr && r.cvhr.denomSec > 0) out.apnea.cvhrHours = +(r.cvhr.denomSec / 3600).toFixed(2);
     return out;
   }
   function exportJSON() {

@@ -32,6 +32,10 @@ import os
 import re
 import statistics
 
+import logging
+
+_log = logging.getLogger("tepna-capture")
+
 __all__ = ["parse_device_epoch_s", "analyze", "ClockSidecar", "DEVICE_QUANTUM_S", "MIN_RATE_ANCHORS",
            "offset_for_envelope", "ENVELOPE_REFERENCE", "ENVELOPE_METHOD"]
 
@@ -196,7 +200,12 @@ class ClockSidecar:
             self._fh.flush()
             self._fh.close()
         except (OSError, ValueError):
-            pass
+            # SAME DEFECT #2016 FIXED IN writers.py, in a writer that lives outside it. A swallowed
+            # flush means the tail of this file never reached the disk while the caller believes it
+            # did. Too small for the full _FlushHealth machinery (one close, no periodic flush), but
+            # not too small to say so.
+            _log.warning("as11 clock log did not close cleanly — its tail may be unwritten",
+                         exc_info=True)
 
 
 # ── the envelope join ──────────────────────────────────────────────────────────────────────────

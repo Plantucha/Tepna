@@ -2903,10 +2903,10 @@ function nightDetail(n, idx) {
           sa.condPctBelow94 != null ? (sa.condPctBelow94 < 5 ? 'good' : sa.condPctBelow94 < 15 ? 'warn' : 'bad') : '',
           'secondary'
         ) +
-        metric('Nadir<4%', sa.nadirBins.above91, 'events shallow', sa.nadirBins.above91 < 3 ? 'good' : 'warn', 'secondary') +
-        metric('Nadir 4-6', sa.nadirBins.b90_91, 'moderate', sa.nadirBins.b90_91 === 0 ? 'good' : sa.nadirBins.b90_91 < 3 ? 'warn' : 'bad', 'secondary') +
-        metric('Nadir 6-9', sa.nadirBins.b88_89, 'deep', sa.nadirBins.b88_89 === 0 ? 'good' : 'bad', 'secondary') +
-        metric('Nadir>9%', sa.nadirBins.b85_87 + sa.nadirBins.below85, 'severe', sa.nadirBins.b85_87 + sa.nadirBins.below85 === 0 ? 'good' : 'bad', 'secondary') +
+        metric('Nadir >91%', sa.nadirBins.above91, 'nadir above 91%', sa.nadirBins.above91 < 3 ? 'good' : 'warn', 'secondary') +
+        metric('Nadir 90-91%', sa.nadirBins.b90_91, 'nadir 90-91%', sa.nadirBins.b90_91 === 0 ? 'good' : sa.nadirBins.b90_91 < 3 ? 'warn' : 'bad', 'secondary') +
+        metric('Nadir 88-89%', sa.nadirBins.b88_89, 'nadir 88-89%', sa.nadirBins.b88_89 === 0 ? 'good' : 'bad', 'secondary') +
+        metric('Nadir <88%', sa.nadirBins.b85_87 + sa.nadirBins.below85, 'nadir below 88%', sa.nadirBins.b85_87 + sa.nadirBins.below85 === 0 ? 'good' : 'bad', 'secondary') +
         '</div>';
     }
     if (n.hrAdv && n.hrAdv.hrIQR != null) {
@@ -3109,7 +3109,11 @@ function nightDetail(n, idx) {
       '<div class="grid">' +
       // ungraded: the section is already labelled "(relative comparison only)" — a relative measure with a
       // good/warn/bad ladder contradicts its own label, and this ladder disagreed with renderSmartSummary's
-      metric('HR-Var SD', +(h.hrSdnn || 0).toFixed(2) + 'bpm', '1Hz SD (rel. only)', '') +
+      /* DEEP-AUDIT-IV §3-RESULT — an ABSENT hrSdnn used to render `HR-Var SD 0.00 bpm`, a measured
+         zero on a metric card where nothing was measured. Same fabricated-absence shape as the
+         Recovery-index green light one bullet above it in that brief, and the same fix: require the
+         measurement positively, show an em dash otherwise. Render-only ⇒ computeHash is unmoved. */
+      metric('HR-Var SD', h.hrSdnn == null || !isFinite(h.hrSdnn) ? '—' : +h.hrSdnn.toFixed(2) + 'bpm', '1Hz SD (rel. only)', '') +
       metric('pNN3-equiv', h.pnn3 + '%', 'pairs ≥3bpm', h.pnn3 >= 1.5 ? 'good' : h.pnn3 >= 0.5 ? 'warn' : 'bad') +
       metric('HR Floor', h.hrFloor, 'bpm (p5)', '') +
       metric('HR Slope', (h.hrSlope > 0 ? '+' : '') + h.hrSlope, 'bpm/hr', '') +

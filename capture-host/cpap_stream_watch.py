@@ -31,6 +31,7 @@ __all__ = [
     "UNKNOWN",
     "MIN_THERAPY_MIN",
     "MIN_OBSERVED_FRAC",
+    "unreachable_reason",
     "MIN_COVER",
     "MAX_GAP_S",
     "assess",
@@ -57,7 +58,7 @@ MIN_COVER = 0.5
 
 
 def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
-           min_cover: float = MIN_COVER, attempts=None, last_error=None) -> dict:
+           min_cover: float = MIN_COVER, attempts=None, last_error=None, unreachable=None) -> dict:
     """`{state, detail, therapy_min, stream_min, cover}` — did the live stream record the session? PURE.
 
     `therapy_min` is None when the detector could not measure it. That is UNKNOWN, not zero: treating
@@ -69,17 +70,54 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
     keeps its exact behaviour — a box without auto-start armed has no record and still reports
     NEVER_STARTED, which is the truth there."""
     if therapy_min is None:
+        # F2's journal half: SAY WHY, when the journal knows. The state stays UNKNOWN and the number
+        # stays None — see `unreachable_reason` for why unanimous not-found cannot be promoted to 0
+        # without evidence the radio worked — but "the machine was never found" and "the radio was
+        # contended" stop being the same sentence, because they need opposite responses.
+        why = ""
+        if isinstance(unreachable, dict) and unreachable.get("n"):
+            if unreachable.get("unanimous_absent"):
+                why = (f" — every one of {unreachable['n']} failed poll(s) reported the machine NOT "
+                       f"FOUND ({unreachable['dominant']}). Consistent with the machine being off, "
+                       f"and equally consistent with a radio that could not hear it all night; "
+                       f"nothing in this journal separates those")
+            else:
+                why = (f" — {unreachable['n']} failed poll(s), mostly {unreachable['dominant']}. At "
+                       f"least one blames the RADIO rather than the machine, so this is a capture "
+                       f"fault, not evidence about therapy")
         return {
             "state": UNKNOWN,
             "therapy_min": None,
             "stream_min": stream_min,
             "cover": None,
+            "unreachable": unreachable,
             "detail": "no therapy duration measured (detector off, or its journal absent) — "
-            "this is not evidence that no therapy ran",
+            "this is not evidence that no therapy ran" + why,
         }
     try:
-        t = float(therapy_min)
+        observed = float(therapy_min)
         s = float(stream_min or 0.0)
+        # 🔴 STREAMED TIME IS THERAPY TIME, AND OMITTING IT MADE THIS CHECK MEASURE ITS OWN OBSERVER.
+        # The shadow detector holds the one AS11 link only while the stream does NOT — `is_capturing()`
+        # makes it stand down and resume — so `therapy_minutes` sees exactly the therapy that was NOT
+        # streamed. Treating that sliver as the whole session meant STARTING a capture destroyed the
+        # measurement the capture is judged against.
+        #
+        # Measured 2026-08-30: therapy detected 22:49:53-22:51:37, the operator started the stream at
+        # ~104 s, and the night's verdict came out "therapy ran 2 min, below the 30 min floor — too
+        # short to call a missed capture" for an EIGHT-HOUR session that produced a real EDF. The QC
+        # therefore declined to judge precisely the nights where capture worked, and returned OK while
+        # doing it — a self-masking blind spot over the whole feature.
+        #
+        # The two windows are DISJOINT BY CONSTRUCTION, which is what makes the sum honest rather than
+        # a fudge: the detector observes only while the stream is idle. So total = observed + streamed,
+        # and `cover` becomes a real fraction in [0, 1] instead of an unbounded ratio (last night it
+        # would have read 480/1.7 = 282).
+        #
+        # It stays correct at both ends. Stream never started: s = 0, total = observed, NEVER_STARTED
+        # as before. Stream died early: the detector RESUMES and observes the remainder, so total
+        # grows while s does not, and cover falls — which is exactly DIED_EARLY.
+        t = observed + s
     except (TypeError, ValueError):
         return {
             "state": UNKNOWN,
@@ -92,6 +130,7 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
         return {
             "state": OK,
             "therapy_min": round(t, 1),
+            "therapy_observed_min": round(observed, 1),
             "stream_min": round(s, 1),
             "cover": None,
             "detail": f"therapy ran {t:.0f} min, below the {float(min_therapy_min):.0f} min floor "
@@ -113,6 +152,7 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
             return {
                 "state": AUTOSTART_FAILED,
                 "therapy_min": round(t, 1),
+            "therapy_observed_min": round(observed, 1),
                 "stream_min": 0.0,
                 "cover": 0.0,
                 "attempts": n,
@@ -123,6 +163,7 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
         return {
             "state": NEVER_STARTED,
             "therapy_min": round(t, 1),
+            "therapy_observed_min": round(observed, 1),
             "stream_min": 0.0,
             "cover": 0.0,
             "detail": f"therapy ran {t:.0f} min and the live stream was never opened — nobody "
@@ -133,6 +174,7 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
         return {
             "state": DIED_EARLY,
             "therapy_min": round(t, 1),
+            "therapy_observed_min": round(observed, 1),
             "stream_min": round(s, 1),
             "cover": round(cover, 3),
             "detail": f"the live stream covered {s:.0f} of {t:.0f} therapy min ({100 * cover:.1f} %) "
@@ -141,6 +183,7 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
     return {
         "state": OK,
         "therapy_min": round(t, 1),
+            "therapy_observed_min": round(observed, 1),
         "stream_min": round(s, 1),
         "cover": round(cover, 3),
         "detail": f"the live stream covered {s:.0f} of {t:.0f} therapy min ({100 * cover:.1f} %)",
@@ -151,6 +194,74 @@ def assess(therapy_min, stream_min, *, min_therapy_min: float = MIN_THERAPY_MIN,
 # night on this box. So consecutive rows can be minutes apart, and crediting the whole gap as therapy
 # would turn an outage into recorded treatment. Gaps longer than this are counted as the poll interval
 # instead — the observation is worth one poll, not the silence around it.
+# ── WHY the journal could not be read — F2's journal half ─────────────────────────────────────────
+# `UnreachableRow` has recorded the exception class in `trigger` (parts[5]) since 2026-08-30 so a
+# persistent fault is identifiable by a human reading the CSV. Nothing consumed it, so a night the
+# machine was OFF and a night the RADIO could not answer produced byte-identical UNKNOWNs — and they
+# need opposite responses (wait vs reset bluez).
+#
+# 🔴 THIS DELIBERATELY DOES NOT PROMOTE A MACHINE-OFF NIGHT TO 0.0 MINUTES, AND THAT RESTRAINT IS THE
+# DESIGN, NOT A SHORTCUT. The tempting win is real — a machine that was genuinely off HAS an answer,
+# zero, and reporting None there turns a measurement into an unknown. But the classes alone cannot
+# license it:
+#
+#     machine OFF, radio healthy                 -> every poll not-found
+#     machine ON, bluez wedged against THIS device -> every poll not-found
+#
+# ⚠️ THE SECOND ROW IS NOT "A JAMMED RADIO", AND THE DIFFERENCE MATTERS. On 2026-08-29 the radio was
+# demonstrably HEALTHY throughout — one adapter enumerated 107 other devices and the two wearables
+# streamed all night — while bluez stayed blind to the CPAP alone. So a radio-health signal cannot
+# separate these two rows either: a per-device wedge IS a healthy radio. That kills the obvious
+# discriminator ("did the adapter hear anything?") before it is reached for, which is why the
+# restraint below is not merely cautious.
+#
+# Unanimous not-found is IDENTICAL under both, so a night-long wedge would ship a fabricated 0 —
+# strictly worse than the honest None it replaces. Separating them needs positive evidence the radio
+# WORKED that night (did the adapter reach any other device?), and `therapy_minutes` is pure over one
+# journal: it can see no other device, no adapter state, nothing outside the CPAP's own rows. The
+# corroboration is not merely absent, it is structurally unavailable at this layer.
+#
+# Proven, not argued: the 2026-08-29 blackout produced unanimous not-found across BOTH adapters for a
+# night the machine was demonstrably running — ten EDF files were harvested from it the next day.
+# `absence_verdict`'s clean sweep does not catch that either, which is why reusing it wholesale would
+# have inherited the same blind spot one level up.
+#
+# So this LABELS the unknown instead of resolving it: "not found on every poll" and "the radio was
+# contended" become different sentences a human can act on, while the number stays None. To promote
+# one to 0 later, give this layer a radio-health signal — the wedge rung's `radio_healthy` is the
+# shape — and gate the promotion on it.
+_ABSENT_CLASSES = ("bleakdevicenotfounderror",)
+
+
+def unreachable_reason(text: str) -> "dict | None":
+    """`{n, classes, dominant, unanimous_absent}` over the journal's unreachable rows, or None. PURE.
+
+    `unanimous_absent` means every unreachable row blamed a device-not-found class — NECESSARY for a
+    machine-off reading and, on its own, NOT SUFFICIENT (see above). It is published so a caller that
+    *does* hold radio-health evidence can combine the two; it is never treated as a verdict here."""
+    classes: "dict[str, int]" = {}
+    n = 0
+    for line in str(text or "").splitlines():
+        parts = line.split(";")
+        if len(parts) < 9:
+            continue
+        try:
+            float(parts[0])
+        except ValueError:
+            continue                       # header or torn line
+        if parts[7].strip().lower() not in ("false", "0"):
+            continue                       # a reachable poll says nothing about why others failed
+        n += 1
+        cls = parts[5].strip() or "unknown"
+        classes[cls] = classes.get(cls, 0) + 1
+    if not n:
+        return None
+    dominant = max(classes.items(), key=lambda kv: (kv[1], kv[0]))[0]
+    return {"n": n, "classes": classes, "dominant": dominant,
+            "unanimous_absent": bool(classes) and all(
+                c.lower() in _ABSENT_CLASSES for c in classes)}
+
+
 MAX_GAP_S = 120.0
 
 # The share of polls that must have REACHED the machine before this journal is allowed to answer.
@@ -161,8 +272,20 @@ MAX_GAP_S = 120.0
 MIN_OBSERVED_FRAC = 0.667
 
 
-def therapy_minutes(text: str, *, max_gap_s: float = MAX_GAP_S):
+def therapy_minutes(text: str, *, max_gap_s: float = MAX_GAP_S,
+                    since_ms: float | None = None, until_ms: float | None = None):
     """Minutes of observed Therapy in a SESSIONDETECT journal, or None if it cannot be measured. PURE.
+
+    🔴 SCOPE THE WINDOW, OR THIS COUNTS THE WHOLE JOURNAL. `SESSIONDETECT.csv` is ONE append-only
+    file for the box — not per night, never rotated — so an unscoped call sums every night it holds.
+    Measured on vigil 2026-09-01: 7818 rows spanning 6.45 days summed to 951 min of therapy, which
+    was then compared against ONE night's 321 stream min and reported as "died-early, 25.2 %". The
+    ratio could only shrink as the journal grew, so the alarm was guaranteed and permanent.
+
+    `since_ms`/`until_ms` bound the rows considered (epoch ms, half-open `[since, until)`). Both
+    default to None = the whole journal, which keeps every existing caller working — but a caller
+    comparing against a night-scoped measurement MUST pass a window, or it is dividing one night by
+    a week. Added LAST and optional per the back-compat rule.
 
     Sums the interval each Therapy observation COVERS, not the span from first to last: a session that
     ends and restarts must not have the idle middle counted as treatment.
@@ -181,6 +304,12 @@ def therapy_minutes(text: str, *, max_gap_s: float = MAX_GAP_S):
             ms = float(parts[0])
         except ValueError:
             continue  # the header row, or a torn line
+        # Bound BEFORE the unreachable tally as well as the sum: an outage three nights ago is not
+        # evidence about tonight's coverage, and counting it could refuse a night that was observed.
+        if since_ms is not None and ms < float(since_ms):
+            continue
+        if until_ms is not None and ms >= float(until_ms):
+            continue
         # 🔴 AN UNREACHABLE POLL IS NOT AN OBSERVATION OF STANDBY. The shadow runner now writes a row
         # when it could not reach the machine (reachable=False, blank fg_state) — which is what makes
         # an outage visible at all. Counting those as "not in therapy" would be strictly WORSE than
@@ -230,7 +359,8 @@ def stream_minutes(headers):
         try:
             n, dur = float(h[0]), float(h[1])
         except (TypeError, ValueError, IndexError):
-            continue
+            continue   # an unreadable EDF header contributes no minutes; #2004's `unreachable`
+                       # classification is what distinguishes "no data" from "machine was off"
         if n > 0 and dur > 0:
             total += n * dur
     return total / 60.0

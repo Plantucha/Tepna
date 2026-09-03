@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-BlX8BIXkQKl42O19qB3k+fYy+cx8ozRm3PKbcEIZJnc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-LK5VOOBa0EEy7ufo1WyQm1kSFnDsFWmUvZ1fThFN8ws=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-WX3tg5nB5jJc0s/PB7pucD792EqjTHiSRYGiLYS8LEM=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i3reGRzkJM7QjIg1lbF4DPDdb5yytZOi+1xN8393YJc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-LK5VOOBa0EEy7ufo1WyQm1kSFnDsFWmUvZ1fThFN8ws=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-frlrzHf/nACw3zB0VdoF8lvmy8I3BFDANsCh/I7J0mA=' 'sha256-i3reGRzkJM7QjIg1lbF4DPDdb5yytZOi+1xN8393YJc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.9.0</title>
@@ -3614,42 +3614,61 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
   // ONE implementation for every node (D1) — OxyDex shipped its own oxyScrubExport in the pilot; it
   // folds into this on OxyDex's next re-bundle (leaving it now avoids an export-inert OxyDex churn).
   // Default OFF at every call site, so a normal export stays byte-identical. DOM-free; node:vm-safe.
+  /* DEEP-AUDIT-VI F13 — the scrub is KEY-DRIVEN, never node-enumerated. A filename is an identifier
+     (an O2Ring export embeds the device serial and can embed a personal name), and it reaches the
+     envelope by three routes: `nights[].file` (OxyDex, `n.fname` verbatim), `sessions[].source`
+     (PpgDex, `r.fname`), and the per-element `provenance` copy every OxyDex night carries — the same
+     `inputs[].name / sha256 / lastModifiedMs` block the schema-level scrub already reduces. The 07-xx
+     scrub handled only `schema.provenance` + `recording.{device,serial,model}`, so with scrub ON the
+     export still named the upload (measured: `Jane_Smith_O2Ring S 2100_20260612230016.csv` survived).
+     SELF-INGEST §5 acceptance: a scrubbed JSON contains no device serial, filename or input sha256. */
+  var _SCRUB_FILE_KEYS = ['file', 'fname', 'filename', 'fileName', 'sourceFile'];
+  // `source` is overloaded: ECGDex/GlucoDex write a semantic tag ('file', 'welltory'), PpgDex writes the
+  // raw filename. Strip it only when it is filename-SHAPED (a path separator or a dotted extension) —
+  // a tag has neither, and deleting a tag would change a scrubbed export's meaning, not its identity.
+  var _FILE_SHAPE_RE = /[\\/]|\.[A-Za-z0-9]{1,5}$/;
+  function _scrubProv(prov) {
+    if (!prov || typeof prov !== 'object') return prov;
+    return {
+      buildHash: prov.buildHash != null ? prov.buildHash : null, // COARSE build stamp KEPT (integrity)
+      generated: prov.generated != null ? prov.generated : null,
+      scrubbed: true,
+      // inputs keep only NON-identifying integrity (byte count); drop name + sha256 + device serial/mtime.
+      inputs: (Array.isArray(prov.inputs) ? prov.inputs : []).map(function (inp) {
+        return { bytes: inp && inp.bytes != null ? inp.bytes : null };
+      })
+    };
+  }
+  function _scrubRecordingBlock(rec) {
+    if (!rec || typeof rec !== 'object') return;
+    delete rec.device;
+    delete rec.serial;
+    delete rec.model;
+    if (typeof rec.source === 'string' && _FILE_SHAPE_RE.test(rec.source)) delete rec.source;
+  }
+  function _scrubElement(el) {
+    if (!el || typeof el !== 'object') return;
+    _SCRUB_FILE_KEYS.forEach(function (k) {
+      if (k in el) delete el[k];
+    });
+    if (typeof el.source === 'string' && _FILE_SHAPE_RE.test(el.source)) delete el.source;
+    if (el.provenance && typeof el.provenance === 'object') el.provenance = _scrubProv(el.provenance);
+    _scrubRecordingBlock(el.recording);
+  }
   function scrubExport(envelope) {
     if (!envelope || typeof envelope !== 'object') return envelope;
     var out = JSON.parse(JSON.stringify(envelope)); // deep clone — never mutate the caller
     var sc = out.schema || (out.schema = {});
-    var prov = sc.provenance;
-    if (prov && typeof prov === 'object') {
-      sc.provenance = {
-        buildHash: prov.buildHash != null ? prov.buildHash : null, // COARSE build stamp KEPT (integrity)
-        generated: prov.generated != null ? prov.generated : null,
-        scrubbed: true,
-        // inputs keep only NON-identifying integrity (byte count); drop name + sha256 + device serial/mtime.
-        inputs: (Array.isArray(prov.inputs) ? prov.inputs : []).map(function (inp) {
-          return { bytes: inp && inp.bytes != null ? inp.bytes : null };
-        })
-      };
-    }
+    if (sc.provenance && typeof sc.provenance === 'object') sc.provenance = _scrubProv(sc.provenance);
     sc.scrubbed = true;
-    // recording.contentId (identity-free) is KEPT; strip any device serial / model a node may carry.
-    if (out.recording && typeof out.recording === 'object') {
-      delete out.recording.device;
-      delete out.recording.serial;
-      delete out.recording.model;
-    }
-    // Multi-record wrappers: strip the same identifying keys from each per-element recording block.
+    // recording.contentId (identity-free) is KEPT; strip any device serial / model / filename a node may carry.
+    _scrubRecordingBlock(out.recording);
+    // Multi-record wrappers: strip the same identifying keys from each per-element block.
     // EVERY known carrier (SELF-INGEST-FOLLOWUPS-II §F1 — was nights[]-only, leaking device/serial on
     // multi ECGDex/PulseDex `recordings[]` + PpgDex `sessions[]` exports): nights[] (OxyDex/CPAPDex),
     // recordings[] (ECGDex/PulseDex), sessions[] (PpgDex).
     ['nights', 'recordings', 'sessions'].forEach(function (key) {
-      if (Array.isArray(out[key]))
-        out[key].forEach(function (el) {
-          if (el && el.recording && typeof el.recording === 'object') {
-            delete el.recording.device;
-            delete el.recording.serial;
-            delete el.recording.model;
-          }
-        });
+      if (Array.isArray(out[key])) out[key].forEach(_scrubElement);
     });
     return out;
   }
@@ -5378,10 +5397,23 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
     else lim = 1e7; // unlabelled stream: bound only the physically absurd
     return Math.abs(x) <= lim && Math.abs(y) <= lim && Math.abs(z) <= lim;
   }
+  /* Bounds for the mid-file resync discriminator below — the SAME numbers ECGDex uses
+     (`ECG_RESYNC_BOUND_MS` / `ECG_GAP_CEIL_MS`), because the two nodes are reading the same step in
+     the same device's two files and a second constant would eventually disagree with the first. */
+  var MOTION_RESYNC_BOUND_MS = 60000;
+  var MOTION_GAP_CEIL_MS = 86400000;
   function parseSensorXYZ(text) {
     var lines = String(text || '').split(/\r?\n/);
     var out = [];
     var ns0 = null;
+    var prevNsB = null,
+      prevRowTMs = null,
+      firstRowTMs = null;
+    // the CURRENT clock segment: null until a resync starts a new one (see the re-anchor below)
+    var segNs0 = null,
+      segBaseNs = 0,
+      prevRelNs = NaN;
+    var resyncs = [];
     var headerKind = null;
     var cols = null;
     var nImplausible = 0;
@@ -5416,16 +5448,71 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
         nImplausible++;
         continue;
       }
+      var ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
       var relNs = NaN;
       try {
         var b = BigInt(p[c.ns >= 0 ? c.ns : 1].trim());
         if (ns0 === null) ns0 = b;
-        relNs = Number(b - ns0);
+        /* ── MID-FILE CLOCK RESYNC on the DEVICE counter (DEEP-AUDIT-VI FOLLOWUPS §1.1) ────────────
+           The H10 boots on its 2019-01-01 firmware epoch and adopts real time when a sync lands. When
+           that happens MID-FILE the sensor-ns column steps by the whole epoch difference while the
+           phone column advances seconds — and `relSecOf` PREFERS this counter, so every duration and
+           every epoch grid downstream rides the step. Measured on the real 2026-08-27 file: the
+           counter jumps +241,586,764 s at row 470 while the phone advances 85.8 s, and MotionDex
+           published `recording.durSec` 241,589,697 — **7.66 years for a 50-minute recording** — with
+           a declared window ending 2034-04-22, which is the window the Integrator's gap-aware overlap
+           tests against. It does NOT crash: it returns a plausible-looking summary in 1.9 s, which is
+           why nothing caught it. This is the ACC sibling of the ECGDex defect F1 fixed in the same
+           corpus nights, and it is fixed here with F1's discriminator, deliberately identical.
+           THE DISCRIMINATOR IS PHYSICAL: through a real BLE dropout BOTH clocks keep ticking, so the
+           device delta ≈ the phone delta; only a clock step makes them disagree. Census over the whole
+           corpus (1278 ACC files): 137 files' worst step is a real dropout — left untouched, because
+           the counter is RIGHT about those — and exactly 3 are resyncs, the same three nights F1
+           found on the ECG side. 0 seams had unparseable stamps.
+           An over-24h step whose seam stamps do NOT parse still re-anchors, with `phoneDeltaMs: null`
+           and no fabricated duration (§2.6): an unmeasured gap stays visibly unmeasured. */
+        if (prevNsB !== null) {
+          var devDeltaMs = Number(b - prevNsB) / 1e6;
+          if (devDeltaMs > MOTION_RESYNC_BOUND_MS) {
+            var phoneDeltaMs = ts && ts.tMs != null && prevRowTMs != null ? Math.max(0, ts.tMs - prevRowTMs) : null;
+            if (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > MOTION_RESYNC_BOUND_MS : devDeltaMs > MOTION_GAP_CEIL_MS) {
+              /* RE-ANCHOR ON THE HOST, NOT BY SUBTRACTING THE STEP — ONE DEVICE CLOCK PER AXIS.
+                 Imposing the phone delta alone would make the axis continuous but would carry the
+                 PRE-SYNC segment's error forward as a constant, because the counter before the sync
+                 is a different oscillator state, not merely a shifted one. Measured on 2026-08-27:
+                 the host−device residual walks 1.449 s across the 10.6 s BEFORE the seam (136,064
+                 ppm — the ACC sibling of the +1508 ms/9.5 s F1 measured on the same night's ECG) and
+                 then holds FLAT for the remaining 2930 s. Re-anchoring the new segment to the seam
+                 row's own host offset leaves that error confined to the 469 pre-seam rows (0.3 % of
+                 the file) instead of offsetting all 148,860.
+                 The post-seam segment then rides its own counter, which is the clock the rest of the
+                 night is actually on. */
+              /* BLIND SEAM: when the seam's own stamp does not parse there is no host offset to
+                 anchor on, and `Number(b - ns0)` would re-admit the very step being removed (caught
+                 by the blind-seam leg — it published a 241,586,834 s span). The honest anchor is the
+                 PREVIOUS row's position: an unmeasured gap contributes nothing rather than a
+                 fabricated duration (§2.6), which is exactly what F1 does on the ECG side — the
+                 resync is recorded with `phoneDeltaMs: null` and NO gap entry. */
+              segBaseNs = firstRowTMs != null && ts && ts.tMs != null ? (ts.tMs - firstRowTMs) * 1e6 : isFinite(prevRelNs) ? prevRelNs : Number(b - ns0);
+              segNs0 = b;
+              resyncs.push({ idx: out.length, deviceStepMs: Math.round(devDeltaMs), phoneDeltaMs: phoneDeltaMs == null ? null : Math.round(phoneDeltaMs) });
+            }
+          }
+        }
+        prevNsB = b;
+        relNs = segNs0 === null ? Number(b - ns0) : segBaseNs + Number(b - segNs0);
+        prevRelNs = relNs;
       } catch {}
-      var ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
+      if (ts && ts.tMs != null) {
+        if (firstRowTMs === null) firstRowTMs = ts.tMs;
+        prevRowTMs = ts.tMs;
+      }
       out.push({ relNs: relNs, tMs: ts ? ts.tMs : null, x: x, y: y, z: z });
     }
     out._implausibleDropped = nImplausible;
+    /* Present only when it happened, so every clean stream keeps today's bytes (§1.1). Each entry:
+       { idx, deviceStepMs, phoneDeltaMs (null when the seam stamps did not parse) }. */
+    if (resyncs.length) out._clockResyncs = resyncs;
     out._kind = headerKind ? headerKind.kind : null;
     out._unit = headerKind ? headerKind.unit : null;
     /* §2.2 — cross-examine the declared unit against gravity. The oracle REPORTS; it never rescales,

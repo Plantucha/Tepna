@@ -9,7 +9,7 @@
     "node": "OxyDex",
     "nodeVersion": "1.0",
     "multiNight": false,
-    "generated": "2026-08-14T07:34:32.490Z",
+    "generated": "2026-09-01T02:18:41.514Z",
     "provenance": null,
     "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
     "scrubbed": true
@@ -66,18 +66,6 @@
         "nadir": 85,
         "onsetTMs": 1782943096000,
         "endTMs": 1782943197000
-      }
-    },
-    {
-      "t": "21:58:46",
-      "tMs": 1782943126000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.6,
-      "meta": {
-        "cycleLen": 50,
-        "crossings": 12,
-        "windowSec": 300
       }
     },
     {
@@ -141,30 +129,6 @@
       }
     },
     {
-      "t": "22:03:46",
-      "tMs": 1782943426000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.5,
-      "meta": {
-        "cycleLen": 75,
-        "crossings": 8,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "22:08:46",
-      "tMs": 1782943726000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.57,
-      "meta": {
-        "cycleLen": 54.5,
-        "crossings": 11,
-        "windowSec": 300
-      }
-    },
-    {
       "t": "23:29:52",
       "tMs": 1782948592000,
       "impulse": "desat_event",
@@ -210,18 +174,6 @@
       }
     },
     {
-      "t": "23:58:46",
-      "tMs": 1782950326000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.6,
-      "meta": {
-        "cycleLen": 46.2,
-        "crossings": 13,
-        "windowSec": 300
-      }
-    },
-    {
       "t": "23:58:50",
       "tMs": 1782950330000,
       "impulse": "desat_event",
@@ -234,78 +186,6 @@
         "nadir": 93,
         "onsetTMs": 1782950330000,
         "endTMs": 1782950347000
-      }
-    },
-    {
-      "t": "00:03:46",
-      "tMs": 1782950626000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.57,
-      "meta": {
-        "cycleLen": 54.5,
-        "crossings": 11,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "00:08:46",
-      "tMs": 1782950926000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.55,
-      "meta": {
-        "cycleLen": 60,
-        "crossings": 10,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "00:13:46",
-      "tMs": 1782951226000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.6,
-      "meta": {
-        "cycleLen": 50,
-        "crossings": 12,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "00:18:46",
-      "tMs": 1782951526000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.6,
-      "meta": {
-        "cycleLen": 42.9,
-        "crossings": 14,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "00:23:46",
-      "tMs": 1782951826000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.6,
-      "meta": {
-        "cycleLen": 33.3,
-        "crossings": 18,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "00:28:46",
-      "tMs": 1782952126000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.57,
-      "meta": {
-        "cycleLen": 54.5,
-        "crossings": 11,
-        "windowSec": 300
       }
     },
     {
@@ -324,15 +204,15 @@
       }
     },
     {
-      "t": "00:33:46",
-      "tMs": 1782952426000,
+      "t": "00:39:42",
+      "tMs": 1782952782000,
       "impulse": "periodic_breathing",
       "node": "OxyDex",
-      "conf": 0.57,
+      "conf": 0.55,
       "meta": {
-        "cycleLen": 54.5,
-        "crossings": 11,
-        "windowSec": 300
+        "cycleLen": 113.2,
+        "crossings": 10,
+        "windowSec": 566
       }
     },
     {
@@ -381,39 +261,15 @@
       }
     },
     {
-      "t": "02:33:46",
-      "tMs": 1782959626000,
+      "t": "03:20:32",
+      "tMs": 1782962432000,
       "impulse": "periodic_breathing",
       "node": "OxyDex",
-      "conf": 0.52,
+      "conf": 0.47,
       "meta": {
-        "cycleLen": 66.7,
-        "crossings": 9,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "02:43:46",
-      "tMs": 1782960226000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.45,
-      "meta": {
-        "cycleLen": 100,
-        "crossings": 6,
-        "windowSec": 300
-      }
-    },
-    {
-      "t": "03:18:46",
-      "tMs": 1782962326000,
-      "impulse": "periodic_breathing",
-      "node": "OxyDex",
-      "conf": 0.55,
-      "meta": {
-        "cycleLen": 60,
-        "crossings": 10,
-        "windowSec": 300
+        "cycleLen": 63.1,
+        "crossings": 7,
+        "windowSec": 221
       }
     },
     {
@@ -52631,15 +52487,6 @@
             "cat": null
           },
           {
-            "key": "pbEp",
-            "label": "PB Episodes",
-            "value": 14,
-            "displayVal": "14 eps",
-            "score": 7,
-            "sev": "r",
-            "cat": null
-          },
-          {
             "key": "nsi",
             "label": "NSI",
             "value": 66,
@@ -52647,24 +52494,6 @@
             "score": 7,
             "sev": "r",
             "cat": "hr"
-          },
-          {
-            "key": "cs",
-            "label": "Cheyne-Stokes",
-            "value": 2,
-            "displayVal": "2/3 indicators",
-            "score": 6,
-            "sev": "r",
-            "cat": null
-          },
-          {
-            "key": "uars",
-            "label": "UARS Pattern",
-            "value": 2,
-            "displayVal": "2/3 indicators",
-            "score": 6,
-            "sev": "r",
-            "cat": null
           },
           {
             "key": "odi1",
@@ -52739,6 +52568,24 @@
             "cat": "spo2"
           },
           {
+            "key": "cs",
+            "label": "Cheyne-Stokes",
+            "value": 1,
+            "displayVal": "1/3 indicators",
+            "score": 3,
+            "sev": "w",
+            "cat": null
+          },
+          {
+            "key": "uars",
+            "label": "UARS Pattern",
+            "value": 1,
+            "displayVal": "1/3 indicators",
+            "score": 3,
+            "sev": "w",
+            "cat": null
+          },
+          {
             "key": "odi4",
             "label": "ODI-4/hr",
             "value": 3.2,
@@ -52779,6 +52626,15 @@
             "label": "CT<94%",
             "value": 3.73,
             "displayVal": "3.73%",
+            "score": 1,
+            "sev": "g",
+            "cat": null
+          },
+          {
+            "key": "pbEp",
+            "label": "PB Episodes",
+            "value": 2,
+            "displayVal": "2 eps",
             "score": 1,
             "sev": "g",
             "cat": null
@@ -52885,16 +52741,16 @@
             "cat": null
           },
           {
-            "key": "pbEp",
-            "label": "PB Episodes",
-            "value": 14,
-            "displayVal": "14 eps",
+            "key": "nsi",
+            "label": "NSI",
+            "value": 66,
+            "displayVal": 66,
             "score": 7,
             "sev": "r",
-            "cat": null
+            "cat": "hr"
           }
         ],
-        "impression": "Moderate burden: nadir SpO₂ 83%, SBII 118.758 %²·min/hr; CS pattern indicators 2/3 — screening signal, no periodicity test.",
+        "impression": "Moderate burden: nadir SpO₂ 83%, SBII 118.758 %²·min/hr.",
         "overallScore": 9
       },
       "odi4": {
@@ -53820,7 +53676,7 @@
       "crossSignal": {
         "autoArousalIdx": 3.2,
         "crcIdx": 0.433,
-        "divergeCount": 14,
+        "divergeCount": 2,
         "divergePct": 100,
         "hrRecovery": null
       },
@@ -53872,13 +53728,13 @@
         "ct85m": 0.3
       },
       "sleepStability": {
-        "score": 59,
-        "grade": "Poor",
+        "score": 71,
+        "grade": "Fair",
         "components": {
           "spo2Stab": 47,
           "hrFloor": 100,
           "motion": 83,
-          "pb": 30,
+          "pb": 90,
           "hypoxicBurden": 68,
           "t95": 52
         }
@@ -53893,17 +53749,15 @@
         "periodicity": null
       },
       "oscillations": {
-        "episodeCount": 14,
-        "peakCrossings": 18,
-        "totalCrossings": 156,
-        "first": "21:58:46 01/07/2026",
-        "last": "03:18:46 02/07/2026"
+        "episodeCount": 2,
+        "peakCrossings": 10,
+        "totalCrossings": 17,
+        "first": "00:39:42 02/07/2026",
+        "last": "03:20:32 02/07/2026"
       },
       "flags": [
         "SPO2_CRITICAL_DIP",
         "ODI4_BORDERLINE",
-        "PERIODIC_BREATHING(14)",
-        "BLUNTED_AROUSAL(100%)",
         "NOCTURNAL_STRESS(66)",
         "SBII_Q5(118.758)"
       ],
@@ -54316,7 +54170,7 @@
           "pbCycleLen": 77.4,
           "pbCycleLenSD": 54.8,
           "pbAmplitude": 4.2,
-          "pbLoad": 10.607,
+          "pbLoad": 1.515,
           "pbFirstThirdRatio": 0.52,
           "pbEarlyCount": 23,
           "pbLateCount": 21
@@ -54368,18 +54222,24 @@
           ]
         },
         "patScore": {
-          "csScore": 2,
-          "csLabel": "2/3 indicators",
-          "uarsScore": 2,
-          "uarsLabel": "2/3 indicators"
+          "csScore": 1,
+          "csLabel": "1/3 indicators",
+          "uarsScore": 1,
+          "uarsLabel": "1/3 indicators"
         },
         "dfa": {
           "alpha1": 1.728,
           "dfaLabel": "SpO₂ DFA (α1=1.728) — HR-DFA thresholds do not apply to SpO₂ signal"
         },
         "fft": {
-          "peakFreqHz": 0.008,
-          "peakCycSec": 125
+          "peakFreqHz": null,
+          "peakCycSec": null,
+          "snr": 13.16,
+          "threshold": 19.64,
+          "bins": 387,
+          "strided": true,
+          "rhoLag1": 0.9849,
+          "detected": false
         },
         "hrEnt": {
           "sampEn": 1.3367,
