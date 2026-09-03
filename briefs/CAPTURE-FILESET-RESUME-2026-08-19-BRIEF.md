@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS (core shipped #1532; **field-verified 2026-09-02 — Verity median 2 sets/night, range 1–3, over 14 nights on vigil, against this brief's own pre-feature baseline of 15**: the feature works in the field. The 2026-08-26 DONE stamp was PREMATURE rather than wrong — the code had shipped and does what it claims, but two acceptance items had no evidence and one still does not. Remaining: §3.1's coverage-equality test, which closes boxes 2 and 4 together, plus box 1's gap-row case. **Owner:** Heron) · **Created:** 2026-08-19 · **Follows:** `VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md` (§P2.2 — the one P2 item its 2026-08-19 verification left open)
+**Status:** IN-PROGRESS (core shipped #1532; field-verified 2026-09-02 — Verity median 2 sets/night, range 1–3, over 14 nights on vigil against a pre-feature baseline of 15. **§3.1's coverage-equality test landed 2026-09-03, closing boxes 2 and 4**; the 2026-08-26 DONE was premature rather than wrong and the record now matches the evidence. ONE box remains and it is box 1's second clause: a planted reconnect must land in the same file-set WITH A GAP ROW — both window directions and the append are tested, the gap-row half is not. **Owner:** Heron) · **Created:** 2026-08-19 · **Follows:** `VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md` (§P2.2 — the one P2 item its 2026-08-19 verification left open)
 
 # Resume the file-set on reconnect — the last open P2 item, remeasured before proposing
 
@@ -66,17 +66,23 @@ that only handles link flaps misses the majority case.
       starts a fresh set. Both directions tested. **PARTLY VERIFIED 2026-09-02:** both window directions are
       tested (`test_resumable_stamp_finds_the_set_inside_the_window` + the outside-window `is None` case), and
       `test_stream_writer_resumes_without_a_second_header` pins the append; **the gap-row half has no test.**
-- [ ] nightqc coverage is byte-equal between a resumed night and its fragmented twin (planted).
-      **OPEN — verified absent 2026-09-02:** no test in `tests/test_nightqc.py` compares coverage between a
-      resumed night and a fragmented twin (searched the concept, not a name). This is §3.1's invariant and it
-      is this brief's ONE real remaining work item.
+- [x] nightqc coverage is byte-equal between a resumed night and its fragmented twin (planted).
+      **CLOSED 2026-09-03** — `test_a_resumed_set_and_its_fragmented_twin_score_the_SAME_coverage`
+      (`tests/test_nightqc.py`): two night dirs describing the same real night, one resumed across a
+      120 s reconnect and one fragmented into the two files the pre-resume writer would have produced,
+      same rows and same wall-clock extent. Both score identically. Paired with
+      `test_the_equality_is_SENSITIVE_to_the_span_it_asserts`, which separates the fragments beyond
+      `_SESSION_GAP_SEC` and requires the coverage to DIFFER — without it the equality would pass
+      against a span-blind `summarize` and prove nothing. Verified by shrinking `_SESSION_GAP_SEC` to
+      60 s so the fragments no longer merge: the equality leg goes red, i.e. it measures the merging it
+      asserts.
 - [x] A real Verity duty-cycle night captures as **2 sets (median; range 1–3, n = 14 nights)**, measured on
       vigil 2026-09-02 by counting distinct 14-digit set stamps per device per night, against the pre-feature
       baseline of median 15. ⚠️ The item as written asked for “~1 set” and the measured answer is **2** —
       recorded as measured rather than rounded to the target, because a night with a genuine long gap SHOULD
       mint a fresh set: that is §2's window rule working, not a shortfall. 2 is the honest number and the
       better target.
-- [ ] `check.sh` green at 100 % branch coverage; every §3 invariant has its own test. **PARTLY VERIFIED
-      2026-09-02:** the 100 % floor is real and CI-enforced, and §3.2's no-re-anchor invariant is tested
-      (`test_resumed_ecg_keeps_its_relative_ms_anchor`); this box fails ONLY on §3.1, i.e. it closes with the
-      box-2 test above and needs nothing else.
+- [x] `check.sh` green at 100 % branch coverage; every §3 invariant has its own test. **CLOSED
+      2026-09-03** — it failed only on §3.1, which the box above now covers; §3.2's no-re-anchor
+      invariant was already tested (`test_resumed_ecg_keeps_its_relative_ms_anchor`) and the 100 %
+      floor is real and CI-enforced.
