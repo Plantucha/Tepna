@@ -295,9 +295,54 @@ every downward tilt into a large positive that still looks like data.
 here to calibrate against. Counts are returned as counts; do not synthesise g — a plausible-looking
 acceleration is worse than an obviously raw one.
 
-**[HW] is EMPTY for this stream.** No ring in this project has ever been asked to push, and zero ACC
-bytes have ever been observed. That `parse_rt_acc`'s layout is correct is **[INF]**: it is written
-against the vendor's description and has never met a real frame.
+### [HW] First frames — 2026-09-03 ~19:30
+
+**This stream had never been exercised until the evening this section was written**, and the history
+matters because it is easy to overwrite with a tidier and falser one. The `0x08` path shipped in
+`bf68b959` (2026-09-03 01:32). `setup_frame` has exactly one caller:
+
+    _push = oxyii.RT_PUSH_ACC if "acc" in (dev.get("streams") or []) else 0x00
+
+Until a device config carried `acc`, that ternary never took its left branch. The capability existed
+for ~18 hours before anything used it. **So "this project always sent `0x00`" is a true statement
+about every capture in the archive**, and §9's `auto_switch = 0` remains a correct reading of the
+ring at sweep time rather than an artefact.
+
+`acc` was then ticked in the Devices UI and the capture restarted — a stream change takes effect only
+at connect — and `acc_o2` registered for the first time. Verified here from two monitor screenshots
+five minutes apart: **14 streams carrying two ACC channels at 19:24; 15 streams carrying three at
+19:29**, the new one being the ring's.
+
+    ACC (O2Ring)   LIVE    x -2968   y 4616   z -6080    3ch · event
+
+The signed read is supported: two axes are negative, and an unsigned decode would have shown values
+near 2\*\*32 for them.
+
+⚠️ **A units hypothesis, held deliberately BELOW the evidence.** That triplet has magnitude 8190 —
+within 0.03 % of 2\*\*13 — which would suggest **8192 counts/g, i16 at ±4 g**. Two sessions computed it
+independently off different triplets (8190, 8191). **It is not established, and the obvious
+supporting argument is unsound.** The `Motion` channel read `0` in the same frame, but §6's
+retraction list records motion reading `0` *across the opcode that buzzed*: a motor shaking the
+accelerometer produced no motion reading. `motion == 0` may mean "still", or may mean "this channel
+does not respond", and a single frame cannot separate them. Harder evidence against stillness: across
+a run of SSE samples the magnitude ranged **8024 – 8785**, so the ring was demonstrably moving and
+8190 is the low end of a spread, not a resting value.
+
+**The test that would settle it:** six orientations (±x, ±y, ±z up), ring still in each, checking that
+|a| holds near constant and each axis approaches it at 1 g. The stillness criterion must be the
+magnitude's own variance over a held interval — **never** the motion byte, for the reason above.
+Until then counts stay counts.
+
+⚠️ **Open — the effective rate is not the sample rate.** Each distinct triplet repeats ~6–7× in the
+buffer at an effective 10.16 Hz, so the true update rate may be nearer **~1.5 Hz**: either the sensor
+updates slower than the frame carries it, or the stride re-reads records. Nobody should treat 10 Hz
+as a sampling rate before this is pinned. If it is ~1.5 Hz the ring's ACC is far too coarse to time a
+buzz, and the H10/Verity remain the fiducial receivers.
+
+**Provenance of this subsection.** The stream-count change is **[HW]**, verified here from the
+monitor. The commit id, the `/api/state` before-state (`acc_vs` and `acc_h10` present, `acc_o2`
+absent), the single-caller claim and the 8024–8785 spread are **reported by the Heron session and are
+not independently verified here.**
 
 ### Before anyone enables it
 
@@ -306,8 +351,8 @@ session** — unsolicited frames carrying opcodes the dispatcher has never seen.
 the caller rather than switched on in the library. Enable `0x08` alone rather than OR-ing in
 wave/PPG, so that a dispatcher failure is attributable to one stream.
 
-⚠️ This is a live-capture behaviour change on a device that cannot be re-run: treat a first run as an
-experiment with a night at stake, not a setting. Back up un-synced sessions and verify them BY VALUE
+⚠️ This is a live-capture behaviour change on a device that cannot be re-run. The first such run happened
+on 2026-09-03; treat any further one the same way — an experiment with a night at stake, not a setting. Back up un-synced sessions and verify them BY VALUE
 first, exactly as the top of this brief did.
 
 ### The USB path, for contrast
@@ -319,8 +364,10 @@ hardware, if it is reachable at all, is BLE-only. See `O2RING-USB-FIELD-NOTES-20
 ### What this closes elsewhere
 
 `DEVICE-RATE-TRUTH-2026-08-05` carries **"Whether the ring exposes an accelerometer"** as an open
-question. It can now be answered — but not with a yes or a no: **the capability is declared by the
-vendor surface and decoded here, gated off by `AUTO_RT_SWITCH`, and has never been exercised.** The
+question. **It is answered: the ring does expose one.** Declared by the vendor surface, decoded
+here, gated off by `AUTO_RT_SWITCH` for the life of the archive, and first observed on
+2026-09-03 ~19:30 — so every capture predating that carries no ACC and no amount of reprocessing
+will recover it. The
 §5 decision to leave GYRO and MAG off is unaffected; there is no gyro or magnetometer opcode in this
 command space at all.
 
