@@ -657,22 +657,62 @@ def parse_oxy_trailer(data: bytes) -> dict | None:
 
     `data` is the whole file; the trailer is its last 48 bytes. Returns None (not an exception) when the
     file is too short OR not finalised — a caller re-pulls in a later sync cycle rather than trusting a
-    half-written summary. `o2_score_x10` is 0xFF on short sessions → surfaced as None."""
+    half-written summary. `o2_score_x10` is 0xFF on short sessions → surfaced as None.
+
+    ── `start_t_ms` IS THE FIELD THIS PARSER WAS MISSING (added 2026-09-02) ─────────────────────────
+    `T+8` is a u32 recording start time and was never read here, so every stored `.dat` we hold carried
+    its own start stamp and we inferred one from the filename instead.
+
+    ⚠️ **It is a FLOATING wall-clock epoch, not a real instant, and that is measured rather than assumed.**
+    Across six stored files the value read as UTC equals the filename's LOCAL wall-clock stamp to +0.00 h
+    on all six; if the ring applied the timezone we push in `set_time_frame` the delta would be ±5 h.
+    So it is local civil time encoded as if it were UTC — exactly CLAUDE.md §🔒.1's canonical `tMs`, in
+    seconds. Returned as `start_t_ms` (× 1000) so a caller can use it directly with `getUTC*`/
+    `utcfromtimestamp` semantics. **Do NOT apply a timezone to it, and do not call it UTC.** The vendor's
+    own SDK adds a zone offset when it reads this field — that is the phone app converting a floating
+    stamp to an instant with the phone's zone, not the ring having written one.
+    The ring's clock is still unsynced and drifts (§9), so this is an honest floating stamp, not an
+    accurate one — it needs the same per-download offset correction as before. What it removes is the
+    guess, not the drift.
+
+    ── `total_seconds` is a SAMPLE COUNT, and it is right only because `interval` is 1 ──────────────
+    `T+12` is the u32 sample count and `T+16` is the seconds-per-sample interval; the recording duration
+    is their product. This function read `T+12` as a u16 and named it `total_seconds`.
+    ⚠️ **That is not a live defect and is not being reported as one.** Measured over all 30 stored files:
+    every `interval` is 1, the u16 and u32 reads are identical on 30/30, and the largest session is
+    36 000 samples against a u16 wrap at 65 536 — §5's 10 h hard cap keeps it below the wrap by
+    construction. It is read at its true width here for honesty, and `sample_count`/`interval_s` are
+    surfaced so a future firmware with `interval != 1` cannot silently redefine `total_seconds`.
+    **What would make it bite** (name the condition, not just today's safety): a ring whose session cap
+    exceeds 65 536 samples, or any `interval` other than 1 — the first truncates the count silently, the
+    second makes `total_seconds` a count rather than a duration. Either way `duration_s` stays correct
+    and `total_seconds` does not, so prefer `duration_s` in new code.
+
+    Back-compat: every pre-existing key keeps its name, type and value. New keys are additive."""
     if len(data) < _TRAILER_LEN:
         return None
     t = data[-_TRAILER_LEN:]
     if t[4:8] != _TRAILER_SUBMAGIC:
         return None                                        # not finalised (or not Format A)
     score = t[42]
+    samples = int.from_bytes(t[12:16], "little")
+    interval = t[16]
     return {
         "finalized": True,
-        "total_seconds": t[12] | (t[13] << 8),
+        "total_seconds": samples,                          # == duration only while interval == 1
+        "sample_count": samples,
+        "interval_s": interval,
+        "duration_s": samples * interval,
+        "start_t_ms": int.from_bytes(t[8:12], "little") * 1000,   # FLOATING wall clock — see above
         "avg_spo2": t[34],
         "min_spo2": t[35],
         "desat_ge3": t[36],
         "desat_ge4": t[37],
         "seconds_below_90": t[39] | (t[40] << 8),
         "episodes_below_90": t[41],
+        "asleep_seconds": t[32] | (t[33] << 8),
+        "pct_below_90": t[38],
+        "steps": int.from_bytes(t[43:47], "little"),
         "o2_score_x10": None if score == 0xFF else score,
         "avg_hr": t[47],
     }
