@@ -325,8 +325,12 @@ supporting argument is unsound.** The `Motion` channel read `0` in the same fram
 retraction list records motion reading `0` *across the opcode that buzzed*: a motor shaking the
 accelerometer produced no motion reading. `motion == 0` may mean "still", or may mean "this channel
 does not respond", and a single frame cannot separate them. Harder evidence against stillness: across
-a run of SSE samples the magnitude ranged **8024 – 8785**, so the ring was demonstrably moving and
-8190 is the low end of a spread, not a resting value.
+a run of SSE samples the magnitude ranged **7020 – 9466** — a spread of 2446 counts, **30 % of the
+mean** — so the ring was demonstrably moving and 8190 is one point inside a wide band, not a resting
+value. Measured here on 2026-09-03 over a ~21 s subscription to `GET /api/stream/acc_o2`: 279 rows,
+44 distinct readings, |a| min 7020 / p50 8099 / max 9466, mean **8159.5** against 2\*\*13 = 8192. The
+mean sitting near 8192 is suggestive and is not evidence; a 30 % spread cannot yield a scale
+factor.
 
 **The test that would settle it:** six orientations (±x, ±y, ±z up), ring still in each, checking that
 |a| holds near constant and each axis approaches it at 1 g. The stillness criterion must be the
@@ -341,10 +345,15 @@ no daemon, pauses no capture and consumes no night. That is a different and much
 quoted as one number. The only genuinely scarce input is a person willing to rotate a ring in their
 hand for five minutes.
 
-⚠️ **Open — the effective rate is not the sample rate.** Each distinct triplet repeats ~6–7× in the
-buffer at an effective 10.16 Hz, so the true update rate may be nearer **~1.5 Hz**: either the sensor
-updates slower than the frame carries it, or the stride re-reads records. Nobody should treat 10 Hz
-as a sampling rate before this is pinned. If it is ~1.5 Hz the ring's ACC is far too coarse to time a
+⚠️ **Open — the effective rate is not the sample rate.** Each distinct triplet repeats in the buffer:
+measured here, consecutive run lengths are **min 4 · median 6 · max 7 · mean 6.34** over 279 rows, so
+only 44 of them were distinct readings. Either the sensor updates slower than the frame carries it,
+or the stride re-reads records. The delivered row rate is therefore NOT the sampling rate, and nobody
+should treat it as one. ⚠️ A true rate cannot be taken from this sample either: the stream opens with
+an `event: snapshot` that replays buffered history, so the window is not clean wall-clock — 44
+distinct over ~21 s (~2 Hz) is an upper-bound-flavoured estimate, consistent with an independent
+~1.5 Hz reading, and neither is a measurement. The payload's own declared `fs` was `0` on the
+snapshot and `1` thereafter. If it is ~1.5 Hz the ring's ACC is far too coarse to time a
 buzz, and the H10/Verity remain the fiducial receivers.
 
 **Provenance of this subsection**, split by what it costs a later reader to re-derive — because
@@ -370,9 +379,13 @@ buzz, and the H10/Verity remain the fiducial receivers.
   `setup_frame() == setup_frame(0x00)`, that payload byte 7 is the `AUTO_RT_SWITCH` bitfield, and that
   `setup_frame(RT_PUSH_ACC)[7] == 0x08`. A change that silently made pushing the default would fail
   CI rather than quietly alter what every future capture contains.
-- **Reported by the Heron session, NOT verified here** (needs Vigil, unreachable from this box): the
-  `/api/state` before-state showing `acc_o2` absent while `acc_vs` and `acc_h10` were present, and the
-  8024–8785 magnitude spread read off a live SSE stream.
+- **Measured here over HTTP** — the repeat factor and the magnitude spread, from
+  `GET /api/stream/acc_o2` on the monitor. Vigil's HTTP API is reachable on the LAN even where SSH is
+  not, which is worth knowing: a read-only check of a live stream does not need shell access, and an
+  earlier revision of this section wrongly recorded these as unverifiable for want of it.
+- **Reported by the Heron session, NOT verified here:** the `/api/state` before-state showing
+  `acc_o2` absent while `acc_vs` and `acc_h10` were present. That is a claim about a moment that has
+  since passed and cannot now be re-observed by anyone.
 
 ### Before anyone enables it
 
