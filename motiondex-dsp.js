@@ -1441,6 +1441,12 @@
             : null,
         activityCadenceSec: summary.activity ? summary.activity.epochSec : null,
         respRateBrpm: summary.effort ? summary.effort.rateBrpm : null,
+        /* THE METHOD THAT PRODUCED THE RATE (residue `2026-09-02-motiondex-respratemethod-unexported`).
+           The estimator has set `respRateMethod` since it shipped — and this reshape never named it, so
+           it never left the node and the Integrator hardcoded a string over it. A rate whose estimator
+           cannot be attributed is the thing §6A's box claimed to deliver. Emitted beside the value it
+           describes so the two cannot separate again. */
+        respRateMethod: summary.effort ? summary.effort.respRateMethod || null : null,
         // effort-presence series — a MotionDex standalone read AND the Integrator apnea-typing input (§1.1).
         // Coverage-honest: an epoch's `present` is null where chest ACC was not recording, never a false absent.
         effortSeries: summary.effort && summary.effort.series ? summary.effort.series : null,
