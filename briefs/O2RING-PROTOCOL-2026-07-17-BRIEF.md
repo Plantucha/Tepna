@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** REFERENCE (living — protocol reverse-engineering, validated on hardware. **Substantially extended 2026-09-02** from the vendor SDK + the MIT reverse-engineering reference, with every borrowed claim re-checked against our own corpus where it could be: §3a AES on branch `2D010001` · §3c the 33-opcode map and the `GET_INFO` branch-code correction · byte `[14]` decoded · §5 the full trailer map, re-verified on 30 stored files · §9a the timezone byte and the measured floating-epoch result. Three stale claims corrected: "no AES anywhere", the auth timestamp shift form, and "nonzero status ⇒ suspect sample". See **Sources** at the end for what came from where) · **Residue:** R18, R19, R20 · **Created:** 2026-07-17
+**Status:** REFERENCE (living — protocol reverse-engineering, validated on hardware. **Substantially extended 2026-09-02** from the vendor SDK + the MIT reverse-engineering reference, with every borrowed claim re-checked against our own corpus where it could be: §3a AES on branch `2D010001` · §3c the 33-opcode map and the `GET_INFO` branch-code correction · byte `[14]` decoded · §5 the full trailer map, re-verified on 30 stored files · §9a the timezone byte and the measured floating-epoch result. Three stale claims corrected: "no AES anywhere", the auth timestamp shift form, and "nonzero status ⇒ suspect sample". See **Sources** at the end for what came from where) · **Residue:** R18, R19, R20, R21 · **Created:** 2026-07-17
 
 > ### ⚠️ The 125.738 Hz calibration below is a REAL FIT AND NOT A TIMEBASE (noted 2026-08-02)
 > §"Rate: 125.738 Hz measured" stands as a measurement — a genuine fit over 12 sessions / 2 616 483
@@ -188,7 +188,7 @@ against the paired ECG at 49 bpm) — see `oxyii.parse_ppg`:
 | Bytes | Meaning |
 |---|---|
 | `[0:20]` | status header (§3 above, `parse_live`) — **the vendor's own split is `[0:20]`, not `[0:24]`** |
-| `[20:24]` | **running sample OFFSET, `u32` LE** — added 2026-09-02. Not padding, and not zeros: the vendor parses `0x04` as `RtParam(payload[0:20])` + `RtWave(payload[20:])`, where the wave block is `{u32 offset, u16 size, samples}`. The public RE reference calls `[14..23]` "zeros padding"; the last four of those are this counter. **It is a second, independent dropped-sample check** alongside the `126 × frames − samples` identity below — and unlike that identity it works on a single frame pair. Not yet read by `oxyii.parse_ppg`. |
+| `[20:24]` | **running sample OFFSET, `u32` LE** — added 2026-09-02. Not padding, and not zeros: the vendor parses `0x04` as `RtParam(payload[0:20])` + `RtWave(payload[20:])`, where the wave block is `{u32 offset, u16 size, samples}`. The public RE reference calls `[14..23]` "zeros padding"; the last four of those are this counter. **It is a second, independent dropped-sample check** alongside the `126 × frames − samples` identity below — and unlike that identity it works on a single frame pair. ⚠️ **This row said *"Not yet read by `oxyii.parse_ppg`"* for one commit (#2124) and that was WRONG:** `oxyii.ppg_stream_offset` has read `[20:24]` since 2026-08-05, `capture.py:3624` calls it, `writers.py` records it, and `test_oxyii.py` pins it four ways — including that `0` is a reading and absence is `None`. Our code had the field, cited the vendor's `RtWave.offset` by name, and argued why it earns a column, all before this harvest. The false claim came from reading an external report's *"not in our brief"* as *"not in our code"* without grepping. |
 | `[24:26]` | sample count `N` — **`u16` LE** (PR #212). Frames seen so far carry `[25] = 0`, so an earlier `u8` read at `[24]` agreed by accident; it breaks silently above 255 samples/frame. `len(payload) == 24 + 2 + N` holds on every frame. ✓ agrees with the vendor's `size` field. |
 | `[26:26+N]` | `N` **unsigned 8-bit** optical samples, **single channel** |
 
@@ -259,6 +259,30 @@ Ticks are what `oxyii.py` implements today.
 | `0xF6` · `0xF7` | *unnamed* | ❌ | |
 | `0xF8` | **DELETE_FILE** | ❌ | |
 | `0xFF` | AUTH | ✅ | §3 / §3a |
+
+**How the 13 are actually implemented — and the gap the table exposes** (added 2026-09-02):
+
+| cmd | builder | reply parser | note |
+|---|---|---|---|
+| `0xFF` | `auth_frame` → `auth_payload` | — | no reply on `2D010002` |
+| `0x10` | `setup_frame` (hardcoded `b"\x00"`) | **none** | ack ignored |
+| `0x04` | `live_frame` | `parse_live` · `parse_ppg` · `ppg_sample_count` · `ppg_stream_offset` | the fully-parsed one |
+| `0x05` | `rt_ppg_frame` | `parse_rt_ppg` | signed 24-bit channels |
+| `0xC0` | `set_time_frame` | **none** | ack ignored |
+| `0xF1` | `file_list_frame` | `parse_file_list` | |
+| `0xF2` | `file_start_frame` | **none** | size read inline in `pull_session` |
+| `0xF3` | `file_data_frame` | — | raw chunk |
+| `0xF4` | `file_end_frame` | **none** | ack ignored |
+| `0x00` | `config_frame` | `parse_config` | |
+| `0x01` | `set_config_frame` | **none** | ack ignored |
+| `0xE1` | `info_frame` | `parse_get_info` | returns `branchCode` as `"firmware"` (R18) |
+| `0xE4` | `battery_frame` | `parse_battery` | |
+
+🔴 **Five of the thirteen have no reply parser at all, and every one of them is ack-only** — `0x10`,
+`0xC0`, `0xF2`, `0xF4`, `0x01`. We send the command and never look at the answer, which is exactly where
+the vendor puts success/failure (`pkgType == 1`, §2). **A rejected `SET_CONFIG` or a rejected
+`SET_UTC_TIME` is currently indistinguishable from an accepted one** — so a ring running on a wrong clock
+would look identical to one that took the update. Logged as R21.
 
 **The ring computes sleep staging on-device, and `0x04` structurally cannot deliver it.** A `RT_PARAM`
 reply of ≥ 80 bytes carries `startTimestamp`/`endTimestamp` (u32 each), `awakeDuration`, `deepDuration`,
