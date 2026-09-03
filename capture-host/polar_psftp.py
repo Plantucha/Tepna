@@ -169,7 +169,16 @@ def _parse_directory(buf) -> list[tuple[str, int]]:
 # ── RFC76 framing ──
 class _Seq:
     __slots__ = ("seq",)
-    def __init__(self): self.seq = 0
+    # Split across two lines DELIBERATELY, and not for style. As `def __init__(self): self.seq = 0`
+    # this was the module's ONLY partial branch (`172->173`) and the last thing holding capture-host
+    # below the 100 % floor. It was never an untested branch: `_Seq` is instantiated at two call sites
+    # and by `test_psftp_protocol`, and `inc()` is exercised — coverage.py simply cannot express an arc
+    # for a same-line compound `def`, so line 172 carried both the definition and the body and one of
+    # its two successors was unreachable by construction. Verified by experiment: instantiating `_Seq`
+    # and calling `inc()` 17 times leaves the partial in place, and splitting the line clears it with
+    # no test change. Writing a test for it would have been writing a test for nothing.
+    def __init__(self):
+        self.seq = 0
     def inc(self): self.seq = self.seq + 1 if self.seq < 0x0F else 0
 
 # ── PS-FTP QUERY (as opposed to a file REQUEST) ─────────────────────────────────────────────────────
