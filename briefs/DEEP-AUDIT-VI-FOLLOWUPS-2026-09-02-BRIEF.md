@@ -995,10 +995,24 @@ difference cannot be attributed to event density. The two historical snapshots a
   `[0xA5][cmd][~cmd]` header check or CRC-8 and the ring **connects, auths "successfully", and delivers no
   decoded frames** — indistinguishable from a bad link, and already reported as a stall by the path that
   exists. The misattribution cost is the whole point: an operator would chase a radio problem that is not
-  there. #2084 arms the observable half (the ring's DIS firmware revision reaches `STATUS`, and an
-  unmeasured version is named at connect). The remaining half is the decoder saying so by name — after N
-  consecutive header/CRC rejections on a link that authed cleanly, report "frames failed header/CRC after
-  auth — firmware may key the session" rather than a stall. Cheap first probe: count those rejections
+  there. The decoder should say so by name — after N consecutive header/CRC rejections on a link that
+  authed cleanly, report "frames failed header/CRC after auth — firmware may key the session" rather than
+  a stall.
+  🔴 **CORRECTION 2026-09-03 (Heron): this lead previously read "#2084 arms the observable half (the
+  ring's DIS firmware revision reaches `STATUS`)". THAT IS FALSE ON OUR HARDWARE and I wrote it.** #2084
+  merged and deployed, and the first worn-and-connected night returned `firmware=ABSENT` with
+  `BleakCharacteristicNotFoundError` in the daemon log: **our O2Ring does not implement DIS `0x2A26` at
+  all.** The code behaves exactly as designed — it attempts the read, fails, logs the reason and leaves
+  the field absent rather than fabricating one — and that correct behaviour cannot produce the
+  observable. The recorded trigger "STATUS firmware field ≠ 2D010002" can therefore never fire. **An
+  observable the device cannot supply is not a weaker trigger; it is not a trigger**, so this half is
+  NOT armed and must not be counted as such.
+  Why the tests missed it, which is the transferable part: `FakeGattClient` answered the DIS UUID
+  because I taught it to, so five tests, four plants watched failing and 100 % coverage all bounded the
+  FIXTURE and said nothing about the device — **the fake was more capable than the hardware.**
+  Consequence: the decode-failure-by-cause half above is now the ONLY viable arming, because a reply to
+  `0xFF` arriving at all is an observable the ring can actually produce — no DIS, no version string, no
+  firmware field. It is in flight as #2133 (Finch). Cheap first probe unchanged: count those rejections
   separately from the stall counter and see whether the two are already distinguishable in today's data.
 
 - ~~**15 of 48 box nights have NO ECG/PPG beat-train overlap** — a capture-session fact, not a DSP one~~
