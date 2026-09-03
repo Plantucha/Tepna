@@ -149,6 +149,8 @@ errored, and in most the wrong answer was *plausible*, which is why none looked 
 | the filename `20260902_232214` | a **device stamp**, ~21 min ahead of the box | a wall-clock instant (made a restart artifact read as a false start) |
 | `gh pr checks` SUCCESS count | how many checks **passed** | whether any **failed** — 22 green hid one FAILURE |
 | `SESSIONDETECT.csv` state column | what the detector **reported** | whether therapy **ran** — it read `Standby`/`0.1` through a proven 7 h night |
+| a `capture.py` line number | where a statement sits in the **shared root** | where it sits on `origin/main` — the root is **103 commits behind**, so every coordinate was +10 |
+| `^capture-host/[a-z_]+\.(py\|sh)$` | files whose names are **lowercase and underscores** | which runtime files shipped — `[a-z_]+` excluded a digit and a hyphen, dropping `o2ring.py` and `tepna-update.sh` |
 
 **The guard is the one this document models: state the predicate beside the number.** A count without
 its predicate is not a measurement, and every row above is legible the moment the predicate is written
@@ -167,7 +169,21 @@ passed with the file logging 1700 rows a day and nobody reading them as wrong.
 > anyway. Where a mechanism can produce a plausible wrong answer rather than an error, write down what
 > that answer looks like — otherwise the constraint is a note, and the failure is invisible.
 
-Two corollaries earned the same day:
+⚠️ **The last two rows are operational, not rhetorical, and the first is a live hazard.**
+
+- **The shared root checkout `/home/michal/Tepna` was measured 103 commits behind `origin/main`
+  on 2026-09-03**, tree clean against its own HEAD — pure staleness, not anyone's in-flight edit. Its
+  `capture.py` differs from main by 30 insertions and **259 deletions**. Any session reading a code
+  fact there is citing a hundred-commit-old tree, and the failure is silent because the code is still
+  *present*, just at different offsets and occasionally with different content. Two files that happened
+  not to have drifted made two of four citations check out — an accident, not a method. **Read code
+  facts with `git show origin/main:<path>`, or from a worktree off `origin/main`.**
+- **Cite by SYMBOL, not by line number.** A line number is a fixed offset into a moving file; a symbol
+  survives every edit above it. This is the same unit error as a fixed-width source scan, which
+  re-scopes silently whenever the text above it grows — three of those were found in one file the same
+  afternoon.
+
+Two further corollaries earned the same day:
 
 - **Count the reds, never the greens.** `[.[]|select(.bucket=="fail")]|length` cannot hide a failure;
   a success count always can.
