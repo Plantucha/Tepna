@@ -1,6 +1,7 @@
 # tepna-capture — tests/test_nightqc.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 import os
+import time
 
 import math
 import datetime as _dtmod
@@ -1628,3 +1629,58 @@ def test_the_night_band_is_chosen_by_the_sessions_MIDPOINT(tmp_path):
     # began at 16:00, so the night it belongs to is the one that opened at 20:00 YESTERDAY.
     assert "[in-night]" in s["gaps"][0], "judged against the midpoint's band, 02:00 is a hole"
     assert s["ok"] is False, "a hole in the judged night cannot grade green"
+
+
+# ── §3.1 of CAPTURE-FILESET-RESUME: a resumed set and its fragmented twin must score identically ─────
+def _resume_pair(tmp_path, gap_s):
+    """Two night dirs describing the SAME real night: one file-set resumed across a reconnect, and the
+    fragments the pre-resume writer would have produced instead. Same rows, same wall-clock extent."""
+    from datetime import datetime as _dt
+    # The mtime must be consistent with the FILENAME STAMP — the session interval is [stamp, mtime],
+    # so an mtime on an unrelated epoch yields no span at all and the coverage dict comes back empty.
+    t0 = _dt.strptime("20260719220000", "%Y%m%d%H%M%S").timestamp()
+    half, tail = 1800, 1800
+    resumed = str(tmp_path / "resumed" / "2026-07-19"); os.makedirs(resumed)
+    _utime(_cap(resumed, "Polar_H10_02849638_20260719220000_HR.txt", half + tail),
+           t0 + half + gap_s + tail)
+    frag = str(tmp_path / "frag" / "2026-07-19"); os.makedirs(frag)
+    _utime(_cap(frag, "Polar_H10_02849638_20260719220000_HR.txt", half), t0 + half)
+    # the second fragment opens `gap_s` after the first stopped writing
+    stamp2 = time.strftime("%Y%m%d%H%M%S", time.localtime(t0 + half + gap_s))
+    _utime(_cap(frag, f"Polar_H10_02849638_{stamp2}_HR.txt", tail), t0 + half + gap_s + tail)
+    return resumed, frag
+
+
+def _hr_coverage(night):
+    s = nightqc.summarize(night, _devices())
+    return next(d for d in s["devices"] if d["name"] == "H10")["coverage"].get("hr"), s
+
+
+def test_a_resumed_set_and_its_fragmented_twin_score_the_SAME_coverage(tmp_path):
+    """CAPTURE-FILESET-RESUME §3.1, the brief's one open work item.
+
+    Whether the writer resumed across a short reconnect or minted a fresh set, the night is the same
+    night: the same rows arrived over the same wall-clock extent. If coverage disagrees, then adopting
+    resume silently re-scores every historical night against its own successor — a change in the
+    NUMBER with no change in the DATA, which is the shape this suite exists to refuse."""
+    resumed, frag = _resume_pair(tmp_path, gap_s=120)     # inside the 300 s resume window
+    cov_r, s_r = _hr_coverage(resumed)
+    cov_f, s_f = _hr_coverage(frag)
+    assert s_r["files"] == 1 and s_f["files"] == 2, "the two nights must actually differ in file count"
+    assert cov_r is not None, "a coverage of None would make the equality below vacuous"
+    assert 0.5 < cov_r < 1.5, f"the fixture should score a plausible ~1.0, got {cov_r}"
+    assert cov_r == cov_f, f"resumed {cov_r} vs fragmented {cov_f} — same data, different number"
+
+
+def test_the_equality_is_SENSITIVE_to_the_span_it_asserts(tmp_path):
+    """Anti-vacuity with teeth. The test above passes if `summarize` is span-blind, so this proves the
+    assertion can move: separate the fragments by MORE than the session gap and the second becomes a
+    different session, which `summarize` scopes away — so the coverage MUST differ. If this ever goes
+    equal, the equality above is measuring nothing."""
+    resumed, frag = _resume_pair(tmp_path, gap_s=int(nightqc._SESSION_GAP_SEC) + 600)
+    cov_r, _ = _hr_coverage(resumed)
+    cov_f, s_f = _hr_coverage(frag)
+    assert s_f["files"] == 2, "still two files; only their separation changed"
+    assert cov_r != cov_f, (
+        f"a fragment beyond the session gap must NOT score as the resumed night ({cov_r} == {cov_f}) "
+        "— if these are equal, coverage is ignoring the span and the equality test proves nothing")

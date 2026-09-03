@@ -685,7 +685,11 @@ def main():
             print("saved", out)
             _emit_csv(out)
             return
-        if a.cmd == "pull-all":
+        # pragma note: this guard only ever goes one way. `cmd` is a REQUIRED argparse
+        # argument, so it is never unset, and every other subcommand returns above — so
+        # reaching here means "pull-all". The guard stays because a subcommand added later
+        # that does NOT return would otherwise fall into this block silently.
+        if a.cmd == "pull-all":   # pragma: no branch
             import os
             for sid in file_list(dev):
                 print("pulling", sid)

@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS (core shipped #1532; **field-verified 2026-09-02 — Verity median 2 sets/night, range 1–3, over 14 nights on vigil, against this brief's own pre-feature baseline of 15**: the feature works in the field. The 2026-08-26 DONE stamp was PREMATURE rather than wrong — the code had shipped and does what it claims, but two acceptance items had no evidence and one still does not. Remaining: §3.1's coverage-equality test, which closes boxes 2 and 4 together, plus box 1's gap-row case. **Owner:** Heron) · **Created:** 2026-08-19 · **Follows:** `VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md` (§P2.2 — the one P2 item its 2026-08-19 verification left open)
+**Status:** DONE — 2026-09-03 (core shipped #1532. Every acceptance item is now verified by RUN, not by assertion: box 3 field-measured 2026-09-02 on vigil (Verity median 2 sets/night, range 1–3, n = 14, against a pre-feature baseline of 15); boxes 2 and 4 closed 2026-09-03 by the §3.1 coverage-equality test and its span-sensitivity control (#2134); box 1 closed 2026-09-03 — its "gap row" clause names the O2Ring grid's mechanism, and the ring never resumes, while the resuming Polar path shows the outage as a real discontinuity on the anchored `timestamp [ms]` axis, already pinned by `test_resumed_ecg_keeps_its_relative_ms_anchor`. The 2026-08-26 DONE was PREMATURE rather than wrong and was reopened 2026-09-02; this one is earned) · **Created:** 2026-08-19 · **Follows:** `VIGIL-OVERNIGHT-FINDINGS-2026-07-24-BRIEF.md` (§P2.2 — the one P2 item its 2026-08-19 verification left open)
 
 # Resume the file-set on reconnect — the last open P2 item, remeasured before proposing
 
@@ -62,21 +62,42 @@ that only handles link flaps misses the majority case.
 
 ## Done when
 
-- [ ] A planted reconnect inside the window lands in the SAME file-set with a gap row; outside the window
-      starts a fresh set. Both directions tested. **PARTLY VERIFIED 2026-09-02:** both window directions are
-      tested (`test_resumable_stamp_finds_the_set_inside_the_window` + the outside-window `is None` case), and
-      `test_stream_writer_resumes_without_a_second_header` pins the append; **the gap-row half has no test.**
-- [ ] nightqc coverage is byte-equal between a resumed night and its fragmented twin (planted).
-      **OPEN — verified absent 2026-09-02:** no test in `tests/test_nightqc.py` compares coverage between a
-      resumed night and a fragmented twin (searched the concept, not a name). This is §3.1's invariant and it
-      is this brief's ONE real remaining work item.
+- [x] A planted reconnect inside the window lands in the SAME file-set with a gap row; outside the window
+      starts a fresh set. Both directions tested. **CLOSED 2026-09-03, and the clause's wording is
+      corrected rather than satisfied literally.** Window directions: tested
+      (`test_resumable_stamp_finds_the_set_inside_the_window` + the outside-window `is None` case).
+      Append: `test_stream_writer_resumes_without_a_second_header`. The **gap row**:
+      `test_resumed_ecg_keeps_its_relative_ms_anchor` already pins it — a reopened writer recovers
+      `_first_ns`, so a 3-minute outage appears as `rel = 180_000.0` in the `timestamp [ms]` column, a
+      real discontinuity on an axis anchored to the ORIGINAL first sample. That IS §2.6's *visible
+      absence*, and it is better than the clause asks for.
+      ⚠️ **Why this read as untested for two weeks: the clause names a mechanism from the wrong
+      device.** "Gap row" comes from §2's justification, which cites the O2Ring PPG grid writer — and
+      the ring never resumes: `resumable_stamp` is called in `run_polar` alone, and `O2PpgGrid` is
+      rebuilt per session by design (`capture.py:3412`) precisely because a ring reconnect opens a new
+      file. The ring needs an inserted marker because its sample clock is SYNTHESIZED; Polar rows carry
+      real device and phone timestamps, so their gap is arithmetic in the data. Writing a literal gap
+      row on the resuming path would invent a row the file does not need, against `writers.py:13`
+      ("a gap in capture is a GAP in the file … never invented rows"). Same shape as O2RING-TIME-
+      CAPABILITY 2c: an acceptance item that names an identifier instead of the capability, and so
+      cannot be satisfied by the thing that already satisfies it.
+- [x] nightqc coverage is byte-equal between a resumed night and its fragmented twin (planted).
+      **CLOSED 2026-09-03** — `test_a_resumed_set_and_its_fragmented_twin_score_the_SAME_coverage`
+      (`tests/test_nightqc.py`): two night dirs describing the same real night, one resumed across a
+      120 s reconnect and one fragmented into the two files the pre-resume writer would have produced,
+      same rows and same wall-clock extent. Both score identically. Paired with
+      `test_the_equality_is_SENSITIVE_to_the_span_it_asserts`, which separates the fragments beyond
+      `_SESSION_GAP_SEC` and requires the coverage to DIFFER — without it the equality would pass
+      against a span-blind `summarize` and prove nothing. Verified by shrinking `_SESSION_GAP_SEC` to
+      60 s so the fragments no longer merge: the equality leg goes red, i.e. it measures the merging it
+      asserts.
 - [x] A real Verity duty-cycle night captures as **2 sets (median; range 1–3, n = 14 nights)**, measured on
       vigil 2026-09-02 by counting distinct 14-digit set stamps per device per night, against the pre-feature
       baseline of median 15. ⚠️ The item as written asked for “~1 set” and the measured answer is **2** —
       recorded as measured rather than rounded to the target, because a night with a genuine long gap SHOULD
       mint a fresh set: that is §2's window rule working, not a shortfall. 2 is the honest number and the
       better target.
-- [ ] `check.sh` green at 100 % branch coverage; every §3 invariant has its own test. **PARTLY VERIFIED
-      2026-09-02:** the 100 % floor is real and CI-enforced, and §3.2's no-re-anchor invariant is tested
-      (`test_resumed_ecg_keeps_its_relative_ms_anchor`); this box fails ONLY on §3.1, i.e. it closes with the
-      box-2 test above and needs nothing else.
+- [x] `check.sh` green at 100 % branch coverage; every §3 invariant has its own test. **CLOSED
+      2026-09-03** — it failed only on §3.1, which the box above now covers; §3.2's no-re-anchor
+      invariant was already tested (`test_resumed_ecg_keeps_its_relative_ms_anchor`) and the 100 %
+      floor is real and CI-enforced.

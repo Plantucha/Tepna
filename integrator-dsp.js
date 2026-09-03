@@ -636,7 +636,12 @@ function adaptEnvelopeNode(json, node, filename) {
     summary.immobileFrac = mo.immobileFrac != null ? mo.immobileFrac : null;
     summary.movementIndex = mo.movementIndex != null ? mo.movementIndex : null;
     summary.respRateBrpm = mo.respRateBrpm != null ? mo.respRateBrpm : null;
-    summary.respRateMethod = summary.respRateBrpm != null ? 'chest-ACC (thoraco-abdominal)' : null;
+    /* READ WHAT THE NODE DECLARED, with the historical string as fallback (residue
+       `2026-09-02-motiondex-respratemethod-unexported`). This hardcoded over whatever MotionDex said,
+       so the fusion could never attribute a rate to the estimator that produced it — while the ECGDex
+       leg at `:366` twelve lines up has always read `_hf.respRateMethod`. Two sibling call sites
+       behaving differently was the tell; they now behave the same. */
+    summary.respRateMethod = summary.respRateBrpm != null ? mo.respRateMethod || 'chest-ACC (thoraco-abdominal)' : null;
     summary.motionSqi = mo.sqi != null ? mo.sqi : null;
     summary.effortSeries = _motionEffortSeries(json, t0Ms);
     summary.effortCadenceSec = mo.effortCadenceSec != null ? mo.effortCadenceSec : null;

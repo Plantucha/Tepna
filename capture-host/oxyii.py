@@ -249,6 +249,143 @@ def decode(frame: bytes):
     return frame[1], frame[7:7 + ln]
 
 
+# ── Encrypted-session guard (Gen2 newer firmware) ───────────────────────────────────────────────────
+#
+# 🔴 `decode()` ABOVE IS NOT A BACKSTOP AGAINST THIS, AND IT LOOKS EXACTLY LIKE ONE. It validates the
+# 0xA5 magic, the ~cmd complement and the CRC-8, and returns None on any failure — so the natural
+# reading is that a garbled or unintelligible frame cannot reach the parsers. It cannot, but ciphertext
+# is neither. Only the PAYLOAD is encrypted; the ring builds the envelope around the ciphertext and
+# computes the CRC-8 over it. So a ring in an encrypted session emits a STRUCTURALLY PERFECT frame:
+# `decode()` passes it, hands back the ciphertext as `payload`, and `parse_live()` reads payload[6] as
+# SpO2 and payload[8:10] as pulse rate. Every structural check is green and the vitals are invented.
+#
+# It does not even look broken. `parse_live` nulls SpO2 outside 50-100, and about a fifth of uniform
+# bytes land inside it, so a ciphertext stream surfaces as mostly-None with intermittent plausible
+# readings — a flaky sensor, not a fault. That is the failure this guard exists to prevent, and it is
+# why the guard must not be deleted as redundant with the CRC: the CRC cannot see it.
+#
+# Newer rings answer OP_AUTH with a blob carrying an AES-128 session key, after which every payload in
+# both directions is AES-128-ECB. Older ones do not answer OP_AUTH at all and stay in plaintext.
+#
+# ⚠️ WHICH FIELD IDENTIFIES "NEWER" — read this before comparing anything to it. The value that
+# distinguishes them here is the ring's BRANCH CODE (`2D010001` answers; `2D010002`, which is every
+# ring we own, does not). It is NOT the firmware version. Those are two different fields in the same
+# GET_INFO reply and they coexist: the ring that answers reports branch 2D010001 AND firmware 1.13.1.0.
+# `parse_get_info` in this module returns the branch code under the key `"firmware"`, which is a
+# misnomer — the vendor SDK assigns those bytes to `branchCode` and builds the real dotted version from
+# a different range. The owner of the ring in the run cited below noticed the same thing unprompted:
+# "it says FW - but what is displayed is the Branchcode". Fixing that key is out of scope for this
+# unit; what matters here is that a comparison against `"firmware"` is a comparison against the branch
+# code, so do not write one expecting `1.13.1.0`.
+#
+# MEASURED, from a SomnoTrace run on a branch-2D010001 ring by a third party (discussion #180, comment
+# 18250284; application-level logs only, no raw bytes of the exchange):
+#   * the SAME ring answered OP_AUTH with >= 20 bytes on the pairing connect, and with 16 bytes on two
+#     later connects in the same session;
+#   * on those 16-byte connects a PLAINTEXT session worked completely — serial, firmware, file list and
+#     four file pulls all correct.
+# So "a reply arrived" does not imply "encrypted session", and refusing on any reply would have refused
+# the connect that pulled every file.
+#
+# INFERRED, and nothing here depends on it: that the 16-byte reply is an echo of the 16-byte auth
+# payload we send. It is the right length for one. The classification below keys on "too short to carry
+# a key blob", which is measured, and never on "is an echo", which is not.
+
+AUTH_PLAINTEXT = "plaintext"
+AUTH_ENCRYPTED = "encrypted"
+AUTH_REFUSE = "refuse"
+
+_KEY_BLOB_MIN_LEN = 20  # type, length, two reserved, then the 16-byte key
+_AUTH_TYPE_AES = 0x01
+_AES_KEY_LEN = 16
+
+
+def classify_auth_reply(payload: bytes | None) -> tuple[str, bytes | None, str]:
+    """What does this OP_AUTH reply mean? → (mode, key_or_None, reason).
+
+    Three outcomes, and the middle one is the one a naive guard gets wrong:
+
+      AUTH_PLAINTEXT  no reply, or a reply too short to carry a key blob. Proceed unencrypted — this
+                      is every ring we own, and it is also the 16-byte case measured on a 2D010001 ring
+                      where the plaintext session then worked end to end.
+      AUTH_ENCRYPTED  a well-formed key blob: type 0x01, key length 16. The AES-128 key is returned.
+      AUTH_REFUSE     a key negotiation we cannot parse. This is the only case that risks fabricated
+                      vitals, because it is the case where the ring has switched to ciphertext and we
+                      would carry on reading payload bytes as measurements.
+
+    The blob is obfuscated with the same protocol salt as the auth payload: cyclic XOR with
+    md5("lepucloud"). That derivation is from the vendor SDK and is corroborated by an independent
+    implementation (SomnoTrace 5e4bd0b) that has been exercised against a real branch-2D010001 ring; it
+    has never been executed by THIS code against a ring, because no ring here answers OP_AUTH.
+    """
+    if not payload:
+        return AUTH_PLAINTEXT, None, "no OP_AUTH reply — plaintext session (legacy firmware)"
+    if len(payload) < _KEY_BLOB_MIN_LEN:
+        return (AUTH_PLAINTEXT, None,
+                f"OP_AUTH reply of {len(payload)} B is too short to carry a key blob "
+                f"(want >= {_KEY_BLOB_MIN_LEN}) — plaintext session")
+
+    dec = bytes(b ^ _LEPU[i % 16] for i, b in enumerate(payload))
+    if dec[0] != _AUTH_TYPE_AES or dec[1] != _AES_KEY_LEN:
+        return (AUTH_REFUSE, None,
+                f"unsupported firmware — encrypted session negotiated with type=0x{dec[0]:02x} "
+                f"key_len={dec[1]} (this build understands type=0x{_AUTH_TYPE_AES:02x} "
+                f"len={_AES_KEY_LEN}); refusing rather than reading ciphertext as vitals")
+    return (AUTH_ENCRYPTED, dec[4:4 + _AES_KEY_LEN],
+            "AES-128-ECB session key negotiated")
+
+
+# ── Secondary tell: does a decoded live frame look like ciphertext? ─────────────────────────────────
+#
+# PROBABILISTIC, and deliberately not the primary defence. `classify_auth_reply` is the primary one;
+# this exists because a firmware revision could switch to ciphertext by some route we have not seen,
+# and a wrong reading of a patient's oxygen saturation should not be the way we find out.
+#
+# The strongest discriminator is not the vitals, it is `duration`: payload[0:4] as u32 LE is seconds
+# into the ring's session, so a real value is at most hours. Uniform random bytes exceed a week with
+# probability ~99.9 %. `contact` is a second: the vendor documents exactly three values, so anything
+# else is not a contact state. A lucky frame passes both — hence the run threshold, and hence this is a
+# tell and not a check.
+
+# ⚠️ THESE TWO RETURN BOOLEANS ON PURPOSE, and the obvious tidy-up is the thing to resist:
+# `classify_auth_reply` returns a cause string, so it is tempting to give these one too and have a
+# single "why did we stop" type. Do not. "The handshake told us to refuse" and "the stream looks
+# statistically wrong" are different CLAIMS with different standards of evidence — the first is
+# derived from a key negotiation the ring actually sent, the second is a guess about a distribution.
+# A shared cause type makes them arrive looking alike at the call site, which is precisely the
+# distinction this split exists to preserve. If a caller ever needs a reason here, give it its OWN
+# type rather than borrowing the handshake's.
+
+_MAX_PLAUSIBLE_DURATION_S = 7 * 24 * 3600  # a week; real ring sessions are hours
+_CONTACT_VALUES = (0x00, 0x01, 0x03)  # no finger, idle-present, file open
+CIPHERTEXT_RUN = 5  # consecutive suspect frames before we call it
+
+
+def frame_looks_like_ciphertext(parsed: dict | None) -> bool:
+    """One frame's worth of suspicion. See the note above: probabilistic, secondary."""
+    if not parsed:
+        return False  # a short/undecodable frame is decode()'s business, not this one
+    if parsed["duration"] > _MAX_PLAUSIBLE_DURATION_S:
+        return True
+    if parsed["contact"] not in _CONTACT_VALUES:
+        return True
+    return False
+
+
+def sustained_ciphertext(parsed_frames, run: int = CIPHERTEXT_RUN) -> bool:
+    """True when the last `run` frames all look like ciphertext.
+
+    Note what this does NOT flag: an off-finger ring reports SpO2 and pulse as 0xFF, which `parse_live`
+    already nulls, and it reports a real duration and a documented contact byte. Off-finger is a normal
+    state and must not be mistaken for a broken session.
+    """
+    frames = list(parsed_frames)
+    if len(frames) < run:
+        return False
+    return all(frame_looks_like_ciphertext(f) for f in frames[-run:])
+
+
+
 def session_restarted(prev_duration: int | None, duration: int) -> bool:
     """Did the ring start a NEW recording session between two live replies?
 
