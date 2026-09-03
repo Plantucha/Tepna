@@ -247,7 +247,34 @@ _ckseg="$(grep -oE "$GITX"'(checkout|restore)[^;&|]*' <<<"$cmd_nohd" || true)"
 #      "never enumerate the generated set in bash", and it is safe BECAUSE it is an allow-list: if a
 #      bundle is added to the fleet and not added here, the guard merely over-denies and points at
 #      `npm run rebase`, which is the correct answer for a bundle conflict anyway.
-_srcpaths="$(grep -oE '[^[:space:];&|"'"'"']+\.(js|mjs|py|sh|md|json|css|toml|ya?ml|txt|cff|html)' <<<"$_ckseg" \
+# ⚠ 6. A BARE DIRECTORY HAS NO EXTENSION, AND THE WIDER OPERATION WAS THE UNGUARDED ONE (2026-09-03).
+#      The extraction below keys on a FILE EXTENSION, so `-- briefs/X-BRIEF.md` denied while
+#      `-- briefs` — which restores every file in the directory, including every other session's
+#      in-flight brief — was waved through. The narrow operation was blocked and the wide one allowed.
+#      Measured after a session ran exactly that in the shared root and staged 78 briefs into the
+#      root's index; no content was lost, but only because nobody had edits in flight at that minute.
+#      So directory tokens after `--` are collected too, and treated as SOURCE unconditionally: a
+#      directory is never wholesale-generated here (even `docs/` holds 28 authored specs, which is why
+#      the awk below already prints `docs/*.md`), and over-denying points at `npm run rebase`, which is
+#      the right answer for a real conflict anyway. `provenance` is the one arguable case and is NOT
+#      exempted — restoring it wholesale discards `verifiedUnder` stamps that only a corpus run can
+#      re-earn, which is a worse loss than a rebuild.
+# ⚠ SCOPED TO THE `--` SEPARATOR, and that scoping is load-bearing. Without it the first version of
+#   this extraction tokenised the WHOLE segment, so `git checkout -b claude/x origin/main` — creating a
+#   branch, the most ordinary command in this repo — read `claude/x` and `origin/main` as directory
+#   paths and was DENIED. The token must also START path-shaped: a QUOTED path containing a space
+#   (`-- "Data Unifier.html"`) tokenises to `"Data`, which has no extension and would otherwise read as
+#   a directory — the same quoted-path case the awk below already handles at its tail. Caught by the harness's MUST-ALLOW half, which is the half that stops a guard
+#   becoming something people route around. The destructive form always names its paths after `--`.
+_dirpaths=""
+case "$_ckseg" in
+  *" -- "*) _dirpaths="$(sed -E 's/.*[[:space:]]--[[:space:]]+//' <<<"$_ckseg" \
+      | tr ' \t' '\n\n' \
+      | grep -E '^[A-Za-z0-9._/][^[:space:];&|"'"'"']*$' \
+      | grep -vE '\.[A-Za-z0-9]+$' || true)" ;;
+esac
+_srcpaths="$( { grep -oE '[^[:space:];&|"'"'"']+\.(js|mjs|py|sh|md|json|css|toml|ya?ml|txt|cff|html)' <<<"$_ckseg" || true; printf '%s\n' "$_dirpaths"; } \
+  | grep -v '^$' \
   | awk '
       /\.\./                                   { print; next }   # traversal never inherits an exemption
       /^(\.\/)?docs\/.*\.md$/                  { print; next }   # AUTHORED spec under docs/ (see 5)
