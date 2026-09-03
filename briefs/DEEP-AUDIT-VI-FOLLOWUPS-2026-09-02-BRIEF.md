@@ -280,6 +280,72 @@ composite", which is loose for a product with a log term — but its `.ft` state
 the 5 corrections. Recorded because the looser phrase is the kind of thing a future sweep will re-flag.)*
 
 ### 2.5b LEAD — nothing compares a card's DESCRIPTION against the code it describes
+**TRIAGED 2026-09-03 (Magpie) — HALF OF THIS IS ALREADY BUILT, and two of the numbers below are wrong.
+Read this block before sizing the item.**
+
+`tools/formula-constant-audit.mjs` already IS the numeral-keyed extractor this section proposes, and it
+already parses the **same `<div class="ft">`** element named here. Measured by running it, not inferred:
+
+| | |
+|---|---|
+| guides swept | **7 of 7** — every guide, not one |
+| formulas parsed | **388** |
+| constant-bearing | 68 |
+| flagged | 5 (the `6.7` family is a documented false positive in the tool's own header) |
+
+So **"The other 7 nodes are unswept" is FALSE for the `.ft` corpus** — that sweep exists, runs across
+every guide, and carries hard-won defences worth reusing rather than rediscovering (strict `&#xNN;`
+decoding, because a lenient decoder silently repaired an unterminated reference and reported a broken
+card clean; no trailing-zero trimming, because `660`→`66` matched any digits and lost two real flags;
+glob `<node>-*.js` and PRINT THE DENOMINATOR, because a hand-listed corpus read 2 of 8 files).
+
+**Also: there are SEVEN guides, not eight.** MotionDex has no reference guide at all — so the eighth is
+not unswept, it does not exist, and any gate keyed to "all eight" would pin a population that cannot be
+satisfied.
+
+**What is GENUINELY unbuilt, and it is the larger half.** The tool reads `.ft` and treats it as a
+formula; it never opens `.md`, which is where the sentence telling a user what a number MEANS actually
+lives — the thing this section is about. Measured per guide:
+
+```
+  CPAPDex   .ft=47   .md=47      OxyDex    .ft=114  .md=128
+  ECGDex    .ft=53   .md=54      PpgDex    .ft=41   .md=41
+  GlucoDex  .ft=38   .md=38      PulseDex  .ft=68   .md=68
+  HRVDex    .ft=28   .md=28
+  ── total  .ft=389 (swept)      .md=404 (UNSWEPT)
+```
+
+**404 descriptions, none of them ever compared to code.**
+
+🔴 **RE-SIZED 2026-09-03 by BUILDING it (#2147) — and "point the existing extractor at `.md`" turns out
+to be WRONG, including as I first wrote it one commit earlier. Measured:**
+
+```
+  404 descriptions · 108 claim-bearing · 161 claim values
+       33 checkable
+      128 REFUSED as unresolvable at whole-node corpus scope   (79%)
+```
+
+**A short integer cannot be checked against a whole node at all.** `constantPresent` is a substring test
+over ~717 kB of `<node>-*.js`, and a planted-WRONG `87` reports *present* under every strategy tried —
+plain, word-boundary, **and** comparison-context. Prose asserts precisely those: `below 90%`, `5-minute`,
+`1 Hz`. The `.ft` sweep is sound only because `distinctiveConstants` restricts it to floats or ≥3 digits,
+which is exactly the population prose does NOT use.
+
+So the reach is **21%**, not "most of it", and the remainder is **not blocked — it is a different and
+larger unit: scoping the code corpus per METRIC** (a card's claim checked against that metric's own
+implementation) rather than per node. Size it as that, not as a filter tweak. #2147 ships the extraction
+plus an explicit REFUSAL for the 128, so the shortfall is on the page rather than passing silently.
+
+The structural-claim blind spot below stays entirely open on top of this, and is the part no numeral key
+reaches at any corpus scope.
+
+⚠️ One caveat on reusing it directly: `.md` is prose, so its numerals are far more likely to be
+incidental ("n=2,743", a year, a citation page) than `.ft`'s are. Expect a worse false-positive rate
+than the 5-of-68 above and design the filter before quoting a hand rate from it.
+
+_Original text follows._
+
 `cohesion-badges` gates the tier, `registry-defs-parity` the crossnight projection, `citation-ledger` the
 DOI attribution. The sentence that tells a user what a number MEANS is ungated across all eight guides.
 Hand rate on the one node swept: **5 of 13 checkable numeric claims wrong**, plus 4 registry-side
