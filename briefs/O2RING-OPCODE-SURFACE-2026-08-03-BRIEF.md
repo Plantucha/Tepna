@@ -333,6 +333,14 @@ a run of SSE samples the magnitude ranged **8024 – 8785**, so the ring was dem
 magnitude's own variance over a held interval — **never** the motion byte, for the reason above.
 Until then counts stay counts.
 
+**Price this correctly, because it was mis-priced once and that is what parks it.** The calibration is
+**passive and costs about five minutes**: while `acc` is enabled the stream is already running, so it
+is a `GET /api/stream/acc_o2` SSE subscription plus roughly 30 s held still per orientation. It stops
+no daemon, pauses no capture and consumes no night. That is a different and much smaller cost than
+*enabling* the stream in the first place, which does change a whole session — do not let the two be
+quoted as one number. The only genuinely scarce input is a person willing to rotate a ring in their
+hand for five minutes.
+
 ⚠️ **Open — the effective rate is not the sample rate.** Each distinct triplet repeats ~6–7× in the
 buffer at an effective 10.16 Hz, so the true update rate may be nearer **~1.5 Hz**: either the sensor
 updates slower than the frame carries it, or the stride re-reads records. Nobody should treat 10 Hz
