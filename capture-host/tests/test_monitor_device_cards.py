@@ -108,10 +108,27 @@ def _render(settings_devs, state_devs=STATE_DEVS):
     node = shutil.which("node")
     if node is None:
         pytest.skip("node is not installed — the browser-lane extraction cannot run here")
-    body = _extract("renderRemembered", "settingsPanel", "deviceSettingsBlock")
+    # `pendingChecked` is extracted for REAL — `deviceSettingsBlock` calls it for every checkbox,
+    # so a stub would let these tests pass against an overlay that does not exist.
+    body = _extract("renderRemembered", "settingsPanel", "deviceSettingsBlock", "pendingChecked")
     prog = (
         "let __html='';\n"
-        "const $ = () => ({ set innerHTML(v){ __html = v; }, get innerHTML(){ return __html; } });\n"
+        # A SINGLETON element, not a fresh object per call. `renderRemembered` delegates its
+        # change-listener to the container and guards re-binding with a property ON that element —
+        # `innerHTML` replaces every input on every 5 s poll, so a per-control listener would be
+        # discarded by the first rebuild and edit-capture would stop silently. A stub that handed
+        # back a NEW object each call would model that guard as always-unset and prove nothing about
+        # it; this one persists, so `__listeners` counts real bindings across renders.
+        # PENDING is EMPTY here on purpose: with no unsaved edit the overlay must be a pure
+        # pass-through, so every assertion below still describes rendering from server truth. The
+        # overlay's own behaviour (an edit surviving the 5 s rebuild) is pinned in
+        # test_monitor_pending_edits.py, which exercises it with entries.
+        "const PENDING = Object.create(null);\n"
+        "const pendKey = (addr, stream) => addr + '|' + stream;\n"
+        "let __listeners = 0;\n"
+        "const __el = { set innerHTML(v){ __html = v; }, get innerHTML(){ return __html; },\n"
+        "               addEventListener(){ __listeners++; } };\n"
+        "const $ = () => __el;\n"
         "const esc = s => String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"
         "'\"':'&quot;',\"'\":'&#39;'}[c]));\n"
         "const chargeChip=()=>'' , wornChip=()=>'', rateChip=()=>'', battChip=()=>'',\n"
