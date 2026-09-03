@@ -241,6 +241,21 @@ if (flag('--selftest')) {
     console.log(`  ${good ? '\u2713' : '\u2717'} ${name}  got=${got} want=${want}`);
   };
 
+  /* The ring-clock cross-check. Only an explicit `true` is a finding: `timefitDisagrees` returns
+     NULL when there is no readback to compare against, and counting that as agreement would report a
+     clean night for a night nobody measured. The last two cases are the ones that matter. */
+  const dis = (x) => (arrivalDisagrees(x) ? 1 : 0);
+  ok('an explicit disagreement is a finding', dis({ datTimefit: { disagrees: true } }), 1);
+  ok('an explicit agreement is not', dis({ datTimefit: { disagrees: false } }), 0);
+  ok('NULL is not agreement — there was only one measurement', dis({ datTimefit: { disagrees: null } }), 0);
+  ok('no time-fit block at all is not a finding', dis({ ringClock: { reads: 3 } }), 0);
+  ok('a missing artefact is not a finding', dis(null), 0);
+  /* Found by mutation: `!!disagrees` survives every case above, because the tri-state producer
+     never yields a truthy non-true value TODAY. It would the day `timefitDisagrees` returns a
+     reason string, and a loose read would then call any reason a finding. `=== true` is the
+     contract — true, false or null — and this case is what holds it. */
+  ok('a truthy NON-boolean is not a finding — the contract is true/false/null', dis({ datTimefit: { disagrees: 'maybe' } }), 0);
+
   // THE REGRESSION: 2026-07-26 14:33 -> 18:15, awake, all three sensors worn, 3.7 h.
   ok('afternoon block is 0 % nocturnal', frac([[at(1, 14, 33), at(1, 18, 15)]]), 0);
   // A full night, evening start through the small hours -> entirely in band.
@@ -1180,6 +1195,17 @@ function cpapApneaTimes(dayDir) {
    PAT needs and has never had. `DexClock.hostAxis` is the sanctioned estimator for it (Clock Contract
    §7 forbids hand-rolling a rate correction), and it publishes `independent`: a phone-style host
    column that is merely the device stamp rounded is NOT a second clock, and must not be spent as one. */
+/* PURE — does one arrival artefact carry a ring-clock DISAGREEMENT? Separated from the file read so
+   `--selftest` can pin it with no corpus and no I/O, the same reason `nocturnalMs` is pure.
+
+   `disagrees` is deliberately tri-state in `o2ring-dat-timefit.timefitDisagrees`: true, false, or
+   NULL when there is no readback to compare against — "the two measurements agree" and "there is only
+   one measurement" are different facts. Only an explicit `true` is a finding here; null must never be
+   counted as agreement, and `=== true` is what keeps that honest. */
+function arrivalDisagrees(a) {
+  return !!(a && a.datTimefit && a.datTimefit.disagrees === true);
+}
+
 function writeArrival(dir, key, p) {
   const dirs = new Set();
   for (const k of ['ecg', 'ppg', 'oxy', 'acc_h10', 'acc_ver', 'gyro', 'magn', 'o2ppg']) {
@@ -2209,6 +2235,35 @@ const complete = summary.filter((r) => r.nodes.length === 3);
 console.log(`\n${'─'.repeat(64)}`);
 console.log(`nights written : ${summary.length}`);
 console.log(`complete trios : ${complete.length}  (all three node-exports)`);
+/* ── THE RING-CLOCK CROSS-CHECK, SURFACED ─────────────────────────────────────────────────────────
+   `datTimefit.disagrees` compares two INDEPENDENT measurements of one quantity — the .dat time-fit
+   against the ring's own RTC readback — and the comment where it is computed calls the disagreement
+   "the finding". It was computed, serialized into `arrival_<night>.json`, and read by NOTHING: that
+   artefact had one writer and zero readers, so a verdict that reads as a check was never a check.
+   This block is its first consumer, and it reads the file off disk exactly as that artefact's own
+   comment says a downstream consumer should — which also makes the sidecar demonstrably readable
+   rather than write-only.
+   An UNREADABLE artefact is reported, never skipped: silently dropping it would reproduce the defect
+   one layer down, since "no disagreements" and "nothing was examined" would print identically. */
+const clockDisagree = [];
+const arrivalUnreadable = [];
+for (const r of summary) {
+  const ap = join(OUT, r.key, `arrival_${r.key}.json`);
+  if (!existsSync(ap)) continue; // no ring sidecar that night — the ordinary phone-captured case
+  try {
+    if (arrivalDisagrees(JSON.parse(readFileSync(ap, 'utf8')))) clockDisagree.push(r.key);
+  } catch {
+    arrivalUnreadable.push(r.key);
+  }
+}
+if (clockDisagree.length)
+  console.log(
+    `ring-clock ⚠   : ${clockDisagree.length} night(s) where the .dat time-fit DISAGREES with the RTC\n` +
+      `                 readback by more than the observed drift allows — two measurements of one\n` +
+      `                 offset that do not reconcile: ${clockDisagree.join(', ')}`
+  );
+if (arrivalUnreadable.length)
+  console.log(`arrival sidecar: ${arrivalUnreadable.length} unreadable — the clock cross-check could NOT be read\n` + `                 for: ${arrivalUnreadable.join(', ')}`);
 const noMotion = complete.filter((r) => r.nodes.some((n) => n.motion === 0)).length;
 if (noMotion)
   console.log(
