@@ -1901,9 +1901,7 @@ const PREF_RATE = {ecg:130, ppg:55, acc:50, gyro:52, mag:20};   // mirrors polar
 // So the tick appears only when the device actually lists that rate — see `rateAdvice`.
 const RATE_WHY = {
   ecg: 'the H10 offers only 130 Hz, and the shipped Pan–Tompkins is calibrated at it',
-  ppg: 'stable all night, and it is the only rate offered outside SDK mode. 176 Hz cuts beat-timing '
-     + 'quantisation from ~18 ms to ~5.7 ms — better for PAT and beat work — but needs SDK mode, which '
-     + 'makes PPI permanently invalid and drops the link about every 90 s',
+  ppg: 'stable all night, and the only rate offered outside SDK mode',
   acc: 'enough for posture, movement onsets and the worn/still checks; higher rates cost bytes and buy '
      + 'nothing this suite reads',
   gyro: 'the nearest offered value to the 50 Hz the motion code expects',
