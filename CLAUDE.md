@@ -558,12 +558,20 @@ Status lives in a one-line header block on the first content line (just after an
   stamp DONE on unverified work. Greppable fleet-wide via `grep "Status:.*DONE"`.
 - **After executing (or triaging) a brief, residue goes to `briefs/RESIDUE.md` as ONE ROW per verified
   defect — NOT a new `-FOLLOWUPS-` brief** (owner-ratified 2026-09-02; this bullet used to say "spawn a
-  follow-up brief"). Row: `| R<n> | logged | source brief | defect | evidence | state |`, and the source
-  brief's **Status:** line gets `**Residue:** R<n>` — bidirectional like `Superseded-by`, and gate-backed
+  follow-up brief"). Row: `| <key> | logged | source brief | defect | evidence | state |` where the key is
+  **`YYYY-MM-DD-short-slug`** (`2026-09-02-oxyii-acks-unparsed`), and the source brief's **Status:**
+  line gets `**Residue:** <key>` — bidirectional like `Superseded-by`, and gate-backed
   (`docs-ledger` check 8: both directions resolve, exactly 6 cells, state vocabulary). A `<NAME>-FOLLOWUPS-
   YYYY-MM-DD-BRIEF.md` is created **only by the session that picks a row up to execute it** (when the
   remainder is ≥ one work-unit), and creating it closes the row (`→ \`<NAME>-BRIEF.md\``); a one-PR fix
   closes it as `fixed #NNNN`. Rows are appended and closed, never edited or deleted.
+  ⚠️ **The key is a date-plus-slug, NOT a counter, and that is load-bearing.** The ledger opened with
+  `R<n>` and produced **five collisions in one day** — the last within the hour of the rule being argued
+  out, between the two sessions arguing it, each having run the prescribed pre-push check and each having
+  got a correct answer from it. `origin/main` cannot contain an id claimed in an OPEN BRANCH, so the
+  check the scheme demanded could not return the right answer: **a globally-unique identifier allocated
+  from local information has no correct procedure.** Briefs and changesets here are dated-slug and have
+  never collided; the ledger was the only artifact inventing an allocation problem.
   ⚠️ **A residue with no parent brief names its real origin — a repo path or a `#PR` — never the nearest
   brief.** Repairing an *instrument* surfaces defects that descend from the fix and from no brief at all
   (2026-09-02: `find_unwired.py` stopped counting a comment as a consumer and two real orphans fell out).

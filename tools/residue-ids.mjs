@@ -62,13 +62,13 @@ export const LEDGER_PATH = 'briefs/RESIDUE.md';
 export function parseRows(text) {
   const rows = [];
   for (const line of String(text ?? '').split('\n')) {
-    const m = line.match(/^\|\s*(R(\d+))\s*\|/);
+    const m = line.match(/^\|\s*(\d{4}-\d{2}-\d{2}-[a-z0-9-]+)\s*\|/);
     if (!m) continue;
     const cells = line.split('|');
     // leading '' + 6 cells + trailing '' — a malformed row is check8b's finding, not ours;
     // take what identity we can and let the other gate speak to its shape.
     const key = cells.slice(1, 6).join('|').trim();
-    rows.push({ id: m[1], n: Number(m[2]), key });
+    rows.push({ id: m[1], key });
   }
   return rows;
 }
@@ -87,7 +87,7 @@ export function parseRows(text) {
  * @param {string} baseText  ledger at the merge base (removals / edits)
  * @param {string} headText  ledger on this branch
  * @param {string} [tipText] ledger at origin/main now (collisions / high-water); defaults to baseText
- * @returns {{collisions: string[], nonMonotonic: string[], mutated: string[], added: string[], baseMax: number}}
+ * @returns {{collisions: string[], mutated: string[], added: string[]}}
  */
 export function verdict(baseText, headText, tipText) {
   const base = parseRows(baseText);
@@ -96,10 +96,8 @@ export function verdict(baseText, headText, tipText) {
   const baseById = new Map(base.map((r) => [r.id, r]));
   const tipById = new Map(tip.map((r) => [r.id, r]));
   const collisions = [];
-  const nonMonotonic = [];
   const mutated = [];
   const added = [];
-  const baseMax = tip.reduce((a, r) => Math.max(a, r.n), 0);
 
   for (const r of head) {
     const prior = baseById.get(r.id);
@@ -110,14 +108,6 @@ export function verdict(baseText, headText, tipText) {
         continue;
       }
       added.push(r.id);
-      // An id at or below the base's high-water mark is refused even when the base has no such
-      // row. ⚠️ NOT because a gap means a deleted row — measured 2026-09-02, R7 is a gap that was
-      // never committed by anyone: it was announced in a cross-session message, other sessions
-      // minted R8+ around it, and the row it was reserved for was never written. So ids are
-      // BURNED BY ANNOUNCEMENT, not only by use, and an id that was quoted somewhere must never
-      // come back meaning something else. Allocation is one-way; a gap is permanent and cheap.
-      if (r.n <= baseMax)
-        collisions.push(`${r.id} — at or below the base’s high-water mark R${baseMax}; ids are allocated once, never re-used or back-filled (a gap may have been announced elsewhere)`);
       continue;
     }
     if (prior.key !== r.key) mutated.push(`${r.id} — a non-state cell was edited (rows are append-and-close)`);
@@ -125,17 +115,14 @@ export function verdict(baseText, headText, tipText) {
   for (const r of base) {
     if (!head.some((h) => h.id === r.id)) mutated.push(`${r.id} — removed from the ledger (rows are never deleted)`);
   }
-  // added ids must themselves be unique and ascending
+  // added ids must be unique among themselves. There is deliberately NO ordering check: a date-slug
+  // key carries no sequence, which is the whole reason it replaced the counter.
   const seen = new Set();
-  let last = baseMax;
   for (const id of added) {
     if (seen.has(id)) collisions.push(`${id} — added twice on this branch`);
     seen.add(id);
-    const n = Number(id.slice(1));
-    if (n <= last && n > baseMax) nonMonotonic.push(`${id} — not ascending (previous added id was R${last})`);
-    if (n > last) last = n;
   }
-  return { collisions, nonMonotonic, mutated, added, baseMax };
+  return { collisions, mutated, added };
 }
 
 /* ── everything below is I/O; the core above is pure and is what the suite drives ── */
@@ -196,7 +183,7 @@ function main() {
   }
 
   const v = verdict(baseText, headText, tipText);
-  const problems = [...v.collisions, ...v.nonMonotonic, ...v.mutated];
+  const problems = [...v.collisions, ...v.mutated];
 
   if (asJson) {
     process.stdout.write(`${JSON.stringify(v, null, 2)}\n`);
@@ -205,16 +192,17 @@ function main() {
     for (const p of problems) process.stderr.write(`  ✗ ${p}\n`);
     // Say what to DO, and only the remedy that fits what actually fired — a renumber hint on a
     // mutated row would send the reader to the wrong repair.
-    if (v.collisions.length || v.nonMonotonic.length) {
-      process.stderr.write(`\n  ${base}'s ledger reaches R${v.baseMax}. Renumber your new rows above it and update\n`);
-      process.stderr.write('  each source brief’s **Residue:** back-reference to match.\n');
+    if (v.collisions.length) {
+      process.stderr.write(`\n  That key already exists on ${base}. A residue key is a DATE PLUS A SLUG and is\n`);
+      process.stderr.write('  unique by construction — pick a slug that says what the defect is, and update the\n');
+      process.stderr.write('  source brief’s **Residue:** back-reference to match.\n');
     }
     if (v.mutated.length) {
       process.stderr.write('\n  Rows are appended and CLOSED, never edited or deleted: only the state cell may\n');
       process.stderr.write('  change (OPEN → `→ `<brief>`` | `fixed #N`). A wrong row gets a NEW row saying so.\n');
     }
   } else {
-    process.stdout.write(`residue-ids: ok — ${v.added.length} row(s) added above R${v.baseMax}, none colliding, none mutated\n`);
+    process.stdout.write(`residue-ids: ok — ${v.added.length} row(s) added, none colliding, none mutated\n`);
   }
   process.exit(problems.length ? 1 : 0);
 }
@@ -230,39 +218,38 @@ if (process.argv.includes('--selftest')) {
     }
   };
   const row = (id, key = 'd', state = 'OPEN') => `| ${id} | 2026-09-02 | \`X-BRIEF.md\` | ${key} | e | ${state} |`;
-  const BASE = [row('R1'), row('R2')].join('\n');
+  const A = '2026-09-02-alpha';
+  const B = '2026-09-02-bravo';
+  const C = '2026-09-02-charlie';
+  const BASE = [row(A), row(B)].join('\n');
 
-  // 1 — the measured failure: main reached R2 while the branch still ended at R1, so R2 is a collision
-  //     even though the branch's own file is internally consistent (this is what docs-ledger cannot see)
-  let v = verdict(BASE, [row('R1'), row('R2', 'different defect')].join('\n'));
-  assert(v.mutated.length === 1 && v.collisions.length === 0, 'an id present on main with edited cells is a MUTATION, not a collision');
-  v = verdict([row('R1')].join('\n'), [row('R1'), row('R2')].join('\n'));
-  assert(v.collisions.length === 0 && v.added.join() === 'R2', 'appending the next id above the base max is clean');
+  // 1 — an id present on the base with edited cells is a MUTATION, not a collision
+  let v = verdict(BASE, [row(A), row(B, 'different defect')].join('\n'));
+  assert(v.mutated.length === 1 && v.collisions.length === 0, 'an edited non-state cell is a mutation');
+  v = verdict([row(A)].join('\n'), [row(A), row(B)].join('\n'));
+  assert(v.collisions.length === 0 && v.added.join() === B, 'appending a new key is clean');
 
-  // 2 — an id at or below the base's high-water mark with no such row on the base: back-filling a GAP.
-  //     This is the R7 case (announced, never committed), not a deleted row — see the header.
-  v = verdict([row('R1'), row('R3')].join('\n'), [row('R1'), row('R2'), row('R3')].join('\n'));
-  assert(v.collisions.length === 1 && v.collisions[0].startsWith('R2'), 'back-filling a gap below the base’s max FIRES');
-  // ...and a pre-existing gap on BOTH sides is not itself an error: the ledger carries one today
-  v = verdict([row('R1'), row('R3')].join('\n'), [row('R1'), row('R3'), row('R4')].join('\n'));
-  assert(v.collisions.length === 0 && v.nonMonotonic.length === 0 && v.added.join() === 'R4', 'an existing gap is not an error — only filling it is');
+  // 2 — THE MEASURED FAILURE, and why the counter was abandoned. Under `R<n>` this case needed a
+  //     high-water rule, a gap rule, and a monotonic rule, and it still could not see a key claimed
+  //     in an open branch. A date-slug key needs none of them: two authors do not collide unless they
+  //     independently choose the same words on the same day, and then it is a real duplicate.
+  v = verdict([row(A)].join('\n'), [row(A), row(B)].join('\n'), [row(A), row(B, 'someone else’s row')].join('\n'));
+  assert(v.collisions.length === 1 && v.collisions[0].includes('another branch'), 'a key minted concurrently on the tip FIRES');
 
-  // 2b — BEHIND IS NOT DELETED. The branch predates a row that landed on the tip: no removal, and
-  //      the tip's row is a collision only if the branch also minted that id itself.
-  v = verdict([row('R1')].join('\n'), [row('R1'), row('R3')].join('\n'), [row('R1'), row('R2')].join('\n'));
-  assert(v.mutated.length === 0 && v.collisions.length === 0 && v.added.join() === 'R3', 'a branch behind the tip has removed nothing');
-  v = verdict([row('R1')].join('\n'), [row('R1'), row('R2')].join('\n'), [row('R1'), row('R2', 'someone else’s row')].join('\n'));
-  assert(v.collisions.length === 1 && v.collisions[0].includes('another branch'), 'an id minted concurrently on the tip FIRES as a collision');
+  // 2b — BEHIND IS NOT DELETED. The branch predates a row that landed on the tip: no removal, and the
+  //      tip's row is a collision only if the branch also minted that key itself.
+  v = verdict([row(A)].join('\n'), [row(A), row(C)].join('\n'), [row(A), row(B)].join('\n'));
+  assert(v.mutated.length === 0 && v.collisions.length === 0 && v.added.join() === C, 'a branch behind the tip has removed nothing');
 
   // 3 — rows are append-and-close: a removal and a non-state edit both fire; a STATE change does not
-  v = verdict(BASE, [row('R1')].join('\n'));
-  assert(v.mutated.length === 1 && v.mutated[0].startsWith('R2'), 'removing a row that exists on main FIRES');
-  v = verdict(BASE, [row('R1'), row('R2', 'd', 'fixed #2114')].join('\n'));
+  v = verdict(BASE, [row(A)].join('\n'));
+  assert(v.mutated.length === 1 && v.mutated[0].startsWith(B), 'removing a row that exists on the base FIRES');
+  v = verdict(BASE, [row(A), row(B, 'd', 'fixed #2114')].join('\n'));
   assert(v.mutated.length === 0 && v.collisions.length === 0, 'closing a row by its STATE cell alone is clean');
 
   // 4 — two rows added with the same id on one branch (docs-ledger check8c catches this one too;
   //     asserted here so the two gates are known to agree rather than assumed to)
-  v = verdict(BASE, [row('R1'), row('R2'), row('R3'), row('R3', 'other')].join('\n'));
+  v = verdict(BASE, [row(A), row(B), row(C), row(C, 'other')].join('\n'));
   assert(
     v.collisions.some((c) => c.includes('added twice')),
     'an id added twice on the branch FIRES'
@@ -270,11 +257,11 @@ if (process.argv.includes('--selftest')) {
 
   // 5 — non-vacuous: the parser must actually see rows, or every assertion above passes on empty input
   assert(parseRows(BASE).length === 2 && parseRows('').length === 0, 'parseRows reads rows (and only rows)');
-  assert(parseRows('| R7 | d |').length === 1, 'a malformed row still yields its identity — shape is check8b’s job');
+  assert(parseRows('| 2026-09-02-alpha | d |').length === 1, 'a malformed row still yields its identity — shape is check8b’s job');
 
   // Phrased so `selftest-all.mjs` can PARSE the count: a tool that silently drops from 8
   // assertions to 1 still exits 0, and only a readable number makes that visible.
-  console.log('selftest: all 11 selftests passed');
+  console.log('selftest: all 10 selftests passed');
   process.exit(0);
 }
 

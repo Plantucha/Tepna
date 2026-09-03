@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS (**code complete; §1's corpus run is NO LONGER data-blocked — re-verified 2026-09-02**: the 2026-09-01 triage said "locally only 6 dates intersect"; the merged corpus root holds **37**, each with a >1 MB `Polar_H10_*_ACC.txt` and a >100 kB `CPAP/*_BRP.edf` (80 ACC dates × 183 BRP dates, basename-parsed with size floors). Not parked — §1 is executable and owes a sizing first. §6A's attribution box is UNTICKED, see R3) · **Created:** 2026-07-21 · **Residue:** R3, R4
+**Status:** IN-PROGRESS (**code complete; §1's corpus run is NO LONGER data-blocked — re-verified 2026-09-02**: the 2026-09-01 triage said "locally only 6 dates intersect"; the merged corpus root holds **37**, each with a >1 MB `Polar_H10_*_ACC.txt` and a >100 kB `CPAP/*_BRP.edf` (80 ACC dates × 183 BRP dates, basename-parsed with size floors). Not parked — §1 is executable and owes a sizing first. §6A's attribution box is UNTICKED, see R3) · **Created:** 2026-07-21 · **Residue:** 2026-09-02-motiondex-respratemethod-unexported, 2026-09-02-motiondex-epoch-count-disagrees
 
 > **TRIAGE 2026-09-01 — verified state, so the next reader does not re-derive it.** Part (A), the
 > estimator, LANDED in `7002778`; §10 built the figure layer; §11 ran §1's corpus after finding the

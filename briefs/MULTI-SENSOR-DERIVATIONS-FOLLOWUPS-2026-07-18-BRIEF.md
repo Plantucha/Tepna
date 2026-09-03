@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-08-03 (**§1 CLOSED** — the owed 3a audit pass ran on all three: `ecgdex-dsp` clean, `ppgdex-dsp` four instances fixed + gated, `cpapdex` `periodicBreathingPct` fixed + gated. Only §4's staging item remains) · **Created:** 2026-07-18 · **Follows:** `MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md` (DONE) · **Related:** `MOTIONDEX-BUILD-FOLLOWUPS-2026-07-18-BRIEF.md` · `APNEA-TYPING-FUSION-2026-07-18-BRIEF.md` (DONE) · **Residue:** R12
+**Status:** IN-PROGRESS — 2026-08-03 (**§1 CLOSED** — the owed 3a audit pass ran on all three: `ecgdex-dsp` clean, `ppgdex-dsp` four instances fixed + gated, `cpapdex` `periodicBreathingPct` fixed + gated. Only §4's staging item remains) · **Created:** 2026-07-18 · **Follows:** `MULTI-SENSOR-DERIVATIONS-2026-07-16-BRIEF.md` (DONE) · **Related:** `MOTIONDEX-BUILD-FOLLOWUPS-2026-07-18-BRIEF.md` · `APNEA-TYPING-FUSION-2026-07-18-BRIEF.md` (DONE) · **Residue:** 2026-09-02-respiration-fusion-no-fixture
 
 # Multi-sensor derivations — follow-ups: what executing four fusions surfaced
 
