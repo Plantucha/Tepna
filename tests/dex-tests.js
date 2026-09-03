@@ -50369,6 +50369,165 @@
        (`timingSource`) and dropped the measurements behind it, while ECGDex has emitted the full
        block all along. Asserted as PARITY against ECGDex rather than as a field list, so the two
        cannot drift apart again and a future field added to one is owed by the other. */
+    /* ── THE SEAM GATE (unit 3) ────────────────────────────────────────────────────────────────
+       Three defects in two days shared one shape: a value COMPUTED correctly and lost at the export
+       boundary — MotionDex's `respRateMethod` (set, never exported, hardcoded over), PpgDex's
+       `respRateBrpm` (exported, never read), PpgDex's `hostAxis.*` (computed, never exported). Each
+       had a waiting consumer. The per-node gates below pin the instances; this pins the CLASS.
+       ⚠️ It is written as PARITY AGAINST A REFERENCE EMITTER, never as a field list, for the reason
+       the day taught twice: a list is a second source that drifts from the thing it describes, and a
+       reviewer cannot tell a stale list from a correct one. ECGDex is the reference because it is the
+       node that has always emitted the full block.
+       ⚠️ And it asserts its own REFERENCE and POPULATION are non-empty. With N nodes measured against
+       one reference the vacuity risk scales with N: the day ECGDex's block changes shape, or the day a
+       subject node stops computing an axis, a naive parity check passes against nothing. */
+    group('The seam — a value computed by one node must survive to the consumer that reads it', 'export-boundary · host-axis · resp-rate · seam-parity', function (T) {
+      var src = env.sources || {};
+      function txt(f) {
+        return String(src[f] || '');
+      }
+      /* Balanced-brace extraction, NOT a regex to a fixed indent — a regex overshot PpgDex's block by
+         4.5 kB into `out.hrv` when this was first written, because the block nests inside an `if` and
+         closes at 8 spaces. Caught by a char count, not by the green. Do not "simplify" this back. */
+      function blockAt(srcText, needle) {
+        var at = srcText.indexOf(needle);
+        if (at < 0) return '';
+        var i = srcText.indexOf('{', at),
+          depth = 0;
+        for (var k = i; k < srcText.length; k++) {
+          if (srcText[k] === '{') depth++;
+          else if (srcText[k] === '}') {
+            depth--;
+            if (depth === 0) return srcText.slice(at, k + 1);
+          }
+        }
+        return '';
+      }
+      var DSPS = ['ecgdex-dsp.js', 'ppgdex-dsp.js', 'motiondex-dsp.js', 'oxydex-dsp.js', 'hrvdex-dsp.js', 'pulsedex-dsp.js', 'cpapdex-dsp.js', 'glucodex-dsp.js'];
+      var loaded = DSPS.filter(function (f) {
+        return txt(f).length > 2000;
+      });
+      T.ok('the DSP population is loaded (anti-vacuity — a scan of nothing passes)', loaded.length >= 6, loaded.length + ' of ' + DSPS.length + ' DSP sources in env.sources');
+      if (loaded.length < 6) return;
+
+      /* ── HALF ONE · a value COMPUTED must be EXPORTED ────────────────────────────────────────── */
+      /* The population is DERIVED, not listed: whoever calls the shared-spine axis owes the block. A
+         node added tomorrow that calls hostAxis is in scope automatically. */
+      var axisNodes = loaded.filter(function (f) {
+        return /DexClock\.hostAxis|\bhostAxis\(/.test(txt(f));
+      });
+      var REF = 'ecgdex-dsp.js';
+      var refBlock = blockAt(txt(REF), 'out.recording.hostAxis');
+      T.ok(
+        'the REFERENCE emitter still emits an axis block (or this gate proves nothing)',
+        refBlock.length > 200,
+        refBlock ? refBlock.length + ' chars from ' + REF : 'ABSENT — parity would pass against nothing'
+      );
+      T.ok(
+        '…and at least one node is measured AGAINST it',
+        axisNodes.filter(function (f) {
+          return f !== REF;
+        }).length >= 1,
+        axisNodes.join(', ') + ' compute an axis'
+      );
+      if (refBlock.length <= 200) return;
+      /* The field set comes OUT of the reference — nobody maintains a list. */
+      var refFields = (refBlock.match(/^\s{8,}([a-zA-Z]+):/gm) || []).map(function (m) {
+        return m.trim().replace(':', '');
+      });
+      /* The §7 discriminators specifically: CLAUDE.md tells a consumer to "read `independent`, never a
+         ~0 ppm", which it cannot do unless the producer emits them. */
+      var MUST = ['independent', 'spreadMs', 'ppm', 'stability'].filter(function (k) {
+        return refFields.indexOf(k) >= 0;
+      });
+      T.eq('the reference carries every §7 discriminator (so parity against it means something)', MUST.sort(), ['independent', 'ppm', 'spreadMs', 'stability']);
+      var axisGaps = [];
+      axisNodes.forEach(function (f) {
+        if (f === REF) return;
+        var b = blockAt(txt(f), 'out.recording.hostAxis');
+        if (!b) return axisGaps.push(f + ': emits no recording.hostAxis at all');
+        MUST.forEach(function (k) {
+          if (b.indexOf(k + ':') < 0) axisGaps.push(f + ': missing ' + k);
+        });
+      });
+      T.eq('every node that COMPUTES an axis exports the reference field set', axisGaps.sort(), []);
+
+      /* ── HALF TWO · a value EXPORTED must be READ, and read AS DECLARED ──────────────────────── */
+      /* The mirror failure: PpgDex exported a respiration rate for a month that the Integrator never
+         read, because the assignment lived inside another node's branch. A producer cannot attest its
+         own consumer — the claim is about a file it does not read — so this half looks at the seam
+         from the CONSUMER side, in the same gate. */
+      var IN = txt('integrator-dsp.js');
+      T.ok('the consumer source is loaded', IN.length > 2000, IN.length + ' chars');
+      if (IN.length <= 2000) return;
+      /* ⚠️ SCOPED TO THE EXPORT BUILDER, NOT THE WHOLE FILE — the first version of this leg matched
+         `respRate:` anywhere and flagged `pulsedex-dsp.js`, whose `:587` computes a rate INTERNALLY
+         that its export never carries (its `frequency` block is `{lf, hf, vlf, lfhf}`). That is a real
+         defect of a different kind and not this leg's question. Testing the identifier instead of the
+         CAPABILITY is the drain's most common error and this gate committed it on its first run. */
+      function exportBlock(f) {
+        var t = txt(f),
+          m = t.match(/function [a-zA-Z]*[Bb]uildNodeExport/);
+        return m ? blockAt(t.slice(t.indexOf(m[0])), m[0]) : '';
+      }
+      var withExport = loaded.filter(function (f) {
+        return exportBlock(f).length > 500;
+      });
+      T.ok('export builders were located (anti-vacuity — an empty block passes every test below)', withExport.length >= 4, withExport.length + ' node(s) with a readable export builder');
+      /* 🔴 A GATE MUST PUBLISH ITS OWN DENOMINATOR. `exportBlock` anchors on a function NAMED
+         `buildNodeExport`, so a node that builds its payload under another name drops out of every
+         assertion above SILENTLY — 6 of 9 DSPs were covered on the first run and nothing said so.
+         That is this gate's own subject matter one level up: reporting success about what it never
+         examined. The excluded set is therefore PINNED, not floored — a node leaving coverage reds
+         here and has to be justified, rather than vanishing into a `>= 4`.
+
+         🔴 THE RULE, FOR THE NEXT AUTHOR REACHING FOR `>=`: a FLOOR is a threshold; an EQUALITY is a
+         population. A `>= N` check can NEVER detect exclusion, because the excluded members are
+         exactly the ones it does not count — so it is structurally blind to the failure it looks
+         like it is guarding. Never gate a population with a floor. Pin it as an equality plus a
+         justified exclusion list, so leaving coverage reds and must be argued.
+         The two known exclusions, both real and neither yet discharged:
+           cpapdex-dsp.js — builds no ganglior.node-export at all; CpapFusion.cpapBuildExport owns it
+           oxydex-dsp.js  — DOES build one, under a name this anchor misses, AND carries a proxy
+                            respiration rate (computeRespRateProxy) with no method field anywhere.
+                            That is a live candidate for the very defect this gate covers — see the
+                            residue row; it is out of THIS unit's scope, not out of scope. */
+      var allDsps = loaded.slice();
+      var uncovered = allDsps.filter(function (f) {
+        return withExport.indexOf(f) < 0;
+      });
+      T.eq('the set of nodes OUTSIDE this gate is exactly the known two (a new exclusion must red)', uncovered.slice().sort(), ['cpapdex-dsp.js', 'oxydex-dsp.js']);
+      T.ok('and the covered majority is stated, not floored', withExport.length + ' of ' + DSPS.length + ' node DSPs covered' === '6 of 8 node DSPs covered', withExport.length + ' of ' + DSPS.length);
+      var rateProducers = withExport.filter(function (f) {
+        return /respRateBrpm:|respRate:/.test(exportBlock(f));
+      });
+      T.ok('at least two nodes produce a respiration rate (anti-vacuity)', rateProducers.length >= 2, rateProducers.join(', '));
+      /* ATTRIBUTION: a method must be read from the node, never hardcoded over. The tell that started
+         this was an ASYMMETRY — one leg read `_hf.respRateMethod`, its sibling hardcoded a string. */
+      /* ⚠️ EXAMINE THE RIGHT-HAND SIDE ONLY. The first version tested the whole assignment for
+         `\.respRateMethod` — which `summary.respRateMethod` on the LEFT satisfies, so every branch
+         looked like it read a method and the leg was VACUOUS. It did not fire on the real defect when
+         that defect was planted back, which is the only reason it was caught. A gate that cannot see
+         the specimen that motivated it is decoration. */
+      var hardcoded = [];
+      var assigns = IN.match(/summary\.respRateMethod = [^;]+;/g) || [];
+      T.ok('the consumer assigns a respiration METHOD somewhere', assigns.length >= 2, assigns.length + ' assignment site(s)');
+      assigns.forEach(function (a) {
+        var rhs = a.slice(a.indexOf('=') + 1);
+        /* A branch is honest iff its RHS READS a method from the node's own object — anything
+           `<something>.respRateMethod` that is not the summary field being written. */
+        var readsNode = /[a-zA-Z_$][\w$]*\.respRateMethod/.test(rhs.replace(/summary\.respRateMethod/g, ''));
+        var quotesLiteral = /'[^']{3,}'/.test(rhs);
+        if (quotesLiteral && !readsNode) hardcoded.push(rhs.trim().slice(0, 64));
+      });
+      T.eq('no branch hardcodes the method over what its node declared', hardcoded, []);
+      /* And the producer half of the same pair: a node emitting a rate must emit its method beside it. */
+      var methodGaps = rateProducers.filter(function (f) {
+        return !/respRateMethod/.test(exportBlock(f));
+      });
+      T.eq('every node that exports a respiration rate also exports its method', methodGaps.sort(), []);
+    });
+
     group('PpgDex publishes the axis MEASUREMENTS, not only its verdict — parity with ECGDex', 'ppgdex-dsp · ecgdex-dsp · export-boundary · host-axis', function (T) {
       var src = env.sources || {};
       var P = String(src['ppgdex-dsp.js'] || ''),
