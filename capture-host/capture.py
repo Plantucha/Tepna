@@ -2942,7 +2942,38 @@ async def run_polar(dev: dict, root: str):
                                 _set(name, last_error=f"{pmd.MEAS_NAME.get(meas, meas)} START rejected")
                                 # discard(), not `os.remove(wr.path)` — the writer knows every file it
                                 # owns and `path` names only the primary (CAPTURE-HOST-DEEP-AUDIT §C8).
-                                writers[meas].discard()
+                                #
+                                # 🔴 …AND ONLY ON A SET THIS SESSION CREATED. This branch had NO rows
+                                # guard at all — correct pre-resume, where a rejected START could only
+                                # ever leave a header-only file. Under CAPTURE-FILESET-RESUME §2 the
+                                # writer may be appending to a set earlier sessions filled, and then a
+                                # single rejected START deletes that whole stream's night.
+                                #
+                                # It is a LIVE path, not a theoretical one, and the chain is citable
+                                # rather than argued. Cited by SYMBOL, not line number: the first draft
+                                # of this comment carried :2086/:2097 and both were off by ten, because
+                                # line numbers drift under every edit above them — including this one.
+                                #   · `_enter_sdk_mode` warns a refusal leaves the "device stays on its
+                                #     NORMAL rate menu (PPG 55 Hz, not 176)", and its docstring names
+                                #     the cost: "a night captured at 55 Hz under a config that says 176".
+                                #   · `polar_pmd.CTRL_STATUS` maps `0x08` to `invalid_sample_rate`, tied
+                                #     to POLAR-VERITY-DEVICE-SURFACE §4 — a real PMD code, not a
+                                #     paraphrase, so a 176 request against a 55-only menu lands HERE.
+                                # One failed re-entry on a resumed set is enough; no quiet session is
+                                # required, which is why this branch fits the 2026-09-03 loss better
+                                # than the teardown one does.
+                                #
+                                # The sibling fix below (`and not wr.resumed`) does NOT reach this
+                                # branch — it needs its own guard.
+                                if writers[meas].resumed:
+                                    log.warning("%s %s START rejected on a RESUMED set — keeping the "
+                                                "file, it holds earlier sessions' data: %s", name,
+                                                pmd.MEAS_NAME.get(meas, meas),
+                                                ", ".join(os.path.basename(p)
+                                                          for p in writers[meas].paths))
+                                    writers[meas].close()
+                                else:
+                                    writers[meas].discard()
                                 del writers[meas]
                                 BUS.unregister(_live_key(pmd.MEAS_NAME.get(meas, str(meas)), tag))
                             await asyncio.sleep(0.2)
@@ -3067,12 +3098,29 @@ async def run_polar(dev: dict, root: str):
             # only the primary — see StreamWriter.paths (CAPTURE-HOST-DEEP-AUDIT §C8).
             if arr_wr is not None:
                 arr_wr.close()
+            # 🔴 AND ONLY WHEN THIS WRITER CREATED THE FILE. `rows` counts what this INSTANCE wrote;
+            # `discard()` unlinks the whole FILE. Identical while one session owned one file — ended by
+            # CAPTURE-FILESET-RESUME §2, which reopens the same paths in append mode at rows=0, so a
+            # resumed session receiving nothing deleted every PRIOR session's data. Measured on vigil
+            # 2026-09-03: the 15:43 Verity set reached 21 MB and its PPG/ACC/GYRO/MAG were gone by
+            # 17:47; its PMDARRIVAL survived because `arr_wr` is closed above, never discarded.
+            # `wr.resumed` already existed (`getsize(path) > 0`, and it is what picks "a" over "w") —
+            # the pruner just never asked. A writer that created its own file has resumed=False, so the
+            # charge-retry junk this exists to stop (2026-07-19) is unaffected.
             for wr in list(writers.values()) + ([hr_writer] if hr_writer else []):
-                if not wr.rows:
+                if not wr.rows and not wr.resumed:
                     discarded_names = ", ".join(os.path.basename(p) for p in wr.paths)
                     wr.discard()
                     log.debug("%s: discarded header-only %s", name, discarded_names)
                 else:
+                    if not wr.rows:
+                        # LOUD, not debug: a resumed session that received nothing is the exact shape
+                        # that used to destroy a night, so the non-deletion is worth seeing in a journal
+                        # running at INFO. The old discard was `log.debug` and the box runs at INFO, so
+                        # the deletions left no trace at all.
+                        log.info("%s: resumed set %s received no rows — KEEPING the file (it holds "
+                                 "earlier sessions' data)", name,
+                                 ", ".join(os.path.basename(p) for p in wr.paths))
                     wr.close()
         if not _STOP.is_set():
             if charging_hold:

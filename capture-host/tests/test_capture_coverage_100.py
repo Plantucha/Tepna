@@ -2034,3 +2034,35 @@ def test_failover_survives_a_bond_failure_on_the_spare(monkeypatch, caplog):
     finally:
         capture.ADAPTER = orig
         capture._EXIT_CODE[0] = 0
+
+
+def test_a_RESUMED_set_that_receives_nothing_is_KEPT_not_discarded(tmp_path, monkeypatch):
+    """🔴 The 2026-09-03 vigil data loss, driven through the real teardown.
+
+    `wr.rows` counts THIS instance; `discard()` unlinks the whole FILE. Identical while one session
+    owned one file — ended by CAPTURE-FILESET-RESUME §2, which reopens the same paths in append mode at
+    rows=0. On the box the 15:43 Verity set reached 21 MB and its stream files were gone by 17:47, while
+    PMDARRIVAL survived because `arr_wr` is closed above the loop, never discarded.
+
+    This drives `run_polar` with a PRE-SEEDED recent set so the writer genuinely resumes, then delivers
+    a frame carrying no samples. The sibling test above pins the opposite case — a set this session
+    created IS still pruned — so together they cover both arcs of the guard rather than restating it."""
+    dev = _pdev()
+    started = capture._now()
+    ndir = capture.night_dir(str(tmp_path), started)
+    os.makedirs(ndir, exist_ok=True)
+    seeded = os.path.join(ndir, capture.capture_filename(
+        dev["vendor"], dev["model"], dev["device_id"], started, "ecg"))
+    prior = "# earlier session\nt;v\n1;2\n"
+    with open(seeded, "w") as fh:
+        fh.write(prior)
+
+    _polar_common(monkeypatch)
+    _inject_connect(monkeypatch, _EmptyFramePolar(start_status=0x00))
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(dev, str(tmp_path)))
+
+    assert os.path.exists(seeded), (
+        "a resumed set that received no rows was DELETED — this is the vigil data loss: the writer "
+        "appended to bytes it did not write, then discarded the whole file on teardown")
+    assert open(seeded).read().startswith(prior), "the earlier session's bytes must be intact"
