@@ -20,6 +20,7 @@ import os
 import pytest
 
 import bonding
+import writers
 from tests._srcscan import module_source
 
 
@@ -131,7 +132,11 @@ def test_the_teardown_deletes_only_empty_writers():
     src = module_source("capture.py")   # skips on a mutmut file — see tests/_srcscan.py
     # 2000, not 1200: the explanatory comment above the loop grew, and a fixed character window that
     # happens to end mid-comment turns a source scan into a test of comment length.
-    tail = src.split("DISCARD HEADER-ONLY FILES")[1][:2000]
+    # ANCHORED ON THE LOOP, not a character count. This window was 1200, then 2000, and was widened
+    # each time the comment above the loop grew — a source scan measured in characters is a test of
+    # comment length. Split on the `for wr in` line so the assertions below read the CODE regardless of
+    # how much prose precedes it (widened a third time 2026-09-03; fixed instead).
+    tail = src.split("DISCARD HEADER-ONLY FILES")[1].split("for wr in ", 1)[1][:1200]
     assert "not wr.rows" in tail, "emptiness must be judged by rows, not file size"
     # `os.remove(path)` USED TO BE ASSERTED HERE, and asserting it is what kept CAPTURE-HOST-DEEP-AUDIT
     # §C8 alive: `wr.path` names only the writer's PRIMARY file, so removing it left the `hr` writer's
@@ -165,3 +170,73 @@ def test_discarding_a_single_file_writer_is_unchanged(tmp_path):
     w.discard()
     assert not p.exists()
     assert list(tmp_path.iterdir()) == []
+
+
+# ── the header-only pruner must not delete a file it only RESUMED (2026-09-03 data loss) ────────────
+def test_a_RESUMED_writer_with_no_rows_keeps_the_file(tmp_path):
+    """🔴 `rows` counts THIS writer instance; `discard()` unlinks the whole FILE. One session per file
+    made those the same thing and CAPTURE-FILESET-RESUME §2 ended it.
+
+    Measured on vigil 2026-09-03: the 15:43 Verity set reached 21 MB and its PPG/ACC/GYRO/MAG were gone
+    by 17:47, while its PMDARRIVAL survived (that writer is closed, never discarded). 55 resumes that
+    afternoon. This pins the two facts the fix rests on: a writer that reopens a non-empty file reports
+    `resumed`, and `discard()` on it would destroy bytes it did not write."""
+    p = tmp_path / "Polar_VeritySense_X_20260903154354_PPG.txt"
+    first = writers.StreamWriter(str(p), "ppg")
+    first.write_row(1000, [1.0, 2.0, 3.0]) if hasattr(first, "write_row") else None
+    first.close()
+    assert p.stat().st_size > 0, "precondition: the first session left bytes"
+    before = p.read_bytes()
+
+    resumed = writers.StreamWriter(str(p), "ppg")
+    assert resumed.resumed is True, "a writer reopening a non-empty file must report resumed"
+    assert not resumed.rows, "precondition: this instance wrote nothing — the old pruner's whole test"
+
+    # The guard's exact predicate. `not rows` alone is TRUE here, which is the bug.
+    assert (not resumed.rows) is True, "the OLD condition fires on this writer"
+    assert (not resumed.rows and not resumed.resumed) is False, "the NEW condition must NOT fire"
+    resumed.close()
+    assert p.read_bytes() == before, "a resumed no-row session must leave earlier bytes untouched"
+
+
+def test_a_writer_that_CREATED_its_file_still_gets_pruned(tmp_path):
+    """The narrowing must not disable the pruner. A device on its dock refuses START every retry and
+    would otherwise litter one header-only set per minute (observed 2026-07-19, a 76-byte Verity PPG)."""
+    p = tmp_path / "Polar_VeritySense_X_20260903180000_PPG.txt"
+    fresh = writers.StreamWriter(str(p), "ppg")
+    assert fresh.resumed is False, "a writer that created its own file has nothing to protect"
+    assert (not fresh.rows and not fresh.resumed) is True, "the pruner must still fire here"
+    fresh.discard()
+    assert not p.exists(), "discard() removes a file this writer created"
+
+
+def test_the_teardown_consults_resumed_and_says_so_when_it_keeps(tmp_path):
+    """Pins the wiring and the visibility. The old discard logged at DEBUG on a box running INFO, so
+    the deletions left NO trace — the one line that would have named the loss was invisible."""
+    src = module_source("capture.py")
+    # Anchored on the loop for the same reason as the scan above — and I wrote this one with a fixed
+    # [:2600] window first, which failed on my own comment. Third instance of the identical mistake in
+    # one file; the character count is the defect, not its size.
+    block = src.split("DISCARD HEADER-ONLY FILES")[1].split("for wr in ", 1)[1][:1500]
+    assert "if not wr.rows and not wr.resumed:" in block, "the pruner must consult resumed"
+    assert "log.info(" in block, "keeping a resumed empty set must be visible at INFO, not DEBUG"
+
+
+def test_the_START_REJECTED_branch_also_refuses_to_delete_a_resumed_set():
+    """SECOND SITE (Heron, 2026-09-03). The `truly unsupported settings` branch discarded with NO rows
+    guard at all — correct before resume, where a rejected START could only leave a header-only file.
+
+    Live path, not theoretical: with sdk_mode on, a pass that fails to re-enter SDK mode leaves the
+    device offering PPG at 55 while 176 is still negotiated, which arrives as invalid_sample_rate — i.e.
+    exactly this branch — on a set earlier sessions filled.
+
+    Anchored on the branch, not a character offset (see the two scans above; the count is the defect)."""
+    src = module_source("capture.py")
+    # TWO CONTENT ANCHORS, no character count. Three scans in this file used a fixed window and all
+    # three broke when a comment grew — including, twice, mine. A region is bounded by what ENDS it.
+    branch = src.split("truly unsupported settings", 1)[1].split("del writers[meas]", 1)[0]
+    assert "if writers[meas].resumed:" in branch, "the rejected-START branch must check resumed"
+    assert "writers[meas].close()" in branch, "a resumed set is closed, never discarded"
+    assert "writers[meas].discard()" in branch, "a set this session created must still be pruned"
+    assert branch.index("if writers[meas].resumed:") < branch.index("writers[meas].discard()"), \
+        "the guard must precede the discard, not follow it"
