@@ -985,7 +985,7 @@ function deviceForStream(key){
   if(m){ const d = DEVICES.find(x=>_devTag(x)===m[1]); if(d) return d; }
   const base = key.replace(/_(vs|h10|o2)$/,'');
   // Streams the O2Ring produces that are NOT in its configured `streams` list (which is just ['spo2']):
-  // `pr`/`motion` are parsed out of the 1 Hz status header, and `o2ppg` is the ~125 Hz pleth — whose key
+  // `pr`/`motion`/`pi` are parsed out of the 1 Hz status header, and `o2ppg` is the ~125 Hz pleth — whose key
   // is a PREFIX form ('o2ppg'), not a '_o2' suffix, so the tag regex above never matches it. Without this
   // the o2ppg card resolved to no device at all and silently lost its RSSI + battery chips.
   // `pr`/`motion` have no device tag at all; everything else the ring derives uses the `o2` PREFIX
@@ -994,7 +994,7 @@ function deviceForStream(key){
   // its RSSI/battery chips AND — far worse — skipped the `charging` / `not worn` checks in
   // `streamState`, reading "live" while the ring sat on the charger. That is the exact false reading
   // that function exists to prevent. A prefix test cannot go stale when a stream is added.
-  const O2_DERIVED = ['pr', 'motion'];
+  const O2_DERIVED = ['pr', 'motion', 'pi'];
   const isO2Derived = k => O2_DERIVED.includes(k) || /^o2[a-z0-9]/.test(k);
   // AMBIGUITY MUST NOT RESOLVE BY LIST ORDER (issue #410). `find` returns the FIRST device declaring
   // this stream, so when two devices declare the same name — as the Verity and the O2Ring both did for
@@ -1874,6 +1874,7 @@ const RATE_WHY = {
 const STREAM_LABEL = {
   ppg2w: 'raw 2-wavelength optical (ppg2w)',
   spo2: 'oximetry (spo2)',
+  pi: 'perfusion index (pi, %)',
   ppg: 'pleth waveform (ppg)'
 };
 // The advice for one stream on one device, resolved against what the device ACTUALLY offers.
@@ -2190,12 +2191,19 @@ function streamKind(s){
   if(s.key==='ecg'||isPpgKey(s.key)||s.key==='o2ppg') return 'hr';   // waveform → derived ♥ rate (o2ppg = finger pleth)
   if(s.key.indexOf('ppi')===0) return 'ppi';       // per-beat [PP-int, HR]
   if((s.chans||1)>1) return 'multi';               // acc/gyro/mag — raw 3-axis
-  return 'scalar';                                  // spo2/pr/motion/rr
+  return 'scalar';                                  // spo2/pr/motion/pi/rr
 }
 function ovClass(key,val){                          // status color for scalar streams
   if(val==null||!isFinite(val)) return '';
   if(key==='spo2') return val>=95?'ok':val>=90?'warn':'bad';
   if(key==='pr' || key.indexOf('bpm')===0) return (val>=50&&val<=100)?'ok':'warn';
+  // PERFUSION INDEX. Bands are the ring's own observed range, not a clinical threshold: over a real
+  // 5288-row night PI ran 0-18.3 % with a mean of 1.36 %, so the useful question a card can answer is
+  // "is there enough signal to trust the SpO2 next to it" — a PI at or near zero is why a reading goes
+  // bad, and it is the one field that says so. Deliberately NOT colour-graded against a medical cutoff:
+  // we have no validation for one, and inventing a band here would be the fabricated authority the
+  // evidence ladder exists to prevent.
+  if(key==='pi') return val>=1?'ok':val>0?'warn':'bad';
   return '';
 }
 const KIND_FOOT = { hr:'derived rate', scalar:'current', multi:'raw 3-axis', ppi:'per beat' };
