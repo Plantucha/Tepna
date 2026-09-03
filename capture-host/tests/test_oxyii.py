@@ -589,6 +589,69 @@ def test_oxy_trailer_parses_session_stats():
     assert tr["o2_score_x10"] == 94 and tr["avg_hr"] == 49
 
 
+def test_oxy_trailer_start_time_is_a_FLOATING_wall_clock_epoch():
+    """`T+8` is the recording start, and it is local civil time encoded as if it were UTC — the Clock
+    Contract's canonical form (CLAUDE.md §🔒.1). Measured on six real stored files: read as UTC it equals
+    the filename's LOCAL stamp to +0.00 h, so the ring does NOT apply the timezone we push.
+
+    The plant that matters: a reader who "helpfully" converts this with a local-time function gets a
+    different instant, and the point of a floating stamp is that it does not depend on the reader. So the
+    round-trip is asserted through `utcfromtimestamp`, never `fromtimestamp`."""
+    import calendar
+    import datetime
+
+    wall = datetime.datetime(2026, 7, 23, 22, 3, 22)               # the stamp a filename would carry
+    epoch = int(calendar.timegm(wall.timetuple()))                 # civil time encoded AS IF UTC
+    over = {8 + i: (epoch >> (8 * i)) & 0xFF for i in range(4)}
+    tr = oxyii.parse_oxy_trailer(_fmt_a_file([(96, 50, 0)] * 300, over))
+    assert tr["start_t_ms"] == epoch * 1000, "start_t_ms is seconds x 1000, unshifted"
+    got = datetime.datetime.fromtimestamp(tr["start_t_ms"] / 1000, datetime.timezone.utc)
+    assert got.replace(tzinfo=None) == wall, f"UTC read must reproduce the wall clock, got {got}"
+
+
+def test_oxy_trailer_sample_count_is_u32_not_u16():
+    """`T+12` is a u32 sample count; the old read took two bytes and called it `total_seconds`.
+
+    NOT a live defect — all 30 real files have interval 1 and cap at 36 000 samples, below the u16 wrap
+    at 65 536 (§5's 10 h cap). This pins the correct width so a ring with a longer cap cannot wrap
+    silently."""
+    tr = oxyii.parse_oxy_trailer(_fmt_a_file([(96, 50, 0)] * 4, {12: 0x00, 13: 0x00, 14: 0x01, 15: 0x00}))
+    assert tr["sample_count"] == 65536, "the high half of the u32 must be read"
+    assert tr["total_seconds"] == 65536, "the legacy key keeps its meaning at the corrected width"
+
+
+def test_oxy_trailer_duration_is_count_times_interval_not_the_count():
+    """`total_seconds` equals the sample count only while `interval` is 1 — true of every file we hold,
+    and not a property of the format. `duration_s` is the one that stays right if that changes."""
+    tr = oxyii.parse_oxy_trailer(_fmt_a_file([(96, 50, 0)] * 300, {16: 4}))
+    assert tr["interval_s"] == 4 and tr["sample_count"] == 300
+    assert tr["duration_s"] == 1200, "duration is count x interval"
+    one = oxyii.parse_oxy_trailer(_fmt_a_file([(96, 50, 0)] * 300, {16: 1}))
+    assert one["duration_s"] == one["total_seconds"] == 300, "the two agree exactly when interval is 1"
+
+
+def test_oxy_trailer_surfaces_the_three_fields_upstream_calls_reserved():
+    """`asleepTime`, `percentLessThan90` and `stepCounter` are marked "reserved (zero)" by the public
+    reverse-engineering reference and are none of those things."""
+    tr = oxyii.parse_oxy_trailer(
+        _fmt_a_file([(96, 50, 0)] * 300, {32: 0x10, 33: 0x0E, 38: 71, 43: 0x2A, 44: 0x01, 45: 0, 46: 0})
+    )
+    assert tr["asleep_seconds"] == 0x0E10, "u16 LE at T+32"
+    assert tr["pct_below_90"] == 71
+    assert tr["steps"] == 0x012A, "u32 LE at T+43"
+
+
+def test_oxy_trailer_preexisting_keys_are_byte_identical():
+    """Additive change: every key this parser returned before keeps its name, type and value."""
+    tr = oxyii.parse_oxy_trailer(_fmt_a_file([(96, 50, 0)] * 300))
+    for k, v in {
+        "finalized": True, "total_seconds": 300, "avg_spo2": 96, "min_spo2": 81,
+        "desat_ge3": 17, "desat_ge4": 12, "seconds_below_90": 48, "episodes_below_90": 3,
+        "o2_score_x10": 94, "avg_hr": 49,
+    }.items():
+        assert tr[k] == v, f"{k} changed"
+
+
 def test_oxy_trailer_score_na_is_none_not_255():
     tr = oxyii.parse_oxy_trailer(_fmt_a_file([(96, 50, 0)] * 60, {42: 0xFF}))
     assert tr["o2_score_x10"] is None, "0xFF is the N/A sentinel and must not surface as a real score"
