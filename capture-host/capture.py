@@ -3548,6 +3548,7 @@ async def run_oxyii(dev: dict, root: str):
                 # across a disconnect), so carrying it over cannot manufacture one.
                 _seq = [_OXYII_LAST_DURATION.get(addr)]
                 _rtc_due = [False]      # set when a new recording session begins; served by the poll loop
+                _acc_unexpected = [False]  # latch: warn ONCE per link about an ACC push nobody asked for
                 # THE RING'S HONEST LIVENESS SIGNAL. Not rows: vitals legitimately stop the moment the
                 # ring leaves the finger (spo2 goes None) while the link and the frames carry on, so a
                 # row-based guard would tear down a perfectly healthy link every time it was taken off.
@@ -3628,6 +3629,27 @@ async def run_oxyii(dev: dict, root: str):
                                         log.warning("%s: settings write %s=%s did not land (ring reports %s)",
                                                     name, _fld, _val, _cfgd.get(_rb))
                                     _cfg_expect[0] = None
+                            continue
+                        # PUSHED 3-AXIS ACCELEROMETER (0x14). Arrives UNSOLICITED — nothing polls it;
+                        # it appears only because the AUTO_RT_SWITCH handshake asked the ring to push,
+                        # which happens only when 'acc' is in the device's `streams`. Handled here,
+                        # before the OP_LIVE gate, for the same reason the raw optical reply is: a
+                        # different opcode carrying a different payload, which that gate would drop.
+                        #
+                        # A frame that arrives when we did NOT ask is logged once and dropped rather
+                        # than parsed — an unexpected push is a fact about the ring worth seeing, and
+                        # guessing at it is how a stream nobody enabled becomes data nobody can explain.
+                        if r and r[0] == oxyii.OP_RT_ACC:
+                            if "acc" in (dev.get("streams") or []):
+                                _acc = oxyii.parse_rt_acc(r[1])
+                                if _acc:
+                                    BUS.push("acc_o2", [list(a) for a in _acc])
+                                    note_data(name, _time.monotonic())
+                            elif not _acc_unexpected[0]:
+                                _acc_unexpected[0] = True
+                                log.warning("%s: ring pushed a 0x14 ACC frame we never asked for "
+                                            "(%d bytes) — not parsed; see O2RING-PROTOCOL §3c",
+                                            name, len(r[1]))
                             continue
                         # RAW DUAL-WAVELENGTH reply. Handled before the OP_LIVE gate below, which would
                         # otherwise drop it — it is a different opcode carrying a different payload.
@@ -3775,6 +3797,18 @@ async def run_oxyii(dev: dict, root: str):
                             if live["pr"]:
                                 BUS.push("pr", [live["pr"]])
                             BUS.push("motion_o2", [live["motion"]])   # raw movement level (~1/s)
+                            # PERFUSION INDEX, the other half of the [7]/[11] swap. `pi` has been parsed
+                            # and written to the SpO2 sidecar's `pi_pct` column since that correction, but
+                            # was never published live — so the one signal that says WHY a reading is poor
+                            # was visible only after the fact. It is `[7]/10` %, non-zero in 99.9 % of
+                            # frames on a real night (mean 13.6 => 1.36 %), which is exactly what makes it
+                            # a perfusion index rather than the motion it was mistaken for.
+                            # NO None-GUARD, deliberately: `parse_live` computes `pi` as `[7]/10.0`
+                            # unconditionally, so it is a float whenever `live` exists at all. A guard
+                            # here was written, tested, and then caught by the coverage floor as an
+                            # unreachable branch — the floor's real value is finding guards that CANNOT
+                            # be exercised, not sloppiness.
+                            BUS.push("pi_o2", [live["pi"]])
                             note_data(name, _time.monotonic())
                             _set(name, rows=wr.rows, spo2=live["spo2"], pr=live["pr"], battery=live["batt"],
                                  motion=live["motion"], worn=True, last_sample=now.isoformat(),
@@ -3782,6 +3816,7 @@ async def run_oxyii(dev: dict, root: str):
                                  charging=bool(live.get("batt_state")), last_error=None)
                         else:
                             BUS.push("motion_o2", [live["motion"]])
+                            BUS.push("pi_o2", [live["pi"]])
                             # The ring keeps its link and keeps reporting motion/battery/contact on the
                             # charger — only the vitals stop. batt_state is the device's OWN charge flag
                             # (0 = not charging), so unlike the Polars this needs no inference.
@@ -3790,6 +3825,17 @@ async def run_oxyii(dev: dict, root: str):
                                  last_error=None if live["worn"] else "no finger contact")
 
                 BUS.register("motion_o2", "Motion (O2Ring)", "lvl", 0)
+                BUS.register("pi_o2", "Perfusion index (O2Ring)", "%", 0)
+                if "acc" in (dev.get("streams") or []):
+                    # THE RING'S 3-AXIS ACCELEROMETER — the H10-equivalent stream, declared the same way
+                    # the H10's is (3 channels, X/Y/Z) so it draws the same three-trace card.
+                    #
+                    # ⚠️ UNIT IS "raw", NOT "mg". `_LIVE_META["acc"]` declares mg for the Polar straps
+                    # because Polar publishes a scale; the vendor publishes none for this ring, and no
+                    # ring here has ever been asked to push this stream, so there is nothing to
+                    # calibrate against. Declaring mg would put a fabricated unit on the card — the
+                    # same failure as the fs=0 note below, one field over.
+                    BUS.register("acc_o2", "ACC (O2Ring)", "raw", 0, chans=3, labels=("X", "Y", "Z"))
                 if ppgwr:                                   # no card for a stream we are not capturing
                     BUS.register("o2ppg", "PPG (O2Ring)", "raw", O2PPG_FS)   # finger pleth, Phase 2
                 if ppg2wr:
@@ -3806,7 +3852,18 @@ async def run_oxyii(dev: dict, root: str):
                 await _bounded_setup(client.start_notify(nch, on_data))
                 await _bounded_setup(client.write_gatt_char(wch, oxyii.auth_frame(), response=False))   # 0xFF: no reply
                 await asyncio.sleep(0.6)
-                await _bounded_setup(client.write_gatt_char(wch, oxyii.setup_frame(), response=False))  # 0x10: ack
+                # 0x10 AUTO_RT_SWITCH: `0x00` disables all four device-push streams, which is what this
+                # has always sent and what every existing recording was captured under. Asking for 'acc'
+                # in the device's `streams` opts into the ring's 3-axis accelerometer — the SAME
+                # mechanism the H10 uses for its chest ACC, so a reader configures both the same way.
+                #
+                # ⚠️ NOT a default. Enabling a push stream changes what arrives on the notify
+                # characteristic for a whole session, on a device whose nights cannot be re-run, and no
+                # ring in this project has ever been asked to push anything. `cfg` is deliberately not
+                # consulted here: `run_oxyii(dev, root)` has no `cfg` in scope, and reaching for one
+                # would have been a NameError on the live path.
+                _push = oxyii.RT_PUSH_ACC if "acc" in (dev.get("streams") or []) else 0x00
+                await _bounded_setup(client.write_gatt_char(wch, oxyii.setup_frame(_push), response=False))  # 0x10: ack
                 await asyncio.sleep(0.6)
                 # Sync the ring's free-running RTC to the NTP-synced host so its stored .dat timestamps
                 # match the live capture (it drifts ~+151 s — see oxyii.set_time_frame).

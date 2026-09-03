@@ -81,8 +81,61 @@ def auth_payload(serial: str = "0000", ts: int | None = None) -> bytes:
 def auth_frame(serial: str = "0000") -> bytes:
     return encode(OP_AUTH, auth_payload(serial))
 
-def setup_frame() -> bytes:
-    return encode(OP_SETUP, b"\x00")
+OP_RT_ACC = 0x14          # device-PUSHED 3-axis accelerometer; enabled via AUTO_RT_SWITCH bit 3
+
+# AUTO_RT_SWITCH (0x10) bitfield. This command was recorded as an opaque "setup, payload 00, purpose
+# unknown" by both this project and the public reverse-engineering reference until 2026-09-02; the
+# vendor exposes it as `oxyAutoSwitch(model, autoParam, autoWave, autoPpg, autoAcc)` and builds the
+# payload by OR-ing four booleans into one byte. So the `0x00` we have always sent does not mean
+# "default" — it DISABLES all four device-push streams, and every sample this project holds was
+# obtained by polling because of it. See O2RING-PROTOCOL §3 and residue 2026-09-02-oxyii-autortswitch-unexamined.
+RT_PUSH_PARAM, RT_PUSH_WAVE, RT_PUSH_PPG, RT_PUSH_ACC = 0x01, 0x02, 0x04, 0x08
+
+
+def setup_frame(push: int = 0x00) -> bytes:
+    """AUTO_RT_SWITCH (0x10) — which device-pushed streams the ring should send unprompted.
+
+    `push` is the OR of the RT_PUSH_* bits; the default `0x00` preserves the historical behaviour
+    exactly (all pushing off, everything polled), so no caller changes meaning by not passing it.
+
+    ⚠️ **Enabling a push stream changes what arrives on the notify characteristic for the whole
+    session** — unsolicited frames with opcodes our dispatcher has never seen. That is a live-capture
+    behaviour change on a device we cannot re-run, so it is config-gated at the caller rather than
+    switched on here, and it has never been exercised against hardware: no ring in this project has
+    ever been asked to push. Treat a first run as an experiment with a night at stake, not a setting."""
+    if not 0 <= push <= 0x0F:
+        raise ValueError(f"AUTO_RT_SWITCH payload is a 4-bit field, got {push:#x}")
+    return encode(OP_SETUP, bytes([push]))
+
+
+def parse_rt_acc(payload: bytes) -> list[tuple[int, int, int]]:
+    """cmd=0x14 reply → [(x, y, z), ...] as SIGNED 16-bit counts, or [] when there are no records.
+
+    Layout: `[0:2]` u16 LE record count, then 6 bytes per sample — three i16 LE axes.
+
+    SIGNED, and that is the half worth pinning: the sibling `parse_rt_ppg` shipped its first revision
+    reading unsigned and its statistics were wrong by an order of magnitude, because small negative
+    values wrap to ~2**32. An accelerometer at rest sits near zero on two axes and at ±1 g on the
+    third, so unsigned reads turn every downward tilt into a huge positive number that still looks
+    like data.
+
+    ⚠️ UNITS ARE NOT KNOWN. The vendor publishes raw counts with no scale factor, and no ring here has
+    ever been asked to push this stream, so there is nothing to calibrate against yet. Counts are
+    returned as counts. Do NOT invent a g conversion — a plausible-looking acceleration is worse than
+    an obviously raw one."""
+    if len(payload) < 2:
+        return []
+    n = int.from_bytes(payload[0:2], "little")
+    avail = max(0, (len(payload) - 2) // 6)
+    out = []
+    for i in range(min(n, avail)):
+        o = 2 + i * 6
+        out.append((
+            int.from_bytes(payload[o:o + 2], "little", signed=True),
+            int.from_bytes(payload[o + 2:o + 4], "little", signed=True),
+            int.from_bytes(payload[o + 4:o + 6], "little", signed=True),
+        ))
+    return out
 
 def live_frame() -> bytes:
     return encode(OP_LIVE, b"")
