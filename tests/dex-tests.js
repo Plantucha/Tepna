@@ -26801,8 +26801,64 @@
         claimBad.length === 0,
         claimBad.length ? claimBad.slice(0, 8).join('; ') : claimN + ' claim(s) resolved'
       );
+      /* CHECK 8h · ROW-TO-ROW references resolve (added 2026-09-03, after they silently did not).
+         check8d/f/g resolve row↔BRIEF in both directions. A reference from one row to ANOTHER ROW was
+         prose to this gate — and the date-slug migration renamed every key without renaming those
+         references, so `Blocks R17` and `BLOCKED ON R16` survived pointing at ids that no longer exist,
+         with all 59 assertions green. That pair was the load-bearing one: the cohort row's fix presumes
+         a harness the other row records as broken, so whoever picked it up would have found the dead
+         harness 2.5 h into a run — exactly what the cross-reference existed to prevent.
+
+         Scoped to ROW LINES ONLY. The prose above legitimately names retired ids (`R7` never existed;
+         `R11`/`R12`/`R13`/`R15` are the collision history), and that is documentation of the migration,
+         not a pointer. A gate that flagged them would be wrong and would be silenced, which is worse. */
+      function rowRefs(text) {
+        var bad = [];
+        var ids = {};
+        RR.rows.forEach(function (r) {
+          ids[r.id] = 1;
+        });
+        String(text)
+          .split('\n')
+          .forEach(function (line) {
+            var m = line.match(/^\|\s*(\d{4}-\d{2}-\d{2}-[a-z0-9-]+)\s*\|/);
+            if (!m) return; // prose, not a row — see the note above
+            var body = line.slice(m[0].length);
+            var stale = body.match(/\bR\d+\b/g) || [];
+            stale.forEach(function (s) {
+              bad.push(m[1] + ' → ' + s + ' (retired id scheme — keys are date-slugs since 2026-09-02)');
+            });
+            var refs = body.match(/\b\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\b/g) || [];
+            refs.forEach(function (k) {
+              if (!ids[k]) bad.push(m[1] + ' → ' + k + ' (no such row)');
+            });
+          });
+        return bad;
+      }
+      var rowRefBad = rowRefs(ledger || '');
+      T.ok(
+        'check8h · a reference from one row to another resolves (and no row still names an R<n>)',
+        rowRefBad.length === 0,
+        rowRefBad.length ? rowRefBad.slice(0, 6).join('; ') : 'row↔row references resolve'
+      );
       /* PLANTED CONTROLS — the ledger is small and clean, so without plants none of the above has been
          shown to fire. */
+      T.ok(
+        'self-test · check8h FIRES on a stale R<n> and on an unresolvable key, and NOT on prose',
+        (function () {
+          var one = '| 2026-09-02-a | 2026-09-02 | `X-BRIEF.md` | see R17 | e | OPEN |';
+          var two = '| 2026-09-02-a | 2026-09-02 | `X-BRIEF.md` | see 2026-09-02-nope | e | OPEN |';
+          var prose = 'the old ids `R11` and `2026-09-02-nope` are history, not pointers';
+          var saveRows = RR.rows;
+          RR.rows = [{ id: '2026-09-02-a' }];
+          var a = rowRefs(one).length === 1 && rowRefs(one)[0].indexOf('R17') > 0;
+          var b = rowRefs(two).length === 1 && rowRefs(two)[0].indexOf('no such row') > 0;
+          var c = rowRefs(prose).length === 0;
+          var d = rowRefs('| 2026-09-02-a | 2026-09-02 | `X-BRIEF.md` | see 2026-09-02-a | e | OPEN |').length === 0;
+          RR.rows = saveRows;
+          return a && b && c && d;
+        })()
+      );
       var plantOk = residueRows('| 2026-09-02-k9 | 2026-09-02 | `' + names[0] + '` | a defect | line 1 | OPEN |');
       T.ok('self-test · check8 PARSES a well-formed row', plantOk.rows.length === 1 && plantOk.malformed.length === 0 && plantOk.rows[0].source === names[0]);
       T.ok('self-test · check8 FIRES on a pipe inside a cell (7 cells)', residueRows('| 2026-09-02-k9 | 2026-09-02 | `X-BRIEF.md` | med|err| | e | OPEN |').malformed.length === 1);
