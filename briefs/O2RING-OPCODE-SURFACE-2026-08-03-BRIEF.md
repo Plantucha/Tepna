@@ -11,7 +11,9 @@
 `O2RING-PROTOCOL-2026-07-17-BRIEF.md` documents **8** OxyII opcodes: `0xFF` AUTH · `0x10` SETUP ·
 `0x04` LIVE · `0xC0` SET_UTC_TIME · `0xF1`–`0xF4` file ops. On 2026-08-03 all **256** addresses were
 swept with `capture-host/probe_oxyii_opcodes.py` against device `S8AW2100` (`D1:98:62:7C:92:B3`).
-Coverage is complete: every opcode was sent at least once, none remain unprobed.
+Coverage of the **request/response** surface is complete: every opcode was sent at least once,
+none remain unprobed. It is **not** complete over the ring's *pushed* streams, which no sent
+opcode can elicit — see §10.
 
 **Backups first.** Both un-synced sessions (`20260802203208`, `20260803063220`) were pulled and verified
 by VALUE before anything was sent — 36 000 records (median SpO₂ 97 / HR 52) and 4 294 records (99 / 59).
@@ -33,7 +35,7 @@ probes and the whole `0x80`–`0x86` cluster in a region a linear crawl reaches 
 | `0xE1` | 60 B, ASCII `2D010002`, `2592302100` | fw / serial — **and the RTC, bytes [24:31] — see §9** |
 | `0x06` | ASCII `20260527040055`, later just `00` | see §5 — conditional, do not quote as a constant |
 | `0x84` `0x86` `0xE4` | 4 B, **differ between reads** | live counters, not identity |
-| `0x05` | up to 922 B | unidentified buffer |
+| `0x05` | 922 B fixed | **two-channel structured stream — identified 2026-08-05** (`O2RING-RAW-DUAL-WAVELENGTH`). ⚠ That it is a *plethysmogram*, and which channel is which wavelength, are NOT established |
 | `0x02` | 20 B | unidentified |
 
 **Reply byte 3 (the "flag") is not always `0x01`** — `0xFC` for `0x01`/`0xEA`/`0xEC`, `0xE1` for
@@ -244,3 +246,81 @@ perfectly-still baseline of 0) while the optical σ is direction-inconsistent ac
 motion is the detector, optical is not. Onset-after-command measured ~419 ms but is **buffer-limited
 (±~0.5 s)** — the raw stream is back-timed from ~1 s arrivals, so a per-fire latency distribution
 (step 2) needs either many fires averaged or the 125 Hz pleth path.
+
+## 10 · 2026-09-03 — the PUSH surface, which no sweep of this shape can reach
+
+§6's rule was that the detector "sees what the ring REPORTS, never what the ring DOES", and named
+actuators as the class a data-frame comparison cannot reach. **There is a second class, and it is the
+reason this brief has no accelerometer in it: streams the ring sends only when it has been told to.**
+A push opcode is not a request. Sending `0x14` and getting silence is not evidence the capability is
+absent — it is exactly what a disabled push stream looks like from a sweep.
+
+### `AUTO_RT_SWITCH` (`0x10`) — the byte that was "purpose unknown"
+
+**[SDK]** `0x10` was recorded as *"setup, payload 00, purpose unknown"* by this project **and** by the
+public reverse-engineering reference (`nglessner/o2ring-s-protocol`) until 2026-09-02. The vendor
+exposes it as `oxyAutoSwitch(model, autoParam, autoWave, autoPpg, autoAcc)` and builds the payload by
+OR-ing four booleans into a single byte:
+
+| bit | constant | stream it enables |
+|---|---|---|
+| `0x01` | `RT_PUSH_PARAM` | live parameters |
+| `0x02` | `RT_PUSH_WAVE` | waveform |
+| `0x04` | `RT_PUSH_PPG` | PPG |
+| `0x08` | `RT_PUSH_ACC` | 3-axis accelerometer (arrives as `0x14`) |
+
+**So the `0x00` this project has always sent does not mean "default" — it DISABLES all four.** Every
+sample this project holds was obtained by polling because of that byte.
+
+### [HW] The corroboration was already in this brief, unremarked
+
+§9's `GET_CONFIG` byte map records `[10:20] auto_switch … func_switch | all 0`. The ring's own settings
+struct read `auto_switch = 0` on fw `2D010002` — measured, not inferred. That is direct hardware
+evidence that all four push streams were off at the moment this sweep concluded the ring had none.
+
+Two independent readings agree, and neither was noticed at the time: `0x14` was sent during the
+256-opcode sweep and is absent from §1's responder list, and the config struct says why.
+
+### `0x14` = `AUTO_RT_ACC` — decoded, never observed
+
+**[SDK]** Layout: `[0:2]` u16 LE record count, then 6 bytes per sample — three **i16 LE** axes.
+Implemented as `oxyii.parse_rt_acc`.
+
+🔴 **Read SIGNED.** The sibling `parse_rt_ppg` shipped its first revision reading unsigned and its
+statistics were wrong by an order of magnitude, because small negatives wrap to ~2\*\*32. An
+accelerometer at rest sits near zero on two axes and at ±1 g on the third, so an unsigned read turns
+every downward tilt into a large positive that still looks like data.
+
+⚠️ **Units are NOT known.** The vendor publishes raw counts with no scale factor and there is nothing
+here to calibrate against. Counts are returned as counts; do not synthesise g — a plausible-looking
+acceleration is worse than an obviously raw one.
+
+**[HW] is EMPTY for this stream.** No ring in this project has ever been asked to push, and zero ACC
+bytes have ever been observed. That `parse_rt_acc`'s layout is correct is **[INF]**: it is written
+against the vendor's description and has never met a real frame.
+
+### Before anyone enables it
+
+`setup_frame(RT_PUSH_ACC)` changes what arrives on the notify characteristic **for the whole
+session** — unsolicited frames carrying opcodes the dispatcher has never seen. It is config-gated at
+the caller rather than switched on in the library. Enable `0x08` alone rather than OR-ing in
+wave/PPG, so that a dispatcher failure is attributable to one stream.
+
+⚠️ This is a live-capture behaviour change on a device that cannot be re-run: treat a first run as an
+experiment with a night at stake, not a setting. Back up un-synced sessions and verify them BY VALUE
+first, exactly as the top of this brief did.
+
+### The USB path, for contrast
+
+**[HW]** The USB/Format-A `.dat` record is `[spo2 u8][pulse u8][motion u8]` — one scalar motion byte
+at 1 Hz, no axes — and `0x14` is not in the USB `OP_NAMES` table. Accelerometer access on this
+hardware, if it is reachable at all, is BLE-only. See `O2RING-USB-FIELD-NOTES-2026-09-03`.
+
+### What this closes elsewhere
+
+`DEVICE-RATE-TRUTH-2026-08-05` carries **"Whether the ring exposes an accelerometer"** as an open
+question. It can now be answered — but not with a yes or a no: **the capability is declared by the
+vendor surface and decoded here, gated off by `AUTO_RT_SWITCH`, and has never been exercised.** The
+§5 decision to leave GYRO and MAG off is unaffected; there is no gyro or magnetometer opcode in this
+command space at all.
+
