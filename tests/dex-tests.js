@@ -50474,6 +50474,24 @@
         return exportBlock(f).length > 500;
       });
       T.ok('export builders were located (anti-vacuity — an empty block passes every test below)', withExport.length >= 4, withExport.length + ' node(s) with a readable export builder');
+      /* 🔴 A GATE MUST PUBLISH ITS OWN DENOMINATOR. `exportBlock` anchors on a function NAMED
+         `buildNodeExport`, so a node that builds its payload under another name drops out of every
+         assertion above SILENTLY — 6 of 9 DSPs were covered on the first run and nothing said so.
+         That is this gate's own subject matter one level up: reporting success about what it never
+         examined. The excluded set is therefore PINNED, not floored — a node leaving coverage reds
+         here and has to be justified, rather than vanishing into a `>= 4`.
+         The two known exclusions, both real and neither yet discharged:
+           cpapdex-dsp.js — builds no ganglior.node-export at all; CpapFusion.cpapBuildExport owns it
+           oxydex-dsp.js  — DOES build one, under a name this anchor misses, AND carries a proxy
+                            respiration rate (computeRespRateProxy) with no method field anywhere.
+                            That is a live candidate for the very defect this gate covers — see the
+                            residue row; it is out of THIS unit's scope, not out of scope. */
+      var allDsps = loaded.slice();
+      var uncovered = allDsps.filter(function (f) {
+        return withExport.indexOf(f) < 0;
+      });
+      T.eq('the set of nodes OUTSIDE this gate is exactly the known two (a new exclusion must red)', uncovered.slice().sort(), ['cpapdex-dsp.js', 'oxydex-dsp.js']);
+      T.ok('and the covered majority is stated, not floored', withExport.length + ' of ' + DSPS.length + ' node DSPs covered' === '6 of 8 node DSPs covered', withExport.length + ' of ' + DSPS.length);
       var rateProducers = withExport.filter(function (f) {
         return /respRateBrpm:|respRate:/.test(exportBlock(f));
       });
