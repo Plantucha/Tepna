@@ -87,6 +87,32 @@ export function constantPresent(x, code) {
   return false;
 }
 
+/* The guide-text normaliser, HOISTED out of `parseGuide` so the description sweep uses the byte-same
+   path rather than a second copy that drifts. Every defence in it was bought by a specific failure — see
+   the header: fixpoint tag-stripping, a SINGLE-pass entity decode (sequential passes double-decoded an
+   escaped literal into a live entity), refusal on an out-of-range code point, and dropping <s>/<del> so a
+   struck-through correction is not mined as a live claim. */
+export function stripGuideText(t) {
+  const stripTags = (x) => {
+    let prev;
+    let cur = x;
+    do {
+      prev = cur;
+      cur = cur.replace(/<[^<>]*>/g, '');
+    } while (cur !== prev);
+    return cur;
+  };
+  const ENT = /&(?:#x([0-9a-fA-F]+)|#(\d+)|(amp|lt|gt|quot|apos|nbsp));/g;
+  const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+  const decode = (x) =>
+    x.replace(ENT, (_m, hex, dec, name) => {
+      if (name) return NAMED[name];
+      const cp = Number.parseInt(hex || dec, hex ? 16 : 10);
+      return Number.isFinite(cp) && cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : _m;
+    });
+  return decode(stripTags(String(t).replace(/<(s|del)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')));
+}
+
 export function parseGuide(html) {
   /* Metric cards, each `<div class="mh">…` with a `<span class="ma">` name and optional `<div class="ft">`
      formula. Split on the card boundary rather than a non-greedy lookahead: the lookahead form collapses
@@ -108,34 +134,145 @@ export function parseGuide(html) {
          only repo-owned guides and renders nothing, so that is not an injection risk here — but "not
          exploitable" is not "correct", and a tag left behind is text this sweep would then mine for
          constants. Looping to a fixpoint is three lines and removes the question. */
-    const stripTags = (t) => {
-      let prev;
-      let cur = t;
-      do {
-        prev = cur;
-        cur = cur.replace(/<[^<>]*>/g, '');
-      } while (cur !== prev);
-      return cur;
-    };
-    const ENT = /&(?:#x([0-9a-fA-F]+)|#(\d+)|(amp|lt|gt|quot|apos|nbsp));/g;
-    const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
-    const decode = (t) =>
-      t.replace(ENT, (_m, hex, dec, name) => {
-        if (name) return NAMED[name];
-        const cp = Number.parseInt(hex || dec, hex ? 16 : 10);
-        /* Out-of-range is exactly the `&#x201CFair` case: refuse rather than throw or guess. */
-        return Number.isFinite(cp) && cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : _m;
-      });
-    const strip = (t) => decode(stripTags(t.replace(/<(s|del)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')));
+    const strip = stripGuideText;
     out.push({ name: strip(nm[1]).trim(), formula: strip(ft[1]).split(/\s+/).join(' ').trim() });
   }
   return out;
+}
+
+/* ── DESCRIPTIONS (`<p class="md">`) — DEEP-AUDIT-VI §2.5b ────────────────────────────────────────
+   The sibling corpus, and the LARGER one: 404 descriptions against 389 formulas across the 7 guides.
+   `parseGuide` above reads `.ft` and treats it as a formula; the sentence telling a user what a number
+   MEANS lives in `.md` and had never been compared to code.
+
+   A SEPARATE parser rather than relaxing `parseGuide`, deliberately: its selftest pins "card without a
+   formula is skipped", which is a contract other callers rely on. Widening it to admit description-only
+   cards would silently change what the formula sweep counts.
+
+   ⚠️ THE FILTER WAS PRE-REGISTERED BEFORE THE FIRST RUN, and that is load-bearing rather than
+   ceremonial. Prose numerals are mostly incidental — a citation year, a cohort size, a page — so the
+   `.ft` sweep's 5-of-68 rate cannot transfer, and whatever number came out first would have become the
+   anchor. Bands fixed in advance: fewer than 40 checkable claims across 404 descriptions means the
+   filter is TOO TIGHT; more than 30% of checkable claims flagged means it is TOO LOOSE and the
+   incidental numerals are dominating. Either verdict is a redesign, NOT a finding to publish. */
+export function parseGuideDescriptions(html) {
+  const out = [];
+  for (const c of html.split('<div class="mh">').slice(1)) {
+    const nm = /<span class="ma">([\s\S]*?)<\/span>/.exec(c);
+    const md = /<p class="md">([\s\S]*?)<\/p>/.exec(c);
+    if (!nm || !md) continue;
+    out.push({ name: stripGuideText(nm[1]).trim(), description: stripGuideText(md[1]).split(/\s+/).join(' ').trim() });
+  }
+  return out;
+}
+
+/* KEEP a numeral only where it is BOUND to a unit or a comparator — an unbound number in prose is
+   almost never a claim about the code. Bare counts ("reported at 10 levels") are STRUCTURAL claims and
+   are deliberately out of scope: §2.5b names that blind spot, and a numeral key cannot reach it. */
+const CLAIM_UNIT = '(?:%|Hz|ms|minutes?|mins?|seconds?|secs?|hours?|hrs?|bpm|nm|mg\\/dL|mmol\\/L|s|h)';
+const CLAIM_CMP = '(?:>=|<=|[<>≥≤]|below|above|under|over|within)';
+export function claimConstants(text) {
+  const t = String(text || '');
+  const found = new Set();
+  /* number followed by a unit — "5-minute", "90%", "1 Hz", "0.3 s" */
+  for (const m of t.matchAll(new RegExp('(\\d+(?:\\.\\d+)?)[\\s\u202f\u00a0-]*' + CLAIM_UNIT + '(?![A-Za-z])', 'gi'))) found.add(m[1]);
+  /* comparator followed by a number — "below 90", "≥ 3" */
+  for (const m of t.matchAll(new RegExp(CLAIM_CMP + '[\\s\u202f\u00a0]*(\\d+(?:\\.\\d+)?)', 'gi'))) found.add(m[1]);
+  const out = [];
+  for (const v of found) {
+    /* DROP a citation year. 1900-2100 as a BARE integer only — 2000 ms is a real claim. */
+    if (/^\d{4}$/.test(v) && +v >= 1900 && +v <= 2100 && new RegExp('(?<![.\\d])' + v + '(?![.\\d%])').test(t)) {
+      if (new RegExp('[A-Za-z]{3,}[\\s,]+(?:et al\\.?[\\s,]+)?\\(?' + v).test(t)) continue;
+    }
+    /* DROP a cohort size — "n=2,743", "N of 37". */
+    if (new RegExp('[nN]\\s*(?:=|of)\\s*' + v.replace('.', '\\.')).test(t)) continue;
+    out.push(v);
+  }
+  return out.sort();
 }
 
 function nodeSourceFor(guideFile) {
   const node = guideFile.split(' ')[0].toLowerCase();
   const files = readdirSync(ROOT).filter((f) => f.startsWith(node + '-') && f.endsWith('.js'));
   return { files, code: files.map((f) => readFileSync(join(ROOT, f), 'utf8')).join('\n') };
+}
+
+/* The `.md` sweep — same corpus discipline as main(): glob the node's sources, print the denominator,
+   and SKIP loudly where no source matched rather than reporting the guide clean. */
+function mainDescriptions() {
+  const guides = readdirSync(ROOT)
+    .filter((f) => /Reference\.html$/.test(f))
+    .sort();
+  let D = 0;
+  let C = 0;
+  let K = 0;
+  let U = 0;
+  let flagged = 0;
+  console.log(`DENOMINATOR: ${guides.length} guide(s) — DESCRIPTIONS (<p class="md">)\n`);
+  const hitsAll = [];
+  for (const g of guides) {
+    const { files, code } = nodeSourceFor(g);
+    if (!files.length) {
+      console.log(`  ${g} — no matching <node>-*.js source, SKIPPED (not "clean")`);
+      continue;
+    }
+    const cards = parseGuideDescriptions(readFileSync(join(ROOT, g), 'utf8'));
+    const hits = [];
+    let withClaim = 0;
+    for (const { name, description } of cards) {
+      const claims = claimConstants(description);
+      if (!claims.length) continue;
+      withClaim++;
+      /* 🔴 PARTITION, NEVER SILENTLY PASS. A short integer cannot be checked against a whole-node
+         corpus: `constantPresent` is a substring test over ~717 kB, where every 1-2 digit value is
+         present somewhere under EVERY matching strategy tried (plain, word-boundary, and
+         comparison-context were each measured `true` for a planted-WRONG 87). Passing them silently
+         is what made the first version of this sweep blind — a planted "below 90%" -> "below 87%"
+         went undetected while the run reported 1 flag and read clean.
+         So they are REFUSED and COUNTED, not checked. Same discipline as DexClock.hostAxis: absent a
+         measurement, say so rather than return a zero a caller cannot distinguish from a result. */
+      const checkable = claims.filter((x) => x.includes('.') || x.length >= 3);
+      const unresolvable = claims.filter((x) => !(x.includes('.') || x.length >= 3));
+      U += unresolvable.length;
+      K += checkable.length;
+      const missing = checkable.filter((x) => !constantPresent(x, code));
+      if (missing.length) hits.push({ guide: g, name, missing, description });
+    }
+    D += cards.length;
+    C += withClaim;
+    flagged += hits.length;
+    hitsAll.push(...hits);
+    console.log(`  ${g.padEnd(26)} ${files.length} src · ${String(cards.length).padStart(3)} descriptions · ${String(withClaim).padStart(3)} with claims · ${hits.length} flagged`);
+  }
+  console.log(`\n${flagged} flagged of ${C} claim-bearing description(s), across ${D} description(s) in ${guides.length} guide(s).`);
+  console.log(`CLAIM VALUES: ${K} checkable · ${U} REFUSED as unresolvable at whole-node corpus scope (short integers).`);
+  if (U > K) {
+    console.log(`⚠ MOST OF THIS CORPUS IS OUT OF REACH: ${U} of ${K + U} claim values cannot be checked here.`);
+    console.log('  Prose asserts thresholds ("below 90%"), windows ("5-minute") and rates ("1 Hz") — all short');
+    console.log("  integers. Checking them needs the code corpus scoped to the METRIC's own implementation,");
+    console.log('  not the whole node. That is a different and larger unit than "point the extractor at .md".');
+  }
+  /* ⚠️ THE PRE-REGISTERED BANDS, CHECKED BY THE TOOL rather than by the reader's judgement after the
+     fact. Written before the first run precisely so a bad filter cannot be reported as a finding. */
+  const rate = C ? flagged / C : 0;
+  if (C < 40) {
+    console.log(`\n🔴 FILTER TOO TIGHT — ${C} claim-bearing of ${D} descriptions, pre-registered floor is 40.`);
+    console.log('   This is a REDESIGN, not a finding. Do not publish a rate from this run.');
+    return 0;
+  }
+  if (rate > 0.3) {
+    console.log(`\n🔴 FILTER TOO LOOSE — ${(rate * 100).toFixed(0)}% of claim-bearing flagged, pre-registered ceiling is 30%.`);
+    console.log('   Incidental numerals are dominating. REDESIGN; do not publish a hand rate from this run.');
+    return 0;
+  }
+  console.log(`\nWithin the pre-registered bands (${C} claim-bearing >= 40, ${(rate * 100).toFixed(0)}% flagged <= 30%).`);
+  console.log('Each flag is a QUESTION. Hand-verify before calling any of them a defect.');
+  for (const h of hitsAll.slice(0, 40)) {
+    console.log(`        ⚠ ${h.guide.replace(' Reference.html', '').padEnd(9)} ${h.name.slice(0, 24).padEnd(24)} missing ${JSON.stringify(h.missing)}`);
+    console.log(`            ${h.description.slice(0, 104)}`);
+  }
+  if (hitsAll.length > 40) console.log(`        … and ${hitsAll.length - 40} more`);
+  return 0;
 }
 
 function main() {
@@ -195,6 +332,20 @@ if (process.argv.includes('--selftest') || process.argv.includes('--self-test'))
   eq(distinctiveConstants('x = 0.88 * y').includes('0.88'), 'decimal is distinctive');
   eq(!distinctiveConstants('x = 100 - age').length, 'common integers are not distinctive');
   eq(distinctiveConstants('n = 2743').includes('2743'), '>=3 digits is distinctive');
+  /* ── .md CLAIM FILTER — every case below is a bug a PLANT found, not a case I imagined.
+     The filter was pre-registered before the first run; these pin the three defects that
+     pre-registration did NOT prevent, because a rate band cannot see a blind instrument. */
+  eq(JSON.stringify(claimConstants('Reported at 100% of the recording')) === '["100"]', 'a bare percent is extracted — `\\b` after `%` never matches, so the commonest unit was silently missed');
+  eq(JSON.stringify(claimConstants('a 5-minute rolling baseline')) === '["5"]', 'longest-first units — `min` matched before `minutes` and then failed its boundary');
+  eq(claimConstants('below 90% at 1 Hz, 250 ms').join(',') === '1,250,90', 'comparator and unit branches both fire');
+  eq(claimConstants('Azarbarzin 2019 validated this').length === 0, 'a citation year is not a claim');
+  eq(claimConstants('cohort n=2 sites').length === 0, 'a cohort size is not a claim');
+  eq(claimConstants('the 3 sensors and 12 sites').length === 0, 'a bare count is not numeral-checkable (structural, out of scope)');
+  eq(
+    parseGuideDescriptions('<div class="mh"><span class="ma">M</span><p class="md">below 90&#x202F;%</p></div>')[0].description === 'below 90 %',
+    'descriptions share the hardened normaliser — entities decoded, not guessed'
+  );
+  eq(parseGuideDescriptions('<div class="mh"><span class="ma">M</span></div>').length === 0, 'card without a description is skipped');
   eq(constantPresent('0.40', 'var hf = 0.4;'), 'float-normalised spelling counts as present');
   eq(constantPresent('0.880', 'hrMax * 0.88'), 'trailing zeros trimmed');
   eq(!constantPresent('6.7', 'var hf = 0.15;'), 'a reciprocal is NOT auto-accepted — it must surface');
@@ -213,4 +364,4 @@ if (process.argv.includes('--selftest') || process.argv.includes('--self-test'))
   console.log(`all ${legs} selftests passed`);
   process.exit(0);
 }
-if (resolve(process.argv[1] || '') === resolve(fileURLToPath(import.meta.url))) process.exit(main());
+if (resolve(process.argv[1] || '') === resolve(fileURLToPath(import.meta.url))) process.exit(process.argv.includes('--descriptions') ? mainDescriptions() : main());
