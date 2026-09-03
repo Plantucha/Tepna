@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS (**code complete; §1's corpus run is NO LONGER data-blocked — re-verified 2026-09-02**: the 2026-09-01 triage said "locally only 6 dates intersect"; the merged corpus root holds **37**, each with a >1 MB `Polar_H10_*_ACC.txt` and a >100 kB `CPAP/*_BRP.edf` (80 ACC dates × 183 BRP dates, basename-parsed with size floors). Not parked — §1 is executable and owes a sizing first. §6A's attribution box is UNTICKED, see R3) · **Created:** 2026-07-21 · **Residue:** 2026-09-02-motiondex-respratemethod-unexported, 2026-09-02-motiondex-epoch-count-disagrees
+**Status:** IN-PROGRESS (**code complete; §1's corpus run is NO LONGER data-blocked — re-verified 2026-09-02**: the 2026-09-01 triage said "locally only 6 dates intersect"; the merged corpus root holds **37**, each with a >1 MB `Polar_H10_*_ACC.txt` and a >100 kB `CPAP/*_BRP.edf` (80 ACC dates × 183 BRP dates, basename-parsed with size floors). Not parked — §1 is executable and owes a sizing first. §6A's attribution box is UNTICKED, see R3) · **Created:** 2026-07-21 · **Residue:** 2026-09-02-motiondex-respratemethod-unexported, 2026-09-02-motiondex-epoch-count-disagrees · **§6A CLOSED 2026-09-03 (#2136)** — `respRateMethod` now reaches a consumer (export `motiondex-dsp.js:1449` → adapter `integrator-dsp.js:644` → `fuseRespirationRate` `:3301`), gated by `seam-parity`. **ONE box remains open and it is the figures item, re-measured 2026-09-03: still 0 `<img>` across all three papers** (`acc-respiratory-rate`, `cpap-flow-reference`, `effort-typing-null`), 27 unrelated files in `papers/figures/`. So the brief is code-complete with a single DATA/figure deliverable outstanding — do not read "code complete" as "done".
 
 > **TRIAGE 2026-09-01 — verified state, so the next reader does not re-derive it.** Part (A), the
 > estimator, LANDED in `7002778`; §10 built the figure layer; §11 ran §1's corpus after finding the
@@ -168,15 +168,23 @@ Per `PAPERS-ROADMAP` §5.2 — *"No number without a tool that reproduces it"*:
 - [x] `motiondex-dsp.js` emits a per-epoch `rateSeries` with confidence, keeping the existing
       return shape back-compatible (added `rateSeries`/`rateEpochSec`/`rateCoverage`/
       `respRateMethod`/`rateBrpmLegacy`; every legacy field gate-asserted present).
-- [ ] `respRateMethod: 'acc-spectral-viterbi'` set so `integrator-dsp.js:2441` can attribute it.
-      ⚠️ **UNTICKED 2026-09-03. The Status header has said this box is unticked since 2026-09-02 and the
-      box stayed `[x]` — a header corrected without its body, which is the same shape the correction was
-      about.** The DSP does set `respRateMethod`, so the first clause is true and that is why it read as
-      done; the box's actual claim is the SECOND clause, and the fusion cannot attribute anything: the
-      node export omits the field entirely and `integrator-dsp.js` hardcodes `'chest-ACC
-      (thoraco-abdominal)'` over it, while the ECGDex leg in the same function reads what its node
-      declared. Tracked as `2026-09-02-motiondex-respratemethod-unexported`; do not re-tick until the
-      value reaches a consumer.
+- [x] `respRateMethod: 'acc-spectral-viterbi'` set so the Integrator can attribute it.
+      **RE-TICKED 2026-09-03 — the box's own condition ("do not re-tick until the value reaches a
+      consumer") is now MET, and it is ticked against that condition rather than against the first
+      clause that made it read done for a month.** Fixed by #2136. Verified end to end in the tree,
+      not inferred:
+      1. the node EXPORT carries it — `motiondex-dsp.js:1449`, `respRateMethod: summary.effort ?
+         summary.effort.respRateMethod || null : null` (the reshape that had silently dropped it);
+      2. the Integrator READS it — `integrator-dsp.js:644`, `mo.respRateMethod || 'chest-ACC
+         (thoraco-abdominal)'`, the literal demoted to a fallback, matching the ECGDex leg at `:366`
+         whose asymmetry with this one was the tell;
+      3. a CONSUMER spends it — `fuseRespirationRate` at `:3301` puts `method: r.summary
+         .respRateMethod` on every candidate, so the fusion can now name the estimator behind a rate.
+      Gated against regression by the `seam-parity` group (13 assertions), which is anti-vacuously
+      validated: reverting this export reds it by name (`got ["motiondex-dsp.js"] · want []`).
+      Residue `2026-09-02-motiondex-respratemethod-unexported` closed `fixed #2136`.
+      ⚠️ The old text pointed at `integrator-dsp.js:2441`; that line reference was stale — the
+      attribution sites are `:644` and `:3301`. Corrected here rather than carried forward.
 - [x] Evidence tier **`emerging`** in `motiondex-registry.js`.
 - [x] `tests/dex-tests.js`: synthetic known-answers at 10/15/20 brpm (±0.5); bias-is-opt-in;
       confidence-gate monotonicity; additive-export-shape back-compat.
