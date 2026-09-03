@@ -74,6 +74,43 @@ export function parseRows(text) {
 }
 
 /**
+ * Is this cell change a POINTER REPAIR rather than a claim edit?
+ *
+ * The ledger's rule is that a row's non-state cells are never edited, and it exists so a row's CLAIM —
+ * its defect, its evidence, its source — cannot be quietly altered after the fact. A reference to
+ * ANOTHER ROW's identity is not a claim about the world, it is a pointer; and the 2026-09-02 date-slug
+ * migration renamed every key without renaming those, so `Blocks R17` survived pointing at an id that
+ * no longer exists. Repairing such a pointer PRESERVES the claim. Leaving it dangling alters it,
+ * because the row now points nowhere.
+ *
+ * ⚠️ THE EXEMPTION IS SELF-LIMITING BY CONSTRUCTION, which is what stops it becoming a licence to edit
+ * rows. It permits exactly one substitution — a RETIRED `R<n>` id replaced by a key that resolves to a
+ * real row — so once no `R<n>` survives anywhere in the ledger it can never fire again. It needs no
+ * rename map, no trusted list and no author's assurance: both halves are checkable from the two
+ * versions of the file alone. Any other difference, in any cell, is still a mutation.
+ *
+ * @param {string} before  the row's non-state cells as they stand on the base
+ * @param {string} after   the same cells on this branch
+ * @param {(k: string) => boolean} isRow  does this key name a row that exists?
+ */
+export function isPointerRepair(before, after, isRow) {
+  const a = String(before).trim().split(/\s+/);
+  const b = String(after).trim().split(/\s+/);
+  if (a.length !== b.length) return false; // a repair substitutes one token for one token
+  let substitutions = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] === b[i]) continue;
+    // old side: a retired id, optionally backticked, optionally with trailing punctuation
+    if (!/^`?R\d+`?[,.;:—-]?$/.test(a[i])) return false;
+    // new side: a backticked key that names a row which actually exists
+    const m = b[i].match(/^`(\d{4}-\d{2}-\d{2}-[a-z0-9-]+)`([,.;:—-]?)$/);
+    if (!m || !isRow(m[1])) return false;
+    substitutions++;
+  }
+  return substitutions > 0;
+}
+
+/**
  * Pure core. Compares this branch's ledger against the base's.
  *
  * ⚠️ TWO POPULATIONS, DELIBERATELY, and conflating them makes the tool wrong in a way that
@@ -95,6 +132,7 @@ export function verdict(baseText, headText, tipText) {
   const tip = parseRows(tipText == null ? baseText : tipText);
   const baseById = new Map(base.map((r) => [r.id, r]));
   const tipById = new Map(tip.map((r) => [r.id, r]));
+  const headById = new Map(head.map((r) => [r.id, r]));
   const collisions = [];
   const mutated = [];
   const added = [];
@@ -110,7 +148,7 @@ export function verdict(baseText, headText, tipText) {
       added.push(r.id);
       continue;
     }
-    if (prior.key !== r.key) mutated.push(`${r.id} — a non-state cell was edited (rows are append-and-close)`);
+    if (prior.key !== r.key && !isPointerRepair(prior.key, r.key, (k) => headById.has(k))) mutated.push(`${r.id} — a non-state cell was edited (rows are append-and-close)`);
   }
   for (const r of base) {
     if (!head.some((h) => h.id === r.id)) mutated.push(`${r.id} — removed from the ledger (rows are never deleted)`);
@@ -241,6 +279,24 @@ if (process.argv.includes('--selftest')) {
   v = verdict([row(A)].join('\n'), [row(A), row(C)].join('\n'), [row(A), row(B)].join('\n'));
   assert(v.mutated.length === 0 && v.collisions.length === 0 && v.added.join() === C, 'a branch behind the tip has removed nothing');
 
+  // 2c — POINTER REPAIR vs CLAIM EDIT. The exemption permits exactly one substitution — a retired
+  //      `R<n>` replaced by a backticked key naming a real row — and nothing else. Every assertion here
+  //      is a plant: the one that matters is that a substantive edit still fires, because an exemption
+  //      that swallowed those would silently reopen the rule it is carved out of.
+  const rows = (k) => k === '2026-09-02-alpha' || k === '2026-09-02-bravo';
+  assert(isPointerRepair('see R17 for why', 'see `2026-09-02-alpha` for why', rows), 'a pointer repair is permitted');
+  assert(isPointerRepair('blocks R17, and R9', 'blocks `2026-09-02-alpha`, and `2026-09-02-bravo`', rows), 'two pointers in one cell');
+  assert(!isPointerRepair('see R17 for why', 'see R17 for reasons', rows), 'a word change is a claim edit and FIRES');
+  assert(!isPointerRepair('see R17 for why', 'see `2026-09-02-nope` for why', rows), 'a key that names no row FIRES');
+  assert(!isPointerRepair('see R17 for why', 'see `2026-09-02-alpha` for why now', rows), 'an added token FIRES');
+  assert(!isPointerRepair('the defect is real', 'the defect is fixed', rows), 'a pure claim edit FIRES');
+  assert(!isPointerRepair('see R17', 'see R18', rows), 'an R-id swapped for another R-id FIRES — the scheme is retired');
+  // ⚠️ THE CLAUSE THIS PINS WAS UNTESTED AND A MUTANT SURVIVED: without it the exemption permits ANY
+  //    token becoming a key, so a claim word could be rewritten as a reference and pass as a "repair".
+  assert(!isPointerRepair('see note 4 here', 'see `2026-09-02-alpha` here', rows), 'only a RETIRED R-id may be replaced');
+  assert(!isPointerRepair('the defect is real', 'the `2026-09-02-alpha` is real', rows), 'a claim word is not a pointer');
+  assert(!isPointerRepair('same text', 'same text', rows), 'no substitution is not a repair');
+
   // 3 — rows are append-and-close: a removal and a non-state edit both fire; a STATE change does not
   v = verdict(BASE, [row(A)].join('\n'));
   assert(v.mutated.length === 1 && v.mutated[0].startsWith(B), 'removing a row that exists on the base FIRES');
@@ -261,7 +317,7 @@ if (process.argv.includes('--selftest')) {
 
   // Phrased so `selftest-all.mjs` can PARSE the count: a tool that silently drops from 8
   // assertions to 1 still exits 0, and only a readable number makes that visible.
-  console.log('selftest: all 10 selftests passed');
+  console.log('selftest: all 20 selftests passed');
   process.exit(0);
 }
 
