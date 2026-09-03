@@ -3,9 +3,9 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-02 — ⚠ **mypy baseline: 180 at creation, 103 MEASURED 2026-09-02 — the ratchet plans from 103.** The done-when list still records 180; the live gate is the authority (`capture-host/check.sh:59` and `:91`, set 2026-08-29 by 55311121). Fix the number before reasoning from it. §P1 is closed. Open: **§P3 mypy blocking at 0** is a countdown from 103, nothing external blocks it; **§P3 format blocking** waits on a fleet notice that has never been sent; **§P2's qwen lane** ran to queue exhaustion at n=12 against a spec of 30, so the acceptance band was applied on 12 and the sample-size clause cannot be ticked as written — decide whether 12 is the sample or the lane reopens. Note `ruff format` is NOT gated in CI anywhere; it is local and advisory only (`check.sh:107`). **Owner:** Heron · **Next step:** correct the 180→103 drift in the done-when, then rule on the n=12 sample) · **Created:** 2026-08-27
+**Status:** PROPOSED (parked 2026-09-02 — ✅ **mypy drift FIXED 2026-09-03 — the done-when now carries the live number and its measurement date. Live count: 102** (same in BOTH trees — root: 33 files / 332 checked; clean worktree off origin/main: 33 files / 341 checked, so the totals agree while the populations differ; §0's "the tree is part of the number" rule honoured, measured with `check.sh:85`'s own invocation), against `check.sh:91`'s advertised baseline **103 (2026-08-29)** — down by one, so the "may only go DOWN" invariant holds. ⚠ A bare `mypy .` reports `1` here: without `--explicit-package-bases` it aborts on `tests/_srcscan.py` and the "count" is an invocation failure, 101 short. §P1 is closed. Open: **§P3 mypy blocking at 0** is a countdown from **102** (measured 2026-09-03), nothing external blocks it; **§P3 format blocking** waits on a fleet notice that has never been sent; ~~**§P2's qwen lane** ... decide whether 12 is the sample or the lane reopens.~~ **STALE — that decision was already taken in §P2c on 2026-08-28 and this header asked for it again five days later.** The clause was amended to *"the full mechanical queue at evaluation time (minimum 10)"* with the 30 % threshold unchanged, and the first verdict recorded: 12/12 · 58 % (42 % ex-caveats) · **the lane survives**. The done-when box is now ticked against the amended clause; the owner's veto on clause and verdict stands. Note `ruff format` is NOT gated in CI anywhere; it is local and advisory only (`check.sh:107`). **Owner:** Heron · **Next step:** none — both items are discharged; §P3 is a countdown from 102 that needs no decision, and the format half waits on a fleet notice nobody has sent) · **Created:** 2026-08-27
 
-> **TRIAGED 2026-09-01 — §P1 and §P2 are discharged; §P3 is a RATCHET waiting on a number, not a task.** §P1's advisory gates shipped with mypy pinned. §P2's qwen fix-lane ran to queue exhaustion (n = 12, 12/12 triaged, 7 accepted → landed in #1949) and the **adversary lane was RETIRED** at 20.7 % confirmed against a 30 % band (`audits/DSP-ADVERSARY-FINDINGS-2026-08-29.md`). ⚠️ The first §P2 box is NOT satisfied and should not be ticked: the band was applied on a sample of **12**, not the **30** it names — the rate cleared, the sample size did not. §P3 flips mypy to blocking at **0**; the recorded floor is now **103** (189 → 180 in #1949, then further by the session lane), so it is a countdown, not an action. §P4 is explicitly not planned.
+> **TRIAGED 2026-09-01 — §P1 and §P2 are discharged; §P3 is a RATCHET waiting on a number, not a task.** §P1's advisory gates shipped with mypy pinned. §P2's qwen fix-lane ran to queue exhaustion (n = 12, 12/12 triaged, 7 accepted → landed in #1949) and the **adversary lane was RETIRED** at 20.7 % confirmed against a 30 % band (`audits/DSP-ADVERSARY-FINDINGS-2026-08-29.md`). ~~⚠️ The first §P2 box is NOT satisfied and should not be ticked: the band was applied on a sample of **12**, not the **30** it names — the rate cleared, the sample size did not.~~ **SUPERSEDED 2026-09-03 — true of the box's OLD TEXT, moot under the clause §P2c adopted on 2026-08-28** (full mechanical queue at evaluation time, minimum 10; 30 % threshold unchanged). This note was reading a checkbox that still said `30` three days after the clause behind it had been replaced, which is why the box text itself is now amended and ticked. Left in place, not deleted: it recorded a real inconsistency and the fix was to the box, not to this observation. §P3 flips mypy to blocking at **0**; the floor is **102 measured 2026-09-03** (189 → 180 in #1949, then further by the session lane; `check.sh:91` still advertises the 08-29 baseline of 103), so it is a countdown, not an action. §P4 is explicitly not planned.
 
 # Python types + format — mypy and ruff-format for capture-host, measured first
 
@@ -313,7 +313,44 @@
 
 - [x] §P1 advisory gates in `check.sh`, mypy pinned, baseline 189 recorded (2026-08-27);
       ratcheted to **180** when §P2c landed the first seven annotations (2026-08-29).
-- [ ] §P2 qwen lane produces its first 30 triaged proposals; acceptance rate recorded; band applied.
+      🔴 **DRIFT CORRECTED 2026-09-03 — the live count is 102, in BOTH trees.** This line's `180` was a
+      true record of 2026-08-29 and had become the number people reasoned from, four ratchets behind.
+      Measured with the gate's own invocation — `python -m mypy --ignore-missing-imports
+      --explicit-package-bases .` from `capture-host/`, the exact line at `check.sh:85`:
+
+      | tree | result |
+      |---|---|
+      | canonical root `/home/michal/Tepna` | `Found 102 errors in 33 files (checked **332** source files)` |
+      | clean worktree off `origin/main` | `Found 102 errors in 33 files (checked **341** source files)` |
+
+      **§0's "THE TREE IS PART OF THE NUMBER" rule is honoured rather than assumed away**: both trees
+      were measured because the 189/188 split it records came from an untracked stray, and that stray
+      (`probe_rt_ppg_args.py`) is still present in root today. ⚠️ The two totals agree at 102 and the
+      **file counts do not** (332 vs 341) — so this is not evidence that the count is tree-invariant,
+      only that the two populations happen to yield the same total. Quote 102 **with its tree and its
+      date**, exactly as §0 requires. `check.sh:91` still advertises baseline **103 (2026-08-29)**, so
+      the count has moved DOWN by one and the ratchet's "may only go down" invariant holds. **The gate
+      is the authority for the baseline; this list is a record, and a record of a moving number must
+      carry its measurement date.**
+      ⚠️ **Do not read a mypy total off a bare `mypy .`.** Without `--explicit-package-bases` it stops
+      on `tests/_srcscan.py` with *"Found 1 error in 1 file (errors prevented further checking)"* — a
+      `1` that is an invocation failure wearing the shape of a count, and it is 101 short.
+- [x] §P2 qwen lane triages **its full mechanical queue at evaluation time (minimum 10)**; acceptance
+      rate recorded; band applied. *(Box text amended 2026-09-03 to the clause §P2c actually adopted;
+      it previously read "its first 30 triaged proposals".)*
+      **The `30` was the band author's arithmetic error** — §0 had already stated the mechanical
+      classes hold ~12 of the 189, so 30 was never reachable — and §P2c replaced the sample clause on
+      2026-08-28 with the wording above, leaving the 30 % rate threshold unchanged. First evaluation:
+      **12/12 triaged · 7 accepted / 2 rail / 3 eyes · 58 %** (42 % excluding the two `object`-caveat
+      accepts) · **the lane survives**, with hint pattern-completion as its named failure mode. The
+      owner retains a veto on both the clause and the verdict.
+      ⚠️ **This box was left unticked by a LATER reading (the 2026-09-01 triage note above) that was
+      reasoning from the SUPERSEDED clause** — *"the band was applied on a sample of 12, not the 30 it
+      names"*. That is correct about the old text and moot under the amended one. The box text itself
+      was the thing still carrying `30`, so the fix is to amend the box rather than to argue about
+      whether to tick it: **an unamended checkbox will keep re-deriving the same objection every time
+      someone reads it**, which is what happened here five days after the decision. The 09-01 note is
+      annotated in place rather than deleted, because it recorded a real inconsistency.
 - [ ] §P2 session lane triages the argument/assignment classes; real-bug findings ledgered.
 - [ ] §P3 mypy blocking at 0; changed-files format blocking after fleet notice.
 - [ ] Follow-up brief if the qwen fix lane earns expansion (its acceptance rate is the evidence).
