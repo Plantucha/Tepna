@@ -282,13 +282,24 @@ def aes_ecb_decrypt(key: bytes, data: bytes) -> bytes:
 
 # ----------------------------------------------------------- session cipher ----
 
+KEY_TYPE_AES = 0x01   # r[0] of the decoded blob; the SDK defines no other type today
+
+
 def parse_key_reply(payload: bytes):
     """Decode the 0xFF reply of a new-firmware ring -> AES key, or None if it does not look
     like one. SDK: r = payload XOR md5("lepucloud") cyclic; r[0] = type, r[1] = key length,
-    key = r[4:4+len]. Only AES-valid key lengths are accepted."""
+    key = r[4:4+len]. Only AES-valid key lengths are accepted, and only type 0x01.
+
+    ⚠️ THREE OUTCOMES, and the middle one is the one to get right: a 16-byte reply is NOT a
+    key blob and NOT an error — a branch-2D010001 ring answers 0xFF with ~20 bytes on its
+    pairing connect and with 16 on later ones, and those plaintext sessions work completely
+    (file list, pull, finalised). Returning None here keeps that ring on the plaintext path
+    instead of installing a key from bytes that are not one."""
     if len(payload) < 20:
         return None
     r = bytes(b ^ _LEPU[i % 16] for i, b in enumerate(payload))
+    if r[0] != KEY_TYPE_AES:
+        return None
     klen = r[1]
     if klen not in (16, 24, 32) or 4 + klen > len(r):
         return None
@@ -445,10 +456,28 @@ def authenticate(dev, serial=b"0000", timeout_s=90, verbose=True, keyed_grace_s=
 
 
 def file_list(dev):
+    """Stored session ids on the ring.  Raises RuntimeError if the ring will not answer.
+
+    ⚠️ A SILENT RING IS NOT AN EMPTY RING. This returned [] for both, so a ring whose file
+    state machine had stalled read as a ring with nothing on it and the caller walked away
+    satisfied — the worst shape a failure can take, because it looks like a successful answer.
+
+    The recovery is FILE_END. Measured on a branch-2D010001 ring (SomnoTrace discussion #180,
+    the 2026-09-03 overnight log): right after the recording closed, F1 stopped answering, an
+    F4 cleared the state machine, and the retry got the list ~3 s later — the night's data was
+    pulled intact. Their firmware does the same thing and logs it as "F1 timed out (rc=263) —
+    F4 then retry once". One retry, because the observed stall cleared on the first one.
+    """
     send_cmd(dev, OP_FILE_LIST)
     msg = read_reply(dev, want_op=OP_FILE_LIST)
     if not msg:
-        return []
+        file_end(dev)                      # clear the stalled file state machine
+        send_cmd(dev, OP_FILE_LIST)
+        msg = read_reply(dev, want_op=OP_FILE_LIST)
+    if not msg:
+        raise RuntimeError(
+            "FILE_LIST timed out twice (ring still silent after a FILE_END reset) — "
+            "this is a ring that would not answer, NOT a ring with no recordings")
     p = msg["payload"]
     count = p[0]
     sessions = []

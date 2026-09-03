@@ -440,8 +440,68 @@ def test_file_list_parses_slots():
     assert o2ring.file_list(dev) == ["20260830132000"]
 
 
-def test_file_list_empty_when_no_reply():
-    assert o2ring.file_list(FakeDev()) == []
+class RingNeedingAReset:
+    """A ring whose FILE_LIST state machine is stalled until a FILE_END clears it.
+
+    Deliberately NOT more capable than the hardware: it answers F1 only after it has SEEN an
+    F4, which is exactly the recovery under test. A fake that answered F1 unconditionally
+    would pass this test while proving nothing about the ring — the defect that produced a
+    green suite over a client that could never authenticate.
+    """
+
+    def __init__(self, slot):
+        self.slot = slot
+        self.reset_seen = False
+        self.pending = []
+        self.ops = []
+
+    def write(self, data):
+        frame = bytes(data)[1:]              # send() prepends the 0x00 report id
+        op = frame[2] if len(frame) > 2 else None
+        self.ops.append(op)
+        if op == o2ring.OP_FILE_END:
+            self.reset_seen = True
+        elif op == o2ring.OP_FILE_LIST and self.reset_seen:
+            self.pending = [bytes(r) for r in
+                            _frame_reports(o2ring.OP_FILE_LIST, bytes([1]) + self.slot)]
+        return len(data)
+
+    def read(self, size, timeout_ms=0):
+        return list(self.pending.pop(0)) if self.pending else []
+
+    def set_nonblocking(self, v):
+        pass
+
+    def close(self):
+        pass
+
+
+def test_file_list_resets_the_ring_and_retries_when_it_goes_quiet():
+    """F1 silent -> F4 -> F1 again. Observed on a branch-2D010001 ring after a recording closed."""
+    slot = b"20260902231709" + b"\x00\x00"
+    dev = RingNeedingAReset(slot)
+    assert o2ring.file_list(dev) == ["20260902231709"]
+    assert o2ring.OP_FILE_END in dev.ops, "the stalled state machine was never reset"
+    assert dev.ops.count(o2ring.OP_FILE_LIST) == 2, "F1 was not retried after the reset"
+
+
+def test_a_silent_ring_raises_rather_than_reporting_no_recordings():
+    """The bug this replaces: a ring that would not answer read as a ring with nothing on it.
+
+    Returning [] made a transport failure indistinguishable from an empty ring, so a caller
+    iterating the result did nothing at all and reported success.
+    """
+    try:
+        o2ring.file_list(FakeDev())
+    except RuntimeError as exc:
+        assert "NOT a ring with no recordings" in str(exc)
+    else:
+        raise AssertionError("a silent ring was reported as an empty one")
+
+
+def test_an_actually_empty_ring_is_still_empty():
+    """The other side of it: count 0 is a real answer and must stay a plain empty list."""
+    assert o2ring.file_list(FakeDev([reply(o2ring.OP_FILE_LIST, bytes([0]))])) == []
 
 
 def test_file_start_and_data_and_end():
@@ -668,3 +728,15 @@ def test_replay_refuses_destructive(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert "REFUSED" in out
     assert dev.written == []                                     # nothing sent
+
+
+def test_parse_key_reply_rejects_an_unknown_type_byte():
+    """r[0] is the blob type; only 0x01 (AES) is defined. Anything else is not a key we know.
+
+    Installing a key from a blob whose type we do not recognise is the fabricated-vitals shape
+    one layer down: every subsequent reply would decrypt to plausible-looking rubbish.
+    """
+    key = bytes(range(0x10, 0x20))
+    plain = bytes([0x02, 16, 0, 0]) + key
+    blob = bytes(b ^ o2ring._LEPU[i % 16] for i, b in enumerate(plain))
+    assert o2ring.parse_key_reply(blob) is None
