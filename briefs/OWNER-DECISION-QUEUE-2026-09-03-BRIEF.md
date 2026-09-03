@@ -148,10 +148,24 @@ errored, and in most the wrong answer was *plausible*, which is why none looked 
 | `/owner/` anywhere in the header | briefs whose **`**Owner:**` field names anyone** | briefs blocked **on the owner** (inflated 60 % → 85 %) |
 | the filename `20260902_232214` | a **device stamp**, ~21 min ahead of the box | a wall-clock instant (made a restart artifact read as a false start) |
 | `gh pr checks` SUCCESS count | how many checks **passed** | whether any **failed** — 22 green hid one FAILURE |
+| `SESSIONDETECT.csv` state column | what the detector **reported** | whether therapy **ran** — it read `Standby`/`0.1` through a proven 7 h night |
 
 **The guard is the one this document models: state the predicate beside the number.** A count without
 its predicate is not a measurement, and every row above is legible the moment the predicate is written
 down next to the result.
+
+🔴 **And the sharpest one, because it is the only guard that failed while WRITTEN DOWN: a KNOWN
+constraint with an UNKNOWN failure signature.** `AS11-AUTO-SESSION-DETECTION`'s own header already
+schedules probes *"OUTSIDE a capture night because of the AS11 single-connection"* — the constraint was
+documented, and documenting it bought nothing. Nobody had written down what contention **looks like**,
+and it does not look like a failure: the detector does not error, time out, or fall silent. It answers
+`Standby` with `mask_pressure=0.1`, which is **byte-identical to a quiet night**. That is why six days
+passed with the file logging 1700 rows a day and nobody reading them as wrong.
+
+> **Documenting a constraint is not documenting its failure mode, and only the second one is
+> detectable.** A constraint tells you what not to do; a signature tells you how to notice it happened
+> anyway. Where a mechanism can produce a plausible wrong answer rather than an error, write down what
+> that answer looks like — otherwise the constraint is a note, and the failure is invisible.
 
 Two corollaries earned the same day:
 
