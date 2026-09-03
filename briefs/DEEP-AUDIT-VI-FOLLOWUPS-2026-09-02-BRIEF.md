@@ -315,10 +315,30 @@ lives — the thing this section is about. Measured per guide:
   ── total  .ft=389 (swept)      .md=404 (UNSWEPT)
 ```
 
-**404 descriptions, none of them ever compared to code.** The remaining work is therefore not "build an
-extractor" — it is *point the existing extractor at `.md`*, which is a different and much smaller unit,
-plus the structural-claim blind spot below, which stays entirely open and is the part no numeral key
-reaches.
+**404 descriptions, none of them ever compared to code.**
+
+🔴 **RE-SIZED 2026-09-03 by BUILDING it (#2147) — and "point the existing extractor at `.md`" turns out
+to be WRONG, including as I first wrote it one commit earlier. Measured:**
+
+```
+  404 descriptions · 108 claim-bearing · 161 claim values
+       33 checkable
+      128 REFUSED as unresolvable at whole-node corpus scope   (79%)
+```
+
+**A short integer cannot be checked against a whole node at all.** `constantPresent` is a substring test
+over ~717 kB of `<node>-*.js`, and a planted-WRONG `87` reports *present* under every strategy tried —
+plain, word-boundary, **and** comparison-context. Prose asserts precisely those: `below 90%`, `5-minute`,
+`1 Hz`. The `.ft` sweep is sound only because `distinctiveConstants` restricts it to floats or ≥3 digits,
+which is exactly the population prose does NOT use.
+
+So the reach is **21%**, not "most of it", and the remainder is **not blocked — it is a different and
+larger unit: scoping the code corpus per METRIC** (a card's claim checked against that metric's own
+implementation) rather than per node. Size it as that, not as a filter tweak. #2147 ships the extraction
+plus an explicit REFUSAL for the 128, so the shortfall is on the page rather than passing silently.
+
+The structural-claim blind spot below stays entirely open on top of this, and is the part no numeral key
+reaches at any corpus scope.
 
 ⚠️ One caveat on reusing it directly: `.md` is prose, so its numerals are far more likely to be
 incidental ("n=2,743", a year, a citation page) than `.ft`'s are. Expect a worse false-positive rate
