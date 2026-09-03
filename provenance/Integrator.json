@@ -1,10 +1,10 @@
 {
   "bundle": "Integrator.html",
-  "manifestHash": "3a8030ff059d",
+  "manifestHash": "153a0f018913",
   "fixtures": {
     "integrator_tch_golden.node-export.json": {
       "bundle": "Integrator.html",
-      "manifestHash": "3a8030ff059d",
+      "manifestHash": "153a0f018913",
       "added": "2026-07-06",
       "inputs": [],
       "note": "ADDED 2026-07-06 (INTEGRATOR-THREE-CORNERED-HAT-FOLLOWUPS-II §2) — the FIRST code-gated Integrator fixture (the two integrator_fusion_2026-06-1x snapshots are historical:true, byte-PINNED only). Closes FU-I §2's 'make TCH fire on a real co-recorded night' honestly: the Dex-Test-Suite 'equivalence gate' group rebuilds THREE deterministic ganglior.node-exports (ECGDex+PpgDex+OxyDex) carrying overlapping, STAGGERED-wall-clock (+0/+5/+10 min) timeseries.epochs[] {hr, motionIndex} in-code (seeded mulberry32, no RNG/no {text} input — the cpapdex_synthetic_golden pattern), adapts+fuses them through the REAL adaptEnvelopeNode + fuseHRVConsensus, and deep-diffs the WHOLE consensus against this committed reference (vol excluded: file/provenance/kernel/generated). The HR-hat fires (n=22 aligned epochs), names culprit OxyDex (planted σ=4.5, the noisiest of {1.0,2.2,4.5}), derives ρ=0.356 from cross-node motion (→ correlated-external solve, exercising FU-II §1), and reconciles HR to 58.4 bpm — plus the §3 τ-sparkline allan block + §5 quiet-order caveat. INPUTS REBUILT IN-CODE (inputHashes:{}) so the golden is a PURE function of INTEGRATOR code: an OxyDex/ECGDex/PpgDex DSP change cannot move it (it never runs a node compute). Fully regenerable: `node tools/regen-integrator-goldens.mjs` (§F1.5). It rebuilds the inputs from tests/tch-golden-inputs.js — the SAME builder the equivalence gate uses, so the tool and the gate cannot drift — then adapt→fuse. NOTE: this line previously claimed byte-identity with `_diag/tch-golden-gen.html`, a file that has never existed in the repo; before the tool there was NO sanctioned way to move this output. REGENERATE this golden whenever the fusion/HR-hat export shape intentionally changes. GATE B asserts the producing bundle's CURRENT manifestHash still equals cef329a4fec6 — turns red the moment Integrator code changes.",
@@ -12,7 +12,7 @@
       "inputHashes": {},
       "note_synthtexturererun_part3": "manifestHash re-recorded 2026-07-07 (SYNTH-TEXTURE-PAPERS-RERUN-FOLLOWUPS Part 3 — synth-gen.js 2.0→2.1 re-texture is inlined in this bundle, so the owned re-bundle (tools/build-core.js) moved manifestHash cef329a4fec6→f19fde9a7913). EXPORT-INERT: synth-gen.js is the demo synthetic-cohort generator, NOT on the compute()/emit path — this fixture is compute({committed static input}) (or an in-code golden), so its output is byte-identical (outputHash + inputHashes UNCHANGED); env.equiv/golden green. GATE B asserts the producing bundle CURRENT manifestHash still equals f19fde9a7913.",
       "note_decorrelationgate": "manifestHash re-recorded 2026-07-07 (TRIO-METHODS-REUSE §Do 3 — decorrelation quality gate: integrator-tch.js gained screenTriplet/pearson [→1.2.0] + integrator-dsp.js _tchHat drops a node that decorrelates from both peers before the solve). EXPORT-INERT for THIS golden: its inputs are three CORRELATED staggered series, so screenTriplet returns drop:null and _tchHat proceeds exactly as before — the fused consensus is byte-identical (outputHash 72fa6fcafb7afd5a UNCHANGED; the equivalence gate rebuilds+diffs it green). Owned re-bundle f19fde9a7913→24ebb7156ca8. GATE B asserts the producing bundle CURRENT manifestHash still equals 24ebb7156ca8.",
-      "verifiedUnder": "5034b38ff8fc"
+      "verifiedUnder": "a302e25f8199"
     },
     "integrator_fusion_2026-06-13.json": {
       "bundle": "Integrator.html",
@@ -28,13 +28,13 @@
     },
     "integrator_apnea_null_twins.node-export.json": {
       "bundle": "Integrator.html",
-      "manifestHash": "3a8030ff059d",
+      "manifestHash": "153a0f018913",
       "added": "2026-09-02",
       "note": "ADDED 2026-09-02 (DEEP-AUDIT-VI-FOLLOWUPS §4.3). The Integrator's only code-gated fixture was integrator_tch_golden, a TCH consensus export carrying NO apneaNullModel — so when §4.2b replaced the apnea reportability gate's chance-null, `regen` reported \"0 fixtures moved\" because no committed artifact could express the change. Silence by construction, not evidence. FOUR twins, inputs rebuilt in-code by tests/apnea-null-twins.js (the same builder the equiv gate uses, so the two cannot drift): `coupled` and `uncoupled` are the two DIRECTIONS of the gate (published at the surrogate floor / withheld mid-range) because a corpus expressing one direction can only half-fail; `gapped` declares recording.coverage.segments with a 100-min hole and is the ONLY twin that can see _coveredShift, since on a single-segment night a covered-time wrap and a wall-clock wrap are byte-identical; `contended` clusters desats 12 s apart so several compete for one surge, and is the ONLY twin that can see the null scoring the PUBLISHED exclusive matching — elsewhere an exclusive and a non-exclusive scorer agree, leaving §4.2b's central claim unwitnessed. Each of the five mutants tried against this fixture moves its bytes; the last two are each caught by exactly one twin. Generated by re-running the real modules via tools/regen-integrator-goldens.mjs, never hand-edited.",
       "inputs": [],
       "outputHash": "c72e924109399ee0",
       "inputHashes": {},
-      "verifiedUnder": "5034b38ff8fc"
+      "verifiedUnder": "a302e25f8199"
     }
   }
 }

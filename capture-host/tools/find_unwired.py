@@ -221,6 +221,24 @@ ALLOW_FUNCS = {
     # — something does gate on finalisation, so this helper is genuinely redundant — but the reason
     # pointed a reader at a file that could not confirm it, which is the same named-thing error as the
     # SRP entries above. Measured 2026-08-30.
+    # ── Encrypted-session guard (2026-09-02). PENDING, and the consumer is NAMED: the OxyII connect
+    # path in capture.py, which is a different unit in a different lane and is reviewed separately.
+    # Landed ahead of that caller deliberately, because the CLASSIFICATION is the design and it is
+    # the part that was got wrong first: refusing on any reply to OP_AUTH — the obvious rule — would
+    # have refused the connects that a real branch-2D010001 ring served four files over. That
+    # distinction is derived from hardware behaviour and is pinned by tests here; a caller cannot
+    # make it, it can only obey it.
+    #
+    # Retires the moment capture.py's OxyII connect calls classify_auth_reply() and its live poll
+    # feeds sustained_ciphertext(). If that wiring is not taken up, DELETE the functions and these
+    # entries together — the whole point of the guard is that something acts on the refusal, and a
+    # refusal nothing reads is worse than no guard, because it reads like protection.
+    "classify_auth_reply": "PENDING capture.py's OxyII connect path (separate unit, separate lane) — "
+                           "decides plaintext / encrypted / refuse from an OP_AUTH reply; the "
+                           "three-way outcome is the design and is measured against a real ring",
+    "sustained_ciphertext": "PENDING capture.py's OxyII live poll (same unit as classify_auth_reply) — "
+                            "the probabilistic secondary tell, deliberately separate from the primary "
+                            "classification so a caller can act on them differently",
     "oxy_is_finalized": "redundant — `oxy_inventory.classify` already gates on finalisation via "
                         "`parse_trailer` (and `oxy_transfer` reads the same trailer), which those "
                         "callers need anyway for the device summary",
