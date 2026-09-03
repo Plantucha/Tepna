@@ -298,7 +298,7 @@ both a de-suspended dongle and the internal radio fail you.*
 
   | measured 2026-09-03 | value |
   |---|---|
-  | `radio_switches` in `/api/state` | **`null`** — populated from `list(_RADIO_EVENTS)` (`capture.py:1345`), so **no failover event has ever been recorded** |
+  | `radio_switches` in `/api/state` | **`null`** — populated from `list(_RADIO_EVENTS)` (the sole writer of `STATUS["radio_switches"]` in `capture.py`; cited by symbol, not line — the first draft of this row said `:1345`, read off the shared root checkout, which is **103 commits behind `origin/main`** where the same statement sits at `:1355`), so **no failover event has ever been recorded** |
   | Bluetooth adapters present | **3** (`hci0`/`hci1`/`hci2`) — the hardware for (c) exists |
   | adapter in use | `00:01:95:CC:53:02` (a single one) |
   | `radio_distress` · Polar Sense `0C301E3F` | **`distressed`** — 23.2/h against a band of 8.0/h, sustained 1085 s, over 14 nights |
