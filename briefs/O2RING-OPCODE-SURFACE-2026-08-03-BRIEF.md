@@ -339,10 +339,23 @@ updates slower than the frame carries it, or the stride re-reads records. Nobody
 as a sampling rate before this is pinned. If it is ~1.5 Hz the ring's ACC is far too coarse to time a
 buzz, and the H10/Verity remain the fiducial receivers.
 
-**Provenance of this subsection.** The stream-count change is **[HW]**, verified here from the
-monitor. The commit id, the `/api/state` before-state (`acc_vs` and `acc_h10` present, `acc_o2`
-absent), the single-caller claim and the 8024–8785 spread are **reported by the Heron session and are
-not independently verified here.**
+**Provenance of this subsection**, split by what it costs a later reader to re-derive — because
+"unverified" flattens two very different prices:
+
+- **[HW], verified here.** The stream-count change, read off two monitor screenshots five minutes
+  apart: 14 streams / two ACC channels at 19:24, 15 / three at 19:29.
+- **Verified here from the repo — one command each, no box access.** `bf68b959` is dated
+  **2026-09-03 01:32:57 -0400** and its own message states the ring's ACC is "reachable for the first
+  time". The push byte has exactly one *variable* call site, `capture-host/capture.py:3866`
+  (`_push = oxyii.RT_PUSH_ACC if "acc" in (dev.get("streams") or []) else 0x00`); the other three
+  production call sites — `probe_buzz_fiducial.py:112`, `probe_oxyii_ppg.py:44`,
+  `pull_session.py:131` — invoke `setup_frame()` with no argument and so send `0x00` unconditionally.
+  The comment above that line, written the same day, reads "no ring in this project has ever been
+  asked to push anything." **This is the load-bearing claim** — it is what keeps "`0x00` for the whole
+  archive" true and §9's `auto_switch = 0` sound — and it is the cheapest thing here to re-derive.
+- **Reported by the Heron session, NOT verified here** (needs Vigil, unreachable from this box): the
+  `/api/state` before-state showing `acc_o2` absent while `acc_vs` and `acc_h10` were present, and the
+  8024–8785 magnitude spread read off a live SSE stream.
 
 ### Before anyone enables it
 
