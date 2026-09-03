@@ -45,7 +45,7 @@ def box(tmp_path):
     # The deployed-SHA marker, isolated per test. On the box it lives in /run — cleared on boot, which
     # is correct, because after a boot the daemon started on whatever was checked out.
     return {"up": up, "repo": repo, "status": status, "helper": helper, "called": called,
-            "mark": tmp_path / "deployed-sha"}
+            "mark": tmp_path / "deployed-sha", "fails": tmp_path / "update-fails"}
 
 
 def _write_status(path, devices, top=None, publish=True, age=0.0):
@@ -63,7 +63,10 @@ def _run(box, **env):
     e = {**os.environ,
          "TEPNA_REPO_DIR": str(box["repo"]), "TEPNA_STATUS_JSON": str(box["status"]),
          "TEPNA_RESTART_SH": str(box["helper"]), "TEPNA_SUDO": "env",
-         "TEPNA_DEPLOYED_MARK": str(box["mark"]), **env}
+         "TEPNA_DEPLOYED_MARK": str(box["mark"]),
+         # Isolated per test. Without this the suite would write the streak marker to the REAL
+         # /srv/tepna path, which on the box itself is a live operational file.
+         "TEPNA_FAIL_MARK": str(box["fails"]), **env}
     return subprocess.run(["bash", UPD], capture_output=True, text=True, env=e)
 
 
@@ -245,6 +248,113 @@ def test_drift_does_not_prevent_the_restart(box):
 def test_a_missing_git_checkout_is_fatal(box, tmp_path):
     r = _run(box, TEPNA_REPO_DIR=str(tmp_path / "nope"))
     assert r.returncode == 1 and "no git checkout" in r.stderr
+
+
+# ---------------------------------------------------------------- the consecutive-failure counter
+#
+# VIGIL-AUTO-UPDATE-FOLLOWUPS §5. `systemctl status` shows `failed` identically for "failed once and
+# recovered" and "failing every tick since Tuesday" — measured, the latter ran 30 events over 9.3 h and
+# nobody noticed. These pin the distinction, not merely the existence of a counter.
+
+
+def _fail(box, tmp_path):
+    """A repeatable failure that goes through `die`: no checkout at the configured path."""
+    return _run(box, TEPNA_REPO_DIR=str(tmp_path / "nope"))
+
+
+def test_a_FIRST_failure_records_the_streak_but_reports_no_count(box, tmp_path):
+    """One failure is already visible in `systemctl status`. Announcing "1 in a row" on every isolated
+    blip is how a new signal becomes noise that gets ignored — which is the failure being fixed, not a
+    fix for it. The marker is still written, because the NEXT tick needs it."""
+    r = _fail(box, tmp_path)
+    assert r.returncode == 1
+    assert "IN A ROW" not in r.stderr
+    assert box["fails"].read_text().split()[0] == "1"
+
+
+def test_a_SECOND_consecutive_failure_names_the_streak(box, tmp_path):
+    _fail(box, tmp_path)
+    r = _fail(box, tmp_path)
+    assert r.returncode == 1
+    assert "failure 2 IN A ROW" in r.stderr
+    assert box["fails"].read_text().split()[0] == "2"
+
+
+def test_the_streak_counts_a_NON_die_failure_too(box):
+    """🔴 THE LOAD-BEARING CASE. The script ends `exit "$drifted"`, so it can leave the unit `failed`
+    without calling `die` — and that path ("cannot establish whether the box is recording") is the one
+    that can persist for a whole night. A counter hung off `die` would miss exactly the longest
+    outages, which is the opposite of the point."""
+    _advance(box)
+    box["status"].write_text("{not json")
+    first = _run(box)
+    assert first.returncode == 1 and "ERROR" not in first.stderr, "this path must not reach die()"
+    second = _run(box)
+    assert "failure 2 IN A ROW" in second.stderr
+
+
+def test_the_FIRST_failure_time_is_carried_across_the_streak(box, tmp_path):
+    """"Since when" is the whole question. If each tick restamped the marker the answer would always be
+    "since a moment ago" — true of the tick and false of the outage.
+
+    ⚠️ The marker is SEEDED old rather than built by looping `_fail`. Four real runs complete inside one
+    wall-clock second, so a restamping bug writes a byte-identical value and the looping version of this
+    test passed against it — verified by mutation, it caught nothing. Seeding is what gives the
+    assertion any resolution, and it reproduces the shape actually measured on the box: a streak that
+    had been running for most of a night."""
+    long_ago = int(time.time()) - (9 * 3600)
+    box["fails"].write_text(f"29 {long_ago}\n")
+    r = _fail(box, tmp_path)
+    n, still = box["fails"].read_text().split()
+    assert (n, int(still)) == ("30", long_ago)
+    assert "failure 30 IN A ROW, spanning 9h0m" in r.stderr
+
+
+def test_the_recovery_line_reports_the_span_of_a_long_outage(box):
+    """The 2026-08-04 event: 30 consecutive failures across 9.3 h. Seeded for the same reason as above —
+    this is the line that would have made it visible, so it is the one worth pinning against real
+    numbers rather than against a streak two seconds long."""
+    box["fails"].write_text(f"30 {int(time.time()) - (9 * 3600 + 1200)}\n")
+    r = _run(box)
+    assert r.returncode == 0
+    assert "recovered after 30 consecutive failed run(s) spanning 9h20m" in r.stdout
+    assert not box["fails"].exists()
+
+
+def test_a_success_after_failures_reports_the_recovery_and_clears_the_marker(box, tmp_path):
+    """The other half of the ask: whoever reads the journal AFTER an outage needs its length, and by
+    then every failing tick is behind them."""
+    _fail(box, tmp_path)
+    _fail(box, tmp_path)
+    r = _run(box)
+    assert r.returncode == 0
+    assert "recovered after 2 consecutive failed run(s)" in r.stdout
+    assert not box["fails"].exists()
+
+
+def test_a_quiet_success_says_nothing_extra(box):
+    """Guards the regression that would make this unreadable: a line on every one of the ~300 healthy
+    ticks per month would bury the 38 that matter."""
+    r = _run(box)
+    assert r.returncode == 0 and "recovered" not in r.stdout
+
+
+def test_a_MALFORMED_marker_reads_as_no_streak_and_never_blocks_the_update(box):
+    """This is an observability aid. It must never become the reason the box stops updating."""
+    box["fails"].write_text("garbage not a count\n")
+    r = _run(box)
+    assert r.returncode == 0 and not box["fails"].exists()
+
+
+def test_an_UNWRITABLE_marker_warns_and_does_not_change_the_verdict(box, tmp_path):
+    """Same degradation the deployed-SHA marker learned the hard way — that one was silently inert for
+    weeks because /run was root-owned. A marker that cannot be written warns; the run's own verdict is
+    untouched, and it is still 1 for the reason it was already 1."""
+    r = _run(box, TEPNA_REPO_DIR=str(tmp_path / "nope"),
+             TEPNA_FAIL_MARK=str(tmp_path / "no-such-dir" / "fails"))
+    assert r.returncode == 1
+    assert "no git checkout" in r.stderr
+    assert "could not record the failure streak" in r.stderr
 
 
 # ---------------------------------------------------------------- the privilege surface
