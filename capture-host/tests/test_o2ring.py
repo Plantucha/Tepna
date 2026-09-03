@@ -271,21 +271,52 @@ def test_aes_ecb_decrypt_rejects_garbage():
         o2ring._expand_key(b"\x00" * 15)
 
 
-def test_aes_matches_cryptography_when_available():
-    """Cross-implementation check (runs where `cryptography` is installed, e.g. rig-x870)."""
-    pytest.importorskip("cryptography")
-    from cryptography.hazmat.primitives import padding
-    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-    rnd = os.urandom
+# FIPS-197 Appendix C known-answer vectors: one plaintext block, one key per length.
+#
+# WHY A PUBLISHED VECTOR AND NOT A SECOND LIBRARY. This used to build its reference with
+# `Cipher(algorithms.AES(key), modes.ECB())` from `cryptography` and compare against that, which
+# code scanning flagged — correctly, in the narrow sense that an ECB construction is an ECB
+# construction even in a test. ECB is not our choice: it is the O2Ring's wire format, fixed by
+# the vendor SDK. But the flag was worth listening to, because the standard is the better oracle
+# anyway: it cannot drift with a dependency, it needs no dependency at all (so this runs
+# everywhere instead of being skipped where `cryptography` is absent, which is how it behaved
+# before), and it is the reference the library itself is written against.
+_FIPS197_PLAINTEXT = bytes.fromhex("00112233445566778899aabbccddeeff")
+_FIPS197_ECB = {                       # key = bytes(range(klen))
+    16: "69c4e0d86a7b0430d8cdb78070b4c55a",
+    24: "dda97ca4864cdfe06eaf70a0ec0d7191",
+    32: "8ea2b7ca516745bfeafc49904b496089",
+}
+
+
+def test_aes_matches_the_fips197_known_answers():
+    """The check a wrong-but-self-consistent implementation cannot pass.
+
+    A round trip only proves encrypt and decrypt agree with each other; two mirrored mistakes
+    survive it. A published ciphertext does not.
+    """
+    for klen, expected in _FIPS197_ECB.items():
+        key = bytes(range(klen))
+        out = o2ring.aes_ecb_encrypt(key, _FIPS197_PLAINTEXT)
+        assert out[:16].hex() == expected, f"AES-{klen * 8} first block"
+        # PKCS7 appends a WHOLE block to an exact multiple, so 16 B in gives 32 B out.
+        assert len(out) == 32, "PKCS7 must pad an exact multiple by a full block"
+        assert o2ring.aes_ecb_decrypt(key, out) == _FIPS197_PLAINTEXT
+
+
+def test_aes_round_trips_across_sizes_and_key_lengths():
+    """The padding path the single-block vectors do not reach: empty, short, exact, multi-block.
+
+    The empty case matters to the protocol: the SDK sends an empty payload as one padded block,
+    so a command with no arguments is 16 bytes on the wire, not 0.
+    """
     for klen in (16, 24, 32):
+        key = os.urandom(klen)
         for n in (0, 5, 16, 100, 512):
-            key, data = rnd(klen), rnd(n)
-            padder = padding.PKCS7(128).padder()
-            padded = padder.update(data) + padder.finalize()
-            enc = Cipher(algorithms.AES(key), modes.ECB()).encryptor()
-            ref = enc.update(padded) + enc.finalize()
-            assert o2ring.aes_ecb_encrypt(key, data) == ref
-            assert o2ring.aes_ecb_decrypt(key, ref) == data
+            data = os.urandom(n)
+            ct = o2ring.aes_ecb_encrypt(key, data)
+            assert len(ct) % 16 == 0 and len(ct) > n
+            assert o2ring.aes_ecb_decrypt(key, ct) == data
 
 
 # ------------------------------------------------------------------ handshake ---------
