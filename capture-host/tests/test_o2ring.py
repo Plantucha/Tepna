@@ -13,12 +13,14 @@ Two fakes:
 """
 import hashlib
 import os
+import re
 import struct
 import sys
 
 import pytest
 
 import o2ring
+from tests._srcscan import function_source
 
 _LEPU = hashlib.md5(b"lepucloud").digest()
 
@@ -910,3 +912,29 @@ def test_auth_ignores_a_frame_that_is_neither_auth_nor_hello(monkeypatch, capsys
     got = o2ring.authenticate(dev, timeout_s=8.0, verbose=False)
     assert got is not None and got["op"] == o2ring.OP_HELLO, "the hello after a status frame was lost"
 
+def test_every_registered_subcommand_is_dispatched():
+    """The invariant that the `# pragma: no branch` on the pull-all guard rests on.
+
+    That pragma is correct *today* because all nine subparsers are dispatched and eight of them
+    return unconditionally, so `a.cmd == "pull-all"` is invariantly true where it appears. But it
+    is self-invalidating: add a tenth subparser that does not return, and the arc becomes
+    reachable, the pragma silently masks it, and the symptom is "the new subcommand does nothing".
+    No other test catches that, because the guard PREVENTS the misbehaviour instead of surfacing
+    it — the invariant was held by inspection alone until this test.
+
+    Both sides are derived from the source, so neither can decay into a hardcoded list of nine,
+    and the scan goes through `function_source` because a bare read of a mutatable module poisons
+    the mutation run (see tests/_srcscan.py).
+    """
+    src = function_source("o2ring.py", "main")
+    registered = set(re.findall(r'add_parser\("([\w-]+)"', src))
+    dispatched = set(re.findall(r'a\.cmd == "([\w-]+)"', src))
+
+    # non-vacuity: a regex that matched nothing would make the comparison trivially true
+    assert "pull-all" in registered, "the scan found no real subparsers — check the pattern"
+    assert "pull-all" in dispatched, "the scan found no real dispatch sites — check the pattern"
+
+    assert registered == dispatched, (
+        f"registered but never dispatched (the subcommand would do nothing): "
+        f"{sorted(registered - dispatched)}; "
+        f"dispatched but never registered (dead branch): {sorted(dispatched - registered)}")
