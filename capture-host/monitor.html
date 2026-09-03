@@ -1594,6 +1594,19 @@ function settingsPanel(d, list){
 
 function renderRemembered(devs, settingsList){
   const el = $('#remembered');
+  /* Delegated ONCE on the container, not per control: `innerHTML` replaces every input every 5 s, so
+     a listener bound to an element would be thrown away with it and the capture would stop working
+     after the first re-render — silently, and only for operators who paused mid-edit. The container
+     survives; the listener lives there. */
+  if (el && !el._pendWired) {
+    el._pendWired = true;
+    el.addEventListener('change', (ev) => {
+      const c = ev.target;
+      if (!c || c.type !== 'checkbox' || !c.dataset || !c.dataset.stream) return;
+      PENDING[pendKey(c.dataset.addr, c.dataset.stream)] = c.checked;
+      paintPending();
+    });
+  }
   if(!devs.length){ el.innerHTML = '<p class="hint">No remembered devices yet.</p>'; return; }
   el.innerHTML = devs.map(d=>`
     <div class="dev">
@@ -1606,7 +1619,7 @@ function renderRemembered(devs, settingsList){
       ${d.vendor==='Polar'?`<button class="btn" onclick='pullRec(${JSON.stringify(d.address)}, this)' title="List &amp; download the Polar device&#39;s onboard offline recordings off flash (pause live capture first — one BLE link)">📥 Recordings</button>`:''}
       <button class="btn btn-destructive" onclick='forget(${JSON.stringify(d.address)})'>Forget</button>
     </div>${d.vendor==='Polar'?`<div class="rec-panel" id="${recPanelId(d.address)}" style="margin:0 0 .7rem;padding-left:.2rem;display:flex;flex-direction:column;gap:.35rem"></div>`:''}${settingsPanel(d, settingsList)}`).join('')
-    + (devs.length ? `<div style="margin:.2rem 0 .8rem"><button class="btn btn-primary" onclick='saveSettings(this)'>Save device settings</button>
+    + (devs.length ? `<div style="margin:.2rem 0 .8rem"><button class="btn btn-primary" id="devSaveBtn" onclick='saveSettings(this)'>Save device settings</button>
          <span class="hint">Streams, rates and device modes above are written to config.yaml. Some need a reconnect to take effect.</span></div>` : '');
 }
 
@@ -1702,6 +1715,39 @@ function mbNight(bps){ return Math.round(bps*3600*9/1e6); }
 // arbitrarily. Same two-writer hazard that silently ate a QC field earlier today, one layer up.
 // `d` is a /api/settings device record (it carries `supported`/`rate_options`/`sdk_capable`, which
 // /api/state does not), looked up by ADDRESS — never by name.
+/* ── UNSAVED EDITS SURVIVE THE 5-SECOND RE-RENDER ────────────────────────────────────────────────
+   `loadState` runs every 5 s and `renderRemembered` rebuilds the whole device list with
+   `el.innerHTML = ...`, which DESTROYS every control on every card. The checkbox state is then
+   recomputed from server truth (`d.streams`), so an edit the operator has not yet saved is silently
+   reverted — they click `mag` off, and ~5 s later it is on again with no message. Reported from the
+   Devices view: "it lets me click but it changes back in seconds."
+
+   The re-render itself must NOT be skipped: the same markup carries the live pills (link health,
+   battery, charging, clock) and freezing those while someone edits would trade a visible bug for an
+   invisible one. So the EDIT is carried across the rebuild instead of the rebuild being suppressed.
+
+   `PENDING` holds only what the operator actually touched, keyed `addr|stream`. It is deliberately
+   NOT a mirror of the form: an empty entry must mean "not edited" rather than "edited to off", or
+   the first re-render would write the whole visible form back as if the operator had chosen it. */
+const PENDING = Object.create(null);
+const pendKey = (addr, stream) => addr + '|' + stream;
+
+/* PURE, so it is testable without a DOM (tests/test_monitor_pending_edits.py executes it under node,
+   per the house rule that monitor.html is EXERCISED and never string-scanned). Server truth wins
+   wherever the operator has not touched the control — an unedited stream must follow the daemon, or
+   a stale page would fight a change made anywhere else. */
+function pendingChecked(pending, addr, stream, serverOn) {
+  const k = pendKey(addr, stream);
+  return Object.prototype.hasOwnProperty.call(pending, k) ? !!pending[k] : !!serverOn;
+}
+
+/* Whether anything is unsaved — drives the Save button's cue. Counting rather than a boolean so the
+   operator is told HOW MUCH is pending; "1 unsaved change" and "6 unsaved changes" are different
+   situations when a save needs a reconnect. */
+function pendingCount(pending) {
+  return Object.keys(pending).length;
+}
+
 function deviceSettingsBlock(d){
   if(!d) return '';
     const offer = d.supported && d.supported.length ? d.supported.slice() : (d.streams||[]).slice();
@@ -1739,7 +1785,8 @@ function deviceSettingsBlock(d){
       const advHtml = adv
         ? `<div class="rate-why"><b>${esc(adv.head)}</b>${adv.why ? ' — ' + esc(adv.why) : ''}</div>`
         : '';
-      return `<label class="setrow"><input type="checkbox" data-addr="${esc(d.address)}" data-stream="${esc(k)}" ${on?'checked':''}>
+      const shown = pendingChecked(PENDING, d.address, k, on);
+      return `<label class="setrow"><input type="checkbox" data-addr="${esc(d.address)}" data-stream="${esc(k)}" ${shown?'checked':''}>
         <span class="k">${esc(STREAM_LABEL[k]||k)}</span>${sel}<span class="mb" data-mb="${esc(d.address)}|${esc(k)}"></span>${advHtml}</label>`;
     }).join('');
     // ── SDK MODE ────────────────────────────────────────────────────────────────────────────────
@@ -1957,6 +2004,17 @@ function bindRingCfg(){
     });
   });
 }
+/* The operator gets NO feedback today that a click is unsaved, which is half of why the revert was
+   baffling rather than merely annoying: the box ticks, nothing says anything, and 5 s later it is
+   back. This says so, on the button they have to press. */
+function paintPending() {
+  const b = document.getElementById('devSaveBtn');
+  if (!b) return;
+  const n = pendingCount(PENDING);
+  b.textContent = n ? `Save device settings (${n} unsaved)` : 'Save device settings';
+  b.classList.toggle('btn-warn', n > 0);
+}
+
 async function saveSettings(btn){
   const t0=btn.textContent; btn.disabled=true; btn.textContent='saving…';
   const streams={}, settings={}, rates={}, sdk_mode={};
@@ -1964,18 +2022,27 @@ async function saveSettings(btn){
   // container and carries no `data-stream`, so an unqualified selector pushes `undefined` into the
   // stream list and the server 400s the whole save on "unknown stream" — taking the unrelated settings
   // in the same payload down with it.
-  document.querySelectorAll('#setStreams input[type=checkbox][data-stream]').forEach(el=>{
+  /* ⚠️ DOCUMENT-WIDE, not `#setStreams`-scoped, and that scoping was the whole bug. The per-device
+     controls MOVED onto the device cards (they render into `#remembered` via `deviceSettingsBlock`);
+     `#setStreams` is written in exactly one place — `loadSettings` replaces it with a hint paragraph
+     — so it has held no control at all since the move. Every selector below therefore matched NOTHING
+     and the save collected an empty payload: the operator ticked a stream, pressed Save, got a
+     success message, and nothing was ever submitted. Rendered, edited, never read — the same
+     computed-carried-never-consumed shape as Tepna #2117.
+     The duplicate-control hazard the old comment guards against is unchanged: it is a hazard about
+     rendering the controls in TWO places, which nothing does, not about where the save looks. */
+  document.querySelectorAll('input[type=checkbox][data-stream]').forEach(el=>{
     (streams[el.dataset.addr] = streams[el.dataset.addr] || []);
     if(el.checked) streams[el.dataset.addr].push(el.dataset.stream);
   });
-  document.querySelectorAll('#setStreams input.sdksel').forEach(el=>{
+  document.querySelectorAll('input.sdksel').forEach(el=>{
     sdk_mode[el.dataset.addr] = el.checked;
   });
   // Both control kinds, in ONE pass. A comma selector returns DOCUMENT order, not selector order, so
   // this does not encode a precedence — and it does not need to: a stream renders a <select> (>1
   // option) or a carrier (0 or 1), never both. If that ever changes, the later element in the markup
   // would win, which is why the carrier is emitted after the visible control rather than before it.
-  document.querySelectorAll('#setStreams input.ratecarry, #setStreams select.ratesel').forEach(el=>{
+  document.querySelectorAll('input.ratecarry, select.ratesel').forEach(el=>{
     const v = parseInt(el.value, 10);
     if(!Number.isFinite(v)) return;      // never post an unparsable rate; the server would 400 on it
     (rates[el.dataset.addr] = rates[el.dataset.addr] || {})[el.dataset.rate] = v;
@@ -1993,6 +2060,13 @@ async function saveSettings(btn){
     // warns rather than refusing (an exclusion that is a Verity-family fact should not block a config
     // written for other hardware), so this line is the only place the operator learns it — appended
     // AFTER the saved list so the warning is the last thing read, not buried in front of it.
+    /* Cleared ONLY on `ok`. A rejected save must keep the operator's edit on screen — dropping it
+       would lose their work at exactly the moment they need to correct it, and the next 5 s
+       re-render would then show server truth as if nothing had been attempted. */
+    if (r.ok) {
+      for (const k of Object.keys(PENDING)) delete PENDING[k];
+      paintPending();
+    }
     const warn = (r.warnings||[]).length ? '  ⚠ ' + r.warnings.join(' · ') : '';
     $('#setMsg').textContent = r.ok
       ? (r.changed.length ? `saved: ${r.changed.join(', ')}${r.restart_needed?' — reconnect the device to apply':''}${warn}`
