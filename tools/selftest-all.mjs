@@ -152,6 +152,30 @@ if (argv.includes('--selftest')) {
   eq(failureLines('a\nb\nc\nd\ne\nf\ng\nh').length === 6, 'otherwise the TAIL is shown, capped at 6 lines');
   eq(failureLines('').length === 0, 'no output at all returns nothing — the caller says so in words');
   eq(failureLines('  \n\n  ').length === 0, 'whitespace-only output is no output');
+  /* ── the bounded pool ────────────────────────────────────────────────────────────────────────
+     Two contracts, and BOTH matter. Concurrency, because the whole defect was unbounded fan-out —
+     84 subprocesses on 24 cores starving a tool into its own 120 s timeout. And ORDER, because the
+     reporting below indexes results by position: a pool that returns completion-ordered results
+     would silently attribute every failure to the wrong tool, which is a worse bug than the one
+     being fixed and would not show up as a crash. */
+  {
+    let live = 0;
+    let peak = 0;
+    const seen = await runPooled(
+      [5, 4, 3, 2, 1, 0, 6, 7],
+      async (v) => {
+        live++;
+        peak = Math.max(peak, live);
+        await new Promise((r) => setTimeout(r, v));
+        live--;
+        return v * 10;
+      },
+      3
+    );
+    eq(peak <= 3, `the pool never exceeds its limit (peak ${peak}, limit 3)`);
+    eq(peak > 1, `…and it is actually CONCURRENT, not serialised (peak ${peak})`);
+    eq(seen.join(',') === '50,40,30,20,10,0,60,70', 'results stay in INPUT order, not completion order');
+  }
   console.log(`all ${n} selftests passed`);
   process.exit(0);
 }
@@ -192,7 +216,32 @@ const nearMiss = readdirSync(TOOLS)
    with no other gate running refutes it differently. Costs one syscall. */
 const load0 = os.loadavg()[0];
 console.log(`  load average at sweep start: ${load0.toFixed(2)} (${os.cpus().length} cores)`);
-const results = await Promise.all(files.map(run));
+/* 🔴 BOUNDED, NOT `Promise.all(files.map(run))` — which spawned EVERY tool at once: measured 84 node
+   subprocesses on 24 cores, against a fixed 120 s per-tool timeout. A tool that needs real CPU is then
+   starved by its 83 siblings and killed at the cap, so `test:tools` reds the LOCAL `npm run check` for
+   reasons unrelated to the change under test. That happened three times on 2026-09-03, on three
+   unrelated branches, always to `dsp-review-qwen.mjs` (it drives a local model) — which passes
+   STANDALONE at load 5.53, HIGHER than the 3.95 one of the sweep runs died at. Machine load was never
+   the discriminator; the sweep manufactured its own contention.
+   ⚠️ CI is unaffected and that is why this never showed there: `.github/workflows/tests.yml` runs the
+   same selftests in a SEQUENTIAL bash loop, one at a time. The defect lived entirely on the local gate.
+   ⚠️ NOT a bigger timeout — raising 120 s hides the fan-out and the next slow tool re-finds it.
+   Order is preserved (results[i] belongs to files[i]) because the reporting below indexes by position. */
+const CONCURRENCY = Math.max(2, Math.min(os.cpus().length, 8));
+async function runPooled(list, worker, limit) {
+  const out = new Array(list.length);
+  let next = 0;
+  async function pump() {
+    while (true) {
+      const i = next++;
+      if (i >= list.length) return;
+      out[i] = await worker(list[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, list.length) }, pump));
+  return out;
+}
+const results = await runPooled(files, run, CONCURRENCY);
 /* Wall time is printed for the tools that can actually approach the timeout, so the §3.4 account stays
    testable on every run rather than only when something dies: if a ≤0.3 s tool ever times out, the
    CPU-demand explanation is refuted, and these numbers are how anyone would notice. */
