@@ -13,11 +13,22 @@ runtime state to assert on that differs between the broken and fixed versions sh
 BLE session against hardware.
 """
 from __future__ import annotations
-import pathlib
 import re
 
-CAP = (pathlib.Path(__file__).resolve().parent.parent / "capture.py").read_text(encoding="utf-8")
-WRI = (pathlib.Path(__file__).resolve().parent.parent / "writers.py").read_text(encoding="utf-8")
+from _srcscan import module_source
+
+# ⚠️ THROUGH `_srcscan.module_source`, NEVER `read_text`. mutmut 3 generates ONE module holding every
+# mutant inline, so a raw scan sees hundreds of copies of every line and the module reports "failed to
+# collect stats" — which looks like a broken environment and silently means it is never measured at
+# all. `test_mutation_hygiene` enforces this and caught this file's first draft in CI.
+#
+# The routing is the load-bearing part: `module_source` SKIPS when handed a generated file, so none of
+# these assertions ever runs against inlined mutants. That matters because one of them below is a
+# `not in` — a shape the helper's own notes call out as breaking when applied to whole module source,
+# since mutmut generates the forbidden string as a mutation. Here it is applied to a single captured
+# header value rather than to the module, and the skip means it never meets a mutant either way.
+CAP = module_source("capture.py")
+WRI = module_source("writers.py")
 
 
 def test_the_acc_push_is_accompanied_by_a_write():
