@@ -148,6 +148,16 @@ ALLOW_FUNCS = {
     "apply_removed": "adapter_pool — per-device reassignment on unplug. ASPIRATIONAL, same reason as apply_added: the daemon repoints ONE global pin, so a {device: adapter} map has no consumer",
     "rebalance_reason": "adapter_pool — the human-readable WHY behind a per-device reassignment. ASPIRATIONAL: it describes moves that only a per-device architecture can make",
     "night_profile": "adapter_ab is an offline analysis tool, not daemon code",
+    # ── SA2 writer + dictionary comparator (2026-09-04). PENDING, and the consumer is NAMED.
+    # cpap_edf_writer.EdfSink writes BRP from the live BLE stream; the O2Ring produces 1 Hz SpO2
+    # and pulse on the same nights, and SA2 is the ResMed container for exactly that. Nothing
+    # wires the ring into the CPAP EDF tree YET, which is why these have no caller. They are not
+    # speculative: the declarations they write were derived from 294 real SA2 files and are
+    # checked against the card by tests/test_cpap_edf_sa2.py. RETIRE when an SA2 sink lands; if
+    # the ring is never written into the CPAP tree, DELETE both with these entries.
+    "build_sa2": "cpap_edf — writes the ResMed SA2 oximetry container the AS11 leaves empty when no wired sensor is attached. PENDING an SA2 sink that feeds it from the O2Ring; delete with declaration_matches if that never lands",
+    "declaration_matches": "cpap_edf — diffs a real file's signal block against the derived cpap_edf_dict. Used by the card test today; PENDING a runtime check that verifies a written EDF against the dictionary before it reaches the harvest tree",
+
     "compare": "adapter_ab analysis tool",
     "unattributable": "adapter_ab analysis tool",
     # ── investigated 2026-08-14 (brief §5). Each is CAPABILITY THAT EXISTS ELSEWHERE, not a gap. The

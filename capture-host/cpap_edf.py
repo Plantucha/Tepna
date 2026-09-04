@@ -303,6 +303,113 @@ def build_pld(channels, start, serial, *, record_seconds=60, mid=46, vid=3):
                f"{record_seconds}.00", signals)
 
 
+# ── SA2.edf — oximetry, the one ResMed type this box can fill ─────────────────────────────────────
+# The AS11 writes SA2.edf on every therapy night whether or not the optional wired oximeter is
+# attached; with none attached both channels are the sentinel for the whole session. So the CONTAINER
+# is exceptionally well evidenced even on a machine that never populates it, and the reverse
+# direction — put the O2Ring's SpO2 into the channel the machine leaves empty — is open precisely
+# because CPAP-SA2-OXIMETRY-SOURCE-2026-08-01 refuted the forward one.
+#
+#   [HW] over 294 SA2 files on this card: 2 signals + Crc16, record_seconds 60.00, spr 60 (1 Hz),
+#        Pulse.1s bpm phys 0..300 dig 0..300, SpO2.1s % phys 0..100 dig 0..100 — both 1:1.
+#   [HW] the absent-sample sentinel is -1, on every sample of every file.
+#   [INF] the encoding of REAL samples. Every SA2 on this box is entirely sentinel, so nothing here
+#        proves the AS11 writes SpO2 as a plain integer percent. CPAP-SA2-OXIMETRY-SOURCE records one
+#        2.5 h populated session (2026-06-13) that is NOT in this tree and that I could not read.
+#        The 1:1 mapping below is taken from the declared ranges, not from observed samples.
+_SA2_SPECS = [("Pulse.1s", "bpm", "0.00", "300.00", "0", "300"),
+              ("SpO2.1s", "%", "0.00", "100.00", "0", "100")]
+
+SA2_ABSENT = -1          # [HW]; deliberately BELOW dig_min — see build_sa2
+
+
+def _sentinel_signal(spec, digital_values, spr):
+    """A Signal from DIGITAL values, bypassing `_digital`'s clamp.
+
+    🔴 `_num_signal` cannot be used for a channel that carries the AS11's -1 sentinel. It routes
+    every value through `_digital`, which clamps to [dmin, dmax]; SpO2.1s declares dmin 0, so -1
+    would clamp to 0 and every "no reading" would become a genuine 0 % — a fabricated desaturation,
+    written into a file that looks entirely normal. The card writes a sentinel outside its own
+    declared range on purpose, and reproducing the card means reproducing that.
+    """
+    label, dim, pmin_s, pmax_s, dmin_s, dmax_s = spec
+    return Signal(label, _EMPTY80, dim, pmin_s, pmax_s, dmin_s, dmax_s, _EMPTY80,
+                  spr, _RES32, list(digital_values))
+
+
+def build_sa2(samples, start, serial, *, record_seconds=60, mid=46, vid=3):
+    """A ResMed-layout SA2.edf from 1 Hz oximetry. `start` is (y, mo, d, hh, mm, ss), local civil.
+
+    `samples` is an iterable of `(offset_s, spo2_pct, pulse_bpm)` with `offset_s` whole seconds from
+    `start`; either reading may be None for "no value".
+
+    ⚠️ IT TAKES OFFSETS, NOT TWO LISTS, AND THAT IS THE POINT. Gaps are FILLED with the device's own
+    sentinel rather than closed up. A caller handing over a plain list with a dropout simply omitted
+    would shift every later sample earlier, and the file would look continuous while being wrong by
+    the length of the gap — the same silent-time-axis failure as assuming 1 Hz in `parse_dat`, and as
+    stepping a day with `t -= 86400`. Absence has to be representable or it gets compressed away.
+
+    The O2Ring is a native fit: `parse_dat` yields 1 Hz samples with None for finger-off. Check
+    `parse_dat.implied_interval_s` before trusting that a given .dat really is 1 Hz — the file does
+    not record its own cadence.
+    """
+    spr = record_seconds                       # 60 samples per 60 s record = 1 Hz [HW]
+    seen = {}
+    for offset, spo2, pulse in samples:
+        offset = int(offset)
+        if offset < 0:
+            raise ValueError(f"negative sample offset {offset}: a sample before the start instant "
+                             "cannot be placed on the record grid")
+        if offset in seen:
+            raise ValueError(f"duplicate sample offset {offset}: two readings claim the same second, "
+                             "so one would silently overwrite the other")
+        seen[offset] = (spo2, pulse)
+
+    n_seconds = max(seen) + 1 if seen else 0
+    n = -(-n_seconds // spr) if n_seconds else 0
+    total = n * spr
+    pulse_d, spo2_d = [], []
+    for i in range(total):
+        spo2, pulse = seen.get(i, (None, None))
+        pulse_d.append(SA2_ABSENT if pulse is None else int(pulse))
+        spo2_d.append(SA2_ABSENT if spo2 is None else int(spo2))
+
+    sd, st, rd = _dates(*start)
+    signals = [_sentinel_signal(_SA2_SPECS[0], pulse_d, spr),
+               _sentinel_signal(_SA2_SPECS[1], spo2_d, spr),
+               _crc_signal(n)]
+    return Edf("0", "X X X X", _recording_id(rd, serial, mid, vid), sd, st, "EDF", n,
+               f"{record_seconds}.00", signals)
+
+
+def declaration_matches(kind, header_signals, dictionary):
+    """Differences between a real file's signal block and the derived dictionary; [] means identical.
+
+    `header_signals` is a sequence of (label, unit, pmin, pmax, dmin, dmax, spr) read off disk, all
+    ASCII and **TRIMMED**. Returns human-readable differences rather than a bool: "it differs" is not
+    actionable, "Leak.2s dig_max 100 vs 200" is.
+
+    ⚠️ `read_edf` returns these fields space-padded to their EDF field widths and does not strip, so a
+    caller passing its output straight in gets a difference on every field. Trim first. The
+    dictionary holds trimmed ASCII because that is what the generator writes; comparing trimmed to
+    padded is the one mistake this function cannot detect for you, since a padded value really is
+    different text.
+    """
+    spec = dictionary.get(kind)
+    if spec is None:
+        return [f"{kind}: not in the dictionary (derived from a card that never wrote this type)"]
+    want = spec["signals"]
+    out = []
+    if len(header_signals) != len(want):
+        out.append(f"{kind}: {len(header_signals)} signals on disk, {len(want)} in the dictionary")
+    names = ("label", "unit", "phys_min", "phys_max", "dig_min", "dig_max", "spr")
+    for i, (got, exp) in enumerate(zip(header_signals, want)):
+        for j, field in enumerate(names):
+            if got[j] != exp[j]:
+                out.append(f"{kind} sig[{i}] {exp[0]} {field}: disk={got[j]!r} dict={exp[j]!r}")
+    return out
+
+
 def _tal_record(onset, duration, label, byte_width):
     """One EVE data record: the mandatory timekeeping TAL (+0) then one annotation TAL, zero-padded to
     `byte_width` bytes. EDF+ markers: 0x15 splits onset/duration, 0x14 ends each field, 0x00 terminates."""
