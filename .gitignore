@@ -127,6 +127,7 @@ uploads/*
 # tests/apnea-null-twins.js), so no privacy bar; committed because a fixture nothing can express is
 # the exposure this closes, and an uncommitted one would skip in CI exactly where it is needed.
 !uploads/integrator_apnea_null_twins.node-export.json
+!uploads/integrator_respiration_fusion_twins.node-export.json
 
 # Trio TCH corpus — DERIVED per-night node-exports (tools/trio-batch.mjs), the §6 input contract
 # for `tools/tch-multinight.mjs --dir`. Tracked so a fresh clone reproduces the real σ distribution

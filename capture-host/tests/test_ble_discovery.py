@@ -253,3 +253,50 @@ def test_AN_UNRECOGNISED_CLASS_WITH_ABSENCE_WORDING_IS_STILL_AN_ABSENCE():
     bleak would leave every unrecognised class as OTHER, which never produces a verdict at all."""
     assert B.classify_failure(RuntimeError("device not found")) == B.ABSENT
     assert B.classify_failure(Exception("no device with that address")) == B.ABSENT
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────────
+# Owner issue #2170: "the configured adapter has answered 0 of 755 discoveries, and the failover uses
+# the wearables radio." The issue could not establish WHY hci0 never answers — and the reason is that
+# the LOG CANNOT EXPRESS IT. `classify_failure` returns OTHER from two places: `_REACHED_TYPES` (we
+# connected, GATT failed after) and the final catch-all. Measured on vigil 2026-08-30 → 09-03: 758
+# failovers, **609 of them `=other`**, so 80 % of the evidence sits in the one bucket that merges a
+# verdict about the DEVICE with "unclassified". The exception type was in hand and thrown away.
+#
+# These two tests pin the diagnostics, not the classification: `absence_verdict` keys only on ABSENT,
+# so nothing here changes what may be written down.
+
+
+def test_the_failover_log_NAMES_the_pinned_adapters_exception_type(caplog):
+    """`=other` is unreadable without it — 609 of 758 events on the box say only 'other'."""
+    conn, _seen = _conn(good="hci2")
+    with caplog.at_level("WARNING"):
+        _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn,
+                                               adapters=["hci1", "hci2"]))
+    msg = "\n".join(r.getMessage() for r in caplog.records)
+    assert "failed over" in msg
+    assert "hci1 raised" in msg, f"the pinned adapter's exception TYPE must be named: {msg!r}"
+
+
+def test_falling_back_onto_the_RESERVED_wearables_radio_says_so_SEPARATELY(caplog):
+    """config.example.yaml: "The FREE radio — never the one the wearables capture on." A failover
+    onto it undoes that setting, and today reads as an ordinary failover. Measured: 28 of 758.
+
+    This REPORTS rather than refuses — refusing turns those 28 into no CPAP capture at all, which is
+    a data-loss trade for the owner to make (#2170), not a logging fix."""
+    conn, _seen = _conn(good="hci9")
+    with caplog.at_level("WARNING"):
+        _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn,
+                                               adapters=["hci1", "hci9"], reserved="hci9"))
+    msg = "\n".join(r.getMessage() for r in caplog.records)
+    assert "RESERVED wearables radio hci9" in msg, f"the reservation breach must be its own line: {msg!r}"
+
+
+def test_an_ordinary_failover_does_NOT_claim_a_reservation_breach(caplog):
+    """The paired direction: the warning must fire on the breach and only on the breach."""
+    conn, _seen = _conn(good="hci2")
+    with caplog.at_level("WARNING"):
+        _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn,
+                                               adapters=["hci1", "hci2"], reserved="hci9"))
+    msg = "\n".join(r.getMessage() for r in caplog.records)
+    assert "failed over" in msg and "RESERVED" not in msg, msg

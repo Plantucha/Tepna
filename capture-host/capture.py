@@ -7026,7 +7026,10 @@ def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
             # is written down. ⚠️ NOT the fix for the 2026-08-29 blackout — that was a bluez
             # per-DEVICE state wedge shared by every adapter (hci0 saw 107 other devices throughout),
             # and a sibling would have been blind too. See `ble_discovery`'s header.
-            got, _adapter, _attempts = await _cpap_connect_any_adapter(creds["ble_addr"], hci)
+            # `reserved=ADAPTER` is the WEARABLES radio (top-level config `adapter:`), passed so the
+            # failover can SAY when it lands there. config.example.yaml reserves it explicitly.
+            got, _adapter, _attempts = await _cpap_connect_any_adapter(
+                creds["ble_addr"], hci, reserved=ADAPTER)
             return got
     interval = float(adcfg.get("poll_interval_sec", 30.0))
     task = (create_task or asyncio.create_task)(cpap_shadow_runner.run_shadow_loop(
@@ -7641,7 +7644,7 @@ async def _resolve_cpap_adapter(spec):
 
 
 async def _cpap_connect_any_adapter(ble_addr, pinned, timeout=20.0, *, connect=None,
-                                    adapters=None, on_attempt=None):
+                                    adapters=None, on_attempt=None, reserved=None):
     """Open the AS11 link, trying the PINNED radio first and then its siblings.
 
     Returns `(result, adapter_used, attempts)`; raises the pinned adapter's error when every adapter
@@ -7679,8 +7682,29 @@ async def _cpap_connect_any_adapter(ble_addr, pinned, timeout=20.0, *, connect=N
         if adapter != pinned:
             # The wedge HAPPENED and was worked around. Both halves are worth saying: a silent
             # recovery is how a degrading radio stays invisible until it fails completely.
-            log.warning("CPAP discovery failed over: %s did not answer, found on %s (%s)",
-                        pinned, adapter, ", ".join(f"{a}={k}" for a, k in attempts))
+            #
+            # 🔴 THE PINNED EXCEPTION'S TYPE IS NAMED, and it is the whole reason this line was
+            # unreadable. `classify_failure` returns OTHER from TWO places — `_REACHED_TYPES` (we
+            # connected and GATT failed afterwards) and the final catch-all — so `=other` merges a
+            # verdict ABOUT THE DEVICE with "we could not classify this at all". Those want opposite
+            # responses, which is the same conflation `ABSENT`/`CONTENDED` exists to prevent, one
+            # bucket over. Measured on vigil 2026-08-30 → 09-03: 758 failovers, of which **609 were
+            # `=other`** — 80 % of the evidence in the bucket that says least. The type was in hand
+            # at classification time and discarded, so owner issue #2170 could not establish WHY the
+            # configured radio never answers; the log cannot express it.
+            hint = f"; {pinned} raised {type(first_exc).__name__}" if first_exc is not None else ""
+            log.warning("CPAP discovery failed over: %s did not answer, found on %s (%s)%s",
+                        pinned, adapter, ", ".join(f"{a}={k}" for a, k in attempts), hint)
+            # ⚠️ SEPARATE LINE, deliberately, when the fallback is the RESERVED radio.
+            # `config.example.yaml` states the intent as "The FREE radio — never the one the
+            # wearables capture on", and a failover onto it undoes that setting silently — it is
+            # today indistinguishable from an ordinary failover in the log. Measured: 28 of 758.
+            # This REPORTS; it does not refuse. Refusing would convert those 28 into no CPAP capture
+            # at all, which is a data-loss trade only the owner should make (#2170).
+            if reserved and adapter == reserved:
+                log.warning("CPAP discovery used the RESERVED wearables radio %s — "
+                            "config reserves it for the wearables and this failover overrides that",
+                            adapter)
         return got, adapter, attempts
     # EVERY ADAPTER FAILED — but WHY decides what may be written down. A clean sweep of empty scans
     # is absence; anything contended is "we could not tell", and reporting that as absence is the

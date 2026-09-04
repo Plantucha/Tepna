@@ -14007,7 +14007,11 @@
          is enough to stop the same two-copies trap from shipping twice. */
       var appSrc = env.sources && env.sources['pulsedex-app.js'];
       if (appSrc) {
-        T.ok('§5.1 · the APP assembles tp as the SUM of the bands it renders', /tp:\s*_wv \+ _wl \+ _wh/.test(appSrc), 'winSpec tp expression not found in pulsedex-app.js');
+        T.ok(
+          '§5.1 · the APP assembles tp as the SUM of the bands it renders',
+          /tp:\s*_wv \+ _wl \+ _wh/.test(appSrc),
+          /tp:\s*_wv \+ _wl \+ _wh/.test(appSrc) ? 'tp: _wv + _wl + _wh present in pulsedex-app.js' : 'winSpec tp expression NOT FOUND in pulsedex-app.js'
+        );
         T.ok(
           '§5.1 · …and no longer takes a fourth independent median of per-window tp',
           !/stp\.push\(/.test(appSrc) && !/medianOf\(stp\)/.test(appSrc),
@@ -19056,7 +19060,7 @@
         return;
       }
       var ci = src.indexOf('} catch(err){');
-      T.ok('the worker catch-fallback exists', ci > 0, 'catch block not found — did the worker change shape?');
+      T.ok('the worker catch-fallback exists', ci > 0, ci > 0 ? 'catch at index ' + ci : 'catch block NOT FOUND — did the worker change shape?');
       if (ci <= 0) return;
       var fallback = src.slice(ci, src.indexOf('}', src.indexOf('for(const line of txt.split', ci)));
       var reread = fallback.indexOf('for(const file of files)');
@@ -26685,11 +26689,45 @@
       var RESIDUE_NAME = 'RESIDUE.md';
       function residueRows(text) {
         var out = { rows: [], malformed: [] };
+        /* ⚠️ SPLIT ON UNESCAPED PIPES ONLY. A bare `line.split('|')` is escape-BLIND, so a row
+           quoting a regex, a shell alternation, or any prose with a `\|` in it reads as an extra
+           cell and is rejected as malformed however correctly it was escaped. Measured 2026-09-03:
+           a residue row citing an alternation pattern was refused as "7 cells, want 6"; the escape
+           was right and the counter was not, and the workaround was to reword the evidence — i.e.
+           the gate was silently editing what a row is allowed to say.
+           Scanning (rather than a lookbehind) is what makes it correct at the edge: `\X` is consumed
+           as a unit, so `\|` stays inside its cell while `\\` is a literal backslash followed by a
+           LIVE separator. A `(?<!\\)\|` lookbehind gets that second case wrong.
+           This does NOT loosen the check — a row carrying an escaped pipe must still have exactly
+           six cells. It only stops counting a character the row escaped on purpose. */
+        function splitLedgerCells(line) {
+          var out = [],
+            cur = '',
+            i = 0;
+          while (i < line.length) {
+            var ch = line[i];
+            if (ch === '\\' && i + 1 < line.length) {
+              cur += ch + line[i + 1];
+              i += 2;
+              continue;
+            }
+            if (ch === '|') {
+              out.push(cur);
+              cur = '';
+              i++;
+              continue;
+            }
+            cur += ch;
+            i++;
+          }
+          out.push(cur);
+          return out;
+        }
         String(text)
           .split('\n')
           .forEach(function (line) {
             if (!/^\|\s*\d{4}-\d{2}-\d{2}-[a-z0-9-]+\s*\|/.test(line)) return;
-            var cells = line.split('|');
+            var cells = splitLedgerCells(line);
             // leading '' + 6 cells + trailing '' — anything else means a pipe inside a cell or a missing column
             if (cells.length !== 8 || cells[0].trim() !== '' || cells[7].trim() !== '') {
               out.malformed.push(line.slice(0, 40) + '… (' + (cells.length - 2) + ' cells, want 6)');
@@ -26889,6 +26927,40 @@
         residueVerdict(plantSrc.rows, {}, ['capture-host/tools/find_unwired.py']).badSrc.length === 0 && residueVerdict(plantSrc.rows, {}, ['some/other/file.py']).badSrc.length === 1
       );
       T.ok('self-test · check8f does NOT demand a back-reference from a non-brief source', residueVerdict(plantSrc.rows, {}, ['capture-host/tools/find_unwired.py']).noBackRef.length === 0);
+      /* ── check8b's cell counter now honours the backslash escape ────────────────────────────
+         Planted rows rather than asserted on the live ledger: the live one may contain no escaped
+         pipe at all, and a gate that cannot be shown to fire is decoration. */
+      {
+        var mkRow = function (ev) {
+          return '| 2026-01-02-k9 | 2026-01-02 | `#1234` | a defect | ' + ev + ' | OPEN |';
+        };
+        var plainRow = residueRows(mkRow('no pipes here'));
+        T.ok(
+          'self-test · check8b accepts an ordinary 6-cell row',
+          plainRow.rows.length === 1 && plainRow.malformed.length === 0,
+          JSON.stringify({ rows: plainRow.rows.length, malformed: plainRow.malformed.length })
+        );
+        var escRow = residueRows(mkRow('the pattern `a\\|b` alternates'));
+        T.ok(
+          'self-test · check8b ACCEPTS an ESCAPED pipe inside a cell (a row may quote a regex)',
+          escRow.rows.length === 1 && escRow.malformed.length === 0,
+          escRow.malformed.length ? escRow.malformed[0] : 'accepted'
+        );
+        var bareRow = residueRows(mkRow('a bare | pipe'));
+        T.ok(
+          'self-test · …and still REJECTS a bare pipe, so the check is not loosened',
+          bareRow.rows.length === 0 && bareRow.malformed.length === 1,
+          bareRow.malformed.length ? bareRow.malformed[0].slice(0, 60) : 'NOT rejected — the fix went too far'
+        );
+        /* The edge a `(?<!\\)\|` lookbehind gets WRONG: an escaped BACKSLASH followed by a LIVE pipe.
+           `\\\\|` must still separate cells, or the counter over-accepts. */
+        var dblRow = residueRows(mkRow('ends with an escaped backslash \\\\| and then a cell break'));
+        T.ok(
+          'self-test · an escaped BACKSLASH before a pipe still separates (scan, not lookbehind)',
+          dblRow.malformed.length === 1,
+          dblRow.malformed.length ? 'rejected as expected' : 'ACCEPTED — the scanner mis-reads \\\\|'
+        );
+      }
       var plantBriefs = {
         'A-2026-01-01-BRIEF.md': '**Status:** DONE — 2026-01-02 · **Residue:** 2026-01-02-k1, 2026-01-02-k3',
         'B-2026-01-01-BRIEF.md': '**Status:** PROPOSED',
@@ -37759,6 +37831,70 @@
            Four twins, because a mutant to the shipped path must move these bytes: `coupled`/`uncoupled`
            are the gate's two DIRECTIONS, `gapped` is the only one that can see the covered-time shift,
            and `contended` the only one that can see the null scoring the PUBLISHED exclusive matching. */
+        /* ── RESPIRATION-FUSION TWINS (residue 2026-09-02-respiration-fusion-no-fixture) ─────────
+           Before this, `fuseRespirationRate` had NO committed fixture: measured 2026-09-02,
+           integrator_tch_golden mentions respRate 0 times, the apnea twins neither, and 0 of 6 corpus
+           integrator_fusion_*.json carry the field — while the same query returns 1 on
+           synthetic_motiondex_golden, which is the positive control that makes those zeros usable.
+           That blindness is why PpgDex's exported respiration reached no fusion for a MONTH with every
+           gate green: a corpus that cannot EXPRESS a defect returns the same green as one that
+           checked. Four twins, because the fusion carries two guards its own header names and a
+           happy-path-only fixture would leave both untested. */
+        var rFix = EQ.integrator_respiration_fusion_twins && EQ.integrator_respiration_fusion_twins.fixture;
+        var _rTwins = env.respirationFusionTwins || (typeof respirationFusionTwins !== 'undefined' && respirationFusionTwins) || null;
+        var FRr = env.fuseRespirationRate || (typeof fuseRespirationRate !== 'undefined' && fuseRespirationRate) || null;
+        T.ok(
+          'respiration twins: committed fixture present (the .gitignore negation still holds)',
+          !!rFix,
+          rFix ? 'uploads/integrator_respiration_fusion_twins.node-export.json reached this lane' : 'ABSENT — check the `!uploads/integrator_respiration_fusion_twins.node-export.json` negation'
+        );
+        T.ok(
+          'respiration twins: builder + fuseRespirationRate wired in this lane',
+          typeof _rTwins === 'function' && typeof FRr === 'function',
+          typeof _rTwins === 'function' && typeof FRr === 'function' ? 'both present' : 'tests/respiration-fusion-twins.js or fuseRespirationRate missing'
+        );
+        if (rFix && typeof _rTwins === 'function' && typeof FRr === 'function') {
+          var rBuilt = {
+            schema: {
+              name: 'ganglior.integrator-respiration-fusion-twins',
+              version: '1.0',
+              doc: 'Committed synthetic twins for fuseRespirationRate (residue 2026-09-02-respiration-fusion-no-fixture). Inputs rebuilt in-code by tests/respiration-fusion-twins.js; only the FUSED verdicts are committed.'
+            },
+            twins: {}
+          };
+          var _RT = _rTwins();
+          for (var _ri = 0; _ri < 4; _ri++) {
+            var _rk = ['agree', 'disjoint', 'sameNode', 'single'][_ri];
+            var _rrecs = _RT[_rk].map(function (x) {
+              return Ag(x.json, x.node, x.node)[0];
+            });
+            var _rf = FRr(_rrecs);
+            rBuilt.twins[_rk] = _rf
+              ? {
+                  n: _rf.n,
+                  consensusBrpm: _rf.consensusBrpm,
+                  spreadBrpm: _rf.spreadBrpm,
+                  agree: _rf.agree,
+                  overlapVerified: _rf.overlapVerified,
+                  mechanisms: _rf.mechanisms || null,
+                  mechanismsIndependent: _rf.mechanismsIndependent
+                }
+              : null;
+          }
+          var rd = [];
+          diff(JSON.parse(JSON.stringify(rBuilt)), rFix, '', rd);
+          T.ok('Integrator respiration twins ≡ committed fixture', rd.length === 0, rd.length ? rd.slice(0, 8).join(' · ') : 'byte-identical');
+          /* THE POSITIVE CONTROL FIRST — without it the three nulls below are indistinguishable from a
+             fusion that never ran, which is the exact failure this fixture exists to end. */
+          T.eq('agree twin FUSES three distinct nodes', rBuilt.twins.agree && rBuilt.twins.agree.n, 3);
+          T.eq('…and publishes a consensus rate', rBuilt.twins.agree && rBuilt.twins.agree.consensusBrpm, 14);
+          T.eq('…spanning more than one mechanism (RSA + chest-ACC)', rBuilt.twins.agree && rBuilt.twins.agree.mechanismsIndependent, true);
+          /* GUARD (a): a consensus over inputs with no common instant is not a consensus. */
+          T.eq('disjoint twin does NOT fuse — no temporal overlap', rBuilt.twins.disjoint, null);
+          /* GUARD (b): n counts distinct SOURCES; a node exporting twice cannot corroborate itself. */
+          T.eq('sameNode twin does NOT fuse — one observer per node', rBuilt.twins.sameNode, null);
+          T.eq('single twin does NOT fuse — below the n>=2 floor', rBuilt.twins.single, null);
+        }
         var aFix = EQ.integrator_apnea_null_twins && EQ.integrator_apnea_null_twins.fixture;
         var _twins = env.apneaNullTwins || (typeof apneaNullTwins !== 'undefined' && apneaNullTwins) || null;
         var FAg = env.fuseApneaEvents || (typeof fuseApneaEvents !== 'undefined' && fuseApneaEvents) || null;
@@ -50904,7 +51040,8 @@
       ['pulsedex-dsp.js', 'pulsedex-app.js'].forEach(function (f) {
         var t = srcs[f];
         if (!t) return;
-        T.ok('§5.2 · ' + f + ' medians the per-window RATIOS', /slh\.push\(w\.lfhf\)/.test(t) && /lfhf: slh\.length \? \+medianOf\(slh\)/.test(t), 'per-window lfhf accumulator not found');
+        var _perWin = /slh\.push\(w\.lfhf\)/.test(t) && /lfhf: slh\.length \? \+medianOf\(slh\)/.test(t);
+        T.ok('§5.2 · ' + f + ' medians the per-window RATIOS', _perWin, _perWin ? 'per-window lfhf accumulator + median present' : 'per-window lfhf accumulator NOT FOUND');
         T.ok('§5.2 · …and no longer divides the band medians', !/winSpec\.lf \/ \(winSpec\.hf \|\| 1\)/.test(t), 'ratio-of-medians still present');
       });
       /* No node may fabricate a denominator for the SURFACED `lfhf` field. Scope note, UPDATED
