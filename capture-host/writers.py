@@ -502,12 +502,36 @@ class StreamWriter:
         # PSL layout: ONE HR row per notification in _HR.txt (HR only; HRV/Breathing left empty), and one
         # row per RR interval in the sibling _RR.txt (real intervals only — no blank rows). `sensor_ns` is
         # accepted for call-site compatibility but PSL's _HR/_RR carry only the phone timestamp.
-        self._fh.write(f"{_phone_ts(phone)};{bpm}\n")
-        self._bump()
+        #
+        # ⚠️ A 0 bpm IS THE SIG "no valid measurement" SENTINEL, NOT A RATE. The Heart Rate Measurement
+        # characteristic (0x2A37) reports 0 when the sensor has no lock; writing it into a column headed
+        # `HR [bpm]` publishes a heart rate of zero, which is physiologically impossible. Measured
+        # 2026-09-04 on one night: 49/26086 rows on the H10 and 420/36533 on the Verity.
+        #
+        # THE FORMAT THIS FILE CLAIMS PARITY WITH NEVER DOES IT: 0 zero-bpm rows across 83 647 rows of
+        # four genuine Polar Sensor Logger H10 exports (`uploads/Polar_H10_*_HR.txt`). So this was our
+        # divergence from PSL, not a vendor convention being mirrored.
+        #
+        # SKIP THE ROW rather than blanking the column. `Number('')` is 0 in JavaScript, so an empty
+        # field hands the sentinel straight back to any future reader that does not range-check — a
+        # trap that looks like a fix. A row that does not exist cannot be misread by anyone. Both
+        # current consumers happen to guard (`ecgdex-dsp` rejects hr < 20, `sigma-no-reference-analysis`
+        # requires hr >= HR_MIN), which is precisely why this stayed invisible: the file was wrong and
+        # every reader defended itself.
+        if bpm:
+            self._fh.write(f"{_phone_ts(phone)};{bpm}\n")
+            self._bump()
+        # RR IS INDEPENDENT OF THE HR SENTINEL and must survive it — one notification can carry valid
+        # intervals while the rate byte reads 0, and those intervals are the HRV substrate.
         if self._rr_fh is not None:
             ts = _phone_ts(phone)
             for rr in rr_ms:
                 self._rr_fh.write(f"{ts};{rr}\n")
+        # UNCONDITIONAL, because `_bump` is now conditional. Flush cadence used to ride the HR bump, so
+        # a stretch of no-lock notifications would otherwise park written RR rows behind a bump that
+        # never comes. `rows` stays an honest count of rows actually written; flushing is time-based
+        # and cheap to ask about.
+        self._maybe_flush()
 
     def _bump(self) -> None:
         self._n += 1
