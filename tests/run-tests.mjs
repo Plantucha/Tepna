@@ -1118,6 +1118,21 @@ function readEquiv() {
       }
     }
   }
+  // residue 2026-09-02-respiration-fusion-no-fixture — the respiration-fusion twins. Fixture-only:
+  // the gate rebuilds all four cases in-code from tests/respiration-fusion-twins.js.
+  {
+    const fxR = join(ROOT, 'uploads', 'integrator_respiration_fusion_twins.node-export.json');
+    if (existsSync(fxR)) {
+      try {
+        out.integrator_respiration_fusion_twins = {
+          fixture: JSON.parse(readFileSync(fxR, 'utf8')),
+          fixtureFile: 'integrator_respiration_fusion_twins.node-export.json'
+        };
+      } catch {
+        /* gate self-skips */
+      }
+    }
+  }
   // §4.3 — the apnea chance-null twins. Fixture-only: the gate rebuilds all four nights in-code.
   {
     const fxA = join(ROOT, 'uploads', 'integrator_apnea_null_twins.node-export.json');
@@ -1979,6 +1994,7 @@ async function main() {
     fuseHRVConsensus: ctx.fuseHRVConsensus,
     // §4.3 — the apnea fusion, so the twins' equiv leg drives the same seam the regen tool does.
     fuseApneaEvents: ctx.fuseApneaEvents,
+    fuseRespirationRate: ctx.fuseRespirationRate,
     fusePeriodicBreathing: ctx.fusePeriodicBreathing,
     dedupeRecs: ctx.dedupeRecs,
     runFusion: ctx.runFusion,
@@ -2228,6 +2244,13 @@ async function main() {
     apneaNullTwins: (() => {
       try {
         return require(join(ROOT, 'tests', 'apnea-null-twins.js')).apneaNullTwins;
+      } catch {
+        return null;
+      }
+    })(),
+    respirationFusionTwins: (() => {
+      try {
+        return require(join(ROOT, 'tests', 'respiration-fusion-twins.js')).respirationFusionTwins;
       } catch {
         return null;
       }
