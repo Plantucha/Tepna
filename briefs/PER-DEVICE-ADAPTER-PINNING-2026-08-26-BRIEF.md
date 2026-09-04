@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (executable core BUILT, remainder is DEPLOYMENT — re-verified 2026-09-02; ⚠ §2's line citations point at unrelated code, see R6; and two of its test done-when legs belong to the design its own §3.3 WITHDREW and should be struck rather than stamped open — *per Heron's read, not independently re-verified*. Earlier verification 2026-08-31: `resolve_adapter_name` (`capture.py:1115`), per-device `adapter:` parsing with inheritance, `apply_instance` (1185), and the `status_union` merge layer all exist; what remains is a `tepna-capture@.service` systemd template, one instance per radio, splitting monitor/nightqc out as services, and a clean Sena re-measure — boot/deployment shape, owner-territory, several units) · **Created:** 2026-08-26 · **Residue:** 2026-09-02-per-device-citations-drifted
+**Status:** PROPOSED (executable core BUILT, remainder is DEPLOYMENT — re-verified 2026-09-02; ⚠ §2's line citations point at unrelated code, see R6; and two of its test done-when legs belong to the design its own §3.3 WITHDREW and should be struck rather than stamped open — *per Heron's read, not independently re-verified*. Earlier verification 2026-08-31: `resolve_adapter_name` (`capture.py:1115`), per-device `adapter:` parsing with inheritance, `apply_instance` (1185), and the `status_union` merge layer all exist; what remains is a `tepna-capture@.service` systemd template, one instance per radio, splitting monitor/nightqc out as services, and a clean Sena re-measure — boot/deployment shape, owner-territory, several units) · **Created:** 2026-08-26 · **Residue:** 2026-09-02-per-device-citations-drifted · **§2 RE-CITED 2026-09-04** — the five bonding call sites are `capture.py:2195, 2241, 2246, 3082, 3212`, verified against current `main` with each CALL named beside its line, and the finding grep recorded so the next drift needs no archaeology. The COUNT was never wrong; only the numbers had moved.
 
 # Per-device adapter pinning — make every device swappable, the way the CPAP already is
 
@@ -49,7 +49,15 @@ comparison was contaminated by a leaked discovery session and produced a confide
 - **`_resolve_cpap_adapter(spec)`** — the pattern to generalise. Accepts an `hciN` name **or a MAC**,
   always returns an `hciN`, re-resolved every connect, logs and falls back to the BlueZ default when
   the MAC is absent so *an absent radio never silently masquerades as a working pin*.
-- **Five bonding call sites** pass the global directly: `capture.py:1815, 1861, 1866, 2662, 2774`.
+- **Five bonding call sites** pass the global directly — re-cited 2026-09-04 against current `main`, with the CALL named beside each line so the next drift is detectable by reading rather than by trusting:
+  `capture.py:2195` `ensure_bonded(addr, ADAPTER)` · `:2241` `is_bonded(addr, ADAPTER)` · `:2246` `ensure_bonded(addr, ADAPTER, force=True)` · `:3082` `ensure_bonded(addr, ADAPTER, force=True)` · `:3212` `ensure_bonded(addr, ADAPTER)`.
+  The COUNT was always right: `grep -cE 'bonding\.[a-z_]+\([^)]*ADAPTER'` returns exactly 5. Only the line
+  numbers had drifted — the previous citation (`1815, 1861, 1866, 2662, 2774`) landed on `return False`, a
+  skew-jump comparison and PMD/SDK comments, i.e. nowhere near the mechanism this section describes.
+  ⚠️ Residue `2026-09-02-per-device-citations-drifted` proposed `1382, 2185, 2231, 2236, 3041, 3154`; those
+  are themselves ~10 lines off against current `main` and one (`:3154`) is an `asyncio.sleep`. Re-citing
+  from the row would have reproduced the defect one commit later — a line number is a snapshot, so the
+  grep that finds the sites is the durable citation and is given above.
 
 ## 3 · Design
 
