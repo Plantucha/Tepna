@@ -6811,16 +6811,17 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
     # Optional on-disk EDF sink, enabled by setting cpap.ble_stream.edf_dir. Each live session then writes
     # a bit-accurate BRP.edf there — QUARANTINED under a PENDING subtree until the flow scale is pinned
     # (EdfSink default flow_scale_verified False), so a provisional-unit file never reaches the harvest
-    # ingest root. `edf_dir` MUST be its OWN root, never the harvest dest_subdir. The serial is provisional
-    # (config, else "UNKNOWN"); the canonical serial AND the flow factor are both pinned from the same SD
-    # card in the CPAP-EDF-WRITER follow-up. No edf_dir → bus-only, the prior behaviour unchanged.
+    # ingest root. `edf_dir` MUST be its OWN root, never the harvest dest_subdir. The serial is the
+    # CANONICAL one now (`resolve_cpap_serial`): config if set, else the harvest's own
+    # Identification.json, else "UNKNOWN" — both halves of the CPAP-EDF-WRITER follow-up are pinned,
+    # the flow factor on 2026-08-23 and the serial on 2026-09-03. No edf_dir → bus-only, unchanged.
     edf_sink_factory = None
     box_root = _cpap_box_root(cfg, config_path)
     edf_dir = resolve_cpap_dir(cbs.get("edf_dir"), box_root)
     if edf_dir:
         import cpap_edf_writer
 
-        serial = cbs.get("serial") or "UNKNOWN"
+        serial = resolve_cpap_serial(cfg, box_root)
         # flow_scale_verified is now TRUE by default — the 2026-08-23 pin confirmed the StreamData flow is
         # L/s (identity, no 60x conversion), so the writer no longer quarantines under PENDING. Overridable
         # to False to re-quarantine. Files land in the committed root now that the clock is local-civil too.
@@ -6840,7 +6841,7 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
     if raw_dir:
         import cpap_record
 
-        raw_serial = cbs.get("serial") or "UNKNOWN"
+        raw_serial = resolve_cpap_serial(cfg, box_root)
 
         def raw_record_factory():
             sid = cpap_record.new_session_id()
@@ -7025,7 +7026,10 @@ def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
             # is written down. ⚠️ NOT the fix for the 2026-08-29 blackout — that was a bluez
             # per-DEVICE state wedge shared by every adapter (hci0 saw 107 other devices throughout),
             # and a sibling would have been blind too. See `ble_discovery`'s header.
-            got, _adapter, _attempts = await _cpap_connect_any_adapter(creds["ble_addr"], hci)
+            # `reserved=ADAPTER` is the WEARABLES radio (top-level config `adapter:`), passed so the
+            # failover can SAY when it lands there. config.example.yaml reserves it explicitly.
+            got, _adapter, _attempts = await _cpap_connect_any_adapter(
+                creds["ble_addr"], hci, reserved=ADAPTER)
             return got
     interval = float(adcfg.get("poll_interval_sec", 30.0))
     task = (create_task or asyncio.create_task)(cpap_shadow_runner.run_shadow_loop(
@@ -7385,6 +7389,47 @@ def resolve_cpap_dir(configured, box_root: str):
     return configured if os.path.isabs(configured) else os.path.join(box_root, configured)
 
 
+def resolve_cpap_serial(cfg, box_root: str) -> str:
+    """The AS11 serial for CPAP sink filenames and EDF recording IDs.
+
+    Config wins: `cpap.ble_stream.serial` is the explicit override. With no config value the serial is
+    read from the Wi-Fi harvest's own `Identification.json` — the SD card's copy, and therefore the
+    same authority the machine writes into its own `SRN=` header. Only when neither exists is it
+    "UNKNOWN".
+
+    🔴 "UNKNOWN" is not a harmless placeholder: it reaches disk. It lands in every BRP.edf
+    recording-id as `SRN=UNKNOWN` where the AS11 writes `SRN=23221590541`, so a reader holding files
+    from two machines cannot tell them apart, and neither can OSCAR. Measured 2026-09-03 against the
+    SD-card corpus: 14 of 14 live-written BRP.edf files carried `SRN=UNKNOWN` while the machine's own
+    files for the same nights carried the real serial. Everything else in those headers already
+    matched byte-for-byte — same labels, units, physical and digital ranges, `MID=46 VID=3` — so the
+    serial was the only identification field that did not.
+
+    This is the second half of the CPAP-EDF-WRITER follow-up. The flow-scale half was pinned
+    2026-08-23 (`flow_scale_verified` now defaults True); the serial half was left behind, and the
+    comment promising both said the serial would come "from the same SD card" — which is exactly what
+    this reads.
+
+    PURE except for the one read; a missing, unreadable or malformed file is "UNKNOWN", never a
+    crash, because a live stream must not fail to start over an identification nicety."""
+    cpap = cfg.get("cpap", {}) or {}
+    configured = ((cpap.get("ble_stream", {}) or {}).get("serial"))
+    if configured:
+        return str(configured)
+    dest = os.path.join(box_root, str(cpap.get("dest_subdir", "captures/cpap")))
+    try:
+        with open(os.path.join(dest, "Identification.json"), encoding="utf-8") as f:
+            ident = json.load(f)
+    except (OSError, ValueError):
+        return "UNKNOWN"
+    node = ident
+    for key in ("FlowGenerator", "IdentificationProfiles", "Product", "SerialNumber"):
+        if not isinstance(node, dict):
+            return "UNKNOWN"
+        node = node.get(key)
+    return str(node) if node else "UNKNOWN"
+
+
 def _cpap_box_root(cfg, config_path: str) -> str:
     """The anchor for relative CPAP sink paths: the box root. A config with no `root` exists only in
     test fixtures (main() indexes `cfg["root"]` unconditionally); the config file's directory is the
@@ -7599,7 +7644,7 @@ async def _resolve_cpap_adapter(spec):
 
 
 async def _cpap_connect_any_adapter(ble_addr, pinned, timeout=20.0, *, connect=None,
-                                    adapters=None, on_attempt=None):
+                                    adapters=None, on_attempt=None, reserved=None):
     """Open the AS11 link, trying the PINNED radio first and then its siblings.
 
     Returns `(result, adapter_used, attempts)`; raises the pinned adapter's error when every adapter
@@ -7637,8 +7682,29 @@ async def _cpap_connect_any_adapter(ble_addr, pinned, timeout=20.0, *, connect=N
         if adapter != pinned:
             # The wedge HAPPENED and was worked around. Both halves are worth saying: a silent
             # recovery is how a degrading radio stays invisible until it fails completely.
-            log.warning("CPAP discovery failed over: %s did not answer, found on %s (%s)",
-                        pinned, adapter, ", ".join(f"{a}={k}" for a, k in attempts))
+            #
+            # 🔴 THE PINNED EXCEPTION'S TYPE IS NAMED, and it is the whole reason this line was
+            # unreadable. `classify_failure` returns OTHER from TWO places — `_REACHED_TYPES` (we
+            # connected and GATT failed afterwards) and the final catch-all — so `=other` merges a
+            # verdict ABOUT THE DEVICE with "we could not classify this at all". Those want opposite
+            # responses, which is the same conflation `ABSENT`/`CONTENDED` exists to prevent, one
+            # bucket over. Measured on vigil 2026-08-30 → 09-03: 758 failovers, of which **609 were
+            # `=other`** — 80 % of the evidence in the bucket that says least. The type was in hand
+            # at classification time and discarded, so owner issue #2170 could not establish WHY the
+            # configured radio never answers; the log cannot express it.
+            hint = f"; {pinned} raised {type(first_exc).__name__}" if first_exc is not None else ""
+            log.warning("CPAP discovery failed over: %s did not answer, found on %s (%s)%s",
+                        pinned, adapter, ", ".join(f"{a}={k}" for a, k in attempts), hint)
+            # ⚠️ SEPARATE LINE, deliberately, when the fallback is the RESERVED radio.
+            # `config.example.yaml` states the intent as "The FREE radio — never the one the
+            # wearables capture on", and a failover onto it undoes that setting silently — it is
+            # today indistinguishable from an ordinary failover in the log. Measured: 28 of 758.
+            # This REPORTS; it does not refuse. Refusing would convert those 28 into no CPAP capture
+            # at all, which is a data-loss trade only the owner should make (#2170).
+            if reserved and adapter == reserved:
+                log.warning("CPAP discovery used the RESERVED wearables radio %s — "
+                            "config reserves it for the wearables and this failover overrides that",
+                            adapter)
         return got, adapter, attempts
     # EVERY ADAPTER FAILED — but WHY decides what may be written down. A clean sweep of empty scans
     # is absence; anything contended is "we could not tell", and reporting that as absence is the
