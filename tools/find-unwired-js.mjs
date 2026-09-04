@@ -207,7 +207,13 @@ export function isConsumed(name, definer, corpus) {
      `window.X = …` writes but also skipped legitimate `NS.X()` READS — right answer, wrong reason,
      and blind in the direction that hides real consumers. So: match the name with or without a
      namespace, then reject the occurrence if it is an ASSIGNMENT TARGET. */
-  const n = name.replace(/[$]/g, '\\$');
+  /* ⚠️ ESCAPE EVERY REGEX METACHARACTER, not just `$`. CodeQL flagged the partial form
+     (js/incomplete-sanitization, high): escaping one metacharacter leaves the rest live, so a symbol
+     containing `.` `(` `[` or a backslash would be INTERPOLATED AS PATTERN rather than matched
+     literally — a correctness bug as much as a sanitisation one, since `.` would then match any
+     character and silently mark unrelated symbols consumed. Same class as the tools-index escape fixed
+     in #2154: there the order was wrong, here the character class was too narrow. */
+  const n = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const re = new RegExp(`(?:[\\w$]+\\.)?(?<![\\w$])${n}(?![\\w$])\\s*(=(?!=)|.?)`, 'g');
   for (const [file, code] of corpus) {
     if (file === definer) continue;
@@ -257,6 +263,9 @@ function selfTest() {
   /* The two corruption causes, both measured on real files rather than imagined. */
   ok(!codeOnly('var x = a.replace(/"/g, "");').includes('"g'), 'a regex literal containing a quote does not open a string');
   ok(codeOnly('function f(v){ return /[",\\r\\n]/.test(v) ? 1 : 2; }\nvar keepMe = 1;').includes('keepMe'), 'a regex after `return` is a LITERAL, not division — code after it survives');
+  /* The CodeQL case: a metacharacter in the NAME must be matched literally, never interpolated. */
+  ok(isConsumed('a.b', 'x.js', [['y.js', 'axb']]) === null, 'a dot in a symbol name is literal, not "any character"');
+  ok(isConsumed('a.b', 'x.js', [['y.js', 'q = a.b;']]) === 'y.js', '…and the literal form still matches');
   ok(isConsumed('zed', 'a.js', [['b.js', 'unzed zedly']]) === null, 'a substring is not a reference');
   console.log(fail ? `\nfind-unwired-js selftest: ${fail} FAILED` : '\nfind-unwired-js selftest: all passed');
   return fail ? 1 : 0;
