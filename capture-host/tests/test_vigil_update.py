@@ -332,6 +332,24 @@ def test_a_success_after_failures_reports_the_recovery_and_clears_the_marker(box
     assert not box["fails"].exists()
 
 
+def test_a_healthy_run_emits_NO_stderr_NOISE(box):
+    """🔴 REGRESSION, observed in production. The marker is ABSENT on every healthy run, because a
+    success clears it — so the absent-file path is the common path, not the edge case.
+
+    `read ... < "$FAIL_MARK" 2>/dev/null` does not cover it: the shell performs the `<` redirection
+    BEFORE running `read`, so a missing file is the SHELL's failure on the SHELL's stderr, which a
+    redirect attached to the command cannot suppress. Measured on vigil 2026-09-03 20:25:05 — every
+    successful update tick logged `No such file or directory` into the journal of the unit this
+    counter exists to make legible, i.e. the fix for silent failure was manufacturing false errors.
+
+    The earlier happy-path test asserted only that the RIGHT strings appear on stdout; nothing
+    asserted that nothing EXTRA appears on stderr, which is why a clean suite shipped this."""
+    r = _run(box)
+    assert r.returncode == 0
+    assert "No such file or directory" not in r.stderr
+    assert r.stderr == "", f"a healthy run must be silent on stderr; got {r.stderr!r}"
+
+
 def test_a_quiet_success_says_nothing_extra(box):
     """Guards the regression that would make this unreadable: a line on every one of the ~300 healthy
     ticks per month would bury the 38 that matter."""
