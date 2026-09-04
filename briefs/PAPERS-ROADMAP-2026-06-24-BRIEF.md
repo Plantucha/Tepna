@@ -374,6 +374,13 @@ These are the real-validation front. Each names the **stack dependency** so sequ
     needs a human to drop EDF + annotation-XML pairs in. That is a materially cheaper unblock than
     building a node. **CANCELLED — owner, 2026-08-28: no DUA will be pursued; revisit only if
     records ever arrive** (see REM-STAGING-FOLLOWUPS-2026-08-02 §2b for the standing stamp).
+    ⊕ **THE REVISIT CONDITION HAS FIRED — 2026-09-04 (Osprey).** NSRR access was approved 2026-09-02
+    and **99 EDF + 5136 annotation XML are on disk** at `/srv/data/shhs/polysomnography/`, all 99 ids
+    paired. The DUA question is settled; the remaining gate is the owner's SEPARATE condition that NSRR
+    stays closed until the brief drain completes (**unmet: 73 open vs a ≤20 target**). So this item is no
+    longer cancelled-for-want-of-data — it is owner-gated. Inventory, boundaries and pre-stated bands:
+    `SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`. ⚠ It measures **PPG 0/99**, so the staging arm scoped
+    here is reachable while nothing PPG-derived is.
   - **Carry the domain-shift caveat:** NSRR is clinical PSG on a clinical population, not a consumer
     chest strap on a healthy sleeper at home. A detector tuned on NSRR and deployed on H10 data inherits
     a domain shift, and the real-night falsifiers remain the only check that survives the move — a good
