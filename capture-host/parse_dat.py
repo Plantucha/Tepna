@@ -103,16 +103,65 @@ def self_consistency(samples, trailer):
     notes.append(f"n_samples {len(samples)} vs trailer total_seconds "
                  f"{trailer['total_seconds']} (|d|={dn}, want <={tol})")
     ok &= dn <= tol
+    if dn > tol and looks_like_interval(implied_interval_s(samples, trailer)):
+        # Before blaming a shifted header offset, check the cheaper explanation: a sample count that
+        # is a clean 1/N of total_seconds is a ring recording at an N-second `storage_interval`, not
+        # a misparsed file. Reporting "header offset" for that sends a reader to the wrong place.
+        n = round(implied_interval_s(samples, trailer))
+        notes.append(f"the sample count is 1/{n} of total_seconds — this reads as a ring set to "
+                     f"storage_interval={n}s, NOT a shifted header offset")
     return ok, notes
 
 
-def write_csv(path, samples, start_dt):
+# The largest ratio still read as a recording cadence. The ring's `storage_interval` byte can hold
+# 0-255, but a ratio far above a minute is not a slow recorder — it is a file whose sample count and
+# trailer disagree for some other reason (a shifted header offset, a truncated pull). Bounding this
+# is what keeps a cadence explanation from swallowing every count mismatch: total_seconds=999 against
+# one sample must still read as "something is wrong", not as "999s per sample".
+_MAX_PLAUSIBLE_INTERVAL_S = 60
+
+
+def implied_interval_s(samples, trailer):
+    """Seconds per sample implied by the trailer, or None when it cannot be told.
+
+    🔴 THE .dat FILE DOES NOT RECORD ITS OWN CADENCE. `parse_oxy_dat` reports `sample_hz: 1` because
+    1 s is the ring's shipped `storage_interval`, not because the file says so — the 10-byte header
+    carries no rate field. And that setting is WRITABLE: `oxyii.SET_CONFIG_FIELDS` exposes it as
+    `interval` (write-field 10, read-byte 8) and `ring_config.py` can set it. A ring reconfigured to
+    2 s would produce a file this module timestamps at half speed — every absolute time in the CSV
+    wrong by a growing offset, and nothing anywhere saying so.
+
+    The trailer's `total_seconds` is the only independent witness in the file. It is a witness, not a
+    guarantee: it is absent on unfinalised pulls, and a recording that dropped samples reads slightly
+    high. So this returns a RATIO for the caller to judge — never a corrected timestamp.
+    """
+    if not samples or not trailer:
+        return None
+    total = trailer.get("total_seconds")
+    if not total:
+        return None
+    return total / len(samples)
+
+
+def looks_like_interval(ratio):
+    """True when a sample-count ratio reads as a deliberate recording cadence rather than a fault.
+
+    Wants a clean near-integer at least 2 and no larger than a minute. 1.0 is the ordinary case and
+    is not "an interval"; 999 is a broken file, not a slow one."""
+    if ratio is None or ratio < 1.5 or ratio > _MAX_PLAUSIBLE_INTERVAL_S:
+        return False
+    return abs(ratio - round(ratio)) <= 0.05 * round(ratio)
+
+
+def write_csv(path, samples, start_dt, interval_s=1.0):
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["sec", "time", "spo2", "pulse", "motion"])
         for s in samples:
-            t = (start_dt + datetime.timedelta(seconds=s["sec"])).isoformat() if start_dt else ""
-            w.writerow([s["sec"], t,
+            sec = s["sec"] * interval_s
+            sec = int(sec) if float(sec).is_integer() else sec
+            t = (start_dt + datetime.timedelta(seconds=sec)).isoformat() if start_dt else ""
+            w.writerow([sec, t,
                         "" if s["spo2"] is None else s["spo2"],
                         "" if s["pulse"] is None else s["pulse"],
                         s["motion"]])
@@ -192,8 +241,18 @@ def main():
               "(time column shows sec-offset only). No start time is fabricated.")
 
     out = a.out or (os.path.splitext(a.dat)[0] + ".csv")
-    write_csv(out, samples, start_dt)
-    print(f"decoded {meta['n_samples']} samples (1 Hz) -> {out}")
+    # The file states no cadence, so 1 s is an ASSUMPTION and is printed as one. The trailer is the
+    # only witness that can contradict it; when it does, scale rather than emit wrong absolute times.
+    ratio = implied_interval_s(samples, trailer)
+    interval_s = float(round(ratio)) if looks_like_interval(ratio) else 1.0
+    if interval_s != 1.0:
+        print(f"WARNING: the trailer implies {interval_s:g}s per sample, not 1s — this ring was "
+              f"recording at storage_interval={interval_s:g}s. Times are scaled to match; a reader "
+              f"that assumed 1 Hz would have every timestamp wrong by a growing offset.")
+    write_csv(out, samples, start_dt, interval_s)
+    cadence = "1 s/sample assumed — the file carries no cadence" if interval_s == 1.0 \
+        else f"{interval_s:g} s/sample, from the trailer"
+    print(f"decoded {meta['n_samples']} samples ({cadence}) -> {out}")
     if trailer:
         print("trailer stats:")
         for k, v in trailer.items():
@@ -202,7 +261,7 @@ def main():
         print(f"self-consistency: {'PASS' if c_ok else 'CHECK'}")
         for nline in notes:
             print("  -", nline)
-        if not c_ok:
+        if not c_ok and interval_s == 1.0:
             print("  ^ if this fails on a real off-body pull, the FILE_DATA header offset "
                   "likely differs from the export format (samples shifted by a constant).")
     else:

@@ -291,3 +291,107 @@ def test_main_selftest_exits_zero(monkeypatch):
     with pytest.raises(SystemExit) as e:
         parse_dat.main()
     assert e.value.code == 0
+
+# ── storage_interval: the cadence the file does not record ───────────────────────────────────────
+
+def test_a_1hz_file_implies_an_interval_of_one():
+    """The ordinary case: 120 samples, 120 s. Nothing to warn about."""
+    trailer = {"total_seconds": 120}
+    samples = [{"spo2": 97} for _ in range(120)]
+    assert parse_dat.implied_interval_s(samples, trailer) == 1.0
+    assert parse_dat.looks_like_interval(1.0) is False, "1 s is the ordinary case, not 'an interval'"
+
+
+def test_a_2s_ring_is_detected_from_the_trailer_alone():
+    """The bug this guards: a ring set to storage_interval=2 writes half as many samples for the same
+    wall time, and nothing in the 10-byte header says so."""
+    trailer = {"total_seconds": 240}
+    samples = [{"spo2": 97} for _ in range(120)]
+    assert parse_dat.implied_interval_s(samples, trailer) == 2.0
+    assert parse_dat.looks_like_interval(2.0) is True
+
+
+@pytest.mark.parametrize("ratio,expected", [
+    (None, False),      # no trailer
+    (0.5, False),        # more samples than seconds — not a cadence
+    (1.0, False),        # ordinary
+    (1.4, False),        # below the floor
+    (2.0, True),
+    (4.0, True),
+    (60.0, True),        # the documented ceiling, inclusive
+    (61.0, False),       # just past it
+    (999.0, False),      # a broken file, not a slow recorder
+    (2.06, True),        # 3% high: a recording that dropped a few samples still reads as 2s
+    (2.4, False),        # not near an integer
+])
+def test_the_cadence_bound_admits_real_intervals_and_refuses_faults(ratio, expected):
+    assert parse_dat.looks_like_interval(ratio) is expected
+
+
+def test_implied_interval_is_None_when_nothing_can_be_told():
+    assert parse_dat.implied_interval_s([], {"total_seconds": 10}) is None
+    assert parse_dat.implied_interval_s([{"spo2": 97}], None) is None
+    assert parse_dat.implied_interval_s([{"spo2": 97}], {}) is None
+    assert parse_dat.implied_interval_s([{"spo2": 97}], {"total_seconds": 0}) is None
+
+
+def test_consistency_names_the_interval_instead_of_blaming_the_header():
+    """A 1/4 sample count is a 4 s ring. Calling it a header offset sends a reader to the wrong file."""
+    samples = [{"spo2": 97} for _ in range(100)]
+    ok, notes = parse_dat.self_consistency(samples, {"avg_spo2": 97, "total_seconds": 400})
+    assert ok is False
+    assert any("storage_interval=4s" in n for n in notes)
+    assert any("NOT a shifted header offset" in n for n in notes)
+
+
+def test_an_ordinary_count_failure_still_gets_no_interval_note():
+    """A count that is not a clean multiple must not be explained away as a cadence."""
+    samples = [{"spo2": 97} for _ in range(100)]
+    _, notes = parse_dat.self_consistency(samples, {"avg_spo2": 97, "total_seconds": 137})
+    assert not any("storage_interval" in n for n in notes)
+
+
+def test_csv_times_are_scaled_by_the_interval(tmp_path):
+    """The actual harm: absolute timestamps. At 2 s/sample the third row is +4 s, not +2 s."""
+    out = tmp_path / "o.csv"
+    samples = [{"sec": i, "spo2": 97, "pulse": 64, "motion": 0} for i in range(3)]
+    parse_dat.write_csv(str(out), samples, datetime.datetime(2026, 8, 30, 13, 20, 0), 2.0)
+    rows = out.read_text().strip().split("\n")
+    assert rows[1].startswith("0,2026-08-30T13:20:00,")
+    assert rows[2].startswith("2,2026-08-30T13:20:02,")
+    assert rows[3].startswith("4,2026-08-30T13:20:04,")
+
+
+def test_csv_default_is_unchanged_at_one_second(tmp_path):
+    """Every existing caller keeps its exact behaviour — the default must be byte-identical."""
+    a, b = tmp_path / "a.csv", tmp_path / "b.csv"
+    samples = [{"sec": i, "spo2": 97, "pulse": 64, "motion": 0} for i in range(3)]
+    parse_dat.write_csv(str(a), samples, datetime.datetime(2026, 8, 30, 13, 20, 0))
+    parse_dat.write_csv(str(b), samples, datetime.datetime(2026, 8, 30, 13, 20, 0), 1.0)
+    assert a.read_text() == b.read_text()
+    assert "0,2026-08-30T13:20:00,97,64,0" in a.read_text()
+
+
+def test_main_warns_and_scales_when_the_ring_was_not_at_1hz(tmp_path, capsys, monkeypatch):
+    """End to end: 3 samples against a 6 s trailer is a 2 s ring."""
+    dat = tmp_path / "20260830132000.dat"
+    dat.write_bytes(_file((97, 64, 1), (96, 65, 1), (98, 63, 1), trailer=_trailer(total_seconds=6)))
+    monkeypatch.setattr(sys, "argv", ["parse_dat.py", str(dat)])
+    parse_dat.main()
+    out = capsys.readouterr().out
+    assert "WARNING" in out and "storage_interval=2s" in out
+    assert "2 s/sample, from the trailer" in out
+    rows = (tmp_path / "20260830132000.csv").read_text().strip().split("\n")
+    assert rows[2].startswith("2,2026-08-30T13:20:02,")
+
+
+def test_main_says_1hz_is_an_ASSUMPTION_not_a_fact(tmp_path, capsys, monkeypatch):
+    """House rule: the file carries no cadence, so the output must not print '1 Hz' as though it did."""
+    dat = tmp_path / "20260830132000.dat"
+    dat.write_bytes(_file((97, 64, 1), (96, 65, 1), (98, 63, 1), trailer=_trailer(total_seconds=3)))
+    monkeypatch.setattr(sys, "argv", ["parse_dat.py", str(dat)])
+    parse_dat.main()
+    out = capsys.readouterr().out
+    assert "assumed" in out and "the file carries no cadence" in out
+    assert "WARNING" not in out
+
