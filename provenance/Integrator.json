@@ -43,7 +43,8 @@
       "note": "ADDED 2026-09-03 (residue 2026-09-02-respiration-fusion-no-fixture). The respiration-fusion path had NO committed fixture, so a value going missing from it was undetectable — not \"nothing reflected the defect\" but NOTHING COULD. That is why PpgDex's exported respiration reached no fusion for a month with every gate green. Four twins isolate the two guards fuseRespirationRate names: temporal overlap, and one-observer-per-node before the n>=2 floor.",
       "inputs": [],
       "outputHash": "13f291a076920e66",
-      "inputHashes": {}
+      "inputHashes": {},
+      "verifiedUnder": "a302e25f8199"
     }
   }
 }
