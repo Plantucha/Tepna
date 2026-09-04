@@ -3503,6 +3503,7 @@ async def run_oxyii(dev: dict, root: str):
         path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "spo2", "csv"))
         ppg_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg", "txt"))
         ppg2w_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg2w", "txt"))
+        accraw_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "accraw", "txt"))
         rtclog_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "rtclog", "csv"))
         # `oxy_arr_wr` belongs on THIS line, not only at its construction site below: the finally closes
         # every one of these, and the try can raise before any of them exists — an absent ring raises
@@ -3510,7 +3511,7 @@ async def run_oxyii(dev: dict, root: str):
         # It was missed when the PMDARRIVAL sidecar was added, so its close read an unbound local and the
         # guard reported "the arrival writer did not close cleanly" for a writer that was never opened —
         # a warning about something it had not examined, logged once per reconnect all night.
-        wr = ppgwr = oxyflagwr = ppg2wr = rtcwr = oxy_arr_wr = None
+        wr = ppgwr = oxyflagwr = ppg2wr = rtcwr = oxy_arr_wr = accrawwr = None
         # The synthesized PPG sample clock (O2RING-PPG-GAP §1 + CAPTURE-HOST-DEEP-AUDIT §A3), per
         # SESSION — a reconnect opens a new file and a new grid, so it is rebuilt with the writers
         # rather than persisting across links. Boxed so the BLE callback can reach it.
@@ -3567,6 +3568,13 @@ async def run_oxyii(dev: dict, root: str):
                 rtcwr = RingClockLogWriter(rtclog_path)
                 ppg2wr = (StreamWriter(ppg2w_path, "ppg2w", timebase=_tb)
                           if "ppg2w" in (dev.get("streams") or []) else None)
+                # THE RING'S ACC IS RECORDED, NOT ONLY DISPLAYED. Gated on the SAME `"acc"` key that ORs
+                # the AUTO_RT_SWITCH push bit below, so the stream that gets asked for is exactly the
+                # stream that gets written — a device pushing frames we drop on the floor is airtime
+                # spent for nothing, and a card with no file behind it is data that exists only until
+                # the page closes. Same `_tb` as its siblings: the timebase decision is per DEVICE.
+                accrawwr = (StreamWriter(accraw_path, "accraw", timebase=_tb)
+                            if "acc" in (dev.get("streams") or []) else None)
                 # Byte-11 identification experiment (see writers.OxyFrameLogWriter). ~1 Hz, ~1 MB/night,
                 # and a SIDECAR so the vendor SpO2 CSV layout OxyDex parses stays byte-identical.
                 oxyflagwr = OxyFrameLogWriter(os.path.join(
@@ -3692,6 +3700,32 @@ async def run_oxyii(dev: dict, root: str):
                                 _acc = oxyii.parse_rt_acc(r[1])
                                 if _acc:
                                     BUS.push("acc_o2", [list(a) for a in _acc])
+                                    # `pragma: no branch` — the False arm is UNREACHABLE, not untested.
+                                    # `accrawwr` is constructed under the SAME predicate as the guard
+                                    # eight lines up (`"acc" in dev["streams"]`), and its construction
+                                    # runs at session setup while this is a notify callback that cannot
+                                    # fire until `start_notify` far below. So inside this block the
+                                    # writer is always non-None. The guard stays as defence against the
+                                    # two predicates drifting apart in a later edit; what it cannot do
+                                    # is be driven False by a test, and a test that pretended to would
+                                    # be a green certifying nothing.
+                                    if accrawwr:  # pragma: no branch
+                                        # EVERY RECORD IN A FRAME CARRIES THE FRAME'S ARRIVAL STAMP, and
+                                        # that is deliberate rather than lazy. `ppg2w` back-times its
+                                        # records across `_RT_PPG_SPAN_S` because that span was MEASURED;
+                                        # no equivalent exists for 0x14. The frames are device-PUSHED, so
+                                        # their cadence is not set by our poll and has never been
+                                        # characterised — the first observation (2026-09-03) showed an
+                                        # effective ~10.2 Hz with each distinct triplet repeated ~6-7x,
+                                        # which is itself unexplained. Spreading records across an
+                                        # invented span would manufacture sub-frame timing we have not
+                                        # measured, which is the same fabrication `sensor_ns = 0` and
+                                        # `fs = 0` refuse one field over. Row ORDER is preserved and is
+                                        # real; spacing is not claimed. Back-timing can replace this the
+                                        # day the frame cadence is measured.
+                                        _aph = _now()
+                                        for _ax, _ay, _az in _acc:
+                                            accrawwr.write_acc(_aph, 0, 0.0, _ax, _ay, _az)
                                     note_data(name, _time.monotonic())
                             elif not _acc_unexpected[0]:
                                 _acc_unexpected[0] = True
@@ -4116,7 +4150,7 @@ async def run_oxyii(dev: dict, root: str):
             # and the Dex ingest walks this directory. On the documented 359-reconnect night that was
             # ~1000 junk files in one night dir. The Polar path already solved this; the ring never got it.
             _spo2_kept = None
-            for _w in (wr, ppgwr, oxyflagwr, ppg2wr, rtcwr):
+            for _w in (wr, ppgwr, oxyflagwr, ppg2wr, rtcwr, accrawwr):
                 if not _w:
                     continue
                 _empty, _p = not _w.rows, _w.path

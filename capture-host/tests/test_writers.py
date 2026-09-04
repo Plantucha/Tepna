@@ -177,7 +177,17 @@ def test_every_emitted_header_matches_a_real_polar_sensor_logger_export():
     # that downstream SpO2 math would silently trust.
     assert writers.StreamWriter.HEADERS["ppg2w"] == \
         "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion"
-    assert set(writers.StreamWriter.HEADERS) == set(psl) | {"ppg1", "ppg2w"}, \
+    # `accraw` is ours BY DESIGN, and the UNIT is the whole reason it is not `acc`. PSL never talked to
+    # an O2Ring, and more importantly Polar publishes a scale factor while Wellue does not: `acc` can
+    # honestly say `mg`, these are counts with no calibrated scale. Writing ring rows under the `acc`
+    # header would publish a FABRICATED UNIT that a reader would multiply as milli-g. The column stays
+    # `raw` until a six-orientation calibration measures the factor — the same discipline `ppg2w` uses
+    # in refusing `ir;red` for a wavelength assignment it has not verified.
+    assert writers.StreamWriter.HEADERS["accraw"] == \
+        "Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]"
+    assert "[mg]" not in writers.StreamWriter.HEADERS["accraw"], \
+        "the ring's ACC has no measured scale — a mg column here would be a fabricated unit"
+    assert set(writers.StreamWriter.HEADERS) == set(psl) | {"ppg1", "ppg2w", "accraw"}, \
         "a new stream needs its header checked against a real export, or this gate stops covering it"
 
 
