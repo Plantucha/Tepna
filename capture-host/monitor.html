@@ -1620,6 +1620,8 @@ function renderRemembered(devs, settingsList){
       <button class="btn btn-destructive" onclick='forget(${JSON.stringify(d.address)})'>Forget</button>
     </div>${d.vendor==='Polar'?`<div class="rec-panel" id="${recPanelId(d.address)}" style="margin:0 0 .7rem;padding-left:.2rem;display:flex;flex-direction:column;gap:.35rem"></div>`:''}${settingsPanel(d, settingsList)}`).join('')
     + (devs.length ? `<div style="margin:.2rem 0 .8rem"><button class="btn btn-primary" id="devSaveBtn" onclick='saveSettings(this)'>Save device settings</button>
+         <button class="btn" id="devApplyBtn" style="display:none" onclick='applyRestart(this)'>Apply now — restart capture</button>
+         <span class="hint" id="devSetMsg"></span>
          <span class="hint">Streams, rates and device modes above are written to config.yaml. Some need a reconnect to take effect.</span></div>` : '');
 }
 
@@ -2013,6 +2015,42 @@ function paintPending() {
   b.classList.toggle('btn-warn', n > 0);
 }
 
+// Both panels that host a save button get the result. Missing sinks are skipped rather than thrown on,
+// so this stays correct while only one panel is rendered.
+function setSaveMsg(text, isWarn){
+  for(const id of ['#setMsg','#devSetMsg']){
+    const el = $(id);
+    if(!el) continue;
+    el.textContent = text;
+    el.style.color = isWarn ? '#c55' : '';
+  }
+}
+
+// Revealed ONLY when the server said `restart_needed`. It is deliberately not shown by default: a
+// restart button standing permanently beside Save invites a restart after saves that do not need one,
+// and this daemon is writing a night.
+function showApplyRestart(show){
+  const b = $('#devApplyBtn');
+  if(b) b.style.display = show ? '' : 'none';
+}
+
+// The stream set is read at CONNECT — the PMD START negotiation and the ring's AUTO_RT_SWITCH push byte
+// both. So applying a stream change means reconnecting, and the only mechanism that reliably does that
+// for every device is a daemon restart. `/api/daemon` validates BEFORE it answers and fires on a short
+// delay precisely so the reply survives the restart it triggers; do not "simplify" this into a
+// fire-then-answer, which returns a cheerful 200 for an action that may never have been valid.
+async function applyRestart(btn){
+  const t0 = btn.textContent; btn.disabled = true; btn.textContent = 'restarting…';
+  try{
+    const r = await api('/api/daemon',{method:'POST',headers:{'content-type':'application/json'},
+                                       body:JSON.stringify({verb:'restart'})});
+    if(!r.ok){ setSaveMsg('restart rejected: '+(r.error||'failed'), true); return; }
+    setSaveMsg(r.detail || 'capture restarting — streams reappear as devices reconnect', false);
+    showApplyRestart(false);
+  }catch(e){ setSaveMsg('restart failed: '+e, true); }
+  finally{ btn.disabled=false; btn.textContent=t0; }
+}
+
 async function saveSettings(btn){
   const t0=btn.textContent; btn.disabled=true; btn.textContent='saving…';
   const streams={}, settings={}, rates={}, sdk_mode={};
@@ -2066,11 +2104,17 @@ async function saveSettings(btn){
       paintPending();
     }
     const warn = (r.warnings||[]).length ? '  ⚠ ' + r.warnings.join(' · ') : '';
-    $('#setMsg').textContent = r.ok
-      ? (r.changed.length ? `saved: ${r.changed.join(', ')}${r.restart_needed?' — reconnect the device to apply':''}${warn}`
+    const msg = r.ok
+      ? (r.changed.length ? `saved: ${r.changed.join(', ')}${r.restart_needed?' — needs a reconnect to take effect':''}${warn}`
                           : (warn ? 'no changes' + warn : 'no changes'))
       : 'rejected: '+r.error;
-    $('#setMsg').style.color = (r.ok && warn) ? '#c55' : '';
+    // WRITE TO EVERY SINK, because this ONE function serves TWO panels. `#setMsg` lives in Settings and
+    // `#devSaveBtn` renders in Devices, so a save made from the Devices panel used to report into an
+    // element that panel does not show — the operator got no confirmation at all, which is half of why
+    // a working checkbox read as broken. Same shape as the dead `#setStreams` collectors: a selector
+    // that resolves somewhere the user is not looking fails silently and looks like a no-op.
+    setSaveMsg(msg, !!(r.ok && warn));
+    showApplyRestart(!!(r.ok && r.restart_needed));
   }catch(e){ $('#setMsg').textContent='failed: '+e; }
   btn.disabled=false; btn.textContent=t0;
 }
@@ -2179,7 +2223,14 @@ function guessDevice(d){
   if(n.includes('h10')){ vendor='Polar'; model='H10'; streams=['ecg','acc','hr']; }
   else if(n.includes('sense')||n.includes('verity')){ vendor='Polar'; model='VeritySense'; streams=['ppg','acc','gyro','mag']; }
   else if(n.includes('muse')){ vendor='Muse'; model='S'; streams=['eeg']; }
-  else if(n.match(/o2ring|wellue|viatom|checkme/)){ vendor='Wellue'; model='O2Ring'; streams=['spo2']; }
+  // `acc` IS IN THE DEFAULT because the ring's 3-axis accelerometer is device-PUSHED and gated by
+  // AUTO_RT_SWITCH bit 3, which capture.py ORs in from this very list at connect. Left out, the stream
+  // is not merely off — nothing ever asks the ring to push, so `acc_o2` is never registered and the
+  // card cannot appear even after the operator ticks the box (the tick lands after the connect that
+  // reads it). Measured 2026-09-03: first ACC bytes ever observed from this hardware, 3 axes at an
+  // effective ~10.2 Hz, vector magnitude ~8192 counts at rest — i.e. it works, and only this list
+  // stood between the device and the data.
+  else if(n.match(/o2ring|wellue|viatom|checkme/)){ vendor='Wellue'; model='O2Ring'; streams=['spo2','acc']; }
   // Third-party chest straps speaking the standard Heart Rate Service (0x180D). They give HR + RR but NO
   // raw ECG — there is no PMD service — so 'hr' is the only stream to request, and asking for 'ecg' would
   // open a writer for a stream that can never start. A Coospo HRM808S advertises as "808S 0022265": the
