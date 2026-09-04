@@ -37827,6 +37827,70 @@
            Four twins, because a mutant to the shipped path must move these bytes: `coupled`/`uncoupled`
            are the gate's two DIRECTIONS, `gapped` is the only one that can see the covered-time shift,
            and `contended` the only one that can see the null scoring the PUBLISHED exclusive matching. */
+        /* ── RESPIRATION-FUSION TWINS (residue 2026-09-02-respiration-fusion-no-fixture) ─────────
+           Before this, `fuseRespirationRate` had NO committed fixture: measured 2026-09-02,
+           integrator_tch_golden mentions respRate 0 times, the apnea twins neither, and 0 of 6 corpus
+           integrator_fusion_*.json carry the field — while the same query returns 1 on
+           synthetic_motiondex_golden, which is the positive control that makes those zeros usable.
+           That blindness is why PpgDex's exported respiration reached no fusion for a MONTH with every
+           gate green: a corpus that cannot EXPRESS a defect returns the same green as one that
+           checked. Four twins, because the fusion carries two guards its own header names and a
+           happy-path-only fixture would leave both untested. */
+        var rFix = EQ.integrator_respiration_fusion_twins && EQ.integrator_respiration_fusion_twins.fixture;
+        var _rTwins = env.respirationFusionTwins || (typeof respirationFusionTwins !== 'undefined' && respirationFusionTwins) || null;
+        var FRr = env.fuseRespirationRate || (typeof fuseRespirationRate !== 'undefined' && fuseRespirationRate) || null;
+        T.ok(
+          'respiration twins: committed fixture present (the .gitignore negation still holds)',
+          !!rFix,
+          rFix ? 'uploads/integrator_respiration_fusion_twins.node-export.json reached this lane' : 'ABSENT — check the `!uploads/integrator_respiration_fusion_twins.node-export.json` negation'
+        );
+        T.ok(
+          'respiration twins: builder + fuseRespirationRate wired in this lane',
+          typeof _rTwins === 'function' && typeof FRr === 'function',
+          typeof _rTwins === 'function' && typeof FRr === 'function' ? 'both present' : 'tests/respiration-fusion-twins.js or fuseRespirationRate missing'
+        );
+        if (rFix && typeof _rTwins === 'function' && typeof FRr === 'function') {
+          var rBuilt = {
+            schema: {
+              name: 'ganglior.integrator-respiration-fusion-twins',
+              version: '1.0',
+              doc: 'Committed synthetic twins for fuseRespirationRate (residue 2026-09-02-respiration-fusion-no-fixture). Inputs rebuilt in-code by tests/respiration-fusion-twins.js; only the FUSED verdicts are committed.'
+            },
+            twins: {}
+          };
+          var _RT = _rTwins();
+          for (var _ri = 0; _ri < 4; _ri++) {
+            var _rk = ['agree', 'disjoint', 'sameNode', 'single'][_ri];
+            var _rrecs = _RT[_rk].map(function (x) {
+              return Ag(x.json, x.node, x.node)[0];
+            });
+            var _rf = FRr(_rrecs);
+            rBuilt.twins[_rk] = _rf
+              ? {
+                  n: _rf.n,
+                  consensusBrpm: _rf.consensusBrpm,
+                  spreadBrpm: _rf.spreadBrpm,
+                  agree: _rf.agree,
+                  overlapVerified: _rf.overlapVerified,
+                  mechanisms: _rf.mechanisms || null,
+                  mechanismsIndependent: _rf.mechanismsIndependent
+                }
+              : null;
+          }
+          var rd = [];
+          diff(JSON.parse(JSON.stringify(rBuilt)), rFix, '', rd);
+          T.ok('Integrator respiration twins ≡ committed fixture', rd.length === 0, rd.length ? rd.slice(0, 8).join(' · ') : 'byte-identical');
+          /* THE POSITIVE CONTROL FIRST — without it the three nulls below are indistinguishable from a
+             fusion that never ran, which is the exact failure this fixture exists to end. */
+          T.eq('agree twin FUSES three distinct nodes', rBuilt.twins.agree && rBuilt.twins.agree.n, 3);
+          T.eq('…and publishes a consensus rate', rBuilt.twins.agree && rBuilt.twins.agree.consensusBrpm, 14);
+          T.eq('…spanning more than one mechanism (RSA + chest-ACC)', rBuilt.twins.agree && rBuilt.twins.agree.mechanismsIndependent, true);
+          /* GUARD (a): a consensus over inputs with no common instant is not a consensus. */
+          T.eq('disjoint twin does NOT fuse — no temporal overlap', rBuilt.twins.disjoint, null);
+          /* GUARD (b): n counts distinct SOURCES; a node exporting twice cannot corroborate itself. */
+          T.eq('sameNode twin does NOT fuse — one observer per node', rBuilt.twins.sameNode, null);
+          T.eq('single twin does NOT fuse — below the n>=2 floor', rBuilt.twins.single, null);
+        }
         var aFix = EQ.integrator_apnea_null_twins && EQ.integrator_apnea_null_twins.fixture;
         var _twins = env.apneaNullTwins || (typeof apneaNullTwins !== 'undefined' && apneaNullTwins) || null;
         var FAg = env.fuseApneaEvents || (typeof fuseApneaEvents !== 'undefined' && fuseApneaEvents) || null;
