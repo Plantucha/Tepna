@@ -91,6 +91,13 @@ die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 # reachability analysis does not follow (nor into the calls this makes).
 _streak_read() {
   local n first
+  # 🔴 THE GUARD BELOW IS LOAD-BEARING, and `2>/dev/null` does NOT replace it. The shell performs the
+  # `<` redirection BEFORE running `read`, so a missing file is the SHELL's failure, reported on the
+  # shell's own stderr — which a redirect attached to the command cannot suppress. On a healthy box the
+  # marker is absent on EVERY run (a success clears it), so the unguarded form logged
+  # "No such file or directory" from this line on every successful tick, into the journal of the very
+  # unit this counter exists to make legible. Observed on vigil 2026-09-03 20:25:05.
+  [ -r "$FAIL_MARK" ] || { printf '0 0\n'; return; }
   read -r n first < "$FAIL_MARK" 2>/dev/null || { printf '0 0\n'; return; }
   case "$n"     in ''|*[!0-9]*) printf '0 0\n'; return ;; esac
   case "$first" in ''|*[!0-9]*) printf '0 0\n'; return ;; esac

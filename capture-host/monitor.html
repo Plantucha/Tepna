@@ -17,6 +17,15 @@
 <title>Tepna Vigil — Monitor</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%2358A6FF%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23g)%22/%3E%3Cpath%20d%3D%22M62%2028a26%2026%200%201%200%2012%2044%2020%2020%200%200%201-12-44z%22%20fill%3D%22%2306121A%22/%3E%3C/svg%3E">
 <style>
+/* The reconnect banner. `data-conn` was written by the boot retry and read by NOTHING — no rule, no
+   JS — so the "surface the waiting state instead of a blank grid" path left a blank grid. This is the
+   reader; the attribute is cleared on the first successful load. */
+body[data-conn="reconnecting"]::before{
+  content:"reconnecting to the box…";
+  position:fixed; inset:0 0 auto 0; z-index:9999;
+  padding:.5rem 1rem; text-align:center;
+  background:#8a6d1f; color:#fff; font:600 13px/1.4 system-ui,sans-serif;
+}
 /* ══════════════════════════════════════════════════════════════════════════
    Tepna design tokens — curated subset of ans-design.css §1 (dark) + §2 (light)
    ══════════════════════════════════════════════════════════════════════════ */
@@ -1614,12 +1623,14 @@ function renderRemembered(devs, settingsList){
         <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${chargeChip(d)} ${wornChip(d)} ${rateChip(d)} ${battChip(d.battery)} ${d.connected?(dh=>rssiChip(d.rssi,dh.health,dh.title))(deviceHealth(d)):''} ${clkChip(d)} ${presenceChip(d)} ${witnessChip(d)}</div>
         <div class="sub">${esc(d.address||'')}${(d.rssi!=null&&isFinite(d.rssi))?(' · '+d.rssi+' dBm'):''} · ${(d.streams||[]).join(', ')}${lastSampleText(d)}${d.clock_synced?(' · clock '+esc(String(d.clock_synced).slice(11,19))):''}${(d.link_epoch>1)?(' · '+d.link_epoch+' reconnects'):''}${(d.last_error && !d.charging)?(' · '+esc(d.last_error)):''}</div>
       </div>
-      <button class="btn" onclick='syncTime(${JSON.stringify(d.address)}, this)' title="Set this device's INTERNAL clock from the host (it stamps every sample with device time). Pauses that device's capture for a few seconds.">🕐 Sync time</button>
+      <button class="btn" onclick='syncTime(${esc(JSON.stringify(d.address))}, this)' title="Set this device's INTERNAL clock from the host (it stamps every sample with device time). Pauses that device's capture for a few seconds.">🕐 Sync time</button>
       ${(d.vendor==='Wellue'||d.vendor==='Viatom')?`<button class="btn" onclick='pullStored(this)' title="Download the ring&#39;s onboard-recorded night off flash (pauses live SpO₂ for ~1 min)">Pull stored session</button>`:''}
-      ${d.vendor==='Polar'?`<button class="btn" onclick='pullRec(${JSON.stringify(d.address)}, this)' title="List &amp; download the Polar device&#39;s onboard offline recordings off flash (pause live capture first — one BLE link)">📥 Recordings</button>`:''}
-      <button class="btn btn-destructive" onclick='forget(${JSON.stringify(d.address)})'>Forget</button>
+      ${d.vendor==='Polar'?`<button class="btn" onclick='pullRec(${esc(JSON.stringify(d.address))}, this)' title="List &amp; download the Polar device&#39;s onboard offline recordings off flash (pause live capture first — one BLE link)">📥 Recordings</button>`:''}
+      <button class="btn btn-destructive" onclick='forget(${esc(JSON.stringify(d.address))})'>Forget</button>
     </div>${d.vendor==='Polar'?`<div class="rec-panel" id="${recPanelId(d.address)}" style="margin:0 0 .7rem;padding-left:.2rem;display:flex;flex-direction:column;gap:.35rem"></div>`:''}${settingsPanel(d, settingsList)}`).join('')
     + (devs.length ? `<div style="margin:.2rem 0 .8rem"><button class="btn btn-primary" id="devSaveBtn" onclick='saveSettings(this)'>Save device settings</button>
+         <button class="btn" id="devApplyBtn" style="display:none" onclick='applyRestart(this)'>Apply now — restart capture</button>
+         <span class="hint" id="devSetMsg"></span>
          <span class="hint">Streams, rates and device modes above are written to config.yaml. Some need a reconnect to take effect.</span></div>` : '');
 }
 
@@ -1668,8 +1679,8 @@ function renderDiscovered(list){
         <div class="name">${esc(label)} ${k?'<span class="dbadge on">configured</span>':''} ${d.bonded?'<span class="dbadge on">bonded</span>':''} ${d.health?'<span class="dbadge">sensor</span>':''}</div>
         <div class="sub">${esc(d.address)}${d.rssi!=null?(' · '+d.rssi+' dBm'):''}${k?(' · '+esc((k.streams||[]).join(', '))):''}</div>
       </div>
-      ${d.bonded?'':`<button class="btn" onclick='bond(${JSON.stringify(d.address)}, this)'>Bond</button>`}
-      ${k?'':`<button class="btn" onclick='remember(${JSON.stringify(d)}, this)'>Remember</button>`}
+      ${d.bonded?'':`<button class="btn" onclick='bond(${esc(JSON.stringify(d.address))}, this)'>Bond</button>`}
+      ${k?'':`<button class="btn" onclick='remember(${esc(JSON.stringify(d))}, this)'>Remember</button>`}
     </div>`;}).join('');
 }
 
@@ -1885,7 +1896,15 @@ async function loadSettings(){
       <span class="mb">${esc(f.help)} <em style="opacity:.75">(${esc(meta)})</em></span></label>`;
   }).join('');
   updateSetTotal();
-  sd.querySelectorAll('input,select').forEach(el=>el.addEventListener('change', updateSetTotal));
+  /* 🔴 DELEGATED, and a wider selector would NOT have been enough. Two independent reasons, both
+     already documented elsewhere in this file:
+       1. ORDER — `renderRemembered` runs in loadSettings' `.then()`, so the controls do not exist yet
+          when this line runs. A static query here matches nothing however wide it is.
+       2. LIFETIME — `#remembered` is replaced by `innerHTML` every 5 s, so an element-bound listener is
+          thrown away on the next repaint (the exact hazard the delegation comment in
+          `renderRemembered` was written for).
+     `sd` (`#setStreams`) has held no control since they moved onto the device cards. */
+  bindSetRecalc();
   bindRingCfg();
 }
 // The rate the daemon would pick with no override: its built-in preference if offered, else the max.
@@ -1962,7 +1981,10 @@ function bpsFor(dev,k){
 }
 function updateSetTotal(){
   let bps=0;
-  document.querySelectorAll('#setStreams input[type=checkbox][data-stream]').forEach(el=>{
+  /* DOCUMENT-WIDE for the same reason the save collectors are (see `saveSettings`): the per-device
+     controls render into `#remembered`, and `#setStreams` holds only a hint paragraph. Scoped here, this
+     matched nothing and the total read a confident `~0 MB per 9 h night` — not a no-op, a WRONG number. */
+  document.querySelectorAll('input[type=checkbox][data-stream]').forEach(el=>{
     const dev = SETTINGS.devices.find(d=>d.address===el.dataset.addr);
     if(!dev) return;
     const b = bpsFor(dev, el.dataset.stream);
@@ -1975,9 +1997,25 @@ function updateSetTotal(){
 // Ring settings post IMMEDIATELY on change (not via the Save button): a device-state write with its own
 // read-back verdict is a different transaction from the config.yaml save, and folding it in would make
 // "saving…" claim success for a write whose fate only the ring's read-back can report.
+/* Recalculate the bandwidth total whenever a per-device control changes. Delegated on `#remembered`
+   for the lifetime reason above; wired once, guarded by a flag exactly as `renderRemembered` does. */
+function bindSetRecalc(){
+  const host = $('#remembered');
+  if (!host || host._setRecalcWired) return;
+  host._setRecalcWired = true;
+  host.addEventListener('change', (ev)=>{
+    const c = ev.target;
+    if (!c) return;
+    if ((c.matches && c.matches('input[type=checkbox][data-stream], input.sdksel, input.ratecarry, select.ratesel'))) updateSetTotal();
+  });
+}
 function bindRingCfg(){
-  document.querySelectorAll('#setStreams button.ringbuzz').forEach(el=>{
-    el.addEventListener('click', async (ev)=>{
+  const host = $('#remembered');
+  if (!host || host._ringWired) return;
+  host._ringWired = true;
+  host.addEventListener('click', async (ev)=>{
+    const el = ev.target && ev.target.closest ? ev.target.closest('button.ringbuzz') : null;
+    if (el) {
       ev.preventDefault();
       try{
         const r = await api('/api/ring/buzz', {method:'POST',
@@ -1985,10 +2023,11 @@ function bindRingCfg(){
           body: JSON.stringify({address: el.dataset.addr})});
         $('#setMsg').textContent = r.ok ? 'buzz queued — fires on the next poll (~1 s)' : `refused: ${r.error||'unknown'}`;
       }catch(e){ $('#setMsg').textContent = 'buzz failed: '+e; }
-    });
+    }
   });
-  document.querySelectorAll('#setStreams .ringcfg').forEach(el=>{
-    el.addEventListener('change', async ()=>{
+  host.addEventListener('change', async (ev)=>{
+    const el = ev.target && ev.target.closest ? ev.target.closest('.ringcfg') : null;
+    if (el) {
       const v = parseInt(el.value, 10);
       if(!Number.isFinite(v)) return;
       try{
@@ -1999,7 +2038,7 @@ function bindRingCfg(){
           ? `${el.dataset.field} queued — the ring's read-back will confirm`
           : `refused: ${r.error||'unknown'}`;
       }catch(e){ $('#setMsg').textContent = 'ring settings write failed: '+e; }
-    });
+    }
   });
 }
 /* The operator gets NO feedback today that a click is unsaved, which is half of why the revert was
@@ -2011,6 +2050,42 @@ function paintPending() {
   const n = pendingCount(PENDING);
   b.textContent = n ? `Save device settings (${n} unsaved)` : 'Save device settings';
   b.classList.toggle('btn-warn', n > 0);
+}
+
+// Both panels that host a save button get the result. Missing sinks are skipped rather than thrown on,
+// so this stays correct while only one panel is rendered.
+function setSaveMsg(text, isWarn){
+  for(const id of ['#setMsg','#devSetMsg']){
+    const el = $(id);
+    if(!el) continue;
+    el.textContent = text;
+    el.style.color = isWarn ? '#c55' : '';
+  }
+}
+
+// Revealed ONLY when the server said `restart_needed`. It is deliberately not shown by default: a
+// restart button standing permanently beside Save invites a restart after saves that do not need one,
+// and this daemon is writing a night.
+function showApplyRestart(show){
+  const b = $('#devApplyBtn');
+  if(b) b.style.display = show ? '' : 'none';
+}
+
+// The stream set is read at CONNECT — the PMD START negotiation and the ring's AUTO_RT_SWITCH push byte
+// both. So applying a stream change means reconnecting, and the only mechanism that reliably does that
+// for every device is a daemon restart. `/api/daemon` validates BEFORE it answers and fires on a short
+// delay precisely so the reply survives the restart it triggers; do not "simplify" this into a
+// fire-then-answer, which returns a cheerful 200 for an action that may never have been valid.
+async function applyRestart(btn){
+  const t0 = btn.textContent; btn.disabled = true; btn.textContent = 'restarting…';
+  try{
+    const r = await api('/api/daemon',{method:'POST',headers:{'content-type':'application/json'},
+                                       body:JSON.stringify({verb:'restart'})});
+    if(!r.ok){ setSaveMsg('restart rejected: '+(r.error||'failed'), true); return; }
+    setSaveMsg(r.detail || 'capture restarting — streams reappear as devices reconnect', false);
+    showApplyRestart(false);
+  }catch(e){ setSaveMsg('restart failed: '+e, true); }
+  finally{ btn.disabled=false; btn.textContent=t0; }
 }
 
 async function saveSettings(btn){
@@ -2066,11 +2141,17 @@ async function saveSettings(btn){
       paintPending();
     }
     const warn = (r.warnings||[]).length ? '  ⚠ ' + r.warnings.join(' · ') : '';
-    $('#setMsg').textContent = r.ok
-      ? (r.changed.length ? `saved: ${r.changed.join(', ')}${r.restart_needed?' — reconnect the device to apply':''}${warn}`
+    const msg = r.ok
+      ? (r.changed.length ? `saved: ${r.changed.join(', ')}${r.restart_needed?' — needs a reconnect to take effect':''}${warn}`
                           : (warn ? 'no changes' + warn : 'no changes'))
       : 'rejected: '+r.error;
-    $('#setMsg').style.color = (r.ok && warn) ? '#c55' : '';
+    // WRITE TO EVERY SINK, because this ONE function serves TWO panels. `#setMsg` lives in Settings and
+    // `#devSaveBtn` renders in Devices, so a save made from the Devices panel used to report into an
+    // element that panel does not show — the operator got no confirmation at all, which is half of why
+    // a working checkbox read as broken. Same shape as the dead `#setStreams` collectors: a selector
+    // that resolves somewhere the user is not looking fails silently and looks like a no-op.
+    setSaveMsg(msg, !!(r.ok && warn));
+    showApplyRestart(!!(r.ok && r.restart_needed));
   }catch(e){ $('#setMsg').textContent='failed: '+e; }
   btn.disabled=false; btn.textContent=t0;
 }
@@ -2149,7 +2230,7 @@ async function pullRec(address, btn){
     panel.innerHTML = r.recordings.map(s=>`
       <div style="display:flex;align-items:center;gap:.6rem;font-size:.85rem">
         <span style="flex:1">${esc(s.start_local||s.path)} · ${esc(s.kind)} · ${s.files.length} files · ${(s.total_bytes/1024).toFixed(1)} KB</span>
-        <button class="btn" onclick='doPull(${JSON.stringify(address)}, ${JSON.stringify(s.path)}, this)'>Download</button>
+        <button class="btn" onclick='doPull(${esc(JSON.stringify(address))}, ${esc(JSON.stringify(s.path))}, this)'>Download</button>
       </div>`).join('');
   }catch(e){ panel.innerHTML = '<span class="hint">error: '+esc(String(e))+'</span>'; }
   finally{ btn.disabled = false; btn.textContent = t0; }
@@ -2179,7 +2260,14 @@ function guessDevice(d){
   if(n.includes('h10')){ vendor='Polar'; model='H10'; streams=['ecg','acc','hr']; }
   else if(n.includes('sense')||n.includes('verity')){ vendor='Polar'; model='VeritySense'; streams=['ppg','acc','gyro','mag']; }
   else if(n.includes('muse')){ vendor='Muse'; model='S'; streams=['eeg']; }
-  else if(n.match(/o2ring|wellue|viatom|checkme/)){ vendor='Wellue'; model='O2Ring'; streams=['spo2']; }
+  // `acc` IS IN THE DEFAULT because the ring's 3-axis accelerometer is device-PUSHED and gated by
+  // AUTO_RT_SWITCH bit 3, which capture.py ORs in from this very list at connect. Left out, the stream
+  // is not merely off — nothing ever asks the ring to push, so `acc_o2` is never registered and the
+  // card cannot appear even after the operator ticks the box (the tick lands after the connect that
+  // reads it). Measured 2026-09-03: first ACC bytes ever observed from this hardware, 3 axes at an
+  // effective ~10.2 Hz, vector magnitude ~8192 counts at rest — i.e. it works, and only this list
+  // stood between the device and the data.
+  else if(n.match(/o2ring|wellue|viatom|checkme/)){ vendor='Wellue'; model='O2Ring'; streams=['spo2','acc']; }
   // Third-party chest straps speaking the standard Heart Rate Service (0x180D). They give HR + RR but NO
   // raw ECG — there is no PMD service — so 'hr' is the only stream to request, and asking for 'ecg' would
   // open a writer for a stream that can never start. A Coospo HRM808S advertises as "808S 0022265": the
@@ -2531,9 +2619,14 @@ function ovRender(){                             // (re)build the cards to match
       </div>`;
     }).join('');
     for(const s of STREAMS){
-      OV[s.key] = OV[s.key] || { buf:[], fs:s.fs||1, last:null, rate:null };
+      /* `??`, NEVER `||`. `fs === 0` is capture.py's sentinel for "irregular, rate unknown" — it is set
+     deliberately rather than guessed ("declaring a rate we have not measured would put a fabricated
+     number on the card"), and four streams use it: motion_o2, pi_o2, acc_o2, o2ppg2w. `||` folded 0
+     into 1, which made the `st.fs>0` event-path branches below UNREACHABLE and windowed those four as
+     1 Hz — cap 64 instead of 256. Note the `s.fs ? … : 'event'` test elsewhere is correct as written. */
+  OV[s.key] = OV[s.key] || { buf:[], fs:s.fs ?? 1, last:null, rate:null };
       OV[s.key].canvas = document.getElementById('ovcv-'+s.key);
-      OV[s.key].fs = s.fs || OV[s.key].fs || 1;
+      OV[s.key].fs = s.fs ?? OV[s.key].fs ?? 1;
     }
   } else {
     for(const s of STREAMS){                     // no rebuild: refresh battery + signal pills in place each poll
@@ -2558,7 +2651,7 @@ function ovSubscribe(){                          // ONE multiplexed SSE for all 
   const es = new EventSource('/api/stream/_all');
   const on = ev=>{
     const d = JSON.parse(ev.data), key = d.stream; if(!key) return;
-    const st = OV[key] = OV[key] || { buf:[], fs:d.fs||1, last:null, rate:null };
+    const st = OV[key] = OV[key] || { buf:[], fs:d.fs ?? 1, last:null, rate:null };
     st.canvas = st.canvas || document.getElementById('ovcv-'+key);
     st.fs = d.fs || st.fs;
     const v = d.v || []; for(const x of v) st.buf.push(x);          // x is a number OR a [ch,...] array
@@ -3408,10 +3501,13 @@ loadBuild();
 // So: retry until the first load succeeds, and surface the waiting state instead of a blank grid.
 (function boot(){
   loadState()
-    .then(()=>{ showView('overview'); setInterval(loadState, 5000); setInterval(analyze, 900); })
+    .then(()=>{ document.body.removeAttribute('data-conn');
+                showView('overview'); setInterval(loadState, 5000); setInterval(analyze, 900); })
     .catch((e)=>{                       // box down / restarting / network blip — keep trying, and SAY SO
-      const t = document.getElementById('streamgrid') || document.body;
-      if (t) t.setAttribute('data-conn', 'reconnecting');
+      /* `#streamgrid` does not exist in this file — the `|| document.body` fallback made the dead
+         selector invisible, so this "surface the waiting state" path surfaced nothing. Marked on
+         <body>, which a CSS rule now actually renders, and cleared on the first success below. */
+      document.body.setAttribute('data-conn', 'reconnecting');
       console.warn('monitor: initial load failed, retrying —', e);
       setTimeout(boot, 2000);
     });
