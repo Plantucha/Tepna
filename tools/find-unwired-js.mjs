@@ -273,6 +273,19 @@ if (!IS_MAIN) {
 
 if (IS_MAIN) {
   const files = jsFiles();
+  const countDir = (d, re) => {
+    try {
+      return readdirSync(join(ROOT, d)).filter((f) => re.test(f)).length;
+    } catch {
+      return 0;
+    }
+  };
+  const SKIP = {
+    tools: countDir('tools', /\.mjs$/),
+    tests: countDir('tests', /\.(js|mjs)$/),
+    captureHost: countDir('capture-host', /\.py$/),
+    docs: countDir('docs', /\.html$/)
+  };
   const corpus = files.map((f) => [f, codeOnly(readFileSync(join(ROOT, f), 'utf8'))]);
   for (const h of htmlFiles()) corpus.push([h, codeOnly(readFileSync(join(ROOT, h), 'utf8'))]);
 
@@ -301,9 +314,32 @@ if (IS_MAIN) {
     (ALLOW[p.name] ? allowed : unwired).push(p);
   }
 
+  /* 🔴 REFLECTION IS A KNOWN-UNRESOLVABLE CLASS, COUNTED AND NAMED — never silently suppressed.
+     `obj[name]`, a registry lookup, string-keyed dispatch: a consumer can reach a symbol without the
+     symbol's text ever appearing next to it. This scanner CANNOT see those, so every finding is
+     "unreferenced by name", not "unreachable". Publishing the count is what keeps that distinction
+     visible instead of letting a reader upgrade it. */
+  let reflect = 0;
+  for (const [, code] of corpus) reflect += (code.match(/\[\s*[A-Za-z_$][\w$]*\s*\]/g) || []).length;
+  /* ⚠️ THIS IS AN UPPER BOUND AND MOSTLY ARRAY INDEXING. `arr[i]` and `registry[name]` are the SAME
+     SYNTAX; separating them needs types this scanner does not have. Reported as a bound rather than
+     dressed up as a reflection count — the first draft printed it as "reflection sites", which
+     over-stated a real caveat by counting every loop body in the repo. */
+
   console.log('\n== published JS names that reach NO other file ==\n');
   console.log(`   SHAPES ENUMERATED: window.NS = {…} → ${shapeA} name(s) · window.X = Y → ${shapeB} name(s)`);
-  console.log(`   corpus: ${files.length} root .js + ${corpus.length - files.length} .html\n`);
+  console.log(`   SCANNED:  ${files.length} root .js  +  ${corpus.length - files.length} root .html`);
+  /* THE EXCLUSION LIST IS A FINDING, not bookkeeping. What the parser cannot see is the interesting
+     output — a reader who knows the blind spots can judge the set; one who does not will over-trust it. */
+  console.log('   SKIPPED, and why:');
+  console.log(`     tools/*.mjs (${SKIP.tools})   ESM modules — a different publication shape this scanner does not read`);
+  console.log(`     tests/* (${SKIP.tests})        test-only; a symbol used solely by tests is the defect, not the consumer`);
+  console.log(`     capture-host/ (${SKIP.captureHost})     Python lane — covered by capture-host/tools/find_unwired.py`);
+  console.log(`     docs/ (${SKIP.docs})            generated copies of the root bundles; counting them double-counts`);
+  console.log(`   UNRESOLVABLE BY THIS METHOD: <= ${reflect} bracket-access site(s) could hide a consumer.`);
+  console.log('     UPPER BOUND — `arr[i]` and `registry[name]` are the same syntax, so this counts ordinary');
+  console.log('     indexing too. A symbol reached only by string dispatch reads as unwired here, so every');
+  console.log('     finding means "unreferenced BY NAME", never "unreachable".\n');
   for (const u of unwired.slice(0, 40)) console.log(`   ${u.file.padEnd(26)} ${(u.ns === u.name ? u.name : u.ns + '.' + u.name).slice(0, 44)}`);
   if (unwired.length > 40) console.log(`   … and ${unwired.length - 40} more`);
   for (const a of allowed) console.log(`   (allowed) ${a.file.padEnd(20)} ${a.name.padEnd(28)} ${ALLOW[a.name].slice(0, 60)}`);
