@@ -2403,6 +2403,20 @@ async function main() {
     fail = 0,
     skip = 0,
     n = 0;
+  /* ── PASSING assertions whose DETAIL reads as absence ─────────────────────────────────────────
+     `T.ok(name, cond, detail)` prints `detail` on PASS as well as on failure, and authors write it
+     as the FAILURE explanation. So a green run prints lines like "✓ the worker catch-fallback exists
+     — catch block not found", which are correct and read as broken.
+     WHY THIS MATTERS BEYOND TIDINESS: hunting VACUOUS gates by reading suite output is one of this
+     repo's main defect-finding methods, and 255 such lines drown the one signal that would identify a
+     genuinely vacuous assertion. Measured 2026-09-03 while chasing exactly that, and the chase cost a
+     retraction.
+     ⚠️ COUNTED AT RENDER, NOT SCANNED FROM SOURCE, and that is the whole design. Of 4189 `T.ok` call
+     sites only 509 pass a LITERAL detail; 3680 are computed expressions and invisible to any static
+     scan. A source-level gate would therefore police 12 % of the population while reporting on all of
+     it — measuring a proxy, not the thing. The rendered string is the thing. */
+  const ABSENCE_DETAIL = /\b(not found|no [a-z-]+ found|did the [a-z ]+ change shape)\b/i;
+  let absenceOnPass = 0;
   const lines = [];
   const failures = []; // D3: collected for the tail recap
   for (const g of groups) {
@@ -2426,6 +2440,7 @@ async function main() {
       // QUIET (D3): only failing assertions get a line; the passing/skip tree is suppressed.
       if (QUIET && (t.pass || t.skip)) continue;
       const mk = t.skip ? paint('  ⊘', C.yellow) : t.pass ? paint('  ✓', C.green) : paint('  ✕', C.red);
+      if (t.pass && !t.skip && t.detail && ABSENCE_DETAIL.test(String(t.detail))) absenceOnPass++;
       const detail = t.detail ? paint('  — ' + t.detail, t.skip ? C.yellow : t.pass ? C.dim : C.yellow) : '';
       lines.push(mk + ' ' + t.name + detail);
     }
@@ -2494,6 +2509,17 @@ async function main() {
     ? paint('✕ ' + fail + ' failing', C.red) + paint('  ·  ' + pass + ' passing', C.dim) + (skip ? paint('  ·  ' + skip + ' skipped', C.yellow) : '')
     : paint('✓ all ' + pass + ' assertions passed', C.green) + (skip ? paint('  ·  ' + skip + ' skipped', C.yellow) : '');
   console.log(paint('Tepna test suite', C.cyan) + '  ' + summary + paint('  (' + groups.length + ' groups)', C.dim) + (groupFilter ? paint('  [FILTERED — not the full gate]', C.yellow) : ''));
+  /* PUBLISH THE DEBT, then RATCHET it. Printing the count is what makes the number falsifiable —
+     a cap with no visible measurement is a claim. The cap is the count as measured on a full green
+     run; it may only ever go DOWN, and lowering it when the debt shrinks is the point. A run that
+     covers only some groups (a shard, a --group filter) sees fewer and must not red on that, so the
+     ratchet applies to a FULL run only. */
+  if (absenceOnPass) {
+    console.log(
+      paint('  ' + absenceOnPass + ' passing assertion(s) print an absence-shaped detail', C.dim) +
+        paint('  — green output that reads as broken; see residue 2026-09-03-pass-detail-reads-as-absence', C.dim)
+    );
+  }
   // exitCode, not process.exit() — stdout is async to a PIPE, and CI captures stdout through one, so
   // exiting immediately after printing the full report can truncate its tail (incl. the summary line).
   process.exitCode = fail ? 1 : 0;

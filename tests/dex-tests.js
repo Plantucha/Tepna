@@ -14007,7 +14007,11 @@
          is enough to stop the same two-copies trap from shipping twice. */
       var appSrc = env.sources && env.sources['pulsedex-app.js'];
       if (appSrc) {
-        T.ok('§5.1 · the APP assembles tp as the SUM of the bands it renders', /tp:\s*_wv \+ _wl \+ _wh/.test(appSrc), 'winSpec tp expression not found in pulsedex-app.js');
+        T.ok(
+          '§5.1 · the APP assembles tp as the SUM of the bands it renders',
+          /tp:\s*_wv \+ _wl \+ _wh/.test(appSrc),
+          /tp:\s*_wv \+ _wl \+ _wh/.test(appSrc) ? 'tp: _wv + _wl + _wh present in pulsedex-app.js' : 'winSpec tp expression NOT FOUND in pulsedex-app.js'
+        );
         T.ok(
           '§5.1 · …and no longer takes a fourth independent median of per-window tp',
           !/stp\.push\(/.test(appSrc) && !/medianOf\(stp\)/.test(appSrc),
@@ -19056,7 +19060,7 @@
         return;
       }
       var ci = src.indexOf('} catch(err){');
-      T.ok('the worker catch-fallback exists', ci > 0, 'catch block not found — did the worker change shape?');
+      T.ok('the worker catch-fallback exists', ci > 0, ci > 0 ? 'catch at index ' + ci : 'catch block NOT FOUND — did the worker change shape?');
       if (ci <= 0) return;
       var fallback = src.slice(ci, src.indexOf('}', src.indexOf('for(const line of txt.split', ci)));
       var reread = fallback.indexOf('for(const file of files)');
@@ -51036,7 +51040,8 @@
       ['pulsedex-dsp.js', 'pulsedex-app.js'].forEach(function (f) {
         var t = srcs[f];
         if (!t) return;
-        T.ok('§5.2 · ' + f + ' medians the per-window RATIOS', /slh\.push\(w\.lfhf\)/.test(t) && /lfhf: slh\.length \? \+medianOf\(slh\)/.test(t), 'per-window lfhf accumulator not found');
+        var _perWin = /slh\.push\(w\.lfhf\)/.test(t) && /lfhf: slh\.length \? \+medianOf\(slh\)/.test(t);
+        T.ok('§5.2 · ' + f + ' medians the per-window RATIOS', _perWin, _perWin ? 'per-window lfhf accumulator + median present' : 'per-window lfhf accumulator NOT FOUND');
         T.ok('§5.2 · …and no longer divides the band medians', !/winSpec\.lf \/ \(winSpec\.hf \|\| 1\)/.test(t), 'ratio-of-medians still present');
       });
       /* No node may fabricate a denominator for the SURFACED `lfhf` field. Scope note, UPDATED
