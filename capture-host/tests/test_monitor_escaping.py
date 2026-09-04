@@ -85,3 +85,40 @@ def test_ordinary_text_is_still_readable():
     """Escaping must not turn the normal card into entity soup — this is what an operator reads."""
     out = _render("idle · next run 13:00")
     assert "idle · next run 13:00" in out, out
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────────
+# 2026-09-03 — the audit above cleared `onclick` attributes on an argument-TYPE argument:
+#
+#     "Device ADDRESSES reach `onclick` attributes but webmon validates them with an anchored MAC
+#      regex (`_MAC_RE.fullmatch`), so they cannot carry a quote."
+#
+# That is true, and it was the wrong question. It reasons about the arguments the sites were expected
+# to pass and never asks whether some site passes something ELSE. One does:
+#
+#     onclick='remember(${JSON.stringify(d)}, this)'
+#
+# `d` is the whole scan record, including `d.name` — the ADVERTISED name, i.e. a string chosen by
+# whoever is within BLE range. `JSON.stringify` does not escape `'` (verified: JSON.stringify({name:
+# "x'y"}) → {"name":"x'y"}), and the attribute is single-quoted, so the name closes the attribute and
+# the rest executes with the monitor's full API access — /api/daemon stop, /api/forget, config writes.
+#
+# So this test does NOT reason about which arguments are safe. It pins the STRUCTURAL invariant: every
+# interpolation into a single-quoted onclick goes through `esc()`, whatever it carries. A future site
+# passing a fresh device-controlled field is then covered by construction rather than by someone
+# re-deriving the argument-safety argument correctly.
+def test_every_onclick_interpolation_goes_through_esc():
+    with open(MON, encoding="utf-8") as fh:
+        html = fh.read()
+    bad = []
+    for m in re.finditer(r"onclick='([^']*)'", html):
+        for interp in re.finditer(r"\$\{\s*([^}]*)", m.group(1)):
+            expr = interp.group(1).strip()
+            if not expr.startswith("esc("):
+                line = html[: m.start()].count("\n") + 1
+                bad.append(f"line {line}: ${{{expr[:60]}}}")
+    assert not bad, (
+        "every interpolation into a single-quoted onclick= must be wrapped in esc() — "
+        "JSON.stringify does not escape the single quote that closes the attribute:\n  "
+        + "\n  ".join(bad)
+    )
