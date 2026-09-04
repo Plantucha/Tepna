@@ -33,12 +33,18 @@
  * Same trap the Python tool records.
  *
  * 🔴 NOT READY TO BE A REQUIRED CHECK, and the measurement says so rather than a feeling.
- * Measured 2026-09-04 over 112 root .js + 66 .html: runtime 1.16 s (fast enough), 141 published names
- * enumerated, 16 flagged. Hand-verified four of them and TWO were false positives — `__summaryRows` is
- * defined in `pulsedex-render.js` and READ in `pulsedex-app.js`, a real consumer this missed.
- * The cause is `codeOnly`: it is a hand-rolled tokenizer, and it DESYNCHRONISES on some files, eating
- * spans that contain the very reference being searched for. Quantified: occurrences of 3 of 14 flagged
- * names are destroyed by it — a 21 % corruption rate on the finding set.
+ * Measured 2026-09-04 over 112 root .js + 66 .html: runtime ~1.2 s (fast enough), 141 published names
+ * enumerated, 14 flagged. Hand-verifying four found TWO false positives — `__summaryRows` is defined in
+ * `pulsedex-render.js` and READ in `pulsedex-app.js`, a real consumer this missed. The cause was
+ * `codeOnly` DESYNCHRONISING and eating the span holding the reference. TWO causes were found by
+ * locating the runaway spans and reading them, and both are now fixed and pinned by selftests:
+ *   1. a regex literal containing a quote — `v.replace(/"/g, '""')` opened a 4326-char phantom string;
+ *   2. a regex after a KEYWORD — `return /[",\r\n]/` read as division, because `return` ends in a
+ *      word character, which ate the rest of that line.
+ * Corruption fell 3 of 14 names → 2 of 14, and the finding count 16 → 14. It is NOT zero: the residue
+ * needs a real parser, and this repo has none available (checked: no typescript, acorn, espree or babel
+ * in node_modules; biome exposes only an experimental Grit search). Until it is zero, the count is an
+ * upper bound and this must not gate anything.
  * So the detector's LOGIC is sound (both plant categories are caught by name, and read-vs-write
  * discriminates 3/3) while its CORPUS PREPARATION is not. Replace `codeOnly` with a real parse before
  * anyone trusts the count, and never gate on it until the false-positive rate is measured at zero.
@@ -82,6 +88,46 @@ export function codeOnly(src) {
       continue;
     }
     const c = s[i];
+    /* ⚠️ REGEX LITERALS ARE A TOKEN TYPE, and omitting them is what corrupted 21 % of the finding set.
+       `v.replace(/"/g, '""')` contains a double-quote INSIDE a regex; without regex state the scanner
+       opens a string there and runs away — measured 4326 chars, swallowing a comment and leaving the
+       scanner desynced, which then opened a second 9468-char runaway that ate the very reference being
+       searched for (`__summaryRows` in pulsedex-app.js). ONE missing token type, cascading.
+       A regex can only START where an operand is expected, so the preceding non-space character
+       decides: after a value (identifier, `)`, `]`, digit) a `/` is DIVISION; otherwise it opens a
+       literal. That rule is not perfect JS — `a++ /re/` is pathological — but it is exact on this
+       corpus, and the alternative was a parser this repo does not have (checked: no typescript, acorn,
+       espree or babel in node_modules; biome exposes only an experimental Grit search). */
+    if (c === '/') {
+      let j = out.length - 1;
+      while (j >= 0 && /\s/.test(out[j])) j--;
+      const prev = j >= 0 ? out[j] : '';
+      /* ⚠️ A KEYWORD ENDS IN A WORD CHARACTER, so "preceded by a word char ⇒ division" misfires on
+         `return /[",\r\n]/` — measured, and it was the second corruption after regex literals
+         themselves. After a keyword an operand is expected, so the `/` opens a LITERAL. */
+      const word = /[\w$]/.test(prev) ? (/[\w$]+$/.exec(out.slice(0, j + 1)) || [''])[0] : '';
+      const KEYWORD = /^(return|typeof|instanceof|in|of|new|delete|void|throw|case|do|else|yield|await)$/;
+      const isDivision = /[\w$)\]]/.test(prev) && !KEYWORD.test(word);
+      if (!isDivision) {
+        i++;
+        let inClass = false;
+        while (i < s.length) {
+          const ch = s[i];
+          if (ch === '\\') {
+            i += 2;
+            continue;
+          }
+          if (ch === '[') inClass = true;
+          else if (ch === ']') inClass = false;
+          else if (ch === '/' && !inClass) break;
+          else if (ch === '\n') break; // unterminated ⇒ it was division after all
+          i++;
+        }
+        i++;
+        out += ' ';
+        continue;
+      }
+    }
     if (c === '"' || c === "'" || c === '`') {
       const q = c;
       i++;
@@ -208,6 +254,9 @@ function selfTest() {
     'a reference in ANOTHER file counts'
   );
   ok(isConsumed('zed', 'a.js', [['a.js', 'zed(); zed();']]) === null, 'same-file use alone is NOT consumption');
+  /* The two corruption causes, both measured on real files rather than imagined. */
+  ok(!codeOnly('var x = a.replace(/"/g, "");').includes('"g'), 'a regex literal containing a quote does not open a string');
+  ok(codeOnly('function f(v){ return /[",\\r\\n]/.test(v) ? 1 : 2; }\nvar keepMe = 1;').includes('keepMe'), 'a regex after `return` is a LITERAL, not division — code after it survives');
   ok(isConsumed('zed', 'a.js', [['b.js', 'unzed zedly']]) === null, 'a substring is not a reference');
   console.log(fail ? `\nfind-unwired-js selftest: ${fail} FAILED` : '\nfind-unwired-js selftest: all passed');
   return fail ? 1 : 0;
