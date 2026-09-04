@@ -48,6 +48,7 @@ const ManifestGate = require(path.join(REPO, 'manifest-gate.js'));
 const DexBuild = require(path.join(REPO, 'tools', 'build-core.js'));
 const { tchGoldenInputs } = require(path.join(REPO, 'tests', 'tch-golden-inputs.js'));
 const { apneaNullTwins } = require(path.join(REPO, 'tests', 'apnea-null-twins.js'));
+const { respirationFusionTwins } = require(path.join(REPO, 'tests', 'respiration-fusion-twins.js'));
 
 /* Integrator.src.html script order (headless subset — no render/app/DOM shell). */
 function realm() {
@@ -119,6 +120,7 @@ const ctx = realm();
 const adaptEnvelopeNode = ctx.adaptEnvelopeNode;
 const fuseHRVConsensus = ctx.fuseHRVConsensus;
 const fuseApneaEvents = ctx.fuseApneaEvents;
+const fuseRespirationRate = ctx.fuseRespirationRate;
 
 /* adapt → fuseHRVConsensus, exactly the seam the equivalence gate drives. */
 const buildTch = () => {
@@ -169,8 +171,56 @@ const buildApneaTwins = () => {
   return out;
 };
 
+const buildRespTwins = () => {
+  if (typeof adaptEnvelopeNode !== 'function' || typeof fuseRespirationRate !== 'function') return null;
+  const T = respirationFusionTwins();
+  const out = {
+    schema: {
+      name: 'ganglior.integrator-respiration-fusion-twins',
+      version: '1.0',
+      doc: 'Committed synthetic twins for fuseRespirationRate (residue 2026-09-02-respiration-fusion-no-fixture). Inputs rebuilt in-code by tests/respiration-fusion-twins.js; only the FUSED verdicts are committed.'
+    },
+    twins: {}
+  };
+  for (const k of ['agree', 'disjoint', 'sameNode', 'single']) {
+    const recs = T[k].map((x) => adaptEnvelopeNode(x.json, x.node, x.node)[0]);
+    const fused = fuseRespirationRate(recs);
+    /* Record what the function RETURNS, not what I assumed it returns. The first version of this
+       builder pinned `brpm` and `methods`; the real fields are `consensusBrpm` and `mechanisms`, so
+       the golden captured an undefined value and a null beside a perfectly good fusion — a fixture
+       that would have gone green while pinning nothing about the number it exists to protect. */
+    out.twins[k] = fused
+      ? {
+          n: fused.n,
+          consensusBrpm: fused.consensusBrpm,
+          spreadBrpm: fused.spreadBrpm,
+          agree: fused.agree,
+          overlapVerified: fused.overlapVerified,
+          mechanisms: fused.mechanisms || null,
+          mechanismsIndependent: fused.mechanismsIndependent
+        }
+      : null;
+  }
+  /* 🔴 ANTI-VACUITY, ENFORCED AT MINT TIME. The rate lives at a DIFFERENT path per node
+     (hrv.frequency.respRate vs motion.respRateBrpm); a twin that put it anywhere else yields zero
+     candidates and every downstream assertion passes on an empty fusion — which is precisely the
+     blindness this fixture exists to end. So refuse to write a golden whose positive control is null. */
+  if (!out.twins.agree) throw new Error('respiration twins: `agree` produced NO fusion — the fixture would be vacuous, refusing to write it');
+  return out;
+};
+
 const FIXTURES = [
   { name: 'integrator_tch_golden.node-export.json', real: false, build: buildTch },
+  {
+    name: 'integrator_respiration_fusion_twins.node-export.json',
+    real: false,
+    build: buildRespTwins,
+    newRecord: {
+      added: '2026-09-03',
+      inputs: [],
+      note: 'ADDED 2026-09-03 (residue 2026-09-02-respiration-fusion-no-fixture). The respiration-fusion path had NO committed fixture, so a value going missing from it was undetectable — not "nothing reflected the defect" but NOTHING COULD. That is why PpgDex\'s exported respiration reached no fusion for a month with every gate green. Four twins isolate the two guards fuseRespirationRate names: temporal overlap, and one-observer-per-node before the n>=2 floor.'
+    }
+  },
   {
     name: 'integrator_apnea_null_twins.node-export.json',
     real: false,
