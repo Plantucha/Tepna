@@ -22,6 +22,7 @@
 # ASCII, left-justified, space-padded — reproduced verbatim so a re-encode is byte-exact.
 from __future__ import annotations
 
+import datetime as _dt
 import struct
 
 # ── CRC-16/CCITT-FALSE, table-driven (the ResMed EDF checksum) ────────────────────────────────────────
@@ -199,7 +200,46 @@ def write_edf(edf: Edf) -> bytes:
                 base = r * s.spr
                 rec += struct.pack(f"<{s.spr}h", *s.samples[base:base + s.spr])
         out += rec
-    return bytes(out)
+    return bytes(_stamp_header_crcs(out, hdr_bytes))
+
+
+# ── the TWO HEADER CRCs the AS11 writes into the patient field ────────────────────────────────────────
+# `patient` on a real card is "X X X X F69F D4BA", not the "X X X X" this writer used to emit — so a
+# written file was well-formed, opened correctly, and was still distinguishable from a device file at
+# byte 8. The module header claims output "byte-identical to what the device would have written"; until
+# this landed, the patient field was an unstated exception to that claim.
+#
+# MEASURED over the card, 1351 EDFs of all five types, re-verified before implementing:
+#   crc1 = CRC16/CCITT-FALSE over hdr[0x19:256]           1351 / 1351
+#   crc2 = CRC16/CCITT-FALSE over the signal block        1351 / 1351
+#   an all-zeros control                                     0 / 1351   (it discriminates)
+#
+# 🔴 WHY WRITING THE CRC CANNOT INVALIDATE IT, which is what makes this implementable: crc1 starts at
+# 0x19 = byte 25, and the longest such patient string ("X X X X F69F D4BA", 17 chars) ends at byte 24.
+# The covered range begins exactly one byte past the values being written. Bytes 25..87 are spaces
+# whatever the patient field holds, so the pre-state does not matter — three candidate pre-states were
+# tested and all matched 1351/1351: one hypothesis confirmed with its boundary explained, not three
+# hypotheses surviving.
+#
+# crc2 covers the signal-header block only, which is byte-identical across every BRP on the card — that
+# is why it reads as a per-device constant while crc1 varies with the dates in the header.
+_CRC1_FROM = 0x19          # [HW] one past the end of the longest patient string — see above
+_PATIENT_AT = 8
+_PATIENT_LEN = 80
+
+
+def _stamp_header_crcs(buf: bytearray, hdr_bytes: int) -> bytearray:
+    """Write `X X X X <crc1> <crc2>` into the patient field of an assembled EDF buffer, in place.
+
+    Called LAST, after every other byte is final, because crc1 covers the header and crc2 the signal
+    block — computing either earlier would hash a buffer still being appended to. A buffer too short to
+    carry a signal block is returned untouched, so a malformed input fails where it already failed."""
+    if len(buf) < hdr_bytes or hdr_bytes <= _MAIN:
+        return buf
+    crc1 = crc16_ccitt(bytes(buf[_CRC1_FROM:_MAIN]))
+    crc2 = crc16_ccitt(bytes(buf[_MAIN:hdr_bytes]))
+    buf[_PATIENT_AT:_PATIENT_AT + _PATIENT_LEN] = _pad(f"X X X X {crc1:04X} {crc2:04X}", _PATIENT_LEN)
+    return buf
 
 
 # ── Constructors: build files from DATA (BLE capture) with the exact ResMed signal specs ──────────────
@@ -313,10 +353,16 @@ def build_pld(channels, start, serial, *, record_seconds=60, mid=46, vid=3):
 #   [HW] over 294 SA2 files on this card: 2 signals + Crc16, record_seconds 60.00, spr 60 (1 Hz),
 #        Pulse.1s bpm phys 0..300 dig 0..300, SpO2.1s % phys 0..100 dig 0..100 — both 1:1.
 #   [HW] the absent-sample sentinel is -1, on every sample of every file.
-#   [INF] the encoding of REAL samples. Every SA2 on this box is entirely sentinel, so nothing here
-#        proves the AS11 writes SpO2 as a plain integer percent. CPAP-SA2-OXIMETRY-SOURCE records one
-#        2.5 h populated session (2026-06-13) that is NOT in this tree and that I could not read.
-#        The 1:1 mapping below is taken from the declared ranges, not from observed samples.
+#   [INF] the encoding of REAL samples. The 1:1 mapping below is taken from the DECLARED ranges, not
+#        from observed samples — and that is now a measured limit rather than a local one.
+#
+#        MEASURED 2026-09-04, whole corpus rather than one card: 267 SA2.edf across
+#        `uploads/vigil-captures/cpap/DATALOG/*/`, every `SpO2.1s` and `Pulse.1s` channel decoded and
+#        histogrammed — **zero non-sentinel samples in any of them.** So the claim is not "the file I
+#        happened to open was empty"; there is no populated SA2 anywhere we can reach.
+#        CPAP-SA2-OXIMETRY-SOURCE records one 2.5 h populated session (2026-06-13) which is in none of
+#        these trees. ⚠️ RE-RUN THAT SCAN BEFORE TRUSTING THIS: the day a populated file appears, the
+#        mapping becomes checkable and this note is what tells you it was never checked.
 _SA2_SPECS = [("Pulse.1s", "bpm", "0.00", "300.00", "0", "300"),
               ("SpO2.1s", "%", "0.00", "100.00", "0", "100")]
 
@@ -337,11 +383,53 @@ def _sentinel_signal(spec, digital_values, spr):
                   spr, _RES32, list(digital_values))
 
 
-def build_sa2(samples, start, serial, *, record_seconds=60, mid=46, vid=3):
-    """A ResMed-layout SA2.edf from 1 Hz oximetry. `start` is (y, mo, d, hh, mm, ss), local civil.
+def device_start_from_host(host_start, clock_offset):
+    """Move a HOST-axis civil start onto the DEVICE axis, so a written EDF lands beside its siblings.
+
+    🔴 THIS IS THE ONE PLACE AN SA2 CROSSES CLOCKS, AND IT REFUSES RATHER THAN GUESSES.
+
+    `build_brp` is DEVICE-stamped — `cpap_edf_writer` takes the AS11's own civil stamp verbatim as
+    floating wall-clock, because the Clock Contract puts host-axis correction downstream and never at
+    the capture edge (§7/§12). So every file in a day folder sits on the AS11's clock. Oximetry fed
+    from the O2Ring does NOT: the ring is host-stamped. Handing a host start straight to `build_sa2`
+    writes a valid EDF onto the wrong timeline, and the AS11 runs ~21 min fast — `as11_clock.py` — so
+    the SA2 would miss its own BRP by that much while both files look perfectly well-formed.
+    `CPAP-SA2-OXIMETRY-SOURCE` §2 measured what that costs: r = 0.296 at a −79 min best lag.
+
+    ⚠️ SIGN. `ClockOffset.offset_sec` is POSITIVE when the DEVICE reads LATER than the reference. The
+    AS11 reads ~21 min fast, so it carries ~ +1260 s, and the instant the host calls 22:00:00 the
+    device calls 22:21:00 — hence PLUS. Do not re-derive this from `as11_clock.analyze`, which uses
+    the opposite convention (`median(host − device)`, negative when the device runs ahead) and is
+    negated once at its own boundary. Getting it backwards turns a 21-minute discrepancy into a
+    42-minute one, which still looks like a plausible clock story.
+
+    **An UNMEASURED offset raises.** `ClockOffset.unknown()` means nobody measured the difference, and
+    writing anyway would assert an alignment that was never established — the same fabrication
+    `offset_for_envelope` refuses when it declines to render `None` as a zero. A caller with no
+    measurement has no axis-correct SA2 to write, and that is the honest outcome rather than a file
+    that is wrong by an unknown amount.
+    """
+    if not clock_offset.measured:
+        raise ValueError(
+            "cannot place an SA2 on the device axis: the clock offset is UNKNOWN. The AS11 is "
+            "device-stamped and the ring is host-stamped, so without a measured offset any start "
+            "written here is wrong by an unmeasured amount — and the file would look correct. "
+            "Measure via AS11CLOCK.csv (as11_clock.offset_for_envelope) or do not write the file.")
+    base = _dt.datetime(*host_start) + _dt.timedelta(seconds=float(clock_offset.offset_sec))
+    return (base.year, base.month, base.day, base.hour, base.minute, base.second)
+
+
+def build_sa2(samples, device_start, serial, *, record_seconds=60, mid=46, vid=3):
+    """A ResMed-layout SA2.edf from 1 Hz oximetry. `device_start` is (y, mo, d, hh, mm, ss).
+
+    ⚠️ THE START IS ON THE **DEVICE** AXIS, and the parameter is named for it because the two axes are
+    structurally identical tuples. `build_brp` is device-stamped (`cpap_edf_writer`, Clock Contract
+    §7/§12), so an SA2 written beside it must be too. Oximetry sourced from the host-stamped O2Ring
+    must go through `device_start_from_host` FIRST — that function refuses on an unmeasured offset,
+    which is the point. This builder stays a pure encoder and applies no correction of its own.
 
     `samples` is an iterable of `(offset_s, spo2_pct, pulse_bpm)` with `offset_s` whole seconds from
-    `start`; either reading may be None for "no value".
+    `device_start`; either reading may be None for "no value".
 
     ⚠️ IT TAKES OFFSETS, NOT TWO LISTS, AND THAT IS THE POINT. Gaps are FILLED with the device's own
     sentinel rather than closed up. A caller handing over a plain list with a dropout simply omitted
@@ -374,7 +462,7 @@ def build_sa2(samples, start, serial, *, record_seconds=60, mid=46, vid=3):
         pulse_d.append(SA2_ABSENT if pulse is None else int(pulse))
         spo2_d.append(SA2_ABSENT if spo2 is None else int(spo2))
 
-    sd, st, rd = _dates(*start)
+    sd, st, rd = _dates(*device_start)
     signals = [_sentinel_signal(_SA2_SPECS[0], pulse_d, spr),
                _sentinel_signal(_SA2_SPECS[1], spo2_d, spr),
                _crc_signal(n)]

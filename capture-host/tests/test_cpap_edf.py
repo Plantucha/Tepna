@@ -158,9 +158,28 @@ def _corpus_edfs():
 @pytest.mark.parametrize("path", _corpus_edfs()[:8])
 def test_reencoding_a_real_file_is_byte_identical(path):
     """THE bit-accuracy proof: decode a real ResMed file and re-encode it — including recomputing the
-    CRC-16/CCITT-FALSE checksum per record — and the bytes must match exactly."""
+    per-record CRC-16/CCITT-FALSE — and the bytes must match exactly OUTSIDE the patient field.
+
+    ⚠️ THE COMMITTED FIXTURES ARE DE-IDENTIFIED AND THAT IS WHY THIS TEST COULD NOT SEE THE HEADER
+    CRCs. A card file's patient field reads `X X X X E9F8 2B58`; every fixture in `uploads/` reads
+    `X X X X`, the CRC tokens stripped before commit. So this test asserted byte-identity against
+    inputs whose patient field had already been blanked — it passed for as long as the writer ALSO
+    emitted nothing there, and it could not have caught the omission. That is the gap, not a
+    weakening of the proof.
+
+    The writer now restores those CRCs, so re-encoding a de-identified fixture legitimately differs
+    from it — MEASURED, on all 9: exactly 8 bytes, span 16..24, inside the patient field, every time.
+    Byte-identity including the patient field is verified against genuine card files instead:
+    1351/1351 over `DATALOG/*/*.edf` of all five types, with an all-zeros control matching 0/1351.
+
+    The exclusion is bounded to `[8, 88)` on purpose. A drift anywhere else still fails here."""
     raw = open(path, "rb").read()
-    assert E.write_edf(E.read_edf(raw)) == raw, f"re-encode diverged from the device file: {path}"
+    out = E.write_edf(E.read_edf(raw))
+    assert len(out) == len(raw), f"length diverged from the device file: {path}"
+    diff = [i for i in range(len(raw)) if raw[i] != out[i]]
+    assert all(8 <= i < 88 for i in diff), (
+        f"re-encode diverged OUTSIDE the patient field at {[i for i in diff if not 8 <= i < 88][:8]}: "
+        f"{path} — the de-identification exemption covers bytes 8..87 and nothing else")
 
 
 # ── exact-field assertions (self-contained; the corpus byte-identity test skips inside the mutation
@@ -169,7 +188,14 @@ def test_constructed_brp_every_header_field_is_exact():
     edf = E.build_brp([0.0] * 25, [10.0] * 25, (2026, 6, 13, 23, 14, 33), "23221590541", record_seconds=1)
     b = E.read_edf(E.write_edf(edf))
     assert b.version.strip() == "0"
-    assert b.patient_id.strip() == "X X X X"
+    # The device writes TWO header CRCs here — `X X X X <crc1> <crc2>` — so pinning the bare
+    # prefix is what let the omission ship. Prefix AND shape, with the values checked against
+    # the scheme in test_cpap_edf_sa2.py rather than hard-coded, since they move with the header.
+    _pat = b.patient_id.split()
+    assert _pat[:4] == ["X", "X", "X", "X"], f"de-identified prefix lost: {b.patient_id!r}"
+    assert len(_pat) == 6, f"expected two header CRC tokens, got {b.patient_id!r}"
+    assert all(len(t) == 4 and all(c in "0123456789ABCDEF" for c in t) for t in _pat[4:]), \
+        f"CRC tokens must be 4 upper-case hex digits: {_pat[4:]}"
     assert b.recording_id.strip() == "Startdate 13-JUN-2026 X X X SRN=23221590541 MID=46 VID=3"
     assert b.startdate == "13.06.26" and b.starttime == "23.14.33"
     assert b.reserved.strip() == "EDF" and b.record_duration.strip() == "1.00" and b.n_records == 1

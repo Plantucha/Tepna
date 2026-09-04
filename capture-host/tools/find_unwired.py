@@ -156,6 +156,7 @@ ALLOW_FUNCS = {
     # checked against the card by tests/test_cpap_edf_sa2.py. RETIRE when an SA2 sink lands; if
     # the ring is never written into the CPAP tree, DELETE both with these entries.
     "build_sa2": "cpap_edf — writes the ResMed SA2 oximetry container the AS11 leaves empty when no wired sensor is attached. PENDING an SA2 sink that feeds it from the O2Ring; delete with declaration_matches if that never lands",
+    "device_start_from_host": "cpap_edf — the ONE boundary where an SA2 crosses from the host-stamped ring onto the AS11's device axis, so it lands beside its device-stamped BRP (Clock Contract §7/§12). Unwired for the SAME reason as build_sa2 above: no SA2 sink exists yet. It is deliberately NOT inlined into build_sa2 — the builder stays a pure encoder under declare-never-correct, and this refuses on an unmeasured offset rather than writing a well-formed file wrong by an unknown amount. RETIRE with build_sa2; if the ring is never written into the CPAP tree, delete all three together.",
     "declaration_matches": "cpap_edf — diffs a real file's signal block against the derived cpap_edf_dict. Used by the card test today; PENDING a runtime check that verifies a written EDF against the dictionary before it reaches the harvest tree",
 
     "compare": "adapter_ab analysis tool",
