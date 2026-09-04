@@ -69,13 +69,7 @@
       "key": "- [0] * n_records) # values are recomputed on write; placeholders here | + [1] * n_records) # values are recomputed on write; placeholders here",
       "probe": "same lane, same reasoning: the placeholder value is never emitted.",
       "why": "A PROOF: the Crc16 lane's samples are placeholders that write_edf NEVER reads — it recomputes the checksum from the other signals' bytes per record (crc16_ccitt), and read-back overwrites them with those computed values. So [0], [1], or None all produce byte-identical output. No input distinguishes."
-    },
-    {
-      "class": "no-distinguishing-input",
-      "key": "- out += _pad(edf.version, 8) | + out = _pad(edf.version, 8)",
-      "probe": "out is empty here (line after `out = bytearray()`); replace vs extend-empty are equal.",
-      "why": "A PROOF: at this first header write `out` is a freshly-created empty bytearray, so `out = _pad(...)` (replace) yields the exact same bytes as `out += _pad(...)` (extend an empty); every subsequent `out += ...` and the final `bytes(out)` produce identical output."
-    }
+      }
   ],
   "cpap_edf_writer.py": [
     {
