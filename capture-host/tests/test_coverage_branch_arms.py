@@ -234,7 +234,7 @@ def test_a_frame_that_fails_its_crc_is_dropped_rather_than_queued(tmp_path, monk
     blob = b"\x01\x03" + bytes(range(256)) * 4
     ring = _CorruptingRing(["20260719010000"], blob)
     _install_ring(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert len(got) == 1
     assert open(got[0], "rb").read() == blob, "the good frames still round-trip exactly"
 
@@ -246,5 +246,5 @@ def test_a_large_transfer_without_a_progress_hook_still_completes(tmp_path, monk
     blob = b"\x01\x03" + b"n" * 60000
     ring = FakeRing(["20260719010000"], blob, chunk=512)
     _install_ring(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000"))
     assert len(got) == 1 and os.path.getsize(got[0]) == len(blob)

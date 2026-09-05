@@ -116,6 +116,11 @@ Still open (so `CAPTURE-HOST` stays **PROPOSED**):
    `_O2_NAME_HINTS = ("o2ring","s8-aw","s8aw","wellue","checkme")`, so a factory reset that rotates the
    Random-Static MAC no longer strands the device. (Service-UUID / manufacturer-ID matching was not
    needed once the name hint resolved it; the config `address:` is now a hint, not a requirement.)
+   **⚠️ REVERSED 2026-09-05.** The name arm was removed from `_connect_scan`, `pull_session._pull_once`
+   and `probe_oxyii_ppg.py`; all three now delegate to `oxy_presence.is_expected_ring` (address-only,
+   standing ruling 2026-08-27). A name is attacker-controlled — the OR let any beacon broadcasting one
+   of five substrings summon a GATT connect from the host — and a factory reset is a re-pair event, so
+   the configured `address:` is a requirement again and the operator updates it as for a new ring.
 4. **`polar_pmd.py` ACC delta path is unexercised** — *still open (hardware-gated).* The delta decoder is
    wired for ACC (channels=3, 16-bit) but has never seen a real ACC frame; validate before trusting
    posture sidecars. Tracked in FOLLOWUPS-II as **V2**.
