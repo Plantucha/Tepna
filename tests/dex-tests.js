@@ -6492,7 +6492,24 @@
         return;
       }
       T.ok('the reader function exists', /function\s+readRingClockLog\s*\(\s*dirs\s*,\s*inWindow\s*,\s*DexClock\s*\)/.test(tb), 'expected `function readRingClockLog(dirs, inWindow, DexClock)`');
-      T.ok('…scans the arrival dirs for `*_rtclog.csv` (same dirs as arrival packets)', /endsWith\('_rtclog\.csv'\)/.test(tb), "expected `endsWith('_rtclog.csv')` inside the reader");
+      /* THE MATCHER IS EXECUTED, NOT SPELLED. Until 2026-09-05 this line asserted the literal
+         `endsWith('_rtclog.csv')` — and `capture_filename` upper-cases the tag, so the daemon writes
+         `…_RTCLOG.csv` and the reader matched nothing on any real night (0/18 local sidecars carried a
+         `ringClock`; the box held 29 logs a day). The gate had encoded the defect. Now the regex is
+         lifted out of the reader's source and RUN against the writer's real filename, so a reader
+         that names the file differently from the writer cannot pass. Same class as #2219/#2215. */
+      var _rtcRe = /readRingClockLog[\s\S]{0,1500}?\/(_rtclog\\\.csv\$)\/([a-z]*)\.test\(n\)/.exec(tb);
+      T.ok('…matches the sidecar by a regex literal inside the reader', !!_rtcRe, 'expected `/_rtclog\\.csv$/i.test(n)` inside readRingClockLog');
+      if (_rtcRe) {
+        var _m = new RegExp(_rtcRe[1], _rtcRe[2]);
+        T.ok(
+          "…and that regex matches the WRITER's real filename (`capture_filename` upper-cases the tag)",
+          _m.test('Wellue_O2Ring-S_S8AW2100_20260904053233_RTCLOG.csv'),
+          'the reader does not match what RingClockLogWriter writes — ringClock is null on every real night'
+        );
+        T.ok('…still matches the lowercase form a hand-named fixture carries', _m.test('ring_20260904_rtclog.csv'), 'lowercase sidecar no longer matched');
+        T.ok('…and not the `.meta.json` sidecar beside it', !_m.test('Wellue_O2Ring-S_S8AW2100_20260904053233_RTCLOG.csv.meta.json'), 'the meta sidecar would be parsed as a log');
+      }
       T.ok(
         '…parses the sidecar timestamp via `DexClock.parseTimestamp` (Clock Contract §2)',
         /readRingClockLog[\s\S]{0,4000}DexClock\.parseTimestamp/.test(tb),
