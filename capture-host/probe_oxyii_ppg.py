@@ -13,14 +13,14 @@ from __future__ import annotations
 import argparse, asyncio
 from bleak import BleakClient, BleakScanner
 import oxyii
-
-_NAME_HINTS = ("o2ring", "s8-aw", "s8aw", "wellue", "checkme")
+import oxy_presence
 
 
 async def main(address: str, nframes: int):
+    # ADDRESS-ONLY (standing ruling 2026-08-27 — see `oxy_presence.is_expected_ring`): a probe that
+    # accepted any "o2ring"-named beacon would connect to a stranger's device as readily as the daemon.
     dev = await BleakScanner.find_device_by_filter(
-        lambda d, adv: d.address.upper() == address.upper()
-        or any(h in ((adv.local_name or d.name or "").lower()) for h in _NAME_HINTS),
+        lambda d, adv: oxy_presence.is_expected_ring(d.address, address),
         timeout=25)
     if dev is None:
         print("ring not advertising — wear it (finger in), phone app closed, daemon stopped.")
