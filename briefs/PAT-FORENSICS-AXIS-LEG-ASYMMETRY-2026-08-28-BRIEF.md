@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core BUILT and runnable at CORPUS scale, remainder unexecuted; verified 2026-09-05).** Inherits FIDUCIAL-JITTER's retraction: the 09-01 stamp placed this brief on a 2-file local sample, and **8 760 `_PPG.txt` (5 633 Verity) are reachable under `/srv/data/tepna-corpus/`**. `tools/pat-axis-leg-audit.mjs` takes `<ppg-file>`, so it is execution-bound, not data-bound. Not executed. ⚠️ ORIGINAL 09-01 STAMP, superseded: TRIAGED 2026-09-01 (Osprey): tool BUILT (`tools/pat-axis-leg-audit.mjs`) and takes `<ppg-file>`, so it shares FIDUCIAL-JITTER's position — runnable locally, but against 2 files rather than the corpus. Not executed this pass.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (phase (a) output: §2 trace + §3 classification) · **Interlocks:** `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` §1, `WEARABLE-HOST-AXIS` lineage · **DRAIN 2026-09-02 (Osprey):** re-verified — `tools/pat-axis-leg-audit.mjs` is present and takes `<ppg-file>`, so it is runnable locally against `/srv/data/tepna-corpus/`. Unchanged since the 2026-09-01 triage. **Owner: Osprey. Next step:** one corpus run, same shape as the WINDOW-ORACLE execute; it needs no new code. · **RE-VERIFIED 2026-09-03 (Osprey):** unchanged since the 2026-09-01 triage — `tools/pat-axis-leg-audit.mjs` present and takes `<ppg-file>`. **Not touched by the published-number sweep**, which is a real negative rather than an unchecked one: this brief names no table the sweep's criterion could attribute to a producing tool, so it carries no drifted number. Owner: Osprey, next step unchanged (one corpus run, no new code).
+**Status:** IN-PROGRESS · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core BUILT and runnable at CORPUS scale, remainder unexecuted; verified 2026-09-05).** Inherits FIDUCIAL-JITTER's retraction: the 09-01 stamp placed this brief on a 2-file local sample, and **8 760 `_PPG.txt` (5 633 Verity) are reachable under `/srv/data/tepna-corpus/`**. `tools/pat-axis-leg-audit.mjs` takes `<ppg-file>`, so it is execution-bound, not data-bound. Not executed. ⚠️ ORIGINAL 09-01 STAMP, superseded: TRIAGED 2026-09-01 (Osprey): tool BUILT (`tools/pat-axis-leg-audit.mjs`) and takes `<ppg-file>`, so it shares FIDUCIAL-JITTER's position — runnable locally, but against 2 files rather than the corpus. Not executed this pass.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (phase (a) output: §2 trace + §3 classification) · **Interlocks:** `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` §1, `WEARABLE-HOST-AXIS` lineage · **DRAIN 2026-09-02 (Osprey):** re-verified — `tools/pat-axis-leg-audit.mjs` is present and takes `<ppg-file>`, so it is runnable locally against `/srv/data/tepna-corpus/`. Unchanged since the 2026-09-01 triage. **Owner: Osprey. Next step:** one corpus run, same shape as the WINDOW-ORACLE execute; it needs no new code. · **RE-VERIFIED 2026-09-03 (Osprey):** unchanged since the 2026-09-01 triage — `tools/pat-axis-leg-audit.mjs` present and takes `<ppg-file>`. **Not touched by the published-number sweep**, which is a real negative rather than an unchecked one: this brief names no table the sweep's criterion could attribute to a producing tool, so it carries no drifted number. Owner: Osprey, next step unchanged (one corpus run, no new code). · **REMEDY CONFIRMED AT CORPUS SCALE 2026-09-05 (Brief runner) — §3c, defect UNCHANGED:** the fix this brief proposes (interpolate `relSec` across the fractional index, as `pat-matchrate-strict.mjs`'s `timeAt` already does) is measured working on the sibling path — **72514 of 72514 consensus feet resolve through `relSec`, 0 fall back**, all fractional, over the three largest Verity nights. §2/§3 are NOT retracted: `0/8948` is live and correct about **`pat-feasibility-worker.js`**, which still reads `rel[idx] ?? idx / fs`. ⚠️ Quote this brief's number about the WORKER and name the file — `tools/pat-drift-attribution.mjs` cited it to describe `ppgFootTimes` (a different, already-fixed consumer) and steered its `effectivePpm` on it for 8 days (residue `2026-09-05-one-citation-two-consumers`). Owner unchanged (Osprey); the one corpus run is still the next step.
 
 # The two legs of a PAT measurement ride different time axes — and Tepna introduces the difference
 
@@ -150,6 +150,32 @@ Per fragment, from `rec.hostAxis` (all 8 files):
 per-sample stamps, while `idx / fs` assumes a perfectly constant rate at the *estimated* `fs`. The gap
 is the device's true sampling irregularity plus any error in `fs` — which is precisely the quantity
 §5 names as the PPG-axis suspect, and it is now measured rather than assumed.
+
+## 3c · The proposed remedy, confirmed at corpus scale on the sibling path (2026-09-05)
+
+§62–63 of `tools/pat-axis-leg-audit.mjs` names the intended fix — *interpolate `relSec` across the
+fractional index, as `tools/pat-matchrate-strict.mjs`'s `timeAt` already does*. That sibling path is
+now measured at corpus scale and it works:
+
+| | |
+|---|---|
+| consensus feet resolving through `relSec` | **72514 / 72514** |
+| falling back to `idx / fs` | **0** |
+| of which fractional indices | **all 72514** |
+| corpus | 3 largest Verity nights, `/srv/data/tepna-corpus/smoketest-captures` |
+
+So the remedy is **evidence-backed rather than argued**: the floor/ceil interpolation
+(`rel[lo] + fr * (rel[hi] - rel[lo])`, live since #1649, 2026-08-23) resolves every fractional foot
+this corpus produces, which is the case the raw subscript cannot hit even once.
+
+🔴 **This does NOT retract §2/§3, and the distinction cost a session an hour.** The `0/8948` finding
+is **live and correct** — it is about **`pat-feasibility-worker.js`**, which still reads
+`rel[idx] ?? idx / fs`. `timeAt` is a *different consumer* that was already fixed. Both functions map
+a foot index to a time, so a measurement of either reads as a measurement of "the PPG foot path", and
+one citation covering both is invisible: `tools/pat-drift-attribution.mjs` cited this brief's `0/8948`
+to describe `ppgFootTimes` and steered its `effectivePpm` on it for 8 days (residue
+`2026-09-05-one-citation-two-consumers`). **Quote this brief's number about the worker, and name the
+file every time.**
 
 ## 4 · What this does NOT yet establish
 
