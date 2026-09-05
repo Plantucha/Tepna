@@ -2106,16 +2106,32 @@ def test_the_sidecar_reader_does_not_depend_on_the_BOXES_locale(tmp_path):
     UTF-8 — a class of bug that never reproduces on the developer's machine.
 
     The probe runs the REAL function in a subprocess under `LC_ALL=C PYTHONUTF8=0` and compares against
-    this process's result, rather than reasoning about what the default would be."""
+    this process's result, rather than reasoning about what the default would be.
+
+    ⚠️ THE FIRST VERSION OF THIS TEST EXAMINED NOTHING. It fed non-ASCII text in a NOTE column, and both
+    the original and the `encoding=None` mutant produced the identical dict under the C locale — the
+    diff-scoped mutation job on #2219 reported exactly those two survivors (`encoding=None`, and the
+    argument dropped). The reason is structural: `errors="replace"` means no decoder can raise, and only
+    `float(rtc_offset_s)` and `fromisoformat(Phone timestamp)` reach the output, so garbage in a note
+    column is invisible to the verdict under EVERY decoding. The one field through which the decoder is
+    observable at all is the offset, and only because `float()` accepts non-ASCII Unicode digits
+    (`fromisoformat` does not): `٢.٥` decodes to 2.5 under utf-8 and to replacement characters under
+    the C locale's ASCII, where the row is then dropped and `reads` shrinks by one. Probed 2026-09-05:
+    identical dicts under utf-8 / None / omitted for the note-column input across three locales;
+    DIFFERS on the Unicode-digit input only. So that is the input this test uses — not because a ring
+    will ever write one (`RingClockLogWriter._f` emits `f"{v:.6f}"`, ASCII by construction) but because
+    a test that cannot distinguish the code it pins from its mutant is not pinning it."""
     import subprocess, sys
     p = _rtclog(tmp_path, [
         "2026-09-05T00:00:00.000;read;0.0;;;;",
-        "2026-09-05T02:00:00.000;read;2.5;;;;",          # naïve — a valid multi-byte UTF-8 comment
+        "2026-09-05T02:00:00.000;read;٢.٥;;;;",   # ARABIC-INDIC 2.5 — the one decoder-sensitive field
         "2026-09-05T05:00:00.000;read;4.0;;;;",
     ], name="Wellue_O2Ring-S_S8AW_20260905045323_RTCLOG.csv")
     with open(p, "a", encoding="utf-8") as fh:
         fh.write("2026-09-05T06:00:00.000;note;naïve — °C;;;;\n")
-    here = json.dumps(nightqc.rtc_drift_summary(p), sort_keys=True)
+    verdict = nightqc.rtc_drift_summary(p)
+    assert verdict["reads"] == 3, "the Unicode-digit offset must be PARSED here, or the probe below compares two drops"
+    here = json.dumps(verdict, sort_keys=True)
     env = {**os.environ, "LC_ALL": "C", "LANG": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
     script = (f"import json,sys; sys.path.insert(0,{os.path.dirname(os.path.abspath(nightqc.__file__))!r});"
               f"import nightqc; print(json.dumps(nightqc.rtc_drift_summary({p!r}), sort_keys=True))")
@@ -2124,3 +2140,72 @@ def test_the_sidecar_reader_does_not_depend_on_the_BOXES_locale(tmp_path):
     assert r.stdout.strip() == here, (
         "the verdict must not depend on the ambient encoding:\n"
         f"  C locale : {r.stdout.strip()}\n  this proc: {here}")
+
+
+# ── one sidecar per CONNECT SESSION, so the verdict pools them (2026-09-05, the first real night) ────
+# The case fix above made `rtc` non-null for the first time on vigil 2026-09-05 — and the verdict read
+# `reads 1 · pushes 11 · resets 0 · span_h 0.0` against 29 sidecars holding 15 reads, 63 pushes and TWO
+# reset-suspect events. `summarize` handed over the FIRST file (`and rtc is None`); the ring had
+# reconnected 29 times. A night summarised from its first few minutes hides the one event the field
+# exists to surface.
+def test_rtc_drift_summary_pools_every_sidecar_and_drops_each_files_header(tmp_path):
+    a = _rtclog(tmp_path, [
+        "2026-09-05T02:27:38.000;push;;;;;",
+        "2026-09-05T02:27:39.000;read;-1.3;;;;",
+    ], name="Wellue_O2Ring-S_S8AW_20260905022738_RTCLOG.csv")
+    b = _rtclog(tmp_path, [
+        "2026-09-05T04:00:00.000;read;-2.1;;;;",
+        "2026-09-05T04:10:00.000;reset-suspect;-151.0;;;;",
+    ], name="Wellue_O2Ring-S_S8AW_20260905040000_RTCLOG.csv")
+    c = _rtclog(tmp_path, [
+        "2026-09-05T06:27:39.000;push;;;;;",
+        "2026-09-05T06:27:40.000;read;0.2;;;;",
+    ], name="Wellue_O2Ring-S_S8AW_20260905062739_RTCLOG.csv")
+    r = nightqc.rtc_drift_summary([a, b, c])
+    assert r["files"] == 3
+    assert r["reads"] == 4 and r["pushes"] == 2 and r["resets"] == 1, \
+        "every sidecar's rows count — the reset in the SECOND session is the finding"
+    assert r["first_offset_s"] == -1.3 and r["last_offset_s"] == 0.2 and r["drift_s"] == 1.5
+    assert r["span_h"] == 4.0, "first read of the first file to last read of the last: 02:27→06:27"
+    # A later file's header row is `Phone timestamp;event;…` — three fields, so a naive pool would
+    # count it as a row with event "event"; it must be dropped per file, not once.
+    assert r["reads"] == 4                                  # not 4 + a header-shaped row
+
+
+def test_rtc_drift_summary_one_path_is_the_same_verdict_as_before(tmp_path):
+    """The str form is the pre-pooling contract, kept: one path → one file → `files: 1`."""
+    p = _rtclog(tmp_path, ["2026-09-05T02:27:39.000;read;-1.3;;;;",
+                           "2026-09-05T03:27:39.000;read;-1.9;;;;"])
+    r = nightqc.rtc_drift_summary(p)
+    assert r == nightqc.rtc_drift_summary([p])
+    assert r["files"] == 1 and r["reads"] == 2 and r["drift_s"] == -0.6
+
+
+def test_rtc_drift_summary_skips_an_unreadable_sidecar_rather_than_nulling_the_night(tmp_path):
+    good = _rtclog(tmp_path, ["2026-09-05T02:27:39.000;read;-1.3;;;;",
+                              "2026-09-05T05:27:39.000;read;-2.5;;;;"])
+    missing = os.path.join(str(tmp_path), "Wellue_O2Ring-S_S8AW_20260905030000_RTCLOG.csv")
+    r = nightqc.rtc_drift_summary([missing, good])
+    assert r is not None and r["files"] == 1 and r["reads"] == 2, \
+        "one torn sidecar must not null the other 28"
+    assert nightqc.rtc_drift_summary([missing]) is None, "no readable file → no verdict, as before"
+    assert nightqc.rtc_drift_summary([]) is None
+
+
+def test_summarize_pools_EVERY_rtclog_sidecar_of_the_ring_not_the_first(tmp_path):
+    """The real shape of 2026-09-05: many sidecars, the reset-suspect in a LATER one. With
+    `and rtc is None` the verdict came from the earliest file and read `resets 0`."""
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260905022738_SPO2.csv", 900), 1_000_000)
+    hdr = "Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n"
+    with open(os.path.join(night, "Wellue_O2Ring-S_S8AW_20260905022738_RTCLOG.csv"), "w") as fh:
+        fh.write(hdr + "2026-09-05T02:27:38.000;push;;;;;\n2026-09-05T02:27:39.000;read;-1.3;;;;\n")
+    with open(os.path.join(night, "Wellue_O2Ring-S_S8AW_20260905041000_RTCLOG.csv"), "w") as fh:
+        fh.write(hdr + "2026-09-05T04:10:00.000;reset-suspect;-151.0;;;;\n")
+    with open(os.path.join(night, "Wellue_O2Ring-S_S8AW_20260905062739_RTCLOG.csv"), "w") as fh:
+        fh.write(hdr + "2026-09-05T06:27:40.000;read;0.2;;;;\n")
+    s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}])
+    rtc = s["devices"][0]["rtc"]
+    assert rtc["files"] == 3, "all three sidecars, not the first"
+    assert rtc["resets"] == 1, "the reset in the second session must reach the night's verdict"
+    assert rtc["reads"] == 3 and rtc["pushes"] == 1 and rtc["span_h"] == 4.0
