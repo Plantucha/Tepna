@@ -450,6 +450,34 @@ def _rate_key(dev: dict) -> str:
     return dev.get("name") or dev.get("model") or dev.get("device_id") or "?"
 
 
+# 🔴 A CONFIGURED STREAM NAME IS NOT ALWAYS ITS FILE TAG, and assuming so is silent in BOTH
+# directions. The config asks for `acc`; `capture.py` writes the O2Ring's accelerometer through
+# `StreamWriter(accraw_path, "accraw")`, so the file lands as `..._ACCRAW.txt` while the Polar
+# Verity's identical `acc` lands as `..._ACC.txt`. Two devices, one config word, two tags.
+#
+# Measured on vigil 2026-09-05: `stream.upper()` matched neither the 38 ACCRAW files on disk nor
+# 2.1 MB of accelerometer data in the live session, so QC reported `missing stream(s):
+# Wellue O2Ring-S:acc` every ~10 min against data that was arriving perfectly. That is a false
+# alarm in the ONE channel whose whole job is to announce data loss — the cost is not the wrong
+# line, it is that a reader who sees it nightly stops believing the true one.
+#
+# The two consumers fail differently from the same cause, which is why this is a shared helper and
+# not a patch at one site: coverage reports a stream MISSING (loud and wrong), while `rate_reality`
+# finds no candidate file and emits no row at all (silent and wrong).
+_STREAM_FILE_TAGS = {"acc": ("ACC", "ACCRAW")}
+
+
+def stream_file_tags(stream: str) -> tuple[str, ...]:
+    """Every file tag a configured stream may legitimately be written under, upper-case.
+
+    Default is the name upper-cased, which is right for every stream but the exception above. A
+    UNION rather than a per-device mapping on purpose: no device writes both tags (verified on the
+    real corpus — 38 `_ACCRAW.` against 2 `_ACC.` on 2026-09-05, disjoint by device), so accepting
+    either cannot mask one device's loss with another's data, and a device that changes which it
+    writes does not silently become `missing`."""
+    return _STREAM_FILE_TAGS.get(stream, (stream.upper(),))
+
+
 def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
     """Per stream: the rate ASKED FOR against the rate the file actually carries.
 
@@ -486,8 +514,8 @@ def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
     for dev in devices or []:
         for stream in sorted((dev.get("streams") or [])):
             want = _expected_hz(dev, stream)
-            suffix = "_" + stream.upper() + ".txt"
-            cand = [n for n in names if n.endswith(suffix) and _dev_matches(n, dev)]
+            suffixes = tuple("_" + t + ".txt" for t in stream_file_tags(stream))
+            cand = [n for n in names if n.endswith(suffixes) and _dev_matches(n, dev)]
             if not cand:
                 continue
             # the LARGEST file of the session — the shortest ones are re-connect fragments whose few
@@ -1715,12 +1743,12 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         streams: dict[str, int] = {}
         coverage: dict[str, float] = {}
         for s in d.get("streams") or []:
-            tag = s.upper()
+            tags = stream_file_tags(s)
             # Everything is the CURRENT SESSION (the `current` set, unified across midnight) — so a stream
             # is `missing` only if it produced nothing THIS session, and its row count + coverage reflect
             # the session, never an earlier daytime or previous-night one.
             rows = sum(f["rows"] for f in current
-                       if writers.file_device_id(f["file"]) in dids and f["stream"] == tag)
+                       if writers.file_device_id(f["file"]) in dids and f["stream"] in tags)
             streams[s] = rows
             if rows == 0:
                 # An OPTIONAL backup device that did not join is EXPECTED, not a gap — it stays out of
