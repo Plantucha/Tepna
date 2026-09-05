@@ -4323,9 +4323,14 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype:
             #     then reads to the watchdog as a wedged adapter).
             async def _locked_pull():
                 async with _CONNECT_LOCK:
+                    # `serial` is the auth payload; `device_id` is the ledger key the pull falls back to
+                    # when the ring does not answer its identity read — the SAME key the auto-harvest
+                    # path and every earlier pull used, so a transient 0xE1 timeout cannot re-key a
+                    # committed session as `0000/<stamp>` and pull it again (vigil 2026-08-29/30).
                     return await pull_session.pull(dev["address"], out_dir, which=which, ftype=ftype,
                                                    adapter=await adapter_hci(),
-                                                   serial="0000", wait=45, on_progress=_prog) or []
+                                                   serial="0000", wait=45, on_progress=_prog,
+                                                   device_id=dev.get("device_id")) or []
             try:
                 saved = await asyncio.wait_for(_locked_pull(), timeout=_OFFLINE_OP_TIMEOUT_S)
             except asyncio.TimeoutError:
