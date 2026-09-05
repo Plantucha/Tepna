@@ -4445,7 +4445,7 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype:
                 try:
                     _nbytes += os.path.getsize(_f)
                 except OSError:
-                    pass
+                    pass                  # a file gone between rename and stat: the ledger says 0 bytes, not a raise
             pw.attempt_finished(_time.monotonic(), ok=_outcome["ok"], failure=_outcome["failure"],
                                 files=len(saved), bytes=_nbytes)
             _power_flush(name)

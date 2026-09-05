@@ -35,7 +35,10 @@ def _clean_daemon_state():
     capture.STATUS.clear()
     capture.STATUS["devices"] = {}
     yield
-    capture._STOP.set()
+    # Leave the module's stop flag CLEAR, never set: every loop here has already returned by the time
+    # this runs, and a set flag leaks into the next file — test_presence_wire's first loop test then
+    # never enters its body and fails on a KeyError that reads as a fold defect (measured 2026-09-05).
+    capture._STOP = asyncio.Event()
     capture._PRESENCE.clear()
     capture._PRESENCE_NAMES.clear()
 
@@ -196,6 +199,30 @@ def test_the_power_gate_is_ring_only_a_polar_charger_pull_is_untouched(tmp_path,
                                      str(tmp_path)))
     assert calls == ["H10"]
     assert "H10" not in capture._POWER
+
+
+def test_a_busy_slot_on_a_polar_charger_pull_touches_no_engine(tmp_path, monkeypatch):
+    """The RESOURCE_WAIT branch of the busy handler is ring-only too: a Polar pull refused by the offline
+    slot re-arms its latch (pre-existing behaviour) and creates no power engine for the sensor."""
+    h10 = {"name": "H10", "vendor": "Polar", "model": "H10", "address": "24:AC:AC:02:84:96", "device_id": "1"}
+    capture.STATUS["devices"]["H10"] = {"charging": True}
+
+    async def busy_polar(dev, root):
+        raise capture.offline_lock.OfflineBusy("held")
+    monkeypatch.setattr(capture, "pull_polar_offline_all", busy_polar)
+    _stop_after(monkeypatch, 2)
+    _run(capture.charger_pull_poller({"pull": {"auto": True, "charger_settle_sec": 0}, "devices": [h10]},
+                                     str(tmp_path)))
+    assert "24:AC:AC:02:84:96" not in capture._CHARGER_PULLED, "the latch re-arms for the next tick"
+    assert "H10" not in capture._POWER
+    assert "power" not in capture.STATUS
+
+
+def test_power_flush_for_a_name_with_no_engine_publishes_nothing():
+    """`_power_flush` is called from paths that run for every device; a name that never got an engine
+    (no `run_oxyii` yet, or not a ring) must be a no-op, not a KeyError and not an empty snapshot."""
+    capture._power_flush("nobody")
+    assert "power" not in capture.STATUS
 
 
 # ── the hourly reconciliation net (autopull_poller) ─────────────────────────────────────────────────
