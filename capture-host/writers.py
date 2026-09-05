@@ -314,6 +314,17 @@ class StreamWriter:
     HEADERS = {
         "ecg":  "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]",
         "acc":  "Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]",
+        # THE O2RING'S 3-AXIS ACC (cmd 0x14), its own stream key for the reason `ppg1`/`ppg2w` have
+        # theirs: the column set IS the contract a reader resolves units from, and these are RAW COUNTS.
+        # Polar publishes a scale so `acc` can honestly say mg; the ring's vendor publishes none, and
+        # nothing here has been calibrated against a known g. Writing these rows under the `acc` header
+        # would put a FABRICATED UNIT into the file — a reader would multiply counts as if they were
+        # milli-g and get an answer wrong by whatever the true scale is. `raw` is the honest column, and
+        # it can be renamed to mg the day a six-orientation calibration measures the factor.
+        # `sensor timestamp [ns]` is written as 0 DELIBERATELY: the ring exposes no device clock on this
+        # opcode, exactly as on 0x05. A zero column reads as "no device timebase"; a plausible number
+        # would read as a measurement that never happened.
+        "accraw": "Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]",
         "ppg":  "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient",
         # SINGLE-optical-column PPG — the O2Ring finger site (PPGDEX-O2RING-FINGER-SITE §3). Its own
         # stream key rather than a variant of "ppg", so the header and the row shape cannot drift
