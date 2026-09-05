@@ -67,7 +67,29 @@ const BIOME = join(ROOT, 'node_modules', '.bin', 'biome');
    bare names decays into a silencer; one that must say WHY stays reviewable. Copied deliberately from
    the Python sibling's ALLOW_FUNCS discipline. */
 export const ALLOW = {
-  // 'SomeName': 'why this is legitimately unreferenced',
+  /* THE ANALYSIS-TOOL RESULT GLOBALS. Each `*-analysis.js` publishes exactly one uppercase result
+     object, written once and read nowhere — the shape is identical across all seven, which is what
+     makes it a convention rather than seven oversights. Inferred, and marked as inferred: NO comment
+     in any of them states the intent, but a populated object on `window` in a page whose whole purpose
+     is producing numbers is a devtools handle. If that is wrong, the fix is one comment at the write
+     site, not seven deletions. Triaged 2026-09-05. */
+  CGM_HRV_COUPLING: 'analysis-tool result object on window — devtools inspection handle (inferred; no comment states it)',
+  NIGHTS_ICC: 'analysis-tool result object on window — devtools inspection handle (inferred)',
+  QRS_EQUIV: 'analysis-tool result object on window — devtools inspection handle (inferred)',
+  QRS_YIELD: 'analysis-tool result object on window — devtools inspection handle (inferred)',
+  TRIO_POWER: 'analysis-tool result object on window — devtools inspection handle (inferred)',
+  SIGMA_RESULT: 'analysis-tool result object on window — devtools inspection handle (inferred)',
+  TREATMENT_RESPONSE: 'analysis-tool result object on window — devtools inspection handle (inferred)',
+  /* DOCUMENTED TOMBSTONES, and the citation is in the code rather than inferred: oxydex-profile.js:494
+     reads "ANS-age exposure (window._ansAgeAvg / _ansAgeLast) REMOVED 2026-06-23" and :497 still
+     assigns `null` deliberately — clearing a value a previous page state could otherwise leave behind.
+     Flagged correctly by the scan; explained by the file. */
+  _ansAgeAvg: 'REMOVED 2026-06-23 (oxydex-profile.js:494); the null assignment is a deliberate tombstone',
+  _ansAgeLast: 'REMOVED 2026-06-23 (oxydex-profile.js:494); the null assignment is a deliberate tombstone'
+  /* NOT allowlisted, deliberately: _hrvProfileAlt / _useIdeal / _projVO2 in hrvdex-profile.js. Those
+     are the real finding — one carries a comment asserting a consumer that does not exist. Residue
+     2026-09-05-hrvdex-profile-globals-unread. An allowlist entry there would silence the only true
+     positive this tool has produced. */
 };
 
 /* Strip line and block comments, and string literals, before searching for references. Strings matter
