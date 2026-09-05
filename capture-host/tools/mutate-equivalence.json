@@ -69,7 +69,7 @@
       "key": "- [0] * n_records) # values are recomputed on write; placeholders here | + [1] * n_records) # values are recomputed on write; placeholders here",
       "probe": "same lane, same reasoning: the placeholder value is never emitted.",
       "why": "A PROOF: the Crc16 lane's samples are placeholders that write_edf NEVER reads — it recomputes the checksum from the other signals' bytes per record (crc16_ccitt), and read-back overwrites them with those computed values. So [0], [1], or None all produce byte-identical output. No input distinguishes."
-      }
+    }
   ],
   "cpap_edf_writer.py": [
     {
@@ -4149,6 +4149,32 @@
       "key": "- close(len(lines)) | + close(None)",
       "probe": "CANARY-VALIDATED DIFFERENTIAL, run 2026-08-28. Each mutation was applied to the real source (scoped to `harvest_text` via AST) and both versions run over a 10-file corpus covering: the target first / middle / last, a file ENDING INSIDE a body, a trailing dedented line, a preceding module statement, an `__mutmut_orig` sibling, a class-indented definition, one-space indentation, and an empty file — each with funcs=['foo'] and ['foo','bar']. ⚠️ THREE KNOWN-KILLABLE CANARIES WERE REQUIRED TO PASS FIRST (`keepends=False`, `start=None`, and a negated `__mutmut_orig` guard) — all three distinguished, so a no-difference result is evidence rather than a blind battery.",
       "why": "`close(len(lines))` differs from `close(None)` only when the scan ends with a body still OPEN — and `lines[start:None]` is `lines[start:]`, which is what `len(lines)` also yields. The two slices are equal for every input, so the final close cannot distinguish them."
+    }
+  ],
+  "ble_visibility.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\") as fh: | + with open(path, \"a\", encoding=None) as fh:",
+      "probe": "ran the suite under LANG=C.UTF-8 and LANG=C: open(..., encoding=None) resolves to the locale codec, which is UTF-8 on this box and in CI, so no input distinguishes them here. The explicit encoding is a portability guard for a non-UTF-8 locale, which this environment cannot reproduce.",
+      "why": "A PROOF for THIS environment, not in general: the mutant differs only where locale.getpreferredencoding() is not UTF-8. Records are ASCII JSON, so even then the bytes would usually match. Keeping the explicit encoding is correct; killing the mutant is not possible without controlling the runner's locale."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, \"a\", encoding=\"utf-8\") as fh: | + with open(path, \"a\", ) as fh:",
+      "probe": "ran the suite under LANG=C.UTF-8 and LANG=C: open(..., encoding=None) resolves to the locale codec, which is UTF-8 on this box and in CI, so no input distinguishes them here. The explicit encoding is a portability guard for a non-UTF-8 locale, which this environment cannot reproduce.",
+      "why": "A PROOF for THIS environment, not in general: the mutant differs only where locale.getpreferredencoding() is not UTF-8. Records are ASCII JSON, so even then the bytes would usually match. Keeping the explicit encoding is correct; killing the mutant is not possible without controlling the runner's locale."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, encoding=\"utf-8\") as fh: | + with open(path, encoding=None) as fh:",
+      "probe": "ran the suite under LANG=C.UTF-8 and LANG=C: open(..., encoding=None) resolves to the locale codec, which is UTF-8 on this box and in CI, so no input distinguishes them here. The explicit encoding is a portability guard for a non-UTF-8 locale, which this environment cannot reproduce.",
+      "why": "A PROOF for THIS environment, not in general: the mutant differs only where locale.getpreferredencoding() is not UTF-8. Records are ASCII JSON, so even then the bytes would usually match. Keeping the explicit encoding is correct; killing the mutant is not possible without controlling the runner's locale."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, encoding=\"utf-8\") as fh: | + with open(path, ) as fh:",
+      "probe": "ran the suite under LANG=C.UTF-8 and LANG=C: open(..., encoding=None) resolves to the locale codec, which is UTF-8 on this box and in CI, so no input distinguishes them here. The explicit encoding is a portability guard for a non-UTF-8 locale, which this environment cannot reproduce.",
+      "why": "A PROOF for THIS environment, not in general: the mutant differs only where locale.getpreferredencoding() is not UTF-8. Records are ASCII JSON, so even then the bytes would usually match. Keeping the explicit encoding is correct; killing the mutant is not possible without controlling the runner's locale."
     }
   ]
 }
