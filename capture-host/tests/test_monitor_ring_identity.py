@@ -39,11 +39,23 @@ def _render(status):
     return json.loads(r.stdout.strip())
 
 
-def test_the_identity_line_renders_serial_and_firmware_once_read():
+def test_the_identity_line_renders_serial_and_branch_once_read():
     out = _render({"ring_serial": "2592302100", "ring_firmware": "2D010002", "ring_identity_mismatch": None})
     assert 'id="ring-identity"' in out
     assert "2592302100" in out and "2D010002" in out
     assert 'id="ring-identity-alarm"' not in out, "a matching (or unconfigured) ring shows no alarm"
+
+
+def test_the_branch_code_is_NOT_labelled_firmware():
+    """oxyii.py:272-278: the ring reports branch 2D010001 AND firmware 1.13.1.0 — two fields of one
+    0xE1 reply — and `parse_get_info` returns the BRANCH under the key "firmware". The STATUS key
+    keeps the parser's name (renaming both is residue 2026-09-02-oxyii-branchcode-named-firmware),
+    but the OPERATOR must not be shown a branch code labelled as a firmware version: that is a number
+    under the wrong name, on the one panel whose whole job is saying which device this is."""
+    out = _render({"ring_serial": "2592302100", "ring_firmware": "2D010002"})
+    assert "branch" in out
+    assert "firmware <b>" not in out, "the branch code must not be drawn as the firmware version"
+    assert "not the firmware version" in out, "…and the difference is stated, not merely avoided"
 
 
 def test_the_alarm_renders_with_its_id_and_the_verdict_sentence():

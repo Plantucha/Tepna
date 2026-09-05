@@ -45,8 +45,22 @@ nothing — `find_unwired` reds that as the half-wired shape (O2RING §20), and 
 no surface shows is not restraint. The noise argument that motivated hiding it is answered by drawing
 it only while it is non-zero.
 
-Tests: 28 across `test_alerts`, `test_capture_runners`, `test_webmon_state_contract` and the new
-`test_monitor_ring_identity` (render executed under node, hostile strings entity-encoded). Nine
+**The alert attributes, it does not suppress.** A #2209 restart storm produces the same shape, so the
+text branches on the daemon's own storm state (`_OXYII_STORMS`/`_OXYII_RESTARTS` inside
+`_OXYII_STORM_MEMORY_S`, passed in from `capture.py` so the window keeps one home) — "a restart storm
+tripped N min ago, so this is very likely the ring restarting, not an impostor" versus neutral wording
+when no storm is in evidence. Whether it fires is unchanged, and that is plant-tested. ⚠️ Clause 1's
+silence is NOT used as a discriminator despite looking like the strongest one: it is inert until
+`serial:` is configured, and vigil has zero such keys, so the inference would be vacuous on the box
+that owns this hardware.
+
+⚠️ **The `0xE1` "firmware" field is the BRANCH CODE**, per `oxyii.py:272-278` — the ring reports branch
+`2D010001` *and* firmware `1.13.1.0`, and `parse_get_info` returns the branch under the key
+`firmware`. The monitor draws it as **branch**; the STATUS key keeps the parser's name so the two
+cannot disagree, and renaming both stays with residue `2026-09-02-oxyii-branchcode-named-firmware`.
+
+Tests: 35 across `test_alerts`, `test_capture_runners`, `test_webmon_state_contract` and the new
+`test_monitor_ring_identity` (render executed under node, hostile strings entity-encoded). Twelve
 plants — journal every readback, latch before delivery, never clear the latch, never compare; drop
 the reset arm, count failed connects, journal every episode, shift the threshold, stop publishing
 the count — each turn named tests red.

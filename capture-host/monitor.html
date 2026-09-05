@@ -1169,8 +1169,15 @@ function renderRingIdentity(status) {
   const sn = status.ring_serial, fw = status.ring_firmware, mm = status.ring_identity_mismatch;
   let out = '';
   if (sn || fw) {
+    // "branch", NOT "firmware", and the distinction is the device's own: oxyii.py:272-278 records
+    // that the ring answers with branch 2D010001 AND firmware 1.13.1.0 — two different fields of one
+    // 0xE1 reply — and that `parse_get_info` returns the BRANCH under the key "firmware". Drawing it
+    // as a firmware version puts a number on the operator's screen under the wrong name, which is the
+    // failure this panel exists to prevent, one field over. The STATUS key keeps the parser's name so
+    // the two cannot disagree; renaming both is residue 2026-09-02-oxyii-branchcode-named-firmware
+    // and belongs with the parser.
     out += `<div id="ring-identity" class="hint">peer identity: serial <b>${esc(String(sn || '—'))}</b>`
-      + ` · firmware <b>${esc(String(fw || '—'))}</b> <span class="hint">(0xE1 wire serial, not the filename id)</span></div>`;
+      + ` · branch <b>${esc(String(fw || '—'))}</b> <span class="hint">(0xE1 wire serial + branch code — not the filename id, and not the firmware version)</span></div>`;
   }
   if (mm) {
     out += `<div id="ring-identity-alarm" class="mb" style="color:#c55">⚠ RING IDENTITY MISMATCH — ${esc(String(mm))}`

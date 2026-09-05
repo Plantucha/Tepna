@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (C4 EXECUTED — verified 2026-09-05: the §6.3 content gate is in `tepna-update.sh`, changeset `update-restart-content-gate`, 9 gate tests + 3 killed plants. Mitigation C EXECUTED, both clauses — verified 2026-09-05: `run_oxyii` publishes the `0xE1` wire serial + firmware to STATUS/monitor and compares the serial against a new optional O2Ring `serial:` key (clause 1), and counts the RUN of connects that answer identity and deliver no frames (clause 2); changeset `ring-identity-alert`, 34 gate tests + 12 killed plants; ⚠ the comparable field is the WIRE serial `2592302100`, not the BLE-name id `S8AW2100` the bullet named — see §6.2; clause 1 is ARMED only once the owner sets `serial:` on vigil, while clause 2 needs no configuration and is armed on every box. §6.1 box ops and §6.2 Probe A are owner-attended; Mitigation B WITHDRAWN by owner correction (§6.2 — the `.dat` harvest is already BLE), B′ and D3 tracked separately) · **Created:** 2026-09-05
+**Status:** PROPOSED (C4 EXECUTED — verified 2026-09-05: the §6.3 content gate is in `tepna-update.sh`, changeset `update-restart-content-gate`, 9 gate tests + 3 killed plants. Mitigation C EXECUTED, both clauses — verified 2026-09-05: `run_oxyii` publishes the `0xE1` wire serial + firmware to STATUS/monitor and compares the serial against a new optional O2Ring `serial:` key (clause 1), and counts the RUN of connects that answer identity and deliver no frames (clause 2); changeset `ring-identity-alert`, 35 gate tests + 12 killed plants; ⚠ the comparable field is the WIRE serial `2592302100`, not the BLE-name id `S8AW2100` the bullet named — see §6.2; clause 1 is ARMED only once the owner sets `serial:` on vigil, while clause 2 needs no configuration and is armed on every box. §6.1 box ops and §6.2 Probe A are owner-attended; Mitigation B WITHDRAWN by owner correction (§6.2 — the `.dat` harvest is already BLE), B′ and D3 tracked separately) · **Created:** 2026-09-05
 
 # Vigil Bluetooth — adversarial audit (owner-ordered: "must be spotless")
 
@@ -249,6 +249,20 @@ session-crypto negotiation exists on the BLE transport — the §3.3 AES belongs
   * **The journal guard is the transition into the ALERTING STATE, not into a new string.** Clause 1
     compares texts because a mismatch text is stable; this text carries the run length, so comparing
     texts journalled at 3 and again at 4 — measured by the test, which is why it is written down.
+  * **The alert ATTRIBUTES rather than suppresses.** A #2209 restart storm produces this exact shape
+    — connect, identity, the ring restarts, no frames — so the alarm is a true positive either way,
+    but an operator sent after an impostor when a known storm is the cause has been misled. The text
+    branches on the daemon's own `_OXYII_STORMS`/`_OXYII_RESTARTS` within `_OXYII_STORM_MEMORY_S`
+    (read in-process — no STATUS publication was needed for this, though one is worth having for the
+    monitor); the FIRING never branches, and both directions are plant-tested. ⚠️ Clause 1's silence
+    is deliberately NOT a discriminator: it is inert until `serial:` is configured and vigil has
+    **zero** such keys (measured 2026-09-05), so the inference would be vacuous on the very box that
+    owns this ring.
+  * **The `0xE1` "firmware" is the BRANCH CODE** (`oxyii.py:272-278` — the ring reports branch
+    `2D010001` *and* firmware `1.13.1.0`; `parse_get_info` returns the branch under the key
+    `firmware`). The monitor therefore draws it as **branch**, not as a firmware version: the STATUS
+    key keeps the parser's name so the two cannot disagree, and renaming both is residue
+    `2026-09-02-oxyii-branchcode-named-firmware`, which belongs with the parser.
   * **The RUN is drawn, not merely forwarded.** It was first published to `/api/state` and drawn by
     nothing, on the argument that a count reading 0 or 1 is noise — and `find_unwired` reds exactly
     that as the half-wired shape (O2RING §20: a field that reaches `/api/state` and no further is
