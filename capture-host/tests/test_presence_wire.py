@@ -256,7 +256,7 @@ def _arm_presence(rec_state=None):
 def _drive_dispatch(monkeypatch, cfg, ticks=3):
     pulls = []
 
-    async def fake_pull(dev, root, which="latest", ftype=0):
+    async def fake_pull(dev, root, which="latest", ftype=0, *, trigger="manual"):
         pulls.append((dev["name"], which, ftype))
         return {"new_files": ["a.dat"]}
 
@@ -279,6 +279,7 @@ def _drive_dispatch(monkeypatch, cfg, ticks=3):
         capture._PRESENCE_PULLED.discard(A)
         capture._PRESENCE_PROBED.pop(A, None)
         capture.STATUS["devices"].pop("Ring", None)
+        capture._POWER.pop("Ring", None)          # the power engine is per-process; no strikes leak
     return pulls
 
 
@@ -384,7 +385,7 @@ def test_artifact_committed_is_stamped_ONLY_when_a_FILE_was_produced(monkeypatch
     capture._WITNESS.pop(A, None)
     _arm_presence()
 
-    async def empty_pull(dev, root, which="latest", ftype=0):
+    async def empty_pull(dev, root, which="latest", ftype=0, *, trigger="manual"):
         return {"new_files": []}
 
     monkeypatch.setattr(capture, "pull_oxyii_session", empty_pull)

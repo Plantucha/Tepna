@@ -389,6 +389,12 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # and read by nothing (the find_unwired top-level-STATUS blind spot, sibling of the
             # radio_distress case this same file records above).
             "radio_switches": status.get("radio_switches"),
+            # The O2Ring POWER axis (oxy_power) — per ring: power state, whether the radio is on and
+            # for whom, the scan policy in force, the strike/cooldown cache and the §21 counters
+            # (scan seconds, connection seconds, harvests, deferrals). Forwarded on the day it was
+            # written so it never joins the published-and-read-by-nothing class above. Null until a
+            # ring's capture task has started.
+            "power": status.get("power"),
         })
 
     # ── CPAP manual pull ────────────────────────────────────────────────────────────────────────

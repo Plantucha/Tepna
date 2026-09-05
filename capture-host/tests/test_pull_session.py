@@ -282,7 +282,10 @@ def test_adapter_pin_reaches_bleak_in_the_bluez_form(tmp_path, monkeypatch):
         return None
     monkeypatch.setattr(pull_session.asyncio, "sleep", no_sleep)
     _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, "hci1", "0000"))
-    assert seen["client"] == {"bluez": {"adapter": "hci1"}}
+    assert seen["client"] == {"bluez": {"adapter": "hci1"}, "timeout": 30.0}, (
+        "the connect timeout is a DECLARED bound (oxy_power.TIMEOUTS.connect_s), not bleak's default — "
+        "the same 30 s, but named, so all seven phase bounds of the power lifecycle are numbers a reader "
+        "can find")
     assert seen["scan"] == {"timeout": 25, "bluez": {"adapter": "hci1"}}, (
         "the adapter pin must reach the SCAN too — scanning on the default radio and then connecting on "
         "hci1 finds a device the pinned adapter may not see. 25 s is measured, not arbitrary: FILE_LIST "
