@@ -121,9 +121,19 @@ the flag was False, it was that nothing said so.
       §5a. It yields the pull-duration half of the answer and a single uncontaminated data point, and
       it establishes that the tail needs a deliberate experiment. The three-way decision (sufficient /
       shorten the settle / hold-through-pull) is **still open**.
-- [ ] **§5's recording state machine** (`UNKNOWN → RECORDING → END_CANDIDATE → END_CONFIRMED`) on the
+- [x] **§5's recording state machine** (`UNKNOWN → RECORDING → END_CANDIDATE → END_CONFIRMED`) on the
       `duration_s` axis. ⚠️ **The recording axis is `OXYII-PRESENCE-MODEL`'s model** — coordinate the
       seam before locking the enum, and do not collide with that brief's in-flight `IDLE_UNWORN` emit.
+      **VERIFIED BUILT 2026-09-05 — `oxy_lifecycle.OxyRecState`**, and the seam warning is satisfied
+      rather than merely avoided. The enum carries FIVE states, not the four this line lists —
+      `NOT_RECORDING` ("duration_s observed 0") sits between UNKNOWN and RECORDING — with
+      `REC_LEGAL_TRANSITIONS` pinning the legal moves, including the one worth reading:
+      `END_CANDIDATE → RECORDING` for a ring re-donned before the old session's pull confirmed, whose
+      *"confirmation debt lives in the inventory ledger, not in this axis"*.
+      **The `IDLE_UNWORN` collision does not occur**: presence and recording are two SEPARATE enums in
+      the same module — `OxyLinkState` (holding `IDLE_UNWORN`) and `OxyRecState` — so the two briefs'
+      models coexist on their own axes instead of competing for one. That is the coordination this item
+      asked for, done at the seam rather than by one side deferring.
 - [~] **T0–T7 latency instrumentation — MAPPED in §11.** T1/T2/T4/T5 are already emitted (T4 via
       `classify()` — corrected 2026-08-25); only **T3** needs an emit, and T3/T4 currently share one
       timestamp. T6/T7 are downstream, T0 is the axis. ~~⚠️ §11(c): the ledger has never actually been
