@@ -376,6 +376,13 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # ≥2 rated links distressed together); it ships REPORT-ONLY behind
             # `watchdog.distress_failover` (default off — arming is the owner's, against the
             # criterion pre-stated in RADIO-FAILOVER-DISTRESS-SIGNAL §6).
+            # THE ONLY RUNTIME EVIDENCE A DOFF OR PRESENCE PULL EVER FIRED. `trigger` names which
+            # scheduler dispatched it and `drained` how many stranded fragments the follow-on sweep
+            # recovered — neither is recoverable from the night tree afterwards, because a file that
+            # arrives by presence and one that arrives by the hourly poller are byte-identical on
+            # disk. Published since the auto-pull landed and forwarded by nothing until now, so the
+            # doff trigger had no observable off the box at all.
+            "autopull": status.get("autopull"),
             "radio_distress": status.get("radio_distress"),
             "radio_distress_adapter": status.get("radio_distress_adapter"),
             # Every switch as an EVENT with its cause — the brief's item 4. Was published to STATUS

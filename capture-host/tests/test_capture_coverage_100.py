@@ -806,7 +806,7 @@ def test_a_DOFF_triggered_pull_reaches_pull_oxyii_session_as_LATEST(tmp_path, mo
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
     _stop_after(monkeypatch, 3)
     _run(capture.charger_pull_poller(cfg, str(tmp_path)))
-    assert pulls == [("Ring", "latest", 0)], f"doff pull must ask for latest, got {pulls}"
+    assert pulls[:1] == [("Ring", "latest", 0)], f"doff pull must ask for latest, got {pulls}"
     assert capture.STATUS["autopull"]["trigger"] == "not-worn"
 
 

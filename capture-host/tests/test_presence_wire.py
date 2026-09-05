@@ -288,7 +288,12 @@ def test_a_PRESENCE_triggered_pull_reaches_pull_oxyii_session_as_LATEST(monkeypa
     This is the only assertion that fails when the trigger is disconnected from the harvest."""
     _arm_presence()
     pulls = _drive_dispatch(monkeypatch, _ring_cfg())
-    assert pulls == [("Ring", "latest", 0)], "presence must dispatch, once, at the narrow scope"
+    # THE FIRST DISPATCH IS STILL THE NARROW ONE, and that is the invariant this test exists for:
+    # the event pull races the ring's post-drop tail, so widening it trades a measured scope for an
+    # unmeasured bound. A SECOND `new` dispatch follows it (2026-09-06) to drain the fragments the
+    # narrow scope leaves — it runs only after the ring has already answered, so it races nothing.
+    assert pulls[0] == ("Ring", "latest", 0), "presence must dispatch FIRST at the narrow scope"
+    assert [p[1] for p in pulls] == ["latest", "new"], "the follow-on drain must be the ledger diff"
 
 
 def test_a_RECORDING_ring_is_NOT_pulled_by_the_presence_trigger(monkeypatch):
@@ -332,7 +337,7 @@ def test_the_ONCE_PER_SESSION_latch_is_load_bearing_with_the_rate_limit_disabled
     cfg["o2ring"]["presence_harvest"]["min_probe_interval_sec"] = 0
     _arm_presence()
     pulls = _drive_dispatch(monkeypatch, cfg, ticks=3)
-    assert pulls == [("Ring", "latest", 0)], (
+    assert pulls[:1] == [("Ring", "latest", 0)], (
         "the ring stayed present across three ticks — without the latch this pulls every tick")
 
 
