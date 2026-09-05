@@ -51,6 +51,34 @@
  * it would remove exactly the coverage the tool exists for. Run it on demand; treat 5 minutes as the
  * price of scanning the file that matters.
  *
+ * 🔴 MEASURED YIELD ON THIS REPO, 2026-09-05: FIVE collisions, ZERO of them this tool's defect.
+ * Recorded here so the next reader does not re-derive an evening — they will run it, see five hits,
+ * and need this paragraph rather than the list.
+ *
+ *   NULL FIRST, on the population that matches the finding (test↔shipped, not shipped↔shipped —
+ *   a null drawn from the wrong pair is how a rate gets quoted for a comparison it never measured):
+ *       3 unrelated test↔shipped pairs · 356 bodies · 0 cross-file collisions
+ *   So at the 12-token floor chance collisions are ~0 and the hits are signal, not volume.
+ *
+ *   THE FIVE, sized (tokens after normalisation) and read:
+ *     136  tests/oxy-hang.worker.js:20   ≡ 3 worker files   `installDomShim`
+ *      40  tests/oxy-hang.worker.js:46   ≡ 2 worker files
+ *      23  tests/tch-golden-inputs.js:38 ≡ cohort-gen.js:43
+ *      21  tests/apnea-null-twins.js:35  ≡ motiondex-dsp.js:1297   `mulberry32`
+ *      18  tests/oxy-hang.worker.js:22   ≡ 2 worker files
+ *
+ *   ALL FIVE ARE REAL DUPLICATES — the hashing is correct — and NONE is "a test exercising a private
+ *   copy of the thing under test". `installDomShim` is a DOM stub, and these workers are blob-URL
+ *   minted so they cannot share imports; `mulberry32` is the public-domain seeded PRNG, `a` in the
+ *   test and `s` in the DSP, which positional renaming caught precisely because only the variable
+ *   differs. Duplicating a PRNG is how deterministic fixtures are made.
+ *
+ * ⚠️ SO: A DUPLICATED BODY IS NECESSARY BUT NOT SUFFICIENT. The missing predicate is whether the local
+ * copy is the SUBJECT OF AN ASSERTION — a test that defines a duplicate and merely calls it is
+ * scaffolding; one that asserts on its result is testing its own copy. Not implemented, and not
+ * speculatively worth implementing at a zero yield. NO residue rows were filed for the five: both
+ * duplications are deliberate, and filing them would send a later session to "fix" correct code.
+ *
  * Usage:
  *   node tools/find-copied-bodies.mjs             # report (always exit 0)
  *   node tools/find-copied-bodies.mjs --selftest
