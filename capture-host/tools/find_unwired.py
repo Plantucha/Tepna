@@ -279,31 +279,12 @@ ALLOW_FUNCS = {
     "is_offline_cmd": "the READ half of a write/read pair whose write half IS used — `as_offline` sets "
                       "the bit in probe_verity_offline and probe_verity_survey; nothing needs to ask "
                       "the question back. Same shape as busy_with",
-    # ⚠️ THE PREVIOUS REASON WAS FALSE, in the same way `pull_spool`'s below it was: both claimed "used
-    # by the pairing probe". THERE IS NO PAIRING PROBE, and there never was one — no file matching
-    # *pair* appears anywhere in this repo's history, and `SrpClient`, the class these two feed, is
-    # referenced by nothing but its own tests. Measured 2026-08-30 while the pairing endpoint was being
-    # investigated; the `pull_spool` correction below had been made WITHOUT sweeping its siblings,
-    # which is how a second false reason survived two lines away. A fix that does not sweep its own
-    # class leaves the rest.
-    #
-    # 🔴 BUT THIS IS NOT `pull_spool`'S STATE, AND THE DISTINCTION DECIDES WHETHER THEY GET DELETED.
-    # `pull_spool` is retired because nothing will ever call it — its consumer exists and chose another
-    # path. These are called only by tests because their CONSUMER WAS NEVER WRITTEN: the webmon pairing
-    # endpoint and its contract test exist (`test_webmon_cpap_pair_contract.py`, which pins today's 501
-    # as INTENDED), the SRP primitives exist, and the orchestration between them — connect →
-    # StartKeyExchange → prove → ConfirmKeyExchange → verify M2 → write as11_creds.json — exists
-    # nowhere. Producer-half foundation of an unbuilt feature, not residue.
-    # Deleting them would mean "AS11 pairing is permanently abandoned", which is the owner's call and
-    # not a gate-hygiene decision. The owner said pairing is not needed NOW (the AS11 is decoded and
-    # creds already exist on the box) — a different statement.
-    "start_key_exchange": "as11_link — SRP-6a producer-half primitive for AS11 pairing. Its orchestration "
-                          "is UNBUILT, so it is currently reached only by tests. KEEP: the foundation of "
-                          "an unwritten feature, not dead code. Retire only on an explicit decision that "
-                          "AS11 pairing is abandoned",
-    "confirm_key_exchange": "as11_link — SRP-6a producer-half primitive for AS11 pairing. Same state and "
-                            "same reasoning as start_key_exchange above: orchestration unbuilt, reached "
-                            "only by tests, KEEP until pairing is explicitly abandoned",
+    # `start_key_exchange` / `confirm_key_exchange` (as11_link) LEFT this list 2026-09-05: their consumer
+    # — as11_pair.py's connect → StartKeyExchange → prove → ConfirmKeyExchange → verify M2 → write
+    # as11_creds.json orchestration, wired into the daemon as webmon's `cpap_pair` — now exists, so they
+    # are reached by production code and the checker counts them wired. (They sat here 2026-08-30 →
+    # 2026-09-05 as "foundation of an unbuilt feature", after a FALSE earlier reason claimed a pairing
+    # probe used them; that history is in git, not re-narrated here.)
     "pull_spool": "as11_pull — SUPERSEDED, and retained as the protocol-level reference its tests pin. "
                   "⚠️ THE PREVIOUS REASON WAS FALSE: it claimed the operator probe calls this, and "
                   "code-uses measured ZERO. Production drives the spool through cpap_spool.sync_spool "

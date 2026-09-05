@@ -471,28 +471,38 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         return web.json_response({"scope": scope, **res})
 
     async def cpap_pair_h(req):
-        """POST /api/cpap/pair {passkey} — run the ResMed AS11 SRP-6a pairing using the passkey the
-        CPAP shows on its screen, and store the credentials for later BLE pulls (as11_creds.json).
+        """POST /api/cpap/pair — ResMed AS11 SRP-6a pairing, in TWO requests, because the CPAP shows its
+        passkey only AFTER the client's StartKeyExchange lands on an open link:
 
-        The pairing exchange is PLAINTEXT SRP (no AES, no extra dependency); the BLE handshake itself
-        runs on the daemon, which owns the radios — so a build without AS11 support answers 501, never
-        a 200 that paired nothing. The device must be in Bluetooth pairing mode (its menu → Bluetooth)
-        so it shows a passkey; without that there is nothing to enter here. The response carries whatever
-        the daemon's pairing op reports (verified/stored), never a bare 'queued' — pairing either
-        completed against the device or it did not."""
+            {action:"start", ble_addr?}   connect + StartKeyExchange; the LCD now shows the code; the
+                                          daemon HOLDS the link and answers {awaiting:"passkey", seconds_left}
+            {action:"passkey", passkey}   prove the code (M1), VERIFY the device's M2, store as11_creds.json
+            {action:"cancel"}             drop a pending exchange;  {action:"status"} what is pending
+            {passkey}                     (no action) is the passkey step — the pre-2026-09-05 single-shot shape
+
+        The exchange is PLAINTEXT SRP (no AES, no extra dependency); the BLE handshake itself runs on the
+        daemon, which owns the radios — so a build without AS11 support answers 501, never a 200 that
+        paired nothing. The passkey is validated HERE (4–10 digits, or 400 before any BLE work) and the
+        response carries whatever the daemon's pairing session reports (verified/stored/live/
+        restart_required), never a bare 'queued' — pairing either completed against the device or it did
+        not, and nothing is stored until the device proved it holds the same key."""
         if cpap_pair is None:
             return web.json_response(
                 {"ok": False, "error": "CPAP BLE pairing is not wired on this daemon"}, status=501)
         body = await _body(req)
         if body is BAD_BODY:
             return _bad_body_response()
+        action = str(body.get("action") or ("passkey" if "passkey" in body else "")).strip()
+        if action not in ("start", "passkey", "cancel", "status"):
+            return web.json_response(
+                {"ok": False, "error": "action must be 'start', 'passkey', 'cancel' or 'status'"}, status=400)
         passkey = str(body.get("passkey", "")).strip()
-        if not (passkey.isdigit() and 4 <= len(passkey) <= 10):
+        if action == "passkey" and not (passkey.isascii() and passkey.isdigit() and 4 <= len(passkey) <= 10):
             return web.json_response(
                 {"ok": False, "error": "passkey must be the 4–10 digit code shown on the CPAP screen"},
                 status=400)
         try:
-            res = await cpap_pair(passkey)
+            res = await cpap_pair(action, passkey=passkey or None, ble_addr=str(body.get("ble_addr") or ""))
         except Exception as e:            # noqa: BLE001 — a pairing attempt must never 500 the monitor
             return web.json_response({"ok": False, "error": f"{type(e).__name__}: {e}"}, status=500)
         return web.json_response(res)
