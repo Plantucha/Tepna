@@ -57,6 +57,8 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIR = process.argv[2];
 const uArg = process.argv.indexOf('--url');
 const URL_ = uArg > 0 ? process.argv[uArg + 1] : 'http://127.0.0.1:8080';
+let wrote = 0;
+let blank = 0;
 const fArg = process.argv.indexOf('--figures');
 const FIGDIR = fArg > 0 ? process.argv[fArg + 1] : null;
 
@@ -205,14 +207,30 @@ if (FIGDIR) {
     }, id);
     if (!shot) {
       console.log(`    ⊘ ${name} — #${id} drew nothing (no figure written)`);
+      blank++;
       continue;
     }
     const buf = Buffer.from(shot.url.split(',')[1], 'base64');
     fs.writeFileSync(path.join(FIGDIR, name), buf);
+    wrote++;
     console.log(`    ✓ ${name}  ${shot.w}x${shot.h}  ${(buf.length / 1024).toFixed(0)} KB`);
   }
 }
 
 await b.close();
-// A run that rendered nothing is a failure even when nothing threw — the whole point is the render path.
-process.exit(rows > 0 && !errs.length ? 0 : 1);
+
+/* 🔴 A RUN THAT WROTE NO FIGURE IS NOT A PASS, and `rows > 0` could not see that. Measured on the full
+   79-night corpus: three `drew nothing` lines, an EMPTY `--figures` directory, 564 table rows, and
+   EXIT=0 — because the guard counted TABLE ROWS while the thing that failed was the RENDER. A caller
+   could not distinguish "the corpus produced no scoreable night" from "the run worked", by exit code or
+   by the presence of output, so an unattended invocation reads a total non-result as success.
+   The verdict is now stated in words as well as in the exit code: a count that is only a number is what
+   let this pass unread for a corpus run. Refusing to score off-model nights stays correct — what was
+   wrong was reporting that refusal as success. */
+if (FIGDIR) {
+  console.log(`\n  FIGURES: ${wrote} written, ${blank} blank of ${wrote + blank} canvas(es) → ${FIGDIR}`);
+  if (!wrote) console.log('  ⊘ NO FIGURE WAS WRITTEN — this run produced no scoreable output. Reporting FAILURE.');
+}
+console.log(`  TABLE: ${rows} row(s)${errs.length ? `  ·  ${errs.length} console error(s)` : ''}`);
+const okRun = rows > 0 && !errs.length && (!FIGDIR || wrote > 0);
+process.exit(okRun ? 0 : 1);
