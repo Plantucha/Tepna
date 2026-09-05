@@ -11427,10 +11427,20 @@ const MotionDex = window.MotionDex;
     var tc = $('tblClock').querySelector('tbody');
     tc.innerHTML = '';
     var okLocks = 0;
+    /* ONE LABELLING FOR ONE COLUMN. The no-lock branch used `d.name.slice(-22)` while the locked
+       branch below stripped the prefix and suffix by pattern — two spellings of the same identity in
+       the same table, and the magic 22 was off by one: `_ACC.txt` is 8 characters and the stamp 15,
+       so it needs 23 and ate the leading digit of the year. Every no-lock night rendered as
+       `0260611_173042_ACC.txt`. Measured 2026-09-05 on a 49-night run: 17 rows, a third of the table,
+       could not be joined back to the file that produced them — which is exactly what the cohort
+       manifest (`2026-09-02-papers-cohort-never-recorded`) exists to make possible. */
+    var nightLabel = function (name) {
+      return name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', '');
+    };
     for (i = 0; i < done.length; i++) {
       var d = done[i];
       if (!d.lock) {
-        row(tc, [d.name.slice(-22), '—', '—', '—', '—', '—', '<span style="color:var(--red)">no lock</span>']);
+        row(tc, [nightLabel(d.name), '—', '—', '—', '—', '—', '<span style="color:var(--red)">no lock</span>']);
         continue;
       }
       var predOff = drift ? drift.predict(d.dayNum) : NaN;
@@ -11472,7 +11482,7 @@ const MotionDex = window.MotionDex;
       d.offsetUsed = good ? d.lock.off : pooledUsable ? -d.pooled.offsetSec : null;
       d.offsetFrom = good ? 'correlation' : pooledUsable ? 'pooled' : null;
       row(tc, [
-        d.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', ''),
+        nightLabel(d.name),
         d.lock.off,
         fmt(predOff, 1),
         fmt(delta, 1),

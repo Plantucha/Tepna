@@ -175,6 +175,97 @@ const rows = await p.evaluate(() => document.querySelectorAll('table tbody tr').
 console.log(`\n▸ ${rows} table row(s) rendered · ${errs.length} console error(s)`);
 for (const e of errs.slice(0, 5)) console.log('    ✕ ' + e);
 
+/* COHORT MANIFEST — the NIGHT SET behind the n, written beside the figures.
+   `2026-09-02-papers-cohort-never-recorded`: a published n cannot be checked because the night set it
+   was computed over was never recorded, and that — not a transcription error — is how one quantity
+   comes to have two published values. Four sources were checked and none names the cohort; the
+   generating commit says "all 26 nights scored, 18,856 epochs", which is a COUNT, never a SET.
+
+   Every night appears with the stage it reached, so an n is checkable in both directions: which nights
+   produced it, and which were dropped and where. STAGED is read from the input directory rather than
+   from the page, because a night the picker never ingested is invisible to every DOM query — that
+   silent drop is the failure this manifest exists to make visible (`grouped 49` from `staged 50` is a
+   fact no table on the page states).
+
+   ⚠️ THE INCLUSION RULE IS QUOTED FROM THE PAGE, NEVER RESTATED HERE. Paraphrasing "coverage floor,
+   lock gate, head/tail trim" into this file would create a second statement of the rule that drifts
+   from the one that actually gated the run — the same reason the figures are read off the live canvas
+   instead of being re-plotted. `#driftSummary` / `#refSummary` / `#status` carry the page's own words
+   and go in verbatim.
+
+   ⚠️ A cohort-recorded n is NOT comparable to a cohort-less one, so `schema` is stamped and the
+   published 18,856 / 19,193 must not be printed beside a manifest-backed number as though they were
+   the same measurement (the row says this explicitly; see `2026-09-05-respacc-epochs-predate-alignment-fix`). */
+if (FIGDIR) {
+  const dom = await p.evaluate(() => {
+    const tableWhose = (needle) => {
+      for (const t of document.querySelectorAll('table')) {
+        const cap = ((t.previousElementSibling && t.previousElementSibling.textContent) || '').trim();
+        if (cap.includes(needle)) return t;
+      }
+      return null;
+    };
+    const grid = (t) => (t ? [...t.querySelectorAll('tr')].map((r) => [...r.children].map((c) => c.textContent.trim())) : []);
+    const asObjects = (rowsIn) => {
+      if (rowsIn.length < 2) return [];
+      const head = rowsIn[0];
+      return rowsIn.slice(1).map((r) => Object.fromEntries(r.map((v, i) => [head[i] || 'col' + i, v])));
+    };
+    const say = (id) => {
+      const e = document.getElementById(id);
+      return e ? e.textContent.trim() : null;
+    };
+    return {
+      clock: asObjects(grid(tableWhose('Offset recovered by cross-correlating'))),
+      scored: asObjects(grid(tableWhose('Per-night breakdown'))),
+      status: say('status'),
+      refSummary: say('refSummary'),
+      driftSummary: say('driftSummary')
+    };
+  });
+
+  const stagedAcc = fs
+    .readdirSync(DIR)
+    .filter((f) => /Polar_H10.*_ACC\.txt$/i.test(f))
+    .sort();
+  const scoredNights = dom.scored.map((r) => r.Night).filter(Boolean);
+  const manifest = {
+    schema: 'tepna.resp-acc-cohort/1',
+    generatedAt: new Date().toISOString(),
+    stagedDir: path.resolve(DIR),
+    inclusionRuleVerbatim: {
+      note: 'quoted from the page that gated this run; never restated by the harness',
+      status: dom.status,
+      refSummary: dom.refSummary,
+      driftSummary: dom.driftSummary
+    },
+    counts: {
+      stagedAccFiles: stagedAcc.length,
+      inClockTable: dom.clock.length,
+      scoredNights: scoredNights.length
+    },
+    stagedAccFiles: stagedAcc,
+    nights: dom.clock.map((r) => {
+      const night = r.Night || '';
+      const hit = dom.scored.find((s) => s.Night === night);
+      return {
+        night,
+        verdict: r.verdict || null,
+        scored: !!hit,
+        hours: hit ? hit.hours : null,
+        epochs: hit ? hit.epochs : null
+      };
+    }),
+    scoredNights
+  };
+  fs.mkdirSync(FIGDIR, { recursive: true });
+  fs.writeFileSync(path.join(FIGDIR, 'cohort-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  console.log(
+    `\n▸ COHORT → ${path.join(FIGDIR, 'cohort-manifest.json')}` +
+      `\n    staged ${manifest.counts.stagedAccFiles} ACC file(s) · ${manifest.counts.inClockTable} night(s) in the clock table · ${manifest.counts.scoredNights} scored`
+  );
+}
+
 /* FIGURES — read off the LIVE canvases, never re-plotted here. The names match the page's own
    download buttons (resp-acc-analysis-app.js), so what a run writes is what a human clicking Save
    would get. A canvas that never drew is reported as SKIPPED with its id, never written as a blank
