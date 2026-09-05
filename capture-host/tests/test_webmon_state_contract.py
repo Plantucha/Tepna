@@ -207,7 +207,14 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
                          # an EVENT with its cause — both previously STATUS-only (the same unrendered
                          # shape as radio_distress above; `radio_switches` sat unread since the
                          # wedge-cause event landed).
-                         "radio_distress_adapter", "radio_switches"}
+                         "radio_distress_adapter", "radio_switches",
+                         # The stored-spool pull — a SECOND scheduled acquisition actor, declared here
+                         # for the same reason `radio_distress` was: its state previously reached
+                         # nothing at all. Worse than STATUS-only, in fact — `_maybe_start_cpap_spool_pull`
+                         # never passed `st`, so the loop took its own `lambda **kw: None` default and
+                         # published into a no-op while `test_cpap_spool_wire.py` injected a working
+                         # `st` and asserted on it. Fully covered, entirely inert on the box.
+                         "cpap_spool"}
 
 
 def test_the_top_level_blocks_are_null_before_their_pollers_run(tmp_path):

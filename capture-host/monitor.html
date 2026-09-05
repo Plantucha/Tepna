@@ -599,6 +599,8 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
       <div class="card" id="cpapCard" style="display:none">
         <h3>CPAP <span style="font-weight:400;color:var(--text3);font-size:11px">· ResMed card harvested over Wi-Fi — files, not a stream</span></h3>
         <div class="clk-status" id="cpapStatus"><span class="spin">waiting for first run…</span></div>
+        <!-- Actor B: the stored-spool pull. Hidden until it publishes; see renderCpapSpool. -->
+        <div class="clk-status" id="cpapSpoolStatus" style="display:none"></div>
         <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 4px;flex-wrap:wrap">
           <button class="btn btn-primary" data-cpap="last">Download last night</button>
           <button class="btn btn-primary" data-cpap="week">Download last 7 nights</button>
@@ -1441,6 +1443,34 @@ function renderCpap(c){
   (c.errors||[]).forEach(s=>bits.push('error '+s));
   $('#cpapHint').textContent = bits.join(' · ');
 }
+// The stored-spool pull is a SECOND scheduled actor, not another view of the harvest above, so it gets
+// its own line. Rendered because OPERATIONAL-MATURITY-AUDIT §4(1) names "two actors reporting `waiting`
+// continuously across a whole window" as the condition that would falsify the broadcast-coordination
+// verdict — an observation nobody can make while one of the two actors is invisible.
+//
+// ⚠️ VISIBILITY IS NOT CONDITIONED ON `cpap.enabled`. That flag belongs to the HARVEST actor; gating
+// this line on it would hide actor B behind actor A's switch and reproduce, one layer up, the exact
+// blindness this change exists to remove. It shows whenever the spool pull has published anything and
+// stays hidden while it is disarmed (the default), which is honest in both directions.
+function renderCpapSpool(s){
+  const el = $('#cpapSpoolStatus'); if(!el) return;
+  if(!s || !s.state){ el.style.display='none'; return; }
+  el.style.display='';
+  // The line lives inside #cpapCard, which renderCpap hides on `!cpap.enabled` — so revealing the card
+  // here is what makes the paragraph above true rather than merely intended. Order matters: this runs
+  // AFTER renderCpap in the update loop, so it re-opens a card that call may have just closed.
+  const card = $('#cpapCard'); if(card) card.style.display='';
+  // `detail` is daemon-supplied text (`pull_blocked`'s reason names streaming DEVICES, which are
+  // operator-settable through this monitor's own settings API) — so it goes through esc() like every
+  // other interpolating innerHTML site here. Same stored-XSS path #2173 closed on the harvest card.
+  const map = {
+    running: ['idle', '⟳ stored-spool pull running…'],
+    waiting: ['idle', `⏸ spool pull waiting — ${s.detail||'contended'}`],
+    error:   ['bad',  `✗ spool pull — ${s.detail||'failed'}`],
+  };
+  const [cls, label] = map[s.state] || ['idle', `spool pull · ${s.state}`];
+  el.innerHTML = `<span class="data-pill ${esc(cls)}"></span> ${esc(label)}`;
+}
 
 // Manual CPAP pulls. The 13:00 poller owns the routine case; these are for a missed night or a
 // swapped card. "All missing" is not a full re-download — skip-if-present means it fetches only what
@@ -1551,6 +1581,7 @@ async function loadState(){
   renderStoragePill(s.storage);   // sidebar: visible in every view
   renderRadioDistress(s.radio_distress, s.radio_distress_adapter, s.radio_switches);
   renderCpap(s.cpap);
+  renderCpapSpool(s.cpap_spool);
   renderDownload(DEVICES);
   renderRemembered(DEVICES);
   renderStreamSel();
