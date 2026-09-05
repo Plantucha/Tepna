@@ -1441,6 +1441,23 @@ function renderCpap(c){
   // Name the offending files — "3 short reads" is not actionable, a filename is.
   (c.short||[]).forEach(s=>bits.push('SHORT READ '+s));
   (c.errors||[]).forEach(s=>bits.push('error '+s));
+  // 🔴 THE DETECTOR'S FAULT, NAMED. `last_unreachable_class` has been published to STATUS and
+  // forwarded since the wedge rung landed, and rendered by NOTHING — so an operator looking at this
+  // page could not tell a rejected pairing key from a switched-off machine. That is not hypothetical:
+  // the AirSense stopped accepting our key at 2026-09-04 18:49 and the box polled, and failed,
+  // every 30 s for eleven hours while this card said nothing at all.
+  //
+  // The MESSAGE is what carries the answer — every AS11 protocol fault shares the class `As11Error`,
+  // and only the message says `RPC 10 VerificationFailure`. Shown together: the class alone is the
+  // bucket, the message is the reason.
+  if(c.reachable === false && c.last_unreachable_class){
+    const why = c.last_unreachable_msg ? `${c.last_unreachable_class}: ${c.last_unreachable_msg}`
+                                       : c.last_unreachable_class;
+    const n = c.unreachable_streak;
+    bits.push(`detector unreachable — ${why}${n>1 ? ` (${n} polls)` : ''}`);
+  }
+  // textContent, not innerHTML: `last_unreachable_msg` is a device-supplied exception string and this
+  // is the one field here that did not exist when #2173 swept this file for interpolation into markup.
   $('#cpapHint').textContent = bits.join(' · ');
 }
 // The stored-spool pull is a SECOND scheduled actor, not another view of the harvest above, so it gets
