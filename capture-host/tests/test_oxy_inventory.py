@@ -12,6 +12,8 @@ disagrees with the acquisition code it will eventually replace the guesswork in:
 Each is planted as a control that fails if the rule is dropped."""
 import json
 import os
+import pathlib
+import re
 
 import oxy_inventory as inv
 
@@ -321,3 +323,38 @@ def test_reconcile_is_pure_and_does_not_mutate_its_inputs():
     before = json.dumps(rows, sort_keys=True), dict(listing)
     inv.reconcile(rows, listing)
     assert (json.dumps(rows, sort_keys=True), listing) == before
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────────
+# MUTATION RESIDUE, triaged 2026-09-04 (OXYII-ACQUISITION-CHARTER G1, the owed work-unit).
+#
+# Re-run under `mutate.py oxy_inventory --no-reuse` leaves 12 survivors, not the 28 recorded on
+# 2026-08-23 — tests landed since then killed 16 (`make_row` 14 -> 1, `append_row` 6 -> 3). Of the
+# 12, `tools/mutate_triage.py` classes 8 UNOBSERVABLE and 4 REACHABLE, and all 4 REACHABLE are one
+# defect wearing two shapes:
+#
+#     open(ledger_path, "a", encoding="utf-8")  ->  encoding=None   /   encoding omitted
+#     open(ledger_path,      encoding="utf-8")  ->  encoding=None   /   encoding omitted
+#
+# Dropping the explicit encoding makes the ledger's encoding the PLATFORM DEFAULT. On this box that
+# is UTF-8, so the mutants behave identically and no behavioural test can see them — which is
+# precisely why they survived 245 killed mutants. The defect is real anyway: the ledger is UTF-8 by
+# intent, it holds device-supplied filenames, and on a non-UTF-8 locale the write and the read would
+# disagree about bytes nobody chose.
+#
+# So this is a SOURCE-SCAN invariant, deliberately, in the same family as the AS11 read-only scan:
+# the property is not observable at runtime here, and a scan is the only instrument that can see it.
+# It also kills both shapes at once, because mutmut rewrites the source the scan reads.
+def test_every_open_in_the_module_NAMES_its_encoding():
+    src = pathlib.Path(__file__).resolve().parent.parent / "oxy_inventory.py"
+    text = src.read_text(encoding="utf-8")
+    bad = []
+    for i, line in enumerate(text.splitlines(), 1):
+        if re.search(r"\bopen\s*\(", line) and "encoding=" not in line:
+            bad.append(f"{i}: {line.strip()}")
+        elif re.search(r"encoding\s*=\s*None", line):
+            bad.append(f"{i}: {line.strip()}")
+    assert not bad, (
+        "every open() of the ledger must name its encoding — without it the file is written and read "
+        "in the platform default, which is not UTF-8 everywhere:\n  " + "\n  ".join(bad)
+    )
