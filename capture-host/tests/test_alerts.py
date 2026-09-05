@@ -343,3 +343,28 @@ def test_an_EMPTY_or_ABSENT_reply_against_a_configured_serial_is_a_mismatch():
         msg = alerts.ring_identity_mismatch("2592302100", seen)
         assert msg is not None, f"seen={seen!r} must not read as a match"
         assert "no serial at all" in msg
+
+
+# ── ring_barren_connects — clause 2 of the same mitigation ──────────────────────────────────────────
+def test_a_short_run_of_barren_connects_says_nothing():
+    """One is a dropped link; two is a reconnect landing on a drop. Neither is a finding, and an alarm
+    that fires on them is one an operator learns to ignore — which costs the alarms that matter."""
+    assert alerts.ring_barren_connects(0) is None
+    assert alerts.ring_barren_connects(1) is None
+    assert alerts.ring_barren_connects(2) is None
+
+
+def test_the_run_that_reaches_the_threshold_names_its_length_and_what_it_means():
+    msg = alerts.ring_barren_connects(alerts.RING_BARREN_ALERT_N)
+    assert msg is not None
+    assert str(alerts.RING_BARREN_ALERT_N) in msg, "the operator is owed the count, not just the verdict"
+    assert "delivered no frames" in msg
+    longer = alerts.ring_barren_connects(9)
+    assert longer is not None and "9" in longer
+
+
+def test_the_threshold_is_a_parameter_not_a_literal_in_the_body():
+    """The default is stated once, as RING_BARREN_ALERT_N, so a box that wants to be twitchier can be
+    without a second copy of the number appearing anywhere."""
+    assert alerts.ring_barren_connects(1, threshold=1) is not None
+    assert alerts.ring_barren_connects(5, threshold=99) is None

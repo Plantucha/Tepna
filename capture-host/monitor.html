@@ -1176,6 +1176,22 @@ function renderRingIdentity(status) {
     out += `<div id="ring-identity-alarm" class="mb" style="color:#c55">⚠ RING IDENTITY MISMATCH — ${esc(String(mm))}`
       + ' — data from this link is suspect until the serial matches</div>';
   }
+  // Clause 2, in two steps. The RUN is drawn only while it is non-zero — a healthy box shows
+  // nothing at all rather than a `0` the operator learns to skip — and the ALARM appears once the
+  // run reaches the threshold, so the two-and-below case is visible without being loud.
+  //
+  // The count was NOT drawn at first, deliberately, and that was wrong: `find_unwired` reds a field
+  // webmon forwards and monitor.html never draws, which is the half-wired shape (O2RING §20 — a
+  // field that reaches /api/state and no further is exposed to nobody). Forwarding a number no
+  // surface shows is not restraint, it is the defect that scan exists to name.
+  if (Number(status.ring_barren_connects) > 0) {
+    out += `<div id="ring-barren" class="hint">connects that answered identity and served nothing:`
+      + ` <b>${esc(String(status.ring_barren_connects))}</b> in a row</div>`;
+  }
+  if (status.ring_barren_alert) {
+    out += `<div id="ring-barren-alarm" class="mb" style="color:#c55">⚠ ${esc(String(status.ring_barren_alert))}`
+      + ' — the link is up and nothing is arriving over it</div>';
+  }
   return out;
 }
 

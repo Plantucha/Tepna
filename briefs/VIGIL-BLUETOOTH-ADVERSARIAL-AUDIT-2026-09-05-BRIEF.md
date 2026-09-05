@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (C4 EXECUTED — verified 2026-09-05: the §6.3 content gate is in `tepna-update.sh`, changeset `update-restart-content-gate`, 9 gate tests + 3 killed plants. Mitigation C clause 1 EXECUTED — verified 2026-09-05: `run_oxyii` now publishes the `0xE1` wire serial + firmware to STATUS/monitor and compares the serial against a new optional O2Ring `serial:` config key — journal on transition, guardrails webhook once per episode; changeset `ring-identity-alert`; ⚠ the comparable field is the WIRE serial `2592302100`, not the BLE-name id `S8AW2100` the bullet named — see §6.2; ARMED only once the owner sets `serial:` on vigil. Clause 2 still open at this commit; §6.1 box ops and §6.2 Probe A are owner-attended; Mitigation B WITHDRAWN by owner correction (§6.2 — the `.dat` harvest is already BLE), B′ and D3 tracked separately) · **Created:** 2026-09-05
+**Status:** PROPOSED (C4 EXECUTED — verified 2026-09-05: the §6.3 content gate is in `tepna-update.sh`, changeset `update-restart-content-gate`, 9 gate tests + 3 killed plants. Mitigation C EXECUTED, both clauses — verified 2026-09-05: `run_oxyii` publishes the `0xE1` wire serial + firmware to STATUS/monitor and compares the serial against a new optional O2Ring `serial:` key (clause 1), and counts the RUN of connects that answer identity and deliver no frames (clause 2); changeset `ring-identity-alert`, 34 gate tests + 12 killed plants; ⚠ the comparable field is the WIRE serial `2592302100`, not the BLE-name id `S8AW2100` the bullet named — see §6.2; clause 1 is ARMED only once the owner sets `serial:` on vigil, while clause 2 needs no configuration and is armed on every box. §6.1 box ops and §6.2 Probe A are owner-attended; Mitigation B WITHDRAWN by owner correction (§6.2 — the `.dat` harvest is already BLE), B′ and D3 tracked separately) · **Created:** 2026-09-05
 
 # Vigil Bluetooth — adversarial audit (owner-ordered: "must be spotless")
 
@@ -233,8 +233,29 @@ session-crypto negotiation exists on the BLE transport — the §3.3 AES belongs
   (`alerts.ring_identity_mismatch`, pure; wired in `run_oxyii`'s GET_INFO branch and `alert_poller`);
   a peer that answers `0xE1` with no serial at all against a configured one is also a mismatch. The
   daemon already read `0xE1` on every session and *discarded* both fields — the identity was always on
-  the table, unspent. Inert until the owner sets `serial:` on the box (config is gitignored). Clause 2
-  is open: it needs a per-link connect-vs-pull counter the runner does not keep today.
+  the table, unspent. Inert until the owner sets `serial:` on the box (config is gitignored).
+
+  **Clause 2 EXECUTED 2026-09-05.** The counter the runner did not keep is now kept: per episode,
+  did this link answer `0xE1` and then deliver zero decodable frames? `run_oxyii` counts the RUN of
+  those (`ring_barren_connects`), and at three (`alerts.RING_BARREN_ALERT_N`) journals, publishes
+  `ring_barren_alert`, draws it, and sends ONE webhook with its own latch and its own recovery
+  message. Three decisions are worth keeping because each was a way to get it wrong:
+  * **Frames, not vitals rows.** The ring talks whether or not it is worn (spo2 goes None the moment
+    it leaves the finger), so a row-based counter would call every unworn night an impostor. Frames
+    are the LINK's heartbeat — the same signal the runner's stall guard already trusts.
+  * **A RUN, reset by delivery, NOT reset by a failed connect.** A lifetime total alerts on every
+    long-running box eventually; and clearing the run on a connect that never reached identity would
+    let a flapping radio hide the finding forever. A pre-identity failure is the offline alarm's.
+  * **The journal guard is the transition into the ALERTING STATE, not into a new string.** Clause 1
+    compares texts because a mismatch text is stable; this text carries the run length, so comparing
+    texts journalled at 3 and again at 4 — measured by the test, which is why it is written down.
+  * **The RUN is drawn, not merely forwarded.** It was first published to `/api/state` and drawn by
+    nothing, on the argument that a count reading 0 or 1 is noise — and `find_unwired` reds exactly
+    that as the half-wired shape (O2RING §20: a field that reaches `/api/state` and no further is
+    exposed to nobody). The argument was answered instead by drawing it only while it is non-zero: a
+    healthy box shows nothing, a run of two is visible without being loud.
+  Unlike clause 1 this half needs NO configuration: it is armed on every box, because it compares the
+  link against itself rather than against an operator-supplied expectation.
 
 ### 6.3 · C4 content-gate — exact rule for the PR (so nobody re-derives it)
 

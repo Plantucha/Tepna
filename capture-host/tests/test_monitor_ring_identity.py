@@ -70,3 +70,33 @@ def test_a_hostile_serial_is_entity_encoded_before_innerHTML():
         assert live not in out.lower(), f"a live tag reached innerHTML: {out}"
     for escaped in ("&lt;img", "&lt;svg", "&lt;script&gt;"):
         assert escaped in out, f"the payload must be entity-encoded, not stripped: {out}"
+
+
+def test_the_barren_run_is_DRAWN_not_merely_forwarded():
+    """Clause 2, and the reason this test exists in this shape: the count was first forwarded by
+    webmon and drawn by nothing, which `find_unwired` reds as the half-wired shape (O2RING §20 — a
+    field that reaches /api/state and no further is exposed to nobody). A number no surface shows is
+    not restraint. Below the threshold it is a quiet line; at the threshold the alarm joins it."""
+    bar = "3 consecutive connects answered the identity query and delivered no frames"
+    out = _render({"ring_serial": "2592302100", "ring_barren_connects": 3, "ring_barren_alert": bar})
+    assert 'id="ring-barren"' in out and ">3<" in out, f"the run is not drawn: {out!r}"
+    assert 'id="ring-barren-alarm"' in out, f"the clause-2 alarm is missing: {out!r}"
+    assert "3 consecutive connects" in out
+    below = _render({"ring_serial": "2592302100", "ring_barren_connects": 1, "ring_barren_alert": None})
+    assert 'id="ring-barren"' in below and ">1<" in below, "a below-threshold run is still a fact"
+    assert "ring-barren-alarm" not in below, "…but it is not yet an alarm"
+
+
+def test_a_healthy_box_draws_no_barren_line_at_all():
+    """Zero is drawn as ABSENCE, not as `0`. The field is still forwarded — the count is the alarm's
+    denominator — but a per-device zero on every card is a number an operator learns to skip."""
+    out = _render({"ring_serial": "2592302100", "ring_barren_connects": 0, "ring_barren_alert": None})
+    assert "ring-barren" not in out
+    assert _render({"ring_serial": "2592302100"}) .count("ring-barren") == 0, "absent reads like zero"
+
+
+def test_a_hostile_barren_alert_string_is_entity_encoded_too():
+    """It is assembled from a number this box counted, but it lands in the same innerHTML sink as the
+    device-supplied fields beside it, and the next thing appended to that sentence may not be ours."""
+    out = _render({"ring_barren_alert": "<img src=x onerror=alert(1)>"})
+    assert "<img" not in out.lower() and "&lt;img" in out

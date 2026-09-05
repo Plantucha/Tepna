@@ -278,6 +278,12 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         "ring_serial": st.get("ring_serial"),
                         "ring_firmware": st.get("ring_firmware"),
                         "ring_identity_mismatch": st.get("ring_identity_mismatch"),
+                        # Clause 2 of the same mitigation: the run of connects that ANSWERED identity
+                        # and then delivered no frames, plus the alarm text once the run is long enough
+                        # to mean something. The count ships even at 0 — an absent field and a zero are
+                        # different facts, and this one is what the alarm beside it is counting.
+                        "ring_barren_connects": st.get("ring_barren_connects"),
+                        "ring_barren_alert": st.get("ring_barren_alert"),
                         # The ring's settings struct AS THE RING REPORTS IT (0x00 read-back), plus the
                         # verdict of the last monitor-queued write. The requested value is deliberately
                         # not echoed anywhere — only what the device confirmed.

@@ -274,6 +274,34 @@ def ring_identity_mismatch(expected, seen) -> str | None:
     return f"connected peer reports {shown}, config expects {exp!r}"
 
 
+# Consecutive connects that ANSWERED the identity query and then delivered nothing. At the ring
+# runner's 5→60 s reconnect backoff three of them is at least a minute of a peer that talks to us and
+# never serves data. One is an ordinary dropped link and two is a reconnect landing on a drop, so
+# neither earns an operator's attention; a run of three is the shape that is not the ring doing its job.
+RING_BARREN_ALERT_N = 3
+
+
+def ring_barren_connects(n: int, threshold: int = RING_BARREN_ALERT_N) -> str | None:
+    """PURE check for the OTHER half of the impostor shape (§6.2 Mitigation C, clause 2).
+
+    Clause 1 asks whether the peer says the right serial; this asks whether it does the right thing.
+    A peer that answers the `0xE1` identity query and then never sends a single decodable frame is not
+    a ring doing its job: the real one talks whether or not it is worn — frames are the LINK's
+    heartbeat, which is exactly why the runner's stall guard counts frames and not vitals rows — so
+    "identity, then silence" is not the signature of an unworn ring, an idle one, or a charging one.
+
+    The two clauses are complementary rather than redundant, and each sees what the other cannot: an
+    impostor that echoes the configured serial passes clause 1 and, if it cannot actually produce
+    Viatom frames, fails this one; a wrong-but-real O2Ring streams perfectly and fails only clause 1.
+
+    `n` is a run of CONSECUTIVE such episodes, reset by any episode that delivered a frame — and NOT
+    reset by a connect that never reached identity. That is a link failure, which the offline alarm
+    already reports; letting it clear this counter would let an alternating failure hide forever."""
+    return None if n < threshold else (
+        f"{n} consecutive connects answered the identity query and delivered no frames — "
+        "this link reaches something that is not serving data")
+
+
 # WHY THIS EXISTS, AND WHY IT IS NOT `missing`.
 #
 # On 2026-07-25 the Verity acknowledged four PMD streams `ok` at 23:51:23 and wrote nothing until

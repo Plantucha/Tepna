@@ -5919,3 +5919,152 @@ def test_run_oxyii_ignores_an_EMPTY_acc_frame_without_publishing(tmp_path, monke
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(_o2dev(streams=["spo2", "acc"]), str(tmp_path)))
     assert not [v for s, v in seen if s == "acc_o2"], "an empty ACC frame must publish nothing"
+
+
+# ── run_oxyii: connects that REACH IDENTITY and deliver nothing (Mitigation C, clause 2) ────────────
+def _o2_identity_then_drop(c, serial, episodes, *, answer=True):
+    """Answer 0xE1, then drop the link: the clause-2 shape, once per reconnect.
+
+    The real ring talks whether or not it is worn, so "answered identity, then silence" is not any
+    healthy state — it is a peer that responds to our queries and never serves data. With
+    `answer=False` the same link drops at the same point WITHOUT answering: a plain failed connect,
+    which must not enter this counter at all.
+    """
+    def on(data):
+        if data[1] == oxyii.OP_GET_INFO:
+            if answer:
+                c.notify(0, _o2_info_reply_from(serial))
+            c._connected = False
+            episodes.append(1)
+    return on
+
+
+def _rearming_scan(monkeypatch, c):
+    """Every reconnect gets a LIVE client again — otherwise the second episode connects to a client
+    already marked down and the run is one episode wearing the shape of many."""
+    @contextlib.asynccontextmanager
+    async def ctx(_addr, *a, **k):
+        c._connected = True
+        yield c
+    monkeypatch.setattr(capture, "_connect_scan", ctx)
+
+
+def _run_barren(tmp_path, monkeypatch, sleeps, *, deliver_on=None, answer_identity=True):
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture.STATUS["devices"].pop("Ring", None)
+    c = FakeGattClient()
+    episodes: list[int] = []
+    barren_on = _o2_identity_then_drop(c, "2592302100", episodes, answer=answer_identity)
+
+    def on(data):
+        # `deliver_on` names the episode (1-based) that behaves like a real ring: one live frame, then
+        # the same drop. That is the reset arm — a delivering connect ends the run.
+        if deliver_on is not None and len(episodes) + 1 == deliver_on and data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        barren_on(data)
+    c.on_live = on
+    _rearming_scan(monkeypatch, c)
+    _stop_after(monkeypatch, sleeps)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    return capture.STATUS["devices"]["Ring"], len(episodes)
+
+
+def test_run_oxyii_one_connect_that_serves_nothing_is_counted_and_NOT_alerted(tmp_path, monkeypatch):
+    """A single barren connect is an ordinary dropped link. The count is published from the first one
+    — the number is the alarm's denominator and an absent field would hide it — but nothing fires."""
+    st, eps = _run_barren(tmp_path, monkeypatch, sleeps=4)
+    assert eps >= 1
+    assert st["ring_barren_connects"] == 1, st["ring_barren_connects"]
+    assert st["ring_barren_alert"] is None, "one is not a run"
+
+
+def test_run_oxyii_a_RUN_of_identity_only_connects_alerts_once(tmp_path, monkeypatch, caplog):
+    """The clause-2 finding: three consecutive connects answered identity and delivered no frames.
+    Journalled on the transition only — the run keeps growing and the operator gets one line."""
+    import logging
+    caplog.set_level(logging.ERROR, logger="tepna-capture")
+    st, eps = _run_barren(tmp_path, monkeypatch, sleeps=17)
+    assert eps >= 4, f"the fixture must produce a RUN, not a single episode (got {eps})"
+    assert st["ring_barren_connects"] >= 3
+    assert st["ring_barren_alert"] and "delivered no frames" in st["ring_barren_alert"]
+    hits = [r for r in caplog.records if "delivered no frames" in r.getMessage()]
+    assert len(hits) == 1, (
+        f"the ERROR belongs to the TRANSITION INTO the alerting state, got {len(hits)}: "
+        + "; ".join(r.getMessage() for r in hits))
+
+
+def test_run_oxyii_a_connect_that_DELIVERS_ends_the_run(tmp_path, monkeypatch):
+    """The reset arm. Without it the counter is a lifetime total and every long-running box eventually
+    alerts — the finding is a RUN of barren connects, not their sum since boot."""
+    st, eps = _run_barren(tmp_path, monkeypatch, sleeps=17, deliver_on=3)
+    assert eps >= 4
+    assert st["ring_barren_connects"] < 3, (
+        f"a delivering connect must reset the run, got {st['ring_barren_connects']} after {eps} episodes")
+    assert st["ring_barren_alert"] is None
+
+
+def test_alert_poller_carries_a_barren_run_to_the_webhook_ONCE_and_says_when_it_recovers(monkeypatch):
+    """Its own latch and its own recovery line: the ring is NOT offline while this fires (it connects,
+    every poll), so the offline alarm never speaks for it, and an operator told the link is dead is
+    owed the news that it is serving again."""
+    sent = []
+    class _N:
+        enabled = True
+        async def send(self, title, message, **kw): sent.append((title, message)); return True
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 1e9}, "devices": [_o2dev()]}
+    st = {"connected": True, "ring_barren_alert": "3 consecutive connects answered the identity "
+          "query and delivered no frames — this link reaches something that is not serving data"}
+    capture.STATUS["devices"]["Ring"] = st
+    capture._LAST_DATA["Ring"] = 1000.0
+    calls = {"n": 0}
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] == 3:
+            st["ring_barren_alert"] = None          # a connect delivered — the run ended
+        if calls["n"] >= 5:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_DATA.pop("Ring", None)
+    titles = [t for t, _ in sent]
+    assert titles == ["Tepna: ring connects but serves nothing", "Tepna: ring serving again"], titles
+    assert "Ring" in sent[0][1] and "delivered no frames" in sent[0][1]
+
+
+def test_run_oxyii_a_connect_that_never_REACHED_identity_is_not_counted(tmp_path, monkeypatch):
+    """The counter's subject is "answered us, then served nothing", not "failed". A link that drops
+    before the identity reply is an ordinary connect failure — the offline alarm's business — and
+    counting it here would let a flapping radio raise an impostor-shaped alarm about itself."""
+    st, eps = _run_barren(tmp_path, monkeypatch, sleeps=17, answer_identity=False)
+    assert eps >= 4, f"the fixture must produce several failed connects (got {eps})"
+    assert st["ring_barren_connects"] == 0, st["ring_barren_connects"]
+    assert st["ring_barren_alert"] is None
+
+
+def test_alert_poller_RETRIES_a_barren_webhook_that_was_not_delivered(monkeypatch):
+    """The latch closes on DELIVERY, never on the attempt (CAPTURE-HOST-DEEP-AUDIT §C1). A webhook
+    that failed to send must be tried again on the next poll — latching on the attempt would turn one
+    transient network error into permanent silence about a link that is serving nothing."""
+    sent = []
+    class _N:
+        enabled = True
+        async def send(self, title, message, **kw):
+            sent.append(title)
+            return False                                   # every attempt fails
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 1e9}, "devices": [_o2dev()]}
+    capture.STATUS["devices"]["Ring"] = {
+        "connected": True,
+        "ring_barren_alert": "3 consecutive connects answered the identity query and delivered no frames"}
+    capture._LAST_DATA["Ring"] = 1000.0
+    calls = {"n": 0}
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_DATA.pop("Ring", None)
+    assert sent.count("Tepna: ring connects but serves nothing") == 3, (
+        f"an undelivered alarm must be retried every poll, got {sent}")
