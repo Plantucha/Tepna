@@ -204,7 +204,11 @@ export function buildIndex(entries) {
     '|---|---|'
   ];
   for (const e of entries) {
-    const p = e.purpose ? leadIn(e.purpose).replace(/\|/g, '\\|') : '**⚠ NO PURPOSE LINE — add one to the header**';
+    /* ⚠️ ESCAPE THE BACKSLASH FIRST, THEN THE PIPE — order is load-bearing, and CodeQL flagged the
+       reverse (js/incomplete-sanitization, high). Escaping only `|` leaves a purpose ending in `\`
+       producing `\\|`: an ESCAPED BACKSLASH followed by a LIVE pipe, which opens a third cell and
+       corrupts the table. Doing `\` first means every later escape is itself protected. */
+    const p = e.purpose ? leadIn(e.purpose).replace(/\\/g, '\\\\').replace(/\|/g, '\\|') : '**⚠ NO PURPOSE LINE — add one to the header**';
     out.push(`| [\`${e.name}\`](../tools/${e.name}) | ${p} |`);
   }
   out.push('');
@@ -269,6 +273,18 @@ function selfTest() {
   ]);
   eq(md.includes('b.mjs') && /NO PURPOSE LINE/.test(md), 'a tool with NO purpose is emitted loudly, never omitted');
   eq(/\*\*1 without\*\*/.test(md), 'the header counts the ones without a purpose');
+  /* ⚠️ THE CASE CodeQL NAMED. The honest discriminator is not a cell count — `split('|')` does not
+     understand escapes — but whether a backslash is DOUBLED: escaping `|` while leaving `\\` raw is
+     what lets `\\|` in a purpose become an escaped backslash beside a LIVE pipe.
+     This assertion and its fix were written on 2026-09-03 and NEVER REACHED MAIN — the branch's PR had
+     already merged when they were pushed, so the commit exists on the remote and is not an ancestor of
+     main. Re-landed 2026-09-04 off current main. */
+  {
+    const row = buildIndex([{ name: 'b.mjs', purpose: 'a raw \\ backslash' }])
+      .split('\n')
+      .filter((l) => l.startsWith('| ['))[0];
+    eq(/a raw \\\\ backslash/.test(row), 'a backslash in a purpose is DOUBLED — escaping the pipe alone is incomplete');
+  }
   eq(buildIndex([{ name: 'p.mjs', purpose: 'A | pipe breaks the table.' }]).includes('\\|'), 'a pipe in a purpose is escaped so the table survives');
   console.log(fail ? `\ntools-index selftest: ${fail} FAILED` : '\ntools-index selftest: all passed');
   return fail ? 1 : 0;
