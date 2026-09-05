@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED · **Created:** 2026-09-01 · **Residue:** 2026-09-02-oracle-split-duplicated
+**Status:** IN-PROGRESS (parked 2026-09-05 — drain stamp, Magpie. §1 and §2 are EXECUTED (boxes ticked with their receipts); §3 is discharged by its own text — it is a design constraint for a *future* reopening, and with §1's H_axis failing confirmation that constraint is now the live one, so the box is ticked and the section is the record; **§4 alone is open and it is the OWNER's: a failing `sdb1` volume and a stale mirror are hardware, not code.** Next step: none schedulable by a session — the owner rules on sdb1, and this brief flips to DONE in the PR that records the ruling. Not PROPOSED: two of four items are executed work) · **Created:** 2026-09-01 · **Residue:** 2026-09-02-oracle-split-duplicated
 
 # PPG-FOOT-PLACEMENT follow-ups — what the closure surfaced
 
@@ -178,7 +178,9 @@ session should remount it meanwhile.
 - [x] §2: export-or-delete decided and executed for `channelSNR` / pat-per-led's SNR column —
       resolved 2026-09-01 by DELEGATION (exported `bandpass`/`std`, identical quantity, selftested,
       execution-proven); the DSP export still rides the next real re-bundle
-- [ ] §3: recorded as the design constraint for any future residual reopening (no action beyond §1)
+- [x] §3: recorded as the design constraint for any future residual reopening (no action beyond §1) —
+      §3 itself is the record; ticked 2026-09-05 once §1 had run and failed confirmation, which is
+      the case the constraint was written for
 - [ ] §4: owner has ruled on sdb1 and the stale mirror
 
 Related: [`PPG-FOOT-PLACEMENT-2026-08-12-BRIEF.md`](PPG-FOOT-PLACEMENT-2026-08-12-BRIEF.md)
