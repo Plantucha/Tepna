@@ -1611,12 +1611,22 @@ async def _connect(addr: str):
         await _safe_disconnect(client)
 
 
-# The O2Ring advertises only in SHORT bursts while worn (finger-in) and its MAC can rotate on a factory
-# reset, so a bare BleakClient(addr).connect() (fixed-timeout resolve) routinely misses the window after a
-# drop → BleakDeviceNotFoundError. Mirror pull_session.py: an EARLY-EXIT scan that returns the instant the
-# ring advertises, matching address OR name. The Polar straps are bonded + advertise continuously, so they
-# keep the plain _connect above.
-_O2_NAME_HINTS = ("o2ring", "s8-aw", "s8aw", "wellue", "checkme")
+# The O2Ring advertises only in SHORT bursts while worn (finger-in), so a bare BleakClient(addr).connect()
+# (fixed-timeout resolve) routinely misses the window after a drop → BleakDeviceNotFoundError. Mirror
+# pull_session.py: an EARLY-EXIT scan that returns the instant the ring advertises. The Polar straps are
+# bonded + advertise continuously, so they keep the plain _connect above.
+#
+# 🔴 THE MATCH IS ADDRESS-ONLY (standing ruling 2026-08-27, `oxy_presence.is_expected_ring`). Until
+# 2026-09-05 this scan also accepted any device whose advertised name contained one of
+# ("o2ring", "s8-aw", "s8aw", "wellue", "checkme"), justified by "the MAC can rotate on a factory reset".
+# That justification does not hold: a factory reset is a RE-PAIR event — the operator updates the
+# configured address, exactly as for a new ring — while the name OR let ANY device in radio range summon a
+# GATT connect from this host by broadcasting a five-letter string, spending the connection budget and
+# contending for the one radio the wearables share. It was also the wrong tool for the one case it might
+# have covered: O2RING-PROTOCOL §6 reports the ring's name CHANGES with its advertising mode
+# (`T8520_<last4>` vs `S8-AW`), so a name list keyed to one mode is blind to the other (whether the ADDRESS
+# holds across modes is unmeasured — `probe_ring_adv.py` records `AddressType` per sighting for exactly
+# that question). The name is still logged — as display metadata, never as identity.
 
 # Passive scanning (listen only, never transmit scan requests) frees air-time on the shared controller for
 # the live H10/Verity ACL links — but bleak's BlueZ backend only offers it via the AdvertisementMonitor
@@ -1633,15 +1643,15 @@ _O2_PASSIVE_SCAN = True          # flipped off for good by the first refusal fro
 
 
 @contextlib.asynccontextmanager
-async def _connect_scan(addr: str, name_hints=_O2_NAME_HINTS, timeout: float = 15.0):
+async def _connect_scan(addr: str, timeout: float = 15.0):
     global _O2_PASSIVE_SCAN
     from bleak import BleakClient as _BC, BleakScanner as _BS
     from bleak.exc import BleakDeviceNotFoundError as _NotFound, BleakError as _BErr
+    import oxy_presence
     akw = await adapter_kw()                      # pin scan AND connect to the configured radio
 
     def _match(d, adv):
-        return (d.address.upper() == addr.upper()
-                or any(h in ((adv.local_name or d.name or "").lower()) for h in name_hints))
+        return oxy_presence.is_expected_ring(d.address, addr)    # address only — see the block above
 
     device = None
     # ⚠️ THE SCAN NOW RUNS UNDER `_CONNECT_LOCK`, the same lock the connect below takes. Before
@@ -1670,6 +1680,7 @@ async def _connect_scan(addr: str, name_hints=_O2_NAME_HINTS, timeout: float = 1
             device = await _BS.find_device_by_filter(_match, timeout=timeout, **akw)
     if device is None:
         raise _NotFound(addr, "O2Ring not advertising (wear it finger-in + close the phone app)")
+    log.info("O2Ring %s advertising as %r — connecting", addr, getattr(device, "name", None))
     client = _BC(device, **akw)
     async with _CONNECT_LOCK:                   # same bound as _connect — see the note there
         try:

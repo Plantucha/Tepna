@@ -27,11 +27,9 @@ import oxy_inventory
 import oxy_restart
 import oxy_transfer
 import oxy_lifecycle
+import oxy_presence
 import acq_evidence
 import acq_evidence_o2ring
-
-_NAME_HINTS = ("o2ring", "s8-aw", "s8aw", "wellue", "checkme")
-
 
 async def _wait(q: asyncio.Queue, op: int, timeout: float = 20.0):
     """Await the next frame with opcode `op`, skipping interleaved live (0x04) frames.
@@ -81,12 +79,11 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
     # adapter pin would vanish silently and the pull would run on the wrong radio.
     kw = {"bluez": {"adapter": adapter}} if adapter else {}
     # EARLY-EXIT scan: return the instant the ring advertises. Its burst is short — a fixed-timeout
-    # discover() finds it but then the connect window has closed. Matches address OR name (MAC can rotate).
+    # discover() finds it but then the connect window has closed. ADDRESS-ONLY match (standing ruling
+    # 2026-08-27; rationale in `capture._connect_scan`'s block and `oxy_presence.is_expected_ring`) —
+    # the name OR this line carried until 2026-09-05 let any beacon in range summon a connection.
     device = await BleakScanner.find_device_by_filter(
-        lambda d, adv: (
-            d.address.upper() == address.upper()
-            or any(h in ((adv.local_name or d.name or "").lower()) for h in _NAME_HINTS)
-        ),
+        lambda d, adv: oxy_presence.is_expected_ring(d.address, address),
         timeout=25,
         **kw,
     )
