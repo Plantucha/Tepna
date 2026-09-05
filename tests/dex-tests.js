@@ -14921,6 +14921,103 @@
         'derived=' + derived.fs + ' indep=' + indep.fs + ' recovered=' + Math.round(movedPpm) + ' ppm from a planted 500'
       );
       T.ok('the refusal is auditable — spreadMs is forwarded, not just a boolean', dAx.spreadMs != null && iAx.spreadMs != null, JSON.stringify([dAx.spreadMs, iAx.spreadMs]));
+      /* The reason must name the gate that FIRED. Until 2026-09-05 every refusal read "span … too
+         short", including this one — a derived column on a 2600 s span, where the span gate is not
+         the gate that fired. A reason naming a different gate than the one that fired is worse than
+         no reason: a consumer would go looking for a longer recording. */
+      T.ok('…and the derived refusal names the HOST COLUMN, not the span', /not a second clock/.test(dAx.reason || '') && !/span/.test(dAx.reason || ''), dAx.reason);
+    });
+
+    /* ════ A DRAWN DEVICE AXIS IS PLACED ON THE HOST TIMELINE, NEVER SPENT AS A CLOCK (§7) ═══════════
+       RESIDUE `2026-09-04-drawn-axis-consumers-unmigrated` measured this node reading `independent`
+       and never `deviceDrawn`, so a device column that is `sample_index × an assumed rate` could be
+       reported as `'device+host'` — two clocks agreeing — and carry a σ_y(τ) curve over the writer's
+       arithmetic. The row's own remedy (refuse the correction when drawn) was a hypothesis, and the
+       wrong one: §7 says a drawn axis "may be placed on the host timeline, but must never be SPENT as
+       a second clock", and PpgDex already places it (`relSec` rides `correctionAt`) and labels the
+       result `'host'`. So the migration is a RELABEL, not a refusal — the correction still applies
+       (there is no other clock to ride), and what changes is what the node CLAIMS about it.
+       The fixture is the `devMs = i * 1000` column `clock.js:558` names as "by construction
+       indistinguishable from a fabricated one" — which is the point: the detector is supposed to fire
+       on it, and this group pins what the node then says. The non-drawn control is the REAL fixture
+       shape: a 1000/130 column carries µs-level rounding residue, so no two inter-anchor deltas
+       repeat (measured 2026-09-05 on 25 real H10 files: drawnShare 0.0038–0.0677, never drawn). ════ */
+    group('ECGDex drawn axis — placed on the host timeline, relabelled, never spent as a clock (Clock §7)', 'ecgdex-dsp · clock-contract', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.ok('ECGDSP.parseECG available', false, 'not loaded');
+        return;
+      }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var BASE = Date.UTC(2026, 5, 17, 1, 0, 0);
+      // Same geometry as the group above (2600 rows, anchors every 500 ⇒ 6). The host runs 500 ppm
+      // fast with ±4 ms deterministic jitter, so it is INDEPENDENT either way; only the device column
+      // differs between the two legs.
+      function build(devAt) {
+        var rows = [HDR];
+        for (var i = 0; i < 2600; i++) {
+          var dev = devAt(i);
+          var host = BASE + Math.round(i * 1000 * (1 + 500e-6)) + (i % 3) * 4;
+          rows.push(new Date(host).toISOString() + ';0;' + dev + ';' + (100 + (i % 40)));
+        }
+        return rows.join('\n');
+      }
+      // DRAWN: every inter-anchor device delta is exactly 500000 ms.
+      var drawn = D.parseECG(
+        build(function (i) {
+          return i * 1000;
+        })
+      );
+      // REAL-SHAPED: the same 1 s grid carrying a µs-level residue, as the H10's 6-decimal column
+      // does — `String(delta)` in clock.js keeps the µs, so no two 500-row deltas repeat (quadratic
+      // residue mod a prime: 777k² mod 1009 → 0,777,81,939,324,254 → five distinct deltas).
+      function realDev(i) {
+        return (i * 1000 + ((i * i) % 1009) / 1000).toFixed(6);
+      }
+      var real = D.parseECG(build(realDev));
+      var dAx = drawn.hostAxis || {},
+        rAx = real.hostAxis || {};
+      T.eq('the uniform column is detected as DRAWN', dAx.deviceDrawn, true);
+      T.ok('…with the share forwarded, not just the verdict', dAx.drawnShare != null && dAx.drawnShare >= 0.67, 'drawnShare=' + dAx.drawnShare);
+      T.eq('…and the host is independent of it (the two facts are orthogonal)', dAx.independent, true);
+      // PLACED on the host timeline — the correction is NOT refused, because there is no other clock.
+      T.eq('the rate correction still APPLIES on a drawn axis — placing it on the host is allowed', dAx.applied, true);
+      // The uncorrected fs is integer-rounded BEFORE the ppm correction (`Math.round((1000*stepN)/
+      // stepSum)`), and a sub-1 % correction cannot cross a rounding boundary, so rounding recovers it.
+      var movedPpm = (1 / (drawn.fs / Math.round(drawn.fs)) - 1) * 1e6;
+      T.ok(
+        '…and fs moved toward the host rate (direction and order, as the sibling group asserts)',
+        movedPpm > 100 && movedPpm < 600,
+        'fs=' + drawn.fs + ' recovered=' + Math.round(movedPpm) + ' ppm'
+      );
+      // NOT SPENT as a clock — what the node claims about it changes.
+      T.eq("timingSource is 'host' — never 'device+host', there is no second clock to agree with", dAx.timingSource, 'host');
+      T.eq('stability is null — a σ_y(τ) curve over `index × rate` describes arithmetic, not a crystal', dAx.stability, null);
+      // The real-shaped control: same host, same span, same jitter — only the device column is a clock.
+      T.eq('the 6-decimal 130 Hz column is NOT drawn', rAx.deviceDrawn, false);
+      T.ok('…its share sits well under the cut', rAx.drawnShare != null && rAx.drawnShare < 0.67, 'drawnShare=' + rAx.drawnShare);
+      T.eq("…so it keeps 'device+host'", rAx.timingSource, 'device+host');
+      T.eq('…and the correction applies there too — the relabel did not touch the feature', rAx.applied, true);
+      // The Integrator-facing surface: the verdict rides the export ONLY when it is true, so the four
+      // committed goldens (none drawn) keep their bytes — the `anchorsDroppedPreResync` discipline.
+      var exD = D.compute(
+        build(function (i) {
+          return i * 1000;
+        }),
+        { source: 'polar-h10-ecg' }
+      );
+      var exR = D.compute(build(realDev), { source: 'polar-h10-ecg' });
+      T.ok(
+        'the export carries deviceDrawn:true + drawnShare on the drawn recording',
+        exD.recording.hostAxis && exD.recording.hostAxis.deviceDrawn === true && exD.recording.hostAxis.drawnShare >= 0.67,
+        JSON.stringify(exD.recording.hostAxis && [exD.recording.hostAxis.deviceDrawn, exD.recording.hostAxis.drawnShare])
+      );
+      T.eq("…and its timingSource reads 'host' there too", exD.recording.hostAxis && exD.recording.hostAxis.timingSource, 'host');
+      T.ok(
+        '…while a non-drawn export carries NEITHER key (clean fixtures keep their bytes)',
+        exR.recording.hostAxis && !('deviceDrawn' in exR.recording.hostAxis) && !('drawnShare' in exR.recording.hostAxis),
+        JSON.stringify(Object.keys(exR.recording.hostAxis || {}))
+      );
     });
 
     /* ════ THE 2019-ORIGIN H10 IS ANNOTATED, NEVER REFUSED (H10-2019-ORIGIN, 2026-09-01) ════════════

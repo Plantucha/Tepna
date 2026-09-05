@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0mqhj4PCQsNRywYOCDIa/lI1dB/pbF/OnCPxEs9VBIo=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-9WtQnELGeJr2siQkvdq1sr9jTTvkljbhvncoWsJqp+Q=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-humLfsum3iuPyxKG/voJNiH8l+wh7lokogz90PMwyJs='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0mqhj4PCQsNRywYOCDIa/lI1dB/pbF/OnCPxEs9VBIo=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-humLfsum3iuPyxKG/voJNiH8l+wh7lokogz90PMwyJs=' 'sha256-xYEpAegvjzPOjFl5oTwKl6Z8o/PGwjewwlBjIM06n9U='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.9.0</title>
@@ -13268,7 +13268,40 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
        every `fs` correction applied to them was derived from a column that is not a clock.
        `ok` is not enough and neither is the span gate: both are satisfied by a derived column. */
     var fsDevice = fs; // BEFORE any rate correction — `tMsAt` below needs the RAW device rate
-    if (ecgHostAx.ok && ecgHostAx.independent !== false && isFinite(ecgHostAx.ppm) && ecgAxisSpanMs >= ECG_AXIS_MIN_SPAN_MS) {
+    /* A DRAWN device axis (§7: inter-anchor deltas concentrated on one value — `sample_index × an
+       assumed rate`, no oscillator behind it) is NOT refused here, and that is deliberate. The
+       Contract's line is "it may be placed on the host timeline, but it must never be SPENT as a second
+       clock". Correcting `fs` by `ppm` and riding `correctionAt` IS placing it on the host timeline —
+       the host is then the only clock there is, and refusing would leave every sample on the assumed
+       rate, which is strictly worse. PpgDex does the same (`relSec` takes `correctionAt` on a drawn
+       axis and labels the result `'host'`). What "spending it" means, and what changes below on a drawn
+       axis: `timingSource` reads `'host'` (never `'device+host'` — there is no second clock to agree
+       with), `stability` is null (a σ_y(τ) curve over an assumed rate describes the writer's
+       arithmetic, not a crystal), and `deviceDrawn`/`drawnShare` are forwarded so the verdict is
+       visible rather than inferred from a ~0 ppm. The `independent` gate stays: a drawn axis with an
+       INERT host column has no clock at all, and `ppm` there is rounding.
+       Measured before this landed (2026-09-05, RESIDUE `2026-09-05-drawn-share-is-anchor-level`): on 25
+       real `Polar_H10_*_ECG.txt` across 25 dates `drawnShare` is 0.0038–0.0677, `deviceDrawn` false on
+       every one — the H10 counter is a real clock, so this arm is reached by no shipped H10 recording.
+       It exists for the axis that IS drawn (an O2Ring counter, a Verity PPI stream) should one ever
+       reach this parser, and so that `timingSource` cannot over-claim on it.
+       `ecgAxisRefusal` names the ACTUAL cause. Until 2026-09-05 every refusal was reported as "span …
+       too short" — including the independence refusal that fires on every phone-captured H10 night
+       (spread ≈ one quantum), whose span is hours. A reason that names a different gate than the one
+       that fired is worse than no reason. */
+    var ecgAxisDrawn = ecgHostAx.ok && ecgHostAx.deviceDrawn === true;
+    var ecgAxisRefusal = null;
+    if (!ecgHostAx.ok)
+      ecgAxisRefusal = null; // the ok:false branch below carries the spine's own reason
+    else if (ecgHostAx.independent === false)
+      ecgAxisRefusal =
+        'host column is not a second clock (residual spread ' +
+        (ecgHostAx.spreadMs != null ? ecgHostAx.spreadMs.toFixed(2) : '?') +
+        ' ms, within one stamp quantum — the host stamp is the device stamp rounded), fs left on the device clock';
+    else if (!isFinite(ecgHostAx.ppm)) ecgAxisRefusal = 'no finite host/device rate, fs left on the device clock';
+    else if (ecgAxisSpanMs < ECG_AXIS_MIN_SPAN_MS)
+      ecgAxisRefusal = 'span ' + Math.round(ecgAxisSpanMs / 1000) + ' s < ' + ECG_AXIS_MIN_SPAN_MS / 1000 + ' s — too short to resolve a crystal rate, fs left on the device clock';
+    if (ecgHostAx.ok && ecgAxisRefusal == null) {
       fs = fs / (1 + ecgHostAx.ppm / 1e6);
       ecgAxisApplied = true;
     }
@@ -13365,13 +13398,21 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
                never had a second clock — different problems with different remedies. */
             independent: ecgHostAx.independent != null ? ecgHostAx.independent : null,
             spreadMs: ecgHostAx.spreadMs != null ? ecgHostAx.spreadMs : null,
-            /* PpgDex's provenance lattice (Clock Contract §7), restricted to the arms this layout can
-               reach: the ECG axis is a REAL per-sample device counter here — never drawn — so the
-               'host'/'none' arms do not arise. `independent === false` (every phone capture: the host
-               column is the device stamp rounded, spread ≈ one quantum) means one clock ⇒ 'device';
-               a genuinely independent host column ⇒ 'device+host'. NOTE this says which clocks set the
-               RATE/RELATIVE axis — `deviceEpoch` above is the orthogonal ABSOLUTE-origin fact. */
-            timingSource: ecgHostAx.independent === false ? 'device' : 'device+host',
+            /* PpgDex's provenance lattice (Clock Contract §7). `independent === false` (every phone
+               capture: the host column is the device stamp rounded, spread ≈ one quantum) means one
+               clock ⇒ 'device'; a genuinely independent host column ⇒ 'device+host'; a DRAWN device
+               axis under an independent host ⇒ 'host' — the counter carried no timing of its own, so
+               whatever the host stamps say is all the timing there is (PpgDex's arm, verbatim). This
+               block used to say the ECG axis is "never drawn, so the 'host' arm does not arise" — true
+               of every real H10 file measured (see the fs block), and precisely the claim a producer
+               must not hard-code about its input: the spine now measures it, so read the measurement.
+               NOTE this says which clocks set the RATE/RELATIVE axis — `deviceEpoch` above is the
+               orthogonal ABSOLUTE-origin fact. */
+            timingSource: ecgHostAx.independent === false ? 'device' : ecgAxisDrawn ? 'host' : 'device+host',
+            /* The verdict itself, forwarded (this block RENAMES, so an unlisted field is dropped — see
+               `stability` below). Read `deviceDrawn` before quoting `ppm` as a crystal figure. */
+            deviceDrawn: ecgHostAx.deviceDrawn === true,
+            drawnShare: ecgHostAx.drawnShare != null ? ecgHostAx.drawnShare : null,
             totalMs: ecgHostAx.totalMs,
             ppm: ecgHostAx.ppm,
             maxStepMs: ecgHostAx.maxStepMs,
@@ -13386,14 +13427,15 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
                that 2400 s is too permissive was measured and WITHDRAWN (HOSTAXIS-STABILITY §3 —
                6.8-32.7 ppm uncertainty against 20-90 ppm errors is marginal, not wrong). Revisiting it
                needs a bound derived for the estimator `fs` actually uses, which ADEV is not. */
-            stability: ecgHostAx.stability || null,
+            // Null on a DRAWN axis even when the spine produced a curve: σ_y(τ) over `index × rate`
+            // describes the writer's arithmetic, not a clock (PpgDex nulls it on the same ground).
+            stability: ecgAxisDrawn ? null : ecgHostAx.stability || null,
             /* ONE DEVICE CLOCK PER AXIS (see the resync block above): anchors read off the pre-resync
                counter were not fed to the spine. Present only when it happened, so clean fixtures keep
                today's bytes; a consumer reading `anchors` beside this knows the count is post-seam. */
             anchorsDroppedPreResync: preResyncAnchorsDropped > 0 ? preResyncAnchorsDropped : undefined,
-            reason: ecgAxisApplied
-              ? undefined
-              : 'span ' + Math.round(ecgAxisSpanMs / 1000) + ' s < ' + ECG_AXIS_MIN_SPAN_MS / 1000 + ' s — too short to resolve a crystal rate, fs left on the device clock'
+            // The gate that actually fired (see `ecgAxisRefusal` in the fs block) — never a stock string.
+            reason: ecgAxisApplied ? undefined : ecgAxisRefusal || undefined
           }
         : {
             ok: false,
@@ -13853,6 +13895,14 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           : null,
         note: 'quote `ppm` WITH `ppmUncertainty`; `stability:null` means there was no second clock (host column ≡ device stamp), not that the clock was perfect'
       };
+      /* PRESENT ONLY WHEN DRAWN (the `anchorsDroppedPreResync` discipline: clean fixtures keep their
+         bytes — and the KEY is absent, not `undefined`, so a deep-equal sees the same shape as JSON
+         does). A consumer that finds `deviceDrawn:true` here must not spend `ppm` or this device as a
+         clock — `integrator-dsp arrivalPairOffsets` already refuses on exactly this key. */
+      if (r.hostAxis.deviceDrawn === true) {
+        out.recording.hostAxis.deviceDrawn = true;
+        out.recording.hostAxis.drawnShare = r.hostAxis.drawnShare;
+      }
     }
     /* TIMING PROVENANCE on the Integrator-facing surface (H10-2019-ORIGIN, 2026-09-01). ATTACHED ONLY
        WHEN PRESENT, same discipline as `hostAxis`/`validation` above: a null key is still a changed
