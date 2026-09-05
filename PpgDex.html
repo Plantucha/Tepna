@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-TIargK1gR+9Pvq0fH2Z6p0RBgHEuxPvG+Zhv7GJEox0=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i6jRg4w3FkJGmcHdy4VzKqroE3ERveXtU1iJw7vqCBQ=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-sEEnnGtQ3WZzpPa7gTX9mVYX7vYKfkNPF+WKya+4VZA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i6jRg4w3FkJGmcHdy4VzKqroE3ERveXtU1iJw7vqCBQ=' 'sha256-iFOguboFN2xJCy5pZnceqop7docaFVSxTKFGAoJDVIA=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-sEEnnGtQ3WZzpPa7gTX9mVYX7vYKfkNPF+WKya+4VZA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.9.0</title>
@@ -7109,9 +7109,32 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
 
        What DOES separate them is how much of the delta distribution sits on ONE value:
          drawn (16 files, ≤07-27) …… 100.0 %      measured (07-28 →) …… 0.6 – 8.8 %
-       Reported as a NUMBER, with `drawn` asserted only at ≥99 %. The middle of that range is genuinely
-       ambiguous on short fragments (a 15-min file has few deltas to be diverse with), and a binary that
-       pretends otherwise would be the same over-claim this whole brief family exists to remove. */
+       Reported as a NUMBER, never a bare binary. The middle of that range is genuinely ambiguous on
+       short fragments (a 15-min file has few deltas to be diverse with), and a binary that pretends
+       otherwise would be the same over-claim this whole brief family exists to remove.
+
+       ⚠️ THE CUT WAS 0.99 AND THAT WAS THE WRONG EDGE OF THIS GAP (2026-09-05). Any value from ~0.10
+       to ~1.00 separates the two populations ABOVE, so this file's own corpus could not choose between
+       them — and 0.99 is the one end that also demands near-perfection. Two independent measurements
+       say it is too high:
+
+         · `clock.js` CK_AXIS_DRAWN_SHARE, 381 box-tree sidecars: real streams reach **56.00 %**
+           (Verity ppg; H10 ecg 40.79 %) and drawn streams fall to **79.04 %** when anything interrupts
+           them. 0.67 sits in that gap, 0/25 missed with 0/356 false positives, and that comment ends
+           "Do not raise this back toward 99 %" — which is exactly where this line stood.
+         · residue `2026-09-04-drawn-rule-defeated-by-rounding`, 6 real `Polar_H10_*_ECG.txt`
+           fragments: top-delta share **98.63–98.65 %** over 10–13 distinct deltas, ZERO flagged. That
+           column IS `index × an assumed rate`; decimal rounding of 1000/130 = 7.6923 ms scatters it.
+           The 0.35 pp margin was not a safety margin, it was the width of a rounding artifact.
+
+       So a 0.99 cut measures the STAMP FORMAT and calls the answer provenance. Aligned to 0.67 below.
+       Verdicts on this file's own corpus are unchanged — 0.6–8.8 % stays below and 100 % stays above —
+       so the move costs nothing here and buys the rounded-rate and interrupted-drawn cases.
+
+       ⚠️ NOT delegated to `DexClock.CK_AXIS_DRAWN_SHARE`, deliberately: PpgDex is one of the three
+       bundles that do NOT inline `clock.js` (CLAUDE.md §✅), so `DexClock` is `undefined` here and a
+       bare reference is a ReferenceError, not a fallback. The constant is duplicated ON PURPOSE and
+       the two must be moved together. */
     let quantizedShare = null;
     /* Scan BACKWARD for the last row the main loop would have ACCEPTED and whose stamp parses —
        byte-identical to an eager `lastTs`, but paid for only where it is read. The row filter must
@@ -7162,7 +7185,9 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
        device contributed only sample ORDER. DRAWN + no anchors ⇒ `'none'`: the recording carries no
        timing information whatsoever and must never be spent as a clock leg — closure, three-cornered hat
        and PAT all silently accept such a leg today and measure a constant. */
-    const axisDrawn = quantizedShare != null && quantizedShare >= 0.99;
+    /* 0.67 — the same cut as `clock.js` CK_AXIS_DRAWN_SHARE, on that file's 381-sidecar measurement.
+       Kept as a literal because `DexClock` does not exist in this bundle; see the block above. */
+    const axisDrawn = quantizedShare != null && quantizedShare >= 0.67;
     // relSec per sample from ns, DISCIPLINED to the host clock (WEARABLE-HOST-AXIS §2); else index/fs.
     // The device crystal keeps the fine structure (the correction's own slope is ~30 ppm, i.e. 30 µs
     // per second, so RR/PPI intervals are untouched) while its RATE error is removed. If too few
