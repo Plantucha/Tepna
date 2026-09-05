@@ -917,7 +917,26 @@
         fmt(drift.residSD) +
         ' s</b> (max ' +
         fmt(drift.residMax) +
-        ' s). ' +
+        /* 🔴 INTERCEPT AND x0 ARE WHAT MAKE THE VERDICT CHECKABLE. Every row above is judged
+           `|off - predict(day)| < 5`, and `predict` is `slope * (day - x0) + intercept` — so slope and
+           residual SD alone let a reader see the FIT but not REPRODUCE it. Residue
+           2026-09-04-respacc-verdict-not-reconstructable measured the cost: a re-fit from a run log put
+           11 of 20 rows inside tolerance while the run called all 20 off-model, and the disagreement was
+           unresolvable because the output did not carry the two terms needed to recompute a prediction.
+           ⚠️ That row says the run prints "no slope, intercept, n, or residual SD". Three of those four
+           WERE already printed here; the missing pair is intercept and x0. Corrected rather than
+           restated — the defect is real and narrower than recorded. */
+        ' s, intercept <b>' +
+        fmt(drift.intercept) +
+        ' s</b> at day <b>' +
+        drift.x0 +
+        '</b>, so predict(day) = ' +
+        fmt(drift.slopePerDay, 3) +
+        '·(day − ' +
+        drift.x0 +
+        ') + ' +
+        fmt(drift.intercept) +
+        '). ' +
         okLocks +
         ' of ' +
         done.length +
