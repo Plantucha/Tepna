@@ -7512,11 +7512,26 @@ def _maybe_start_cpap_spool_pull(cfg, config_path, root, cpap_ctl, tasks, *,
             return await _cpap_ble_connect(creds["ble_addr"], hci)
     spool_root = resolve_spool_root(scfg.get("root"), root)
     epoch_start = scfg.get("epoch_start", cpap_spool_caller.SPOOL_EPOCH_START_DEFAULT)
+    # 🔴 `st` IS LOAD-BEARING AND WAS OMITTED HERE, so the loop fell back to its own
+    # `st = st or (lambda **kw: None)` default and every state it published went NOWHERE in production.
+    # The tests never saw it: `test_cpap_spool_wire.py` injects its own `st` and asserts on what it
+    # collected, so the machinery was fully covered and completely inert on the box — the
+    # "published to STATUS and read by nothing" class webmon.py:353 already names, one level worse
+    # because this never reached STATUS at all.
+    #
+    # SEPARATE KEY, DELIBERATELY. `_cpap_loop`'s `_st` owns `STATUS["cpap"]`; merging into it would let
+    # whichever actor wrote last hide the other, which is exactly the observation
+    # OPERATIONAL-MATURITY-AUDIT §4(1) needs — "two actors reporting `waiting` continuously across a
+    # whole window" is not answerable from one shared slot. Mirrors webmon's `cpap_live` rule: a
+    # separate question gets a separate key.
+    def _spool_st(**kv):
+        STATUS.setdefault("cpap_spool", {}).update(kv)
+
     task = (create_task or asyncio.create_task)(_cpap_spool_loop(
         at_hour=arming["at_hour"], window_h=arming["window_h"], root=spool_root, creds=creds,
         connect_factory=connect_factory, epoch_start=epoch_start,
         spool_type=scfg.get("spool_type", "Summary"),
-        is_capturing=cpap_ctl._running))
+        is_capturing=cpap_ctl._running, st=_spool_st))
     TASK_LABELS[id(task)] = "CPAP stored-spool pull"
     tasks.append(task)
     log.info("CPAP stored-spool pull: ARMED — %s spool, window %02d:00-%02d:00 on %s, from %s → %s",
