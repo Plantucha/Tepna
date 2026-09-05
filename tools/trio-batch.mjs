@@ -1480,7 +1480,7 @@ function readDatTimefit(dirs, winLo, winHi, ringClock) {
   };
 }
 
-/* Roll every `*_rtclog.csv` in the arrival scope into ONE ring-clock verdict, or null when no sidecar
+/* Roll every `*_RTCLOG.csv` in the arrival scope into ONE ring-clock verdict, or null when no sidecar
    is present or holds a readable row. Mirrors `nightqc.rtc_drift_summary` (Python) exactly:
      • reads / pushes / resets / batteries — per-event counts across every file, WINDOW-scoped.
      • firstOffsetS / lastOffsetS — the first and last periodic READ offset (push has no offset).
@@ -1492,7 +1492,13 @@ function readRingClockLog(dirs, inWindow, DexClock) {
   const files = [];
   for (const d of dirs) {
     try {
-      for (const n of readdirSync(d)) if (n.endsWith('_rtclog.csv')) files.push(join(d, n));
+      /* CASE-INSENSITIVE, and that is the fix. `capture_filename` upper-cases every stream tag, so the
+         daemon writes `…_RTCLOG.csv`; this line read `endsWith('_rtclog.csv')` from 699bfc0e (#1635)
+         until 2026-09-05 and matched NOTHING on any real night — 0 of 18 local arrival sidecars carried
+         a `ringClock` while the box held 29 logs a day. The gate asserted the lowercase literal, so it
+         encoded the defect. Same class as #2219 (nightqc) and #2215: writer and reader named the file
+         differently and nothing compared them. Mirrors oxydex-dsp's `/_rtclog\.csv$/i`. */
+      for (const n of readdirSync(d)) if (/_rtclog\.csv$/i.test(n)) files.push(join(d, n));
     } catch {
       /* unreadable dir → simply no sidecar from it */
     }

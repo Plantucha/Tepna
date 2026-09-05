@@ -145,6 +145,9 @@ stream:
 power:                    # duty-cycle a Polar strap that reports NOT WORN, to save its battery overnight.
   drop_not_worn_sec: 180  #   continuous not-worn before dropping the link (0 = never drop on wear state)
   not_worn_recheck_sec: 90 #  once dropped, how often to reconnect and re-check for skin contact
+  reconnect_backoff_cap_sec: 180 # ceiling of the error backoff for a device that is simply not here (5 s doubling,
+                          #   reset only once data flows). Each attempt is a 30 s scan on the shared radio:
+                          #   60 was ~35-46 hopeless scans/hour per absent device; 180 ≈ 17/hour.
 o2ring:                   # Wellue O2Ring-S / T8520 specifics.
   ppg_fs: 125.738         #   per-unit 125 Hz pleth sample rate (2026-07-18 5.8 h calibration; overrides only
                           #   the timestamp step — the ring's true rate varies slightly per unit)
