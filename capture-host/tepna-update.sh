@@ -262,14 +262,55 @@ fi
 running_sha="$before"
 if [ -s "$DEPLOYED_MARK" ]; then
   running_sha="$(cat "$DEPLOYED_MARK" 2>/dev/null)"
+  [ -n "$running_sha" ] || running_sha="$before"
 fi
 
 restart_owed=0
 if [ "$before" != "$after" ]; then
   restart_owed=1                         # merged this tick
-elif [ -n "$running_sha" ] && [ "$running_sha" != "$after" ]; then
+elif [ "$running_sha" != "$after" ]; then
   restart_owed=1                         # an earlier tick merged and deferred; still owed
   say "restart still OWED from an earlier tick — the daemon is on ${running_sha:0:12}, disk is at ${after:0:12}"
+fi
+
+# --- 5b · the CONTENT gate: a sha that moved is not code that moved ------------------------------
+# Measured on vigil 2026-09-05 13:40:45: the daemon was restarted to deploy `93a17e27`, a docs-only
+# commit (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT-2026-09-05 C4). The night interlock above protected no
+# night, because it was daytime — and a daytime restart still drops every live BLE link (the ring's
+# charge-time sync, a Verity worn through the day) and re-runs bonding, at a repo cadence of 28
+# merges/day, for a process whose code had not changed by one byte. The daemon runs `capture-host/`
+# and nothing else: the bundles are served by Caddy out of `/srv/tepna/app` (step 3 keeps those
+# current on every merge, restart or not), and the root docs/briefs/tools are not on its import path.
+#
+# So the question is asked of the CONTENT: a restart is owed iff the daemon's sha ≠ HEAD **and**
+# `git diff --name-only <running>..HEAD -- capture-host/` is non-empty. That is the brief's §6.3 rule
+# verbatim, and it is deliberately coarse — a tests-only or a comment-only change under capture-host/
+# still restarts. Over-restarting is the safe direction; the gate exists to remove the gratuitous
+# case, not to be clever about the marginal one.
+#
+# 🔴 FAIL TOWARD RESTART. A marker sha git cannot resolve (the 40-zero stale marker, a rewritten
+# history, a hand-edited file) or a `git diff` that fails for any reason yields NO answer — and no
+# answer must restore the old behaviour, not skip the restart. The guarantee being preserved is
+# "the daemon never serves stale code"; this gate may only ever remove restarts it has PROVEN
+# redundant. `--force-restart` bypasses the gate entirely: the operator asked for a restart, not for
+# an opinion on whether one is needed.
+#
+# When the gate proves the delta docs-only the marker is ADVANCED to HEAD. The marker records what
+# code the daemon is running, and for `capture-host/` that is now HEAD's code even though the process
+# started on an older sha. `/api/version` keeps reporting the sha the process started on — that is
+# correct (build_id.py: what is RUNNING, probed once at startup), and it will read older than the
+# checkout after a docs-only deploy on purpose. Do not "fix" that by restarting.
+if [ "$restart_owed" = 1 ] && [ "$MODE" != "--force-restart" ]; then
+  # A sha git cannot resolve fails the diff itself (planted: the 40-zero marker), so the exit code is
+  # the whole "unknowable" test — there is no separate resolvability check to fall out of sync with it.
+  delta="$(git -C "$REPO_DIR" diff --name-only "$running_sha..$after" -- capture-host/ 2>/dev/null)"; delta_rc=$?
+  if [ "$delta_rc" != 0 ]; then
+    say "cannot establish what changed between ${running_sha:0:12} and ${after:0:12} — restarting rather than assuming nothing did"
+  elif [ -z "$delta" ]; then
+    printf '%s\n' "$after" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
+    say "no capture-host/ change between ${running_sha:0:12} and ${after:0:12} — the daemon's code is current; marker advanced, no restart"
+    restart_owed=0
+  fi
 fi
 
 if [ "$restart_owed" = 0 ]; then
