@@ -254,6 +254,12 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         # below: a STATUS field this allowlist omits is not published.
                         "oxy_lifecycle": st.get("oxy_lifecycle"),
                         "oxy_recording": st.get("oxy_recording"),
+                        # The restart-storm block (capture.oxy_storm_status). Forwarded because the hold
+                        # is otherwise witnessed ONLY by a log line: the storm watch had to count
+                        # "ring started a new recording session" out of the journal, and a hold that
+                        # fires overnight left nothing a monitor could show. Note the comment above —
+                        # this allowlist is exactly where such a field goes to die unpublished.
+                        "oxy_storm": st.get("oxy_storm"),
                         "worn": st.get("worn"),
                         # WHICH SOURCE DECIDED, and what the other one thought. `worn` alone is a bare
                         # True/False/None with no provenance, and on 2026-08-13 that was the entire
