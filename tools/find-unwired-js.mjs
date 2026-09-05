@@ -55,11 +55,13 @@
  *   node tools/find-unwired-js.mjs --selftest
  */
 
+import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIOME = join(ROOT, 'node_modules', '.bin', 'biome');
 
 /* Each entry must EXPLAIN itself — the explanation is the point, not the exemption. An allowlist of
    bare names decays into a silencer; one that must say WHY stays reviewable. Copied deliberately from
@@ -195,6 +197,47 @@ export function directExports(code) {
   return out;
 }
 
+/* ── GRIT BACKEND (biome search) ────────────────────────────────────────────────────────────────
+   Replaces the hand-rolled tokenizer for BOTH risky steps. `biome` is already a devDependency, so
+   this adds nothing to install. Verified on plants before adoption: an odd-spaced call `foo   (  3  )`
+   MATCHES, while the same text in a comment, a string AND a template literal does NOT — which is
+   exactly the corruption class that cost the tokenizer 2 of 14 names.
+
+   🔴 COUNT `diagnostics` FROM --reporter=json, NEVER THE SUMMARY LINE. Measured three times: the human
+   summary says "Found 1 match" where JSON reports 2. A `grep -c` over rendered output is wrong the
+   same way. The summary is a rendering, not a count. */
+function gritSearch(pattern, files) {
+  if (!files.length) return [];
+  try {
+    const out = execFileSync(BIOME, ['search', `\`${pattern}\``, ...files, '--reporter=json'], {
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'ignore']
+    });
+    const i = out.indexOf('{');
+    if (i < 0) return [];
+    return (JSON.parse(out.slice(i)).diagnostics || []).map((d) => ({
+      file: d.location?.path?.file || d.location?.path || '',
+      line: d.location?.span ? null : d.location?.start?.line,
+      start: d.location?.start,
+      end: d.location?.end
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** Consumption, Grit-backed: a READ of the name in a file other than its definer. */
+export function isConsumedGrit(name, definer, files) {
+  for (const d of gritSearch(name, files)) {
+    const f = String(d.file || '')
+      .split('/')
+      .pop();
+    if (f && f !== definer) return f;
+  }
+  return null;
+}
+
 /** A name is CONSUMED when it appears in code (comments and strings stripped) in a file OTHER than the
     one that publishes it. Same-file use does not count: a function called only by its own module's
     internals is exactly the shape that reaches no consumer across the boundary. */
@@ -315,11 +358,21 @@ if (IS_MAIN) {
   const unwired = [];
   const allowed = [];
   const seen = new Set();
+  let rescued = 0;
+  const allFiles = [...files, ...htmlFiles()].map((f) => join(ROOT, f));
   for (const p of published) {
     const key = `${p.file}\u0000${p.ns}\u0000${p.name}`;
     if (seen.has(key)) continue;
     seen.add(key);
+    /* TOKENIZER FIRST as a cheap filter, then GRIT as the authority on everything it flags.
+       The tokenizer's failure mode is false-UNCONSUMED (it eats the span holding a reference), so a
+       name it calls consumed is consumed; a name it flags needs the structural check. That ordering
+       keeps the run at seconds instead of ~30 s while making every REPORTED finding Grit-backed. */
     if (isConsumed(p.name, p.file, corpus)) continue;
+    if (isConsumedGrit(p.name, p.file, allFiles)) {
+      rescued++;
+      continue;
+    }
     (ALLOW[p.name] ? allowed : unwired).push(p);
   }
 
@@ -353,6 +406,7 @@ if (IS_MAIN) {
   if (unwired.length > 40) console.log(`   … and ${unwired.length - 40} more`);
   for (const a of allowed) console.log(`   (allowed) ${a.file.padEnd(20)} ${a.name.padEnd(28)} ${ALLOW[a.name].slice(0, 60)}`);
   console.log(`\n   ${unwired.length} unexplained, ${allowed.length} allowed`);
+  console.log(`   ${rescued} finding(s) RESCUED by the structural check — the tokenizer had lost their consumer.`);
   console.log('   ADVISORY — read each before believing it; exit is always 0.');
   process.exit(0);
 }
