@@ -281,7 +281,8 @@ def ring_identity_mismatch(expected, seen) -> str | None:
 RING_BARREN_ALERT_N = 3
 
 
-def ring_barren_connects(n: int, threshold: int = RING_BARREN_ALERT_N) -> str | None:
+def ring_barren_connects(n: int, threshold: int = RING_BARREN_ALERT_N, *,
+                         storm_age_s: float | None = None, restarts_recent: int = 0) -> str | None:
     """PURE check for the OTHER half of the impostor shape (§6.2 Mitigation C, clause 2).
 
     Clause 1 asks whether the peer says the right serial; this asks whether it does the right thing.
@@ -296,10 +297,33 @@ def ring_barren_connects(n: int, threshold: int = RING_BARREN_ALERT_N) -> str | 
 
     `n` is a run of CONSECUTIVE such episodes, reset by any episode that delivered a frame — and NOT
     reset by a connect that never reached identity. That is a link failure, which the offline alarm
-    already reports; letting it clear this counter would let an alternating failure hide forever."""
-    return None if n < threshold else (
-        f"{n} consecutive connects answered the identity query and delivered no frames — "
-        "this link reaches something that is not serving data")
+    already reports; letting it clear this counter would let an alternating failure hide forever.
+
+    ⚠️ THE FIRING IS THE SAME; THE EXPLANATION BRANCHES. An O2Ring restart storm produces exactly this
+    shape — connect, identity, the ring restarts, no frames — so the alarm is a true positive either
+    way (the link IS reaching something that serves no data). What must not happen is an operator
+    being sent after an impostor when a KNOWN storm is the cause. `storm_age_s` is seconds since the
+    last declared storm and `restarts_recent` counts recent session restarts; both are the CALLER's
+    judgement, because the caller owns the attribution window (`capture.py`'s `_OXYII_STORM_MEMORY_S`)
+    and mirroring it here would make two sources of truth for one number. Pass `storm_age_s=None`
+    when no storm is attributable.
+
+    ⚠️ CLAUSE 1's SILENCE IS DELIBERATELY *NOT* A DISCRIMINATOR, though it looks like the strongest
+    one: a storming ring still answers `0xE1` with the configured serial, so "clause 2 fired and
+    clause 1 did not" reads as evidence for a storm. It is evidence ONLY where a `serial:` is
+    configured — unconfigured, clause 1 is inert and its silence means nothing whatever. Measured on
+    vigil 2026-09-05: **zero** `serial:` keys in the box's config, so on the box that owns this
+    hardware the inference would have been vacuous every time it was drawn."""
+    if n < threshold:
+        return None
+    head = f"{n} consecutive connects answered the identity query and delivered no frames"
+    if storm_age_s is not None:
+        return (f"{head} — a restart storm tripped {storm_age_s / 60:.0f} min ago, so this is very "
+                "likely the ring restarting, not an impostor")
+    if restarts_recent:
+        return (f"{head} — the ring reported {restarts_recent} session restart(s) recently, a likelier "
+                "cause than an impostor")
+    return f"{head} — this link reaches something that is not serving data"
 
 
 # WHY THIS EXISTS, AND WHY IT IS NOT `missing`.

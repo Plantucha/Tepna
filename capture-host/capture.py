@@ -4433,7 +4433,21 @@ async def run_oxyii(dev: dict, root: str):
             barren += 1
         elif frames[0]:
             barren = 0
-        _bar = alerts.ring_barren_connects(barren)
+        # ATTRIBUTION, not suppression. A restart storm produces this exact shape, so the operator is
+        # told which explanation the daemon's own state supports rather than being sent after an
+        # impostor. The window is _OXYII_STORM_MEMORY_S — the same span the hold uses to decide a
+        # storm still counts — and it is passed in rather than mirrored in alerts.py, so the number
+        # has one home. Clause 1's silence is NOT consulted: it is inert until the owner configures
+        # `serial:` (zero such keys on vigil, measured 2026-09-05), so silence there means nothing.
+        _mono = _time.monotonic()
+        _last_storm = max(_OXYII_STORMS.get(addr) or [0.0]) or None
+        _storm_age = (_mono - _last_storm
+                      if _last_storm is not None and _mono - _last_storm <= _OXYII_STORM_MEMORY_S
+                      else None)
+        _bar = alerts.ring_barren_connects(
+            barren, storm_age_s=_storm_age,
+            restarts_recent=len([t for t in (_OXYII_RESTARTS.get(addr) or [])
+                                 if _mono - t <= _OXYII_STORM_MEMORY_S]))
         # The transition is into the ALERTING STATE, not into a new string — and the difference is not
         # cosmetic. Clause 1 above compares texts because a mismatch text is stable while the wrong ring
         # stays connected; this text carries the RUN LENGTH, so it changes on every further barren

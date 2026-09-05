@@ -368,3 +368,40 @@ def test_the_threshold_is_a_parameter_not_a_literal_in_the_body():
     without a second copy of the number appearing anywhere."""
     assert alerts.ring_barren_connects(1, threshold=1) is not None
     assert alerts.ring_barren_connects(5, threshold=99) is None
+
+
+def test_a_barren_run_during_a_known_storm_names_the_STORM_not_an_impostor():
+    """The misattribution this branch exists to prevent. An O2Ring restart storm produces exactly the
+    clause-2 shape — connect, identity, the ring restarts, no frames — so the alarm is a true positive
+    either way; what must not happen is an operator sent after an impostor when a known storm is the
+    cause. The firing is unchanged; only the sentence branches."""
+    msg = alerts.ring_barren_connects(3, storm_age_s=420.0)
+    assert msg is not None
+    assert "restart storm tripped 7 min ago" in msg
+    assert "not an impostor" in msg
+    assert "reaches something that is not serving data" not in msg
+
+
+def test_recent_restarts_short_of_a_storm_still_name_the_ring_first():
+    """Below the storm threshold the ring can still be restarting — 3 restarts in the window is not a
+    storm but is a better explanation than an impostor, and saying so costs nothing."""
+    msg = alerts.ring_barren_connects(3, restarts_recent=3)
+    assert msg is not None and "3 session restart(s) recently" in msg
+
+
+def test_with_no_storm_and_no_restarts_the_wording_stays_neutral():
+    """No storm in evidence ⇒ no exoneration invented. The text says what was observed and does not
+    claim an impostor either — clause 1 is the field that can speak to identity, and only when the
+    owner has configured a serial to compare against."""
+    msg = alerts.ring_barren_connects(3)
+    assert msg is not None and "this link reaches something that is not serving data" in msg
+    assert "impostor" not in msg and "storm" not in msg
+
+
+def test_the_storm_branch_does_not_change_WHETHER_it_fires():
+    """Attribution, not suppression: a storm must never silence the alarm. Below threshold stays
+    silent with a storm in evidence; at threshold fires with or without one."""
+    assert alerts.ring_barren_connects(2, storm_age_s=10.0) is None
+    assert alerts.ring_barren_connects(2, restarts_recent=99) is None
+    assert alerts.ring_barren_connects(3, storm_age_s=10.0) is not None
+    assert alerts.ring_barren_connects(3) is not None

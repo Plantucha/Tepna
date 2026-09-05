@@ -6068,3 +6068,29 @@ def test_alert_poller_RETRIES_a_barren_webhook_that_was_not_delivered(monkeypatc
     capture._LAST_DATA.pop("Ring", None)
     assert sent.count("Tepna: ring connects but serves nothing") == 3, (
         f"an undelivered alarm must be retried every poll, got {sent}")
+
+
+def test_run_oxyii_attributes_a_barren_run_to_a_STORM_the_daemon_itself_declared(tmp_path, monkeypatch):
+    """The wiring half: the daemon holds `_OXYII_STORMS` in memory, so the alert can name the cause
+    without waiting for that state to be published anywhere. A storm inside the attribution window
+    (`_OXYII_STORM_MEMORY_S`, the same span the hold escalates over) changes the sentence."""
+    addr = _o2dev()["address"]
+    capture._OXYII_STORMS[addr] = [_time.monotonic() - 300.0]
+    try:
+        st, eps = _run_barren(tmp_path, monkeypatch, sleeps=17)
+        assert eps >= 4
+        assert st["ring_barren_alert"] and "restart storm tripped 5 min ago" in st["ring_barren_alert"]
+    finally:
+        capture._OXYII_STORMS.pop(addr, None)
+
+
+def test_a_storm_OUTSIDE_the_window_no_longer_excuses_the_run(tmp_path, monkeypatch):
+    """An hours-old storm is not an explanation for what the link is doing now. The window is the
+    daemon's own `_OXYII_STORM_MEMORY_S`; past it the neutral wording returns."""
+    addr = _o2dev()["address"]
+    capture._OXYII_STORMS[addr] = [_time.monotonic() - (capture._OXYII_STORM_MEMORY_S + 60)]
+    try:
+        st, _ = _run_barren(tmp_path, monkeypatch, sleeps=17)
+        assert st["ring_barren_alert"] and "storm" not in st["ring_barren_alert"]
+    finally:
+        capture._OXYII_STORMS.pop(addr, None)
