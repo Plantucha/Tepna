@@ -81,14 +81,41 @@ run_advisory() {                    # run_advisory <label> <note-on-fail> <cmd..
 # status instead of mypy's, and mypy's is the number the advisory reports (CLAUDE.md §4b — the check
 # that ran and reported about something it never examined).
 MYPY_OUT=".mypy-latest.txt"
+# THE BASELINE IS COMPARED, NOT NARRATED. It used to live only inside the advisory's note string —
+# "count may only go DOWN" — where nothing read it, so the count was free to rise and nobody would
+# know. It did: the brief recorded 102 on 2026-09-03 and the tree measured 103 three days later,
+# with every gate green throughout. An invariant stated in a label is not an invariant.
+#
+# Still ADVISORY: this reports the direction, it does not fail the run. §P3 is what flips mypy
+# blocking, and it flips at 0 — moving that decision here would pre-empt it.
+MYPY_BASELINE=103
+MYPY_BASELINE_DATE="2026-08-29"
 mypy_advisory() {
   "$PY" -m mypy --ignore-missing-imports --explicit-package-bases . > "$MYPY_OUT" 2>&1
   local rc=$?
   cat "$MYPY_OUT"
+  # The count comes from mypy's own summary line, never from counting lines of output: the output
+  # carries `note:` lines too, and a line count would drift from the number the baseline describes.
+  local n
+  n=$(sed -n 's/^Found \([0-9]\+\) error.*/\1/p' "$MYPY_OUT" | tail -1)
+  if [ -z "$n" ]; then
+    # No summary line means mypy did not complete a run — an ABORT, not a clean tree. Reporting
+    # "0 errors" here would be the loudest possible lie, so say what actually happened.
+    printf '  mypy: NO COUNT — mypy did not report a summary line (it aborted, not passed)\n'
+  elif [ "$n" -gt "$MYPY_BASELINE" ]; then
+    printf '  mypy: %s errors — RISEN from the %s baseline (%s). The count may only go DOWN.\n' \
+           "$n" "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"
+  elif [ "$n" -lt "$MYPY_BASELINE" ]; then
+    printf '  mypy: %s errors — BELOW the %s baseline (%s). Lower MYPY_BASELINE to bank it, or the\n' \
+           "$n" "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"
+    printf '        improvement can be spent again without anything noticing.\n'
+  else
+    printf '  mypy: %s errors — at the %s baseline (%s).\n' "$n" "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"
+  fi
   return "$rc"
 }
 if "$PY" -c 'import mypy' 2>/dev/null; then
-  run_advisory "mypy" "baseline 103 (2026-08-29) — count may only go DOWN; flips blocking at 0"     mypy_advisory
+  run_advisory "mypy" "baseline $MYPY_BASELINE ($MYPY_BASELINE_DATE) — count may only go DOWN; flips blocking at 0"     mypy_advisory
 else
   # No mypy ⇒ REMOVE the feed rather than leave yesterday's. A stale queue is worse than an absent
   # one: the lane would propose fixes for errors that may already be gone, and its acceptance rate —

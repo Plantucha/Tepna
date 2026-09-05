@@ -32,18 +32,24 @@ def _write_exec(path, body):
     os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def _sandbox(tmp_path, *, ruff_rc=0, shellcheck_rc=0, pytest_rc=0):
+def _sandbox(tmp_path, *, ruff_rc=0, shellcheck_rc=0, pytest_rc=0, mypy_found=None):
     """A PATH where each gate is a stub that records that it ran and exits as scripted."""
     binn = tmp_path / "bin"
     binn.mkdir()
     log = tmp_path / "ran.log"
 
+    # `mypy_found` scripts the SUMMARY LINE, not a line count: check.sh reads the count off mypy's
+    # own "Found N errors" line, because the output also carries `note:` lines and counting those
+    # would drift from the number the baseline describes.
+    mypy_emit = (f'echo "Found {mypy_found} errors in 3 files (checked 300 source files)"'
+                 if mypy_found is not None else "true")
     # One fake `python` dispatching on `-m <tool>`; check.sh invokes ruff and pytest through $PYTHON.
     _write_exec(str(binn / "fakepy"), f"""#!/usr/bin/env bash
 for a in "$@"; do
   case "$a" in
     ruff)   echo ruff   >> "{log}"; exit {ruff_rc} ;;
     pytest) echo pytest >> "{log}"; exit {pytest_rc} ;;
+    mypy)   {mypy_emit}; exit 0 ;;   # NOT logged: `ran` is the BLOCKING gate set, and mypy is advisory
   esac
 done
 exit 0
@@ -159,3 +165,47 @@ def test_shutil_which_finds_the_script_dir_independent(tmp_path):
     p = subprocess.run([CHECK], cwd=str(tmp_path), env=env, capture_output=True, text=True, timeout=120)
     assert p.returncode == 0, p.stdout + p.stderr
     assert shutil.which("bash") is not None
+
+
+# ── the mypy baseline, which used to live only in a label string ──────────────────────────────────
+def _mypy_run(tmp_path, found):
+    env, _log = _sandbox(tmp_path, mypy_found=found)
+    p = subprocess.run([CHECK], env=env, capture_output=True, text=True, timeout=120)
+    return p.stdout + p.stderr
+
+
+def test_A_RISEN_COUNT_IS_NAMED_AS_RISEN(tmp_path):
+    """🔴 THE DEFECT THIS CLOSES. The baseline lived inside the advisory's note string, where nothing
+    read it — so 'count may only go DOWN' was prose, and the count rose from 102 (2026-09-03) to 103
+    three days later with every gate green throughout."""
+    out = _mypy_run(tmp_path, 104)
+    assert "RISEN" in out and "104" in out
+
+
+def test_A_COUNT_AT_THE_BASELINE_SAYS_SO_WITHOUT_ALARM(tmp_path):
+    out = _mypy_run(tmp_path, 103)
+    assert "at the 103 baseline" in out
+    assert "RISEN" not in out
+
+
+def test_AN_IMPROVEMENT_SAYS_TO_BANK_IT(tmp_path):
+    """A count below the baseline is progress that can be silently spent again unless the baseline
+    moves with it — the banked-progress half of any ratchet."""
+    out = _mypy_run(tmp_path, 90)
+    assert "BELOW" in out and "bank it" in out
+
+
+def test_NO_SUMMARY_LINE_IS_AN_ABORT_NOT_A_CLEAN_TREE(tmp_path):
+    """An aborted mypy prints no 'Found N errors'. Reporting that as zero would be the loudest
+    possible lie — and it is the exact shape the brief already recorded: a bare `mypy .` aborts on
+    tests/_srcscan.py and 'counts' 1, which is 101 short of the truth."""
+    out = _mypy_run(tmp_path, None)
+    assert "NO COUNT" in out and "aborted, not passed" in out
+
+
+def test_THE_ADVISORY_STILL_DOES_NOT_FAIL_THE_RUN(tmp_path):
+    """Advisory means advisory. §P3 is what flips mypy blocking, and it flips at 0 — deciding that
+    here would pre-empt it."""
+    env, _log = _sandbox(tmp_path, mypy_found=999)
+    p = subprocess.run([CHECK], env=env, capture_output=True, text=True, timeout=120)
+    assert p.returncode == 0, "a risen mypy count must report, not fail the gate"
