@@ -21,6 +21,7 @@ import subprocess
 import allan
 import clock_offset
 import writers
+from collections.abc import Sequence
 from datetime import datetime, timedelta
 
 log = logging.getLogger("tepna-capture")
@@ -1441,22 +1442,40 @@ def ppg2w_contact_quality(night_dir: str) -> list:
     return out
 
 
-def rtc_drift_summary(path: str) -> dict | None:
-    """Roll a `_RTCLOG.csv` (RingClockLogWriter) into one night's ring-clock verdict, or None when there
-    is no readback to summarise. The daemon watches the O2Ring's RTC against the host every ~10 min and
-    logs each event; STATUS keeps only the latest, so WITHOUT this the night's drift and any battery-reset
-    live only in a CSV nobody opens. Fields: `reads` (periodic readbacks), `drift_s` (last − first
-    offset — the free-run the 0xC0 push corrects), `span_h` (first→last read), `resets` (offset jumped
-    past threshold = a battery event that silently ruins the stored .dat's timebase), `pushes` (0xC0
-    sent). Rows are `Phone timestamp;event;rtc_offset_s;…`; PURE-ish (reads a path)."""
-    try:
-        lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
-    except OSError:
+def rtc_drift_summary(path: str | Sequence[str]) -> dict | None:
+    """Roll a night's `_RTCLOG.csv` sidecars (RingClockLogWriter) into one ring-clock verdict, or None
+    when there is no readback to summarise. The daemon watches the O2Ring's RTC against the host every
+    ~10 min and logs each event; STATUS keeps only the latest, so WITHOUT this the night's drift and any
+    battery-reset live only in a CSV nobody opens. Fields: `reads` (periodic readbacks), `drift_s`
+    (last − first offset — the free-run the 0xC0 push corrects), `span_h` (first→last read), `resets`
+    (offset jumped past threshold = a battery event that silently ruins the stored .dat's timebase),
+    `pushes` (0xC0 sent), `files` (sidecars pooled). Rows are `Phone timestamp;event;rtc_offset_s;…`;
+    PURE-ish (reads paths).
+
+    ⚠️ ONE SIDECAR PER CONNECT SESSION, NOT PER NIGHT — so this takes every sidecar the ring wrote and
+    pools their rows in filename order (the capture stamp, chronological). The first real night this
+    reached (vigil 2026-09-05, the first after the case fix) had 29 sidecars: the ring reconnected 29
+    times, and the caller handed over the FIRST file only. The verdict read `reads 1 · pushes 11 ·
+    resets 0 · span_h 0.0` while the 29 files held 15 reads, 63 pushes and TWO reset-suspect events —
+    the one finding this field exists to surface, invisible because the night was summarised from its
+    first few minutes. A path that cannot be read is skipped, not fatal: on a 29-file night one torn
+    sidecar must not null the other 28."""
+    paths = [path] if isinstance(path, str) else list(path)
+    lines: list[str] = []
+    files = 0
+    for p_ in paths:
+        try:
+            body = open(p_, encoding="utf-8", errors="replace").read().splitlines()
+        except OSError:  # one torn sidecar of 29 must not null the night — and it is not hidden:
+            continue  # `files` counts only what was read, so 28-of-29 lands in the record
+        files += 1
+        lines.extend(body[1:])            # each file carries its own header row
+    if not files:
         return None
     offsets: list[float] = []
     times: list[str] = []
     resets = pushes = 0
-    for ln in lines[1:]:
+    for ln in lines:
         p = ln.split(";")
         if len(p) < 3:
             continue
@@ -1484,7 +1503,7 @@ def rtc_drift_summary(path: str) -> dict | None:
         span_h = None
     return {"reads": len(offsets), "first_offset_s": offsets[0], "last_offset_s": offsets[-1],
             "drift_s": round(offsets[-1] - offsets[0], 1), "span_h": span_h,
-            "resets": resets, "pushes": pushes}
+            "resets": resets, "pushes": pushes, "files": files}
 
 
 def dat_timefit_summary(dat_path: str, spo2_path: str,
@@ -1792,6 +1811,7 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # .dat's 1 s quantum. None means either sidecar is absent or Node/tool are.
         datfit = None
         dat_path = spo2_path = None
+        rtc_paths: list[str] = []
         for fn in sorted(os.listdir(night_dir)) if os.path.isdir(night_dir) else []:
             if writers.file_device_id(fn) not in dids:
                 continue
@@ -1802,12 +1822,20 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
             # produce — drift_s, resets, pushes — has never been computed from a real night.
             # Same class as the ACCRAW mismatch above: the reader's filename expectation did not
             # match the writer's output, and nothing compared the two.
-            if fn.endswith("_RTCLOG.csv") and rtc is None:
-                rtc = rtc_drift_summary(os.path.join(night_dir, fn))
+            # ⚠️ EVERY sidecar, not the first. The ring writes one `_RTCLOG.csv` per CONNECT SESSION,
+            # and `and rtc is None` here summarised the night from its earliest one. Measured on vigil
+            # 2026-09-05, the first night the case fix above reached: 29 sidecars, verdict
+            # `reads 1 · pushes 11 · resets 0 · span_h 0.0` against 15 reads, 63 pushes and TWO
+            # reset-suspect events on disk. The pooled roll-up is `rtc_drift_summary`'s job; this
+            # loop only collects.
+            if fn.endswith("_RTCLOG.csv"):
+                rtc_paths.append(os.path.join(night_dir, fn))
             elif fn.endswith("_STORED.dat") and dat_path is None:
                 dat_path = os.path.join(night_dir, fn)
             elif fn.endswith("_SPO2.csv") and spo2_path is None:
                 spo2_path = os.path.join(night_dir, fn)
+        if rtc_paths:
+            rtc = rtc_drift_summary(rtc_paths)
         if dat_path and spo2_path:
             datfit = dat_timefit_summary(dat_path, spo2_path)
         per_device.append({"name": name, "streams": streams, "coverage": coverage,
