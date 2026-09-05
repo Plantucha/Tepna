@@ -4650,6 +4650,70 @@
         T.skip('pseudo-TCH anti-vacuity control', 'no hat formed');
       }
 
+      /* ⚠ A VERIFIED *ANCHOR* IS NOT A PER-SAMPLE TIMING DECLARATION — OXYDEX-PB-DETECTOR-FOLLOWUPS
+         §3b/§3b.1, pinned 2026-09-05. §3b warned that this guard "upgrades itself the day OxyDex
+         publishes axis provenance" and that the trigger was unwatched. #1643 (2026-08-23) then made
+         OxyDex publish `recording.timingSource = 'device+host-verified'` AND wired
+         `json.recording.timingSource` into this guard's own resolution chain — so the trigger has
+         fired, and nothing pinned the outcome.
+
+         The two fields share a name and mean different things. OxyDex's string describes an ANCHOR
+         checked against the ring's RTC (`rtcOffsetS`/`rtcVerifiedAtMs`, `_rtclog.csv` readback); this
+         guard asks whether the axis carries PER-SAMPLE device timing. §3b.1 measured that axis over
+         ~176 000 samples on 6 nights: `distinct delta = 1`, exactly 1 s, no exceptions — it is DRAWN.
+         So `pseudo` must stay TRUE, and today it does only because the string does not happen to equal
+         `'device'` or `'device+host'`. Normalise it to `'device+host'`, or relax this to a prefix or
+         `startsWith` test, and a drawn axis is silently spent as a timed corner — the exact §3b hazard.
+
+         This asserts the OUTCOME, not the spelling, so the pin survives a rename of the constant. */
+      var blkV = (function () {
+        function mkAnchorVerified(node, noiseStd, seed) {
+          /* Built through A() rather than by mutating mkTimed's result: normalisation resolves the
+             declaration onto the record at CONSTRUCTION time, so a post-hoc edit is silently too late
+             (first draft did exactly that and the corner still read `device+host` — the fixture, not
+             the guard, was wrong). This is the real #1643 export shape: NO `quality.timingSource`,
+             an anchor declaration on `recording` beside the RTC readback fields. */
+          var nzv = normals(seed, NE),
+            epsv = [];
+          for (var i4 = 0; i4 < NE; i4++) epsv.push({ tMin: i4 * 5, rmssd: +(truth[i4] + noiseStd * nzv[i4]).toFixed(1), hr: 55, motionIndex: 0.2 });
+          var wholev = +(
+            epsv.reduce(function (a, e) {
+              return a + e.rmssd;
+            }, 0) / NE
+          ).toFixed(1);
+          return A(
+            {
+              schema: { node: node },
+              recording: {
+                startEpochMs: t0,
+                durationMin: 240,
+                timingSource: 'device+host-verified',
+                rtcOffsetS: -1.8,
+                rtcVerifiedAtMs: t0 - 1800000
+              },
+              quality: { analyzablePct: 95 },
+              hrv: { time: { rmssd: wholev, sdnn: +(wholev * 1.3).toFixed(1) } },
+              timeseries: { epochs: epsv },
+              ganglior_events: [{ t: '23:00:10', tMs: t0 + 10000, impulse: 'x', node: node, conf: 0.8 }]
+            },
+            node,
+            node + '.json'
+          )[0];
+        }
+        var c = FC([mkAnchorVerified('ECGDex', 2, 11), mkTimed('HRVDex', 5, 22), mkTimed('PpgDex', 14, 33)], 1000);
+        return c && c.blocks && c.blocks[0];
+      })();
+      if (blkV && blkV.tch && blkV.tch.ok) {
+        T.eq("a VERIFIED ANCHOR ('device+host-verified') does NOT make the corner timed — hat stays pseudo", blkV.tch.pseudo, true);
+        T.ok(
+          '…and the declaration is still REPORTED rather than swallowed, so a reader can see what was claimed',
+          !!blkV.tch.axisProvenance && String(JSON.stringify(blkV.tch.axisProvenance)).indexOf('device+host-verified') !== -1,
+          JSON.stringify(blkV.tch && blkV.tch.axisProvenance)
+        );
+      } else {
+        T.skip('anchor-verified corner stays pseudo', 'no hat formed in this fixture');
+      }
+
       /* DEEP-AUDIT-V §2.1 F4 — THE SCREEN HAS THREE OUTCOMES AND THE CONSUMER IMPLEMENTED TWO.
          `screenTriplet`'s docstring: "Exactly-one → drop it and name the trustworthy pair; zero →
          proceed; two-or-more mutual decorrelations → AMBIGUOUS (can't tell which is truth) → don't
