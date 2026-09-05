@@ -4280,5 +4280,31 @@
       "probe": "read of the code, not a battery: the assignment is dead on every path (see `why`). tests/test_nightqc.py::test_span_h_is_HOURS_and_is_None_when_the_stamps_cannot_be_read covers BOTH live paths — the computed span and the except-branch None.",
       "why": "The initial value is never read. `span_h = None` is immediately followed by a try/except in which BOTH arms assign: the try sets `round((t1 - t0) / 3600, 1)` and the `except ValueError` sets None. `times` is non-empty whenever this line is reached (guarded by `if not offsets: return None`, and every offset appends a time), so there is no path that reaches the return with the initial binding intact. An argument about the CODE, not about the suite."
     }
+  ],
+  "probe_ring_adv.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(path, \"a\", encoding=\"utf-8\") | + self._fh = open(path, \"a\", encoding=None)",
+      "why": "`JsonlSink.write` serialises with json.dumps and the default ensure_ascii=True, so every byte the sink writes is ASCII BY CONSTRUCTION — a non-ASCII operator label is escaped to \\uXXXX before it reaches the file. ASCII is codec-invariant, so encoding=\"utf-8\", encoding=None and the argument omitted write identical bytes on any ASCII-superset locale. Proof over the reachable domain (the mmeta.py argument), not a fleet-is-UTF-8 assumption. The explicit encoding stays: it documents intent for the day the writer changes.",
+      "probe": "wrote {\"label\": \"prstýnek — ⚠ removed\"} through JsonlSink, read it back via load_rows under encoding=\"utf-8\", encoding=None and with the argument omitted: byte-identical file, equal rows, all three. Also ran the module's tests under LANG=C.UTF-8 and LANG=C — identical."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- self._fh = open(path, \"a\", encoding=\"utf-8\") | + self._fh = open(path, \"a\", )",
+      "why": "Omitting the argument selects the locale codec exactly as encoding=None does — the same equivalence as the sibling entry, one operator over. `JsonlSink.write` serialises with json.dumps and the default ensure_ascii=True, so every byte the sink writes is ASCII BY CONSTRUCTION — a non-ASCII operator label is escaped to \\uXXXX before it reaches the file. ASCII is codec-invariant, so encoding=\"utf-8\", encoding=None and the argument omitted write identical bytes on any ASCII-superset locale. Proof over the reachable domain (the mmeta.py argument), not a fleet-is-UTF-8 assumption. The explicit encoding stays: it documents intent for the day the writer changes.",
+      "probe": "wrote {\"label\": \"prstýnek — ⚠ removed\"} through JsonlSink, read it back via load_rows under encoding=\"utf-8\", encoding=None and with the argument omitted: byte-identical file, equal rows, all three. Also ran the module's tests under LANG=C.UTF-8 and LANG=C — identical."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, encoding=\"utf-8\") as fh: | + with open(path, encoding=None) as fh:",
+      "why": "`load_rows` reads what `JsonlSink` wrote (ensure_ascii=True → ASCII by construction), and the test round-trip label \"prstýnek — ⚠ removed\" lands on disk as \\u escapes. ASCII is codec-invariant, so the three spellings of the open() decode identical bytes. A hand-edited non-ASCII JSONL would decode the same under any UTF-8 locale, which is every environment this tool runs in (box + CI). This key also matches the identical open() in `label_reader_for` (the operator's label file, typed in a shell under the same UTF-8 locale): same argument, same verdict.",
+      "probe": "wrote {\"label\": \"prstýnek — ⚠ removed\"} through JsonlSink, read it back via load_rows under encoding=\"utf-8\", encoding=None and with the argument omitted: byte-identical file, equal rows, all three. Also ran the module's tests under LANG=C.UTF-8 and LANG=C — identical."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(path, encoding=\"utf-8\") as fh: | + with open(path, ) as fh:",
+      "why": "Omitting the argument selects the locale codec exactly as encoding=None does. `load_rows` reads what `JsonlSink` wrote (ensure_ascii=True → ASCII by construction), and the test round-trip label \"prstýnek — ⚠ removed\" lands on disk as \\u escapes. ASCII is codec-invariant, so the three spellings of the open() decode identical bytes. A hand-edited non-ASCII JSONL would decode the same under any UTF-8 locale, which is every environment this tool runs in (box + CI). This key also matches the identical open() in `label_reader_for` (the operator's label file, typed in a shell under the same UTF-8 locale): same argument, same verdict.",
+      "probe": "wrote {\"label\": \"prstýnek — ⚠ removed\"} through JsonlSink, read it back via load_rows under encoding=\"utf-8\", encoding=None and with the argument omitted: byte-identical file, equal rows, all three. Also ran the module's tests under LANG=C.UTF-8 and LANG=C — identical."
+    }
   ]
 }

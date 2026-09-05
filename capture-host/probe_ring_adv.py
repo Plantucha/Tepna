@@ -80,13 +80,9 @@ def _hex(b: Any) -> str:
 def platform_extras(platform_data: Any) -> dict[str, Any]:
     """The BlueZ-specific leftovers of a sighting, hex-encoded. Tolerates any shape: bleak's BlueZ
     backend passes `(object_path, props_dict)`, other backends pass something else, tests pass None."""
-    props = None
-    if isinstance(platform_data, (tuple, list)) and len(platform_data) >= 2 and isinstance(platform_data[1], dict):
-        props = platform_data[1]
-    elif isinstance(platform_data, dict):
-        props = platform_data
-    if not props:
-        return {}
+    props = platform_data[1] if isinstance(platform_data, (tuple, list)) and len(platform_data) >= 2 else platform_data
+    if not isinstance(props, dict):
+        return {}  # an empty dict falls through and yields {} from the loop — no sentinel to mutate
     out: dict[str, Any] = {}
     for k in _PLATFORM_KEYS:
         if k not in props:
@@ -213,8 +209,10 @@ async def run_probe(*, scanner_factory, expected_addr: str, sink, duration_s: fl
 
 
 def _quantile(xs: list[float], q: float) -> float:
+    """Nearest-rank quantile for q in [0, 1]; the only caller passes 0.9. No clamp: a clamp against
+    q > 1 guards nothing reachable and only breeds equivalent mutants."""
     s = sorted(xs)
-    return s[min(len(s) - 1, int(round(q * (len(s) - 1))))]
+    return s[int(round(q * (len(s) - 1)))]
 
 
 def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -235,7 +233,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         payloads = sorted({json.dumps(r["manufacturer_data"], sort_keys=True) for r in grp})
         out["groups"].append({
             "address": addr, "label": label, "n": len(grp),
-            "span_s": round(monos[-1] - monos[0], 3) if len(monos) > 1 else 0.0,
+            "span_s": round(monos[-1] - monos[0], 3),     # a group is never empty; one row → 0.0
             "interval_s": None if not gaps else {
                 "median": round(statistics.median(gaps), 3),
                 "p90": round(_quantile(gaps, 0.9), 3),

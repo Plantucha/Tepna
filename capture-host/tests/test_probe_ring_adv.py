@@ -31,8 +31,9 @@ def _dev(address):
 def test_platform_extras_tolerates_every_shape():
     assert probe.platform_extras(None) == {}
     assert probe.platform_extras(("/org/bluez/hci0/dev_X", {})) == {}
-    assert probe.platform_extras(("/path", "not-a-dict")) == {}
-    assert probe.platform_extras("garbage") == {}
+    assert probe.platform_extras(("/path", 7)) == {}        # an int: `k in 7` would raise, so a dropped
+    assert probe.platform_extras(42) == {}                  # isinstance guard is a TypeError, not a {}
+    assert probe.platform_extras(("/path",)) == {}          # 1-tuple: the length guard, not IndexError
 
 
 def test_platform_extras_hex_encodes_raw_ad_structures_and_unwraps_variants():
@@ -68,6 +69,10 @@ def test_decode_sighting_is_flat_json_safe_and_tags_hypotheses_without_deciding(
     row = probe.decode_sighting(RING.lower(), adv, expected_addr=RING, label="button-pressed",
                                 scan_mode="active", host_wall=1_700_000_000.1234567, host_mono=12.3456789)
     assert row["address"] == RING and row["expected"] is True
+    # the decoded radio fields come from THIS advert, each one (a mutant reading them off None
+    # survived until these were pinned)
+    assert row["local_name"] == "O2Ring 2100" and row["rssi"] == -55 and row["tx_power"] == 4
+    assert row["service_uuids"] == ["180d"]
     assert row["manufacturer_data"] == {"0x1234": "ff", "0xF34E": "0102"}
     assert row["service_data"] == {"0000180d-0000-1000-8000-00805f9b34fb": "00"}
     assert row["hypothesis"] == ["0xF34E: " + probe.MFR_HYPOTHESES[0xF34E]]
@@ -178,9 +183,10 @@ def test_run_probe_writes_ring_and_candidates_counts_strangers_and_stops_at_dura
         ("11:22:33:44:55:66", _adv(manufacturer_data={0x036F: b"\x00"})),  # hypothesised id → written
         ("AA:AA:AA:AA:AA:AA", _adv(local_name="Phone")),                   # stranger → counted only
         ("AA:AA:AA:AA:AA:AA", _adv(local_name="Phone")),                   # same stranger → 1 address
+        ("BB:BB:BB:BB:BB:BB", _adv()),                                     # a second stranger → 2
         (RING, _adv(rssi=-52)),
     ]
-    labels = iter(["worn", "worn", "worn", "removed", "removed"])
+    labels = iter(["worn", "worn", "worn", "removed", "removed", "removed"])
     sleeps, t = [], {"v": 100.0}
 
     async def sleep(s):             # the only thing that advances the fake clock
@@ -191,7 +197,7 @@ def test_run_probe_writes_ring_and_candidates_counts_strangers_and_stops_at_dura
         scanner_factory=lambda cb: _Scanner(cb, feed, log), expected_addr=RING.lower(), sink=sink,
         duration_s=3.0, label_reader=lambda: next(labels), scan_mode="active",
         mono=lambda: t["v"], wall=lambda: 1.0, sleep=sleep, progress=shown.append))
-    assert res == {"written": 3, "dropped": 2, "other_addresses": 1, "expected_seen": 2}
+    assert res == {"written": 3, "dropped": 3, "other_addresses": 2, "expected_seen": 2}
     assert [r["address"] for r in sink.rows] == [RING, "11:22:33:44:55:66", RING]
     assert [r["label"] for r in sink.rows] == ["worn", "worn", "removed"]   # label read per sighting
     assert log == ["start", "stop"] and sink.closed
@@ -260,17 +266,55 @@ def test_summarize_groups_by_address_and_label_with_interval_stats():
     assert other["rssi"] is None                                        # a None RSSI is not a number
 
 
-def test_quantile_clamps_to_the_last_element():
+def test_summarize_rounds_every_interval_stat_to_milliseconds_and_p90_is_not_the_max():
+    # 7 sightings → 6 gaps with 5-decimal values, so a 3-place rounding is visible on each stat, and
+    # p90 (nearest rank 4 of 0..5) is a different element from max.
+    gaps = [0.12345, 0.23456, 0.34567, 0.45678, 0.56789, 0.67891]
+    monos, t = [10.0], 10.0
+    for g in gaps:
+        t += g
+        monos.append(t)
+    s = probe.summarize([_row(RING, "worn", m) for m in monos])
+    g = s["groups"][0]
+    assert g["span_s"] == round(sum(gaps), 3) == 2.407
+    assert g["interval_s"] == {"median": 0.401, "p90": 0.568, "max": 0.679}
+
+
+def test_summarize_span_of_two_rows_is_their_distance_and_of_one_row_is_zero():
+    two = probe.summarize([_row(RING, "worn", 5.0), _row(RING, "worn", 7.25)])["groups"][0]
+    assert two["span_s"] == 2.25 and two["interval_s"] == {"median": 2.25, "p90": 2.25, "max": 2.25}
+    one = probe.summarize([_row(RING, "worn", 5.0)])["groups"][0]
+    assert one["span_s"] == 0.0 and one["interval_s"] is None
+
+
+def test_summarize_payload_identity_ignores_key_order():
+    # the same two manufacturer ids in either insertion order are ONE distinct payload — the summary
+    # must not report a "new payload" because a dict was built in a different order
+    rows = [_row(RING, "worn", 1.0, mfr={"0xF34E": "aa", "0x036F": "bb"}),
+            _row(RING, "worn", 2.0, mfr={"0x036F": "bb", "0xF34E": "aa"}),
+            _row(RING, "worn", 3.0, mfr={"0x036F": "bb"})]
+    g = probe.summarize(rows)["groups"][0]
+    assert g["manufacturer_payloads"] == ['{"0x036F": "bb", "0xF34E": "aa"}', '{"0x036F": "bb"}']
+
+
+def test_quantile_is_nearest_rank_over_the_sorted_values():
     assert probe._quantile([3.0, 1.0, 2.0], 1.0) == 3.0
     assert probe._quantile([3.0, 1.0, 2.0], 0.0) == 1.0
     assert probe._quantile([5.0], 0.9) == 5.0
+    xs = [float(i) for i in range(10)]                    # rank round(0.9·9)=8 → 8.0, not the max
+    assert probe._quantile(xs, 0.9) == 8.0
+    assert probe._quantile(xs, 0.5) == 4.0                # round(4.5) → 4 (banker's), documented by the test
 
 
 def test_load_rows_and_print_summary_round_trip(tmp_path, capsys):
     path = tmp_path / "adv.jsonl"
     path.write_text(json.dumps(_row(RING, "worn", 1.0)) + "\n\n" + json.dumps(_row(RING, "worn", 2.0)) + "\n",
                     encoding="utf-8")
-    assert len(probe.load_rows(str(path))) == 2
+    rows = probe.load_rows(str(path))
+    assert len(rows) == 2
     assert probe._print_summary(str(path)) == 0
-    out = json.loads(capsys.readouterr().out)
+    text = capsys.readouterr().out
+    # exactly the summary, indent=1 (one line per key: greppable on the box, no wide terminal needed)
+    assert text == json.dumps(probe.summarize(rows), indent=1) + "\n"
+    out = json.loads(text)
     assert out["groups"][0]["n"] == 2 and out["groups"][0]["interval_s"]["median"] == 1.0
