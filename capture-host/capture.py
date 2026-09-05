@@ -6508,7 +6508,10 @@ async def charger_pull_poller(cfg: dict, root: str):
                     # Failure is benign by construction: if the ring drops mid-drain the remainder stays
                     # on flash for the hourly poller, which is exactly today's behaviour.
                     try:
-                        more = await pull_oxyii_session(dev, root, which="new", ftype=ftype)
+                        # Booked under the SAME trigger as the primary pull — the POWER axis counts this
+                        # as the event's second attempt, not a manual one.
+                        more = await pull_oxyii_session(dev, root, which="new", ftype=ftype,
+                                                        trigger=trigger)
                         drained = len((more or {}).get("new_files", []) if isinstance(more, dict) else [])
                         if drained:
                             log.info("auto-pull (%s): drained %d stranded fragment(s) from %s",
