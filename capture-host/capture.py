@@ -4175,7 +4175,16 @@ async def run_oxyii(dev: dict, root: str):
                     # bleak's dispatch) is indistinguishable from a healthy one from out here.
                     if frames[0] != last_frames:
                         last_frames, last_change = frames[0], _time.monotonic()
-                        _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.LIVE, "frames flowing")
+                        # A frame arriving says the LINK is alive, not that the ring is worn: the live
+                        # callback above already voted LIVE↔IDLE_UNWORN from the contact bit, and that
+                        # vote owns the edge. Re-asserting LIVE here on every frame turned an unworn,
+                        # connected ring into a two-state oscillator — measured on vigil 2026-08-28:
+                        # 17,688 idle_unworn↔live episodes, 32k rows each way, median dwell 1.0 s,
+                        # every one "frames flowing" undoing "ring reports not-worn" one poll later
+                        # (OXYII-ACQUISITION-CHARTER G4, 2026-09-05). Frames from an unworn ring are
+                        # a heartbeat of the link; they leave IDLE_UNWORN alone.
+                        if _oxylc.state is not oxy_lifecycle.OxyState.IDLE_UNWORN:
+                            _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.LIVE, "frames flowing")
                         backoff = 5           # E3: data is flowing — THIS is a viable session, so reset the
                                               # reconnect backoff. A later drop then recovers fast; a ring
                                               # that only ever connects-and-drops never reaches here and so
