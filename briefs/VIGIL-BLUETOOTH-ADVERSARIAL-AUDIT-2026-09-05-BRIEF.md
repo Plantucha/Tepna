@@ -150,8 +150,10 @@ stale-handle events in one boot), B2 (a shipped race mitigation absent from prod
 spoofable medical-data ingest path), and the standing churn census (755 wedged/24 h) the inventory
 brief owns. None is capture-fatal today; C1 is the one with silent-wrong-data potential and deserves
 the first decision. The cheap, owner-authorized box ops that fall out: untrust both Polars on hci1
-(B2), keep wlp1s0 down by rule (A5), probe this ring's firmware for the AES session (C1), add a
-bounded `btmon` helper to the sudoers roster (D2), and the two script-sized changes C4 + D3.
+(B2), keep wlp1s0 down by rule (A5), add a bounded `btmon` helper to the sudoers roster (D2), and the
+two script-sized changes C4 + D3. **C1 has no cheap op — it is closed by detection or not at all**
+(§6.2 as amended: Probe A proved no link encryption is available, and both the AES-session and
+USB-harvest routes this brief first proposed were wrong; B′ + C are what remain).
 
 Not re-proposed (owned elsewhere): per-device radio placement (PER-DEVICE-ADAPTER-PINNING) ·
 distress-failover tuning (armed; RADIO-FAILOVER brief) · adapter A/B methodology (`adapter_ab.py`) ·
@@ -202,11 +204,25 @@ session-crypto negotiation exists on the BLE transport — the §3.3 AES belongs
   branchCode, under the key `"firmware"` — residue `2026-09-02-oxyii-branchcode-named-firmware` is
   the open naming fix, and exposing the version bytes there would make the daemon's
   "firmware revision unread" DIS log line obsolete.
-- **Mitigation B — prefer USB harvest when docked** (code PR, no radio risk): the ring sits on the
-  bus nightly (`1915:f33c`, present right now), the USB client exists (`o2ring.py`,
-  O2RING-USB-PROTOCOL), and **a USB device is unspoofable by radio** — stored-`.dat` harvest over
-  the dock gives the corpus a physically authenticated channel regardless of what happens on air.
-  The live BLE stream stays as-is; the archival record gains integrity.
+- ~~**Mitigation B — prefer USB harvest when docked**~~ **WITHDRAWN 2026-09-05, owner correction —
+  it contradicted the product.** The proposal was to route the archival `.dat` over the dock because
+  a USB device is unspoofable by radio. Two things were wrong with it. (1) **The `.dat` harvest is
+  ALREADY over BLE and works**: `oxyii.py` drives `OP_FILE_LIST/START/DATA/END` =
+  `0xF1/0xF2/0xF3/0xF4` and `pull_oxyii_session` takes the link to run them — three `*_STORED.dat`
+  were pulled that way on 2026-09-05 alone. I read "a USB protocol exists" as "the USB path is the
+  harvest path". (2) **The harvest must work for a user who has no capture box at all** — vigil is
+  the development/reference box, not the deployment target, so a box-only channel is a portability
+  downgrade dressed as a security win. The dock stays what it is: a convenience here, and a way to
+  authenticate a *reference* pull. **Anything proposed for C1 must hold for a user with a ring, a
+  phone, and nothing else.**
+- **Mitigation B′ — cross-node corroboration (replaces B).** The suite already fuses independent
+  nodes, and that is the leverage a lone-ring impostor cannot cheaply defeat: a fabricated ring night
+  must agree with the H10's ECG-derived HR and the Verity's PPG over the same wall-clock window. The
+  Integrator's consensus machinery exists; what is missing is a check that *asserts* the agreement
+  for ring-sourced nights rather than fusing whatever arrives. It degrades honestly for a
+  single-device user — it detects nothing, and must say so rather than imply a guarantee it cannot
+  make. That residual is the honest end state for this hardware: with no link encryption available
+  (Probe A), C1 has no cryptographic close, and detection is what remains.
 - **Mitigation C — impostor-shape alert** (code PR): fire the existing guardrails webhook on an
   `0xE1` identity whose `device_id ≠` the configured `S8AW2100`, or on repeated connects that reach
   identity but never a valid pull. Detection, not prevention — cheap and honest about it.
