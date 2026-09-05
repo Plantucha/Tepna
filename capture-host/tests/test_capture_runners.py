@@ -3657,6 +3657,7 @@ def test_run_oxyii_backoff_grows_when_connect_then_drops_without_data(tmp_path, 
     not reset to 5 s and hammer every ~21 s. With no data, backoff climbs 5→10→…"""
     from bleak.exc import BleakError
     capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    monkeypatch.setattr(capture, "_RETRY_JITTER", 0.0)   # the SCHEDULE is under test, not the jitter
     slept = []
     class _DropClient(FakeGattClient):
         async def start_notify(self, _c, cb):            # connect ok, but drop before any data

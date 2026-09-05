@@ -24,9 +24,13 @@ _ABSENT = "not advertising — device off, out of range, or held by another cent
 
 
 @pytest.fixture(autouse=True)
-def _fresh_events():
+def _fresh_events(monkeypatch):
     """A module-level asyncio.Event binds to the first loop that awaits it and every asyncio.run() below
-    is a new loop — recreate them per test, as test_capture_runners does."""
+    is a new loop — recreate them per test, as test_capture_runners does. Jitter is OFF here: this file
+    pins the SCHEDULE (5 → … → cap, held); the ±10 % jitter `_retry_sleep` adds on top is pinned by
+    tests/test_resource_orchestration.py, and with it on the 5 s floor sleep lands below the recorder's
+    ≥ 5 s filter about half the time."""
+    monkeypatch.setattr(capture, "_RETRY_JITTER", 0.0)
     capture._STOP = asyncio.Event()
     capture._RECOVER = asyncio.Event()
     capture._OXYII_PAUSE = asyncio.Event()
