@@ -266,3 +266,92 @@ def test_A_SECOND_FIRE_APPENDS_IT_DOES_NOT_REWRITE_THE_JOURNAL(tmp_path):
     assert both.startswith(first), "the second fire rewrote the first one away"
     assert both.count("fired_ms;") == 1, "the header was written twice"
     assert both.count("\n") == 3 and "first" in both and "second" in both
+
+
+# ── the REASON, not just the bucket (2026-09-05) ─────────────────────────────────────────────────────
+# 🔴 WHY THE CLASS ALONE IS NOT ENOUGH. `last_unreachable_class` separates BleakDeviceNotFoundError
+# from InProgress — two classes, two responses. It cannot separate anything INSIDE `As11Error`, and
+# every AS11 protocol fault is that one class: a rejected pairing key, a timeout and a malformed frame
+# are indistinguishable. Measured 2026-09-04 18:49 → 09-05 06:00: the AirSense stopped accepting our
+# masterPairKey and eleven hours of every-30 s failures read exactly like "the machine is off".
+class _As11Error(Exception):
+    """Stands in for as11_pull.As11Error — same shape: one class, many reasons."""
+
+
+def _fresh_cpap_status():
+    capture.STATUS["cpap"] = {"enabled": True}
+    capture._CPAP_UNREACHABLE_MEMO.clear()
+
+
+def test_THE_UNREACHABLE_MESSAGE_IS_RECORDED_NOT_JUST_THE_CLASS():
+    _fresh_cpap_status()
+    capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))
+    st = capture.STATUS["cpap"]
+    assert st["last_unreachable_class"] == "_As11Error"
+    assert st["last_unreachable_msg"] == "RPC 10 VerificationFailure", \
+        "the class is the bucket; only the message says WHY, and it was in hand at the raise"
+
+
+def test_A_MESSAGELESS_EXCEPTION_RECORDS_NULL_NOT_AN_EMPTY_STRING():
+    # An empty string renders as `As11Error: ` — a colon promising a reason that is not there. Null is
+    # the honest absence (§2.6: a missing observation is visible, never fabricated).
+    _fresh_cpap_status()
+    capture._note_cpap_unreachable(_As11Error(""))
+    assert capture.STATUS["cpap"]["last_unreachable_msg"] is None
+
+
+def test_A_LONG_MESSAGE_IS_TRUNCATED_SO_ONE_FAULT_CANNOT_FLOOD_THE_STATE():
+    _fresh_cpap_status()
+    capture._note_cpap_unreachable(_As11Error("x" * 5000))
+    assert len(capture.STATUS["cpap"]["last_unreachable_msg"]) == 200
+
+
+def test_THE_LOG_IS_RATE_LIMITED_BUT_NEVER_SILENT_ABOUT_A_CHANGE(caplog):
+    """The poll is every 30 s; a fault that runs all night is 1320 polls. Log the first, any CHANGE,
+    and hourly — never one line per poll, and never silence when the fault becomes a different one."""
+    _fresh_cpap_status()
+    with caplog.at_level("WARNING"):
+        capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))   # streak 1 → logs
+        for _ in range(30):                                                        # repeats → silent
+            capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))
+        first_phase = caplog.text.count("CPAP poll unreachable")
+        capture._note_cpap_unreachable(_As11Error("connection timed out"))         # CHANGED → logs
+    assert first_phase == 1, f"31 identical failures must log once, logged {first_phase}"
+    assert caplog.text.count("CPAP poll unreachable") == 2, "a changed fault is news and must log"
+    assert "connection timed out" in caplog.text
+    assert capture.STATUS["cpap"]["unreachable_streak"] == 32
+
+
+def test_THE_HOURLY_LINE_FIRES_SO_A_LONG_OUTAGE_LEAVES_PERIODIC_PROOF(caplog):
+    _fresh_cpap_status()
+    with caplog.at_level("WARNING"):
+        for _ in range(120):
+            capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))
+    # streak 1 (first) and streak 120 (hourly at a 30 s poll) — not the 118 in between.
+    assert caplog.text.count("CPAP poll unreachable") == 2, \
+        "one line at the start would scroll away; a line an hour is the evidence an outage leaves"
+
+
+def test_A_SUCCESSFUL_POLL_CLEARS_THE_MESSAGE_AND_THE_LOG_MEMO(caplog):
+    """The memo must not outlive the fault: a fault that heals and returns is a NEW outage, and its
+    first line is the one an operator reads."""
+    import types
+    _fresh_cpap_status()
+    capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))
+
+    class _D:
+        evidence = {"reachable": True, "fg_state": "Standby"}
+        state = types.SimpleNamespace(name="IDLE")
+        host_ms = 1.0
+
+    capture._publish_therapy_state(_D(), None)
+    assert capture.STATUS["cpap"]["last_unreachable_msg"] is None
+    assert "msg" not in capture._CPAP_UNREACHABLE_MEMO, \
+        "a healed fault must not suppress the first line of the next one"
+
+    # caplog captures WARNING by default, so the setup failure above is ALREADY in it — clear, or this
+    # counts a line from a phase it does not describe (it read 2 and the memo was working fine).
+    caplog.clear()
+    with caplog.at_level("WARNING"):
+        capture._note_cpap_unreachable(_As11Error("RPC 10 VerificationFailure"))
+    assert caplog.text.count("CPAP poll unreachable") == 1
