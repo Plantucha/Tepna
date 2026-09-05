@@ -127,3 +127,37 @@ def test_the_helper_actually_skips_on_a_generated_file(tmp_path, monkeypatch):
     with pytest.raises(BaseException) as e:          # pytest.skip raises Skipped, not Exception
         ss.module_source("gen.py")
     assert "mutmut" in str(e.value) or e.typename == "Skipped"
+    # The skip must be allowed at MODULE level: `test_ring_acc_recording.py` calls the helper at import.
+    # Without the flag pytest turns the skip into a collection ERROR, and under mutate_diff's `-x` that
+    # is "failed to collect stats" for the whole capture.py run (#2209/#2214 mutation jobs, 2026-09-05).
+    # `Skipped` carries the flag as an attribute; the previous assertion accepted either form.
+    assert getattr(e.value, "allow_module_level", False) is True
+
+
+def test_a_module_level_scan_of_a_generated_file_is_a_skip_not_a_collection_error(tmp_path):
+    """The failure as it actually happened, reproduced end to end: a test file that scans a mutatable
+    module at import time, collected by a REAL pytest against a file carrying mutmut's marker. This must
+    collect as SKIPPED. The pre-fix helper made it a collection error — pytest's message is literally
+    'Using pytest.skip outside of a test will skip the entire module' — which mutate_diff (running -x)
+    reports as 'failed to collect stats' and refuses on. Run in a subprocess because the property under
+    test is pytest's collection behaviour, not the helper's return value."""
+    import shutil
+    import subprocess
+    import sys
+
+    root = tmp_path / "repo"
+    (root / "tests").mkdir(parents=True)
+    shutil.copy(HERE / "tests" / "_srcscan.py", root / "tests" / "_srcscan.py")
+    (root / "gen.py").write_text("def x_f__mutmut_orig(): pass\n", encoding="utf-8")
+    (root / "tests" / "test_scan.py").write_text(
+        "from _srcscan import module_source\n"
+        "SRC = module_source('gen.py')\n"          # module scope — the shape test_ring_acc_recording uses
+        "def test_x():\n    assert 'mutmut' in SRC\n", encoding="utf-8")
+    r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider",
+                        "--rootdir", str(root), str(root / "tests" / "test_scan.py")],
+                       cwd=str(root / "tests"), capture_output=True, text=True, timeout=120)
+    out = r.stdout + r.stderr
+    assert "error" not in out.lower() and "allow_module_level" not in out, out
+    # exit 5 = "no tests collected" — the one file in this run skipped whole, which is the intent; a
+    # collection error exits 2 (and mutmut's `-x` run dies with it). Alongside real tests, exit is 0.
+    assert r.returncode == 5 and "1 skipped" in out, out

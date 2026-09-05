@@ -47,8 +47,17 @@ def module_source(name: str) -> str:
     src = (HERE / name).read_text(encoding="utf-8")
     if "__mutmut_orig" in src:
         import pytest
+        # `allow_module_level=True` is LOAD-BEARING. `test_ring_acc_recording.py` calls this at module
+        # scope (`CAP = module_source("capture.py")`), and a bare `pytest.skip` raised during import is
+        # not a skip — pytest turns it into a COLLECTION ERROR ("Using pytest.skip outside of a test will
+        # skip the entire module. If that's your intention, pass allow_module_level=True"). Under
+        # `mutate_diff.py`'s `-x` that error killed every capture.py mutant run since #2174: "failed to
+        # collect stats" → 0 mutants tested → the gate refused (correctly) on #2209 and #2214, so the
+        # mutation gate was blind to every capture.py change for two days while reading as an
+        # environment fault. Inside a test function the flag is inert, so one form serves both call sites.
         pytest.skip(f"{name} here is a mutmut-generated file holding every mutant inline; "
-                    "a source scan sees all of them at once (see tests/_srcscan.py)")
+                    "a source scan sees all of them at once (see tests/_srcscan.py)",
+                    allow_module_level=True)
     return src
 
 
