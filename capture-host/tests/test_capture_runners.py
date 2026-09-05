@@ -22,7 +22,7 @@ _DROP_DEFAULT = capture._DROP_NOT_WORN_SEC
 # override into an unrelated test module (test_drop_not_worn / test_settings_schema assert the defaults).
 _GLOBAL_SNAPSHOT = {k: getattr(capture, k) for k in
                     ("_DROP_NOT_WORN_SEC", "_NOT_WORN_RECHECK_S", "_OXYII_RTC_RESYNC_SEC",
-                     "O2PPG_FS", "O2PPG_NS_STEP", "_STREAM_STALL_S")}
+                     "O2PPG_FS", "O2PPG_NS_STEP", "_STREAM_STALL_S", "_RECONNECT_BACKOFF_CAP_S")}
 
 
 @pytest.fixture(autouse=True)
@@ -342,6 +342,55 @@ def test_run_oxyii_journals_both_axes_worn_flip_and_recording_close(tmp_path, mo
     assert [r[3] for r in rec] == ["recording", "end_candidate", "rec_unknown"], "rec axis journals in order"
     assert "901→0" in rec[1][4] and "closed at 901" in rec[1][4], "the close records the counter value"
     assert any(r[3] == "live" for r in link) and any(r[3] == "idle_unworn" for r in link)
+
+
+def _oxylife_link_rows(tmp_path):
+    (life,) = list((tmp_path / "captures").rglob("OXYLIFE.csv"))
+    rows = [ln.split(";") for ln in life.read_text().splitlines() if ln and not ln.startswith(("#", "host_wall"))]
+    return [r for r in rows if r[-1] == ""]
+
+
+def test_run_oxyii_an_unworn_ring_streaming_frames_holds_IDLE_UNWORN_instead_of_flapping(tmp_path, monkeypatch):
+    """THE vigil 2026-08-28 oscillator, through the production loop. A connected ring on the desk answers
+    every ~1 Hz poll with contact=0: the live callback votes IDLE_UNWORN, then the loop's stall guard saw
+    a new frame and re-asserted LIVE ("frames flowing"), and the next poll voted IDLE_UNWORN again —
+    17,688 episodes, 32k rows each way, median dwell 1.0 s, on a night the ring was never worn. A frame
+    from an unworn ring is a heartbeat of the LINK; only the contact vote may move the worn edge."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    replies = [_o2ring_live_reply(worn=False, duration=0) for _ in range(5)]
+    c = FakeGattClient()
+    c.on_live = lambda data: (c.notify(0, replies.pop(0)) if data[1] == oxyii.OP_LIVE and replies else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 8)     # auth + setup + RTC, then five polls — five chances to flap
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    link = [r[3] for r in _oxylife_link_rows(tmp_path)]
+    worn_axis = [x for x in link if x in ("live", "idle_unworn")]
+    assert worn_axis == ["idle_unworn"], (
+        f"five unworn frames must journal ONE idle_unworn hold, not a live/idle oscillation: {link}")
+    assert capture.STATUS["devices"]["Ring"]["oxy_lifecycle"] != "live", "STATUS must not end on a 'live' the ring never earned"
+
+
+def test_run_oxyii_the_contact_vote_still_owns_the_worn_edge_in_both_directions(tmp_path, monkeypatch):
+    """The control for the hold above: holding IDLE_UNWORN against frames must not weld the ring there.
+    A worn frame after the unworn ones flips it back to LIVE (the callback's vote), and an unworn one
+    flips it to IDLE_UNWORN again — one row per real change, none per frame."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    replies = [
+        _o2ring_live_reply(worn=True, duration=900),
+        _o2ring_live_reply(worn=False, duration=0),
+        _o2ring_live_reply(worn=False, duration=0),
+        _o2ring_live_reply(worn=True, duration=10),
+        _o2ring_live_reply(worn=True, duration=11),
+        _o2ring_live_reply(worn=False, duration=0),
+    ]
+    c = FakeGattClient()
+    c.on_live = lambda data: (c.notify(0, replies.pop(0)) if data[1] == oxyii.OP_LIVE and replies else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 10)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    link = [r[3] for r in _oxylife_link_rows(tmp_path)]
+    worn_axis = [x for x in link if x in ("live", "idle_unworn")]
+    assert worn_axis == ["live", "idle_unworn", "live", "idle_unworn"], link
 
 
 def test_run_oxyii_reports_a_ring_in_recording_mode(tmp_path, monkeypatch):
@@ -2289,7 +2338,7 @@ def test_main_applies_overrides_and_migrates_wellue_ppg(tmp_path, monkeypatch):
     config overrides (1491, 1495, 1497), then dispatches run_oxyii for it (1524-1526)."""
     cfg = {"root": str(tmp_path), "web": {"enabled": False},
            "o2ring": {"rtc_resync_sec": 3600},
-           "power": {"drop_not_worn_sec": 120, "not_worn_recheck_sec": 45},
+           "power": {"drop_not_worn_sec": 120, "not_worn_recheck_sec": 45, "reconnect_backoff_cap_sec": 240},
            "stream": {"stall_sec": 45},
            "write": {"resume_window_sec": 120},
            "devices": [{"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S",
@@ -2297,6 +2346,7 @@ def test_main_applies_overrides_and_migrates_wellue_ppg(tmp_path, monkeypatch):
     _main_with_cfg(tmp_path, monkeypatch, cfg)
     assert capture._OXYII_RTC_RESYNC_SEC == 3600
     assert capture._DROP_NOT_WORN_SEC == 120 and capture._NOT_WORN_RECHECK_S == 45
+    assert capture._RECONNECT_BACKOFF_CAP_S == 240
     assert capture._STREAM_STALL_S == 45
     assert capture._RESUME_WINDOW_S == 120.0   # CAPTURE-FILESET-RESUME: write.resume_window_sec applies
     ring = next(d for d in capture._CFG["devices"] if d["name"] == "Ring")

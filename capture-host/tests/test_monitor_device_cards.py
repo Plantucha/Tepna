@@ -133,7 +133,8 @@ def _render(settings_devs, state_devs=STATE_DEVS):
         "'\"':'&quot;',\"'\":'&#39;'}[c]));\n"
         "const chargeChip=()=>'' , wornChip=()=>'', rateChip=()=>'', battChip=()=>'',\n"
         "      deviceHealth=()=>({health:'',title:''}), rssiChip=()=>'', clkChip=()=>'',\n"
-        "      presenceChip=()=>'', witnessChip=()=>'', lastSampleText=()=>'',\n"
+        "      presenceChip=()=>'', witnessChip=()=>'', oxyLifeChip=()=>'', oxyRecChip=()=>'',\n"
+        "      lastSampleText=()=>'',\n"
         "      recPanelId=a=>'rec-'+a, defaultRate=(d,k,o)=>o[0], rateAdvice=()=>null,\n"
         "      STREAM_LABEL={}, PREF_RATE={}, renderRingRtc=()=>'', ringConfigRow=()=>'',\n      fmtSecs=s=>String(s), ringKnob=()=>'';\n"
         + body
