@@ -80,15 +80,67 @@ class _FlushHealth:
     def __init__(self, path: str) -> None:
         self.path = path
         self.failures = 0
+        self.rows_lost = 0
+        self.fsync_max_ms = 0.0
+        self.fsync_last_ms = 0.0
         self._failing = False
+        self._slow_said = False
 
     def failed(self, exc: BaseException) -> None:
         self.failures += 1
+        self._enter(exc, "WRITE FAILED")
+
+    def _enter(self, exc: BaseException, what: str) -> None:
         if self._failing:
             return                          # already said so; saying it again only hides the onset
         self._failing = True
-        _log.warning("%s: WRITE FAILED (%s) — buffered data may NOT be on disk",
-                     self.path, _write_error_name(exc))
+        _log.warning("%s: %s (%s) — buffered data may NOT be on disk",
+                     self.path, what, _write_error_name(exc))
+
+    def put(self, fh, text: str) -> bool:
+        """Append one row, and NEVER raise into the caller.
+
+        Every row write runs inside a bleak notification callback, i.e. synchronously on the event loop
+        (`loop.add_reader` → callback). An `OSError` escaping `fh.write` there does not reach the runner's
+        `except` — the callback is not on the runner's stack — so asyncio's default handler prints a
+        traceback per notification (130 Hz on an ECG) while the runner keeps believing it is recording,
+        `flush_failures` stays 0 (the buffered write raised before `flush` got a chance to), and the
+        night's tail is lost with no counter anywhere saying so. CAPTURE-HOST-RESOURCE-ORCHESTRATION-
+        AUDIT §S1. A row that could not be written is COUNTED here as `rows_lost`; the transition line
+        carries the errno so the 3am response is the right one.
+
+        The same guard covers the stale-completion case: a notification delivered after the runner
+        closed its writer (`ValueError: I/O operation on closed file`) is a late row, and it is counted
+        as lost rather than crashing the callback — the evidence the audit's generation check wanted,
+        without inventing a generation. The row is gone either way; the difference is that it is now
+        a number in STATUS instead of a traceback nobody reads."""
+        try:
+            fh.write(text)
+        except (OSError, ValueError) as e:
+            self.rows_lost += 1
+            self._enter(e, "ROW LOST")
+            return False
+        return True
+
+    # A single `fsync` on the eMMC/SD this box records to has been measured in the hundreds of ms under
+    # concurrent load, and it runs ON THE EVENT LOOP inside a notification callback — every other device's
+    # host stamp waits behind it (§S2). This does not move it off the loop; it makes the stall a NUMBER
+    # (`fsync_max_ms` in STATUS) so the decision to move it is taken on a measurement, not a guess.
+    SLOW_FSYNC_MS = 250.0
+
+    def fsync(self, fh) -> None:
+        t0 = _time.monotonic()
+        try:
+            os.fsync(fh.fileno())
+        finally:
+            ms = (_time.monotonic() - t0) * 1000.0
+            self.fsync_last_ms = ms
+            if ms > self.fsync_max_ms:
+                self.fsync_max_ms = ms
+            if ms >= self.SLOW_FSYNC_MS and not self._slow_said:
+                self._slow_said = True      # once per file: the onset is the fact, the max is in STATUS
+                _log.warning("%s: SLOW fsync %.0f ms on the event loop — every live stream's host "
+                             "stamps waited behind it", self.path, ms)
 
     def ok(self) -> None:
         """Called ONLY from `flush`, never from `close`.
@@ -100,7 +152,8 @@ class _FlushHealth:
         if not self._failing:
             return                          # the ordinary case: nothing to report about a live file
         self._failing = False
-        _log.info("%s: writing again, after %d failed flush(es)", self.path, self.failures)
+        _log.info("%s: writing again, after %d failed flush(es) and %d lost row(s)",
+                  self.path, self.failures, self.rows_lost)
 
 
 
@@ -453,12 +506,10 @@ class StreamWriter:
     # `sensor_ns` via `_rel_ms` so it exactly matches PSL's relative/fractional semantics.
 
     def write_ecg(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, uv: int) -> None:
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{uv}\n")
-        self._bump()
+        self._row(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{uv}\n")
 
     def write_acc(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: int, y: int, z: int) -> None:
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{x};{y};{z}\n")
-        self._bump()
+        self._row(f"{_phone_ts(phone)};{sensor_ns};{x};{y};{z}\n")
 
     def write_ppg2w(self, phone: _dt.datetime, sensor_ns: int, ch0: int, ch1: int, motion: int) -> None:
         """One raw dual-wavelength sample (O2Ring cmd=0x05).
@@ -467,8 +518,7 @@ class StreamWriter:
         layout by COUNTING optical columns — one means the ring's single reflectance path, three means
         the Verity. A two-wavelength row is neither, and squeezing it through the count would make the
         header and the row shape drift apart, which is the exact failure `ppg1` exists to prevent."""
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{ch0};{ch1};{motion}\n")
-        self._bump()
+        self._row(f"{_phone_ts(phone)};{sensor_ns};{ch0};{ch1};{motion}\n")
 
     def write_ppg(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, ch: Iterable[int], ambient: int) -> None:
         # ONE optical column stays ONE column (PPGDEX-O2RING-FINGER-SITE §3/§7). The O2Ring streams a
@@ -482,32 +532,28 @@ class StreamWriter:
         # already-captured replicated file, and for a future device that replicates.)
         cols = list(ch)
         if len(cols) == 1:
-            self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{cols[0]}\n")
+            self._row(f"{_phone_ts(phone)};{sensor_ns};{cols[0]}\n")
         else:
             c0, c1, c2 = cols[:3]
-            self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{c0};{c1};{c2};{ambient}\n")
-        self._bump()
+            self._row(f"{_phone_ts(phone)};{sensor_ns};{c0};{c1};{c2};{ambient}\n")
 
     # GYRO/MAG arrive SCALED to physical units (dps / gauss) — polar_pmd.axis_scale turns the device's
     # raw int16 into a float, so these two cannot use the integer formatting ACC keeps. `:.6g` holds the
     # full significance of a 16-bit sample (gyro 0.061 dps/LSB, mag 0.0015 G/LSB) without printing the
     # binary-fraction tail of the multiply.
     def write_gyro(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: float, y: float, z: float) -> None:
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n")
-        self._bump()
+        self._row(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n")
 
     def write_mag(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: float, y: float, z: float) -> None:
-        self._fh.write(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n")
-        self._bump()
+        self._row(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n")
 
     def write_ppi(self, phone: _dt.datetime, sensor_ns: int, hr: int, pp_ms: int, err_ms: int, flags: int) -> None:
         # One row per beat, in PSL's PPI column ORDER: interval FIRST, hr LAST, and NO device-clock column.
         # `sensor_ns` is accepted for call-site compatibility and deliberately not emitted — PPI frames
         # carry no usable device clock (every row the box has written has sensor_ns == 0), which is what
         # nightqc.file_span_sec already assumes when it says "HR/RR/PPI carry no device clock".
-        self._fh.write(f"{_phone_ts(phone)};{pp_ms};{err_ms};"
+        self._row(f"{_phone_ts(phone)};{pp_ms};{err_ms};"
                        f"{flags & 1};{(flags >> 1) & 1};{(flags >> 2) & 1};{hr}\n")
-        self._bump()
 
     def write_hr(self, phone: _dt.datetime, sensor_ns: int, bpm: int, rr_ms: Iterable[int]) -> None:
         # PSL layout: ONE HR row per notification in _HR.txt (HR only; HRV/Breathing left empty), and one
@@ -530,22 +576,24 @@ class StreamWriter:
         # requires hr >= HR_MIN), which is precisely why this stayed invisible: the file was wrong and
         # every reader defended itself.
         if bpm:
-            self._fh.write(f"{_phone_ts(phone)};{bpm}\n")
-            self._bump()
+            self._row(f"{_phone_ts(phone)};{bpm}\n")
         # RR IS INDEPENDENT OF THE HR SENTINEL and must survive it — one notification can carry valid
         # intervals while the rate byte reads 0, and those intervals are the HRV substrate.
         if self._rr_fh is not None:
             ts = _phone_ts(phone)
             for rr in rr_ms:
-                self._rr_fh.write(f"{ts};{rr}\n")
+                self._health.put(self._rr_fh, f"{ts};{rr}\n")
         # UNCONDITIONAL, because `_bump` is now conditional. Flush cadence used to ride the HR bump, so
         # a stretch of no-lock notifications would otherwise park written RR rows behind a bump that
         # never comes. `rows` stays an honest count of rows actually written; flushing is time-based
         # and cheap to ask about.
         self._maybe_flush()
 
-    def _bump(self) -> None:
-        self._n += 1
+    def _row(self, text: str) -> None:
+        """One sample row: counted in `rows` ONLY if it was actually written (a lost row is counted in
+        `rows_lost` by the health object instead), flush cadence checked either way."""
+        if self._health.put(self._fh, text):
+            self._n += 1
         self._maybe_flush()
 
     def _maybe_flush(self) -> None:
@@ -559,11 +607,11 @@ class StreamWriter:
         try:
             self._fh.flush()
             if self._fsync:
-                os.fsync(self._fh.fileno())
+                self._health.fsync(self._fh)
             if self._rr_fh is not None:
                 self._rr_fh.flush()
                 if self._fsync:
-                    os.fsync(self._rr_fh.fileno())
+                    self._health.fsync(self._rr_fh)
         except Exception as _e:
             self._health.failed(_e)
         else:
@@ -613,6 +661,17 @@ class StreamWriter:
         """How many flushes have failed on this file. Surfaced beside `rows` in STATUS: `rows`
         counts what we were HANDED, this counts what may never have reached the disk."""
         return self._health.failures
+
+    @property
+    def rows_lost(self) -> int:
+        """Rows whose `write` itself raised (ENOSPC/EIO at the buffer, or a notification that arrived
+        after `close`). `rows` no longer counts them; this does. `rows + rows_lost` is what was handed."""
+        return self._health.rows_lost
+
+    @property
+    def fsync_max_ms(self) -> float:
+        """The longest single `fsync` this file has cost the event loop (§S2 — measured, not moved)."""
+        return self._health.fsync_max_ms
 
 
 # ── OXYFRAME column order — ONE definition, because two copies is how it went stale ──────────────────
@@ -702,14 +761,15 @@ class OxyFrameLogWriter:
             return "" if v is None else str(v)
         p = ppg or {}
         stamp = when.strftime("%Y-%m-%dT%H:%M:%S.") + f"{when.microsecond // 1000:03d}"
-        self._fh.write(";".join((stamp, _f(live.get("duration")), _f(live.get("pi")),
+        landed = self._health.put(self._fh, ";".join((stamp, _f(live.get("duration")), _f(live.get("pi")),
                                  _f(live.get("motion")), _f(live.get("spo2")), _f(live.get("pr")),
                                  _f(live.get("contact")), _f(live.get("batt")),
                                  _f(live.get("batt_state")), _f(live.get("flag")),
                                  _f(p.get("n")), _f(p.get("step")),
                                  _f(p.get("offset")), _f(live.get("flag_raw")),
                                  _f(live.get("run_status")))) + "\n")
-        self.rows += 1
+        if landed:
+            self.rows += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:
             self.flush()
@@ -719,7 +779,7 @@ class OxyFrameLogWriter:
         try:
             self._fh.flush()
             if self._fsync:
-                os.fsync(self._fh.fileno())
+                self._health.fsync(self._fh)
         except (OSError, ValueError) as _e:
             self._health.failed(_e)
         else:
@@ -741,6 +801,17 @@ class OxyFrameLogWriter:
         """How many flushes have failed on this file. Surfaced beside `rows` in STATUS: `rows`
         counts what we were HANDED, this counts what may never have reached the disk."""
         return self._health.failures
+
+    @property
+    def rows_lost(self) -> int:
+        """Rows whose `write` itself raised (ENOSPC/EIO at the buffer, or a notification that arrived
+        after `close`). `rows` no longer counts them; this does. `rows + rows_lost` is what was handed."""
+        return self._health.rows_lost
+
+    @property
+    def fsync_max_ms(self) -> float:
+        """The longest single `fsync` this file has cost the event loop (§S2 — measured, not moved)."""
+        return self._health.fsync_max_ms
 
 
 class HostClockLogWriter:
@@ -785,13 +856,14 @@ class HostClockLogWriter:
                 return "1" if v else "0"
             return str(v)
         stamp = when.strftime("%Y-%m-%dT%H:%M:%S.") + f"{when.microsecond // 1000:03d}"
-        self._fh.write(";".join((
+        landed = self._health.put(self._fh, ";".join((
             stamp, _f(st.get("trust")), _f(st.get("absolute_ok")), _f(st.get("synchronized")),
             _f(st.get("server")), _f(st.get("stratum")), _f(st.get("reference")),
             _f(st.get("root_dispersion_ms")), _f(st.get("jitter_us")), _f(st.get("packet_count")),
             str(st.get("reason") or "").replace(";", ","), _f(st.get("chrony_skew_ppm")),
             _f(st.get("timebase")))) + "\n")
-        self.rows += 1
+        if landed:
+            self.rows += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:
             self.flush()
@@ -801,7 +873,7 @@ class HostClockLogWriter:
         try:
             self._fh.flush()
             if self._fsync:
-                os.fsync(self._fh.fileno())
+                self._health.fsync(self._fh)
         except (OSError, ValueError) as _e:
             self._health.failed(_e)
         else:
@@ -819,6 +891,17 @@ class HostClockLogWriter:
         """How many flushes have failed on this file. Surfaced beside `rows` in STATUS: `rows`
         counts what we were HANDED, this counts what may never have reached the disk."""
         return self._health.failures
+
+    @property
+    def rows_lost(self) -> int:
+        """Rows whose `write` itself raised (ENOSPC/EIO at the buffer, or a notification that arrived
+        after `close`). `rows` no longer counts them; this does. `rows + rows_lost` is what was handed."""
+        return self._health.rows_lost
+
+    @property
+    def fsync_max_ms(self) -> float:
+        """The longest single `fsync` this file has cost the event loop (§S2 — measured, not moved)."""
+        return self._health.fsync_max_ms
 
 
 CLOCKSYNC_NAME = "CLOCKSYNC.csv"
@@ -919,9 +1002,10 @@ class RingClockLogWriter:
               battery_state=None, battery_level=None, battery_raw2=None, battery_raw3=None) -> None:
         def _f(v):
             return "" if v is None else str(v)
-        self._fh.write(f"{_phone_ts(when)};{event};{_f(rtc_offset_s)};{_f(battery_state)};"
+        landed = self._health.put(self._fh, f"{_phone_ts(when)};{event};{_f(rtc_offset_s)};{_f(battery_state)};"
                        f"{_f(battery_level)};{_f(battery_raw2)};{_f(battery_raw3)}\n")
-        self.rows += 1
+        if landed:
+            self.rows += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:
             self.flush()
@@ -931,8 +1015,7 @@ class RingClockLogWriter:
         try:
             self._fh.flush()
             if self._fsync:
-                import os as _os
-                _os.fsync(self._fh.fileno())
+                self._health.fsync(self._fh)
         except (OSError, ValueError) as _e:
             self._health.failed(_e)
         else:
@@ -950,6 +1033,17 @@ class RingClockLogWriter:
         """How many flushes have failed on this file. Surfaced beside `rows` in STATUS: `rows`
         counts what we were HANDED, this counts what may never have reached the disk."""
         return self._health.failures
+
+    @property
+    def rows_lost(self) -> int:
+        """Rows whose `write` itself raised (ENOSPC/EIO at the buffer, or a notification that arrived
+        after `close`). `rows` no longer counts them; this does. `rows + rows_lost` is what was handed."""
+        return self._health.rows_lost
+
+    @property
+    def fsync_max_ms(self) -> float:
+        """The longest single `fsync` this file has cost the event loop (§S2 — measured, not moved)."""
+        return self._health.fsync_max_ms
 
 
 class LinkLogWriter:
@@ -1007,10 +1101,11 @@ class LinkLogWriter:
         # TWO keys (3 samples under the old name, 1123 under the new), so any per-device aggregate over
         # that night silently splits in half. The MAC cannot be edited and cannot collide, so it is the
         # key an analysis should group on; the name stays for human reading.
-        self._fh.write(f"{_phone_ts(when)};{device};{1 if connected else 0};"
+        landed = self._health.put(self._fh, f"{_phone_ts(when)};{device};{1 if connected else 0};"
                        f"{_f(rssi)};{_f(battery)};{_f(dropped)};{_f(duplicated)};{_f(link_epoch)};"
                        f"{_f(address)}\n")
-        self.rows += 1
+        if landed:
+            self.rows += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:
             self.flush()
@@ -1025,8 +1120,7 @@ class LinkLogWriter:
         try:
             self._fh.flush()
             if self._fsync:
-                import os as _os
-                _os.fsync(self._fh.fileno())
+                self._health.fsync(self._fh)
         except (OSError, ValueError) as _e:
             self._health.failed(_e)
         else:
@@ -1044,6 +1138,17 @@ class LinkLogWriter:
         """How many flushes have failed on this file. Surfaced beside `rows` in STATUS: `rows`
         counts what we were HANDED, this counts what may never have reached the disk."""
         return self._health.failures
+
+    @property
+    def rows_lost(self) -> int:
+        """Rows whose `write` itself raised (ENOSPC/EIO at the buffer, or a notification that arrived
+        after `close`). `rows` no longer counts them; this does. `rows + rows_lost` is what was handed."""
+        return self._health.rows_lost
+
+    @property
+    def fsync_max_ms(self) -> float:
+        """The longest single `fsync` this file has cost the event loop (§S2 — measured, not moved)."""
+        return self._health.fsync_max_ms
 
 
 class OxyLifeLogWriter:
@@ -1076,8 +1181,9 @@ class OxyLifeLogWriter:
     def write(self, transition) -> None:
         """Append one transition (anything with `.as_row()` — an oxy_lifecycle.Transition). Duck-typed so
         writers.py stays decoupled from the lifecycle module."""
-        self._fh.write(transition.as_row() + "\n")
-        self.rows += 1
+        landed = self._health.put(self._fh, transition.as_row() + "\n")
+        if landed:
+            self.rows += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:
             self.flush()
@@ -1087,8 +1193,7 @@ class OxyLifeLogWriter:
         try:
             self._fh.flush()
             if self._fsync:
-                import os as _os
-                _os.fsync(self._fh.fileno())
+                self._health.fsync(self._fh)
         except (OSError, ValueError) as _e:
             self._health.failed(_e)
         else:
@@ -1106,6 +1211,17 @@ class OxyLifeLogWriter:
         """How many flushes have failed on this file. Surfaced beside `rows` in STATUS: `rows`
         counts what we were HANDED, this counts what may never have reached the disk."""
         return self._health.failures
+
+    @property
+    def rows_lost(self) -> int:
+        """Rows whose `write` itself raised (ENOSPC/EIO at the buffer, or a notification that arrived
+        after `close`). `rows` no longer counts them; this does. `rows + rows_lost` is what was handed."""
+        return self._health.rows_lost
+
+    @property
+    def fsync_max_ms(self) -> float:
+        """The longest single `fsync` this file has cost the event loop (§S2 — measured, not moved)."""
+        return self._health.fsync_max_ms
 
 
 class PmdArrivalLogWriter:
@@ -1163,9 +1279,10 @@ class PmdArrivalLogWriter:
     def write(self, arrival: _dt.datetime, device: str, meas, first_ns, last_ns, n_samples: int) -> None:
         def _f(v):
             return "" if v is None else str(v)          # blank, never a fabricated 0
-        self._fh.write(f"{_phone_ts(arrival)};{device};{_f(meas)};"
+        landed = self._health.put(self._fh, f"{_phone_ts(arrival)};{device};{_f(meas)};"
                        f"{_f(first_ns)};{_f(last_ns)};{n_samples}\n")
-        self.rows += 1
+        if landed:
+            self.rows += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:
             self.flush()
@@ -1175,8 +1292,7 @@ class PmdArrivalLogWriter:
         try:
             self._fh.flush()
             if self._fsync:
-                import os as _os
-                _os.fsync(self._fh.fileno())
+                self._health.fsync(self._fh)
         except (OSError, ValueError) as _e:
             self._health.failed(_e)
         else:
@@ -1218,6 +1334,17 @@ class PmdArrivalLogWriter:
         counts what we were HANDED, this counts what may never have reached the disk."""
         return self._health.failures
 
+    @property
+    def rows_lost(self) -> int:
+        """Rows whose `write` itself raised (ENOSPC/EIO at the buffer, or a notification that arrived
+        after `close`). `rows` no longer counts them; this does. `rows + rows_lost` is what was handed."""
+        return self._health.rows_lost
+
+    @property
+    def fsync_max_ms(self) -> float:
+        """The longest single `fsync` this file has cost the event loop (§S2 — measured, not moved)."""
+        return self._health.fsync_max_ms
+
 
 class Spo2CsvWriter:
     """ViHealth-layout SpO2 CSV — `Time,Oxygen Level,Pulse Rate,Motion` with `HH:MM:SS DD/MM/YYYY`
@@ -1253,8 +1380,9 @@ class Spo2CsvWriter:
         `if spo2 is not None`, so this was never reached; the writer is where the rule is DOCUMENTED, so
         it is where it has to hold — the next caller does not read this docstring first."""
         stamp = when.strftime("%H:%M:%S %d/%m/%Y")   # LOCAL civil (Clock Contract) — O2Ring/ViHealth format
-        self._fh.write(f"{stamp},{'' if spo2 is None else spo2},{'' if pr is None else pr},{motion}\n")
-        self._n += 1
+        landed = self._health.put(self._fh, f"{stamp},{'' if spo2 is None else spo2},{'' if pr is None else pr},{motion}\n")
+        if landed:
+            self._n += 1
         now = _time.monotonic()
         if now - self._last_flush >= self._flush_interval:
             self.flush()
@@ -1265,7 +1393,7 @@ class Spo2CsvWriter:
         try:
             self._fh.flush()
             if self._fsync:
-                os.fsync(self._fh.fileno())
+                self._health.fsync(self._fh)
         except Exception as _e:
             self._health.failed(_e)
         else:
@@ -1290,6 +1418,17 @@ class Spo2CsvWriter:
         """How many flushes have failed on this file. Surfaced beside `rows` in STATUS: `rows`
         counts what we were HANDED, this counts what may never have reached the disk."""
         return self._health.failures
+
+    @property
+    def rows_lost(self) -> int:
+        """Rows whose `write` itself raised (ENOSPC/EIO at the buffer, or a notification that arrived
+        after `close`). `rows` no longer counts them; this does. `rows + rows_lost` is what was handed."""
+        return self._health.rows_lost
+
+    @property
+    def fsync_max_ms(self) -> float:
+        """The longest single `fsync` this file has cost the event loop (§S2 — measured, not moved)."""
+        return self._health.fsync_max_ms
 
 
 # Polar's sensor clock is nanoseconds since 2000-01-01T00:00:00Z, carried verbatim as the secondary

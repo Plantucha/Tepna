@@ -158,6 +158,29 @@ async def is_bonded(address: str, adapter_mac: str | None = None) -> bool:
     return "Bonded: yes" in info
 
 
+async def trusted_flags(addresses, adapter_mac: str | None = None) -> list[str]:
+    """The subset of `addresses` whose `Trusted` flag is SET on the adapter — the §2D race state.
+
+    Exists as a startup tripwire (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §B2): the untrust-after-pair fix
+    shipped and production still carried `Trusted: yes` on both Polars, because a mitigation that
+    only acts at pair time cannot see a flag leaked before it shipped. A leaked flag arms the
+    kernel's own autoconnect, which races bleak for the single ACL slot (br-connection-canceled) —
+    and nothing else in the stack ever reads the flag back, so without this check the state is
+    invisible until the race bites. One `bluetoothctl info` per address; an unreadable or unknown
+    device simply does not appear (absence of evidence, not evidence of untrusted)."""
+    out: list[str] = []
+    for address in addresses:
+        try:
+            info = await _btctl(
+                ("".join([f"select {adapter_mac}\n"] if adapter_mac else [])
+                 + f"info {address}\nquit\n"), timeout=8)
+        except Exception:
+            continue  # unreadable ⇒ unknown, never "trusted"; the caller warns only on evidence
+        if "Trusted: yes" in info:
+            out.append(address)
+    return out
+
+
 # The signature of a bond the DEVICE has forgotten while the HOST still believes in it. A Polar accepts
 # the connection, then drops it ~1-2 s later during service discovery because it no longer recognises the
 # pairing (bleak #1943, "Insufficient Authentication 0x05 on PMD Control write").
@@ -192,15 +215,21 @@ async def ensure_bonded(address: str, adapter_mac: str | None = None, *, force: 
 
 
 async def bond(address: str, adapter_mac: str | None = None) -> dict:
-    """Just-Works bond (trust + pair) in one timed session. Returns {ok, detail}."""
+    """Just-Works bond (pair, never trust) in one timed session. Returns {ok, detail}.
+
+    NO `trust` IS EVER SET (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §B2, 2026-09-05). The old script set
+    `trust` ~10 s in and revoked it ~12 s later — and both Polars were measured `Trusted: yes` on the
+    capture adapter, the exact §2D race state the untrust exists to prevent: any session death inside
+    that window leaked the flag permanently, and nothing ever retro-cleared bonds made before the
+    untrust shipped. `trust` was never load-bearing for an OUTGOING Just-Works pair (the agent
+    handles confirmation; trust only auto-authorizes INCOMING connections — the kernel-autoconnect
+    that races bleak for the single ACL slot, br-connection-canceled). The 9.8 s wait is discovery
+    time, unchanged. The final `untrust` stays as RETROFIT cleanup: it clears a flag left by the old
+    script, an operator's hand-`trust`, or a vendor tool — idempotent, keeps the bond."""
     script = _adapter_prefix(adapter_mac) + [
         (0.5, "agent NoInputNoOutput"), (0.5, "default-agent"),
-        (0.5, "scan on"), (9.0, f"trust {address}"),
-        # untrust AFTER pairing (VIGIL-DEEP-ANALYSIS §2D): the LTK from `pair` IS the bond; `trust`
-        # only sets the kernel-auto-reconnect flag, which races bleak for the single ACL slot
-        # (br-connection-canceled). Revoke it so bleak is the sole initiator — its explicit connect()
-        # works on a bonded device regardless of trust. Idempotent; keeps the bond.
-        (0.8, f"pair {address}"), (11.0, "scan off"), (0.5, f"untrust {address}"), (0.3, "quit")]
+        (0.5, "scan on"),
+        (9.8, f"pair {address}"), (11.0, "scan off"), (0.5, f"untrust {address}"), (0.3, "quit")]
     out = await _delayed_script(script)
     ok = ("Pairing successful" in out) or ("Bonded: yes" in out)
     detail = "paired" if ok else (

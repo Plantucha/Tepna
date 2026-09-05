@@ -255,8 +255,6 @@ ALLOW_FUNCS = {
     "oxy_is_finalized": "redundant — `oxy_inventory.classify` already gates on finalisation via "
                         "`parse_trailer` (and `oxy_transfer` reads the same trailer), which those "
                         "callers need anyway for the device summary",
-    "busy_with": "redundant — offline_lock.slot() raises OfflineBusy(_busy), so the label already "
-                 "reaches callers as e.holder",
     "predict_step_split": "research helper from O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS §2, driven by its "
                           "brief rather than by the daemon — same shape as blind_spots.analyze",
     "is_offline_cmd": "the READ half of a write/read pair whose write half IS used — `as_offline` sets "

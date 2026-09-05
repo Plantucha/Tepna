@@ -286,6 +286,17 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         # not have reached the disk, so the card can read perfectly live while the
                         # night is being lost. Zero on every healthy device.
                         "flush_failures": st.get("flush_failures"),
+                        # Two sibling counters (RESOURCE-ORCHESTRATION-AUDIT S1/S2). `rows_lost` is
+                        # the number of ROWS a write refused (ENOSPC, EIO, closed handle) — the raw
+                        # data that did not land, counted per row, never folded into `rows`.
+                        # `fsync_max_ms` is the slowest fsync this stream has paid ON THE EVENT LOOP;
+                        # every live stream's host stamps waited behind it. Absent until reported.
+                        "rows_lost": st.get("rows_lost"),
+                        "fsync_max_ms": st.get("fsync_max_ms"),
+                        # The runner's CURRENT wait, while it waits: {attempt, why, wait_s, next_at_ms}.
+                        # Null outside a wait. Before this a runner in its 180 s backoff was
+                        # indistinguishable here from a dead one.
+                        "retry": st.get("retry"),
                         "last_error": st.get("last_error")})
         return out
 
@@ -395,6 +406,14 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # written so it never joins the published-and-read-by-nothing class above. Null until a
             # ring's capture task has started.
             "power": status.get("power"),
+            # The daemon's own load and gate state (RESOURCE-ORCHESTRATION-AUDIT L1/L2/O2), forwarded
+            # for the same reason as the two blocks above: published to STATUS and read by nothing is
+            # not published. `loop` = event-loop lag {lag_last_ms, lag_max_ms, stalls, ticks};
+            # `gates` = which recovery/pause gates are held right now; `tasks` = per-supervised-task
+            # crash counts with the last error. Each null until its poller has ticked.
+            "loop": status.get("loop"),
+            "gates": status.get("gates"),
+            "tasks": status.get("tasks"),
         })
 
     # ── CPAP manual pull ────────────────────────────────────────────────────────────────────────

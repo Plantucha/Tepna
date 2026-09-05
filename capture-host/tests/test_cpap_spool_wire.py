@@ -177,6 +177,19 @@ def test_a_nonterminal_stop_is_reported_in_the_line(caplog):
     assert "stopped=data-unavailable" in caplog.text
 
 
+def _unwrap_supervised(coro):
+    """The coroutine `_maybe_start_cpap_spool_pull` hands to `create_task` is `keep_running(make_coro,
+    label)` since RESOURCE-ORCHESTRATION-AUDIT-2026-09-05 §O2 — the loop is supervised, so a crash
+    restarts it instead of ending the night's pull silently. The wiring under test is what the
+    FACTORY builds, so call it and inspect that; the supervisor frame carries only `make_coro`/`label`.
+    Returns the inner coroutine and closes the outer one unrun."""
+    mk = coro.cr_frame.f_locals.get("make_coro")
+    assert callable(mk), "the spool pull must be started under keep_running (supervised), not bare"
+    inner = mk()
+    coro.close()
+    return inner
+
+
 def test_every_documented_spool_pull_key_is_actually_READ(tmp_path, caplog):
     """A key documented in config.example.yaml that no code reads is this repo's recurring defect —
     `cpap.wifi_profile` is the standing example (consulted ONLY on the nmcli backend, silently inert
@@ -185,9 +198,10 @@ def test_every_documented_spool_pull_key_is_actually_READ(tmp_path, caplog):
     seen = {}
 
     def _create_task(coro):
-        coro.cr_frame  # noqa: B018 — touch it so a bad coroutine surfaces here, not at GC
-        seen["kw"] = coro.cr_frame.f_locals
-        coro.close()
+        inner = _unwrap_supervised(coro)
+        inner.cr_frame  # noqa: B018 — touch it so a bad coroutine surfaces here, not at GC
+        seen["kw"] = inner.cr_frame.f_locals
+        inner.close()
         return "TASK"
 
     async def _connect():  # pragma: no cover — injected; the bleak edge is never built
@@ -256,7 +270,7 @@ def test_the_production_wiring_hands_the_loop_a_working_STATUS_writer(tmp_path, 
     monkeypatch.setattr(capture, "_cpap_spool_loop", _spy)
 
     def _create_task(coro):
-        coro.close()
+        _unwrap_supervised(coro).close()   # the factory call is what runs `_spy`
         return object()
 
     async def _connect():  # pragma: no cover — injected so the bleak edge is never built
