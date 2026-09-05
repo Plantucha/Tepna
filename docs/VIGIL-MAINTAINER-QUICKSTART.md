@@ -13,6 +13,35 @@ points instead of copying. **The prime directive:** `/opt/tepna` is the *deploye
 checkout* — the `tepna-capture` daemon runs FROM it. A `git pull` there is a deploy; an edit there
 is a live-code edit. Never develop in it.
 
+## Minute 0 — getting in, and the three ways this box lies about being down
+
+```sh
+ssh vigil@192.168.0.41          # the LAN address — use THIS
+```
+
+⚠️ **ssh over the tailnet name / `100.98.12.95` does not currently complete** (2026-09-05). It is
+**port-specific, not a path fault**: HTTP to `:80` on that same tailnet IP returns 200, ICMP is
+0.7 ms, and sshd serves its banner when probed from the box on that very address — yet **not one
+external connection has ever reached `sshd`**. Leading candidate is a tailnet ACL denying `tcp:22`
+to this node (`sudo tailscale debug netmap` reads the node's filter — owner check; sessions must not
+touch the Tailscale surface); second is a rig-side asymmetry, since rig-x870 answers
+`SSH-2.0-Tailscale` while vigil runs plain OpenSSH with Tailscale SSH off. **Use the LAN address and
+move on.**
+
+Three things read as "the box is down" and are not — all three fed a power-cycle escalation against
+a healthy, actively-capturing box on 2026-09-05:
+
+| symptom | why it is NOT a wedge |
+|---|---|
+| `:8760` refuses from off-box | **By design** — `config.yaml` sets `web.host: 127.0.0.1`. It has always refused remotely. Remote access is Caddy on `:80`, or an ssh tunnel. |
+| `journalctl -u ssh` is empty | OpenSSH 10.2 here is **socket-activated**: sessions log as `sshd-session[PID]`, never under the unit. Grep `sshd-session`, not `-u ssh`. |
+| ssh hangs from rig-x870 | The tailnet-`:22` issue above. Try the LAN address before concluding anything about the box. |
+
+Before escalating a suspected outage, ask for one reading **from inside** (a resident session, or
+console): `uptime`, `systemctl is-active tepna-capture`, `curl -s -o /dev/null -w '%{http_code}'
+http://127.0.0.1:8760/api/state`. A power-cycle costs the live links and whatever the ring has not
+yet flushed; an unreachable box and a down box are different claims.
+
 ## Minute 1 — is capture healthy RIGHT NOW?
 
 ```sh
