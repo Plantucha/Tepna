@@ -10,7 +10,7 @@
 #   "needs MTU >= 517" note was a misread placeholder MTU, CORRECTED in oxyii.py 2026-07-18.)
 #
 #   python pull_session.py --address D1:98:62:7C:92:B3 --out /home/michal/tepna-smoketest/captures/stored
-#     [--which latest|all|<YYYYMMDDhhmmss>]  [--ftype N]  [--adapter hciX]
+#     [--which latest|all|new|<YYYYMMDDhhmmss>]  [--ftype N]  [--adapter hciX]
 
 from __future__ import annotations
 import argparse, asyncio, json, os
@@ -179,7 +179,15 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
         saved_paths = []
         # The flash list is NOT chronologically ordered, so "latest" must pick the max stamp, not [-1].
         # Session stamps are YYYYMMDDhhmmss → lexical max == chronological latest.
-        targets = sessions if which == "all" else ([max(sessions)] if which == "latest" else [which])
+        if which == "new":
+            # LEDGER DIFF, and it is computed HERE because this is the one place that already holds
+            # both halves — the flash list from the frame just sent, and the ledger read below. A
+            # caller computing it would need its own connection to list the ring, which is the cost
+            # this scope exists to avoid.
+            targets = oxy_inventory.undrained(
+                oxy_inventory.load_rows(os.path.join(out_dir, "inventory.jsonl")), sessions)
+        else:
+            targets = sessions if which == "all" else ([max(sessions)] if which == "latest" else [which])
         safe_root = os.path.abspath(out_dir) + os.sep
 
         # ── THE TRANSACTIONAL PULL (OxyII acquisition charter G1) ─────────────────────────────────────
@@ -464,7 +472,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--address", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--which", default="latest", help="latest | all | <YYYYMMDDhhmmss>")
+    ap.add_argument("--which", default="latest", help="latest | all | new | <YYYYMMDDhhmmss>")
     ap.add_argument("--ftype", type=int, default=0)
     ap.add_argument("--adapter", default=None, help="BlueZ adapter e.g. hci1 (omit = default)")
     ap.add_argument("--serial", default="0000")

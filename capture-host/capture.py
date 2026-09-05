@@ -88,7 +88,7 @@ BATTERY_UUID = "00002a19-0000-1000-8000-00805f9b34fb"   # standard Battery Level
 FIRMWARE_UUID = "00002a26-0000-1000-8000-00805f9b34fb"  # standard Firmware Revision String (0x2A26) — ASCII
 log = logging.getLogger("tepna-capture")
 _POLAR_EPOCH = _dt.datetime(2000, 1, 1)   # Polar device-time epoch (TimeSystemExplained.md)
-STATUS: dict = {"updated": None, "devices": {}}
+STATUS: dict = {"devices": {}}
 _CFG: dict = {}          # set in main(); lets sync_device_time resolve a device family by model
 _STOP = asyncio.Event()
 _EXIT_CODE = [0]          # non-zero → systemd re-execs (watchdog give-up, §2C)
@@ -4575,7 +4575,10 @@ def status_path(root: str, instance: str | None = None) -> str:
 async def status_loop(root: str, data_stale_sec: float = 120.0):
     path = status_path(root, INSTANCE)
     while not _STOP.is_set():
-        STATUS["updated"] = _now().isoformat()
+        # `updated` was written here on every publish and read by NOTHING — instance health ages
+        # `heartbeat_ms` instead, deliberately. A field written forever and read never is
+        # indistinguishable from one whose reader was lost, so it is deleted rather than kept as a
+        # decoration (residue 2026-09-02-updated-status-orphan / 2026-09-03-status-updated-unread).
         # HEARTBEAT + identity. `updated` is an ISO string a reader must parse and trust; this is a
         # monotonic-independent wall-clock ms the union reader ages directly. Without it a dead
         # instance is indistinguishable from a live one whose file simply has not changed.
@@ -6391,8 +6394,42 @@ async def charger_pull_poller(cfg: dict, root: str):
                     # the chain would then read "complete" for a night that retrieved nothing.
                     _WITNESS.setdefault(addr, {})["artifact_committed"] = now
                 log.info("auto-pull (%s): %s → %d new file(s)", trigger, dev.get("name"), len(new))
+                drained = 0
+                if trigger in ("not-worn", "presence") and dev.get("vendor") in ("Wellue", "Viatom"):
+                    # THE FRAGMENTS THE NARROW SCOPE LEFT. `pull_scope_for` keeps the event pull at
+                    # `latest` because it races the ring's post-drop advertising tail, so a night with
+                    # several onboard sessions commits only the newest and the rest wait for the hourly
+                    # poller — which reaches an unworn ring only while it is awake. Measured over
+                    # 2026-08-25→09-05: 4 of 22 sessions arrived that way, 6.5–10.8 h after close, two
+                    # of them full 1.3–2.3 h recordings.
+                    #
+                    # 🔴 THIS IS A SECOND DISPATCH, NOT A WIDER FIRST ONE, and that is the whole design.
+                    # §14b measured the DURATIONS (`latest` p90 31.1 s, `all` p90 69.4 s) but the window
+                    # they must fit inside — the post-drop awake tail — is explicitly UNRESOLVED
+                    # (OXYII-DAT-AUTO-HARVEST-REFINEMENT §5: "needs a deliberate experiment"). So
+                    # widening the first pull would trade a proven scope for an unmeasured bound. Here
+                    # the ring has just answered, so reachability is DEMONSTRATED rather than assumed —
+                    # and `new` pulls only what the ledger does not already hold, so the sweep is the
+                    # remainder, never a re-pull of what just landed.
+                    #
+                    # Failure is benign by construction: if the ring drops mid-drain the remainder stays
+                    # on flash for the hourly poller, which is exactly today's behaviour.
+                    try:
+                        more = await pull_oxyii_session(dev, root, which="new", ftype=ftype)
+                        drained = len((more or {}).get("new_files", []) if isinstance(more, dict) else [])
+                        if drained:
+                            log.info("auto-pull (%s): drained %d stranded fragment(s) from %s",
+                                     trigger, drained, dev.get("name"))
+                    except offline_lock.OfflineBusy:
+                        log.debug("drain deferred — another offline op holds the slot")
+                    except Exception as e:                      # noqa: BLE001
+                        # The PRIMARY pull already succeeded and is recorded; a failed drain must not
+                        # retract that, and the remainder is exactly as reachable as it was before.
+                        log.info("auto-pull (%s): drain of the remaining fragments did not complete "
+                                 "(%s) — they stay on flash for the poller", trigger, link_error_text(e))
                 STATUS.setdefault("autopull", {}).update({"last": _now().isoformat(timespec="seconds"),
-                                                          "new": len(new), "trigger": trigger})
+                                                          "new": len(new) + drained, "trigger": trigger,
+                                                          "drained": drained})
             except offline_lock.OfflineBusy:
                 _CHARGER_PULLED.discard(addr)           # slot held by another pull — retry next tick
                 _NOTWORN_PULLED.discard(addr)
