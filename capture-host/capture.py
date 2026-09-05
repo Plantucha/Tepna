@@ -4391,7 +4391,7 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype:
         _OXYII_PAUSE.set()
         pw.attempt_started(trigger, _time.monotonic())
         _power_flush(name)
-        _outcome = {"ok": False, "failure": None}
+        _outcome: dict = {"ok": False, "failure": None}   # ok: bool · failure: FailureClass | None
         try:
             for _ in range(120):                      # wait up to ~12 s for run_oxyii to drop its link
                 if not STATUS.get("devices", {}).get(name, {}).get("connected"):
