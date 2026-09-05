@@ -1684,3 +1684,69 @@ def test_the_equality_is_SENSITIVE_to_the_span_it_asserts(tmp_path):
     assert cov_r != cov_f, (
         f"a fragment beyond the session gap must NOT score as the resumed night ({cov_r} == {cov_f}) "
         "— if these are equal, coverage is ignoring the span and the equality test proves nothing")
+
+
+# ── a configured stream name is not always its file tag (2026-09-05) ─────────────────────────────────
+# 🔴 THE FALSE ALARM THIS PREVENTS. The config asks for `acc`; capture.py writes the O2Ring's
+# accelerometer via StreamWriter(..., "accraw"), so the file is `..._ACCRAW.txt` while the Verity's
+# identical `acc` is `..._ACC.txt`. Measured on vigil 2026-09-05: QC reported
+# `missing stream(s): Wellue O2Ring-S:acc` every ~10 min against 38 ACCRAW files and 2.1 MB of live
+# accelerometer data. A false MISSING is the most expensive kind of wrong line here — it is the one
+# channel whose job is to announce data loss, and a reader who sees it nightly stops believing it.
+def _ring_acc_devices():
+    return [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2", "acc"]},
+            {"name": "Verity", "device_id": "0C301E3F", "streams": ["acc"]}]
+
+
+def test_an_ACCRAW_file_satisfies_the_configured_acc_stream(tmp_path):
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905_SPO2.csv", 900)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905_ACCRAW.txt", 4000)
+    _cap(night, "Polar_VeritySense_0C301E3F_20260905_ACC.txt", 3000)
+    s = nightqc.summarize(night, _ring_acc_devices())
+    assert s["missing"] == [], f"acc arrived as ACCRAW; reporting it missing is the false alarm: {s['missing']}"
+    ring = next(d for d in s["devices"] if d["name"] == "Ring")
+    assert ring["streams"]["acc"] == 4000, "the ACCRAW rows must be COUNTED, not merely tolerated"
+
+
+def test_the_plain_ACC_tag_still_satisfies_acc_so_the_union_is_not_a_regression(tmp_path):
+    """The Verity writes `_ACC.txt` and must keep matching — the fix widens the accepted tags, it does
+    not move them."""
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _cap(night, "Polar_VeritySense_0C301E3F_20260905_ACC.txt", 3000)
+    s = nightqc.summarize(night, [{"name": "Verity", "device_id": "0C301E3F", "streams": ["acc"]}])
+    assert s["missing"] == []
+    assert s["devices"][0]["streams"]["acc"] == 3000
+
+
+def test_a_GENUINELY_absent_acc_is_still_reported_missing(tmp_path):
+    """The widened match must not become an unconditional pass — the alarm has to still fire when the
+    accelerometer really produced nothing, which is the whole reason the check exists."""
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905_SPO2.csv", 900)
+    s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2", "acc"]}])
+    assert s["missing"] == ["Ring:acc"]
+
+
+def test_stream_file_tags_defaults_to_the_upper_cased_name():
+    assert nightqc.stream_file_tags("ecg") == ("ECG",)
+    assert nightqc.stream_file_tags("ppg2w") == ("PPG2W",)
+    assert set(nightqc.stream_file_tags("acc")) == {"ACC", "ACCRAW"}
+
+
+def test_rate_reality_reads_the_ring_acc_rate_out_of_an_ACCRAW_file(tmp_path):
+    """The SILENT half of the same defect. Coverage reported `acc` missing (loud and wrong); this
+    function simply found no candidate file and emitted NO ROW — so the O2Ring's accelerometer rate was
+    never checked against its config at all, and an absent row looks exactly like a stream nobody
+    configured. One cause, two consumers, two different wrong answers."""
+    step = int(1e9 / 50.0)
+    p = os.path.join(tmp_path, "Wellue_O2Ring-S_S8AW2100_20260905045318_ACCRAW.txt")
+    with open(p, "w") as fh:
+        fh.write("Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]\n")
+        for i in range(1000):
+            fh.write(f"2026-09-05T04:53:18.000;{500_000_000_000 + i * step};1;2;3\n")
+    dev = {"name": "Wellue O2Ring-S", "device_id": "S8AW2100", "streams": ["acc"], "rates": {"acc": 50}}
+    rows = nightqc.rate_reality(str(tmp_path), [dev])
+    assert len(rows) == 1, "no row at all is the silent failure — the rate was never checked"
+    assert abs(rows[0]["measured_hz"] - 50.0) < 0.5
+    assert rows[0]["matches_config"] is True
