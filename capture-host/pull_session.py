@@ -28,6 +28,7 @@ import oxy_restart
 import oxy_transfer
 import oxy_lifecycle
 import oxy_presence
+import oxy_power
 import acq_evidence
 import acq_evidence_o2ring
 
@@ -100,7 +101,9 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
                 q.put_nowait(r)
 
     print(f"connecting to {device.address}  {device.name!r} …", flush=True)
-    async with BleakClient(device, **kw) as client:
+    # §9 — the CONNECT bound, named. bleak's own default is the same 30 s; passing it explicitly means
+    # the seven phase timeouts are seven declared numbers rather than six plus a library default.
+    async with BleakClient(device, timeout=oxy_power.TIMEOUTS.connect_s, **kw) as client:
         # Acquire the REAL ATT MTU before reporting it. On BlueZ bleak returns a placeholder 23 until a
         # characteristic is acquired, so printing mtu_size straight after connect always said "23" and
         # looked like a fatal MTU fault (2026-07-18: cost a long misdiagnosis — the real MTU is 247).
