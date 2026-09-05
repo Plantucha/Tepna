@@ -35,6 +35,33 @@
   "extends" (default, in force) or "supersedes".
 - The charter's §0 clean-room rule is absolute and matches house policy (§📚 no fabricated
   authority, no external code imports into capture paths).
+- **THE ADVERTISEMENT MEASUREMENT — tool built 2026-09-05 (Kestrel), run owed to the box.** The
+  2026-09-05 automatic-harvest gap analysis found that **no advertisement byte from the ring has ever
+  been captured**: every worn/recording fact comes from a connected 0x04 reply, `AdvertisementData` /
+  `detection_callback` appear nowhere in capture-host, and `O2RING-PROTOCOL` §6's two advertising
+  modes (`0x036F` recording / `0xF34E` sync-after-button) are quoted from a public reference and marked
+  untested there. A state machine that decides WHEN to connect from advertisements (§4–§6 of this
+  charter) cannot be built on that, and a bit mask must not be invented to fill it. So the first
+  small task is a measurement, and the instrument is **`capture-host/probe_ring_adv.py`** (gate-backed,
+  `tests/test_probe_ring_adv.py`): one JSONL row per sighting — host stamps, mode actually used,
+  address, name (display only), RSSI, manufacturer/service data hex, whatever raw BlueZ exposes, the
+  operator's LABEL of the ring's physical state, and a `hypothesis` tag when a payload carries one of
+  the two brief-quoted ids (a tag for the analyst, never a decision). Only the configured address and
+  hypothesis-tagged rows are written; other addresses are counted, never stored. `--summarize` prints
+  the per-address × label table (n, span, advert interval median/p90/max — a LOWER bound on the ring's
+  rate, scanner drops included — RSSI range, distinct payloads, names).
+  **Runbook (box, daemon's O2Ring runner off the link — `link_guard`; one label per phase, or one run
+  with `--label-file` flipped from a second shell at each transition):**
+  1. `worn-recording` ≥ 10 min · 2. `removed-idle` from the moment the finger leaves, ≥ 10 min
+  (does it advertise at all? for how long? — the 49/53 "not advertising within 6 min of drop" result
+  of `OXYII-DAT-AUTO-HARVEST-REFINEMENT` is the number to confirm or refute) · 3. `button-pressed`
+  with `--label-file` flipped at the press (the `0xF34E` test named in `O2RING-PROTOCOL` §6, never run)
+  · 4. `post-harvest` right after a pull disconnects · 5. `charger` · 6. `auto-power-off-wait` until
+  the ring goes silent · 7. `connecting-while-worn` and `after-failed-connect-N` alongside a
+  deliberate connect attempt. `--mode passive` is a declared second run, not the default: BlueZ passive
+  needs `or_patterns`, and a pattern can only see what its hypothesis predicts. Results land here as a
+  §-note citing the summary table; until then every "sync-ready window" claim in the harvest work is
+  marked UNMEASURED and the state machine consumes only the connected-link axes.
 
 ---
 

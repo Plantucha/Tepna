@@ -405,7 +405,10 @@ saves the raw bytes verbatim as `Wellue_O2Ring-S_<ts>_STORED.dat` + a `.meta.jso
   We resolve **by name**, so a ring advertising under the other name in the other mode would be invisible
   to us and read as "not advertising". **Test: press the button and scan for manufacturer ID `0xF34E`.**
   Until someone runs it, treat the rule above as *our observed behaviour with our scanner*, not as a
-  property of the device.
+  property of the device. *(The instrument for that test exists as of 2026-09-05 —
+  `capture-host/probe_ring_adv.py`, which records every sighting's raw manufacturer/service payload
+  against an operator label and tags the two ids above as hypotheses; the runbook is in
+  `O2RING-AUTONOMOUS-HARVEST-2026-08-26-BRIEF.md`'s preamble. Still unrun.)*
 - **BUT an ESTABLISHED link SURVIVES removal — that is the download window (2026-07-18).** On taking the
   ring off, `contact` goes to "no finger" and `worn=False`, yet the BLE connection stays up (the ring keeps
   showing its Bluetooth symbol). Since the session is finalised on removal, the moment right after taking
