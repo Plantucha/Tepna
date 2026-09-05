@@ -121,13 +121,40 @@ the flag was False, it was that nothing said so.
       §5a. It yields the pull-duration half of the answer and a single uncontaminated data point, and
       it establishes that the tail needs a deliberate experiment. The three-way decision (sufficient /
       shorten the settle / hold-through-pull) is **still open**.
-- [ ] **§5's recording state machine** (`UNKNOWN → RECORDING → END_CANDIDATE → END_CONFIRMED`) on the
+- [x] **§5's recording state machine** (`UNKNOWN → RECORDING → END_CANDIDATE → END_CONFIRMED`) on the
       `duration_s` axis. ⚠️ **The recording axis is `OXYII-PRESENCE-MODEL`'s model** — coordinate the
       seam before locking the enum, and do not collide with that brief's in-flight `IDLE_UNWORN` emit.
-- [ ] **T0–T7 latency instrumentation — MAPPED in §11.** T1/T2/T4/T5 are already emitted (T4 via
+      **VERIFIED BUILT 2026-09-05 — `oxy_lifecycle.OxyRecState`**, and the seam warning is satisfied
+      rather than merely avoided. The enum carries FIVE states, not the four this line lists —
+      `NOT_RECORDING` ("duration_s observed 0") sits between UNKNOWN and RECORDING — with
+      `REC_LEGAL_TRANSITIONS` pinning the legal moves, including the one worth reading:
+      `END_CANDIDATE → RECORDING` for a ring re-donned before the old session's pull confirmed, whose
+      *"confirmation debt lives in the inventory ledger, not in this axis"*.
+      **The `IDLE_UNWORN` collision does not occur**: presence and recording are two SEPARATE enums in
+      the same module — `OxyLinkState` (holding `IDLE_UNWORN`) and `OxyRecState` — so the two briefs'
+      models coexist on their own axes instead of competing for one. That is the coordination this item
+      asked for, done at the seam rather than by one side deferring.
+- [~] **T0–T7 latency instrumentation — MAPPED in §11.** T1/T2/T4/T5 are already emitted (T4 via
       `classify()` — corrected 2026-08-25); only **T3** needs an emit, and T3/T4 currently share one
-      timestamp. T6/T7 are downstream, T0 is the axis. ⚠️ §11(c): the ledger has never actually been
-      written in production — verify at the next auto-pull.
+      timestamp. T6/T7 are downstream, T0 is the axis. ~~⚠️ §11(c): the ledger has never actually been
+      written in production — verify at the next auto-pull.~~
+      **§11(c) ANSWERED 2026-09-05 — the ledger IS written in production, measured on the box.**
+      `/srv/tepna/captures/stored/inventory.jsonl`, 40 546 B, last written 2026-09-04 05:44:
+
+      | | |
+      |---|---|
+      | rows | **109** across **20 distinct sessions** |
+      | span | 2026-08-25 → 2026-09-04 |
+      | states | DISCOVERED 22 · DOWNLOADING 22 · **VERIFYING 21** · VERIFIED 22 · COMMITTED 22 |
+
+      So the transaction runs end to end in production, and **T3 is emitting**: 21 of 22. The single
+      exception is `20260824222502`, the EARLIEST session in the ledger (2026-08-25 05:12) — it
+      predates the T3 emit (954720bc, #1761) rather than showing a gap in it. Checked rather than
+      assumed, because "21 of 22" invites exactly the wrong inference.
+      ⚠️ **`[~]`, not `[x]`.** Two of this item's claims are settled — T3 emits, the ledger is written —
+      and one is NOT: whether **T3/T4 still share a timestamp** is unverified here. Ticking on the
+      strength of the settled half is the ticked-box-whose-first-clause-is-true defect §7 exists to
+      catch.
 - [ ] **§22's 8-case restart matrix — MAPPED in §10: 5 of 8 already built** by #1702's
       `crash_1…crash_10`. The residue (cases 2, 3, 7) is exactly the recording-axis cases and belongs
       with unit 2. Do not write eight new tests.
