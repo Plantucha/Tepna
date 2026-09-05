@@ -6979,6 +6979,12 @@ def _cpap_acq_evidence_writer():
     return _write
 
 
+# The last unreachable message actually WRITTEN TO THE LOG, so a repeat can be suppressed and a
+# change cannot. Module-level rather than a STATUS field on purpose: STATUS is the operator-facing
+# projection, and a log-dedupe memo is neither an observation nor something /api/state should carry.
+_CPAP_UNREACHABLE_MEMO: dict = {}
+
+
 def _note_cpap_unreachable(exc):
     """A CPAP poll RAN AND FAILED — record it where the watchdog can see it.
 
@@ -6992,8 +6998,31 @@ def _note_cpap_unreachable(exc):
     own captures) are byte-identical UNKNOWNs in the journal, and they need opposite responses."""
     st = STATUS.setdefault("cpap", {})
     st["reachable"] = False
-    st["unreachable_streak"] = int(st.get("unreachable_streak") or 0) + 1
+    streak = int(st.get("unreachable_streak") or 0) + 1
+    st["unreachable_streak"] = streak
     st["last_unreachable_class"] = type(exc).__name__
+    # 🔴 THE CLASS IS NOT ENOUGH, AND `As11Error` IS WHY. The paragraph above is right about
+    # BleakDeviceNotFoundError vs InProgress — two classes, two responses. But every AS11 PROTOCOL
+    # failure is ONE class: a rejected pairing key (`RPC 10 VerificationFailure`), a timeout and a
+    # malformed frame all publish `As11Error`, so the discrimination this field exists to make
+    # collapses inside that bucket. Same shape as `classify_failure`'s `=other` one module over —
+    # a verdict about the DEVICE merged with "we could not tell" — and measured the same way:
+    # the AirSense stopped accepting our masterPairKey at 2026-09-04 18:49 and for ELEVEN HOURS the
+    # every-30 s failure was indistinguishable from "the machine is off". Those need opposite
+    # responses (re-pair at the machine vs. wait for bedtime). The message was in hand at the raise
+    # and discarded here.
+    msg = str(exc).strip()
+    st["last_unreachable_msg"] = msg[:200] or None
+    # RATE-LIMITED, because the poll is every 30 s and a persistent fault runs all night — 1320 polls
+    # over those eleven hours, and a line per poll is not evidence, it is a reason to stop reading the
+    # log. Logged on the FIRST failure, on any CHANGE of message (a fault becoming a different fault
+    # is news), and hourly thereafter so a long outage leaves periodic proof rather than one line at
+    # the start that scrolls away. `_publish_therapy_state` clears the memo when a poll succeeds, so
+    # the next fault logs immediately instead of being suppressed as a repeat.
+    if streak == 1 or msg != _CPAP_UNREACHABLE_MEMO.get("msg") or streak % 120 == 0:
+        _CPAP_UNREACHABLE_MEMO["msg"] = msg
+        log.warning("CPAP poll unreachable (%s, streak %d): %s",
+                    type(exc).__name__, streak, msg or "no message")
 
 
 def _publish_therapy_state(decision, _anchor):
@@ -7027,6 +7056,12 @@ def _publish_therapy_state(decision, _anchor):
         st["last_seen_ms"] = _time.time() * 1000.0
         st["unreachable_streak"] = 0
         st["last_unreachable_class"] = None
+        st["last_unreachable_msg"] = None
+        # Clear the log memo too, or the NEXT fault is suppressed as a repeat of the one that just
+        # healed: `streak` restarts at 1 so it would log anyway today, but that is an accident of the
+        # streak rule rather than a property of the memo, and a later change to either would silently
+        # lose the first line of the next outage.
+        _CPAP_UNREACHABLE_MEMO.pop("msg", None)
 
 
 def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
