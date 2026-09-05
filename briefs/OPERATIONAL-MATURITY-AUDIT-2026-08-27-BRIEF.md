@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-27 · **Created:** 2026-08-27 · **Executes:** `OPERATIONAL-MATURITY-ROADMAP-2026-08-27-BRIEF.md` §1 (the audit) and §15 (the P0–P4 ranking that gates everything after it) · **Affects:** nothing yet — this brief is measurement only
+**Status:** IN-PROGRESS (parked 2026-09-05 — drain stamp, Magpie. The audit is EXECUTED: P#1–P#8 all classified, §15 ranking delivered as a NULL RESULT (§5), §4a corrected by Heron 2026-09-05 (#2206). The two unticked Done-when boxes — §13 resource-budget measurements and §14 long-run behaviour tests — need the capture box, not this rig, and are box-ops. **Owner:** Heron (vigil lane; deploys there are owner-authorized only); **next step:** run §13/§14 on vigil during a witnessed window and tick both boxes in that PR, which flips this brief to DONE. Not PROPOSED: 5 of 7 boxes are executed work) · **Created:** 2026-08-27 · **Executes:** `OPERATIONAL-MATURITY-ROADMAP-2026-08-27-BRIEF.md` §1 (the audit) and §15 (the P0–P4 ranking that gates everything after it) · **Affects:** nothing yet — this brief is measurement only
 
 # §1 audit — ALL EIGHT priorities measured against HEAD
 

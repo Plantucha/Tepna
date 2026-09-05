@@ -4,7 +4,7 @@
   SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-08-01 (**§2, §3 and §4 are now GATED — see §2a.** All three fixes existed
+**Status:** IN-PROGRESS (parked 2026-09-05 — drain stamp, Magpie, on top of the 2026-09-01 triage below, which holds. Nothing here is open to code. What remains is owner- and data-shaped: **§1's paper-editorial leg** is the owner's publish-vs-retract call — the 2026-09-05 local re-run produced 8,057 epochs / MAE 1.10 against the published 18,856 / 1.01, and the replication is recorded with the residues `2026-09-05-respacc-epochs-predate-alignment-fix` and `2026-09-05-playwright-blocked-by-apparmor-userns` (#2239, Osprey, carries the paper-side record); **§6 and §7** need a second subject; the `nativeHz` spine helper stays deliberately unbuilt (§2a). **Owner:** the owner for §1's headline; **next step:** none a session can schedule — the brief flips to DONE in the PR that records the owner's ruling on the preprint figures. Not PROPOSED: §2·§3·§4·§5·§8·§10 are executed and gated) · Previous header, kept verbatim: IN-PROGRESS — 2026-08-01 (**§2, §3 and §4 are now GATED — see §2a.** All three fixes existed
 
 > **TRIAGE 2026-09-01 — every section resolved; nothing is open to code.** §2·§3·§4 gated and
 > mutation-verified (§2a). §5 is a recorded CAVEAT, not a build item (the confidence gate is not an
