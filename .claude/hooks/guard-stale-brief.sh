@@ -29,9 +29,31 @@
 # does not contain ⇒ editing it now can silently drop them. That is precisely the
 # condition that bit #1055, and it is cheap to evaluate.
 #
-# ⚠ FRESHNESS. This reads the LOCAL `origin/main` ref; it never fetches (a PreToolUse
-# hook must not block on the network). So it is only as current as your last fetch —
-# it can under-report, never over-report. `CLAUDE.md` §📌 therefore says fetch first.
+# ⚠ FRESHNESS — AND THE DIRECTION DEPENDS ON *WHICH* REF IS STALE. This reads the LOCAL
+# `origin/main`; it never fetches (a PreToolUse hook must not block on the network).
+#   · A stale `origin/main` makes it UNDER-report: commits it has not seen cannot be
+#     listed. `CLAUDE.md` §📌 therefore says fetch first.
+#   · A stale HEAD makes it OVER-report, and the sentence here used to deny that. The
+#     base is `merge-base(HEAD, origin/main)` of the tree this hook RESOLVES, so if that
+#     tree has fallen behind, the range lists commits the tree the author is actually
+#     editing may already contain — a FALSE DENIAL. Measured 2026-08-20: three in one
+#     session. Residue `2026-09-05-sync-main-skips-while-root-dirty` names the mechanism
+#     that keeps it stale: `tepna-sync-main.timer` refuses to fast-forward the shared root
+#     while it holds uncommitted paths (correct, and not to be changed), and a dirty root
+#     is the normal state — measured 42 commits behind at 02:15 on rig-x870 with 7 dirty
+#     paths, while `systemctl show` still reported `Result=success`.
+#   So "can only under-report" is TRUE of the ref and FALSE of the tree. It is not a
+#   blanket property of this hook, and it was stated as one.
+#
+# ⚠ WHICH TREE IS RESOLVED IS THEREFORE THE WHOLE QUESTION, and it is settled by the
+#   payload, not by the hook's cwd. An ABSOLUTE `file_path`, or a leading `cd <dir>` in a
+#   Bash command, names the tree and the answer is about THAT tree — verified by the
+#   stale-root block in the self-test: with the root 1 commit behind and a worktree at
+#   `origin/main`, both routes ALLOW an edit in the worktree and both still DENY one in
+#   the stale tree. With NEITHER signal the hook measures its own cwd, and there it can
+#   deny only while that tree is stale (a current tree makes the base `origin/main` and
+#   the range empty by construction) — which is exactly when the answer is unreliable.
+#   That residual route is pinned in the self-test as the behaviour it HAS, not endorsed.
 #
 # ⚠ FAILS OPEN, deliberately, and this is the one place that choice is right. If git
 # is unavailable, `origin/main` is missing, or HEAD is unborn, the guard cannot know —
