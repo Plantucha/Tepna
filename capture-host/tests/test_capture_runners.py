@@ -22,7 +22,7 @@ _DROP_DEFAULT = capture._DROP_NOT_WORN_SEC
 # override into an unrelated test module (test_drop_not_worn / test_settings_schema assert the defaults).
 _GLOBAL_SNAPSHOT = {k: getattr(capture, k) for k in
                     ("_DROP_NOT_WORN_SEC", "_NOT_WORN_RECHECK_S", "_OXYII_RTC_RESYNC_SEC",
-                     "O2PPG_FS", "O2PPG_NS_STEP", "_STREAM_STALL_S")}
+                     "O2PPG_FS", "O2PPG_NS_STEP", "_STREAM_STALL_S", "_RECONNECT_BACKOFF_CAP_S")}
 
 
 @pytest.fixture(autouse=True)
@@ -2338,7 +2338,7 @@ def test_main_applies_overrides_and_migrates_wellue_ppg(tmp_path, monkeypatch):
     config overrides (1491, 1495, 1497), then dispatches run_oxyii for it (1524-1526)."""
     cfg = {"root": str(tmp_path), "web": {"enabled": False},
            "o2ring": {"rtc_resync_sec": 3600},
-           "power": {"drop_not_worn_sec": 120, "not_worn_recheck_sec": 45},
+           "power": {"drop_not_worn_sec": 120, "not_worn_recheck_sec": 45, "reconnect_backoff_cap_sec": 240},
            "stream": {"stall_sec": 45},
            "write": {"resume_window_sec": 120},
            "devices": [{"name": "Ring", "vendor": "Wellue", "model": "O2Ring-S",
@@ -2346,6 +2346,7 @@ def test_main_applies_overrides_and_migrates_wellue_ppg(tmp_path, monkeypatch):
     _main_with_cfg(tmp_path, monkeypatch, cfg)
     assert capture._OXYII_RTC_RESYNC_SEC == 3600
     assert capture._DROP_NOT_WORN_SEC == 120 and capture._NOT_WORN_RECHECK_S == 45
+    assert capture._RECONNECT_BACKOFF_CAP_S == 240
     assert capture._STREAM_STALL_S == 45
     assert capture._RESUME_WINDOW_S == 120.0   # CAPTURE-FILESET-RESUME: write.resume_window_sec applies
     ring = next(d for d in capture._CFG["devices"] if d["name"] == "Ring")
