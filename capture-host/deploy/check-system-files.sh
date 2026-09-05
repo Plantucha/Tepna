@@ -115,6 +115,8 @@ systemd/tepna-usb-autosuspend.service|$ETC_SYSTEMD/tepna-usb-autosuspend.service
 deploy/tepna-capture.service|$ETC_SYSTEMD/tepna-capture.service|MANAGED|0644
 systemd/tepna-update.service|$ETC_SYSTEMD/tepna-update.service|MANAGED|0644
 systemd/tepna-update.timer|$ETC_SYSTEMD/tepna-update.timer|MANAGED|0644
+systemd/tepna-sniff.service|$ETC_SYSTEMD/tepna-sniff.service|MANAGED|0644
+systemd/tepna-sniff.timer|$ETC_SYSTEMD/tepna-sniff.timer|MANAGED|0644
 tepna-clock.sh|$LIB_TEPNA/tepna-clock.sh|MANAGED|0755
 tepna-restart.sh|$LIB_TEPNA/tepna-restart.sh|MANAGED|0755
 tepna-rssi.sh|$LIB_TEPNA/tepna-rssi.sh|MANAGED|0755

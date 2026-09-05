@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (C4 EXECUTED — verified 2026-09-05: the §6.3 content gate is in `tepna-update.sh`, changeset `update-restart-content-gate`, 9 gate tests + 3 killed plants. Mitigation C EXECUTED, both clauses — verified 2026-09-05: `run_oxyii` publishes the `0xE1` wire serial + firmware to STATUS/monitor and compares the serial against a new optional O2Ring `serial:` key (clause 1), and counts the RUN of connects that answer identity and deliver no frames (clause 2); changeset `ring-identity-alert`, 35 gate tests + 12 killed plants; ⚠ the comparable field is the WIRE serial `2592302100`, not the BLE-name id `S8AW2100` the bullet named — see §6.2; clause 1 is ARMED only once the owner sets `serial:` on vigil, while clause 2 needs no configuration and is armed on every box. §6.1 box ops and §6.2 Probe A are owner-attended; Mitigation B WITHDRAWN by owner correction (§6.2 — the `.dat` harvest is already BLE), B′ and D3 tracked separately) · **Created:** 2026-09-05
+**Status:** PROPOSED (C4 EXECUTED — verified 2026-09-05: the §6.3 content gate is in `tepna-update.sh`, changeset `update-restart-content-gate`, 9 gate tests + 3 killed plants. Mitigation C EXECUTED, both clauses — verified 2026-09-05: `run_oxyii` publishes the `0xE1` wire serial + firmware to STATUS/monitor and compares the serial against a new optional O2Ring `serial:` key (clause 1), and counts the RUN of connects that answer identity and deliver no frames (clause 2); changeset `ring-identity-alert`, 35 gate tests + 12 killed plants; ⚠ the comparable field is the WIRE serial `2592302100`, not the BLE-name id `S8AW2100` the bullet named — see §6.2; clause 1 is ARMED only once the owner sets `serial:` on vigil, while clause 2 needs no configuration and is armed on every box. D3 EXECUTED — verified 2026-09-05: `tepna-sniff.timer` runs a nightly 10-min all-advertising capture and `ble_sniff.py` audits it — window coverage + any initiator that is not one of our adapters connecting to one of our devices; exit 3 puts the oneshot in `systemctl --failed`; changeset `sniff-nightly-audit`, 15 shell-surface tests + 16 audit tests, 4 killed plants; ARMED only once the owner deploys and enables the timer on vigil. §6.1 box ops and §6.2 Probe A are owner-attended; Mitigation B WITHDRAWN by owner correction (§6.2 — the `.dat` harvest is already BLE), B′ and D3 tracked separately) · **Created:** 2026-09-05
 
 # Vigil Bluetooth — adversarial audit (owner-ordered: "must be spotless")
 
@@ -142,6 +142,22 @@ Everything measured 2026-09-05 ~17:45–18:15 UTC on the box unless dated otherw
   nightly N-minute capture into `/srv/tepna/captures/sniffer/` + `ble_sniff.py` verdict (now
   trustworthy) turns D1's one-off "clean" into a standing check, and would have caught the 09-04
   capture death (F2) the same night. Costs: one timer + one script; no daemon change.
+
+  **EXECUTED 2026-09-05** as `tepna-sniff.sh` + `tepna-sniff.service`/`.timer` (03:00 ±10 min, 600 s)
+  with `ble_sniff.py --expect-seconds --config --adapters`. Two design points came out of driving the
+  real extcap on the box rather than from this bullet:
+  * **The verdict reads the BYTES, never an exit code.** Nordic's `nrf_sniffer_ble.py` exits **0** on
+    a `LockedException` (another process holds `/dev/ttyACM0`) after writing a 24-byte header-only
+    pcap, and `timeout` exits **124** on the *normal* end of a capture. Either code, believed, reports
+    a clean night for a capture that never ran — F2's shape one layer up. Both are recorded and
+    neither enters the audit.
+  * **"Could not attribute" is a finding, not a clean night.** The adapter list comes from
+    `bluetoothctl list`; when it is empty (bluetoothd down, or `bluetoothctl` absent) EVERY connect to
+    our devices is reported as foreign rather than silently attributed.
+  Also unpicked deliberately: the extcap's capture loop is `while True: pass`, so the unit runs at
+  `Nice=19` — it spins a core for the whole window and must yield to `tepna-capture`.
+  ⚠ **Inert until deployed.** The timer only exists on vigil once the owner runs the deploy; nothing
+  in this changeset touches the box.
 
 ## 5 · Verdict against "spotless"
 

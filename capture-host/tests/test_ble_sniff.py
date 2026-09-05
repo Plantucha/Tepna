@@ -479,3 +479,176 @@ def test_report_states_the_crc_exclusion_even_at_zero():
     r2 = ble_sniff.format_report(
         ble_sniff.summarise(_pcap(_nordic(_adv(0x0, prefix=b""), flags=0x00))))
     assert "  crc-bad excluded: 1" in r2
+
+
+# ── the nightly audit (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT D3) ──────────────────────────────────────
+# `tepna-sniff.sh` records a bounded all-advertising capture every night and asks two questions of
+# it. Both are answered here as pure functions of the summary, so the shell test only has to prove
+# the plumbing.
+
+SENA = "00:1B:DC:F4:AB:CD"            # one of OUR adapters
+SENA_WIRE = bytes.fromhex("cdabf4dc1b00")
+RING = "D1:98:62:7C:92:B3"            # one of OUR devices
+RING_WIRE = bytes.fromhex("b3927c6298d1")
+STRANGER_WIRE = bytes.fromhex("665544332211")
+STRANGER = "11:22:33:44:55:66"
+
+
+def _night(*payloads, span_s=590.0):
+    """A capture whose packets span `span_s` seconds — the audit's window input."""
+    stamped = [(100 + int(span_s * i / max(1, len(payloads) - 1)), 0, p)
+               for i, p in enumerate(payloads)]
+    return ble_sniff.summarise(_pcap_ts(*stamped))
+
+
+def test_audit_passes_a_full_window_with_only_our_own_connects():
+    s = _night(_adv(0x0, RING_WIRE), _connect_ind(SENA_WIRE, RING_WIRE), _adv(0x0, RING_WIRE))
+    a = ble_sniff.audit(s, 600, {RING}, {SENA})
+    assert a["ok"] and a["problems"] == []
+    assert a["foreign"] == []
+    assert a["heard"] == [RING]
+    r = ble_sniff.format_audit(a)
+    assert "AIR AUDIT: OK" in r
+    assert "foreign connects: 0" in r          # stated at zero, never omitted
+    assert "1 configured, 1 heard" in r
+
+
+def test_audit_fails_a_capture_that_died_early_the_F2_shape():
+    """2 h of a 7.4 h window read as 'the night' by mtime. The audit reads the packets."""
+    s = _night(_adv(0x0), _adv(0x0), span_s=7168)
+    a = ble_sniff.audit(s, 26640, set(), set())
+    assert not a["ok"]
+    assert a["window"].startswith("captured 7168.0 s of 26640 s expected")
+    assert "died 19472 s early" in a["window"]
+    assert "window:" in a["problems"][0]
+
+
+def test_audit_accepts_the_handshake_and_teardown_shortfall():
+    """A healthy 600 s run spans ~590 s (firmware handshake + SIGINT teardown). Not a red."""
+    s = _night(_adv(0x0), _adv(0x0), span_s=0.8 * 600)
+    assert ble_sniff.audit(s, 600, set(), set())["ok"]
+    s = _night(_adv(0x0), _adv(0x0), span_s=0.8 * 600 - 0.5)
+    assert not ble_sniff.audit(s, 600, set(), set())["ok"]
+
+
+def test_audit_fails_an_empty_capture_by_name():
+    """The extcap exits 0 on a LockedException (port busy) with a header-only pcap. Zero packets
+    in a requested window is a failure, and it says so — never a quiet 'OK, nothing seen'."""
+    a = ble_sniff.audit(ble_sniff.summarise(_pcap()), 600, {RING}, {SENA})
+    assert not a["ok"]
+    assert a["window"] == "no packets at all in a 600 s window"
+
+
+def test_audit_without_a_window_judges_only_the_connects():
+    s = _night(_adv(0x0), span_s=5)
+    a = ble_sniff.audit(s, None, {RING}, {SENA})
+    assert a["ok"] and a["window"] is None
+    assert "window" not in ble_sniff.format_audit(a)
+
+
+def test_audit_flags_a_stranger_connecting_to_our_device():
+    """C1 on air: an initiator that is not one of our adapters opened a link to our ring."""
+    s = _night(_connect_ind(STRANGER_WIRE, RING_WIRE), _adv(0x0, RING_WIRE))
+    a = ble_sniff.audit(s, 600, {RING}, {SENA})
+    assert not a["ok"]
+    assert a["foreign"] == [(STRANGER, RING)]
+    assert a["problems"] == ["1 foreign connect(s) to our devices"]
+    r = ble_sniff.format_audit(a)
+    assert "AIR AUDIT: FAILED — 1 foreign connect(s) to our devices" in r
+    assert "%s -> %s  <-- NOT one of our adapters" % (STRANGER, RING) in r
+
+
+def test_audit_ignores_strangers_connecting_to_neighbours_devices():
+    """F3's four connects to a neighbour's device are the neighbour's business."""
+    s = _night(_connect_ind(STRANGER_WIRE, PHONE_WIRE), _adv(0x0, RING_WIRE))
+    a = ble_sniff.audit(s, 600, {RING}, {SENA})
+    assert a["ok"] and a["foreign"] == []
+
+
+def test_audit_with_no_adapter_list_calls_every_connect_to_us_foreign():
+    """'Could not attribute' must read as a finding, not as clean."""
+    s = _night(_connect_ind(SENA_WIRE, RING_WIRE), _adv(0x0, RING_WIRE))
+    a = ble_sniff.audit(s, 600, {RING}, set())
+    assert not a["ok"]
+    assert a["foreign"] == [(SENA, RING)]
+    assert "our adapters    : NONE listed — every connect to our devices counts as foreign" \
+        in ble_sniff.format_audit(a)
+
+
+def test_audit_reports_both_problems_when_both_hold():
+    s = _night(_connect_ind(STRANGER_WIRE, RING_WIRE), _adv(0x0), span_s=10)
+    a = ble_sniff.audit(s, 600, {RING}, {SENA})
+    assert len(a["problems"]) == 2
+    assert a["problems"][0].startswith("window:")
+    assert "; " in ble_sniff.format_audit(a).splitlines()[1]
+
+
+def test_audit_hears_a_device_that_only_appears_as_a_connect_target():
+    """A device already being connected to may never advertise inside the window."""
+    s = _night(_connect_ind(SENA_WIRE, RING_WIRE), _adv(0x0))
+    assert ble_sniff.audit(s, None, {RING}, {SENA})["heard"] == [RING]
+
+
+def test_device_addresses_reads_only_the_addresses(tmp_path):
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text(
+        "devices:\n"
+        "  - name: ring\n    address: \"d1:98:62:7c:92:b3\"\n    bond_key: SECRET\n"
+        "  - name: h10\n    address: ' 24:AC:AC:0C:30:1E '\n"
+        "  - name: muse\n"                      # no address — a name-only entry contributes nothing
+        "  -\n"                                 # a null entry (trailing dash) must not crash it
+    )
+    assert ble_sniff.device_addresses(str(cfg)) == {RING, "24:AC:AC:0C:30:1E"}
+    empty = tmp_path / "empty.yaml"
+    empty.write_text("")
+    assert ble_sniff.device_addresses(str(empty)) == set()
+
+
+def test_main_two_positional_form_is_unchanged_and_prints_no_audit(tmp_path, capsys):
+    p = tmp_path / "c.pcap"
+    p.write_bytes(_pcap(_adv(0x0)))
+    assert ble_sniff.main([str(p), RESMED]) == 0
+    assert "AIR AUDIT" not in capsys.readouterr().out
+
+
+def test_main_audit_options_exit_3_on_a_failed_audit_and_0_on_a_clean_one(tmp_path, capsys):
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("devices:\n  - address: %s\n" % RING)
+    p = tmp_path / "night.pcap"
+    p.write_bytes(_pcap_ts((100, 0, _connect_ind(STRANGER_WIRE, RING_WIRE)),
+                           (690, 0, _adv(0x0, RING_WIRE))))
+    rc = ble_sniff.main([str(p), "--expect-seconds", "600", "--config", str(cfg),
+                         "--adapters", "%s,%s" % (SENA.lower(), " 00:11:22:33:44:55 ")])
+    out = capsys.readouterr().out
+    assert rc == 3
+    assert "VERDICT" in out and "AIR AUDIT: FAILED" in out
+    assert "our adapters    : 00:11:22:33:44:55, %s" % SENA in out
+    clean = tmp_path / "clean.pcap"
+    clean.write_bytes(_pcap_ts((100, 0, _connect_ind(SENA_WIRE, RING_WIRE)),
+                               (690, 0, _adv(0x0, RING_WIRE))))
+    assert ble_sniff.main([str(clean), "--expect-seconds", "600", "--ours", RING,
+                           "--adapters", SENA]) == 0
+    assert "AIR AUDIT: OK" in capsys.readouterr().out
+
+
+def test_main_audit_options_also_accept_the_follow_mac(tmp_path, capsys):
+    p = tmp_path / "c.pcap"
+    p.write_bytes(_pcap(_adv(0x0)))
+    assert ble_sniff.main([str(p), RESMED, "--ours", RING]) == 0
+    assert "AIR AUDIT: OK" in capsys.readouterr().out
+
+
+def test_main_bad_option_values_are_usage_errors_not_tracebacks(tmp_path, capsys):
+    p = tmp_path / "c.pcap"
+    p.write_bytes(_pcap(_adv(0x0)))
+    assert ble_sniff.main([str(p), "--expect-seconds"]) == 2            # value missing
+    assert ble_sniff.main([str(p), "--expect-seconds", "soon"]) == 2    # not a number
+    assert ble_sniff.main([str(p), "--config", str(tmp_path / "nope.yaml")]) == 2
+    assert ble_sniff.main([str(p), RESMED, "extra"]) == 2               # three positionals
+    assert capsys.readouterr().err.count("bad arguments") == 3
+
+
+def test_main_an_unreadable_capture_under_audit_is_still_exit_1_not_3(tmp_path, capsys):
+    rc = ble_sniff.main([str(tmp_path / "absent.pcap"), "--expect-seconds", "600"])
+    assert rc == 1
+    assert "cannot read" in capsys.readouterr().err
