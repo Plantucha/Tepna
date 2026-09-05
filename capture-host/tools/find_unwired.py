@@ -65,15 +65,6 @@ ALLOW_KEYS = {
     #    gate green-because-explained rather than green-because-blind while they are routed. Each
     #    names what retires it; if that condition is met and the entry stays, the stale-suppression
     #    scan below will say so.
-    "autopull": "ORPHAN, not intentional (2026-09-02). capture.py publishes {last,new,trigger} and "
-                "`trigger` is the only runtime evidence that the doff/presence auto-pull ever fired, "
-                "but /api/state does not forward it and nothing reads it — monitor.html names this "
-                "exact field as a past instance of the class in a COMMENT, which is what masked it "
-                "from this scan until now. RETIRES when webmon forwards it beside `radio_switches` "
-                "or the key is deleted.",
-    "updated": "ORPHAN, not intentional (2026-09-02). Written on every status publish; no reader "
-               "anywhere — status_union.instance_health deliberately ages heartbeat_ms instead. "
-               "RETIRES when the key is deleted or given a reader.",
     # ── top-level shape (STATUS[key]= / setdefault) — covered since 2026-09-01 ──────────────────────
     "heartbeat_ms": "read by status_union.read_instance (staleness verdict) — the §3.6 merge layer of "
                     "PER-DEVICE-ADAPTER-PINNING, itself in ALLOW_MODULES as PENDING with its missing "
@@ -439,17 +430,26 @@ def top_status_keys(src: str) -> set[str]:
 
 
 def projected_keys(src: str) -> set[str]:
-    """The device-projection keys `webmon` publishes to `/api/state`, from the AST.
+    """Every key `webmon` publishes to `/api/state` — BOTH projections, from the AST.
 
-    Anchored on the dict literal carrying both `connected` and `battery` — the device projection — rather
-    than on a line number or a function name, so it survives the file moving around it."""
+    Anchored on dict literals by their contents (`connected`+`battery` for the per-device projection,
+    `storage`+`qc` for the top-level one) rather than on line numbers or function names, so this
+    survives the file moving around it.
+
+    🔴 IT USED TO READ THE DEVICE PROJECTION ONLY, and that is how a forwarded field reached nobody.
+    Every top-level block — `storage`, `qc`, `cpap`, `radio_distress`, `autopull` — sat outside the
+    scan entirely, so "fields webmon forwards that monitor.html never draws" was a statement about
+    one of the two projections while reading as a statement about the API. Measured when the second
+    anchor was added: exactly ONE undrawn key fell out, which was the one being added at the time —
+    no pre-existing debt, so the narrower scan had been lucky rather than right."""
+    out: set[str] = set()
     for node in ast.walk(ast.parse(src)):
         if not isinstance(node, ast.Dict):
             continue
         ks = {k.value for k in node.keys if isinstance(k, ast.Constant) and isinstance(k.value, str)}
-        if {"connected", "battery"} <= ks:
-            return ks
-    return set()
+        if {"connected", "battery"} <= ks or {"storage", "qc"} <= ks:
+            out |= ks
+    return out
 
 
 def public_functions(src: str) -> set[str]:
@@ -589,8 +589,15 @@ def scan(root: "str | None" = None) -> dict:
             # the failure this whole tool exists to name. Losing the anchor must red, not go quiet.
             orphan_rendered.append({"key": "<projection not found — the AST anchor in projected_keys() "
                                            "no longer matches webmon.py>", "allowed": None})
+        # 🔴 STRIP COMMENTS FIRST. A word-boundary match over the raw file counts a MENTION as a
+        # rendering — and `autopull` was mentioned in monitor.html only inside a comment describing
+        # this exact defect class, so the scan reported it drawn while nothing drew it. A gate fooled
+        # by prose about the bug it exists to catch. `importers()` already decomments for the same
+        # reason on the Python side; this is that rule applied to the surface it was missing from.
+        drawn = re.sub(r"<!--.*?-->|/\*.*?\*/", "", html, flags=re.S)
+        drawn = re.sub(r"(?m)^\s*//.*$", "", drawn)
         for key in sorted(keys):
-            if re.search(r"\b%s\b" % re.escape(key), html):
+            if re.search(r"\b%s\b" % re.escape(key), drawn):
                 continue
             orphan_rendered.append({"key": key, "allowed": ALLOW_RENDERED.get(key)})
 

@@ -29,7 +29,7 @@ def usable_pool(adapters, reserved=()):
     `adapters` is `[{mac, up}, ...]`. Down adapters are excluded: placing a device on a radio we
     could not confirm is up is the same mistake `failover_target` refuses to make on the capture side.
 
-    RESERVED adapters are returned separately rather than dropped. On this box hci0 carries the CPAP's
+    RESERVED adapters are returned separately rather than dropped. On this box the Intel AX210 carries the CPAP's
     own link, and putting wearables there re-creates on one radio exactly the contention this module
     exists to relieve — but a reserved radio is still better than NO radio, so the caller can fall
     back to it deliberately instead of the pool silently pretending it does not exist."""

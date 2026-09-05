@@ -791,6 +791,27 @@
             maxStepMs: hostAx.maxStepMs,
             drawn: axisSynthetic,
             quantizedShare,
+            /* ⚠️ APPLIED IS OWNED BY THE DSP THAT APPLIES THE AXIS, and this one does — see the
+               `relSec[i] = (devMs + hostAx.correctionAt(devMs))` line above. Emitting it is not
+               cosmetic: `pat-drift-attribution.mjs effectivePpm` reads
+               `hostAxis.applied === true ? 0 : hostAxis.ppm`, so a MISSING key silently took the
+               ppm branch and credited this node's drift as an outstanding error the axis had
+               already absorbed — a double-count. ECGDex has always written it; PpgDex never did,
+               so the reader was correct by accident on one node and wrong on the other.
+               ⚠️ Inert in the SHIPPED BUNDLE and that is expected: `PpgDex.html` inlines no
+               `clock.js` (CLAUDE.md §✅ — `DexClock` is undefined there), so `hostAx.ok` is false
+               and this whole block never builds. It is live only where the analysis tools co-load
+               the spine in Node, which is exactly where the defect was.
+               ⚠️ The `fs` correction two lines up IS erased by the 2 dp rounding at `:557` (181.8 ppm
+               per step at 55 Hz), and that is NOT a reason to call this key false: the beat times the
+               PAT tools measure ride `relSec`, not `idx / fs`. Measured 2026-09-05 through
+               `pat-matchrate-strict.mjs`'s interpolating `timeAt`, over the three largest Verity
+               nights — 72514 of 72514 consensus feet resolve through `relSec`, 0 fall back.
+               ⚠️ `pat-feasibility-worker.js` is a DIFFERENT consumer and still reads `rel[idx] ??
+               idx / fs`, a raw subscript no fractional index can hit (PAT-FORENSICS-AXIS-LEG-
+               ASYMMETRY, 0/8948 feet — live, and about that file, not this path). This key does not
+               fix it and must not be read as saying it is fixed. */
+            applied: true,
             // Forwarded so a consumer can SEE the verdict instead of inferring it from a ~0 ppm.
             independent: hostAx.independent === undefined ? null : hostAx.independent,
             spreadMs: hostAx.spreadMs === undefined ? null : hostAx.spreadMs,

@@ -772,7 +772,7 @@ def test_a_device_going_on_the_charger_is_pulled_once_per_charge_session(tmp_pat
     capture.STATUS["devices"]["Ring"] = {"charging": True}
     pulls = []
 
-    async def fake_pull(dev, root, which="latest", ftype=0):
+    async def fake_pull(dev, root, which="latest", ftype=0, *, trigger="manual"):
         pulls.append((dev["name"], which, ftype))
         return {"new_files": ["a.dat", "b.dat"]}
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
@@ -799,14 +799,14 @@ def test_a_DOFF_triggered_pull_reaches_pull_oxyii_session_as_LATEST(tmp_path, mo
     capture._NOTWORN_PULLED.discard(ring["address"])
     pulls = []
 
-    async def fake_pull(dev, root, which="latest", ftype=0):
+    async def fake_pull(dev, root, which="latest", ftype=0, *, trigger="manual"):
         pulls.append((dev["name"], which, ftype))
         return {"new_files": ["a.dat"]}
 
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
     _stop_after(monkeypatch, 3)
     _run(capture.charger_pull_poller(cfg, str(tmp_path)))
-    assert pulls == [("Ring", "latest", 0)], f"doff pull must ask for latest, got {pulls}"
+    assert pulls[:1] == [("Ring", "latest", 0)], f"doff pull must ask for latest, got {pulls}"
     assert capture.STATUS["autopull"]["trigger"] == "not-worn"
 
 
@@ -817,7 +817,7 @@ def test_coming_off_the_charger_re_arms_the_next_pull(tmp_path, monkeypatch):
     state = {"tick": 0}
     pulls = []
 
-    async def fake_pull(dev, root, which="latest", ftype=0):
+    async def fake_pull(dev, root, which="latest", ftype=0, *, trigger="manual"):
         pulls.append(state["tick"])
         return {"new_files": []}
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
@@ -861,7 +861,7 @@ def test_a_busy_offline_slot_re_arms_and_a_transient_failure_does_not(tmp_path, 
     cfg = {"pull": {"auto": True, "charger_settle_sec": 0}, "devices": [ring]}
     capture.STATUS["devices"]["Ring"] = {"charging": True}
 
-    async def busy(dev, root, which="latest", ftype=0):
+    async def busy(dev, root, which="latest", ftype=0, *, trigger="manual"):
         raise capture.offline_lock.OfflineBusy("held by Verity")
     monkeypatch.setattr(capture, "pull_oxyii_session", busy)
     _stop_after(monkeypatch, 2)
@@ -871,7 +871,7 @@ def test_a_busy_offline_slot_re_arms_and_a_transient_failure_does_not(tmp_path, 
     capture._STOP = asyncio.Event()
     capture._CHARGER_SINCE.clear()
 
-    async def boom(dev, root, which="latest", ftype=0):
+    async def boom(dev, root, which="latest", ftype=0, *, trigger="manual"):
         raise RuntimeError("device not advertising")
     monkeypatch.setattr(capture, "pull_oxyii_session", boom)
     _stop_after(monkeypatch, 2)
@@ -890,7 +890,7 @@ def test_the_charger_poller_holds_off_during_a_recovery(tmp_path, monkeypatch):
     capture._RECOVER.set()
     pulls = []
 
-    async def fake_pull(dev, root, which="latest", ftype=0):
+    async def fake_pull(dev, root, which="latest", ftype=0, *, trigger="manual"):
         pulls.append(1)
         return {}
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)

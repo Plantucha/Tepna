@@ -20,6 +20,19 @@
 > debts on shipped papers are unchanged and live in `PAPERS-AUDIT.md`: the R2 26-night re-run
 > (un-DRAFTs §2.4/§2.5) and folding the three 2026-08 walls into `dead-ends` (§2.2).
 
+> **2026-09-05 — the MotionDex resp-acc headline is UNDER OWNER REVIEW; do not cite it as settled.**
+> `papers/acc-respiratory-rate.html` publishes **18,856 scored epochs** (abstract) and **MAE 1.01 /
+> 91.6 % within 2 brpm**. Two facts sit against that, both recorded in `RESIDUE.md`:
+> **(a)** a second figure, **19,193**, survives on 11 reader-facing surfaces against 18,856's 5 — one
+> regeneration reached one surface (#353); and **(b)** *both* predate the alignment fix of #1042, whose
+> own message records **nine of sixteen nights scored against noise**, and current code reproduces
+> **neither** — a 2026-09-05 re-run over the largest stageable cohort gives **8,057 epochs, MAE 1.10**.
+> The disagreement is deliberately **left visible**: it is presently the only signal that anything is
+> wrong, and harmonising it silently would remove the warning without fixing the cause. Publishing the
+> new numbers or retracting the old ones is an **owner decision**, escalated 2026-09-05. Until it lands,
+> the "not tool-reproduced" caution below **stands for every MotionDex resp-acc figure** — nothing has
+> been cleared.
+
 > **2026-08-08 — a fourth wall for §2.2, and a caution on §2.8.** The `ms;hr;c` export contract made the
 > papers' own fused-weight three-cornered hat runnable from a committed artifact for the first time
 > (`tools/tch-fused-corpus.mjs`). Two things fell out, both belonging on this agenda: the

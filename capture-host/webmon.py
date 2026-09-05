@@ -376,12 +376,25 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # ≥2 rated links distressed together); it ships REPORT-ONLY behind
             # `watchdog.distress_failover` (default off — arming is the owner's, against the
             # criterion pre-stated in RADIO-FAILOVER-DISTRESS-SIGNAL §6).
+            # THE ONLY RUNTIME EVIDENCE A DOFF OR PRESENCE PULL EVER FIRED. `trigger` names which
+            # scheduler dispatched it and `drained` how many stranded fragments the follow-on sweep
+            # recovered — neither is recoverable from the night tree afterwards, because a file that
+            # arrives by presence and one that arrives by the hourly poller are byte-identical on
+            # disk. Published since the auto-pull landed and forwarded by nothing until now, so the
+            # doff trigger had no observable off the box at all.
+            "autopull": status.get("autopull"),
             "radio_distress": status.get("radio_distress"),
             "radio_distress_adapter": status.get("radio_distress_adapter"),
             # Every switch as an EVENT with its cause — the brief's item 4. Was published to STATUS
             # and read by nothing (the find_unwired top-level-STATUS blind spot, sibling of the
             # radio_distress case this same file records above).
             "radio_switches": status.get("radio_switches"),
+            # The O2Ring POWER axis (oxy_power) — per ring: power state, whether the radio is on and
+            # for whom, the scan policy in force, the strike/cooldown cache and the §21 counters
+            # (scan seconds, connection seconds, harvests, deferrals). Forwarded on the day it was
+            # written so it never joins the published-and-read-by-nothing class above. Null until a
+            # ring's capture task has started.
+            "power": status.get("power"),
         })
 
     # ── CPAP manual pull ────────────────────────────────────────────────────────────────────────

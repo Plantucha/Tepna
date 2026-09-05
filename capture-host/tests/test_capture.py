@@ -298,8 +298,12 @@ def test_EVERY_link_error_site_routes_through_the_one_formatter():
                                 if t.type != tokenize.COMMENT])
     assert 'log.warning("%s link error: %r", name, e)' not in code, (
         "a link-error site is still logging the unclassified form")
-    assert code.count("link_error_text(e)") == 3, (
-        "expected all three sites to route through the formatter, found %d"
+    # FOUR since the auto-pull drain's own handler joined them (2026-09-06). ⚠️ Note what this count
+    # does and does not buy: it catches a formatter call being REMOVED, and it does not catch a NEW
+    # site logging some other unclassified form — only the assertion above does that, and only for
+    # the one form it names. The number is the weak half of this test; the `not in code` is the guard.
+    assert code.count("link_error_text(e)") == 4, (
+        "expected all four sites to route through the formatter, found %d"
         % code.count("link_error_text(e)"))
 
 

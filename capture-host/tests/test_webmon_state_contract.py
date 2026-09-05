@@ -214,7 +214,10 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
                          # assertion, per the rule above — and it is the second half of a fix whose
                          # first half was that this block reached STATUS and no projection at all,
                          # so nothing rendered it and nothing could.
-                         "radio_distress",
+                         # The only runtime evidence a doff or presence auto-pull ever fired —
+                         # `trigger` names the scheduler and `drained` the fragments the follow-on
+                         # ledger sweep recovered. Declared, not assertion-relaxed, per the rule above.
+                         "autopull", "radio_distress",
                          # The part-(a) fold at the granularity a failover moves, and every switch as
                          # an EVENT with its cause — both previously STATUS-only (the same unrendered
                          # shape as radio_distress above; `radio_switches` sat unread since the
@@ -226,7 +229,10 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
                          # never passed `st`, so the loop took its own `lambda **kw: None` default and
                          # published into a no-op while `test_cpap_spool_wire.py` injected a working
                          # `st` and asserted on it. Fully covered, entirely inert on the box.
-                         "cpap_spool"}
+                         "cpap_spool",
+                         # The O2Ring POWER axis (oxy_power): per-ring power state, radio owner, scan
+                         # policy, strike cache and §21 counters. Declared on the day it was written.
+                         "power"}
 
 
 def test_the_top_level_blocks_are_null_before_their_pollers_run(tmp_path):
