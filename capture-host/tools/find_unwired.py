@@ -117,6 +117,17 @@ ALLOW_MODULES = {
         "PER-DEVICE-ADAPTER-PINNING-2026-08-26-BRIEF §1. Its individual functions already carry the "
         "same reason in ALLOW_FUNCS; this entry says it at the module level, which is the level at "
         "which it is unreachable"),
+    "ble_visibility": (
+        "the adapter-visibility log's record format + reader. HALF LIVE, HALF PENDING, both named. "
+        "LIVE: main() is a hand-invoked reporter like adapter_ab — `ble_visibility.py "
+        "<records.jsonl> <MAC>` answers 'which radio can see this device, out of how many scans' in "
+        "one command, which is the entire reason it exists (that question cost an hour and three "
+        "wrong hypotheses on 2026-09-04, because the journal logs discovery FAILURES and is silent "
+        "on successes, so it carries no denominator). PENDING: nothing WRITES the log yet — the "
+        "periodic per-adapter scan belongs in the daemon, and that touches production capture, "
+        "which is an owner call rather than a drafting one. RETIRE this entry when that scan lands "
+        "and imports make_record/append_record; if the daemon never collects, DELETE the module "
+        "with the entry, because a reader with nothing to read is dead code"),
     "adapter_pool": (
         "swappability's per-device reassignment core. ASPIRATIONAL for the same architecture reason "
         "its individual functions already carry: the daemon repoints ONE global ADAPTER pin, so a "
@@ -155,6 +166,14 @@ ALLOW_FUNCS = {
     # speculative: the declarations they write were derived from 294 real SA2 files and are
     # checked against the card by tests/test_cpap_edf_sa2.py. RETIRE when an SA2 sink lands; if
     # the ring is never written into the CPAP tree, DELETE both with these entries.
+    # ── Adapter-visibility log, WRITE half (2026-09-04). PENDING, and the consumer is NAMED.
+    # The gate is exactly right about which two: read_records/visibility/format_visibility are
+    # reachable through main(), the hand-invoked reporter, and these two are not — because nothing
+    # WRITES the log yet. The periodic per-adapter scan that would call them belongs in the daemon,
+    # and that touches production capture, which is an owner call. RETIRE when that scan lands; if
+    # the daemon never collects, DELETE these with ble_visibility itself.
+    "make_record": "ble_visibility — one scan round -> one record, carrying `devices_seen` so a rate is computable later. PENDING the daemon's periodic per-adapter scan; the reader half (main()) is live and hand-invoked today",
+    "append_record": "ble_visibility — appends a record to the JSONL log. PENDING the same daemon scan as make_record; deliberately separate from it so the record format is testable without touching a file",
     "build_sa2": "cpap_edf — writes the ResMed SA2 oximetry container the AS11 leaves empty when no wired sensor is attached. PENDING an SA2 sink that feeds it from the O2Ring; delete with declaration_matches if that never lands",
     "device_start_from_host": "cpap_edf — the ONE boundary where an SA2 crosses from the host-stamped ring onto the AS11's device axis, so it lands beside its device-stamped BRP (Clock Contract §7/§12). Unwired for the SAME reason as build_sa2 above: no SA2 sink exists yet. It is deliberately NOT inlined into build_sa2 — the builder stays a pure encoder under declare-never-correct, and this refuses on an unmeasured offset rather than writing a well-formed file wrong by an unknown amount. RETIRE with build_sa2; if the ring is never written into the CPAP tree, delete all three together.",
     "declaration_matches": "cpap_edf — diffs a real file's signal block against the derived cpap_edf_dict. Used by the card test today; PENDING a runtime check that verifies a written EDF against the dictionary before it reaches the harvest tree",
