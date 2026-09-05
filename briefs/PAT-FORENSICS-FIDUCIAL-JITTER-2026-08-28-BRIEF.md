@@ -253,6 +253,75 @@ PAT SD **130.6 / 129.9**, statistically identical to healthy LED0's **130.4** (f
 **A broken channel and a working channel report the same PAT SD.** That proves window-domination
 *occurs*; the regimes brief establishes how often.
 
+
+## 🔒 PRE-REGISTERED before the between-file run (written 2026-09-05, BEFORE execution)
+
+Recorded ahead of the measurement so the result cannot be read post-hoc.
+
+**Scope, stated because the last stamp's error was a scope error:** all `*Verity*_PPG.txt` under
+`/srv/data/tepna-corpus/` — **n = 5 633 files**, median 1.22 MB, ~28 GB total. Enumerated by
+`find /srv/data/tepna-corpus -name '*Verity*_PPG.txt'`, list captured to disk before the run so the
+population is fixed and re-checkable rather than re-globbed.
+
+**Baseline from the single-file 09-01 run:** fiducial-family pairwise **within-SD 6.55–9.84 ms**,
+IQR 8.75–12.92, every pair `NOT-DOMINANT`, TCH decomposition REFUSING on negative variance for three
+triplets. `between-file SD` was **empty** on that 2-file sample — which is the whole reason for this run.
+
+**Prediction — between-file SD EXCEEDS within-file SD, and by more than 2×.** The within-file quantity
+is beat-to-beat foot placement inside one recording; the between-file quantity additionally carries
+sensor placement, skin coupling, posture and per-session gain. If those session terms are real, the
+between-file component must dominate. Bands:
+
+| between/within ratio | reading |
+|---|---|
+| **> 2** | session terms dominate — fiducial CHOICE is second-order, and a per-session reference is required |
+| **1–2** | comparable — fiducial choice matters as much as session |
+| **< 1** | **falsifies the prediction**: within-recording jitter exceeds everything session-level, and the 09-01 `NOT-DOMINANT` verdicts would need re-reading |
+
+**What would make me wrong:** a ratio below 1, or a `between-file SD` that comes back empty again at
+n = 5 633 — the second would mean the statistic needs something other than more files, and the
+execution-bound framing of the re-stamp is itself wrong.
+
+⚠️ **A partial run is reported as partial, with its own n.** If the corpus cannot be processed whole on
+this host, the number is quoted against the n actually achieved, never against 5 633.
+
+## ✅ BETWEEN-FILE RUN — executed 2026-09-05, against the bands registered above
+
+**The registered prediction is FALSIFIED, and not marginally.** I predicted between-file SD would exceed
+within-file SD by **more than 2×**, on the reasoning that session terms (placement, coupling, posture,
+gain) must dominate beat-to-beat placement inside one recording. Measured, every pair falls in the
+band I registered as falsifying (`< 1`):
+
+| fiducial pair | within-SD | between-file SD | ratio |
+|---|---|---|---|
+| `pct10\|pct25` | 21.78 | 4.50 | **0.21** |
+| `pct25\|pct50` | 72.52 | 14.98 | **0.21** |
+| `pct10\|pct50` | 80.66 | 17.98 | **0.22** |
+| `pct50\|pct75` | 182.23 | 42.05 | **0.23** |
+| `min\|pct50` | 82.89 | 21.61 | **0.26** |
+| `min\|pct25` | 27.05 | 10.65 | **0.39** |
+| `maxSlope\|tangent` | 16.59 | 7.82 | **0.47** |
+| `min\|pct10` | 10.48 | 6.86 | **0.65** |
+
+**Within-recording jitter dominates session-level variation by 1.5× to 4.8×.** So the 09-01 single-file
+verdicts do need re-reading, exactly as the falsifying band said they would: fiducial CHOICE is the
+first-order term, and a per-session reference does not buy what I assumed it would.
+
+**Scope and n, stated because the previous stamp's error was a scope error.** Population enumerated to
+disk before the run: `find /srv/data/tepna-corpus -name '*Verity*_PPG.txt'` → **5 633 files**. This run
+covered files 41–440 of that list: **400 attempted, 364 usable, 186 839 beats, fs 176.46 Hz**.
+
+⚠️ **This is 364 of 5 633 — a partial run, quoted against the n achieved, never against the population.**
+The full corpus was NOT attempted: memory scales with batch size (819 MB at 40 files, **1.57 GB at 400**),
+this host OOM-killed a background job earlier today, and ~28 GB of parsing at that rate is not safe here.
+Extending it is batch-and-aggregate work, not a bigger single invocation.
+
+⚠️ **The corpus is heterogeneous in sample rate, and it changes the numbers.** The first 40-file batch
+reported **fs 55.14 Hz** with within-SDs of 6–8 ms; this 400-file batch reports **fs 176.46 Hz** with
+within-SDs of 10–182 ms. The tool's own verdict column moves with it — `NOT-DOMINANT` on the first batch,
+`INTERMEDIATE`/`MATERIAL` here. **A fiducial SD quoted without its sample rate is as underspecified as a
+PAT SD quoted without its window**, and the same family of error. The ratio survives this: it is < 1 in
+both batches.
 ## 6 · Done when
 
 - [x] Per-family beat-to-beat variability measured, clock excluded by construction, gate-asserted.

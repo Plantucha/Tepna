@@ -3410,6 +3410,51 @@ def _oxy_emit(lc, writer, name, new, reason, *, failure=None):
     if writer is not None:
         writer.write(t)
     _set(name, oxy_lifecycle=new.value)
+    # the POWER axis rides the same emit: who holds the radio, for how long, and why
+    pw = _power_for(name)                       # keyed by name; run_oxyii created it with the address
+    pw.note_link(new, reason, _time.monotonic(), failure=failure)
+    _power_flush(name, writer)
+
+
+# ── the POWER axis (oxy_power.py) — one engine per ring, keyed by device NAME like STATUS ──────────
+_POWER: dict = {}
+
+
+def _power_for(name, addr=None):
+    """The ring's power engine, created on first sight. Pure and in-memory (§5 persists transitions via
+    the OXYLIFE.csv rows, not the cache — a restart re-derives state from what it observes)."""
+    pw = _POWER.get(name)
+    if pw is None:
+        import oxy_power
+        pw = oxy_power.RingPower(str(addr or name), device_id=str(addr) if addr else None)
+        _POWER[name] = pw
+    return pw
+
+
+def _power_flush(name, writer=None):
+    """Write the engine's pending power-axis rows through the SAME OxyLifeLogWriter the link axis uses
+    (when one is open) and publish the snapshot to STATUS["power"][name] for webmon. Rows produced with
+    no writer open stay pending, so the first writer of the night receives them."""
+    pw = _POWER.get(name)
+    if pw is None:
+        return
+    if writer is not None:
+        for t in pw.drain():
+            writer.write(t)
+    STATUS.setdefault("power", {})[name] = pw.snapshot()
+
+
+def _power_observe(name, *, worn=None, battery=None, rec_state=None):
+    """Feed the §18 battery band and the §19 WORN→RECORDING→REMOVED re-arm chain from what the live link
+    already publishes — no extra radio, no extra read. A field not supplied is read from STATUS (the
+    other axis's last published value); a None moves nothing. Cheap enough for the ~1 Hz vitals path."""
+    pw = _power_for(name)
+    if battery is not None:
+        pw.note_battery(battery)
+    st = STATUS.get("devices", {}).get(name, {})
+    pw.note_worn_rec(st.get("worn") if worn is None else worn,
+                     st.get("oxy_recording") if rec_state is None else rec_state)
+    STATUS.setdefault("power", {})[name] = pw.snapshot()
 
 
 def _oxy_grid_facts(g):
@@ -3524,6 +3569,7 @@ async def run_oxyii(dev: dict, root: str):
     import oxy_lifecycle
     _oxylc = oxy_lifecycle.OxyLifecycle(device_id=dev.get("device_id"),
                                         session_id=cpap_record.new_session_id())
+    _power_for(name, addr)                    # the POWER axis — created here so it carries the BLE address
     # The RECORDING axis (OxyRecEngine) — same journal, axis="rec", INDEPENDENT of the link axis above.
     # duration_s drives it (the measured signal); link loss moves it to UNKNOWN, never to NOT_RECORDING.
     _oxyrec = oxy_lifecycle.OxyRecEngine(device_id=dev.get("device_id"), session_id=_oxylc.session_id)
@@ -3543,6 +3589,7 @@ async def run_oxyii(dev: dict, root: str):
                 if _oxywr["w"] is not None:   # pragma: no branch
                     _oxywr["w"].write(t)
                 _set(name, oxy_recording=t.new.value)
+                _power_observe(name, rec_state=t.new.value)   # §19 chain: RECORDING is one of its links
             except Exception:   # pragma: no cover - defensive: telemetry must not kill the data path
                 log.exception("%s: recording-axis journal write failed", name)
     while not _STOP.is_set():
@@ -3566,6 +3613,10 @@ async def run_oxyii(dev: dict, root: str):
             if _time.monotonic() < _hold:
                 _set(name, connected=False,
                      last_error=f"restart storm — leaving the ring alone for {(_hold - _time.monotonic()) / 60:.0f} min")
+                # POWER axis: the hold is a COOLDOWN with a deadline (§12) — journaled ONCE per deadline,
+                # and the automatic pull pollers' attempt_allowed() refuses until it passes.
+                _power_for(name, addr).note_cooldown(_hold, "restart storm hold")
+                _power_flush(name, _oxywr["w"])
                 while (_time.monotonic() < _hold and not _STOP.is_set() and not _OXYII_PAUSE.is_set()
                        and not _RECOVER.is_set()):
                     await asyncio.sleep(1.0)
@@ -3573,6 +3624,8 @@ async def run_oxyii(dev: dict, root: str):
             _OXYII_HOLD_UNTIL.pop(addr, None)
             _OXYII_RESTARTS.pop(addr, None)         # the count starts over; the storm history does not
             log.info("%s: restart-storm hold over — resuming live capture", name)
+            _power_for(name, addr).cooldown_over()
+            _power_flush(name, _oxywr["w"])
         started = _now()
         ndir = night_dir(root, started)
         if _oxywr["w"] is None:                  # G4: open the lifecycle sidecar once, in the first night dir
@@ -3990,6 +4043,7 @@ async def run_oxyii(dev: dict, root: str):
                                  motion=live["motion"], worn=True, last_sample=now.isoformat(),
                                  arrival_rows=oxy_arr_wr.rows,
                                  charging=bool(live.get("batt_state")), last_error=None)
+                            _power_observe(name, worn=True, battery=live["batt"])
                         else:
                             BUS.push("motion_o2", [live["motion"]])
                             BUS.push("pi_o2", [live["pi"]])
@@ -3999,6 +4053,7 @@ async def run_oxyii(dev: dict, root: str):
                             _set(name, worn=live["worn"], motion=live["motion"], battery=live["batt"],
                                  charging=bool(live.get("batt_state")),
                                  last_error=None if live["worn"] else "no finger contact")
+                            _power_observe(name, worn=live["worn"], battery=live["batt"])
 
                 BUS.register("motion_o2", "Motion (O2Ring)", "lvl", 0)
                 BUS.register("pi_o2", "Perfusion index (O2Ring)", "%", 0)
@@ -4316,19 +4371,27 @@ def session_meta(f: str, name: str = "") -> dict:
         return {"unreadable": True, "reason": type(e).__name__}
 
 
-async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype: int = 0) -> dict:
+async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype: int = 0, *,
+                             trigger: str = "manual") -> dict:
     """Pull the O2Ring's ONBOARD-recorded session(s) off flash to <root>/captures/stored/*.dat, driven from
     the monitor. Pauses live capture first (the ring has one BLE link), runs the same pull_session flow the
-    CLI uses, then resumes. Returns the newly written files + their .meta.json so the UI can report them."""
+    CLI uses, then resumes. Returns the newly written files + their .meta.json so the UI can report them.
+    `trigger` names WHO asked (manual · charger · not-worn · presence · hourly) — the POWER axis records
+    every attempt with it (§10), whether or not the pull produced a file."""
+    import oxy_power
     import pull_session
     name = dev["name"]
     out_dir = os.path.join(root, "captures", "stored")
     os.makedirs(out_dir, exist_ok=True)
     saved = []
+    pw = _power_for(name, dev.get("address"))
     # ONE download at a time across ALL devices — a concurrent pull fights for the single radio and both
     # fail (2026-07-18 09:00: three overlapping ops → org.bluez.Error.InProgress). Raises OfflineBusy.
     async with offline_lock.slot(name):
         _OXYII_PAUSE.set()
+        pw.attempt_started(trigger, _time.monotonic())
+        _power_flush(name)
+        _outcome: dict = {"ok": False, "failure": None}   # ok: bool · failure: FailureClass | None
         try:
             for _ in range(120):                      # wait up to ~12 s for run_oxyii to drop its link
                 if not STATUS.get("devices", {}).get(name, {}).get("connected"):
@@ -4361,14 +4424,31 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype:
                                                    device_id=dev.get("device_id")) or []
             try:
                 saved = await asyncio.wait_for(_locked_pull(), timeout=_OFFLINE_OP_TIMEOUT_S)
-            except asyncio.TimeoutError:
+                _outcome["ok"] = True
+            except asyncio.TimeoutError as e:
+                _outcome["failure"] = oxy_power.classify_exception(e)
                 log.error("%s: stored-session pull exceeded %.0fs and was abandoned — resuming live "
                           "capture. The ring was most likely carried out of range or the adapter is "
                           "wedged; the capture loops are now free to reconnect.", name, _OFFLINE_OP_TIMEOUT_S)
                 raise
+            except BaseException as e:
+                _outcome["failure"] = oxy_power.classify_exception(e)
+                raise
         finally:
             _OXYII_PAUSE.clear()                      # resume live capture no matter how the pull ended
             _set(name, pull_progress=None)            # clear the UI bar even on failure/abort
+            # §10/§21: every attempt lands in the power ledger — a failure typed by its cause so the
+            # backoff (§11) is failure-specific, a success resetting the strike count and marking the
+            # ring's idle as synced (§19). Byte count is best-effort; a missing file is 0, not a raise.
+            _nbytes = 0
+            for _f in saved:
+                try:
+                    _nbytes += os.path.getsize(_f)
+                except OSError:
+                    pass                  # a file gone between rename and stat: the ledger says 0 bytes, not a raise
+            pw.attempt_finished(_time.monotonic(), ok=_outcome["ok"], failure=_outcome["failure"],
+                                files=len(saved), bytes=_nbytes)
+            _power_flush(name)
             log.info("%s: stored-session pull finished — resuming live capture", name)
 
     return {"ok": True, "new_files": [os.path.basename(f) for f in saved],
@@ -6374,6 +6454,18 @@ async def charger_pull_poller(cfg: dict, root: str):
             # time-pressured, doff races the measured tail, and presence is the newest and least
             # proven. A tie goes to the better-evidenced trigger.
             trigger = "charger" if by_charger else ("not-worn" if by_doff else "presence")
+            # §12/§16/§19 — the POWER axis vetoes BEFORE any `_*_PULLED` latch is spent, so a deferred
+            # trigger is still armed when the veto lifts: a ring in typed backoff or a 3-strike cooldown is
+            # not connected to again (whatever the trigger says), a ring streaming raw PPG is never
+            # interrupted for a download, and an idle already synced waits for WORN→RECORDING→REMOVED.
+            if dev.get("vendor") in ("Wellue", "Viatom"):
+                pw = _power_for(dev.get("name"), addr)
+                gate = pw.attempt_allowed(now)
+                if gate.allowed:
+                    gate = pw.harvest_request(link_state=st.get("oxy_lifecycle"), worn=worn)
+                if not gate.allowed:
+                    _power_flush(dev.get("name"))
+                    continue
             if by_charger:
                 _CHARGER_PULLED.add(addr)               # once per charge session (before the await)
             if by_doff:
@@ -6384,7 +6476,8 @@ async def charger_pull_poller(cfg: dict, root: str):
                 _WITNESS.setdefault(addr, {}).update(probe_attempted=now, pull_started=now)
             try:
                 if dev.get("vendor") in ("Wellue", "Viatom"):
-                    res = await pull_oxyii_session(dev, root, which=pull_scope_for(trigger), ftype=ftype)
+                    res = await pull_oxyii_session(dev, root, which=pull_scope_for(trigger), ftype=ftype,
+                                                   trigger=trigger)
                 else:
                     res = await pull_polar_offline_all(dev, root)
                 new = (res or {}).get("new_files", []) if isinstance(res, dict) else []
@@ -6415,7 +6508,10 @@ async def charger_pull_poller(cfg: dict, root: str):
                     # Failure is benign by construction: if the ring drops mid-drain the remainder stays
                     # on flash for the hourly poller, which is exactly today's behaviour.
                     try:
-                        more = await pull_oxyii_session(dev, root, which="new", ftype=ftype)
+                        # Booked under the SAME trigger as the primary pull — the POWER axis counts this
+                        # as the event's second attempt, not a manual one.
+                        more = await pull_oxyii_session(dev, root, which="new", ftype=ftype,
+                                                        trigger=trigger)
                         drained = len((more or {}).get("new_files", []) if isinstance(more, dict) else [])
                         if drained:
                             log.info("auto-pull (%s): drained %d stranded fragment(s) from %s",
@@ -6434,6 +6530,10 @@ async def charger_pull_poller(cfg: dict, root: str):
                 _CHARGER_PULLED.discard(addr)           # slot held by another pull — retry next tick
                 _NOTWORN_PULLED.discard(addr)
                 _PRESENCE_PULLED.discard(addr)
+                if dev.get("vendor") in ("Wellue", "Viatom"):
+                    # §17 — a busy slot is RESOURCE_WAIT, not a strike: no radio was spent
+                    _power_for(dev.get("name"), addr).note_busy(_time.monotonic(), "offline slot")
+                    _power_flush(dev.get("name"))
             except Exception as e:                      # unreachable/transient — leave pulled; the hourly
                 log.info("auto-pull (%s): %s failed (%s) — hourly poller is the backstop", trigger,
                          dev.get("name"), type(e).__name__)   # autopull_poller is the backstop, no spam
@@ -6863,18 +6963,37 @@ async def autopull_poller(cfg: dict, root: str):
         # Refusing to pull on an UNKNOWN loses the only backup for a lossy night.
         if on_body(st) is True:
             continue                                       # actively worn+streaming — do not interrupt it
+        # §12/§16 — the POWER axis's veto, on top of `on_body`: a ring in typed backoff or a 3-strike
+        # cooldown is not connected to hourly either. NOT the §19 synced-idle veto (`strict_idle=False`):
+        # this is the reconciliation net for the night whose chain was never observable.
+        pw = _power_for(name, ring.get("address"))
+        gate = pw.attempt_allowed(_time.monotonic())
+        if gate.allowed:
+            gate = pw.harvest_request(link_state=st.get("oxy_lifecycle"), worn=st.get("worn"),
+                                      strict_idle=False)
+        if not gate.allowed:
+            _power_flush(name)
+            continue
         # RETRY until a pass finds nothing new, capped at `retries`. The ring's flash is small and it
         # overwrites oldest-first, so a session missed on a lossy link is lost once new ones pile on top —
         # retrying each cycle DRAINS everything reachable before that happens. Idempotent (skip-existing),
         # so a retry only re-fetches what an earlier attempt missed; a clean pass returns 0 new and stops.
         for attempt in range(retries):
             try:
-                res = await pull_oxyii_session(ring, root, which="all", ftype=ftype)
+                res = await pull_oxyii_session(ring, root, which="all", ftype=ftype, trigger="hourly")
             except offline_lock.OfflineBusy:
+                pw.note_busy(_time.monotonic(), "offline slot")   # §17 — not a strike
+                _power_flush(name)
                 break                                      # another offline op holds the slot — next cycle
             except Exception as e:                         # unreachable / transient — try again this cycle
                 log.info("auto-pull: %s attempt %d/%d failed (%s)", name, attempt + 1, retries, type(e).__name__)
-                continue
+                # §11/§12 — that failure was a STRIKE inside pull_oxyii_session and opened a typed backoff
+                # (≥ 60 s), so the in-cycle retry that used to reconnect at once is now the next cycle's
+                # attempt; three strikes cool the ring down for 30 min. The `retries` loop keeps its job of
+                # DRAINING a reachable ring (a pass that found files is followed by another) — it just no
+                # longer hammers one that refused us.
+                _power_flush(name)
+                break
             new = res.get("new_files", []) if isinstance(res, dict) else []
             if not new:
                 break                                      # nothing new — the ring is drained; stop
@@ -7859,7 +7978,31 @@ async def _presence_scan_loop(*, addresses, window_s, scan, sleep=None, mono=Non
                 _WITNESS.setdefault(addr, {}).setdefault("presence_detected", mono())
             if pres.state is oxy_presence.OxyPresState.ABSENT:
                 _PRESENCE_PULLED.discard(addr)
-        await sleep(window_s)
+        # §6/§7 — the POWER axis consumes the presence TRANSITION (never the raw advert) and chooses the
+        # cadence of the NEXT window from it: LOW while every ring is absent, MODERATE once one is seen,
+        # RESPONSIVE only while a harvest is expected (a ring that just closed a session). The fixed
+        # `sleep(window_s)` this replaced was a 50 % duty cycle around the clock (gap analysis §7).
+        await sleep(_power_scan_pause(seen, window_s, mono()))
+
+
+def _power_scan_pause(seen: dict, window_s: float, now: float) -> float:
+    """Fold one window into every named ring's power engine and return the pause before the next one —
+    the SHORTEST interval any ring's policy asks for (one radio, many rings). Rings the presence axis has
+    no name for are skipped: no name means no STATUS entry and no engine to feed."""
+    import oxy_power
+    pause = None
+    for addr, pres in _PRESENCE.items():
+        nm = _PRESENCE_NAMES.get(addr)
+        if nm is None:
+            continue
+        pw = _power_for(nm, addr)
+        pw.note_scan_window(window_s, sightings=1 if addr in seen else 0)
+        pw.note_presence(pres.state.value, now)
+        st = STATUS.get("devices", {}).get(nm, {})
+        pol = oxy_power.scan_policy_for(pw.state, sync_expected=st.get("oxy_recording") == "end_candidate")
+        pause = pol.interval_s if pause is None else min(pause, pol.interval_s)
+        _power_flush(nm)
+    return window_s if pause is None else pause
 
 
 def _maybe_start_presence_scan(cfg, tasks, *, create_task=None, scan_factory=None):
@@ -7890,9 +8033,24 @@ def _maybe_start_presence_scan(cfg, tasks, *, create_task=None, scan_factory=Non
         return None
     if scan_factory is None:  # pragma: no cover — the bleak I/O edge, mirrors the other scanners
         async def scan_factory(window):
+            global _O2_PASSIVE_SCAN
             from bleak import BleakScanner
+            from bleak.exc import BleakError
             found = {}
-            for d in await BleakScanner.discover(timeout=window, **(await adapter_kw())):
+            akw = await adapter_kw()
+            # §3 — PASSIVE by default (listen only, no scan requests), on the SAME opportunistic flag
+            # `_connect_scan` uses: the first "this stack can't do passive" refusal downgrades this
+            # process to the active scan for good. An observer that runs is worth more than air-time.
+            try:
+                devs = await BleakScanner.discover(
+                    timeout=window, **({"scanning_mode": "passive"} if _O2_PASSIVE_SCAN else {}), **akw)
+            except BleakError as exc:
+                if not (_O2_PASSIVE_SCAN and "passive" in repr(exc).lower()):
+                    raise
+                _O2_PASSIVE_SCAN = False
+                log.info("passive BLE scan unsupported here (%s) — presence observer using active scan", exc)
+                devs = await BleakScanner.discover(timeout=window, **akw)
+            for d in devs:
                 # §5 identity via `oxy_presence.is_expected_ring`, NOT an inline comparison. The
                 # first version of this inlined `d.address.upper() in wanted` — equivalent today,
                 # and it left the address-only rule with no single enforcement point while that
