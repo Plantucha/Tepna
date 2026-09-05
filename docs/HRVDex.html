@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-D6xYyZ7MuqkiI/CCtXll6fjdTgw/eCjZyzMFtBaRaHQ=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-wSIy7RZCIYM9pqzZEyYipybzXeFfizctBahhpd6lXvg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bgod0Ih/oKLiyj0e2sIBF2oy0+hiJD7MVxYo4/4FTWM=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo=' 'sha256-wSIy7RZCIYM9pqzZEyYipybzXeFfizctBahhpd6lXvg='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>HRVDex — Heart Rate Variability Analyzer · v2.9.0</title>
@@ -11831,6 +11831,12 @@ function inferFromData() {
       DXP().prefillFrom({ hrRest: restingHR, vo2: vo2Est });
     } catch (e) {}
   }
+  /* ⚠️ NO READER — measured 2026-09-05, repo-wide: `_projVO2` occurs at exactly three sites and all
+     three are WRITES or comments in this file (:89, :520, :524). The live refresh at :524 is real and
+     is NOT the gap; what is missing is anything that READS the global. `renderANSAgeCard()` recomputes
+     from the profile rather than reading it. Kept, not deleted — a devtools console or a surface this
+     scan does not cover may read it, and "unreferenced by name" is not "unreachable"
+     (residue 2026-09-05-hrvdex-profile-globals-unread). */
   window._projVO2 = vo2Est;
 
   // Date range info
@@ -12014,7 +12020,9 @@ function getAgeBand(age) {
 }
 
 function applyAgeNorms(useIdeal) {
-  window._useIdeal = useIdeal; // remember last choice
+  /* "remember last choice" states an INTENT, not a mechanism: nothing reads `_useIdeal` back, so no
+     later call recovers the choice from it (measured 2026-09-05 — one site, this write). */
+  window._useIdeal = useIdeal;
   const p = getProfile();
   const band = getAgeBand(p.age);
   const norm = POP_NORMS[p.sex]?.[band];
@@ -12259,7 +12267,12 @@ function updateProfile() {
   // render here were removed 2026-08-19: HRVDex.src.html defines no lbl_ id at all, so
   // every write was a guarded no-op (DEAD-FIELD-HINTS-FLEET-2026-08-19-BRIEF.md).
   const altFactor = p.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p.elev - 1500) / 300) * 0.01);
-  window._hrvProfileAlt = altFactor; // consumed by VO₂ projection
+  /* 🔴 THE COMMENT HERE WAS FALSE AND IS THE REASON THIS ROW EXISTS. It read "consumed by VO₂
+     projection". No VO₂ projection reads it: the projection six lines below uses the LOCAL `altFactor`,
+     and `_hrvProfileAlt` occurs repo-wide at exactly three sites — this line plus its inlined copies in
+     `HRVDex.html` and `docs/HRVDex.html`. A comment asserting a consumer is what stops the next reader
+     from checking, which is the one failure a producing file cannot see about itself. */
+  window._hrvProfileAlt = altFactor;
 
   // Recompute the VO₂ projection live (inferFromData only runs at load, so
   // changing HRmax / Resting HR / Elevation must refresh _projVO2 + the hint here)
