@@ -102,10 +102,12 @@ def summarise(data: bytes, follow: str | None = None) -> dict:
             data_channel += 1
             continue
         adv += 1
-        header = pkt[at + 4:at + 6]
-        if len(header) < 2:
+        # Only the PDU-type octet is read, so only its presence is required. Slicing the full
+        # 2-octet header and checking `len(...) < 2` looked more careful and was not: the length
+        # octet was never used, so a bound over it asserted nothing.
+        if at + 4 >= len(pkt):
             continue
-        pdu = header[0] & 0x0F
+        pdu = pkt[at + 4] & 0x0F
         pdus[pdu] += 1
         body = pkt[at + 6:]
         if pdu == CONNECT_IND:

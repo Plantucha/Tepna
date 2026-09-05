@@ -93,10 +93,18 @@ def test_no_follow_leaves_the_followed_counts_at_zero():
     assert s["follow_connects"] == 0
 
 
-def test_truncated_pdu_header_is_skipped_not_crashed():
-    s = ble_sniff.summarise(_pcap(b"\x01\x02" + AA + b"\x05"))
+def test_a_packet_ending_at_the_access_address_has_no_pdu_to_read():
+    """Nothing after the access address: counted as advertising, but no type is invented."""
+    s = ble_sniff.summarise(_pcap(b"\x01\x02" + AA))
     assert s["adv_channel"] == 1
     assert s["pdus"] == {}
+
+
+def test_a_single_header_octet_is_enough_to_read_the_pdu_type():
+    """Only the type octet is read, so one octet suffices — the length octet is never used."""
+    s = ble_sniff.summarise(_pcap(b"\x01\x02" + AA + bytes([ble_sniff.CONNECT_IND])))
+    assert s["pdus"] == {ble_sniff.CONNECT_IND: 1}
+    assert s["connects"] == []
 
 
 def test_short_body_yields_no_address():
@@ -186,3 +194,150 @@ def test_malformed_file_is_loud(tmp_path, capsys):
     p.write_bytes(b"\x00" * 8)
     assert ble_sniff.main([str(p)]) == 1
     assert "not a pcap" in capsys.readouterr().err
+
+
+# ── boundary and ordering cases the first round of tests never produced ────────────────────────
+# Every test below was written because a surviving mutant named the exact input the fixtures could
+# not express. They are not padding: each one changes a verdict on some real capture.
+
+def test_a_header_only_pcap_is_valid_and_yields_nothing():
+    """Exactly the global header: a capture that recorded zero packets, not a broken file."""
+    assert list(ble_sniff.iter_packets(_pcap())) == []
+
+
+def test_a_record_ending_exactly_at_eof_is_accepted():
+    data = _pcap(_adv(0x0))
+    assert len(list(ble_sniff.iter_packets(data))) == 1
+
+
+def test_truncation_error_states_how_many_bytes_actually_remain():
+    data = bytearray(_pcap(_adv(0x0)))
+    off = ble_sniff._PCAP_GLOBAL_HEADER_LEN
+    remaining = len(data) - off - ble_sniff._PCAP_RECORD_HEADER_LEN
+    data[off + 8:off + 12] = struct.pack("<I", 9999)
+    with pytest.raises(ble_sniff.SniffError) as exc:
+        list(ble_sniff.iter_packets(bytes(data)))
+    assert "%d remain" % remaining in str(exc.value)
+
+
+def test_the_first_access_address_anchors_the_header_not_the_last():
+    """A payload that repeats the access address must not move the parse to the later copy."""
+    pkt = _adv(0x0) + AA + bytes([ble_sniff.CONNECT_IND, 0x0C]) + PHONE_WIRE
+    s = ble_sniff.summarise(_pcap(pkt))
+    assert s["pdus"] == {0x0: 1}
+    assert s["advertisers"] == {RESMED: 1}
+    assert s["connects"] == []
+
+
+def test_an_access_address_at_offset_zero_is_still_advertising():
+    """No nordic pseudo-header: `find` returns 0, which is a hit, not a miss."""
+    s = ble_sniff.summarise(_pcap(_adv(0x0, prefix=b"")))
+    assert s["adv_channel"] == 1
+    assert s["data_channel"] == 0
+
+
+def test_data_channel_packets_accumulate():
+    s = ble_sniff.summarise(_pcap(b"\xde\xad" * 8, b"\xbe\xef" * 8, b"\xca\xfe" * 8))
+    assert s["data_channel"] == 3
+
+
+def test_a_data_channel_packet_does_not_end_the_scan():
+    s = ble_sniff.summarise(_pcap(b"\xde\xad" * 8, _adv(0x0), _adv(0x0)))
+    assert s["data_channel"] == 1
+    assert s["adv_channel"] == 2
+
+
+def test_connect_ind_reads_only_the_two_addresses_not_the_lldata():
+    """A real CONNECT_IND carries 22 bytes of LLData after the addresses."""
+    body = PHONE_WIRE + RESMED_WIRE + bytes(range(22))
+    s = ble_sniff.summarise(_pcap(_adv(ble_sniff.CONNECT_IND, body)), follow=RESMED)
+    assert s["connects"] == [("66:55:44:33:22:11", RESMED)]
+    assert s["follow_connects"] == 1
+
+
+def test_an_absent_followed_device_counts_zero_not_none():
+    s = ble_sniff.summarise(_pcap(_adv(0x0, PHONE_WIRE)), follow=RESMED)
+    assert s["follow_adv_packets"] == 0
+
+
+def test_pdu_types_are_listed_most_frequent_first():
+    """The frequent type is deliberately the HIGHER-numbered one, so 'sorted by count' and
+    'sorted by type' disagree — otherwise the ordering claim is untestable."""
+    s = ble_sniff.summarise(_pcap(_adv(0x0), _adv(0x2), _adv(0x2)))
+    lines = [ln for ln in ble_sniff.format_report(s).splitlines() if ln.startswith("  ADV_")]
+    assert lines[0].split()[0] == "ADV_NONCONN_IND"
+    assert lines[1].split()[0] == "ADV_IND"
+
+
+def test_advertisers_are_listed_most_frequent_first_and_capped_at_eight():
+    addrs = [bytes([i]) + b"\x00" * 5 for i in range(1, 11)]
+    pkts = []
+    for n, a in enumerate(addrs, start=1):
+        pkts.extend([_adv(0x0, a)] * n)
+    s = ble_sniff.summarise(_pcap(*pkts))
+    body = ble_sniff.format_report(s).split("top advertisers:")[1].strip().splitlines()
+    assert len(body) == 8
+    counts = [int(ln.split()[1]) for ln in body]
+    assert counts == sorted(counts, reverse=True)
+    assert counts[0] == 10
+
+
+def test_only_the_followed_device_is_starred_in_each_listing():
+    s = ble_sniff.summarise(
+        _pcap(_adv(0x0), _adv(0x0, PHONE_WIRE), _connect_ind(PHONE_WIRE, RESMED_WIRE),
+              _connect_ind(RESMED_WIRE, PHONE_WIRE)),
+        follow=RESMED)
+    report = ble_sniff.format_report(s)
+    starred = [ln for ln in report.splitlines() if "<-- followed device" in ln]
+    assert len(starred) == 2                      # one CONNECT_IND row, one advertiser row
+    assert all(RESMED in ln for ln in starred)
+    # A CONNECT_IND is starred by its ADVERTISER, so the row initiated BY the phone is starred and
+    # the row initiated by the CPAP is not. Check the advertiser listing, where one row per device
+    # makes the claim unambiguous.
+    listing = report.split("top advertisers:")[1].strip().splitlines()
+    assert [("<--" in ln) for ln in listing] == [RESMED in ln for ln in listing]
+
+
+def test_a_zero_length_record_is_read_not_refused():
+    """A record header ending exactly at EOF with no payload is well-formed, not truncation."""
+    data = _pcap() + struct.pack("<IIII", 0, 0, 0, 0)
+    assert list(ble_sniff.iter_packets(data)) == [b""]
+
+
+def test_a_packet_with_no_pdu_octet_does_not_end_the_scan():
+    s = ble_sniff.summarise(_pcap(b"\x01\x02" + AA, _adv(0x0), _adv(0x0)))
+    assert s["adv_channel"] == 3
+    assert s["pdus"] == {0x0: 2}
+
+
+def test_the_followed_marker_is_exactly_the_expected_suffix():
+    """Asserting the substring lets a mutated marker through; assert the line ENDS with it."""
+    s = ble_sniff.summarise(_pcap(_adv(0x0), _connect_ind(PHONE_WIRE, RESMED_WIRE)), follow=RESMED)
+    marked = [ln for ln in ble_sniff.format_report(s).splitlines() if "followed device" in ln]
+    assert len(marked) == 2
+    assert all(ln.endswith("  <-- followed device") for ln in marked)
+
+
+def test_usage_names_the_arguments_on_stderr(capsys):
+    assert ble_sniff.main([]) == 2
+    err = capsys.readouterr().err
+    assert "usage: ble_sniff.py <capture.pcap> [MAC-to-follow]" in err
+
+
+def test_main_passes_the_follow_argument_through_to_the_report(tmp_path, capsys):
+    """Without this, `follow` could be dropped in main and every test still passes."""
+    p = tmp_path / "c.pcap"
+    p.write_bytes(_pcap(_adv(0x0)))
+    assert ble_sniff.main([str(p), RESMED]) == 0
+    out = capsys.readouterr().out
+    assert RESMED in out
+    assert "nothing connected to it" in out
+
+
+def test_main_without_a_follow_argument_reports_the_plain_zero(tmp_path, capsys):
+    p = tmp_path / "c.pcap"
+    p.write_bytes(_pcap(_adv(0x0)))
+    assert ble_sniff.main([str(p)]) == 0
+    out = capsys.readouterr().out
+    assert "NO connection was followed" in out
+    assert "nothing connected to it" not in out
