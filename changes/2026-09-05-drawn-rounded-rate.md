@@ -2,7 +2,7 @@
 ---
 bump: patch
 type: fixed
-brief: WEARABLE-HOST-AXIS-FOLLOWUPS
+brief: WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md
 ---
 
 PpgDex's drawn-axis test cut at ≥99 % of inter-sample deltas on one value, which is the wrong edge of

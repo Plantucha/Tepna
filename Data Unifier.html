@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-9WtQnELGeJr2siQkvdq1sr9jTTvkljbhvncoWsJqp+Q=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-TIargK1gR+9Pvq0fH2Z6p0RBgHEuxPvG+Zhv7GJEox0=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hfWm0E4m3miRXxd/D2vdNh3vekQBb+w35MUeysCvjS4=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-9WtQnELGeJr2siQkvdq1sr9jTTvkljbhvncoWsJqp+Q=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hfWm0E4m3miRXxd/D2vdNh3vekQBb+w35MUeysCvjS4=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iFOguboFN2xJCy5pZnceqop7docaFVSxTKFGAoJDVIA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -17340,9 +17340,32 @@ __exports.GlucoDex = window.GlucoDex;
 
        What DOES separate them is how much of the delta distribution sits on ONE value:
          drawn (16 files, ≤07-27) …… 100.0 %      measured (07-28 →) …… 0.6 – 8.8 %
-       Reported as a NUMBER, with `drawn` asserted only at ≥99 %. The middle of that range is genuinely
-       ambiguous on short fragments (a 15-min file has few deltas to be diverse with), and a binary that
-       pretends otherwise would be the same over-claim this whole brief family exists to remove. */
+       Reported as a NUMBER, never a bare binary. The middle of that range is genuinely ambiguous on
+       short fragments (a 15-min file has few deltas to be diverse with), and a binary that pretends
+       otherwise would be the same over-claim this whole brief family exists to remove.
+
+       ⚠️ THE CUT WAS 0.99 AND THAT WAS THE WRONG EDGE OF THIS GAP (2026-09-05). Any value from ~0.10
+       to ~1.00 separates the two populations ABOVE, so this file's own corpus could not choose between
+       them — and 0.99 is the one end that also demands near-perfection. Two independent measurements
+       say it is too high:
+
+         · `clock.js` CK_AXIS_DRAWN_SHARE, 381 box-tree sidecars: real streams reach **56.00 %**
+           (Verity ppg; H10 ecg 40.79 %) and drawn streams fall to **79.04 %** when anything interrupts
+           them. 0.67 sits in that gap, 0/25 missed with 0/356 false positives, and that comment ends
+           "Do not raise this back toward 99 %" — which is exactly where this line stood.
+         · residue `2026-09-04-drawn-rule-defeated-by-rounding`, 6 real `Polar_H10_*_ECG.txt`
+           fragments: top-delta share **98.63–98.65 %** over 10–13 distinct deltas, ZERO flagged. That
+           column IS `index × an assumed rate`; decimal rounding of 1000/130 = 7.6923 ms scatters it.
+           The 0.35 pp margin was not a safety margin, it was the width of a rounding artifact.
+
+       So a 0.99 cut measures the STAMP FORMAT and calls the answer provenance. Aligned to 0.67 below.
+       Verdicts on this file's own corpus are unchanged — 0.6–8.8 % stays below and 100 % stays above —
+       so the move costs nothing here and buys the rounded-rate and interrupted-drawn cases.
+
+       ⚠️ NOT delegated to `DexClock.CK_AXIS_DRAWN_SHARE`, deliberately: PpgDex is one of the three
+       bundles that do NOT inline `clock.js` (CLAUDE.md §✅), so `DexClock` is `undefined` here and a
+       bare reference is a ReferenceError, not a fallback. The constant is duplicated ON PURPOSE and
+       the two must be moved together. */
     let quantizedShare = null;
     /* Scan BACKWARD for the last row the main loop would have ACCEPTED and whose stamp parses —
        byte-identical to an eager `lastTs`, but paid for only where it is read. The row filter must
@@ -17393,7 +17416,9 @@ __exports.GlucoDex = window.GlucoDex;
        device contributed only sample ORDER. DRAWN + no anchors ⇒ `'none'`: the recording carries no
        timing information whatsoever and must never be spent as a clock leg — closure, three-cornered hat
        and PAT all silently accept such a leg today and measure a constant. */
-    const axisDrawn = quantizedShare != null && quantizedShare >= 0.99;
+    /* 0.67 — the same cut as `clock.js` CK_AXIS_DRAWN_SHARE, on that file's 381-sidecar measurement.
+       Kept as a literal because `DexClock` does not exist in this bundle; see the block above. */
+    const axisDrawn = quantizedShare != null && quantizedShare >= 0.67;
     // relSec per sample from ns, DISCIPLINED to the host clock (WEARABLE-HOST-AXIS §2); else index/fs.
     // The device crystal keeps the fine structure (the correction's own slope is ~30 ppm, i.e. 30 µs
     // per second, so RR/PPI intervals are untouched) while its RATE error is removed. If too few
