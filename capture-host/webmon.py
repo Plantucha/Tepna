@@ -349,6 +349,14 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             # this answers "is therapy running right now", from the AS11 shadow detector, aged HERE at
             # serve time. Null when there is no cpap block at all.
             "cpap_live": _cpap_live_block(status.get("cpap")),
+            # THIRD BLOCK, THIRD QUESTION — and it is a different ACTOR, not a different view of the
+            # same one. `cpap` is the daily harvest poller; this is the stored-spool pull, a second
+            # scheduled acquisition that defers on the same conditions. Forwarded because
+            # OPERATIONAL-MATURITY-AUDIT §4(1) names "two actors reporting `waiting` continuously
+            # across a whole window" as the falsification condition to watch, and that observation is
+            # impossible while one of the two actors publishes nowhere. Null until the pull is armed
+            # (default OFF) and has ticked once.
+            "cpap_spool": status.get("cpap_spool"),
             # PER-DEVICE reconnect distress against that device's own per-adapter baseline. Forwarded
             # so it EXISTS for a human at all: it was published to STATUS and read by nothing — not
             # this projection, not the monitor, not the failover ladder — so a distressed radio was
