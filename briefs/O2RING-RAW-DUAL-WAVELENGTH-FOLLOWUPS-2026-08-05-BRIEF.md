@@ -2,7 +2,7 @@
 Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-02 — this is the protocol-TRUTH record and it survives alongside its parent, which owns the BUILD questions; do not retire either (they overlap only on the upstream contribution). The shipped signed-read defect is fixed (340166f5) and the stream is captured nightly (`ppg2wr` at `capture.py:3520`, `nightqc.ppg2w_contact`). Open: **§7.2 wavelength identity** needs an optical stimulus the lab cannot supply (§5's catch-22) — the named cheapest route is the ring WORN on a daylight walk with capture running; and §7.3's marker-rate anomaly and §7.4's 0x03-112.9 Hz-vs-125-ADC discrepancy have NO probe and no attempt on record, so they are unmeasured rather than blocked. **Owner:** owner (daylight walk) / Heron (§7.3, §7.4 probes) · **Next step:** the daylight walk — it is the only one needing weather) · **Created:** 2026-08-05
+**Status:** PROPOSED (parked 2026-09-02 — this is the protocol-TRUTH record and it survives alongside its parent, which owns the BUILD questions; do not retire either (they overlap only on the upstream contribution). The shipped signed-read defect is fixed (340166f5) and the stream is captured nightly (`ppg2wr` at `capture.py:3520`, `nightqc.ppg2w_contact`). Open: **§7.2 wavelength identity** needs an optical stimulus the lab cannot supply (§5's catch-22) — the named cheapest route is the ring WORN on a daylight walk with capture running; ✅ **§7.3 MEASURED 2026-09-05 (Heron, box read-only, 7 worn sessions):** on `0x04` the isolated `156` is ONE ROW PER BEAT (ratio 0.986–0.996 on every long night, modal row gap = 125 × 60/PR + 1, PERIODIC refuted) — §2.1's 1.22 was a 403 s fragment; the `0x03` 1.96 half and **§7.4's 112.9-vs-125 Hz** need a worn-ring `0x03` probe, which no nightly file can substitute for (`0x03` is never captured). **Owner:** owner (daylight walk) / Heron (§7.4 probe, needs the ring worn outside a capture night) · **Next step:** the daylight walk — it is the only one needing weather) · **Created:** 2026-08-05
 
 > **TRIAGED 2026-09-01 — one open question, and it is a MEASUREMENT question.** §1's defect (signed channels read unsigned) is stated; §2 CONFIRMED `rows − markers = 124.91 Hz`, independently reproducing the 125.000 ADC, and §2.1a's 2026-08-20 update REFUTES the 100 Hz reading — the delivered rate is the **cap**, not the device. §3 is WITHDRAWN (again) — 'AC/DC is ten times too large' does not hold. §4 identifies `0x03` as the real waveform, a different stream from `0x05`. **§2.1 is the sole open item: the marker rate is not the heart rate**, and settling it needs device time rather than code.
 
@@ -84,6 +84,38 @@ fill rate for free. Gate-tested (two asks per cycle with the stream, zero withou
 The marker may flag something finer than a beat (a systolic *and* dicrotic feature would give ≈2×), or
 include detections the reported HR filters out. **The rate result in §2 does not depend on resolving
 this** — it counts markers, it does not interpret them.
+
+#### 2.1-MEASURED (2026-09-05, Heron — read-only probe on the box, 7 worn sessions, 27,000+ markers) — on `0x04` the marker IS one row per beat; the 1.22 was a 403 s fragment
+
+Bands pre-stated before the run: **BEAT-LINKED** = per-minute markers/PR ratio CV < 10 % and r(inter-marker s,
+60/PR) > 0.7 · **PERIODIC** = one modal inter-marker ROW gap holding > 60 % of gaps and r < 0.2 · otherwise
+unresolved. Marker = an isolated `156` row (99.4–99.8 % of all `156`s are isolated); PR from the same
+session's `_OXYFRAME.txt` on contact seconds.
+
+| session | span | PR (median, range) | markers/s | markers ÷ PR | intervals within ±15 % of 60/PR | modal row gap | r(interval, 60/PR) |
+|---|---|---|---|---|---|---|---|
+| 08-02 night | 9.9 h | 51.7 (48–78) | 0.794 | **0.986** | 84.1 % | 151 | 0.52 |
+| 08-26 night | 8.8 h | 51.9 (45–81) | 0.808 | **0.987** | — | 151 | 0.62 |
+| 08-12 night | 7.9 h | 56.0 (50–85) | 0.892 | **0.991** | 91.7 % | 136 | 0.85 |
+| 08-01 00:13 | 2.3 h | 69.1 (62–106) | 1.125 | **0.996** | 94.9 % | 111 | 0.84 |
+| 08-01 02:33 | 1.1 h | 77.1 (70–108) | 1.019 | 0.837 | 72.2 % | 101 | 0.59 |
+| 09-03 19:10 | 17 min | 59.3 (54–94) | 0.718 | 0.803 | 36.8 % | 136 | 0.15 |
+| 08-05 16:38 | 21 min | 74.3 (62–92) | 0.700 | 0.615 | 28.9 % | 116 | 0.60 |
+
+**PERIODIC is refuted outright**: the top row-gap mode never holds more than 9.8 % of gaps, and the mode
+itself moves with the pulse — 151 rows at PR 52, 136 at 56, 111 at 69, 101 at 77, i.e. ≈ 125 × 60/PR + 1.
+**BEAT-LINKED holds on every long night**: ratio 0.986–0.996, 84–95 % of individual intervals within ±15 %
+of that minute's 60/PR, r 0.84–0.85 on the two nights with any PR variance (the CV leg reads 10.0–10.9 %,
+at the band's edge — the count leg is the weaker instrument, see below). So §2.1's row for `0x04` is
+superseded: **one marker per detected beat**, and the 1.22 came from a 403 s fragment at a moment the
+reported HR did not represent. The three short daytime sessions fall to 0.62–0.84 with interval agreement
+29–72 % — the ring's own `motion` flag reads 0 in every one of those minutes, so the deficit is NOT
+flagged motion; whatever it is, it is beats the ring's HR counts and the marker does not, and it is
+unmeasured. ⚠ The per-minute **count** vs PR correlation is ≈ 0 in every session (−0.16 … 0.28), while the
+per-minute **interval** median tracks 60/PR at r 0.84 — the count is what BLE frame loss and this deficit
+corrupt, the interval median is robust to both. A future count-based test of this row would read the
+wrong answer. **`0x03`'s 1.96 stays open**: `0x03` is not captured nightly (only `0x04` → `_PPG.txt` and
+`0x05` → `_PPG2W.txt` are), so it needs a worn-ring probe — same instrument §7.4 needs.
 
 ## 3 · WITHDRAWN (again): "AC/DC is ten times too large"
 
@@ -224,8 +256,11 @@ Searched the DIY/paper literature and Chinese sources (Viatom is Shenzhen-based;
    decimated envelope.
 2. **Wavelength identity** — needs an optical stimulus that solves §5's catch-22. §5.1's sunlight walk
    is the cheapest candidate and is worth running before any teardown is contemplated.
-3. **The marker-rate anomaly** (§2.1).
-4. **`0x03` at 112.9 Hz vs the 125.000 ADC** (§4).
+3. ~~**The marker-rate anomaly** (§2.1).~~ **MEASURED 2026-09-05 for `0x04` — one marker per beat**
+   (§2.1-MEASURED); the `0x03` half rides on item 4's probe.
+4. **`0x03` at 112.9 Hz vs the 125.000 ADC** (§4) — UNMEASURED, and now the only §7 item without a
+   nightly instrument: `0x03` is never captured by the daemon, so this needs a worn-ring probe
+   (`/tmp/probe_rt_ppg_rate.py` is gone, §2.1a; rebuild it) scheduled outside a capture night.
 5. **Upstream contribution** to `nglessner/o2ring-s-protocol`: the purpose of `0x05` is still unknown, but
    three things are now checkable and worth sending — the **record base offset of 2** (`u16` count where
    the reference reads a `u8`), the **signed 24-bit** field format, and that the argument is irrelevant.
