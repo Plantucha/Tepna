@@ -1881,6 +1881,14 @@ _STREAM_STALL_S = 90.0       # started-stream silence before the session is torn
 _REBOND_EVERY = 5
 _REBOND_LIMIT = 72
 _STALL_RECONNECT_S = 5.0     # pause before re-negotiating after a stall — a stall is not an error backoff
+# The ceiling of the error backoff every mandatory runner rides (5 s doubling, reset only by a VIABLE
+# session — E3). It was 60 s until 2026-09-05, which with the 30 s connect timeout is a ~90 s cycle: an
+# absent device cost 27–35 (H10) / 36–46 (O2Ring) hopeless scans PER HOUR, all day, every day the box
+# is up (vigil journal, 2026-09-03/04). VIGIL-OVERNIGHT-FINDINGS P2.1 asked for a cap of ~5 min and
+# < 20 attempts/hour; 180 s gives a ~210 s cycle ≈ 17/h and keeps the worst-case pickup of a device
+# strapped on after a long absence to ~3.5 min. The OPTIONAL-device branch keeps its own 120–300 s
+# schedule below. Override via power.reconnect_backoff_cap_sec.
+_RECONNECT_BACKOFF_CAP_S = 180.0
 
 # The night-boundary anchor. A 24/7 daemon crossing midnight keeps appending to the START-date folder
 # (night_dir() rolls by session start, not wall clock), so the wall-clock date is the WRONG key for
@@ -2215,7 +2223,7 @@ async def run_polar(dev: dict, root: str):
     clock sync failed on a missing characteristic, and a phantom link that then tripped the watchdog."""
     name, addr = dev["name"], dev["address"]
     streams = dev.get("streams", ["ecg"])
-    backoff = 5
+    backoff: float = 5
     stale_bond_hits = 0        # consecutive one-sided-bond failures; see the teardown handler
     needs_pmd = bool(set(streams) & _PMD_STREAMS)
     is_polar = (dev.get("vendor") or "").strip().lower() == "polar"
@@ -3180,7 +3188,7 @@ async def run_polar(dev: dict, root: str):
                 await asyncio.sleep(_NOT_WORN_RECHECK_S)
             else:
                 await asyncio.sleep(backoff)
-                backoff = min(backoff * 2, 60)   # exponential backoff, capped
+                backoff = min(backoff * 2, _RECONNECT_BACKOFF_CAP_S)   # exponential backoff, capped
 
 
 async def run_muse(dev: dict, root: str):
@@ -3248,7 +3256,7 @@ async def run_viatom(dev: dict, root: str):
     ViHealth CSV layout OxyDex parses, and pushes spo2/pr to the live monitor. The ring only advertises
     while worn (finger in), so a bond/connect only succeeds when it's on the finger."""
     name, addr = dev["name"], dev["address"]
-    backoff = 5
+    backoff: float = 5
     try:
         if not await bonding.ensure_bonded(addr, ADAPTER):
             _set(name, last_error="bond failed — pair the ring from the monitor page (wear it first)")
@@ -3375,7 +3383,7 @@ async def run_viatom(dev: dict, root: str):
                 await asyncio.sleep(_STALL_RECONNECT_S)
             else:
                 await asyncio.sleep(backoff)
-                backoff = min(backoff * 2, 60)
+                backoff = min(backoff * 2, _RECONNECT_BACKOFF_CAP_S)
 
 
 
@@ -3500,7 +3508,7 @@ async def run_oxyii(dev: dict, root: str):
     No bonding. Flow: connect → auth(0xFF) → setup(0x10) → poll cmd=0x04 ~1/s. Emits the ViHealth CSV
     OxyDex parses + pushes spo2/pr to the monitor."""
     name, addr = dev["name"], dev["address"]
-    backoff = 5
+    backoff: float = 5
     import cpap_record
     import oxy_lifecycle
     _oxylc = oxy_lifecycle.OxyLifecycle(device_id=dev.get("device_id"),
@@ -4260,7 +4268,7 @@ async def run_oxyii(dev: dict, root: str):
                 await asyncio.sleep(_STALL_RECONNECT_S)   # not an error backoff — come straight back
             else:
                 await asyncio.sleep(backoff)
-                backoff = min(backoff * 2, 60)
+                backoff = min(backoff * 2, _RECONNECT_BACKOFF_CAP_S)
     _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.SHUTTING_DOWN, "daemon stop")
     if _oxywr["w"] is not None:
         _oxywr["w"].close()
@@ -8079,12 +8087,14 @@ async def main():
     _gm = float(((cfg.get("o2ring") or {}).get("ppg_gap_min_ms")) or 0)
     if _gm > 0:                    # honest-gap threshold override (see O2PPG_GAP_MIN_S)
         O2PPG_GAP_MIN_S = _gm / 1000.0
-    global _DROP_NOT_WORN_SEC, _NOT_WORN_RECHECK_S
+    global _DROP_NOT_WORN_SEC, _NOT_WORN_RECHECK_S, _RECONNECT_BACKOFF_CAP_S
     _pw = cfg.get("power") or {}
     if "drop_not_worn_sec" in _pw:
         _DROP_NOT_WORN_SEC = float(_pw["drop_not_worn_sec"])     # 0 disables
     if float(_pw.get("not_worn_recheck_sec") or 0) > 0:
         _NOT_WORN_RECHECK_S = float(_pw["not_worn_recheck_sec"])
+    if float(_pw.get("reconnect_backoff_cap_sec") or 0) > 0:
+        _RECONNECT_BACKOFF_CAP_S = float(_pw["reconnect_backoff_cap_sec"])
     global _RESUME_WINDOW_S
     _wr = cfg.get("write") or {}
     if "resume_window_sec" in _wr:
