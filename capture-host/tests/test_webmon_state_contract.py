@@ -50,6 +50,10 @@ FULL_STATUS = {
     "ring_config_verdict": "brightness=2 applied",
     "ring_buzz_at": "2026-08-19T22:41:03.117",
     "ring_rtc_reset_suspect": "2026-08-20T05:02:11",
+    # The two OxyII lifecycle axes (charter G4). Journalled to OXYLIFE.csv and written to STATUS from
+    # the first G4 night and forwarded by nobody for thirteen nights (2026-08-24 → 09-05).
+    "oxy_lifecycle": "idle_unworn",
+    "oxy_recording": "end_candidate",
 }
 
 DEV = {"name": "H10", "vendor": "Polar", "model": "H10", "device_id": "12345678",
@@ -79,6 +83,10 @@ DEVICE_KEYS = {
     # not exposed to anybody. `presence_witness` is the load-bearing one — it names where the §19
     # chain STOPS, so an armed-but-never-executed path cannot render as healthy.
     "presence", "presence_reason", "presence_witness",
+    # The OxyII LINK axis (`_oxy_emit`) and RECORDING axis (`_rec_emit`) — charter G4's "liveness states
+    # visible in STATUS". They WERE in STATUS; `/api/state` on the live daemon carried neither key
+    # (2026-09-05), which is the exact failure the docstring above describes, thirteen nights long.
+    "oxy_lifecycle", "oxy_recording",
 }
 
 
@@ -131,6 +139,10 @@ def test_a_device_projects_every_field_it_promises(tmp_path):
     assert d["ring_config_verdict"] == "brightness=2 applied"
     assert d["ring_buzz_at"] == "2026-08-19T22:41:03.117"
     assert d["ring_rtc_reset_suspect"] == "2026-08-20T05:02:11"
+    # G4: both axes arrive as the state STRINGS the journal uses, so the monitor draws the same word
+    # OXYLIFE.csv records — an operator can match the chip to the row.
+    assert d["oxy_lifecycle"] == "idle_unworn"
+    assert d["oxy_recording"] == "end_candidate"
 
 
 def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):
@@ -142,7 +154,7 @@ def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):
     assert d["connected"] is False, "never reported is a definite NO, not unknown"
     assert d["charging"] is False
     for k in ("battery", "rssi", "clock_synced", "device_time", "clock_skew_sec", "pull_progress",
-              "link_epoch", "worn", "last_error"):
+              "link_epoch", "worn", "last_error", "oxy_lifecycle", "oxy_recording"):
         assert d[k] is None, f"{k} must be null when the device has never reported"
 
 
