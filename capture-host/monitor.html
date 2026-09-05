@@ -608,24 +608,21 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
           <span class="spin" id="cpapPullState"></span>
         </div>
         <p class="hint" id="cpapHint"></p>
-        <!-- HIDDEN 2026-08-30 — the whole pairing row, not just its button. The daemon answers
-             /api/cpap/pair with 501: `cpap_pair` is never passed to `webmon.make_app`, because
-             the SRP orchestration (connect -> StartKeyExchange -> prove -> ConfirmKeyExchange ->
-             write as11_creds.json) was never written. The primitives exist and the endpoint
-             exists; the middle does not, and `test_webmon_cpap_pair_contract` pins that 501 as
-             INTENDED. Offering a control that cannot work is its own small dishonesty, and the
-             owner does not need it — the AS11 is decoded and its creds are already on the box.
-             Hidden rather than deleted: restore it when the pairing op lands. -->
-        <div hidden data-unimplemented="cpap-pair">
+        <!-- ResMed BLE pairing — TWO steps, because the CPAP shows its 4-digit code only AFTER
+             StartKeyExchange lands on an open link (as11_pair.PairingSession). Start opens the link and
+             asks the machine; the code appears on its LCD; Confirm proves it (SRP-6a, M1/M2) and only a
+             verified M2 is written to as11_creds.json. Restored 2026-09-05 — hidden 2026-08-30 while the
+             orchestration did not exist. -->
         <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 2px;flex-wrap:wrap;border-top:1px solid var(--line,#2a2a2a);padding-top:12px">
           <span style="font-size:12px;color:var(--text3)">Pair over BLE:</span>
+          <button class="btn" id="cpapPairStartBtn">Start pairing</button>
           <input id="cpapPin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10" size="12"
-                 spellcheck="false" autocomplete="off" placeholder="PIN on CPAP screen">
-          <button class="btn" id="cpapPairBtn">Pair ResMed</button>
+                 spellcheck="false" autocomplete="off" placeholder="code on CPAP screen" disabled>
+          <button class="btn btn-primary" id="cpapPairBtn" disabled>Confirm</button>
+          <button class="btn" id="cpapPairCancelBtn" style="display:none">Cancel</button>
           <span class="spin" id="cpapPairState"></span>
         </div>
-        <p class="hint">First put the CPAP in pairing mode (its menu → Bluetooth), then type the passkey it shows and press Pair. One-time; credentials are stored on the box for later BLE pulls.</p>
-        </div>
+        <p class="hint">Put the CPAP in Bluetooth pairing mode (its menu → Bluetooth), press <b>Start pairing</b>, then type the code its screen shows and press <b>Confirm</b>. Re-pair the same way when the machine starts refusing the stored key. Credentials stay on the box; the live stream must be stopped first.</p>
         <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 2px;flex-wrap:wrap;border-top:1px solid var(--line,#2a2a2a);padding-top:12px">
           <span style="font-size:12px;color:var(--text3)">Live waveform:</span>
           <button class="btn btn-primary" id="cpapStreamBtn" data-streaming="0">▶ Start live stream</button>
@@ -1514,25 +1511,64 @@ document.addEventListener('click', async e => {
   loadState();
 });
 
-// ResMed BLE pairing. SRP-6a against the passkey the CPAP shows on its screen (its menu → Bluetooth).
-// The handshake is plaintext — nothing but the one-time PIN the operator reads off the device leaves
-// the box — and the daemon owns the radios, so a 501 means this daemon build has no AS11 support yet.
-// The button is disabled for the round-trip; the PIN never goes in a URL, only the POST body.
+// ResMed BLE pairing — two requests to /api/cpap/pair. `start` connects and runs StartKeyExchange (the
+// CPAP shows its code only then); `passkey` proves it (SRP-6a) and stores the key only after the machine's
+// own proof (M2) verifies. The code never goes in a URL, only the POST body. A 501 means this daemon
+// build has no pairing op; `restart_required` means a consumer skipped at boot (no creds then) cannot
+// pick the new key up until the daemon restarts — the page says so rather than implying it is live.
+async function cpapPair(body){
+  const r = await fetch('/api/cpap/pair', {method:'POST', headers:{'Content-Type':'application/json'},
+                                           body: JSON.stringify(body)});
+  return [r.status, await r.json()];
+}
+function cpapPairArm(pending){
+  $('#cpapPin').disabled = !pending; $('#cpapPairBtn').disabled = !pending;
+  $('#cpapPairStartBtn').disabled = pending;
+  $('#cpapPairCancelBtn').style.display = pending ? '' : 'none';
+  if(pending) $('#cpapPin').focus();
+}
+$('#cpapPairStartBtn')?.addEventListener('click', async () => {
+  const st = $('#cpapPairState'), btn = $('#cpapPairStartBtn');
+  btn.disabled = true; st.textContent = 'connecting… (CPAP must be in Bluetooth pairing mode)';
+  try{
+    const [status, j] = await cpapPair({action:'start'});
+    if(status===501)       { st.textContent = '✗ pairing not supported by this daemon build'; btn.disabled = false; }
+    else if(!j.ok)         { st.textContent = '✗ ' + (j.error || 'could not start pairing'); btn.disabled = false; }
+    else { cpapPairArm(true); st.textContent = '→ read the code on the CPAP screen and confirm it'
+                                             + (j.seconds_left ? ` (${Math.round(j.seconds_left)} s)` : ''); }
+  }catch(err){ st.textContent = '✗ ' + err; btn.disabled = false; }
+});
 $('#cpapPairBtn')?.addEventListener('click', async () => {
   const pin = ($('#cpapPin').value || '').trim();
   const st = $('#cpapPairState'), btn = $('#cpapPairBtn');
-  if(!/^\d{4,10}$/.test(pin)){ st.textContent = '✗ enter the 4–10 digit PIN shown on the CPAP'; return; }
-  btn.disabled = true; st.textContent = 'pairing… (put the CPAP in Bluetooth pairing mode)';
+  if(!/^\d{4,10}$/.test(pin)){ st.textContent = '✗ enter the 4–10 digit code shown on the CPAP'; return; }
+  btn.disabled = true; st.textContent = 'verifying…';
   try{
-    const r = await fetch('/api/cpap/pair', {method:'POST', headers:{'Content-Type':'application/json'},
-                                             body: JSON.stringify({passkey: pin})});
-    const j = await r.json();
-    if(r.status===501)      st.textContent = '✗ pairing not supported by this daemon build yet';
-    else if(!j.ok)          st.textContent = '✗ ' + (j.error || 'pairing failed');
-    else { st.textContent = '✓ paired'; $('#cpapPin').value = ''; }
-  }catch(err){ st.textContent = '✗ ' + err; }
-  btn.disabled = false;
+    const [status, j] = await cpapPair({action:'passkey', passkey: pin});
+    if(status===501)      st.textContent = '✗ pairing not supported by this daemon build';
+    else if(!j.ok){
+      st.textContent = '✗ ' + (j.error || 'pairing failed');
+      if(j.pending || status===400) btn.disabled = false;   // malformed code: the exchange is still open, retype
+      else cpapPairArm(false);                     // the machine refused / link dropped: start over
+    } else {
+      $('#cpapPin').value = ''; cpapPairArm(false);
+      st.textContent = '✓ paired · stored' + (j.restart_required ? ' — restart the daemon to use the new key everywhere'
+                                                                 : ' · live');
+    }
+  }catch(err){ st.textContent = '✗ ' + err; btn.disabled = false; }
+  loadState();
 });
+$('#cpapPairCancelBtn')?.addEventListener('click', async () => {
+  try{ await cpapPair({action:'cancel'}); }catch(err){}
+  $('#cpapPin').value = ''; cpapPairArm(false); $('#cpapPairState').textContent = 'cancelled';
+});
+// A page opened mid-exchange (or reloaded) picks the pending state back up instead of showing a dead form.
+(async () => {
+  if(!$('#cpapPairStartBtn')) return;
+  try{ const [status, j] = await cpapPair({action:'status'});
+       if(status===200 && j.pending){ cpapPairArm(true); $('#cpapPairState').textContent = '→ a pairing exchange is open — enter the code'; } }
+  catch(err){}
+})();
 
 // CPAP live waveform toggle. Start pushes flow+pressure onto the bus, so the Overview grid renders them
 // via the SAME SSE the wearables use — nothing to draw here. A 501 means this daemon build has no AS11

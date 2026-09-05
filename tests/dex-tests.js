@@ -1033,6 +1033,33 @@
         'share=' + JSON.stringify(meas.hostAxis && meas.hostAxis.quantizedShare)
       );
 
+      /* ⚠️ THE ROUNDED-RATE CASE — the twin that makes the 0.99→0.67 cut FALSIFIABLE
+         (residue `2026-09-04-drawn-rule-defeated-by-rounding`). Without it the committed corpus
+         cannot express this change at all: no export carries `quantizedShare`, and all 5 raw device
+         files in the tree sit at 1.81-39.28 %, so every assertion here would stay green whatever the
+         threshold said. A green over a corpus that cannot hold the defect is not a measurement.
+
+         `Math.round(i * 1e9 / 130)` is the real 130 Hz ECG column, not a contrived one: 1e9/130 is
+         not an integer, so rounding scatters a PERFECTLY drawn axis across 2 deltas and the top one
+         holds 69.23 %. Below the old 0.99 cut, above the new 0.67 — the axis IS `index × an assumed
+         rate` and was being certified as a second clock purely because the rate did not divide.
+         Wrist layout deliberately: on a finger layout the LAYOUT rule forces drawn and this would
+         pass without the fingerprint doing any work (the F17 trap, one block down). */
+      var rounded = P.parsePPG(
+        WHDR +
+          wristRows(function (i) {
+            return Math.round((i * 1e9) / 130);
+          })
+      );
+      T.eq('the rounded-rate twin is a wrist layout, so the LAYOUT rule cannot be what flags it', rounded.site, 'wrist');
+      T.ok(
+        'a rounded-rate axis lands BETWEEN the two cuts — this is what makes the twin discriminate',
+        rounded.hostAxis.quantizedShare >= 0.67 && rounded.hostAxis.quantizedShare < 0.99,
+        'share=' + rounded.hostAxis.quantizedShare
+      );
+      T.ok('…and it IS drawn: a rate that does not divide is still an assumed rate', rounded.hostAxis.drawn === true);
+      T.ok('…so it never claims a second clock', rounded.hostAxis.timingSource !== 'device+host', 'got ' + rounded.hostAxis.timingSource);
+
       /* F17 · THE REGRESSION THAT ERASED THE SIGNATURE. capture-host's rate-SLEW estimator
          (`_O2PPG_EST_SLEW`, 2026-07-27) makes `step_s` move as the measured rate drifts, so the
          accumulated ns column stopped being a singleton delta set — `quantizedShare` fell to 0.00083

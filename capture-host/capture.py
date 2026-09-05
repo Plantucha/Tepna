@@ -7148,8 +7148,69 @@ def _publish_therapy_state(decision, _anchor):
         _CPAP_UNREACHABLE_MEMO.pop("msg", None)
 
 
+# ── AS11 first-time pairing — the monitor's POST /api/cpap/pair (as11_pair.PairingSession) ──────────
+# Who holds the credentials, and how a new pairing reaches them WITHOUT a restart where that is honest:
+#   * the live-stream controller re-reads as11_creds.json on every op("start") — live by construction;
+#   * the shadow detector and the stored-spool pull each hold ONE creds dict for the life of their loop
+#     and read creds["masterPairKey"]/["clientId"]/["ble_addr"] on every connect — so each registers its
+#     dict in _AS11_CREDS_LIVE and a pairing re-keys it IN PLACE, and the next poll uses the new key;
+#   * a consumer that was SKIPPED at boot for want of creds registers its name in _AS11_CREDS_SKIPPED —
+#     nothing short of a restart can start it, so the pairing result says `restart_required: true`.
+# "live" is therefore a computed statement about every consumer, not a hope.
+_AS11_CREDS_LIVE: list[dict] = []
+_AS11_CREDS_SKIPPED: list[str] = []
+
+
+def _as11_adopt_creds(new: dict) -> bool:
+    """Re-key every running AS11 consumer with a freshly verified pairing. True ⇔ no consumer needs a
+    restart to see it (the monitor shows `restart_required` off the negation)."""
+    for d in _AS11_CREDS_LIVE:
+        d.clear()
+        d.update(new)
+    if _AS11_CREDS_SKIPPED:
+        log.info("AS11 re-paired: %d consumer(s) re-keyed live; restart needed for %s",
+                 len(_AS11_CREDS_LIVE), ", ".join(_AS11_CREDS_SKIPPED))
+        return False
+    log.info("AS11 re-paired: %d consumer(s) re-keyed live, none skipped", len(_AS11_CREDS_LIVE))
+    return True
+
+
+def _either_busy(primary, also=None):
+    """The AS11 has ONE BLE slot: a consumer defers while the live stream OR a pairing holds it."""
+    if also is None:
+        return primary
+    return lambda: bool(primary()) or bool(also())
+
+
+def _build_cpap_pairer(cfg: dict, config_path: str, cpap_ctl, *, connect=None, on_paired=None):
+    """Assemble the AS11 pairing session from config — PURE wiring like _build_cpap_controller: the
+    creds path, radio and interactive timeout are resolved here; the bleak connect is the only I/O edge.
+    The session refuses while the live stream is busy (one link), defaults a re-pair to the address the
+    stored creds carry, and hands a verified key to `_as11_adopt_creds`."""
+    import as11_pair
+    cbs = (cfg.get("cpap", {}) or {}).get("ble_stream", {}) or {}
+    creds_path = resolve_creds_path(cbs.get("creds_path"), config_path)
+    hci = cbs.get("adapter", "hci1")
+    interactive_timeout = float(cbs.get("connect_timeout_sec", 8.0))
+    if connect is None:  # pragma: no cover — the bleak I/O edge, mirrors _build_cpap_controller
+        async def connect(ble_addr):
+            # Same discovery failover the shadow uses: a renumbered dongle must not read as "CPAP absent"
+            # to the person standing at the machine with its pairing screen open.
+            got, _adapter, _attempts = await _cpap_connect_any_adapter(
+                ble_addr, hci, interactive_timeout, reserved=ADAPTER)
+            return got
+
+    def default_addr():
+        return (_load_as11_creds(creds_path) or {}).get("ble_addr") or cbs.get("ble_addr")
+
+    log.info("CPAP BLE pairing wired: creds %s · radio %s", creds_path, hci)
+    return as11_pair.PairingSession(connect, creds_path, other_busy=cpap_ctl._busy,
+                                    on_paired=on_paired or _as11_adopt_creds, default_addr=default_addr,
+                                    passkey_timeout_s=float(cbs.get("pair_timeout_sec", 120.0)))
+
+
 def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
-                             load_creds=None, connect_factory=None, create_task=None):
+                             load_creds=None, connect_factory=None, create_task=None, also_busy=None):
     """Start the AS11 session-detector SHADOW runner if `as11_detector.enabled` is set — otherwise a
     no-op returning None. Shadow: it OBSERVES (writes SESSIONDETECT.csv + AS11CLOCK.csv) and drives
     NOTHING. It short-connects the AS11 on the CPAP free radio (hci1) only while the live-stream
@@ -7172,7 +7233,9 @@ def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
     creds = (load_creds or _load_as11_creds)(creds_path)
     if not creds:
         log.info("AS11 session detector enabled but no as11_creds — skipping (pair the AS11 first)")
+        _AS11_CREDS_SKIPPED.append("AS11 shadow detector")
         return None
+    _AS11_CREDS_LIVE.append(creds)   # a pairing from the monitor re-keys this dict in place (_as11_adopt_creds)
     if connect_factory is None:  # pragma: no cover — the bleak I/O edge, mirrors _build_cpap_controller
         async def connect_factory():
             # DISCOVERY FAILOVER: a sibling radio is the cheapest second opinion before an absence
@@ -7187,9 +7250,10 @@ def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
     interval = float(adcfg.get("poll_interval_sec", 30.0))
     task = (create_task or asyncio.create_task)(cpap_shadow_runner.run_shadow_loop(
         connect=connect_factory, creds=creds, supervisor=cpap_supervisor.CPAPSessionSupervisor(),
-        is_capturing=cpap_ctl._busy,   # BUSY, not _running — see LiveStreamController._busy:
-                                      # deferral must begin at start-INTENT, or the shadow
-                                      # polls straight into the connect window (InProgress)
+        # BUSY, not _running — see LiveStreamController._busy: deferral must begin at start-INTENT,
+        # or the shadow polls straight into the connect window (InProgress). `also_busy` is the pairing
+        # session (PairingSession.busy), which holds the AS11's one link between Start and the passkey.
+        is_capturing=_either_busy(cpap_ctl._busy, also_busy),
 
         session_writer=cpap_shadow_runner.SessionSidecar(os.path.join(root, "SESSIONDETECT.csv")),
         clock_writer=as11_clock.ClockSidecar(os.path.join(root, "AS11CLOCK.csv")),
@@ -7591,7 +7655,7 @@ def _cpap_box_root(cfg, config_path: str) -> str:
 
 
 def _maybe_start_cpap_spool_pull(cfg, config_path, root, cpap_ctl, tasks, *,
-                                 load_creds=None, connect_factory=None, create_task=None):
+                                 load_creds=None, connect_factory=None, create_task=None, also_busy=None):
     """Start the scheduled stored-spool pull if `cpap.spool_pull.enabled` — otherwise a no-op.
 
     🔴 IT ALWAYS LOGS ITS STATE, ARMED OR NOT, and that is the whole reason this function is not
@@ -7624,7 +7688,9 @@ def _maybe_start_cpap_spool_pull(cfg, config_path, root, cpap_ctl, tasks, *,
     creds = (load_creds or _load_as11_creds)(creds_path)
     if not creds:
         log.info("CPAP stored-spool pull armed but no as11_creds — skipping (pair the AS11 first)")
+        _AS11_CREDS_SKIPPED.append("CPAP stored-spool pull")
         return None
+    _AS11_CREDS_LIVE.append(creds)   # re-keyed in place by a monitor pairing (_as11_adopt_creds)
     hci = cbs.get("adapter", "hci1")
     if connect_factory is None:  # pragma: no cover — the bleak I/O edge, mirrors the shadow runner
         async def connect_factory():
@@ -7650,7 +7716,7 @@ def _maybe_start_cpap_spool_pull(cfg, config_path, root, cpap_ctl, tasks, *,
         at_hour=arming["at_hour"], window_h=arming["window_h"], root=spool_root, creds=creds,
         connect_factory=connect_factory, epoch_start=epoch_start,
         spool_type=scfg.get("spool_type", "Summary"),
-        is_capturing=cpap_ctl._running, st=_spool_st))
+        is_capturing=_either_busy(cpap_ctl._running, also_busy), st=_spool_st))
     TASK_LABELS[id(task)] = "CPAP stored-spool pull"
     tasks.append(task)
     log.info("CPAP stored-spool pull: ARMED — %s spool, window %02d:00-%02d:00 on %s, from %s → %s",
@@ -8121,10 +8187,13 @@ async def main():
         # pushes flow+pressure onto the SAME bus the wearables use so the existing Live-streams grid
         # renders it. Built by the testable factory above; the bleak connect is the only I/O edge.
         _cpap_ctl = _build_cpap_controller(BUS, cfg, args.config)
+        # AS11 first-time / re-pairing from the monitor (two requests: Start → code on the LCD → Confirm).
+        # Holds the AS11's one link between them, so every other consumer defers on its busy().
+        _cpap_pairer = _build_cpap_pairer(cfg, args.config, _cpap_ctl)
         # AS11 session detector (SHADOW): observes therapy via a short-connect poll while the CPAP
         # stream is idle, writing SESSIONDETECT.csv + AS11CLOCK.csv. Default OFF (as11_detector.enabled).
-        _maybe_start_as11_shadow(cfg, args.config, root, _cpap_ctl, tasks)
-        _maybe_start_cpap_spool_pull(cfg, args.config, root, _cpap_ctl, tasks)
+        _maybe_start_as11_shadow(cfg, args.config, root, _cpap_ctl, tasks, also_busy=_cpap_pairer.busy)
+        _maybe_start_cpap_spool_pull(cfg, args.config, root, _cpap_ctl, tasks, also_busy=_cpap_pairer.busy)
         _maybe_start_cpap_autostart(cfg, root, _cpap_ctl, tasks)
 
 
@@ -8141,7 +8210,8 @@ async def main():
                             # Wrapped so a HAND stop records manual intent for this session.
                             # Inert when auto-start is off: the wrapper only marks a watch that
                             # the auto-start loop created, and with the loop unarmed there is none.
-                            cpap_stream=_cpap_autostart_wrap_op(_cpap_ctl.op, root)),
+                            cpap_stream=_cpap_autostart_wrap_op(_cpap_ctl.op, root),
+                            cpap_pair=_cpap_pairer.op),
                            host, port)
         log.info("monitor: http://%s:%d/", host, port)
 
