@@ -395,3 +395,25 @@ def test_main_says_1hz_is_an_ASSUMPTION_not_a_fact(tmp_path, capsys, monkeypatch
     assert "assumed" in out and "the file carries no cadence" in out
     assert "WARNING" not in out
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────────
+# The diff-scoped mutation gate reported 21 survivors on this branch's changed lines (#2184, merged
+# with that check red). Triaged, they are three different things and only one is a test gap:
+#
+#   ~19 · COSMETIC — `help="..."` -> `help=None`, `print(f"...")` -> `print(None)`, `ap.error(None)`.
+#          argparse help text and CLI formatting. Nothing should assert these.
+#     1 · EQUIVALENT — `ratio < 1.5` -> `ratio <= 1.5`. The two differ only at exactly 1.5, and there
+#          BOTH return False: the original falls through to the tolerance test where
+#          abs(1.5 - round(1.5)) == 0.5 > 0.05 * 2 == 0.1. Unkillable by construction, not a gap.
+#     1 · REAL — the one below.
+def test_the_cadence_tolerance_boundary_is_INCLUSIVE():
+    """`abs(ratio - round(ratio)) <= 0.05 * round(ratio)` — the `<=` was unpinned, so flipping it to
+    `<` survived. It is reachable: exact float equality needs 0.05*n <= 0.5, i.e. n <= 10, and at
+    n = 10 both sides are exactly 0.5. A ratio of 10.5 is exactly 5 % from a round 10, which the
+    stated 5 % tolerance admits — so the boundary belongs to the accepting side, and saying so is
+    what stops a later `<` from silently narrowing the rule."""
+    assert parse_dat.looks_like_interval(10.5) is True
+    assert parse_dat.looks_like_interval(9.5) is True
+    # ...and just outside it is refused, so this pins a boundary rather than a direction.
+    assert parse_dat.looks_like_interval(2.1) is False
