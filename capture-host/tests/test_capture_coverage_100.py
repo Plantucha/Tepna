@@ -168,11 +168,14 @@ class _Dev:
         self.address, self.name = address, name
 
 
-def test_the_scan_filter_matches_on_address_or_on_an_advertised_name(monkeypatch):
+def test_the_scan_filter_matches_on_address_only_and_refuses_a_ring_named_stranger(monkeypatch):
     """The matcher is a callback — every existing test stubs `find_device_by_filter` and so never runs
-    it, which means the predicate deciding WHICH device we connect to was untested. It has to accept the
-    ring by MAC (case-insensitively — BlueZ upper-cases, config often does not) and by advertised name,
-    since a ring that has not been seen before has no address match to offer."""
+    it, which means the predicate deciding WHICH device we connect to was untested. It accepts the ring
+    by MAC (case-insensitively — BlueZ upper-cases, config often does not) and by NOTHING ELSE: until
+    2026-09-05 it also accepted any device whose advertised or cached name contained "o2ring"/"s8-aw"/…,
+    which let an arbitrary beacon in range summon a GATT connect from this host (standing address-only
+    ruling 2026-08-27, `oxy_presence.is_expected_ring`). The name must not even be read, so an advert
+    object without `.local_name` cannot abort the scan."""
     import bleak
     seen = {}
 
@@ -181,6 +184,7 @@ def test_the_scan_filter_matches_on_address_or_on_an_advertised_name(monkeypatch
         seen["by_adv_name"] = match(_Dev(address="AA:AA:AA:AA:AA:AA"), _Adv(local_name="O2Ring S8AW"))
         seen["by_dev_name"] = match(_Dev(address="AA:AA:AA:AA:AA:AA", name="o2ring"), _Adv())
         seen["stranger"] = match(_Dev(address="AA:AA:AA:AA:AA:AA", name="Someone's Fitbit"), _Adv())
+        seen["nameless_adv"] = match(_Dev(address="D1:98:62:7C:92:B3"), object())
         return None
     monkeypatch.setattr(bleak.BleakScanner, "find_device_by_filter", find)
 
@@ -194,8 +198,10 @@ def test_the_scan_filter_matches_on_address_or_on_an_advertised_name(monkeypatch
     with pytest.raises(Exception):
         _run(go())                       # not found — the point is what the matcher answered
     assert seen["by_addr"] is True, "MAC comparison must be case-insensitive"
-    assert seen["by_adv_name"] is True and seen["by_dev_name"] is True
+    assert seen["by_adv_name"] is False and seen["by_dev_name"] is False, \
+        "a ring-named device at another address is a stranger — the name is not identity"
     assert seen["stranger"] is False, "a stranger's device must not be connected to"
+    assert seen["nameless_adv"] is True, "the predicate must not read the advert's name at all"
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════

@@ -49,7 +49,7 @@ def test_the_control_handshake_is_paced_and_the_pauses_are_the_stated_ones(tmp_p
     ring = FakeRing(["20260720010000"], b"\x01\x03" + b"z" * 90)
     _install(monkeypatch, ring)
     sleeps = _spy_sleeps(monkeypatch)
-    _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
 
     assert 0.5 in sleeps, "the auth frame needs its pause before the next write"
     assert sleeps.count(0.5) >= 2, "auth AND setup are paced — 0.5 s each"
@@ -65,7 +65,7 @@ def test_the_skip_paths_pace_their_file_end_too(tmp_path, monkeypatch):
     ring = FakeRing(["20260719010000", "20260720010000"], blob, declared_seq=[0, len(blob)])
     _install(monkeypatch, ring)
     sleeps = _spy_sleeps(monkeypatch)
-    _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
     assert 0.3 in sleeps, "the skipped session still paces its FILE_END"
 
 
@@ -73,7 +73,8 @@ def test_the_skip_paths_pace_their_file_end_too(tmp_path, monkeypatch):
 def test_the_not_found_error_names_the_address_and_says_why(tmp_path, monkeypatch):
     """`BleakDeviceNotFoundError(address, message)`. The auto-pull catches this and logs it, and the
     address is how an operator tells "the ring is asleep" from "we are scanning for the wrong MAC" —
-    the O2Ring's MAC can rotate on a factory reset, so that distinction is real and recurring.
+    a factory-reset ring re-pairs under a new address, and since the scan is address-only (2026-09-05)
+    a stale configured MAC is the ONE way a healthy, advertising ring reads as absent.
 
     Both arguments are asserted, and so is their ORDER: swapping them or dropping either produces an
     exception that still raises, still gets caught, and still logs — with the wrong content."""
@@ -104,7 +105,7 @@ def test_the_meta_sidecar_is_written_indented_so_it_can_be_read(tmp_path, monkey
     multiple lines pins readability without pinning the exact indent width."""
     ring = FakeRing(["20260720010000"], b"\x01\x03" + b"z" * 90)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
 
     side = got[0] + ".meta.json"
     assert os.path.exists(side), "every .dat gets a sidecar"
@@ -123,7 +124,7 @@ def test_the_progress_output_names_the_session_the_size_and_the_path(tmp_path, m
     much or where is not a diagnostic."""
     ring = FakeRing(["20260720010000"], b"\x01\x03" + b"z" * 90)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
     out = capsys.readouterr().out
 
     assert "20260720010000" in out, "the session being pulled must be named"
@@ -139,7 +140,7 @@ def test_the_skip_reasons_name_the_session_they_are_about(tmp_path, monkeypatch,
     blob = b"\x01\x03" + b"z" * 90
     ring = FakeRing(["20260719010000", "20260720010000"], blob, declared_seq=[0, len(blob)])
     _install(monkeypatch, ring)
-    _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
     out = capsys.readouterr().out
     assert "20260719010000" in out, "the skipped session must be named"
     assert "20260720010000" in out, "and so must the pulled one"
@@ -149,12 +150,12 @@ def test_an_already_present_session_says_so_with_its_size(tmp_path, monkeypatch,
     blob = b"\x01\x03" + b"z" * 90
     ring = FakeRing(["20260720010000"], blob)
     _install(monkeypatch, ring)
-    _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
     capsys.readouterr()
 
     ring2 = FakeRing(["20260720010000"], blob)
     _install(monkeypatch, ring2)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
     out = capsys.readouterr().out
     assert got == [], "an already-present session is not reported as newly written"
     assert "92" in out, "the size it matched on must be named — that is the evidence for skipping"
@@ -172,7 +173,7 @@ def test_a_traversal_id_is_named_in_the_refusal(tmp_path, monkeypatch, capsys):
     attack."""
     _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90))
     evil = "../" * 40 + "evil"
-    assert _run(pull_session._pull_once("A", str(tmp_path), evil, 0, None, "0000")) == []
+    assert _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), evil, 0, None, "0000")) == []
     out = capsys.readouterr().out
     assert "evil" in out, "the refused id must appear — a bare 'skipping' names nothing"
     assert "escapes" in out or "output dir" in out
@@ -180,7 +181,7 @@ def test_a_traversal_id_is_named_in_the_refusal(tmp_path, monkeypatch, capsys):
 
 def test_an_implausible_id_is_named_in_the_refusal(tmp_path, monkeypatch, capsys):
     _install(monkeypatch, FakeRing(["20260719010000"], b"\x01\x03" + b"z" * 90))
-    assert _run(pull_session._pull_once("A", str(tmp_path), "notastamp", 0, None, "0000")) == []
+    assert _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "notastamp", 0, None, "0000")) == []
     assert "notastamp" in capsys.readouterr().out
 
 
@@ -189,7 +190,7 @@ def test_an_implausible_size_reports_the_size_it_got(tmp_path, monkeypatch, caps
     says what size came back — 0 means wrong ftype, a huge number means a framing problem."""
     blob = b"\x01\x03" + b"z" * 90
     _install(monkeypatch, FakeRing(["20260719010000", "20260720010000"], blob, declared_seq=[0, len(blob)]))
-    _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
     out = capsys.readouterr().out
     assert "0" in out and "ftype" in out
 
@@ -199,7 +200,7 @@ def test_the_connection_lines_name_the_device_and_the_mtu(tmp_path, monkeypatch,
     10 min one. It is reported once, at connect, and nowhere else."""
     ring = FakeRing(["20260720010000"], b"\x01\x03" + b"z" * 90)
     _install(monkeypatch, ring)
-    _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
     out = capsys.readouterr().out
     assert "D1:98:62:7C:92:B3" in out, "the address actually connected to must be named"
     assert "O2Ring S8AW" in out, "and the advertised name, so a wrong-peer connect is visible"
@@ -208,7 +209,7 @@ def test_the_connection_lines_name_the_device_and_the_mtu(tmp_path, monkeypatch,
 
 def test_an_empty_flash_says_so_rather_than_printing_nothing(tmp_path, monkeypatch, capsys):
     _install(monkeypatch, FakeRing([], b""))
-    assert _run(pull_session._pull_once("A", str(tmp_path), "latest", 0, None, "0000")) == []
+    assert _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000")) == []
     out = capsys.readouterr().out
     assert "0" in out, "the count from the listing must be reported, even when it is zero"
     assert "no sessions" in out.lower() or "nothing to pull" in out.lower()
@@ -222,7 +223,7 @@ def test_the_download_reports_its_offset_against_the_declared_size(tmp_path, mon
     blob = b"\x01\x03" + b"y" * (512 * 45)
     ring = FakeRing(["20260720010000"], blob, chunk=512)
     _install(monkeypatch, ring)
-    got = _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
     out = capsys.readouterr().out
     assert got, "the multi-chunk download must still complete"
     assert str(len(blob)) in out, "the declared size must appear in the progress line"
@@ -267,7 +268,7 @@ def test_a_truncated_pull_leaves_no_dat_at_the_final_path(tmp_path, monkeypatch)
     ring = _Truncating(["20260720010000"], blob, chunk=512, stop_after=1)
     _install(monkeypatch, ring)
     _fast_wait(monkeypatch)
-    saved = _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    saved = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
 
     dats = list(tmp_path.rglob("*.dat"))
     parts = list(tmp_path.rglob("*.dat.part"))
@@ -286,7 +287,7 @@ def test_the_partial_still_carries_its_sidecar(tmp_path, monkeypatch):
     blob = b"\x01\x03" + bytes(3000)
     _install(monkeypatch, _Truncating(["20260720010000"], blob, chunk=512, stop_after=1))
     _fast_wait(monkeypatch)
-    _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
     meta = list(tmp_path.rglob("*.dat.part.meta.json"))
     assert len(meta) == 1, "the sidecar rides whichever file actually exists"
     j = _json.loads(meta[0].read_text())
@@ -299,7 +300,7 @@ def test_a_COMPLETE_pull_still_lands_at_the_final_path(tmp_path, monkeypatch):
     survive a good pull, or the next run would find litter it cannot explain."""
     blob = b"\x01\x03" + bytes(3000)
     _install(monkeypatch, FakeRing(["20260720010000"], blob, chunk=512))
-    saved = _run(pull_session._pull_once("A", str(tmp_path), "all", 0, None, "0000"))
+    saved = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
     dats = list(tmp_path.rglob("*.dat"))
     assert len(dats) == 1 and dats[0].stat().st_size == len(blob)
     assert list(tmp_path.rglob("*.part")) == [], "a completed pull leaves no .part behind"
