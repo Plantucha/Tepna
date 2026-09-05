@@ -98,12 +98,11 @@ Everything measured 2026-09-05 ~17:45–18:15 UTC on the box unless dated otherw
   the daemon in connect loops while the real ring goes unharvested (DoS), or (b) **serve fabricated
   SpO₂/PPG/session data into the corpus** — silent wrong data, the failure class this repo treats as
   worse than loss. The Polars resist (b): bonded peers get encrypted reconnects an impostor without
-  the LTK cannot complete (subject to B1's first-pairing caveat). Mitigations worth costing, in
-  order: newer-firmware rings negotiate an **AES session** (`O2RING-USB-PROTOCOL` §3.3/§9.1 — if this
-  ring's firmware offers it, taking it closes (b) cheaply); failing that, a plausibility gate on
-  harvested sessions (a fabricated night must still fool OxyDex's physiology checks — partial); at
-  minimum, alert on `oxy_lifecycle` anomalies that fit the impostor shape (connects that never reach
-  a valid pull).
+  the LTK cannot complete (subject to B1's first-pairing caveat). ⚠️ **Correction, same day:** the
+  first draft proposed enabling the `O2RING-USB-PROTOCOL` §3.3 AES session on this link — that
+  session is a **USB-transport** feature; the BLE auth is `0xFF` XOR-keyed with **no reply at all**
+  (`oxyii.py:9-11`: "live path uses only CRC-8 + MD5 + XOR — NO AES"), so there is no BLE session
+  crypto to switch on. The real mitigation ladder is in §6.2.
 - **C2 · POTENTIAL (privacy, measured): physiological data and identity are broadcast.** The ring's
   live link being unencrypted means live SpO₂/PPG and `.dat` pulls are readable by any passive
   sniffer — demonstrated feasible with the hardware on this very desk (§4's captures). Both Polars
@@ -156,4 +155,53 @@ bounded `btmon` helper to the sudoers roster (D2), and the two script-sized chan
 
 Not re-proposed (owned elsewhere): per-device radio placement (PER-DEVICE-ADAPTER-PINNING) ·
 distress-failover tuning (armed; RADIO-FAILOVER brief) · adapter A/B methodology (`adapter_ab.py`) ·
-the maintainer-surface gaps (inventory brief §5).
+the maintainer-surface gaps (inventory brief §5). §6 below carries the paste-ready closure block.
+
+## 6 · Owner closure block + C1 probe plan (added same day, coordinator-requested)
+
+### 6.1 · Paste-ready box ops — ONE approval covers this block
+
+Safe on live links: `untrust` only clears the kernel-autoconnect flag, it does not disconnect
+anything. Expected output of the verify line: `Trusted: no` twice.
+
+```sh
+# B2 — clear the live trust race on the capture adapter (30 s):
+printf 'select 00:01:95:CC:53:02\nuntrust 24:AC:AC:02:84:96\nuntrust 24:AC:AC:0C:30:1E\nquit\n' | bluetoothctl
+printf 'select 00:01:95:CC:53:02\ninfo 24:AC:AC:02:84:96\ninfo 24:AC:AC:0C:30:1E\nquit\n' | bluetoothctl | grep Trusted
+
+# maintainer tooling in one apt line — shellcheck closes check.sh's local blind spot
+# (exit 127 today, CI-only verdict); rfkill enables the A5 wifi soft-block:
+sudo apt install shellcheck rfkill
+
+# A5 — wifi stays down by mechanism, not by habit (hci2 shares the AX210 front-end with wlp1s0):
+sudo rfkill block wlan
+```
+
+### 6.2 · C1 probe plan — measure, don't fix; nothing here runs without the owner present
+
+Ground truth first (source-verified): the BLE auth has **no reply** (`oxyii.py:9-11`), so no
+session-crypto negotiation exists on the BLE transport — the §3.3 AES belongs to USB. Three rungs:
+
+- **Probe A — does the ring accept LE pairing?** (owner-attended, ~60 s, the ONLY radio-touching
+  step): with the ring docked and `idle_unworn`, `select 00:01:95:CC:53:02` → `pair
+  D1:98:62:7C:92:B3`. Success ⇒ bond it like the Polars — link-layer encryption + impostor
+  resistance in one move, zero protocol change (subject to B1's Just-Works caveat). Refusal ⇒
+  recorded fact, fall to B. Risk: a failed pairing attempt can disturb the link; `unwedge.sh` is the
+  documented recovery; a session must not run this unattended.
+- **Mitigation B — prefer USB harvest when docked** (code PR, no radio risk): the ring sits on the
+  bus nightly (`1915:f33c`, present right now), the USB client exists (`o2ring.py`,
+  O2RING-USB-PROTOCOL), and **a USB device is unspoofable by radio** — stored-`.dat` harvest over
+  the dock gives the corpus a physically authenticated channel regardless of what happens on air.
+  The live BLE stream stays as-is; the archival record gains integrity.
+- **Mitigation C — impostor-shape alert** (code PR): fire the existing guardrails webhook on an
+  `0xE1` identity whose `device_id ≠` the configured `S8AW2100`, or on repeated connects that reach
+  identity but never a valid pull. Detection, not prevention — cheap and honest about it.
+
+### 6.3 · C4 content-gate — exact rule for the PR (so nobody re-derives it)
+
+`tepna-update.sh` owes a restart iff **marker ≠ HEAD AND `git diff --name-only <marker>..HEAD --
+capture-host/` is non-empty**. Fail TOWARD restart: a missing marker, a marker sha unknown to git,
+or a failing diff all restart (preserving the never-serve-stale-code guarantee); a docs-only delta
+updates the marker and skips. `--force-restart` bypasses the gate unchanged. Evidence for the cost:
+the measured 13:40:45 restart today deployed `93a17e27`, a docs-only commit, at a repo cadence of
+28 merges/day (2026-08-16 measurement).
