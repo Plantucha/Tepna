@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**171 tools** · 169 with a purpose line · **2 without**
+**172 tools** · 170 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -54,6 +54,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`eqc-power.mjs`](../tools/eqc-power.mjs) | how many simultaneous epochs does Extended Quadruple Collocation need before it can say WHICH pair of sources shares error? |
 | [`eqc-run.mjs`](../tools/eqc-run.mjs) | Extended Quadruple Collocation on the real 4-stream corpus. WHAT IT ANSWERS. |
 | [`extreme-mutate.mjs`](../tools/extreme-mutate.mjs) | EXTREME MUTATION (Descartes, Niedermayr et al.; see the STAMP tool and the industrial study in arXiv:2103.08480). |
+| [`find-unwired-js.mjs`](../tools/find-unwired-js.mjs) | THE JS SIBLING OF `capture-host/tools/find_unwired.py`. Finds machinery that exists, is tested, and is connected to NOTHING — on the JS side, which that tool does not reach. |
 | [`findings-ledger.mjs`](../tools/findings-ledger.mjs) | THE FINDINGS LEDGER — C1 of the qwen engineering program (QWEN-ENGINEERING-PROGRAM 2026-08-27 §4). |
 | [`formula-constant-audit.mjs`](../tools/formula-constant-audit.mjs) | REFERENCE-GUIDE-AUDIT dimension 2, made repeatable — the sibling of `severity-ladder-audit.mjs` (dimension 3). |
 | [`frozen-timeline-check.mjs`](../tools/frozen-timeline-check.mjs) | do the shipped bundles render BLANK when the document timeline never advances (print · PDF export · headless capture · a throttled background tab)? |
