@@ -188,6 +188,20 @@ session-crypto negotiation exists on the BLE transport — the §3.3 AES belongs
   resistance in one move, zero protocol change (subject to B1's Just-Works caveat). Refusal ⇒
   recorded fact, fall to B. Risk: a failed pairing attempt can disturb the link; `unwedge.sh` is the
   documented recovery; a session must not run this unattended.
+  **EXECUTED 2026-09-05 ~19:10 UTC, owner present, worn + recording (the onboard `.dat` being the
+  net): `bonding.bond()` over the live Sena link → `{'ok': False, 'detail': 'auth-failed'}` — the
+  ring REFUSES LE pairing** (SMP authentication failure on this firmware). The link bounced for ~1 s
+  and self-healed (reconnect 15:10:14 local, recording intact, `last_error: None`); `bond()`'s
+  untrust cleanup ran even on failure (Paired/Bonded/Trusted all `no` after — no residue). So the
+  C1 closure is **Mitigations B + C**, and C2's on-air exposure is permanent for this hardware:
+  the BLE link cannot be encrypted. Two side-measurements: the ring's advertising local name is
+  `'S8-AW 2100'`, and it does not implement DIS — ⚠️ which does NOT mean firmware is unreadable
+  (owner correction, same day): the vendor `GET_INFO 0xE1` reply carries the real dotted version at
+  bytes `[4].[3].[2].[1]` plus hwV `[0]` and bootloader `[8]..[5]` alongside the `[9:17]` branchCode
+  (`O2RING-PROTOCOL` §3, layout corrected 2026-09-02). `oxyii.parse_get_info` today exposes only the
+  branchCode, under the key `"firmware"` — residue `2026-09-02-oxyii-branchcode-named-firmware` is
+  the open naming fix, and exposing the version bytes there would make the daemon's
+  "firmware revision unread" DIS log line obsolete.
 - **Mitigation B — prefer USB harvest when docked** (code PR, no radio risk): the ring sits on the
   bus nightly (`1915:f33c`, present right now), the USB client exists (`o2ring.py`,
   O2RING-USB-PROTOCOL), and **a USB device is unspoofable by radio** — stored-`.dat` harvest over
