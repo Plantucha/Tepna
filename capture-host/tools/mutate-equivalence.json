@@ -2374,6 +2374,42 @@
       "key": "- with open(ledger_path, encoding=\"utf-8\") as fh: | + with open(ledger_path, ) as fh:",
       "probe": "non-ASCII round-trip (\"réveil du capteur — 温度 drift, 0.5 °C\") through append_row → load_rows: byte-identical under encoding=\"utf-8\", encoding=None and the argument omitted. Also attempted and REJECTED as a distinguishing input: monkeypatching locale.getpreferredencoding to 'ascii' — CPython's open() does not consult the patched Python-level function, verified empirically.",
       "why": "`open()` with encoding=None uses the interpreter's locale-derived default, which on every host this runs on — the capture box, developer machines and CI, all UTF-8 — IS utf-8. So the mutant and the original select the SAME codec and no input distinguishes them. The explicit encoding is still correct: it is insurance against a non-UTF-8 host, and the ledger's `reason` field can carry a device name or path. But that host does not exist in this fleet, so no test here can observe it. ⚠ This is environment-scoped equivalence, not a proof over the input domain — on a latin-1 or C-locale host the mutant IS killable, and the entry should be revisited if the fleet ever gains one."
+    },
+    {
+      "line": 139,
+      "before": "with open(ledger_path, \"a\", encoding=\"utf-8\") as fh:",
+      "op": "kwarg encoding=\"utf-8\" → None",
+      "class": "untestable-by-design",
+      "brief": "OXYII-ACQUISITION-CHARTER G1",
+      "why": "The explicit encoding is REAL and worth keeping — the ledger is UTF-8 by intent and holds device-supplied filenames — but on this platform the default IS UTF-8, so no in-process assertion can distinguish the mutant: the bytes on disk are identical. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. ⚠️ Recorded as untestable-by-design rather than as a gap because the probe below KILLS it when run directly with MUTANT_UNDER_TEST set, and mutmut still reports it surviving — so the test exists and works, and mutmut never runs it for these mutants. The likely reason is coverage-directed test selection: the probe exercises append_row/load_rows in a SUBPROCESS, so the in-process tracer never records it touching this code. That deduction rests on two measurements (probe kills when invoked; mutmut reports survived); the selection mechanism is the hypothesis.",
+      "probe": "tests/test_oxy_inventory.py::test_the_ledger_names_its_encoding_under_warn_default_encoding — runs the module under `-X warn_default_encoding -W error::EncodingWarning` in a subprocess; verified to fail for both shapes (encoding=None and the omitted argument) by hand-planting each"
+    },
+    {
+      "line": 139,
+      "before": "with open(ledger_path, \"a\", encoding=\"utf-8\") as fh:",
+      "op": "kwarg encoding=\"utf-8\" → removed",
+      "class": "untestable-by-design",
+      "brief": "OXYII-ACQUISITION-CHARTER G1",
+      "why": "The explicit encoding is REAL and worth keeping — the ledger is UTF-8 by intent and holds device-supplied filenames — but on this platform the default IS UTF-8, so no in-process assertion can distinguish the mutant: the bytes on disk are identical. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. ⚠️ Recorded as untestable-by-design rather than as a gap because the probe below KILLS it when run directly with MUTANT_UNDER_TEST set, and mutmut still reports it surviving — so the test exists and works, and mutmut never runs it for these mutants. The likely reason is coverage-directed test selection: the probe exercises append_row/load_rows in a SUBPROCESS, so the in-process tracer never records it touching this code. That deduction rests on two measurements (probe kills when invoked; mutmut reports survived); the selection mechanism is the hypothesis.",
+      "probe": "tests/test_oxy_inventory.py::test_the_ledger_names_its_encoding_under_warn_default_encoding — runs the module under `-X warn_default_encoding -W error::EncodingWarning` in a subprocess; verified to fail for both shapes (encoding=None and the omitted argument) by hand-planting each"
+    },
+    {
+      "line": 152,
+      "before": "with open(ledger_path, encoding=\"utf-8\") as fh:",
+      "op": "kwarg encoding=\"utf-8\" → None",
+      "class": "untestable-by-design",
+      "brief": "OXYII-ACQUISITION-CHARTER G1",
+      "why": "The explicit encoding is REAL and worth keeping — the ledger is UTF-8 by intent and holds device-supplied filenames — but on this platform the default IS UTF-8, so no in-process assertion can distinguish the mutant: the bytes on disk are identical. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. ⚠️ Recorded as untestable-by-design rather than as a gap because the probe below KILLS it when run directly with MUTANT_UNDER_TEST set, and mutmut still reports it surviving — so the test exists and works, and mutmut never runs it for these mutants. The likely reason is coverage-directed test selection: the probe exercises append_row/load_rows in a SUBPROCESS, so the in-process tracer never records it touching this code. That deduction rests on two measurements (probe kills when invoked; mutmut reports survived); the selection mechanism is the hypothesis.",
+      "probe": "tests/test_oxy_inventory.py::test_the_ledger_names_its_encoding_under_warn_default_encoding — runs the module under `-X warn_default_encoding -W error::EncodingWarning` in a subprocess; verified to fail for both shapes (encoding=None and the omitted argument) by hand-planting each"
+    },
+    {
+      "line": 152,
+      "before": "with open(ledger_path, encoding=\"utf-8\") as fh:",
+      "op": "kwarg encoding=\"utf-8\" → removed",
+      "class": "untestable-by-design",
+      "brief": "OXYII-ACQUISITION-CHARTER G1",
+      "why": "The explicit encoding is REAL and worth keeping — the ledger is UTF-8 by intent and holds device-supplied filenames — but on this platform the default IS UTF-8, so no in-process assertion can distinguish the mutant: the bytes on disk are identical. The property is only observable with interpreter flags set at STARTUP, i.e. in a subprocess. ⚠️ Recorded as untestable-by-design rather than as a gap because the probe below KILLS it when run directly with MUTANT_UNDER_TEST set, and mutmut still reports it surviving — so the test exists and works, and mutmut never runs it for these mutants. The likely reason is coverage-directed test selection: the probe exercises append_row/load_rows in a SUBPROCESS, so the in-process tracer never records it touching this code. That deduction rests on two measurements (probe kills when invoked; mutmut reports survived); the selection mechanism is the hypothesis.",
+      "probe": "tests/test_oxy_inventory.py::test_the_ledger_names_its_encoding_under_warn_default_encoding — runs the module under `-X warn_default_encoding -W error::EncodingWarning` in a subprocess; verified to fail for both shapes (encoding=None and the omitted argument) by hand-planting each"
     }
   ],
   "oxy_transfer.py": [
