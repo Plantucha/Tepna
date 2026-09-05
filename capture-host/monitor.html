@@ -411,6 +411,16 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
            adapter. It was computed nightly and published to status.json where NOTHING read it, so a
            radio in distress was invisible to every human and every machine. This is that consumer.
            It REPORTS, it does not switch: the verdict is per-device and the adapter pin is global. -->
+      <!-- AUTO-PULL. Which scheduler last dispatched a pull, and what it recovered. A file that
+           arrives by presence and one that arrives by the hourly poller are byte-identical on disk,
+           so `trigger` is the ONLY evidence the doff/presence path ever fired — and it was published
+           to STATUS and forwarded nowhere, which is the defect the comment further down this file
+           described without anyone fixing it. -->
+      <div class="sidebar-data-card" style="margin-bottom:8px" id="apCard" hidden
+           title="The last auto-pull: which trigger dispatched it, how many files it committed, and how many stranded fragments the follow-on ledger drain recovered.">
+        <div class="data-pill idle" id="apPill"><span class="data-dot"></span> <span id="apText">Auto-pull —</span></div>
+        <div class="sidebar-data-info" id="apDetail"></div>
+      </div>
       <div class="sidebar-data-card" style="margin-bottom:8px" id="rdCard" hidden
            title="Reconnects per hour against each device's own baseline for this adapter. Reporting only — nothing fails over on it.">
         <div class="data-pill idle" id="rdPill"><span class="data-dot"></span> <span id="rdText">Radio —</span></div>
@@ -1360,6 +1370,24 @@ async function testStorage(btn){
 // RADIO DISTRESS — the worst device's verdict, because the question a glance asks is "is any link
 // in trouble", not "what is the mean". A device with no baseline yet reports UNKNOWN and is counted
 // as neither ok nor bad: an unmeasured radio is not a calm one.
+// AUTO-PULL EVIDENCE. Absent until one has fired — never a green "idle", because "no pull yet
+// tonight" and "the trigger is broken" are the two states this exists to tell apart, and a card that
+// looks the same in both would answer neither.
+function renderAutopull(ap){
+  const card = $('#apCard'), pill = $('#apPill'), txt = $('#apText'), det = $('#apDetail');
+  if(!card) return;
+  if(!ap || !ap.trigger){ card.hidden = true; return; }
+  card.hidden = false;
+  const n = ap.new || 0, drained = ap.drained || 0;
+  pill.className = 'data-pill ' + (n ? 'ok' : 'idle');
+  txt.textContent = `Auto-pull · ${ap.trigger}`;
+  // The COUNTS, because "fired" without "and landed what" is the half of the answer that misleads:
+  // a trigger that fires nightly and commits nothing reads as healthy on the trigger alone.
+  det.textContent = `${n} file${n === 1 ? '' : 's'}`
+                  + (drained ? ` · ${drained} stranded fragment${drained === 1 ? '' : 's'} drained` : '')
+                  + (ap.last ? ` · ${ap.last.slice(11, 16)}` : '');
+}
+
 function renderRadioDistress(rd, adapterV, switches){
   const card = $('#rdCard'), pill = $('#rdPill'), txt = $('#rdText'), det = $('#rdDetail');
   if(!card) return;
@@ -1652,6 +1680,7 @@ async function loadState(){
   renderSideStats();          // sidebar counters: every view, not just Overview
   renderBoxHealth(s.storage, s.qc, s.host, s.alerts, s.host_clock, s.cpap, s.cpap_live);
   renderStoragePill(s.storage);   // sidebar: visible in every view
+  renderAutopull(s.autopull);
   renderRadioDistress(s.radio_distress, s.radio_distress_adapter, s.radio_switches);
   renderCpap(s.cpap);
   renderCpapSpool(s.cpap_spool);
