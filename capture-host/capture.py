@@ -948,7 +948,7 @@ _UNCHECKED = object()
 def defense_warnings(autosuspend_value: "str | None", capeff_hex: "str | None", *,
                      usb_path=_UNCHECKED, archive_enabled=_UNCHECKED,
                      archive_dest_ready: "bool | None" = None,
-                     helper_warnings=()) -> list[str]:
+                     helper_warnings=(), trusted_sensors=()) -> list[str]:
     """PURE (testable): given the pinned adapter's USB `power/control` value ('auto' | 'on' | None if
     unknown) and the process CapEff hex ('0000…' | None), return the LOUD startup warnings for any wedge
     defense that is DISARMED. Empty when everything is armed.
@@ -1029,6 +1029,19 @@ def defense_warnings(autosuspend_value: "str | None", capeff_hex: "str | None", 
     # so a sentinel here would be decoration that reads like rigour. Found by mutation — swapping the
     # sentinel for () changed nothing observable, which is the definition of decorative.
     out.extend(helper_warnings or [])
+    # §B2 (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT 2026-09-05) — a sensor left `Trusted` on the capture
+    # adapter arms the KERNEL's autoconnect, which races bleak for the single ACL slot
+    # (br-connection-canceled). bond() no longer sets trust at all, but a flag leaked by the old
+    # script, an operator's hand-`trust`, or a vendor tool is invisible until the race bites —
+    # measured on the live box: both Polars `Trusted: yes` months after the untrust fix shipped.
+    # Plain () default for the same reason as helper_warnings: an empty list and "not looked" both
+    # produce no warning, so a sentinel would be decorative.
+    for addr in trusted_sensors or []:
+        out.append(
+            f"sensor {addr} is Trusted on the capture adapter — the kernel will autoconnect it and "
+            "race the daemon for the ACL slot (br-connection-canceled; audit §B2). Clear it: "
+            f"bluetoothctl → select <adapter> → untrust {addr}. The bond is kept; only the "
+            "kernel-autoconnect flag is dropped.")
     return out
 
 
@@ -1130,6 +1143,16 @@ async def startup_defense_check(hci: "str | None", cfg: "dict | None" = None) ->
                 kw["archive_dest_ready"] = os.path.ismount(str(dest))
             except Exception:
                 kw["archive_dest_ready"] = None
+        # §B2 tripwire — read each configured sensor's Trusted flag off the capture adapter. Bounded
+        # (each info read has bonding's own 8 s timeout) and never raises; an unreadable flag is
+        # absent, not "trusted" (trusted_flags' contract), so this can only under-warn — the same
+        # honest-absence shape as `autosuspend`/`capeff` above.
+        try:
+            addrs = [d.get("address") for d in (cfg.get("devices") or []) if d.get("address")]
+            if addrs:
+                kw["trusted_sensors"] = await bonding.trusted_flags(addrs, cfg.get("adapter"))
+        except Exception:
+            log.debug("startup self-test: could not read Trusted flags", exc_info=True)
     for w in defense_warnings(autosuspend, capeff, **kw):
         log.warning("STARTUP: %s", w)
 
