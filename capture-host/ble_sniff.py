@@ -15,6 +15,16 @@
 # Both are this repo's dominant defect — a check that ran, examined nothing (or the wrong thing) and
 # reported success. So the parse lives here, with tests, instead of being retyped per question.
 #
+# And then this module committed the same defect a third time (VIGIL-BLUETOOTH-ADAPTERS-2026-09-05
+# F1/F2, measured on the box):
+#
+#   3. It never read the nRF pseudo-header's CRC flag, so 14 % of the overnight capture's records —
+#      bit-flip noise — entered every counter. It reported 262 CONNECT_INDs; tshark with crcok==1
+#      found 12. And it reported no time span, so a capture whose sniffer died 2 h into a 7.4 h
+#      window read as "the night" by file mtime. Both are now first-class: CRC-bad records are
+#      counted and EXCLUDED (stated in the report, even at zero), and the report opens with the
+#      first->last packet span in UTC.
+#
 # WHAT IT ANSWERS. The question a sniffer capture exists to answer is almost never "how many packets"
 # — it is "did we capture a CONNECTION, i.e. is there GATT in here?" A BLE sniffer can only follow a
 # link if it caught the CONNECT_IND that opened it, so a capture can be enormous and still contain
@@ -26,6 +36,7 @@ from __future__ import annotations
 import struct
 import sys
 from collections import Counter
+from datetime import datetime, timezone
 
 #: Advertising-channel access address (BLE core spec) — constant on every advertising PDU.
 ADV_ACCESS_ADDRESS = bytes.fromhex("d6be898e")
@@ -64,8 +75,9 @@ def mac(raw: bytes) -> str:
     return ":".join("%02X" % b for b in reversed(raw))
 
 
-def iter_packets(data: bytes):
-    """Yield each record's payload bytes. Raises SniffError on a truncated or headerless file."""
+def iter_records(data: bytes):
+    """Yield each record as `(ts, payload)` — ts in epoch seconds (float). Raises SniffError on a
+    truncated or headerless file."""
     if len(data) < _PCAP_GLOBAL_HEADER_LEN:
         raise SniffError("not a pcap: %d bytes, need at least %d for the global header"
                          % (len(data), _PCAP_GLOBAL_HEADER_LEN))
@@ -73,13 +85,36 @@ def iter_packets(data: bytes):
     while off < len(data):
         if off + _PCAP_RECORD_HEADER_LEN > len(data):
             raise SniffError("truncated record header at byte %d" % off)
-        caplen = struct.unpack_from("<I", data, off + 8)[0]
+        ts_sec, ts_usec, caplen = struct.unpack_from("<III", data, off)
         off += _PCAP_RECORD_HEADER_LEN
         if off + caplen > len(data):
             raise SniffError("truncated packet at byte %d: header claims %d bytes, %d remain"
                              % (off, caplen, len(data) - off))
-        yield data[off:off + caplen]
+        yield ts_sec + ts_usec / 1e6, data[off:off + caplen]
         off += caplen
+
+
+def iter_packets(data: bytes):
+    """Yield each record's payload bytes (the pre-span contract; `iter_records` adds the time)."""
+    for _, pkt in iter_records(data):
+        yield pkt
+
+
+def crc_ok(pkt: bytes) -> bool | None:
+    """The nRF pseudo-header's CRC verdict: True/False, or None when the record does not parse as
+    an nRF Sniffer v2 EVENT record and therefore carries no CRC claim to read.
+
+    The layout was derived from a real capture and verified against tshark on all 20,824 of its
+    records (the crc-bad count matched exactly): a 7-byte prefix — board id, LE16 payload length,
+    protocol version 2, LE16 packet counter, packet id 6 (EVENT) — then a payload header whose
+    second octet is the flags, bit0 = CRC-ok. All three header facts are checked, payload length
+    included, so a foreign pcap whose bytes merely resemble the prefix keeps its records: a
+    misread flags octet must discard nothing (the near-miss is tested per field)."""
+    if len(pkt) < 11 or pkt[3] != 2 or pkt[6] != 6:
+        return None
+    if struct.unpack_from("<H", pkt, 1)[0] != len(pkt) - 7:
+        return None
+    return bool(pkt[8] & 0x01)
 
 
 def summarise(data: bytes, follow: str | None = None) -> dict:
@@ -89,14 +124,27 @@ def summarise(data: bytes, follow: str | None = None) -> dict:
     was captured on a data channel, which is where GATT lives. That is the whole discriminator, and
     it is why `data_channel` is the number to read first.
     """
-    total = adv = data_channel = 0
+    total = adv = data_channel = crc_bad = 0
+    first_ts: float | None = None
+    last_ts: float | None = None
     pdus: Counter = Counter()
     advertisers: Counter = Counter()
     connects: list[tuple[str, str]] = []
     want = follow.upper() if follow else None
 
-    for pkt in iter_packets(data):
+    for ts, pkt in iter_records(data):
         total += 1
+        # min/max, not first/last-seen: the span exists to expose a capture that died early, and a
+        # writer that flushed out of order must not be able to shrink it. CRC-bad records still
+        # extend it — a corrupted record is still a record in time.
+        first_ts = ts if first_ts is None else min(first_ts, ts)
+        last_ts = ts if last_ts is None else max(last_ts, ts)
+        if crc_ok(pkt) is False:
+            # A failed CRC means the BYTES are noise — excluding the record from every content
+            # counter is the fix for the 262-vs-12 CONNECT_IND over-count. `None` (no nRF header)
+            # is not `False`: a record with no CRC claim is counted, never guessed at.
+            crc_bad += 1
+            continue
         at = pkt.find(ADV_ACCESS_ADDRESS)
         if at < 0:
             data_channel += 1
@@ -120,6 +168,10 @@ def summarise(data: bytes, follow: str | None = None) -> dict:
     followed = sum(1 for _, advertiser in connects if advertiser == want) if want else 0
     return {
         "total": total,
+        "crc_bad": crc_bad,
+        "first_ts": first_ts,
+        "last_ts": last_ts,
+        "duration_s": None if first_ts is None or last_ts is None else last_ts - first_ts,
         "adv_channel": adv,
         "data_channel": data_channel,
         "pdus": dict(pdus),
@@ -153,10 +205,24 @@ def _verdict(s: dict) -> list[str]:
     return lines
 
 
+def _utc(ts: float) -> str:
+    """Epoch seconds -> `2026-09-05T13:13:43Z`. UTC always (Clock Contract: display via UTC), so
+    the same capture prints the same span on any machine."""
+    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def format_report(s: dict) -> str:
     out = list(_verdict(s))
     out.append("")
+    if s["duration_s"] is None:
+        out.append("capture span      : no packets")
+    else:
+        # The line that would have exposed F2: a 7.4 h-by-mtime file whose packets span 2 h.
+        out.append("capture span      : %.1f s (%s -> %s)"
+                   % (s["duration_s"], _utc(s["first_ts"]), _utc(s["last_ts"])))
     out.append("packets           : %d" % s["total"])
+    # Stated even at zero: an absent line and a zero are different facts (CLAUDE.md §4b).
+    out.append("  crc-bad excluded: %d" % s["crc_bad"])
     out.append("  advertising-ch  : %d" % s["adv_channel"])
     out.append("  data-channel    : %d" % s["data_channel"])
     if s["pdus"]:

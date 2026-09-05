@@ -341,3 +341,141 @@ def test_main_without_a_follow_argument_reports_the_plain_zero(tmp_path, capsys)
     out = capsys.readouterr().out
     assert "NO connection was followed" in out
     assert "nothing connected to it" not in out
+
+
+# ── CRC honesty + capture span (VIGIL-BLUETOOTH-ADAPTERS-2026-09-05 F1/F2) ─────────────────────
+# Measured on the box 2026-09-05: 14 % of the overnight capture's records were CRC-bad, and this
+# module reported 262 CONNECT_INDs where tshark (crcok==1) found 12 — 95 % bit-flip noise. And the
+# same capture had silently stopped producing packets 2 h into a 7.4 h window; nothing reported a
+# span, so the file's mtime passed for its coverage. Layout facts the builder below encodes were
+# derived from the real capture and verified against tshark on all 20,824 records (crc-bad count
+# matched exactly): 7-byte prefix (board · LE16 payload-len · protover=2 · LE16 counter ·
+# packet-id=6/EVENT) then a length-prefixed payload header whose SECOND octet is flags, bit0=CRC-ok.
+
+def _nordic(ble: bytes, *, flags: int = 0x01, protover: int = 2, packet_id: int = 6,
+            plen_delta: int = 0) -> bytes:
+    """A real nRF Sniffer v2 EVENT record around `ble` (which is AA + header + body)."""
+    body = bytes([10, flags, 38, 56, 0, 0, 0, 0, 0, 0]) + ble
+    return (bytes([0]) + struct.pack("<H", len(body) + plen_delta)
+            + bytes([protover]) + b"\x00\x00" + bytes([packet_id]) + body)
+
+
+def _pcap_ts(*records: tuple[int, int, bytes]) -> bytes:
+    """Like `_pcap`, but each record carries an explicit (ts_sec, ts_usec)."""
+    out = bytearray(b"\xd4\xc3\xb2\xa1" + b"\x00" * 20)
+    for ts, tu, p in records:
+        out += struct.pack("<IIII", ts, tu, len(p), len(p)) + p
+    return bytes(out)
+
+
+def test_crc_bad_record_is_excluded_from_every_counter():
+    good = _nordic(_adv(0x0, prefix=b""))
+    bad = _nordic(_adv(0x0, prefix=b""), flags=0x00)
+    s = ble_sniff.summarise(_pcap(good, bad, bad), follow=RESMED)
+    assert s["total"] == 3
+    assert s["crc_bad"] == 2
+    assert s["adv_channel"] == 1
+    assert s["pdus"] == {0x0: 1}
+    assert s["advertisers"] == {RESMED: 1}
+    assert s["follow_adv_packets"] == 1
+
+
+def test_crc_bad_connect_ind_is_not_a_connect():
+    """The 262-vs-12 defect itself: a corrupted CONNECT_IND must not enter the connect list."""
+    bad = _nordic(_adv(ble_sniff.CONNECT_IND, PHONE_WIRE + RESMED_WIRE, prefix=b""), flags=0x00)
+    s = ble_sniff.summarise(_pcap(bad), follow=RESMED)
+    assert s["connects"] == []
+    assert s["follow_connects"] == 0
+    assert s["crc_bad"] == 1
+
+
+def test_crc_bad_data_channel_record_is_excluded_from_the_verdict():
+    """A corrupted record without the access address must not fabricate 'GATT is present'."""
+    s = ble_sniff.summarise(_pcap(_nordic(b"\xde\xad\xbe\xef" * 4, flags=0x00)))
+    assert s["data_channel"] == 0
+    assert s["crc_bad"] == 1
+    assert "NO connection was followed" in ble_sniff.format_report(s)
+
+
+def test_crc_uses_only_bit_zero_of_the_flags():
+    """Other flag bits (direction/encrypted/MIC/PHY) must neither save nor damn a record."""
+    s = ble_sniff.summarise(_pcap(_nordic(_adv(0x0, prefix=b""), flags=0xFE)))
+    assert s["crc_bad"] == 1
+    s2 = ble_sniff.summarise(_pcap(_nordic(_adv(0x0, prefix=b""), flags=0x03)))
+    assert s2["crc_bad"] == 0
+    assert s2["pdus"] == {0x0: 1}
+
+
+def test_a_record_without_a_nordic_header_is_counted_not_guessed():
+    """Every pre-existing fixture in this file, and any non-nRF pcap: no header, no CRC claim."""
+    s = ble_sniff.summarise(_pcap(_adv(0x0)))
+    assert s["crc_bad"] == 0
+    assert s["pdus"] == {0x0: 1}
+
+
+def test_near_miss_nordic_headers_do_not_claim_the_crc_bit():
+    """Wrong protover, wrong packet id, or an inconsistent payload length: the flags octet is
+    NOT trusted, so a zero there must not silently discard a countable record."""
+    ble = _adv(0x0, prefix=b"")
+    for miss in (_nordic(ble, flags=0x00, protover=3),
+                 _nordic(ble, flags=0x00, packet_id=5),
+                 _nordic(ble, flags=0x00, plen_delta=1)):
+        s = ble_sniff.summarise(_pcap(miss))
+        assert s["crc_bad"] == 0
+        assert s["pdus"] == {0x0: 1}
+
+
+def test_a_record_too_short_for_a_nordic_header_is_counted():
+    s = ble_sniff.summarise(_pcap(b"\x00" * 10))
+    assert s["crc_bad"] == 0
+    assert s["data_channel"] == 1
+
+
+def test_crc_bad_records_still_extend_the_span():
+    """A corrupted record is still a record IN TIME — excluding it from the span would shrink
+    the very number that exists to expose a capture that died early."""
+    s = ble_sniff.summarise(_pcap_ts(
+        (100, 500000, _nordic(_adv(0x0, prefix=b""), flags=0x00)),
+        (200, 0, _adv(0x0))))
+    assert s["first_ts"] == pytest.approx(100.5)
+    assert s["last_ts"] == pytest.approx(200.0)
+    assert s["duration_s"] == pytest.approx(99.5)
+
+
+def test_capture_span_is_last_minus_first():
+    s = ble_sniff.summarise(_pcap_ts((100, 500000, _adv(0x0)), (460, 900000, _adv(0x0))))
+    assert s["duration_s"] == pytest.approx(360.4)
+
+
+def test_capture_span_survives_out_of_order_records():
+    """min/max over all records, not first-seen/last-seen."""
+    s = ble_sniff.summarise(_pcap_ts((460, 900000, _adv(0x0)), (100, 500000, _adv(0x0))))
+    assert s["first_ts"] == pytest.approx(100.5)
+    assert s["last_ts"] == pytest.approx(460.9)
+    assert s["duration_s"] == pytest.approx(360.4)
+
+
+def test_an_empty_capture_has_no_span():
+    s = ble_sniff.summarise(_pcap())
+    assert s["first_ts"] is None
+    assert s["last_ts"] is None
+    assert s["duration_s"] is None
+    assert "capture span      : no packets" in ble_sniff.format_report(s)
+
+
+def test_report_prints_the_span_with_utc_endpoints():
+    """The 2026-09-04 overnight capture read as 7.4 h by mtime and held 2 h of packets; the span
+    line is what would have said so. Endpoints render in UTC (Clock Contract: display via UTC)."""
+    s = ble_sniff.summarise(_pcap_ts((1788628423, 215216, _adv(0x0)),
+                                     (1788628783, 615216, _adv(0x0))))
+    r = ble_sniff.format_report(s)
+    assert "capture span      : 360.4 s (2026-09-05T17:13:43Z -> 2026-09-05T17:19:43Z)" in r
+
+
+def test_report_states_the_crc_exclusion_even_at_zero():
+    """An absent line and a zero are different facts (§4b): the exclusion is always stated."""
+    r = ble_sniff.format_report(ble_sniff.summarise(_pcap(_adv(0x0))))
+    assert "  crc-bad excluded: 0" in r
+    r2 = ble_sniff.format_report(
+        ble_sniff.summarise(_pcap(_nordic(_adv(0x0, prefix=b""), flags=0x00))))
+    assert "  crc-bad excluded: 1" in r2
