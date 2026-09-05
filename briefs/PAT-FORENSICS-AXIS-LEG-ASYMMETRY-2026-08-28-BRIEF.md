@@ -151,6 +151,32 @@ per-sample stamps, while `idx / fs` assumes a perfectly constant rate at the *es
 is the device's true sampling irregularity plus any error in `fs` — which is precisely the quantity
 §5 names as the PPG-axis suspect, and it is now measured rather than assumed.
 
+## 3c · The proposed remedy, confirmed at corpus scale on the sibling path (2026-09-05)
+
+§62–63 of `tools/pat-axis-leg-audit.mjs` names the intended fix — *interpolate `relSec` across the
+fractional index, as `tools/pat-matchrate-strict.mjs`'s `timeAt` already does*. That sibling path is
+now measured at corpus scale and it works:
+
+| | |
+|---|---|
+| consensus feet resolving through `relSec` | **72514 / 72514** |
+| falling back to `idx / fs` | **0** |
+| of which fractional indices | **all 72514** |
+| corpus | 3 largest Verity nights, `/srv/data/tepna-corpus/smoketest-captures` |
+
+So the remedy is **evidence-backed rather than argued**: the floor/ceil interpolation
+(`rel[lo] + fr * (rel[hi] - rel[lo])`, live since #1649, 2026-08-23) resolves every fractional foot
+this corpus produces, which is the case the raw subscript cannot hit even once.
+
+🔴 **This does NOT retract §2/§3, and the distinction cost a session an hour.** The `0/8948` finding
+is **live and correct** — it is about **`pat-feasibility-worker.js`**, which still reads
+`rel[idx] ?? idx / fs`. `timeAt` is a *different consumer* that was already fixed. Both functions map
+a foot index to a time, so a measurement of either reads as a measurement of "the PPG foot path", and
+one citation covering both is invisible: `tools/pat-drift-attribution.mjs` cited this brief's `0/8948`
+to describe `ppgFootTimes` and steered its `effectivePpm` on it for 8 days (residue
+`2026-09-05-one-citation-two-consumers`). **Quote this brief's number about the worker, and name the
+file every time.**
+
 ## 4 · What this does NOT yet establish
 
 - **Whether fixing it changes any night's verdict.** Not measured. The estimator's per-bin centring
