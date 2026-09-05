@@ -3816,6 +3816,22 @@ async def run_oxyii(dev: dict, root: str):
                         # never year-0 arithmetic (Clock Contract §2.7).
                         if r and r[0] == oxyii.OP_GET_INFO:
                             _info = oxyii.parse_get_info(r[1])
+                            # IDENTITY (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C). The same reply
+                            # carries the WIRE serial and firmware, and until 2026-09-05 both were parsed and
+                            # dropped here — the daemon's only post-connect identity check read a value nobody
+                            # kept. Published now, and the serial is checked against the operator's `serial:`
+                            # when one is configured (alerts.ring_identity_mismatch — plaintext + unbonded, so
+                            # this is detection of the cheap impostor and the WRONG RING, not proof of the
+                            # right one). Journal on the TRANSITION only; alert_poller carries it to the
+                            # webhook and latches per episode, as it does for the offline alarm.
+                            _seen = (_info or {}).get("serial")
+                            _mm = alerts.ring_identity_mismatch(dev.get("serial"), _seen)
+                            if _mm and STATUS["devices"].get(name, {}).get("ring_identity_mismatch") != _mm:
+                                log.error("%s: RING IDENTITY MISMATCH — %s; data from this link is suspect "
+                                          "until the serial matches", name, _mm)
+                            _set(name, ring_serial=_seen or None,
+                                 ring_firmware=(_info or {}).get("firmware") or None,
+                                 ring_identity_mismatch=_mm)
                             _rtc = _info.get("rtc") if _info else None
                             _off = round(ring_clock_offset_s(_rtc, _now()), 1) if _rtc else None
                             _set(name, ring_rtc_offset_s=_off,
@@ -5717,6 +5733,9 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     # not something capture is "missing" (alerts.offline_alert_suppressed holds the reasoning); one that
     # joined and then dropped is, so the distinction has to be remembered rather than re-derived.
     ever_connected: set[str] = set()
+    # Per-episode latch for the ring identity alarm below — same discipline as `alerted`, separate set
+    # because the two alarms have independent episodes (a wrong ring can be perfectly "recording").
+    identity_alerted: set[str] = set()
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         now = _time.monotonic()
@@ -5724,6 +5743,22 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
             name = d.get("name")
             if not name:
                 continue
+            # IMPOSTOR-SHAPE (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C). The oxyii session sets
+            # `ring_identity_mismatch` when the peer's 0xE1 serial ≠ the configured one and clears it when
+            # it matches. Checked BEFORE the offline logic on purpose: the wrong ring streams SpO₂ like the
+            # right one, so `recording` is true and nothing below would ever speak. Journal first, webhook
+            # once per episode, latch on the DELIVERY (CAPTURE-HOST-DEEP-AUDIT §C1) — never on the attempt.
+            mm = STATUS["devices"].get(name, {}).get("ring_identity_mismatch")
+            if mm:
+                if name not in identity_alerted:
+                    log.warning("alert: %s ring identity mismatch — %s; its data is suspect", name, mm)
+                    delivered = await notifier.send(
+                        "Tepna: ring identity mismatch",
+                        f"{name}: {mm}. Data from this link is suspect until the serial matches.")
+                    if delivered or not notifier.enabled:
+                        identity_alerted.add(name)
+            else:
+                identity_alerted.discard(name)
             connected = bool(STATUS["devices"].get(name, {}).get("connected"))
             if connected:
                 ever_connected.add(name)

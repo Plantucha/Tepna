@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (C4 EXECUTED — verified 2026-09-05: the §6.3 content gate is in `tepna-update.sh`, changeset `update-restart-content-gate`, 9 gate tests + 3 killed plants; §6.1 box ops and §6.2 Probe A are owner-attended; Mitigations B/C and D3 remain open) · **Created:** 2026-09-05
+**Status:** PROPOSED (C4 EXECUTED — verified 2026-09-05: the §6.3 content gate is in `tepna-update.sh`, changeset `update-restart-content-gate`, 9 gate tests + 3 killed plants. Mitigation C clause 1 EXECUTED — verified 2026-09-05: `run_oxyii` now publishes the `0xE1` wire serial + firmware to STATUS/monitor and compares the serial against a new optional O2Ring `serial:` config key — journal on transition, guardrails webhook once per episode; changeset `ring-identity-alert`; ⚠ the comparable field is the WIRE serial `2592302100`, not the BLE-name id `S8AW2100` the bullet named — see §6.2; ARMED only once the owner sets `serial:` on vigil. Clause 2 still open at this commit; §6.1 box ops and §6.2 Probe A are owner-attended; Mitigation B WITHDRAWN by owner correction (§6.2 — the `.dat` harvest is already BLE), B′ and D3 tracked separately) · **Created:** 2026-09-05
 
 # Vigil Bluetooth — adversarial audit (owner-ordered: "must be spotless")
 
@@ -226,6 +226,15 @@ session-crypto negotiation exists on the BLE transport — the §3.3 AES belongs
 - **Mitigation C — impostor-shape alert** (code PR): fire the existing guardrails webhook on an
   `0xE1` identity whose `device_id ≠` the configured `S8AW2100`, or on repeated connects that reach
   identity but never a valid pull. Detection, not prevention — cheap and honest about it.
+  **Clause 1 EXECUTED 2026-09-05, with a field correction:** the `0xE1` reply does NOT carry the BLE-name
+  id — `oxyii.parse_get_info` yields the **wire serial** (`2592302100` on the corpus ring, bytes `[37:]`)
+  and the firmware (`[9:17]`); `S8AW2100` is the advertised local name the filenames carry, and by the
+  standing address-only ruling a *name* is never identity. So the check is `serial ≠ config serial:`
+  (`alerts.ring_identity_mismatch`, pure; wired in `run_oxyii`'s GET_INFO branch and `alert_poller`);
+  a peer that answers `0xE1` with no serial at all against a configured one is also a mismatch. The
+  daemon already read `0xE1` on every session and *discarded* both fields — the identity was always on
+  the table, unspent. Inert until the owner sets `serial:` on the box (config is gitignored). Clause 2
+  is open: it needs a per-link connect-vs-pull counter the runner does not keep today.
 
 ### 6.3 · C4 content-gate — exact rule for the PR (so nobody re-derives it)
 

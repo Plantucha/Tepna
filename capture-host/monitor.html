@@ -1157,6 +1157,28 @@ function renderRingRtc(status) {
     + ' — the stored .dat timebase is suspect from here until the next verified clock push</span>';
 }
 
+// The ring's IDENTITY as the connected peer reported it (0xE1 wire serial + firmware), and the audit
+// §6.2 Mitigation C alarm when capture.py found it ≠ the configured `serial:`. Same extraction contract
+// as renderRingRtc: top-level, depends only on esc(), and every device-derived string is entity-encoded
+// before innerHTML. Renders the identity line whenever a serial or firmware has been read (id
+// #ring-identity), the alarm only when `ring_identity_mismatch` is set (id #ring-identity-alarm), and
+// NOTHING — no placeholder — before the first readback. A wrong ring streams SpO₂ like the right one,
+// so this line is the only place the monitor can say the link is the wrong device.
+function renderRingIdentity(status) {
+  if (!status) return '';
+  const sn = status.ring_serial, fw = status.ring_firmware, mm = status.ring_identity_mismatch;
+  let out = '';
+  if (sn || fw) {
+    out += `<div id="ring-identity" class="hint">peer identity: serial <b>${esc(String(sn || '—'))}</b>`
+      + ` · firmware <b>${esc(String(fw || '—'))}</b> <span class="hint">(0xE1 wire serial, not the filename id)</span></div>`;
+  }
+  if (mm) {
+    out += `<div id="ring-identity-alarm" class="mb" style="color:#c55">⚠ RING IDENTITY MISMATCH — ${esc(String(mm))}`
+      + ' — data from this link is suspect until the serial matches</div>';
+  }
+  return out;
+}
+
 function renderStorageStatus(){
   const st = (STATE&&STATE.storage)||{}, r = (STORAGE&&STORAGE.ready)||null;
   const held = (st.retention_held||[]).length;
@@ -2032,11 +2054,12 @@ function deviceSettingsBlock(d){
       const verdict = d.ring_config_verdict
         ? `<div class="rate-why"><b>${esc(d.ring_config_verdict)}</b></div>` : '';
       const rtcAlarm = renderRingRtc(d);   // the RTC-reset alarm; extractable top-level fn (see below)
+      const ident = renderRingIdentity(d); // who answered 0xE1, and the §6.2 Mitigation C verdict
       const bsel = [0,1,2].map(v =>
         `<option value="${v}" ${rc.brightness===v?'selected':''}>${['Low','Medium','High'][v]}</option>`).join('');
       return `<div class="setrow" style="display:block;margin-top:.4rem">
         <span class="k">ring device</span>
-        <span class="mb">${clock}</span>${rtcAlarm}
+        <span class="mb">${clock}</span>${rtcAlarm}${ident}
         <div style="margin-top:.3rem">
           display brightness
           <select class="ringcfg" data-addr="${esc(d.address)}" data-field="brightness">${bsel}</select>

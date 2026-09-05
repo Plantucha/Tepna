@@ -305,3 +305,41 @@ def test_a_LATER_success_clears_the_error_so_the_card_recovers():
     state["fail"] = False
     asyncio.run(n.send("t", "m"))
     assert n.stats()["last_error"] is None and n.stats()["last_ok"] is not None
+
+
+# ── ring_identity_mismatch — the audit §6.2 Mitigation C pure check ─────────────────────────────────
+def test_identity_check_is_INERT_when_no_serial_is_configured():
+    """Detection the operator opts into. Nothing configured ⇒ nothing to compare ⇒ never fires, whatever
+    the peer said — including a peer that said nothing."""
+    assert alerts.ring_identity_mismatch(None, "2592302100") is None
+    assert alerts.ring_identity_mismatch("", "2592302100") is None
+    assert alerts.ring_identity_mismatch("   ", "") is None
+    assert alerts.ring_identity_mismatch(None, None) is None
+
+
+def test_a_matching_wire_serial_is_silent_and_yaml_ints_count_as_a_match():
+    """`serial: 2592302100` parses as an int in YAML; the ring answers a string. One ring, one verdict."""
+    assert alerts.ring_identity_mismatch("2592302100", "2592302100") is None
+    assert alerts.ring_identity_mismatch(2592302100, "2592302100") is None
+    assert alerts.ring_identity_mismatch(" 2592302100 ", "2592302100") is None
+
+
+def test_a_different_serial_names_both_sides():
+    msg = alerts.ring_identity_mismatch("2592302100", "2592399999")
+    assert msg is not None
+    assert "2592399999" in msg and "2592302100" in msg, "the operator must see what answered AND what was expected"
+
+
+def test_the_filename_id_is_NOT_the_wire_serial_and_the_check_says_so_by_mismatching():
+    """The audit brief's first draft compared against `S8AW2100`, the BLE-name id. Configured that way, the
+    real ring would read as an impostor every night — a false alarm that teaches the operator to ignore
+    the alert. The docstring names the right field; this pins that the two strings really do differ."""
+    assert alerts.ring_identity_mismatch("S8AW2100", "2592302100") is not None
+
+
+def test_an_EMPTY_or_ABSENT_reply_against_a_configured_serial_is_a_mismatch():
+    """A peer that answers the identity query with no identity is the impostor shape, not a pass."""
+    for seen in ("", None, "   "):
+        msg = alerts.ring_identity_mismatch("2592302100", seen)
+        assert msg is not None, f"seen={seen!r} must not read as a match"
+        assert "no serial at all" in msg

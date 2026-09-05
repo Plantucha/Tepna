@@ -5074,6 +5074,148 @@ def test_run_oxyii_publishes_the_ring_rtc_offset(tmp_path, monkeypatch):
     assert st["ring_config"]["brightness"] == 0 and st["ring_config"]["motor"] == 60
 
 
+# ── run_oxyii: IDENTITY from the same 0xE1 reply (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C) ──
+def _o2_info_reply_from(serial: str, fw: bytes = b"2D010002"):
+    """A GET_INFO reply carrying a WIRE serial at [37]/[38:], as the real ring lays it out."""
+    p = bytearray(60)
+    p[9:17] = fw
+    p[24:31] = bytes([2026 & 0xFF, 2026 >> 8, 8, 19, 21, 50, 0])
+    sn = serial.encode("ascii")
+    p[37] = len(sn)
+    p[38:38 + len(sn)] = sn
+    return oxyii.encode(oxyii.OP_GET_INFO, bytes(p))
+
+
+def _o2_identity_responder(c, serial):
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply_from(serial))
+    return on
+
+
+def _run_ring_session(tmp_path, monkeypatch, dev, serial_on_air):
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture.STATUS["devices"].pop("Ring", None)
+    c = FakeGattClient()
+    c.on_live = _o2_identity_responder(c, serial_on_air)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(dev, str(tmp_path)))
+    return capture.STATUS["devices"]["Ring"]
+
+
+def test_run_oxyii_PUBLISHES_the_wire_serial_and_firmware_it_used_to_drop(tmp_path, monkeypatch):
+    """Until 2026-09-05 parse_get_info's serial/firmware were computed in on_data and kept by nobody."""
+    st = _run_ring_session(tmp_path, monkeypatch, _o2dev(), "2592302100")
+    assert st["ring_serial"] == "2592302100"
+    assert st["ring_firmware"] == "2D010002"
+    assert st["ring_identity_mismatch"] is None, "no `serial:` configured — the check is inert, not firing"
+
+
+def test_run_oxyii_a_MATCHING_configured_serial_publishes_no_mismatch(tmp_path, monkeypatch):
+    st = _run_ring_session(tmp_path, monkeypatch, _o2dev(serial=2592302100), "2592302100")  # YAML int
+    assert st["ring_identity_mismatch"] is None
+
+
+def test_run_oxyii_a_WRONG_RING_is_flagged_in_STATUS_and_the_journal(tmp_path, monkeypatch, caplog):
+    """The impostor shape: the peer at the configured address answers 0xE1 with a different serial. It
+    streams SpO₂ like the real ring, so every other field reads healthy — this flag is the only one
+    that can say the link is the wrong device. ERROR in the journal on the transition, once."""
+    import logging
+    caplog.set_level(logging.ERROR, logger="tepna-capture")
+    st = _run_ring_session(tmp_path, monkeypatch, _o2dev(serial="2592302100"), "2592399999")
+    assert st["ring_serial"] == "2592399999"
+    assert st["ring_identity_mismatch"], "a wrong serial must publish the mismatch"
+    assert "2592399999" in st["ring_identity_mismatch"] and "2592302100" in st["ring_identity_mismatch"]
+    hits = [r for r in caplog.records if "RING IDENTITY MISMATCH" in r.getMessage()]
+    assert len(hits) == 1, f"journal on the TRANSITION only, got {len(hits)}"
+
+
+def test_run_oxyii_journals_a_PERSISTING_mismatch_once_not_per_readback(tmp_path, monkeypatch, caplog):
+    """GET_INFO is re-read every _OXYII_INFO_EVERY_S all night. A wrong ring that stays connected would
+    otherwise write an ERROR line per readback — hours of identical lines that bury the one that matters.
+    The journal gets the TRANSITION; STATUS carries the standing state. Planted: dropping the guard
+    survived the single-read tests above, so this one forces several readbacks in one session."""
+    import logging
+    caplog.set_level(logging.ERROR, logger="tepna-capture")
+    monkeypatch.setattr(capture, "_OXYII_INFO_EVERY_S", 0)          # re-read on every loop pass
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture.STATUS["devices"].pop("Ring", None)
+    c = FakeGattClient()
+    served = {"info": 0}
+    inner = _o2_identity_responder(c, "2592399999")
+    def on(data):
+        if data[1] == oxyii.OP_GET_INFO:
+            served["info"] += 1
+        inner(data)
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 6)
+    _run(capture.run_oxyii(_o2dev(serial="2592302100"), str(tmp_path)))
+    assert served["info"] >= 2, f"the fixture must exercise repeated readbacks; served {served['info']}"
+    hits = [r for r in caplog.records if "RING IDENTITY MISMATCH" in r.getMessage()]
+    assert len(hits) == 1, f"{served['info']} readbacks of one persisting mismatch must journal ONCE, got {len(hits)}"
+    assert capture.STATUS["devices"]["Ring"]["ring_identity_mismatch"], "…while STATUS keeps carrying it"
+
+
+def test_run_oxyii_a_peer_with_NO_serial_against_a_configured_one_is_a_mismatch(tmp_path, monkeypatch):
+    """A 60-byte reply with an empty serial field (the unset-RTC fixture's shape) is not a pass when the
+    operator has said which ring to expect."""
+    st = _run_ring_session(tmp_path, monkeypatch, _o2dev(serial="2592302100"), "")
+    assert st["ring_serial"] is None, "an empty serial is published as absence, not as ''"
+    assert st["ring_identity_mismatch"] and "no serial at all" in st["ring_identity_mismatch"]
+
+
+def test_alert_poller_carries_an_identity_mismatch_to_the_webhook_ONCE_and_clears_on_match(monkeypatch):
+    """The wrong ring is `recording`, so the offline path never speaks — the identity clause must. One
+    webhook per episode, latched on delivery; the latch clears when the mismatch clears so a later wrong
+    ring alerts again."""
+    sent = []
+    class _N:
+        enabled = True
+        async def send(self, title, message, **kw): sent.append((title, message)); return True
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 1e9}, "devices": [_o2dev()]}
+    st = {"connected": True, "ring_identity_mismatch": "connected peer reports '9', config expects '1'"}
+    capture.STATUS["devices"]["Ring"] = st
+    capture._LAST_DATA["Ring"] = 1000.0                  # streaming — a wrong ring records like the right one
+    calls = {"n": 0}
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] == 3:
+            st["ring_identity_mismatch"] = None           # the right ring is back
+        if calls["n"] == 4:
+            st["ring_identity_mismatch"] = "connected peer reports '8', config expects '1'"   # new episode
+        if calls["n"] >= 5:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_DATA.pop("Ring", None)
+    titles = [t for t, _ in sent]
+    assert titles == ["Tepna: ring identity mismatch", "Tepna: ring identity mismatch"], titles
+    assert "'9'" in sent[0][1] and "'8'" in sent[1][1]
+    assert "Ring" in sent[0][1]
+
+
+def test_alert_poller_RETRIES_an_undelivered_identity_alert_next_poll(monkeypatch):
+    """Latch on the OUTCOME (CAPTURE-HOST-DEEP-AUDIT §C1): a failed POST is retried, not remembered as told."""
+    sent = []
+    class _N:
+        enabled = True
+        async def send(self, title, message, **kw): sent.append(title); return len(sent) >= 2
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 1e9}, "devices": [_o2dev()]}
+    capture.STATUS["devices"]["Ring"] = {"connected": True, "ring_identity_mismatch": "peer reports '9', config expects '1'"}
+    capture._LAST_DATA["Ring"] = 1000.0
+    _stop_after(monkeypatch, 4)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_DATA.pop("Ring", None)
+    assert sent == ["Tepna: ring identity mismatch"] * 2, f"one failed attempt, one delivery, then latched: {sent}"
+
+
 def test_run_oxyii_unset_rtc_publishes_none_not_year_zero(tmp_path, monkeypatch):
     """Clock Contract §2.7 at the STATUS boundary: an unset RTC region is absence, never arithmetic."""
     capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()

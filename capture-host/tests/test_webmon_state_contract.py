@@ -50,6 +50,10 @@ FULL_STATUS = {
     "ring_config_verdict": "brightness=2 applied",
     "ring_buzz_at": "2026-08-19T22:41:03.117",
     "ring_rtc_reset_suspect": "2026-08-20T05:02:11",
+    # Who answered 0xE1 (audit §6.2 Mitigation C, 2026-09-05): the wire serial, firmware, and the verdict.
+    "ring_serial": "2592302100",
+    "ring_firmware": "2D010002",
+    "ring_identity_mismatch": "connected peer reports '2592302100', config expects '2592399999'",
     # The two OxyII lifecycle axes (charter G4). Journalled to OXYLIFE.csv and written to STATUS from
     # the first G4 night and forwarded by nobody for thirteen nights (2026-08-24 → 09-05).
     "oxy_lifecycle": "idle_unworn",
@@ -82,6 +86,11 @@ DEVICE_KEYS = {
     # when it was read, the ring's own 0x00-read-back settings struct, and the last write's verdict.
     "ring_rtc_offset_s", "ring_rtc_read", "ring_config", "ring_config_verdict", "ring_buzz_at",
     "ring_rtc_reset_suspect",
+    # The ring's IDENTITY as the peer reported it (0xE1 wire serial + firmware) and the §6.2 Mitigation C
+    # mismatch verdict. Added deliberately: a wrong ring streams SpO₂ like the right one, so every other
+    # key here reads healthy — this is the only one that can say the link is the wrong device, and a
+    # STATUS field this list omits is not published (the rule this file exists to enforce).
+    "ring_serial", "ring_firmware", "ring_identity_mismatch",
     # The O2Ring PRESENCE axis and its §19 EXECUTION WITNESS (O2RING-AUTONOMOUS-HARVEST §19/§20).
     # Added to this contract DELIBERATELY rather than by relaxing the assertion: the key set IS the
     # monitor's contract, and §20 exists because a field that reaches `/api/state` and no further is
@@ -144,6 +153,9 @@ def test_a_device_projects_every_field_it_promises(tmp_path):
     assert d["ring_config_verdict"] == "brightness=2 applied"
     assert d["ring_buzz_at"] == "2026-08-19T22:41:03.117"
     assert d["ring_rtc_reset_suspect"] == "2026-08-20T05:02:11"
+    assert d["ring_serial"] == "2592302100" and d["ring_firmware"] == "2D010002"
+    assert d["ring_identity_mismatch"] == "connected peer reports '2592302100', config expects '2592399999'", (
+        "the verdict must arrive as the SENTENCE the journal carries — the monitor draws it verbatim")
     # G4: both axes arrive as the state STRINGS the journal uses, so the monitor draws the same word
     # OXYLIFE.csv records — an operator can match the chip to the row.
     assert d["oxy_lifecycle"] == "idle_unworn"
@@ -159,7 +171,8 @@ def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):
     assert d["connected"] is False, "never reported is a definite NO, not unknown"
     assert d["charging"] is False
     for k in ("battery", "rssi", "clock_synced", "device_time", "clock_skew_sec", "pull_progress",
-              "link_epoch", "worn", "last_error", "oxy_lifecycle", "oxy_recording"):
+              "link_epoch", "worn", "last_error", "oxy_lifecycle", "oxy_recording",
+              "ring_serial", "ring_firmware", "ring_identity_mismatch"):
         assert d[k] is None, f"{k} must be null when the device has never reported"
 
 

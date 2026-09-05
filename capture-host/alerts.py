@@ -244,6 +244,36 @@ def offline_alert_suppressed(optional: bool, ever_connected: bool) -> bool:
     return bool(optional) and not ever_connected
 
 
+def ring_identity_mismatch(expected, seen) -> str | None:
+    """PURE impostor-shape check (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C).
+
+    `expected` is the operator-configured WIRE serial — `serial:` on the O2Ring device entry, the string
+    the ring returns in its 0xE1 GET_INFO reply (2592302100 on the corpus ring). It is NOT the BLE-name
+    id the capture filenames carry (`S8AW2100`); the two are different strings for one ring, and the
+    audit brief's first draft named the wrong one. `seen` is what the connected peer actually answered.
+    Returns the alert text when they differ, None when they match.
+
+    No expectation configured ⇒ None. This is detection the operator opts into by writing the serial
+    down; with nothing to compare against there is nothing to say, and a check that fires unconfigured
+    would fire on every box that has not read this docstring. An EMPTY or ABSENT reply against a
+    configured serial IS a mismatch — a peer that answers the identity query with no identity is
+    exactly the shape of something that is not the ring.
+
+    Detection, not prevention. The link is unbonded and the reply is plaintext, so an impostor that has
+    read this repo can echo the right serial; what this catches is the cheap impostor and the WRONG RING
+    — a replaced unit, a neighbour's O2Ring, a re-scanned random-static address that landed on the
+    wrong device — and it says so on the monitor and the webhook instead of letting that link's data
+    into the corpus unremarked."""
+    exp = str(expected).strip() if expected is not None else ""
+    if not exp:
+        return None
+    got = str(seen).strip() if seen is not None else ""
+    if got == exp:
+        return None
+    shown = repr(got) if got else "no serial at all"
+    return f"connected peer reports {shown}, config expects {exp!r}"
+
+
 # WHY THIS EXISTS, AND WHY IT IS NOT `missing`.
 #
 # On 2026-07-25 the Verity acknowledged four PMD streams `ok` at 23:51:23 and wrote nothing until
