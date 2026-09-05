@@ -36,6 +36,7 @@ user; "windows" outlived its machine; "Mutator" read as the mutation lane (which
 | **Osprey** | Papers | rig-x870 | mutation program + analysis |
 | **Magpie** | Brief runner | rig-x870 | JS surface + sweeps |
 | **Finch** | windows | roaming (bridge) | special-collab / hardware RE, engaged on-demand |
+| **Wren** | — (created 2026-09-05) | vigil | resident on the capture box — box-local measurement + capture-host work; persists across reboot via a user systemd unit (`claude-wren.service` + linger, tmux `wren`). Deploys/daemon restarts remain owner-authorized. The box holds no gh/push credentials, so its branches land through a relay (`Fleet-Session: Wren (relay: <Name>)`) — a property of the lane, not a temporary state |
 
 - **`Fleet-Session: <Name>` goes in every commit message and PR body** — live 2026-08-31,
   forward-only (never backfill a merged PR; a CI lap for a label fails the cost test). Git history
