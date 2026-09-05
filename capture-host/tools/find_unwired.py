@@ -74,14 +74,6 @@ ALLOW_KEYS = {
     "updated": "ORPHAN, not intentional (2026-09-02). Written on every status publish; no reader "
                "anywhere — status_union.instance_health deliberately ages heartbeat_ms instead. "
                "RETIRES when the key is deleted or given a reader.",
-    "oxy_lifecycle": "published to STATUS by the G4 lifecycle wiring (run_oxyii emits the acquisition "
-                     "state) for /api/state inspection — the charter's STATUS half; the webmon-forward "
-                     "+ monitor lifecycle indicator is a tracked follow-up, same pattern the "
-                     "ring_rtc_reset_suspect draw followed, alongside the IDLE_UNWORN/PULLING hooks",
-    "oxy_recording": "the RECORDING axis's STATUS half (OxyRecEngine via _rec_emit) for /api/state "
-                     "inspection — the same charter pattern as oxy_lifecycle directly above, with the "
-                     "same tracked monitor-draw follow-up; the close-triggered pull (DAT-AUTO-HARVEST "
-                     "unit 2) is its first in-daemon consumer and lands next",
     # ── top-level shape (STATUS[key]= / setdefault) — covered since 2026-09-01 ──────────────────────
     "heartbeat_ms": "read by status_union.read_instance (staleness verdict) — the §3.6 merge layer of "
                     "PER-DEVICE-ADAPTER-PINNING, itself in ALLOW_MODULES as PENDING with its missing "

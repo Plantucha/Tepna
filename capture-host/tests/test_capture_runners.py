@@ -344,6 +344,55 @@ def test_run_oxyii_journals_both_axes_worn_flip_and_recording_close(tmp_path, mo
     assert any(r[3] == "live" for r in link) and any(r[3] == "idle_unworn" for r in link)
 
 
+def _oxylife_link_rows(tmp_path):
+    (life,) = list((tmp_path / "captures").rglob("OXYLIFE.csv"))
+    rows = [ln.split(";") for ln in life.read_text().splitlines() if ln and not ln.startswith(("#", "host_wall"))]
+    return [r for r in rows if r[-1] == ""]
+
+
+def test_run_oxyii_an_unworn_ring_streaming_frames_holds_IDLE_UNWORN_instead_of_flapping(tmp_path, monkeypatch):
+    """THE vigil 2026-08-28 oscillator, through the production loop. A connected ring on the desk answers
+    every ~1 Hz poll with contact=0: the live callback votes IDLE_UNWORN, then the loop's stall guard saw
+    a new frame and re-asserted LIVE ("frames flowing"), and the next poll voted IDLE_UNWORN again —
+    17,688 episodes, 32k rows each way, median dwell 1.0 s, on a night the ring was never worn. A frame
+    from an unworn ring is a heartbeat of the LINK; only the contact vote may move the worn edge."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    replies = [_o2ring_live_reply(worn=False, duration=0) for _ in range(5)]
+    c = FakeGattClient()
+    c.on_live = lambda data: (c.notify(0, replies.pop(0)) if data[1] == oxyii.OP_LIVE and replies else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 8)     # auth + setup + RTC, then five polls — five chances to flap
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    link = [r[3] for r in _oxylife_link_rows(tmp_path)]
+    worn_axis = [x for x in link if x in ("live", "idle_unworn")]
+    assert worn_axis == ["idle_unworn"], (
+        f"five unworn frames must journal ONE idle_unworn hold, not a live/idle oscillation: {link}")
+    assert capture.STATUS["devices"]["Ring"]["oxy_lifecycle"] != "live", "STATUS must not end on a 'live' the ring never earned"
+
+
+def test_run_oxyii_the_contact_vote_still_owns_the_worn_edge_in_both_directions(tmp_path, monkeypatch):
+    """The control for the hold above: holding IDLE_UNWORN against frames must not weld the ring there.
+    A worn frame after the unworn ones flips it back to LIVE (the callback's vote), and an unworn one
+    flips it to IDLE_UNWORN again — one row per real change, none per frame."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    replies = [
+        _o2ring_live_reply(worn=True, duration=900),
+        _o2ring_live_reply(worn=False, duration=0),
+        _o2ring_live_reply(worn=False, duration=0),
+        _o2ring_live_reply(worn=True, duration=10),
+        _o2ring_live_reply(worn=True, duration=11),
+        _o2ring_live_reply(worn=False, duration=0),
+    ]
+    c = FakeGattClient()
+    c.on_live = lambda data: (c.notify(0, replies.pop(0)) if data[1] == oxyii.OP_LIVE and replies else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 10)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    link = [r[3] for r in _oxylife_link_rows(tmp_path)]
+    worn_axis = [x for x in link if x in ("live", "idle_unworn")]
+    assert worn_axis == ["live", "idle_unworn", "live", "idle_unworn"], link
+
+
 def test_run_oxyii_reports_a_ring_in_recording_mode(tmp_path, monkeypatch):
     """No OxyII characteristics present -> the 'ring in recording mode' hint, no crash."""
     capture._OXYII_PAUSE.clear(); capture._RECOVER.clear()
