@@ -13,7 +13,8 @@ Each is planted as a control that fails if the rule is dropped."""
 import json
 import os
 import pathlib
-import re
+import sys
+import subprocess
 
 import oxy_inventory as inv
 
@@ -331,30 +332,45 @@ def test_reconcile_is_pure_and_does_not_mutate_its_inputs():
 # Re-run under `mutate.py oxy_inventory --no-reuse` leaves 12 survivors, not the 28 recorded on
 # 2026-08-23 — tests landed since then killed 16 (`make_row` 14 -> 1, `append_row` 6 -> 3). Of the
 # 12, `tools/mutate_triage.py` classes 8 UNOBSERVABLE and 4 REACHABLE, and all 4 REACHABLE are one
-# defect wearing two shapes:
+# defect in two shapes: `encoding="utf-8"` dropped from the ledger's two `open()` calls, as
+# `encoding=None` and as an omitted argument.
 #
-#     open(ledger_path, "a", encoding="utf-8")  ->  encoding=None   /   encoding omitted
-#     open(ledger_path,      encoding="utf-8")  ->  encoding=None   /   encoding omitted
+# On this box the platform default IS UTF-8, so the mutants behave identically and no ordinary
+# assertion can see them — which is why they survived 245 killed mutants. The defect is real: the
+# ledger is UTF-8 by intent and holds device-supplied filenames, so on a non-UTF-8 locale the write
+# and the read would disagree about bytes nobody chose.
 #
-# Dropping the explicit encoding makes the ledger's encoding the PLATFORM DEFAULT. On this box that
-# is UTF-8, so the mutants behave identically and no behavioural test can see them — which is
-# precisely why they survived 245 killed mutants. The defect is real anyway: the ledger is UTF-8 by
-# intent, it holds device-supplied filenames, and on a non-UTF-8 locale the write and the read would
-# disagree about bytes nobody chose.
+# ⚠️ A SOURCE SCAN CANNOT KILL THESE, and the first draft of this test proved it twice. mutmut runs
+# the module as ONE file containing every variant, so a scan for `encoding=None` matches the other
+# variants' lines whichever mutant is active — the test then fails for ALL mutants and the run reports
+# a clean 0 survivors it did not earn. (The draft before that resolved the module by walking up from
+# `__file__`, which does not exist in the scratch tree, so it ERRORED for every mutant — same vacuous
+# 0, different cause.) Both readings looked like a perfect score.
 #
-# So this is a SOURCE-SCAN invariant, deliberately, in the same family as the AS11 read-only scan:
-# the property is not observable at runtime here, and a scan is the only instrument that can see it.
-# It also kills both shapes at once, because mutmut rewrites the source the scan reads.
-def test_every_open_in_the_module_NAMES_its_encoding():
-    src = pathlib.Path(__file__).resolve().parent.parent / "oxy_inventory.py"
-    text = src.read_text(encoding="utf-8")
-    bad = []
-    for i, line in enumerate(text.splitlines(), 1):
-        if re.search(r"\bopen\s*\(", line) and "encoding=" not in line:
-            bad.append(f"{i}: {line.strip()}")
-        elif re.search(r"encoding\s*=\s*None", line):
-            bad.append(f"{i}: {line.strip()}")
-    assert not bad, (
-        "every open() of the ledger must name its encoding — without it the file is written and read "
-        "in the platform default, which is not UTF-8 everywhere:\n  " + "\n  ".join(bad)
+# So this asserts the RUNTIME property instead, in a subprocess where the interpreter itself is the
+# witness: `-X warn_default_encoding` makes an `open()` without an explicit encoding emit
+# EncodingWarning, and `-W error::EncodingWarning` turns that into a non-zero exit. The shipped code
+# is silent; either mutant trips it.
+def test_the_ledger_names_its_encoding_under_warn_default_encoding(tmp_path):
+    ledger = tmp_path / "inv.jsonl"
+    script = (
+        "import oxy_inventory as inv\n"
+        "p = %r\n"
+        "inv.append_row(p, inv.make_row('S8AW2100', 'sess-\u00e9', inv.COMMITTED, at=0.0))\n"
+        "rows = inv.load_rows(p)\n"
+        "assert len(rows) == 1, rows\n"
+    ) % str(ledger)
+    env = dict(os.environ, PYTHONPATH=str(pathlib.Path(inv.__file__).parent))
+    r = subprocess.run(
+        [sys.executable, "-X", "warn_default_encoding", "-W", "error::EncodingWarning", "-c", script],
+        capture_output=True, text=True, env=env,
     )
+    # Assert on the WITNESS, not merely on the exit code: any unrelated breakage in the script also
+    # exits non-zero, and blaming that on the encoding would be a false attribution the message would
+    # state confidently. Measured while writing this: a wrong make_row() arity failed here and the
+    # first draft reported it as an encoding defect.
+    assert "EncodingWarning" not in r.stderr, (
+        "the ledger's open() calls must name an encoding — the interpreter witnessed a default-encoding "
+        "use, so the file's encoding is the platform locale:\n" + r.stderr[-800:]
+    )
+    assert r.returncode == 0, "the probe itself failed, which says nothing about encoding:\n" + r.stderr[-800:]
