@@ -59,7 +59,8 @@ def _write_status(path, devices, top=None, publish=True, age=0.0):
         os.utime(path, (t, t))
 
 
-def _run(box, **env):
+def _run(box, *mode, **env):
+    """Drive the updater as the timer does (no argument), or as the button does (`"--no-restart"`)."""
     e = {**os.environ,
          "TEPNA_REPO_DIR": str(box["repo"]), "TEPNA_STATUS_JSON": str(box["status"]),
          "TEPNA_RESTART_SH": str(box["helper"]), "TEPNA_SUDO": "env",
@@ -67,13 +68,20 @@ def _run(box, **env):
          # Isolated per test. Without this the suite would write the streak marker to the REAL
          # /srv/tepna path, which on the box itself is a live operational file.
          "TEPNA_FAIL_MARK": str(box["fails"]), **env}
-    return subprocess.run(["bash", UPD], capture_output=True, text=True, env=e)
+    return subprocess.run(["bash", UPD, *mode], capture_output=True, text=True, env=e)
 
 
-def _advance(box):
-    """Land a new commit upstream, so the checkout has something to fast-forward to."""
-    (box["up"] / "README").write_text("v2\n")
-    _git(box["up"], "add", "README"); _git(box["up"], "commit", "-qm", "v2")
+def _advance(box, path="capture-host/capture.py"):
+    """Land a new commit upstream, so the checkout has something to fast-forward to.
+
+    The default touches the DAEMON'S code. Since the content gate (§5b) a commit that moves only files
+    outside `capture-host/` — the repo's dominant case: docs, briefs, bundles — is deployed WITHOUT a
+    restart, so a test that wants a restart must change something the daemon actually runs. Pass
+    `path="README"` for the docs-only shape."""
+    p = box["up"] / path
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(f"v{time.time_ns()}\n")
+    _git(box["up"], "add", path); _git(box["up"], "commit", "-qm", f"touch {path}")
 
 
 def _upstream_checker(box, body):
@@ -403,7 +411,8 @@ def test_the_updater_never_moves_a_ref_or_discards_a_tree():
     # error message, and a substring scan that fails on it is a test that will be edited to shut it up.
     verbs = set(re.findall(r'\bgit\s+-C\s+\S+\s+([a-z-]+)', code))
     assert verbs, "the scan found no git invocations — it has stopped working"
-    assert verbs <= {"status", "rev-parse", "fetch", "merge"}, (
+    # `diff` is read-only: it is how the content gate asks whether the daemon's code moved (§5b).
+    assert verbs <= {"status", "rev-parse", "fetch", "merge", "diff"}, (
         f"unattended git verbs are {sorted(verbs)} — reset/clean/stash/checkout/push/update-ref would "
         f"destroy work whose only copy is on the box, at 3 a.m. (CLAUDE.md §2, §2b)")
     assert "--ff-only" in code
@@ -620,6 +629,114 @@ def test_A_STALE_MARKER_FROM_AN_OUTSIDE_RESTART_COSTS_ONE_RESTART_NOT_A_LOOP(box
     r2 = _run(box)
     assert "nothing to do" in r2.stdout, r2.stdout
     assert not box["called"].exists(), "a stale marker caused a restart loop"
+
+
+# ── the CONTENT gate: a sha that moved is not code that moved ─────────────────────────────────────
+# Measured on vigil 2026-09-05 13:40:45: a restart to deploy `93a17e27`, a docs-only commit, dropped
+# every live BLE link and re-ran bonding for a daemon whose code had not changed by one byte
+# (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT-2026-09-05 C4, §6.3). The rule under test: a restart is owed iff
+# the daemon's sha ≠ HEAD AND `git diff --name-only <running>..HEAD -- capture-host/` is non-empty.
+def test_A_DOCS_ONLY_DEPLOY_ADVANCES_THE_MARKER_AND_DOES_NOT_RESTART(box):
+    _advance(box, path="README")
+    r = _run(box)
+    assert r.returncode == 0, r.stderr
+    assert "updated" in r.stdout, "the fast-forward itself must still happen"
+    assert "no capture-host/ change" in r.stdout, r.stdout
+    assert not box["called"].exists(), "restarted a daemon whose code did not change"
+    assert box["mark"].read_text().strip() == _head(box), "the marker must advance, or every later tick re-asks"
+    # ...and the next tick has nothing to do: the debt was never real.
+    r2 = _run(box)
+    assert "nothing to do" in r2.stdout and not box["called"].exists()
+
+
+def test_A_CAPTURE_HOST_CHANGE_STILL_RESTARTS(box):
+    """The gate removes ONE case. Every test above that restarts now goes through it, and this one
+    names the contract directly so a widened path filter cannot pass unnoticed."""
+    _advance(box, path="capture-host/oxyii.py")
+    r = _run(box)
+    assert r.returncode == 0, r.stderr
+    assert box["called"].read_text().strip() == "restart"
+    assert "no capture-host/ change" not in r.stdout
+
+
+def test_THE_GATE_IS_COARSE_ON_PURPOSE_a_tests_only_change_restarts(box):
+    """`capture-host/` is the rule, verbatim from the brief. A tests-only change restarts a daemon that
+    does not import its tests — that is over-restarting, which is the SAFE direction, and it is chosen
+    rather than accidental: the gate exists to remove the gratuitous case, not to be clever about the
+    marginal one, and a clever filter is a filter that one day excludes a module the daemon runs."""
+    _advance(box, path="capture-host/tests/test_x.py")
+    _run(box)
+    assert box["called"].read_text().strip() == "restart"
+
+
+def test_A_DOCS_ONLY_DEPLOY_DURING_A_RECORDING_IS_NOT_A_DEFERRAL(box):
+    """Nothing is owed, so nothing is deferred: the marker advances even while a device records, and
+    the morning tick finds no debt. Without this the docs-only delta would sit as a phantom debt all
+    night and pay itself with a gratuitous restart at dawn."""
+    _advance(box, path="README")
+    _write_status(box["status"], {"Ring": True})
+    r = _run(box)
+    assert "deferred" not in r.stdout, r.stdout
+    assert box["mark"].read_text().strip() == _head(box)
+    _write_status(box["status"], {"Ring": False})
+    r2 = _run(box)
+    assert "nothing to do" in r2.stdout and not box["called"].exists()
+
+
+def test_THE_GATE_DIFFS_FROM_WHAT_THE_DAEMON_RUNS_NOT_FROM_THE_LAST_TICK(box):
+    """A code change deferred overnight, then a docs-only merge on top. Diffing the LAST tick's move
+    (docs-only) would read the debt as paid; the debt is the whole range from the sha the daemon is on
+    to HEAD, and that range contains the code change."""
+    _advance(box)                                            # code
+    _write_status(box["status"], {"Ring": True})
+    _run(box)                                                # merged, deferred
+    _advance(box, path="README")                             # docs, on top
+    r2 = _run(box)                                           # still recording
+    assert "deferred" in r2.stdout, r2.stdout
+    assert "no capture-host/ change" not in r2.stdout, "the code change was diffed away"
+    _write_status(box["status"], {"Ring": False})
+    _run(box)
+    assert box["called"].read_text().strip() == "restart", "the deferred code change was never deployed"
+
+
+def test_A_MARKER_SHA_GIT_CANNOT_RESOLVE_FAILS_TOWARD_RESTART(box):
+    """🔴 THE LOAD-BEARING CASE. The gate may only ever remove a restart it has PROVEN redundant. A marker
+    sha git does not know (a stale marker, a rewritten history, a hand-edited file) gives NO answer, and
+    no answer must fall back to the old behaviour — restart — not to "nothing changed". Planted as a
+    docs-only delta on purpose: the diff alone would say skip; the unresolvable sha must override it."""
+    _advance(box, path="README")
+    box["mark"].write_text("0" * 40 + "\n")
+    r = _run(box)
+    assert box["called"].read_text().strip() == "restart", "an unknowable delta was read as 'nothing changed'"
+    assert "cannot establish what changed" in r.stdout, r.stdout
+    assert box["mark"].read_text().strip() == _head(box)
+
+
+def test_FORCE_RESTART_BYPASSES_THE_GATE(box):
+    """The operator asked for a restart, not for an opinion on whether one is needed."""
+    _advance(box, path="README")
+    r = _run(box, "--force-restart")
+    assert r.returncode == 0, r.stderr
+    assert box["called"].read_text().strip() == "restart"
+    assert "no capture-host/ change" not in r.stdout
+
+
+def test_NO_RESTART_MODE_DOES_NOT_REPORT_A_DOCS_ONLY_DELTA_AS_OWED(box):
+    """The Deploy button branches on the RESTART-OWED token. After a docs-only fast-forward there is
+    nothing to press Restart for, so the token must not appear — and the marker still advances, because
+    the button's run IS the deploy."""
+    _advance(box, path="README")
+    r = _run(box, "--no-restart")
+    assert r.returncode == 0, r.stderr
+    assert "RESTART-OWED" not in r.stdout, r.stdout
+    assert not box["called"].exists()
+    assert box["mark"].read_text().strip() == _head(box)
+
+
+def test_NO_RESTART_MODE_STILL_REPORTS_A_CODE_DELTA_AS_OWED(box):
+    _advance(box)
+    r = _run(box, "--no-restart")
+    assert "RESTART-OWED" in r.stdout and not box["called"].exists()
 
 
 # ── the default marker path must be writable by the service that writes it ────────────────────────

@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-09-05
+**Status:** PROPOSED (C4 EXECUTED — verified 2026-09-05: the §6.3 content gate is in `tepna-update.sh`, changeset `update-restart-content-gate`, 9 gate tests + 3 killed plants; §6.1 box ops and §6.2 Probe A are owner-attended; Mitigations B/C and D3 remain open) · **Created:** 2026-09-05
 
 # Vigil Bluetooth — adversarial audit (owner-ordered: "must be spotless")
 
