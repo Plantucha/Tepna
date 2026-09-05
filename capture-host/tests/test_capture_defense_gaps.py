@@ -183,3 +183,59 @@ def test_startup_defense_check_survives_an_unreadable_proc_status(tmp_path, monk
         return real(path, *a, **k)
     monkeypatch.setattr("builtins.open", boom)
     asyncio.run(capture.startup_defense_check("hci0"))          # must not raise
+
+
+# ── §B2 — the Trusted-sensor tripwire (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT 2026-09-05) ────────────────
+# A sensor left `Trusted` on the capture adapter arms the kernel's autoconnect, which races bleak for
+# the single ACL slot. bond() no longer sets trust, but a flag leaked by the old script is invisible
+# until the race bites — measured live: both Polars `Trusted: yes` months after the untrust shipped.
+
+def test_defense_warnings_name_each_trusted_sensor():
+    out = capture.defense_warnings("on", None,
+                                   trusted_sensors=["AA:AA:AA:AA:AA:AA", "BB:BB:BB:BB:BB:BB"])
+    hits = [w for w in out if "Trusted on the capture adapter" in w]
+    assert len(hits) == 2
+    assert "AA:AA:AA:AA:AA:AA" in hits[0] and "untrust AA:AA:AA:AA:AA:AA" in hits[0]
+    assert "BB:BB:BB:BB:BB:BB" in hits[1]
+
+
+def test_defense_warnings_are_quiet_when_no_sensor_is_trusted():
+    for kw in ({}, {"trusted_sensors": ()}):
+        assert not any("Trusted" in w for w in capture.defense_warnings("on", None, **kw))
+
+
+def test_startup_defense_check_reads_trusted_flags_for_the_configured_sensors(tmp_path, monkeypatch, caplog):
+    """The gather side: addresses come from cfg.devices, the adapter from cfg.adapter — the flag is
+    PER-ADAPTER (measured: Trusted no on hci0, yes on hci1, same device), so querying the default
+    controller would under-warn."""
+    ctrl = tmp_path / "control"
+    ctrl.write_text("on\n")
+    monkeypatch.setattr(capture, "_usb_power_control_path", lambda _h: str(ctrl))
+    seen = {}
+
+    async def fake(addrs, adapter=None):
+        seen["addrs"], seen["adapter"] = list(addrs), adapter
+        return ["D1:98:62:7C:92:B3"]
+    monkeypatch.setattr(capture.bonding, "trusted_flags", fake)
+    cfg = {"adapter": "00:01:95:CC:53:02",
+           "devices": [{"address": "D1:98:62:7C:92:B3"}, {"address": "24:AC:AC:02:84:96"}, {}]}
+    with caplog.at_level("WARNING"):
+        asyncio.run(capture.startup_defense_check("hci0", cfg))
+    assert seen == {"addrs": ["D1:98:62:7C:92:B3", "24:AC:AC:02:84:96"],
+                    "adapter": "00:01:95:CC:53:02"}
+    assert any("D1:98:62:7C:92:B3 is Trusted" in r.getMessage() for r in caplog.records)
+
+
+def test_startup_defense_check_survives_a_trusted_flags_failure(tmp_path, monkeypatch, caplog):
+    """The tripwire must never keep capture from starting, and a failed read is silence, not a warn."""
+    ctrl = tmp_path / "control"
+    ctrl.write_text("on\n")
+    monkeypatch.setattr(capture, "_usb_power_control_path", lambda _h: str(ctrl))
+
+    async def boom(addrs, adapter=None):
+        raise RuntimeError("no bluetoothctl here")
+    monkeypatch.setattr(capture.bonding, "trusted_flags", boom)
+    with caplog.at_level("WARNING"):
+        asyncio.run(capture.startup_defense_check(
+            "hci0", {"adapter": "X", "devices": [{"address": "AA:AA:AA:AA:AA:AA"}]}))
+    assert not any("Trusted" in r.getMessage() for r in caplog.records)

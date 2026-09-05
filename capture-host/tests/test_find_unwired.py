@@ -133,7 +133,10 @@ def test_the_scanner_does_NOT_count_its_own_allowlist_as_usage():
     allowed = {r["func"] for r in res["orphan_functions"] if r["allowed"]}
     assert "predict_step_split" in allowed, (
         "an allowlisted function must still be REPORTED, with its reason — not silently absent")
-    assert "busy_with" in allowed and "oxy_is_finalized" in allowed
+    # `busy_with` was the third example here until 2026-09-05, when `capture.gate_state()` started
+    # reading it — the entry became SPENT and the stale-allowlist check below rightly demanded its
+    # deletion. An example function must stay orphaned to remain an example.
+    assert "is_offline_cmd" in allowed and "oxy_is_finalized" in allowed
 
 
 def test_every_allowlisted_function_still_appears_in_the_report(capsys):
@@ -142,7 +145,7 @@ def test_every_allowlisted_function_still_appears_in_the_report(capsys):
     find_unwired.main([])
     out = capsys.readouterr().out
     assert "unexplained," in out and "allowed" in out
-    for name in ("predict_step_split", "busy_with", "oxy_is_finalized"):
+    for name in ("predict_step_split", "is_offline_cmd", "oxy_is_finalized"):
         assert name in out, f"{name} is allowlisted but absent from the report"
 
 
