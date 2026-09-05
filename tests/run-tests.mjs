@@ -1316,6 +1316,29 @@ function readNonBundleCsp() {
   return out;
 }
 
+/* CAPTURE-FILENAME SUFFIX PARITY (#2215 · #2219 · #2221) — every reader of the capture-host layout, as
+   TEXT. `writers.capture_filename` upper-cases the stream tag, and three readers written from a brief's
+   lowercase spelling (`*_rtclog.csv`) matched NOTHING on any real night; the gate that covered one of
+   them asserted the same lowercase literal, so it encoded the defect. The group derives the EMITTED set
+   from the writer's own call sites and checks every comparison in every reader against it — writers and
+   readers both, because the class is "nobody compared the two". Scope is DERIVED (every root `*.js`,
+   `tools/`, `capture-host/` + its `tools/`), never curated: a curated list is how `trio-batch.mjs` sat
+   outside `env.sources` for its first months. Tests are out — they name a wrong form on purpose.
+   Node-lane only; the browser lane SKIPs (mirrors docs-ledger / release-ledger). */
+function readCaptureFilenameScan() {
+  const pick = (dir, re) => {
+    const d = join(ROOT, dir);
+    if (!existsSync(d)) return [];
+    return readdirSync(d)
+      .filter((f) => re.test(f))
+      .map((f) => (dir ? `${dir}/${f}` : f));
+  };
+  const files = [...pick('', /\.js$/), ...pick('tools', /\.(?:m?js|py)$/), ...pick('capture-host', /\.py$/), ...pick('capture-host/tools', /\.py$/)];
+  const out = {};
+  for (const f of files) out[f] = readFileSync(join(ROOT, f), 'utf8');
+  return out;
+}
+
 // analysis-tools self-contained gate (LOCAL-DOWNLOAD / file:// fix): the 9 science tools are bundled to
 // self-contained single-file HTML by tools/build-analysis.mjs so they run when downloaded to disk. This
 // reads each committed tool HTML so the group can assert the file://-safe invariant (no external <script
@@ -2271,6 +2294,7 @@ async function main() {
     srcHtml: readSrcHtml(),
     nodeSurfaces: readNodeSurfaces(),
     nonBundleCsp: readNonBundleCsp(),
+    captureFilenameScan: readCaptureFilenameScan(),
     claudeMdClaims: readClaudeMdClaims(),
     onGroup: PROGRESS ? progressReporter() : undefined,
     /* XMT GROUND TRUTH (analysis/xmt-fixture.js) — loaded through the SAME `loadInto` path the DSPs
