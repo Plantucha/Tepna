@@ -271,6 +271,11 @@ ALLOW_FUNCS = {
     "is_offline_cmd": "the READ half of a write/read pair whose write half IS used — `as_offline` sets "
                       "the bit in probe_verity_offline and probe_verity_survey; nothing needs to ask "
                       "the question back. Same shape as busy_with",
+    "iter_packets": "ble_sniff's payload-only iteration, kept when summarise() moved to iter_records "
+                    "for the capture span (VIGIL-BLUETOOTH-ADAPTERS F2): the payload-bytes contract "
+                    "its tests pin and the shape a hand analysis reaches for when time is not the "
+                    "question. A one-line wrapper is cheaper than repointing every caller at tuple "
+                    "unpacking; DELETE with its tests if ble_sniff ever drops the payload-only view",
     # `start_key_exchange` / `confirm_key_exchange` (as11_link) LEFT this list 2026-09-05: their consumer
     # — as11_pair.py's connect → StartKeyExchange → prove → ConfirmKeyExchange → verify M2 → write
     # as11_creds.json orchestration, wired into the daemon as webmon's `cpap_pair` — now exists, so they
