@@ -310,9 +310,23 @@ mechanism that could not handle it.
 
 ## 7 · Done when
 
-- [ ] The two triggers are independently flagged, and no deployed behaviour changes silently.
-- [ ] `armed` / `NOT armed` prints at start with the governing flag and value named.
-- [ ] A control proves the diagnostic fires in both directions — the absent-line failure cannot recur.
+- [x] The two triggers are independently flagged, and no deployed behaviour changes silently.
+      **VERIFIED BUILT 2026-09-05** — `autopull_arming()` returns `charger`/`doff`/`close` separately
+      with a `why`. ⚠ The one silent path, `if not devices: return`, is a DECISION and not a gap:
+      `test_the_charger_poller_returns_when_no_device_can_be_pulled` pins it, because a Muse fleet has
+      no onboard recording and *"arming a poller with nothing to poll would log 'armed — pulling 0
+      device(s)', which is worse than silence"*. Recorded because I re-derived that question and tried
+      to "fix" it; their test reddened the change, which is what a defended decision is for.
+- [x] `armed` / `NOT armed` prints at start with the governing flag and value named.
+      **VERIFIED BUILT 2026-09-05** — both lines exist in `charger_pull_poller`; the armed one names
+      every flag with its value (`charger=on (15s) not-worn=on (210s) on-close=OFF presence=…`).
+- [x] A control proves the diagnostic fires in both directions — the absent-line failure cannot recur.
+      **DONE 2026-09-05 (#2200)** — `test_the_autopull_arming_line_fires_when_ARMED` /
+      `…_when_NOT_ARMED` in `tests/test_capture.py`. Paired deliberately: a one-directional test passes
+      against a diagnostic that prints the same string unconditionally. Verified to bite — removing
+      either line reds exactly its own test. The pre-existing test on `autopull_arming()` could not
+      cover this: it checks the DECISION, not that the decision is ever said, and the original defect
+      was an absence (0 `armed` lines against 312 poller lines on 2026-08-24).
 - [ ] Every item in §5 is built, or recorded as declined with a measured reason.
 
 ---
