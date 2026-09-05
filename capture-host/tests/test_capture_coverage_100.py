@@ -27,7 +27,7 @@ import nightarchive  # noqa: E402
 _GLOBAL_SNAPSHOT = {k: getattr(capture, k) for k in
                     ("_DROP_NOT_WORN_SEC", "_NOT_WORN_RECHECK_S", "_OXYII_RTC_RESYNC_SEC",
                      "O2PPG_FS", "O2PPG_NS_STEP", "_STREAM_STALL_S", "O2PPG_GAP_MIN_S",
-                     "_O2_PASSIVE_SCAN")}
+                     "_O2_PASSIVE_SCAN", "_RECONNECT_BACKOFF_CAP_S")}
 
 
 @pytest.fixture(autouse=True)
