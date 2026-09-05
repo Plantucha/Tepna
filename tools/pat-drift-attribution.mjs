@@ -37,11 +37,28 @@
  * drops-what-it-does-not-name trap `ppgdex-dsp.js` documents beside its own forwarding block, hit
  * one layer further out. Parse once and take the axis from the record.
  *
- * ⚠️ THE PPG LEG'S CORRECTION IS COMPUTED AND THEN DISCARDED, so for PAT purposes its effective rate
- * is the RAW ppm. `relSec` carries the host-disciplined axis, but `ppgFootTimes` indexes it with a
- * FRACTIONAL foot index — always `undefined` — and falls back to `idx / fs`
- * (PAT-FORENSICS-AXIS-LEG-ASYMMETRY, 0/8948 feet). So the correction never reaches the lag, and the
- * PPG contributes its uncorrected rate here even though the pipeline computed a correction for it.
+ * ⚠️ THE PPG LEG'S CORRECTION *DOES* REACH THE LAG **HERE** — and this block asserted the opposite
+ * until 2026-09-05. It read that the correction "is computed and then discarded" because
+ * `ppgFootTimes` indexed `relSec` with a FRACTIONAL foot index that returned `undefined` and fell
+ * back to `idx / fs`, citing PAT-FORENSICS-AXIS-LEG-ASYMMETRY's `0/8948 feet`.
+ *
+ * That was a MIS-ATTRIBUTION ACROSS TWO CONSUMERS, not a stale number. The `0/8948` measurement is
+ * live and correct — but it is about **`pat-feasibility-worker.js`**, which still reads
+ * `rel[idx] ?? idx / fs`, a RAW SUBSCRIPT that a fractional index can never hit. This tool does not
+ * use that path: it imports `ppgFootTimes` from `pat-matchrate-strict.mjs`, whose `timeAt`
+ * INTERPOLATES — `rel[lo] + fr * (rel[hi] - rel[lo])` — and has since #1649 (2026-08-23). Two
+ * functions, two behaviours, one citation applied to both.
+ *
+ * Re-measured 2026-09-05 through the exact function this file calls, over the three largest Verity
+ * nights in `smoketest-captures`: **72514 of 72514 consensus feet resolve through `relSec`, 0 fall
+ * back**, every one a fractional index. So the drift really has been divided out of the beat times
+ * this tool measures, and `applied: true` on that record is truthful rather than a discarded
+ * correction. The worker's defect is untouched by that and AXIS-LEG-ASYMMETRY remains open on it.
+ *
+ * The `fs` path is a third thing again, and it is where the correction genuinely IS erased —
+ * `ppgdex-dsp.js:556` divides `fs` by (1 + ppm/1e6) and `:557` rounds `fs` to 2 dp, a 181.8 ppm step
+ * at 55 Hz. True of `fs`, and not an observation about the lag: foot times come from `relSec` on
+ * 100 % of the beats measured. Do not re-derive the discarded-correction conclusion from it.
  *
  * ⚠️ A DEVICE WHOSE CORRECTION WAS APPLIED CONTRIBUTES ~0, NOT ITS ppm. If `applied === true` the
  * rate was already divided out of that device's axis, so its residual contribution is ~0. Using the
@@ -102,6 +119,21 @@ export function linfit(xs, ys) {
 export function effectivePpm(hostAxis) {
   if (!hostAxis || !hostAxis.ok || !Number.isFinite(hostAxis.ppm)) return null;
   if (hostAxis.independent === false) return null; // no real second clock — cannot predict
+  /* ⚠️ A MISSING `applied` IS A CONTRACT BREACH, NOT A FALSE. The old line was
+     `hostAxis.applied === true ? 0 : hostAxis.ppm`, so an absent key fell to the ppm branch —
+     "this device's drift is still outstanding". That was correct for ECGDex, which has always
+     written the key, and WRONG for PpgDex, which applies the correction
+     (`relSec = devMs + correctionAt(devMs)`) and never wrote it: its already-absorbed drift was
+     counted a second time. The reader looked right because the only node it was tested against
+     happened to emit the key.
+     `applied` is owned by the DSP THAT APPLIES THE AXIS, and both nodes now write it with the same
+     meaning. So absence is no longer a defensible state: refuse rather than guess a direction,
+     because both guesses are wrong half the time and neither is visible. */
+  if (typeof hostAxis.applied !== 'boolean') {
+    throw new Error(
+      'hostAxis.applied missing — the emitting DSP must state whether the correction was applied. ' + 'Guessing it silently double-counts (absent→ppm) or silently discards (absent→0) a real drift.'
+    );
+  }
   return hostAxis.applied === true ? 0 : hostAxis.ppm;
 }
 

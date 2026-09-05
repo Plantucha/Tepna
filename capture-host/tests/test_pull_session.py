@@ -282,7 +282,10 @@ def test_adapter_pin_reaches_bleak_in_the_bluez_form(tmp_path, monkeypatch):
         return None
     monkeypatch.setattr(pull_session.asyncio, "sleep", no_sleep)
     _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, "hci1", "0000"))
-    assert seen["client"] == {"bluez": {"adapter": "hci1"}}
+    assert seen["client"] == {"bluez": {"adapter": "hci1"}, "timeout": 30.0}, (
+        "the connect timeout is a DECLARED bound (oxy_power.TIMEOUTS.connect_s), not bleak's default — "
+        "the same 30 s, but named, so all seven phase bounds of the power lifecycle are numbers a reader "
+        "can find")
     assert seen["scan"] == {"timeout": 25, "bluez": {"adapter": "hci1"}}, (
         "the adapter pin must reach the SCAN too — scanning on the default radio and then connecting on "
         "hci1 finds a device the pinned adapter may not see. 25 s is measured, not arbitrary: FILE_LIST "
@@ -980,3 +983,34 @@ def test_no_sessions_leaves_the_lifecycle_untouched(tmp_path, monkeypatch):
     _install(monkeypatch, FakeRing([], b""))
     assert _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "latest", 0, None, "0000", lifecycle=lc)) == []
     assert lc.history == [] and lc.state is oxy_lifecycle.OxyState.NOT_SEEN
+
+
+# ── which="new" — the ledger-diff scope (residue 2026-09-05-doff-pull-latest-strands-fragments) ─────
+def test_which_NEW_pulls_only_what_the_ledger_does_not_already_hold(tmp_path, monkeypatch):
+    """The drain's whole point: a night whose main session already landed must not re-pull it over
+    the slow BLE link, and the fragment that never landed must not be skipped because a DISCOVERED
+    row exists for it."""
+    import oxy_inventory as INV
+    blob = b"\x01\x03" + bytes(range(256)) * 8
+    ledger = os.path.join(str(tmp_path), "inventory.jsonl")
+    INV.append_row(ledger, {"session": "20260828232644", "state": INV.COMMITTED,
+                            "id": "x/20260828232644"})
+    INV.append_row(ledger, {"session": "20260829015107", "state": INV.DISCOVERED,
+                            "id": "x/20260829015107"})
+    ring = FakeRing(["20260828232644", "20260829015107"], blob)
+    _install(monkeypatch, ring)
+    got = _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "new", 0, None, "0000"))
+
+    assert len(got) == 1, f"expected only the undrained session, got {got}"
+    assert got[0].endswith("Wellue_O2Ring-S_20260829015107_STORED.dat")
+
+
+def test_which_NEW_with_nothing_owed_is_a_cheap_no_op(tmp_path, monkeypatch):
+    """The common case once a night is fully drained. It must cost a listing and nothing else —
+    this is what makes the follow-on sweep safe to dispatch unconditionally after every event pull."""
+    import oxy_inventory as INV
+    INV.append_row(os.path.join(str(tmp_path), "inventory.jsonl"),
+                   {"session": "20260828232644", "state": INV.VERIFIED, "id": "x/20260828232644"})
+    ring = FakeRing(["20260828232644"], b"\x01\x03" + bytes(range(256)) * 8)
+    _install(monkeypatch, ring)
+    assert _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "new", 0, None, "0000")) == []

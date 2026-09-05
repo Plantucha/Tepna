@@ -67,6 +67,21 @@ class _Completed:
         self.returncode, self.stdout, self.stderr = returncode, stdout, stderr
 
 
+@_pytest.fixture(autouse=True)
+def _fresh_power_engines():
+    """`capture._POWER` holds one per-ring power engine per process — the same object the daemon keeps
+    for a whole night. Left alone, a test that drives "Ring" into storm cooldown / backoff / synced-idle
+    silently DEFERS the next test's pull and that test fails on a gate it never touched. Guarded: many
+    test files never import capture (bleak-free lanes), and the fixture must not become the importer."""
+    mod = sys.modules.get("capture")
+    if mod is not None and hasattr(mod, "_POWER"):
+        mod._POWER.clear()
+    yield
+    mod = sys.modules.get("capture")
+    if mod is not None and hasattr(mod, "_POWER"):
+        mod._POWER.clear()
+
+
 @_pytest.fixture
 def recorded_run(monkeypatch):
     """Patches `subprocess.run` in the cpap_harvest module namespace and hands back the recorder."""

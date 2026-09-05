@@ -114,8 +114,11 @@ class Transition:
     and the FailureClass on an edge into ERROR/INTERRUPTED. `as_row` matches the writers.LinkLogWriter
     sidecar idiom the wiring writes to `OXYLIFE.csv`."""
 
-    prev: "OxyState | OxyRecState"
-    new: "OxyState | OxyRecState"
+    # The record is shared by every axis on the journal — LINK (OxyState), RECORDING (OxyRecState) and
+    # POWER (oxy_power.PowerState, which imports this module and so cannot be named here). Any Enum
+    # whose values are disjoint from the other axes' rides the same row; the `axis` column says which.
+    prev: "OxyState | OxyRecState | Enum"
+    new: "OxyState | OxyRecState | Enum"
     reason: str
     host_monotonic: float
     host_wall: str

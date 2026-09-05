@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i6jRg4w3FkJGmcHdy4VzKqroE3ERveXtU1iJw7vqCBQ=' 'sha256-iFOguboFN2xJCy5pZnceqop7docaFVSxTKFGAoJDVIA=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-sEEnnGtQ3WZzpPa7gTX9mVYX7vYKfkNPF+WKya+4VZA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-Sl45fJFM/JjRNEpOEcwgOqyETFOlXLYc3VCUxTbVHzc=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i6jRg4w3FkJGmcHdy4VzKqroE3ERveXtU1iJw7vqCBQ=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-sEEnnGtQ3WZzpPa7gTX9mVYX7vYKfkNPF+WKya+4VZA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.9.0</title>
@@ -7416,6 +7416,27 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
             maxStepMs: hostAx.maxStepMs,
             drawn: axisSynthetic,
             quantizedShare,
+            /* ⚠️ APPLIED IS OWNED BY THE DSP THAT APPLIES THE AXIS, and this one does — see the
+               `relSec[i] = (devMs + hostAx.correctionAt(devMs))` line above. Emitting it is not
+               cosmetic: `pat-drift-attribution.mjs effectivePpm` reads
+               `hostAxis.applied === true ? 0 : hostAxis.ppm`, so a MISSING key silently took the
+               ppm branch and credited this node's drift as an outstanding error the axis had
+               already absorbed — a double-count. ECGDex has always written it; PpgDex never did,
+               so the reader was correct by accident on one node and wrong on the other.
+               ⚠️ Inert in the SHIPPED BUNDLE and that is expected: `PpgDex.html` inlines no
+               `clock.js` (CLAUDE.md §✅ — `DexClock` is undefined there), so `hostAx.ok` is false
+               and this whole block never builds. It is live only where the analysis tools co-load
+               the spine in Node, which is exactly where the defect was.
+               ⚠️ The `fs` correction two lines up IS erased by the 2 dp rounding at `:557` (181.8 ppm
+               per step at 55 Hz), and that is NOT a reason to call this key false: the beat times the
+               PAT tools measure ride `relSec`, not `idx / fs`. Measured 2026-09-05 through
+               `pat-matchrate-strict.mjs`'s interpolating `timeAt`, over the three largest Verity
+               nights — 72514 of 72514 consensus feet resolve through `relSec`, 0 fall back.
+               ⚠️ `pat-feasibility-worker.js` is a DIFFERENT consumer and still reads `rel[idx] ??
+               idx / fs`, a raw subscript no fractional index can hit (PAT-FORENSICS-AXIS-LEG-
+               ASYMMETRY, 0/8948 feet — live, and about that file, not this path). This key does not
+               fix it and must not be read as saying it is fixed. */
+            applied: true,
             // Forwarded so a consumer can SEE the verdict instead of inferring it from a ~0 ppm.
             independent: hostAx.independent === undefined ? null : hostAx.independent,
             spreadMs: hostAx.spreadMs === undefined ? null : hostAx.spreadMs,
