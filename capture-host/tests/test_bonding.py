@@ -226,8 +226,50 @@ def test_bond_registers_a_just_works_agent_before_pairing(monkeypatch):
     cmds = [c for _d, c in rec if isinstance(_d, (int, float))]
     assert "agent NoInputNoOutput" in cmds and "default-agent" in cmds
     assert cmds.index("agent NoInputNoOutput") < cmds.index("pair AA:BB:CC:DD:EE:FF")
-    assert cmds.index("trust AA:BB:CC:DD:EE:FF") < cmds.index("pair AA:BB:CC:DD:EE:FF"), \
-        "trust must precede pair — the verified 2026-07-16 sequence"
+
+
+def test_bond_never_sets_trust_and_still_untrusts_after_pair(monkeypatch):
+    """The §B2 leak window is CLOSED BY CONSTRUCTION (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT 2026-09-05).
+
+    The old script set `trust` ~10 s before revoking it, so a session death in between leaked the
+    flag permanently — measured on the live box: both Polars `Trusted: yes` months after the untrust
+    shipped. A script that never issues `trust` has no window to leak; the trailing `untrust` stays
+    as retrofit cleanup for flags left by the old script or an operator's hand-`trust`.
+    (Deliberately replaces the former 'trust must precede pair — 2026-07-16' assertion.)"""
+    rec = []
+    _stub(monkeypatch, delayed="Pairing successful", record=rec)
+    _run(bonding.bond("AA:BB:CC:DD:EE:FF"))
+    cmds = [c for _d, c in rec if isinstance(_d, (int, float))]
+    assert "trust AA:BB:CC:DD:EE:FF" not in cmds
+    assert cmds.index("pair AA:BB:CC:DD:EE:FF") < cmds.index("untrust AA:BB:CC:DD:EE:FF")
+
+
+# ── trusted_flags — the §B2 startup tripwire ────────────────────────────────────────────────────────
+def test_trusted_flags_returns_only_the_trusted_subset(monkeypatch):
+    _stub(monkeypatch, info_by_addr={
+        "AA:AA:AA:AA:AA:AA": "Paired: yes\n\tBonded: yes\n\tTrusted: yes",
+        "BB:BB:BB:BB:BB:BB": "Paired: yes\n\tBonded: yes\n\tTrusted: no",
+        "CC:CC:CC:CC:CC:CC": "Device CC:CC:CC:CC:CC:CC not available"})
+    got = _run(bonding.trusted_flags(
+        ["AA:AA:AA:AA:AA:AA", "BB:BB:BB:BB:BB:BB", "CC:CC:CC:CC:CC:CC"]))
+    assert got == ["AA:AA:AA:AA:AA:AA"]
+
+
+def test_trusted_flags_selects_the_configured_adapter(monkeypatch):
+    """Trust is PER-ADAPTER (the live box read Trusted:no on hci0 and yes on hci1 for the same
+    device) — an unselected query answers about the wrong radio and under-warns."""
+    rec = []
+    _stub(monkeypatch, delayed="Trusted: yes", record=rec)
+    got = _run(bonding.trusted_flags(["AA:AA:AA:AA:AA:AA"], "00:11:22:33:44:55"))
+    assert got == ["AA:AA:AA:AA:AA:AA"]
+    assert rec and rec[0].startswith("select 00:11:22:33:44:55\n")
+
+
+def test_trusted_flags_treats_a_read_failure_as_unknown_not_trusted(monkeypatch):
+    async def boom(script, timeout=20.0):
+        raise RuntimeError("bluetoothctl unavailable")
+    monkeypatch.setattr(bonding, "_btctl", boom)
+    assert _run(bonding.trusted_flags(["AA:AA:AA:AA:AA:AA"])) == []
 
 
 # ── forget ──────────────────────────────────────────────────────────────────────────────────────────
