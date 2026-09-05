@@ -44,6 +44,7 @@ def _clean_stop():
     capture._OPT_QUIET.clear()
     capture._CHARGER_SINCE.clear()
     capture._CHARGER_PULLED.clear()
+    capture._OXYII_RESTARTS.clear(); capture._OXYII_STORMS.clear(); capture._OXYII_HOLD_UNTIL.clear()
     capture._CFG.clear()
     capture.STATUS.clear()
     capture.STATUS["devices"] = {}
