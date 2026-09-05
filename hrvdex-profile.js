@@ -86,6 +86,12 @@ function inferFromData() {
       DXP().prefillFrom({ hrRest: restingHR, vo2: vo2Est });
     } catch (e) {}
   }
+  /* ⚠️ NO READER — measured 2026-09-05, repo-wide: `_projVO2` occurs at exactly three sites and all
+     three are WRITES or comments in this file (:89, :520, :524). The live refresh at :524 is real and
+     is NOT the gap; what is missing is anything that READS the global. `renderANSAgeCard()` recomputes
+     from the profile rather than reading it. Kept, not deleted — a devtools console or a surface this
+     scan does not cover may read it, and "unreferenced by name" is not "unreachable"
+     (residue 2026-09-05-hrvdex-profile-globals-unread). */
   window._projVO2 = vo2Est;
 
   // Date range info
@@ -269,7 +275,9 @@ function getAgeBand(age) {
 }
 
 function applyAgeNorms(useIdeal) {
-  window._useIdeal = useIdeal; // remember last choice
+  /* "remember last choice" states an INTENT, not a mechanism: nothing reads `_useIdeal` back, so no
+     later call recovers the choice from it (measured 2026-09-05 — one site, this write). */
+  window._useIdeal = useIdeal;
   const p = getProfile();
   const band = getAgeBand(p.age);
   const norm = POP_NORMS[p.sex]?.[band];
@@ -514,7 +522,12 @@ function updateProfile() {
   // render here were removed 2026-08-19: HRVDex.src.html defines no lbl_ id at all, so
   // every write was a guarded no-op (DEAD-FIELD-HINTS-FLEET-2026-08-19-BRIEF.md).
   const altFactor = p.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p.elev - 1500) / 300) * 0.01);
-  window._hrvProfileAlt = altFactor; // consumed by VO₂ projection
+  /* 🔴 THE COMMENT HERE WAS FALSE AND IS THE REASON THIS ROW EXISTS. It read "consumed by VO₂
+     projection". No VO₂ projection reads it: the projection six lines below uses the LOCAL `altFactor`,
+     and `_hrvProfileAlt` occurs repo-wide at exactly three sites — this line plus its inlined copies in
+     `HRVDex.html` and `docs/HRVDex.html`. A comment asserting a consumer is what stops the next reader
+     from checking, which is the one failure a producing file cannot see about itself. */
+  window._hrvProfileAlt = altFactor;
 
   // Recompute the VO₂ projection live (inferFromData only runs at load, so
   // changing HRmax / Resting HR / Elevation must refresh _projVO2 + the hint here)
