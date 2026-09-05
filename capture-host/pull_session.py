@@ -52,14 +52,20 @@ async def _wait(q: asyncio.Queue, op: int, timeout: float = 20.0):
             return p
 
 
-async def pull(address, out_dir, which="latest", ftype=0, adapter=None, serial="0000", wait=0, on_progress=None):
-    """Returns the list of .dat paths written this call (empty if the ring never appeared / no sessions)."""
+async def pull(address, out_dir, which="latest", ftype=0, adapter=None, serial="0000", wait=0, on_progress=None,
+               device_id=None):
+    """Returns the list of .dat paths written this call (empty if the ring never appeared / no sessions).
+
+    `serial` is the 4-byte AUTH payload (the portable "0000" default) and nothing else. `device_id` is the
+    caller's KNOWN identity of the ring (the daemon's `dev["device_id"]`), used to key the ledger when the
+    0xE1 identity read does not answer — see the fallback order in `_pull_once`."""
     os.makedirs(out_dir, exist_ok=True)
     loop = asyncio.get_running_loop()
     deadline = loop.time() + wait
     while True:
         try:
-            return await _pull_once(address, out_dir, which, ftype, adapter, serial, on_progress)
+            return await _pull_once(address, out_dir, which, ftype, adapter, serial, on_progress,
+                                    device_id=device_id)
         except BleakDeviceNotFoundError:
             if loop.time() >= deadline:
                 print("ring never appeared — wake it (USB charger / press button / re-wear) and rerun.", flush=True)
@@ -68,7 +74,8 @@ async def pull(address, out_dir, which="latest", ftype=0, adapter=None, serial="
             await asyncio.sleep(2)
 
 
-async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progress=None, lifecycle=None):
+async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progress=None, lifecycle=None,
+                     device_id=None):
     # bluez={"adapter": ...}, not the deprecated bare `adapter=` kwarg (see capture.adapter_kw): when
     # bleak drops the shim the bare form is swallowed as an unknown kwarg rather than raised, so the
     # adapter pin would vanish silently and the pull would run on the wrong radio.
@@ -153,9 +160,16 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
             print(f"device: firmware={identity.get('firmware')!r} serial={identity.get('serial')!r}", flush=True)
         # The recording's stable identity is (device id, session stamp) — never a stamp alone (a stamp is
         # the ring's drifting RTC, and two rings could share one). The device id is the identity read's
-        # serial when we got one; when 0xE1 did not answer it falls back to the `serial` arg (else the
-        # address) so a ledger row can still be keyed rather than dropped.
-        device_id = (identity or {}).get("serial") or serial or address
+        # serial when we got one; when 0xE1 did not answer it falls back to the identity the CALLER
+        # already knows (the daemon's `dev["device_id"]`), else the address — so a ledger row can still
+        # be keyed rather than dropped, and keyed the SAME way the last pull keyed it.
+        # ⚠️ NEVER the auth `serial`. It is the 4-byte "0000" protocol default, not an identity, and
+        # until 2026-09-05 it was the fallback: on vigil a 0xE1 timeout (3 of 75 pulls) re-keyed the
+        # ledger as `0000/<stamp>`, `oxy_restart.plan` found no COMMITTED row under that key, and the
+        # same session was pulled AGAIN four minutes after "committed and unchanged on disk — skipping"
+        # (2026-08-29 22:24, 2026-08-30 21:23) — and its good sidecar (`device_serial: 2592302100`)
+        # was overwritten with a null one. A transient read failure must not change a stable key.
+        device_id = (identity or {}).get("serial") or device_id or address
 
         # 1) list recorded sessions
         await send(oxyii.file_list_frame())

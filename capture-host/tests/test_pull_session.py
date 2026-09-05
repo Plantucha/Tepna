@@ -692,7 +692,11 @@ def test_pull_hands_every_argument_to_the_attempt_in_order(tmp_path, monkeypatch
     _run(pull_session.pull("D1:98:62:7C:92:B3", str(tmp_path), "20260719010000", 3, "hci1", "1234",
                            0, on_progress=cb))
     assert seen["args"] == ("D1:98:62:7C:92:B3", str(tmp_path), "20260719010000", 3, "hci1", "1234", cb)
-    assert seen["kwargs"] == {}
+    # `device_id` rides as a keyword, None when the caller has no identity to offer (the CLI) — the
+    # ledger then keys on the address, never on the auth serial (test_pull_identity_key).
+    assert seen["kwargs"] == {"device_id": None}
+    _run(pull_session.pull("D1:98:62:7C:92:B3", str(tmp_path), device_id="2592302100"))
+    assert seen["kwargs"] == {"device_id": "2592302100"}
 
 
 def test_pull_defaults_are_the_ones_the_cli_documents(tmp_path, monkeypatch):
