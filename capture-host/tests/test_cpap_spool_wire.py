@@ -242,8 +242,16 @@ def test_a_loop_started_during_shutdown_does_nothing_at_all():
 def test_the_production_wiring_hands_the_loop_a_working_STATUS_writer(tmp_path, monkeypatch):
     seen = {}
 
-    async def _spy(**kw):                 # stands in for _cpap_spool_loop; records the kwargs
+    async def _noop():
+        pass
+
+    # ⚠️ A PLAIN `def`, NOT `async def`. An async spy records NOTHING here: calling it only builds a
+    # coroutine, its body runs on await, and `_create_task` below closes it unrun — so `seen` stays
+    # empty and the assertion reds whether or not the fix is present. A test that fails in BOTH
+    # directions proves nothing; this one was written that way first and caught in review.
+    def _spy(**kw):                       # stands in for _cpap_spool_loop; records the kwargs
         seen.update(kw)
+        return _noop()                    # a real coroutine for the caller to close
 
     monkeypatch.setattr(capture, "_cpap_spool_loop", _spy)
 

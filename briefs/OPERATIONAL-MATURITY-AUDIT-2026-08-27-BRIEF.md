@@ -114,6 +114,41 @@ Stated in advance so the answer is not retrofitted to whatever the box does next
 None is observed today. **(1) is the one to watch**, and it is cheap to detect: two actors reporting
 `waiting` continuously across a whole window.
 
+### 4a · ⚠️ "Cheap to detect" was wrong — (1) was NOT observable at all (measured 2026-09-05, Heron)
+
+The sentence above states a falsification condition and asserts its own detectability in the same
+breath. The second half was never checked. Measured against HEAD today: **the observation (1) requires
+could not have been made**, for two independent reasons — and the first has nothing to do with the
+second, so fixing either alone leaves the condition unwatchable.
+
+**(a) There is only one live actor.** The two `state="waiting"` publishers in `capture.py` are the CPAP
+harvest poller and the stored-spool pull. The spool pull is **default-OFF and has never armed**
+(`cpap_spool_caller.spool_arming`, never inherited; the first witnessed pull is still owed —
+`CPAP-SPOOL-ACQUISITION-2026-08-25` Do-1, attended). "Two actors both waiting" cannot arise while only
+one of them runs. That is the owner's to clear, not a code fix.
+
+**(b) The second actor published into a no-op.** `_maybe_start_cpap_spool_pull` constructed
+`_cpap_spool_loop(...)` **without `st`**, so the loop took its own `st = st or (lambda **kw: None)`
+default and every state it published was discarded — it never reached `STATUS`, so neither webmon nor
+the monitor could have rendered it. This is the *"published to STATUS and read by nothing"* class
+`webmon.py` already names, one level worse: it never reached STATUS to begin with.
+
+🔴 **The test suite could not see it, and the reason generalises.** `tests/test_cpap_spool_wire.py`
+drives the loop with `st=lambda **kw: states.append(kw)` and asserts on what it collected. Every state
+assertion passed, against a production path that published nowhere — the machinery was fully covered
+and entirely inert on the box. **A test that injects the collaborator it is checking cannot observe
+whether the real caller supplies one.** The fix carries a test that drives the real caller and inspects
+what it *passed*, watched failing against the unfixed wiring.
+
+**(b) is FIXED** — the spool actor now publishes to its own `STATUS["cpap_spool"]`, forwarded by
+webmon and rendered as its own line. The separate key is load-bearing rather than tidy: merging into
+`cpap` would let whichever actor wrote last hide the other, and **"two actors both waiting" is not
+answerable from one shared slot** — so the obvious one-line version of this fix would have left (1)
+just as undetectable, while looking fixed.
+
+**(a) remains open**, so (1) is still unobservable today and this section's verdict is unchanged —
+what changed is that it is now unobservable for *one* stated reason instead of two unstated ones.
+
 ## 5 · §15 RANKING — the conclusion, and it is a null result
 
 **Every one of the eight priorities is ALREADY IMPLEMENTED. Nothing ranks P0 or P1. Therefore, under
@@ -149,4 +184,7 @@ witness exists one charter over.
 - [x] P#6–P#8 measured — all three ALREADY IMPLEMENTED.
 - [ ] §13's resource-budget measurements — **needs the box** (Thursday).
 - [ ] §14's long-run behaviour tests — **needs the box** (Thursday).
-- [ ] The consolidated P0–P4 ranking across all eight priorities, once P#6–P#8 are measured.
+- [x] The consolidated P0–P4 ranking across all eight priorities, once P#6–P#8 are measured — **its
+      precondition was already met when it was written.** The box above it records P#6–P#8 measured,
+      and §5 tabulates all eight (7 ALREADY IMPLEMENTED + P#4 NOT NEEDED) with "nothing ranks P0 or
+      P1". The ranking existed in this document, unticked; verified 2026-09-05.
