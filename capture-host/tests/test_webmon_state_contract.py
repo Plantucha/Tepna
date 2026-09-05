@@ -72,6 +72,11 @@ DEVICE_KEYS = {
     # link up, rows climbing, rate nominal — so this is the only one that can say the night is being
     # lost. Zero on a healthy device; absent (None) before the daemon has reported.
     "flush_failures",
+    # Its two siblings (RESOURCE-ORCHESTRATION-AUDIT-2026-09-05 S1/S2): `rows_lost` counts the ROWS a
+    # write refused — the loss itself, not the flush that noticed it — and `fsync_max_ms` the slowest
+    # fsync paid on the event loop. `retry` is the runner's current wait {attempt, why, wait_s,
+    # next_at_ms}, null outside one, so a backoff no longer reads as a dead link.
+    "rows_lost", "fsync_max_ms", "retry",
     "clock_uncorrectable", "last_sample",
     # The ring's readable clock + gated settings (2026-08-19): the RTC-vs-host offset (GET_INFO [24:31]),
     # when it was read, the ring's own 0x00-read-back settings struct, and the last write's verdict.
@@ -232,7 +237,11 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
                          "cpap_spool",
                          # The O2Ring POWER axis (oxy_power): per-ring power state, radio owner, scan
                          # policy, strike cache and §21 counters. Declared on the day it was written.
-                         "power"}
+                         "power",
+                         # The daemon's own load and gates (RESOURCE-ORCHESTRATION-AUDIT-2026-09-05):
+                         # loop lag, held recovery/pause gates, supervised-task crash counts. Same
+                         # reason as every block above — STATUS-only is unpublished.
+                         "loop", "gates", "tasks"}
 
 
 def test_the_top_level_blocks_are_null_before_their_pollers_run(tmp_path):

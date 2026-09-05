@@ -426,6 +426,11 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
         <div class="data-pill idle" id="rdPill"><span class="data-dot"></span> <span id="rdText">Radio —</span></div>
         <div class="sidebar-data-info" id="rdDetail"></div>
       </div>
+      <div class="sidebar-data-card" style="margin-bottom:8px" id="hlCard" hidden
+           title="The daemon's own event loop: every BLE notification and every host stamp runs on it, so a stall here delays EVERY live stream at once. Also which recovery/pause gates are held, and background tasks that have crashed and been restarted.">
+        <div class="data-pill idle" id="hlPill"><span class="data-dot"></span> <span id="hlText">Loop —</span></div>
+        <div class="sidebar-data-info" id="hlDetail"></div>
+      </div>
       <div class="sidebar-data-card">
         <div class="data-pill idle" id="connPill"><span class="data-dot"></span> <span id="connText">No stream</span></div>
         <div class="sidebar-data-info" id="adapterInfo">adapter —</div>
@@ -934,8 +939,28 @@ function streamState(s, dev){
 // only place the operator can see it. Absent (not zero) means the daemon has not reported yet.
 function writeFailChip(dev){
   const n = dev ? dev.flush_failures : null;
-  if(!n) return '';
-  return `<span class="clk bad" title="${n} flush(es) to disk have FAILED for this device. Samples are arriving and may not be reaching the file — check the daemon log for the symbolic errno: ENOSPC means free space, EIO means the drive is failing and the data should be copied off now, EROFS means the filesystem went read-only.">⚠ write failing</span>`;
+  // `rows_lost` is the count that matters to the recording: rows the write REFUSED. `flush_failures`
+  // says the disk is unhappy; `rows_lost` says how much of the night is already gone. Either alone
+  // lights the chip; the lost count, when present, is named so the loss is never a silent number.
+  const lost = dev ? dev.rows_lost : null;
+  // A SLOW fsync is the third face of the same disk: nothing failed, but every live stream's host
+  // stamps waited behind it on the event loop. 250 ms is the daemon's own log threshold.
+  const fs = dev ? dev.fsync_max_ms : null;
+  if(!n && !lost && !(fs >= 250)) return '';
+  if(!n && !lost) return `<span class="clk idle" title="Slowest fsync for this stream so far: ${Math.round(fs)} ms, paid on the daemon's event loop — every live stream's host stamps waited that long behind it. Not a loss; a card getting slow is how ENOSPC and EIO announce themselves early.">⏳ fsync ${Math.round(fs)} ms</span>`;
+  const what = lost ? `${lost} row(s) LOST — refused by the write and not in the file` : `${n} flush(es) to disk have FAILED`;
+  return `<span class="clk bad" title="${what} for this device. Samples are arriving and may not be reaching the file — check the daemon log for the symbolic errno: ENOSPC means free space, EIO means the drive is failing and the data should be copied off now, EROFS means the filesystem went read-only.${fs ? ' Slowest fsync so far ' + Math.round(fs) + ' ms.' : ''}">⚠ ${lost ? lost + ' rows lost' : 'write failing'}</span>`;
+}
+
+// A runner WAITING between attempts used to look exactly like a dead one: the link is down and nothing
+// says a retry is scheduled. The daemon now publishes the wait itself — attempt number, cause and when
+// the next try fires — so the operator can tell "reconnecting in 3 min" from "given up".
+function retryChip(dev){
+  const r = dev ? dev.retry : null;
+  if(!r || !r.wait_s) return '';
+  const left = r.next_at_ms ? Math.max(0, Math.round((r.next_at_ms - Date.now()) / 1000)) : Math.round(r.wait_s);
+  const why = r.why === 'backoff' ? 'reconnect backoff' : String(r.why || 'wait');
+  return `<span class="clk idle" title="Attempt ${esc(r.attempt ?? '?')} — ${esc(why)}, ${Math.round(r.wait_s)} s wait. The link is down on purpose until then; a retry that fires early only lengthens the next wait.">↻ ${esc(why)} #${esc(r.attempt ?? '?')} · ${left}s</span>`;
 }
 
 function chargeChip(dev){
@@ -1424,6 +1449,32 @@ function renderRadioDistress(rd, adapterV, switches){
     .join('\n');
 }
 
+// The daemon's load and gates, as one sidebar card. Verdict order: a loop stall ≥ 1 s in the current
+// run outranks a held gate, which outranks a crashed task — a stall is already costing every stream
+// its host stamps; a gate merely defers connects; a crash has been restarted. Hidden until the loop
+// monitor has ticked once, so an old daemon never renders as "ok".
+function renderHostLoad(lp, gates, tasks){
+  const card = $('#hlCard'), pill = $('#hlPill'), txt = $('#hlText'), det = $('#hlDetail');
+  if(!card) return;
+  if(!lp || !lp.ticks){ card.hidden = true; return; }
+  card.hidden = false;
+  const g = gates || {};
+  const held = [g.recover ? 'recover' : '', g.oxyii_pause ? 'oxyii-pause' : '', g.stop ? 'stop' : '']
+    .concat((g.polar_paused || []).map(n => 'polar-paused:' + n))
+    .concat(g.offline_slot ? ['offline:' + g.offline_slot] : []).filter(Boolean);
+  const crashed = Object.entries(tasks || {}).filter(([, t]) => t && t.crashes);
+  const maxMs = Math.round(lp.lag_max_ms || 0), stalls = lp.stalls || 0;
+  const cls = maxMs >= 1000 ? 'bad' : (held.length || crashed.length || stalls) ? 'idle' : 'ok';
+  pill.className = 'data-pill ' + cls;
+  txt.textContent = maxMs >= 1000 ? `Loop STALLED · max ${maxMs} ms`
+                  : stalls ? `Loop · ${stalls} stall${stalls === 1 ? '' : 's'}, max ${maxMs} ms`
+                  : `Loop ok · max ${maxMs} ms`;
+  det.textContent = (held.length ? `gates held: ${held.join(', ')}` : 'no gate held')
+                  + (crashed.length ? ` · ${crashed.length} task${crashed.length === 1 ? '' : 's'} crashed+restarted` : '');
+  det.title = [`lag now ${Math.round(lp.lag_last_ms || 0)} ms · max ${maxMs} ms · ${stalls} stalls over ${lp.ticks} ticks`]
+    .concat(crashed.map(([n, t]) => `${n}: ${t.crashes}× — ${t.last_error || ''}`)).join('\n');
+}
+
 function renderStoragePill(st){
   st = st || {};
   const held = (st.retention_held||[]).length;
@@ -1682,6 +1733,7 @@ async function loadState(){
   renderStoragePill(s.storage);   // sidebar: visible in every view
   renderAutopull(s.autopull);
   renderRadioDistress(s.radio_distress, s.radio_distress_adapter, s.radio_switches);
+  renderHostLoad(s.loop, s.gates, s.tasks);
   renderCpap(s.cpap);
   renderCpapSpool(s.cpap_spool);
   renderDownload(DEVICES);
@@ -2743,7 +2795,7 @@ function ovRender(){                             // (re)build the cards to match
           <div class="ov-tl-legend"><span id="ovcov-${s.key}">—</span><span id="ovdbm-${s.key}"></span></div>
         </div>
         <div class="ov-pills">
-          <span class="ov-wf" id="ovwf-${s.key}">${writeFailChip(dev)}</span>
+          <span class="ov-wf" id="ovwf-${s.key}">${writeFailChip(dev)}${retryChip(dev)}</span>
           <span class="ov-chg" id="ovchg-${s.key}">${chargeChip(dev)}</span>
           <span class="ov-batt" id="ovbatt-${s.key}">${battChip(dev?dev.battery:null)}</span>
           <span class="ov-sig" id="ovsig-${s.key}">${s.active?rssiChip(dev?dev.rssi:null, s.health, sigTitle(s)):''}</span>
@@ -2766,6 +2818,8 @@ function ovRender(){                             // (re)build the cards to match
       const bc = document.getElementById('ovbatt-'+s.key), dev = deviceForStream(s.key);
       const cg = document.getElementById('ovchg-'+s.key);
       if(cg) cg.innerHTML = chargeChip(dev);
+      const wf = document.getElementById('ovwf-'+s.key);
+      if(wf) wf.innerHTML = writeFailChip(dev) + retryChip(dev);
       if(bc) bc.innerHTML = battChip(dev?dev.battery:null);
       const sg = document.getElementById('ovsig-'+s.key);
       if(sg) sg.innerHTML = s.active ? rssiChip(dev?dev.rssi:null, s.health, sigTitle(s)) : '';

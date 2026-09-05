@@ -9,7 +9,7 @@
 #    scaffold honoring the §7 integration contract; validate against real frames + PSL output first.
 
 from __future__ import annotations
-import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, signal, time as _time, datetime as _dt
+import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
 from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_stamp,
                      HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, capture_filename, missing_identity,
                      night_dir, open_sample_writers)
@@ -1923,6 +1923,31 @@ _STALL_RECONNECT_S = 5.0     # pause before re-negotiating after a stall — a s
 # strapped on after a long absence to ~3.5 min. The OPTIONAL-device branch keeps its own 120–300 s
 # schedule below. Override via power.reconnect_backoff_cap_sec.
 _RECONNECT_BACKOFF_CAP_S = 180.0
+# ±10 % jitter on every error backoff. Three mandatory runners losing their links on the same event
+# (an adapter reset, a `_RECOVER` pulse) all re-arm from the same 5 s and double in lockstep, so every
+# retry of every device lands in the same second, on the same radio, behind the same `_CONNECT_LOCK`.
+# Jitter de-phases them without changing the cap or the count. Only the ERROR backoff is jittered: the
+# stall/charge/not-worn rechecks are steady cadences by design and must stay readable as such.
+_RETRY_JITTER = 0.10
+
+
+async def _retry_sleep(name: str, delay: float, why: str, attempt: int) -> float:
+    """THE one wait a runner takes before trying its device again (CAPTURE-HOST-RESOURCE-ORCHESTRATION-
+    AUDIT §D2). It publishes the wait, so STATUS can answer the two questions an operator at 3am and
+    the union reader both ask about a device that is not connected — WHY is it waiting and WHEN will it
+    try — which before this were unanswerable: a runner asleep in a 180 s backoff read identically to
+    one wedged in a connect. Returns the seconds actually slept (jittered when `why == "backoff"`)."""
+    wait = delay
+    if why == "backoff":
+        wait = max(0.0, delay * (1.0 + _RETRY_JITTER * (2.0 * random.random() - 1.0)))
+    _set(name, retry={"attempt": attempt, "why": why, "wait_s": round(wait, 1),
+                      "next_at_ms": int(_time.time() * 1000 + wait * 1000)})
+    try:
+        await asyncio.sleep(wait)
+    finally:
+        _set(name, retry=None)          # the wait is over (or cancelled): a stale ETA is a lie in STATUS
+    return wait
+
 
 # The night-boundary anchor. A 24/7 daemon crossing midnight keeps appending to the START-date folder
 # (night_dir() rolls by session start, not wall clock), so the wall-clock date is the WRONG key for
@@ -2258,6 +2283,7 @@ async def run_polar(dev: dict, root: str):
     name, addr = dev["name"], dev["address"]
     streams = dev.get("streams", ["ecg"])
     backoff: float = 5
+    attempt = 0                 # error-backoff waits since the last viable session (STATUS `retry`)
     stale_bond_hits = 0        # consecutive one-sided-bond failures; see the teardown handler
     needs_pmd = bool(set(streams) & _PMD_STREAMS)
     is_polar = (dev.get("vendor") or "").strip().lower() == "polar"
@@ -2655,7 +2681,10 @@ async def run_polar(dev: dict, root: str):
                     # questions: `rows` counts what the writer was HANDED, this counts what may
                     # never have reached the disk. A night whose rows climb while this is non-zero
                     # is a night that will read as complete and be short.
+                    # `rows_lost` is the third leg (§S1): a row the writer REFUSED at `write()` — ENOSPC,
+                    # a closed handle — which `rows` no longer counts and `flush_failures` never sees.
                     _set(name, **{f"rows_{meas}": wr.rows, "flush_failures": wr.flush_failures,
+                                  "rows_lost": wr.rows_lost, "fsync_max_ms": wr.fsync_max_ms,
                                   "last_sample": samples[-1].phone.isoformat()})
 
                 def on_hr(_sender, data: bytearray):
@@ -3116,7 +3145,7 @@ async def run_polar(dev: dict, root: str):
                         note_data(name, _mono)  # evidence for the alert loop that this link is EARNING its
                                               # keep. `connected` alone said yes all night while the H10
                                               # streamed nothing (alerts.device_is_recording).
-                        backoff = 5           # E3: AGGREGATE flow — SOME stream is live, so this is a
+                        backoff = 5; attempt = 0   # E3: AGGREGATE flow — SOME stream is live, so this is a
                                               # viable session; reset the reconnect backoff. A later drop
                                               # then recovers fast; a connect that never streams leaves
                                               # the floor to grow.
@@ -3209,19 +3238,20 @@ async def run_polar(dev: dict, root: str):
             if charging_hold:
                 # Not a fault, so it must not ride the error backoff: recheck on a steady cadence so the
                 # streams come back on their own within a minute of the device leaving the charger.
-                await asyncio.sleep(CHARGE_RETRY_S)
+                await _retry_sleep(name, CHARGE_RETRY_S, "charging", attempt)
             elif stalled:
                 # Not an error backoff: the link was healthy, the streams were not. Come straight back and
                 # re-negotiate against a device that has now dropped its link and freed the stream.
-                await asyncio.sleep(_STALL_RECONNECT_S)
+                await _retry_sleep(name, _STALL_RECONNECT_S, "stalled", attempt)
             elif drop_for_power:
                 # Dropped on purpose to save battery. Sleep the recheck interval, then reconnect: if it is
                 # worn again the session resumes; if not, on_hr reports not-worn immediately (contact is in
                 # every HR frame) and _WORN_SINCE is already old, so the live loop drops it again at once —
                 # a short probe, not a full grace period.
-                await asyncio.sleep(_NOT_WORN_RECHECK_S)
+                await _retry_sleep(name, _NOT_WORN_RECHECK_S, "not_worn", attempt)
             else:
-                await asyncio.sleep(backoff)
+                attempt += 1
+                await _retry_sleep(name, backoff, "backoff", attempt)
                 backoff = min(backoff * 2, _RECONNECT_BACKOFF_CAP_S)   # exponential backoff, capped
 
 
@@ -3291,6 +3321,7 @@ async def run_viatom(dev: dict, root: str):
     while worn (finger in), so a bond/connect only succeeds when it's on the finger."""
     name, addr = dev["name"], dev["address"]
     backoff: float = 5
+    attempt = 0                 # error-backoff waits since the last viable session (STATUS `retry`)
     try:
         if not await bonding.ensure_bonded(addr, ADAPTER):
             _set(name, last_error="bond failed — pair the ring from the monitor page (wear it first)")
@@ -3360,6 +3391,7 @@ async def run_viatom(dev: dict, root: str):
                             BUS.push("pr", [pkt["pr"]])
                         note_data(name, _time.monotonic())
                         _set(name, rows=wr.rows, flush_failures=wr.flush_failures,
+                             rows_lost=wr.rows_lost, fsync_max_ms=wr.fsync_max_ms,
                              spo2=pkt["spo2"], pr=pkt["pr"], battery=pkt["batt"],
                              last_sample=now.isoformat(), last_error=None)
                     else:
@@ -3391,7 +3423,7 @@ async def run_viatom(dev: dict, root: str):
                     if wr.rows != last_rows:
                         # THE link has now carried data — this, not connect(), is what proves the attempt
                         # was worth making, so it is the only place the retry floor may be re-armed.
-                        backoff = 5
+                        backoff = 5; attempt = 0
                         last_rows, last_change = wr.rows, _time.monotonic()
                     elif stream_is_stalled(last_change, _time.monotonic(), _STREAM_STALL_S):
                         stalled = True
@@ -3414,9 +3446,10 @@ async def run_viatom(dev: dict, root: str):
                                   exc_info=True)   # it stays on disk carrying 0 rows: harmless, but not silent
         if not _STOP.is_set():
             if stalled:
-                await asyncio.sleep(_STALL_RECONNECT_S)
+                await _retry_sleep(name, _STALL_RECONNECT_S, "stalled", attempt)
             else:
-                await asyncio.sleep(backoff)
+                attempt += 1
+                await _retry_sleep(name, backoff, "backoff", attempt)
                 backoff = min(backoff * 2, _RECONNECT_BACKOFF_CAP_S)
 
 
@@ -3588,6 +3621,7 @@ async def run_oxyii(dev: dict, root: str):
     OxyDex parses + pushes spo2/pr to the monitor."""
     name, addr = dev["name"], dev["address"]
     backoff: float = 5
+    attempt = 0                 # error-backoff waits since the last viable session (STATUS `retry`)
     import cpap_record
     import oxy_lifecycle
     _oxylc = oxy_lifecycle.OxyLifecycle(device_id=dev.get("device_id"),
@@ -4274,7 +4308,7 @@ async def run_oxyii(dev: dict, root: str):
                         # a heartbeat of the link; they leave IDLE_UNWORN alone.
                         if _oxylc.state is not oxy_lifecycle.OxyState.IDLE_UNWORN:
                             _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.LIVE, "frames flowing")
-                        backoff = 5           # E3: data is flowing — THIS is a viable session, so reset the
+                        backoff = 5; attempt = 0   # E3: data is flowing — THIS is a viable session, so reset the
                                               # reconnect backoff. A later drop then recovers fast; a ring
                                               # that only ever connects-and-drops never reaches here and so
                                               # keeps backing off (5→10→…→60) instead of hammering.
@@ -4363,9 +4397,10 @@ async def run_oxyii(dev: dict, root: str):
                 _emit_oxy_live_evidence(name, dev, started, _spo2_kept, ppg_grid[0], ppg_led[0])
         if not _STOP.is_set():
             if stalled:
-                await asyncio.sleep(_STALL_RECONNECT_S)   # not an error backoff — come straight back
+                await _retry_sleep(name, _STALL_RECONNECT_S, "stalled", attempt)   # not an error backoff
             else:
-                await asyncio.sleep(backoff)
+                attempt += 1
+                await _retry_sleep(name, backoff, "backoff", attempt)
                 backoff = min(backoff * 2, _RECONNECT_BACKOFF_CAP_S)
     _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.SHUTTING_DOWN, "daemon stop")
     if _oxywr["w"] is not None:
@@ -4707,6 +4742,7 @@ async def status_loop(root: str, data_stale_sec: float = 120.0):
         STATUS["recording"] = publish_recording(_time.monotonic(), data_stale_sec)
         if _NOTIFIER is not None:
             STATUS["alerts"] = _NOTIFIER.stats()
+        STATUS["gates"] = gate_state()
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             _tmp = path + ".tmp"
@@ -4905,8 +4941,17 @@ async def _restart_radio() -> bool:
     if rc == 0:
         log.warning("watchdog: bluetooth restarted — %s", out.strip()[:120])
         _RECOVER.set()
-        await asyncio.sleep(5)
-        _RECOVER.clear()
+        try:
+            await asyncio.sleep(5)
+        finally:
+            # `_RECOVER` is a GLOBAL gate: every runner and poller idles while it is set, and nothing
+            # else ever clears it. Before the `finally`, a cancel landing in this 5 s window (the
+            # watchdog's own supervisor restarting it, shutdown, `register_runner` replacing the
+            # incumbent) left the gate set for the life of the process — every device's runner parked
+            # at its `_RECOVER.is_set()` check, forever, with `connected` still reading whatever it
+            # last read. CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT §L1: release on the way out, not
+            # only on the way through.
+            _RECOVER.clear()
         return True
     log.error("watchdog: bluetooth restart FAILED rc=%s %s", rc, out.strip()[:160])
     return False
@@ -5555,7 +5600,10 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
             # midnight keeps appending to its start-date folder, and pruning by wall-clock date could
             # sweep that live directory the moment the clock rolls. _now()'s date is a floor so a
             # brand-new night with no files yet (not yet "active") is still never a prune candidate.
-            protect = diskguard.active_nights(captures, settle) | {_now().strftime("%Y-%m-%d")}
+            # OFF THE LOOP (§L3): this is a listdir+getmtime over every file of every night, on the
+            # same loop that stamps the BLE notifications.
+            protect = (await asyncio.to_thread(diskguard.active_nights, captures, settle)
+                       | {_now().strftime("%Y-%m-%d")})
             # RETENTION IS GATED ON A SECOND COPY (VIGIL-OVERNIGHT-FINDINGS §P3.2). plan_prune deletes by
             # AGE alone, which treats "old" as "safe to lose". It is not: on 2026-07-25 this box had
             # `dest_present:false` — 4 of 10 nights with no marker at all, and the other 6 marked
@@ -5945,7 +5993,7 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
         try:
             # The night STILL BEING CAPTURED — keyed on file activity, not _now()'s date, so a session
             # that ran past midnight is QC'd in its real (start-date) folder instead of an empty new one.
-            current = _current_night(captures, settle)
+            current = await asyncio.to_thread(_current_night, captures, settle)   # a tree walk — off the loop
             if current is None:
                 continue                                   # captures/ holds no night yet — nothing to QC
             night = os.path.join(captures, current)
@@ -6088,7 +6136,7 @@ async def _archive_transfer(captures: str, target: dict, settle: float, schedule
     night to the retention gate. An unverified push leaves the night unmarked, so it is retried next
     cycle and retention keeps holding it — the safe direction."""
     active = await asyncio.to_thread(diskguard.active_nights, captures, settle)
-    for night in nightarchive.pending_nights(captures, active):
+    for night in await asyncio.to_thread(nightarchive.pending_nights, captures, active):
         src = os.path.join(captures, night)
         res = await storage_targets.push_night(src, target)
         STATUS.setdefault("archive", {}).update(
@@ -6173,9 +6221,11 @@ async def archive_poller(cfg: dict, root: str):
             # returns at all, and the `except` below cannot help: a blocked syscall raises nothing.
             # The enclosing "offload is best-effort — never take capture down" only held for dest
             # errors, not for dest SLOWNESS, which is the likelier failure. to_thread keeps the loop
-            # turning (and the watchdog fed) whatever the destination does. `pending_nights` stays
-            # inline: it only stats the LOCAL captures dir.
-            for night in nightarchive.pending_nights(captures, active):
+            # turning (and the watchdog fed) whatever the destination does. `pending_nights` used to
+            # stay inline "because it only stats the LOCAL captures dir" — but `_grew_since_marker`
+            # walks every archived night's files, and local is not the same as cheap on an SD card
+            # under a concurrent copy (§L3). Off the loop as well.
+            for night in await asyncio.to_thread(nightarchive.pending_nights, captures, active):
                 n = await asyncio.to_thread(nightarchive.archive_night, captures, night, dest)
                 log.info("archive: mirrored %s (%d file(s)) → %s", night, n, dest)
                 STATUS.setdefault("archive", {}).update({"last": night, "dest": dest})
@@ -7026,6 +7076,53 @@ async def autopull_poller(cfg: dict, root: str):
                                                       "new": len(new)})
 
 
+def gate_state() -> dict:
+    """The coordination gates as ONE queryable snapshot (CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT §O1).
+    Every gate here is a module-level Event/Lock/set that a runner blocks on; until this existed, "why is
+    the Verity not reconnecting" meant reading five globals under a debugger, because a runner parked on
+    `_RECOVER.wait()` publishes nothing — its last `_set` still says whatever it said before the gate
+    closed. This is the ownership view: who holds the offline slot, whether the radio is being recovered,
+    which Polar runners are paused for a charger pull, whether the connect lock is taken."""
+    return {"recover": _RECOVER.is_set(),
+            "oxyii_pause": _OXYII_PAUSE.is_set(),
+            "polar_paused": sorted(_POLAR_PAUSED),
+            "connect_lock": _CONNECT_LOCK.locked(),
+            "offline_slot": offline_lock.busy_with(),
+            "stop": _STOP.is_set()}
+
+
+_LOOP_LAG_STALL_MS = 100.0     # counted as a stall: longer than any single BLE notification should wait
+_LOOP_LAG_WARN_MS = 1000.0     # logged: at this size the H10's 130 Hz ECG has ~130 samples in flight
+_LOOP_LAG_WARN_EVERY_S = 300.0
+
+
+async def loop_monitor(period_s: float = 1.0):
+    """Measure the ONE resource every stream shares and nothing published: event-loop latency. Every bleak
+    notification, every `Phone timestamp` host stamp, every `_maybe_flush` fsync runs on this loop
+    (audit §L1–§L3) — so a blocking call anywhere is a timing error on every live stream at once, and the
+    only witness was a host-vs-device residual step found the next morning. This task sleeps `period_s`
+    and records how late it woke: that lateness IS the time some other callback held the loop.
+    `STATUS["loop"]` carries the last / max lag and a stall count; a lag ≥ 1 s logs, rate-limited, so a
+    slow SD card names itself the night it starts rather than the week the drift is noticed."""
+    rec = STATUS.setdefault("loop", {"lag_last_ms": 0.0, "lag_max_ms": 0.0, "stalls": 0, "ticks": 0})
+    last_warn = -math.inf
+    while not _STOP.is_set():
+        t0 = _time.monotonic()
+        await asyncio.sleep(period_s)
+        lag_ms = (_time.monotonic() - t0 - period_s) * 1000.0
+        rec["ticks"] += 1
+        rec["lag_last_ms"] = round(lag_ms, 1)
+        if lag_ms > rec["lag_max_ms"]:
+            rec["lag_max_ms"] = round(lag_ms, 1)
+        if lag_ms >= _LOOP_LAG_STALL_MS:
+            rec["stalls"] += 1
+        if lag_ms >= _LOOP_LAG_WARN_MS and _time.monotonic() - last_warn >= _LOOP_LAG_WARN_EVERY_S:
+            last_warn = _time.monotonic()
+            log.warning("event loop stalled %.0f ms — every live stream's host stamps waited behind "
+                        "whatever held it (stalls so far: %d, max %.0f ms)",
+                        lag_ms, rec["stalls"], rec["lag_max_ms"])
+
+
 async def sd_watchdog():
     """Heartbeat systemd's WatchdogSec from a live-event-loop task, so a HUNG-but-alive daemon (the wedged
     BLE stack this box keeps hitting) is detected and restarted — `Restart=always` alone never fires
@@ -7061,6 +7158,11 @@ async def keep_running(make_coro, label: str, notifier: "alerts.Notifier | None"
             return                      # clean return == _STOP observed; nothing to restart
         except Exception as e:          # CancelledError is a BaseException — shutdown still cancels cleanly
             log.exception("%s crashed — restarting in %ds", label, delay)
+            # QUERYABLE, not only logged: a supervised task's crash count and last error live in STATUS
+            # under its label, so "is the archive poller alive" is a field, not a journal grep.
+            _rec = STATUS.setdefault("tasks", {}).setdefault(label, {"crashes": 0})
+            _rec.update(crashes=_rec["crashes"] + 1, last_error=repr(e)[:200],
+                        restart_at_ms=int(_time.time() * 1000 + delay * 1000))
             if on_error is not None:
                 on_error(f"{e!r} — restarting in {delay}s")
             if notifier is not None:
@@ -7460,17 +7562,21 @@ def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
                 creds["ble_addr"], hci, reserved=ADAPTER)
             return got
     interval = float(adcfg.get("poll_interval_sec", 30.0))
-    task = (create_task or asyncio.create_task)(cpap_shadow_runner.run_shadow_loop(
+    # The sidecars are opened ONCE, here — a supervised restart re-enters the loop with a fresh
+    # supervisor (its state machine may have been mid-transition when it crashed) but must append to
+    # the same files, not open a second handle to them.
+    session_writer = cpap_shadow_runner.SessionSidecar(os.path.join(root, "SESSIONDETECT.csv"))
+    clock_writer = as11_clock.ClockSidecar(os.path.join(root, "AS11CLOCK.csv"))
+    task = (create_task or asyncio.create_task)(keep_running(lambda: cpap_shadow_runner.run_shadow_loop(
         connect=connect_factory, creds=creds, supervisor=cpap_supervisor.CPAPSessionSupervisor(),
         # BUSY, not _running — see LiveStreamController._busy: deferral must begin at start-INTENT,
         # or the shadow polls straight into the connect window (InProgress). `also_busy` is the pairing
         # session (PairingSession.busy), which holds the AS11's one link between Start and the passkey.
         is_capturing=_either_busy(cpap_ctl._busy, also_busy),
-
-        session_writer=cpap_shadow_runner.SessionSidecar(os.path.join(root, "SESSIONDETECT.csv")),
-        clock_writer=as11_clock.ClockSidecar(os.path.join(root, "AS11CLOCK.csv")),
+        session_writer=session_writer, clock_writer=clock_writer,
         host_epoch=_time.time, sleep=asyncio.sleep, poll_interval_s=interval, should_stop=_STOP.is_set,
-        on_cycle=_publish_therapy_state, on_unreachable=_note_cpap_unreachable))
+        on_cycle=_publish_therapy_state, on_unreachable=_note_cpap_unreachable),
+        "AS11 shadow detector"))
     TASK_LABELS[id(task)] = "AS11 shadow detector"
     tasks.append(task)
     log.info("AS11 session detector: SHADOW enabled on %s (poll %ss) → SESSIONDETECT.csv + AS11CLOCK.csv",
@@ -7762,10 +7868,11 @@ def _maybe_start_cpap_autostart(cfg, root, cpap_ctl, tasks, *, create_task=None)
     # lives ~hold_s before the flat-flow stop can end it — see cpap_live.false_start_verdict.
     hold = float(((cbs.get("auto_stop") or {}).get("hold_sec", 120.0)))
     _CPAP_AUTOSTART["root"] = root
-    task = (create_task or asyncio.create_task)(_cpap_autostart_loop(
+    task = (create_task or asyncio.create_task)(keep_running(lambda: _cpap_autostart_loop(
         root=root, op=cpap_ctl.op, is_running=cpap_ctl._running,
         retain_s=retain, hold_s=hold, max_attempts=attempts,
-        get_last_paths=lambda: list(getattr(cpap_ctl, "last_sink_paths", []) or [])))
+        get_last_paths=lambda: list(getattr(cpap_ctl, "last_sink_paths", []) or [])),
+        "CPAP auto-start"))
     TASK_LABELS[id(task)] = "CPAP auto-start"
     tasks.append(task)
     log.info("CPAP auto-start: ARMED — EAGER (starts at the first Therapy sighting; a session that "
@@ -7924,11 +8031,12 @@ def _maybe_start_cpap_spool_pull(cfg, config_path, root, cpap_ctl, tasks, *,
     def _spool_st(**kv):
         STATUS.setdefault("cpap_spool", {}).update(kv)
 
-    task = (create_task or asyncio.create_task)(_cpap_spool_loop(
+    task = (create_task or asyncio.create_task)(keep_running(lambda: _cpap_spool_loop(
         at_hour=arming["at_hour"], window_h=arming["window_h"], root=spool_root, creds=creds,
         connect_factory=connect_factory, epoch_start=epoch_start,
         spool_type=scfg.get("spool_type", "Summary"),
-        is_capturing=_either_busy(cpap_ctl._running, also_busy), st=_spool_st))
+        is_capturing=_either_busy(cpap_ctl._running, also_busy), st=_spool_st),
+        "CPAP stored-spool pull"))
     TASK_LABELS[id(task)] = "CPAP stored-spool pull"
     tasks.append(task)
     log.info("CPAP stored-spool pull: ARMED — %s spool, window %02d:00-%02d:00 on %s, from %s → %s",
@@ -8093,8 +8201,9 @@ def _maybe_start_presence_scan(cfg, tasks, *, create_task=None, scan_factory=Non
         _PRESENCE_NAMES[_a.upper()] = next(
             (d.get("name") for d in cfg.get("devices", []) if d.get("address") == _a), None)
         _WITNESS.setdefault(_a.upper(), {}).update(enabled=_now_mono, observer_armed=_now_mono)
-    task = (create_task or asyncio.create_task)(_presence_scan_loop(
-        addresses=[a.upper() for a in addresses], window_s=window_s, scan=scan_factory))
+    task = (create_task or asyncio.create_task)(keep_running(lambda: _presence_scan_loop(
+        addresses=[a.upper() for a in addresses], window_s=window_s, scan=scan_factory),
+        "O2Ring presence scan"))
     TASK_LABELS[id(task)] = "O2Ring presence scan"
     tasks.append(task)
     log.info("O2Ring presence scan: ARMED — %d ring(s), %.0fs window. Observation only: this task "
@@ -8378,7 +8487,8 @@ async def main():
                    ("autopull_poller", lambda: autopull_poller(cfg, root)),
                    ("cpap_poller", lambda: cpap_poller(cfg, root, notifier)),
                    ("charger_pull_poller", lambda: charger_pull_poller(cfg, root)),
-                   ("sd_watchdog", sd_watchdog)]
+                   ("sd_watchdog", sd_watchdog),
+                   ("loop_monitor", loop_monitor)]
     tasks = []
     for label, mk in _BACKGROUND:
         _t = asyncio.create_task(keep_running(mk, label, notifier))
