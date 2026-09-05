@@ -38,6 +38,10 @@ def _clean_stop():
     capture._POLAR_PAUSED.clear()
     capture._WORN_SINCE.clear()
     capture._OXYII_RTC_AT.clear()
+    # The restart-storm state: a hold left by one test parks EVERY later run_oxyii test on the hold
+    # instead of connecting (measured: 35 unrelated failures on the first full run of that group).
+    capture._OXYII_RESTARTS.clear(); capture._OXYII_STORMS.clear(); capture._OXYII_HOLD_UNTIL.clear()
+    capture._OXYII_LAST_DURATION.clear()
     capture._CHARGING.clear()
     capture._CFG.clear()
     capture.STATUS.clear()
@@ -1727,6 +1731,99 @@ def test_run_oxyii_syncs_rtc_on_a_new_session(tmp_path, monkeypatch):
     _stop_after(monkeypatch, 5)
     _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
     assert capture.STATUS["devices"]["Ring"].get("clock_synced")   # the RTC re-sync stamped it
+
+
+# ── restart STORM: 4 session restarts in 120 s → drop the link, hold off, resume when the hold expires ──
+import time as _time  # noqa: E402
+
+_RING = "D1:98:62:7C:92:B3"
+
+
+def _clear_storm_state():
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._OXYII_LAST_DURATION.pop(_RING, None)
+    capture._OXYII_RESTARTS.clear(); capture._OXYII_STORMS.clear(); capture._OXYII_HOLD_UNTIL.clear()
+
+
+def _storming_ring():
+    """A ring whose session duration goes 900 → 0 → 900 → 0 …: every downward step is a restart (the
+    09-05 shape — a ring stuck at run_status 1 that cannot find a pulse and restarts on every poll)."""
+    c = FakeGattClient()
+    seq = {"i": 0}
+    def reply(data):
+        if data[1] != oxyii.OP_LIVE:
+            return
+        seq["i"] += 1
+        c.notify(0, _o2ring_live_reply(duration=0 if seq["i"] % 2 == 0 else 900))
+    c.on_live = reply
+    return c, seq
+
+
+def test_run_oxyii_restart_storm_drops_the_link_and_holds(tmp_path, monkeypatch, caplog):
+    """The execution witness for oxyii_restart_storm inside run_oxyii: the 4th restart latches _storm_hit,
+    the poll loop breaks BEFORE the next live poll (no 9th 0x04 write), the outer loop parks on the hold
+    with connected=False and a storm last_error, and the storm is recorded for escalation."""
+    _clear_storm_state()
+    c, seq = _storming_ring()
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 40)                    # far past the break — STOP trips INSIDE the hold wait
+    with caplog.at_level(logging.WARNING):
+        _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
+    assert "restart storm" in caplog.text and "4 session restarts" in caplog.text
+    assert seq["i"] == 8                              # 4 restarts = 8 polls; the loop broke before a 9th
+    assert _RING in capture._OXYII_HOLD_UNTIL and capture._OXYII_HOLD_UNTIL[_RING] > _time.monotonic()
+    assert len(capture._OXYII_STORMS[_RING]) == 1 and capture._OXYII_RESTARTS[_RING] == []
+    st = capture.STATUS["devices"]["Ring"]
+    assert st["connected"] is False and st["last_error"].startswith("restart storm")
+    assert "15 min" in st["last_error"]              # the first hold is the base 900 s
+
+
+def test_run_oxyii_second_storm_holds_twice_as_long(tmp_path, monkeypatch):
+    """A storm 20 min ago doubles the hold: 30 min, not 15."""
+    _clear_storm_state()
+    capture._OXYII_STORMS[_RING] = [_time.monotonic() - 1200.0]
+    c, _ = _storming_ring()
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 40)
+    _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
+    assert "30 min" in capture.STATUS["devices"]["Ring"]["last_error"]
+    assert len(capture._OXYII_STORMS[_RING]) == 2
+
+
+def test_run_oxyii_resumes_when_the_hold_has_expired(tmp_path, monkeypatch, caplog):
+    """An expired hold is popped, the restart count starts over, and the ring is captured normally."""
+    _clear_storm_state()
+    capture._OXYII_HOLD_UNTIL[_RING] = _time.monotonic() - 1.0
+    capture._OXYII_RESTARTS[_RING] = [_time.monotonic() - 30.0]   # stale count from before the hold
+    c = FakeGattClient()
+    c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    with caplog.at_level(logging.INFO):
+        _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
+    assert "restart-storm hold over" in caplog.text
+    assert _RING not in capture._OXYII_HOLD_UNTIL and _RING not in capture._OXYII_RESTARTS
+    assert any(w[1] == oxyii.OP_LIVE for w in c.writes)   # live capture ran
+
+
+def test_run_oxyii_hold_yields_to_a_stored_pull(tmp_path, monkeypatch):
+    """_OXYII_PAUSE set during a hold ends the wait without ending the hold: the pull path takes the link
+    (the one interaction measured NOT to restart the ring) and the hold is re-evaluated afterwards."""
+    _clear_storm_state()
+    capture._OXYII_HOLD_UNTIL[_RING] = _time.monotonic() + 3600.0
+    c = FakeGattClient()
+    _inject_connect_scan(monkeypatch, c)
+    calls = {"n": 0}
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            capture._OXYII_PAUSE.set()                # a pull wants the link mid-hold
+        elif calls["n"] >= 3:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    _run(capture.run_oxyii(_o2dev(name="Ring"), str(tmp_path)))
+    assert c.writes == []                              # never connected: the hold never reached the link
+    assert capture._OXYII_HOLD_UNTIL[_RING] > _time.monotonic()   # the hold itself is intact
 
 
 # ── pull_oxyii_session: waits for the live link to drop, reports progress, reads .meta.json (1057-1074) ──

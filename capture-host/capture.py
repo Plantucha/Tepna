@@ -353,6 +353,47 @@ def oxyii_rtc_due(last_sync, now, session_restarted: bool, resync_sec: float) ->
     return None
 
 
+# ── Session-restart STORM: when our presence is what keeps the ring restarting, leave it alone ───────
+# Measured 2026-09-05 02:27–02:57 (61 restarts, ring buzzing every ~40 s) and 2026-08-28 (520 restarts):
+# the ring sits in an UNCOMMITTED measurement (live [4] run_status 1, PI invalid), restarts it — and
+# buzzes — every few tens of seconds, and never gets the ~2 undisturbed minutes it needs to commit
+# (run_status 2). The one time it committed that night was during the 2.4-min stored pull, when live
+# polling stopped. The restart is already in the FIRST frame after a reconnect (2.2 s in, before any
+# write), so it is not our RTC push; what we can remove is our presence. Replayed against the journal
+# (9 nights, 617 restarts): n=4 in 120 s never fires on a normal night (1–2 restarts), fires within
+# ~2 min on both bad nights; the hold ESCALATES (15 → 30 → 60 → 120 min) because on 2026-08-28 the ring
+# stormed again ~2 min after every resume — a flat 15-min hold would have cost 14 storms, escalation 5
+# (520 → 21 restarts we were present for). Stored data is unaffected: the ring records on its own and
+# the .dat pull is a separate path.
+_OXYII_STORM_N = 4                                  # restarts …
+_OXYII_STORM_WINDOW_S = 120.0                       # … within this window = a storm
+_OXYII_STORM_HOLD_S = 900.0                         # first hold; doubles per storm within STORM_MEMORY
+_OXYII_STORM_HOLD_MAX_S = 7200.0
+_OXYII_STORM_MEMORY_S = 3 * 3600.0                  # storms older than this no longer escalate the hold
+_OXYII_RESTARTS: dict[str, list[float]] = {}        # addr -> monotonic times of recent session restarts
+_OXYII_STORMS: dict[str, list[float]] = {}          # addr -> monotonic times of declared storms
+_OXYII_HOLD_UNTIL: dict[str, float] = {}            # addr -> monotonic deadline of the current hold
+
+
+def oxyii_restart_storm(restarts, now: float, n: int = _OXYII_STORM_N,
+                        window_s: float = _OXYII_STORM_WINDOW_S) -> tuple[bool, list[float]]:
+    """(storm?, the restarts still inside the window). `restarts` are monotonic seconds INCLUDING the
+    one that just happened; the pruned list is returned so the caller's state never grows unbounded.
+    A normal night has 1–2 restarts (doff/don), so n=4 within two minutes is unreachable by use."""
+    recent = [t for t in restarts if now - t <= window_s]
+    return len(recent) >= n, recent
+
+
+def oxyii_storm_hold_s(prior_storms, now: float, base_s: float = _OXYII_STORM_HOLD_S,
+                       max_s: float = _OXYII_STORM_HOLD_MAX_S,
+                       memory_s: float = _OXYII_STORM_MEMORY_S) -> float:
+    """How long to leave the ring alone after THIS storm: `base_s`, doubled once per prior storm
+    inside `memory_s`, capped at `max_s`. A ring that storms again the moment we come back is
+    telling us the hold was too short; one that has been quiet for hours starts over at base."""
+    k = sum(1 for t in prior_storms if now - t <= memory_s)
+    return min(base_s * (2 ** k), max_s)
+
+
 # ── Ring RTC readback + gated settings writes over the LIVE link (monitor-facing, 2026-08-19) ────────
 # The RTC is readable (GET_INFO [24:31]) and SET_CONFIG is a gated writer (oxyii.set_config_frame).
 # Both ride the live session's existing ~1/s poll cadence: a 0xE1 read every _OXYII_INFO_EVERY_S
@@ -3496,6 +3537,23 @@ async def run_oxyii(dev: dict, root: str):
             while (_OXYII_PAUSE.is_set() or _RECOVER.is_set()) and not _STOP.is_set():
                 await asyncio.sleep(0.3)
             continue
+        _hold = _OXYII_HOLD_UNTIL.get(addr)
+        if _hold is not None:
+            # RESTART-STORM HOLD (see oxyii_restart_storm): the ring is left alone until the deadline.
+            # A stored-session pull (_OXYII_PAUSE) may still take the link meanwhile — it is a different
+            # path, and the one interaction measured NOT to restart the ring — so the wait yields to it
+            # and re-evaluates from the top afterwards. NOT an error backoff: the ring is healthy and
+            # recording on its own; it is our polling it cannot tolerate right now.
+            if _time.monotonic() < _hold:
+                _set(name, connected=False,
+                     last_error=f"restart storm — leaving the ring alone for {(_hold - _time.monotonic()) / 60:.0f} min")
+                while (_time.monotonic() < _hold and not _STOP.is_set() and not _OXYII_PAUSE.is_set()
+                       and not _RECOVER.is_set()):
+                    await asyncio.sleep(1.0)
+                continue
+            _OXYII_HOLD_UNTIL.pop(addr, None)
+            _OXYII_RESTARTS.pop(addr, None)         # the count starts over; the storm history does not
+            log.info("%s: restart-storm hold over — resuming live capture", name)
         started = _now()
         ndir = night_dir(root, started)
         if _oxywr["w"] is None:                  # G4: open the lifecycle sidecar once, in the first night dir
@@ -3604,6 +3662,7 @@ async def run_oxyii(dev: dict, root: str):
                 # across a disconnect), so carrying it over cannot manufacture one.
                 _seq = [_OXYII_LAST_DURATION.get(addr)]
                 _rtc_due = [False]      # set when a new recording session begins; served by the poll loop
+                _storm_hit = [None]     # hold seconds once oxyii_restart_storm fires; the poll loop drops the link
                 _acc_unexpected = [False]  # latch: warn ONCE per link about an ACC push nobody asked for
                 # THE RING'S HONEST LIVENESS SIGNAL. Not rows: vitals legitimately stop the moment the
                 # ring leaves the finger (spo2 goes None) while the link and the frames carry on, so a
@@ -3846,6 +3905,22 @@ async def run_oxyii(dev: dict, root: str):
                             # bake a wrong time into stored data. on_data is a sync BLE callback and
                             # cannot await — hand it to the poll loop.
                             _rtc_due[0] = True
+                            # Restart STORM (see oxyii_restart_storm): every restart is a buzz on the
+                            # owner's finger, and on a storm night our presence is what keeps them coming.
+                            _mono = _time.monotonic()
+                            _storm, _recent = oxyii_restart_storm(_OXYII_RESTARTS.get(addr, []) + [_mono], _mono)
+                            _OXYII_RESTARTS[addr] = _recent
+                            if _storm:
+                                _hold_s = oxyii_storm_hold_s(_OXYII_STORMS.get(addr, []), _mono)
+                                _OXYII_STORMS[addr] = [t for t in _OXYII_STORMS.get(addr, [])
+                                                       if _mono - t <= _OXYII_STORM_MEMORY_S] + [_mono]
+                                _OXYII_HOLD_UNTIL[addr] = _mono + _hold_s
+                                _OXYII_RESTARTS[addr] = []
+                                _storm_hit[0] = _hold_s
+                                log.warning("%s: %d session restarts in %.0f s — restart storm; leaving the ring "
+                                            "alone for %.0f min (storm #%d in the last %.0f h)", name, len(_recent),
+                                            _OXYII_STORM_WINDOW_S, _hold_s / 60, len(_OXYII_STORMS[addr]),
+                                            _OXYII_STORM_MEMORY_S / 3600)
                         _seq[0] = live["duration"]
                         _OXYII_LAST_DURATION[addr] = live["duration"]   # survives the next dropout
                         # RECORDING axis: every live frame's duration_s feeds the engine; the backward
@@ -3976,9 +4051,18 @@ async def run_oxyii(dev: dict, root: str):
                     await _rtc_sync(_why)
                 last_frames, last_change = frames[0], _time.monotonic()
                 while client.is_connected and not _STOP.is_set() and not _OXYII_PAUSE.is_set() and not _RECOVER.is_set():   # poll live ~1/s
+                    if _storm_hit[0] is not None:
+                        # Drop the link BEFORE the next poll or RTC write: on a storm night every frame we
+                        # ask for is another buzz. The outer loop idles until _OXYII_HOLD_UNTIL[addr].
+                        _set(name, last_error=f"restart storm — leaving the ring alone for {_storm_hit[0] / 60:.0f} min")
+                        break
                     if _rtc_due[0]:
                         _rtc_due[0] = False
-                        await _rtc_sync("new recording session")
+                        # Through the policy function, not around it: the latch used to call _rtc_sync
+                        # directly, so oxyii_rtc_due governed the pre-loop sync only (behaviour-neutral —
+                        # a restart is always due; it keeps the decision in one place).
+                        _why = oxyii_rtc_due(_OXYII_RTC_AT.get(addr), _now(), True, _OXYII_RTC_RESYNC_SEC)
+                        await _rtc_sync(_why)
                     # BOUNDED: this write is the only thing that makes the ring emit a frame, and it is a
                     # D-Bus round-trip. Unbounded, a wedged stack parks run_oxyii here forever with its
                     # writers open and `connected: True` on the monitor — silent, all night.
