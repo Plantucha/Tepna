@@ -10456,6 +10456,141 @@
       });
     });
 
+    /* ════ CAPTURE-FILENAME SUFFIX PARITY — the writer upper-cases the tag; every reader must agree ════
+       `writers.capture_filename` emits `<vendor>_<model>_<id>_<stamp>_<STREAM>.<ext>` with the stream
+       tag UPPER-CASED (`writers.py:158`). Three readers were written from a brief's lowercase spelling
+       (`*_rtclog.csv`) and matched NOTHING on any real night — `nightqc.py` (#2219) and `trio-batch.mjs`
+       (#2221), where 0 of 18 arrival sidecars carried a `ringClock` while the box held 29 logs a day —
+       and the source-scan gate covering trio-batch asserted the same lowercase literal, so it ENCODED
+       the defect. Same class as #2215: writer and reader named the file differently and nothing compared
+       them. This group is the comparison.
+
+       Two directions, both against a DENOMINATOR read off the writer rather than typed here:
+         (a) a comparison against a lowercase `_<tag>.<ext>` with no case-fold on the line is a matcher
+             that can never fire — red;
+         (b) a comparison against an UPPERCASE `_<TAG>.<ext>` the writer never emits is a reader waiting
+             for a file that does not exist — red.
+       "Emitted" = every literal `capture_filename(…, "tag", "ext")` / `w("tag")` call site in
+       `capture.py`, the `meas_of` stream keys it opens generically, `StreamWriter.HEADERS` (the tags a
+       writer can be opened on — `rr`/`ppg1` are the Polar-Sensor-Logger names the host mirrors), and the
+       f-string sidecars (`_CLOCK.csv`, `_LINK.csv`, `_STORED.dat`). Only COMPARISON lines are read —
+       `endsWith` / `.test(` / `re.search` / `==` / ` in ` / … — so a prose label or a fixture filename
+       from another vendor (`WELLTORY_…_PM.csv`) is not a finding. Comments and docstrings are stripped
+       first: a comment that quotes the old wrong form is documentation, not a matcher.
+
+       Known limit, stated so it is not rediscovered: an ALTERNATION (`_MAG(?:N)?\.txt`) is invisible to
+       the tag regex. The one such site was inspected by hand (2026-09-05) and is benign — `MAGN` is
+       Polar Sensor Logger's spelling, `MAG` the host's, and the reader takes both.
+
+       The scan must be shown to SEE before its clean verdict counts: the emitted set must carry the
+       anchors the defect was about, and the two readers that were broken must each contribute at least
+       one uppercase comparison. An empty scan reads exactly like a clean one otherwise.
+       Node-lane only — env.captureFilenameScan is fs-read; the browser lane SKIPs (mirrors docs-ledger). */
+    group('capture-filename suffix parity — readers compare against what the writer emits', 'capture-host · filename-case · source-scan', function (T) {
+      var FILES = env.captureFilenameScan;
+      if (!FILES) {
+        T.skip('env.captureFilenameScan provided to the runner', 'Node-lane only — wire env.captureFilenameScan (run-tests.mjs readCaptureFilenameScan)');
+        return;
+      }
+      /* Line-PRESERVING: a block comment or docstring is blanked to its newlines, so a finding's
+         `file:line` is the line in the file, not the line in the stripped text. */
+      function blank(s) {
+        return s.replace(/[^\n]/g, '');
+      }
+      function stripJs(t) {
+        return t.replace(/\/\*[\s\S]*?\*\//g, blank).replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
+      }
+      function stripPy(t) {
+        return t.replace(/"""[\s\S]*?"""|'''[\s\S]*?'''/g, blank).replace(/#.*$/gm, '');
+      }
+      function code(f) {
+        return (/\.py$/.test(f) ? stripPy : stripJs)(FILES[f] || '');
+      }
+      var cap = code('capture-host/capture.py'),
+        wr = code('capture-host/writers.py'),
+        pull = code('capture-host/pull_session.py');
+      T.ok(
+        'the three writer sources are in scope (capture.py · writers.py · pull_session.py)',
+        cap.length > 0 && wr.length > 0 && pull.length > 0,
+        'a scan that cannot read the writer has no denominator'
+      );
+
+      /* ── the emitted set, read off the writer ── */
+      var emitted = {};
+      var m;
+      var reCall = /capture_filename\([^)]*?,\s*"([a-z0-9]+)"\s*,\s*"([a-z]+)"\s*\)/g;
+      while ((m = reCall.exec(cap))) emitted[m[1].toUpperCase() + '.' + m[2]] = 'capture_filename call site';
+      var reW = /\bw\("([a-z0-9]+)"(?:,\s*"([a-z]+)")?\)/g;
+      while ((m = reW.exec(cap))) emitted[m[1].toUpperCase() + '.' + (m[2] || 'txt')] = 'w() call site';
+      var measOf = /meas_of = \{([^}]*)\}/.exec(cap);
+      T.ok('capture.py still declares the generic `meas_of` stream map', !!measOf, 'the generic Polar streams are opened through it — if it moved, the emitted set lost them');
+      var reKey = /"([a-z0-9]+)":/g;
+      if (measOf) while ((m = reKey.exec(measOf[1]))) emitted[m[1].toUpperCase() + '.txt'] = 'meas_of';
+      var headers = /HEADERS = \{([\s\S]*?)\n {4}\}/.exec(wr);
+      T.ok('writers.py still declares `StreamWriter.HEADERS`', !!headers, 'the tags a StreamWriter can be opened on — if it moved, the emitted set lost them');
+      var reHdr = /^\s*"([a-z0-9]+)":/gm;
+      if (headers) while ((m = reHdr.exec(headers[1]))) emitted[m[1].toUpperCase() + '.txt'] = 'StreamWriter.HEADERS';
+      var reF = /_([A-Z0-9]+)\.(csv|txt|dat)"/g;
+      [cap, pull].forEach(function (t) {
+        while ((m = reF.exec(t))) emitted[m[1] + '.' + m[2]] = 'f-string sidecar';
+      });
+      var emittedList = Object.keys(emitted).sort();
+      ['RTCLOG.csv', 'SPO2.csv', 'PMDARRIVAL.csv', 'ECG.txt', 'PPG.txt', 'CLOCK.csv', 'STORED.dat'].forEach(function (k) {
+        T.ok('emitted set carries `_' + k + '` (' + (emitted[k] || 'MISSING') + ')', !!emitted[k], 'the writer-side regexes stopped matching — emitted: ' + emittedList.join(' '));
+      });
+
+      /* ── every comparison in every reader ── */
+      var CMP = /endsWith\(|\.test\(|\.match\(|matchAll\(|\bre\.(?:search|match|fullmatch|compile)\(|\bfnmatch\b|\bglob\b|includes\(|indexOf\(|RegExp\(|\.split\(|==|!=|\bin\b/;
+      var CI = /\/[a-z]*i\b|\.lower\(\)|\.upper\(\)|toLowerCase\(|toUpperCase\(|\bre\.I\b|IGNORECASE/;
+      var reTag = /_([A-Za-z0-9]+)\\?\.(csv|txt|dat)\b/g;
+      var lower = [],
+        unemitted = [],
+        seenUpper = {};
+      Object.keys(FILES)
+        .sort()
+        .forEach(function (f) {
+          code(f)
+            .split('\n')
+            .forEach(function (line, i) {
+              if (!CMP.test(line)) return;
+              var t;
+              reTag.lastIndex = 0;
+              while ((t = reTag.exec(line))) {
+                var tag = t[1],
+                  key = tag.toUpperCase() + '.' + t[2],
+                  where = f + ':' + (i + 1) + ' `' + t[0] + '`';
+                if (!/[A-Za-z]/.test(tag)) continue;
+                if (tag === tag.toLowerCase()) {
+                  if (!CI.test(line)) lower.push(where);
+                } else if (tag === tag.toUpperCase()) {
+                  seenUpper[f] = (seenUpper[f] || 0) + 1;
+                  if (!emitted[key]) unemitted.push(where);
+                }
+              }
+            });
+        });
+      T.ok(
+        'the scan SAW trio-batch.mjs compare against an uppercase suffix (' + (seenUpper['tools/trio-batch.mjs'] || 0) + ')',
+        (seenUpper['tools/trio-batch.mjs'] || 0) > 0,
+        'the reader #2221 fixed contributes nothing — the comparison regex or the comment stripper is blind'
+      );
+      T.ok(
+        'the scan SAW nightqc.py compare against an uppercase suffix (' + (seenUpper['capture-host/nightqc.py'] || 0) + ')',
+        (seenUpper['capture-host/nightqc.py'] || 0) > 0,
+        'the reader #2219 fixed contributes nothing — the comparison regex or the comment stripper is blind'
+      );
+      T.ok(
+        '(a) no reader compares against a LOWERCASE `_<tag>.<ext>` without a case-fold on the line — ' + lower.length + ' found',
+        lower.length === 0,
+        'capture_filename upper-cases the tag, so these match nothing: ' + lower.join(', ')
+      );
+      T.ok(
+        '(b) every UPPERCASE `_<TAG>.<ext>` a reader compares against is one the writer emits — ' + unemitted.length + ' unemitted',
+        unemitted.length === 0,
+        'no writer produces: ' + unemitted.join(', ') + ' — emitted: ' + emittedList.join(' ')
+      );
+    });
+
     /* ════ DEAD FIELD HINTS — a write to an id that NO surface defines ════
        DEAD-FIELD-HINTS-FLEET-2026-08-19: five nodes wrote 42 `lbl_*` field hints through guarded
        setters (`if (!el) return`) to ids no .src.html defines. Every write was a silent no-op, which
