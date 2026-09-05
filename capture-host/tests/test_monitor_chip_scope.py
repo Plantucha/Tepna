@@ -94,6 +94,8 @@ CHIPS = [
     "clkChip",
     "presenceChip",
     "witnessChip",
+    "oxyLifeChip",
+    "oxyRecChip",
     "clockStatus",
 ]
 

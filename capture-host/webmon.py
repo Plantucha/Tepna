@@ -245,6 +245,15 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         # "connected" dot hides. A device that flaps all night reads "connected" at every
                         # sample yet has a climbing epoch; surfacing it is what makes that visible.
                         "link_epoch": st.get("link_epoch"),
+                        # The two OxyII lifecycle axes (charter G4): the LINK state the runner journals to
+                        # OXYLIFE.csv and the RECORDING state the duration_s engine derives. Both were
+                        # written to STATUS from the first G4 night (2026-08-24) and forwarded by nobody —
+                        # thirteen nights of journal on the box, and `/api/state` carried neither key,
+                        # so "liveness states visible in STATUS" was true of the dict and false of every
+                        # reader (verified against the live daemon 2026-09-05). Same class as `worn_why`
+                        # below: a STATUS field this allowlist omits is not published.
+                        "oxy_lifecycle": st.get("oxy_lifecycle"),
+                        "oxy_recording": st.get("oxy_recording"),
                         "worn": st.get("worn"),
                         # WHICH SOURCE DECIDED, and what the other one thought. `worn` alone is a bare
                         # True/False/None with no provenance, and on 2026-08-13 that was the entire
