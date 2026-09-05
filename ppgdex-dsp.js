@@ -484,9 +484,32 @@
 
        What DOES separate them is how much of the delta distribution sits on ONE value:
          drawn (16 files, ≤07-27) …… 100.0 %      measured (07-28 →) …… 0.6 – 8.8 %
-       Reported as a NUMBER, with `drawn` asserted only at ≥99 %. The middle of that range is genuinely
-       ambiguous on short fragments (a 15-min file has few deltas to be diverse with), and a binary that
-       pretends otherwise would be the same over-claim this whole brief family exists to remove. */
+       Reported as a NUMBER, never a bare binary. The middle of that range is genuinely ambiguous on
+       short fragments (a 15-min file has few deltas to be diverse with), and a binary that pretends
+       otherwise would be the same over-claim this whole brief family exists to remove.
+
+       ⚠️ THE CUT WAS 0.99 AND THAT WAS THE WRONG EDGE OF THIS GAP (2026-09-05). Any value from ~0.10
+       to ~1.00 separates the two populations ABOVE, so this file's own corpus could not choose between
+       them — and 0.99 is the one end that also demands near-perfection. Two independent measurements
+       say it is too high:
+
+         · `clock.js` CK_AXIS_DRAWN_SHARE, 381 box-tree sidecars: real streams reach **56.00 %**
+           (Verity ppg; H10 ecg 40.79 %) and drawn streams fall to **79.04 %** when anything interrupts
+           them. 0.67 sits in that gap, 0/25 missed with 0/356 false positives, and that comment ends
+           "Do not raise this back toward 99 %" — which is exactly where this line stood.
+         · residue `2026-09-04-drawn-rule-defeated-by-rounding`, 6 real `Polar_H10_*_ECG.txt`
+           fragments: top-delta share **98.63–98.65 %** over 10–13 distinct deltas, ZERO flagged. That
+           column IS `index × an assumed rate`; decimal rounding of 1000/130 = 7.6923 ms scatters it.
+           The 0.35 pp margin was not a safety margin, it was the width of a rounding artifact.
+
+       So a 0.99 cut measures the STAMP FORMAT and calls the answer provenance. Aligned to 0.67 below.
+       Verdicts on this file's own corpus are unchanged — 0.6–8.8 % stays below and 100 % stays above —
+       so the move costs nothing here and buys the rounded-rate and interrupted-drawn cases.
+
+       ⚠️ NOT delegated to `DexClock.CK_AXIS_DRAWN_SHARE`, deliberately: PpgDex is one of the three
+       bundles that do NOT inline `clock.js` (CLAUDE.md §✅), so `DexClock` is `undefined` here and a
+       bare reference is a ReferenceError, not a fallback. The constant is duplicated ON PURPOSE and
+       the two must be moved together. */
     let quantizedShare = null;
     /* Scan BACKWARD for the last row the main loop would have ACCEPTED and whose stamp parses —
        byte-identical to an eager `lastTs`, but paid for only where it is read. The row filter must
@@ -537,7 +560,9 @@
        device contributed only sample ORDER. DRAWN + no anchors ⇒ `'none'`: the recording carries no
        timing information whatsoever and must never be spent as a clock leg — closure, three-cornered hat
        and PAT all silently accept such a leg today and measure a constant. */
-    const axisDrawn = quantizedShare != null && quantizedShare >= 0.99;
+    /* 0.67 — the same cut as `clock.js` CK_AXIS_DRAWN_SHARE, on that file's 381-sidecar measurement.
+       Kept as a literal because `DexClock` does not exist in this bundle; see the block above. */
+    const axisDrawn = quantizedShare != null && quantizedShare >= 0.67;
     // relSec per sample from ns, DISCIPLINED to the host clock (WEARABLE-HOST-AXIS §2); else index/fs.
     // The device crystal keeps the fine structure (the correction's own slope is ~30 ppm, i.e. 30 µs
     // per second, so RR/PPI intervals are untouched) while its RATE error is removed. If too few
