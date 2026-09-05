@@ -1442,7 +1442,7 @@ def ppg2w_contact_quality(night_dir: str) -> list:
 
 
 def rtc_drift_summary(path: str) -> dict | None:
-    """Roll a `_rtclog.csv` (RingClockLogWriter) into one night's ring-clock verdict, or None when there
+    """Roll a `_RTCLOG.csv` (RingClockLogWriter) into one night's ring-clock verdict, or None when there
     is no readback to summarise. The daemon watches the O2Ring's RTC against the host every ~10 min and
     logs each event; STATUS keeps only the latest, so WITHOUT this the night's drift and any battery-reset
     live only in a CSV nobody opens. Fields: `reads` (periodic readbacks), `drift_s` (last − first
@@ -1795,7 +1795,14 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         for fn in sorted(os.listdir(night_dir)) if os.path.isdir(night_dir) else []:
             if writers.file_device_id(fn) not in dids:
                 continue
-            if fn.endswith("_rtclog.csv") and rtc is None:
+            # ⚠️ UPPERCASE. `capture_filename` upper-cases every stream tag, so the writer emits
+            # `..._RTCLOG.csv` — this matched `_rtclog.csv` and therefore matched NOTHING. Measured on
+            # vigil 2026-09-05: 29 RTCLOG files on disk that day and `rtc: null` for every device,
+            # including the ring that wrote them. The ring-clock verdict this function exists to
+            # produce — drift_s, resets, pushes — has never been computed from a real night.
+            # Same class as the ACCRAW mismatch above: the reader's filename expectation did not
+            # match the writer's output, and nothing compared the two.
+            if fn.endswith("_RTCLOG.csv") and rtc is None:
                 rtc = rtc_drift_summary(os.path.join(night_dir, fn))
             elif fn.endswith("_STORED.dat") and dat_path is None:
                 dat_path = os.path.join(night_dir, fn)

@@ -4212,5 +4212,73 @@
       "probe": "ran the suite under LANG=C.UTF-8 and LANG=C: open(..., encoding=None) resolves to the locale codec, which is UTF-8 on this box and in CI, so no input distinguishes them here. The explicit encoding is a portability guard for a non-UTF-8 locale, which this environment cannot reproduce.",
       "why": "A PROOF for THIS environment, not in general: the mutant differs only where locale.getpreferredencoding() is not UTF-8. Records are ASCII JSON, so even then the bytes would usually match. Keeping the explicit encoding is correct; killing the mutant is not possible without controlling the runner's locale."
     }
+  ],
+  "nightqc.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- before = [s for s in others if s[1] <= cur[0]] | + before = [s for s in others if s[1] < cur[0]]",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- before = [s for s in others if s[1] <= cur[0]] | + before = [s for s in others if s[1] <= cur[1]]",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- after = [s for s in others if s[0] >= cur[1]] | + after = [s for s in others if s[1] >= cur[1]]",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- after = [s for s in others if s[0] >= cur[1]] | + after = [s for s in others if s[0] > cur[1]]",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "`merge_sessions` starts a new session only when `st > sessions[-1][1] + gap_sec`, so its output is ordered by start AND strictly separated by more than the 300 s gap — sessions cannot overlap or touch. Under that invariant this mutation cannot move the partition: every earlier session ends more than a gap before `cur[0]` and every later one starts more than a gap after `cur[1]`, so neither the boundary form (`<`/`<=`, `>`/`>=`) nor which endpoint is compared can reclassify any session. Not a missing test — no night `merge_sessions` can produce distinguishes them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- prev = max(before, key=lambda s: s[1]) | + prev = max(before, key=None)",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- prev = max(before, key=lambda s: s[1]) | + prev = max(before, )",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, key=None)",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, )",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- nxt = min(after, key=lambda s: s[0]) | + nxt = min(after, key=lambda s: s[1])",
+      "probe": "tests/test_nightqc.py::test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap — 400 randomized file-sets (seed 20260905, 1-12 files per set, input order shuffled) assert b[0] > a[1] + gap for every consecutive pair, and assert that on the produced sessions max-by-end IS max-by-start and min-by-start IS min-by-end.",
+      "why": "Same disjointness invariant, applied to the selection: with sessions ordered and strictly separated, the latest-ENDING session IS the latest-starting one and the earliest-starting IS the earliest-ending, so `key=s[1]`, `key=s[0]`, and natural tuple order all return the identical element. The probe asserts that identity directly (`is`, not `==`)."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- span = None | + span = \"\"",
+      "probe": "tests/test_nightqc.py::test_a_night_with_no_data_reports_no_judged_session_rather_than_a_fabricated_one — the only path where the initial value survives; asserts span_sec is None and every coverage value unset.",
+      "why": "`span` is reassigned from the judged session whenever there IS data, so the initial value is observable only on a night with no capture files. On that path it is read in exactly two places, both behind a truthiness guard — `round(span) if span else None` and `if hz and span` — and \"\" and None are both falsy, so every output is byte-identical. Not a missing test: no input can separate them."
+    },
+    {
+      "class": "untestable-by-design",
+      "key": "- span_h = None | + span_h = \"\"",
+      "probe": "read of the code, not a battery: the assignment is dead on every path (see `why`). tests/test_nightqc.py::test_span_h_is_HOURS_and_is_None_when_the_stamps_cannot_be_read covers BOTH live paths — the computed span and the except-branch None.",
+      "why": "The initial value is never read. `span_h = None` is immediately followed by a try/except in which BOTH arms assign: the try sets `round((t1 - t0) / 3600, 1)` and the `except ValueError` sets None. `times` is non-empty whenever this line is reached (guarded by `if not offsets: return None`, and every offset appends a time), so there is no path that reaches the return with the initial binding intact. An argument about the CODE, not about the suite."
+    }
   ]
 }

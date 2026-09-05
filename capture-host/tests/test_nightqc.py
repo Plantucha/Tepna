@@ -1,5 +1,6 @@
 # tepna-capture — tests/test_nightqc.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+import json
 import os
 import time
 
@@ -1294,14 +1295,21 @@ def test_qc_digest_omits_rtc_when_absent():
 
 
 def test_summarize_attaches_ring_rtc_drift(tmp_path):
-    """The discovery path: a `_rtclog.csv` beside the ring's capture files is found by device id and
+    """The discovery path: a `_RTCLOG.csv` beside the ring's capture files is found by device id and
     rolled into that device's per-device entry — the false branch (no rtclog → rtc None) is already
-    covered by every other summarize test."""
+    covered by every other summarize test.
+
+    🔴 THIS FIXTURE USED TO SPELL THE FILE `_rtclog.csv`, LOWERCASE, and that is why the reader's
+    case bug survived. `capture_filename` upper-cases every stream tag, so no such file has ever
+    existed on the box — the fixture was written from the READER's string rather than the WRITER's
+    output, so it exercised the matcher against its own assumption and could not fail. Measured
+    2026-09-05: 29 real `_RTCLOG.csv` files on vigil that day, `rtc: null` for every device.
+    A fixture must be spelled the way the producing code spells it."""
     night = str(tmp_path / "2026-07-19"); os.makedirs(night)
     _cap(night, "Wellue_O2Ring-S_S8AW_20260719_SPO2.csv", 900)
     _cap(night, "Wellue_O2Ring-S_S8AW_20260719_PPG.txt", 8000)
     hdr = "Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n"
-    (tmp_path / "2026-07-19" / "Wellue_O2Ring-S_S8AW_20260719_rtclog.csv").write_text(
+    (tmp_path / "2026-07-19" / "Wellue_O2Ring-S_S8AW_20260719_RTCLOG.csv").write_text(
         hdr + "2026-07-19T22:00:00.000;read;0.0;;;;\n2026-07-20T05:00:00.000;read;1.0;;;;\n", encoding="utf-8")
     s = nightqc.summarize(night, _devices())
     ring = next(d for d in s["devices"] if d["name"] == "Ring")
@@ -1750,3 +1758,369 @@ def test_rate_reality_reads_the_ring_acc_rate_out_of_an_ACCRAW_file(tmp_path):
     assert len(rows) == 1, "no row at all is the silent failure — the rate was never checked"
     assert abs(rows[0]["measured_hz"] - 50.0) < 0.5
     assert rows[0]["matches_config"] is True
+
+
+# ── the summary's own SHAPE, pinned (2026-09-05) ─────────────────────────────────────────────────────
+# These fields are the audit trail the verdict rests on — `judged_dir`, `judged_session`,
+# `searched_dirs` exist precisely so a reading can be checked against the ground it was computed from
+# (the 2026-07-28 scope failure, where `files: 2` was the tell nobody could see). Nothing asserted
+# their VALUES, so the whole block could be renamed, mis-scoped or emptied and the suite stayed green.
+def test_the_summary_reports_the_night_it_judged_and_the_session_it_used(tmp_path):
+    from datetime import datetime as _dt
+    night = str(tmp_path / "2026-07-19"); os.makedirs(night)
+    start = _dt.strptime("20260719220000", "%Y%m%d%H%M%S").timestamp()
+    _utime(_cap(night, "Polar_H10_02849638_20260719220000_HR.txt", 1800), start + 1800)
+    devs = [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}]
+
+    # ⚠️ A TRAILING SLASH, deliberately. `os.path.basename` of a path ending in "/" is the EMPTY
+    # STRING, so `rstrip("/")` is load-bearing rather than cosmetic — and a night whose name reports
+    # as "" is a summary that cannot say which night it judged.
+    s = nightqc.summarize(night + "/", devs)
+    assert s["night"] == "2026-07-19", "the trailing slash must be stripped, not basenamed away"
+    assert s["judged_dir"] == "2026-07-19"
+    assert s["searched_dirs"] and all(isinstance(x, str) and x for x in s["searched_dirs"])
+    assert "2026-07-19" in s["searched_dirs"]
+
+    # The session actually judged, by value — start/end/rows, not merely present.
+    js = s["judged_session"]
+    assert js is not None and js["rows"] == 1800
+    assert js["start"] == round(start) and js["end"] == round(start + 1800)
+
+    # `sessions` carries the same triple for every session, oldest first.
+    assert s["sessions"] == [{"start": round(start), "end": round(start + 1800), "rows": 1800}]
+    assert "arrival" in s and "night_window" in s and "system_files" in s
+
+
+def test_a_night_with_no_data_reports_no_judged_session_rather_than_a_fabricated_one(tmp_path):
+    night = str(tmp_path / "2026-07-19"); os.makedirs(night)
+    _cap(night, "Tepna_20260719_LINK.csv", 5)          # a sidecar only — the box talking about itself
+    s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    assert s["judged_session"] is None, "no session judged is None, never a zero-length one"
+    assert s["night_window"] is None
+    assert s["sessions"] == [] and s["data_files"] == 0
+    # `span` is never reassigned on this path, so this is the ONLY place its initial value is
+    # observable — and it is read solely behind falsy guards (`round(span) if span else None`,
+    # `if hz and span`), which treat None and "" identically. Probe for the equivalence entry.
+    assert s["span_sec"] is None
+    assert all(d["coverage"] == {} or all(v is None for v in d["coverage"].values())
+               for d in s["devices"])
+
+
+# ── the invariant the gap-adjacency logic RESTS on (2026-09-05) ──────────────────────────────────────
+def test_merge_sessions_always_yields_DISJOINT_sessions_separated_by_more_than_the_gap():
+    """🔴 THIS IS THE PROPERTY THAT MAKES `summarize`'s before/after selection unambiguous, and nothing
+    asserted it. `merge_sessions` appends a new session only when `st > sessions[-1][1] + gap_sec`, so
+    the output is ordered by start AND strictly separated — no two sessions overlap or touch.
+
+    Everything downstream leans on it. In `summarize`, `before = [s for s in others if s[1] <= cur[0]]`
+    and `after = [s for s in others if s[0] >= cur[1]]` partition `others` exactly, and
+    `max(before, key=s[1])` picks the same element as max-by-start, because under disjoint ordering the
+    latest-ending session IS the latest-starting one. Those equivalences are recorded in
+    `tools/mutate-equivalence.json` as `no-distinguishing-input`, and THIS test is the probe they cite:
+    if the invariant ever breaks, the equivalence claims become false and this reds first.
+
+    A randomized sweep with a fixed seed rather than a hand-picked case — the claim is universal, so a
+    single example would not support it."""
+    import random
+    rng = random.Random(20260905)
+    gap = nightqc._SESSION_GAP_SEC
+    for _ in range(400):
+        files = []
+        for _i in range(rng.randint(1, 12)):
+            st_ = rng.uniform(0, 50_000)
+            files.append({"session": st_, "mtime": st_ + rng.uniform(0, 5_000), "rows": 1})
+        rng.shuffle(files)                      # order handed in must not matter
+        out = nightqc.merge_sessions(files)
+        assert out == sorted(out, key=lambda s: s[0]), "sessions must come back oldest first"
+        for a, b in zip(out, out[1:]):
+            assert b[0] > a[1] + gap, (
+                f"sessions must be strictly separated by more than the gap: {a[:2]} then {b[:2]}")
+            assert a[1] < b[0], "and therefore disjoint — no overlap, no touching"
+        # Under that separation, latest-ending == latest-starting, which is what makes
+        # `max(before, key=lambda s: s[1])` and max-by-start the same choice.
+        if len(out) > 1:
+            assert max(out, key=lambda s: s[1]) is max(out, key=lambda s: s[0])
+            assert min(out, key=lambda s: s[0]) is min(out, key=lambda s: s[1])
+
+
+# ── the ring-clock verdict actually reaches the summary (2026-09-05) ─────────────────────────────────
+def test_the_RTCLOG_sidecar_is_found_and_its_drift_reaches_the_device_block(tmp_path):
+    """🔴 THE READER LOOKED FOR THE WRONG CASE. `capture_filename` upper-cases every stream tag, so the
+    writer emits `..._RTCLOG.csv`; `summarize` matched `_rtclog.csv` and therefore matched nothing.
+    Measured on vigil 2026-09-05: 29 RTCLOG files on disk and `rtc: null` for every device, including
+    the ring that wrote them — so `drift_s`, `resets` and `pushes` had never been computed from a real
+    night, and nothing said so because a null there is indistinguishable from "no sidecar".
+
+    Same class as the ACCRAW tag mismatch in this file: the reader's filename expectation did not match
+    the writer's output, and no test compared the two."""
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_SPO2.csv", 900), 1_000_000)
+    # The real sidecar's shape, from vigil's own file.
+    with open(os.path.join(night, "Wellue_O2Ring-S_S8AW_20260905045318_RTCLOG.csv"), "w") as fh:
+        fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n")
+        fh.write("2026-09-05T04:53:52.321;push;;;;;\n")
+        fh.write("2026-09-05T04:53:53.365;read;-1.4;;;;\n")
+        fh.write("2026-09-05T05:53:53.365;read;-3.9;;;;\n")
+    s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}])
+    rtc = s["devices"][0]["rtc"]
+    assert rtc is not None, "an RTCLOG on disk must produce a ring-clock verdict, not a null"
+    assert rtc["reads"] == 2 and rtc["pushes"] == 1
+    assert abs(rtc["drift_s"] - (-3.9 - -1.4)) < 1e-6, "drift is last minus first offset"
+
+
+def test_a_foreign_device_file_sorting_FIRST_does_not_end_the_sidecar_scan(tmp_path):
+    """The scan skips files belonging to other devices with `continue`. A `break` there would stop at
+    the first foreign file — and since the directory is walked in sorted order, one alphabetically
+    earlier device is enough to hide every sidecar this device wrote."""
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    # "AAAA_..." sorts before "Wellue_...", and belongs to a device not in `dids`.
+    _utime(_cap(night, "AAAA_Other_99999999_20260905045318_HR.txt", 10), 1_000_000)
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_SPO2.csv", 900), 1_000_000)
+    with open(os.path.join(night, "Wellue_O2Ring-S_S8AW_20260905045318_RTCLOG.csv"), "w") as fh:
+        fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n")
+        fh.write("2026-09-05T04:53:53.365;read;-1.4;;;;\n")
+        fh.write("2026-09-05T05:53:53.365;read;-3.9;;;;\n")
+    s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}])
+    assert s["devices"][0]["rtc"] is not None, \
+        "the foreign file must be SKIPPED, not treated as the end of the scan"
+
+
+# ── the ring-clock verdict itself (2026-09-05) ───────────────────────────────────────────────────────
+# Until the case fix above, `rtc_drift_summary` was reached by NO real night — the caller looked for
+# `_rtclog.csv` and the writer produced `_RTCLOG.csv`. Its output now reaches an operator for the first
+# time, so the arithmetic it reports is worth pinning rather than inferring.
+def _rtclog(tmp_path, rows, name="Wellue_O2Ring-S_S8AW_20260905045318_RTCLOG.csv"):
+    p = os.path.join(str(tmp_path), name)
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n")
+        for r in rows:
+            fh.write(r + "\n")
+    return p
+
+
+def test_rtc_drift_counts_every_push_and_reset_not_merely_whether_one_happened(tmp_path):
+    """`pushes`/`resets` are COUNTS. A night with three 0xC0 pushes and two battery-reset suspicions is
+    a different night from one with a single each — `+= 1` collapsed to `= 1` reports both as 1."""
+    p = _rtclog(tmp_path, [
+        "2026-09-05T00:00:00.000;push;;;;;",
+        "2026-09-05T00:10:00.000;read;0.0;;;;",
+        "2026-09-05T01:00:00.000;push;;;;;",
+        "2026-09-05T02:00:00.000;reset-suspect;5.0;;;;",
+        "2026-09-05T03:00:00.000;push;;;;;",
+        "2026-09-05T04:00:00.000;reset-suspect;9.0;;;;",
+        "2026-09-05T05:00:00.000;read;9.4;;;;",
+    ])
+    r = nightqc.rtc_drift_summary(p)
+    assert r["pushes"] == 3 and r["resets"] == 2
+    # `reads` counts every OFFSET-bearing row — reads and reset-suspects both carry one.
+    assert r["reads"] == 4
+    assert r["first_offset_s"] == 0.0 and r["last_offset_s"] == 9.4
+    assert r["drift_s"] == 9.4, "drift is last minus first offset, rounded to 0.1 s"
+
+
+def test_a_MALFORMED_row_is_skipped_and_the_rows_after_it_are_still_read(tmp_path):
+    """Both skip paths are `continue`, and a `break` in either silently truncates the night: every
+    later read is lost and the drift is computed over a narrower span that LOOKS like a real reading.
+    The short-row guard and the non-numeric-offset guard are tested separately because they are
+    different branches."""
+    short = _rtclog(tmp_path, [
+        "2026-09-05T00:00:00.000;read;0.0;;;;",
+        "truncated;row",                                    # < 3 fields — the short-row guard
+        "2026-09-05T05:00:00.000;read;4.0;;;;",
+    ])
+    r = nightqc.rtc_drift_summary(short)
+    assert r["reads"] == 2 and r["drift_s"] == 4.0, "a short row must not end the scan"
+
+    bad = _rtclog(tmp_path, [
+        "2026-09-05T00:00:00.000;read;0.0;;;;",
+        "2026-09-05T02:00:00.000;read;not-a-number;;;;",    # the ValueError guard
+        "2026-09-05T05:00:00.000;read;4.0;;;;",
+    ], name="Wellue_O2Ring-S_S8AW_20260905045319_RTCLOG.csv")
+    r2 = nightqc.rtc_drift_summary(bad)
+    assert r2["reads"] == 2 and r2["drift_s"] == 4.0, "an unparseable offset must not end the scan"
+
+
+def test_span_h_is_HOURS_and_is_None_when_the_stamps_cannot_be_read(tmp_path):
+    """The span is reported in hours; a wrong divisor is invisible on a normal night because rounding
+    to 0.1 h hides it, so this pins it over a span long enough to separate 3600 from its neighbours."""
+    p = _rtclog(tmp_path, [
+        "2026-09-05T00:00:00.000;read;0.0;;;;",
+        "2026-09-13T00:00:00.000;read;1.0;;;;",             # exactly 192 h later
+    ])
+    assert nightqc.rtc_drift_summary(p)["span_h"] == 192.0
+
+    # Unparseable stamps → span unknown. It must be None, never "" or 0: a zero-hour span reads as a
+    # measurement that was never made (§2.6 — a missing observation is visible, never fabricated).
+    q = _rtclog(tmp_path, [
+        "not-a-timestamp;read;0.0;;;;",
+        "also-not;read;1.0;;;;",
+    ], name="Wellue_O2Ring-S_S8AW_20260905045320_RTCLOG.csv")
+    out = nightqc.rtc_drift_summary(q)
+    assert out["span_h"] is None, "an unreadable span is None — not an empty string, not zero"
+    assert out["reads"] == 2 and out["drift_s"] == 1.0, "the offsets are still usable"
+
+
+def test_undecodable_bytes_do_not_kill_the_ring_clock_verdict(tmp_path):
+    """The sidecar is read with `errors="replace"`. A single corrupt byte — the O2Ring writes these
+    over BLE — must cost that row, not the night's whole clock verdict."""
+    p = os.path.join(str(tmp_path), "Wellue_O2Ring-S_S8AW_20260905045321_RTCLOG.csv")
+    with open(p, "wb") as fh:
+        fh.write(b"Phone timestamp;event;rtc_offset_s;battery_state;battery_level;battery_raw2;battery_raw3\n")
+        fh.write(b"2026-09-05T00:00:00.000;read;0.0;;;;\n")
+        fh.write(b"2026-09-05T01:00:00.000;read;\xff\xfe;;;;\n")     # undecodable, and not a float
+        fh.write(b"2026-09-05T05:00:00.000;read;4.0;;;;\n")
+    r = nightqc.rtc_drift_summary(p)
+    assert r is not None and r["reads"] == 2 and r["drift_s"] == 4.0
+
+
+# ── the .dat/SpO2 pairing is called correctly, or not at all (2026-09-05) ────────────────────────────
+def _spy_timefit(monkeypatch):
+    """Capture how `summarize` CALLS the cross-correlation, rather than what it returns. The tool needs
+    Node and a real binary .dat, so its return is None in a test either way — which makes the return
+    value useless as an observation and the ARGUMENTS the only thing that can be checked."""
+    calls = []
+
+    def _fake(dat_path, spo2_path, **kw):
+        calls.append((dat_path, spo2_path))
+        return {"lag_s": 1}
+    monkeypatch.setattr(nightqc, "dat_timefit_summary", _fake)
+    return calls
+
+
+def test_the_timefit_is_called_with_ABSOLUTE_paths(tmp_path, monkeypatch):
+    """`os.path.join(night_dir, fn)` builds the path the tool will open. Dropping `night_dir` yields a
+    bare filename that only resolves if the daemon's CWD happens to be the night folder — the same
+    CWD-dependence that wrote real AS11 spool data into the checkout on 2026-09-01."""
+    calls = _spy_timefit(monkeypatch)
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_SPO2.csv", 900), 1_000_000)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_STORED.dat", 10)
+    s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}])
+    assert len(calls) == 1, "both sidecars present — the fit must be attempted exactly once"
+    dat, spo2 = calls[0]
+    assert os.path.isabs(dat) and os.path.isabs(spo2), f"paths must be absolute, got {dat!r} {spo2!r}"
+    assert dat.endswith("_STORED.dat") and spo2.endswith("_SPO2.csv"), "and the right file in each slot"
+    assert s["devices"][0]["datfit"] == {"lag_s": 1}
+
+
+def test_the_timefit_is_NOT_attempted_when_only_one_of_the_pair_is_present(tmp_path, monkeypatch):
+    """It cross-correlates two series. With one of them missing there is nothing to correlate, and
+    calling the tool with a missing path would spend a 30 s Node timeout per night to learn that."""
+    calls = _spy_timefit(monkeypatch)
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_SPO2.csv", 900), 1_000_000)
+    # no _STORED.dat
+    s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}])
+    assert calls == [], "one sidecar is not a pair"
+    assert s["devices"][0]["datfit"] is None
+
+
+def test_a_NON_spo2_file_is_never_mistaken_for_the_spo2_half(tmp_path, monkeypatch):
+    """The elif guards `fn.endswith("_SPO2.csv") and spo2_path is None`. Loosened to `or`, the FIRST
+    file of any kind claims the SpO2 slot — here the PPG — and the fit then correlates the wrong
+    series while still returning a confident-looking lag."""
+    calls = _spy_timefit(monkeypatch)
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_PPG.txt", 8000)      # sorts before SPO2
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_SPO2.csv", 900), 1_000_000)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_STORED.dat", 10)
+    nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["spo2"]}])
+    assert len(calls) == 1
+    assert calls[0][1].endswith("_SPO2.csv"), f"the SpO2 slot must hold the SpO2 file, got {calls[0][1]}"
+
+
+def test_the_cross_midnight_pool_is_EXCLUSIVE_at_exactly_the_gap(tmp_path):
+    """The boundary of the pooling guard, which its own comment records getting wrong three times
+    (`0 <=` read a −190 s overlap as non-contiguous, and a 17-file night went unjudged). `< gap` and
+    `<= gap` differ on exactly one input: a previous folder whose last write is the gap away to the
+    second. Pinned so the next correction to this family cannot silently move the edge."""
+    from datetime import datetime as _dt
+    d21 = str(tmp_path / "2026-07-21"); os.makedirs(d21)
+    d22 = str(tmp_path / "2026-07-22"); os.makedirs(d22)
+    pre = _dt.strptime("20260721233000", "%Y%m%d%H%M%S").timestamp()
+    # the previous folder's LAST WRITE lands exactly 00:00:00; the new session opens exactly
+    # `_SESSION_GAP_SEC` later (3600 s → 01:00:00), so `<` excludes it and `<=` would pool it.
+    _utime(_cap(d21, "Polar_H10_02849638_20260721233000_HR.txt", 1800), pre + 1800)
+    post = _dt.strptime("20260722010000", "%Y%m%d%H%M%S").timestamp()
+    assert post - (pre + 1800) == nightqc._SESSION_GAP_SEC, "the fixture must sit ON the boundary"
+    _utime(_cap(d22, "Polar_H10_02849638_20260722010000_HR.txt", 1500), post + 1500)
+    s = nightqc.summarize(d22, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    assert s["devices"][0]["streams"]["hr"] == 1500, \
+        "a gap of exactly _SESSION_GAP_SEC is NOT contiguous — the earlier folder must stay excluded"
+
+
+def test_the_night_window_and_arrival_are_computed_from_THIS_night(tmp_path, monkeypatch):
+    """Both fields are handed collaborators that decide what they describe: `night_view(cur, cur[2])`
+    is scoped to the judged session AND its files, and `arrival_quality(night_dir)` to this night's
+    folder. Passing None to either still returns a shaped value, so the summary would carry a
+    confident block computed from nothing."""
+    seen = {}
+
+    def _nv(cur, files):
+        seen["nv"] = (cur, files)
+        return {"ok": 1}
+
+    def _aq(d):
+        seen["aq"] = d
+        return {"ok": 2}
+
+    monkeypatch.setattr(nightqc, "night_view", _nv)
+    monkeypatch.setattr(nightqc, "arrival_quality", _aq)
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _utime(_cap(night, "Polar_H10_02849638_20260905220000_HR.txt", 1800), 1_000_000)
+    s = nightqc.summarize(night, [{"name": "H10", "device_id": "02849638", "streams": ["hr"]}])
+    cur, files = seen["nv"]
+    assert files is not None and len(files) == 1, "night_view must receive the session's FILES"
+    assert files[0]["file"].endswith("_HR.txt")
+    assert seen["aq"] == night, "arrival_quality must be asked about this night's directory"
+    assert s["night_window"] == {"ok": 1} and s["arrival"] == {"ok": 2}
+
+
+def test_drift_is_reported_to_a_TENTH_of_a_second(tmp_path):
+    """The ring's own quantum is 1 s and the .dat cross-check reports integer seconds, so 0.1 s is the
+    resolution this verdict is meaningful at. A finer rounding publishes digits the measurement does
+    not have; a coarser one hides real drift."""
+    p = _rtclog(tmp_path, [
+        "2026-09-05T00:00:00.000;read;0.0;;;;",
+        "2026-09-05T05:00:00.000;read;1.25;;;;",
+    ], name="Wellue_O2Ring-S_S8AW_20260905045322_RTCLOG.csv")
+    assert nightqc.rtc_drift_summary(p)["drift_s"] == 1.2, "0.1 s resolution, not 0.01"
+
+
+def test_no_SPO2_means_no_fit_even_when_another_file_could_fill_the_slot(tmp_path, monkeypatch):
+    """The elif's `and spo2_path is None` is what stops a non-SpO2 file claiming the SpO2 half. With
+    a `.dat` present and NO `_SPO2.csv`, a loosened guard hands the PPG to the correlator and the fit
+    returns a confident lag computed from the wrong series — worse than no answer."""
+    calls = _spy_timefit(monkeypatch)
+    night = str(tmp_path / "2026-09-05"); os.makedirs(night)
+    _utime(_cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_PPG.txt", 8000), 1_000_000)
+    _cap(night, "Wellue_O2Ring-S_S8AW_20260905045318_STORED.dat", 10)
+    s = nightqc.summarize(night, [{"name": "Ring", "device_id": "S8AW", "streams": ["ppg"]}])
+    assert calls == [], "no SpO2 series exists — nothing may be correlated against the .dat"
+    assert s["devices"][0]["datfit"] is None
+
+
+def test_the_sidecar_reader_does_not_depend_on_the_BOXES_locale(tmp_path):
+    """`open(..., encoding="utf-8")` is explicit so the verdict cannot change with the environment.
+    Dropping it falls back to the platform default, which on a differently-configured box is not
+    UTF-8 — a class of bug that never reproduces on the developer's machine.
+
+    The probe runs the REAL function in a subprocess under `LC_ALL=C PYTHONUTF8=0` and compares against
+    this process's result, rather than reasoning about what the default would be."""
+    import subprocess, sys
+    p = _rtclog(tmp_path, [
+        "2026-09-05T00:00:00.000;read;0.0;;;;",
+        "2026-09-05T02:00:00.000;read;2.5;;;;",          # naïve — a valid multi-byte UTF-8 comment
+        "2026-09-05T05:00:00.000;read;4.0;;;;",
+    ], name="Wellue_O2Ring-S_S8AW_20260905045323_RTCLOG.csv")
+    with open(p, "a", encoding="utf-8") as fh:
+        fh.write("2026-09-05T06:00:00.000;note;naïve — °C;;;;\n")
+    here = json.dumps(nightqc.rtc_drift_summary(p), sort_keys=True)
+    env = {**os.environ, "LC_ALL": "C", "LANG": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0"}
+    script = (f"import json,sys; sys.path.insert(0,{os.path.dirname(os.path.abspath(nightqc.__file__))!r});"
+              f"import nightqc; print(json.dumps(nightqc.rtc_drift_summary({p!r}), sort_keys=True))")
+    r = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, env=env)
+    assert r.returncode == 0, f"the probe itself failed, which says nothing about encoding:\n{r.stderr[-600:]}"
+    assert r.stdout.strip() == here, (
+        "the verdict must not depend on the ambient encoding:\n"
+        f"  C locale : {r.stdout.strip()}\n  this proc: {here}")
