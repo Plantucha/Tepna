@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (parked 2026-09-06 — TRIAGED against the tree and the box; every remaining proposal is owner- or Heron-gated, and the two that were not are closed) · **Created:** 2026-09-05
+**Status:** PROPOSED (parked 2026-09-06 — TRIAGED against the tree and the box; every remaining proposal is owner- or Heron-gated, and the two that were not are closed) · **Created:** 2026-09-05 · **Residue:** 2026-09-06-cpap-pin-names-unbonded-adapter
 
 > **Triage 2026-09-06 (Vigil box), verified per proposal — read this before re-sizing anything:**
 >
@@ -70,6 +70,25 @@ these; no firmware reloads/resets in the kernel log since boot; the only kernel 
   (air-confirmed in §4: the one true CPAP CONNECT_IND initiator is `28:0C:50:0C:18:FD`).
   ⚠️ `adapter_pool.py:32`'s docstring says "on this box hci0 carries the CPAP's own link" — **stale**;
   hci0 is the UB500 and the CPAP is on the AX210. One-line doc fix, folded into P5.
+  ⚠️⚠️ **AND THE PIN NAMES AN ADAPTER THE CPAP IS NOT BONDED TO** (measured 2026-09-06, both adapters,
+  same address, minutes apart):
+
+  | adapter | name reported | Paired | Bonded |
+  |---|---|---|---|
+  | `28:0C:50:0C:18:FD` (Intel AX210, **the pin**) | `ResMed Device` — the generic pre-pairing name | no | no |
+  | `00:01:95:CC:53:02` (Sena, the global default) | `ResMed 590541` — resolved | **yes** | **yes** |
+
+  So `BleakCharacteristicNotFoundError` on `a6220003-…` is the EXPECTED result rather than a fault: the
+  AS11's proprietary service needs an encrypted link, and an unbonded connection resolves only the
+  public GATT. Every CPAP poll therefore fails over onto the Sena — the reserved wearables radio, i.e.
+  the load the pin exists to keep off it.
+  🔴 **OWNER DECISION 2026-09-06: pair the AS11 on the Intel and KEEP the pin there.** The alternative
+  (re-point the pin at the Sena) is foreclosed, and for a hardware reason that outlives this defect:
+  **the Intel is the permanent fixture**, while the other dongles may be replaced by Zephyr/nRF sniffer
+  parts for their timing abilities — and those probably cannot carry the encrypted link the AS11 needs.
+  The AS11 bond belongs on an adapter that is BOTH permanent AND encryption-capable, and exactly one
+  adapter here is both. Pairing is owner-attended (CPAP in pairing mode); no session touches bond state.
+  Residue row `2026-09-06-cpap-pin-names-unbonded-adapter` carries the measurements.
 - **`adapter_pool.py` (#1976) is imported by nothing but its own test** (measured:
   `grep -rn "import adapter_pool"` → `tests/test_adapter_pool.py` only). Whether it is superseded by
   `PER-DEVICE-ADAPTER-PINNING` §3.3b's one-systemd-instance-per-adapter design (owner decision
