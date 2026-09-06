@@ -87,6 +87,7 @@ def test_the_schema_default_is_the_module_constant():
     assert lo >= 60 and hi <= 900 and needs_restart is True
 
 
+@pytest.mark.sets_capture_events
 def test_absent_o2ring_backoff_climbs_to_the_cap_and_holds(tmp_path, monkeypatch):
     """run_oxyii against a ring that never advertises: no session is ever viable, so the backoff must
     climb from 5 s and then HOLD at the cap — never reset, never exceed it."""
@@ -100,6 +101,7 @@ def test_absent_o2ring_backoff_climbs_to_the_cap_and_holds(tmp_path, monkeypatch
         "the absent-device error is what drove every cycle — this must not pass via some other path"
 
 
+@pytest.mark.sets_capture_events
 def test_absent_h10_backoff_climbs_to_the_cap_and_holds(tmp_path, monkeypatch):
     """run_polar, same schedule. The H10 is the device the journal showed at 27–35 hopeless scans/hour."""
     async def bonded(*a, **k):
@@ -115,6 +117,7 @@ def test_absent_h10_backoff_climbs_to_the_cap_and_holds(tmp_path, monkeypatch):
     assert "BleakDeviceNotFoundError" in (capture.STATUS["devices"]["H10Gone"].get("last_error") or "")
 
 
+@pytest.mark.sets_capture_events
 def test_absent_legacy_ring_backoff_climbs_to_the_cap_and_holds(tmp_path, monkeypatch):
     """run_viatom (the legacy O2Ring path) rides the same constant — three loops, one cap."""
     async def bonded(*a, **k):
@@ -128,6 +131,7 @@ def test_absent_legacy_ring_backoff_climbs_to_the_cap_and_holds(tmp_path, monkey
     assert slept == _EXPECTED, slept
 
 
+@pytest.mark.sets_capture_events
 def test_the_optional_device_branch_keeps_its_own_schedule(tmp_path, monkeypatch):
     """An OPTIONAL backup device is known-but-not-expected and already slept 120–300 s per cycle; the
     mandatory cap must not have pulled it DOWN to 180. (This is the branch the brief's 2026-08-19 table
@@ -144,6 +148,7 @@ def test_the_optional_device_branch_keeps_its_own_schedule(tmp_path, monkeypatch
     assert slept == [120, 120, 120, 120], slept   # min(max(5..40, 120), 300)
 
 
+@pytest.mark.sets_capture_events
 def test_config_override_raises_the_cap(tmp_path, monkeypatch):
     """`power.reconnect_backoff_cap_sec` reaches the loop: with 400 the O2Ring schedule doubles past 180."""
     monkeypatch.setattr(capture, "_RECONNECT_BACKOFF_CAP_S", 400.0)

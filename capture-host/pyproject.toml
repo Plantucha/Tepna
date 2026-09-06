@@ -3,6 +3,9 @@
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  "sets_capture_events: this test sets a capture module-global Event as part of its scenario; the autouse fixture scopes it",
+]
 
 # Coverage config (CAPTURE-HOST-FOLLOWUPS-III test-coverage; taken to 100% statement+branch by
 # the 2026-07-27 coverage pass). Inert for a plain `pytest` run — it only takes effect when CI passes

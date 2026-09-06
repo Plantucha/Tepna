@@ -314,6 +314,7 @@ def test_EVERY_RECOVER_SET_SITE_HAS_A_FINALLY():
 # §O2 — a supervised task's crash is a FIELD, and the four bare create_task starters are supervised
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.sets_capture_events
 def test_A_SUPERVISED_CRASH_LANDS_IN_STATUS_TASKS(_fresh, monkeypatch):
     real = asyncio.sleep
     n = {"k": 0}
@@ -348,6 +349,7 @@ def test_THE_FOUR_FORMERLY_BARE_STARTERS_ARE_SUPERVISED():
 # §O1 — the coordination gates are ONE queryable snapshot
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.sets_capture_events
 def test_GATE_STATE_REPORTS_EVERY_GATE_A_RUNNER_CAN_BLOCK_ON(_fresh, monkeypatch):
     async def go():
         capture._OXYII_PAUSE = asyncio.Event()
@@ -367,6 +369,7 @@ def test_GATE_STATE_REPORTS_EVERY_GATE_A_RUNNER_CAN_BLOCK_ON(_fresh, monkeypatch
     asyncio.run(go())
 
 
+@pytest.mark.sets_capture_events
 def test_STATUS_LOOP_WRITES_THE_GATES(_fresh, tmp_path, monkeypatch):
     real = asyncio.sleep
 
@@ -385,6 +388,7 @@ def test_STATUS_LOOP_WRITES_THE_GATES(_fresh, tmp_path, monkeypatch):
 # §L2 — event-loop latency is measured; a blocking call anywhere is a number, and a big one logs once
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.sets_capture_events
 def test_LOOP_MONITOR_SEES_A_PLANTED_BLOCKING_CALL(_fresh, caplog):
     """A `time.sleep(0.15)` on the loop — the shape of a slow fsync or a tree walk — must register as a
     stall of ≥ 100 ms; a ≥ 1 s one logs ONCE within the rate-limit window."""
@@ -406,6 +410,7 @@ def test_LOOP_MONITOR_SEES_A_PLANTED_BLOCKING_CALL(_fresh, caplog):
     assert "event loop stalled" not in caplog.text, "150 ms is counted, not logged"
 
 
+@pytest.mark.sets_capture_events
 def test_LOOP_MONITOR_LOGS_A_SECOND_LONG_STALL_ONCE_PER_WINDOW(_fresh, monkeypatch, caplog):
     monkeypatch.setattr(capture, "_LOOP_LAG_WARN_MS", 100.0)         # make the plant cheap
     capture.STATUS.pop("loop", None)
@@ -433,6 +438,7 @@ def test_LOOP_MONITOR_IS_A_SUPERVISED_BACKGROUND_TASK():
 # §L3 — the per-poll tree walks run off the loop
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
+@pytest.mark.sets_capture_events
 def test_STORAGE_POLLER_WALKS_THE_NIGHTS_OFF_THE_EVENT_LOOP(_fresh, tmp_path, monkeypatch):
     """`active_nights` is a listdir+getmtime over every file of every night. On a 20-night SD card
     under a concurrent archive copy that is hundreds of ms — on the loop that stamps the ECG."""
