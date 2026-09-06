@@ -121,6 +121,14 @@ devices:
     device_id: CCCCCCCC
     address: "WW:WW:WW:WW:WW:WW"        # Random-Static MAC — rotates on factory reset; re-scan if it changes
     streams: [spo2]
+    # serial: "2592302100"             # OPTIONAL identity check (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2
+                                       #   Mitigation C). The WIRE serial the ring answers in its 0xE1
+                                       #   GET_INFO reply — read it off the monitor's "peer identity" line
+                                       #   after one connect. NOT the same string as device_id: that is the
+                                       #   BLE-name id filenames carry. When set, a connected peer whose
+                                       #   serial differs is flagged on the monitor and the alerts webhook;
+                                       #   the link is unbonded + plaintext, so this is detection of a wrong
+                                       #   or cheaply spoofed ring, not proof of the right one. Unset = off.
 
 # Lingo (CGM) and CPAP (EDF) are NOT live-captured — drop their exports into captures/<night>/:
 #   - Lingo:  encrypted/locked  -> Health Connect / Apple Health export -> drop in   (how-to-collect/libre-cgm.md)

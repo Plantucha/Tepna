@@ -134,9 +134,11 @@ def _render(settings_devs, state_devs=STATE_DEVS):
         "const chargeChip=()=>'' , wornChip=()=>'', rateChip=()=>'', battChip=()=>'',\n"
         "      deviceHealth=()=>({health:'',title:''}), rssiChip=()=>'', clkChip=()=>'',\n"
         "      presenceChip=()=>'', witnessChip=()=>'', oxyLifeChip=()=>'', oxyRecChip=()=>'',\n"
+        "      oxyStormChip=()=>'',\n"
         "      lastSampleText=()=>'',\n"
         "      recPanelId=a=>'rec-'+a, defaultRate=(d,k,o)=>o[0], rateAdvice=()=>null,\n"
-        "      STREAM_LABEL={}, PREF_RATE={}, renderRingRtc=()=>'', ringConfigRow=()=>'',\n      fmtSecs=s=>String(s), ringKnob=()=>'';\n"
+        "      STREAM_LABEL={}, PREF_RATE={}, renderRingRtc=()=>'', ringConfigRow=()=>'',\n"
+        "      fmtSecs=s=>String(s), ringKnob=()=>'', renderRingIdentity=()=>'';\n"
         + body
         + "\n"
         f"try{{ renderRemembered({json.dumps(state_devs)}, {json.dumps(settings_devs)});\n"

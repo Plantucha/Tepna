@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (C4 EXECUTED — verified 2026-09-05: the §6.3 content gate is in `tepna-update.sh`, changeset `update-restart-content-gate`, 9 gate tests + 3 killed plants; §6.1 box ops and §6.2 Probe A are owner-attended; Mitigations B/C and D3 remain open) · **Created:** 2026-09-05
+**Status:** PROPOSED (C4 EXECUTED — verified 2026-09-05: the §6.3 content gate is in `tepna-update.sh`, changeset `update-restart-content-gate`, 9 gate tests + 3 killed plants. Mitigation C EXECUTED, both clauses — verified 2026-09-05: `run_oxyii` publishes the `0xE1` wire serial + firmware to STATUS/monitor and compares the serial against a new optional O2Ring `serial:` key (clause 1), and counts the RUN of connects that answer identity and deliver no frames (clause 2); changeset `ring-identity-alert`, 35 gate tests + 12 killed plants; ⚠ the comparable field is the WIRE serial `2592302100`, not the BLE-name id `S8AW2100` the bullet named — see §6.2; clause 1 is ARMED only once the owner sets `serial:` on vigil, while clause 2 needs no configuration and is armed on every box. §6.1 box ops and §6.2 Probe A are owner-attended; Mitigation B WITHDRAWN by owner correction (§6.2 — the `.dat` harvest is already BLE), B′ and D3 tracked separately) · **Created:** 2026-09-05
 
 # Vigil Bluetooth — adversarial audit (owner-ordered: "must be spotless")
 
@@ -226,6 +226,50 @@ session-crypto negotiation exists on the BLE transport — the §3.3 AES belongs
 - **Mitigation C — impostor-shape alert** (code PR): fire the existing guardrails webhook on an
   `0xE1` identity whose `device_id ≠` the configured `S8AW2100`, or on repeated connects that reach
   identity but never a valid pull. Detection, not prevention — cheap and honest about it.
+  **Clause 1 EXECUTED 2026-09-05, with a field correction:** the `0xE1` reply does NOT carry the BLE-name
+  id — `oxyii.parse_get_info` yields the **wire serial** (`2592302100` on the corpus ring, bytes `[37:]`)
+  and the firmware (`[9:17]`); `S8AW2100` is the advertised local name the filenames carry, and by the
+  standing address-only ruling a *name* is never identity. So the check is `serial ≠ config serial:`
+  (`alerts.ring_identity_mismatch`, pure; wired in `run_oxyii`'s GET_INFO branch and `alert_poller`);
+  a peer that answers `0xE1` with no serial at all against a configured one is also a mismatch. The
+  daemon already read `0xE1` on every session and *discarded* both fields — the identity was always on
+  the table, unspent. Inert until the owner sets `serial:` on the box (config is gitignored).
+
+  **Clause 2 EXECUTED 2026-09-05.** The counter the runner did not keep is now kept: per episode,
+  did this link answer `0xE1` and then deliver zero decodable frames? `run_oxyii` counts the RUN of
+  those (`ring_barren_connects`), and at three (`alerts.RING_BARREN_ALERT_N`) journals, publishes
+  `ring_barren_alert`, draws it, and sends ONE webhook with its own latch and its own recovery
+  message. Three decisions are worth keeping because each was a way to get it wrong:
+  * **Frames, not vitals rows.** The ring talks whether or not it is worn (spo2 goes None the moment
+    it leaves the finger), so a row-based counter would call every unworn night an impostor. Frames
+    are the LINK's heartbeat — the same signal the runner's stall guard already trusts.
+  * **A RUN, reset by delivery, NOT reset by a failed connect.** A lifetime total alerts on every
+    long-running box eventually; and clearing the run on a connect that never reached identity would
+    let a flapping radio hide the finding forever. A pre-identity failure is the offline alarm's.
+  * **The journal guard is the transition into the ALERTING STATE, not into a new string.** Clause 1
+    compares texts because a mismatch text is stable; this text carries the run length, so comparing
+    texts journalled at 3 and again at 4 — measured by the test, which is why it is written down.
+  * **The alert ATTRIBUTES rather than suppresses.** A #2209 restart storm produces this exact shape
+    — connect, identity, the ring restarts, no frames — so the alarm is a true positive either way,
+    but an operator sent after an impostor when a known storm is the cause has been misled. The text
+    branches on the daemon's own `_OXYII_STORMS`/`_OXYII_RESTARTS` within `_OXYII_STORM_MEMORY_S`
+    (read in-process — no STATUS publication was needed for this, though one is worth having for the
+    monitor); the FIRING never branches, and both directions are plant-tested. ⚠️ Clause 1's silence
+    is deliberately NOT a discriminator: it is inert until `serial:` is configured and vigil has
+    **zero** such keys (measured 2026-09-05), so the inference would be vacuous on the very box that
+    owns this ring.
+  * **The `0xE1` "firmware" is the BRANCH CODE** (`oxyii.py:272-278` — the ring reports branch
+    `2D010001` *and* firmware `1.13.1.0`; `parse_get_info` returns the branch under the key
+    `firmware`). The monitor therefore draws it as **branch**, not as a firmware version: the STATUS
+    key keeps the parser's name so the two cannot disagree, and renaming both is residue
+    `2026-09-02-oxyii-branchcode-named-firmware`, which belongs with the parser.
+  * **The RUN is drawn, not merely forwarded.** It was first published to `/api/state` and drawn by
+    nothing, on the argument that a count reading 0 or 1 is noise — and `find_unwired` reds exactly
+    that as the half-wired shape (O2RING §20: a field that reaches `/api/state` and no further is
+    exposed to nobody). The argument was answered instead by drawing it only while it is non-zero: a
+    healthy box shows nothing, a run of two is visible without being loud.
+  Unlike clause 1 this half needs NO configuration: it is armed on every box, because it compares the
+  link against itself rather than against an operator-supplied expectation.
 
 ### 6.3 · C4 content-gate — exact rule for the PR (so nobody re-derives it)
 

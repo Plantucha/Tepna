@@ -305,3 +305,103 @@ def test_a_LATER_success_clears_the_error_so_the_card_recovers():
     state["fail"] = False
     asyncio.run(n.send("t", "m"))
     assert n.stats()["last_error"] is None and n.stats()["last_ok"] is not None
+
+
+# ── ring_identity_mismatch — the audit §6.2 Mitigation C pure check ─────────────────────────────────
+def test_identity_check_is_INERT_when_no_serial_is_configured():
+    """Detection the operator opts into. Nothing configured ⇒ nothing to compare ⇒ never fires, whatever
+    the peer said — including a peer that said nothing."""
+    assert alerts.ring_identity_mismatch(None, "2592302100") is None
+    assert alerts.ring_identity_mismatch("", "2592302100") is None
+    assert alerts.ring_identity_mismatch("   ", "") is None
+    assert alerts.ring_identity_mismatch(None, None) is None
+
+
+def test_a_matching_wire_serial_is_silent_and_yaml_ints_count_as_a_match():
+    """`serial: 2592302100` parses as an int in YAML; the ring answers a string. One ring, one verdict."""
+    assert alerts.ring_identity_mismatch("2592302100", "2592302100") is None
+    assert alerts.ring_identity_mismatch(2592302100, "2592302100") is None
+    assert alerts.ring_identity_mismatch(" 2592302100 ", "2592302100") is None
+
+
+def test_a_different_serial_names_both_sides():
+    msg = alerts.ring_identity_mismatch("2592302100", "2592399999")
+    assert msg is not None
+    assert "2592399999" in msg and "2592302100" in msg, "the operator must see what answered AND what was expected"
+
+
+def test_the_filename_id_is_NOT_the_wire_serial_and_the_check_says_so_by_mismatching():
+    """The audit brief's first draft compared against `S8AW2100`, the BLE-name id. Configured that way, the
+    real ring would read as an impostor every night — a false alarm that teaches the operator to ignore
+    the alert. The docstring names the right field; this pins that the two strings really do differ."""
+    assert alerts.ring_identity_mismatch("S8AW2100", "2592302100") is not None
+
+
+def test_an_EMPTY_or_ABSENT_reply_against_a_configured_serial_is_a_mismatch():
+    """A peer that answers the identity query with no identity is the impostor shape, not a pass."""
+    for seen in ("", None, "   "):
+        msg = alerts.ring_identity_mismatch("2592302100", seen)
+        assert msg is not None, f"seen={seen!r} must not read as a match"
+        assert "no serial at all" in msg
+
+
+# ── ring_barren_connects — clause 2 of the same mitigation ──────────────────────────────────────────
+def test_a_short_run_of_barren_connects_says_nothing():
+    """One is a dropped link; two is a reconnect landing on a drop. Neither is a finding, and an alarm
+    that fires on them is one an operator learns to ignore — which costs the alarms that matter."""
+    assert alerts.ring_barren_connects(0) is None
+    assert alerts.ring_barren_connects(1) is None
+    assert alerts.ring_barren_connects(2) is None
+
+
+def test_the_run_that_reaches_the_threshold_names_its_length_and_what_it_means():
+    msg = alerts.ring_barren_connects(alerts.RING_BARREN_ALERT_N)
+    assert msg is not None
+    assert str(alerts.RING_BARREN_ALERT_N) in msg, "the operator is owed the count, not just the verdict"
+    assert "delivered no frames" in msg
+    longer = alerts.ring_barren_connects(9)
+    assert longer is not None and "9" in longer
+
+
+def test_the_threshold_is_a_parameter_not_a_literal_in_the_body():
+    """The default is stated once, as RING_BARREN_ALERT_N, so a box that wants to be twitchier can be
+    without a second copy of the number appearing anywhere."""
+    assert alerts.ring_barren_connects(1, threshold=1) is not None
+    assert alerts.ring_barren_connects(5, threshold=99) is None
+
+
+def test_a_barren_run_during_a_known_storm_names_the_STORM_not_an_impostor():
+    """The misattribution this branch exists to prevent. An O2Ring restart storm produces exactly the
+    clause-2 shape — connect, identity, the ring restarts, no frames — so the alarm is a true positive
+    either way; what must not happen is an operator sent after an impostor when a known storm is the
+    cause. The firing is unchanged; only the sentence branches."""
+    msg = alerts.ring_barren_connects(3, storm_age_s=420.0)
+    assert msg is not None
+    assert "restart storm tripped 7 min ago" in msg
+    assert "not an impostor" in msg
+    assert "reaches something that is not serving data" not in msg
+
+
+def test_recent_restarts_short_of_a_storm_still_name_the_ring_first():
+    """Below the storm threshold the ring can still be restarting — 3 restarts in the window is not a
+    storm but is a better explanation than an impostor, and saying so costs nothing."""
+    msg = alerts.ring_barren_connects(3, restarts_recent=3)
+    assert msg is not None and "3 session restart(s) recently" in msg
+
+
+def test_with_no_storm_and_no_restarts_the_wording_stays_neutral():
+    """No storm in evidence ⇒ no exoneration invented. The text says what was observed and does not
+    claim an impostor either — clause 1 is the field that can speak to identity, and only when the
+    owner has configured a serial to compare against."""
+    msg = alerts.ring_barren_connects(3)
+    assert msg is not None and "this link reaches something that is not serving data" in msg
+    assert "impostor" not in msg and "storm" not in msg
+
+
+def test_the_storm_branch_does_not_change_WHETHER_it_fires():
+    """Attribution, not suppression: a storm must never silence the alarm. Below threshold stays
+    silent with a storm in evidence; at threshold fires with or without one."""
+    assert alerts.ring_barren_connects(2, storm_age_s=10.0) is None
+    assert alerts.ring_barren_connects(2, restarts_recent=99) is None
+    assert alerts.ring_barren_connects(3, storm_age_s=10.0) is not None
+    assert alerts.ring_barren_connects(3) is not None
