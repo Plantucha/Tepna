@@ -20,6 +20,13 @@
 #
 # Installed as systemd user units bge-reindex.{service,timer} (hourly,
 # randomized 5 min). This script is safe to run by hand at any time.
+#
+# EXTERNAL ROOTS ride the same tick (owner 2026-09-06: "reindex on a
+# regular basis like tepna is"). doc-search reads the per-machine
+# `$STATE/doc-search-external.json` on every query, so the external reference
+# trees are re-hashed hourly for free; `--pull-ext` also
+# fast-forwards the roots that opted in with `"pull": true` (shallow clones
+# nobody works in — never a peer's working tree, never a non-git tree).
 # ════════════════════════════════════════════════════════════════════════
 set -u
 ROOT=/home/michal/Tepna
@@ -45,5 +52,5 @@ curl -sf --max-time 5 http://127.0.0.1:11434/api/tags >/dev/null 2>&1 || {
 }
 
 cd "$ROOT" || exit 0
-out=$(timeout 900 node tools/doc-search.mjs "index freshness tick" 2>&1 | grep -iE "embed|chunk" | head -2)
+out=$(timeout 900 node tools/doc-search.mjs --pull-ext "index freshness tick" 2>&1 | grep -iE "embed|chunk|ext:" | head -8 | tr '\n' ' ')
 echo "$(date -Is) ${out:-'(no embed line — check doc-search output)'}" >>"$LOG"
