@@ -135,7 +135,9 @@ plus `prior_gap_sec`) and make `ok` false — or add a `gaps:` list beside `miss
 ### A3. The O2Ring PPG grid declares a rate the ring does not run, and the correction is structurally one-sided — `capture.py:226`
 
 `O2PPG_FS_DEFAULT = 125.738` is a constant calibrated 2026-07-18, and `O2PPG_NS_STEP = int(1e9/O2PPG_FS)` is the
-**only sample clock the O2Ring file carries** (the ring has no device clock). The session-anchored correction at
+**only sample clock the O2Ring file carries** (the ring publishes no PER-SAMPLE clock — corrected 2026-09-06:
+it does carry a 1 Hz session counter, `duration_s`, which is a rate reference far too coarse to place samples;
+residue `2026-09-06-ring-duration-counter-bimodal`). The session-anchored correction at
 `:1576` only ever *advances*: `if target - ppg_idx[0] > O2PPG_GAP_MIN_S*O2PPG_FS`. That reasoning holds only
 when the ring runs **slower** than the constant. When it runs **faster**, the difference is monotonically
 negative, the branch can never fire, and the grid runs ahead of real time without bound.
