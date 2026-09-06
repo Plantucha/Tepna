@@ -390,6 +390,15 @@ class StreamWriter:
         # `ppg1`. Named `ir`/`red` rather than `channel 0/1` deliberately — these are two WAVELENGTHS,
         # not two LEDs of one wavelength, and the ratio between them is the whole reason to record them.
         "ppg2w": "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion",
+        # THE RING'S SINGLE-CHANNEL LOSSLESS PLETH (cmd 0x03). `beat` is a FLAG column, not a sample:
+        # 156 is an inserted beat marker on this device, but measured 2026-09-06 it is NOT the
+        # rate-inflating insertion it is on 0x05 (0.534/s against 62 bpm, and subtracting it moves the
+        # rate away from the 125.000 ADC). So the row is written as it arrived and the flag says what
+        # it is — a consumer that wants beats reads the column, one that wants the waveform ignores it,
+        # and neither has to guess which 156s were real samples. `sensor timestamp [ns]` is 0 for the
+        # same reason as accraw/ppg2w: this opcode exposes no device clock, and a plausible number
+        # would read as a measurement that never happened.
+        "pletha": "Phone timestamp;sensor timestamp [ns];sample;beat",
         # PSL splits HR and RR into TWO files (verified against the real corpus). _HR.txt is HR-only —
         # the HRV/Breathing columns exist in the header but PSL leaves them empty — and the per-beat RR
         # intervals go to a sibling _RR.txt. Matching this lets ONE parser read Vigil and genuine Polar
@@ -510,6 +519,14 @@ class StreamWriter:
 
     def write_acc(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: int, y: int, z: int) -> None:
         self._row(f"{_phone_ts(phone)};{sensor_ns};{x};{y};{z}\n")
+
+    def write_pletha(self, phone: _dt.datetime, sensor_ns: int, sample: int, beat: int) -> None:
+        """One raw single-channel optical sample (O2Ring cmd=0x03), with the beat-marker flag.
+
+        Its own method rather than a branch in `write_ppg2w` for the reason that one is separate from
+        `write_ppg`: the column set IS the contract a reader resolves the layout from, and a
+        two-column-plus-flag row is neither of the others."""
+        self._row(f"{_phone_ts(phone)};{sensor_ns};{sample};{beat}\n")
 
     def write_ppg2w(self, phone: _dt.datetime, sensor_ns: int, ch0: int, ch1: int, motion: int) -> None:
         """One raw dual-wavelength sample (O2Ring cmd=0x05).
