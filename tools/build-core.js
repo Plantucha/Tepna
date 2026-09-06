@@ -427,6 +427,89 @@
     });
   }
 
+  /* ── §📦 projectSource — mark a bundle that was NOT built from upstream ───────────────────────
+     Same construction as projectVersion above, for the same reason: every inline asset block is
+     masked before the regexes run, so the stamp can only touch bytes OUTSIDE them and manifestHash
+     cannot move. A fork can mark its whole fleet without disturbing one fixture.
+
+     WHY IT STAMPS ONLY A FORK. Stamping every build would rewrite all nine committed bundles the
+     day it lands — no hashes moved, but nine artifacts changed and `build:check`'s byte-compare red
+     until each is rebuilt. That is churn every other session in the tree pays for and nobody outside
+     it benefits from, and an upstream build is already identifiable by being upstream. So
+     `source === upstream` is a byte-identical no-op, and so is a build with no source at all: an
+     unbuilt working tree is not a fork and must not be labelled one.
+
+     WHAT IT IS FOR, since the mechanism does not say it. A person who opens one of these files
+     should be able to see whose build it is without reading source. The suite is published with no
+     warranty, and that disclaimer is made by the author about the code the author wrote; a modified
+     version may behave in ways its own author understands and this one has never seen, and having
+     those differences attributed here helps nobody — least of all the user trying to work out who
+     can help them. It is also the Apache-2.0 §4(b) notice ("cause any modified files to carry
+     prominent notices stating that You changed the files") put where a user can actually see it.
+
+     NOT AN AUTHENTICITY CONTROL. A fork that wants the banner gone deletes one call. The value is
+     that keeping it is the default and removing it is a decision rather than an oversight. */
+  var SLUG_RE = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+  var FORK_MARK = 'data-tepna-fork-notice';
+  function projectSource(html, source, upstream) {
+    if (typeof html !== 'string') return html;
+    // Both must be well-formed owner/repo slugs. Anything else is not interpolated at all — the
+    // same refusal projectVersion makes for a non-semver version, and for the same reason: a value
+    // that reaches the document unvalidated is an injection site. The banner puts these two strings
+    // into markup, so this guard is the whole of the escaping story and must stay strict.
+    if (!SLUG_RE.test(String(source || '')) || !SLUG_RE.test(String(upstream || ''))) return html;
+    if (source === upstream) return html;
+    var vault = [];
+    var mask = function (m) {
+      vault.push(m);
+      return '@@DEXS' + (vault.length - 1) + '@@';
+    };
+    var masked = html.replace(INLINE_SCRIPT_RE, mask).replace(INLINE_STYLE_RE, mask);
+    /* Idempotency is decided on the MASKED text, not the raw file. Checked on the raw file, a fork
+       whose own app code merely CONTAINS this attribute name — a selector, a test fixture, a comment
+       — would suppress the banner entirely and silently, which is the failure this whole design is
+       supposed to avoid. Found by the decoy leg in build-core-tests, not by reading. */
+    if (masked.indexOf(FORK_MARK) >= 0) return html;          // already stamped
+
+    masked = masked.replace(/<head(\s[^>]*)?>/i, function (m0) {
+      return m0 + '\n<meta name="tepna-built-from" content="' + source + '">'
+                + '\n<meta name="tepna-upstream" content="' + upstream + '">';
+    });
+
+    /* The banner carries its own styling inline and depends on no class from the bundle, because a
+       fork may have restyled or removed anything. Muted rather than alarming on purpose: this is a
+       statement of fact for the reader's benefit, not an accusation — forking is a right the licence
+       grants, and a notice that reads as a warning invites its own removal. */
+    var banner =
+      '<div ' + FORK_MARK + ' role="note" style="display:block;box-sizing:border-box;width:100%;' +
+      'margin:0;padding:9px 14px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;' +
+      'font-size:13px;line-height:1.45;color:#4a3708;background:#fff4d6;' +
+      'border-bottom:1px solid #e3c96b;text-align:center">' +
+      'Modified build — built from <strong>' + source + '</strong>, not from the original ' +
+      'project <strong>' + upstream + '</strong>. Changes in this build are not by the original ' +
+      'author.</div>';
+    if (/<body(\s[^>]*)?>/i.test(masked)) {
+      masked = masked.replace(/<body(\s[^>]*)?>/i, function (m0) { return m0 + '\n' + banner; });
+    } else {
+      /* No <body> tag is legal HTML and two of these files are hand-assembled, so falling through
+         silently would be a marker that matched nothing — the exact shape build-core-tests records
+         as indistinguishable from a marker that was not needed. Put it before </html> instead. */
+      masked = /<\/html>/i.test(masked)
+        ? masked.replace(/<\/html>/i, banner + '\n</html>')
+        : masked + '\n' + banner;
+    }
+
+    // The title is the only anchor all nine bundles carry, so it is where a marker can be put once
+    // and be present everywhere — including in a screenshot of the browser tab.
+    masked = masked.replace(/(<title>)([^<]*?)(<\/title>)/i, function (m0, a, t, z) {
+      return t.indexOf('fork of ') >= 0 ? m0 : a + t + ' · fork of ' + upstream + z;
+    });
+
+    return masked.replace(/@@DEXS(\d+)@@/g, function (_m, i) {
+      return vault[+i];
+    });
+  }
+
   function build(opts) {
     opts = opts || {};
     var src = opts.srcHtml,
@@ -509,6 +592,9 @@
     out += src.slice(i);
     out = applyScriptHashes(out); // CSP strict script-src: fill __DEX_SCRIPT_HASHES__ (no-op if absent)
     out = projectVersion(out, opts.suiteVersion); // §📦 — outside every inline block, manifestHash-invariant
+    // Same invariance, same reason. A no-op unless this build came from somewhere other than
+    // upstream, so the committed bundles are untouched by its existence.
+    out = projectSource(out, opts.sourceRepo, opts.upstreamRepo);
     return { html: out, manifestHash: manifestHashFromInline(out), assetNames: assetNames };
   }
 
@@ -524,6 +610,7 @@
     classicify: classicify,
     build: build,
     projectVersion: projectVersion,
+    projectSource: projectSource,
     INLINE_SCRIPT_RE: INLINE_SCRIPT_RE,
     INLINE_STYLE_RE: INLINE_STYLE_RE
   };

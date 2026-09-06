@@ -75,6 +75,54 @@ async function main() {
      The whole license to stamp versions per release is this invariance; if it ever breaks, releases
      start moving every fixture and the deferral's original objection comes back. So it is gated with
      a DECOY: a version-shaped string inside an inline script block must be unreachable. */
+
+  /* ── §📦 projectSource — the fork banner, same invariance, one extra hazard ───────────────────
+     A fork build must SAY it is a fork, where a person can see it. The legs below are the ones that
+     can actually fail: invariance (or releases start moving fixtures), no-op on an upstream build
+     (or nine committed bundles churn the day this lands), and a DECOY — because the idempotency
+     guard originally read the RAW html, so a fork whose own app code merely mentioned the marker
+     attribute suppressed the banner silently. That is the examined-nothing shape this suite exists
+     to catch, and only the decoy caught it. */
+  {
+    const q = String.fromCharCode(34);
+    const synth = [
+      '<html><head><title>SynthDex · v1.0</title></head><body>',
+      '<script data-inline-src=' + q + 'a.js' + q + '>var decoy = ' + q + '<div data-tepna-fork-notice>' + q + ';</scr' + 'ipt>',
+      '<p>content</p></body></html>'
+    ].join('\n');
+    const forked = DexBuild.projectSource(synth, 'Someone/Tepna', 'Plantucha/Tepna');
+
+    ok(forked.includes('Modified build'), 'projectSource injects a VISIBLE banner into the body');
+    ok(forked.indexOf('<body>') < forked.indexOf('Modified build'), 'the banner is at the top of the body');
+    ok(forked.includes('fork of Plantucha/Tepna</title>'), 'and names the upstream project in the title');
+    ok(forked.includes('name="tepna-built-from"'), 'machine-readable provenance meta is present too');
+    ok(forked.includes('var decoy = ' + q + '<div data-tepna-fork-notice>' + q),
+       'DECOY: a banner-shaped string in app code is untouched — inline blocks are masked, not trusted');
+    ok((forked.match(/data-tepna-fork-notice/g) || []).length === 2,
+       'DECOY: and it does not suppress the real banner (the guard reads the MASKED text)');
+    ok(DexBuild.projectSource(forked, 'Someone/Tepna', 'Plantucha/Tepna') === forked, 'idempotent');
+    ok(DexBuild.projectSource(synth, 'Plantucha/Tepna', 'Plantucha/Tepna') === synth,
+       'an UPSTREAM build is a byte-identical no-op — no churn on the committed bundles');
+    ok(DexBuild.projectSource(synth, undefined, 'Plantucha/Tepna') === synth,
+       'a local build is not a fork and is left alone');
+    ok(DexBuild.projectSource(synth, 'a/b' + q + '><script>alert(1)</scr' + 'ipt>', 'Plantucha/Tepna') === synth,
+       'a slug carrying markup is REFUSED, never escaped — the guard is the whole escaping story');
+
+    /* Invariance on a real bundle, not only on a synthetic string: the same lesson the version block
+       records one screen up, where every synthetic leg passed while a shipped bundle carried none. */
+    for (const b of owned.slice(0, 3)) {
+      const srcHtml = readT(srcFor(b));
+      const refs = DexBuild.scanRefs(srcHtml);
+      const assets = {};
+      for (const a of [...refs.styles, ...refs.scripts]) assets[a] = readT(a);
+      const up = DexBuild.build({ srcHtml, assets, suiteVersion: SUITE_VERSION, sourceRepo: 'Plantucha/Tepna', upstreamRepo: 'Plantucha/Tepna' });
+      const fk = DexBuild.build({ srcHtml, assets, suiteVersion: SUITE_VERSION, sourceRepo: 'Someone/Tepna', upstreamRepo: 'Plantucha/Tepna' });
+      ok(up.manifestHash === fk.manifestHash, b + ': manifestHash INVARIANT under the fork stamp', up.manifestHash);
+      ok(fk.html.includes('Modified build'), b + ': a fork build of the SHIPPED source carries the banner');
+      ok(up.html === readT(b), b + ': an upstream build is still byte-identical to the committed bundle');
+    }
+  }
+
   {
     const q = String.fromCharCode(34);
     const synth = [

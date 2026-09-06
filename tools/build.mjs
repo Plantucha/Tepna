@@ -61,6 +61,8 @@ const BUNDLES = ManifestGate.MANIFEST_BUNDLES; // single source of the fleet (pr
 // fixtures (ORIENTATION: they touch neither gate). build.mjs builds them + `--check` guards drift; it does
 // NOT re-stamp ledgers for them. (OWN-THE-BUILD-FOLLOWUPS §6.)
 const ORCHESTRATORS = ['Data Unifier.html', 'OverDex.html'];
+// The project these bundles descend from — see projectSource in tools/build-core.js.
+const UPSTREAM_REPO = 'Plantucha/Tepna';
 const ALL = BUNDLES.concat(ORCHESTRATORS);
 
 function srcFor(bundleFile) {
@@ -84,7 +86,13 @@ function buildOne(bundleFile) {
   // suite.manifest.json; a release bumps it, and the byte-compare in --check reds any bundle still
   // carrying the old string until it is rebuilt.
   const suiteVersion = JSON.parse(readT('suite.manifest.json')).version;
-  return DexBuild.build({ srcHtml, assets, suiteVersion }); // { html, manifestHash, assetNames }
+  // §📦 fork marking. UPSTREAM_REPO lives in this file, in the tree: a fork inherits it by
+  // copying the code, so erasing the marker takes a deliberate edit rather than an omission.
+  // sourceRepo comes from the CI environment, which GitHub sets for every run in every fork and
+  // cannot be inherited by accident. When they match — every upstream build — and when there is
+  // no source at all (a local build), projectSource is a byte-identical no-op.
+  const sourceRepo = process.env.GITHUB_REPOSITORY;
+  return DexBuild.build({ srcHtml, assets, suiteVersion, sourceRepo, upstreamRepo: UPSTREAM_REPO });
 }
 
 // Re-stamp a bundle's manifestHash into its per-app provenance/ fragment (P3 — the two monolith
