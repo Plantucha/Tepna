@@ -338,8 +338,15 @@ events**, and it was recovered from arrival timestamps alone.
 Polar H10 ecg   44.902 ms  ->  35.92 → 36 units × 1.25 ms = 45.00    R 0.937   9/9 streams
 Polar H10 acc   44.944 ms  ->  35.96 → 36                            R 0.927   8/8
 Polar Verity    30.014 ms  ->  24.01 → 24 units × 1.25 ms = 30.00    R 0.843   332/343
-Wellue O2Ring   REFUSED — no device clock at all
+Wellue O2Ring   REFUSED — no PER-SAMPLE device clock (1 Hz counter only)
 ```
+
+⚠️ **The refusal stands; its stated reason was too broad (corrected 2026-09-06).** This method
+differences a per-sample device timestamp against arrival, and the ring publishes none — so it is
+rightly refused. But the ring is not clockless: every `0x04` frame carries `duration_s`, a 1 Hz
+session counter, which cannot resolve a 1.25 ms lattice by three orders of magnitude and so changes
+nothing here. Recorded because "no device clock at all" propagated as a device fact when it is a
+statement about the sample stream — residue `2026-09-06-ring-duration-counter-bimodal`.
 
 `R` is the circular concentration `|mean(exp(2πix/s))|` on the differenced delay: **1** for a lattice,
 **~1/√n** for anything continuous.
