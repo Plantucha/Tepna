@@ -221,3 +221,93 @@ def test_the_real_vigil_shape_is_unaffected_by_the_fix():
                        {"name": "Polar Sense"}, {"name": "Polar H10"}]}
     assert len(capture.instance_devices(cfg, sena)) == 4
     assert capture.unowned_devices(cfg, [sena]) == []
+
+
+# ── CPAP wedge escalation gate (residue 2026-09-04-cpap-wedge-failover-masks-escalation) ──────────
+_SENA = "00:01:95:CC:53:02"      # vigil hci1, USB 1-5 — carries the four wearables
+_INTEL = "28:0C:50:0C:18:FD"     # vigil hci2, USB 1-9 — the CPAP BLE stream's pinned adapter
+
+
+def _real_shape_cfg():
+    """vigil's ACTUAL config shape, read 2026-09-06: NO `adapters:` map and NO per-device `adapter:`
+    pin. All four wearables inherit the top-level `adapter:`, and the CPAP is not in `devices:` at all
+    — its pin lives under `cpap.ble_stream.adapter`. Built as a fixture because a synthetic
+    `devices:`-entry shape never exercises this path, and the row exists precisely because a rung that
+    was armed in configuration turned out unreachable in practice."""
+    return {
+        "adapter": _SENA,
+        "devices": [{"name": "O2Ring-S"}, {"name": "COOSPO-808S"},
+                    {"name": "Polar Sense"}, {"name": "Polar H10"}],
+        "cpap": {"ble_stream": {"adapter": _INTEL}},
+        "watchdog": {"enabled": True, "usb_path": "1-2"},
+    }
+
+
+def test_gate_escalates_when_the_pinned_adapter_serves_nothing_live_real_shape():
+    """On the box the CPAP's adapter has NOTHING else declared on it, so the gate is satisfied by
+    configuration. Asserted against the real shape, not a synthetic one."""
+    cfg = _real_shape_cfg()
+    streaming_wearables = {d["name"]: {"connected": True, "worn": True} for d in cfg["devices"]}
+    g = capture.cpap_escalation_gate(cfg, _INTEL, streaming_wearables, "1-9")
+    assert g["escalate"] is True, g["reason"]
+    # DISCRIMINATING: the wearables are all live, on the OTHER adapter. A gate that looked at every
+    # device instead of that adapter's would refuse here — which is today's global predicate.
+    assert "1-9" in g["reason"]
+
+
+def test_gate_refuses_when_another_device_on_that_adapter_is_live():
+    """The whole point of gating: this rung can power-cycle and re-enumerate a radio, so it must not
+    run while that radio is serving someone."""
+    cfg = _real_shape_cfg()
+    cfg["devices"].append({"name": "OnIntel", "adapter": _INTEL})
+    cfg["adapters"] = {"intel": _INTEL}
+    g = capture.cpap_escalation_gate(cfg, _INTEL, {"OnIntel": {"connected": True, "worn": True}}, "1-9")
+    assert g["escalate"] is False
+    assert "OnIntel" in g["reason"]
+
+
+def test_a_charging_device_does_not_block_the_gate():
+    """`connected` is not `producing` — a sensor on its charger reports connected=True while producing
+    nothing. Shares `device_is_streaming` with classify_adapter_health so the two cannot disagree."""
+    cfg = _real_shape_cfg()
+    cfg["devices"].append({"name": "OnIntel", "adapter": _INTEL})
+    cfg["adapters"] = {"intel": _INTEL}
+    g = capture.cpap_escalation_gate(cfg, _INTEL, {"OnIntel": {"connected": True, "charging": True}}, "1-9")
+    assert g["escalate"] is True, g["reason"]
+
+
+def test_gate_refuses_the_rung_when_no_usb_path_is_derivable():
+    """THE PLANT THAT MATTERS. An internal controller has no USB bus-port, and an hci index can
+    re-enumerate after a rebind. Either way the derivation returns None, and the gate must REFUSE —
+    never fall back to `watchdog.usb_path`, which is one static value for the whole box and on vigil
+    named `1-2` (the UB500) while the watchdog watched the Sena. That fallback is how a wrong-radio
+    rebind would re-enter."""
+    cfg = _real_shape_cfg()
+    g = capture.cpap_escalation_gate(cfg, _INTEL, {}, None)
+    assert g["escalate"] is False
+    assert "refusing L3" in g["reason"]
+    # and it must NOT have reached for the configured static path
+    assert "1-2" not in g["reason"]
+
+
+def test_gate_refuses_when_no_cpap_adapter_is_pinned():
+    """No pin, nothing to escalate on — and it says so rather than defaulting to the global adapter,
+    which is the wearables' radio."""
+    cfg = _real_shape_cfg()
+    cfg["cpap"]["ble_stream"].pop("adapter")
+    g = capture.cpap_escalation_gate(cfg, None, {}, "1-9")
+    assert g["escalate"] is False and "nothing to escalate" in g["reason"]
+
+
+def test_adapter_usb_id_derives_from_sysfs_and_returns_none_when_absent(tmp_path):
+    """The bus-port comes from the ADAPTER's own sysfs walk, so it cannot name a different radio.
+    Built against a fake tree rather than this host's real bus, so the test says the same thing on
+    any machine."""
+    root = tmp_path / "bt"
+    devdir = tmp_path / "usb" / "3-7"
+    devdir.mkdir(parents=True)
+    (devdir / "idVendor").write_text("0a12\n")
+    (root / "hci9").mkdir(parents=True)
+    (root / "hci9" / "device").symlink_to(devdir)
+    assert capture.adapter_usb_id("hci9", sysfs_root=str(root)) == "3-7"
+    assert capture.adapter_usb_id("hci404", sysfs_root=str(root)) is None
