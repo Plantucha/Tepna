@@ -278,6 +278,50 @@ else echo "  ok    no unconditional early exit (every ALLOW is guarded by a cond
 bash -n "$H" && echo "  ok    syntax"
 
 echo
+echo "### A STALE SHARED ROOT MUST NOT DENY AN EDIT IN A CURRENT WORKTREE"
+# Residue `2026-09-05-sync-main-skips-while-root-dirty`. The guard's base is
+# `merge-base(HEAD, origin/main)` of the tree it RESOLVES, and `tepna-sync-main.timer` refuses to
+# fast-forward the shared root while it holds uncommitted paths — its normal state here — so the
+# root sits chronically behind. Measured on rig-x870: 42 commits behind at 02:15 with 7 dirty paths.
+#
+# The behaviour below was already CORRECT and entirely unpinned, which is the real exposure: nothing
+# would have caught a regression reintroducing the 2026-08-20 false denials. Each case states WHICH
+# tree it identifies, because that — not the root's staleness — is what decides the answer.
+# `--branch main` is load-bearing: the bare upstream's HEAD still points at `master`, so a plain
+# clone checks nothing out and every later query answers "fatal: Needed a single revision" —
+# which the fixture non-vacuity check below catches rather than letting the ALLOWs pass empty.
+STALE="$TMP/stale"; git clone -q --branch main "$UP" "$STALE" 2>/dev/null
+( cd "$STALE" && git config user.email t@t && git config user.name t \
+    && git fetch -q origin main 2>/dev/null && git checkout -q -B main HEAD~1 ) >/dev/null 2>&1
+git -C "$STALE" worktree add -q "$TMP/fresh" -b fresh origin/main >/dev/null 2>&1
+sb="$(git -C "$STALE" rev-list --count HEAD..origin/main 2>/dev/null)"
+fb="$(git -C "$TMP/fresh" rev-list --count HEAD..origin/main 2>/dev/null)"
+if [ "${sb:-0}" -ge 1 ] && [ "${fb:-1}" -eq 0 ]; then
+  echo "  ok    fixture is non-vacuous — root $sb behind, worktree $fb behind"
+else
+  echo "  FAIL  fixture did not build a stale root beside a current worktree (${sb:-?} / ${fb:-?})"; fail=$((fail+1))
+fi
+# Run from the STALE root's cwd, exactly as a PreToolUse hook does.
+rr() { ( cd "$STALE" && printf '%s' "$1" | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW ); }
+expectr() { local got; got="$(rr "$3")"
+  if [ "$got" = "$1" ]; then printf '  ok    %-58s %s\n' "$2" "$got"
+  else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi; }
+
+expectr ALLOW "current worktree named by ABSOLUTE file_path"  "{\"tool_input\":{\"file_path\":\"$TMP/fresh/briefs/SHARED-BRIEF.md\"}}"
+expectr ALLOW "current worktree named by a leading cd"        "{\"tool_input\":{\"command\":\"cd $TMP/fresh && sed -i s/a/b/ briefs/SHARED-BRIEF.md\"}}"
+# The paired DENYs differ in ONE property: the tree named is the STALE one, not the current one.
+expectr DENY  "…and the STALE tree by absolute path still denies" "{\"tool_input\":{\"file_path\":\"$STALE/briefs/SHARED-BRIEF.md\"}}"
+expectr DENY  "…and the STALE tree by a leading cd still denies"  "{\"tool_input\":{\"command\":\"cd $STALE && sed -i s/a/b/ briefs/SHARED-BRIEF.md\"}}"
+
+# THE RESIDUAL GAP, pinned as the behaviour it HAS rather than the one the docs claimed. With no
+# file_path and no parseable `cd` there is NO signal identifying the edited tree, so the hook
+# measures its own cwd. A denial here is possible ONLY while that tree is stale — when it is current
+# the base IS origin/main and the range is empty by construction — so this route cannot distinguish
+# "you are editing this stale tree" (deny is right) from "you are editing elsewhere" (deny is a
+# false positive). Pinned so the limitation is visible, not so it is endorsed.
+expectr DENY  "no tree signal → measured against cwd (documented gap)" '{"tool_input":{"command":"sed -i s/a/b/ briefs/SHARED-BRIEF.md"}}'
+
+echo
 [ "$fail" -eq 0 ] && echo "PASS — every DENY paired with an ALLOW that differs in one property" \
                   || echo "FAIL — $fail problem(s)"
 exit $((fail > 0))
