@@ -8,9 +8,15 @@ present, every wearable on one of them, and the AX210 idle while the others coll
 
 import adapter_pool as P
 
-UB = "AC:A7:F1:29:9D:1D"  # hci0 — the CPAP's own link
-SENA = "00:01:95:CC:53:02"  # hci1 — where every wearable currently is
-AX = "28:0C:50:0C:18:FD"  # hci2 — the AX210, plugged in 2026-08-30 and unused
+# ⚠️ THE ROLES MOVED, THE COMMENTS DID NOT. Re-read off the box 2026-09-06 (`bluetoothctl list` for
+# the MACs — NOT `bluetoothctl info`, which answers for the DEFAULT controller only — plus
+# `hciconfig <hci>` and the USB vid per adapter). These say WHICH RADIO each MAC is; the role claims
+# are dated because roles are what drift.
+UB = "AC:A7:F1:29:9D:1D"  # hci0 — TP-Link UB500 (vid 2357)
+SENA = "00:01:95:CC:53:02"  # hci1 — CSR/Sena (vid 0a12); the wearables' global `adapter:` (config:6)
+AX = "28:0C:50:0C:18:FD"  # hci2 — Intel AX210 (vid 8087); carries the CPAP (config:142
+#                           `cpap.ble_stream.adapter`). It was "plugged in 2026-08-30 and unused" when
+#                           this file was written; it is neither now.
 DEVS = ["H10", "Verity", "O2Ring", "Coospo"]
 ALL = [{"mac": UB, "up": True}, {"mac": SENA, "up": True}, {"mac": AX, "up": True}]
 
@@ -28,9 +34,14 @@ def test_a_DOWN_adapter_is_not_in_the_pool():
 
 
 def test_the_RESERVED_radio_is_separated_not_discarded():
-    """🔴 hci0 carries the CPAP's own link, and putting wearables there re-creates on one radio the
-    contention this module exists to relieve. But a reserved radio beats NO radio, so the caller can
-    fall back deliberately rather than the pool pretending it does not exist."""
+    """🔴 A RESERVED radio already carries something else's link — on this box the AX210 carries the
+    CPAP's — and putting wearables there re-creates on one radio the contention this module exists to
+    relieve. But a reserved radio beats NO radio, so the caller can fall back deliberately rather than
+    the pool pretending it does not exist.
+
+    The fixture reserves `UB` rather than `AX` because `usable_pool` is INDIFFERENT to which member is
+    reserved: which physical radio holds the CPAP is a fact about the box, not about this function.
+    That indifference is why the stale role comments above never failed a test."""
     pool, held = P.usable_pool(ALL, reserved=[UB.lower()])  # case-insensitive
     assert pool == sorted([SENA, AX]) and held == [UB]
 
