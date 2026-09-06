@@ -7,3 +7,11 @@ pytest-cov>=7.1.0
 pytest-asyncio>=1.4.0
 hypothesis>=6.165.10      # property tests for the clock surface — invariants over an input space,
                        # where a known-answer table cannot go (tests/test_clock_properties.py)
+mutmut>=3.7.0          # tools/mutate_diff.py (the diff-scoped mutation gate) and tools/mutate.py.
+                       # CI installs it inline in the `mutation-diff` job, which is why this file could
+                       # omit it without CI noticing — but that made the gate UNRUNNABLE from the
+                       # documented local setup: `mutate_diff.py` refuses when mutmut is absent (rightly
+                       # — "a gate that cannot see must not report green"), so a contributor following
+                       # this file got a refusal with no indication that a dependency was missing.
+                       # `hypothesis` is listed here despite ALSO being installed inline in CI, so the
+                       # omission was an inconsistency rather than a policy.
