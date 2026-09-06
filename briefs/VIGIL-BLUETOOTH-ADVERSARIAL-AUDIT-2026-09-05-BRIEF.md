@@ -175,6 +175,22 @@ Everything measured 2026-09-05 ~17:45–18:15 UTC on the box unless dated otherw
     mitigation for a near-field witness (our devices sit at −41 to −53) and the wrong one for this
     audit, which exists to see a FOREIGN initiator — far-field is exactly the signal it must not
     discard. It also filters in python after parse, so it saves the write path and not the CPU.
+  * **TWO REGIMES, because "did not run" and "could not keep up" are different questions — amended
+    2026-09-06 after running the audit against a real chunk BEFORE installing the timer.** That run
+    returned `AIR AUDIT: FAILED … the sniffer died 457 s early` at coverage 0.49 — on a capture that
+    had run its whole 900 s. Installing it unchanged would have produced a FAILED audit every night
+    on a hardware limit, which is the fastest way to teach an operator to skip the line, and it would
+    have named a crash that never happened on the audit's first real firing. So: a capture that ENDED
+    EARLY is still judged at `WINDOW_MIN_FRACTION` (0.8) — that is F2's defect and the reason the
+    check exists — while a capture that RAN its window is judged against `COVERAGE_FLOOR` (0.25),
+    below which the window is too thin for any verdict to rest on. Between floor and fraction the
+    coverage line states the shortfall and the audit PASSES, which is only readable because the
+    fraction is printed on every run.
+  * ⚠️ **The absence of the flag is UNKNOWN, not "it exited early".** `_parse_argv` defaulted
+    `ran_full` to `False`, so any hand invocation asserted a cause nobody had claimed — that is what
+    produced the "died" wording above. The default is now `None`, `--exited-early` says the other
+    half explicitly, and `tepna-sniff.sh` passes exactly one of the two from `timeout`'s exit code.
+    A caller that does not say gets a sentence that says so.
   * **The audit states its COVERAGE on every run, passing or failing.** A verdict of "no foreign
     connects" is worth exactly what its coverage is worth, and nothing else in the output lets a
     reader tell cover=1.0 from cover=0.5 — the same rule that already prints `foreign connects: 0`.
