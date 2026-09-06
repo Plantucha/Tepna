@@ -201,7 +201,7 @@ def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
     # after the live box was found running a STALE root-owned tepna-clock.sh and tepna-restart.sh, with
     # tepna-usbreset.sh never installed at all — drift in the most privileged files on the box, invisible
     # because they were not on this list.
-    for u in ("tepna-update.service", "tepna-update.timer"):
+    for u in ("tepna-update.service", "tepna-update.timer", "tepna-sniff.service", "tepna-sniff.timer"):
         (src / u).write_text(f"[Unit]\nDescription={u}\n")
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
     lib = tmp_path / "lib-tepna"; lib.mkdir()
@@ -293,7 +293,7 @@ def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
     (systemd / "tepna-capture.service").write_text(etc_body)
     # The privileged helpers, in sync — this fixture is about AMBIGUOUS SOURCES, so they must not be
     # the thing that reds it.
-    for u in ("tepna-update.service", "tepna-update.timer"):
+    for u in ("tepna-update.service", "tepna-update.timer", "tepna-sniff.service", "tepna-sniff.timer"):
         (src / "systemd" / u).write_text(f"[Unit]\nDescription={u}\n")
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
     lib = tmp_path / "lib-tepna"; lib.mkdir()
@@ -619,7 +619,7 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh", "enable-cpap-wifi.sh",
                         "tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh",
                         "tepna-usbreset.sh", "tepna-btreset.sh", "tepna-wifi.sh", "check.sh",
-                        "tepna-update.sh", "vigil.sh", "tepna-btmon.sh"}, (
+                        "tepna-update.sh", "vigil.sh", "tepna-btmon.sh", "tepna-sniff.sh"}, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")
 
