@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (C4 EXECUTED — verified 2026-09-05: the §6.3 content gate is in `tepna-update.sh`, changeset `update-restart-content-gate`, 9 gate tests + 3 killed plants. Mitigation C EXECUTED, both clauses — verified 2026-09-05: `run_oxyii` publishes the `0xE1` wire serial + firmware to STATUS/monitor and compares the serial against a new optional O2Ring `serial:` key (clause 1), and counts the RUN of connects that answer identity and deliver no frames (clause 2); changeset `ring-identity-alert`, 35 gate tests + 12 killed plants; ⚠ the comparable field is the WIRE serial `2592302100`, not the BLE-name id `S8AW2100` the bullet named — see §6.2; clause 1 is ARMED only once the owner sets `serial:` on vigil, while clause 2 needs no configuration and is armed on every box. D3 EXECUTED — verified 2026-09-05: `tepna-sniff.timer` runs a nightly 10-min all-advertising capture and `ble_sniff.py` audits it — window coverage + any initiator that is not one of our adapters connecting to one of our devices; exit 3 puts the oneshot in `systemctl --failed`; changeset `sniff-nightly-audit`, 15 shell-surface tests + 16 audit tests, 4 killed plants; ARMED only once the owner deploys and enables the timer on vigil. §6.1 box ops and §6.2 Probe A are owner-attended; Mitigation B WITHDRAWN by owner correction (§6.2 — the `.dat` harvest is already BLE), B′ and D3 tracked separately) · **Created:** 2026-09-05
+**Status:** PROPOSED (C4 EXECUTED — verified 2026-09-05: the §6.3 content gate is in `tepna-update.sh`, changeset `update-restart-content-gate`, 9 gate tests + 3 killed plants. Mitigation C EXECUTED, both clauses — verified 2026-09-05: `run_oxyii` publishes the `0xE1` wire serial + firmware to STATUS/monitor and compares the serial against a new optional O2Ring `serial:` key (clause 1), and counts the RUN of connects that answer identity and deliver no frames (clause 2); changeset `ring-identity-alert`, 35 gate tests + 12 killed plants; ⚠ the comparable field is the WIRE serial `2592302100`, not the BLE-name id `S8AW2100` the bullet named — see §6.2; clause 1 is ARMED only once the owner sets `serial:` on vigil, while clause 2 needs no configuration and is armed on every box. D3 EXECUTED — verified 2026-09-05: `tepna-sniff.timer` runs a nightly 10-min all-advertising capture and `ble_sniff.py` audits it — window coverage + any initiator that is not one of our adapters connecting to one of our devices; exit 3 puts the oneshot in `systemctl --failed`; changeset `sniff-nightly-audit`, 16 shell-surface tests + 20 audit tests, 7 killed plants; ARMED only once the owner deploys and enables the timer on vigil. §6.1 box ops and §6.2 Probe A are owner-attended; Mitigation B WITHDRAWN by owner correction (§6.2 — the `.dat` harvest is already BLE), B′ and D3 tracked separately) · **Created:** 2026-09-05
 
 # Vigil Bluetooth — adversarial audit (owner-ordered: "must be spotless")
 
@@ -156,6 +156,25 @@ Everything measured 2026-09-05 ~17:45–18:15 UTC on the box unless dated otherw
     our devices is reported as foreign rather than silently attributed.
   Also unpicked deliberately: the extcap's capture loop is `while True: pass`, so the unit runs at
   `Nice=19` — it spins a core for the whole window and must yield to `tepna-capture`.
+  * **THE SNIFFER CANNOT KEEP UP WITH THIS BOX'S AIR, and the span check is what makes that
+    visible** (measured on vigil 2026-09-06, Wren). The Nordic extcap pegs one core at **101 %** and
+    processes air at **~0.4x real time**: its newest packet advanced 44 s in 110 s of wall clock, so
+    a 900 s window yielded 0.375–0.796 of its span and the SIGINT fix changed nothing (post-fix
+    0.468, 0.413). The missing 60 % is **always the END of the window** — a systematic blind spot,
+    not sampling. An un-instrumented sniffer in busy RF therefore captures the first 40 % of every
+    window and reports nothing wrong; those chunks were not healthy captures that a strict threshold
+    would have failed, they were 40 % captures that it correctly caught. **`WINDOW_MIN_FRACTION`
+    stays at 0.8**, and the first real positive it has is this.
+  * **The audit names WHICH fault, and the pcap cannot tell them apart.** `timeout` exits 124 exactly
+    when it ended the capture on schedule, so `tepna-sniff.sh` passes `--ran-full-window` on that
+    code alone: the process lived the whole window ⇒ it FELL BEHIND (the deficit above), otherwise ⇒
+    it DIED early (a crash, a LockedException, an unplug — F2's shape). Calling a throughput deficit
+    "the sniffer died early" names a fault that did not happen and hides one that did. The wording
+    branches; the verdict never does, plant-tested both ways.
+    ⚠ **Do NOT adopt `--extcap-capture-filter "rssi >= -70"` here.** It is the right throughput
+    mitigation for a near-field witness (our devices sit at −41 to −53) and the wrong one for this
+    audit, which exists to see a FOREIGN initiator — far-field is exactly the signal it must not
+    discard. It also filters in python after parse, so it saves the write path and not the CPU.
   ⚠ **Inert until deployed.** The timer only exists on vigil once the owner runs the deploy; nothing
   in this changeset touches the box.
 

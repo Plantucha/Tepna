@@ -34,6 +34,19 @@ is reported foreign rather than quietly attributed. Both arms are tested, the ab
 through a sealed PATH, because a stub that answers nothing exercises a different branch from a binary
 that is not there.
 
+**The span check has a real positive already, and it is worse than a dropped capture.** Measured on
+vigil 2026-09-06: the Nordic extcap pegs one core at 101 % and processes air at ~0.4x real time — its
+newest packet advanced 44 s in 110 s of wall clock — so a 900 s window yields ~360 s of packets and
+the missing 60 % is always the END. An un-instrumented sniffer in busy RF captures the first 40 % of
+every window and reports nothing wrong. `WINDOW_MIN_FRACTION` stays at 0.8 because that is precisely
+the condition it must catch.
+
+**The audit names which fault it is.** `timeout` exits 124 only when it ended the run on schedule, so
+that exit code — not the pcap, which cannot distinguish them — decides the wording: the process lived
+the whole window ⇒ it fell behind real time; it exited early ⇒ it died. The verdict is identical
+either way and that is plant-tested; only the sentence branches, because sending an operator after a
+crash that did not happen hides the deficit that did.
+
 A failed audit exits **3**, so the oneshot lands in `systemctl --failed` rather than logging a
 failure nobody reads. The unit runs `Nice=19`: the extcap's capture loop is a literal `while True:
 pass` and must yield to `tepna-capture` for the whole window.

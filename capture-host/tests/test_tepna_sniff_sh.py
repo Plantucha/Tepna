@@ -301,3 +301,12 @@ def test_retention_keeps_everything_when_the_horizon_is_wide(tmp_path):
 
     assert _run(tmp_path, out_dir=out, keep_days=365).rc == 0
     assert old.exists()
+
+
+def test_the_script_tells_the_audit_whether_the_capture_RAN_ITS_WINDOW(tmp_path):
+    """`timeout` exits 124 only when it ended the run on schedule, so that code — and nothing in the
+    pcap — is what separates "the sniffer died" from "the sniffer fell behind". The fake extcap here
+    exits 0 (an EARLY end), so the flag must NOT be passed and the verdict must name dying."""
+    r = _run(tmp_path, DIED_EARLY, rc=0)
+    assert r.rc == 3
+    assert "died" in r.verdict and "FELL BEHIND" not in r.verdict

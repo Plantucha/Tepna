@@ -67,10 +67,17 @@ if command -v bluetoothctl >/dev/null 2>&1; then
   adapters="$(bluetoothctl list 2>/dev/null | awk '$1=="Controller"{print $2}' | paste -sd, - || true)"
 fi
 
+# rc 124 means `timeout` ended the capture ON SCHEDULE, i.e. the process lived the whole window — so
+# a short span is the sniffer falling BEHIND real time, not dying. Measured on vigil 2026-09-06: the
+# extcap pegs a core at 101 %, runs at ~0.4x, and the missing time is always the END of the window.
+# The audit cannot tell those apart from the pcap, so the exit code is handed to it.
+ran_full=""
+[ "$rc" -eq 124 ] && ran_full="--ran-full-window"
 verdict="$pcap.verdict.txt"
 arc=0
+# shellcheck disable=SC2086 # $ran_full is one optional flag or empty; quoting it would pass ""
 "$VENV_PY" "$here/ble_sniff.py" "$pcap" --expect-seconds "$SECS" --config "$CONFIG" \
-  --adapters "$adapters" >"$verdict" 2>&1 || arc=$?
+  --adapters "$adapters" $ran_full >"$verdict" 2>&1 || arc=$?
 head -1 "$verdict" | sed 's/^/tepna-sniff: /' >&2
 audit_line="$(grep -m1 '^AIR AUDIT' "$verdict" || echo "AIR AUDIT: not produced (ble_sniff exit $arc)")"
 log "$audit_line — $verdict"

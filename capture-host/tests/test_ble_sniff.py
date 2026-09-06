@@ -652,3 +652,48 @@ def test_main_an_unreadable_capture_under_audit_is_still_exit_1_not_3(tmp_path, 
     rc = ble_sniff.main([str(tmp_path / "absent.pcap"), "--expect-seconds", "600"])
     assert rc == 1
     assert "cannot read" in capsys.readouterr().err
+
+
+# ── which FAULT a short window names (the 2026-09-06 throughput measurement) ──────────────────────
+def test_a_short_window_after_a_FULL_run_names_falling_behind_not_dying():
+    """Measured on vigil 2026-09-06: the Nordic extcap pegs one core at 101 %, processes air at
+    ~0.4x real time, and its newest packet advanced 44 s in 110 s of wall clock — so a 900 s window
+    yields ~360 s of packets and the missing 60 % is always the END. The capture did not die; it
+    fell behind. Reporting 'died early' there sends the operator after a crash that never happened
+    and hides a throughput deficit that is systematic."""
+    s = _night(_adv(0x0), _adv(0x0), span_s=360)
+    a = ble_sniff.audit(s, 900, set(), set(), ran_full_window=True)
+    assert not a["ok"]
+    assert "FELL BEHIND real time" in a["window"]
+    assert "the END of the window" in a["window"]
+    assert "died" not in a["window"]
+
+
+def test_a_short_window_after_an_EARLY_exit_still_names_dying():
+    """The other fault is real too — a LockedException, a crash, an unplugged dongle — and it is what
+    the flag's absence means. F2's 2-h-of-7.4-h capture is this case."""
+    s = _night(_adv(0x0), _adv(0x0), span_s=7168)
+    a = ble_sniff.audit(s, 26640, set(), set())
+    assert "the sniffer died 19472 s early" in a["window"]
+    assert "FELL BEHIND" not in a["window"]
+
+
+def test_the_fault_wording_never_changes_the_VERDICT():
+    """Attribution, not suppression: the same span fails identically either way, and a full-window
+    run at a healthy span still passes. Only the sentence moves."""
+    short = _night(_adv(0x0), _adv(0x0), span_s=360)
+    assert ble_sniff.audit(short, 900, set(), set(), ran_full_window=True)["ok"] is False
+    assert ble_sniff.audit(short, 900, set(), set(), ran_full_window=False)["ok"] is False
+    healthy = _night(_adv(0x0), _adv(0x0), span_s=880)
+    assert ble_sniff.audit(healthy, 900, set(), set(), ran_full_window=True)["ok"] is True
+
+
+def test_main_accepts_the_flag_and_the_two_positional_form_is_untouched(tmp_path, capsys):
+    p = tmp_path / "c.pcap"
+    p.write_bytes(_pcap_ts((100, 0, _adv(0x0)), (460, 0, _adv(0x0))))
+    assert ble_sniff.main([str(p), "--expect-seconds", "900", "--ran-full-window"]) == 3
+    assert "FELL BEHIND real time" in capsys.readouterr().out
+    assert ble_sniff.main([str(p), "--expect-seconds", "900"]) == 3
+    assert "died" in capsys.readouterr().out
+    assert ble_sniff.main([str(p), RESMED]) == 0            # the 2026-09-04 form, unchanged
+    assert "AIR AUDIT" not in capsys.readouterr().out
