@@ -193,8 +193,8 @@ class _FakeChar:
 
 
 class _FakeService:
-    def __init__(self):
-        self.characteristics = [_FakeChar(oxyii.OXYII_WRITE), _FakeChar(oxyii.OXYII_NOTIFY)]
+    def __init__(self, uuids=(oxyii.OXYII_WRITE, oxyii.OXYII_NOTIFY)):
+        self.characteristics = [_FakeChar(u) for u in uuids]
 
 
 class _FakeRing:
@@ -209,6 +209,8 @@ class _FakeRing:
         self.vals, self.pr = list(vals), pr
         self.bad_crc, self.short_live, self.other_op = bad_crc, short_live, other_op
         self.notify = None
+        self.notify_char = None
+        self.write_chars = []
         self.stopped = False
         self.services = [_FakeService()]
         self.mtu_size = 247
@@ -220,12 +222,17 @@ class _FakeRing:
         return False
 
     async def start_notify(self, _c, cb):
+        # WHICH characteristic, not just that one was passed. A fake that ignores the argument cannot
+        # tell the write and notify handles apart, so it accepts a probe that resolved them SWAPPED
+        # and reports green — the resolution loop is then untested however wrong it is.
+        self.notify_char = _c
         self.notify = cb
 
     async def stop_notify(self, _c):
         self.stopped = True
 
     async def write_gatt_char(self, _c, frame, response=False):
+        self.write_chars.append(_c)
         op = frame[1]
         if op == probe.OP_SAMPLES_A:
             reply = oxyii.encode(probe.OP_SAMPLES_A, _payload(self.vals))
@@ -349,3 +356,114 @@ def test_main_runs_without_a_json_log(monkeypatch, capsys):
     monkeypatch.setattr(probe, "run", fake_run)
     assert probe.main([]) == 0
     assert "NO 0x03 records" in capsys.readouterr().out
+
+
+# ── Holes the mutation run found that 100 % statement+branch coverage did not ────────────────────────
+# Every test below was written against a specific surviving mutant. Coverage says these lines RAN;
+# these say the lines were also OBSERVED, which is the difference the 0x05 saturation bug turned on.
+
+def test_a_reply_exactly_AT_the_cap_counts_as_saturated(monkeypatch):
+    """THE mutant worth the whole exercise: `count >= cap` → `count > cap`.
+
+    A buffer that pinned at exactly the cap is the saturation signature — it is what 282 402 of 0x05's
+    284 420 buffers looked like. Off-by-one here readmits the entire §7.4 defect while every other test
+    still passes, because a reply one record BELOW the cap behaves identically under both versions."""
+    at_cap = probe.summarise(_s([250, 250, 250]))
+    assert at_cap["saturated_replies"] == 3 and at_cap["rate_unsaturated_hz"] is None
+    # One record under the cap is a real, usable reply — the boundary must fall between these two.
+    under = probe.summarise(_s([249, 249, 249]))
+    assert under["saturated_replies"] == 0 and under["rate_unsaturated_hz"] == 1245.0
+
+
+def test_the_interval_AFTER_an_at_cap_reply_is_excluded_too():
+    """The mirror plant. The test above puts EVERY reply at the cap, so each pair has its second
+    member saturated and the `b["count"] >= cap` test alone excludes it — mutating only the
+    `a["count"] >= cap` endpoint to `>` survived that test (relay check, 2026-09-06). This window
+    saturates ONLY the first reply, then goes clean: the pair (250, 50) must be dropped because its
+    FIRST member pinned — the docstring's "the interval that follows it" — so only (50, 100) counts."""
+    out = probe.summarise(_s([250, 50, 100]))
+    assert out["saturated_replies"] == 1
+    assert out["unsaturated_span_s"] == 0.2  # one interval, not two
+    assert out["rate_unsaturated_hz"] == 500.0  # 100 / 0.2, not 150 / 0.4 = 375
+
+
+def test_the_span_is_last_MINUS_first_on_a_window_that_does_not_start_at_zero():
+    """`with_recs[-1]["t"] - with_recs[0]["t"]` → `+` is invisible when the first reply sits at t=0,
+    which every other test here uses. `time.monotonic()` has an arbitrary origin, so on the box the
+    first reply never sits at zero and the mutant would inflate the span by the whole boot time."""
+    off = [{"t": 1000.0 + i * 0.2, "count": 25, "body_len": 25, "markers": 0, "isolated": 0}
+           for i in range(4)]
+    out = probe.summarise(off)
+    assert out["span_s"] == 0.6, "span must be the elapsed window, not the clock's origin"
+    assert out["rate_all_hz"] == 125.0
+
+
+def test_a_rate_exactly_on_the_2_percent_boundary_matches_and_is_not_ALSO_called_neither():
+    """`<= 0.02` paired with `> 0.02`: mutate the second to `>=` and a boundary rate is reported as
+    matching 125.000 AND as matching neither candidate, in the same verdict. Contradictory output is
+    worse than either answer alone, and only a rate sitting exactly on the boundary can see it.
+    51 records per 0.4 s = 127.5 Hz = 125.000 + exactly 2 %."""
+    lines = probe.verdict(probe.summarise(_s([51, 51, 51], dt=0.4)))
+    assert any("125.000" in ln for ln in lines)
+    assert not any("NEITHER" in ln for ln in lines)
+
+
+def test_records_per_beat_divides_by_the_pulse_rate(monkeypatch):
+    """`rate * 60.0 / mean_pr` → `* mean_pr` leaves a plausible-looking number with no assertion on
+    its VALUE to catch it. At 3 records/s and 60 bpm the answer is 3 records per beat; the mutant
+    gives 10 800."""
+    ring = _FakeRing()
+    _install(monkeypatch, ring, device=_FakeDevice())
+    s = _run(probe.run("D1:98:62:7C:92:B3", 6.0, 5.0, None))["summary"]
+    assert s["reported_pr_mean"] == 60.0
+    assert s["records_per_beat"] == round(s["rate_unsaturated_hz"] * 60.0 / 60.0, 3)
+    assert s["records_per_beat"] < 100, "a records-per-beat in the thousands is a multiply, not a rate"
+
+
+def test_the_probe_writes_to_the_WRITE_handle_and_subscribes_on_the_NOTIFY_handle(monkeypatch):
+    """`u == OXYII_WRITE` → `!=` does NOT leave a characteristic unresolved — it resolves BOTH names to
+    the notify handle, so the None-guard still passes and the probe talks to the wrong one all session.
+    A fake that ignores which handle it was called on cannot see that, which is why this asserts the
+    uuids rather than the call count."""
+    ring = _FakeRing()
+    _install(monkeypatch, ring, device=_FakeDevice())
+    _run(probe.run("D1:98:62:7C:92:B3", 4.0, 5.0, None))
+    assert ring.notify_char.uuid == oxyii.OXYII_NOTIFY
+    assert ring.write_chars, "the probe must actually write"
+    assert {c.uuid for c in ring.write_chars} == {oxyii.OXYII_WRITE}
+
+
+def test_a_gatt_missing_EITHER_half_of_the_pair_is_refused(monkeypatch):
+    """`wch is None or nch is None` → `and` still refuses a device exposing NEITHER, so the existing
+    empty-services test passes under the mutant. Only a GATT with exactly one of the two separates
+    them — and a half-resolved GATT is the realistic failure, not a bare one."""
+    for uuids in ((oxyii.OXYII_WRITE,), (oxyii.OXYII_NOTIFY,)):
+        ring = _FakeRing()
+        ring.services = [_FakeService(uuids)]
+        _install(monkeypatch, ring, device=_FakeDevice())
+        with pytest.raises(SystemExit, match="write/notify"):
+            _run(probe.run("D1:98:62:7C:92:B3", 1.0, 5.0, None))
+
+
+def test_a_reply_declaring_zero_records_reads_no_body_at_all(monkeypatch):
+    """`payload[HDR:HDR + (cnt or 0)]` → `or 1`. A reply that declares zero records still carries
+    bytes, and slicing one of them means a marker gets counted for a reply that reported nothing.
+    The declared count is the authority on how much body there is — never the payload's length."""
+    ring = _FakeRing()
+    # Declares 0 records, but the byte after the header is the beat marker.
+    ring.vals = []
+    real = ring.write_gatt_char
+
+    async def zero_count(c, frame, response=False):
+        if frame[1] == probe.OP_SAMPLES_A:
+            ring.write_chars.append(c)
+            ring.notify(0, oxyii.encode(probe.OP_SAMPLES_A,
+                                        _payload([], count=0, trailer=bytes([probe.BEAT_MARKER]))))
+            return
+        return await real(c, frame, response=response)
+
+    ring.write_gatt_char = zero_count
+    _install(monkeypatch, ring, device=_FakeDevice())
+    res = _run(probe.run("D1:98:62:7C:92:B3", 6.0, 5.0, None))
+    assert res["summary"]["markers_total"] == 0, "a zero-record reply has no body to find markers in"
+    assert all(s["body_hex"] == "" for s in res["samples"] if s["count"] == 0)
