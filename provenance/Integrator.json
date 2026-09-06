@@ -45,6 +45,12 @@
       "outputHash": "13f291a076920e66",
       "inputHashes": {},
       "verifiedUnder": "a302e25f8199"
+    },
+    "integrator_fusion_night_twins.node-export.json": {
+      "bundle": "Integrator.html",
+      "manifestHash": "153a0f018913",
+      "outputHash": "db6a39474b74dcb9",
+      "inputHashes": {}
     }
   }
 }

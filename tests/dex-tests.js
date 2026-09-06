@@ -38235,6 +38235,91 @@
           T.eq('sameNode twin does NOT fuse — one observer per node', rBuilt.twins.sameNode, null);
           T.eq('single twin does NOT fuse — below the n>=2 floor', rBuilt.twins.single, null);
         }
+        /* ── NIGHT-LEVEL FUSION ≡ COMMITTED TWINS ────────────────────────────────────────────
+           Residue `2026-09-05-integrator-fusion-no-code-gated-fixture`. Every OTHER code-gated
+           Integrator fixture pins a SUB-FUSER; the only night-level fusions in the ledger are
+           `historical: true`, which GATE B byte-pins and `verify-fixtures` skips. So a change that
+           moved `runFusion` -> `buildFusionExport` reddened nothing. This is the leg that re-runs it.
+
+           ⚠ `generated` is stripped at EVERY depth. It appears top-level AND under `schema`, and both
+           move per call — measured, two differing leaves at IDENTICAL byte length, so a length check
+           cannot see it and an unstripped compare fails on every run for the wrong reason. */
+        var nFix = EQ.integrator_fusion_night_twins && EQ.integrator_fusion_night_twins.fixture;
+        var _nTwins = env.fusionNightTwins || (typeof fusionNightTwins !== 'undefined' && fusionNightTwins) || null;
+        var RFn = env.runFusion || (typeof runFusion !== 'undefined' && runFusion) || null;
+        var BFEn = env.buildFusionExport || (typeof buildFusionExport !== 'undefined' && buildFusionExport) || null;
+        /* PRESENCE IS ASSERTED, NOT SKIPPED — same reason as the apnea twins below: `uploads/*` is
+           gitignored and this file reaches a clone only through its `!` negation. A skip here would
+           report GREEN for a gate that examined nothing. */
+        T.ok(
+          'fusion-night twins: committed fixture present (the .gitignore negation still holds)',
+          !!nFix,
+          nFix
+            ? 'uploads/integrator_fusion_night_twins.node-export.json reached this lane'
+            : 'ABSENT — uploads/* is gitignored; check the `!uploads/integrator_fusion_night_twins.node-export.json` negation'
+        );
+        T.ok(
+          'fusion-night twins: builder + runFusion + buildFusionExport wired in this lane',
+          typeof _nTwins === 'function' && typeof RFn === 'function' && typeof BFEn === 'function',
+          typeof _nTwins === 'function' && typeof RFn === 'function' && typeof BFEn === 'function'
+            ? 'all three present'
+            : 'tests/fusion-night-twins.js, runFusion or buildFusionExport missing from env'
+        );
+        if (nFix && typeof _nTwins === 'function' && typeof RFn === 'function' && typeof BFEn === 'function') {
+          var _VOL = { generated: 1 };
+          var _strip = function (v) {
+            if (Object.prototype.toString.call(v) === '[object Array]') return v.map(_strip);
+            if (v && typeof v === 'object') {
+              var c = {},
+                ks = Object.keys(v).sort();
+              for (var i = 0; i < ks.length; i++) if (!_VOL[ks[i]]) c[ks[i]] = _strip(v[ks[i]]);
+              return c;
+            }
+            return v;
+          };
+          var _NT = _nTwins();
+          var nBuilt = { schema: nFix.schema, nights: {} };
+          var _nkeys = ['apneaNight', 'uncoupledNight', 'hrvNight'];
+          for (var _ni = 0; _ni < _nkeys.length; _ni++) {
+            var _nk = _nkeys[_ni];
+            var _nrecs = [];
+            for (var _nj = 0; _nj < _NT[_nk].length; _nj++) {
+              var _ar = Ag(_NT[_nk][_nj].json, _NT[_nk][_nj].node, _NT[_nk][_nj].node);
+              if (_ar && _ar[0]) _nrecs.push(_ar[0]);
+            }
+            nBuilt.nights[_nk] = _strip(BFEn(_nrecs, RFn(_nrecs, {})));
+          }
+          var nd = [];
+          diff(JSON.parse(JSON.stringify(nBuilt)), nFix, '', nd);
+          T.ok('Integrator night-level fusion ≡ committed twins (runFusion -> buildFusionExport)', nd.length === 0, nd.length ? nd.slice(0, 8).join(' · ') : 'byte-identical');
+          /* ANTI-VACUITY. The compare above passes trivially if every night fused to nothing, or if
+             the two apnea nights fuse IDENTICALLY — then no coupling change could ever move it. */
+          T.ok(
+            'the twins are non-empty (a fixture of empty nights would pin nothing)',
+            Object.keys(nBuilt.nights.apneaNight).length > 5 && Object.keys(nBuilt.nights.hrvNight).length > 5,
+            'apneaNight=' + Object.keys(nBuilt.nights.apneaNight).length + ' hrvNight=' + Object.keys(nBuilt.nights.hrvNight).length
+          );
+          T.ok(
+            'coupled and uncoupled nights fuse DIFFERENTLY — the pair can express coupling',
+            JSON.stringify(nBuilt.nights.apneaNight) !== JSON.stringify(nBuilt.nights.uncoupledNight),
+            /* The detail must describe the state it FOUND, not the failure it guards. A fixed string
+               reading "identical — a coupling regression could not red this gate" prints on PASS too,
+               which is residue `2026-09-03-pass-detail-reads-as-absence` reproduced inside the very
+               gate written to prevent that class. */
+            JSON.stringify(nBuilt.nights.apneaNight) !== JSON.stringify(nBuilt.nights.uncoupledNight)
+              ? 'the two nights differ, so coupling is expressible'
+              : 'IDENTICAL — a coupling regression could not red this gate'
+          );
+          /* hrvNight is the ONLY twin that populates hrvConsensus: composing it into the apnea night
+             SUPPRESSES that key (the two families anchor epochs differently). Pinned so the pair
+             cannot silently lose the surface. */
+          T.ok(
+            'hrvNight still populates hrvConsensus (the surface the apnea nights cannot express)',
+            !!nBuilt.nights.hrvNight.hrvConsensus && Object.keys(nBuilt.nights.hrvNight.hrvConsensus).length > 0,
+            JSON.stringify(nBuilt.nights.hrvNight.hrvConsensus || null).slice(0, 80)
+          );
+        }
+
         var aFix = EQ.integrator_apnea_null_twins && EQ.integrator_apnea_null_twins.fixture;
         var _twins = env.apneaNullTwins || (typeof apneaNullTwins !== 'undefined' && apneaNullTwins) || null;
         var FAg = env.fuseApneaEvents || (typeof fuseApneaEvents !== 'undefined' && fuseApneaEvents) || null;

@@ -1,0 +1,3143 @@
+{
+  "schema": {
+    "name": "ganglior.integrator-fusion-night-twins",
+    "version": "1.0",
+    "doc": "Committed synthetic multi-node nights re-run through runFusion -> buildFusionExport. Inputs rebuilt in-code by tests/fusion-night-twins.js, so inputHashes is {} and CI reproduces them with no corpus. `generated` is stripped at every depth: it appears at the top level and under schema, and both move per call."
+  },
+  "nights": {
+    "apneaNight": {
+      "apneaCoupling": {
+        "alpha": 0.05,
+        "chancePct": 14.09375,
+        "coverageAssumed": false,
+        "excluded": 0,
+        "expectedHits": 5.64,
+        "hits": 40,
+        "lift": 7.095343680709535,
+        "maxLift": 7.095343680709535,
+        "n": 40,
+        "observedPct": 100,
+        "pFloor": 0.012345679012345678,
+        "pPerm": 0.012345679012345678,
+        "real": true,
+        "saturated": false,
+        "underpowered": false,
+        "usable": true,
+        "window": [
+          -15000,
+          60000
+        ]
+      },
+      "apneaNullModel": {
+        "belowChance": false,
+        "directionalWindowSec": 75,
+        "expectedConfirmed": 5.64,
+        "expectedConfirmedAnalytic": 5.07,
+        "nullDraws": 80,
+        "nullMethod": "circular-shift surrogates, covered-time, scored by the published matching",
+        "pAtLeastObserved": 0.0123,
+        "pFloor": 0.0123,
+        "surgeAlsoObservedBy": [],
+        "surgeRateObserver": "ECGDex",
+        "surgeRatePerHr": 6.5
+      },
+      "apneaTyping": null,
+      "bus": "ganglior",
+      "clockSkew": {
+        "applied": [],
+        "findings": [],
+        "fits": {
+          "ECGDex": {
+            "alternativesSec": [],
+            "ambiguous": false,
+            "channels": [
+              {
+                "agreed": true,
+                "channel": "spo2_desaturation",
+                "nEvents": 40,
+                "node": "OxyDex",
+                "ownOffsetSec": -34.998,
+                "ownSpreadSec": 40,
+                "reason": null,
+                "usable": true,
+                "zAtPeak": 18.48
+              }
+            ],
+            "confident": true,
+            "nChannels": 1,
+            "nNodes": 1,
+            "nullExceeded": 0,
+            "nullMedianZ": 4.36,
+            "nullZ": 6.54,
+            "offsetSec": -34.998,
+            "pFloor": 0.0323,
+            "pValue": 0.0323,
+            "reason": null,
+            "spreadSec": 40,
+            "underpowered": false,
+            "z": 18.48
+          },
+          "OxyDex": {
+            "alternativesSec": [],
+            "ambiguous": false,
+            "channels": [
+              {
+                "agreed": true,
+                "channel": "autonomic_surge",
+                "nEvents": 52,
+                "node": "ECGDex",
+                "ownOffsetSec": 17.5,
+                "ownSpreadSec": 55,
+                "reason": null,
+                "usable": true,
+                "zAtPeak": 16.56
+              }
+            ],
+            "confident": true,
+            "nChannels": 1,
+            "nNodes": 1,
+            "nullExceeded": 0,
+            "nullMedianZ": 3.99,
+            "nullZ": 5.9,
+            "offsetSec": 17.5,
+            "pFloor": 0.0323,
+            "pValue": 0.0323,
+            "reason": null,
+            "spreadSec": 55,
+            "underpowered": false,
+            "z": 16.56
+          }
+        },
+        "pairs": [
+          {
+            "a": "OxyDex",
+            "b": "ECGDex",
+            "floor": 8.71,
+            "hits": 40,
+            "lagSec": 30,
+            "peakOverFloor": 4.59,
+            "skewed": false
+          }
+        ]
+      },
+      "confirmedApneaIndex": 5,
+      "confirmedApneaIndexReportable": true,
+      "deviceScoredAHI": null,
+      "findings": [
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782597960000
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782597978000
+            }
+          ],
+          "tMs": 1782597960000,
+          "time": "2026-06-27 22:06",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782598461653
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782598479653
+            }
+          ],
+          "tMs": 1782598461653,
+          "time": "2026-06-27 22:14",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782599134053
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782599152053
+            }
+          ],
+          "tMs": 1782599134053,
+          "time": "2026-06-27 22:25",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782599551556
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782599569556
+            }
+          ],
+          "tMs": 1782599551556,
+          "time": "2026-06-27 22:32",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782600229110
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782600247110
+            }
+          ],
+          "tMs": 1782600229110,
+          "time": "2026-06-27 22:43",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782600633073
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782600651073
+            }
+          ],
+          "tMs": 1782600633073,
+          "time": "2026-06-27 22:50",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782601327728
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782601345728
+            }
+          ],
+          "tMs": 1782601327728,
+          "time": "2026-06-27 23:02",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782601902299
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782601920299
+            }
+          ],
+          "tMs": 1782601902299,
+          "time": "2026-06-27 23:11",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782602358721
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782602376721
+            }
+          ],
+          "tMs": 1782602358721,
+          "time": "2026-06-27 23:19",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782602909963
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782602927963
+            }
+          ],
+          "tMs": 1782602909963,
+          "time": "2026-06-27 23:28",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782603331535
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782603349535
+            }
+          ],
+          "tMs": 1782603331535,
+          "time": "2026-06-27 23:35",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782604016658
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782604034658
+            }
+          ],
+          "tMs": 1782604016658,
+          "time": "2026-06-27 23:46",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782604480386
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782604498386
+            }
+          ],
+          "tMs": 1782604480386,
+          "time": "2026-06-27 23:54",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782605016145
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782605034145
+            }
+          ],
+          "tMs": 1782605016145,
+          "time": "2026-06-28 00:03",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782605535956
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782605553956
+            }
+          ],
+          "tMs": 1782605535956,
+          "time": "2026-06-28 00:12",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782606116010
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782606134010
+            }
+          ],
+          "tMs": 1782606116010,
+          "time": "2026-06-28 00:21",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782606588482
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782606606482
+            }
+          ],
+          "tMs": 1782606588482,
+          "time": "2026-06-28 00:29",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782607109139
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782607127139
+            }
+          ],
+          "tMs": 1782607109139,
+          "time": "2026-06-28 00:38",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782607655334
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782607673334
+            }
+          ],
+          "tMs": 1782607655334,
+          "time": "2026-06-28 00:47",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782608153291
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782608171291
+            }
+          ],
+          "tMs": 1782608153291,
+          "time": "2026-06-28 00:55",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782608627025
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782608645025
+            }
+          ],
+          "tMs": 1782608627025,
+          "time": "2026-06-28 01:03",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782609137798
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782609155798
+            }
+          ],
+          "tMs": 1782609137798,
+          "time": "2026-06-28 01:12",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782609746530
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782609764530
+            }
+          ],
+          "tMs": 1782609746530,
+          "time": "2026-06-28 01:22",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782610415015
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782610433015
+            }
+          ],
+          "tMs": 1782610415015,
+          "time": "2026-06-28 01:33",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782610839752
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782610857752
+            }
+          ],
+          "tMs": 1782610839752,
+          "time": "2026-06-28 01:40",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782611550269
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782611568269
+            }
+          ],
+          "tMs": 1782611550269,
+          "time": "2026-06-28 01:52",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": -3,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782612210697
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782612208007
+            }
+          ],
+          "tMs": 1782612210697,
+          "time": "2026-06-28 02:03",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782612787613
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782612805613
+            }
+          ],
+          "tMs": 1782612787613,
+          "time": "2026-06-28 02:13",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782613275611
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782613293611
+            }
+          ],
+          "tMs": 1782613275611,
+          "time": "2026-06-28 02:21",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782613937919
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782613955919
+            }
+          ],
+          "tMs": 1782613937919,
+          "time": "2026-06-28 02:32",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782614473992
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782614491992
+            }
+          ],
+          "tMs": 1782614473992,
+          "time": "2026-06-28 02:41",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782615132009
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782615150009
+            }
+          ],
+          "tMs": 1782615132009,
+          "time": "2026-06-28 02:52",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782615613127
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782615631127
+            }
+          ],
+          "tMs": 1782615613127,
+          "time": "2026-06-28 03:00",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782616169785
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782616187785
+            }
+          ],
+          "tMs": 1782616169785,
+          "time": "2026-06-28 03:09",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782616740413
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782616758413
+            }
+          ],
+          "tMs": 1782616740413,
+          "time": "2026-06-28 03:19",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782617354540
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782617372540
+            }
+          ],
+          "tMs": 1782617354540,
+          "time": "2026-06-28 03:29",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782617948419
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782617966419
+            }
+          ],
+          "tMs": 1782617948419,
+          "time": "2026-06-28 03:39",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782618628498
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782618646498
+            }
+          ],
+          "tMs": 1782618628498,
+          "time": "2026-06-28 03:50",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782619302782
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782619320782
+            }
+          ],
+          "tMs": 1782619302782,
+          "time": "2026-06-28 04:01",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": false,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 18,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.012,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782619768413
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782619786413
+            }
+          ],
+          "tMs": 1782619768413,
+          "time": "2026-06-28 04:09",
+          "type": "confirmed_apnea_event"
+        }
+      ],
+      "handshakes": {
+        "ecgdex_ready": {
+          "glucoseCorrelation": null
+        },
+        "glucodex_ready": {
+          "glucose_autonomic_correlation": null
+        }
+      },
+      "hrvConsensus": null,
+      "hrvMotionGate": null,
+      "kernel": {
+        "hash": "118ebed5",
+        "version": "1.0.0"
+      },
+      "kernelAudit": {
+        "expected": "118ebed5",
+        "mismatches": [
+          {
+            "hash": null,
+            "node": "OxyDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "ECGDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "PpgDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "MotionDex",
+            "status": "missing",
+            "version": null
+          }
+        ],
+        "nodes": [
+          {
+            "hash": null,
+            "node": "OxyDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "ECGDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "PpgDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "MotionDex",
+            "status": "missing",
+            "version": null
+          }
+        ],
+        "ok": false,
+        "version": "1.0.0"
+      },
+      "kind": "fusion",
+      "matchWindow": {
+        "directionalWindowSec": 75,
+        "leadMaxSec": 15,
+        "trailMaxSec": 60,
+        "unionPrefilterSec": 120
+      },
+      "nodes": [
+        {
+          "date": "2026-06-27",
+          "dateUnknown": false,
+          "label": "OxyDex · Jun 27",
+          "nEvents": 40,
+          "node": "OxyDex",
+          "window": {
+            "endMs": 1782626400000,
+            "startMs": 1782597600000
+          }
+        },
+        {
+          "date": "2026-06-27",
+          "dateUnknown": false,
+          "label": "ECGDex · Jun 27",
+          "nEvents": 52,
+          "node": "ECGDex",
+          "window": {
+            "endMs": 1782626400000,
+            "startMs": 1782597600000
+          }
+        },
+        {
+          "date": "2026-06-27",
+          "dateUnknown": false,
+          "label": "PpgDex · Jun 27",
+          "nEvents": 0,
+          "node": "PpgDex",
+          "window": {
+            "endMs": 1782626400000,
+            "startMs": 1782597600000
+          }
+        },
+        {
+          "date": "2026-06-27",
+          "dateUnknown": false,
+          "label": "MotionDex · Jun 27",
+          "nEvents": 0,
+          "node": "MotionDex",
+          "window": {
+            "endMs": 1782626400000,
+            "startMs": 1782597600000
+          }
+        }
+      ],
+      "periodicBreathing": null,
+      "positional": {
+        "available": false,
+        "note": "No ACC / body-position series in any node export — positional analysis unavailable."
+      },
+      "respiration": {
+        "agree": true,
+        "agreeThresholdBrpm": 2,
+        "consensusBrpm": 14,
+        "maxBrpm": 14.2,
+        "mechanisms": [
+          "RSA",
+          "RSA",
+          "chest-ACC"
+        ],
+        "mechanismsIndependent": true,
+        "minBrpm": 13.8,
+        "n": 3,
+        "note": "3 independent estimates (ECGDex + PpgDex + MotionDex); spread 0.4 br/min — agreement within the ±2 br/min chest-ACC validation band (Ryser 2022).",
+        "overlapVerified": true,
+        "sources": [
+          {
+            "brpm": 14.2,
+            "method": "RSA (HF-peak of RR spectrum)",
+            "node": "ECGDex"
+          },
+          {
+            "brpm": 13.8,
+            "method": "RSA (PPG)",
+            "node": "PpgDex"
+          },
+          {
+            "brpm": 14,
+            "method": "acc-spectral-viterbi",
+            "node": "MotionDex"
+          }
+        ],
+        "spreadBrpm": 0.4
+      },
+      "schema": {
+        "doc": "Integrator (Ganglior fusion layer) cross-signal findings. Times are floating wall-clock ms (tMs); string fields via fmtDateTime (UTC getters).",
+        "method": {
+          "apneaCoupling": "apneaCoupling is the EventCoupling shuffled-null verdict for desat⟷surge: circular time-shift surrogates vs a coverage-aware baseline (coverage = the recording overlap, so a desat outside the cardiac window is excluded, not a miss). Read real/lift ONLY when usable (neither underpowered=expectedHits<3 nor saturated=maxLift<1.5). Additive to the Poisson nullModel; does not change reportability (§P7).",
+          "apneaMatch": "confirmed_apnea_event = SpO₂ desaturation ⟷ nearest unused autonomic surge from ECGDex|PpgDex, within an asymmetric directional window (surge may lead the nadir by ≤leadMaxSec, trail by ≤trailMaxSec; R5). One surge confirms at most one desat.",
+          "confidence": "Each finding conf = noisy-OR of its sources: conf = 1 − ∏(1 − cᵢ), capped at 0.97, rounded to 3 dp. Per source, cᵢ = effConf = conf × (sqi ?? 1): the event-likelihood (scaled to surge magnitude / desat depth) attenuated by local signal quality (R7). Raw conf, sqi and effConf are retained in each finding’s sources[].",
+          "hrvConsensus": "HRV consensus compares whole-record SDNN/RMSSD/LF-HF across nodes (window-normalized; epoch-scoped variants kept separately); same-window only (R8).",
+          "nullModel": "confirmedApneaIndex is published (reportable=true) only when the confirmed count exceeds a per-night Poisson chance expectation; otherwise findings carry belowChance=true + pSpurious and the index is withheld (R5).",
+          "periodicBreathing": "periodic_breathing = a PB / Cheyne–Stokes window corroborated across ≥2 independent signals (OxyDex SpO₂ oscillation · CPAPDex device flow · ECGDex cardiac CVHR), grouped by night-overlap; conf is the tier-weighted noisy-OR (device 1.0 · CVHR 0.8 · oximetry proxy 0.6). Graded experimental — a corroboration signal, not a scored CSR index (§2).",
+          "window": "window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = N-way all-node overlap; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping nothing (R3)."
+        },
+        "name": "ganglior.fusion-export",
+        "provenance": null,
+        "version": "1.3"
+      },
+      "unmatched": {
+        "desat": [],
+        "surge": [
+          {
+            "conf": 0.9,
+            "tMs": 1782605079043,
+            "time": "2026-06-28 00:04"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782605623933,
+            "time": "2026-06-28 00:13"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782605890914,
+            "time": "2026-06-28 00:18"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782607511644,
+            "time": "2026-06-28 00:45"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782609160977,
+            "time": "2026-06-28 01:12"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782612228697,
+            "time": "2026-06-28 02:03"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782613345137,
+            "time": "2026-06-28 02:22"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782614526421,
+            "time": "2026-06-28 02:42"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782616860814,
+            "time": "2026-06-28 03:21"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782618658766,
+            "time": "2026-06-28 03:50"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782619328283,
+            "time": "2026-06-28 04:02"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782624419623,
+            "time": "2026-06-28 05:26"
+          }
+        ]
+      },
+      "window": {
+        "end": "2026-06-28 06:00",
+        "endMs": 1782626400000,
+        "intersectionMin": 480,
+        "nodesExcluded": [],
+        "overlapMin": 480,
+        "overlapUnionMin": 480,
+        "pairwiseSumMin": 2880,
+        "spanMin": 480,
+        "start": "2026-06-27 22:00",
+        "startMs": 1782597600000
+      }
+    },
+    "uncoupledNight": {
+      "apneaCoupling": {
+        "alpha": 0.05,
+        "chancePct": 14.125,
+        "coverageAssumed": false,
+        "excluded": 0,
+        "expectedHits": 5.65,
+        "hits": 5,
+        "lift": 0.8849557522123894,
+        "maxLift": 7.079646017699115,
+        "n": 40,
+        "observedPct": 12.5,
+        "pFloor": 0.012345679012345678,
+        "pPerm": 0.6296296296296297,
+        "real": false,
+        "saturated": false,
+        "underpowered": false,
+        "usable": true,
+        "window": [
+          -15000,
+          60000
+        ]
+      },
+      "apneaNullModel": {
+        "belowChance": true,
+        "directionalWindowSec": 75,
+        "expectedConfirmed": 5.65,
+        "expectedConfirmedAnalytic": 5.07,
+        "nullDraws": 80,
+        "nullMethod": "circular-shift surrogates, covered-time, scored by the published matching",
+        "pAtLeastObserved": 0.6296,
+        "pFloor": 0.0123,
+        "surgeAlsoObservedBy": [],
+        "surgeRateObserver": "ECGDex",
+        "surgeRatePerHr": 6.5
+      },
+      "apneaTyping": null,
+      "bus": "ganglior",
+      "clockSkew": {
+        "applied": [],
+        "findings": [],
+        "fits": {
+          "ECGDex": {
+            "alternativesSec": [
+              -3535,
+              2755
+            ],
+            "ambiguous": true,
+            "channels": [
+              {
+                "agreed": true,
+                "channel": "spo2_desaturation",
+                "nEvents": 40,
+                "node": "OxyDex",
+                "ownOffsetSec": -4615.357,
+                "ownSpreadSec": 5,
+                "reason": null,
+                "usable": true,
+                "zAtPeak": 4.29
+              }
+            ],
+            "confident": false,
+            "nChannels": 1,
+            "nNodes": 1,
+            "nullExceeded": 3,
+            "nullMedianZ": 3.71,
+            "nullZ": 5.04,
+            "offsetSec": -4615.357,
+            "pFloor": 0.0323,
+            "pValue": 0.129,
+            "reason": "indistinguishable from this night’s own null (p=0.129, Z 4.3 vs null max 5.0)",
+            "spreadSec": 5,
+            "underpowered": false,
+            "z": 4.29
+          },
+          "OxyDex": {
+            "alternativesSec": [
+              -2190,
+              -1630,
+              3045,
+              4615
+            ],
+            "ambiguous": true,
+            "channels": [
+              {
+                "agreed": true,
+                "channel": "autonomic_surge",
+                "nEvents": 52,
+                "node": "ECGDex",
+                "ownOffsetSec": -2757.033,
+                "ownSpreadSec": 20,
+                "reason": null,
+                "usable": true,
+                "zAtPeak": 3.71
+              }
+            ],
+            "confident": false,
+            "nChannels": 1,
+            "nNodes": 1,
+            "nullExceeded": 5,
+            "nullMedianZ": 3.23,
+            "nullZ": 4.67,
+            "offsetSec": -2757.033,
+            "pFloor": 0.0323,
+            "pValue": 0.1935,
+            "reason": "indistinguishable from this night’s own null (p=0.194, Z 3.7 vs null max 4.7)",
+            "spreadSec": 20,
+            "underpowered": false,
+            "z": 3.71
+          }
+        },
+        "pairs": [
+          {
+            "a": "OxyDex",
+            "b": "ECGDex",
+            "floor": 7.99,
+            "hits": 16,
+            "lagSec": 4590,
+            "peakOverFloor": 2,
+            "skewed": false
+          }
+        ]
+      },
+      "confirmedApneaIndex": 0.63,
+      "confirmedApneaIndexReportable": false,
+      "deviceScoredAHI": null,
+      "findings": [
+        {
+          "belowChance": true,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 1,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.63,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782602909963
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782602911061
+            }
+          ],
+          "tMs": 1782602909963,
+          "time": "2026-06-27 23:28",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": true,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 5,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.63,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782603331535
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782603336155
+            }
+          ],
+          "tMs": 1782603331535,
+          "time": "2026-06-27 23:35",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": true,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": -8,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.63,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782613275611
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782613267343
+            }
+          ],
+          "tMs": 1782613275611,
+          "time": "2026-06-28 02:21",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": true,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": -11,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.63,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782617354540
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782617343437
+            }
+          ],
+          "tMs": 1782617354540,
+          "time": "2026-06-28 03:29",
+          "type": "confirmed_apnea_event"
+        },
+        {
+          "belowChance": true,
+          "conf": 0.964,
+          "durSec": null,
+          "meta": {
+            "desatNode": "OxyDex",
+            "latencySec": 42,
+            "surgeNode": "ECGDex"
+          },
+          "nodes": [
+            "OxyDex",
+            "ECGDex"
+          ],
+          "note": "O₂ desaturation confirmed by a directionally-consistent autonomic surge (−15s…+60s). Neither node alone can assert this.",
+          "pSpurious": 0.63,
+          "sources": [
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "spo2_desaturation",
+              "node": "OxyDex",
+              "sqi": 0.9,
+              "tMs": 1782618628498
+            },
+            {
+              "conf": 0.9,
+              "effConf": 0.81,
+              "impulse": "autonomic_surge",
+              "node": "ECGDex",
+              "sqi": 0.9,
+              "tMs": 1782618670808
+            }
+          ],
+          "tMs": 1782618628498,
+          "time": "2026-06-28 03:50",
+          "type": "confirmed_apnea_event"
+        }
+      ],
+      "handshakes": {
+        "ecgdex_ready": {
+          "glucoseCorrelation": null
+        },
+        "glucodex_ready": {
+          "glucose_autonomic_correlation": null
+        }
+      },
+      "hrvConsensus": null,
+      "hrvMotionGate": null,
+      "kernel": {
+        "hash": "118ebed5",
+        "version": "1.0.0"
+      },
+      "kernelAudit": {
+        "expected": "118ebed5",
+        "mismatches": [
+          {
+            "hash": null,
+            "node": "OxyDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "ECGDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "PpgDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "MotionDex",
+            "status": "missing",
+            "version": null
+          }
+        ],
+        "nodes": [
+          {
+            "hash": null,
+            "node": "OxyDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "ECGDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "PpgDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "MotionDex",
+            "status": "missing",
+            "version": null
+          }
+        ],
+        "ok": false,
+        "version": "1.0.0"
+      },
+      "kind": "fusion",
+      "matchWindow": {
+        "directionalWindowSec": 75,
+        "leadMaxSec": 15,
+        "trailMaxSec": 60,
+        "unionPrefilterSec": 120
+      },
+      "nodes": [
+        {
+          "date": "2026-06-27",
+          "dateUnknown": false,
+          "label": "OxyDex · Jun 27",
+          "nEvents": 40,
+          "node": "OxyDex",
+          "window": {
+            "endMs": 1782626400000,
+            "startMs": 1782597600000
+          }
+        },
+        {
+          "date": "2026-06-27",
+          "dateUnknown": false,
+          "label": "ECGDex · Jun 27",
+          "nEvents": 52,
+          "node": "ECGDex",
+          "window": {
+            "endMs": 1782626400000,
+            "startMs": 1782597600000
+          }
+        },
+        {
+          "date": "2026-06-27",
+          "dateUnknown": false,
+          "label": "PpgDex · Jun 27",
+          "nEvents": 0,
+          "node": "PpgDex",
+          "window": {
+            "endMs": 1782626400000,
+            "startMs": 1782597600000
+          }
+        },
+        {
+          "date": "2026-06-27",
+          "dateUnknown": false,
+          "label": "MotionDex · Jun 27",
+          "nEvents": 0,
+          "node": "MotionDex",
+          "window": {
+            "endMs": 1782626400000,
+            "startMs": 1782597600000
+          }
+        }
+      ],
+      "periodicBreathing": null,
+      "positional": {
+        "available": false,
+        "note": "No ACC / body-position series in any node export — positional analysis unavailable."
+      },
+      "respiration": {
+        "agree": true,
+        "agreeThresholdBrpm": 2,
+        "consensusBrpm": 14,
+        "maxBrpm": 14.2,
+        "mechanisms": [
+          "RSA",
+          "RSA",
+          "chest-ACC"
+        ],
+        "mechanismsIndependent": true,
+        "minBrpm": 13.8,
+        "n": 3,
+        "note": "3 independent estimates (ECGDex + PpgDex + MotionDex); spread 0.4 br/min — agreement within the ±2 br/min chest-ACC validation band (Ryser 2022).",
+        "overlapVerified": true,
+        "sources": [
+          {
+            "brpm": 14.2,
+            "method": "RSA (HF-peak of RR spectrum)",
+            "node": "ECGDex"
+          },
+          {
+            "brpm": 13.8,
+            "method": "RSA (PPG)",
+            "node": "PpgDex"
+          },
+          {
+            "brpm": 14,
+            "method": "acc-spectral-viterbi",
+            "node": "MotionDex"
+          }
+        ],
+        "spreadBrpm": 0.4
+      },
+      "schema": {
+        "doc": "Integrator (Ganglior fusion layer) cross-signal findings. Times are floating wall-clock ms (tMs); string fields via fmtDateTime (UTC getters).",
+        "method": {
+          "apneaCoupling": "apneaCoupling is the EventCoupling shuffled-null verdict for desat⟷surge: circular time-shift surrogates vs a coverage-aware baseline (coverage = the recording overlap, so a desat outside the cardiac window is excluded, not a miss). Read real/lift ONLY when usable (neither underpowered=expectedHits<3 nor saturated=maxLift<1.5). Additive to the Poisson nullModel; does not change reportability (§P7).",
+          "apneaMatch": "confirmed_apnea_event = SpO₂ desaturation ⟷ nearest unused autonomic surge from ECGDex|PpgDex, within an asymmetric directional window (surge may lead the nadir by ≤leadMaxSec, trail by ≤trailMaxSec; R5). One surge confirms at most one desat.",
+          "confidence": "Each finding conf = noisy-OR of its sources: conf = 1 − ∏(1 − cᵢ), capped at 0.97, rounded to 3 dp. Per source, cᵢ = effConf = conf × (sqi ?? 1): the event-likelihood (scaled to surge magnitude / desat depth) attenuated by local signal quality (R7). Raw conf, sqi and effConf are retained in each finding’s sources[].",
+          "hrvConsensus": "HRV consensus compares whole-record SDNN/RMSSD/LF-HF across nodes (window-normalized; epoch-scoped variants kept separately); same-window only (R8).",
+          "nullModel": "confirmedApneaIndex is published (reportable=true) only when the confirmed count exceeds a per-night Poisson chance expectation; otherwise findings carry belowChance=true + pSpurious and the index is withheld (R5).",
+          "periodicBreathing": "periodic_breathing = a PB / Cheyne–Stokes window corroborated across ≥2 independent signals (OxyDex SpO₂ oscillation · CPAPDex device flow · ECGDex cardiac CVHR), grouped by night-overlap; conf is the tier-weighted noisy-OR (device 1.0 · CVHR 0.8 · oximetry proxy 0.6). Graded experimental — a corroboration signal, not a scored CSR index (§2).",
+          "window": "window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = N-way all-node overlap; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping nothing (R3)."
+        },
+        "name": "ganglior.fusion-export",
+        "provenance": null,
+        "version": "1.3"
+      },
+      "unmatched": {
+        "desat": [
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782597960000,
+            "time": "2026-06-27 22:06"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782598461653,
+            "time": "2026-06-27 22:14"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782599134053,
+            "time": "2026-06-27 22:25"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782599551556,
+            "time": "2026-06-27 22:32"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782600229110,
+            "time": "2026-06-27 22:43"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782600633073,
+            "time": "2026-06-27 22:50"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782601327728,
+            "time": "2026-06-27 23:02"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782601902299,
+            "time": "2026-06-27 23:11"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782602358721,
+            "time": "2026-06-27 23:19"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782604016658,
+            "time": "2026-06-27 23:46"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782604480386,
+            "time": "2026-06-27 23:54"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782605016145,
+            "time": "2026-06-28 00:03"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782605535956,
+            "time": "2026-06-28 00:12"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782606116010,
+            "time": "2026-06-28 00:21"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782606588482,
+            "time": "2026-06-28 00:29"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782607109139,
+            "time": "2026-06-28 00:38"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782607655334,
+            "time": "2026-06-28 00:47"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782608153291,
+            "time": "2026-06-28 00:55"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782608627025,
+            "time": "2026-06-28 01:03"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782609137798,
+            "time": "2026-06-28 01:12"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782609746530,
+            "time": "2026-06-28 01:22"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782610415015,
+            "time": "2026-06-28 01:33"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782610839752,
+            "time": "2026-06-28 01:40"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782611550269,
+            "time": "2026-06-28 01:52"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782612210697,
+            "time": "2026-06-28 02:03"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782612787613,
+            "time": "2026-06-28 02:13"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782613937919,
+            "time": "2026-06-28 02:32"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782614473992,
+            "time": "2026-06-28 02:41"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782615132009,
+            "time": "2026-06-28 02:52"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782615613127,
+            "time": "2026-06-28 03:00"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782616169785,
+            "time": "2026-06-28 03:09"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782616740413,
+            "time": "2026-06-28 03:19"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782617948419,
+            "time": "2026-06-28 03:39"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782619302782,
+            "time": "2026-06-28 04:01"
+          },
+          {
+            "conf": 0.9,
+            "meta": {},
+            "tMs": 1782619768413,
+            "time": "2026-06-28 04:09"
+          }
+        ],
+        "surge": [
+          {
+            "conf": 0.9,
+            "tMs": 1782597904052,
+            "time": "2026-06-27 22:05"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782598585830,
+            "time": "2026-06-27 22:16"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782598858858,
+            "time": "2026-06-27 22:20"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782600062337,
+            "time": "2026-06-27 22:41"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782601126250,
+            "time": "2026-06-27 22:58"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782601703930,
+            "time": "2026-06-27 23:08"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782602852789,
+            "time": "2026-06-27 23:27"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782603071690,
+            "time": "2026-06-27 23:31"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782603091980,
+            "time": "2026-06-27 23:31"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782603102445,
+            "time": "2026-06-27 23:31"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782603387402,
+            "time": "2026-06-27 23:36"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782603432019,
+            "time": "2026-06-27 23:37"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782603615646,
+            "time": "2026-06-27 23:40"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782604873392,
+            "time": "2026-06-28 00:01"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782605464492,
+            "time": "2026-06-28 00:11"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782605964303,
+            "time": "2026-06-28 00:19"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782606033183,
+            "time": "2026-06-28 00:20"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782606970985,
+            "time": "2026-06-28 00:36"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782608574122,
+            "time": "2026-06-28 01:02"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782608743886,
+            "time": "2026-06-28 01:05"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782608979918,
+            "time": "2026-06-28 01:09"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782609460633,
+            "time": "2026-06-28 01:17"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782610006309,
+            "time": "2026-06-28 01:26"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782610156729,
+            "time": "2026-06-28 01:29"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782610384516,
+            "time": "2026-06-28 01:33"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782610618332,
+            "time": "2026-06-28 01:36"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782610707707,
+            "time": "2026-06-28 01:38"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782611183500,
+            "time": "2026-06-28 01:46"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782612765004,
+            "time": "2026-06-28 02:12"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782613256358,
+            "time": "2026-06-28 02:20"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782613399288,
+            "time": "2026-06-28 02:23"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782613850497,
+            "time": "2026-06-28 02:30"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782613878250,
+            "time": "2026-06-28 02:31"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782614009130,
+            "time": "2026-06-28 02:33"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782614047330,
+            "time": "2026-06-28 02:34"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782615772247,
+            "time": "2026-06-28 03:02"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782616139966,
+            "time": "2026-06-28 03:08"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782616623660,
+            "time": "2026-06-28 03:17"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782617012364,
+            "time": "2026-06-28 03:23"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782618527466,
+            "time": "2026-06-28 03:48"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782619041549,
+            "time": "2026-06-28 03:57"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782620586337,
+            "time": "2026-06-28 04:23"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782620717040,
+            "time": "2026-06-28 04:25"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782620941593,
+            "time": "2026-06-28 04:29"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782622348190,
+            "time": "2026-06-28 04:52"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782624323392,
+            "time": "2026-06-28 05:25"
+          },
+          {
+            "conf": 0.9,
+            "tMs": 1782625170515,
+            "time": "2026-06-28 05:39"
+          }
+        ]
+      },
+      "window": {
+        "end": "2026-06-28 06:00",
+        "endMs": 1782626400000,
+        "intersectionMin": 480,
+        "nodesExcluded": [],
+        "overlapMin": 480,
+        "overlapUnionMin": 480,
+        "pairwiseSumMin": 2880,
+        "spanMin": 480,
+        "start": "2026-06-27 22:00",
+        "startMs": 1782597600000
+      }
+    },
+    "hrvNight": {
+      "apneaCoupling": null,
+      "apneaNullModel": null,
+      "apneaTyping": null,
+      "bus": "ganglior",
+      "clockSkew": {
+        "applied": [],
+        "findings": [],
+        "fits": {},
+        "pairs": []
+      },
+      "confirmedApneaIndex": null,
+      "confirmedApneaIndexReportable": false,
+      "deviceScoredAHI": null,
+      "findings": [],
+      "handshakes": {
+        "ecgdex_ready": {
+          "glucoseCorrelation": null
+        },
+        "glucodex_ready": {
+          "glucose_autonomic_correlation": null
+        }
+      },
+      "hrvConsensus": {
+        "blocks": [
+          {
+            "crossWindowExcluded": false,
+            "divergencePct": 10,
+            "hrReconciled": 58.4,
+            "hrStatMixed": true,
+            "hrStats": [
+              null,
+              null,
+              null
+            ],
+            "hrvWindow": "wholeRecord",
+            "lfhf": null,
+            "lowQualityExcluded": null,
+            "nodes": [
+              "ECGDex",
+              "PpgDex"
+            ],
+            "note": "Sources agree within 10% on wholeRecord HRV — reconciled autonomic state is reliable. HR-hat: OxyDex is the noisiest HR estimator (σ≈3.6 bpm, correlated-external, ρ=0.381); reconciled HR 58.4 bpm. ⚠ Its legs do NOT share one epoch statistic (ECGDex=undeclared, PpgDex=undeclared, OxyDex=undeclared), so part of this spread is the choice of statistic, not the sensors: median-rate sits ≈0.3 bpm below rate-of-mean on real RR. Do not read a per-device bias off it.",
+            "qc": "agreement",
+            "rmssd": {
+              "divergencePct": 10,
+              "max": 42,
+              "median": 40,
+              "min": 38,
+              "values": [
+                {
+                  "node": "ECGDex",
+                  "v": 42
+                },
+                {
+                  "node": "PpgDex",
+                  "v": 38
+                }
+              ]
+            },
+            "sdnn": {
+              "divergencePct": 5,
+              "max": 60,
+              "median": 58.5,
+              "min": 57,
+              "values": [
+                {
+                  "node": "ECGDex",
+                  "v": 60
+                },
+                {
+                  "node": "PpgDex",
+                  "v": 57
+                }
+              ]
+            },
+            "tch": null,
+            "tchHR": {
+              "allan": {
+                "adev": {
+                  "ECGDex": [
+                    1.6557978942693052,
+                    2.0617761887827633,
+                    1.2049550475709319,
+                    0.8675447703556448
+                  ],
+                  "OxyDex": [
+                    3.145631892005165,
+                    1.0564650590779758,
+                    1.179609751852988,
+                    0.8116754057415538
+                  ],
+                  "PpgDex": [
+                    3.148695875165737,
+                    2.112992390451339,
+                    1.1105460368665498,
+                    0.22132414012032134
+                  ]
+                },
+                "epochMin": 5,
+                "n": [
+                  21,
+                  19,
+                  15,
+                  7
+                ],
+                "nNegative": 0,
+                "negativeAt": [
+                  false,
+                  false,
+                  false,
+                  false
+                ],
+                "taus": [
+                  1,
+                  2,
+                  4,
+                  8
+                ],
+                "tausMin": [
+                  5,
+                  10,
+                  20,
+                  40
+                ]
+              },
+              "axisProvenance": {
+                "ECGDex": null,
+                "OxyDex": null,
+                "PpgDex": null
+              },
+              "caveat": "TCH estimates precision (instability), not trueness — a bias shared by all three sensors is invisible. Positive common-mode noise also biases classic without going negative; supply opts.rho to remove a co-motion correlation you can estimate externally.",
+              "coMotion": {
+                "ECGDex": 30.016,
+                "OxyDex": 32.336,
+                "PpgDex": 33.758
+              },
+              "culprit": "OxyDex",
+              "diffVar": {
+                "AB": 12.298119834710745,
+                "AC": 12.932644628099167,
+                "BC": 15.508450413223143
+              },
+              "externalRho": null,
+              "externalRhoRejected": false,
+              "levels": {
+                "ECGDex": 58.1,
+                "OxyDex": 58.9,
+                "PpgDex": 58.5
+              },
+              "method": "correlated-external",
+              "metric": "hr",
+              "n": 22,
+              "negative": false,
+              "ok": true,
+              "pseudo": true,
+              "pseudoReason": "a corner declares no per-sample device timing — σ is a ranking, not a calibrated instability",
+              "quietOrderUncertain": true,
+              "quietSensors": [
+                "PpgDex",
+                "ECGDex"
+              ],
+              "rho": 0.381,
+              "rhoEstimate": {
+                "meanPairR": 0.356,
+                "method": "cross-node-motion",
+                "nMotionNodes": 3,
+                "nOverlapMax": 22,
+                "nOverlapMin": 22,
+                "nPairs": 3,
+                "value": 0.381,
+                "weightedPairR": 0.381
+              },
+              "sigma": {
+                "ECGDex": 2.7302015269776323,
+                "OxyDex": 3.6015881276631765,
+                "PpgDex": 3.474575202058713
+              },
+              "sigma2": {
+                "ECGDex": 7.454000377910995,
+                "OxyDex": 12.971437041324345,
+                "PpgDex": 12.072672834761347
+              },
+              "weights": {
+                "ECGDex": 0.4561888239425508,
+                "OxyDex": 0.2621476444925467,
+                "PpgDex": 0.28166353156490265
+              }
+            },
+            "tchHRStatus": "ok",
+            "tchStatus": "need ≥3 nodes with a per-epoch rmssd series; have 2",
+            "units": "ms",
+            "window": "Jun 15"
+          }
+        ]
+      },
+      "hrvMotionGate": null,
+      "kernel": {
+        "hash": "118ebed5",
+        "version": "1.0.0"
+      },
+      "kernelAudit": {
+        "expected": "118ebed5",
+        "mismatches": [
+          {
+            "hash": null,
+            "node": "ECGDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "PpgDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "OxyDex",
+            "status": "missing",
+            "version": null
+          }
+        ],
+        "nodes": [
+          {
+            "hash": null,
+            "node": "ECGDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "PpgDex",
+            "status": "missing",
+            "version": null
+          },
+          {
+            "hash": null,
+            "node": "OxyDex",
+            "status": "missing",
+            "version": null
+          }
+        ],
+        "ok": false,
+        "version": "1.0.0"
+      },
+      "kind": "fusion",
+      "matchWindow": {
+        "directionalWindowSec": 75,
+        "leadMaxSec": 15,
+        "trailMaxSec": 60,
+        "unionPrefilterSec": 120
+      },
+      "nodes": [
+        {
+          "date": "2026-06-15",
+          "dateUnknown": false,
+          "label": "ECGDex · Jun 15",
+          "nEvents": 0,
+          "node": "ECGDex",
+          "window": {
+            "endMs": 1781571600000,
+            "startMs": 1781564400000
+          }
+        },
+        {
+          "date": "2026-06-15",
+          "dateUnknown": false,
+          "label": "PpgDex · Jun 15",
+          "nEvents": 0,
+          "node": "PpgDex",
+          "window": {
+            "endMs": 1781571900000,
+            "startMs": 1781564700000
+          }
+        },
+        {
+          "date": "2026-06-15",
+          "dateUnknown": false,
+          "label": "OxyDex · Jun 15",
+          "nEvents": 0,
+          "node": "OxyDex",
+          "window": {
+            "endMs": 1781572200000,
+            "startMs": 1781565000000
+          }
+        }
+      ],
+      "periodicBreathing": null,
+      "positional": null,
+      "respiration": null,
+      "schema": {
+        "doc": "Integrator (Ganglior fusion layer) cross-signal findings. Times are floating wall-clock ms (tMs); string fields via fmtDateTime (UTC getters).",
+        "method": {
+          "apneaCoupling": "apneaCoupling is the EventCoupling shuffled-null verdict for desat⟷surge: circular time-shift surrogates vs a coverage-aware baseline (coverage = the recording overlap, so a desat outside the cardiac window is excluded, not a miss). Read real/lift ONLY when usable (neither underpowered=expectedHits<3 nor saturated=maxLift<1.5). Additive to the Poisson nullModel; does not change reportability (§P7).",
+          "apneaMatch": "confirmed_apnea_event = SpO₂ desaturation ⟷ nearest unused autonomic surge from ECGDex|PpgDex, within an asymmetric directional window (surge may lead the nadir by ≤leadMaxSec, trail by ≤trailMaxSec; R5). One surge confirms at most one desat.",
+          "confidence": "Each finding conf = noisy-OR of its sources: conf = 1 − ∏(1 − cᵢ), capped at 0.97, rounded to 3 dp. Per source, cᵢ = effConf = conf × (sqi ?? 1): the event-likelihood (scaled to surge magnitude / desat depth) attenuated by local signal quality (R7). Raw conf, sqi and effConf are retained in each finding’s sources[].",
+          "hrvConsensus": "HRV consensus compares whole-record SDNN/RMSSD/LF-HF across nodes (window-normalized; epoch-scoped variants kept separately); same-window only (R8).",
+          "nullModel": "confirmedApneaIndex is published (reportable=true) only when the confirmed count exceeds a per-night Poisson chance expectation; otherwise findings carry belowChance=true + pSpurious and the index is withheld (R5).",
+          "periodicBreathing": "periodic_breathing = a PB / Cheyne–Stokes window corroborated across ≥2 independent signals (OxyDex SpO₂ oscillation · CPAPDex device flow · ECGDex cardiac CVHR), grouped by night-overlap; conf is the tier-weighted noisy-OR (device 1.0 · CVHR 0.8 · oximetry proxy 0.6). Graded experimental — a corroboration signal, not a scored CSR index (§2).",
+          "window": "window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = N-way all-node overlap; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping nothing (R3)."
+        },
+        "name": "ganglior.fusion-export",
+        "provenance": null,
+        "version": "1.3"
+      },
+      "unmatched": {
+        "desat": [],
+        "surge": []
+      },
+      "window": {
+        "end": "2026-06-16 01:10",
+        "endMs": 1781572200000,
+        "intersectionMin": 110,
+        "nodesExcluded": [],
+        "overlapMin": 120,
+        "overlapUnionMin": 120,
+        "pairwiseSumMin": 340,
+        "spanMin": 130,
+        "start": "2026-06-15 23:00",
+        "startMs": 1781564400000
+      }
+    }
+  }
+}
