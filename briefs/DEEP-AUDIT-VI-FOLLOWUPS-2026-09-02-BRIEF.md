@@ -157,6 +157,25 @@ rate (exactly 0), ns counter still outranks the mean form.
 accumulator names, or copies, and for any assertion that greps a variable name or slices source text. Each
 is a candidate; the fix is to assert the property the copies were evidence *for*.
 
+**SWEPT 2026-09-06 — and the sharpest instance is REPAIRED.** The rule yields ~175 raw `>= [2-9]` /
+`=== [2-9]` hits, of which most are ANTI-VACUITY legs (a count asserting the SCAN can see anything) and
+legitimate — the discriminator is intent, not shape: an anti-vacuity count says *the search works*, a
+plural count says *N copies are required*. The genuine instance was `matchRecall cross-site`, which
+asserted `_crSeen.length === 2` and gated its whole body on `if (_crSeen.length === 2)`.
+`matchRecall` being implemented TWICE is a defect this repo wants removed
+([[CLOCK-AXIS-AND-RENDER-SURFACE-FOLLOWUPS-2026-08-02]] §3) — so **single-sourcing it, the actual fix,
+would have reddened the gate that exists to protect it.**
+⚠️ **The count was standing in for TWO different facts, and separating them IS the repair:** (a) lane
+coverage — every listed file must be in `env.sources`, or the scan reads nothing and passes by silence;
+(b) non-vacuity — at least ONE implementation must be visible. Neither needs two copies. The property
+legs then hold over EVERY site found (`=== _bodies.length`) rather than over exactly two, so one copy
+passes, two must agree, three must agree.
+Plant-tested both ways: simulated single-sourcing (rename one copy) now PASSES — *1 of 2 file(s) define
+matchRecall*, all legs green — where the old form would have reddened; and a real divergence (drop the
+inclusive edge in one copy) REDS with *got 1 · want 2*. ⚠️ The divergence plant PASSED on its first
+attempt because the pattern never landed — the file reads `d>=lo && d<=hi` with no spaces — a vacuous
+plant, caught only by grepping that the edit existed before believing the result.
+
 ### 2.3 "Structurally pinned because we cannot execute it" is a DATED claim
 The fallback group's note said the harness has no async group so the invariant is pinned structurally. The
 moment the scan became a DSP export (F2), DEEP-AUDIT-II §4.4's stale re-read became executable with a defect

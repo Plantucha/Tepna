@@ -44572,19 +44572,31 @@
       var _crSeen = _crSites.filter(function (s) {
         return s.src && /function\s+matchRecall\s*\(/.test(s.src);
       });
-      // ANTI-VACUITY: a scan that finds nothing must FAIL, not pass by silence.
-      T.eq(
-        'matchRecall cross-site · BOTH implementations are visible to this scan (a lane missing one would pass by silence)',
-        _crSeen.length,
-        2,
-        'found: ' +
-          JSON.stringify(
-            _crSites.map(function (s) {
-              return s.file + (s.src ? (/function\s+matchRecall\s*\(/.test(s.src) ? ':ok' : ':no-matchRecall') : ':NOT-IN-env.sources');
-            })
-          )
+      /* ⚠️ THIS USED TO ASSERT `_crSeen.length === 2` (DEEP-AUDIT-VI-FOLLOWUPS §2.2). That encodes the
+         DUPLICATION as the requirement: `matchRecall` being implemented twice is a defect this repo
+         wants removed (CLOCK-AXIS-AND-RENDER-SURFACE-FOLLOWUPS §3), and single-sourcing it — the actual
+         fix — would have REDDENED this gate. A gate that goes red when the code gets better defends the
+         weaker design.
+         The count was standing in for TWO different facts, and separating them is the whole repair:
+           (a) LANE COVERAGE — every listed file must be in `env.sources`, or the scan reads nothing and
+               passes by silence. That is the real anti-vacuity leg and it does NOT need two copies.
+           (b) NON-VACUITY — at least ONE implementation must be found, else there is nothing to check.
+         The property assertions below then hold over EVERY site found, not over exactly two: one copy
+         passes, two must agree, three must agree. */
+      var _crMissing = _crSites.filter(function (s) {
+        return !s.src;
+      });
+      T.ok(
+        'matchRecall cross-site · every listed file is IN env.sources — a lane missing one would pass by silence',
+        _crMissing.length === 0,
+        _crMissing
+          .map(function (s) {
+            return s.file + ':NOT-IN-env.sources';
+          })
+          .join(', ') || _crSites.length + ' file(s) present'
       );
-      if (_crSeen.length === 2) {
+      T.ok('ANTI-VACUITY · at least one matchRecall implementation is visible to this scan', _crSeen.length >= 1, _crSeen.length + ' of ' + _crSites.length + ' file(s) define matchRecall');
+      if (_crSeen.length >= 1) {
         // isolate each matchRecall body, then normalise whitespace so formatting differences do not matter
         var _crBody = function (s) {
           var i = s.src.search(/function\s+matchRecall\s*\(/);
@@ -44599,7 +44611,10 @@
           });
         };
         // (1) both convert SECONDS → ms on BOTH bounds. Dropping one ×1000 shrinks the window 1000-fold.
-        var _ms = _bothMatch(/lo\s*=\s*loSec\s*\*\s*1000/).length === 2 && _bothMatch(/hi\s*=\s*hiSec\s*\*\s*1000/).length === 2;
+        var _all = function (re) {
+          return _bothMatch(re).length === _bodies.length;
+        };
+        var _ms = _all(/lo\s*=\s*loSec\s*\*\s*1000/) && _all(/hi\s*=\s*hiSec\s*\*\s*1000/);
         T.ok(
           'matchRecall cross-site · both sites convert loSec/hiSec seconds→ms on BOTH bounds',
           _ms,
@@ -44613,9 +44628,9 @@
         //     tolerance; a strict edge would drop a detection exactly on it.
         var _win = _bothMatch(/d\s*>=\s*lo\s*&&\s*d\s*<=\s*hi/);
         T.eq(
-          'matchRecall cross-site · both test `d >= lo && d <= hi` — signed, both edges inclusive, never |d|',
+          'matchRecall cross-site · EVERY implementation tests `d >= lo && d <= hi` — signed, both edges inclusive, never |d|',
           _win.length,
-          2,
+          _bodies.length,
           JSON.stringify(
             _bodies.map(function (b) {
               return b.file + ':' + /d\s*>=\s*lo\s*&&\s*d\s*<=\s*hi/.test(b.body);
@@ -44623,7 +44638,7 @@
           )
         );
         // (3) both carry a used-set so a detection cannot satisfy two truth events (the inflating bug)
-        var _used = _bothMatch(/new Set\(\)/).length === 2 && _bothMatch(/\.has\(/).length === 2 && _bothMatch(/\.add\(/).length === 2;
+        var _used = _all(/new Set\(\)/) && _all(/\.has\(/) && _all(/\.add\(/);
         T.ok(
           'matchRecall cross-site · both carry a used-set (new Set + .has + .add) keeping the match one-to-one',
           _used,
