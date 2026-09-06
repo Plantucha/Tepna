@@ -728,3 +728,103 @@ def test_no_window_requested_means_no_coverage_claim():
     a = ble_sniff.audit(_night(_adv(0x0), span_s=5), None, set(), set())
     assert a["cover"] is None
     assert "coverage" not in ble_sniff.format_audit(a)
+
+
+# ── what the mutation gate found unobserved (2026-09-06) ─────────────────────────────────────────
+def test_macs_splits_on_COMMAS_not_whitespace():
+    """`--adapters "A,B"` is one shell word. Splitting on whitespace yields the single string "A,B",
+    which then matches no initiator and silently turns every connect into a foreign one."""
+    assert ble_sniff._macs("00:11:22:33:44:55,aa:bb:cc:dd:ee:ff") == {
+        "00:11:22:33:44:55", "AA:BB:CC:DD:EE:FF"}
+    assert ble_sniff._macs("a b") == {"A B"}, "whitespace is not a separator here"
+
+
+def test_the_address_options_ACCUMULATE_rather_than_replace():
+    """`--config` and `--ours` name the same set from two sources, and either may appear twice. If a
+    later option REPLACED the set instead of joining it, a device named by the earlier one would stop
+    being ours — and a connect to it would stop being reported."""
+    cfg = tmp_cfg = None
+    import tempfile, os
+    fd, tmp_cfg = tempfile.mkstemp(suffix=".yaml")
+    with os.fdopen(fd, "w") as fh:
+        fh.write("devices:\n  - address: %s\n" % RING)
+    try:
+        # --ours FIRST, --config SECOND: with `ours = device_addresses(...)` the config branch would
+        # discard what --ours had already contributed, and the reverse order would hide it.
+        parsed = ble_sniff._parse_argv(["x.pcap", "--ours", SENA, "--config", tmp_cfg,
+                                        "--adapters", "11:11:11:11:11:11",
+                                        "--adapters", "22:22:22:22:22:22"])
+        assert parsed is not None
+        _, _, _, ours, adapters, ran_full = parsed
+        assert ours == {RING, SENA}, ours
+        # …and the other order too, so neither branch can be the replacing one.
+        other = ble_sniff._parse_argv(["x.pcap", "--config", tmp_cfg, "--ours", SENA])
+        assert other is not None and other[3] == {RING, SENA}, other
+        assert adapters == {"11:11:11:11:11:11", "22:22:22:22:22:22"}, adapters
+        assert ran_full is False, "the flag's absence is False, a bool, not None"
+    finally:
+        os.unlink(tmp_cfg)
+    del cfg
+
+
+def test_a_device_that_only_ADVERTISES_is_heard():
+    """`heard` is advertisers OR connect targets. Requiring both would silence the ordinary case —
+    a device advertising all night that nobody connected to."""
+    s = _night(_adv(0x0, RING_WIRE), _adv(0x0, RING_WIRE))
+    assert ble_sniff.audit(s, None, {RING}, set())["heard"] == [RING]
+
+
+def test_the_passing_window_line_says_the_span_covers_it():
+    """The PASS wording is a claim too, and nothing asserted it — so a mutant could blank it and the
+    audit would report a window with no verdict at all."""
+    a = ble_sniff.audit(_night(_adv(0x0), _adv(0x0), span_s=880), 900, set(), set())
+    assert "  window          : span covers the requested window" in ble_sniff.format_audit(a)
+
+
+def test_the_coverage_line_is_pinned_WHOLE_not_by_its_prefix():
+    """A prefix assertion leaves the rest of the line unobserved: the seconds figure and the
+    requested window can both be mutated while `coverage        : 0.51` still matches."""
+    a = ble_sniff.audit(_night(_adv(0x0), _adv(0x0), span_s=462), 900, set(), set(),
+                        ran_full_window=True)
+    assert "  coverage        : 0.51 (462.0 s) of 900 s requested" in ble_sniff.format_audit(a)
+
+
+def test_the_fell_behind_line_names_HOW_MUCH_is_missing():
+    a = ble_sniff.audit(_night(_adv(0x0), _adv(0x0), span_s=462), 900, set(), set(),
+                        ran_full_window=True)
+    assert "the missing 438 s is the END of the window" in a["window"]
+
+
+def test_device_addresses_propagates_an_unreadable_config(tmp_path):
+    """`--config` naming a file that cannot be opened must raise, not return an empty set: an empty
+    `ours` makes every foreign-connect check vacuously clean."""
+    with pytest.raises(OSError):
+        ble_sniff.device_addresses(str(tmp_path / "nope.yaml"))
+
+
+def test_the_config_is_decoded_as_UTF_8_regardless_of_the_box_locale():
+    """The encoding is PINNED at the call, and the only way to observe that is at the call: a config
+    read under the platform default decodes differently on a box whose locale is not UTF-8, and a
+    device address that comes back mojibake matches nothing — which reads as "no devices configured"
+    and makes every foreign-connect check vacuously clean. Same reasoning as conftest's recorded
+    subprocess double requiring its kwargs explicitly."""
+    import builtins
+    seen = {}
+    real_open = builtins.open
+
+    def spy(path, *a, **kw):
+        seen["kw"] = kw
+        return real_open(path, *a, **kw)
+
+    import tempfile, os
+    fd, cfg = tempfile.mkstemp(suffix=".yaml")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write("devices:\n  - name: rïng\n    address: %s\n" % RING)
+    builtins.open = spy
+    try:
+        assert ble_sniff.device_addresses(cfg) == {RING}
+    finally:
+        builtins.open = real_open
+        os.unlink(cfg)
+    assert seen["kw"].get("encoding") == "utf-8", (
+        "the config read must pin utf-8 rather than inherit the locale: %r" % (seen.get("kw"),))
