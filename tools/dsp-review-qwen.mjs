@@ -205,6 +205,15 @@ Do NOT flag style, naming, formatting, or missing comments. Do NOT propose rewri
    reviewer judges against what the repo SAYS the function is for, not just what it does. Fails
    soft — no context beats no review. */
 function docContext(fn, file) {
+  /* 🔴 NO GATE MAY READ DOC-SEARCH OUTPUT (CLAUDE.md §📌). doc-search is PRIMARY-DEV-MACHINE-ONLY —
+     it needs a loopback bge model and a locally prebuilt index that neither ship with the repo nor
+     exist in CI. A gate that reads it asserts on a string whose CONTENT DEPENDS ON THE BOX: rich here,
+     empty in CI, and the prompt under test is then a different prompt in the two places.
+     This flag makes that violation loud instead of slow. `--selftest` sets it, so if any test path
+     ever reaches this function again the selftest THROWS rather than quietly spawning a subprocess. */
+  if (process.env.DEX_QWEN_FORBID_DOCCTX) {
+    throw new Error('docContext() called under DEX_QWEN_FORBID_DOCCTX — a test path spawned doc-search; pass ctx into buildPrompt instead');
+  }
   try {
     const out = execFileSync('node', [join(HERE, 'doc-search.mjs'), `${file.replace(/\.js$/, '')} ${fn.name}`], { encoding: 'utf8', timeout: 30000 });
     const lines = out
@@ -217,7 +226,15 @@ function docContext(fn, file) {
   }
 }
 
-export function buildPrompt(fn, file, mode = 'review') {
+/* `ctx` is INJECTED, not fetched. It used to call docContext() inline, which made every caller —
+   including the selftest — spawn `doc-search.mjs` and block on the loopback embedding model.
+   Measured 2026-09-05 with `strace -f -e trace=execve`: the selftest executed FOUR doc-search
+   children (12 execve attempts, 8 of them PATH probing) across five call sites — five, because
+   one site is `buildPrompt(...) || buildPrompt(...)` and the `||` short-circuits. Each child is
+   an `execFileSync` with a 30 s timeout, inside `selftest-all`'s 120 s budget, run in parallel
+   with the other tools' selftests. That is the load-INDEPENDENT reason `npm run check` failed
+   at step 6 on an idle box (load 0.65 at start, 6.22 at the kill). */
+export function buildPrompt(fn, file, mode = 'review', ctx = '') {
   const lens = LENSES[mode];
   const rules = lens
     ? `You are a NARROW-LENS auditor for Tepna (local-first physiological acquisition + analysis). ${lens.q}\nDo NOT report anything outside this one question. Do NOT report style. An empty result is a good result.`
@@ -228,7 +245,7 @@ export function buildPrompt(fn, file, mode = 'review') {
     rules +
     `
 
-${docContext(fn, file)}\nFILE: ${file}  FUNCTION: ${fn.name}  (starts at line ${fn.startLine}${fn.truncated ? ', shown truncated' : ''})
+${ctx}\nFILE: ${file}  FUNCTION: ${fn.name}  (starts at line ${fn.startLine}${fn.truncated ? ', shown truncated' : ''})
 
 \`\`\`js
 ${fn.text}
@@ -305,7 +322,7 @@ async function reviewFile(file, dir, mode) {
     let findings = null,
       err = null;
     try {
-      findings = parseFindings(await askQwen(buildPrompt(fn, file, mode)));
+      findings = parseFindings(await askQwen(buildPrompt(fn, file, mode, docContext(fn, file))));
     } catch (e) {
       err = String(e).slice(0, 120);
     }
@@ -407,7 +424,39 @@ function selftest() {
   ck('py startLine 1-based', pfns[0].startLine === 3);
   ck('six lenses defined', Object.keys(LENSES).length === 6);
   ck('lens scope discriminates', LENSES['silent-stop'].scope.test('capture-host/oxy_pull.py') && !LENSES['silent-stop'].scope.test('oxydex-dsp.js'));
+  /* ── THE SELFTEST MUST NOT SPAWN doc-search ────────────────────────────────────────────────
+     Armed for the whole selftest, so ANY path that reaches docContext() throws instead of quietly
+     blocking on the loopback model. Set before the prompt assertions below, which are the callers
+     that used to do it. */
+  ck(
+    'the forbid-flag guard is LIVE — docContext throws when armed (a no-op guard would prove nothing)',
+    (() => {
+      const prev = process.env.DEX_QWEN_FORBID_DOCCTX;
+      process.env.DEX_QWEN_FORBID_DOCCTX = '1';
+      let threw = false;
+      try {
+        docContext({ name: 'x', text: '', startLine: 1 }, 'a.js');
+      } catch {
+        threw = true;
+      }
+      if (prev === undefined) delete process.env.DEX_QWEN_FORBID_DOCCTX;
+      else process.env.DEX_QWEN_FORBID_DOCCTX = prev;
+      return threw;
+    })()
+  );
+  process.env.DEX_QWEN_FORBID_DOCCTX = '1';
+  ck('prompts build with NO repo context and no subprocess (ctx is injected, not fetched)', buildPrompt(fns[0], 'a.js').length > 0 && !buildPrompt(fns[0], 'a.js').includes('REPO CONTEXT'));
+  ck(
+    'an injected ctx still reaches the prompt (the parameter is wired, not ignored)',
+    buildPrompt(fns[0], 'a.js', 'review', '\nREPO CONTEXT (injected marker)\n').includes('REPO CONTEXT (injected marker)')
+  );
   ck('lens prompt is narrow', buildPrompt(fns[0], 'a.js', 'resource-leak').includes('ONE question only') && !buildPrompt(fns[0], 'a.js', 'resource-leak').includes('ADVERSARIAL'));
+  /* `selftest-all` parses `all (\d+) selftests passed` (tools/selftest-all.mjs:194). Without a line
+     in that shape this tool reported "green (exit 0), but no parseable summary — cannot report an
+     assertion count": a pass with no evidence of how much it checked, which is the shape that lets a
+     tool silently drop from 24 assertions to 3 and still read green. Both lines are printed, so the
+     human-readable form survives. */
+  if (!fail) console.log(`✓ all ${ok} selftests passed`);
   console.log(`selftest: ${ok} ok, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
