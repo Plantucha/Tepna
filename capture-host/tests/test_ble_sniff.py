@@ -916,3 +916,19 @@ def test_the_coverage_FLOOR_is_inclusive_at_its_boundary():
     assert b["window"] == (
         "captured 224.0 s of 900 s expected — the capture ran the whole window and still covered "
         "under 25 % of it, so no verdict here is worth anything"), b["window"]
+
+
+def test_the_below_floor_message_states_the_CONFIGURED_floor(monkeypatch):
+    """The sentence must quote the floor it actually used, not a number that happens to match today.
+
+    This is here because a mutant survived: `COVERAGE_FLOOR * 100` -> `* 101`. At the shipped 0.25
+    both render "25" under `%.0f`, so no assertion against the shipped constant can tell them apart —
+    and recording it as an equivalent mutant would have been a FALSE claim, because the two differ the
+    moment the floor changes (0.70 renders 70 against 71). So the test moves the floor instead of
+    arguing about it: an operator reading "under N %" is entitled to have N be the threshold that was
+    applied."""
+    monkeypatch.setattr(ble_sniff, "COVERAGE_FLOOR", 0.70)
+    under = _night(_adv(0x0), _adv(0x0), span_s=0.5 * 900)      # under 0.70, over the old 0.25
+    a = ble_sniff.audit(under, 900, set(), set(), ran_full_window=True)
+    assert not a["ok"], "0.50 is below a 0.70 floor"
+    assert "covered under 70 % of it" in a["window"], a["window"]
