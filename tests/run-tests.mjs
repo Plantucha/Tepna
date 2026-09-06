@@ -1133,6 +1133,20 @@ function readEquiv() {
       }
     }
   }
+  // Night-level fusion twins (residue `2026-09-05-integrator-fusion-no-code-gated-fixture`): the
+  // ONLY code-gated fixture that re-runs `runFusion` -> `buildFusionExport`. Fixture-only; the gate
+  // rebuilds every night in-code, so CI reproduces it with no corpus.
+  {
+    const fxN = join(ROOT, 'uploads', 'integrator_fusion_night_twins.node-export.json');
+    if (existsSync(fxN)) {
+      try {
+        out.integrator_fusion_night_twins = { fixture: JSON.parse(readFileSync(fxN, 'utf8')), fixtureFile: 'integrator_fusion_night_twins.node-export.json' };
+      } catch {
+        /* gate asserts presence — a parse failure surfaces there, not as a silent skip */
+      }
+    }
+  }
+
   // §4.3 — the apnea chance-null twins. Fixture-only: the gate rebuilds all four nights in-code.
   {
     const fxA = join(ROOT, 'uploads', 'integrator_apnea_null_twins.node-export.json');
@@ -2273,6 +2287,15 @@ async function main() {
     })(),
     // §4.3 — the apnea-null twins' input builder, shared with tools/regen-integrator-goldens.mjs so
     // the gate and the tool cannot drift (the sibling-divergence class §F1.5 fixed for the TCH golden).
+    // Night-level fusion twins' input builder, shared with tools/regen-integrator-goldens.mjs so the
+    // gate and the tool cannot drift — the sibling-divergence class §F1.5 fixed for the TCH golden.
+    fusionNightTwins: (() => {
+      try {
+        return require(join(ROOT, 'tests', 'fusion-night-twins.js')).fusionNightTwins;
+      } catch {
+        return null;
+      }
+    })(),
     apneaNullTwins: (() => {
       try {
         return require(join(ROOT, 'tests', 'apnea-null-twins.js')).apneaNullTwins;
