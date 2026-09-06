@@ -14,6 +14,8 @@
 
 from __future__ import annotations
 import hashlib, struct, time
+from enum import Enum
+from typing import NamedTuple
 
 OXYII_SERVICE = "e8fb0001-a14b-98f9-831b-4e2941d01248"
 OXYII_WRITE   = "e8fb0002-a14b-98f9-831b-4e2941d01248"   # write-without-response
@@ -239,14 +241,85 @@ class Reassembler:
         return out
 
 
-def decode(frame: bytes):
-    """Validate one complete frame → (opcode, payload) or None."""
+class Frame(NamedTuple):
+    """A validated frame with EVERY header field the wire carries, not just the two we happened to use.
+
+    `flag` is the vendor's `pkgType` (§2 of O2RING-PROTOCOL): on a host→device request it is 0, and on a
+    device→host REPLY it is the STATUS byte — `1` = success. The old `decode()` returned only
+    `(op, payload)`, so that byte was destroyed at the decoder and no caller could see it even if it
+    wanted to. That is why a rejected `SET_UTC_TIME` was indistinguishable from an accepted one.
+
+    `seq` is carried for the same reason: it costs nothing here and it is the echo a caller needs to
+    match a reply to its request."""
+
+    op: int
+    flag: int
+    seq: int
+    payload: bytes
+
+
+def decode_full(frame: bytes) -> "Frame | None":
+    """Validate one complete frame → `Frame` or None.
+
+    THE ONE VALIDATOR. `decode()` is a wrapper over this rather than a second copy of the checks:
+    two validators drift, and a frame that one accepts and the other rejects is the worst outcome
+    available here."""
     if len(frame) < 8 or frame[0] != 0xA5 or frame[2] != (~frame[1]) & 0xFF:
         return None
     ln = frame[5] | (frame[6] << 8)
     if len(frame) != 7 + ln + 1 or crc8(frame[:-1]) != frame[-1]:
         return None
-    return frame[1], frame[7:7 + ln]
+    return Frame(op=frame[1], flag=frame[3], seq=frame[4], payload=frame[7:7 + ln])
+
+
+def decode(frame: bytes):
+    """Validate one complete frame → (opcode, payload) or None.
+
+    BACK-COMPAT WRAPPER, unchanged in behaviour: new return data arrives via `decode_full`, existing
+    callers are untouched (CLAUDE.md §🧪 — add new data through a NEW method, never by changing an
+    existing return shape)."""
+    f = decode_full(frame)
+    return (f.op, f.payload) if f else None
+
+
+class AckResult(Enum):
+    """The outcome of an ack-only command. An ENUM, not a boolean, because there are five distinct
+    states and collapsing any two of them loses the thing a caller needs.
+
+    🔴 `NO_REPLY` IS NOT `REJECTED`, and for the file path that distinction is the whole point: an
+    `0xF1` reply with an EMPTY payload means "the ring has no stored files", while no reply at all
+    means the ring never answered. The harvesting state machine must never see those as one value —
+    an empty list is a fact about the ring, a silence is a fact about the link.
+
+    `UNKNOWN_STATUS` exists because §2 documents only `1` = success. What 2..255 mean is not known, so
+    they are surfaced rather than guessed: reading "not 1" as "failed" would invent a semantics the
+    protocol notes do not support."""
+
+    OK = "ok"
+    REJECTED = "rejected"
+    NO_REPLY = "no_reply"
+    MISMATCH = "mismatch"
+    UNKNOWN_STATUS = "unknown_status"
+
+
+def parse_ack(req_op: int, reply: "Frame | None") -> AckResult:
+    """Interpret the reply to an ack-only command (`0x10`, `0xC0`, `0xF2`, `0xF4`, `0x01`).
+
+    ABSENCE IS THE CALLER'S OBSERVATION, NOT THE PARSER'S: a parser cannot see a frame that never
+    arrived, so `reply=None` is passed in by the wait/timeout at the call site and returned as
+    `NO_REPLY`. Building "no reply" into the parser would mean inventing a timeout it cannot observe.
+
+    A `flag == 1` on the WRONG opcode is `MISMATCH`, never `OK` — otherwise any successful ack in
+    flight would vouch for whatever command we happened to be waiting on."""
+    if reply is None:
+        return AckResult.NO_REPLY
+    if reply.op != req_op:
+        return AckResult.MISMATCH
+    if reply.flag == 1:
+        return AckResult.OK
+    if reply.flag == 0:
+        return AckResult.REJECTED
+    return AckResult.UNKNOWN_STATUS
 
 
 # ── Encrypted-session guard (Gen2 newer firmware) ───────────────────────────────────────────────────
