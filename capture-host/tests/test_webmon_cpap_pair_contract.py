@@ -87,8 +87,8 @@ def test_the_passkey_is_stripped_before_validation(tmp_path):
     assert status == 200 and calls == [("passkey", "482913", "")]
 
 
-@pytest.mark.parametrize("action", ["cancel", "status"])
-def test_cancel_and_status_need_no_passkey(tmp_path, action):
+@pytest.mark.parametrize("action", ["cancel", "status", "forget"])
+def test_cancel_status_and_forget_need_no_passkey(tmp_path, action):
     pair, calls = _recorder(result={"ok": True, "pending": False})
     status, body = _post(tmp_path, {"action": action}, pair)
     assert status == 200 and body["pending"] is False and calls == [(action, None, "")]
@@ -136,3 +136,20 @@ def test_a_malformed_body_is_the_shared_bad_body_response(tmp_path):
     status = _serve(app, go)
     assert status == 400
     assert calls == []
+
+
+def test_forget_is_ACCEPTED_and_is_not_the_same_action_as_cancel(tmp_path):
+    """Until 2026-09-06 the whitelist was start/passkey/cancel/status and nothing anywhere deleted
+    `as11_creds.json` — so a stale key could only be displaced by a successful re-pair, the one
+    operation a stale key breaks. `cancel` is not a substitute: it drops an exchange in flight and
+    stores nothing, which does not touch a key already written."""
+    pair, calls = _recorder(result={"ok": True, "forgotten": True})
+    status, body = _post(tmp_path, {"action": "forget"}, pair)
+    assert status == 200 and body["forgotten"] is True
+    assert calls == [("forget", None, "")], "forget must reach the daemon as its own action"
+
+
+def test_the_rejection_message_lists_forget_so_the_whitelist_cannot_drift_silently(tmp_path):
+    pair, _calls = _recorder()
+    _status, out = _post(tmp_path, {"action": "nope"}, pair)
+    assert "forget" in out["error"], "an action the endpoint accepts must appear in the error that lists them"

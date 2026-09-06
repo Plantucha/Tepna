@@ -544,7 +544,13 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                                           daemon HOLDS the link and answers {awaiting:"passkey", seconds_left}
             {action:"passkey", passkey}   prove the code (M1), VERIFY the device's M2, store as11_creds.json
             {action:"cancel"}             drop a pending exchange;  {action:"status"} what is pending
+            {action:"forget"}             DELETE the stored key — the machine must be re-paired
             {passkey}                     (no action) is the passkey step — the pre-2026-09-05 single-shot shape
+
+        ⚠️ `cancel` and `forget` are not the same and were not both available: cancel drops an exchange
+        IN FLIGHT and stores nothing; forget removes a key already verified and written. Until
+        2026-09-06 nothing on this box deleted `as11_creds.json`, so a stale key could only be displaced
+        by a SUCCESSFUL re-pair — the one operation a stale key breaks (owner-reported).
 
         The exchange is PLAINTEXT SRP (no AES, no extra dependency); the BLE handshake itself runs on the
         daemon, which owns the radios — so a build without AS11 support answers 501, never a 200 that
@@ -559,9 +565,10 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         if body is BAD_BODY:
             return _bad_body_response()
         action = str(body.get("action") or ("passkey" if "passkey" in body else "")).strip()
-        if action not in ("start", "passkey", "cancel", "status"):
+        if action not in ("start", "passkey", "cancel", "status", "forget"):
             return web.json_response(
-                {"ok": False, "error": "action must be 'start', 'passkey', 'cancel' or 'status'"}, status=400)
+                {"ok": False,
+                 "error": "action must be 'start', 'passkey', 'cancel', 'status' or 'forget'"}, status=400)
         passkey = str(body.get("passkey", "")).strip()
         if action == "passkey" and not (passkey.isascii() and passkey.isdigit() and 4 <= len(passkey) <= 10):
             return web.json_response(

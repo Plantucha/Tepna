@@ -466,7 +466,12 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
       <!-- Box health: disk + tonight's capture QC, from the guardrail pollers (hidden until they run). -->
       <div class="section-title" id="boxHealthTitle" style="display:none">Box health</div>
       <div class="ov-strip" id="boxHealth" style="display:none"></div>
-      <div class="section-title">Live streams</div>
+      <!-- The count is part of the TITLE because the grid deliberately shows a card per stream the box
+           is trying to capture, live or not (TelemetryBus.register: "shows it even before the first
+           frame"), so that a configured-and-failing stream is visible rather than absent. That is the
+           right behaviour and the wrong heading: "Live streams" over six IDLE cards reads as six live
+           streams. Owner-reported 2026-09-06. -->
+      <div class="section-title" id="ovGridTitle">Streams</div>
       <div class="ov-grid" id="ovGrid"></div>
       <p class="hint" style="color:var(--text4);font-size:12px;margin-top:16px;line-height:1.5">
         Each window shows a rolling ~5 s slice of the raw signal, auto-scaled to what's visible. Heart /
@@ -635,9 +640,15 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
                  spellcheck="false" autocomplete="off" placeholder="code on CPAP screen" disabled>
           <button class="btn btn-primary" id="cpapPairBtn" disabled>Confirm</button>
           <button class="btn" id="cpapPairCancelBtn" style="display:none">Cancel</button>
+          <button class="btn btn-destructive" id="cpapForgetBtn" style="display:none">Unpair</button>
           <span class="spin" id="cpapPairState"></span>
         </div>
+        <!-- Which radio, and is a key stored: both were invisible, so "what adapter am I pairing to?"
+             could not be answered from this panel and a stale key could not be removed at all. -->
+        <p class="hint" id="cpapPairWho" style="margin-top:6px"></p>
         <p class="hint">Put the CPAP in Bluetooth pairing mode (its menu → Bluetooth), press <b>Start pairing</b>, then type the code its screen shows and press <b>Confirm</b>. Re-pair the same way when the machine starts refusing the stored key. Credentials stay on the box; the live stream must be stopped first.</p>
+        <p class="hint"><b>Unpair</b> deletes the stored key from this box — it does not touch the CPAP, which keeps its own pairing entry until you clear it from the machine's Bluetooth menu. Use it when the machine starts refusing the key, so the next attempt starts clean instead of re-pairing over a credential that is already wrong. It refuses while the live stream is running.</p>
+        <p class="hint">⚠️ This is the ResMed <b>application</b> key (SRP-6a → <code>as11_creds.json</code>), which is <b>not</b> the same as a BlueZ bond. A device can hold one and not the other, and this panel only manages the first. Some radios cannot be paired against at all — a Zephyr/nRF52840 dongle reports an all-zero BD address and refuses a host-side public pin (<code>0x0c Not Supported</code>), so a key stored against it would never reconnect; the line above says so when the pinned adapter is one of those.</p>
         <div style="display:flex;gap:.5rem;align-items:center;margin:12px 0 2px;flex-wrap:wrap;border-top:1px solid var(--line,#2a2a2a);padding-top:12px">
           <span style="font-size:12px;color:var(--text3)">Live waveform:</span>
           <button class="btn btn-primary" id="cpapStreamBtn" data-streaming="0">▶ Start live stream</button>
@@ -1697,6 +1708,41 @@ function cpapPairArm(pending){
   $('#cpapPairCancelBtn').style.display = pending ? '' : 'none';
   if(pending) $('#cpapPin').focus();
 }
+
+// Render what `status()` now reports: which radio this pairs on, whether a key is stored and for which
+// device, and whether the pinned radio can be paired against at all. Everything here comes from the
+// daemon — the page states no adapter and no paired-ness it was not told, because a panel that guesses
+// either is worse than one that says nothing.
+function cpapPairWho(j){
+  const el = $('#cpapPairWho'); if(!el) return;
+  const bits = [];
+  if(j.adapter) bits.push(`radio <code>${esc(String(j.adapter))}</code>`);
+  else          bits.push('radio <b>not pinned</b> — <code>cpap.ble_stream.adapter</code> is unset');
+  if(j.paired)  bits.push('key stored' + (j.creds_addr ? ` for <code>${esc(String(j.creds_addr))}</code>` : ''));
+  else if(j.paired === false) bits.push('<b>no key stored</b> — not paired');
+  if(j.adapter_usable === false)
+    bits.push('<b style="color:var(--bad,#f0736e)">⚠ this radio cannot be paired against</b> (no public BD address)');
+  el.innerHTML = bits.join(' · ');
+  // Offer Unpair only when there is something to delete — a button that reports "nothing to forget"
+  // teaches the operator to distrust it.
+  const fb = $('#cpapForgetBtn');
+  if(fb) fb.style.display = j.paired ? '' : 'none';
+}
+
+$('#cpapForgetBtn')?.addEventListener('click', async () => {
+  const st = $('#cpapPairState'), btn = $('#cpapForgetBtn');
+  if(!confirm('Delete the stored CPAP key from this box?\n\nThe machine keeps its own pairing entry — clear that from its Bluetooth menu too if you are re-pairing. The next session cannot connect until you pair again.')) return;
+  btn.disabled = true; st.textContent = 'forgetting…';
+  try{
+    const [status, j] = await cpapPair({action:'forget'});
+    if(status===501)  st.textContent = '✗ pairing not supported by this daemon build';
+    else if(!j.ok)    st.textContent = '✗ ' + (j.error || 'could not forget the key');
+    else if(j.forgotten) st.textContent = '✓ key removed' + (j.was_addr ? ` (was ${j.was_addr})` : '') + ' — re-pair before the next session';
+    else              st.textContent = '· nothing stored — already unpaired';
+    if(j && j.adapter !== undefined) cpapPairWho(j);
+  }catch(err){ st.textContent = '✗ ' + err; }
+  btn.disabled = false;
+});
 $('#cpapPairStartBtn')?.addEventListener('click', async () => {
   const st = $('#cpapPairState'), btn = $('#cpapPairStartBtn');
   btn.disabled = true; st.textContent = 'connecting… (CPAP must be in Bluetooth pairing mode)';
@@ -1736,7 +1782,12 @@ $('#cpapPairCancelBtn')?.addEventListener('click', async () => {
 (async () => {
   if(!$('#cpapPairStartBtn')) return;
   try{ const [status, j] = await cpapPair({action:'status'});
-       if(status===200 && j.pending){ cpapPairArm(true); $('#cpapPairState').textContent = '→ a pairing exchange is open — enter the code'; } }
+       if(status===200){
+         // Radio + stored-key line on every load, not only when an exchange is open: the questions
+         // "which adapter is this?" and "is a key stored?" are asked when NOTHING is happening.
+         cpapPairWho(j);
+         if(j.pending){ cpapPairArm(true); $('#cpapPairState').textContent = '→ a pairing exchange is open — enter the code'; }
+       } }
   catch(err){}
 })();
 
@@ -2632,13 +2683,47 @@ const KIND_FOOT = { hr:'derived rate', scalar:'current', multi:'raw 3-axis', ppi
 
 // Live counters, rendered into the SIDEBAR so they persist across views. Driven by loadState (every
 // 5 s, any view) rather than ovRender (Overview only) — otherwise they froze on the other two views.
+// Why are devices LINKED but not streaming? The count says how many BLE links are up; it has never
+// said what that does or does not imply, and "connected" reads as "working". A Verity on the charger
+// holds its link all night and refuses PMD, so this tile read 1/3 beside STREAMS LIVE 0 with no reason
+// anywhere on the Overview — the reason was in the device row and the stream cards only. Owner-reported
+// 2026-09-06. The daemon already publishes it per device as `last_error`; this surfaces the distinct
+// reasons rather than inventing a new one, and says nothing when it does not know.
+// ⚠️ Uses `deviceForStream`, NOT a device field on the stream row: `TelemetryBus.meta()` publishes
+// key/label/unit/fs/chans/labels/active/effFs/health and no device at all. A first draft of this read
+// `s.dev`, which does not exist — it would have made every linked device look quiet and printed a
+// confident wrong reason. The key→device map already exists and is the one the device rows use.
+function linkedWhy(){
+  const linked = DEVICES.filter(d=>d.connected);
+  if(!linked.length) return 'linked — none';
+  const streaming = new Set(STREAMS.filter(s=>s.active).map(s=>deviceForStream(s.key)).filter(Boolean));
+  const quiet = linked.filter(d=>!streaming.has(d));
+  if(!quiet.length) return 'linked · all streaming';
+  // The daemon's own words, deduped, first clause only, and length-capped. Not every `last_error` is
+  // the tidy "charging — PMD streams unavailable…" form: a disconnected ring carries a whole
+  // `BleakDeviceNotFoundError('…')` repr, which would run the tile off the sidebar. Capping is honest
+  // here because the full text is already on the device row; this line only has to say WHY, not everything.
+  const why = [...new Set(quiet.map(d=>{
+    const t = String(d.last_error||'').split('—')[0].trim();
+    return t.length > 38 ? t.slice(0,37)+'…' : t;
+  }).filter(Boolean))];
+  return 'linked · ' + quiet.length + ' not streaming' + (why.length ? ' · ' + why.join(' · ') : '');
+}
+
 function renderSideStats(){
   const active = STREAMS.filter(s=>s.active);
   const weak = active.filter(s=>s.health==='weak'||s.health==='stall').length;
+  // Say how many of the cards below are actually live, in the heading, where the claim is made.
+  const gt = $('#ovGridTitle');
+  if(gt) gt.textContent = STREAMS.length
+    ? `Streams · ${active.length} of ${STREAMS.length} live`
+    : 'Streams';
   $('#sideStats').innerHTML = [
     ['Streams live', active.length,
      (active.map(s=>s.key.split('_')[0].toUpperCase()).join(' · ')||'—') + (weak?`  ⚠ ${weak} weak`:''), ''],
-    ['Devices', DEVICES.filter(d=>d.connected).length+'/'+DEVICES.length, 'connected', ''],
+    // Value unchanged (it is a true count of links); only the sub-label changes, to say which
+    // question the number answers. See linkedWhy().
+    ['Devices', DEVICES.filter(d=>d.connected).length+'/'+DEVICES.length, linkedWhy(), ''],
     ['Adapter', '', (ADAPTER_MAC||'—'), 'addr']
   ].map(([lab,val,sub,sc])=>
     `<div class="side-stat"><div class="lab">${esc(lab)}</div>` +

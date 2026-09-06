@@ -183,3 +183,38 @@ def test_build_pairer_refuses_to_start_while_the_live_stream_is_busy(tmp_path, m
     s = capture._build_cpap_pairer(_cfg(ble_addr="AA"), str(tmp_path / "config.yaml"), ctl, connect=_noop_connect)
     res = asyncio.run(s.op("start"))
     assert res["ok"] is False and "live CPAP stream holds the link" in res["error"]
+
+
+def test_build_pairer_hands_the_session_the_RADIO_it_pairs_on(tmp_path, monkeypatch):
+    """The box has three radios and only one is pinned for the CPAP. `status()` reports it so the
+    pairing panel can name it — "which adapter am I pairing to?" had no answer in the UI before
+    2026-09-06, and the answer matters because a key stored against the wrong radio never reconnects."""
+    _isolate_registry(monkeypatch)
+    ctl = SimpleNamespace(_busy=lambda: False, _running=lambda: False)
+    s = capture._build_cpap_pairer(_cfg(adapter="28:0C:50:0C:18:FD"), str(tmp_path / "config.yaml"),
+                                   ctl, connect=_noop_connect, on_paired=None)
+    assert s._adapter == "28:0C:50:0C:18:FD"
+    st = s.status()
+    assert st["adapter"] == "28:0C:50:0C:18:FD" and st["adapter_usable"] is True
+
+
+def test_build_pairer_reports_the_DEFAULT_radio_when_config_pins_none(tmp_path, monkeypatch):
+    """`hci1` is the documented default and the session must say so rather than reporting nothing —
+    'not pinned' and 'pinned to the default' are different facts to an operator deciding whether the
+    pairing landed where they meant."""
+    _isolate_registry(monkeypatch)
+    ctl = SimpleNamespace(_busy=lambda: False, _running=lambda: False)
+    s = capture._build_cpap_pairer(_cfg(), str(tmp_path / "config.yaml"),
+                                   ctl, connect=_noop_connect, on_paired=None)
+    assert s.status()["adapter"] == "hci1"
+
+
+def test_a_pinned_radio_with_no_public_address_is_reported_UNUSABLE_through_the_wiring(tmp_path, monkeypatch):
+    """End to end from config: a Zephyr/nRF52840 dongle reports an all-zero BD address and refuses a
+    host-side public pin (0x0c Not Supported). `capture._addressable` already keeps the failover ladder
+    off such an adapter; this puts the same fact where the person pressing 'Start pairing' can see it."""
+    _isolate_registry(monkeypatch)
+    ctl = SimpleNamespace(_busy=lambda: False, _running=lambda: False)
+    s = capture._build_cpap_pairer(_cfg(adapter="00:00:00:00:00:00"), str(tmp_path / "config.yaml"),
+                                   ctl, connect=_noop_connect, on_paired=None)
+    assert s.status()["adapter_usable"] is False

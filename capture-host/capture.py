@@ -7946,7 +7946,12 @@ def _build_cpap_pairer(cfg: dict, config_path: str, cpap_ctl, *, connect=None, o
     log.info("CPAP BLE pairing wired: creds %s · radio %s", creds_path, hci)
     return as11_pair.PairingSession(connect, creds_path, other_busy=cpap_ctl._busy,
                                     on_paired=on_paired or _as11_adopt_creds, default_addr=default_addr,
-                                    passkey_timeout_s=float(cbs.get("pair_timeout_sec", 120.0)))
+                                    passkey_timeout_s=float(cbs.get("pair_timeout_sec", 120.0)),
+                                    # Reported by `status()` so the pairing panel can NAME the radio it
+                                    # pairs on. The box has three; only one is pinned here; the panel
+                                    # said nothing, leaving "which adapter am I pairing to?"
+                                    # unanswerable from the UI (owner, 2026-09-06).
+                                    adapter=hci)
 
 
 def _maybe_start_as11_shadow(cfg, config_path, root, cpap_ctl, tasks, *,
