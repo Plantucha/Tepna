@@ -1,5 +1,35 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-09-05
+**Status:** PROPOSED (parked 2026-09-06 — TRIAGED against the tree and the box; every remaining proposal is owner- or Heron-gated, and the two that were not are closed) · **Created:** 2026-09-05
+
+> **Triage 2026-09-06 (Vigil box), verified per proposal — read this before re-sizing anything:**
+>
+> - **P1 — ALREADY BUILT, do not size it at "~1 unit".** `capture-host/ble_sniff.py` reads the
+>   nRF pseudo-header CRC flag (`crc_ok()`:111) and EXCLUDES crc-bad records from the counters
+>   (:150), and the report opens with the first→last span in UTC (:145, min/max rather than
+>   first/last-seen, "the span exists to expose a capture that died early"). 86 tests in
+>   `tests/test_ble_sniff.py`. The module's own header cites THIS brief's F1/F2 as the defect it
+>   closes — so the proposal was written and executed, and only this brief was never told.
+> - **P5 — CLOSED, in two halves.** `adapter_pool.py`'s docstring was corrected incidentally by
+>   #2245; the copy in `tests/test_adapter_pool.py` was not, and is fixed here. ⚠️ It was not one
+>   line: the file's three MAC constants each carried a ROLE claim, and two were stale — `UB`
+>   "the CPAP's own link" and `AX` "plugged in 2026-08-30 and unused". Neither ever failed a
+>   test, because `usable_pool` is indifferent to WHICH member is reserved.
+> - **P2 · P4 · P6 — OWNER.** apparmor grant for tshark (root), `gh` on the box, `config.yaml.bak*`
+>   hygiene. No repo change is possible for any of them.
+> - **P3 — HERON.** Only whoever took the 2026-09-04 captures can say which F6 label is real; the
+>   files are on-box only.
+>
+> **Adapter identities re-read off the box 2026-09-06** — `bluetoothctl list` for the MACs (NOT
+> `bluetoothctl info`, which answers for the DEFAULT controller), `hciconfig <hci>` and the USB
+> vid per adapter, i.e. every reading names its adapter:
+>
+> | hci | MAC | vid | radio | role, verified in config |
+> |---|---|---|---|---|
+> | hci0 | `AC:A7:F1:29:9D:1D` | 2357 | TP-Link UB500 | — (default controller) |
+> | hci1 | `00:01:95:CC:53:02` | 0a12 | CSR / Sena | wearables' global `adapter:` (config:6) |
+> | hci2 | `28:0C:50:0C:18:FD` | 8087 | Intel AX210 | `cpap.ble_stream.adapter` (config:142) |
+>
+> §1's "three radios, all UP" still holds. **Unblocks:** the owner for P2/P4/P6, Heron for P3.
 
 # Vigil Bluetooth adapters + maintainer-on-the-box — measured inventory (Wren, on the box)
 
