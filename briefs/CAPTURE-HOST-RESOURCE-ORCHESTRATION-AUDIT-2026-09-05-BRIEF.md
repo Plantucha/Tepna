@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS (audit + smallest change set landed 2026-09-05; the deliberately-NOT-built list in §7 is the remainder, each item gated on a measurement this PR starts collecting) · **Created:** 2026-09-05 · **Residue:** 2026-09-05-retry-sleep-stale-connected, 2026-09-05-fsync-on-loop-unmeasured, 2026-09-05-supervised-restart-resets-state
+**Status:** IN-PROGRESS (audit + smallest change set landed 2026-09-05; the deliberately-NOT-built list in §7 is the remainder, each item gated on a measurement this PR starts collecting) · **Created:** 2026-09-05 · **Residue:** 2026-09-05-retry-sleep-stale-connected, 2026-09-05-fsync-on-loop-unmeasured, 2026-09-05-supervised-restart-resets-state, 2026-09-06-writer-close-list-hand-kept
 
 # Capture-host resource orchestration — audit, diagnosis, smallest change set
 

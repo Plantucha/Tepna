@@ -187,7 +187,19 @@ def test_every_emitted_header_matches_a_real_polar_sensor_logger_export():
         "Phone timestamp;sensor timestamp [ns];X [raw];Y [raw];Z [raw]"
     assert "[mg]" not in writers.StreamWriter.HEADERS["accraw"], \
         "the ring's ACC has no measured scale — a mg column here would be a fabricated unit"
-    assert set(writers.StreamWriter.HEADERS) == set(psl) | {"ppg1", "ppg2w", "accraw"}, \
+    # `pletha` is ours BY DESIGN — cmd 0x03, which PSL never saw either. Two decisions are pinned here
+    # because both are measurements rather than preferences. (1) `sample` is unitless: the ring streams
+    # 8-bit optical counts with no published scale, and the accraw reasoning applies unchanged — a unit
+    # in this header would be fabricated. (2) `beat` is a FLAG column, and it exists because the 156
+    # marker on THIS stream is not the rate-inflating insertion it is on 0x05: measured 2026-09-06,
+    # markers arrive at 0.534/s against 62.0 bpm and subtracting them moves the rate AWAY from the
+    # 125.000 ADC (125.058 -> 124.444). So the sample is written as it arrived and the flag says what
+    # it is, rather than the file quietly omitting rows a consumer would need to recover the waveform.
+    assert writers.StreamWriter.HEADERS["pletha"] == \
+        "Phone timestamp;sensor timestamp [ns];sample;beat"
+    assert "[" not in writers.StreamWriter.HEADERS["pletha"].split(";")[2], \
+        "the ring's 8-bit optical counts have no published scale — a unit here would be fabricated"
+    assert set(writers.StreamWriter.HEADERS) == set(psl) | {"ppg1", "ppg2w", "accraw", "pletha"}, \
         "a new stream needs its header checked against a real export, or this gate stops covering it"
 
 
@@ -638,3 +650,31 @@ def test_pmd_live_meta_units_appear_in_the_psl_headers():
         unit = _norm(capture._LIVE_META[meta_key][1])
         header = _norm(writers.StreamWriter.HEADERS[hdr_key])
         assert f"[{unit}]" in header, f"{meta_key}: bus unit {unit!r} not bracketed in header {header!r}"
+
+
+def test_write_pletha_round_trips_through_the_parser(tmp_path):
+    """The 0x03 join, pinned the way the ppg2w one is — parser output feeds the writer unchanged.
+
+    Includes an isolated 156 (a beat marker) and a RUN of 156 (real signal), because the flag column
+    is the only thing separating them and a column swap here would turn waveform into fiducials."""
+    import struct
+    vals = [10, 156, 20, 156, 156, 30]
+    payload = b"\x00\x00\x00\x00" + struct.pack("<H", len(vals)) + bytes(vals)
+    parsed = oxyii.parse_samples_a(payload)
+
+    p = str(tmp_path / "Oxy_S8AW_20260906_010203_pletha.txt")
+    w = writers.StreamWriter(p, "pletha", fsync=False)
+    for v, beat in parsed:
+        w.write_pletha(_PHONE, 0, v, beat)
+    w.close()
+
+    rows = open(p).read().strip().split("\n")
+    assert rows[0] == "Phone timestamp;sensor timestamp [ns];sample;beat"
+    assert rows[1] == f"{_PTS};0;10;0"
+    assert rows[2] == f"{_PTS};0;156;1"          # isolated -> a beat
+    assert rows[4] == f"{_PTS};0;156;0"          # run -> signal, not a beat
+    assert rows[5] == f"{_PTS};0;156;0"
+    # Every sample survives: the row count IS the record count (markers flagged, never stripped).
+    assert len(rows) - 1 == len(vals)
+    # No device clock on this opcode; a non-zero ns column would be invented.
+    assert all(r.split(";")[1] == "0" for r in rows[1:])

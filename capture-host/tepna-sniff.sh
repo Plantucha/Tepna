@@ -71,8 +71,9 @@ fi
 # a short span is the sniffer falling BEHIND real time, not dying. Measured on vigil 2026-09-06: the
 # extcap pegs a core at 101 %, runs at ~0.4x, and the missing time is always the END of the window.
 # The audit cannot tell those apart from the pcap, so the exit code is handed to it.
-ran_full=""
-[ "$rc" -eq 124 ] && ran_full="--ran-full-window"
+# EXACTLY ONE of the two is passed, because the audit must be able to tell "it ended early" from "the
+# caller did not say". rc 124 is `timeout` ending it on schedule; anything else is a real early exit.
+if [ "$rc" -eq 124 ]; then ran_full="--ran-full-window"; else ran_full="--exited-early"; fi
 verdict="$pcap.verdict.txt"
 arc=0
 # shellcheck disable=SC2086 # $ran_full is one optional flag or empty; quoting it would pass ""

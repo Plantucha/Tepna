@@ -238,7 +238,20 @@ def test_settings_get_reports_the_ring_streams_despite_no_pmd(tmp_path):
     async def go(c):
         return await (await c.get("/api/settings")).json()
     dev = _serve(app, go)["devices"][0]
-    assert set(dev["supported"]) == {"spo2", "ppg", "ppg2w", "acc"}
+    # DERIVED from capture.py, not a fourth hand-kept copy of the list. Three copies of the ring's
+    # stream set already existed (webmon's offer list and two test expectations), and adding a stream
+    # meant finding all three by breaking them one gate at a time — 2026-09-06, measured. The offer
+    # list itself is asserted against capture.py's source in test_webmon_settings_contract.py; this
+    # test's job is that the ring reports SOMETHING despite having no PMD, so it should assert the
+    # property it is named for rather than pin a literal that drifts.
+    import re
+
+    from tests._srcscan import module_source
+    gated = set(re.findall(r'"([a-z0-9_]+)" in \(dev\.get\("streams"\)', module_source("capture.py")))
+    assert gated <= set(dev["supported"]), (
+        f"capture.py can write {sorted(gated - set(dev['supported']))} for the ring but /api/settings "
+        "does not offer them")
+    assert "spo2" in dev["supported"], "the ring's base stream must always be offered"
 
 
 # ── /api/pull ───────────────────────────────────────────────────────────────────────────────────────

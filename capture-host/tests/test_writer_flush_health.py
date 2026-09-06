@@ -140,3 +140,76 @@ def test_EVERY_WRITER_REPORTS_ITS_OWN_FAILURES_NOT_JUST_THE_ONE_I_TESTED(cls, tm
     w._fh.close = lambda: (_ for _ in ()).throw(OSError(errno.EIO, "gone"))
     w.close()
     assert w.flush_failures >= 2, f"{cls}.close swallowed its own failure"
+
+
+def test_every_StreamWriter_a_runner_opens_is_also_closed():
+    """A writer opened and never closed loses the same tail a swallowed flush does — and this file
+    already exists because that loss is invisible.
+
+    `close()` is what forces the buffered remainder to the OS and what triggers the empty-file
+    cleanup, so an unclosed writer does not error, does not warn, and does not lose the file: it
+    loses the UNFLUSHED TAIL of every session, header and nearly all rows present. That is the same
+    "night reads as complete while its tail is missing" failure this module defends against, reached
+    by a different route — a missed registry entry rather than a swallowed errno.
+
+    Measured 2026-09-06: `plethawr` was added to every path that writes rows and omitted from the one
+    tuple that closes them. It surfaced only because a fast test never reaches a flush interval, so
+    the file came out EMPTY; on the box it would have come out SHORT, and nothing checks length.
+
+    AST, not a regex over the source. `find_unwired.py`'s header records two regex drafts that
+    produced "confident nonsense", and `test_deploy_sync_apps.py` states the preference outright — a
+    text scan for `for _w in (...)` also breaks the day someone closes through a list or a `finally`.
+    Scoped to EVERY function that constructs a StreamWriter, not one runner, so the next runner to
+    grow a writer is covered without anyone remembering this test exists.
+    """
+    import ast
+
+    from tests._srcscan import module_source
+    tree = ast.parse(module_source("capture.py"))
+
+    def _writer_names(node):
+        """Names bound to a StreamWriter(...) — plain, or gated as `x = (SW(...) if cond else None)`."""
+        out = set()
+        for n in ast.walk(node):
+            if not isinstance(n, ast.Assign):
+                continue
+            vals = [n.value]
+            if isinstance(n.value, ast.IfExp):
+                vals = [n.value.body, n.value.orelse]
+            for v in vals:
+                if (isinstance(v, ast.Call) and isinstance(v.func, ast.Name)
+                        and v.func.id == "StreamWriter"):
+                    out.update(t.id for t in n.targets if isinstance(t, ast.Name))
+        return out
+
+    def _closed_names(node):
+        """Names this function closes: `x.close()` directly, or membership in a tuple/list iterated by
+        a loop whose body closes the loop variable."""
+        out = set()
+        for n in ast.walk(node):
+            if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                    and n.func.attr == "close" and isinstance(n.func.value, ast.Name)):
+                out.add(n.func.value.id)
+            if isinstance(n, ast.For) and isinstance(n.target, ast.Name):
+                closes_var = any(
+                    isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)
+                    and c.func.attr == "close" and isinstance(c.func.value, ast.Name)
+                    and c.func.value.id == n.target.id
+                    for c in ast.walk(n))
+                if closes_var and isinstance(n.iter, (ast.Tuple, ast.List)):
+                    out.update(e.id for e in n.iter.elts if isinstance(e, ast.Name))
+        return out
+
+    checked = 0
+    for fn in ast.walk(tree):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        opened = _writer_names(fn)
+        if not opened:
+            continue
+        checked += 1
+        missing = sorted(opened - _closed_names(fn))
+        assert not missing, (
+            f"{fn.name}() opens {missing} but never closes them — every session would lose its "
+            f"unflushed tail and leave empty files behind, silently")
+    assert checked, "no function in capture.py constructs a StreamWriter — the scan has drifted"
