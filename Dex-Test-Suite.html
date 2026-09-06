@@ -180,6 +180,9 @@
 <script src="tests/tch-golden-inputs.js"></script>
 <script src="tests/apnea-null-twins.js"></script>
 <script src="tests/respiration-fusion-twins.js"></script>
+<!-- AFTER the three above: fusion-night-twins.js composes their inputs and reads them as
+     globals in this lane, so load order is load-bearing here. -->
+<script src="tests/fusion-night-twins.js"></script>
 <script src="tests/dex-tests.js"></script>
 
 <script>

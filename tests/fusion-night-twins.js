@@ -73,10 +73,44 @@
     return out;
   }
 
+  /* ⚠ THE THREE SIBLING FILES DO NOT EXPOSE THEMSELVES THE SAME WAY, and assuming they did is what
+     broke the browser lane while Node stayed green (#2264):
+       · `respiration-fusion-twins.js` declares `function respirationFusionTwins()` at classic-script
+         top level, so the BARE NAME is a browser global.
+       · `apnea-null-twins.js` assigns `root.apneaNullTwins`, also a bare global.
+       · `tch-golden-inputs.js` wraps in an IIFE and exposes `root.TchGoldenInputs = { tchGoldenInputs }`
+         — a NAMESPACE OBJECT, so the bare name is undefined in the browser.
+     Node hid all of it: `require` returns the module exports regardless of the global shape.
+     `pick` therefore tries bare global, then namespace object, then require — and THROWS BY NAME.
+     The original one-liner failed as "(intermediate value)(intermediate value) is not a function",
+     which names neither the builder nor the lane. */
+  function pick(bareName, nsName, modName, key) {
+    const g = typeof globalThis !== 'undefined' ? globalThis : {};
+    if (typeof g[bareName] === 'function') return g[bareName];
+    const ns = nsName ? g[nsName] : null;
+    if (ns && typeof ns[key] === 'function') return ns[key];
+    const m = req(modName);
+    if (m && typeof m[key] === 'function') return m[key];
+    throw new Error(
+      'fusion-night-twins: cannot resolve ' +
+        key +
+        ' — tried global `' +
+        bareName +
+        '`, namespace `' +
+        (nsName || '-') +
+        '.' +
+        key +
+        '`, and require("./' +
+        modName +
+        '.js"). In the browser lane the file must be ' +
+        'loaded by a <script src> tag in Dex-Test-Suite.html AND expose one of those two shapes.'
+    );
+  }
+
   function fusionNightTwins() {
-    const apnea = (typeof apneaNullTwins === 'function' ? apneaNullTwins : (req('apnea-null-twins') || {}).apneaNullTwins)();
-    const tch = (typeof tchGoldenInputs === 'function' ? tchGoldenInputs : (req('tch-golden-inputs') || {}).tchGoldenInputs)();
-    const respAll = (typeof respirationFusionTwins === 'function' ? respirationFusionTwins : (req('respiration-fusion-twins') || {}).respirationFusionTwins)();
+    const apnea = pick('apneaNullTwins', null, 'apnea-null-twins', 'apneaNullTwins')();
+    const tch = pick('tchGoldenInputs', 'TchGoldenInputs', 'tch-golden-inputs', 'tchGoldenInputs')();
+    const respAll = pick('respirationFusionTwins', null, 'respiration-fusion-twins', 'respirationFusionTwins')();
     const resp = respAll.agree || [];
 
     return {
