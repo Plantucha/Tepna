@@ -282,7 +282,13 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         # operator has configured `serial:` — a wrong ring streams SpO₂ exactly like the
                         # right one, so this is the only field that can say the link is the wrong device.
                         "ring_serial": st.get("ring_serial"),
+                        # `ring_firmware` is the vendor's BRANCH CODE and is kept under that name for
+                        # the card that already draws it; the correctly-named pair travels beside it so a
+                        # reader can tell `2D010002` (branch) from `1.13.1.0` (firmware) — residue
+                        # `2026-09-02-oxyii-branchcode-named-firmware`.
                         "ring_firmware": st.get("ring_firmware"),
+                        "ring_branch_code": st.get("ring_branch_code"),
+                        "ring_firmware_version": st.get("ring_firmware_version"),
                         "ring_identity_mismatch": st.get("ring_identity_mismatch"),
                         # Clause 2 of the same mitigation: the run of connects that ANSWERED identity
                         # and then delivered no frames, plus the alarm text once the run is long enough

@@ -52,7 +52,9 @@ FULL_STATUS = {
     "ring_rtc_reset_suspect": "2026-08-20T05:02:11",
     # Who answered 0xE1 (audit §6.2 Mitigation C, 2026-09-05): the wire serial, firmware, and the verdict.
     "ring_serial": "2592302100",
-    "ring_firmware": "2D010002",
+    "ring_firmware": "2D010002",          # DEPRECATED alias — the branch code
+    "ring_branch_code": "2D010002",
+    "ring_firmware_version": "1.13.1.0",  # the two COEXIST on one ring (§3c)
     "ring_identity_mismatch": "connected peer reports '2592302100', config expects '2592399999'",
     # Clause 2: the RUN of connects that answered identity and served nothing, and its verdict.
     "ring_barren_connects": 3,
@@ -98,7 +100,8 @@ DEVICE_KEYS = {
     # mismatch verdict. Added deliberately: a wrong ring streams SpO₂ like the right one, so every other
     # key here reads healthy — this is the only one that can say the link is the wrong device, and a
     # STATUS field this list omits is not published (the rule this file exists to enforce).
-    "ring_serial", "ring_firmware", "ring_identity_mismatch",
+    "ring_serial", "ring_firmware", "ring_branch_code", "ring_firmware_version",
+    "ring_identity_mismatch",
     # …and clause 2, which is the OTHER way that link can be wrong: it answers and serves nothing. The
     # count ships beside the verdict because a zero and an absent field are different facts.
     "ring_barren_connects", "ring_barren_alert",
@@ -168,6 +171,8 @@ def test_a_device_projects_every_field_it_promises(tmp_path):
     assert d["ring_buzz_at"] == "2026-08-19T22:41:03.117"
     assert d["ring_rtc_reset_suspect"] == "2026-08-20T05:02:11"
     assert d["ring_serial"] == "2592302100" and d["ring_firmware"] == "2D010002"
+    # the branch and the real version travel SEPARATELY now — the whole point of the row
+    assert d["ring_branch_code"] == "2D010002" and d["ring_firmware_version"] == "1.13.1.0"
     assert d["ring_identity_mismatch"] == "connected peer reports '2592302100', config expects '2592399999'", (
         "the verdict must arrive as the SENTENCE the journal carries — the monitor draws it verbatim")
     assert d["ring_barren_connects"] == 3

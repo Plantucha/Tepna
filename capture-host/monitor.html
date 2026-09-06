@@ -1184,7 +1184,13 @@ function renderRingRtc(status) {
 // so this line is the only place the monitor can say the link is the wrong device.
 function renderRingIdentity(status) {
   if (!status) return '';
-  const sn = status.ring_serial, fw = status.ring_firmware, mm = status.ring_identity_mismatch;
+  // `ring_branch_code` is the correctly-named field; `ring_firmware` is its DEPRECATED alias, kept
+  // because this card drew it before the parser learned the difference. Prefer the new name and
+  // fall back, so a box running an older daemon still renders — residue
+  // `2026-09-02-oxyii-branchcode-named-firmware`, the rename this comment used to be waiting for.
+  const sn = status.ring_serial, mm = status.ring_identity_mismatch;
+  const fw = status.ring_branch_code || status.ring_firmware;
+  const fwver = status.ring_firmware_version;
   let out = '';
   if (sn || fw) {
     // "branch", NOT "firmware", and the distinction is the device's own: oxyii.py:272-278 records
@@ -1195,7 +1201,9 @@ function renderRingIdentity(status) {
     // the two cannot disagree; renaming both is residue 2026-09-02-oxyii-branchcode-named-firmware
     // and belongs with the parser.
     out += `<div id="ring-identity" class="hint">peer identity: serial <b>${esc(String(sn || '—'))}</b>`
-      + ` · branch <b>${esc(String(fw || '—'))}</b> <span class="hint">(0xE1 wire serial + branch code — not the filename id, and not the firmware version)</span></div>`;
+      + ` · branch <b>${esc(String(fw || '—'))}</b>`
+      + (fwver ? ` · firmware <b>${esc(String(fwver))}</b>` : '')
+      + ` <span class="hint">(0xE1 wire serial + branch code — not the filename id, and not the firmware version)</span></div>`;
   }
   if (mm) {
     out += `<div id="ring-identity-alarm" class="mb" style="color:#c55">⚠ RING IDENTITY MISMATCH — ${esc(String(mm))}`
