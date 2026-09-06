@@ -174,25 +174,140 @@ def test_a_device_without_its_own_adapter_inherits_the_global():
     assert capture.unowned_devices(cfg) == []
 
 
-def test_an_inherited_global_named_rather_than_a_mac_does_not_inherit():
-    """⚠️ THE ASYMMETRY, pinned as the behaviour it HAS — found while re-deriving the mechanism above.
+def test_an_inherited_global_written_as_a_NAME_inherits_like_a_MAC():
+    """THE TWO GLOBAL FORMS ARE INTERCHANGEABLE — residue
+    `2026-09-06-inherited-global-adapter-not-map-resolved`, fixed.
 
-    A device's OWN `adapter:` is resolved through the `adapters:` map, so `adapter: sena` works. The
-    INHERITED global is taken raw — `(cfg or {}).get("adapter")` — so a global written as a declared
-    NAME rather than a MAC resolves to nothing and the device inherits NOTHING.
+    This test previously asserted the OPPOSITE, and said so: a device's own `adapter:` resolved
+    through the `adapters:` map while the INHERITED global was taken raw, so `adapter: sena` inherited
+    NOTHING and every device relying on inheritance went unowned. It failed loudly (`unowned_devices`
+    reports them, logged at startup), which is why it was pinned as behaviour rather than fixed on the
+    spot — and flipping this assertion is exactly what the row said a fix would look like.
 
-    That is a config an operator can reasonably write (`resolve_adapter_name`'s own docstring says names
-    exist so the config and the systemd unit read the same way), and the two forms are not
-    interchangeable in this one position.
+    `resolve_adapter_name`'s docstring is the promise being kept: names exist "so the config and the
+    systemd unit read the same way". A raw global was the one position where they did not.
 
-    It fails LOUDLY rather than silently, which is why this pins rather than fixes: `unowned_devices`
-    reports the device, and the caller logs that at startup. Recorded so the next reader meets the
-    asymmetry in a test rather than in a capture that quietly served fewer devices than its config
-    named. Whether the global should be resolved through the map is a behaviour change, not a test."""
-    mac_a = "00:01:95:CC:53:02"
-    cfg_mac = {"adapter": mac_a, "adapters": {"sena": mac_a}, "devices": [{"name": "d1"}]}
-    cfg_name = {"adapter": "sena", "adapters": {"sena": mac_a}, "devices": [{"name": "d1"}]}
-    assert [d["name"] for d in capture.instance_devices(cfg_mac, "sena")] == ["d1"]
-    assert capture.instance_devices(cfg_name, "sena") == []
-    assert capture.unowned_devices(cfg_mac) == []
-    assert capture.unowned_devices(cfg_name) == ["d1"]
+    TWO adapter-less devices, because one cannot show a PARTITION — a bug returning only the first
+    inheriting device would pass a single-device fixture."""
+    mac = "00:01:95:CC:53:02"
+    by_name = {"adapter": "sena", "adapters": {"sena": mac},
+               "devices": [{"name": "d1"}, {"name": "d2"}]}
+    by_mac = {"adapter": mac, "adapters": {"sena": mac},
+              "devices": [{"name": "d1"}, {"name": "d2"}]}
+    assert [d["name"] for d in capture.instance_devices(by_name, "sena")] == ["d1", "d2"]
+    assert capture.unowned_devices(by_name) == []
+    # …and the MAC form is unchanged — the two are now identical in behaviour.
+    assert capture.instance_devices(by_name, "sena") == capture.instance_devices(by_mac, "sena")
+    assert capture.unowned_devices(by_mac) == []
+
+
+def test_an_unknown_global_name_still_inherits_NOTHING():
+    """The paired opposite, and the reason the fix is not simply "pass the global through". A typo'd
+    global must NOT become "the default controller": `resolve_adapter_name` returns None for a name
+    that is neither in the map nor a MAC, and that honesty is preserved. Without this, the fix could
+    have been written as a fallback that silently adopts any string."""
+    cfg = {"adapter": "senna", "adapters": {"sena": "00:01:95:CC:53:02"},
+           "devices": [{"name": "d1"}]}
+    assert capture.instance_devices(cfg, "sena") == []
+    assert capture.unowned_devices(cfg) == ["d1"]
+
+
+def test_the_real_vigil_shape_is_unaffected_by_the_fix():
+    """vigil's actual config: a MAC global and NO `adapters:` map at all. The fix must not disturb it —
+    the map lookup misses and `_looks_like_mac` passes the MAC straight through."""
+    sena = "00:01:95:CC:53:02"
+    cfg = {"adapter": sena,
+           "devices": [{"name": "O2Ring-S"}, {"name": "COOSPO-808S"},
+                       {"name": "Polar Sense"}, {"name": "Polar H10"}]}
+    assert len(capture.instance_devices(cfg, sena)) == 4
+    assert capture.unowned_devices(cfg, [sena]) == []
+
+
+# ── CPAP wedge escalation gate (residue 2026-09-04-cpap-wedge-failover-masks-escalation) ──────────
+_SENA = "00:01:95:CC:53:02"      # vigil hci1, USB 1-5 — carries the four wearables
+_INTEL = "28:0C:50:0C:18:FD"     # vigil hci2, USB 1-9 — the CPAP BLE stream's pinned adapter
+
+
+def _real_shape_cfg():
+    """vigil's ACTUAL config shape, read 2026-09-06: NO `adapters:` map and NO per-device `adapter:`
+    pin. All four wearables inherit the top-level `adapter:`, and the CPAP is not in `devices:` at all
+    — its pin lives under `cpap.ble_stream.adapter`. Built as a fixture because a synthetic
+    `devices:`-entry shape never exercises this path, and the row exists precisely because a rung that
+    was armed in configuration turned out unreachable in practice."""
+    return {
+        "adapter": _SENA,
+        "devices": [{"name": "O2Ring-S"}, {"name": "COOSPO-808S"},
+                    {"name": "Polar Sense"}, {"name": "Polar H10"}],
+        "cpap": {"ble_stream": {"adapter": _INTEL}},
+        "watchdog": {"enabled": True, "usb_path": "1-2"},
+    }
+
+
+def test_gate_escalates_when_the_pinned_adapter_serves_nothing_live_real_shape():
+    """On the box the CPAP's adapter has NOTHING else declared on it, so the gate is satisfied by
+    configuration. Asserted against the real shape, not a synthetic one."""
+    cfg = _real_shape_cfg()
+    streaming_wearables = {d["name"]: {"connected": True, "worn": True} for d in cfg["devices"]}
+    g = capture.cpap_escalation_gate(cfg, _INTEL, streaming_wearables, "1-9")
+    assert g["escalate"] is True, g["reason"]
+    # DISCRIMINATING: the wearables are all live, on the OTHER adapter. A gate that looked at every
+    # device instead of that adapter's would refuse here — which is today's global predicate.
+    assert "1-9" in g["reason"]
+
+
+def test_gate_refuses_when_another_device_on_that_adapter_is_live():
+    """The whole point of gating: this rung can power-cycle and re-enumerate a radio, so it must not
+    run while that radio is serving someone."""
+    cfg = _real_shape_cfg()
+    cfg["devices"].append({"name": "OnIntel", "adapter": _INTEL})
+    cfg["adapters"] = {"intel": _INTEL}
+    g = capture.cpap_escalation_gate(cfg, _INTEL, {"OnIntel": {"connected": True, "worn": True}}, "1-9")
+    assert g["escalate"] is False
+    assert "OnIntel" in g["reason"]
+
+
+def test_a_charging_device_does_not_block_the_gate():
+    """`connected` is not `producing` — a sensor on its charger reports connected=True while producing
+    nothing. Shares `device_is_streaming` with classify_adapter_health so the two cannot disagree."""
+    cfg = _real_shape_cfg()
+    cfg["devices"].append({"name": "OnIntel", "adapter": _INTEL})
+    cfg["adapters"] = {"intel": _INTEL}
+    g = capture.cpap_escalation_gate(cfg, _INTEL, {"OnIntel": {"connected": True, "charging": True}}, "1-9")
+    assert g["escalate"] is True, g["reason"]
+
+
+def test_gate_refuses_the_rung_when_no_usb_path_is_derivable():
+    """THE PLANT THAT MATTERS. An internal controller has no USB bus-port, and an hci index can
+    re-enumerate after a rebind. Either way the derivation returns None, and the gate must REFUSE —
+    never fall back to `watchdog.usb_path`, which is one static value for the whole box and on vigil
+    named `1-2` (the UB500) while the watchdog watched the Sena. That fallback is how a wrong-radio
+    rebind would re-enter."""
+    cfg = _real_shape_cfg()
+    g = capture.cpap_escalation_gate(cfg, _INTEL, {}, None)
+    assert g["escalate"] is False
+    assert "refusing L3" in g["reason"]
+    # and it must NOT have reached for the configured static path
+    assert "1-2" not in g["reason"]
+
+
+def test_gate_refuses_when_no_cpap_adapter_is_pinned():
+    """No pin, nothing to escalate on — and it says so rather than defaulting to the global adapter,
+    which is the wearables' radio."""
+    cfg = _real_shape_cfg()
+    cfg["cpap"]["ble_stream"].pop("adapter")
+    g = capture.cpap_escalation_gate(cfg, None, {}, "1-9")
+    assert g["escalate"] is False and "nothing to escalate" in g["reason"]
+
+
+def test_adapter_usb_id_derives_from_sysfs_and_returns_none_when_absent(tmp_path):
+    """The bus-port comes from the ADAPTER's own sysfs walk, so it cannot name a different radio.
+    Built against a fake tree rather than this host's real bus, so the test says the same thing on
+    any machine."""
+    root = tmp_path / "bt"
+    devdir = tmp_path / "usb" / "3-7"
+    devdir.mkdir(parents=True)
+    (devdir / "idVendor").write_text("0a12\n")
+    (root / "hci9").mkdir(parents=True)
+    (root / "hci9" / "device").symlink_to(devdir)
+    assert capture.adapter_usb_id("hci9", sysfs_root=str(root)) == "3-7"
+    assert capture.adapter_usb_id("hci404", sysfs_root=str(root)) is None
