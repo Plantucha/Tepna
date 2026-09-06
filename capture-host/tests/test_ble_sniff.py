@@ -883,3 +883,36 @@ def test_the_flag_is_a_THREE_state_contract_not_a_boolean():
     assert "FELL BEHIND real time" in ran
     assert "the sniffer died" in early and "s early" in early
     assert len({unknown, ran, early}) == 3, "three states must not collapse into two sentences"
+
+
+def test_a_capture_whose_packets_share_one_timestamp_spans_ZERO_not_one():
+    """`span or 0.0` is not decoration: a capture with every packet at one instant has a span of
+    exactly 0.0, which is falsy, and any non-zero default there would report time that was never
+    captured. Distinct from the no-packets case, which the branch above it owns."""
+    one = ble_sniff.summarise(_pcap_ts((100, 0, _adv(0x0))))
+    assert one["duration_s"] == 0.0 and one["total"] == 1
+    a = ble_sniff.audit(one, 900, set(), set())
+    assert "captured 0.0 s of 900 s expected" in a["window"], a["window"]
+    assert "900 s are missing" in a["window"], "the shortfall is the whole window, not 899"
+
+
+def test_the_coverage_FLOOR_is_inclusive_at_its_boundary():
+    """Exactly at the floor is not below it. The comparison and the problems guard must agree on
+    that, or a capture sitting precisely on the boundary flips verdict depending on which one is
+    read — the kind of disagreement that only ever shows up on the one night it matters."""
+    at = _night(_adv(0x0), _adv(0x0), span_s=ble_sniff.COVERAGE_FLOOR * 900)
+    a = ble_sniff.audit(at, 900, set(), set(), ran_full_window=True)
+    assert a["ok"], "exactly at the floor still counts as covered"
+    assert a["problems"] == []
+    # …and the SENTENCE must agree with the verdict. The comparison and the problems guard are two
+    # separate reads of the same boundary: flip only one and the audit still passes while telling the
+    # operator "no verdict here is worth anything" — a verdict and its explanation contradicting each
+    # other, which is worse than either being wrong alone.
+    assert "FELL BEHIND real time" in a["window"], a["window"]
+    assert "worth anything" not in a["window"]
+    under = _night(_adv(0x0), _adv(0x0), span_s=ble_sniff.COVERAGE_FLOOR * 900 - 1)
+    b = ble_sniff.audit(under, 900, set(), set(), ran_full_window=True)
+    assert not b["ok"]
+    assert b["window"] == (
+        "captured 224.0 s of 900 s expected — the capture ran the whole window and still covered "
+        "under 25 % of it, so no verdict here is worth anything"), b["window"]
