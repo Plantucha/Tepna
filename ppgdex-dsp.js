@@ -245,16 +245,32 @@
     const ch = [];
     let amb = -1,
       ns = -1,
-      phone = -1;
+      phone = -1,
+      motion = -1;
     for (let i = 0; i < p.length; i++) {
       const h = p[i].trim().toLowerCase();
       if (/^(channel\s*\d|ppg\d)/.test(h)) ch.push(i);
       else if (/ambient/.test(h)) amb = i;
+      // `motion` is the dual-wavelength layout's 5th column. It is NOT optical and must never be
+      // read as a channel or mistaken for ambient — it is recorded here solely to identify the layout.
+      else if (/^motion$/.test(h)) motion = i;
       else if (/sensor\s+timestamp/.test(h)) ns = i;
       else if (/phone\s+timestamp/.test(h)) phone = i;
     }
     if (ch.length >= 3) return { chIdx: [ch[0], ch[1], ch[2]], amb, ns, phone };
     if (ch.length === 1) return { chIdx: [ch[0]], amb, ns, phone };
+    /* TWO channels are accepted ONLY as the O2Ring's raw dual-wavelength `_PPG2W.txt` (cmd 0x05), and
+       only on a POSITIVE identification of that layout: a `motion` column present AND no ambient.
+       The bare count stays refused, which is what the paragraph above requires — a shifted or
+       truncated 3-LED file has an ambient column or lacks motion, so it cannot reach this branch and
+       still cannot vote with itself. `capture-host/writers.py` emits exactly one header for this
+       stream and has since it existed: measured over the whole corpus, 1066 non-empty files carry ONE
+       distinct header line and a 5-field row, universally.
+       `dual` is a PROVENANCE flag, not a channel count: only the O2Ring writes this format, so it
+       carries the finger site the way `nCh === 1` does. Channel IDENTITY (which of the two is RED and
+       which IR) is deliberately NOT claimed here — the brief leaves it open, so they stay ch0/ch1 and
+       nothing downstream computes SpO2 from them. */
+    if (ch.length === 2 && motion >= 0 && amb < 0) return { chIdx: [ch[0], ch[1]], amb, ns, phone, dual: true };
     return null;
   }
   function ppgColsByTail(p) {
@@ -375,16 +391,28 @@
     // filter byte-identical.
     let minFields = 6;
     let nCh = 3,
+      dual = false,
       ch0Col = 2;
     for (let li = 0; li < lines.length; li++) {
       const line = lines[li].trim();
       if (!line) continue;
+      /* Leading `#` provenance comments (`# timebase=host-disciplined`) — the same convention as
+         LINK.csv, whose real header is on line 2. Measured across the corpus: 906 of 1066 non-empty
+         `_PPG2W.txt` carry one and 160 do not, so a parser that treats line 1 as the header mis-reads
+         85 % of them. Skipped EXPLICITLY rather than incidentally: today's two variants happen not to
+         contain the word "timestamp", so they fall through the header test by luck, and a future
+         comment that did would silently become the header. */
+      if (line.charCodeAt(0) === 35) continue;
       const p = line.split(';');
       if (/timestamp/i.test(line) && !pcols) {
         const hc = ppgColsFromHeader(line);
         if (hc) {
           pcols = hc;
           if (hc.chIdx.length === 1) minFields = 3;
+          // The dual-wavelength row is FIVE fields (phone;ns;ch0;ch1;motion). The default of 6 is the
+          // Verity layout's, and it is what actually refused these files before this branch existed —
+          // the header check alone was not enough, which a read of the code did not show and a run did.
+          else if (hc.dual) minFields = 5;
           continue;
         }
       }
@@ -393,8 +421,10 @@
       if (!pc) continue;
       // The layout the ACCEPTED rows actually carry (a headerless file resolves per-row via the tail).
       nCh = pc.chIdx.length;
+      dual = !!pc.dual;
       ch0Col = pc.chIdx[0];
       if (nCh === 1) minFields = 3;
+      else if (dual) minFields = 5;
       const v0 = parseFloat(p[pc.chIdx[0]]);
       if (!isFinite(v0)) {
         continue;
@@ -410,10 +440,17 @@
       // never admit a partial row, because the channel arrays are positional and must stay in step.
       let v1 = 0,
         v2 = 0;
-      if (pc.chIdx.length === 3) {
+      // Generalised from `=== 3` to "every companion column THIS layout claims", so the dual-wavelength
+      // layout gets the SAME row-atomic treatment rather than silently skipping validation and pushing
+      // nothing. The 3-channel path is unchanged: both companions are still validated together and the
+      // row is still dropped whole if either fails.
+      if (pc.chIdx.length >= 2) {
         v1 = parseFloat(p[pc.chIdx[1]]);
+        if (!isFinite(v1)) continue;
+      }
+      if (pc.chIdx.length === 3) {
         v2 = parseFloat(p[pc.chIdx[2]]);
-        if (!isFinite(v1) || !isFinite(v2)) continue;
+        if (!isFinite(v2)) continue;
       }
       // Ambient is DELIBERATELY NaN when the layout carries no ambient column (the O2Ring finger site,
       // which AC-couples on-device). Only a column that EXISTS and fails to parse makes the row bad —
@@ -421,10 +458,8 @@
       const va = pc.amb >= 0 ? parseFloat(p[pc.amb]) : NaN;
       if (pc.amb >= 0 && !isFinite(va)) continue;
       ch0.push(v0);
-      if (pc.chIdx.length === 3) {
-        ch1.push(v1);
-        ch2.push(v2);
-      }
+      if (pc.chIdx.length >= 2) ch1.push(v1);
+      if (pc.chIdx.length === 3) ch2.push(v2);
       amb.push(va);
       // sensor ns → relative seconds (BigInt: values exceed Number safe range)
       let relNs = 0;
@@ -581,7 +616,7 @@
     } else {
       for (let i = 0; i < n; i++) relSec[i] = i / fs;
     }
-    const chArr = nCh === 1 ? [Float32Array.from(ch0)] : [Float32Array.from(ch0), Float32Array.from(ch1), Float32Array.from(ch2)];
+    const chArr = nCh === 1 ? [Float32Array.from(ch0)] : nCh === 2 ? [Float32Array.from(ch0), Float32Array.from(ch1)] : [Float32Array.from(ch0), Float32Array.from(ch1), Float32Array.from(ch2)];
     // SITE is a layout fact, not a guess — but COLUMN COUNT ALONE IS NOT THE LAYOUT. The O2Ring emits
     // BOTH a 1-column pleth and a 3-column file whose three columns are the SAME reading replicated
     // (`124;124;124;0`), and column-count-only classification therefore called the ring a Verity on
@@ -623,7 +658,7 @@
        value (consumers gate on it and the sentinel pass genuinely is a device property), and
        `siteSource` now says where that value came from — so a reader can tell a DECLARED limb from a
        device default, and a grader can decline to award a site-validated tier to a default. */
-    const site = deriveSiteFromLayout(chArr, n);
+    const site = deriveSiteFromLayout(chArr, n, dual);
     // Sentinel pass runs ONLY on the finger layout — 156 is the O2Ring's marker and carries no meaning
     // in a Verity count stream (where it would be an ordinary, and astronomically rare, raw ADC value).
     // Keyed on SITE, not on nCh: a replicated 3-column O2Ring file is still an O2Ring, and keying on
@@ -726,6 +761,10 @@
       })(),
       durSec: (n - 1) / fs,
       site,
+      /* PROVENANCE, published so the frame-routed path can reach the same site verdict as this one.
+         `deriveSiteFromLayout` cannot re-derive it from the samples — two real wavelengths are not
+         replicated — so an adapter that drops this flag would silently get 'wrist' for a finger file. */
+      dual,
       // 'device-default' until someone declares otherwise — see the block above.
       siteSource: 'device-default',
       // Per-sample missing mask (1 = rejected sentinel). Null for the wrist layout. Never filled.
@@ -844,9 +883,16 @@
      replicate one reading — measured 100 % identical across 526 O2Ring files vs 0 % across 261
      Verity files, perfect separation). Decided on the DATA, never the header, so a vendor renaming
      its columns changes nothing. Exact scan, stops at the first mismatch. */
-  function deriveSiteFromLayout(chArr, n) {
+  function deriveSiteFromLayout(chArr, n, dual) {
     const nCh = chArr ? chArr.length : 0;
     if (!nCh) return 'wrist';
+    /* The raw dual-wavelength layout is an O2Ring FINGER file by provenance: only the ring's cmd 0x05
+       writes `channel 0;channel 1;motion`, so the site is a fact about the format, exactly as it is
+       for the 1-column case below. It must NOT be left to the replication scan — two genuinely
+       different wavelengths are not byte-identical, so the scan would return 'wrist' and then the
+       sentinel pass would be skipped and a wrist-validated tier stamped onto a fingertip pleth, which
+       is the failure the comment above this function exists to prevent. */
+    if (dual) return 'finger';
     let replicated = nCh > 1;
     for (let c = 1; replicated && c < nCh; c++) {
       const a = chArr[0],
@@ -5125,7 +5171,7 @@
            `rec.site || 'wrist'` fallback stamp every frame-routed recording 'wrist'. A declared site
            (`s.site`) wins if an adapter ever carries one; otherwise it is the layout fact, and
            `siteSource` stays 'device-default' so a grader can still tell a default from a declaration. */
-        site: s.site || deriveSiteFromLayout(s.ch, n),
+        site: s.site || deriveSiteFromLayout(s.ch, n, s.dual),
         siteSource: s.siteSource || 'device-default',
         acc: input.acc || null,
         gyro: input.gyro || null,
