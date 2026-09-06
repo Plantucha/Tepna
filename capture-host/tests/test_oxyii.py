@@ -747,6 +747,35 @@ def test_AN_OUT_OF_RANGE_TIMESTAMP_DOES_NOT_RAISE():
         assert len(oxyii.auth_payload("0000", ts)) == 16
 
 
+# ── branchCode is not a firmware version ──────────────────────────────────────────────────────────
+# Residues `2026-09-02-oxyii-branchcode-named-firmware` + `2026-09-05-dis-firmware-compared-to-a-
+# branch-code`. One confusion, two sites: the parser named the branch "firmware", and the AES-session
+# guard compared the DIS Firmware Revision String to a BRANCH CODE.
+
+def _info_payload(branch: str = "2D010002", ver=(2, 0, 1, 13, 1)) -> bytes:
+    """A 60-byte GET_INFO reply: hwV at [0], version bytes at [1..4] read as [4].[3].[2].[1],
+    bootloader [8]..[5], branch code at [9:17] (§3c)."""
+    return bytes(ver) + bytes(4) + branch.encode() + bytes(60 - 17)
+
+
+def test_parse_get_info_exposes_the_branch_and_the_real_version_separately():
+    i = oxyii.parse_get_info(_info_payload())
+    assert i["branch_code"] == "2D010002"
+    assert i["firmware_version"] == "1.13.1.0"      # §3a: the two COEXIST on one ring
+    assert i["hw_version"] == 2
+    assert i["bootloader"] == "0.0.0.0"
+
+
+def test_the_deprecated_firmware_key_keeps_its_branch_value():
+    """`firmware` is persisted by pull_session into a sidecar as `device_firmware`. Changing what the
+    key MEANS would rewrite the meaning of records already on disk while every consumer kept reading
+    the same name — so the alias stays, deprecated, identical to `branch_code`."""
+    i = oxyii.parse_get_info(_info_payload())
+    assert i["firmware"] == i["branch_code"] == "2D010002"
+
+
+def test_a_short_payload_yields_None_not_a_half_parsed_identity():
+    assert oxyii.parse_get_info(b"\x00" * 4) is None
 # ── ACK-ONLY COMMANDS: the reply is READ now ──────────────────────────────────────────────────────
 # Residue `2026-09-02-oxyii-acks-unparsed`. Five of thirteen opcodes are ack-only (0x10, 0xC0, 0xF2,
 # 0xF4, 0x01) and none had a reply parser, so a REJECTED command was indistinguishable from an

@@ -5086,21 +5086,21 @@ def _o2_info_reply_from(serial: str, fw: bytes = b"2D010002"):
     return oxyii.encode(oxyii.OP_GET_INFO, bytes(p))
 
 
-def _o2_identity_responder(c, serial):
+def _o2_identity_responder(c, serial, fw: bytes = b"2D010002"):
     def on(data):
         op = data[1]
         if op == oxyii.OP_LIVE:
             c.notify(0, _o2ring_live_reply())
         elif op == oxyii.OP_GET_INFO:
-            c.notify(0, _o2_info_reply_from(serial))
+            c.notify(0, _o2_info_reply_from(serial, fw))
     return on
 
 
-def _run_ring_session(tmp_path, monkeypatch, dev, serial_on_air):
+def _run_ring_session(tmp_path, monkeypatch, dev, serial_on_air, fw: bytes = b"2D010002"):
     capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
     capture.STATUS["devices"].pop("Ring", None)
     c = FakeGattClient()
-    c.on_live = _o2_identity_responder(c, serial_on_air)
+    c.on_live = _o2_identity_responder(c, serial_on_air, fw)
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(dev, str(tmp_path)))
@@ -5748,21 +5748,35 @@ def test_run_oxyii_publishes_the_rings_firmware_revision(tmp_path, monkeypatch):
     assert capture.STATUS["devices"]["RingFw"]["firmware"] == "2D010002"
 
 
-def test_run_oxyii_names_an_unmeasured_firmware_rather_than_letting_it_surface_as_a_stall(
+def test_run_oxyii_publishes_DIS_as_a_diagnostic_and_does_NOT_gate_on_it(
         tmp_path, monkeypatch, caplog):
-    """A newer firmware keys an AES session after AUTH, and AUTH is written fire-and-forget with no
-    reply to inspect — so the ONLY way the box can state it is this read. Without it the failure
-    arrives as 'connects, auths, no decoded frames', which reads as a bad link."""
+    """DIS IS NO LONGER THE GATE — residue `2026-09-05-dis-firmware-compared-to-a-branch-code`.
+
+    This test previously fed a BRANCH-CODE-shaped string through the DIS Firmware Revision
+    characteristic and required the AES warning, which encoded the defect: DIS 0x2A26 carries a
+    firmware VERSION (`1.13.1.0`), not a branch code, so the old comparison could never be true on a
+    ring that implements DIS — and this box's ring does not implement it at all, so the guard never
+    ran on any link.
+
+    The guard now keys on the branch code from GET_INFO, which every ring answers in our own
+    handshake (`capture.aes_session_suspect`, unit-tested with the branch plants). DIS keeps
+    publishing as a DIAGNOSTIC — a real version string is useful beside the branch — but it decides
+    nothing.
+
+    The premise the old test defended is unchanged and still holds: an AES session after AUTH surfaces
+    as "connects, auths, no decoded frames", which reads as a bad link. Only the field that detects it
+    was wrong."""
     capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
-    c = FakeGattClient(); c.fw = b"2D010099"
+    c = FakeGattClient(); c.fw = b"1.13.1.0"      # a REAL DIS version string, as a DIS ring reports
     _inject_connect_scan(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     with caplog.at_level(logging.WARNING):
         _run(capture.run_oxyii(_o2dev(name="RingNew"), str(tmp_path)))
-    assert capture.STATUS["devices"]["RingNew"]["firmware"] == "2D010099"
+    assert capture.STATUS["devices"]["RingNew"]["firmware"] == "1.13.1.0", \
+        "the DIS string must still be published — it is a diagnostic, not a secret"
     msg = " ".join(r.getMessage() for r in caplog.records)
-    assert "2D010099" in msg and "AES" in msg, \
-        "an unmeasured firmware must be named at connect, with the decode failure it predicts"
+    assert "AES" not in msg, \
+        "a DIS firmware version must not raise the AES-session warning: that comparison was the defect"
 
 
 def test_run_oxyii_treats_an_unreadable_firmware_as_a_skip_not_a_lost_session(tmp_path, monkeypatch):
@@ -6094,3 +6108,55 @@ def test_a_storm_OUTSIDE_the_window_no_longer_excuses_the_run(tmp_path, monkeypa
         assert st["ring_barren_alert"] and "storm" not in st["ring_barren_alert"]
     finally:
         capture._OXYII_STORMS.pop(addr, None)
+
+
+# ── the AES-session guard fires on the BRANCH from GET_INFO ───────────────────────────────────────
+# Residue `2026-09-05-dis-firmware-compared-to-a-branch-code`. The guard used to key on the DIS
+# Firmware Revision String, so it never ran on this box's ring (no DIS) and could never be true on a
+# ring that has it. GET_INFO is answered by EVERY ring in our own handshake.
+
+
+def test_an_unmeasured_BRANCH_raises_the_AES_warning(tmp_path, monkeypatch, caplog):
+    with caplog.at_level(logging.WARNING):
+        st = _run_ring_session(tmp_path, monkeypatch, _o2dev(), "2592302100", fw=b"2D010001")
+    assert st["ring_branch_code"] == "2D010001"
+    msg = " ".join(r.getMessage() for r in caplog.records)
+    assert "2D010001" in msg and "AES" in msg, \
+        "an unmeasured branch must be named on the link that reported it"
+    # the REAL version is reported beside it, never compared
+    assert st["ring_firmware_version"] == "0.0.0.0", st.get("ring_firmware_version")
+
+
+def test_the_measured_BRANCH_stays_silent(tmp_path, monkeypatch, caplog):
+    """The discriminator. A guard keyed on a firmware VERSION would fire here too, because a version
+    string never equals a branch code — so this is the case that reds the wrong fix, not the one
+    above."""
+    with caplog.at_level(logging.WARNING):
+        st = _run_ring_session(tmp_path, monkeypatch, _o2dev(), "2592302100", fw=b"2D010002")
+    assert st["ring_branch_code"] == "2D010002"
+    assert "AES" not in " ".join(r.getMessage() for r in caplog.records), \
+        "the measured-plaintext branch must not raise the warning"
+
+
+def test_the_branch_warning_fires_on_the_TRANSITION_not_once_per_reply(tmp_path, monkeypatch, caplog):
+    """The ring answers GET_INFO on every poll, so an unconditional warning would fill the journal with
+    one line per reply and bury the transition that matters. Asserted by running a SECOND session on a
+    ring already published as `2D010001`: the branch has not changed, so it must stay silent."""
+    capture.STATUS["devices"]["Ring"] = {"ring_branch_code": "2D010001"}
+    with caplog.at_level(logging.WARNING):
+        st = _run_ring_session_keep(tmp_path, monkeypatch, _o2dev(), "2592302100", fw=b"2D010001")
+    assert st["ring_branch_code"] == "2D010001"
+    assert "AES" not in " ".join(r.getMessage() for r in caplog.records), \
+        "an unchanged branch must not re-warn — the guard reports the transition, not the state"
+
+
+def _run_ring_session_keep(tmp_path, monkeypatch, dev, serial_on_air, fw: bytes = b"2D010002"):
+    """`_run_ring_session` clears the device's STATUS first; this one PRESERVES it, so a test can set
+    the previous branch and observe the transition logic rather than a first sighting."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    c.on_live = _o2_identity_responder(c, serial_on_air, fw)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 4)
+    _run(capture.run_oxyii(dev, str(tmp_path)))
+    return capture.STATUS["devices"]["Ring"]
