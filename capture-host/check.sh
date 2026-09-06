@@ -45,7 +45,14 @@ run_gate "ruff"       "$PY" -m ruff check .
 # in subdirectories (deploy/, systemd/), so a bare *.sh would check only this directory while reporting
 # success for the whole surface — the same shape as every other "gate that examined less than it said".
 mapfile -t sh_files < <(find . -name '*.sh' -not -path './.venv*' | sort)
-run_gate "shellcheck" shellcheck --severity=style "${sh_files[@]}"
+# Resolve shellcheck BESIDE THE INTERPRETER first — the same rule tests/test_shell_surface.py uses —
+# so the pinned `shellcheck-py` wheel in .venv wins over whatever PATH holds, and a contributor who
+# installed requirements-dev.txt without activating the venv is not handed exit 127 for a tool that
+# is installed. Measured 2026-09-06: a bare `shellcheck` here exited 127 on a box whose only gap
+# was the (then undeclared) wheel, and the 127 read as "the tool is absent on this box" four times.
+# When neither location has it the bare name still fails with 127 — a missing tool stays visible.
+SC="$(dirname "$PY")/shellcheck"; [ -x "$SC" ] || SC=shellcheck
+run_gate "shellcheck" "$SC" --severity=style "${sh_files[@]}"
 run_gate "pytest"     "$PY" -m pytest -q --cov --cov-branch --cov-fail-under=100
 # Machinery that exists, is tested, and is connected to NOTHING — the sibling of "a check that reports
 # success about something it never examined". No other gate can see it: every instance HAS passing

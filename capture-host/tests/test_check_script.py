@@ -142,9 +142,15 @@ def test_it_actually_names_all_three_gates(monkeypatch):
     """Non-vacuity for the stubs above: if check.sh stopped invoking a real gate by name, the sandbox
     would happily report the remaining two as a clean run."""
     src = open(CHECK, encoding="utf-8").read()
-    for gate in ("ruff check", "shellcheck --severity=style", "pytest -q --cov"):
+    for gate in ("ruff check", '"$SC" --severity=style', "pytest -q --cov"):
         assert gate in src, f"check.sh no longer runs {gate!r}"
     assert "--cov-fail-under=100" in src, "the coverage floor must stay in the aggregate"
+    # shellcheck is resolved BESIDE THE INTERPRETER first (the test_shell_surface.py rule), then PATH.
+    # A bare `shellcheck` here exited 127 on a box whose only gap was the undeclared wheel (2026-09-06),
+    # and the 127 read as "not installed" four times. The fallback must stay bare so a genuinely
+    # missing tool still fails visibly instead of being pointed at a path that does not exist.
+    assert '"$(dirname "$PY")/shellcheck"' in src, "shellcheck must be looked up beside $PY first"
+    assert '|| SC=shellcheck' in src, "the PATH fallback keeps a missing tool visible (127)"
 
 
 def test_it_is_not_set_e(monkeypatch):
