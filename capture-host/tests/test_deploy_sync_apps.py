@@ -599,10 +599,27 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     # And the property that bounds all of it: the script NEVER self-elevates. It is the sudo TARGET, not
     # a sudo caller — the only `sudo` in the file is in the deploy comment. Run by the test user it has
     # exactly that user's authority, and `ip link set` / `dhcpcd` / `wpa_supplicant` all refuse it.
+    # tepna-btmon.sh added 2026-09-05 — the sixth NOPASSWD helper, and the first that WRITES A FILE THE
+    # CALLER NAMES, so the confirmation is about where that write can land rather than about /etc:
+    #   • the write destination is validated BEFORE btmon runs and confined to $TEPNA_BTMON_OUTROOT
+    #     (real default /srv/tepna/captures), which `_run()` sets unconditionally into tmp_path; a `..`
+    #     component is rejected outright, so an inside-by-prefix path cannot resolve outside, and an
+    #     EXISTING file is refused rather than truncated — a redirected run cannot even clobber a
+    #     fixture, let alone a real capture;
+    #   • $TEPNA_BTMON_SYSFS (real default /sys/class/bluetooth) is the only path READ, also redirected
+    #     unconditionally, and the adapter must exist there before anything runs;
+    #   • its entire external command surface is `btmon` and `timeout`, and `_run()` prepends a stub
+    #     btmon onto PATH — so the real monitor socket is never opened. That matters more here than
+    #     usual: unstubbed, btmon needs CAP_NET_RAW and would simply be REFUSED for the test user, which
+    #     is the property that bounds an unstubbed run to nothing;
+    #   • it contains no systemctl, udevadm, mount, install, ip, chmod or sudo. The one ownership call is
+    #     `chown --reference=<the output dir>` on the file it just created — inside the redirected root,
+    #     and `|| true` so a non-root run proceeds;
+    #   • it NEVER self-elevates: like tepna-wifi.sh it is the sudo TARGET, not a sudo caller.
     assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh", "enable-cpap-wifi.sh",
                         "tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh",
                         "tepna-usbreset.sh", "tepna-btreset.sh", "tepna-wifi.sh", "check.sh",
-                        "tepna-update.sh", "vigil.sh"}, (
+                        "tepna-update.sh", "vigil.sh", "tepna-btmon.sh"}, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")
 
