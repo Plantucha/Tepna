@@ -88,6 +88,21 @@ sudo udevadm control --reload && sudo udevadm trigger --action=add --attr-match=
 Open **http://tepna.local/** from any device on the LAN. **Pin this one origin** (not `localhost`,
 not the IP) so the suite's profile + longitudinal history stay consistent.
 
+### Nightly BLE air audit (needs an nRF Sniffer dongle)
+`deploy/install-services.sh` also installs **`tepna-sniff.timer`** (03:00, ±10 min): a 10-minute
+all-advertising capture into `/srv/tepna/captures/sniffer/`, judged on the spot by
+`ble_sniff.py --expect-seconds --config --adapters`. It answers the two questions the box cannot
+answer about itself — did the capture actually cover the window, and did any initiator that is **not
+one of our own adapters** open a link to one of **our** devices. A failed audit exits 3, so the
+oneshot lands in `systemctl --failed`; the one-line verdict goes to `journalctl -t tepna-sniff` and
+the full report sits beside the pcap as `*.verdict.txt`. Captures older than
+`TEPNA_SNIFF_KEEP_DAYS` (30) are pruned — only files named `nightly-*`.
+
+It needs the Nordic extcap installed **for the service user**
+(`~/.config/wireshark/extcap/nrf_sniffer_ble.py`, run with the SYSTEM python: pyserial lives in
+dist-packages) and a sniffer on the bus; without either it exits 6 / 5 and captures nothing. Run it
+by hand any time — `TEPNA_SNIFF_SECONDS=60 ./tepna-sniff.sh`.
+
 ## The integration contract (why this is cheap to land — `BRIEF §7`)
 1. **Emit existing vendor layouts** — PSL `*_ECG.txt`/`_PPG`/`_ACC`, Mind-Monitor Muse CSV → no new
    parser branch. New layouts go through `ADD-AN-ADAPTER.md`, never by editing a shared parser.

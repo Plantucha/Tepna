@@ -45,6 +45,21 @@ else
   echo "  ✗ updater units missing under $UPD_SRC"
 fi
 
+say "1c/5  nightly BLE air audit (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT D3)"
+# Same shape as the updater: an unprivileged oneshot on a timer, installed from the repo. It needs the
+# nRF Sniffer on the bus and the extcap under the vigil user's ~/.config/wireshark/extcap — neither
+# is installed here; on a box without them the unit FAILS visibly (exit 5/6), which is the point.
+if [ -f "$UPD_SRC/tepna-sniff.service" ] && [ -f "$UPD_SRC/tepna-sniff.timer" ]; then
+  install -m644 "$UPD_SRC/tepna-sniff.service" /etc/systemd/system/tepna-sniff.service
+  install -m644 "$UPD_SRC/tepna-sniff.timer"   /etc/systemd/system/tepna-sniff.timer
+  systemctl daemon-reload
+  systemctl enable --now tepna-sniff.timer >/dev/null 2>&1 \
+    && echo "  ✓ tepna-sniff.timer $(systemctl is-active tepna-sniff.timer)" \
+    || echo "  ✗ tepna-sniff.timer failed to enable"
+else
+  echo "  ✗ sniff units missing under $UPD_SRC"
+fi
+
 say "2/5  mDNS so the origin is a NAME, not an IP"
 # PIN ONE ORIGIN. localStorage is per-origin, so http://vigil.local, http://localhost and
 # http://192.168.0.61 are THREE different profiles + longitudinal histories. A DHCP lease change would
