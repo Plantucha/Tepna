@@ -119,7 +119,26 @@ export set:
 | path | nights | files | what it is |
 |---|---|---|---|
 | **`<647A>/Ecg nightly/CPAP`** | **192** (2026-01-11 → 07-21) | 1194 | the ResMed corpus, already in card layout — point `--root` straight at it |
-| `/run/media/michal/data/Ecg-nightly-archive/CPAP` | 192 | 1194 | a **byte-identical mirror** (0 name or size differences) on the second volume |
+| `/run/media/michal/data/Ecg-nightly-archive/CPAP` | 192 | 1194 | a **byte-identical mirror** (0 name or size differences) on the second volume — ⚠️ **as measured 2026-08-17, BEFORE the volume failed; see the box below** |
+
+> 🔴 **THE `data` VOLUME (sdb1) IS FAILING — DO NOT REMOUNT IT, AND DO NOT MEASURE AGAINST ITS MIRROR (2026-09-01).**
+> It threw Buffer I/O errors **with lost async page writes**, stopped, re-attached, and now sits unmounted
+> (kernel log 2026-09-01 10:21). Two separate facts, and they are about two DIFFERENT subtrees — do not
+> merge them:
+>
+> - **The `Ecg-nightly-archive` ECG portion is INCOMPLETE**: June 10–27 only, **15 of 31 scorable nights**.
+>   It is not a stale copy of a complete set, it is a partial one, and it **already flattered two candidates
+>   above their pre-stated bar** in the PPG-FOOT residual campaign before a canonical re-run on the primary
+>   corpus caught it (`PPG-FOOT-PLACEMENT-FOLLOWUPS-2026-09-01-BRIEF.md` §4). A subset measured as though it
+>   were the whole is exactly the shape no gate here can see.
+> - **The `CPAP` subtree row above** was verified byte-identical on 2026-08-17, which is *before* the I/O
+>   errors. That verdict is not evidence about the volume today and must not be re-quoted as current.
+>
+> **Ruling 2026-09-06** (owner expressed no preference; taken at session level, deliberately reversible):
+> the mirror is **kept, not deleted** — if the disk proves unrecoverable those 15 nights may be the only
+> copy, and deletion is the one choice that cannot be undone. What mattered was the misreading hazard, and
+> a coverage statement removes that without destroying bytes. Whether the disk itself is trustworthy, and
+> whether the partial mirror should eventually go, remain owner/hardware calls.
 
 > 🔴 **AN EARLIER VERSION OF THIS SECTION SAID THE CPAP CORPUS WAS ON THE *OTHER* VOLUME. IT WAS NOT —
 > and the misdiagnosis is more useful than the fact.** The sequence, 2026-08-17:
