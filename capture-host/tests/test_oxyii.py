@@ -745,3 +745,66 @@ def test_AN_OUT_OF_RANGE_TIMESTAMP_DOES_NOT_RAISE():
     # frame must not become an exception in 2106, or on a box whose clock is nonsense.
     for ts in (2 ** 33, 0, 2 ** 32 - 1):
         assert len(oxyii.auth_payload("0000", ts)) == 16
+
+
+# ── ACK-ONLY COMMANDS: the reply is READ now ──────────────────────────────────────────────────────
+# Residue `2026-09-02-oxyii-acks-unparsed`. Five of thirteen opcodes are ack-only (0x10, 0xC0, 0xF2,
+# 0xF4, 0x01) and none had a reply parser, so a REJECTED command was indistinguishable from an
+# accepted one. The status is the vendor's `pkgType` = the `flag` header byte (§2, `1` = success),
+# which the old `decode()` discarded before any caller could see it.
+#
+# ⚠ VALIDATED AGAINST THE SPEC AND SYNTHETIC FRAMES, NOT THE CORPUS — and that is a measured fact,
+# not a shortcut: `decode()` dropped `flag`, nothing persists raw device→host frames, and
+# `probe_oxyii_opcodes.py --json` has no committed output anywhere in the repo, uploads/ or the
+# corpus. There are no recorded acks to test against.
+
+
+def test_decode_full_carries_the_header_bytes_decode_threw_away():
+    f = oxyii.encode(0xC0, b"\x2a", seq=7, flag=1)
+    full = oxyii.decode_full(f)
+    assert (full.op, full.flag, full.seq, full.payload) == (0xC0, 1, 7, b"\x2a")
+
+
+def test_decode_stays_byte_identical_over_the_same_frame():
+    """The wrapper must not change what existing callers see — new data arrives through a NEW method."""
+    for op, payload, seq, flag in ((0xC0, b"\x01", 3, 1), (0x04, b"", 0, 0), (0xF1, b"\x00" * 5, 9, 1)):
+        f = oxyii.encode(op, payload, seq=seq, flag=flag)
+        assert oxyii.decode(f) == (op, payload)
+        assert oxyii.decode_full(f).payload == payload
+    assert oxyii.decode(b"\xa5\x10") is None and oxyii.decode_full(b"\xa5\x10") is None
+
+
+def test_a_rejected_set_utc_time_is_no_longer_indistinguishable_from_an_accepted_one():
+    """THE ROW'S PLANT. A wrong clock would previously have shipped silently."""
+    ok = oxyii.decode_full(oxyii.encode(oxyii.OP_SET_TIME, b"", flag=1))
+    bad = oxyii.decode_full(oxyii.encode(oxyii.OP_SET_TIME, b"", flag=0))
+    assert oxyii.parse_ack(oxyii.OP_SET_TIME, ok) is oxyii.AckResult.OK
+    assert oxyii.parse_ack(oxyii.OP_SET_TIME, bad) is oxyii.AckResult.REJECTED
+    assert oxyii.parse_ack(oxyii.OP_SET_TIME, ok) != oxyii.parse_ack(oxyii.OP_SET_TIME, bad)
+
+
+def test_a_success_flag_on_the_WRONG_opcode_is_MISMATCH_not_OK():
+    """THE MIRROR. Without this, any ack in flight would vouch for whatever command we were waiting
+    on — the fix would 'pass' its own plant while being wrong."""
+    other = oxyii.decode_full(oxyii.encode(oxyii.OP_SET_CONFIG, b"", flag=1))
+    assert oxyii.parse_ack(oxyii.OP_SET_TIME, other) is oxyii.AckResult.MISMATCH
+
+
+def test_no_reply_is_NO_REPLY_and_never_REJECTED():
+    """The distinction the harvesting state machine turns on: an `0xF1` reply with an EMPTY payload is
+    an EMPTY LIST (a fact about the ring); no reply at all is silence (a fact about the link). They
+    must never collapse to one value."""
+    assert oxyii.parse_ack(oxyii.OP_SET_TIME, None) is oxyii.AckResult.NO_REPLY
+    assert oxyii.parse_ack(oxyii.OP_SET_TIME, None) is not oxyii.AckResult.REJECTED
+    empty_list = oxyii.decode_full(oxyii.encode(oxyii.OP_FILE_LIST, b"", flag=1))
+    assert oxyii.parse_ack(oxyii.OP_FILE_LIST, empty_list) is oxyii.AckResult.OK
+    assert empty_list.payload == b""
+
+
+def test_an_unspecified_status_byte_is_surfaced_not_guessed():
+    """§2 documents only `1` = success. What 2..255 mean is unknown, so they are reported as
+    UNKNOWN_STATUS rather than folded into REJECTED — reading 'not 1' as 'failed' would invent a
+    semantics the protocol notes do not support."""
+    for weird in (2, 9, 255):
+        f = oxyii.decode_full(oxyii.encode(oxyii.OP_SET_TIME, b"", flag=weird))
+        assert oxyii.parse_ack(oxyii.OP_SET_TIME, f) is oxyii.AckResult.UNKNOWN_STATUS
