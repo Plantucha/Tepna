@@ -47,6 +47,11 @@ the whole window ⇒ it fell behind real time; it exited early ⇒ it died. The 
 either way and that is plant-tested; only the sentence branches, because sending an operator after a
 crash that did not happen hides the deficit that did.
 
+**Coverage is stated on every run.** A clean foreign-connect verdict means far less at cover=0.5 than
+at cover=1.0 and the reader cannot infer which they hold, so the fraction is printed whether the
+window check passed or failed — the rule that already prints `foreign connects: 0`. An empty capture
+says `no packets at all`, never `0.00`.
+
 A failed audit exits **3**, so the oneshot lands in `systemctl --failed` rather than logging a
 failure nobody reads. The unit runs `Nice=19`: the extcap's capture loop is a literal `while True:
 pass` and must yield to `tepna-capture` for the whole window.

@@ -697,3 +697,34 @@ def test_main_accepts_the_flag_and_the_two_positional_form_is_untouched(tmp_path
     assert "died" in capsys.readouterr().out
     assert ble_sniff.main([str(p), RESMED]) == 0            # the 2026-09-04 form, unchanged
     assert "AIR AUDIT" not in capsys.readouterr().out
+
+
+def test_coverage_is_stated_on_every_audit_including_a_PASSING_one():
+    """Wren's point from the box, and the reason it is a contract rather than a nicety: a verdict of
+    'no foreign connects' is worth what its coverage is worth, and nothing else in the output lets
+    the reader tell cover=1.0 from cover=0.5. Measured there: 0.41 unfiltered, 0.51 filtered — this
+    rig's NORMAL state. So the fraction is printed whether the window check passed or failed, the
+    same rule that already prints `foreign connects: 0`."""
+    passing = ble_sniff.audit(_night(_adv(0x0), _adv(0x0), span_s=880), 900, set(), set())
+    assert passing["ok"]
+    assert passing["cover"] == pytest.approx(880 / 900, abs=1e-3)
+    r = ble_sniff.format_audit(passing)
+    assert "coverage        : 0.98" in r, r
+    failing = ble_sniff.audit(_night(_adv(0x0), _adv(0x0), span_s=462), 900, set(), set(),
+                              ran_full_window=True)
+    assert not failing["ok"]
+    assert "coverage        : 0.51" in ble_sniff.format_audit(failing)
+
+
+def test_an_empty_capture_reports_no_coverage_rather_than_zero():
+    """`cover` is None, not 0.0, when there are no packets: a fraction of zero and 'we measured
+    nothing' are different facts, and the window line already names the absence."""
+    a = ble_sniff.audit(ble_sniff.summarise(_pcap()), 600, set(), set())
+    assert a["cover"] is None
+    assert "coverage        : no packets at all" in ble_sniff.format_audit(a)
+
+
+def test_no_window_requested_means_no_coverage_claim():
+    a = ble_sniff.audit(_night(_adv(0x0), span_s=5), None, set(), set())
+    assert a["cover"] is None
+    assert "coverage" not in ble_sniff.format_audit(a)

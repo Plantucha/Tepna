@@ -317,8 +317,14 @@ def audit(s: dict, expect_s: float | None, ours: set[str], adapters: set[str],
     if foreign:
         problems.append("%d foreign connect(s) to our devices" % len(foreign))
     heard = {a for a in ours if a in s["advertisers"] or any(adv == a for _, adv in s["connects"])}
+    # COVERAGE, published whether or not the window check passed. A clean foreign-connect verdict
+    # means far less at cover=0.5 than at cover=1.0, and nothing else in this output lets the reader
+    # infer which they are holding (measured on vigil 2026-09-06: 0.41 unfiltered, 0.51 with an
+    # RSSI filter — this rig's normal state, not an incident).
+    cover = (span / expect_s) if (expect_s and span is not None) else None
     return {
         "expect_s": expect_s,
+        "cover": cover,
         "window": window,
         "foreign": foreign,
         "ours": sorted(ours),
@@ -333,7 +339,14 @@ def format_audit(a: dict) -> str:
     """Appended below the report. Every line states a count, even at zero (CLAUDE.md §4b)."""
     out = ["", "AIR AUDIT: " + ("OK" if a["ok"] else "FAILED — " + "; ".join(a["problems"]))]
     if a["expect_s"] is not None:
-        out.append("  window          : %s" % (a["window"] or "%.0f s requested, span covers it" % a["expect_s"]))
+        # The fraction is stated on EVERY run, passing or failing — same rule as `foreign connects: 0`.
+        # A verdict of "no foreign connects" is worth what its coverage is worth, and a reader who is
+        # not told the coverage will read a half-captured window as the night.
+        out.append("  coverage        : %s of %.0f s requested"
+                   % ("%.2f (%.1f s)" % (a["cover"], a["cover"] * a["expect_s"])
+                      if a["cover"] is not None else "no packets at all",
+                      a["expect_s"]))
+        out.append("  window          : %s" % (a["window"] or "span covers the requested window"))
     out.append("  our devices     : %d configured, %d heard on air" % (len(a["ours"]), len(a["heard"])))
     for m in a["heard"]:
         out.append("    heard %s" % m)

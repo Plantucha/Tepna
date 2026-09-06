@@ -1,5 +1,5 @@
 <!-- SPDX: Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (C4 EXECUTED — verified 2026-09-05: the §6.3 content gate is in `tepna-update.sh`, changeset `update-restart-content-gate`, 9 gate tests + 3 killed plants. Mitigation C EXECUTED, both clauses — verified 2026-09-05: `run_oxyii` publishes the `0xE1` wire serial + firmware to STATUS/monitor and compares the serial against a new optional O2Ring `serial:` key (clause 1), and counts the RUN of connects that answer identity and deliver no frames (clause 2); changeset `ring-identity-alert`, 35 gate tests + 12 killed plants; ⚠ the comparable field is the WIRE serial `2592302100`, not the BLE-name id `S8AW2100` the bullet named — see §6.2; clause 1 is ARMED only once the owner sets `serial:` on vigil, while clause 2 needs no configuration and is armed on every box. D3 EXECUTED — verified 2026-09-05: `tepna-sniff.timer` runs a nightly 10-min all-advertising capture and `ble_sniff.py` audits it — window coverage + any initiator that is not one of our adapters connecting to one of our devices; exit 3 puts the oneshot in `systemctl --failed`; changeset `sniff-nightly-audit`, 16 shell-surface tests + 20 audit tests, 7 killed plants; ARMED only once the owner deploys and enables the timer on vigil. §6.1 box ops and §6.2 Probe A are owner-attended; Mitigation B WITHDRAWN by owner correction (§6.2 — the `.dat` harvest is already BLE), B′ and D3 tracked separately) · **Created:** 2026-09-05
+**Status:** PROPOSED (C4 EXECUTED — verified 2026-09-05: the §6.3 content gate is in `tepna-update.sh`, changeset `update-restart-content-gate`, 9 gate tests + 3 killed plants. Mitigation C EXECUTED, both clauses — verified 2026-09-05: `run_oxyii` publishes the `0xE1` wire serial + firmware to STATUS/monitor and compares the serial against a new optional O2Ring `serial:` key (clause 1), and counts the RUN of connects that answer identity and deliver no frames (clause 2); changeset `ring-identity-alert`, 35 gate tests + 12 killed plants; ⚠ the comparable field is the WIRE serial `2592302100`, not the BLE-name id `S8AW2100` the bullet named — see §6.2; clause 1 is ARMED only once the owner sets `serial:` on vigil, while clause 2 needs no configuration and is armed on every box. D3 EXECUTED — verified 2026-09-05: `tepna-sniff.timer` runs a nightly 10-min all-advertising capture and `ble_sniff.py` audits it — window coverage + any initiator that is not one of our adapters connecting to one of our devices; exit 3 puts the oneshot in `systemctl --failed`; changeset `sniff-nightly-audit`, 16 shell-surface tests + 23 audit tests, 9 killed plants; ARMED only once the owner deploys and enables the timer on vigil. §6.1 box ops and §6.2 Probe A are owner-attended; Mitigation B WITHDRAWN by owner correction (§6.2 — the `.dat` harvest is already BLE), B′ and D3 tracked separately) · **Created:** 2026-09-05
 
 # Vigil Bluetooth — adversarial audit (owner-ordered: "must be spotless")
 
@@ -175,6 +175,13 @@ Everything measured 2026-09-05 ~17:45–18:15 UTC on the box unless dated otherw
     mitigation for a near-field witness (our devices sit at −41 to −53) and the wrong one for this
     audit, which exists to see a FOREIGN initiator — far-field is exactly the signal it must not
     discard. It also filters in python after parse, so it saves the write path and not the CPU.
+  * **The audit states its COVERAGE on every run, passing or failing.** A verdict of "no foreign
+    connects" is worth exactly what its coverage is worth, and nothing else in the output lets a
+    reader tell cover=1.0 from cover=0.5 — the same rule that already prints `foreign connects: 0`.
+    Measured on the box: 0.41 unfiltered, 0.51 with an RSSI filter (which cuts the WRITE path, not
+    the receive, so it buys 10 points and does not solve it). An empty capture reports `no packets at
+    all` rather than 0.00, because a fraction of zero and a measurement that never happened are
+    different facts.
   ⚠ **Inert until deployed.** The timer only exists on vigil once the owner runs the deploy; nothing
   in this changeset touches the box.
 
