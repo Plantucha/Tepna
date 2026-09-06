@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core BUILT and runnable at CORPUS scale, remainder unexecuted; verified 2026-09-05).** Inherits FIDUCIAL-JITTER's retraction: the 09-01 stamp placed this brief on a 2-file local sample, and **8 760 `_PPG.txt` (5 633 Verity) are reachable under `/srv/data/tepna-corpus/`**. `tools/pat-axis-leg-audit.mjs` takes `<ppg-file>`, so it is execution-bound, not data-bound. Not executed. ⚠️ ORIGINAL 09-01 STAMP, superseded: TRIAGED 2026-09-01 (Osprey): tool BUILT (`tools/pat-axis-leg-audit.mjs`) and takes `<ppg-file>`, so it shares FIDUCIAL-JITTER's position — runnable locally, but against 2 files rather than the corpus. Not executed this pass.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (phase (a) output: §2 trace + §3 classification) · **Interlocks:** `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` §1, `WEARABLE-HOST-AXIS` lineage · **DRAIN 2026-09-02 (Osprey):** re-verified — `tools/pat-axis-leg-audit.mjs` is present and takes `<ppg-file>`, so it is runnable locally against `/srv/data/tepna-corpus/`. Unchanged since the 2026-09-01 triage. **Owner: Osprey. Next step:** one corpus run, same shape as the WINDOW-ORACLE execute; it needs no new code. · **RE-VERIFIED 2026-09-03 (Osprey):** unchanged since the 2026-09-01 triage — `tools/pat-axis-leg-audit.mjs` present and takes `<ppg-file>`. **Not touched by the published-number sweep**, which is a real negative rather than an unchecked one: this brief names no table the sweep's criterion could attribute to a producing tool, so it carries no drifted number. Owner: Osprey, next step unchanged (one corpus run, no new code). · **REMEDY CONFIRMED AT CORPUS SCALE 2026-09-05 (Brief runner) — §3c, defect UNCHANGED:** the fix this brief proposes (interpolate `relSec` across the fractional index, as `pat-matchrate-strict.mjs`'s `timeAt` already does) is measured working on the sibling path — **72514 of 72514 consensus feet resolve through `relSec`, 0 fall back**, all fractional, over the three largest Verity nights. §2/§3 are NOT retracted: `0/8948` is live and correct about **`pat-feasibility-worker.js`**, which still reads `rel[idx] ?? idx / fs`. ⚠️ Quote this brief's number about the WORKER and name the file — `tools/pat-drift-attribution.mjs` cited it to describe `ppgFootTimes` (a different, already-fixed consumer) and steered its `effectivePpm` on it for 8 days (residue `2026-09-05-one-citation-two-consumers`). Owner unchanged (Osprey); the one corpus run is still the next step.
+**Status:** PROPOSED (parked 2026-09-06 — one of two remaining Done-when items is ALREADY MET in the sibling brief; the other needs a remedy that is proposed, not built. Blocker and owner named in §5a) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core BUILT and runnable at CORPUS scale, remainder unexecuted; verified 2026-09-05).** Inherits FIDUCIAL-JITTER's retraction: the 09-01 stamp placed this brief on a 2-file local sample, and **8 760 `_PPG.txt` (5 633 Verity) are reachable under `/srv/data/tepna-corpus/`**. `tools/pat-axis-leg-audit.mjs` takes `<ppg-file>`, so it is execution-bound, not data-bound. Not executed. ⚠️ ORIGINAL 09-01 STAMP, superseded: TRIAGED 2026-09-01 (Osprey): tool BUILT (`tools/pat-axis-leg-audit.mjs`) and takes `<ppg-file>`, so it shares FIDUCIAL-JITTER's position — runnable locally, but against 2 files rather than the corpus. Not executed this pass.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (phase (a) output: §2 trace + §3 classification) · **Interlocks:** `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` §1, `WEARABLE-HOST-AXIS` lineage · **DRAIN 2026-09-02 (Osprey):** re-verified — `tools/pat-axis-leg-audit.mjs` is present and takes `<ppg-file>`, so it is runnable locally against `/srv/data/tepna-corpus/`. Unchanged since the 2026-09-01 triage. **Owner: Osprey. Next step:** one corpus run, same shape as the WINDOW-ORACLE execute; it needs no new code. · **RE-VERIFIED 2026-09-03 (Osprey):** unchanged since the 2026-09-01 triage — `tools/pat-axis-leg-audit.mjs` present and takes `<ppg-file>`. **Not touched by the published-number sweep**, which is a real negative rather than an unchecked one: this brief names no table the sweep's criterion could attribute to a producing tool, so it carries no drifted number. Owner: Osprey, next step unchanged (one corpus run, no new code). · **REMEDY CONFIRMED AT CORPUS SCALE 2026-09-05 (Brief runner) — §3c, defect UNCHANGED:** the fix this brief proposes (interpolate `relSec` across the fractional index, as `pat-matchrate-strict.mjs`'s `timeAt` already does) is measured working on the sibling path — **72514 of 72514 consensus feet resolve through `relSec`, 0 fall back**, all fractional, over the three largest Verity nights. §2/§3 are NOT retracted: `0/8948` is live and correct about **`pat-feasibility-worker.js`**, which still reads `rel[idx] ?? idx / fs`. ⚠️ Quote this brief's number about the WORKER and name the file — `tools/pat-drift-attribution.mjs` cited it to describe `ppgFootTimes` (a different, already-fixed consumer) and steered its `effectivePpm` on it for 8 days (residue `2026-09-05-one-citation-two-consumers`). Owner unchanged (Osprey); the one corpus run is still the next step.
 
 # The two legs of a PAT measurement ride different time axes — and Tepna introduces the difference
 
@@ -187,11 +187,31 @@ file every time.**
 - ~~**Box vs phone nights.**~~ **RESOLVED — see §3b.** The memory holds, `correctionAt` is innocent,
   and the tension existed only because this brief conflated `hostAx.ok` with `hostAx.independent`.
 
+## 5a · PARKED 2026-09-06 — what remains, and who unblocks it
+
+**Item 1 is met** (above): the ECG refusal rate was re-measured on 448 fragments in the sibling brief.
+It sat unchecked only because the work landed in `FIDUCIAL-JITTER` rather than here — a cross-brief
+completion nothing was watching for.
+
+**Item 2 is NOT under one work-unit, and the reason is a dependency rather than effort.** §4 states the
+instrument correctly — *"§11's perfect-clock oracle is the instrument that answers this, not argument"* —
+but answering it needs **fixing it first**, and §3c calls the remedy *proposed*, confirmed at corpus scale
+on the sibling path, **not implemented**. So the item decomposes into: (a) implement §3c's remedy, (b)
+re-run `pat-window-oracle` over the corpus, (c) diff verdicts against the pre-fix baseline. (b) and (c)
+are cheap now — the oracle runs corpus-wide since #2034, and the 43-night pre-fix baseline is recorded in
+`PAT-FORENSICS-WINDOW-ORACLE` — but (a) is a behavioural change to the axis path and is its own unit.
+
+**Who unblocks:** whoever implements §3c's remedy. This brief cannot self-serve it, because a brief that
+both proposes a remedy and measures its own effect has no independent baseline.
+
+⚠️ **Parked, not blocked-on-data.** The corpus is local (48 box nights), the oracle works, and the
+baseline exists. Nothing here waits on access — only on a decision to build the remedy.
+
 ## 5 · Done when
 
 - [x] §2 trace with actual file:function names.
 - [x] §3 classification for the PAT path, verified-vs-claimed marked.
 - [x] Magnitude measured, reproducible tool committed, over-claim avoided.
-- [ ] ECG ppm refusal rate re-measured (the comment's 160/187 · 48 ms).
+- [x] ECG ppm refusal rate re-measured (the comment's 160/187 · 48 ms). **MET — measured in the sibling brief, not here:** `PAT-FORENSICS-FIDUCIAL-JITTER` §6 re-measured it on an independent **448-fragment** population and records the comparison directly — `160/187 = 85.6 %` against `371/448 = 82.8 %`. §4's "not yet re-measured" is stale as of 2026-09-05.
 - [x] `hostAx.ok` provenance on phone captures resolved against §17's labelling — memory holds.
 - [ ] Verdict-level impact via the §11 oracle — does fixing it move any night?
