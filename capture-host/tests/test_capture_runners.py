@@ -6227,3 +6227,40 @@ def test_the_pleth_stream_is_off_unless_configured(tmp_path, monkeypatch):
     assert not list((tmp_path / "captures").rglob("*_PLETHA.txt"))
     assert oxyii.OP_SAMPLES_A not in asked, \
         "the 0x03 poll must not be sent when the stream is not configured"
+
+
+def test_every_writer_run_oxyii_opens_is_also_CLOSED():
+    """DERIVED from `capture.run_oxyii`'s source, not a second hand-kept list — because a hand-kept list
+    is exactly what failed.
+
+    A `StreamWriter` buffers and flushes on a cadence; `close()` is what forces the final tail out and
+    what triggers the empty-file cleanup. So a writer that is opened, written to, and never closed does
+    not error, does not warn, and does not lose the whole file — it loses the UNFLUSHED TAIL of every
+    session and leaves its empties behind. There is no failure mode more suited to going unnoticed: the
+    file exists, the header is there, the rows are nearly all there.
+
+    Measured 2026-09-06: `plethawr` was added to the writer set and to every path that writes rows, and
+    omitted from the one tuple that closes them. The end-to-end runner test caught it only because a
+    fast test never reaches a flush interval, so the file came out EMPTY rather than short — on the box
+    it would have come out short, which nothing was checking. This test makes the omission impossible
+    to repeat: add a writer to the runner and forget the close tuple, and it says so by name."""
+    import re
+
+    from tests._srcscan import module_source
+    src = module_source("capture.py")
+    run = src[src.index("async def run_oxyii("):]
+    run = run[:run.index("\nasync def ", 1)] if "\nasync def " in run[1:] else run
+
+    # `ppg2wr = (StreamWriter(...` / `wr = StreamWriter(...` — every name bound to a StreamWriter here.
+    opened = set(re.findall(r"(\w+)\s*=\s*\(?\s*StreamWriter\(", run))
+    assert opened, "found no StreamWriter bindings in run_oxyii — the scan pattern has drifted"
+
+    # `for _w in (wr, ppgwr, ..., accrawwr):` — the tuple that closes them.
+    m = re.search(r"for _w in \(([^)]*)\):", run)
+    assert m, "run_oxyii no longer closes its writers through a `for _w in (...)` tuple"
+    closed = {n.strip() for n in m.group(1).split(",") if n.strip()}
+
+    missing = sorted(opened - closed)
+    assert not missing, (
+        f"run_oxyii opens {missing} but never closes them — each session would lose its unflushed tail "
+        f"and leave empty files behind, silently. Closed: {sorted(closed)}")
