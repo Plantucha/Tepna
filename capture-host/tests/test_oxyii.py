@@ -1,6 +1,11 @@
 # tepna-capture — oxyii protocol tests
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 # Fixtures are real/verified O2Ring-S (OxyII) bytes — see O2RING-PROTOCOL-2026-07-17-BRIEF.md.
+import datetime as dt
+import os
+import time
+import zoneinfo
+
 import oxyii
 
 
@@ -940,3 +945,83 @@ def test_alarm_raw_is_byte_14_recorded_raw_and_ABSENT_when_the_frame_is_short():
     assert oxyii.parse_live(bytes(b))["alarm_raw"] == 0b11_01_10_01
     short = oxyii.parse_live(bytes(bytearray(_live_frame())[:14]))
     assert short is not None and short["alarm_raw"] is None, "an absent byte is not a quiet alarm"
+
+
+# ── SET_UTC_TIME byte [7]: the timezone, derived instead of hardcoded (2026-09-06) ──────────────────
+# §9a decodes the byte as tenths of an hour, SIGNED. The offsets asserted below are arithmetic over
+# that encoding, not measurements of the ring; what IS measured is that this ring ignores the byte
+# entirely (six stored files: trailer epoch == the filename's local wall clock, +0.00 h on all six).
+# So these tests pin an honest value, not a behaviour change at the device.
+
+def test_the_box_in_winter_still_sends_the_byte_it_always_sent():
+    """No regression where the constant happened to be right: New York in January is UTC-5 == 0xCE."""
+    winter = dt.datetime(2026, 1, 15, 22, 0, tzinfo=zoneinfo.ZoneInfo("America/New_York"))
+    assert oxyii.tz_tenths(winter) == -50
+    assert oxyii.set_time_frame(winter)[14] == 0xCE
+
+
+def test_the_same_box_in_summer_no_longer_claims_a_winter_offset():
+    """The defect itself: EDT is UTC-4, and the hardcoded 0xCE asserted UTC-5 for half of every year."""
+    summer = dt.datetime(2026, 7, 15, 22, 0, tzinfo=zoneinfo.ZoneInfo("America/New_York"))
+    assert oxyii.tz_tenths(summer) == -40
+    assert oxyii.set_time_frame(summer)[14] == 0xD8 == (-40 & 0xFF)
+
+
+def test_east_of_utc_is_positive_and_utc_itself_is_zero():
+    east = dt.datetime(2026, 7, 15, 22, 0, tzinfo=zoneinfo.ZoneInfo("Europe/Warsaw"))
+    assert oxyii.tz_tenths(east) == 20                                   # CEST = UTC+2
+    assert oxyii.set_time_frame(east)[14] == 20
+    assert oxyii.tz_tenths(dt.datetime(2026, 7, 15, 22, 0, tzinfo=dt.timezone.utc)) == 0
+
+
+def test_a_half_hour_zone_is_exact_and_a_45_minute_zone_rounds_symmetrically():
+    """+5:30 is 55 tenths exactly. +5:45 is 57.5 and NOT representable, so it must round away from zero
+    in BOTH directions — `round()`'s banker's rule would send +5:45 as 57 and -5:45 as -58."""
+    half = dt.timezone(dt.timedelta(hours=5, minutes=30))
+    q45_east = dt.timezone(dt.timedelta(hours=5, minutes=45))
+    q45_west = dt.timezone(-dt.timedelta(hours=5, minutes=45))
+    assert oxyii.tz_tenths(dt.datetime(2026, 7, 1, tzinfo=half)) == 55
+    assert oxyii.tz_tenths(dt.datetime(2026, 7, 1, tzinfo=q45_east)) == 58
+    assert oxyii.tz_tenths(dt.datetime(2026, 7, 1, tzinfo=q45_west)) == -58
+
+
+def test_an_offset_past_the_byte_is_clamped_never_wrapped():
+    """Kiritimati is UTC+14 = 140 tenths against a field that holds 127. Clamping is 1.3 h out; wrapping
+    would be 25.6 h out and would arrive as a plausible NEGATIVE offset — wrong AND convincing."""
+    far_east = dt.datetime(2026, 7, 1, tzinfo=dt.timezone(dt.timedelta(hours=14)))
+    far_west = dt.datetime(2026, 7, 1, tzinfo=dt.timezone(-dt.timedelta(hours=14)))
+    assert oxyii.tz_tenths(far_east) == oxyii.TZ_TENTHS_MAX == 127
+    assert oxyii.tz_tenths(far_west) == oxyii.TZ_TENTHS_MIN == -128
+    assert oxyii.set_time_frame(far_east)[14] == 127
+
+
+def test_a_naive_datetime_is_read_as_host_local_time_at_that_wall_clock():
+    """`set_time_frame` is handed naive local civil time, so the zone must be resolved AT THAT INSTANT
+    — resolving it once at import is how a process started in winter keeps sending winter all summer."""
+    prev = os.environ.get("TZ")
+    try:
+        os.environ["TZ"] = "Europe/Warsaw"
+        time.tzset()
+        assert oxyii.tz_tenths(dt.datetime(2026, 7, 1, 12, 0)) == 20      # CEST, same process
+        assert oxyii.tz_tenths(dt.datetime(2026, 1, 1, 12, 0)) == 10      # CET,  same process
+    finally:
+        if prev is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = prev
+        time.tzset()
+
+
+def test_the_civil_components_are_untouched_by_the_timezone_change():
+    """Payload byte [7] — frame index 14 — is the only byte that moved. The seven civil fields the
+    ring actually stores must stay byte-identical to what this function has always produced."""
+    when = dt.datetime(2026, 7, 19, 3, 4, 5, tzinfo=zoneinfo.ZoneInfo("America/New_York"))
+    pl = oxyii.set_time_frame(when)[7:15]
+    assert pl[:7] == bytes([2026 & 0xFF, 2026 >> 8, 7, 19, 3, 4, 5])
+
+
+def test_setup_frame_still_disables_every_push_stream():
+    """The AUTO_RT_SWITCH row is documentation only: the byte we send is unchanged, deliberately, and
+    changing it is a device-behaviour decision that belongs to the owner and a night on the box."""
+    assert oxyii.setup_frame()[7] == 0x00
+    assert (oxyii.RT_PUSH_PARAM, oxyii.RT_PUSH_WAVE, oxyii.RT_PUSH_PPG, oxyii.RT_PUSH_ACC) == (1, 2, 4, 8)

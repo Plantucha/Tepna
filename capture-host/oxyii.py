@@ -93,6 +93,32 @@ OP_RT_ACC = 0x14          # device-PUSHED 3-axis accelerometer; enabled via AUTO
 # obtained by polling because of it. See O2RING-PROTOCOL §3 and residue 2026-09-02-oxyii-autortswitch-unexamined.
 RT_PUSH_PARAM, RT_PUSH_WAVE, RT_PUSH_PPG, RT_PUSH_ACC = 0x01, 0x02, 0x04, 0x08
 
+# WHAT EACH BIT SWITCHES (documented 2026-09-06 · residue 2026-09-02-oxyii-autortswitch-unexamined).
+# The command is the vendor's `oxyAutoSwitch(model, autoParam, autoWave, autoPpg, autoAcc)` and the
+# payload is those four booleans OR-ed into one byte. Set = the ring sends that stream unprompted for
+# the rest of the session; clear = it answers only when polled.
+#
+#   bit 0  RT_PUSH_PARAM  0x01  the 0x02 RT_PARAM body, pushed — the vitals half (SpO2/HR/PI/motion).
+#                               ⚠️ Pushing it is NOT a way to reach the on-device sleep staging: that
+#                               lives in a >= 80-byte POLLED 0x02 reply (§3c), and what we poll today
+#                               is 0x04, whose parser is handed payload[0:20].
+#   bit 1  RT_PUSH_WAVE   0x02  the 0x03 RT_WAVE body, pushed — the waveform half of 0x04.
+#   bit 2  RT_PUSH_PPG    0x04  the 0x05 RT_PPG body, pushed — the raw two-channel optical buffer
+#                               `parse_rt_ppg` decodes (signed 24-bit pairs).
+#   bit 3  RT_PUSH_ACC    0x08  the 0x14 AUTO_RT_ACC body, pushed — 3-axis accelerometer, `parse_rt_acc`.
+#
+# THE ONLY VALUE WE HAVE EVER SENT IS 0x00, which clears all four: every ring in this project has run
+# with device push fully OFF, and every sample this project holds was therefore obtained by polling.
+# That is visible rather than inferred — the per-night `*_OXYFRAME.txt` sidecars hold one decoded 0x04
+# row per poll and carry no unsolicited-opcode rows at all. The defect the residue names is not that
+# 0x00 is wrong; it is that 0x00 was chosen by nobody, recorded for months as "setup, payload 00,
+# purpose unknown", and left to decide the acquisition model in silence.
+#
+# ⚠️ THE MAPPING IS THE VENDOR'S, NOT A MEASUREMENT, and the table must not be read as one. No ring
+# here has ever been asked to push, so whether a pushed stream beats polling on throughput, battery or
+# gap behaviour is untested — it needs a night on the box. Changing what we send is a device-behaviour
+# change and is deliberately NOT part of this unit; `setup_frame`'s default stays 0x00.
+
 
 def setup_frame(push: int = 0x00) -> bytes:
     """AUTO_RT_SWITCH (0x10) — which device-pushed streams the ring should send unprompted.
@@ -143,16 +169,60 @@ def live_frame() -> bytes:
     return encode(OP_LIVE, b"")
 
 
+# `0xC0` byte [7] is the UTC offset in TENTHS OF AN HOUR, SIGNED (§9a) — 0xCE = -50 = UTC-5. One byte
+# spans -12.8 h .. +12.7 h, which is NARROWER than the inhabited range of real offsets, and it cannot
+# express a 45-minute zone at all. Both facts are handled explicitly below rather than left to overflow.
+TZ_TENTHS_MIN, TZ_TENTHS_MAX = -128, 127
+
+
+def tz_tenths(dt) -> int:
+    """`dt`'s UTC offset in signed tenths of an hour, clamped to what the one byte can carry.
+
+    An AWARE `dt` is asked for its own offset. A NAIVE one is read as host local civil time — which is
+    exactly what `set_time_frame` is given — and `astimezone()` resolves the host zone AT THAT WALL
+    TIME, so the DST answer is the one in force for the timestamp being sent rather than the one in
+    force when the process started.
+
+    ROUNDING IS HALF-AWAY-FROM-ZERO, in integer arithmetic, and that is a choice worth stating: a
+    45-minute zone (Kathmandu +5:45, Chatham +12:45) is 57.5 tenths and not representable at all, and
+    Python's `round()` is banker's rounding, which would send +5:45 as 57 and -5:45 as -58 — an
+    asymmetry no reader would predict from the code. The honest behaviour is a documented 3-minute
+    rounding that is symmetric about zero.
+
+    CLAMPED, NOT WRAPPED, at the byte's edge: Kiritimati (+14 h = 140 tenths) and Apia (+13 h) exceed
+    the field. Clamping lands 1.3 h out; wrapping would land 25.6 h out AND would arrive as a plausible
+    NEGATIVE offset, which is the worse failure — a wrong value that reads as a right one."""
+    off = dt.utcoffset() if dt.tzinfo is not None else dt.astimezone().utcoffset()
+    sec = int(off.total_seconds())
+    tenths = (abs(sec) * 2 + 360) // 720          # floor(|sec| / 360 + 0.5) — half away from zero
+    if sec < 0:
+        tenths = -tenths
+    return max(TZ_TENTHS_MIN, min(TZ_TENTHS_MAX, tenths))
+
+
 def set_time_frame(dt, seq: int = 0) -> bytes:
     """SET_UTC_TIME (0xC0): push the wall clock to the ring's onboard RTC so its STORED-session .dat
     timestamps line up with the NTP-synced host (the ring's RTC free-runs and drifts — measured ~+151 s
     2026-07-17; it also resets on any battery/factory event). 8-byte payload: year(u16 LE), month, day,
-    hour, minute, second, then the vendor tail byte 0xCE (0x00 also accepted). The ring stores the fields
+    hour, minute, second, then the timezone byte (§9a — derived by `tz_tenths`). The ring stores the fields
     VERBATIM with no timezone conversion, so pass LOCAL CIVIL time per the Clock Contract — the same wall
     clock the file-list `YYYYMMDDhhmmss` stamps use. Sent after the 0xFF→0x10 handshake, plaintext, in the
-    standard 0xA5+CRC-8 envelope. Ref: github.com/nglessner/o2ring-s-protocol (SET_UTC_TIME)."""
+    standard 0xA5+CRC-8 envelope. Ref: github.com/nglessner/o2ring-s-protocol (SET_UTC_TIME).
+
+    ⚠️ BYTE [7] IS DERIVED FROM `dt`, NOT HARDCODED (2026-09-06 · residue
+    2026-09-02-oxyii-timezone-hardcoded). It was the constant 0xCE = UTC-5: right for this box in
+    winter, one hour out every summer, wrong anywhere else. This is the ONLY change in the unit that
+    alters a byte SENT TO THE RING, so be exact about what it does and does not do:
+      * On this box in winter it sends the byte it has always sent — 0xCE. The tests pin that.
+      * MEASURED HARMLESS EITHER WAY: across six stored files the trailer epoch equals the filename's
+        local wall clock to +0.00 h, so this ring does not apply the offset we send at all (§9a). The
+        defect was latent and the fix keeps it latent — what changes is that the value stops lying.
+      * NOTHING DOWNSTREAM MAY START TRUSTING THE RING TO APPLY IT. `start_t_ms` remains a FLOATING
+        wall-clock epoch, read with `getUTC*` semantics and no zone conversion (§9a, CLAUDE.md §🔒.1).
+        Deriving the byte correctly is not evidence that the ring consumes it."""
     y = int(dt.year)
-    pl = bytes([y & 0xFF, (y >> 8) & 0xFF, dt.month, dt.day, dt.hour, dt.minute, dt.second, 0xCE])
+    tz = tz_tenths(dt) & 0xFF
+    pl = bytes([y & 0xFF, (y >> 8) & 0xFF, dt.month, dt.day, dt.hour, dt.minute, dt.second, tz])
     return encode(OP_SET_TIME, pl, seq)
 
 
