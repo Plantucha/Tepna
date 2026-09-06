@@ -163,6 +163,23 @@ moment the scan became a DSP export (F2), DEEP-AUDIT-II §4.4's stale re-read be
 direction. Such comments should carry a **date and the condition** that makes them true, and be re-checked
 whenever the module boundary they lean on moves.
 
+**RE-CHECKED 2026-09-06 — 8 source-scan justifications in `tests/dex-tests.js`, none stale.** The two
+whose condition is a mechanically checkable EXPORT BOUNDARY were verified against the tree: `:14323`
+("the app's windowing function is not exported") — `pulsedex-app.js` still exports only `findWTRow`, so
+the claim holds; `:14828` ("no executable entry point spans both builders, `buildV2` is UI-layer") —
+`ecgdex-app.js buildV2` is still a local function with no runner surface, so the claim holds. The other
+six lean on structural facts that do not move with a boundary (formula length, `build.mjs` writing the
+artifact, trio-batch's night loop). The already-corrected instance is the fallback group at `:19494`,
+which now carries the executable version beside the structural one.
+
+⚠️ **AND THIS ONE MUST NOT BE GATED — gating it would BE §2.2.** The obvious mechanism is "assert the
+claimed inability still holds, so the scan gets upgraded the day it stops being true". That is exactly
+§2.2's inverse failure: a gate that goes RED WHEN THE CODE GETS BETTER. Exporting a function in order to
+make it testable would red CI, which trains the next author to leave it unexported — the gate would
+defend the weaker design. So §2.3 stays a CONVENTION (carry the date and the condition) with a periodic
+re-check like this one, and the two items are recorded as coupled so the mechanism is not proposed a
+second time.
+
 ### 2.4 Two `dormant:true` registry flags were false WHEN WRITTEN
 #1455 (2026-08-18) flagged `rraccRate` and `edrDisagree` dormant with a comment claiming a per-name sweep of
 every surface; both had compute + surface sites since the initial commit (`accExtras`/`_accCardRR`;
