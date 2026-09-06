@@ -47387,6 +47387,61 @@
       }
       T.ok('ANTI-VACUITY · the same search DOES find a live metric’s rendered label', probeHit, 'if this is false the dormant scan can never fire — it is not finding labels at all');
       T.eq('no dormant metric appears in its node’s render sources', surfaced.length, 0, surfaced.join(' · '));
+
+      /* THE ID-KEYED SWEEP (DEEP-AUDIT-VI-FOLLOWUPS §2.4). The scan above searches for the RENDERED
+         LABEL. #1455 flagged `rraccRate` and `edrDisagree` dormant while both had compute AND surface
+         sites all along — reachable as `accExtras` / `_accCardRR` and `disagreementRatePct`, i.e. by the
+         metric ID and by a name that is not the label. A label-keyed search cannot see that, so the two
+         scans are complementary and this one is not redundant: same flag, different key.
+         Measured 2026-09-06 across 23 dormant entries in 8 registries: 0 suspect. This turns that sweep
+         into a mechanism so it cannot decay back — the repo's habit is finding a defect and not gating it. */
+      var idSuspect = [];
+      var idLiveFound = 0;
+      var idLiveTotal = 0;
+      NODES.forEach(function (n) {
+        var REG = n.reg && n.reg.REGISTRY,
+          ALIAS = (n.reg && n.reg.ALIAS) || {};
+        var files = UI[n.pre];
+        if (!REG || !files) return;
+        /* STRIPPED, exactly as the label scan above is. Raw text flags a dormant id that is merely
+           NAMED IN A COMMENT — and comments about dormant metrics are precisely where their ids get
+           written down, so the unstripped version reported a suspect on its first run and the mention
+           was documentation, not a surface. An occurrence is not a reference. */
+        var joined = Object.keys(files)
+          .map(function (f) {
+            return strip(files[f]);
+          })
+          .join('\n');
+        Object.keys(REG).forEach(function (id) {
+          var esc = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          var hit = new RegExp('\\b' + esc + '\\b').test(joined);
+          if (!REG[id] || REG[id].dormant !== true) {
+            idLiveTotal++;
+            if (hit) idLiveFound++;
+            return;
+          }
+          /* §2.6's ADMISSION RULE APPLIES HERE TOO — and this scan is the second site that rule was
+             asked to generalise to. The ID itself is always admissible (a code identifier, not a word).
+             An ALIAS only if multi-word or >= 8 chars: written without this, the very first run flagged
+             `motiondex.uprightFrac via "upright"` — the identical POS_ORDER posture-enum false positive
+             §2.6 exists to prevent, reintroduced by a new scan that had not inherited the rule. */
+          var names = [id];
+          for (var a in ALIAS) if (ALIAS[a] === id && (a.indexOf(' ') >= 0 || a.length >= 8)) names.push(a);
+          names.forEach(function (nm) {
+            var e2 = String(nm).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            if (new RegExp('\\b' + e2 + '\\b').test(joined)) idSuspect.push(n.pre + '.' + id + ' via "' + nm + '"');
+          });
+        });
+      });
+      /* ANTI-VACUITY, and it is not decoration: the first run of this sweep resolved several registries
+         to ZERO source files and reported a confident 0-of-23 having examined nothing. A live id must be
+         findable by the SAME regex, or a clean result means only that the search is broken. */
+      T.ok(
+        'ANTI-VACUITY · the id-keyed search finds LIVE metric ids in node source',
+        idLiveTotal > 0 && idLiveFound >= Math.max(20, idLiveTotal * 0.3),
+        idLiveFound + ' of ' + idLiveTotal + ' live ids found by id'
+      );
+      T.ok('no dormant metric id (or its alias) occurs in its node source — §2.4', idSuspect.length === 0, idSuspect.join(' · ') || '0 suspect across ' + idLiveTotal + ' live + dormant ids');
     });
 
     /* ════ THE ACC CROSS-CHECK CARD — every surfaced number badged, and the grade is MEASURED ════
