@@ -61,6 +61,11 @@ FULL_STATUS = {
     # the first G4 night and forwarded by nobody for thirteen nights (2026-08-24 → 09-05).
     "oxy_lifecycle": "idle_unworn",
     "oxy_recording": "end_candidate",
+    # The restart-storm block (capture.oxy_storm_status, 2026-09-05). Same class as the two axes
+    # above: state the daemon owned and no reader could see.
+    "oxy_storm": {"trips": ["2026-09-05T22:20:00"], "last_trip": "2026-09-05T22:20:00",
+                  "hold_until": "2026-09-05T22:45:00", "hold_remaining_s": 900,
+                  "restarts_in_window": 0, "restarts_total": 61},
 }
 
 DEV = {"name": "H10", "vendor": "Polar", "model": "H10", "device_id": "12345678",
@@ -107,6 +112,9 @@ DEVICE_KEYS = {
     # visible in STATUS". They WERE in STATUS; `/api/state` on the live daemon carried neither key
     # (2026-09-05), which is the exact failure the docstring above describes, thirteen nights long.
     "oxy_lifecycle", "oxy_recording",
+    # The restart-storm hold's ONLY witness outside a log line — a hold that fires overnight is
+    # otherwise reconstructable only by grepping the journal for a restart marker.
+    "oxy_storm",
 }
 
 
@@ -168,6 +176,11 @@ def test_a_device_projects_every_field_it_promises(tmp_path):
     # OXYLIFE.csv records — an operator can match the chip to the row.
     assert d["oxy_lifecycle"] == "idle_unworn"
     assert d["oxy_recording"] == "end_candidate"
+    # Forwarded WHOLE, not flattened: the watcher repoints from a journal grep to `restarts_total`,
+    # and the monitor needs `hold_remaining_s` beside the deadline.
+    assert d["oxy_storm"]["restarts_total"] == 61
+    assert d["oxy_storm"]["hold_remaining_s"] == 900
+    assert d["oxy_storm"]["trips"] == ["2026-09-05T22:20:00"]
 
 
 def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):

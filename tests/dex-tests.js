@@ -25441,7 +25441,37 @@
 
       /* Resolve `check` through the script table: it is a chain of `npm run X`, so expand each X to
          the command it runs before comparing. Comparing the raw string would miss every indirection. */
-      var expanded = check.replace(/npm run ([\w:-]+)/g, function (_, name) {
+      /* `check` is no longer a literal `&&` chain — it delegates to `tools/run-check.mjs`, whose
+         STEPS array is the single source of order (residue `2026-09-05-check-chain-aborts-on-load-timeout`:
+         the chain aborted at step 6 and said nothing about the ten steps it skipped). So resolve the
+         step list from the RUNNER when `check` delegates, and expand those names through the script
+         table exactly as before. Reading the runner's real list is the same discipline this gate
+         already applies to the CI workflow — never a restated copy.
+         ⚠ If `check` delegates and the runner is unreadable, FAIL rather than expanding to '' — an
+         empty expansion makes every `indexOf` below pass against an empty needle, which is the
+         examined-nothing shape this gate exists to prevent. */
+      var delegates = /run-check\.mjs/.test(check);
+      T.ok(
+        '`check` either chains npm scripts or delegates to a readable runner',
+        !delegates || !!P.runCheckText,
+        'delegates=' + delegates + ' runnerText=' + (P.runCheckText ? P.runCheckText.length : 0)
+      );
+      var chain = check;
+      if (delegates && P.runCheckText) {
+        var block = /export const STEPS\s*=\s*\[([\s\S]*?)\]/.exec(P.runCheckText);
+        var names = block
+          ? (block[1].match(/'([\w:-]+)'/g) || []).map(function (q) {
+              return q.slice(1, -1);
+            })
+          : [];
+        T.ok('…and the runner declares a non-empty STEPS list this gate can read', names.length >= 8, 'n=' + names.length);
+        chain = names
+          .map(function (n) {
+            return 'npm run ' + n;
+          })
+          .join(' && ');
+      }
+      var expanded = chain.replace(/npm run ([\w:-]+)/g, function (_, name) {
         return (pkg.scripts && pkg.scripts[name]) || '';
       });
       var missing = ciGuards.filter(function (g) {
@@ -25457,7 +25487,7 @@
          pass for an empty needle. Pin that the expansion actually resolved to real commands. */
       T.ok(
         'the script expansion resolved (this gate is not comparing empty strings)',
-        /node tools\/build\.mjs --check/.test(expanded) && expanded.length > check.length,
+        /node tools\/build\.mjs --check/.test(expanded) && expanded.length > chain.length,
         expanded.length + ' vs ' + check.length
       );
     });
