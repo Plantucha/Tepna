@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**173 tools** · 171 with a purpose line · **2 without**
+**174 tools** · 172 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -158,6 +158,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`resp-acc-headless.mjs`](../tools/resp-acc-headless.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ Drive `resp-acc-analysis.html` THROUGH ITS OWN UI, headlessly, against a real corpus. |
 | [`resp-cardiac-suppression-e8.mjs`](../tools/resp-cardiac-suppression-e8.mjs) | MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS §8 §8 names cardiac suppression as "the highest-value untried improvement": an adaptive notch at the measured f_HR and 2f_HR on the H10's… |
 | [`rho-overlap-power.mjs`](../tools/rho-overlap-power.mjs) | `INTEGRATOR-TCH-FU-IV-FOLLOWUPS` §4 asks for a minimum aligned-overlap rule and is explicit that it must come "from how rho's stability varies with n on the corpus, not from a round number". |
+| [`run-check.mjs`](../tools/run-check.mjs) | `npm run check` used to be a 16-step `&&` chain. That is fine when a step fails on its merits and useless when one fails for an unrelated reason: the shell stops, npm prints the failure,… |
 | [`run-progress.mjs`](../tools/run-progress.mjs) | SHARED PROGRESS, ETA AND RESUME FOR THE MULTI-HOUR TOOLS Every long-runner here had the same two holes, and both cost real time: |
 | [`selftest-all.mjs`](../tools/selftest-all.mjs) | ⚠️ THIS IS NOT THE GATE, and an earlier draft of this header wrongly said it was. |
 | [`served-link-check.mjs`](../tools/served-link-check.mjs) | which local links are DEAD on a deployed box? `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS` §1.2 records two dead-link residues on the served tree and says plainly what is missing: *"A link-checker… |

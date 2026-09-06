@@ -373,6 +373,8 @@ _OXYII_STORM_MEMORY_S = 3 * 3600.0                  # storms older than this no 
 _OXYII_RESTARTS: dict[str, list[float]] = {}        # addr -> monotonic times of recent session restarts
 _OXYII_STORMS: dict[str, list[float]] = {}          # addr -> monotonic times of declared storms
 _OXYII_HOLD_UNTIL: dict[str, float] = {}            # addr -> monotonic deadline of the current hold
+_OXYII_RESTART_TOTAL: dict[str, int] = {}           # addr -> restarts seen this process (never pruned)
+_PROC_START_MONO = _time.monotonic()                # the epoch _OXYII_RESTART_TOTAL counts from
 
 
 def oxyii_restart_storm(restarts, now: float, n: int = _OXYII_STORM_N,
@@ -392,6 +394,65 @@ def oxyii_storm_hold_s(prior_storms, now: float, base_s: float = _OXYII_STORM_HO
     telling us the hold was too short; one that has been quiet for hours starts over at base."""
     k = sum(1 for t in prior_storms if now - t <= memory_s)
     return min(base_s * (2 ** k), max_s)
+
+
+def oxy_storm_status(storms, hold_until, restarts, restarts_total, now_mono: float, now_wall,
+                     proc_start_mono: float = 0.0,
+                     memory_s: float = _OXYII_STORM_MEMORY_S) -> dict:
+    """PURE: the `oxy_storm` STATUS block — what a reader outside this process can learn about the
+    restart-storm machinery. `storms`/`restarts`/`hold_until` are MONOTONIC; `now_wall` is a datetime.
+
+    WHY THIS EXISTS (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT follow-up, Heron 2026-09-05): the hold went
+    live with its entire state in module dicts and ONE log.warning, so a hold that fires overnight
+    leaves no trace any consumer can read — `/api/state` carried zero storm keys, and the storm watch
+    had to count the journal line "ring started a new recording session" as a proxy. A witness that
+    only exists in a log is one a quiet morning can miss, and "the hold worked" and "the ring never
+    stormed" need different evidence.
+
+    MONOTONIC IS CONVERTED, NOT PUBLISHED. A monotonic second means nothing outside this process (it
+    is uptime-relative and resets on restart), so each is rendered as civil time via `now_wall`. The
+    conversion is exact only for the instant it is made — which is why `hold_remaining_s` is published
+    ALONGSIDE `hold_until`: a monitor showing a deadline must trust the box clock and the reader's own,
+    while remaining-seconds is self-evident and survives both.
+
+    ⚠️ **NEITHER COUNT IS A NIGHT TALLY, and they fail in OPPOSITE directions** (Heron 2026-09-05,
+    correcting this docstring's first version, which called `restarts_total` "the count the watcher
+    wants"). `restarts` is window-pruned by the detector, so reading it as a tally UNDER-COUNTS — the
+    pruning IS the algorithm. `restarts_total` is un-pruned but **per-PROCESS**: it resets on every
+    daemon restart, and this box restarts on every deploy (twice on 2026-09-05 alone), so a consumer
+    watching it across a night sees the count DROP and can read that as the storm ending. That is the
+    worse failure — under-counting merely looks small, a reset looks like recovery. Hence
+    `restarts_since`: the civil time the counter started from. A consumer that sees `restarts_since`
+    change knows the count reset and that the drop is bookkeeping, not the ring calming down. **A night
+    tally must come from a source that spans restarts** (the journal, anchored to a fixed civil time);
+    these fields answer what the journal cannot — whether a hold FIRED, and how much of it is left."""
+    def _civil(mono_t: float) -> str:
+        return (now_wall + _dt.timedelta(seconds=mono_t - now_mono)).isoformat(timespec="seconds")
+
+    recent = [t for t in (storms or []) if now_mono - t <= memory_s]
+    held = hold_until is not None and hold_until > now_mono
+    return {
+        "trips": [_civil(t) for t in sorted(recent)],
+        "last_trip": _civil(max(recent)) if recent else None,
+        "hold_until": _civil(hold_until) if held else None,
+        "hold_remaining_s": round(hold_until - now_mono) if held else 0,
+        "restarts_in_window": len(restarts or []),
+        "restarts_total": int(restarts_total or 0),
+        # The counter's epoch. Without it a per-process count is a trap: it resets on deploy and the
+        # drop reads as the storm ending. A consumer compares this across polls to tell a reset from a
+        # recovery — see the warning above. NOT monotonic 0, which is BOOT: the counter starts when
+        # this PROCESS did, and the box reboots far less often than it redeploys.
+        "restarts_since": _civil(proc_start_mono),
+    }
+
+
+def _oxy_storm_block(addr: str, now_mono: "float | None" = None) -> dict:
+    """`oxy_storm_status` bound to this process's live dicts. Thin on purpose — the decisions are all
+    in the pure function above, which is where the tests point."""
+    mono = _time.monotonic() if now_mono is None else now_mono
+    return oxy_storm_status(_OXYII_STORMS.get(addr, []), _OXYII_HOLD_UNTIL.get(addr),
+                            _OXYII_RESTARTS.get(addr, []), _OXYII_RESTART_TOTAL.get(addr, 0),
+                            mono, _now(), _PROC_START_MONO)
 
 
 # ── Ring RTC readback + gated settings writes over the LIVE link (monitor-facing, 2026-08-19) ────────
@@ -3672,7 +3733,10 @@ async def run_oxyii(dev: dict, root: str):
             # recording on its own; it is our polling it cannot tolerate right now.
             if _time.monotonic() < _hold:
                 _set(name, connected=False,
-                     last_error=f"restart storm — leaving the ring alone for {(_hold - _time.monotonic()) / 60:.0f} min")
+                     last_error=f"restart storm — leaving the ring alone for {(_hold - _time.monotonic()) / 60:.0f} min",
+                     # Republished on entry to the wait so a reader arriving mid-hold sees a live
+                     # `hold_remaining_s` rather than only the stamp from the trip.
+                     oxy_storm=_oxy_storm_block(addr))
                 # POWER axis: the hold is a COOLDOWN with a deadline (§12) — journaled ONCE per deadline,
                 # and the automatic pull pollers' attempt_allowed() refuses until it passes.
                 _power_for(name, addr).note_cooldown(_hold, "restart storm hold")
@@ -3684,6 +3748,9 @@ async def run_oxyii(dev: dict, root: str):
             _OXYII_HOLD_UNTIL.pop(addr, None)
             _OXYII_RESTARTS.pop(addr, None)         # the count starts over; the storm history does not
             log.info("%s: restart-storm hold over — resuming live capture", name)
+            # Clear the hold fields but KEEP `trips` — the night's evidence that a hold fired must
+            # outlive the hold itself, which is the whole point of publishing it.
+            _set(name, oxy_storm=_oxy_storm_block(addr))
             _power_for(name, addr).cooldown_over()
             _power_flush(name, _oxywr["w"])
         started = _now()
@@ -4067,6 +4134,7 @@ async def run_oxyii(dev: dict, root: str):
                             _mono = _time.monotonic()
                             _storm, _recent = oxyii_restart_storm(_OXYII_RESTARTS.get(addr, []) + [_mono], _mono)
                             _OXYII_RESTARTS[addr] = _recent
+                            _OXYII_RESTART_TOTAL[addr] = _OXYII_RESTART_TOTAL.get(addr, 0) + 1
                             if _storm:
                                 _hold_s = oxyii_storm_hold_s(_OXYII_STORMS.get(addr, []), _mono)
                                 _OXYII_STORMS[addr] = [t for t in _OXYII_STORMS.get(addr, [])
@@ -4078,6 +4146,10 @@ async def run_oxyii(dev: dict, root: str):
                                             "alone for %.0f min (storm #%d in the last %.0f h)", name, len(_recent),
                                             _OXYII_STORM_WINDOW_S, _hold_s / 60, len(_OXYII_STORMS[addr]),
                                             _OXYII_STORM_MEMORY_S / 3600)
+                            # PUBLISH on every restart, storm or not: a reader must be able to see the
+                            # restarts that did NOT trip the hold, or it cannot tell a quiet night from
+                            # a night the detector was blind to.
+                            _set(name, oxy_storm=_oxy_storm_block(addr, _mono))
                         _seq[0] = live["duration"]
                         _OXYII_LAST_DURATION[addr] = live["duration"]   # survives the next dropout
                         # RECORDING axis: every live frame's duration_s feeds the engine; the backward
