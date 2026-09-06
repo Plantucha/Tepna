@@ -769,11 +769,25 @@ class O2PpgGrid:
     propagated into four other places as a hardware fact. The ring does carry `duration_s`, a 1 Hz
     session counter in every `0x04` frame (already written to `OXYFRAME.txt` beside the host stamp).
     It changes NOTHING here: 1 Hz cannot place samples arriving at 125 Hz, so the grid is still the only
-    way to build this column, and every design decision below stands unaltered. What it is good for is a
-    RATE reference over hours — and it is not a safe one yet, because its own rate is bimodal: measured
-    over 653 segments, clean nights track the host to under 16 ppm while roughly half of long nights run
-    −2270…−4591 ppm, and the slow mode corresponds exactly to seconds in which the counter fails to
-    advance. Before wiring it into anything, read residue `2026-09-06-ring-duration-counter-bimodal`.
+    way to build this column, and every design decision below stands unaltered.
+
+    🔴 AND IT IS NOT A CLOCK AT ALL — `duration_s` COUNTS SECONDS OF SIGNAL, NOT SECONDS OF TIME.
+    Corrected 2026-09-06, same day, after the paragraph above said its "rate is bimodal" and named a
+    slow mode of −2270…−4591 ppm. There is no slow mode. Measured across the ≥1 h segments: the ring
+    emits **125.9 samples per DEVICE-second in both populations** (slow 125.87 / 125.92 / 124.93 /
+    125.71 · fast 125.80 / 124.53 / 125.85 / 125.62), while device-advance against host-elapsed is
+    35367 vs 35370 s on a clean 9.8 h night and 31353 vs 31422 s on a "slow" 8.7 h one. So the counter
+    tracks the ring's own DATA PRODUCTION exactly, and diverges from the wall only in proportion to
+    signal the ring never produced. The frames that fail to advance it carry ~73 PPG samples instead of
+    ~127 (15.3 sd apart) and arrive in runs — short frames, not missed ticks. A single regression across
+    a night with bursty loss renders that deficit as a fake rate, which is where −3446 ppm and 3851 ppm
+    in the earlier briefs come from.
+
+    Consequences, in the order they bite: it can NEVER serve as a timebase, because it is not measuring
+    time — and in particular it cannot bridge a reconnect gap, since across a gap where the ring
+    produced nothing it advances by nothing. What it IS, and nothing in the tree computes today, is an
+    exact data-completeness measure: `host_elapsed - device_advance` is seconds of missing signal.
+    See residue `2026-09-06-ring-duration-counts-data-not-time`, which supersedes the bimodality row.
 
     Two things can go wrong and they are DIFFERENT:
 
