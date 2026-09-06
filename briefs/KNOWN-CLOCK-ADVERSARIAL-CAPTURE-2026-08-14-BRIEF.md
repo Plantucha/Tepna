@@ -115,12 +115,21 @@ A one-hop LAN chain from a real stratum-1 at 422 µs root delay and 0.011 ppm sk
 above, a better rate reference than the bound admits. The gate currently rejects the box it was
 written for.
 
-### 2.2 · The O2Ring is not a clock — so it is the **negative control**, not the third leg
+### 2.2 · The O2Ring's sample axis is not a clock — so it is the **negative control**, not the third leg
 
 The O2Ring's sensor timestamp is **synthesized** — constructed as `sample_index × an assumed rate`,
 not read from an oscillator (`o2ring-timestamp-is-drawn`; `clock.js` publishes `timingSource:'none'`
 for exactly this). Perturbing "the O2Ring's clock" and asking the pipeline to recover a frequency
-error is a **category error**: there is no frequency to err.
+error is a **category error**: that axis has no frequency to err.
+
+⚠️ **Scope corrected 2026-09-06 — the heading used to read "The O2Ring is not a clock", of the
+DEVICE, and that is false.** The ring carries `duration_s`, a 1 Hz session counter in every `0x04`
+frame, and on its clean nights it tracks the host to under 16 ppm. Nothing in this section changes:
+the control operates on the **sensor-timestamp column**, that column is drawn, and a recovered ppm
+from it is still the false positive described below. But the device-level phrasing propagated into
+four other places as a fact about the hardware, so it is scoped here rather than left to be quoted
+again. The counter's own rate is bimodal and stall-prone and is NOT a drop-in third leg — residue
+`2026-09-06-ring-duration-counter-bimodal`.
 
 This is not a reason to drop it. It is the **strongest single leg in the experiment**, reframed:
 

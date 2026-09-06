@@ -761,8 +761,21 @@ class O2PpgFrameLedger:
 class O2PpgGrid:
     """The O2Ring's synthesized PPG sample clock.
 
-    The ring has NO device clock, so the host lays its samples on a grid and writes that grid as the
-    `sensor timestamp [ns]` column. Two things can go wrong and they are DIFFERENT:
+    The ring publishes NO PER-SAMPLE clock, so the host lays its samples on a grid and writes that grid
+    as the `sensor timestamp [ns]` column.
+
+    ⚠️ This sentence read "The ring has NO device clock" until 2026-09-06, and that was false of the
+    DEVICE while being true of the sample stream — a distinction worth keeping because the blanket form
+    propagated into four other places as a hardware fact. The ring does carry `duration_s`, a 1 Hz
+    session counter in every `0x04` frame (already written to `OXYFRAME.txt` beside the host stamp).
+    It changes NOTHING here: 1 Hz cannot place samples arriving at 125 Hz, so the grid is still the only
+    way to build this column, and every design decision below stands unaltered. What it is good for is a
+    RATE reference over hours — and it is not a safe one yet, because its own rate is bimodal: measured
+    over 653 segments, clean nights track the host to under 16 ppm while roughly half of long nights run
+    −2270…−4591 ppm, and the slow mode corresponds exactly to seconds in which the counter fails to
+    advance. Before wiring it into anything, read residue `2026-09-06-ring-duration-counter-bimodal`.
+
+    Two things can go wrong and they are DIFFERENT:
 
       * REAL LOSS — the link dropped frames, so time passed that carries no samples. Handled by advancing
         the grid (an honest gap), because writing the survivors back-to-back would compress the record and
