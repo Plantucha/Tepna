@@ -1068,7 +1068,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 #
                 # The rule: anything `run_oxyii` can open a writer for MUST appear here, or enabling it
                 # is unreachable and keeping it is impossible. Gate-backed below.
-                supported = ["spo2", "ppg", "ppg2w", "acc"]
+                supported = ["spo2", "ppg", "ppg2w", "acc", "pletha"]
             # SDK MODE IS OFFERED ONLY WHERE THE DEVICE ADVERTISES IT (feature bit 0x9), and the
             # capability is DERIVED, never inferred from vendor or model: a switch that cannot work is
             # worse than an absent one, because the operator sets it and the config then claims a mode
