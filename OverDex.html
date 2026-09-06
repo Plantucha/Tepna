@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4X+DPqRSEyLwRdP6W1Dt3ujO8KzSX8xhc5HqU04K8BM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-Sl45fJFM/JjRNEpOEcwgOqyETFOlXLYc3VCUxTbVHzc=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hfWm0E4m3miRXxd/D2vdNh3vekQBb+w35MUeysCvjS4=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ=' 'sha256-xYEpAegvjzPOjFl5oTwKl6Z8o/PGwjewwlBjIM06n9U='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4X+DPqRSEyLwRdP6W1Dt3ujO8KzSX8xhc5HqU04K8BM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Cq4l88m5JYttjgdBBIE2aZe9X/ObdnWAwosttf3m8vU=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hfWm0E4m3miRXxd/D2vdNh3vekQBb+w35MUeysCvjS4=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ=' 'sha256-xYEpAegvjzPOjFl5oTwKl6Z8o/PGwjewwlBjIM06n9U='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -25597,16 +25597,32 @@ __exports.GlucoDex = window.GlucoDex;
     const ch = [];
     let amb = -1,
       ns = -1,
-      phone = -1;
+      phone = -1,
+      motion = -1;
     for (let i = 0; i < p.length; i++) {
       const h = p[i].trim().toLowerCase();
       if (/^(channel\s*\d|ppg\d)/.test(h)) ch.push(i);
       else if (/ambient/.test(h)) amb = i;
+      // `motion` is the dual-wavelength layout's 5th column. It is NOT optical and must never be
+      // read as a channel or mistaken for ambient — it is recorded here solely to identify the layout.
+      else if (/^motion$/.test(h)) motion = i;
       else if (/sensor\s+timestamp/.test(h)) ns = i;
       else if (/phone\s+timestamp/.test(h)) phone = i;
     }
     if (ch.length >= 3) return { chIdx: [ch[0], ch[1], ch[2]], amb, ns, phone };
     if (ch.length === 1) return { chIdx: [ch[0]], amb, ns, phone };
+    /* TWO channels are accepted ONLY as the O2Ring's raw dual-wavelength `_PPG2W.txt` (cmd 0x05), and
+       only on a POSITIVE identification of that layout: a `motion` column present AND no ambient.
+       The bare count stays refused, which is what the paragraph above requires — a shifted or
+       truncated 3-LED file has an ambient column or lacks motion, so it cannot reach this branch and
+       still cannot vote with itself. `capture-host/writers.py` emits exactly one header for this
+       stream and has since it existed: measured over the whole corpus, 1066 non-empty files carry ONE
+       distinct header line and a 5-field row, universally.
+       `dual` is a PROVENANCE flag, not a channel count: only the O2Ring writes this format, so it
+       carries the finger site the way `nCh === 1` does. Channel IDENTITY (which of the two is RED and
+       which IR) is deliberately NOT claimed here — the brief leaves it open, so they stay ch0/ch1 and
+       nothing downstream computes SpO2 from them. */
+    if (ch.length === 2 && motion >= 0 && amb < 0) return { chIdx: [ch[0], ch[1]], amb, ns, phone, dual: true };
     return null;
   }
   function ppgColsByTail(p) {
@@ -25727,16 +25743,28 @@ __exports.GlucoDex = window.GlucoDex;
     // filter byte-identical.
     let minFields = 6;
     let nCh = 3,
+      dual = false,
       ch0Col = 2;
     for (let li = 0; li < lines.length; li++) {
       const line = lines[li].trim();
       if (!line) continue;
+      /* Leading `#` provenance comments (`# timebase=host-disciplined`) — the same convention as
+         LINK.csv, whose real header is on line 2. Measured across the corpus: 906 of 1066 non-empty
+         `_PPG2W.txt` carry one and 160 do not, so a parser that treats line 1 as the header mis-reads
+         85 % of them. Skipped EXPLICITLY rather than incidentally: today's two variants happen not to
+         contain the word "timestamp", so they fall through the header test by luck, and a future
+         comment that did would silently become the header. */
+      if (line.charCodeAt(0) === 35) continue;
       const p = line.split(';');
       if (/timestamp/i.test(line) && !pcols) {
         const hc = ppgColsFromHeader(line);
         if (hc) {
           pcols = hc;
           if (hc.chIdx.length === 1) minFields = 3;
+          // The dual-wavelength row is FIVE fields (phone;ns;ch0;ch1;motion). The default of 6 is the
+          // Verity layout's, and it is what actually refused these files before this branch existed —
+          // the header check alone was not enough, which a read of the code did not show and a run did.
+          else if (hc.dual) minFields = 5;
           continue;
         }
       }
@@ -25745,8 +25773,10 @@ __exports.GlucoDex = window.GlucoDex;
       if (!pc) continue;
       // The layout the ACCEPTED rows actually carry (a headerless file resolves per-row via the tail).
       nCh = pc.chIdx.length;
+      dual = !!pc.dual;
       ch0Col = pc.chIdx[0];
       if (nCh === 1) minFields = 3;
+      else if (dual) minFields = 5;
       const v0 = parseFloat(p[pc.chIdx[0]]);
       if (!isFinite(v0)) {
         continue;
@@ -25762,10 +25792,17 @@ __exports.GlucoDex = window.GlucoDex;
       // never admit a partial row, because the channel arrays are positional and must stay in step.
       let v1 = 0,
         v2 = 0;
-      if (pc.chIdx.length === 3) {
+      // Generalised from `=== 3` to "every companion column THIS layout claims", so the dual-wavelength
+      // layout gets the SAME row-atomic treatment rather than silently skipping validation and pushing
+      // nothing. The 3-channel path is unchanged: both companions are still validated together and the
+      // row is still dropped whole if either fails.
+      if (pc.chIdx.length >= 2) {
         v1 = parseFloat(p[pc.chIdx[1]]);
+        if (!isFinite(v1)) continue;
+      }
+      if (pc.chIdx.length === 3) {
         v2 = parseFloat(p[pc.chIdx[2]]);
-        if (!isFinite(v1) || !isFinite(v2)) continue;
+        if (!isFinite(v2)) continue;
       }
       // Ambient is DELIBERATELY NaN when the layout carries no ambient column (the O2Ring finger site,
       // which AC-couples on-device). Only a column that EXISTS and fails to parse makes the row bad —
@@ -25773,10 +25810,8 @@ __exports.GlucoDex = window.GlucoDex;
       const va = pc.amb >= 0 ? parseFloat(p[pc.amb]) : NaN;
       if (pc.amb >= 0 && !isFinite(va)) continue;
       ch0.push(v0);
-      if (pc.chIdx.length === 3) {
-        ch1.push(v1);
-        ch2.push(v2);
-      }
+      if (pc.chIdx.length >= 2) ch1.push(v1);
+      if (pc.chIdx.length === 3) ch2.push(v2);
       amb.push(va);
       // sensor ns → relative seconds (BigInt: values exceed Number safe range)
       let relNs = 0;
@@ -25933,7 +25968,7 @@ __exports.GlucoDex = window.GlucoDex;
     } else {
       for (let i = 0; i < n; i++) relSec[i] = i / fs;
     }
-    const chArr = nCh === 1 ? [Float32Array.from(ch0)] : [Float32Array.from(ch0), Float32Array.from(ch1), Float32Array.from(ch2)];
+    const chArr = nCh === 1 ? [Float32Array.from(ch0)] : nCh === 2 ? [Float32Array.from(ch0), Float32Array.from(ch1)] : [Float32Array.from(ch0), Float32Array.from(ch1), Float32Array.from(ch2)];
     // SITE is a layout fact, not a guess — but COLUMN COUNT ALONE IS NOT THE LAYOUT. The O2Ring emits
     // BOTH a 1-column pleth and a 3-column file whose three columns are the SAME reading replicated
     // (`124;124;124;0`), and column-count-only classification therefore called the ring a Verity on
@@ -25975,7 +26010,7 @@ __exports.GlucoDex = window.GlucoDex;
        value (consumers gate on it and the sentinel pass genuinely is a device property), and
        `siteSource` now says where that value came from — so a reader can tell a DECLARED limb from a
        device default, and a grader can decline to award a site-validated tier to a default. */
-    const site = deriveSiteFromLayout(chArr, n);
+    const site = deriveSiteFromLayout(chArr, n, dual);
     // Sentinel pass runs ONLY on the finger layout — 156 is the O2Ring's marker and carries no meaning
     // in a Verity count stream (where it would be an ordinary, and astronomically rare, raw ADC value).
     // Keyed on SITE, not on nCh: a replicated 3-column O2Ring file is still an O2Ring, and keying on
@@ -26078,6 +26113,10 @@ __exports.GlucoDex = window.GlucoDex;
       })(),
       durSec: (n - 1) / fs,
       site,
+      /* PROVENANCE, published so the frame-routed path can reach the same site verdict as this one.
+         `deriveSiteFromLayout` cannot re-derive it from the samples — two real wavelengths are not
+         replicated — so an adapter that drops this flag would silently get 'wrist' for a finger file. */
+      dual,
       // 'device-default' until someone declares otherwise — see the block above.
       siteSource: 'device-default',
       // Per-sample missing mask (1 = rejected sentinel). Null for the wrist layout. Never filled.
@@ -26196,9 +26235,16 @@ __exports.GlucoDex = window.GlucoDex;
      replicate one reading — measured 100 % identical across 526 O2Ring files vs 0 % across 261
      Verity files, perfect separation). Decided on the DATA, never the header, so a vendor renaming
      its columns changes nothing. Exact scan, stops at the first mismatch. */
-  function deriveSiteFromLayout(chArr, n) {
+  function deriveSiteFromLayout(chArr, n, dual) {
     const nCh = chArr ? chArr.length : 0;
     if (!nCh) return 'wrist';
+    /* The raw dual-wavelength layout is an O2Ring FINGER file by provenance: only the ring's cmd 0x05
+       writes `channel 0;channel 1;motion`, so the site is a fact about the format, exactly as it is
+       for the 1-column case below. It must NOT be left to the replication scan — two genuinely
+       different wavelengths are not byte-identical, so the scan would return 'wrist' and then the
+       sentinel pass would be skipped and a wrist-validated tier stamped onto a fingertip pleth, which
+       is the failure the comment above this function exists to prevent. */
+    if (dual) return 'finger';
     let replicated = nCh > 1;
     for (let c = 1; replicated && c < nCh; c++) {
       const a = chArr[0],
@@ -30477,7 +30523,7 @@ __exports.GlucoDex = window.GlucoDex;
            `rec.site || 'wrist'` fallback stamp every frame-routed recording 'wrist'. A declared site
            (`s.site`) wins if an adapter ever carries one; otherwise it is the layout fact, and
            `siteSource` stays 'device-default' so a grader can still tell a default from a declaration. */
-        site: s.site || deriveSiteFromLayout(s.ch, n),
+        site: s.site || deriveSiteFromLayout(s.ch, n, s.dual),
         siteSource: s.siteSource || 'device-default',
         acc: input.acc || null,
         gyro: input.gyro || null,
