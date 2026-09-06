@@ -971,6 +971,80 @@
       T.ok('a 150 s cycle does NOT fire — the ceiling rejects beyond it', over.periodic === false);
     });
 
+    group('PpgDex ingests the O2Ring raw dual-wavelength layout — and still refuses a 2-column file', 'ppgdex-dsp · ppg2w · layout · O2RING-RAW-DUAL-WAVELENGTH', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.parsePPG !== 'function') {
+        T.skip('PPGDSP.parsePPG available', 'not loaded');
+        return;
+      }
+      /* `capture-host` has written `_PPG2W.txt` (O2Ring cmd 0x05) since 2026-08-05 and no JS node could
+         read it. Measured over the whole corpus before a line was written — 1075 files, 1066 non-empty,
+         ONE distinct header, 5-field rows universally, 906 with a leading `# timebase=…` comment and 160
+         without. The refusal was NOT where reading the code suggested twice: `minFields = 6` (the Verity
+         layout's) rejected every 5-field row, which only a run showed.
+
+         Channel IDENTITY stays OPEN per the brief — which of the two is RED and which IR is unclaimed,
+         so they are ch0/ch1 and nothing here computes SpO2 from them. */
+      function w2rows(n, withComment) {
+        var out = withComment ? '# timebase=host-disciplined\n' : '';
+        out += 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion\n';
+        for (var i = 0; i < n; i++) {
+          var d = new Date(Date.UTC(2026, 8, 5, 2, 42, 30) + Math.round((i / 125) * 1000));
+          out += d.toISOString().slice(0, 23) + ';0;' + (90000 + Math.round(3000 * Math.sin(i / 9))) + ';' + (15000 + Math.round(900 * Math.sin(i / 9 + 0.4))) + ';0\n';
+        }
+        return out;
+      }
+      var got = null;
+      try {
+        got = P.parsePPG(w2rows(600, true), {});
+      } catch (e) {
+        got = null;
+      }
+      T.ok('a dual-wavelength file parses at all (it used to throw)', !!got);
+      if (got) {
+        T.ok('BOTH channels are filled — ch1 empty was the first wrong fix', !!(got.ch && got.ch.length === 2 && got.ch[0].length === 600 && got.ch[1].length === 600));
+        T.ok('the two channels are NOT replicated (they are different wavelengths)', got.ch[0][7] !== got.ch[1][7]);
+        T.ok('site is finger BY PROVENANCE — the replication scan alone would say wrist, skip the 156 sentinel pass and stamp a wrist tier on a fingertip pleth', got.site === 'finger');
+        T.ok('`motion` is not read as an optical channel or as ambient', got.ch.length === 2);
+      }
+      var noComment = null;
+      try {
+        noComment = P.parsePPG(w2rows(600, false), {});
+      } catch (e) {
+        noComment = null;
+      }
+      T.ok('the 160 files WITHOUT a leading `#` comment parse identically to the 906 with one', !!noComment && !!got && noComment.ch[0].length === got.ch[0].length);
+
+      /* PAIRED OPPOSITES. `ppgColsFromHeader`'s 2-column refusal is DELIBERATE (see its own comment:
+         "silently treating it as a 2-LED sensor would let a shifted/truncated 3-LED file vote with
+         itself"). Accepting on the column COUNT would have removed that guard silently, so the new
+         branch requires a POSITIVE identification — a `motion` column AND no ambient — and these two
+         assert the guard still holds. Without them, "2 channels now parse" is satisfied by exactly the
+         regression this layout must not cause. */
+      function twoColRows(hdr, extra) {
+        var out = hdr + '\n';
+        for (var i = 0; i < 600; i++) {
+          var d = new Date(Date.UTC(2026, 8, 5, 2, 42, 30) + Math.round((i / 125) * 1000));
+          out += d.toISOString().slice(0, 23) + ';0;' + (90000 + i) + ';' + (15000 + i) + extra + '\n';
+        }
+        return out;
+      }
+      var shifted = null;
+      try {
+        shifted = P.parsePPG(twoColRows('Phone timestamp;sensor timestamp [ns];channel 0;channel 1', ''), {});
+      } catch (e) {
+        shifted = null;
+      }
+      T.ok('a 2-column file with NO motion column is still REFUSED (a truncated 3-LED file must not vote with itself)', shifted === null);
+      var truncVerity = null;
+      try {
+        truncVerity = P.parsePPG(twoColRows('Phone timestamp;sensor timestamp [ns];channel 0;channel 1;ambient', ';7'), {});
+      } catch (e) {
+        truncVerity = null;
+      }
+      T.ok('a 2-column file WITH ambient is still REFUSED (that is a truncated Verity, not a ring)', truncVerity === null);
+    });
+
     group('a drawn time axis is detected and declared, not silently corrected', 'ppgdex · axis-provenance', function (T) {
       var P = env.PPGDSP || env.PpgDSP;
       if (!P || typeof P.parsePPG !== 'function') {
