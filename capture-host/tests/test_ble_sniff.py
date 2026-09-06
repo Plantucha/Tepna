@@ -516,7 +516,7 @@ def test_audit_passes_a_full_window_with_only_our_own_connects():
 def test_audit_fails_a_capture_that_died_early_the_F2_shape():
     """2 h of a 7.4 h window read as 'the night' by mtime. The audit reads the packets."""
     s = _night(_adv(0x0), _adv(0x0), span_s=7168)
-    a = ble_sniff.audit(s, 26640, set(), set())
+    a = ble_sniff.audit(s, 26640, set(), set(), ran_full_window=False)
     assert not a["ok"]
     assert a["window"].startswith("captured 7168.0 s of 26640 s expected")
     assert "died 19472 s early" in a["window"]
@@ -663,38 +663,66 @@ def test_a_short_window_after_a_FULL_run_names_falling_behind_not_dying():
     and hides a throughput deficit that is systematic."""
     s = _night(_adv(0x0), _adv(0x0), span_s=360)
     a = ble_sniff.audit(s, 900, set(), set(), ran_full_window=True)
-    assert not a["ok"]
     assert "FELL BEHIND real time" in a["window"]
     assert "the END of the window" in a["window"]
     assert "died" not in a["window"]
+    assert a["ok"], (
+        "0.40 coverage on a run that SURVIVED its window is this hardware's normal state — measured "
+        "0.41-0.51 across a night — so it is stated, not failed. A red every night on a hardware "
+        "limit is a red nobody reads.")
+    assert a["problems"] == []
 
 
 def test_a_short_window_after_an_EARLY_exit_still_names_dying():
     """The other fault is real too — a LockedException, a crash, an unplugged dongle — and it is what
     the flag's absence means. F2's 2-h-of-7.4-h capture is this case."""
     s = _night(_adv(0x0), _adv(0x0), span_s=7168)
-    a = ble_sniff.audit(s, 26640, set(), set())
+    a = ble_sniff.audit(s, 26640, set(), set(), ran_full_window=False)
     assert "the sniffer died 19472 s early" in a["window"]
     assert "FELL BEHIND" not in a["window"]
+    assert not a["ok"], "a capture that ENDED early is the failure this check was built for"
 
 
-def test_the_fault_wording_never_changes_the_VERDICT():
-    """Attribution, not suppression: the same span fails identically either way, and a full-window
-    run at a healthy span still passes. Only the sentence moves."""
-    short = _night(_adv(0x0), _adv(0x0), span_s=360)
-    assert ble_sniff.audit(short, 900, set(), set(), ran_full_window=True)["ok"] is False
-    assert ble_sniff.audit(short, 900, set(), set(), ran_full_window=False)["ok"] is False
-    healthy = _night(_adv(0x0), _adv(0x0), span_s=880)
-    assert ble_sniff.audit(healthy, 900, set(), set(), ran_full_window=True)["ok"] is True
+def test_a_FULL_window_run_is_judged_against_the_FLOOR_not_the_fraction():
+    """The two regimes, and why they are different questions. A capture that ENDED early failed to
+    run — that is the F2 defect this check was built for, and 0.8 catches it. A capture that RAN and
+    fell behind is this hardware's known state; failing it nightly would train the operator to skip
+    the line, so it is judged against COVERAGE_FLOOR instead — below which the window is too thin for
+    any verdict to rest on, which IS worth a red."""
+    just_above = _night(_adv(0x0), _adv(0x0), span_s=0.30 * 900)
+    assert ble_sniff.audit(just_above, 900, set(), set(), ran_full_window=True)["ok"]
+    just_below = _night(_adv(0x0), _adv(0x0), span_s=0.20 * 900)
+    a = ble_sniff.audit(just_below, 900, set(), set(), ran_full_window=True)
+    assert not a["ok"]
+    assert "under 25 % of it, so no verdict here is worth anything" in a["window"]
+    # …and the SAME span, from a capture that ended early, fails on the other rule.
+    assert not ble_sniff.audit(just_above, 900, set(), set(), ran_full_window=False)["ok"]
+
+
+def test_an_invocation_that_does_not_SAY_refuses_to_attribute_a_cause():
+    """A hand run has no `timeout` exit code to read, so it knows neither cause. Measured on the box
+    2026-09-06: a peer ran this by hand on a real 900 s chunk and got "the sniffer died 457 s early"
+    for a capture that had run its whole window — an operator sent after a crash that never happened,
+    on the audit's first real firing. Absent knowledge is now stated as absent, not defaulted to a
+    fault, which is the same absent-vs-zero rule the coverage line follows."""
+    s = _night(_adv(0x0), _adv(0x0), span_s=442.9)
+    a = ble_sniff.audit(s, 900, set(), set())          # no flag either way
+    assert not a["ok"], "unknown provenance keeps the strict rule — it does not get the benefit"
+    assert "did not say whether the capture process survived its window" in a["window"]
+    assert "died" not in a["window"] and "FELL BEHIND" not in a["window"]
 
 
 def test_main_accepts_the_flag_and_the_two_positional_form_is_untouched(tmp_path, capsys):
     p = tmp_path / "c.pcap"
     p.write_bytes(_pcap_ts((100, 0, _adv(0x0)), (460, 0, _adv(0x0))))
-    assert ble_sniff.main([str(p), "--expect-seconds", "900", "--ran-full-window"]) == 3
+    assert ble_sniff.main([str(p), "--expect-seconds", "900", "--ran-full-window"]) == 0
     assert "FELL BEHIND real time" in capsys.readouterr().out
     assert ble_sniff.main([str(p), "--expect-seconds", "900"]) == 3
-    assert "died" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "did not say whether the capture process survived" in out
+    assert "the sniffer died" not in out, "no option was passed, so no cause may be asserted"
+    assert ble_sniff.main([str(p), "--expect-seconds", "900", "--exited-early"]) == 3
+    assert "the sniffer died 540 s early" in capsys.readouterr().out
     assert ble_sniff.main([str(p), RESMED]) == 0            # the 2026-09-04 form, unchanged
     assert "AIR AUDIT" not in capsys.readouterr().out
 
@@ -710,10 +738,10 @@ def test_coverage_is_stated_on_every_audit_including_a_PASSING_one():
     assert passing["cover"] == pytest.approx(880 / 900, abs=1e-3)
     r = ble_sniff.format_audit(passing)
     assert "coverage        : 0.98" in r, r
-    failing = ble_sniff.audit(_night(_adv(0x0), _adv(0x0), span_s=462), 900, set(), set(),
-                              ran_full_window=True)
-    assert not failing["ok"]
-    assert "coverage        : 0.51" in ble_sniff.format_audit(failing)
+    behind = ble_sniff.audit(_night(_adv(0x0), _adv(0x0), span_s=462), 900, set(), set(),
+                             ran_full_window=True)
+    assert behind["ok"], "the fell-behind regime passes; the coverage line is how it is read"
+    assert "coverage        : 0.51" in ble_sniff.format_audit(behind)
 
 
 def test_an_empty_capture_reports_no_coverage_rather_than_zero():
