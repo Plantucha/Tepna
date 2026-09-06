@@ -6228,3 +6228,60 @@ def test_the_pleth_stream_is_off_unless_configured(tmp_path, monkeypatch):
     assert oxyii.OP_SAMPLES_A not in asked, \
         "the 0x03 poll must not be sent when the stream is not configured"
 
+
+
+def test_a_failed_pleth_poll_costs_only_its_own_samples(tmp_path, monkeypatch):
+    """The optional-stream contract, which is the whole reason this poll is wrapped: a refusal on 0x03
+    must cost this stream's samples and NOTHING else. A vitals poll that fails ends the session — if
+    an experimental optical stream could do the same, enabling it would let it cost a night."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    real_write = c.write_gatt_char
+
+    async def flaky(ch, data, response=False):
+        if len(data) > 1 and data[1] == oxyii.OP_SAMPLES_A:
+            raise RuntimeError("gatt refused the 0x03 write")
+        return await real_write(ch, data, response=response)
+
+    c.write_gatt_char = flaky
+
+    def on_live(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 6)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "pletha"]), str(tmp_path)))
+
+    # The vitals stream survived the optical refusal — that is the property under test.
+    assert list((tmp_path / "captures").rglob("*_SPO2.csv")), "a failed 0x03 poll ended the session"
+    err = (capture.STATUS["devices"]["Ring"].get("last_error") or "")
+    assert "pleth" not in err.lower(), f"an optional stream's refusal became the device error: {err!r}"
+
+
+def test_an_empty_pleth_reply_writes_no_rows_and_does_not_crash(tmp_path, monkeypatch):
+    """A reply declaring zero records is a legitimate answer from an idle buffer, not an error. It must
+    write nothing rather than a row of nothing — an empty row would be indistinguishable downstream
+    from a real sample of value 0."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    empty = b"\x00\x00\x00\x00" + (0).to_bytes(2, "little")
+    c = FakeGattClient()
+
+    def on_live(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif data[1] == oxyii.OP_SAMPLES_A:
+            c.notify(0, oxyii.encode(oxyii.OP_SAMPLES_A, empty))
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 6)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "pletha"]), str(tmp_path)))
+
+    hits = list((tmp_path / "captures").rglob("*_PLETHA.txt"))
+    # Empty writers are cleaned up on close, so either no file or a header-only file is correct —
+    # what must NOT happen is a data row.
+    for h in hits:
+        body = [r for r in h.read_text().strip().split("\n") if r and not r.startswith("Phone")]
+        assert not body, f"an empty reply produced rows: {body[:2]}"

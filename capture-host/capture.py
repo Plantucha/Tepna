@@ -4396,6 +4396,19 @@ async def run_oxyii(dev: dict, root: str):
                     BUS.register("acc_o2", "ACC (O2Ring)", "raw", 0, chans=3, labels=("X", "Y", "Z"))
                 if ppgwr:                                   # no card for a stream we are not capturing
                     BUS.register("o2ppg", "PPG (O2Ring)", "raw", O2PPG_FS)   # finger pleth, Phase 2
+                # SIBLING of ppgwr/ppg2wr, deliberately NOT nested inside one of them: `pletha` is
+                # independently switchable, so registering it under another stream's `if` would leave
+                # its bus card missing whenever that other stream happened to be off. Caught by the
+                # coverage gap this line left when a pletha-only test never reached it.
+                if plethawr:
+                    # fs 0 on the bus: the rate is MEASURED at 125.058 Hz (2026-09-06), but the bus
+                    # value is what a consumer resamples against, and this stream carries markers plus
+                    # reply-boundary gaps — a nominal rate here would assert a uniform grid the rows
+                    # do not form.
+                    # unit "raw" like its siblings: the ring publishes no scale for these 8-bit
+                    # optical counts, and "raw" is this bus's existing word for exactly that (o2ppg,
+                    # o2ppg2w, acc_o2). A fabricated unit here is the accraw mistake one layer up.
+                    BUS.register("o2pletha", "Raw pleth A (O2Ring)", "raw", 0, chans=1)
                 if ppg2wr:
                     # fs=0 DELIBERATELY. Every reply carries exactly 102 records whatever the poll
                     # spacing, which is a fixed buffer cap and not a rate (cmd 0x03 caps the same way at
@@ -4405,13 +4418,6 @@ async def run_oxyii(dev: dict, root: str):
                     # Labels are the DEVICE ORDER, not the wavelengths. The SDK calls these IR and RED;
                     # that is a vendor-header claim we have not measured, and a monitor card is a bad
                     # place to publish a guess (see oxyii "WHICH-IS-WHICH" for the test that settles it).
-                    if plethawr:
-                        # fs 0 on the bus: the rate is MEASURED at 125.058 Hz (2026-09-06) but the bus
-                        # value is what a consumer resamples against, and this stream carries markers
-                        # plus reply-boundary gaps. Publishing a nominal rate here would assert a
-                        # uniform grid the rows do not form.
-                        BUS.register("o2pletha", "Raw pleth A (O2Ring)", "raw", 0, chans=1,
-                                     unit="counts")
                     BUS.register("o2ppg2w", "Raw 2-wavelength (O2Ring)", "raw", 0, chans=2,
                                  labels=("ch0", "ch1"))
                 await _bounded_setup(client.start_notify(nch, on_data))
