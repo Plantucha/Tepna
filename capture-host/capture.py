@@ -1300,7 +1300,16 @@ def instance_devices(cfg: dict | None, instance: str | None) -> list:
     out = []
     for d in devs:
         spec = (d or {}).get("adapter")
-        mac = resolve_adapter_name(cfg, spec) if spec else (cfg or {}).get("adapter")
+        # THE INHERITED GLOBAL IS RESOLVED THE SAME WAY A PER-DEVICE PIN IS — residue
+        # `2026-09-06-inherited-global-adapter-not-map-resolved`. It used to be taken RAW:
+        #     resolve_adapter_name(cfg, spec) if spec else (cfg or {}).get("adapter")
+        # so a device's own `adapter: sena` resolved through the `adapters:` map while an inherited
+        # global written the same way resolved to nothing, and every device relying on inheritance
+        # became unowned. `resolve_adapter_name`'s own docstring is the promise this keeps: names
+        # exist "so the config and the systemd unit read the same way", and a raw global was the one
+        # position where that was not true. A MAC global is unaffected — `_looks_like_mac` passes it
+        # straight through, so the two forms are now interchangeable here as everywhere else.
+        mac = resolve_adapter_name(cfg, spec if spec else (cfg or {}).get("adapter"))
         if (mac or "").upper() == mine:
             out.append(d)
     return out
