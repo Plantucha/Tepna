@@ -170,6 +170,22 @@ every surface; both had compute + surface sites since the initial commit (`accEx
 it claimed. **Sweep:** every `dormant:true` in every `<node>-registry.js`, checked against a grep of the id
 AND its aliases in the app/render files.
 
+**SWEPT AND GATED 2026-09-06 — 0 of 23 suspect, and the sweep is now a mechanism.** Run across all 8
+registries against each node's `render|app|fusion|overview|chartbadges` sources: **0** dormant ids or
+admissible aliases occur. The two #1455 flags are already corrected, so the sweep's finding is a clean
+negative — which is exactly why it is now an assertion rather than a one-off: the repo's habit is
+finding a defect and not gating it, and a swept-once invariant decays silently.
+⚠️ **THE FIRST RESULT WAS VACUOUS AND THE ANTI-VACUITY CONTROL CAUGHT IT.** A standalone version
+resolved several registries to ZERO source files and reported a confident *0 of 23* having examined
+nothing — `PPG_REGISTRY` (21 dormant) and `MOTION_REGISTRY` (2) both matched no source at all, i.e.
+every dormant entry in the fleet. The gate therefore carries a positive control: a live id must be
+findable by the SAME regex (316 of 497 today), or a clean result means only that the search is broken.
+⚠️ **AND IT IS THE SECOND SITE §2.6's RULE WAS ASKED TO GENERALISE TO.** Written without §2.6's alias
+admission rule, this scan's first run flagged `motiondex.uprightFrac via "upright"` — the identical
+`POS_ORDER` posture-enum false positive, reintroduced by a new scan that had not inherited the rule.
+The id is always admissible (a code identifier, not a word); an alias only if multi-word or ≥ 8 chars.
+Plant-tested both ways: mark a live surfaced metric `dormant:true` → reds naming it; restore → silent.
+
 ### 2.5 An UNREGISTERED surfaced label is an UNCHECKED grade
 The ECGDex Reference guide graded posture `ev-measured` for a mount-dependent convention — invisible because
 'Posture' resolved to no registry id, so `cohesion-badges` had nothing to compare. Registering the id made
