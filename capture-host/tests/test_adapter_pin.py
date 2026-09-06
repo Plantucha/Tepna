@@ -147,3 +147,52 @@ def test_resolve_hci_does_not_pay_for_dbus_when_hcitool_already_answered(monkeyp
     monkeypatch.setattr(link_rssi, "_run", fake_run)
     assert asyncio.run(link_rssi.resolve_hci("AC:A7:F1:29:9D:1D", refresh=True)) == "hci0"
     assert "busctl" not in seen, "D-Bus must not be consulted when hcitool already resolved the pin"
+
+
+def test_a_device_without_its_own_adapter_inherits_the_global():
+    """INHERITANCE, ASSERTED BY NAME — residue `2026-09-06-per-device-inheritance-inferred`.
+
+    `PER-DEVICE-ADAPTER-PINNING` ticked "Tests cover: inheritance, explicit pin, pin to an absent MAC",
+    but inheritance was only ever INFERRED: `test_the_partition_is_total_and_disjoint` needs it to hold
+    for every device to be owned, so it is sound about the OUTCOME and silent about the MECHANISM. This
+    names the mechanism, so a reader learns the rule from a test instead of from `instance_devices`.
+
+    The rule (capture.py `instance_devices`): a device with no `adapter:` key takes the config's global
+    `adapter:`; a device with one resolves it through the `adapters:` map.
+
+    DISCRIMINATING, not just present: the pinned device must land on the OTHER instance. Asserting only
+    that the inheriting device is owned would also pass if every device fell to the global."""
+    mac_a = "00:01:95:CC:53:02"
+    mac_b = "AC:A7:F1:29:9D:1D"
+    cfg = {
+        "adapter": mac_a,
+        "adapters": {"sena": mac_a, "ub500": mac_b},
+        "devices": [{"name": "Inherits"}, {"name": "Pinned", "adapter": "ub500"}],
+    }
+    assert [d["name"] for d in capture.instance_devices(cfg, "sena")] == ["Inherits"]
+    assert [d["name"] for d in capture.instance_devices(cfg, "ub500")] == ["Pinned"]
+    assert capture.unowned_devices(cfg) == []
+
+
+def test_an_inherited_global_named_rather_than_a_mac_does_not_inherit():
+    """⚠️ THE ASYMMETRY, pinned as the behaviour it HAS — found while re-deriving the mechanism above.
+
+    A device's OWN `adapter:` is resolved through the `adapters:` map, so `adapter: sena` works. The
+    INHERITED global is taken raw — `(cfg or {}).get("adapter")` — so a global written as a declared
+    NAME rather than a MAC resolves to nothing and the device inherits NOTHING.
+
+    That is a config an operator can reasonably write (`resolve_adapter_name`'s own docstring says names
+    exist so the config and the systemd unit read the same way), and the two forms are not
+    interchangeable in this one position.
+
+    It fails LOUDLY rather than silently, which is why this pins rather than fixes: `unowned_devices`
+    reports the device, and the caller logs that at startup. Recorded so the next reader meets the
+    asymmetry in a test rather than in a capture that quietly served fewer devices than its config
+    named. Whether the global should be resolved through the map is a behaviour change, not a test."""
+    mac_a = "00:01:95:CC:53:02"
+    cfg_mac = {"adapter": mac_a, "adapters": {"sena": mac_a}, "devices": [{"name": "d1"}]}
+    cfg_name = {"adapter": "sena", "adapters": {"sena": mac_a}, "devices": [{"name": "d1"}]}
+    assert [d["name"] for d in capture.instance_devices(cfg_mac, "sena")] == ["d1"]
+    assert capture.instance_devices(cfg_name, "sena") == []
+    assert capture.unowned_devices(cfg_mac) == []
+    assert capture.unowned_devices(cfg_name) == ["d1"]
