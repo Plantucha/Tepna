@@ -414,10 +414,24 @@ branches ("a duration nothing measured stays unmeasured") are exactly the ones a
 enters, so a comment describing one is a claim nothing checks. **Rule: when a fix has a
 refuse/unmeasured branch, that branch owes a test leg, not a sentence.** Same family as 2.1.
 
-### 2.6 The dormant-surface alias matcher: an alias shorter than a word is not a surface token
+### 2.6 The dormant-surface alias matcher: an alias shorter than a word is not a surface token — **CLOSED 2026-09-06**
 MotionDex `uprightFrac`'s bare alias `upright` matched a posture ENUM value in `POS_ORDER` — a false
 positive. Matcher (#2072) now admits the label always, an alias only if multi-word or ≥ 8 chars; negative
 control keeps the ECGDex pair. Generalise to any label-driven scan.
+
+**MEASURED 2026-09-06 — there is nothing to generalise TO, and the real hole was elsewhere.**
+The suite contains exactly **ONE** alias-driven scan (this one), so "generalise to any label-driven
+scan" had no second site: a sweep would have found zero and read as thorough. What the measurement did
+find is that the rule is **asymmetric** — an alias needs multi-word-or-≥8-chars, the **label is admitted
+unconditionally** — and a bare short *label* would false-positive on a quoted enum value exactly as
+`upright` did, with nothing to stop it. Exposure today: **0 of 23** dormant entries carry such a label,
+so the exemption costs nothing now; but **116 of the fleet's 520 labels** are bare words under 8 chars
+(`ODI`, `SD1`, `T90`, `QTc`, …), so the day any one of them is marked dormant the gate starts crying
+wolf — which is how a gate gets deleted. Closed by asserting the **precondition** rather than sweeping
+for a hazard with no instance: a new assertion in the same group names any dormant entry whose label is
+a bare word < 8 chars. Plant-tested both ways (relabel a dormant entry `ODI` → reds and names it;
+restore → silent). It forbids no authoring — it reports that the scan cannot verify that entry, which
+is a fact about the gate, not about the metric.
 
 ### 2.7 A `rec.gaps` fold ADDS dead time to later beats rather than removing them
 A folded night keeps its active seconds and grows only its span (F3). Read this before writing another
