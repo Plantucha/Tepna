@@ -50,10 +50,22 @@ FULL_STATUS = {
     "ring_config_verdict": "brightness=2 applied",
     "ring_buzz_at": "2026-08-19T22:41:03.117",
     "ring_rtc_reset_suspect": "2026-08-20T05:02:11",
+    # Who answered 0xE1 (audit §6.2 Mitigation C, 2026-09-05): the wire serial, firmware, and the verdict.
+    "ring_serial": "2592302100",
+    "ring_firmware": "2D010002",
+    "ring_identity_mismatch": "connected peer reports '2592302100', config expects '2592399999'",
+    # Clause 2: the RUN of connects that answered identity and served nothing, and its verdict.
+    "ring_barren_connects": 3,
+    "ring_barren_alert": "3 consecutive connects answered the identity query and delivered no frames",
     # The two OxyII lifecycle axes (charter G4). Journalled to OXYLIFE.csv and written to STATUS from
     # the first G4 night and forwarded by nobody for thirteen nights (2026-08-24 → 09-05).
     "oxy_lifecycle": "idle_unworn",
     "oxy_recording": "end_candidate",
+    # The restart-storm block (capture.oxy_storm_status, 2026-09-05). Same class as the two axes
+    # above: state the daemon owned and no reader could see.
+    "oxy_storm": {"trips": ["2026-09-05T22:20:00"], "last_trip": "2026-09-05T22:20:00",
+                  "hold_until": "2026-09-05T22:45:00", "hold_remaining_s": 900,
+                  "restarts_in_window": 0, "restarts_total": 61},
 }
 
 DEV = {"name": "H10", "vendor": "Polar", "model": "H10", "device_id": "12345678",
@@ -82,6 +94,14 @@ DEVICE_KEYS = {
     # when it was read, the ring's own 0x00-read-back settings struct, and the last write's verdict.
     "ring_rtc_offset_s", "ring_rtc_read", "ring_config", "ring_config_verdict", "ring_buzz_at",
     "ring_rtc_reset_suspect",
+    # The ring's IDENTITY as the peer reported it (0xE1 wire serial + firmware) and the §6.2 Mitigation C
+    # mismatch verdict. Added deliberately: a wrong ring streams SpO₂ like the right one, so every other
+    # key here reads healthy — this is the only one that can say the link is the wrong device, and a
+    # STATUS field this list omits is not published (the rule this file exists to enforce).
+    "ring_serial", "ring_firmware", "ring_identity_mismatch",
+    # …and clause 2, which is the OTHER way that link can be wrong: it answers and serves nothing. The
+    # count ships beside the verdict because a zero and an absent field are different facts.
+    "ring_barren_connects", "ring_barren_alert",
     # The O2Ring PRESENCE axis and its §19 EXECUTION WITNESS (O2RING-AUTONOMOUS-HARVEST §19/§20).
     # Added to this contract DELIBERATELY rather than by relaxing the assertion: the key set IS the
     # monitor's contract, and §20 exists because a field that reaches `/api/state` and no further is
@@ -92,6 +112,9 @@ DEVICE_KEYS = {
     # visible in STATUS". They WERE in STATUS; `/api/state` on the live daemon carried neither key
     # (2026-09-05), which is the exact failure the docstring above describes, thirteen nights long.
     "oxy_lifecycle", "oxy_recording",
+    # The restart-storm hold's ONLY witness outside a log line — a hold that fires overnight is
+    # otherwise reconstructable only by grepping the journal for a restart marker.
+    "oxy_storm",
 }
 
 
@@ -144,10 +167,20 @@ def test_a_device_projects_every_field_it_promises(tmp_path):
     assert d["ring_config_verdict"] == "brightness=2 applied"
     assert d["ring_buzz_at"] == "2026-08-19T22:41:03.117"
     assert d["ring_rtc_reset_suspect"] == "2026-08-20T05:02:11"
+    assert d["ring_serial"] == "2592302100" and d["ring_firmware"] == "2D010002"
+    assert d["ring_identity_mismatch"] == "connected peer reports '2592302100', config expects '2592399999'", (
+        "the verdict must arrive as the SENTENCE the journal carries — the monitor draws it verbatim")
+    assert d["ring_barren_connects"] == 3
+    assert d["ring_barren_alert"].startswith("3 consecutive connects")
     # G4: both axes arrive as the state STRINGS the journal uses, so the monitor draws the same word
     # OXYLIFE.csv records — an operator can match the chip to the row.
     assert d["oxy_lifecycle"] == "idle_unworn"
     assert d["oxy_recording"] == "end_candidate"
+    # Forwarded WHOLE, not flattened: the watcher repoints from a journal grep to `restarts_total`,
+    # and the monitor needs `hold_remaining_s` beside the deadline.
+    assert d["oxy_storm"]["restarts_total"] == 61
+    assert d["oxy_storm"]["hold_remaining_s"] == 900
+    assert d["oxy_storm"]["trips"] == ["2026-09-05T22:20:00"]
 
 
 def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):
@@ -159,7 +192,9 @@ def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):
     assert d["connected"] is False, "never reported is a definite NO, not unknown"
     assert d["charging"] is False
     for k in ("battery", "rssi", "clock_synced", "device_time", "clock_skew_sec", "pull_progress",
-              "link_epoch", "worn", "last_error", "oxy_lifecycle", "oxy_recording"):
+              "link_epoch", "worn", "last_error", "oxy_lifecycle", "oxy_recording",
+              "ring_serial", "ring_firmware", "ring_identity_mismatch",
+              "ring_barren_connects", "ring_barren_alert"):
         assert d[k] is None, f"{k} must be null when the device has never reported"
 
 

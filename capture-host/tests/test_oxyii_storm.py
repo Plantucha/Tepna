@@ -101,3 +101,80 @@ def test_replay_a_quiet_night_is_untouched():
     """Two restarts in a night (e.g. finger on, finger off and on) — no hold, both seen: the policy costs a
     normal night nothing."""
     assert _replay([3 * 3600.0, 2 * 3600.0]) == (2, 0, 0.0)
+
+
+# ── the STATUS block (oxy_storm_status) ─────────────────────────────────────────────────────────────
+# Added 2026-09-05 after the hold shipped with its whole state in module dicts and one log.warning:
+# /api/state carried ZERO storm keys, so a hold that fires overnight left no trace a reader could see
+# and the storm watch had to count a journal line as a proxy. These tests pin what a reader gets.
+
+import datetime as _dt
+
+WALL = _dt.datetime(2026, 9, 5, 22, 30, 0)
+
+
+def _block(storms=(), hold_until=None, restarts=(), total=0, now=10_000.0, proc_start=9_400.0):
+    return capture.oxy_storm_status(list(storms), hold_until, list(restarts), total, now, WALL, proc_start)
+
+
+def test_a_night_with_no_storm_publishes_an_empty_but_present_block():
+    """Present-and-empty, never absent: a reader must be able to tell 'no storm' from 'not published'."""
+    b = _block()
+    assert b == {"trips": [], "last_trip": None, "hold_until": None, "hold_remaining_s": 0,
+                 "restarts_in_window": 0, "restarts_total": 0,
+                 "restarts_since": "2026-09-05T22:20:00"}
+
+
+def test_monotonic_times_are_rendered_as_civil_time():
+    """A monotonic second is uptime-relative and meaningless to any reader outside this process."""
+    b = _block(storms=[10_000.0 - 600.0], now=10_000.0)
+    assert b["trips"] == ["2026-09-05T22:20:00"]        # 600 s before WALL
+    assert b["last_trip"] == "2026-09-05T22:20:00"
+
+
+def test_an_active_hold_publishes_both_the_deadline_and_the_remaining_seconds():
+    """`hold_remaining_s` is self-evident; `hold_until` needs the reader to trust two clocks. Both."""
+    b = _block(storms=[9_950.0], hold_until=10_900.0, now=10_000.0)
+    assert b["hold_remaining_s"] == 900
+    assert b["hold_until"] == "2026-09-05T22:45:00"     # 900 s after WALL
+
+
+def test_an_expired_hold_reads_as_no_hold_but_keeps_the_trip():
+    """The night's evidence that a hold FIRED must outlive the hold — that is the point of publishing."""
+    b = _block(storms=[9_000.0], hold_until=9_900.0, now=10_000.0)
+    assert b["hold_until"] is None and b["hold_remaining_s"] == 0
+    assert b["last_trip"] is not None
+
+
+def test_trips_older_than_the_memory_span_drop_out_and_are_sorted():
+    """Same span the hold escalates over, so `trips` and the doubling always tell one story."""
+    b = _block(storms=[10_000.0 - MEM - 1, 10_000.0 - 60.0, 10_000.0 - 600.0], now=10_000.0)
+    assert len(b["trips"]) == 2
+    assert b["trips"] == sorted(b["trips"])
+    assert b["last_trip"] == b["trips"][-1]
+
+
+def test_restarts_total_is_the_untruncated_count_and_the_window_count_is_not():
+    """The detector PRUNES `restarts` to its window — reading that as a night's tally under-counts every
+    storm, which is exactly the mistake publishing a separate total exists to prevent."""
+    b = _block(restarts=[9_990.0, 9_995.0], total=61, now=10_000.0)
+    assert b["restarts_in_window"] == 2
+    assert b["restarts_total"] == 61
+
+
+def test_the_block_is_json_serialisable():
+    """It rides /api/state; a stray datetime or monotonic float would break the whole status payload."""
+    import json
+    json.loads(json.dumps(_block(storms=[9_950.0], hold_until=10_900.0, restarts=[9_990.0], total=3)))
+
+
+def test_restarts_since_is_the_process_epoch_not_boot():
+    """`restarts_total` resets on every daemon restart and this box redeploys several times a day, so
+    a consumer MUST be able to tell a reset from the storm ending. Monotonic 0 would be BOOT — which
+    the box does far more rarely than it redeploys, so publishing it would hide exactly the resets
+    this field exists to expose."""
+    b = _block(total=61, now=10_000.0, proc_start=9_400.0)      # process began 600 s before now
+    assert b["restarts_since"] == "2026-09-05T22:20:00"
+    later = _block(total=0, now=10_600.0, proc_start=10_500.0)  # redeployed: count reset, epoch moved
+    assert later["restarts_total"] == 0
+    assert later["restarts_since"] != b["restarts_since"]

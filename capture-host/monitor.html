@@ -884,6 +884,24 @@ function oxyRecChip(d){
   return '<span class="dbadge '+cls+'" title="ring onboard session state, from duration_s (OXYLIFE.csv rec axis)">'
        + esc(s.replace(/^rec_/,''))+'</span>';
 }
+function oxyStormChip(d){
+  const st = d && d.oxy_storm;
+  if(!st) return '';
+  // HELD is the state an operator must see at a glance: the daemon is deliberately NOT talking to the
+  // ring, which otherwise looks identical to a link that has failed. Past trips stay drawn after the
+  // hold clears, because a hold that fires at 02:00 and ends at 02:15 is invisible by morning
+  // otherwise — and morning is when anyone reads this.
+  if(st.hold_remaining_s > 0){
+    const m = Math.round(st.hold_remaining_s/60);
+    return '<span class="dbadge warn" title="restart storm: the ring is being left alone deliberately'
+         + ' — not a failed link. Resumes at '+esc(st.hold_until||'?')+'">storm hold '+m+'m</span>';
+  }
+  if(st.trips && st.trips.length){
+    return '<span class="dbadge warn" title="restart storm(s) tripped tonight; hold has since cleared.'
+         + ' Last: '+esc(st.last_trip||'?')+'">storm ×'+st.trips.length+'</span>';
+  }
+  return '';
+}
 function clkChip(dev){
   const st = clockStatus(dev);
   if(!st) return '';
@@ -1155,6 +1173,51 @@ function renderRingRtc(status) {
   const when = esc(String(status.ring_rtc_reset_suspect).slice(0, 19).replace('T', ' '));
   return `<span id="ring-rtc-alarm" class="mb" style="color:#c55">⚠ ring RTC reset suspected ${when}`
     + ' — the stored .dat timebase is suspect from here until the next verified clock push</span>';
+}
+
+// The ring's IDENTITY as the connected peer reported it (0xE1 wire serial + firmware), and the audit
+// §6.2 Mitigation C alarm when capture.py found it ≠ the configured `serial:`. Same extraction contract
+// as renderRingRtc: top-level, depends only on esc(), and every device-derived string is entity-encoded
+// before innerHTML. Renders the identity line whenever a serial or firmware has been read (id
+// #ring-identity), the alarm only when `ring_identity_mismatch` is set (id #ring-identity-alarm), and
+// NOTHING — no placeholder — before the first readback. A wrong ring streams SpO₂ like the right one,
+// so this line is the only place the monitor can say the link is the wrong device.
+function renderRingIdentity(status) {
+  if (!status) return '';
+  const sn = status.ring_serial, fw = status.ring_firmware, mm = status.ring_identity_mismatch;
+  let out = '';
+  if (sn || fw) {
+    // "branch", NOT "firmware", and the distinction is the device's own: oxyii.py:272-278 records
+    // that the ring answers with branch 2D010001 AND firmware 1.13.1.0 — two different fields of one
+    // 0xE1 reply — and that `parse_get_info` returns the BRANCH under the key "firmware". Drawing it
+    // as a firmware version puts a number on the operator's screen under the wrong name, which is the
+    // failure this panel exists to prevent, one field over. The STATUS key keeps the parser's name so
+    // the two cannot disagree; renaming both is residue 2026-09-02-oxyii-branchcode-named-firmware
+    // and belongs with the parser.
+    out += `<div id="ring-identity" class="hint">peer identity: serial <b>${esc(String(sn || '—'))}</b>`
+      + ` · branch <b>${esc(String(fw || '—'))}</b> <span class="hint">(0xE1 wire serial + branch code — not the filename id, and not the firmware version)</span></div>`;
+  }
+  if (mm) {
+    out += `<div id="ring-identity-alarm" class="mb" style="color:#c55">⚠ RING IDENTITY MISMATCH — ${esc(String(mm))}`
+      + ' — data from this link is suspect until the serial matches</div>';
+  }
+  // Clause 2, in two steps. The RUN is drawn only while it is non-zero — a healthy box shows
+  // nothing at all rather than a `0` the operator learns to skip — and the ALARM appears once the
+  // run reaches the threshold, so the two-and-below case is visible without being loud.
+  //
+  // The count was NOT drawn at first, deliberately, and that was wrong: `find_unwired` reds a field
+  // webmon forwards and monitor.html never draws, which is the half-wired shape (O2RING §20 — a
+  // field that reaches /api/state and no further is exposed to nobody). Forwarding a number no
+  // surface shows is not restraint, it is the defect that scan exists to name.
+  if (Number(status.ring_barren_connects) > 0) {
+    out += `<div id="ring-barren" class="hint">connects that answered identity and served nothing:`
+      + ` <b>${esc(String(status.ring_barren_connects))}</b> in a row</div>`;
+  }
+  if (status.ring_barren_alert) {
+    out += `<div id="ring-barren-alarm" class="mb" style="color:#c55">⚠ ${esc(String(status.ring_barren_alert))}`
+      + ' — the link is up and nothing is arriving over it</div>';
+  }
+  return out;
 }
 
 function renderStorageStatus(){
@@ -1805,7 +1868,7 @@ function renderRemembered(devs, settingsList){
   el.innerHTML = devs.map(d=>`
     <div class="dev">
       <div class="meta">
-        <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${chargeChip(d)} ${wornChip(d)} ${rateChip(d)} ${battChip(d.battery)} ${d.connected?(dh=>rssiChip(d.rssi,dh.health,dh.title))(deviceHealth(d)):''} ${clkChip(d)} ${oxyLifeChip(d)} ${oxyRecChip(d)} ${presenceChip(d)} ${witnessChip(d)}</div>
+        <div class="name">${esc(d.name)} ${d.connected?'<span class="dbadge on">live</span>':'<span class="dbadge warn">idle</span>'} ${chargeChip(d)} ${wornChip(d)} ${rateChip(d)} ${battChip(d.battery)} ${d.connected?(dh=>rssiChip(d.rssi,dh.health,dh.title))(deviceHealth(d)):''} ${clkChip(d)} ${oxyLifeChip(d)} ${oxyRecChip(d)} ${oxyStormChip(d)} ${presenceChip(d)} ${witnessChip(d)}</div>
         <div class="sub">${esc(d.address||'')}${(d.rssi!=null&&isFinite(d.rssi))?(' · '+d.rssi+' dBm'):''} · ${(d.streams||[]).join(', ')}${lastSampleText(d)}${d.clock_synced?(' · clock '+esc(String(d.clock_synced).slice(11,19))):''}${(d.link_epoch>1)?(' · '+d.link_epoch+' reconnects'):''}${(d.last_error && !d.charging)?(' · '+esc(d.last_error)):''}</div>
       </div>
       <button class="btn" onclick='syncTime(${esc(JSON.stringify(d.address))}, this)' title="Set this device's INTERNAL clock from the host (it stamps every sample with device time). Pauses that device's capture for a few seconds.">🕐 Sync time</button>
@@ -2032,11 +2095,12 @@ function deviceSettingsBlock(d){
       const verdict = d.ring_config_verdict
         ? `<div class="rate-why"><b>${esc(d.ring_config_verdict)}</b></div>` : '';
       const rtcAlarm = renderRingRtc(d);   // the RTC-reset alarm; extractable top-level fn (see below)
+      const ident = renderRingIdentity(d); // who answered 0xE1, and the §6.2 Mitigation C verdict
       const bsel = [0,1,2].map(v =>
         `<option value="${v}" ${rc.brightness===v?'selected':''}>${['Low','Medium','High'][v]}</option>`).join('');
       return `<div class="setrow" style="display:block;margin-top:.4rem">
         <span class="k">ring device</span>
-        <span class="mb">${clock}</span>${rtcAlarm}
+        <span class="mb">${clock}</span>${rtcAlarm}${ident}
         <div style="margin-top:.3rem">
           display brightness
           <select class="ringcfg" data-addr="${esc(d.address)}" data-field="brightness">${bsel}</select>
