@@ -924,6 +924,56 @@ def radio_looks_deaf(seen: int, connected_any: bool, consecutive_silent: int, mi
     return consecutive_silent >= min_silent_rounds
 
 
+def device_is_streaming(d: dict) -> bool:
+    """Is this device actually PRODUCING? `connected` alone is not the question, and that distinction is
+    the one the whole watchdog turns on: a sensor on its charger reports connected=True while producing
+    nothing, and the Verity reports `worn` while sitting on a desk. Named and single-sourced because the
+    CPAP escalation gate needs the SAME test — a second copy is how the two drift into disagreeing about
+    what "live" means, and then one of them power-cycles a working radio."""
+    return bool(d.get("connected") and not d.get("charging") and d.get("worn") is not False)
+
+
+def cpap_escalation_gate(cfg: dict, cpap_mac: "str | None", status_devices: dict,
+                         usb_id: "str | None") -> dict:
+    """May an EXHAUSTED CPAP wedge budget hand off to the adapter ladder? Pure: returns
+    `{"escalate": bool, "reason": str, "blockers": [...]}` and touches no hardware.
+
+    Residue `2026-09-04-cpap-wedge-failover-masks-escalation`: the per-device ladder ends at
+    `_restart_radio()` under a 2/day budget, while the rungs that actually fix an RTL8761B-class wedge
+    (power-cycle -> `hciconfig reset` -> `_usb_rebind`) hang off `adapter_watchdog`, which arms only
+    when a scan returns ZERO devices. A radio deaf to ONE device still sees everything else, so
+    `consecutive` resets every round and those rungs are unreachable. Measured 2026-09-04: hci0 found
+    the CPAP 0 times in 137 rounds while enumerating 107 then 81 other devices.
+
+    GATED, because the fix is more dangerous than the fault if it fires wrongly: this can power-cycle
+    and re-enumerate a radio, so it may run ONLY when no other device on that adapter is live. On the
+    box today nothing else is declared on the CPAP's adapter, so the gate is satisfied by
+    CONFIGURATION — it exists for the day that stops being true, which is exactly when a global
+    predicate would take the wearables down with it."""
+    blockers = []
+    if not cpap_mac:
+        blockers.append("no cpap.ble_stream.adapter pinned — nothing to escalate on")
+    else:
+        live = [
+            (d or {}).get("name")
+            for d in instance_devices(cfg, cpap_mac)
+            if device_is_streaming((status_devices or {}).get((d or {}).get("name"), {}))
+        ]
+        if live:
+            blockers.append("other device(s) STREAMING on that adapter: " + ", ".join(x for x in live if x))
+    if not usb_id:
+        # 🔴 REFUSE, never fall back. `watchdog.usb_path` is one static value for the whole box and
+        # names a radio that may be neither the watched nor the wedged one — measured on vigil as
+        # `1-2` (UB500/hci0) while the watchdog watched the Sena (hci1, USB 1-5). A fallback here is
+        # how that wrong-radio rebind re-enters through the back door.
+        blockers.append("no USB bus-port derivable from the adapter MAC — refusing L3 "
+                        "(watchdog.usb_path is NOT a fallback)")
+    if blockers:
+        return {"escalate": False, "reason": "; ".join(blockers), "blockers": blockers}
+    return {"escalate": True, "reason": f"budget spent, adapter {cpap_mac} serves nothing else live, "
+                                        f"USB {usb_id} derived from the adapter itself", "blockers": []}
+
+
 def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = None) -> dict:
     """PURE (testable): from each configured device's {name, connected, last_error, bluez_connected} plus
     the PINNED ADAPTER's own up/down state, decide whether the BLE ADAPTER looks WEDGED vs merely idle
@@ -971,8 +1021,7 @@ def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = Non
     # The PHANTOM branch below is untouched: it genuinely wants link EXISTENCE (`bluez_connected` while
     # our own `connected` is False), it is per-device, and a stale link is a wedge whether or not
     # anything is streaming.
-    any_streaming = any(d.get("connected") and not d.get("charging") and d.get("worn") is not False
-                        for d in devices)
+    any_streaming = any(device_is_streaming(d) for d in devices)
     # A DOWN/absent pinned adapter while it is serving NOBODY is the most direct wedge signal there is —
     # and the one the per-device errors below cannot express. Guarded by `not any_streaming` (identical to
     # the InProgress guard): a live STREAM is proof the radio works, so a probe misread can never
@@ -1106,23 +1155,53 @@ def defense_warnings(autosuspend_value: "str | None", capeff_hex: "str | None", 
     return out
 
 
-def _usb_power_control_path(hci: str) -> "str | None":
-    """The USB `power/control` sysfs path for a bluetooth `hciN`, or None if not a USB adapter / not found.
-    Generic: walks /sys/class/bluetooth/<hci>/device up to the first ancestor carrying an idVendor (the USB
-    device node) and returns its power/control. Works on any host, not just this box's bus-port."""
+def _usb_dev_dir(hci: str, sysfs_root: str = "/sys/class/bluetooth") -> "str | None":
+    """The USB DEVICE DIRECTORY behind a bluetooth `hciN` — the first ancestor carrying `idVendor` —
+    or None when the controller is not on USB (an internal/PCI radio) or the walk fails.
+
+    Single-sourced because two callers need different parts of the same answer: the power/control
+    path below, and the BUS-PORT ID (`adapter_usb_id`) that `_usb_rebind` takes. `sysfs_root` is a
+    parameter so a test can build a fake tree instead of asserting against this host's real bus."""
     try:
-        d = os.path.realpath(f"/sys/class/bluetooth/{hci}/device")
+        d = os.path.realpath(os.path.join(sysfs_root, hci, "device"))
         while d and d != "/":
             if os.path.exists(os.path.join(d, "idVendor")):
-                ctrl = os.path.join(d, "power", "control")
-                return ctrl if os.path.exists(ctrl) else None
+                return d
             d = os.path.dirname(d)
     except Exception:
-        # None means BOTH "this host exposes no power/control" and "we could not walk to it". The
-        # caller keeps `autosuspend = None`, i.e. UNKNOWN, and refuses to report the defense armed —
-        # so the conflation costs a reason, never a fabricated pass.
-        log.debug("could not resolve the USB power/control path for %s", hci, exc_info=True)
+        log.debug("could not walk sysfs to the USB device node for %s", hci, exc_info=True)
     return None
+
+
+def adapter_usb_id(hci: str, sysfs_root: str = "/sys/class/bluetooth") -> "str | None":
+    """The USB bus-port id (`'1-2'`) for `hciN`, or None when it is not a USB adapter / unresolvable.
+
+    🔴 THIS IS THE ONLY SANCTIONED SOURCE OF A REBIND TARGET, and `watchdog.usb_path` is NOT a
+    fallback for it. That static value names ONE radio for the whole box: measured 2026-09-06 on
+    vigil it was `1-2` (the UB500, hci0) while `adapter_watchdog` was watching `cfg["adapter"]`
+    (the Sena, hci1, USB 1-5) — so an L3 rung firing then would have re-bound a radio it was not
+    monitoring and which was not the wedged one. Deriving from the adapter's own MAC cannot make
+    that mistake. If this returns None the caller must REFUSE the rung and say so; falling back to
+    the static path is precisely how the wrong-radio rebind re-enters."""
+    d = _usb_dev_dir(hci, sysfs_root)
+    return os.path.basename(d) if d else None
+
+
+def _usb_power_control_path(hci: str) -> "str | None":
+    """The USB `power/control` sysfs path for a bluetooth `hciN`, or None if not a USB adapter / not found.
+
+    None means BOTH "this host exposes no power/control" and "we could not walk to it". The caller keeps
+    `autosuspend = None`, i.e. UNKNOWN, and refuses to report the defence armed — so the conflation costs
+    a reason, never a fabricated pass.
+
+    No try/except here: the walk that can raise now lives in `_usb_dev_dir`, which catches and returns
+    None. An outer handler would be UNREACHABLE — the first draft of this refactor kept one, and the
+    100% coverage floor is what surfaced it as three dead lines rather than letting it read as defence."""
+    d = _usb_dev_dir(hci)
+    if not d:
+        return None
+    ctrl = os.path.join(d, "power", "control")
+    return ctrl if os.path.exists(ctrl) else None
 
 
 def _gather_helper_warnings() -> list[str]:
@@ -5154,6 +5233,7 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
     consecutive = cycles = silent = healthy_run = failovers = 0
     distress_fired = False   # rising-edge latch for the adapter-level distress log (once per episode)
     wedge_restarts, wedge_day = 0, None      # per-device wedge budget, reset each day
+    cpap_handoffs = 0                        # adapter-ladder handoffs after that budget is SPENT (1/day)
     max_failovers = int(wcfg.get("max_failovers", 3))   # P1.5: cap ping-pong between two flaky radios
     sel = f"select {adapter_mac}\n" if adapter_mac else ""
     while not _STOP.is_set():
@@ -5240,7 +5320,7 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                 age_s = None if last_ms is None else max(0.0, _time.time() - last_ms / 1000.0)
                 today = _dt.date.today()
                 if wedge_day != today:
-                    wedge_day, wedge_restarts = today, 0
+                    wedge_day, wedge_restarts, cpap_handoffs = today, 0, 0
                 verdict, why = bluez_wedge.wedge_verdict(
                     int(cpap_st.get("unreachable_streak") or 0),
                     # `connected_any` IS the honest reading of "demonstrably healthy" here: if nothing
@@ -5273,6 +5353,39 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                         # SAY IT ANYWAY. The budget governs what we DO, never what we report — a
                         # wedged night must not read as healthy because our bookkeeping ran out.
                         log.error("watchdog: bluez appears BLIND TO THE CPAP (%s) but %s", why, budget_why)
+                        # ── HAND OFF TO THE ADAPTER LADDER (residue 2026-09-04-cpap-wedge-failover-
+                        #    masks-escalation). Budget spent USED TO BE THE END: the rungs that fix an
+                        #    RTL8761B-class wedge live in `adapter_watchdog`, which arms only when a scan
+                        #    returns ZERO devices — and a radio deaf to ONE device still sees everything
+                        #    else, so they were unreachable. Measured 2026-09-04: the CPAP was found 0
+                        #    times in 137 rounds while 107 then 81 other devices enumerated fine, and a
+                        #    manual `tepna-btreset.sh` fixed it at once.
+                        #    ONE per day: this is the LAST resort after the restart budget, not a loop.
+                        _cpap_mac = ((cfg.get("cpap") or {}).get("ble_stream") or {}).get("adapter")
+                        _cp_hci = await adapter_hci(_cpap_mac) if _cpap_mac else None
+                        _cp_usb = adapter_usb_id(_cp_hci) if _cp_hci else None
+                        _gate = cpap_escalation_gate(cfg, _cpap_mac, STATUS.get("devices", {}), _cp_usb)
+                        if cpap_handoffs >= 1:
+                            log.error("watchdog: CPAP adapter-ladder handoff already spent today — not repeating")
+                        elif not _gate["escalate"]:
+                            # REPORTED, not silent: a refusal is the interesting half. This is the line
+                            # that tells an operator the rung exists and why it did not fire.
+                            log.error("watchdog: CPAP adapter-ladder handoff REFUSED — %s", _gate["reason"])
+                        else:
+                            cpap_handoffs += 1
+                            log.error("watchdog: escalating the CPAP wedge to the adapter ladder — %s",
+                                      _gate["reason"])
+                            _wedge_fire_record(cfg.get("root") or "", "cpap-escalation", _gate["reason"],
+                                               cpap_st.get("last_unreachable_class"))
+                            if wcfg.get("hci_reset", True):
+                                await _adapter_cmd(["hciconfig", _cp_hci, "reset"]); await asyncio.sleep(2)
+                            await _usb_rebind(str(_cp_usb)); await asyncio.sleep(2)
+                            # CRITICAL, matching this function's own idiom — `notifier` is NOT in scope
+                            # here (it is a `keep_running` argument, not an `adapter_watchdog` one). The
+                            # first draft of this block called it and would have raised NameError on the
+                            # one path that runs only during an incident.
+                            log.critical("watchdog: CPAP adapter ladder FIRED on %s (hci %s, USB %s) — %s",
+                                         _cpap_mac, _cp_hci, _cp_usb, _gate["reason"])
 
             # IS THE RADIO COPING? A CLEAN POLL IS NOT THE SAME AS A HEALTHY RADIO — the checks
             # above ask whether the adapter is WEDGED, and a radio that is up, answering, and simply
