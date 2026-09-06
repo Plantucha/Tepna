@@ -672,6 +672,64 @@ Status lives in a one-line header block on the first content line (just after an
   relocation is `docs-archive/` for a *truly dead* doc, done deliberately with a redirect stub, never
   automatically on stamp.
 
+## ∅ ABSENCE IS NULL — never a number (non-negotiable, owner-reinforced 2026-09-06)
+
+**A value that was not measured is `null`. It is never `0`, never a default, never a sentinel that lives
+inside the value's own range — at EVERY layer: capture writer · sidecar · parser · DSP · export · render.**
+This was a founding rule of the suite. It was written down twice — the Clock Contract §2.6 (*"a missing
+stamp must be visible (null), never fabricated"*) and `parse_live`'s scalars (SpO₂ outside 50–100 → null,
+PR outside 20–250 → null) — and both held. **It was never written for the raw waveform bytes**, and that is
+where it failed, after two thousand commits: the O2Ring's `_PPG.txt` (2026-09-05, `S8AW2100`) carries
+**3048 samples of exact `0` in 149 runs, 105 of them ≥ 10 consecutive, the longest 78 samples (0.62 s)**,
+against a modal baseline of 114–119, sitting INSIDE complete 127-sample frames — in-band blanking, not a
+delivery gap. No consumer guards it (`PPG_INVALID` is an alias for the `156` beat marker — a name that
+sounds like the guard and is a different thing). Every fixture reproduced the zeros faithfully because
+that is what was on disk, so every gate was green. Owner, on finding it: *"zero appearance in data for
+compute is reprehensible … this is absolute priority for everyone because it breaks basic."*
+
+What the rule means when the sentinel is IN-BAND, which is the case the two earlier statements never had
+to face:
+
+- **A consumer cannot null what it cannot distinguish.** `0` is a legal u8. So the fix is never a
+  `!= 0` in a DSP — that invents a sentinel and convicts every stream where zero is a real value (ECG µV
+  crosses zero on every beat; an ACC axis rests at 0 mG). **Validity must travel OUT-OF-BAND**: the
+  emitter, or the capture path, or an end-of-night back-check records *where the signal was absent* in a
+  **sidecar** (a span list is orders of magnitude smaller than the data), and consumers read the sidecar.
+- **Captured bytes are immutable.** A recording is evidence; it is never rewritten to "fix" it, not even
+  to replace a fabricated `0` with a null. Correction lives beside the file, dated and attributed.
+- **Detection is distributional, not a literal.** The test that finds fabricated absence is a run-length
+  signature against the stream's OWN value distribution — a pleth does not sit at exactly one value for
+  78 samples — and it must run **on every device, from day 1 of the corpus**, and then stand as a
+  tripwire that reds the day a new stream first carries it. A hardcoded `!= 0` fixes zero and misses the
+  next sentinel (an in-range value can do the same thing); a rule that flags deliberate working behaviour
+  is the wrong rule, not a finding. **Key on RUN LENGTH, never on value membership** (Heron,
+  2026-09-06, independently on a second file of the same night: 2738 zeros in 125 runs ≈ 22 per run,
+  versus the ring's `156` beat markers — 5455 of them in 5405 runs, singletons by construction). A
+  value-keyed detector would flag every beat marker as corruption and bury the real signal 2:1; run
+  length separates the two populations by itself and generalises to the next constant nobody has met.
+- **An output computed over absent input reports the absence.** A metric over a window that contained
+  blanking carries its coverage (`n`, the excluded span) or is itself `null`. A number that is computable
+  from fabricated input and carries no information is the zero one layer up.
+- **Ask "the device emitted it" vs "our path manufactured it" BEFORE proposing the remedy.** They are
+  different fixes with different blast radii. For the O2Ring this is CUT (Wren, 2026-09-06): **the ring
+  emits the zeros** — `oxyii.py:838` returns `payload[26:26+n]` untransformed and `capture.py:4293` writes
+  `v` straight through; no default, no fill, no failure path yields 0. So the bytes are a faithful record
+  and the missing thing is the interpretation layer, which is exactly why the sidecar is the remedy and
+  not a compromise. ⚠️ That does NOT establish what `0` means *to the ring* (LED off, ADC underflow, a
+  deliberate sentinel) — the distribution says it is not signal, not what the device meant; that needs
+  vendor documentation or a controlled finger-off capture, a separate unit. Fit no story to the signal
+  before cutting it.
+
+**The mechanism is pending the owner's review** (all-hands 2026-09-06: survey every device → sidecar
+proposal → fix after review → refold → check which goldens and which PAT numbers moved → prevention on
+the fly with an end-of-night back-check). Nothing in this section authorises a fix to land before that
+review. What it authorises — requires — is that **no new writer, parser, DSP or export ever again
+represents "not measured" as a number**, and that a reviewer who sees a `0` default, a `?? 0`, a
+`.get(k, 0)` or a zero-filled buffer standing in for absence reads it as the bug this section records.
+Same family as §🔒 §2.6 (stamps), §🎫's "never upgrade a badge on prose" (authority), and §4b's "reported
+success about something it never examined" (gates): a fabricated value, a fabricated tier, a fabricated
+pass — all one shape.
+
 ## 📏 Units — the metric system is superior and is the default (non-negotiable)
 SI / metric is the **canonical and preferred** unit system across the whole suite. **Store and
 compute in metric, always** — kg, cm, °C, mmol/L (or the clinical metric unit a field conventionally

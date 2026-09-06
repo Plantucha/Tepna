@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core UNBLOCKED, remainder unexecuted; verified 2026-09-05).** The 09-01 stamp said this brief waits on oracle output that had never been produced. **That dependency is now satisfied**: #2029 and #2034 produced corpus-wide oracle verdicts over 43 box nights (4 SIGNAL RECOVERED / 20 PARTIAL / 5 NO RECOVERY / 0 UNDEFINED), so the regime split is now readable. Nobody has executed it. ⚠️ ORIGINAL 09-01 STAMP, superseded: TRIAGED 2026-09-01 (Osprey): not independently executed this pass. Shares the WINDOW-ORACLE dependency — the regime split is read off oracle output, which had never been produced against a corpus. That is now executable locally; see that brief's corrected stamp.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§12 oracle · §16 gate self-selection · §17 corpus table) · **Interlocks:** `PAT-FORENSICS-FIDUCIAL-JITTER-2026-08-28-BRIEF.md`, `PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey):** re-verified — still gated on WINDOW-ORACLE output, which is exactly what this drain's oracle re-run (post-#2082 fragment pairing) supplies. **Owner: Osprey. Next step:** read the regime split off the new oracle output once that run's results land in the WINDOW-ORACLE brief; do not re-run the oracle for it. · **SWEEP-FOLD 2026-09-03 (Osprey) — the dependency is not merely unrun, its INPUT has moved.** This brief's regime split is read off WINDOW-ORACLE output, and the sweep measured that output's published tables diverging (§6 withdrawn as circular, real result 7 of 9 cells moved; drift table 5 of 8 rows) under my #2114 picker fix. So the split does not merely await a corpus run — **any regime boundary quoted from the pre-#2114 oracle rests on numbers that have since changed.** Unchanged otherwise since the 2026-09-01 triage. Owner: Osprey. **Next step:** unchanged — take the split from a POST-#2114 oracle run, and do not carry forward a boundary derived from the published tables.
+**Status:** PROPOSED (parked 2026-09-06 — dependency satisfied since #2029/#2034, but both remaining items need instruments that do not exist yet. Blocker in §-park) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core UNBLOCKED, remainder unexecuted; verified 2026-09-05).** The 09-01 stamp said this brief waits on oracle output that had never been produced. **That dependency is now satisfied**: #2029 and #2034 produced corpus-wide oracle verdicts over 43 box nights (4 SIGNAL RECOVERED / 20 PARTIAL / 5 NO RECOVERY / 0 UNDEFINED), so the regime split is now readable. Nobody has executed it. ⚠️ ORIGINAL 09-01 STAMP, superseded: TRIAGED 2026-09-01 (Osprey): not independently executed this pass. Shares the WINDOW-ORACLE dependency — the regime split is read off oracle output, which had never been produced against a corpus. That is now executable locally; see that brief's corrected stamp.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§12 oracle · §16 gate self-selection · §17 corpus table) · **Interlocks:** `PAT-FORENSICS-FIDUCIAL-JITTER-2026-08-28-BRIEF.md`, `PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey):** re-verified — still gated on WINDOW-ORACLE output, which is exactly what this drain's oracle re-run (post-#2082 fragment pairing) supplies. **Owner: Osprey. Next step:** read the regime split off the new oracle output once that run's results land in the WINDOW-ORACLE brief; do not re-run the oracle for it. · **SWEEP-FOLD 2026-09-03 (Osprey) — the dependency is not merely unrun, its INPUT has moved.** This brief's regime split is read off WINDOW-ORACLE output, and the sweep measured that output's published tables diverging (§6 withdrawn as circular, real result 7 of 9 cells moved; drift table 5 of 8 rows) under my #2114 picker fix. So the split does not merely await a corpus run — **any regime boundary quoted from the pre-#2114 oracle rests on numbers that have since changed.** Unchanged otherwise since the 2026-09-01 triage. Owner: Osprey. **Next step:** unchanged — take the split from a POST-#2114 oracle run, and do not carry forward a boundary derived from the published tables.
 
 # PAT clears its own bar on 1 night in 42 — and the failure is the acceptance window, not the sensors
 
@@ -101,6 +101,32 @@ construction, and #1879/#1880 measured per-connection BLE offset drift at median
   The oracle asks whether a physiologically-anchored pairing recovers signal above the ~11 ms sensor
   floor; that experiment, not this table, decides.
 
+
+## §-park · PARKED 2026-09-06 — the dependency cleared, the items did not
+
+The 09-05 stamp said this brief waited on oracle output that had never been produced. **That is now
+satisfied**: #2029 and #2034 produced corpus-wide verdicts over 43 box nights (4 SIGNAL RECOVERED /
+20 PARTIAL / 5 NO RECOVERY / 0 UNDEFINED). The regime split is readable. Both items still cannot be run:
+
+**"Clock-offset hypothesis tested against regime membership"** needs a per-night clock-offset estimate
+that is independent of the regime assignment. The oracle's own mode is not it — the mode IS what regime
+membership is derived from, so testing one against the other is circular. An independent offset exists
+only on nights with a second clock, and the memory `ble-stamp-placement-bounds` records that phone-captured
+nights have none (`spreadMs` 0.13–1.00 ms, one stamp quantum). So this is answerable on the box subset
+only, and needs the offset computed from `hostAxis` rather than from the oracle.
+
+**"Does a physiologically-anchored window recover signal above the sensor floor?"** is a TOOL change, not
+a parameter. `pat-window-oracle` takes `--half-width`, which widens or narrows a search centred on the
+recovered mode; a physiologically-anchored window means constraining the MODE SEARCH to a physiological
+band (200–500 ms per `PPG-FOOT-PLACEMENT` §4a) so a mode outside it cannot be returned at all. The sweep
+already run (w = 50/200/300) does not approximate that — it moves the width, never the admissible centre,
+and the five out-of-window modes (25/165/185/815/1245 ms) are exactly what such a constraint would refuse.
+
+**Who unblocks:** item 1, whoever computes a `hostAxis`-derived per-night offset on the box subset;
+item 2, whoever adds a mode-search constraint to the oracle — which is also the REFUSED-artifact candidate
+already recorded in the sibling brief, so the two should be built together rather than twice.
+
+⚠️ **Parked, not blocked-on-data.**
 ## 7 · Done when
 
 - [x] Full-corpus run, untruncated, all 42 nights, zero-yield rows counted.
