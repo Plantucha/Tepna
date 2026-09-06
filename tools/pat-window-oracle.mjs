@@ -131,6 +131,41 @@ export function band(x, nullSd) {
    same defect ate 2026-08-18's 8.6 s mid-file step on H_axis P2's first run (#2047) — a refusal
    eaten by a catch, in the tool whose #2044 verdict layer exists to stop exactly that class. The
    success shape is unchanged; a caller that must skip checks `res.refusal` (truthy object!). */
+/* THE OVERLAP SPLIT, EXPORTED — residue `2026-09-02-oracle-split-duplicated`.
+   `oracleNight` computed lo/mid/hi inline and did not export it, so `pat-ecg-axis-residual.mjs`
+   re-stated the rule and said so in its own comment: "pat-window-oracle.mjs oracleNight does not
+   export its split". That is the absent abstraction written down in the codebase's own hand.
+
+   ⚠ THIS IS THE SPLIT ALONE, NOT A CALL INTO `oracleNight`. A consumer that only needs lo/mid/hi
+   must not pay for mode-finding and the circular-shift null — that cost is exactly why the copy was
+   made, and routing consumers through `oracleNight` would earn a fifth copy rather than remove one.
+
+   Returns `{ lo, mid, hi, rIn, rA, rB }` or `{ refusal }`. The refusals travel with it, so both
+   callers inherit the self-evidencing message rather than one of them degrading to a bare null. */
+export function overlapSplit(rTimes, fTimes) {
+  const lo = Math.max(rTimes[0], fTimes[0]);
+  const hi = Math.min(rTimes[rTimes.length - 1], fTimes[fTimes.length - 1]);
+  if (!(hi > lo)) {
+    /* SELF-EVIDENCING REFUSAL (FOLLOWUPS §5). "no overlap" used to be the bare phrase, and it was
+       read as a capture-session fact when it was in fact the tool pairing the LARGEST fragment of
+       each stream instead of the most-overlapping pair. This line carries the measurement that
+       distinguishes the two, so nobody has to re-derive it: the two trains' own extents and the gap
+       between them. */
+    const hhmm = (t) => new Date(t).toISOString().slice(11, 16);
+    const gapMin = Math.round((lo - hi) / 60000);
+    return {
+      refusal: `no overlap between the two trains (R ${hhmm(rTimes[0])}–${hhmm(rTimes[rTimes.length - 1])} vs feet ${hhmm(fTimes[0])}–${hhmm(fTimes[fTimes.length - 1])}; disjoint by ${gapMin} min)`
+    };
+  }
+  const rIn = rTimes.filter((t) => t >= lo && t <= hi);
+  if (rIn.length < 200) return { refusal: `too few R beats in the overlap (${rIn.length}; need 200)` };
+  const mid = rIn[Math.floor(rIn.length / 2)];
+  const rA = rIn.filter((t) => t < mid);
+  const rB = rIn.filter((t) => t >= mid);
+  if (rA.length < 100 || rB.length < 100) return { refusal: `too few beats per half (A=${rA.length}, B=${rB.length}; need 100 each)` };
+  return { lo, mid, hi, rIn, rA, rB };
+}
+
 export function oracleNight(rTimes, fTimes, halfWidth) {
   if (rTimes.length < 200 || fTimes.length < 200) return { refusal: `too few beats (r=${rTimes.length}, f=${fTimes.length}; need 200 each)` };
   /* 🔴 SPLIT ON THE OVERLAP, NOT ON THE ECG'S OWN EXTENT.
@@ -146,28 +181,9 @@ export function oracleNight(rTimes, fTimes, halfWidth) {
      Those six reported `UNDEFINED (n=0)`, which reads as a data verdict and was a TOOL REFUSAL. The
      discriminator was the span ratio: ~1.0 keeps the scored half inside, 0.25–0.45 puts it wholly
      outside. */
-  const lo = Math.max(rTimes[0], fTimes[0]);
-  const hi = Math.min(rTimes[rTimes.length - 1], fTimes[fTimes.length - 1]);
-  if (!(hi > lo)) {
-    /* SELF-EVIDENCING REFUSAL (FOLLOWUPS §5). "no overlap" used to be the bare phrase, and it was
-       read as a capture-session fact when it was in fact this tool pairing the LARGEST fragment of
-       each stream instead of the most-overlapping pair. The pairing is fixed above; this line now
-       carries the measurement that distinguishes the two, so nobody has to re-derive it: the two
-       trains' own extents and the gap between them. A reader can see at a glance whether the streams
-       are genuinely disjoint (2026-08-20: R 04:27–05:12 against feet 00:55–04:25, and the only other
-       PPG fragment holds 2 feet) or whether a better pair existed. */
-    const hhmm = (t) => new Date(t).toISOString().slice(11, 16);
-    const gapMin = Math.round((lo - hi) / 60000);
-    return {
-      refusal: `no overlap between the two trains (R ${hhmm(rTimes[0])}–${hhmm(rTimes[rTimes.length - 1])} vs feet ${hhmm(fTimes[0])}–${hhmm(fTimes[fTimes.length - 1])}; disjoint by ${gapMin} min)`
-    };
-  }
-  const rIn = rTimes.filter((t) => t >= lo && t <= hi);
-  if (rIn.length < 200) return { refusal: `too few R beats in the overlap (${rIn.length}; need 200)` };
-  const mid = rIn[Math.floor(rIn.length / 2)];
-  const rA = rIn.filter((t) => t < mid);
-  const rB = rIn.filter((t) => t >= mid);
-  if (rA.length < 100 || rB.length < 100) return { refusal: `too few beats per half (A=${rA.length}, B=${rB.length}; need 100 each)` };
+  const _split = overlapSplit(rTimes, fTimes);
+  if (_split.refusal) return { refusal: _split.refusal };
+  const { lo, hi, rIn, mid, rA, rB } = _split;
 
   const mode = lagMode(rawLags(rA, fTimes)); // FIRST half only — out of sample
   if (mode == null) return { refusal: 'no mode — fewer than 30 first-half lags in the search range' };
@@ -256,6 +272,56 @@ function selftest() {
     R.push(t);
   }
   const F = R.map((r) => r + 300 + rnd() * 14).sort((a, b) => a - b);
+  /* ── THE SPLIT HAS ONE DEFINITION ────────────────────────────────────────────────────────────
+     Residue `2026-09-02-oracle-split-duplicated`: `pat-ecg-axis-residual.mjs` carried its own copy
+     of this rule because the oracle did not export it. It does now, and these two assertions are
+     what keep the copy from coming back.
+
+     ASYMMETRIC ON PURPOSE — the feet train starts LATER than the R train and ends LATER, so `lo`
+     comes from the feet and `hi` from the R beats. An implementation that took both endpoints from
+     one train would agree with a symmetric plant and disagree here, so the asymmetry is the whole
+     test. lo/mid/hi are asserted DISTINCT first: if the plant ever degenerated so two of them
+     coincided, the equality below could pass while comparing nothing. */
+  const Fasym = F.slice(200);
+  const sp = overlapSplit(R, Fasym);
+  ok(!sp.refusal, `asymmetric plant must split, got refusal: ${sp.refusal}`);
+  ok(sp.lo === Fasym[0], `lo must come from the FEET train (${sp.lo} vs ${Fasym[0]})`);
+  ok(sp.hi === R[R.length - 1], `hi must come from the R train (${sp.hi} vs ${R[R.length - 1]})`);
+  ok(sp.lo !== sp.mid && sp.mid !== sp.hi && sp.lo !== sp.hi, `lo/mid/hi must be DISTINCT, got ${sp.lo}/${sp.mid}/${sp.hi}`);
+  const resAsym = oracleNight(R, Fasym, 100);
+  ok(!resAsym.refusal, `asymmetric plant must yield an oracle result, got: ${resAsym.refusal}`);
+  ok(
+    resAsym.lo === sp.lo && resAsym.mid === sp.mid && resAsym.hi === sp.hi,
+    `the exported split must equal oracleNight's own: ${sp.lo}/${sp.mid}/${sp.hi} vs ${resAsym.lo}/${resAsym.mid}/${resAsym.hi}`
+  );
+  /* ⚠ THE MIRROR PLANT, AND IT IS NOT OPTIONAL. The plant above has the feet ending AFTER the R
+     beats, so `min(R.last, F.last)` IS `R.last` — a mutation that takes `hi` from the R train alone
+     is behaviour-preserving there and passes every assertion above. Measured: planting exactly that
+     left the selftest at 27/27. One asymmetric case constrains ONE endpoint; catching both needs
+     both directions. Here the feet start BEFORE and end BEFORE, so `lo` comes from the R train and
+     `hi` from the feet — the exact mirror. */
+  const Rmirror = R.slice(100);
+  const Fmirror = F.slice(0, 1000);
+  const spM = overlapSplit(Rmirror, Fmirror);
+  ok(!spM.refusal, `mirror plant must split, got refusal: ${spM.refusal}`);
+  ok(spM.lo === Rmirror[0], `mirror lo must come from the R train (${spM.lo} vs ${Rmirror[0]})`);
+  ok(spM.hi === Fmirror[Fmirror.length - 1], `mirror hi must come from the FEET train (${spM.hi} vs ${Fmirror[Fmirror.length - 1]})`);
+  ok(spM.lo !== spM.mid && spM.mid !== spM.hi && spM.lo !== spM.hi, `mirror lo/mid/hi must be DISTINCT, got ${spM.lo}/${spM.mid}/${spM.hi}`);
+  const resM = oracleNight(Rmirror, Fmirror, 100);
+  ok(!resM.refusal, `mirror plant must yield an oracle result, got: ${resM.refusal}`);
+  ok(resM.lo === spM.lo && resM.mid === spM.mid && resM.hi === spM.hi, `mirror: exported split must equal oracleNight's own: ${spM.lo}/${spM.mid}/${spM.hi} vs ${resM.lo}/${resM.mid}/${resM.hi}`);
+
+  /* AND THE COPY IS GONE. Source-scanned rather than trusted: the consumer must not re-state the
+     rule. `overlapSplit` appearing there is the import; `Math.max(rTimes[0]` would be a second
+     definition. */
+  {
+    const consumer = join(HERE, 'pat-ecg-axis-residual.mjs');
+    const src = existsSync(consumer) ? readFileSync(consumer, 'utf8') : '';
+    ok(src.length > 0, 'the consumer file is readable (a missing file would vacuously pass the next two)');
+    ok(!/const lo = Math\.max\(rTimes\[0\]/.test(src), 'pat-ecg-axis-residual.mjs must NOT re-define the split rule');
+    ok(/overlapSplit/.test(src), 'pat-ecg-axis-residual.mjs must consume the exported overlapSplit');
+  }
+
   const res = oracleNight(R, F, 100);
   ok(res !== null, 'planted night yields a result');
   ok(Math.abs(res.mode - 300) <= 15, `mode found near 300, got ${res?.mode}`);
