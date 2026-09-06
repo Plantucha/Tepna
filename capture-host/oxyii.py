@@ -712,6 +712,57 @@ RT_PPG_REC = 9                       # i32 LE chA | i32 LE chB | u8 motion  (SIG
 # class is built on. A single wrapped 4.29e9 in a mean destroys it; the first shipped revision of this
 # parser read unsigned and its AC/DC statistics were wrong by an order of magnitude because of it.
 
+# ── cmd=0x03 LIVE_SAMPLES_A — the single-channel lossless pleth ─────────────────────────────────────
+# MEASURED on device S8AW2100 2026-09-06, two worn runs (596 and 592 replies), not read off a doc:
+#   * `payload_len - declared_count == 6` on EVERY reply, no exceptions -> the header is exactly 6 B;
+#   * `body_len == declared_count` on every reply -> exactly ONE BYTE PER SAMPLE (8-bit);
+#   * u16 LE declared count at [4:6], capped at 250 records per reply.
+# Rate: 125.058 Hz over 119.7 s with 1/592 replies saturated — the 125.000 ADC to 0.05 %. (The
+# previously recorded 112.9 Hz came from a 403 s fragment and does not reproduce; O2RING-RAW-DUAL-
+# WAVELENGTH-FOLLOWUPS §7.4.)
+OP_SAMPLES_A = 0x03
+SAMPLES_A_ARG = bytes([0x07, 0x01])   # same "give me the buffer" argument shape as RT_PPG_ARG
+SAMPLES_A_CAP = 250                   # a reply AT the cap is a saturated drain, not a fast device
+SAMPLES_A_HDR = 6
+
+
+def samples_a_frame(seq: int = 0) -> bytes:
+    """cmd=0x03 — ask for the single-channel 8-bit optical buffer."""
+    return encode(OP_SAMPLES_A, SAMPLES_A_ARG, seq)
+
+
+def parse_samples_a(payload: bytes) -> list[tuple[int, int]]:
+    """cmd=0x03 reply -> [(sample, is_beat_marker), ...], or [] when there are no records.
+
+    ⚠️ THE MARKER IS FLAGGED, NEVER STRIPPED, and both halves of that are measured rather than chosen.
+    `PPG_BEAT_MARKER` (156) is an INSERTED row on the sibling 0x04/0x05 streams, where removing it is what
+    recovers the 125.000 ADC from a 126.06 row rate. On 0x03 it does NOT play that role: measured
+    2026-09-06 over 119.9 s, markers arrive at 0.534/s against a reported 62.0 bpm — about HALF a
+    marker per beat, where 0x04 measured almost exactly one — and subtracting them moves the rate AWAY
+    from the ADC (125.058 -> 124.444). So on this stream the raw row rate is the better estimate and a
+    consumer must not "correct" it. They are kept because they are beat fiducials worth having.
+
+    And stripping would be wrong twice over: 6 % of the 156s measured were NOT isolated (neighboured by
+    another 156), which on a 0-255 waveform is what a real sample equal to 156 looks like. A value-based
+    strip would delete signal. Isolation is therefore the flag, judged on the neighbours the reply
+    actually has — a reply boundary is an edge, and dropping edge markers would lose real ones.
+
+    The count is taken from the device's own field and the slice is bounded by the buffer, so a trailer
+    of any size is ignored rather than absorbed into the body (the rule parse_rt_ppg follows)."""
+    if len(payload) < SAMPLES_A_HDR:
+        return []
+    n = int.from_bytes(payload[4:6], "little")
+    body = payload[SAMPLES_A_HDR:SAMPLES_A_HDR + n]
+    out: list[tuple[int, int]] = []
+    last = len(body) - 1
+    for i, v in enumerate(body):
+        iso = (v == PPG_BEAT_MARKER
+               and (i == 0 or body[i - 1] != PPG_BEAT_MARKER)
+               and (i == last or body[i + 1] != PPG_BEAT_MARKER))
+        out.append((v, 1 if iso else 0))
+    return out
+
+
 def rt_ppg_frame(seq: int = 0) -> bytes:
     """cmd=0x05 — ask for the raw two-channel optical buffer (see WHICH-IS-WHICH: not proven to be
     two wavelengths, and not proven to be a plethysmogram)."""

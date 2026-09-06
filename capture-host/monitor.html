@@ -2194,6 +2194,11 @@ const RATE_WHY = {
 // (ppg2w everywhere in code and files); only the label a person reads changes.
 const STREAM_LABEL = {
   ppg2w: 'raw 2-wavelength optical (ppg2w)',
+  // cmd 0x03 — the ring's single-channel lossless pleth, MEASURED at 125.058 Hz on 2026-09-06
+  // (the 125.000 ADC to 0.05 %). Named "lossless" because every record is written including the
+  // inserted beat markers, which are FLAGGED in their own column rather than stripped: on this
+  // stream, unlike ppg2w, removing them moves the rate AWAY from the ADC.
+  pletha: 'raw pleth A, lossless 125 Hz (pletha)',
   spo2: 'oximetry (spo2)',
   pi: 'perfusion index (pi, %)',
   ppg: 'pleth waveform (ppg)'

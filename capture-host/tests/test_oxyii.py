@@ -837,3 +837,71 @@ def test_an_unspecified_status_byte_is_surfaced_not_guessed():
     for weird in (2, 9, 255):
         f = oxyii.decode_full(oxyii.encode(oxyii.OP_SET_TIME, b"", flag=weird))
         assert oxyii.parse_ack(oxyii.OP_SET_TIME, f) is oxyii.AckResult.UNKNOWN_STATUS
+
+
+# ── cmd=0x03 LIVE_SAMPLES_A (O2RING-RAW-DUAL-WAVELENGTH-FOLLOWUPS §7.4, measured 2026-09-06) ─────────
+# The layout here is not read off a doc: over two worn runs (596 and 592 replies) `payload_len minus
+# declared_count` was 6 on EVERY reply and `body_len == declared_count` on every reply, which is what
+# fixes the 6-byte header and the one-byte sample. The rate was 125.058 Hz, the 125.000 ADC to 0.05 %.
+
+def _samples_a_payload(vals, count=None, trailer=b""):
+    """A real 0x03 reply: 4 opaque header bytes, u16 LE count at [4:6], then 8-bit samples."""
+    import struct
+    n = len(vals) if count is None else count
+    return b"\x00\x00\x00\x00" + struct.pack("<H", n) + bytes(vals) + trailer
+
+
+def test_parse_samples_a_decodes_8bit_samples_with_no_marker():
+    assert oxyii.parse_samples_a(_samples_a_payload([10, 20, 30])) == [(10, 0), (20, 0), (30, 0)]
+
+
+def test_an_isolated_156_is_flagged_as_a_beat_marker():
+    assert oxyii.parse_samples_a(_samples_a_payload([10, 156, 20])) == [(10, 0), (156, 1), (20, 0)]
+
+
+def test_a_RUN_of_156_is_signal_not_beats():
+    """6 % of the 156s measured were NOT isolated. On a 0-255 waveform that is what a real sample equal
+    to 156 looks like, so flagging a run as beats would invent fiducials out of signal — and stripping
+    by value would delete the samples themselves."""
+    got = oxyii.parse_samples_a(_samples_a_payload([10, 156, 156, 20]))
+    assert got == [(10, 0), (156, 0), (156, 0), (20, 0)]
+
+
+def test_a_marker_at_a_reply_boundary_is_still_a_marker():
+    """A reply edge is an edge, not evidence. Requiring both neighbours to exist would silently drop
+    every marker that happened to land first or last in a buffer."""
+    assert oxyii.parse_samples_a(_samples_a_payload([156, 10]))[0] == (156, 1)
+    assert oxyii.parse_samples_a(_samples_a_payload([10, 156]))[1] == (156, 1)
+
+
+def test_samples_are_never_stripped_so_the_row_count_is_the_record_count():
+    """The rate on THIS stream is the raw row rate: measured 2026-09-06, markers arrive at 0.534/s
+    against 62.0 bpm and subtracting them moves the rate AWAY from the ADC (125.058 -> 124.444), the
+    opposite of the 0x05 stream. A parser that dropped markers would build that error in."""
+    vals = [1, 156, 2, 156, 3]
+    assert len(oxyii.parse_samples_a(_samples_a_payload(vals))) == len(vals)
+
+
+def test_parse_samples_a_ignores_a_trailer_of_any_size():
+    for trailer in (b"", b"\xff", b"\xde\xad\xbe\xef"):
+        assert oxyii.parse_samples_a(_samples_a_payload([7, 8], trailer=trailer)) == [(7, 0), (8, 0)]
+
+
+def test_a_declared_count_longer_than_the_body_is_bounded_by_the_buffer():
+    """A truncated reply must yield the bytes that arrived, never read past them."""
+    assert oxyii.parse_samples_a(_samples_a_payload([1, 2], count=9)) == [(1, 0), (2, 0)]
+
+
+def test_a_payload_too_short_for_the_header_yields_nothing():
+    for short in (b"", b"\x01", b"\x01\x02\x03\x04\x05"):
+        assert oxyii.parse_samples_a(short) == []
+
+
+def test_a_zero_count_reply_is_empty_not_an_error():
+    assert oxyii.parse_samples_a(_samples_a_payload([], count=0)) == []
+
+
+def test_samples_a_frame_is_the_standard_envelope():
+    f = oxyii.samples_a_frame()
+    assert f[0] == 0xA5 and f[1] == oxyii.OP_SAMPLES_A and f[2] == (~oxyii.OP_SAMPLES_A) & 0xFF
+    assert oxyii.decode(f) == (oxyii.OP_SAMPLES_A, oxyii.SAMPLES_A_ARG)

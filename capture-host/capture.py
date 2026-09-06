@@ -3881,6 +3881,7 @@ async def run_oxyii(dev: dict, root: str):
         path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "spo2", "csv"))
         ppg_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg", "txt"))
         ppg2w_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "ppg2w", "txt"))
+        pletha_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "pletha", "txt"))
         accraw_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "accraw", "txt"))
         rtclog_path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "rtclog", "csv"))
         # `oxy_arr_wr` belongs on THIS line, not only at its construction site below: the finally closes
@@ -3889,7 +3890,7 @@ async def run_oxyii(dev: dict, root: str):
         # It was missed when the PMDARRIVAL sidecar was added, so its close read an unbound local and the
         # guard reported "the arrival writer did not close cleanly" for a writer that was never opened —
         # a warning about something it had not examined, logged once per reconnect all night.
-        wr = ppgwr = oxyflagwr = ppg2wr = rtcwr = oxy_arr_wr = accrawwr = None
+        wr = ppgwr = oxyflagwr = ppg2wr = rtcwr = oxy_arr_wr = accrawwr = plethawr = None
         # The synthesized PPG sample clock (O2RING-PPG-GAP §1 + CAPTURE-HOST-DEEP-AUDIT §A3), per
         # SESSION — a reconnect opens a new file and a new grid, so it is rebuilt with the writers
         # rather than persisting across links. Boxed so the BLE callback can reach it.
@@ -3953,6 +3954,12 @@ async def run_oxyii(dev: dict, root: str):
                 rtcwr = RingClockLogWriter(rtclog_path)
                 ppg2wr = (StreamWriter(ppg2w_path, "ppg2w", timebase=_tb)
                           if "ppg2w" in (dev.get("streams") or []) else None)
+                # cmd 0x03, the single-channel lossless pleth. Opt-in per device exactly as ppg2w is:
+                # it is ~125 rows/s of extra file and one more control write per poll, and the ring's
+                # restart-storm analysis names OUR PRESENCE as what keeps the ring restarting — so this
+                # must never be on by default.
+                plethawr = (StreamWriter(pletha_path, "pletha", timebase=_tb)
+                            if "pletha" in (dev.get("streams") or []) else None)
                 # THE RING'S ACC IS RECORDED, NOT ONLY DISPLAYED. Gated on the SAME `"acc"` key that ORs
                 # the AUTO_RT_SWITCH push bit below, so the stream that gets asked for is exactly the
                 # stream that gets written — a device pushing frames we drop on the floor is airtime
@@ -4171,6 +4178,16 @@ async def run_oxyii(dev: dict, root: str):
                             continue
                         # RAW DUAL-WAVELENGTH reply. Handled before the OP_LIVE gate below, which would
                         # otherwise drop it — it is a different opcode carrying a different payload.
+                        if r and r[0] == oxyii.OP_SAMPLES_A and plethawr:
+                            _recs = oxyii.parse_samples_a(r[1])
+                            if _recs:
+                                _ph = _now()
+                                for _v, _bt in _recs:
+                                    # sensor_ns 0: this opcode carries no device clock (see the header
+                                    # comment on the `pletha` layout). Back-timing the block would be
+                                    # inventing per-sample instants the device never reported.
+                                    plethawr.write_pletha(_ph, 0, _v, _bt)
+                                BUS.push("o2pletha", [[_v] for _v, _ in _recs])
                         if r and r[0] == oxyii.OP_RT_PPG and ppg2wr:
                             recs = oxyii.parse_rt_ppg(r[1])
                             if recs:
@@ -4388,6 +4405,13 @@ async def run_oxyii(dev: dict, root: str):
                     # Labels are the DEVICE ORDER, not the wavelengths. The SDK calls these IR and RED;
                     # that is a vendor-header claim we have not measured, and a monitor card is a bad
                     # place to publish a guess (see oxyii "WHICH-IS-WHICH" for the test that settles it).
+                    if plethawr:
+                        # fs 0 on the bus: the rate is MEASURED at 125.058 Hz (2026-09-06) but the bus
+                        # value is what a consumer resamples against, and this stream carries markers
+                        # plus reply-boundary gaps. Publishing a nominal rate here would assert a
+                        # uniform grid the rows do not form.
+                        BUS.register("o2pletha", "Raw pleth A (O2Ring)", "raw", 0, chans=1,
+                                     unit="counts")
                     BUS.register("o2ppg2w", "Raw 2-wavelength (O2Ring)", "raw", 0, chans=2,
                                  labels=("ch0", "ch1"))
                 await _bounded_setup(client.start_notify(nch, on_data))
@@ -4469,6 +4493,15 @@ async def run_oxyii(dev: dict, root: str):
                                 _PMD_CTRL_TIMEOUT_S)
                         except Exception as e:
                             log.debug("%s: raw IR/RED poll failed (%r) — vitals unaffected", name, e)
+                    # cmd 0x03 on the same cadence, same optional contract: a refusal costs this
+                    # stream's samples and must not drop the link the way a failed vitals poll does.
+                    if plethawr:
+                        try:
+                            await asyncio.wait_for(
+                                client.write_gatt_char(wch, oxyii.samples_a_frame(), response=False),
+                                _PMD_CTRL_TIMEOUT_S)
+                        except Exception as e:
+                            log.debug("%s: pleth-A poll failed (%r) — vitals unaffected", name, e)
                     # RING RTC READBACK — one 60 B GET_INFO per _OXYII_INFO_EVERY_S; on_data publishes
                     # the ring-vs-host offset. Optional traffic, so a failure costs only this reading.
                     if _info_last[0] is None or _time.monotonic() - _info_last[0] >= _OXYII_INFO_EVERY_S:
@@ -4627,7 +4660,7 @@ async def run_oxyii(dev: dict, root: str):
             # and the Dex ingest walks this directory. On the documented 359-reconnect night that was
             # ~1000 junk files in one night dir. The Polar path already solved this; the ring never got it.
             _spo2_kept = None
-            for _w in (wr, ppgwr, oxyflagwr, ppg2wr, rtcwr, accrawwr):
+            for _w in (wr, ppgwr, oxyflagwr, ppg2wr, plethawr, rtcwr, accrawwr):
                 if not _w:
                     continue
                 _empty, _p = not _w.rows, _w.path

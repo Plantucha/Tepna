@@ -6166,3 +6166,64 @@ def _run_ring_session_keep(tmp_path, monkeypatch, dev, serial_on_air, fw: bytes 
     _stop_after(monkeypatch, 4)
     _run(capture.run_oxyii(dev, str(tmp_path)))
     return capture.STATUS["devices"]["Ring"]
+
+
+def test_run_oxyii_captures_the_single_channel_pleth(tmp_path, monkeypatch):
+    """The `pletha` stream end-to-end through the REAL runner: cmd 0x03 reply -> decoded -> written.
+
+    Same reason this goes through `run_oxyii` rather than the parser alone as its `ppg2w` sibling: the
+    0x03 decode branch sits AHEAD of the `OP_LIVE` gate, and a parser-only test cannot see a reply
+    being routed into the live path and dropped as a short frame.
+
+    The body deliberately carries BOTH marker shapes, because the flag column is the only thing that
+    separates them and the file is what a consumer reads: an isolated 156 (a beat) and a RUN of 156
+    (real signal that merely equals the marker value). Measured 2026-09-06, 6 % of this ring's 156s are
+    non-isolated, so a decoder that stripped by value would delete waveform."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    vals = [10, 156, 20, 156, 156, 30]
+    payload = b"\x00\x00\x00\x00" + len(vals).to_bytes(2, "little") + bytes(vals) + b"\xff"
+
+    c = FakeGattClient()
+
+    def on_live(data):
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+        elif data[1] == oxyii.OP_SAMPLES_A:
+            c.notify(0, oxyii.encode(oxyii.OP_SAMPLES_A, payload))
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 6)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2", "pletha"]), str(tmp_path)))
+
+    hits = list((tmp_path / "captures").rglob("*_PLETHA.txt"))
+    assert hits, "a PLETHA file must be written when the stream is enabled"
+    rows = hits[0].read_text().strip().split("\n")
+    assert rows[0] == "Phone timestamp;sensor timestamp [ns];sample;beat"
+    # One row per record and the trailer is not a record — the ppg2w check, same reasoning.
+    assert len(rows) - 1 > 0 and (len(rows) - 1) % len(vals) == 0
+    assert [r.split(";")[2:] for r in rows[1:1 + len(vals)]] == [
+        ["10", "0"], ["156", "1"], ["20", "0"], ["156", "0"], ["156", "0"], ["30", "0"]]
+
+
+def test_the_pleth_stream_is_off_unless_configured(tmp_path, monkeypatch):
+    """Opt-in, and it must stay that way: this costs ~125 rows/s of file and one more control write per
+    poll, and `capture.py`'s own storm analysis names OUR PRESENCE as what keeps the ring restarting.
+    A stream that switched itself on would spend that budget without anyone choosing to."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    asked = []
+
+    def on_live(data):
+        asked.append(data[1])
+        if data[1] == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply())
+
+    c.on_live = on_live
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 6)
+    _run(capture.run_oxyii(_o2dev(name="Ring", streams=["spo2"]), str(tmp_path)))
+
+    assert not list((tmp_path / "captures").rglob("*_PLETHA.txt"))
+    assert oxyii.OP_SAMPLES_A not in asked, \
+        "the 0x03 poll must not be sent when the stream is not configured"
