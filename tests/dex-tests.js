@@ -47344,6 +47344,33 @@
         });
       });
       T.ok('ANTI-VACUITY · there ARE dormant entries to check', dormantChecked >= 20, dormantChecked + ' dormant entr(ies) across the fleet');
+      /* THE LABEL EXEMPTION'S PRECONDITION (DEEP-AUDIT-VI-FOLLOWUPS §2.6, "generalise to any
+         label-driven scan"). The rule above admits an ALIAS only if it is multi-word or >= 8 chars,
+         and admits the LABEL unconditionally. That asymmetry is safe only while no dormant label is
+         itself a bare short word — a label like 'ODI' or 'SD1' would match a quoted enum value or an
+         abbreviation in render source exactly as `upright` did, and the length rule would not stop it
+         because labels are exempt from it.
+         Measured 2026-09-06: 0 of the dormant entries have such a label, so the exemption costs
+         nothing TODAY — but 116 of the fleet's 520 labels are bare words under 8 chars, so the day one
+         of them is marked dormant the gate starts crying wolf, which is how a gate gets deleted.
+         This asserts the precondition rather than sweeping for a hazard that has no instance: it is
+         silent now and names the entry the moment one appears. It does NOT forbid the authoring —
+         it says the scan cannot verify that entry, which is a fact about the gate, not about the metric. */
+      var shortDormantLabels = [];
+      NODES.forEach(function (n) {
+        var REG = n.reg && n.reg.REGISTRY;
+        if (!REG) return;
+        Object.keys(REG).forEach(function (id) {
+          if (!REG[id] || REG[id].dormant !== true) return;
+          var L = String(REG[id].label || '');
+          if (L && L.indexOf(' ') < 0 && L.length < 8) shortDormantLabels.push(n.pre + '.' + id + ' "' + L + '"');
+        });
+      });
+      T.ok(
+        'the label exemption is safe — no dormant label is a bare word < 8 chars (a scan admitting it unconditionally would false-positive on an enum value)',
+        shortDormantLabels.length === 0,
+        shortDormantLabels.join(', ') || '0 of ' + dormantChecked + ' dormant entries'
+      );
       /* ANTI-VACUITY for the DETECTOR: a LIVE metric's label must be found by the same search, or the
          regex is simply never matching anything and the check above is hollow. */
       var probe = NODES.filter(function (n) {
