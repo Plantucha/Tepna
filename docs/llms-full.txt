@@ -29,13 +29,17 @@ A fleet of local-only, single-signal physiological analyzers. No upload. No acco
 
 [![No network · CI-enforced](https://img.shields.io/badge/no_network-CI--enforced-1f8a5b)](no-network.html)
 [![Local-first](https://img.shields.io/badge/local--first-100%25-1f8a5b)](docs/WHY-THIS-EXISTS.md)
-[![Tests green](https://img.shields.io/badge/tests-8.3k_assertions_green-1f8a5b)](#-the-privacy-claim-is-a-test-not-a-promise)
+[![Tests green](https://img.shields.io/badge/tests-9.1k_assertions_green-1f8a5b)](#-the-privacy-claim-is-a-test-not-a-promise)
 [![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#the-evidence-ladder-every-metric-is-graded)
 [![Reproducible](https://img.shields.io/badge/every_paper-regenerates_from_its_tool-8a5cf6)](papers/papers.html)
 ![Nodes](https://img.shields.io/badge/nodes-8_live_%C2%B7_1_planned-555)
 ![Releases](https://img.shields.io/badge/releases-35_shipped-555)
 
 **[tepna.net](https://tepna.net)**  ·  [github.com/Plantucha/Tepna](https://github.com/Plantucha/Tepna)
+
+<!-- readme-synced: cdae44a5 2026-09-06 -->
+<sub>README last synced to commit `cdae44a5` (2026-09-06). Next refresh: `git log --oneline cdae44a5..origin/main`
+lists exactly what this page has not seen yet — fold that in, then move this stamp.</sub>
 
 </div>
 
@@ -80,15 +84,15 @@ engineering constraint — is [`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.m
 
 ## 📊 Suite at a glance
 
-**Suite version:** 2.9.0 &nbsp;—&nbsp; **35** ledger-backed releases, each computed from a green tree.
+**Suite version:** 2.9.0 &nbsp;—&nbsp; **35** ledger-backed releases, each computed from a green tree, with **142 changesets** pending since (20 minor · 121 patch · 0 major — the next cut is a MINOR).
 
 | | |
 |---|---|
 | 🧠 **Analyzers** | **8 live** single-signal nodes · **1 planned** (EEGDex) |
 | 🔀 **Fusion** | **Integrator** (cross-signal) + 2 ingest front doors — **Data Unifier** · **OverDex** — all live |
-| 🧪 **Tests** | **8,330 assertions** across **531 groups**, run as **6 partitioned CI shards** — green on every push |
-| 🐍 **Capture lane** | the **Health Box** (`capture-host/`) — **4,700+ Python tests** at a **100 % statement *and* branch** coverage floor |
-| 🛡️ **CI gates** | `no-network` · `tests` · `types` · `biome` · `CodeQL` · `capture-host` — the privacy claim is **enforced, not asserted** |
+| 🧪 **Tests** | **9,124 assertions** across **583 groups**, run as **6 partitioned CI shards** — green on every push |
+| 🐍 **Capture lane** | the **Health Box** (`capture-host/`) — **6,500+ Python tests** at a **100 % statement *and* branch** coverage floor |
+| 🛡️ **CI gates** | 8 required on every PR — `no-network` · `tests` · `types` · `biome` · `capture-host` (py3.12 · py3.13) · `browser-gates` · `stale-file` — plus `CodeQL`, a diff-scoped **mutation** run and the `static` ledger job; the privacy claim is **enforced, not asserted** |
 | 🎫 **Honesty** | every surfaced number carries an **evidence grade** — nothing ships unlabelled |
 | 🔬 **Reproducible** | every preprint **regenerates from its live tool**; every bundle is **content-addressed** |
 
@@ -108,6 +112,20 @@ engineering constraint — is [`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.m
 > axis** (Clock Contract §7) reconciles the device crystal against the capture host's clock, and it
 > refuses rather than guesses: an O2Ring axis that turned out to be **drawn** — synthesized from a
 > sample index, not a clock — is now detected and declared as such instead of being silently trusted.
+>
+> **Since `2.9.0` (2026-08-30 → 2026-09-06, 296 commits, 142 changesets).** The mutation program now
+> covers all **nine DSP modules — 9,388 mutants, 50 % killed**, published per file in
+> [`docs/MUTATION-INVENTORY.md`](docs/MUTATION-INVENTORY.md) rather than as one headline. The capture
+> lane got a **power-aware BLE lifecycle** for the O2Ring (an explicit 12-state machine; presence
+> scanning drops from a 50 % duty to 8–17 % when nothing is near) and a **restart-storm hold** after a
+> night in which the ring was reset **520 times** (quiet nights: 1–2). The ring's lossless `0x03`
+> pleth stream is decoded and measured at **125.058 Hz** (the 125 Hz ADC to 0.05 % — the earlier 112.9 Hz
+> figure did not reproduce), and PpgDex now reads the ring's raw dual-wavelength `_PPG2W.txt`. BLE
+> identity is **address-only** throughout; a nightly sniffer audit of the box's own air is in service
+> (and honest about its ≈40 % window coverage). The clock work found a harder case than drift — a device
+> counter **stepping 7.66 years mid-night** across a resync, now handled as *one device clock per axis*.
+> Two metrics were **re-tiered down** on measurement (ACC-derived respiration, EDR) and the open-defect
+> ledger moved to one row per verified defect in [`briefs/RESIDUE.md`](briefs/RESIDUE.md).
 > Full history in the **[changelog](CHANGELOG.md)**.
 
 ### Node status
@@ -117,7 +135,7 @@ engineering constraint — is [`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.m
 | **OxyDex** | SpO₂ / oximetry | O2Ring · Wellue · ViATOM | 🟢 **Live** | ODI-4 · T90 · hypoxic burden |
 | **ECGDex** | Raw ECG | Polar H10 | 🟢 **Live** | QTc · rMSSD |
 | **PulseDex** | HRV from raw RR | Polar H10 · Coospo · Wahoo | 🟢 **Live** | rMSSD · SDNN |
-| **PpgDex** | Wrist PPG | Polar Verity Sense | 🟢 **Live** | PPI → HRV + pulse-wave morphology |
+| **PpgDex** | Wrist PPG | Polar Verity Sense · O2Ring (`_PPG2W`) | 🟢 **Live** | PPI → HRV + pulse-wave morphology |
 | **HRVDex** | HRV summaries | *(exports)* | 🟢 **Live** | additive multi-day rMSSD / SDNN ledger |
 | **GlucoDex** | CGM | *(exports)* | 🟢 **Live** | Time in Range · GMI |
 | **CPAPDex** | CPAP therapy | ResMed · EDF | 🟢 **Live** | pressure · leak · respiratory events |
@@ -154,15 +172,18 @@ the gate, so a vacuous "all clear" can never pass. It runs headless in CI on **e
 | CI gate | What it guarantees |
 |---|---|
 | **no-network** | No shipped surface reaches the network — privacy is enforced, not asserted |
-| **tests** | 8,330 assertions over the real DSP modules, run as 6 parallel shards that provably *partition* the suite — so the union of the shards is the whole gate, and no group can quietly go unrun |
+| **tests** | 9,124 assertions over the real DSP modules, run as 6 parallel shards that provably *partition* the suite — so the union of the shards is the whole gate, and no group can quietly go unrun |
 | **types** | JSDoc type-checking (`tsc --checkJs`) across the signal contracts |
 | **biome** | Format + house-invariant lint (frozen names, Clock Contract, SPDX, evidence vocabulary) |
+| **browser-gates** | Render-coverage — boots each real app bundle headless in an iframe and asserts computed values reach the DOM (`Dex-Test-Suite.html?full`, run on every PR) |
+| **stale-file** | A brief cannot be overwritten by an edit that never read the upstream version — required, with no escape hatch but rebasing |
+| **capture-host** | The Python capture lane on its own runners, py3.12 **and** py3.13 — `ruff` · `shellcheck` (strictest level, every `.sh`) · `pytest` at a **100 % statement and branch** coverage floor · `find_unwired --check` (no published stream without a consumer); `mypy` advisory, ratcheting down from a 103-error baseline |
 | **CodeQL** | Static security analysis on every push |
-| **capture-host** | The Python capture lane on its own runners — `ruff` · `shellcheck` (strictest level, every `.sh`) · `pytest` at a **100 % statement and branch** coverage floor |
+| **mutation** *(advisory)* | Diff-scoped: mutates only the lines a PR touched and reports which of them the suite would not notice |
 
-Render-coverage (booting each real app bundle in an iframe and asserting computed values reach the
-DOM) is a heavier browser gate — it lives in `Dex-Test-Suite.html?full` and the manual
-`browser-gates` workflow, not on the per-push path.
+The `tests` workflow also carries a **`static`** job that re-derives every ledger the tree claims — bundle
+hashes, served `docs/` copies, the analysis tools, brief and release ledgers, commit shape — so a green
+test shard with a stale artefact still reds the PR.
 
 Beyond CI, [`verify-provenance.html`](verify-provenance.html) content-addresses every bundle
 (GATE A: code identity) and every fixture (GATE B: known-answer reproducibility) — so a shipped app
@@ -250,14 +271,15 @@ right node on each file, and hands every result to the Integrator automatically.
 
 The suite reads files. Something has to *write* them, and for the nightly multi-device recordings
 that is **`capture-host/`** — an out-of-suite Python service for a bedside mini-PC (a used Lenovo ThinkCentre M900 Tiny) that holds
-the live BLE links (Polar H10 ECG, Verity PPG/ACC) and writes **existing vendor layouts** into
+the live BLE links (Polar H10 ECG, Verity PPG/ACC, the O2Ring's SpO₂ and raw PPG, and the AirSense 11
+CPAP's live flow) and writes **existing vendor layouts** into
 per-night directories the Dex apps already know how to read. It is a *producer*, deliberately
 outside the browser suite: no Dex app ever talks to a device.
 
 It is also a **separate lane with a separate gate.** `npm run check` does not cover it —
-`capture-host/check.sh` does, and CI runs the same three jobs: `ruff`, `shellcheck` at its strictest
-level over every shell script, and `pytest` with a **100 % statement *and* branch** coverage floor
-across **4,700+ tests**. That floor is the point: this code runs unattended overnight against
+`capture-host/check.sh` does, and CI runs the same jobs: `ruff`, `shellcheck` at its strictest
+level over every shell script, `find_unwired` (every stream written has a reader), and `pytest` with a
+**100 % statement *and* branch** coverage floor across **6,500+ tests**, on two Python versions. That floor is the point: this code runs unattended overnight against
 hardware that misbehaves, so the failure modes it must survive are the ones nobody is awake to see.
 
 Per-device capture instructions for everyone else — no Pi required — live in
@@ -348,7 +370,7 @@ desired relationship? Can a synthetic test share an assumption with the algorith
 
 ## 🔬 Scientific Foundation
 
-Every non-trivial number traces to a published method, and each of the **21 working preprints** in
+Every non-trivial number traces to a published method, and each of the **22 working preprints** in
 **[`papers/`](papers/papers.html)** is **regenerated from the live tool behind it** — no hand-drawn
 figures, no cherry-picked runs. Highlights:
 
@@ -373,37 +395,42 @@ source, here's the lay of the land.
 
 | You want… | Look at |
 |---|---|
-| **A map of every doc** | [`DOCS-INDEX.md`](DOCS-INDEX.md) — the single entry path over all ~400 briefs, audits, and READMEs, grouped by topic. Start here before opening any individual brief. |
+| **A map of every doc** | [`DOCS-INDEX.md`](DOCS-INDEX.md) — the single entry path over all ~500 briefs, audits, and READMEs, grouped by topic. Start here before opening any individual brief. |
 | **The app for your device** | the bundled `OxyDex.html`, `PpgDex.html`, `PulseDex.html`, `ECGDex.html`, `HRVDex.html`, `GlucoDex.html`, `CPAPDex.html`, `MotionDex.html` — open them directly. `Integrator.html` fuses them all; `Data Unifier.html` routes any file you drop to the right node, and `OverDex.html` runs a whole folder at once. |
 | **The front door** | `index.html` (the landing/device picker) — the page normal people start from. |
 | **How an app is built** | its source modules — `<node>-dsp.js` (signal math), `-render.js`, `-app.js`, `-registry.js` — plus `<App>.src.html`. Edit these; **never** the bundled `*.html`, then re-bundle. |
 | **Shared engine** | `metric-registry.js` (evidence badges), `ganglior-provenance.js`, `ans-design.css`. |
 | **Research tools** | `*-analysis.html` — the live tool behind each paper — plus `cohort-*.html`, `synth-gen.html`. Gates: `Dex-Test-Suite.html`, `verify-provenance.html`. |
-| **The papers** | `papers/` — 21 working preprints, each regenerated from its tool. |
+| **The papers** | `papers/` — 22 working preprints, each regenerated from its tool. |
 | **The capture service** | `capture-host/` — the Health Box Python lane (its own gate: `capture-host/check.sh`). Device-by-device capture instructions: `how-to-collect/`. |
-| **Testing the tests** | `tools/mutate.mjs` — breaks the code on purpose and reports which gates fail to notice. The honest measure of whether a green suite means anything. |
+| **Testing the tests** | `tools/mutate.mjs` — breaks the code on purpose and reports which gates fail to notice. The honest measure of whether a green suite means anything; results in [`docs/MUTATION-INVENTORY.md`](docs/MUTATION-INVENTORY.md). |
+| **Every tool, indexed** | [`docs/TOOLS-INDEX.md`](docs/TOOLS-INDEX.md) — the ~190 scripts under `tools/`, each with its purpose; gate-backed so a new tool cannot land undocumented. |
 | **Architecture docs** | `wiring/` — the "How It's Wired" reference set; start at `wiring/How It's Wired - the Dex Suite.html`. |
 | **Design system** | `templates/` — visual-language spec, theme + evidence-badge previews. |
-| **House rules** | `CLAUDE.md` (constitution) · `CONTRIBUTING.md` (on-ramp) · `ARCHITECTURE-PRINCIPLES.md` · [`docs/LEXICON.md`](docs/LEXICON.md). |
+| **House rules** | `CLAUDE.md` (constitution) · `CONTRIBUTING.md` (on-ramp) · `ARCHITECTURE-PRINCIPLES.md` · [`docs/LEXICON.md`](docs/LEXICON.md). Open verified defects: [`briefs/RESIDUE.md`](briefs/RESIDUE.md), one row each. |
 
 ---
 
 ## On the metric count
 
-The eight node registries define **404 graded metrics**. That number describes **surface area, not
-confidence** — which is exactly why the suite publishes the breakdown rather than the headline:
+The eight node registries define **520 graded metrics** (counted from the `evidence` field of every
+registry entry at `cdae44a5`). That number describes **surface area, not confidence** — which is
+exactly why the suite publishes the breakdown rather than the headline:
 
 | Tier | Count | Share |
 |---|---:|---:|
-| **measured** — read off the device | 118 | 29 % |
-| **validated** — anchored to a published standard | 84 | 21 % |
-| **emerging** — published, device-dependent | 78 | 19 % |
-| **experimental** — internally consistent, not externally confirmed | 96 | 24 % |
-| **heuristic** — directional only | 28 | 7 % |
+| **measured** — read off the device | 149 | 29 % |
+| **validated** — anchored to a published standard | 86 | 17 % |
+| **emerging** — published, device-dependent | 85 | 16 % |
+| **experimental** — internally consistent, not externally confirmed | 143 | 27 % |
+| **heuristic** — directional only | 57 | 11 % |
 
-So **roughly half** the surface is `measured` or `validated`, and **just under a third** sits at
-`experimental` or `heuristic`. A count of 404 would be a boast; the distribution is the honest
-version of the same fact, and it is why the ladder leads and the count follows.
+So **just under half** the surface is `measured` or `validated`, and **nearly two-fifths** sits at
+`experimental` or `heuristic` — the share at the bottom of the ladder *grew* since the last count
+(404 metrics, 31 %), because the metrics added were surfaced honestly at the tier the evidence
+supports and two existing ones were re-tiered *down* on measurement. A count of 520 would be a
+boast; the distribution is the honest version of the same fact, and it is why the ladder leads and
+the count follows.
 
 ---
 
@@ -422,9 +449,9 @@ only reads what the machine records. Every signal in the suite comes off this ki
 | **Wellue O2Ring** (O2Ring-S) | overnight SpO₂ · pulse · raw PPG → OxyDex / PpgDex | ~$170 |
 | **Polar H10** chest strap | raw ECG (~130 Hz) · RR · ACC → ECGDex / PulseDex / MotionDex | ~$90 |
 | **Polar Verity Sense** armband | raw 4-channel PPG · IMU → PpgDex / MotionDex | ~$105 |
-| **TP-Link UB500 Plus** | the box's current BLE radio — works, but drops links under load | **$13** |
-| **Sena Parani UD100-G03** *(recommended radio)* | class-1 long-range BLE, exchangeable antenna — the adapter to buy | ~$40–52 |
-| **nRF52840 dongle** + Zephyr firmware *(recommended alternative)* | observable, timing-honest BLE controller | ~$12 |
+| **TP-Link UB500 Plus** | the box's first BLE radio — works, but drops links under load; now the watchdog-managed spare | **$13** |
+| **Sena Parani UD100-G03** *(recommended radio)* | class-1 long-range BLE, exchangeable antenna — the wearables adapter in service on the box | ~$40–52 |
+| **nRF52840 dongle** | in service as the **BLE sniffer** behind the nightly air audit (what the box's radios actually said on the air, CRC-checked); a timing-honest controller candidate | ~$12 |
 | **ez Share WiFi SD card** | pulls the CPAP's SD card over WiFi, no cable | ~$25 |
 | **COOSPO H808S** chest strap | second RR source → PulseDex cross-checks | ~$35 |
 | | **Core capture kit** | **≈ $550** |
