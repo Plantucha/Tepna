@@ -117,20 +117,30 @@ class PairingSession:
         op("start", ble_addr=…)  → connect, StartKeyExchange, hold the link: {"ok", "awaiting":"passkey"}
         op("passkey", passkey=…) → prove + confirm on that link, verify M2, WRITE creds, disconnect
         op("cancel")             → drop a pending exchange without storing anything
-        op("status")             → {"pending": bool, "seconds_left": …}
+        op("forget")             → DELETE the stored key, so the next session must re-pair
+        op("status")             → {"pending", "paired", "creds_addr", "adapter", "adapter_usable", …}
+
+    ⚠️ `cancel` and `forget` are DIFFERENT, and until 2026-09-06 only the first existed. Cancel drops an
+    exchange IN FLIGHT and stores nothing; forget removes a key already stored and verified. There was no
+    way to do the second at all — the endpoint offered start/passkey/cancel/status and nothing anywhere
+    deleted `as11_creds.json` — so a stale key could only be displaced by a SUCCESSFUL re-pair, which is
+    precisely the operation that fails when the stale key is the problem. Owner-reported.
 
     Injected: `connect(ble_addr) -> (write, recv_frame, disconnect)` (the daemon's bleak edge),
     `creds_path`, `other_busy()` (the live-stream controller — pairing must not fight it for the AS11's
     one link), `on_paired(creds) -> bool` (adopt the new key live; True means no restart is needed),
-    `clock`/`sleep`/`srp_factory` for tests. `busy()` is what the shadow detector defers on, and it is
-    True from start-INTENT, for the same reason LiveStreamController._busy is."""
+    `adapter` (the radio this session pairs ON — reported so the operator is not guessing which of three
+    radios a key belongs to), `clock`/`sleep`/`srp_factory` for tests. `busy()` is what the shadow
+    detector defers on, and it is True from start-INTENT, for the same reason
+    LiveStreamController._busy is."""
 
     def __init__(self, connect, creds_path: str, *, other_busy=None, on_paired=None,
                  default_addr=None, passkey_timeout_s: float = DEFAULT_PASSKEY_TIMEOUT_S,
                  clock=time.monotonic, sleep=asyncio.sleep, srp_factory=L.SrpClient,
-                 connect_attempts: int = 3, retry_delay_s: float = 4.0):
+                 connect_attempts: int = 3, retry_delay_s: float = 4.0, adapter=None):
         self._connect = connect
         self._creds_path = creds_path
+        self._adapter = adapter
         self._other_busy = other_busy or (lambda: False)
         self._on_paired = on_paired
         self._default_addr = default_addr            # () -> the stored ble_addr, for a RE-pair
@@ -149,11 +159,42 @@ class PairingSession:
     def busy(self) -> bool:
         return self._starting or self._pending is not None
 
+    #: BD addresses no reconnect can be pinned to. A Zephyr/nRF52840 dongle reports all-zero to
+    #: `hciconfig` because that firmware has no PUBLIC address (it identifies by static-random, and a
+    #: host-side public pin is refused `0x0c Not Supported`). `capture._addressable` already guards the
+    #: failover ladder against exactly this; the pairing panel showed nothing at all, so an operator
+    #: could pair "successfully" against a radio no device can be reached on.
+    UNPAIRABLE_BD = frozenset({"00:00:00:00:00:00", "FF:FF:FF:FF:FF:FF"})
+
+    def _creds_view(self) -> dict:
+        """Is a key stored, and for which device — read at CALL time, not cached.
+
+        A cached flag would go stale the moment `forget` or a successful pair ran, and this value drives
+        whether the UI offers an Unpair button; offering it with nothing to delete, or hiding it with a
+        stale key on disk, are both worse than one stat() per poll."""
+        try:
+            with open(self._creds_path, encoding="utf-8") as fh:
+                creds = json.load(fh)
+        except (OSError, ValueError):
+            return {"paired": False, "creds_addr": None}
+        if not isinstance(creds, dict) or not creds.get("masterPairKey"):
+            return {"paired": False, "creds_addr": None}
+        return {"paired": True, "creds_addr": creds.get("ble_addr")}
+
     def status(self) -> dict:
+        adapter = self._adapter
+        base = {"adapter": adapter,
+                # None (not "true") when no adapter is configured: absent is not the same as usable,
+                # and a panel that renders a missing pin as "fine" is the fabricated-green this repo
+                # keeps paying for.
+                "adapter_usable": None if not adapter else
+                (str(adapter).upper() not in self.UNPAIRABLE_BD),
+                **self._creds_view()}
         if self._pending is None:
-            return {"pending": False}
+            return {"pending": False, **base}
         left = max(0.0, self._pending["deadline"] - self._clock())
-        return {"pending": True, "ble_addr": self._pending["addr"], "seconds_left": round(left, 1)}
+        return {"pending": True, "ble_addr": self._pending["addr"],
+                "seconds_left": round(left, 1), **base}
 
     # ── the endpoint's entry ────────────────────────────────────────────────────────────────────
     async def op(self, action: str, *, passkey=None, ble_addr=None) -> dict:
@@ -174,7 +215,35 @@ class PairingSession:
                 return await self._confirm(passkey)
             if action == "cancel":
                 return await self._cancel()
+            if action == "forget":
+                return self._forget()
         return {"ok": False, "error": f"unknown pairing action {action!r}"}
+
+    def _forget(self) -> dict:
+        """Delete the stored key. Held under the same lock as passkey/cancel so it cannot race a
+        confirm that is about to WRITE one — deleting the file a millisecond before `write_creds`
+        replaces it would report success and leave the box paired.
+
+        REFUSES while the live stream holds the link: that stream authenticates with this key, and
+        pulling it mid-session would fail the next reconnect with a decrypt error rather than an
+        honest 'not paired'. Refuses with a pending exchange for the same reason — cancel that first,
+        which is the action that exists for it."""
+        if self._pending is not None:
+            return {"ok": False, "error": "a pairing exchange is open — cancel it before forgetting the key"}
+        if self._other_busy():
+            return {"ok": False, "error": "the live CPAP stream holds the link — stop it before forgetting the key"}
+        before = self._creds_view()
+        if not before["paired"]:
+            # Not an error: the end state the caller asked for is the state we are in. Reporting a
+            # failure here would make a second click look like a fault.
+            return {"ok": True, "forgotten": False, "detail": "no stored key to forget", **self.status()}
+        try:
+            os.unlink(self._creds_path)
+        except OSError as e:
+            return {"ok": False, "error": f"could not remove {self._creds_path}: {e}"}
+        return {"ok": True, "forgotten": True, "was_addr": before["creds_addr"],
+                "detail": "stored key removed — the CPAP must be re-paired before the next session",
+                **self.status()}
 
     # ── step 1 ──────────────────────────────────────────────────────────────────────────────────
     async def _start(self, ble_addr) -> dict:
