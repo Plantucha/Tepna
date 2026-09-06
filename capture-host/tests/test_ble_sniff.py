@@ -789,7 +789,11 @@ def test_the_address_options_ACCUMULATE_rather_than_replace():
         other = ble_sniff._parse_argv(["x.pcap", "--config", tmp_cfg, "--ours", SENA])
         assert other is not None and other[3] == {RING, SENA}, other
         assert adapters == {"11:11:11:11:11:11", "22:22:22:22:22:22"}, adapters
-        assert ran_full is False, "the flag's absence is False, a bool, not None"
+        assert ran_full is None, (
+            "the flag's ABSENCE is UNKNOWN, not the claim 'it exited early' — see ble_sniff.py's "
+            "note on the default. This assertion previously read `is False`, written to kill a "
+            "mutmut survivor, and in doing so it pinned the very default that made a hand run report "
+            "'the sniffer died 457 s early' for a capture that had run its whole window.")
     finally:
         os.unlink(tmp_cfg)
     del cfg
@@ -856,3 +860,26 @@ def test_the_config_is_decoded_as_UTF_8_regardless_of_the_box_locale():
         os.unlink(cfg)
     assert seen["kw"].get("encoding") == "utf-8", (
         "the config read must pin utf-8 rather than inherit the locale: %r" % (seen.get("kw"),))
+
+
+def test_the_flag_is_a_THREE_state_contract_not_a_boolean():
+    """Unknown / ran / exited-early are three answers, and only the first is a default. Pinning the
+    default alone would let either explicit flag rot silently — which is how the wrong default
+    survived a mutation gate in the first place."""
+    def parse(*extra):
+        got = ble_sniff._parse_argv(["x.pcap", *extra])
+        assert got is not None
+        return got[5]
+
+    assert parse() is None, "said nothing ⇒ unknown"
+    assert parse("--ran-full-window") is True, "the process survived its window"
+    assert parse("--exited-early") is False, "the caller watched it exit"
+    # …and each maps to its own sentence, so the three states are observable in the output too.
+    short = _night(_adv(0x0), _adv(0x0), span_s=442.9)
+    unknown = ble_sniff.audit(short, 900, set(), set())["window"]
+    ran = ble_sniff.audit(short, 900, set(), set(), ran_full_window=True)["window"]
+    early = ble_sniff.audit(short, 900, set(), set(), ran_full_window=False)["window"]
+    assert "did not say" in unknown and "FELL BEHIND" not in unknown and "died" not in unknown
+    assert "FELL BEHIND real time" in ran
+    assert "the sniffer died" in early and "s early" in early
+    assert len({unknown, ran, early}) == 3, "three states must not collapse into two sentences"
