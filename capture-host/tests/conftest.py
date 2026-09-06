@@ -213,3 +213,58 @@ class AlertRecorder:
 def alert_recorder():
     """Factory, not an instance — several tests need more than one notifier, or one that refuses."""
     return AlertRecorder
+
+
+# ── leaked module-global events (residue `2026-09-06-runner-gate-events-leak-between-tests`) ─────────
+# `capture` carries three module-global `asyncio.Event`s — `_STOP`, `_RECOVER`, `_OXYII_PAUSE` — and
+# tests `.set()` them DIRECTLY rather than through `monkeypatch`, so nothing restores them. All three
+# gate the runners' loops (`while not _STOP.is_set() and not _RECOVER.is_set() and not
+# _OXYII_PAUSE.is_set()`), so one left set makes every later runner test spin in an outer idle gate and
+# reach NONE of the code it names — while still passing, because a test that observes nothing looks
+# exactly like a test whose subject behaved. Measured: planting either `_RECOVER` or `_OXYII_PAUSE`
+# reproduced a run-level plant recording zero observations, byte-identical to a full-suite failure.
+#
+# TWO MECHANISMS, DELIBERATELY, because they answer different questions:
+#   · the RESET (clear before) stops one test's leak reaching the next — it makes the suite correct;
+#   · the TRIPWIRE (assert after, naming the test) says WHO leaked — it keeps the suite honest.
+# A reset alone would silence this class forever without ever naming a new instance of it, which is
+# how the repo accumulates findings it cannot see recur.
+#
+# THE SET IS DISCOVERED, NOT LISTED. `_capture_events()` introspects the module, so a fourth event
+# added later is covered the day it appears. Hard-coding today's three would encode the count as the
+# invariant — and the count is exactly what a new leak changes. (Enumerating is also how `_STOP` was
+# found at all: grepping the failure only showed the two events that happened to be in one message.)
+import asyncio as _asyncio
+import threading as _threading
+
+
+def _capture_events():
+    """Every module-global Event on `capture`, as (name, event). Discovered, never listed."""
+    import capture as _capture
+
+    return sorted(
+        (n, getattr(_capture, n))
+        for n in dir(_capture)
+        if isinstance(getattr(_capture, n, None), (_threading.Event, _asyncio.Event))
+    )
+
+
+@_pytest.fixture(autouse=True)
+def _capture_events_are_not_leaked(request):
+    """Reset before, tripwire after. The tripwire runs BEFORE the trailing clear so it can still see
+    what the test left; the clear then runs regardless, so one leak cannot cascade."""
+    for _name, ev in _capture_events():
+        ev.clear()
+    yield
+    leaked = [n for n, ev in _capture_events() if ev.is_set()]
+    for _name, ev in _capture_events():
+        ev.clear()
+    if leaked and not request.node.get_closest_marker("sets_capture_events"):
+        raise AssertionError(
+            f"{request.node.nodeid} left {', '.join(leaked)} SET. These are module globals that gate "
+            f"the runner loops, so leaving one set makes later runner tests reach none of the code "
+            f"they name while still passing. Set them via `monkeypatch`, or clear them in the test. "
+            f"A test that sets one AS PART OF ITS SCENARIO declares that with "
+            f"`@pytest.mark.sets_capture_events` — the fixture is a reset, not a ban, and the marker "
+            f"is what keeps this tripwire silent on correct code and loud on a real leak."
+        )

@@ -881,6 +881,7 @@ def test_a_busy_offline_slot_re_arms_and_a_transient_failure_does_not(tmp_path, 
     assert any("hourly poller is the backstop" in r.getMessage() for r in caplog.records)
 
 
+@pytest.mark.sets_capture_events
 def test_the_charger_poller_holds_off_during_a_recovery(tmp_path, monkeypatch):
     """A pull needs the radio. Starting one mid-power-cycle fights the recovery for the adapter and both
     lose."""

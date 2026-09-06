@@ -1535,6 +1535,7 @@ def test_run_polar_auto_sync_gives_up_on_a_hard_failure(tmp_path, monkeypatch):
 
 
 # ── run_polar: the paused-for-a-pull branch at the top of the capture loop (450-454) ────────────────────
+@pytest.mark.sets_capture_events
 def test_run_polar_waits_while_the_adapter_is_recovering(tmp_path, monkeypatch):
     """_RECOVER set at the loop top → the device idles in the pause-wait until _STOP (450-454)."""
     _polar_common(monkeypatch)
@@ -1698,6 +1699,7 @@ def test_run_viatom_link_error_is_reported(tmp_path, monkeypatch):
 
 
 # ── run_oxyii: pause branch + non-live/short/probe/session-restart on_data branches (874-963, 1021-1022) ─
+@pytest.mark.sets_capture_events
 def test_run_oxyii_waits_while_paused_for_a_pull(tmp_path, monkeypatch):
     """_OXYII_PAUSE set at the loop top → the runner idles in the pause-wait until _STOP (874-878)."""
     capture._OXYII_PAUSE.set()
@@ -1855,6 +1857,7 @@ def test_run_oxyii_resumes_when_the_hold_has_expired(tmp_path, monkeypatch, capl
     assert any(w[1] == oxyii.OP_LIVE for w in c.writes)   # live capture ran
 
 
+@pytest.mark.sets_capture_events
 def test_run_oxyii_hold_yields_to_a_stored_pull(tmp_path, monkeypatch):
     """_OXYII_PAUSE set during a hold ends the wait without ending the hold: the pull path takes the link
     (the one interaction measured NOT to restart the ring) and the hold is re-evaluated afterwards."""
@@ -2021,6 +2024,7 @@ def test_sync_device_time_non_h10_readback_failures(monkeypatch):
 
 
 # ── adapter_watchdog: skip-while-paused, info error, healthy-again, disconnect error, cycle cap ─────────
+@pytest.mark.sets_capture_events
 def test_adapter_watchdog_skips_while_paused(monkeypatch):
     """A pull in flight (_OXYII_PAUSE) → the watchdog skips its diagnosis for that tick (1228-1229)."""
     capture._OXYII_PAUSE.set()
@@ -3309,6 +3313,7 @@ def _viatom_dev():
     return _o2dev(name="Ring", protocol="legacy")
 
 
+@pytest.mark.sets_capture_events
 def test_run_viatom_idles_during_adapter_recovery(tmp_path, monkeypatch):
     """This loop was the ONLY one that ignored _RECOVER: it kept hammering connects at a radio the
     watchdog was powering off, and could hold the global connect lock when the power-off landed."""
@@ -3762,6 +3767,7 @@ def test_autopull_noop_when_no_ring_configured(tmp_path, monkeypatch):
     assert calls == []
 
 
+@pytest.mark.sets_capture_events
 def test_autopull_skips_during_recovery(tmp_path, monkeypatch):
     """No pull while the adapter watchdog is recovering (_RECOVER) — don't fight the radio reset."""
     calls = []
