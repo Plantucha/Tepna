@@ -1,7 +1,8 @@
 ---
 bump: patch
 type: fixed
-brief: briefs/CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md
+nodes: [capture-host]
+brief: CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md
 ---
 
 capture-host: a runner waiting to retry no longer publishes `connected: true`.
