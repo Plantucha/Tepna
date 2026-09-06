@@ -244,6 +244,88 @@ def offline_alert_suppressed(optional: bool, ever_connected: bool) -> bool:
     return bool(optional) and not ever_connected
 
 
+def ring_identity_mismatch(expected, seen) -> str | None:
+    """PURE impostor-shape check (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C).
+
+    `expected` is the operator-configured WIRE serial — `serial:` on the O2Ring device entry, the string
+    the ring returns in its 0xE1 GET_INFO reply (2592302100 on the corpus ring). It is NOT the BLE-name
+    id the capture filenames carry (`S8AW2100`); the two are different strings for one ring, and the
+    audit brief's first draft named the wrong one. `seen` is what the connected peer actually answered.
+    Returns the alert text when they differ, None when they match.
+
+    No expectation configured ⇒ None. This is detection the operator opts into by writing the serial
+    down; with nothing to compare against there is nothing to say, and a check that fires unconfigured
+    would fire on every box that has not read this docstring. An EMPTY or ABSENT reply against a
+    configured serial IS a mismatch — a peer that answers the identity query with no identity is
+    exactly the shape of something that is not the ring.
+
+    Detection, not prevention. The link is unbonded and the reply is plaintext, so an impostor that has
+    read this repo can echo the right serial; what this catches is the cheap impostor and the WRONG RING
+    — a replaced unit, a neighbour's O2Ring, a re-scanned random-static address that landed on the
+    wrong device — and it says so on the monitor and the webhook instead of letting that link's data
+    into the corpus unremarked."""
+    exp = str(expected).strip() if expected is not None else ""
+    if not exp:
+        return None
+    got = str(seen).strip() if seen is not None else ""
+    if got == exp:
+        return None
+    shown = repr(got) if got else "no serial at all"
+    return f"connected peer reports {shown}, config expects {exp!r}"
+
+
+# Consecutive connects that ANSWERED the identity query and then delivered nothing. At the ring
+# runner's 5→60 s reconnect backoff three of them is at least a minute of a peer that talks to us and
+# never serves data. One is an ordinary dropped link and two is a reconnect landing on a drop, so
+# neither earns an operator's attention; a run of three is the shape that is not the ring doing its job.
+RING_BARREN_ALERT_N = 3
+
+
+def ring_barren_connects(n: int, threshold: int = RING_BARREN_ALERT_N, *,
+                         storm_age_s: float | None = None, restarts_recent: int = 0) -> str | None:
+    """PURE check for the OTHER half of the impostor shape (§6.2 Mitigation C, clause 2).
+
+    Clause 1 asks whether the peer says the right serial; this asks whether it does the right thing.
+    A peer that answers the `0xE1` identity query and then never sends a single decodable frame is not
+    a ring doing its job: the real one talks whether or not it is worn — frames are the LINK's
+    heartbeat, which is exactly why the runner's stall guard counts frames and not vitals rows — so
+    "identity, then silence" is not the signature of an unworn ring, an idle one, or a charging one.
+
+    The two clauses are complementary rather than redundant, and each sees what the other cannot: an
+    impostor that echoes the configured serial passes clause 1 and, if it cannot actually produce
+    Viatom frames, fails this one; a wrong-but-real O2Ring streams perfectly and fails only clause 1.
+
+    `n` is a run of CONSECUTIVE such episodes, reset by any episode that delivered a frame — and NOT
+    reset by a connect that never reached identity. That is a link failure, which the offline alarm
+    already reports; letting it clear this counter would let an alternating failure hide forever.
+
+    ⚠️ THE FIRING IS THE SAME; THE EXPLANATION BRANCHES. An O2Ring restart storm produces exactly this
+    shape — connect, identity, the ring restarts, no frames — so the alarm is a true positive either
+    way (the link IS reaching something that serves no data). What must not happen is an operator
+    being sent after an impostor when a KNOWN storm is the cause. `storm_age_s` is seconds since the
+    last declared storm and `restarts_recent` counts recent session restarts; both are the CALLER's
+    judgement, because the caller owns the attribution window (`capture.py`'s `_OXYII_STORM_MEMORY_S`)
+    and mirroring it here would make two sources of truth for one number. Pass `storm_age_s=None`
+    when no storm is attributable.
+
+    ⚠️ CLAUSE 1's SILENCE IS DELIBERATELY *NOT* A DISCRIMINATOR, though it looks like the strongest
+    one: a storming ring still answers `0xE1` with the configured serial, so "clause 2 fired and
+    clause 1 did not" reads as evidence for a storm. It is evidence ONLY where a `serial:` is
+    configured — unconfigured, clause 1 is inert and its silence means nothing whatever. Measured on
+    vigil 2026-09-05: **zero** `serial:` keys in the box's config, so on the box that owns this
+    hardware the inference would have been vacuous every time it was drawn."""
+    if n < threshold:
+        return None
+    head = f"{n} consecutive connects answered the identity query and delivered no frames"
+    if storm_age_s is not None:
+        return (f"{head} — a restart storm tripped {storm_age_s / 60:.0f} min ago, so this is very "
+                "likely the ring restarting, not an impostor")
+    if restarts_recent:
+        return (f"{head} — the ring reported {restarts_recent} session restart(s) recently, a likelier "
+                "cause than an impostor")
+    return f"{head} — this link reaches something that is not serving data"
+
+
 # WHY THIS EXISTS, AND WHY IT IS NOT `missing`.
 #
 # On 2026-07-25 the Verity acknowledged four PMD streams `ok` at 23:51:23 and wrote nothing until
