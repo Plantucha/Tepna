@@ -22,6 +22,8 @@
 
 import asyncio
 
+import pytest
+
 import capture
 
 
@@ -33,9 +35,6 @@ def _fresh(name="R"):
     event: both yield exactly the full-suite signature, `sleeps=400 waits_seen=0`."""
     capture.STATUS["devices"].clear()
     capture._LINK_EPOCH.clear()
-    capture._STOP.clear()
-    capture._RECOVER.clear()
-    capture._OXYII_PAUSE.clear()
     return name
 
 
@@ -197,6 +196,7 @@ def _assert_stalled_wait_is_honest(snaps, runner):
             f"claims this closes cannot both be true")
 
 
+@pytest.mark.sets_capture_events
 def test_run_polar_publishes_a_DOWN_link_while_it_waits_out_a_stall(tmp_path, monkeypatch):
     import test_capture_runners as T
     _fresh("H10")
@@ -212,6 +212,7 @@ def test_run_polar_publishes_a_DOWN_link_while_it_waits_out_a_stall(tmp_path, mo
     _assert_stalled_wait_is_honest(snaps, "run_polar")
 
 
+@pytest.mark.sets_capture_events
 def test_run_viatom_publishes_a_DOWN_link_while_it_waits_out_a_stall(tmp_path, monkeypatch):
     import test_capture_runners as T
     _fresh("Ring")
@@ -232,6 +233,7 @@ def test_run_viatom_publishes_a_DOWN_link_while_it_waits_out_a_stall(tmp_path, m
     _assert_stalled_wait_is_honest(snaps, "run_viatom")
 
 
+@pytest.mark.sets_capture_events
 def test_run_oxyii_publishes_a_DOWN_link_while_it_waits_out_a_stall(tmp_path, monkeypatch):
     import test_capture_runners as T
     _fresh("Ring")
