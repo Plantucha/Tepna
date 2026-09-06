@@ -15,3 +15,13 @@ mutmut>=3.7.0          # tools/mutate_diff.py (the diff-scoped mutation gate) an
                        # this file got a refusal with no indication that a dependency was missing.
                        # `hypothesis` is listed here despite ALSO being installed inline in CI, so the
                        # omission was an inconsistency rather than a policy.
+shellcheck-py>=0.11.0.1 # check.sh's `shellcheck` gate + tests/test_shell_surface.py. The SAME omission as
+                       # mutmut, with a worse symptom: mutmut refused and said why; a missing shellcheck
+                       # exits 127 inside check.sh, which reads as "the tool is absent on this box" —
+                       # an environment fact — and was explained away four times in one day (Wren,
+                       # 2026-09-06) while the gate reported on 5 of its 6 checks. check.sh now resolves
+                       # the binary beside the interpreter first, the way test_shell_surface.py does.
+detect-secrets>=1.5.0  # the `secrets` CI job (`detect-secrets audit --report` against .secrets.baseline).
+                       # Owner rule (2026-09-06): this file lists EVERY tool a CI job installs, so the
+                       # documented local setup can run every gate CI runs. tests/test_dev_requirements.py
+                       # reads the workflow's inline `pip install` lines and reds the day one drifts.
