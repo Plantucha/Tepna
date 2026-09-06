@@ -763,7 +763,29 @@ def parse_get_info(payload: bytes) -> dict | None:
             rtc = {"year": y, "month": mo, "day": d, "hour": h, "minute": mi, "second": s}
         except ValueError:                     # out-of-range component — §2.7: absence, never a rolled instant
             rtc = None
-    return {"firmware": fw, "serial": sn, "rtc": rtc, "raw_len": len(payload)}
+    # ── THE FIELD WE CALLED "firmware" IS THE VENDOR'S branchCode ─────────────────────────────────
+    # Residue `2026-09-02-oxyii-branchcode-named-firmware`. §3c: `payload[9:17]` is an 8-character
+    # BRANCH CODE (`2D010002`); the firmware VERSION is a separate dotted string from bytes
+    # `[4].[3].[2].[1]`, with `hwV = [0]` and a bootloader from `[8]..[5]`. The two COEXIST — the §3a
+    # ring is branch `2D010001` AND firmware `1.13.1.0` — so a log line reading `firmware 2D010002`
+    # could never be compared against a vendor-reported version.
+    #
+    # 🔴 `"firmware"` KEEPS ITS CURRENT (BRANCH) VALUE, deprecated but unchanged. It is persisted:
+    # `pull_session.py` writes it into a session sidecar as `device_firmware`, so silently changing
+    # what the key MEANS would rewrite the meaning of records already on disk while every consumer
+    # kept reading the same name. New data arrives through NEW fields instead.
+    ver = ".".join(str(payload[i]) for i in (4, 3, 2, 1)) if len(payload) > 4 else None
+    boot = ".".join(str(payload[i]) for i in (8, 7, 6, 5)) if len(payload) > 8 else None
+    return {
+        "firmware": fw,          # DEPRECATED alias of `branch_code` — kept for on-disk compatibility
+        "branch_code": fw,       # the same 8 ASCII chars, under the name the vendor uses
+        "firmware_version": ver,  # the REAL version, "[4].[3].[2].[1]"
+        "hw_version": payload[0] if payload else None,
+        "bootloader": boot,
+        "serial": sn,
+        "rtc": rtc,
+        "raw_len": len(payload),
+    }
 
 
 # GET_CONFIG field layout (first 20 of the 40-byte reply). Bytes 20+ are firmware-variant; opaque.

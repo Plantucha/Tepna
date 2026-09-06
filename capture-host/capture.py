@@ -3726,7 +3726,28 @@ def _emit_oxy_live_evidence(name, dev, started, spo2_kept, grid, ledger):
         log.exception("%s: acquisition-evidence sidecar failed — the capture itself is unaffected", name)
 
 
-O2RING_PLAINTEXT_FW = "2D010002"   # the firmware this box's ring runs, and the only one measured plaintext
+# The BRANCH CODE this box's ring runs, and the only branch measured plaintext. Renamed from
+# `O2RING_PLAINTEXT_FW` (residue `2026-09-05-dis-firmware-compared-to-a-branch-code`): `2D010002` is a
+# branch code, not a firmware version — the same ring reports firmware `1.13.1.0` (§3c). Comparing it
+# to the DIS Firmware Revision String could never be true on a ring that implements DIS, and on THIS
+# box's ring DIS is absent entirely, so the guard never fired at all.
+O2RING_PLAINTEXT_BRANCH = "2D010002"
+
+
+def aes_session_suspect(branch_code: "str | None") -> bool:
+    """Should the app-layer-AES warning fire for a ring reporting this BRANCH CODE?
+
+    PURE, and it takes the branch code ALONE — deliberately. The defect this replaces
+    (`2026-09-05-dis-firmware-compared-to-a-branch-code`) was a guard keyed on the DIS Firmware
+    Revision String, which is a different field of a different profile: it could never equal a branch
+    code, and on a ring without DIS it never ran at all. A predicate that cannot SEE a firmware
+    version cannot be keyed on one by mistake, which is why the signature is the fix as much as the
+    body is.
+
+    An unknown branch (None — GET_INFO not yet answered) is NOT suspect: absence of evidence is not
+    evidence of an encrypted session, and warning on it would fire on every link before identity
+    arrives."""
+    return bool(branch_code) and branch_code != O2RING_PLAINTEXT_BRANCH
 
 
 async def _publish_ring_firmware(client, name: str) -> None:
@@ -3756,12 +3777,9 @@ async def _publish_ring_firmware(client, name: str) -> None:
     if not fw:
         return
     _set(name, firmware=fw)
-    if fw != O2RING_PLAINTEXT_FW:
-        # Once per connection, by NAME, because the alternative is meeting it as an unexplained decode
-        # failure at 03:00. Not an error: an unmeasured firmware may well be plaintext too.
-        log.warning("%s reports firmware %s, not the measured-plaintext %s — if frames stop decoding "
-                    "after a clean auth, suspect an AES-keyed session rather than the link",
-                    name, fw, O2RING_PLAINTEXT_FW)
+    # DIAGNOSTIC ONLY. The AES-session guard moved to the GET_INFO branch in `run_oxyii`, where the
+    # BRANCH CODE it actually needs is already parsed — see `O2RING_PLAINTEXT_BRANCH`. Comparing this
+    # string to a branch code was the defect; publishing it beside the branch is the use it has.
 
 
 async def run_oxyii(dev: dict, root: str):
@@ -3996,9 +4014,41 @@ async def run_oxyii(dev: dict, root: str):
                             if _mm and STATUS["devices"].get(name, {}).get("ring_identity_mismatch") != _mm:
                                 log.error("%s: RING IDENTITY MISMATCH — %s; data from this link is suspect "
                                           "until the serial matches", name, _mm)
+                            # `ring_firmware` KEEPS ITS CURRENT VALUE (the branch code) because webmon
+                            # forwards that exact key to the monitor; renaming it would blank a card.
+                            # The correctly-named fields are published ALONGSIDE it — residue
+                            # `2026-09-02-oxyii-branchcode-named-firmware`.
+                            # READ THE PREVIOUS BRANCH BEFORE PUBLISHING THE NEW ONE. The first
+                            # draft took `_prev` from STATUS *after* the `_set` below, so it always
+                            # equalled the value just written and the transition check could never be
+                            # true — the guard would have fired on no link, ever. Same shape as the
+                            # "WRITE THE FIRE BEFORE THE RESTART" rule in the wedge ladder: order is
+                            # the whole behaviour. Caught by a run-level test, not by review.
+                            _prev_branch = STATUS["devices"].get(name, {}).get("ring_branch_code")
                             _set(name, ring_serial=_seen or None,
                                  ring_firmware=(_info or {}).get("firmware") or None,
+                                 ring_branch_code=(_info or {}).get("branch_code") or None,
+                                 ring_firmware_version=(_info or {}).get("firmware_version") or None,
                                  ring_identity_mismatch=_mm)
+                            # ── THE AES-SESSION GUARD, ON THE FIELD IT ALWAYS MEANT ──────────────
+                            # Residue `2026-09-05-dis-firmware-compared-to-a-branch-code`. It used to
+                            # compare the DIS Firmware Revision String to `2D010002`, a BRANCH CODE —
+                            # so it could never be true on a ring implementing DIS, and on this box's
+                            # ring, which does not expose DIS at all, it never ran. Here the branch
+                            # code is already parsed, and EVERY ring answers GET_INFO in our own
+                            # handshake, so the check exists on every link rather than only on rings
+                            # that happen to implement a profile we do not require.
+                            # The PREMISE is unchanged and still measured: the app-layer AES session
+                            # on branch-2D010001 rings is real (oxyii.py §"Encrypted-session guard")
+                            # and is a different layer from the LE link encryption Probe A refuted.
+                            _branch = (_info or {}).get("branch_code")
+                            if aes_session_suspect(_branch):
+                                if _prev_branch != _branch:   # TRANSITION only — not once per frame
+                                    log.warning("%s: ring reports branch %s, not the measured-plaintext %s "
+                                                "(firmware %s) — if frames stop decoding, suspect an "
+                                                "app-layer AES session", name, _branch,
+                                                O2RING_PLAINTEXT_BRANCH,
+                                                (_info or {}).get("firmware_version"))
                             _rtc = _info.get("rtc") if _info else None
                             _off = round(ring_clock_offset_s(_rtc, _now()), 1) if _rtc else None
                             _set(name, ring_rtc_offset_s=_off,
