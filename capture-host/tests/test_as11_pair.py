@@ -244,7 +244,11 @@ def test_session_start_then_passkey_stores_verified_creds_and_drops_the_link(tmp
     ses, _clk = _session(dev, tmp_path, on_paired=lambda c: adopted.append(c) or True)
 
     async def go():
-        assert ses.busy() is False and ses.status() == {"pending": False}
+        # Subset, not exact equality: `status()` also reports the radio it pairs on and whether a
+        # key is stored (2026-09-06). Those are ADDITIVE fields — pinning the whole dict here would
+        # make every future disclosure a test failure, which is how a shape assertion turns into a
+        # brake on saying more.
+        assert ses.busy() is False and ses.status()["pending"] is False
         r1 = await ses.op("start", ble_addr=" AA:BB:CC:DD:EE:FF ")
         assert r1["ok"] and r1["awaiting"] == "passkey" and r1["pending"] is True
         assert r1["ble_addr"] == "AA:BB:CC:DD:EE:FF" and r1["seconds_left"] == 120.0
@@ -419,7 +423,7 @@ def test_session_cancel_drops_a_pending_exchange_and_is_a_noop_otherwise(tmp_pat
         return r, await ses.op("status")
     r, st = _run(go())
     assert r == {"ok": True, "cancelled": True} and dev.disconnected == 1
-    assert st == {"ok": True, "pending": False}
+    assert st["ok"] is True and st["pending"] is False        # subset — see note above
 
 
 def test_session_expires_an_unanswered_exchange_and_frees_the_link(tmp_path):
@@ -433,7 +437,7 @@ def test_session_expires_an_unanswered_exchange_and_frees_the_link(tmp_path):
         await asyncio.sleep(0)
         return await ses.op("status"), await ses.op("passkey", passkey=dev.passkey)
     st, late = _run(go())
-    assert st == {"ok": True, "pending": False} and dev.disconnected == 1
+    assert st["ok"] is True and st["pending"] is False and dev.disconnected == 1
     assert late["ok"] is False and "Start pairing first" in late["error"]
     assert ses.busy() is False
 
@@ -482,3 +486,117 @@ def test_session_swallows_a_disconnect_that_fails(tmp_path):
         await ses.op("start", ble_addr="AA")
         return await ses.op("cancel")
     assert _run(go()) == {"ok": True, "cancelled": True}
+
+
+# ── op("forget") and the status disclosure (owner-reported 2026-09-06) ───────────────────────────────
+# The endpoint offered start/passkey/cancel/status and NOTHING deleted as11_creds.json, so a stale key
+# could only be displaced by a successful re-pair — the one operation a stale key breaks. And status()
+# named neither the radio it pairs on nor whether a key existed, so "which adapter am I pairing to?"
+# had no answer in the UI.
+
+def test_forget_deletes_a_stored_key_and_reports_which_device_it_was_for(tmp_path):
+    p = tmp_path / "as11_creds.json"
+    p.write_text(json.dumps({"masterPairKey": "ab" * 16, "clientId": "cid", "ble_addr": "AA:BB:CC:DD:EE:FF"}))
+    ses, _ = _session(SimDevice(), tmp_path)
+    assert ses.status()["paired"] is True
+    r = asyncio.run(ses.op("forget"))
+    assert r["ok"] is True and r["forgotten"] is True and r["was_addr"] == "AA:BB:CC:DD:EE:FF"
+    assert not p.exists(), "the key file must be gone, not merely reported gone"
+    assert r["paired"] is False, "the response carries the state AFTER the delete, not before"
+
+
+def test_forgetting_when_nothing_is_stored_is_OK_not_an_error(tmp_path):
+    """The end state the caller asked for is the state we are in. Returning an error would make a
+    second click look like a fault and teach the operator to distrust the button."""
+    ses, _ = _session(SimDevice(), tmp_path)
+    r = asyncio.run(ses.op("forget"))
+    assert r["ok"] is True and r["forgotten"] is False and r["paired"] is False
+
+
+def test_forget_REFUSES_while_the_live_stream_holds_the_link(tmp_path):
+    """That stream authenticates with this key. Pulling it mid-session turns the next reconnect into a
+    decrypt failure instead of an honest 'not paired'."""
+    p = tmp_path / "as11_creds.json"
+    p.write_text(json.dumps({"masterPairKey": "cd" * 16, "clientId": "c", "ble_addr": "A1:B2:C3:D4:E5:F6"}))
+    ses, _ = _session(SimDevice(), tmp_path, other_busy=lambda: True)
+    r = asyncio.run(ses.op("forget"))
+    assert r["ok"] is False and "live CPAP stream" in r["error"]
+    assert p.exists(), "a refusal must not delete the key"
+
+
+def test_forget_REFUSES_while_an_exchange_is_open_and_points_at_cancel(tmp_path):
+    dev = SimDevice()
+    p = tmp_path / "as11_creds.json"
+    p.write_text(json.dumps({"masterPairKey": "ef" * 16, "clientId": "c", "ble_addr": "A1:B2:C3:D4:E5:F6"}))
+    ses, _ = _session(dev, tmp_path)
+    assert asyncio.run(ses.op("start", ble_addr="AA"))["ok"] is True
+    r = asyncio.run(ses.op("forget"))
+    assert r["ok"] is False and "cancel" in r["error"]
+    assert p.exists()
+
+
+def test_forget_reports_an_unlink_failure_rather_than_claiming_success(tmp_path, monkeypatch):
+    p = tmp_path / "as11_creds.json"
+    p.write_text(json.dumps({"masterPairKey": "11" * 16, "clientId": "c", "ble_addr": "A:B"}))
+    ses, _ = _session(SimDevice(), tmp_path)
+
+    def boom(_path):
+        raise OSError("read-only file system")
+    monkeypatch.setattr(P.os, "unlink", boom)
+    r = asyncio.run(ses.op("forget"))
+    assert r["ok"] is False and "read-only file system" in r["error"]
+
+
+def test_status_names_the_radio_it_pairs_on(tmp_path):
+    """`which adapter am I pairing to?` had no answer in the UI. The box has three radios and only one
+    is pinned for the CPAP."""
+    ses, _ = _session(SimDevice(), tmp_path, adapter="28:0C:50:0C:18:FD")
+    assert ses.status()["adapter"] == "28:0C:50:0C:18:FD"
+    assert ses.status()["adapter_usable"] is True
+
+
+def test_status_flags_a_radio_that_cannot_be_paired_against(tmp_path):
+    """A Zephyr/nRF52840 dongle reports an all-zero BD address and refuses a host-side public pin
+    (0x0c Not Supported), so a key stored against it would never reconnect. `capture._addressable`
+    already guards the failover ladder against exactly this; the pairing panel showed nothing."""
+    ses, _ = _session(SimDevice(), tmp_path, adapter="00:00:00:00:00:00")
+    assert ses.status()["adapter_usable"] is False
+    ses2, _ = _session(SimDevice(), tmp_path, adapter="ff:ff:ff:ff:ff:ff")
+    assert ses2.status()["adapter_usable"] is False, "case must not decide addressability"
+
+
+def test_status_says_UNKNOWN_rather_than_usable_when_no_radio_is_pinned(tmp_path):
+    """None, not True. A panel that renders a missing pin as 'fine' is the fabricated-green this repo
+    keeps paying for — absent is not the same as usable."""
+    ses, _ = _session(SimDevice(), tmp_path)
+    assert ses.status()["adapter"] is None
+    assert ses.status()["adapter_usable"] is None
+
+
+def test_status_paired_flag_is_read_at_call_time_not_cached(tmp_path):
+    p = tmp_path / "as11_creds.json"
+    ses, _ = _session(SimDevice(), tmp_path)
+    assert ses.status()["paired"] is False
+    p.write_text(json.dumps({"masterPairKey": "22" * 16, "clientId": "c", "ble_addr": "Z"}))
+    assert ses.status()["paired"] is True, "a cached flag goes stale the moment a pair or forget lands"
+    assert ses.status()["creds_addr"] == "Z"
+
+
+def test_a_truncated_or_keyless_creds_file_reads_as_NOT_paired(tmp_path):
+    """`_load_as11_creds` already treats a half-written file as 'not paired' silently; status must
+    agree, or the UI hides Unpair on a file that cannot authenticate anything."""
+    p = tmp_path / "as11_creds.json"
+    ses, _ = _session(SimDevice(), tmp_path)
+    p.write_text("{not json")
+    assert ses.status()["paired"] is False
+    p.write_text(json.dumps({"clientId": "c", "ble_addr": "Z"}))     # no masterPairKey
+    assert ses.status()["paired"] is False
+
+
+def test_status_disclosure_rides_along_with_a_pending_exchange(tmp_path):
+    """The radio and stored-key facts must not vanish the moment an exchange opens — that is exactly
+    when an operator is looking at the panel."""
+    ses, _ = _session(SimDevice(), tmp_path, adapter="hci1")
+    assert asyncio.run(ses.op("start", ble_addr="AA"))["ok"] is True
+    s = ses.status()
+    assert s["pending"] is True and s["adapter"] == "hci1" and s["paired"] is False
