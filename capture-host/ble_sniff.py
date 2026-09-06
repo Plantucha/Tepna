@@ -30,6 +30,14 @@
 # link if it caught the CONNECT_IND that opened it, so a capture can be enormous and still contain
 # nothing but advertising. `summarise()` reports the data-channel count FIRST and `format_report()`
 # states it as an explicit verdict with its reason, never as a silent absence.
+#
+# NIGHTLY AUDIT (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT-2026-09-05 D3). `tepna-sniff.sh` records an
+# N-minute all-advertising capture every night and hands it here with `--expect-seconds`, `--config`
+# and `--adapters`. `audit()` then answers the two questions D1 answered once by hand: did the sniffer
+# actually run the window (F2's 2-h-of-7.4-h capture would fail it), and did any initiator that is
+# NOT one of our adapters open a link to one of OUR devices (C1's impostor, measured on air rather
+# than inferred). A failed audit exits 3 so the oneshot unit lands in `systemctl --failed` — the one
+# place a box nobody logs into makes a finding visible.
 
 from __future__ import annotations
 
@@ -241,20 +249,174 @@ def format_report(s: dict) -> str:
     return "\n".join(out)
 
 
+#: A capture shorter than this fraction of the requested window is a sniffer that died early.
+#: 0.8, not 0.95: the extcap spends its first seconds on firmware handshake + the SIGINT teardown
+#: closes the file a little before the timeout, so a healthy 600 s run spans ~590 s; 2 h of 7.4 h
+#: (F2) is 0.27. Anything between is a real shortfall worth a red.
+WINDOW_MIN_FRACTION = 0.8
+
+
+def _macs(csv: str | None) -> set[str]:
+    return {m.strip().upper() for m in (csv or "").split(",") if m.strip()}
+
+
+def device_addresses(config_path: str) -> set[str]:
+    """Every `address:` under `devices:` in a capture-host config.yaml, upper-cased. Only the
+    addresses: a config carries bond keys and passwords the audit has no business reading twice."""
+    import yaml  # noqa: PLC0415 — the standalone report path must not need yaml
+    with open(config_path, encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh) or {}
+    out: set[str] = set()
+    for dev in cfg.get("devices") or []:
+        addr = (dev or {}).get("address")
+        if addr:
+            out.add(str(addr).strip().upper())
+    return out
+
+
+def audit(s: dict, expect_s: float | None, ours: set[str], adapters: set[str],
+          ran_full_window: bool | None = None) -> dict:
+    """The nightly verdict, pure. `ours` = our devices' MACs, `adapters` = our own radios' MACs.
+
+    A CONNECT_IND to one of OUR devices from an initiator that is not one of OUR adapters is a
+    foreign connect — the impostor/attacker shape C1 cannot see from the daemon's side. With an
+    EMPTY adapter list every connect to our devices is unattributable and therefore reported as
+    foreign: the honest reading of "we could not check", never a silent pass.
+
+    `ran_full_window` says whether the CAPTURE PROCESS survived to the end of its window — the caller
+    knows, because `timeout` exits 124 exactly when it ended the run on schedule. It changes no
+    verdict (a short span fails either way) but it decides which FAULT the operator is sent after,
+    and the two are nothing alike:
+
+      * the process ended EARLY ⇒ "the sniffer died N s early": a crash, a LockedException, an unplug.
+      * the process ran the FULL window ⇒ **it fell behind real time.** Measured on vigil 2026-09-06:
+        the Nordic extcap pegs one core at 101 %, processes air at ~0.4x real time, and its newest
+        packet advanced 44 s in 110 s of wall clock. A 900 s window then yields ~360 s of packets and
+        the missing 60 % is ALWAYS THE END — a systematic blind spot, not sampling. An
+        un-instrumented sniffer in busy RF captures the first 40 % of every window and reports
+        nothing wrong; turning that into a red is the whole reason this check exists.
+
+    Calling the second case "died early" names a fault that did not happen and hides one that did, so
+    the discriminator is passed in rather than guessed from the bytes."""
+    problems: list[str] = []
+    span = s["duration_s"]
+    window = None
+    if expect_s is not None:
+        if span is None:
+            window = "no packets at all in a %.0f s window" % expect_s
+        elif span < WINDOW_MIN_FRACTION * expect_s:
+            window = ("captured %.1f s of %.0f s expected — %s"
+                      % (span, expect_s,
+                         ("the capture ran the whole window, so the sniffer FELL BEHIND real time; "
+                          "the missing %.0f s is the END of the window" % (expect_s - span))
+                         if ran_full_window else
+                         ("the sniffer died %.0f s early" % (expect_s - span))))
+        if window:
+            problems.append("window: " + window)
+    foreign = [(i, a) for i, a in s["connects"] if a in ours and i not in adapters]
+    if foreign:
+        problems.append("%d foreign connect(s) to our devices" % len(foreign))
+    heard = {a for a in ours if a in s["advertisers"] or any(adv == a for _, adv in s["connects"])}
+    # COVERAGE, published whether or not the window check passed. A clean foreign-connect verdict
+    # means far less at cover=0.5 than at cover=1.0, and nothing else in this output lets the reader
+    # infer which they are holding (measured on vigil 2026-09-06: 0.41 unfiltered, 0.51 with an
+    # RSSI filter — this rig's normal state, not an incident).
+    cover = (span / expect_s) if (expect_s and span is not None) else None
+    return {
+        "expect_s": expect_s,
+        "cover": cover,
+        "window": window,
+        "foreign": foreign,
+        "ours": sorted(ours),
+        "adapters": sorted(adapters),
+        "heard": sorted(heard),
+        "problems": problems,
+        "ok": not problems,
+    }
+
+
+def format_audit(a: dict) -> str:
+    """Appended below the report. Every line states a count, even at zero (CLAUDE.md §4b)."""
+    out = ["", "AIR AUDIT: " + ("OK" if a["ok"] else "FAILED — " + "; ".join(a["problems"]))]
+    if a["expect_s"] is not None:
+        # The fraction is stated on EVERY run, passing or failing — same rule as `foreign connects: 0`.
+        # A verdict of "no foreign connects" is worth what its coverage is worth, and a reader who is
+        # not told the coverage will read a half-captured window as the night.
+        out.append("  coverage        : %s of %.0f s requested"
+                   % ("%.2f (%.1f s)" % (a["cover"], a["cover"] * a["expect_s"])
+                      if a["cover"] is not None else "no packets at all",
+                      a["expect_s"]))
+        out.append("  window          : %s" % (a["window"] or "span covers the requested window"))
+    out.append("  our devices     : %d configured, %d heard on air" % (len(a["ours"]), len(a["heard"])))
+    for m in a["heard"]:
+        out.append("    heard %s" % m)
+    if not a["adapters"]:
+        out.append("  our adapters    : NONE listed — every connect to our devices counts as foreign")
+    else:
+        out.append("  our adapters    : %s" % ", ".join(a["adapters"]))
+    out.append("  foreign connects: %d" % len(a["foreign"]))
+    for initiator, advertiser in a["foreign"]:
+        out.append("    %s -> %s  <-- NOT one of our adapters" % (initiator, advertiser))
+    return "\n".join(out)
+
+
+def _parse_argv(argv: list[str]) -> tuple[str, str | None, float | None, set[str], set[str],
+                                          bool] | None:
+    """`<pcap> [MAC] [--expect-seconds N] [--config path] [--ours A,B] [--adapters A,B]
+    [--ran-full-window]`.
+    Hand-rolled so the two-positional form the 2026-09-04 workflow uses stays byte-identical."""
+    pos: list[str] = []
+    expect: float | None = None
+    ours: set[str] = set()
+    adapters: set[str] = set()
+    ran_full = False
+    it = iter(argv)
+    for arg in it:
+        if arg == "--expect-seconds":
+            expect = float(next(it))
+        elif arg == "--config":
+            ours |= device_addresses(next(it))
+        elif arg == "--ours":
+            ours |= _macs(next(it))
+        elif arg == "--adapters":
+            adapters |= _macs(next(it))
+        elif arg == "--ran-full-window":
+            # The CALLER knows this and the pcap does not: `timeout` exits 124 when it ended the
+            # capture on schedule. Without it a CPU-starved sniffer is reported as one that crashed.
+            ran_full = True
+        else:
+            pos.append(arg)
+    if not pos or len(pos) > 2:
+        return None
+    return pos[0], (pos[1] if len(pos) > 1 else None), expect, ours, adapters, ran_full
+
+
 def main(argv: list[str]) -> int:
-    if not argv:
-        print("usage: ble_sniff.py <capture.pcap> [MAC-to-follow]", file=sys.stderr)
-        return 2
-    follow = argv[1] if len(argv) > 1 else None
     try:
-        with open(argv[0], "rb") as fh:
+        parsed = _parse_argv(argv)
+    except (StopIteration, ValueError, OSError) as exc:
+        print("ble_sniff: bad arguments: %r" % (exc,), file=sys.stderr)
+        return 2
+    if parsed is None:
+        print("usage: ble_sniff.py <capture.pcap> [MAC-to-follow] [--expect-seconds N] "
+              "[--config config.yaml] [--ours A,B] [--adapters A,B] [--ran-full-window]",
+              file=sys.stderr)
+        return 2
+    path, follow, expect, ours, adapters, ran_full = parsed
+    try:
+        with open(path, "rb") as fh:
             data = fh.read()
-        print(format_report(summarise(data, follow)))
+        s = summarise(data, follow)
     except (OSError, SniffError) as exc:
         # Loudly, and named. A capture that could not be READ must never print like an empty one.
-        print("ble_sniff: cannot read %s: %s" % (argv[0], exc), file=sys.stderr)
+        print("ble_sniff: cannot read %s: %s" % (path, exc), file=sys.stderr)
         return 1
-    return 0
+    print(format_report(s))
+    if expect is None and not ours and not adapters:
+        return 0
+    a = audit(s, expect, ours, adapters, ran_full_window=ran_full)
+    print(format_audit(a))
+    return 0 if a["ok"] else 3
 
 
 if __name__ == "__main__":  # pragma: no cover

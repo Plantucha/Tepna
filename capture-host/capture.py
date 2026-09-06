@@ -2089,8 +2089,23 @@ async def _retry_sleep(name: str, delay: float, why: str, attempt: int) -> float
     wait = delay
     if why == "backoff":
         wait = max(0.0, delay * (1.0 + _RETRY_JITTER * (2.0 * random.random() - 1.0)))
-    _set(name, retry={"attempt": attempt, "why": why, "wait_s": round(wait, 1),
-                      "next_at_ms": int(_time.time() * 1000 + wait * 1000)})
+    # `connected=False` IS PART OF PUBLISHING THE WAIT, and it belongs here rather than at the call
+    # sites (residue `2026-09-05-retry-sleep-stale-connected`). A runner that reaches this function has
+    # ALREADY left its connection context: all four callers — charging, stalled, not_worn, backoff —
+    # sit at indent 16 under `if not _STOP.is_set():`, OUTSIDE the `try:`/`async with _connect(...)`,
+    # in all three runners. So "waiting to retry" and "connected" cannot both be true, and STATUS must
+    # not publish both. Only `backoff` read False before, and only incidentally — its `except` handler
+    # happened to stamp it; the other three published `connected: true` beside a `retry` block for the
+    # whole wait, two claims that cannot both hold.
+    #
+    # ⚠ THIS COSTS NO LINK GENERATION, and the belief that it did is why the row sat open. `_set` bumps
+    # `_LINK_EPOCH` on a False→True edge only, and the NEXT loop iteration already stamps
+    # `connected=False` unconditionally at its top before every connect attempt — so the True→False
+    # edge happens either way and exactly one False→True edge follows. Measured both ways: epoch 2.
+    # Moving the False earlier changes WHEN it lands, not WHETHER a generation is spent.
+    _set(name, connected=False,
+         retry={"attempt": attempt, "why": why, "wait_s": round(wait, 1),
+                "next_at_ms": int(_time.time() * 1000 + wait * 1000)})
     try:
         await asyncio.sleep(wait)
     finally:
