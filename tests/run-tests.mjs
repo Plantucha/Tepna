@@ -1582,9 +1582,18 @@ function readReleaseLedger() {
    them rather than trusting a comment. */
 function readPreflight() {
   const pkgP = join(ROOT, 'package.json'),
-    ciP = join(ROOT, '.github', 'workflows', 'tests.yml');
+    ciP = join(ROOT, '.github', 'workflows', 'tests.yml'),
+    rcP = join(ROOT, 'tools', 'run-check.mjs');
   if (!existsSync(pkgP) || !existsSync(ciP)) return null;
-  return { pkgText: readFileSync(pkgP, 'utf8'), ciText: readFileSync(ciP, 'utf8') };
+  /* `check` delegates to run-check.mjs, whose STEPS is the single source of order (the `&&` chain was
+     removed so two ordered lists could not drift). The parity gate therefore needs that file too —
+     it reads the real list, exactly as it reads the CI workflow rather than a copy of it. Absent is
+     tolerated so the gate can say WHICH input is missing instead of silently comparing to ''. */
+  return {
+    pkgText: readFileSync(pkgP, 'utf8'),
+    ciText: readFileSync(ciP, 'utf8'),
+    runCheckText: existsSync(rcP) ? readFileSync(rcP, 'utf8') : null
+  };
 }
 
 function readDiscoverability() {

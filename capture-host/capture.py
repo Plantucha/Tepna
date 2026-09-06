@@ -373,6 +373,8 @@ _OXYII_STORM_MEMORY_S = 3 * 3600.0                  # storms older than this no 
 _OXYII_RESTARTS: dict[str, list[float]] = {}        # addr -> monotonic times of recent session restarts
 _OXYII_STORMS: dict[str, list[float]] = {}          # addr -> monotonic times of declared storms
 _OXYII_HOLD_UNTIL: dict[str, float] = {}            # addr -> monotonic deadline of the current hold
+_OXYII_RESTART_TOTAL: dict[str, int] = {}           # addr -> restarts seen this process (never pruned)
+_PROC_START_MONO = _time.monotonic()                # the epoch _OXYII_RESTART_TOTAL counts from
 
 
 def oxyii_restart_storm(restarts, now: float, n: int = _OXYII_STORM_N,
@@ -392,6 +394,65 @@ def oxyii_storm_hold_s(prior_storms, now: float, base_s: float = _OXYII_STORM_HO
     telling us the hold was too short; one that has been quiet for hours starts over at base."""
     k = sum(1 for t in prior_storms if now - t <= memory_s)
     return min(base_s * (2 ** k), max_s)
+
+
+def oxy_storm_status(storms, hold_until, restarts, restarts_total, now_mono: float, now_wall,
+                     proc_start_mono: float = 0.0,
+                     memory_s: float = _OXYII_STORM_MEMORY_S) -> dict:
+    """PURE: the `oxy_storm` STATUS block — what a reader outside this process can learn about the
+    restart-storm machinery. `storms`/`restarts`/`hold_until` are MONOTONIC; `now_wall` is a datetime.
+
+    WHY THIS EXISTS (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT follow-up, Heron 2026-09-05): the hold went
+    live with its entire state in module dicts and ONE log.warning, so a hold that fires overnight
+    leaves no trace any consumer can read — `/api/state` carried zero storm keys, and the storm watch
+    had to count the journal line "ring started a new recording session" as a proxy. A witness that
+    only exists in a log is one a quiet morning can miss, and "the hold worked" and "the ring never
+    stormed" need different evidence.
+
+    MONOTONIC IS CONVERTED, NOT PUBLISHED. A monotonic second means nothing outside this process (it
+    is uptime-relative and resets on restart), so each is rendered as civil time via `now_wall`. The
+    conversion is exact only for the instant it is made — which is why `hold_remaining_s` is published
+    ALONGSIDE `hold_until`: a monitor showing a deadline must trust the box clock and the reader's own,
+    while remaining-seconds is self-evident and survives both.
+
+    ⚠️ **NEITHER COUNT IS A NIGHT TALLY, and they fail in OPPOSITE directions** (Heron 2026-09-05,
+    correcting this docstring's first version, which called `restarts_total` "the count the watcher
+    wants"). `restarts` is window-pruned by the detector, so reading it as a tally UNDER-COUNTS — the
+    pruning IS the algorithm. `restarts_total` is un-pruned but **per-PROCESS**: it resets on every
+    daemon restart, and this box restarts on every deploy (twice on 2026-09-05 alone), so a consumer
+    watching it across a night sees the count DROP and can read that as the storm ending. That is the
+    worse failure — under-counting merely looks small, a reset looks like recovery. Hence
+    `restarts_since`: the civil time the counter started from. A consumer that sees `restarts_since`
+    change knows the count reset and that the drop is bookkeeping, not the ring calming down. **A night
+    tally must come from a source that spans restarts** (the journal, anchored to a fixed civil time);
+    these fields answer what the journal cannot — whether a hold FIRED, and how much of it is left."""
+    def _civil(mono_t: float) -> str:
+        return (now_wall + _dt.timedelta(seconds=mono_t - now_mono)).isoformat(timespec="seconds")
+
+    recent = [t for t in (storms or []) if now_mono - t <= memory_s]
+    held = hold_until is not None and hold_until > now_mono
+    return {
+        "trips": [_civil(t) for t in sorted(recent)],
+        "last_trip": _civil(max(recent)) if recent else None,
+        "hold_until": _civil(hold_until) if held else None,
+        "hold_remaining_s": round(hold_until - now_mono) if held else 0,
+        "restarts_in_window": len(restarts or []),
+        "restarts_total": int(restarts_total or 0),
+        # The counter's epoch. Without it a per-process count is a trap: it resets on deploy and the
+        # drop reads as the storm ending. A consumer compares this across polls to tell a reset from a
+        # recovery — see the warning above. NOT monotonic 0, which is BOOT: the counter starts when
+        # this PROCESS did, and the box reboots far less often than it redeploys.
+        "restarts_since": _civil(proc_start_mono),
+    }
+
+
+def _oxy_storm_block(addr: str, now_mono: "float | None" = None) -> dict:
+    """`oxy_storm_status` bound to this process's live dicts. Thin on purpose — the decisions are all
+    in the pure function above, which is where the tests point."""
+    mono = _time.monotonic() if now_mono is None else now_mono
+    return oxy_storm_status(_OXYII_STORMS.get(addr, []), _OXYII_HOLD_UNTIL.get(addr),
+                            _OXYII_RESTARTS.get(addr, []), _OXYII_RESTART_TOTAL.get(addr, 0),
+                            mono, _now(), _PROC_START_MONO)
 
 
 # ── Ring RTC readback + gated settings writes over the LIVE link (monitor-facing, 2026-08-19) ────────
@@ -3633,6 +3694,9 @@ async def run_oxyii(dev: dict, root: str):
     # The slot holds a writer once opened; `{"w": None}` alone infers `dict[str, None]`, so the
     # one assignment that fills it reads as an error. It is opened once per run, lazily (G4).
     _oxywr: "dict[str, OxyLifeLogWriter | None]" = {"w": None}                        # G4 OXYLIFE.csv, opened once per run (first night dir)
+    # Consecutive connects that answered the identity query and delivered no frames (Mitigation C
+    # clause 2). Per RUN, not per episode: the run is the finding, one barren connect is not.
+    barren = 0
 
     def _rec_emit(transitions):
         """Journal + surface RECORDING-axis transitions. Same discipline as the arrival telemetry in the
@@ -3669,7 +3733,10 @@ async def run_oxyii(dev: dict, root: str):
             # recording on its own; it is our polling it cannot tolerate right now.
             if _time.monotonic() < _hold:
                 _set(name, connected=False,
-                     last_error=f"restart storm — leaving the ring alone for {(_hold - _time.monotonic()) / 60:.0f} min")
+                     last_error=f"restart storm — leaving the ring alone for {(_hold - _time.monotonic()) / 60:.0f} min",
+                     # Republished on entry to the wait so a reader arriving mid-hold sees a live
+                     # `hold_remaining_s` rather than only the stamp from the trip.
+                     oxy_storm=_oxy_storm_block(addr))
                 # POWER axis: the hold is a COOLDOWN with a deadline (§12) — journaled ONCE per deadline,
                 # and the automatic pull pollers' attempt_allowed() refuses until it passes.
                 _power_for(name, addr).note_cooldown(_hold, "restart storm hold")
@@ -3681,6 +3748,9 @@ async def run_oxyii(dev: dict, root: str):
             _OXYII_HOLD_UNTIL.pop(addr, None)
             _OXYII_RESTARTS.pop(addr, None)         # the count starts over; the storm history does not
             log.info("%s: restart-storm hold over — resuming live capture", name)
+            # Clear the hold fields but KEEP `trips` — the night's evidence that a hold fired must
+            # outlive the hold itself, which is the whole point of publishing it.
+            _set(name, oxy_storm=_oxy_storm_block(addr))
             _power_for(name, addr).cooldown_over()
             _power_flush(name, _oxywr["w"])
         started = _now()
@@ -3708,6 +3778,13 @@ async def run_oxyii(dev: dict, root: str):
         # and a reconnect is precisely where that span stops being continuous.
         ppg_led = [O2PpgFrameLedger()]
         stalled = False                               # link held but no frames decoded — reconnect
+        # BOTH per EPISODE, and both declared HERE rather than inside the connected block: an absent
+        # ring raises at connect, and the barren check below runs after the `finally` — reading a name
+        # bound only on the happy path is the unbound-local bug the writer list above already records.
+        # `frames` is the ring's honest liveness signal (a decoded frame means it is still talking to
+        # us, worn or not); `identity_seen` is set by the 0xE1 branch of on_data.
+        frames = [0]
+        identity_seen = [False]
         try:
             _set(name, connected=False, address=addr, last_error=None)
             _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.CONNECTING, "scan + connect")
@@ -3793,11 +3870,12 @@ async def run_oxyii(dev: dict, root: str):
                 _rtc_due = [False]      # set when a new recording session begins; served by the poll loop
                 _storm_hit = [None]     # hold seconds once oxyii_restart_storm fires; the poll loop drops the link
                 _acc_unexpected = [False]  # latch: warn ONCE per link about an ACC push nobody asked for
-                # THE RING'S HONEST LIVENESS SIGNAL. Not rows: vitals legitimately stop the moment the
-                # ring leaves the finger (spo2 goes None) while the link and the frames carry on, so a
-                # row-based guard would tear down a perfectly healthy link every time it was taken off.
-                # A decoded live frame means the ring is still talking to us, worn or not.
-                frames = [0]
+                # THE RING'S HONEST LIVENESS SIGNAL — `frames`, hoisted above the try so the barren-
+                # connect check can still read it after this block is gone. Not rows: vitals
+                # legitimately stop the moment the ring leaves the finger (spo2 goes None) while the
+                # link and the frames carry on, so a row-based guard would tear down a perfectly
+                # healthy link every time it was taken off. A decoded live frame means the ring is
+                # still talking to us, worn or not.
                 # The expectation a queued settings write leaves for its 0x00 read-back: the parse_config
                 # key that should now read `value`. Cleared by on_data when the read-back arrives, so the
                 # monitor shows a verdict about what the RING reports, not about what was asked.
@@ -3816,6 +3894,23 @@ async def run_oxyii(dev: dict, root: str):
                         # never year-0 arithmetic (Clock Contract §2.7).
                         if r and r[0] == oxyii.OP_GET_INFO:
                             _info = oxyii.parse_get_info(r[1])
+                            # IDENTITY (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C). The same reply
+                            # carries the WIRE serial and firmware, and until 2026-09-05 both were parsed and
+                            # dropped here — the daemon's only post-connect identity check read a value nobody
+                            # kept. Published now, and the serial is checked against the operator's `serial:`
+                            # when one is configured (alerts.ring_identity_mismatch — plaintext + unbonded, so
+                            # this is detection of the cheap impostor and the WRONG RING, not proof of the
+                            # right one). Journal on the TRANSITION only; alert_poller carries it to the
+                            # webhook and latches per episode, as it does for the offline alarm.
+                            _seen = (_info or {}).get("serial")
+                            identity_seen[0] = True     # this link reached identity; clause 2 asks what came next
+                            _mm = alerts.ring_identity_mismatch(dev.get("serial"), _seen)
+                            if _mm and STATUS["devices"].get(name, {}).get("ring_identity_mismatch") != _mm:
+                                log.error("%s: RING IDENTITY MISMATCH — %s; data from this link is suspect "
+                                          "until the serial matches", name, _mm)
+                            _set(name, ring_serial=_seen or None,
+                                 ring_firmware=(_info or {}).get("firmware") or None,
+                                 ring_identity_mismatch=_mm)
                             _rtc = _info.get("rtc") if _info else None
                             _off = round(ring_clock_offset_s(_rtc, _now()), 1) if _rtc else None
                             _set(name, ring_rtc_offset_s=_off,
@@ -4039,6 +4134,7 @@ async def run_oxyii(dev: dict, root: str):
                             _mono = _time.monotonic()
                             _storm, _recent = oxyii_restart_storm(_OXYII_RESTARTS.get(addr, []) + [_mono], _mono)
                             _OXYII_RESTARTS[addr] = _recent
+                            _OXYII_RESTART_TOTAL[addr] = _OXYII_RESTART_TOTAL.get(addr, 0) + 1
                             if _storm:
                                 _hold_s = oxyii_storm_hold_s(_OXYII_STORMS.get(addr, []), _mono)
                                 _OXYII_STORMS[addr] = [t for t in _OXYII_STORMS.get(addr, [])
@@ -4050,6 +4146,10 @@ async def run_oxyii(dev: dict, root: str):
                                             "alone for %.0f min (storm #%d in the last %.0f h)", name, len(_recent),
                                             _OXYII_STORM_WINDOW_S, _hold_s / 60, len(_OXYII_STORMS[addr]),
                                             _OXYII_STORM_MEMORY_S / 3600)
+                            # PUBLISH on every restart, storm or not: a reader must be able to see the
+                            # restarts that did NOT trip the hold, or it cannot tell a quiet night from
+                            # a night the detector was blind to.
+                            _set(name, oxy_storm=_oxy_storm_block(addr, _mono))
                         _seq[0] = live["duration"]
                         _OXYII_LAST_DURATION[addr] = live["duration"]   # survives the next dropout
                         # RECORDING axis: every live frame's duration_s feeds the engine; the backward
@@ -4395,6 +4495,39 @@ async def run_oxyii(dev: dict, root: str):
             # describing a file that no longer exists would be evidence about nothing.
             if _spo2_kept:
                 _emit_oxy_live_evidence(name, dev, started, _spo2_kept, ppg_grid[0], ppg_led[0])
+        # CONNECTS THAT REACH IDENTITY AND DELIVER NOTHING (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2
+        # Mitigation C, clause 2). Evaluated OUTSIDE the try, once per episode, because that is where
+        # the episode is actually over: the frame count is final and the link is gone. Counted as a RUN
+        # — a single such connect is an ordinary drop — and reset only by an episode that delivered a
+        # frame, never by one that failed before identity (alerts.ring_barren_connects says why).
+        # Journal on the transition only; alert_poller carries it to the webhook and latches there.
+        if identity_seen[0] and frames[0] == 0:
+            barren += 1
+        elif frames[0]:
+            barren = 0
+        # ATTRIBUTION, not suppression. A restart storm produces this exact shape, so the operator is
+        # told which explanation the daemon's own state supports rather than being sent after an
+        # impostor. The window is _OXYII_STORM_MEMORY_S — the same span the hold uses to decide a
+        # storm still counts — and it is passed in rather than mirrored in alerts.py, so the number
+        # has one home. Clause 1's silence is NOT consulted: it is inert until the owner configures
+        # `serial:` (zero such keys on vigil, measured 2026-09-05), so silence there means nothing.
+        _mono = _time.monotonic()
+        _last_storm = max(_OXYII_STORMS.get(addr) or [0.0]) or None
+        _storm_age = (_mono - _last_storm
+                      if _last_storm is not None and _mono - _last_storm <= _OXYII_STORM_MEMORY_S
+                      else None)
+        _bar = alerts.ring_barren_connects(
+            barren, storm_age_s=_storm_age,
+            restarts_recent=len([t for t in (_OXYII_RESTARTS.get(addr) or [])
+                                 if _mono - t <= _OXYII_STORM_MEMORY_S]))
+        # The transition is into the ALERTING STATE, not into a new string — and the difference is not
+        # cosmetic. Clause 1 above compares texts because a mismatch text is stable while the wrong ring
+        # stays connected; this text carries the RUN LENGTH, so it changes on every further barren
+        # connect. Comparing texts here journalled at 3 and again at 4 (caught by the test below), which
+        # is the per-readback spam clause 1 exists to avoid, one level down.
+        if _bar and not STATUS["devices"].get(name, {}).get("ring_barren_alert"):
+            log.error("%s: %s", name, _bar)
+        _set(name, ring_barren_connects=barren, ring_barren_alert=_bar)
         if not _STOP.is_set():
             if stalled:
                 await _retry_sleep(name, _STALL_RECONNECT_S, "stalled", attempt)   # not an error backoff
@@ -5717,6 +5850,11 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
     # not something capture is "missing" (alerts.offline_alert_suppressed holds the reasoning); one that
     # joined and then dropped is, so the distinction has to be remembered rather than re-derived.
     ever_connected: set[str] = set()
+    # Per-episode latch for the ring identity alarm below — same discipline as `alerted`, separate set
+    # because the two alarms have independent episodes (a wrong ring can be perfectly "recording").
+    identity_alerted: set[str] = set()
+    # And its clause-2 sibling. Separate again: a link can serve nothing while its serial matches.
+    barren_alerted: set[str] = set()
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         now = _time.monotonic()
@@ -5724,6 +5862,41 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
             name = d.get("name")
             if not name:
                 continue
+            # IMPOSTOR-SHAPE (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C). The oxyii session sets
+            # `ring_identity_mismatch` when the peer's 0xE1 serial ≠ the configured one and clears it when
+            # it matches. Checked BEFORE the offline logic on purpose: the wrong ring streams SpO₂ like the
+            # right one, so `recording` is true and nothing below would ever speak. Journal first, webhook
+            # once per episode, latch on the DELIVERY (CAPTURE-HOST-DEEP-AUDIT §C1) — never on the attempt.
+            mm = STATUS["devices"].get(name, {}).get("ring_identity_mismatch")
+            if mm:
+                if name not in identity_alerted:
+                    log.warning("alert: %s ring identity mismatch — %s; its data is suspect", name, mm)
+                    delivered = await notifier.send(
+                        "Tepna: ring identity mismatch",
+                        f"{name}: {mm}. Data from this link is suspect until the serial matches.")
+                    if delivered or not notifier.enabled:
+                        identity_alerted.add(name)
+            else:
+                identity_alerted.discard(name)
+            # Mitigation C clause 2 — the same alarm from the other side: a peer that answers identity
+            # and never delivers. Its own latch, because the two clauses can hold independently (the
+            # serial matches and the link still serves nothing), and its own recovery line: the run
+            # ends the moment one connect delivers a frame, and an operator told it was broken is owed
+            # the "it is serving again" as much as for the offline alarm.
+            bar = STATUS["devices"].get(name, {}).get("ring_barren_alert")
+            if bar:
+                if name not in barren_alerted:
+                    log.warning("alert: %s — %s", name, bar)
+                    delivered = await notifier.send(
+                        "Tepna: ring connects but serves nothing",
+                        f"{name}: {bar}.")
+                    if delivered or not notifier.enabled:
+                        barren_alerted.add(name)
+            elif name in barren_alerted:
+                barren_alerted.discard(name)
+                log.info("alert: %s is serving frames again", name)
+                await notifier.send("Tepna: ring serving again",
+                                    f"{name} delivered frames on its latest connect.")
             connected = bool(STATUS["devices"].get(name, {}).get("connected"))
             if connected:
                 ever_connected.add(name)
