@@ -375,6 +375,18 @@ def test_a_reply_exactly_AT_the_cap_counts_as_saturated(monkeypatch):
     assert under["saturated_replies"] == 0 and under["rate_unsaturated_hz"] == 1245.0
 
 
+def test_the_interval_AFTER_an_at_cap_reply_is_excluded_too():
+    """The mirror plant. The test above puts EVERY reply at the cap, so each pair has its second
+    member saturated and the `b["count"] >= cap` test alone excludes it — mutating only the
+    `a["count"] >= cap` endpoint to `>` survived that test (relay check, 2026-09-06). This window
+    saturates ONLY the first reply, then goes clean: the pair (250, 50) must be dropped because its
+    FIRST member pinned — the docstring's "the interval that follows it" — so only (50, 100) counts."""
+    out = probe.summarise(_s([250, 50, 100]))
+    assert out["saturated_replies"] == 1
+    assert out["unsaturated_span_s"] == 0.2  # one interval, not two
+    assert out["rate_unsaturated_hz"] == 500.0  # 100 / 0.2, not 150 / 0.4 = 375
+
+
 def test_the_span_is_last_MINUS_first_on_a_window_that_does_not_start_at_zero():
     """`with_recs[-1]["t"] - with_recs[0]["t"]` → `+` is invisible when the first reply sits at t=0,
     which every other test here uses. `time.monotonic()` has an arbitrary origin, so on the box the
