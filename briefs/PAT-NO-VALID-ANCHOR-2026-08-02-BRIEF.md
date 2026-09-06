@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS · **Created:** 2026-08-02 · **Follows:** `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md` §F3-ter, `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md` §5 · **Affects:** no code yet — a capture decision and one measurement · **DRAIN 2026-09-02 (Osprey):** verified 2 open Done-when boxes across 11 sections. **Owner: Osprey. Next step:** confirm whether the two remainders survived the host-axis work (#2044/#2052/#2082 changed the anchor and refusal paths under this brief) before executing — they may already be answered. · **TRIAGED 2026-09-03 (Osprey): 5 of 6 Done-when items verify; the sixth is ticked as NOT ACHIEVED in the brief's own text and that is the honest state.** Route 2 executed (Δ_H10 −865 ms, Δ_Verity −4363 ms, both stable to 0 ms across 7 h; ACC anchor corrected to −199 ms), and §10's corpus-wide run CORRECTS §7 rather than extending it — a brief that publishes its own retraction. What remains is a PAT verdict surviving an anchor NOT derived from beats, which §5 shows the current corpus cannot supply: the two requirements are mutually exclusive on the nights we hold. **So this is corpus-bound, not effort-bound** — distinct from its siblings, which need a run rather than a recording. Owner: Osprey. **Next step:** none executable here; it unblocks only on a capture that satisfies both requirements at once.
+**Status:** PROPOSED (parked 2026-09-06 — the remaining item's BLOCKER IS MISSTATED: a beat-free anchor exists and is proven; what is missing is a verdict computed against it. See §9a) · **Created:** 2026-08-02 · **Follows:** `WEARABLE-HOST-AXIS-FOLLOWUPS-2026-08-02-BRIEF.md` §F3-ter, `PAT-UNDER-PERBLOCK-ALIGNMENT-2026-08-02-BRIEF.md` §5 · **Affects:** no code yet — a capture decision and one measurement · **DRAIN 2026-09-02 (Osprey):** verified 2 open Done-when boxes across 11 sections. **Owner: Osprey. Next step:** confirm whether the two remainders survived the host-axis work (#2044/#2052/#2082 changed the anchor and refusal paths under this brief) before executing — they may already be answered. · **TRIAGED 2026-09-03 (Osprey): 5 of 6 Done-when items verify; the sixth is ticked as NOT ACHIEVED in the brief's own text and that is the honest state.** Route 2 executed (Δ_H10 −865 ms, Δ_Verity −4363 ms, both stable to 0 ms across 7 h; ACC anchor corrected to −199 ms), and §10's corpus-wide run CORRECTS §7 rather than extending it — a brief that publishes its own retraction. What remains is a PAT verdict surviving an anchor NOT derived from beats, which §5 shows the current corpus cannot supply: the two requirements are mutually exclusive on the nights we hold. **So this is corpus-bound, not effort-bound** — distinct from its siblings, which need a run rather than a recording. Owner: Osprey. **Next step:** none executable here; it unblocks only on a capture that satisfies both requirements at once.
 
 # PAT has never been alignment-limited by precision. It was limited by there being **no valid non-beat anchor** for the ECG and PPG streams — one was derived, and it still does not recover PAT on most nights.
 
@@ -284,6 +284,38 @@ spacing rather than confirmed against the BLE stack — a bug report at n=1, not
 parses perfectly and carries no clock), and `wearable-clock-drift.html` needs its mechanism section
 corrected. What would make it publishable is a **second logging app or phone** showing the same quantized
 Δ — that is a short capture, not an analysis.
+
+## 9a · PARKED 2026-09-06 — the blocker is not the one this brief states
+
+The header said *"no code yet — a capture decision and one measurement"*, and the open item reads
+*"a PAT verdict that survives an anchor NOT derived from beats — **NOT ACHIEVED**"*.
+
+**A beat-free anchor does exist, is pairwise-proven, and has tooling. This brief does not know.** It
+contains the string "buzz" **zero times**, while `PAT-ROOT-CAUSE-FORENSICS-2026-08-27` §10 records:
+
+> The buzz fiducial is pairwise-proven: **5/5 in H10 ACC and 5/5 in Verity ACC** on the pairwise nights.
+
+and `tools/pat-buzz-stability.mjs` is committed (`--cmds HH:MM:SS.mmm,... --a <ACC|PPG2W>`). A buzz
+fiducial is a mechanical event recorded by the accelerometers of both devices — **not derived from
+beats**, which is exactly the property the item requires.
+
+**So the item is still NOT met, but for a different reason than stated.** What is missing is not an
+anchor and not a capture decision — it is a **PAT verdict computed against the anchor that already
+exists**, on the 5 pairwise nights where it is proven.
+
+**The capture dependency is real but narrower than the header implies.** It applies to *future corpus
+coverage*, not to the existing evidence: `pat-buzz-stability.mjs` needs the buzz command times, so only
+nights where buzzes were issued during capture carry the anchor. Five such nights exist now; extending
+beyond them is the capture decision.
+
+**Two units, and they should not be confused:**
+1. **Executable today** — compute a PAT verdict against the buzz anchor on the 5 pairwise nights and
+   compare it to the beat-derived verdict. Tooling and data both exist.
+2. **Owner/capture** — issue buzzes routinely so the anchor covers the corpus rather than 5 nights.
+
+⚠️ **Parked, not blocked-on-data** for (1). This is the second time in this drain that a PAT brief's open
+item was already partly answered in a sibling it does not reference — see RESIDUE
+`2026-09-06-done-when-met-in-a-sibling-brief`.
 
 ## 9 · Done when
 
