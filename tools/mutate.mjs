@@ -897,7 +897,17 @@ export function loadEquivalence() {
   }
 }
 // The classes that genuinely cannot be killed, and therefore leave the distinguishable denominator.
-const EXCUSING = new Set(['no-distinguishing-input', 'untestable-by-design']);
+//
+// `equivalent` belongs here and was MISSING until 2026-09-07, which inverted the ledger's own
+// hierarchy: it is the STRONGEST claim in the vocabulary — a proof that original and mutant compute
+// the same function, stronger than `no-distinguishing-input`'s "every input we tried agreed" — and
+// it was the one class that did not excuse. Two consequences, both silent: such an entry stayed in
+// the distinguishable denominator, and, being neither excusing nor `real-gap`, it fell to the `else`
+// below and was reported AS a real gap — an instruction to write a test for a mutant carrying a
+// proof that no such test exists. The 2026-08-19 pass that UPGRADED entries from
+// `no-distinguishing-input` to `equivalent` with their proofs therefore made them weaker in effect;
+// strengthening the evidence silently downgraded the classification.
+const EXCUSING = new Set(['no-distinguishing-input', 'untestable-by-design', 'equivalent']);
 /* PURE, so the selftest can pin it without a sweep. Matched on (line, op, before) -- the same key
    `findCanary` uses; `after` is documentation, so changing an operator's output text cannot silently
    orphan an entry. */
@@ -1949,6 +1959,16 @@ function selftest() {
     cls.excused.some((e) => e.class === 'real-gap'),
     false
   );
+  /* `equivalent` is the STRONGEST claim in the vocabulary and must excuse. It did not until
+     2026-09-07: being neither excusing nor `real-gap`, it fell through to the `else` and was reported
+     as a real gap — telling a reader to write a test for a mutant that carries a proof no such test
+     exists, and keeping it in the denominator. Pinned in BOTH directions, because the failure was
+     invisible in one: the entry appeared in `realGap` (a plausible place) rather than nowhere. */
+  const eqGen = [M(5, 'cmp <= → <', 'e')];
+  const eqCls = classifySurvivors([{ line: 5, op: 'cmp <= → <', before: 'e', class: 'equivalent' }], eqGen, eqGen);
+  ck('classify · a proven-equivalent survivor is EXCUSED', eqCls.excused.length, 1);
+  ck('classify · …and is NOT reported as a real gap', eqCls.realGap.length, 0);
+
   /* An empty classification must change nothing -- the mechanism is opt-in per file. */
   const none = classifySurvivors(undefined, survived, genAll);
   ck('classify · no entries ⇒ every survivor unclassified, nothing excused', none.unclassified.length + ':' + none.excused.length, '3:0');
