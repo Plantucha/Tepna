@@ -38,7 +38,12 @@
 
 from __future__ import annotations
 import errno as _errno, logging, os, re as _re, datetime as _dt, time as _time
-from typing import Iterable
+from typing import Iterable, TextIO
+
+# The annotation values a device INSERTS into a stream live with the device, not here — the merge
+# rule takes them as a parameter so it never carries a marker literal. `oxyii` imports nothing local,
+# so this is not a cycle.
+import oxyii as _oxyii
 
 # The writers use big OS buffers for throughput (StreamWriter 1 MB, Spo2CsvWriter 64 KB) and would
 # otherwise only hit disk on close(). Overnight that means a hard kill or power loss loses the entire
@@ -48,6 +53,77 @@ from typing import Iterable
 # power loss). At this cadence at most FLUSH_INTERVAL_S of the tail is ever at risk. `_time.monotonic()`
 # drives the cadence — it's internal timing, not a written stamp, so the Clock Contract doesn't apply.
 FLUSH_INTERVAL_S = 5.0
+
+# ── THE LIVE RULE IS `stuck` — ONE number, cited by both sides ────────────────────────────────
+# A run-length rule at a LOW threshold is not viable and was measured not to be: legitimate 8-bit
+# pleth plateaus routinely reach 5-9 samples (7.3 % of non-sentinel runs are >= 5; p99 = 14,
+# p99.9 = 31, p99.99 = 48), so any threshold small enough to catch the worst-severity band (10-40)
+# also flags real signal. The live writer therefore emits only the rule that a plateau cannot reach:
+# a constant run of >= T_STUCK samples, four times the plateau p99.99.
+#
+# The two rules that need the WHOLE night — `clip` (the ring's 199-clip is not an encoding extreme,
+# so "at the range extreme" is only knowable once the night's range is) and `collapse` (a running
+# median over ~600 samples, O(window) per sample on the BLE notification path) — are deliberately
+# NOT here. They belong to the end-of-night back-check, which has the whole recording and no P0
+# exposure. Adding them live would risk dropped notifications to better describe the stream.
+#
+# This constant is the single source; it ALSO travels in each sidecar's comment line, so a consumer
+# reads the threshold that actually produced those rows rather than whatever the default has moved
+# to since. If a JS side ever recomputes these spans, that constant must be asserted equal to this
+# one by a gate that has been shown to RED on a mismatch.
+T_STUCK = 200
+
+# Which streams get a sidecar, and at what threshold. A stream absent from this map gets none — but
+# note ACC is PRESENT: it is not excluded by name, it is CLASSIFIED (below), so a firmware change
+# that stops it being a zero-order hold starts producing rows without anyone editing this list.
+RUN_MIN_BY_STREAM = {
+    "ppg1":   T_STUCK,   # O2Ring, single reflectance column
+    "ppg":    T_STUCK,   # Verity 3-LED (same writer, 3-column branch)
+    "ppg2w":  T_STUCK,   # O2Ring raw dual-wavelength (cmd 0x05)
+    "acc":    T_STUCK,   # Polar ACC
+    "accraw": T_STUCK,   # O2Ring ACC — a zero-order hold; the classifier catches it
+}
+
+# ── ZERO-ORDER-HOLD DETECTION — computed, never a name-based exclusion ────────────────────────
+# The O2Ring's ACC is sampled at 1.5625 Hz and written at 10 Hz, so ~99.8 % of its runs are length
+# 6 or 7 and a constant-run rule would flag the entire stream. The fix is NOT to exclude "acc" by
+# name: a name list is a claim about today's devices that keeps reading as correct after a firmware
+# change, and it would equally miss a NEW held stream nobody thought to list. Instead the shape is
+# measured — a run-length distribution that is a near-delta on two ADJACENT lengths is a hold, and
+# such a stream is marked once and its run rows suppressed.
+#
+# The verdict is taken over a warm-up window because rows already written cannot be unwritten; the
+# window's rows are buffered until it closes. The distribution over the WHOLE stream is kept too, so
+# a stream whose character changes after the verdict is reported as a disagreement rather than
+# silently carrying a stale class.
+# The device injects isolated ANNOTATION samples mid-span; a span split by one must be merged before
+# it is measured. 8 is the bound, against a measured maximum interruption of 6 samples.
+#
+# ⚠️ THE MERGE IS ANNOTATION-KEYED, NOT VALUE-AGNOSTIC, AND THAT IS DELIBERATE. An earlier draft
+# merged across a short run of ANY value on the argument that a value-keyed rule rots when the vendor
+# changes its marker. It was overruled on the semantics, correctly: the sidecar's claim is "NOT
+# MEASURED", and a real sample of value 1 or 2 inside a zero run WAS measured — merging over it
+# fabricates absence, which is the mirror image of the fabricated zero this whole file exists to
+# record. The rule must be conservative about what it asserts. Measured cost of the difference on one
+# file: any-value 166 spans / 5,968 samples vs annotation-only 170 / 5,650 — 2.4 %, and opposite in
+# sign on flagged samples, so the loose rule is not even uniformly more sensitive.
+#
+# Portability is kept WITHOUT a literal in the merge: the annotation set is a per-stream PARAMETER,
+# so a device that changes its marker changes one declared constant and not the rule. It must also
+# match the back-check exactly — a writer that merges MORE than the back-check makes the back-check
+# report spans the sidecar lacks, which reads as "sidecar incomplete" rather than as a rule mismatch.
+_ANNOTATION_GAP_MAX = 8
+
+ANNOTATIONS_BY_STREAM = {
+    "ppg1":   frozenset({_oxyii.PPG_BEAT_MARKER}),   # the ring inserts one row per detected beat
+    "ppg2w":  frozenset({_oxyii.PPG_BEAT_MARKER}),
+    "accraw": frozenset(),                            # no annotation is inserted into the ring's ACC
+    "ppg":    frozenset(),                            # Verity: no inserted rows
+    "acc":    frozenset(),                            # Polar: none
+}
+
+HELD_WARMUP_RUNS = 64          # runs observed before the class is decided
+HELD_TOP2_SHARE = 0.95         # share on two adjacent lengths that makes it a hold
 
 _log = logging.getLogger("tepna-capture")
 
@@ -360,6 +436,257 @@ def _phone_ts(when: _dt.datetime) -> str:
     return when.strftime("%Y-%m-%dT%H:%M:%S.") + f"{when.microsecond // 1000:03d}"
 
 
+class _RunSidecar:
+    """Constant-run spans for one optical stream, written BESIDE the stream, never into it.
+
+    A run of identical consecutive samples on an optical channel is the shape a held or dropped link
+    leaves in the wave: the value is not a fresh measurement, it is the last one repeated. Capture
+    cannot tell a held link from a genuinely flat signal, so it does not judge — it records the SPAN
+    and leaves the verdict to analysis. That is the absence-as-value discipline: the absence is
+    written down while it is observable, never re-inferred later from bytes that no longer say which
+    they were.
+
+    KEYED ON RUN LENGTH ONLY, NEVER ON THE VALUE. The O2Ring's 156 beat marker is a singleton by
+    construction, so it falls below `min_run` without being special-cased; a rule that named the
+    value would silently stop working the day the vendor picks a different one — and would still
+    READ as working, because a rule that matches nothing and a clean stream both emit no rows.
+
+    NOT wired to ACC on purpose: its triplets legitimately repeat 6-7x at rest, so a run rule there
+    would report physiology as absence.
+
+    The captured bytes are untouched — this class only ever opens its own file.
+    """
+
+    HEADER = "Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule"
+
+    def __init__(self, path: str, stream: str, min_run: int, resumed: bool = False,
+                 annotations: frozenset = frozenset()):
+        # `<base>.txt` -> `<base>RUNS.txt`, so `…_PPG.txt` gets `…_PPGRUNS.txt` and `…_PPG2W.txt`
+        # gets `…_PPG2WRUNS.txt` — derived by rule rather than by a per-stream table that could
+        # drift away from the stream names it claims to cover.
+        base, dot, ext = path.rpartition(".")
+        self.path = f"{base}RUNS.{ext}" if dot else path + "RUNS"
+        self.stream = stream
+        self.min_run = min_run
+        self.annotations = annotations
+        self.runs = 0
+        self.errors = 0                      # swallowed exceptions — isolation must not be silence
+        self._open: dict[str, list] = {}     # channel -> [value, first_index, n, first_phone, last_phone]
+        self._idx: dict[str, int] = {}       # per-channel sample index, independent of row count
+        self._held: dict[str, list] = {}     # a closed run awaiting a possible merge across a gap
+        self._gap: dict[str, list] = {}      # the candidate interruption RUN itself, if one is pending
+        self._merges: dict[str, int] = {}    # spans joined across an interruption, per channel
+        # Hold classification, PER CHANNEL. Pooling channels was measured wrong on the very first
+        # Verity test: one noisy channel's singleton runs dominated the histogram and classified the
+        # whole stream `held`, suppressing two genuinely stuck channels. A hold is a property of a
+        # signal path, not of a file.
+        self.klass: dict[str, str] = {}      # channel -> "held" | "variable" | "undecided"
+        self._hist: dict[str, dict[int, int]] = {}   # channel -> {run length: count}, whole stream
+        self._warm: dict[str, int] = {}      # channel -> runs seen in its warm-up window
+        self._buf: dict[str, list[str]] = {}  # channel -> warm-up rows, held until its verdict
+        self._fh: TextIO | None = None
+        try:
+            self._fh = open(self.path, "a" if resumed else "w", buffering=1 << 16, newline="\n")
+            if not resumed:
+                # The comment carries the RULE, so a reader never has to infer it from the rows —
+                # and an EMPTY sidecar still states what was looked for. A `#` line fails every
+                # consumer's row filter, the same shape `# timebase=` uses.
+                self._fh.write(f"# stream={stream} rule=stuck min_run={min_run} "
+                               f"t_stuck={T_STUCK} merge_gap_max={_ANNOTATION_GAP_MAX} "
+                               f"annotations={','.join(str(a) for a in sorted(annotations)) or 'none'} "
+                               f"held_warmup={HELD_WARMUP_RUNS} "
+                               f"held_top2_share={HELD_TOP2_SHARE} unit=unknown\n")
+                self._fh.write(self.HEADER + "\n")
+        except OSError:
+            self._fh = None                  # a sidecar that cannot open must never stop the capture
+            self.errors += 1
+
+    def feed(self, channel: str, value: int, phone: _dt.datetime) -> None:
+        """One sample. O(1): extend the open run, or close it and start the next."""
+        if self._fh is None:
+            return
+        try:
+            i = self._idx.get(channel, 0)
+            self._idx[channel] = i + 1
+            cur = self._open.get(channel)
+            if cur is not None and cur[0] == value:
+                cur[2] += 1
+                cur[4] = phone
+                return
+            if cur is not None:
+                self._close_run(channel, cur)
+            self._open[channel] = [value, i, 1, phone, phone, False]
+        except Exception:
+            # DIAGNOSTIC PATH, ISOLATED FROM P0. The sample stream is the recording; this file is a
+            # note about it. An exception here is counted and dropped, never propagated into the
+            # writer — but it IS counted, because a silent isolation reads exactly like a clean run.
+            self.errors += 1
+
+    def _close_run(self, channel: str, run: list) -> None:
+        """A run just ended. Decide whether it EXTENDS a held span across a short interruption.
+
+        22 % of raw zero runs in the corpus (2,533 of 11,325) are ONE event split by a single
+        annotation sample the device injects mid-span — measured max interruption 6 samples, bounded
+        here at `_ANNOTATION_GAP_MAX` = 8. Emitting the fragments instead of the span is not a cosmetic
+        difference at this threshold: two 150-sample halves of a 301-sample stuck span are BOTH below
+        T_STUCK, so the span disappears entirely.
+
+        The merge is VALUE-AGNOSTIC, exactly like the rule it feeds: it joins two runs of the SAME
+        value separated by a SHORT run of any other value. It never asks what the interrupting value
+        is, so it does not need updating when the device changes its marker — and it cannot be fooled
+        into merging across a genuine change of level, because the values either side must match.
+        Two same-valued runs of 150 separated by one differing sample are already three times the
+        p99.99 of legitimate plateaus; this cannot manufacture a span out of real signal."""
+        held = self._held.get(channel)
+        if held is not None and self._gap.get(channel) is not None and held[0] == run[0]:
+            # The held value RESUMED across a short interruption -> ONE span. `n` counts the whole
+            # span INCLUDING the interrupting samples, because the span is what was not measured,
+            # not a tally of samples at one value.
+            gap = self._gap.pop(channel)
+            held[2] += gap[2] + run[2]
+            held[4] = run[4]
+            held[5] = run[5]                          # the span inherits the last component's fate
+            self._merges[channel] = self._merges.get(channel, 0) + 1
+            return
+        if (held is not None and channel not in self._gap
+                and run[0] in self.annotations and run[2] <= _ANNOTATION_GAP_MAX):
+            # A short run of a DECLARED ANNOTATION value: hold it as a candidate interruption, pending
+            # the next run. Anything else — including a short run of ordinary signal — is a real
+            # measurement and is never merged over.
+            self._gap[channel] = run
+            return
+        if held is not None:
+            self._emit(channel, held, closed=1)
+            stale = self._gap.pop(channel, None)
+            if stale is not None:
+                # The held value did NOT resume, so that short run was ordinary signal, not a gap.
+                # It is emitted as its own run — EVERY run must reach `_emit` exactly once, or the
+                # run-length histogram and the warm-up counter both under-count. Measured: holding
+                # it back instead left a zero-order-hold stream permanently `undecided`, because on
+                # such a stream every run is short and half of them never arrived.
+                self._emit(channel, stale, closed=1)
+        self._held[channel] = run
+
+    def _emit(self, channel: str, run: list, closed: int) -> None:
+        value, first_index, n, first_phone, last_phone, _eof = run
+        h = self._hist.setdefault(channel, {})
+        h[n] = h.get(n, 0) + 1                       # EVERY run, threshold or not — the shape needs all
+        if channel not in self.klass:
+            self._warm[channel] = self._warm.get(channel, 0) + 1
+            if self._warm[channel] >= HELD_WARMUP_RUNS:
+                self._decide(channel)
+        if n < self.min_run:
+            return
+        # dur_ms rides the HOST stamps the rows already carry (Clock Contract §7): the span is
+        # measured on the recording's own axis, not against a wall clock read at write time.
+        dur_ms = (last_phone - first_phone).total_seconds() * 1000.0
+        self.emit_run(channel, value, first_index, n, dur_ms, closed, "stuck", first_phone)
+
+    def emit_run(self, stream: str, value, first_index: int, n: int, dur_ms: float,
+                 closed: int, rule: str, stamp: _dt.datetime | None = None) -> None:
+        """THE seam. Any detector that finds a span writes it through here — `constant-run` from this
+        accumulator, `rail-run`/`held` from a back-check — so every span in the corpus lands in one
+        file shape with the rule that found it named in its own column. A second writer would be a
+        second shape to reconcile later."""
+        if self._fh is None:
+            return
+        line = (f"{_phone_ts(stamp) if stamp is not None else ''};{stream};{value};{first_index};{n};"
+                f"{dur_ms:.1f};{closed};{rule}\n")
+        k = self.klass.get(stream)
+        if n >= T_STUCK:
+            # A `held` channel can still get STUCK, and the hold class must never hide that. The ring's
+            # ACC repeats each sample 6-7 times BY DESIGN; 200 identical samples is 20 s of one triplet,
+            # which is the failure, not the cadence. Measured over 3.16 M real samples: every
+            # non-sentinel run >= 200 was the failure mode, and every one was the LAST run in its file —
+            # so this is the single row least safe to suppress, and it is emitted unconditionally.
+            self._fh.write(line)
+        elif k is None:                               # verdict pending — hold it, do not guess
+            self._buf.setdefault(stream, []).append(line)
+        elif k != "held":
+            self._fh.write(line)
+        self.runs += 1
+
+    def _decide(self, channel: str) -> None:
+        """Close ONE channel's warm-up window: a near-delta on two ADJACENT run lengths is a hold."""
+        fh = self._fh
+        assert fh is not None    # only reachable from feed(), which returns early on a closed handle
+        hist = self._hist.get(channel, {})
+        tot = sum(hist.values()) or 1
+        best, share = 0, 0.0
+        for ln in hist:
+            sh = (hist.get(ln, 0) + hist.get(ln + 1, 0)) / tot
+            if sh > share:
+                best, share = ln, sh
+        self.klass[channel] = "held" if share >= HELD_TOP2_SHARE else "variable"
+        mean = sum(k * v for k, v in hist.items()) / tot
+        fh.write(f"# stream={self.stream} channel={channel} class={self.klass[channel]} "
+                 f"ratio={mean:.1f} top2={best},{best + 1} share={share:.3f} "
+                 f"decided_at={self._warm.get(channel, 0)}runs\n")
+        if self.klass[channel] == "held":
+            # Its runs ARE the sampling cadence, not absence. Drop what the window buffered rather
+            # than publishing spans that describe the device's clock.
+            self._buf.pop(channel, None)
+        else:
+            for line in self._buf.pop(channel, []):
+                fh.write(line)
+
+    def close(self) -> None:
+        """Flush every still-open run with `closed=0` — a run cut short by the recording ending is a
+        real span whose END is unknown, and dropping it would lose exactly the spans that ran to the
+        end of a night."""
+        if self._fh is None:
+            return
+        try:
+            # An open run may still merge into a held span, so resolve the pipeline in order:
+            # close the open run (which may extend a held span), then flush whatever is held.
+            for channel, run in list(self._open.items()):
+                run[5] = True                         # this run was still accumulating at EOF
+                self._close_run(channel, run)
+            self._open.clear()
+            for channel, stale in list(self._gap.items()):
+                self._emit(channel, stale, closed=0 if stale[5] else 1)
+            self._gap.clear()
+            for channel, held in list(self._held.items()):
+                # `closed` reports whether the SPAN reached EOF, not whether it happened to be in the
+                # merge pipeline at teardown. A span followed by a different value genuinely ended
+                # (closed=1) even though it was held back awaiting a possible merge; only a span
+                # whose last component was still accumulating ran to EOF (closed=0). Measured as the
+                # normal shape of this failure — both real hits are the last run in their file.
+                self._emit(channel, held, closed=0 if held[5] else 1)
+            self._held.clear()
+            self._gap.clear()
+            for channel in list(self._buf) + [c for c in self._hist if c not in self.klass]:
+                if channel in self.klass:
+                    continue
+                # This channel's warm-up never closed — fewer than HELD_WARMUP_RUNS runs in the whole
+                # recording. RELEASE its buffer and mark it undecided. Suppressing would be the worst
+                # possible default: a quiet night with a single long stuck run is exactly the case
+                # that produces too few runs to classify, and it is the case the sidecar exists for.
+                # On weak evidence, emit and say so; never withhold.
+                self.klass[channel] = "undecided"
+                self._fh.write(f"# stream={self.stream} channel={channel} class=undecided "
+                               f"decided_at={self._warm.get(channel, 0)}runs reason=too-few-runs\n")
+                for line in self._buf.pop(channel, []):
+                    self._fh.write(line)
+            # The whole-stream distribution per channel, so a warm-up verdict that no longer
+            # describes the night is VISIBLE rather than silently stale.
+            for channel, hist in self._hist.items():
+                tot = sum(hist.values()) or 1
+                mean = sum(k * v for k, v in hist.items()) / tot
+                self._fh.write(f"# final channel={channel} total_runs={tot} mean_run={mean:.2f} "
+                               f"merges={self._merges.get(channel, 0)} "
+                               f"class={self.klass.get(channel, 'undecided')}\n")
+            self._fh.write(f"# runs={self.runs} errors={self.errors}\n")
+        except Exception:
+            self.errors += 1
+        finally:
+            try:
+                self._fh.close()
+            except Exception:
+                self.errors += 1
+            self._fh = None
+
+
 class StreamWriter:
     """One open file in a fixed vendor layout. Append rows as samples arrive; flush periodically."""
 
@@ -490,6 +817,13 @@ class StreamWriter:
                             break
             except OSError:
                 pass                       # unreadable ⇒ lazy init; worse column, never a crash
+        # The constant-run sidecar, for optical streams only. Built LAST among the file handles so a
+        # failure here cannot leave the sample file half-open; `_RunSidecar` swallows its own OSError
+        # for the same reason — the recording must not fail because a note about it could not.
+        self._runs: _RunSidecar | None = None
+        if stream in RUN_MIN_BY_STREAM:
+            self._runs = _RunSidecar(path, stream, RUN_MIN_BY_STREAM[stream], resumed=self.resumed,
+                                     annotations=ANNOTATIONS_BY_STREAM.get(stream, frozenset()))
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
@@ -536,6 +870,9 @@ class StreamWriter:
         the Verity. A two-wavelength row is neither, and squeezing it through the count would make the
         header and the row shape drift apart, which is the exact failure `ppg1` exists to prevent."""
         self._row(f"{_phone_ts(phone)};{sensor_ns};{ch0};{ch1};{motion}\n")
+        if self._runs is not None:          # both optical channels; `motion` is not an optical wave
+            self._runs.feed("channel 0", ch0, phone)
+            self._runs.feed("channel 1", ch1, phone)
 
     def write_ppg(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, ch: Iterable[int], ambient: int) -> None:
         # ONE optical column stays ONE column (PPGDEX-O2RING-FINGER-SITE §3/§7). The O2Ring streams a
@@ -553,6 +890,12 @@ class StreamWriter:
         else:
             c0, c1, c2 = cols[:3]
             self._row(f"{_phone_ts(phone)};{sensor_ns};{c0};{c1};{c2};{ambient}\n")
+        # Run tracking follows the SAME column count the row above wrote, so the sidecar can never
+        # describe a layout the file does not have. `ambient` is excluded: it is not an optical wave,
+        # and a held ambient reading is not the absence this rule is looking for.
+        if self._runs is not None:
+            for _i, _v in enumerate(cols[:1] if len(cols) == 1 else cols[:3]):
+                self._runs.feed(f"channel {_i}", _v, phone)
 
     # GYRO/MAG arrive SCALED to physical units (dps / gauss) — polar_pmd.axis_scale turns the device's
     # raw int16 into a float, so these two cannot use the integer formatting ACC keeps. `:.6g` holds the
@@ -645,7 +988,12 @@ class StreamWriter:
         os.remove(path)` deleted the HR file and left its RR sibling behind as an orphan
         (CAPTURE-HOST-DEEP-AUDIT §C8). Measured: 4 orphan 33-byte RR files with no HR sibling on
         2026-07-25 alone."""
-        return [self.path] + ([self._rr_path] if self._rr_path else [])
+        # The constant-run sidecar is a THIRD owned file and belongs here for the same reason the RR
+        # sibling does: a header-only session that prunes `path` alone would leave a `…RUNS.txt`
+        # orphan describing a recording that no longer exists — §C8's failure with a new filename.
+        return ([self.path]
+                + ([self._rr_path] if self._rr_path else [])
+                + ([self._runs.path] if self._runs is not None else []))
 
     def discard(self) -> None:
         """Close and unlink everything this writer owns. The teardown path for a session that produced
@@ -666,6 +1014,14 @@ class StreamWriter:
                 self._rr_fh.close()
         except Exception as _e:
             self._health.failed(_e)
+        try:
+            if self._runs is not None:      # OUTSIDE the block above: a failed sample-file close must
+                self._runs.close()          # still flush the open runs, and vice versa
+        except Exception as _e:
+            # Not swallowed: `_RunSidecar.close` handles its own IO errors, so reaching here means an
+            # unexpected failure in the sidecar itself. The recording is already safe at this point —
+            # say so in the log rather than resuming as if nothing happened.
+            _log.warning("run sidecar close failed for %s: %r", self.path, _e)
         finally:
             # In the finally: a writer whose flush raised is still CLOSED as far as the open-file
             # count is concerned, and leaking a count would pin the clock anchor open forever.
