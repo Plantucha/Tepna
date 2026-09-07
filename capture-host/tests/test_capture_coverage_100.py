@@ -768,12 +768,12 @@ def test_a_device_going_on_the_charger_is_pulled_once_per_charge_session(tmp_pat
     address is marked BEFORE the await, so a slow pull cannot be started twice; taking it off the
     charger re-arms it."""
     ring = _dev(name="Ring", vendor="Wellue", model="O2Ring-S", address="D1:98:62:7C:92:B3")
-    cfg = {"pull": {"auto": True, "charger_settle_sec": 0, "ftype": 0}, "devices": [ring]}
+    cfg = {"pull": {"auto": True, "charger_settle_sec": 0}, "devices": [ring]}
     capture.STATUS["devices"]["Ring"] = {"charging": True}
     pulls = []
 
-    async def fake_pull(dev, root, which="latest", ftype=0, *, trigger="manual"):
-        pulls.append((dev["name"], which, ftype))
+    async def fake_pull(dev, root, which="latest", resume=False, *, trigger="manual"):
+        pulls.append((dev["name"], which, resume))
         return {"new_files": ["a.dat", "b.dat"]}
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
     _stop_after(monkeypatch, 3)                    # three ticks — the pull must happen on ONE of them
@@ -793,14 +793,14 @@ def test_a_DOFF_triggered_pull_reaches_pull_oxyii_session_as_LATEST(tmp_path, mo
     went out at `all`."""
     import time as _t
     ring = _dev(name="Ring", vendor="Wellue", model="O2Ring-S", address="D1:98:62:7C:92:B3")
-    cfg = {"pull": {"auto": True, "ftype": 0}, "devices": [ring]}
+    cfg = {"pull": {"auto": True}, "devices": [ring]}
     capture.STATUS["devices"]["Ring"] = {"worn": False, "charging": False}
     capture._NOTWORN_SINCE[ring["address"]] = _t.monotonic() - 10_000   # settle long since elapsed
     capture._NOTWORN_PULLED.discard(ring["address"])
     pulls = []
 
-    async def fake_pull(dev, root, which="latest", ftype=0, *, trigger="manual"):
-        pulls.append((dev["name"], which, ftype))
+    async def fake_pull(dev, root, which="latest", resume=False, *, trigger="manual"):
+        pulls.append((dev["name"], which, resume))
         return {"new_files": ["a.dat"]}
 
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
@@ -817,7 +817,7 @@ def test_coming_off_the_charger_re_arms_the_next_pull(tmp_path, monkeypatch):
     state = {"tick": 0}
     pulls = []
 
-    async def fake_pull(dev, root, which="latest", ftype=0, *, trigger="manual"):
+    async def fake_pull(dev, root, which="latest", resume=False, *, trigger="manual"):
         pulls.append(state["tick"])
         return {"new_files": []}
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
@@ -861,7 +861,7 @@ def test_a_busy_offline_slot_re_arms_and_a_transient_failure_does_not(tmp_path, 
     cfg = {"pull": {"auto": True, "charger_settle_sec": 0}, "devices": [ring]}
     capture.STATUS["devices"]["Ring"] = {"charging": True}
 
-    async def busy(dev, root, which="latest", ftype=0, *, trigger="manual"):
+    async def busy(dev, root, which="latest", resume=False, *, trigger="manual"):
         raise capture.offline_lock.OfflineBusy("held by Verity")
     monkeypatch.setattr(capture, "pull_oxyii_session", busy)
     _stop_after(monkeypatch, 2)
@@ -871,7 +871,7 @@ def test_a_busy_offline_slot_re_arms_and_a_transient_failure_does_not(tmp_path, 
     capture._STOP = asyncio.Event()
     capture._CHARGER_SINCE.clear()
 
-    async def boom(dev, root, which="latest", ftype=0, *, trigger="manual"):
+    async def boom(dev, root, which="latest", resume=False, *, trigger="manual"):
         raise RuntimeError("device not advertising")
     monkeypatch.setattr(capture, "pull_oxyii_session", boom)
     _stop_after(monkeypatch, 2)
@@ -891,7 +891,7 @@ def test_the_charger_poller_holds_off_during_a_recovery(tmp_path, monkeypatch):
     capture._RECOVER.set()
     pulls = []
 
-    async def fake_pull(dev, root, which="latest", ftype=0, *, trigger="manual"):
+    async def fake_pull(dev, root, which="latest", resume=False, *, trigger="manual"):
         pulls.append(1)
         return {}
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)

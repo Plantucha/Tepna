@@ -152,7 +152,7 @@ def test_A_BUSY_SLOT_DEFERS_THE_DRAIN_AND_KEEPS_THE_PULL_THAT_SUCCEEDED(monkeypa
     landed, so the night is not worse off — and the remainder is exactly as reachable as before."""
     calls = []
 
-    async def pull(dev, root, which="latest", ftype=0, trigger="manual"):
+    async def pull(dev, root, which="latest", resume=False, trigger="manual"):
         calls.append(which)
         if which == "new":
             raise offline_lock.OfflineBusy("slot held")
@@ -167,7 +167,7 @@ def test_A_BUSY_SLOT_DEFERS_THE_DRAIN_AND_KEEPS_THE_PULL_THAT_SUCCEEDED(monkeypa
 def test_A_DRAIN_THAT_THROWS_DOES_NOT_RETRACT_THE_PRIMARY_PULL(monkeypatch, caplog):
     """The failure the log line must survive: the drain is a bonus sweep, and a night that landed
     its main session must not be reported as a failure because the bonus did not complete."""
-    async def pull(dev, root, which="latest", ftype=0, trigger="manual"):
+    async def pull(dev, root, which="latest", resume=False, trigger="manual"):
         if which == "new":
             raise RuntimeError("ring went away mid-drain")
         return {"new_files": ["a.dat"]}
@@ -180,7 +180,7 @@ def test_A_DRAIN_THAT_THROWS_DOES_NOT_RETRACT_THE_PRIMARY_PULL(monkeypatch, capl
 def test_THE_DRAINED_COUNT_REACHES_STATUS(monkeypatch):
     """`drained` is what the monitor renders — a trigger that fires nightly and recovers nothing
     reads as healthy on `trigger` alone."""
-    async def pull(dev, root, which="latest", ftype=0, trigger="manual"):
+    async def pull(dev, root, which="latest", resume=False, trigger="manual"):
         return {"new_files": ["a.dat", "b.dat"] if which == "new" else ["main.dat"]}
 
     ap = _drive(monkeypatch, pull)
@@ -193,7 +193,7 @@ def test_THE_DRAIN_IS_BOOKED_UNDER_THE_EVENT_TRIGGER_NOT_MANUAL(monkeypatch):
     per-trigger deferral/strike counters would under-read the very path this drain adds."""
     seen = []
 
-    async def pull(dev, root, which="latest", ftype=0, trigger="manual"):
+    async def pull(dev, root, which="latest", resume=False, trigger="manual"):
         seen.append((which, trigger))
         return {"new_files": ["a.dat"]}
 

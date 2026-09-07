@@ -128,7 +128,15 @@ class FakeRing:
             slots = b"".join(s.encode() + b"\x00\x00" for s in self.sessions)
             self._reply(oxyii.OP_FILE_LIST, bytes([len(self.sessions)]) + slots)
         elif op == oxyii.OP_FILE_START:
-            self.off = 0                                  # each session streams from its own start
+            # HONOUR THE REQUESTED OFFSET. The trailing u32 of the START payload is a seek position
+            # (#2313), and a fixture that pinned it to 0 could not tell a working resume from one
+            # that re-downloads everything and splices — the exact failure the resume path exists to
+            # avoid. 14-char stamp + 2 pad, then the u32.
+            # `frame`, not `payload` — the latter is a LOCAL of the GET_INFO branch above and was
+            # still in scope, so reading it here silently produced garbage offsets that broke 38
+            # tests at once. oxyii.encode: 7-byte header, then the payload.
+            _pl = frame[7:-1]
+            self.off = int.from_bytes(_pl[16:20], "little") if len(_pl) >= 20 else 0
             if self.declared_seq:
                 self.declared = self.declared_seq.pop(0)
             # The size is the FIRST FOUR bytes; the meta bytes that follow are NOT zero on real
@@ -717,30 +725,25 @@ def test_pull_defaults_are_the_ones_the_cli_documents(tmp_path, monkeypatch):
 
 
 # ── the --ftype argument must actually reach the wire ───────────────────────────────────────────────
-def test_ftype_reaches_the_file_start_frame(tmp_path, monkeypatch):
-    """`_pull_once(..., ftype, ...)` builds the FILE_START frame with `oxyii.file_start_frame(ts, ftype)`,
-    and that parameter DEFAULTS to 0. Every other test in this file pulls with ftype=0, so dropping the
-    argument entirely is invisible to all of them — the frame comes out byte-identical. It is not
-    The verifiable consequence is a DEAD CONFIG KNOB: capture.py reads `ftype` from config.yaml
-    (`int(pcfg.get("ftype", 0))`) and threads it down to this frame, so dropping the argument pins the
-    wire value to 0 no matter what the operator configured — the setting silently stops working. What
-    a non-zero ftype actually returns is the device's business and is NOT asserted here: the vigil box
-    runs `ftype: 0` and all 15 stored pulls used it, so there is no observation on hand, and the
-    "selects a different file type" reading comes only from the flag's help text and the
-    "try a different --ftype" error message.
+def test_the_START_FRAME_CARRIES_THE_RESUME_OFFSET_NOT_A_FILE_TYPE(tmp_path, monkeypatch):
+    """This test used to assert that `--ftype 7` reached the wire, on the reading that the trailing
+    u32 selects a file type. ⚠️ ITS OWN DOCSTRING RECORDED THE EVIDENCE AS WEAK — "the 'selects a
+    different file type' reading comes only from the flag's help text and the error message" — and
+    that reading was wrong: the u32 is an OFFSET (#2313), so `ftype: 7` asked the ring to start at
+    byte 7 of the oximetry file.
 
-    Asserting on the encoded payload rather than on a spy: the four little-endian bytes after the
-    14-char stamp + 2 pad ARE the wire contract (oxyii.file_start_frame)."""
+    What is worth pinning is unchanged and is kept: the four little-endian bytes after the 14-char
+    stamp + 2 pad ARE the wire contract. Only the claim about what they MEAN has moved."""
     ring = FakeRing(["20260720010000"], b"\x01\x03" + b"z" * 90)
     _install(monkeypatch, ring)
-    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 7, None, "0000"))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", False, None, "0000"))
 
     starts = [w for w in ring.writes if w[1] == oxyii.OP_FILE_START]
     assert starts, "the pull must have sent a FILE_START"
     payload = starts[0][7:-1]                       # oxyii.encode: 7-byte header, payload, 1 CRC byte
     assert payload[:14] == b"20260720010000", "stamp must lead the payload"
-    assert int.from_bytes(payload[16:20], "little") == 7, \
-        "the requested --ftype must reach the device; a dropped argument silently defaults it to 0"
+    assert int.from_bytes(payload[16:20], "little") == 0, \
+        "a clean pull must open the file at offset 0 — a non-zero value here starts mid-file"
 
 
 def test_a_too_small_mtu_warns_loudly_instead_of_failing_silently(tmp_path, monkeypatch, capsys):

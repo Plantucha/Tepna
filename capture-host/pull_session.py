@@ -51,7 +51,7 @@ async def _wait(q: asyncio.Queue, op: int, timeout: float = 20.0):
             return p
 
 
-async def pull(address, out_dir, which="latest", ftype=0, adapter=None, serial="0000", wait=0, on_progress=None,
+async def pull(address, out_dir, which="latest", resume=False, adapter=None, serial="0000", wait=0, on_progress=None,
                device_id=None):
     """Returns the list of .dat paths written this call (empty if the ring never appeared / no sessions).
 
@@ -63,7 +63,7 @@ async def pull(address, out_dir, which="latest", ftype=0, adapter=None, serial="
     deadline = loop.time() + wait
     while True:
         try:
-            return await _pull_once(address, out_dir, which, ftype, adapter, serial, on_progress,
+            return await _pull_once(address, out_dir, which, resume, adapter, serial, on_progress,
                                     device_id=device_id)
         except BleakDeviceNotFoundError:
             if loop.time() >= deadline:
@@ -73,8 +73,14 @@ async def pull(address, out_dir, which="latest", ftype=0, adapter=None, serial="
             await asyncio.sleep(2)
 
 
-async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progress=None, lifecycle=None,
+async def _pull_once(address, out_dir, which, resume, adapter, serial, on_progress=None, lifecycle=None,
                      device_id=None):
+    # ⚠️ `resume` REPLACES what was called `ftype` here. That parameter's value went straight into
+    # `file_start_frame`'s trailing u32 — an OFFSET — so the name promised a file type and delivered
+    # a seek position. #2313 renamed the frame builder and removed the CLI flag but left THIS
+    # parameter, which is how a half-finished rename hides: it was always 0, so nothing broke and
+    # nothing pointed at it. The slot is now what it always was, a resume offset, decided per
+    # session by `oxy_transfer.resume_strategy`.
     # bluez={"adapter": ...}, not the deprecated bare `adapter=` kwarg (see capture.adapter_kw): when
     # bleak drops the shim the bare form is swallowed as an unknown kwarg rather than raised, so the
     # adapter pin would vanish silently and the pull would run on the wrong radio.
@@ -282,7 +288,17 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
                 oxy_inventory.make_row(device_id, ts, oxy_inventory.DISCOVERED, reason="listed on flash", path=path),
             )
             print(f"\n── session {ts} ──", flush=True)
-            await send(oxyii.file_start_frame(ts, ftype))
+            # ── RESUME OR RE-SERVE ────────────────────────────────────────────────────────────
+            # The decision lives in ONE place (oxy_transfer.resume_strategy, brief §5) and this is
+            # the caller that finally asks it. It was written months ago and reachable only from the
+            # pure planner; the download loop below always sent offset 0, so the whole policy was
+            # unreachable from the path that moves bytes.
+            #
+            # A first START is still sent at offset 0: the ring's reported SIZE is the input
+            # `resume_strategy` needs, and it arrives in the START reply. So the sequence is
+            # ask-at-0 → decide → re-START at the offset if resuming. That costs one extra START on
+            # a resume and keeps the decision fed by a measurement rather than by the file on disk.
+            await send(oxyii.file_start_frame(ts, 0))
             meta = await _wait(q, oxyii.OP_FILE_START)
             size = int.from_bytes(meta[:4], "little")
             print(f"  size = {size} bytes  (meta {meta[:16].hex()})", flush=True)
@@ -314,8 +330,34 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
                 ),
             )
 
+            have = os.path.getsize(part) if os.path.exists(part) else 0
+            plan = oxy_transfer.resume_strategy(have, size, allow_resume=bool(resume))
             data = bytearray()
             off = 0
+            resumed_from = 0
+            if plan.mode == oxy_transfer.RESUME and 0 < plan.offset < size:
+                # SEEK THE RING, not just the file. A resume that repositions the local writer but
+                # keeps asking the ring from 0 would re-download everything and then splice it at
+                # the wrong place — the "right size, silently corrupt" failure §5 names.
+                await send(oxyii.file_start_frame(ts, plan.offset))
+                try:
+                    await _wait(q, oxyii.OP_FILE_START)
+                except asyncio.TimeoutError:
+                    print(f"  ⚠ resume START at {plan.offset} got no reply — re-serving from 0.", flush=True)
+                    plan = oxy_transfer.Resume(oxy_transfer.RESTART, 0, "resume START unanswered")
+                    await send(oxyii.file_start_frame(ts, 0))
+                    await _wait(q, oxyii.OP_FILE_START)
+            if plan.mode == oxy_transfer.RESUME and 0 < plan.offset < size:
+                with open(part, "rb") as fh:
+                    data += fh.read(plan.offset)
+                # ⚠️ READ EXACTLY `offset` BYTES, never the whole file. A stale `.part` LONGER than
+                # the resume point would otherwise contribute its tail, which is the splice
+                # oxy_transfer.download's `truncate` exists to prevent — the same defect one layer
+                # up, and it would not be caught by that module's control.
+                off = resumed_from = len(data)
+                print(f"  resuming at {off}/{size} B ({plan.reason})", flush=True)
+            else:
+                print(f"  full serve: {plan.reason}", flush=True)
             while off < size:
                 await send(oxyii.file_data_frame(off))
                 try:
@@ -353,6 +395,37 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
             complete = len(data) >= size
             with open(part, "wb") as f:
                 f.write(data)
+            # ── A RESUMED FILE MUST EARN ITS COMMIT ──────────────────────────────────────────────
+            # 🔴 A CLEAN PULL AND A RESUMED PULL ARE NOT EQUALLY TRUSTED, and treating them alike is
+            # the whole risk §5 weighs. A clean pull's failure mode is SHORT — visible in the byte
+            # count. A resumed pull's failure mode is a file of exactly the right size whose middle
+            # is wrong, which no length check can see. So a resumed file is validated before it is
+            # allowed to become a recording, and a failure DISCARDS the `.part` and re-serves from
+            # zero rather than committing bytes nobody vouched for.
+            #
+            # The predicate is the existing trailer parse — unchanged, and deliberately not a new
+            # one: inventing a second notion of "complete" here would let the two disagree.
+            if complete and resumed_from:
+                vr = oxy_transfer.verify(part, size, oxyii.parse_oxy_trailer)
+                if not vr.ok:
+                    print(f"  ⚠ resumed file failed verification ({vr.reason}) — discarding the "
+                          f".part and re-serving from 0 on the next pass.", flush=True)
+                    oxy_inventory.append_row(
+                        ledger_path,
+                        oxy_inventory.make_row(device_id, ts, oxy_inventory.FAILED,
+                                               reason=f"resume rejected: {vr.reason}",
+                                               reported_size=size, path=part),
+                    )
+                    # DISCARD, not keep. A `.part` that failed verification would otherwise be the
+                    # input to the NEXT resume, which would splice onto known-bad bytes and could
+                    # verify by luck the second time. Re-serving costs one acquisition; keeping it
+                    # risks a plausible corrupt recording, and that asymmetry is the whole of §5.
+                    try:
+                        os.remove(part)
+                    except OSError:
+                        pass   # best-effort: the next pass re-serves regardless, since the ledger
+                               # row above already says FAILED rather than PARTIAL
+                    continue
             # T3 — LAST BYTE RECEIVED (brief §11/§23). `VERIFYING` means exactly "bytes complete on disk,
             # validation in flight", so it is emitted ONLY for a complete transfer: a short pull's bytes are
             # NOT complete, and a VERIFYING row for one would assert the very completeness the classify call

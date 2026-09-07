@@ -4878,7 +4878,7 @@ def session_meta(f: str, name: str = "") -> dict:
 
 
 async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", *,
-                             trigger: str = "manual") -> dict:
+                             resume: bool = False, trigger: str = "manual") -> dict:
     """Pull the O2Ring's ONBOARD-recorded session(s) off flash to <root>/captures/stored/*.dat, driven from
     the monitor. Pauses live capture first (the ring has one BLE link), runs the same pull_session flow the
     CLI uses, then resumes. Returns the newly written files + their .meta.json so the UI can report them.
@@ -4924,9 +4924,10 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", *,
                     # when the ring does not answer its identity read — the SAME key the auto-harvest
                     # path and every earlier pull used, so a transient 0xE1 timeout cannot re-key a
                     # committed session as `0000/<stamp>` and pull it again (vigil 2026-08-29/30).
-                    # 0, always: this argument is the oximetry START frame's byte OFFSET (see
-                    # oxyii.file_start_frame), and the daemon has no reason to resume mid-file.
-                    return await pull_session.pull(dev["address"], out_dir, which=which, ftype=0,
+                    # `resume` is the CONFIG's, not a constant: `pull.resume` (default False) is
+                    # what the physical drop test flips. Off, every session re-serves from 0.
+                    return await pull_session.pull(dev["address"], out_dir, which=which,
+                                                   resume=resume,
                                                    adapter=await adapter_hci(),
                                                    serial="0000", wait=45, on_progress=_prog,
                                                    device_id=dev.get("device_id")) or []
@@ -7014,6 +7015,16 @@ async def charger_pull_poller(cfg: dict, root: str):
     # ring; `ppg` is built and UNPROBED, and the daemon does not dispatch it — the first contact is
     # owner-authorised separately. Anything else is refused AT CONFIG LOAD rather than at use: a
     # typo'd family that surfaces hours later, mid-night, is the shape this repo keeps paying for.
+    # MID-FILE RESUME, default OFF. The physical drop test that decides whether the ring re-serves
+    # or resumes flips THIS, not code — which is the whole reason `resume_strategy` was written as
+    # one function months before anything called it. Until that test runs, re-serve-from-start is
+    # the safe half of an asymmetric bet: a redundant acquisition costs ~69 s p90, while a wrong
+    # resume offset yields a file of exactly the right size whose middle is wrong.
+    resume_pull = bool(pcfg.get("resume", False))
+    if resume_pull:
+        log.warning("pull.resume=ON — mid-file resume is enabled and the drop test that justifies it "
+                    "has not been recorded; a resumed file is verified before commit and discarded "
+                    "if it fails, but the re-serve default is the measured-safe one")
     file_family = str(pcfg.get("file_family", "oxy"))
     if file_family not in ("oxy", "ppg"):
         raise ValueError("config pull.file_family=%r: expected 'oxy' or 'ppg'" % file_family)
@@ -7113,7 +7124,7 @@ async def charger_pull_poller(cfg: dict, root: str):
             try:
                 if dev.get("vendor") in ("Wellue", "Viatom"):
                     res = await pull_oxyii_session(dev, root, which=pull_scope_for(trigger),
-                                                   trigger=trigger)
+                                                   resume=resume_pull, trigger=trigger)
                 else:
                     res = await pull_polar_offline_all(dev, root)
                 new = (res or {}).get("new_files", []) if isinstance(res, dict) else []
@@ -7146,7 +7157,7 @@ async def charger_pull_poller(cfg: dict, root: str):
                     try:
                         # Booked under the SAME trigger as the primary pull — the POWER axis counts this
                         # as the event's second attempt, not a manual one.
-                        more = await pull_oxyii_session(dev, root, which="new",
+                        more = await pull_oxyii_session(dev, root, which="new", resume=resume_pull,
                                                         trigger=trigger)
                         drained = len((more or {}).get("new_files", []) if isinstance(more, dict) else [])
                         if drained:

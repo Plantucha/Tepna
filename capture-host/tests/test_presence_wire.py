@@ -234,7 +234,7 @@ def test_a_non_ring_device_is_not_observed():
 # ── §14 THE DISPATCH WIRING — not the decision, the wiring ───────────────────
 def _ring_cfg():
     return {
-        "pull": {"auto": True, "ftype": 0},
+        "pull": {"auto": True},
         "o2ring": {"presence_harvest": {"enabled": True, "scan_coexistence_verified": True}},
         # device_id + streams are REQUIRED: `missing_identity` filters an incomplete entry out of
         # `devices` entirely, so a hand-built config without them dispatches nothing and the test
@@ -256,8 +256,8 @@ def _arm_presence(rec_state=None):
 def _drive_dispatch(monkeypatch, cfg, ticks=3):
     pulls = []
 
-    async def fake_pull(dev, root, which="latest", ftype=0, *, trigger="manual"):
-        pulls.append((dev["name"], which, ftype))
+    async def fake_pull(dev, root, which="latest", resume=False, *, trigger="manual"):
+        pulls.append((dev["name"], which, resume))
         return {"new_files": ["a.dat"]}
 
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull)
@@ -385,7 +385,7 @@ def test_artifact_committed_is_stamped_ONLY_when_a_FILE_was_produced(monkeypatch
     capture._WITNESS.pop(A, None)
     _arm_presence()
 
-    async def empty_pull(dev, root, which="latest", ftype=0, *, trigger="manual"):
+    async def empty_pull(dev, root, which="latest", resume=False, *, trigger="manual"):
         return {"new_files": []}
 
     monkeypatch.setattr(capture, "pull_oxyii_session", empty_pull)
