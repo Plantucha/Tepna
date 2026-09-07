@@ -1442,6 +1442,268 @@ def ppg2w_contact_quality(night_dir: str) -> list:
     return out
 
 
+_CLIP_MIN_RUN = 8               # a plateau shorter than this is the signal sitting still for a moment.
+                                # It is a floor on the REPORTED region, not a detection threshold: the
+                                # rule is "pinned at an observed extreme", and this only keeps a
+                                # two-sample pause at a rail out of the sidecar.
+_PLATEAU_LSB = 1                # a rail plateau flickers by one quantisation step, so the region is
+                                # NEAR-constant, not constant. Measured 2026-09-06 on the ring: exact
+                                # equality split one ceiling population into 118 regions at 200 and 81
+                                # at 199 and would have reported one plateau as two findings.
+_RAMP_SAMPLES = 6               # samples either side used to read the approach. One ring beat's rising
+                                # edge at 125 Hz — enough to see monotonicity, short enough not to
+                                # reach the neighbouring beat.
+_HELD_NEAR_DELTA = 0.90         # >= this share of runs on two ADJACENT lengths => a zero-order HOLD,
+                                # not a defect. Measured on the ring's `_ACCRAW.txt` (2026-09-06, three
+                                # sessions / two nights): 99.8 % of runs are 6 or 7, ratio 6.387-6.396,
+                                # because a 1.5625 Hz update is emitted into a 10 Hz record stream.
+
+
+def constant_runs(values, *, min_run: int = 2):
+    """Maximal runs of ONE repeated value that reach `min_run`, as `(first_index, n, value)`.
+
+    Keyed on length and never on value membership. A `!= 0` test — or any list of known-bad constants
+    — convicts every stream where the constant is real: ECG microvolts cross zero on every beat and an
+    ACC axis rests at 0 mG. This function has no opinion about the value; callers decide.
+    """
+    out = []
+    if min_run < 2:
+        raise ValueError("min_run must be at least 2 — a single sample is not a run")
+    i, n = 0, len(values)
+    while i < n:
+        j = i + 1
+        while j < n and values[j] == values[i]:
+            j += 1
+        if j - i >= min_run:
+            out.append((i, j - i, values[i]))
+        i = j
+    return out
+
+
+def _count_singletons(values) -> int:
+    """Values differing from BOTH neighbours — the runs `constant_runs` cannot return.
+
+    The held test reasons over the whole transition population; dropping singletons would let a stream
+    with one long hold and thousands of single samples read as a near-delta.
+    """
+    n = len(values)
+    if n <= 1:
+        return n
+    c = 0
+    for i in range(n):
+        prev_same = i > 0 and values[i - 1] == values[i]
+        next_same = i + 1 < n and values[i + 1] == values[i]
+        if not prev_same and not next_same:
+            c += 1
+    return c
+
+
+def held_stream(values, *, near_delta: float = _HELD_NEAR_DELTA):
+    """Is this stream a ZERO-ORDER HOLD of a slower measurement, rather than a damaged one?
+
+    A held stream repeats every value by construction, so a run-length rule would flag essentially the
+    whole file — 99.8 % of runs on the ring's ACC — and report working behaviour as corruption. The
+    discriminator is the SHAPE of the run-length distribution: a hold produces a near-delta at the two
+    integers bracketing a fixed ratio (6 and 7 for 6.4), because an integer number of records cannot
+    realise a non-integer ratio any other way. Damage is ragged and its short runs do not vanish.
+
+    Computed rather than configured ON PURPOSE. An exclusion list naming `acc` would keep protecting a
+    stream that stopped being held and would miss the next held stream nobody added to it.
+
+    FEED IT A RECORD, NOT A COLUMN, for a multi-column stream. Two axes change on the same tick, but
+    either alone also repeats across a change by coincidence, splicing neighbouring runs together.
+    Measured on the ring's ACC: the triplet gives ratio 6.387 / share 0.998 — reproducing an
+    independently measured 6.387 exactly — while X, Y and Z alone read 6.579, 6.613 and 6.603.
+
+    `None` when not held. Otherwise the ratio, which is the number a consumer needs: the record rate
+    OVERSTATES the measurement rate by exactly this factor.
+    """
+    runs = [n for _i, n, _v in constant_runs(values, min_run=2)]
+    singles = _count_singletons(values)
+    total = len(runs) + singles
+    if total < 20:
+        return None                      # too few transitions to have a shape at all
+    best = None
+    for a in sorted({n for n in runs}):
+        share = (sum(1 for n in runs if n in (a, a + 1)) + (singles if a == 1 else 0)) / total
+        if best is None or share > best[1]:
+            best = ((a, a + 1), share)
+    if best is None or best[1] < near_delta:
+        return None
+    return {"held": True, "ratio": (sum(runs) + singles) / total,
+            "lengths": best[0], "share": best[1]}
+
+
+def near_constant_regions(values, *, max_spread: int = _PLATEAU_LSB, min_run: int = 2,
+                          annotations=()):
+    """Maximal regions spanning at most `max_spread` — a plateau, not a single repeated value.
+
+    `annotations` names values that are NOT SAMPLES and must be stepped over. This is a value list, and
+    a value list is exactly what the detection rules refuse to be — the distinction is that this one
+    declares a property of the FORMAT (the ring writes its beat marker in the sample column) rather
+    than a property of the data. A format fact is knowable in advance; a defect is not.
+
+    ⚠️ THIS IS LOAD-BEARING, NOT A TIDY-UP. The ring's `156` beat marker rides in-band, so it lands
+    INSIDE plateaus and splits them. Measured 2026-09-06 across six nights, on the approach ramps of
+    zero plateaus: 67-79 % read monotone with the marker present and 686/689 (99.6 %) with it excluded,
+    and on one file the separation was total — 26/26 of the failing windows contained a marker, 0/95 of
+    the passing ones did. Left in, a fifth of events fragment and the population reads as a MIXTURE OF
+    TWO MECHANISMS that does not exist. It is the same one-shape family as the absence rule, in the
+    other direction: an out-of-band fact riding in-band, unreadable as what it is.
+
+    Regions are returned over ORIGINAL indices, so a region that spans a stepped-over annotation
+    reports the span it really covers.
+    """
+    skip = frozenset(annotations)
+    idx = [i for i, v in enumerate(values) if v not in skip]
+    out = []
+    i = 0
+    while i < len(idx):
+        lo = hi = values[idx[i]]
+        j = i + 1
+        while j < len(idx):
+            nlo = min(lo, values[idx[j]])
+            nhi = max(hi, values[idx[j]])
+            if nhi - nlo > max_spread:
+                break
+            lo, hi = nlo, nhi
+            j += 1
+        if j - i >= min_run:
+            out.append((idx[i], idx[j - 1] - idx[i] + 1, lo, hi))
+        i = j if j > i else i + 1
+    return out
+
+
+def _ramp(values, first, n, *, toward_high, ramp=_RAMP_SAMPLES, annotations=()):
+    """Approach/departure shape around a plateau: `(monotone_in, monotone_out, projects_beyond)`.
+
+    `projects_beyond` continues the approach slope across the plateau and asks whether it would have
+    left the observed range — the question a rail answers YES to and a flat stretch of signal answers
+    NO to, with no threshold on the value.
+
+    ⚠️ The projection is LINEAR over a plateau that may be long, so it indicates DIRECTION, not depth.
+    Never quote its magnitude as the excursion the device would have recorded.
+    """
+    skip = frozenset(annotations)
+    a, b = [], []
+    k = first - 1
+    while k >= 0 and len(a) < ramp:
+        if values[k] not in skip:
+            a.append(values[k])
+        k -= 1
+    a.reverse()
+    k = first + n
+    while k < len(values) and len(b) < ramp:
+        if values[k] not in skip:
+            b.append(values[k])
+        k += 1
+    mono_in = mono_out = False
+    beyond = None
+    if len(a) == ramp:
+        mono_in = all(a[t + 1] >= a[t] for t in range(ramp - 1)) if toward_high \
+            else all(a[t + 1] <= a[t] for t in range(ramp - 1))
+        slope = (a[-1] - a[0]) / float(ramp - 1)
+        proj = a[-1] + slope * n
+        beyond = proj > values[first] if toward_high else proj < values[first]
+    if len(b) == ramp:
+        mono_out = all(b[t + 1] <= b[t] for t in range(ramp - 1)) if toward_high \
+            else all(b[t + 1] >= b[t] for t in range(ramp - 1))
+    return mono_in, mono_out, beyond
+
+
+def clip_regions(values, *, min_run: int = _CLIP_MIN_RUN, max_spread: int = _PLATEAU_LSB,
+                 ramp: int = _RAMP_SAMPLES, annotations=()):
+    """Plateaus PINNED AT AN OBSERVED EXTREME, at BOTH rails, with their approach shape measured.
+
+    Both extremes are read from the data and tested identically, which is what makes the ring's 0 and
+    the Verity's 2 096 921 the same rule rather than two entries on a list. There is no declared bound
+    to test against — the ring's 200 is not an encoding extreme — so the observed range is the only
+    honest reference, and that is why this is a whole-night back-check and not live-computable.
+
+    THE CEILING IS THE POSITIVE CONTROL. On 20260905045318 the ceiling scores 115/118 monotone-in and
+    113/118 monotone-out, so the shape test is known to fire on a rail this stream really does hit; the
+    floor's numbers are then a measurement against a working instrument rather than a hopeful
+    threshold. A rule with no positive control cannot tell "clean" from "blind".
+
+    ⚠️ THE GEOMETRY IS EVIDENCE, NOT THE DISCRIMINATOR. It rides with each region and it does not
+    decide which regions are emitted — the pin does. A slow turning point is approached monotonically
+    AND projects beyond its own extreme (the approach slope is non-zero), so both flags fire on clean
+    signal too; on the real corpus the ceiling projects beyond in only 54-62 % of regions while reading
+    94-97 % monotone. Anyone tempted to filter on these flags should read
+    `test_clip_clean_night_reports_the_signals_own_turning_points` first — an earlier draft of this
+    docstring claimed the separation and the test falsified it.
+    """
+    if not values:
+        return []
+    skip = frozenset(annotations)
+    real = [v for v in values if v not in skip]
+    if not real:
+        return []
+    lo, hi = min(real), max(real)
+    out = []
+    for rail, toward_high in ((lo, False), (hi, True)):
+        for first, n, rlo, rhi in near_constant_regions(values, max_spread=max_spread,
+                                                        min_run=min_run, annotations=skip):
+            if abs(rlo - rail) > max_spread or abs(rhi - rail) > max_spread:
+                continue
+            mono_in, mono_out, beyond = _ramp(values, first, n, toward_high=toward_high,
+                                              ramp=ramp, annotations=skip)
+            out.append({"first_index": first, "n_samples": n, "rail": rail,
+                        "toward_high": toward_high, "monotone_in": mono_in,
+                        "monotone_out": mono_out, "projects_beyond": beyond})
+    out.sort(key=lambda r: r["first_index"])
+    return out
+
+
+def class_b_runs(records, *, stream: str, min_run: int = _CLIP_MIN_RUN,
+                 tick_ms: float | None = None, annotations=(), emit=None) -> dict:
+    """Class-B (QUALITY) signatures for one stream: `clip` regions, or a `held` mark, never both.
+
+    Class A is ABSENCE — a value that was not measured, which must reach a consumer as null. Class B is
+    a value that WAS measured and is untrustworthy: an input pinned at a rail carries no information
+    while looking exactly like data. The rule name is what lets a consumer tell them apart, which is
+    why it travels in the row rather than being inferred from the stream's name.
+
+    `records` is one entry per ROW — a tuple for a multi-channel stream, a scalar for one channel. A
+    HOLD is a property of the record (every channel freezes on the same tick); a RAIL is a property of
+    one channel (an ADC saturates by itself). Measuring either at the other's level is quietly wrong.
+
+    There is deliberately NO `collapse` rule. It was specified, built and then measured away: after
+    excluding the beat marker, the population of deviating near-constant regions that are not at a rail
+    is 3-17 regions in 843,032 samples (0.006-0.020 %) at any defensible minimum, and the survivors sit
+    a few LSB short of the ceiling — the same mechanism not quite reaching the rail, not a second one.
+    A detector with no population is a parameter with no evidence.
+
+    `emit` is the seam the sidecar writer fills — `emit(stream, value, first_index, n, dur_ms, closed,
+    rule)`. It defaults to collecting the rows, so a test sees the real rows rather than a no-op that
+    would pass while writing nothing.
+    """
+    rows = []
+    if emit is None:
+        def emit(stream, value, first_index, n, dur_ms, closed, rule):
+            rows.append({"stream": stream, "value": value, "first_index": first_index,
+                         "n_samples": n, "dur_ms": dur_ms, "closed": closed, "rule": rule})
+    held = held_stream(records)
+    if held is not None:
+        # Reported ONCE, as what it is. Emitting its runs would bury a real finding under thousands of
+        # rows describing the device working as designed.
+        emit(stream, None, 0, len(records), None, True, "held ratio=%.2f" % held["ratio"])
+        return {"stream": stream, "held": held, "rows": rows, "clips": {}}
+    wide = bool(records) and isinstance(records[0], tuple)
+    channels = list(zip(*records)) if wide else [list(records)]
+    last = len(records) - 1
+    clips = {}
+    for c, col in enumerate(channels):
+        name = "%s:ch%d" % (stream, c) if wide else stream
+        found = clip_regions(list(col), min_run=min_run, annotations=annotations)
+        clips[name] = len(found)
+        for r in found:
+            dur_ms = None if tick_ms is None else r["n_samples"] * tick_ms
+            closed = (r["first_index"] + r["n_samples"] - 1) != last
+            emit(name, r["rail"], r["first_index"], r["n_samples"], dur_ms, closed, "clip")
+    return {"stream": stream, "held": None, "rows": rows, "clips": clips}
+
+
 def rtc_drift_summary(path: str | Sequence[str]) -> dict | None:
     """Roll a night's `_RTCLOG.csv` sidecars (RingClockLogWriter) into one ring-clock verdict, or None
     when there is no readback to summarise. The daemon watches the O2Ring's RTC against the host every

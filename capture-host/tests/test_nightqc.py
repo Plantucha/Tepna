@@ -2209,3 +2209,193 @@ def test_summarize_pools_EVERY_rtclog_sidecar_of_the_ring_not_the_first(tmp_path
     assert rtc["files"] == 3, "all three sidecars, not the first"
     assert rtc["resets"] == 1, "the reset in the second session must reach the night's verdict"
     assert rtc["reads"] == 3 and rtc["pushes"] == 1 and rtc["span_h"] == 4.0
+
+
+# ── Class-B quality signatures: `clip` (pinned at an observed extreme) and `held` ────────────────
+# The rules and every constant below are measured, not chosen; the measurements are named in the
+# nightqc docstrings. These plants encode the four behaviours that were argued out on 2026-09-06.
+
+_MK = 156                      # the ring's beat marker: an out-of-band annotation riding in-band
+
+
+def _baseline(n=40):
+    """A baseline that is deliberately NOT at an extreme — see `test_clip_clean_night_...`."""
+    return [100 + int(8 * math.sin(i / 5.0)) for i in range(n)]
+
+
+_RAMP_DOWN = [87, 78, 68, 57, 47, 37, 28, 19, 10, 4]
+_RAMP_UP = [1, 4, 9, 14, 19, 24, 29, 35, 41, 47]
+
+
+def test_constant_runs_is_keyed_on_length_not_value():
+    # zero is a LEGAL sample; only the run length may decide.
+    assert nightqc.constant_runs([0, 1, 0, 1, 0], min_run=2) == []
+    assert nightqc.constant_runs([5, 0, 0, 0, 5], min_run=3) == [(1, 3, 0)]
+    with pytest.raises(ValueError):
+        nightqc.constant_runs([1, 1], min_run=1)
+
+
+def test_count_singletons_edges():
+    assert nightqc._count_singletons([]) == 0
+    assert nightqc._count_singletons([7]) == 1
+    assert nightqc._count_singletons([1, 1, 2, 3, 3]) == 1
+
+
+def test_held_stream_detects_zero_order_hold_and_refuses_a_short_stream():
+    # a 1.5625 Hz update emitted into a 10 Hz record stream: runs of 6 and 7, ratio 6.4
+    v = []
+    for k in range(60):
+        v += [k] * (6 if k % 5 else 7)
+    h = nightqc.held_stream(v)
+    assert h is not None and h["lengths"] == (6, 7)
+    assert 6.0 < h["ratio"] < 7.0 and h["share"] >= 0.90
+    assert nightqc.held_stream([1, 2, 3]) is None          # too few transitions to have a shape
+    assert nightqc.held_stream(list(range(400))) is None    # ragged, not a hold
+
+
+def test_held_stream_wants_records_not_columns():
+    """A per-column read splices runs across a record change and overstates the ratio.
+
+    Measured on the ring's real ACC: the triplet gives 6.387 (reproducing an independent measurement
+    exactly) while X, Y and Z alone read 6.579, 6.613 and 6.603.
+    """
+    recs = []
+    for k in range(120):
+        recs += [(k, k // 2)] * 6               # ch1 changes half as often as the record does
+    rec_ratio = nightqc.held_stream(recs)["ratio"]
+    col_ratio = nightqc.held_stream([r[1] for r in recs])["ratio"]
+    assert 5.5 < rec_ratio < 6.5
+    assert col_ratio > rec_ratio                # the column splices, so it reads a longer hold
+
+
+def test_clip_floor_is_one_region():
+    v = _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline()
+    rows = nightqc.class_b_runs(v, stream="ppg", annotations=(_MK,))["rows"]
+    assert [(r["rule"], r["n_samples"], r["value"]) for r in rows] == [("clip", 31, 0)]
+
+
+def test_clip_marker_inside_a_plateau_stays_ONE_region():
+    """THE regression this rule exists to survive.
+
+    The ring's `156` marker lands inside plateaus. Left in, it splits one clip into two and the
+    population reads as a mixture of two mechanisms that does not exist (measured 2026-09-06: 67-79 %
+    of approach ramps read monotone with the marker present, 686/689 with it excluded).
+    """
+    plain = _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline()
+    marked = _baseline() + _RAMP_DOWN + [0] * 14 + [_MK] + [0] * 15 + _RAMP_UP + _baseline()
+    got = nightqc.class_b_runs(marked, stream="ppg", annotations=(_MK,))["rows"]
+    want = nightqc.class_b_runs(plain, stream="ppg", annotations=(_MK,))["rows"]
+    assert [(r["first_index"], r["n_samples"]) for r in got] == \
+           [(r["first_index"], r["n_samples"]) for r in want]
+    # and the failure it prevents, so the assertion above cannot pass vacuously
+    unexcluded = nightqc.class_b_runs(marked, stream="ppg")["rows"]
+    assert len(unexcluded) == 2 and unexcluded[0]["n_samples"] < 30
+
+
+def test_clip_ceiling_is_the_positive_control():
+    """The ceiling is the rail this stream demonstrably hits; without it the floor has no control."""
+    up = [113, 124, 132, 143, 154, 166, 177, 188, 196]
+    v = _baseline() + up + [200] * 30 + up[::-1] + _baseline() + [0]
+    rows = [r for r in nightqc.class_b_runs(v, stream="ppg", annotations=(_MK,))["rows"]
+            if r["value"] == 200]
+    assert [(r["rule"], r["n_samples"]) for r in rows] == [("clip", 30)]
+    geo = [g for g in nightqc.clip_regions(v, annotations=(_MK,)) if g["rail"] == 200]
+    assert geo[0]["monotone_in"] and geo[0]["monotone_out"] and geo[0]["projects_beyond"]
+
+
+def test_clip_ignores_a_real_beat_crossing_zero():
+    beat = [int(100 + 90 * math.sin(i / 7.0)) for i in range(900)]
+    assert nightqc.class_b_runs(beat, stream="ppg", annotations=(_MK,))["rows"] == []
+
+
+def test_clip_does_not_flag_a_long_constant_run_at_BASELINE():
+    """Two-sided without a value list, proven.
+
+    The acceptance file carries a 12,411-sample run at value 100 with deviation 0.27 of the stream's
+    own scale. It is a `stuck` stream, not a clip, and nothing here names 0, 100 or 200 to know that —
+    100 is simply not an extreme.
+    """
+    v = [100] * 400 + [90, 110] * 200
+    assert nightqc.class_b_runs(v, stream="ppg", annotations=(_MK,))["rows"] == []
+
+
+def test_clip_clean_night_reports_the_signals_own_turning_points():
+    """A known COST of a pinned rule, asserted so nobody rediscovers it as a bug.
+
+    `clip` is pinned at the OBSERVED extremes, so on a stream that never reaches a real rail the
+    extremes are just the signal's own max and min, and a slow turning point sits near-constant for
+    several samples. Magpie measured the price on a clean night: 0.0538 % of samples flagged.
+
+    ⚠️ The geometry does NOT rescue this, and an earlier draft of this test asserted that it did. A
+    turning point is approached monotonically AND projects beyond its own extreme, because the
+    approach slope is non-zero — so `projects_beyond` is True here, exactly as it is at a real rail.
+    On the real corpus the ceiling projects beyond in only 54-62 % of regions while reading 94-97 %
+    monotone, so neither flag separates a rail from a turning point on its own. The geometry is
+    EVIDENCE carried with the region, never the discriminator; the discriminator is the pin.
+    """
+    slow = [100 + int(20 * math.sin(i / 40.0)) for i in range(400)]
+    geo = nightqc.clip_regions(slow, annotations=(_MK,))
+    assert geo, "a slow turning point does reach the observed extreme"
+    assert any(g["projects_beyond"] for g in geo)
+
+
+def test_class_b_runs_emit_seam_receives_the_sidecar_columns():
+    seen = []
+    v = _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline()
+    nightqc.class_b_runs(v, stream="ppg", tick_ms=8.0, annotations=(_MK,),
+                         emit=lambda *a: seen.append(a))
+    assert len(seen) == 1
+    stream, value, first_index, n, dur_ms, closed, rule = seen[0]
+    assert (stream, value, n, rule) == ("ppg", 0, 31, "clip")
+    assert dur_ms == 31 * 8.0 and closed is True and first_index > 0
+
+
+def test_class_b_runs_multichannel_reports_per_channel_and_held_once():
+    recs = [(x, 50) for x in (_baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline())]
+    out = nightqc.class_b_runs(recs, stream="ppg", annotations=(_MK,))
+    assert any(r["stream"] == "ppg:ch0" and r["rule"] == "clip" for r in out["rows"])
+    held = []
+    nightqc.class_b_runs([(k // 6, 0) for k in range(600)], stream="acc",
+                         emit=lambda *a: held.append(a))
+    assert len(held) == 1 and held[0][6].startswith("held ratio=")
+
+
+def test_clip_regions_handles_empty_and_all_annotation_input():
+    assert nightqc.clip_regions([]) == []
+    assert nightqc.clip_regions([_MK] * 50, annotations=(_MK,)) == []
+
+
+def test_clip_at_a_file_edge_has_no_room_to_read_an_approach():
+    """A plateau touching the first or last sample cannot have its approach read, and the geometry
+    says so with `projects_beyond is None` rather than guessing a shape from a truncated window."""
+    head = [0] * 30 + _RAMP_UP + _baseline()
+    geo = [g for g in nightqc.clip_regions(head, annotations=(_MK,)) if g["first_index"] == 0]
+    assert geo and geo[0]["projects_beyond"] is None and geo[0]["monotone_in"] is False
+    tail = _baseline() + _RAMP_DOWN + [0] * 30
+    last = nightqc.clip_regions(tail, annotations=(_MK,))[-1]
+    assert last["monotone_out"] is False        # nothing after it to be monotone in
+    rows = nightqc.class_b_runs(tail, stream="ppg", annotations=(_MK,))["rows"]
+    assert rows[-1]["closed"] is False          # the run is still open at the end of the file
+
+
+def test_marker_inside_the_APPROACH_RAMP_is_stepped_over():
+    """The real-corpus signature, and the one the plateau plant does not cover.
+
+    Measured 2026-09-06 on 20260905045318: of the 26 zero events whose approach read non-monotone,
+    26/26 had a `156` in the approach WINDOW (and 0/95 of the monotone ones did). The marker breaks the
+    ramp from outside the plateau as well as from inside it, so both windows must step over it.
+
+    ⚠️ Note WHERE the marker sits. A 156 early in a descending ramp leaves it non-increasing (156 is
+    above everything after it) and breaks nothing; it is the marker ADJACENT to the plateau, after the
+    ramp has fallen below it, that inverts the last step — which is exactly the `[0, 0, 0, 0, 0, 156]`
+    window shape the corpus produced. A plant that puts it anywhere else passes while testing nothing.
+    """
+    exit_ramp = [1, 4, _MK, 9, 14, 19, 24, 29, 35, 41, 47]   # and one deeper in the departure
+    v = (_baseline() + _RAMP_DOWN + [_MK] + [0] * 30 + [_MK] + exit_ramp + _baseline())
+    geo = [g for g in nightqc.clip_regions(v, annotations=(_MK,)) if g["rail"] == 0]
+    assert geo, "the plateau is still found"
+    assert geo[0]["monotone_in"] and geo[0]["monotone_out"], \
+        "with the marker stepped over, the ramp either side reads monotone"
+    blind = [g for g in nightqc.clip_regions(v) if g["rail"] == 0]
+    assert blind and not blind[0]["monotone_in"] and not blind[0]["monotone_out"], \
+        "undeclared, the adjacent marker inverts the last step of the ramp on both sides"
