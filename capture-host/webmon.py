@@ -302,6 +302,15 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         # different facts, and this one is what the alarm beside it is counting.
                         "ring_barren_connects": st.get("ring_barren_connects"),
                         "ring_barren_alert": st.get("ring_barren_alert"),
+                        # THE ENCRYPTION VERDICT for this link, from the OP_AUTH reply (wired
+                        # 2026-09-07). `auth_mode` is "plaintext" / "encrypted" / "refuse" when the
+                        # ring answered, and the string "unknown" when it stayed silent — which is
+                        # every ring here, so the common case must be visible rather than absent.
+                        # `auth_unknown_links` counts the links that went undetermined: one is normal,
+                        # a night of them is the daemon never learning what it is talking to.
+                        "auth_mode": st.get("auth_mode"),
+                        "auth_reason": st.get("auth_reason"),
+                        "auth_unknown_links": st.get("auth_unknown_links"),
                         # The ring's settings struct AS THE RING REPORTS IT (0x00 read-back), plus the
                         # verdict of the last monitor-queued write. The requested value is deliberately
                         # not echoed anywhere — only what the device confirmed.

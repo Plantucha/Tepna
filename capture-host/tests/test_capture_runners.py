@@ -6289,3 +6289,220 @@ def test_an_empty_pleth_reply_writes_no_rows_and_does_not_crash(tmp_path, monkey
     for h in hits:
         body = [r for r in h.read_text().strip().split("\n") if r and not r.startswith("Phone")]
         assert not body, f"an empty reply produced rows: {body[:2]}"
+
+
+def test_alert_poller_stays_QUIET_for_a_ring_that_powered_off_after_a_completed_pull(monkeypatch):
+    """MEASURED FALSE ALARM, 2026-09-07 06:18: "Wellue O2Ring-S has been offline for ~5 min — capture is
+    missing it", four minutes after a pull that succeeded. Capture was missing nothing — the ring runs
+    its own ~121.9 s idle timer after a doff and powers off, and the night was already on disk.
+
+    The wiring is what this pins: the pure predicate cannot show that the poller CONSULTS it."""
+    sent = []
+    class _N:
+        enabled = True
+        async def send(self, title, message, **kw): sent.append(title); return True
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="O2Ring")]}
+    capture.STATUS["devices"]["O2Ring"] = {"connected": False}
+    capture._LAST_DATA.pop("O2Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("O2Ring")
+    capture._LAST_PULL_OK["O2Ring"] = 1000.0          # a pull COMPLETED, one minute ago
+    calls = {"n": 0}
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3: capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1060.0)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_PULL_OK.pop("O2Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("O2Ring")
+    assert sent == [], "an expected power-off must not alert"
+
+
+def test_alert_poller_STILL_alerts_when_the_pull_did_not_succeed(monkeypatch):
+    """The mirror, and the one that matters. Same silence, same doff — but no completed pull, so the
+    night is still ON the ring. That is exactly the alert worth having, and licensing the quiet state
+    on the doff alone would have suppressed it."""
+    sent = []
+    class _N:
+        enabled = True
+        async def send(self, title, message, **kw): sent.append(title); return True
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="O2Ring")]}
+    capture.STATUS["devices"]["O2Ring"] = {"connected": False}
+    capture._LAST_DATA.pop("O2Ring", None)
+    capture._LAST_PULL_OK.pop("O2Ring", None)         # no pull ever completed for it
+    capture._IDLE_TIMER_NAMED.discard("O2Ring")
+    calls = {"n": 0}
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3: capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1060.0)
+    _run(capture.alert_poller(cfg, _N()))
+    assert sent == ["Tepna: sensor offline"]
+
+
+def test_a_ring_quiet_PAST_the_expiry_goes_back_to_alerting(monkeypatch):
+    """The state must not become a permanent silence. Same completed pull, but 9 h ago — past the 8 h
+    bound — so this is no longer explained by the idle timer and the real alert returns."""
+    sent = []
+    class _N:
+        enabled = True
+        async def send(self, title, message, **kw): sent.append(title); return True
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="O2Ring")]}
+    capture.STATUS["devices"]["O2Ring"] = {"connected": False}
+    capture._LAST_DATA.pop("O2Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("O2Ring")
+    capture._LAST_PULL_OK["O2Ring"] = 1000.0
+    calls = {"n": 0}
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3: capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0 + 9 * 3600)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_PULL_OK.pop("O2Ring", None)
+    assert sent == ["Tepna: sensor offline"]
+
+
+def test_run_oxyii_NAMES_an_expected_power_off_instead_of_warning_about_it(tmp_path, monkeypatch, caplog):
+    """The reconnect loop's half of the same fact. A ring that stopped advertising AFTER its pull
+    succeeded is running its own idle timer, not failing — measured 2026-09-07, where this path filled
+    the journal with `link error: BleakDeviceNotFoundError` every backoff cycle for a ring that was
+    simply off. The loop still looks; this changes what the operator is TOLD."""
+    import logging
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._IDLE_TIMER_NAMED.discard("Ring")
+    capture._LAST_PULL_OK["Ring"] = capture._time.monotonic()      # a pull COMPLETED, just now
+    def _boom(addr, *a, **k):
+        raise capture.DeviceNotAdvertising("O2Ring not advertising (wear it finger-in)")
+    monkeypatch.setattr(capture, "_connect_scan", _boom)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level(logging.INFO):
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    capture._LAST_PULL_OK.pop("Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("Ring")
+    assert "idle timer" in caplog.text, "the state must be named"
+    assert "link error" not in caplog.text, "and NOT reported as a link fault"
+    assert capture.STATUS["devices"]["Ring"]["last_error"] == "powered off — idle timer"
+
+
+def test_run_oxyii_STILL_warns_when_no_pull_succeeded(tmp_path, monkeypatch, caplog):
+    """The mirror. Same absence, no completed pull — the night is still on the ring, so this is a real
+    link error and must read as one."""
+    import logging
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._IDLE_TIMER_NAMED.discard("Ring")
+    capture._LAST_PULL_OK.pop("Ring", None)
+    def _boom(addr, *a, **k):
+        raise capture.DeviceNotAdvertising("O2Ring not advertising (wear it finger-in)")
+    monkeypatch.setattr(capture, "_connect_scan", _boom)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level(logging.INFO):
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    assert "link error" in caplog.text
+    assert "idle timer" not in caplog.text
+
+
+def test_run_oxyii_names_the_idle_timer_ONCE_not_every_backoff_cycle(tmp_path, monkeypatch, caplog):
+    """The latch is the reason this is an improvement rather than a re-wording. The reconnect loop
+    retries on a capped backoff for as long as the ring is off — on 2026-09-07 that was one line every
+    ~3 minutes, all night. Naming the state on every cycle would swap one stream of noise for another,
+    so the log fires once per power-off and the latch clears when the ring records again."""
+    import logging
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._LAST_PULL_OK["Ring"] = capture._time.monotonic()
+    capture._IDLE_TIMER_NAMED.add("Ring")          # already told the operator on an earlier cycle
+    def _boom(addr, *a, **k):
+        raise capture.DeviceNotAdvertising("O2Ring not advertising (wear it finger-in)")
+    monkeypatch.setattr(capture, "_connect_scan", _boom)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level(logging.INFO):
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    capture._LAST_PULL_OK.pop("Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("Ring")
+    assert "idle timer" not in caplog.text, "already named — must not repeat every cycle"
+    assert "link error" not in caplog.text, "and still must not read as a fault"
+    assert capture.STATUS["devices"]["Ring"]["last_error"] == "powered off — idle timer", \
+        "the STATE is still published even when the log stays quiet"
+
+
+# ── OP_AUTH as the PRIMARY encryption decision (wired 2026-09-07) ─────────────────────────────────
+def _auth_key_blob(key: bytes = b"K" * 16, *, type_byte: int = 0x01, key_len: int = 16) -> bytes:
+    import hashlib
+    lepu = hashlib.md5(b"lepucloud").digest()
+    plain = bytes([type_byte, key_len, 0x00, 0x00]) + key
+    return bytes(b ^ lepu[i % 16] for i, b in enumerate(plain))
+
+
+def _run_auth_session(tmp_path, monkeypatch, *, auth_reply=None, sleeps=6):
+    """Drive one link whose ring answers 0xFF with `auth_reply` (None = stays silent, the real case)
+    and then streams ordinary vitals behind it."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture.STATUS["devices"].pop("Ring", None)
+    c = FakeGattClient()
+
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_AUTH and auth_reply is not None:
+            c.notify(0, oxyii.encode(oxyii.OP_AUTH, auth_reply))
+        elif op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply(spo2=96, pr=61))
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply_from("2592302100"))
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, sleeps)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    return capture.STATUS["devices"]["Ring"]
+
+
+def test_an_ENCRYPTED_auth_reply_ends_the_session_before_any_vitals_are_read(tmp_path, monkeypatch, caplog):
+    """THE PLANT THIS WIRING EXISTS FOR. The ring negotiates a session key and then streams frames the
+    parser would happily read as SpO2 and pulse — `decode()` computes its CRC over the envelope, so
+    ciphertext passes every structural check. With no decryptor on the live path, reading on means
+    publishing invented vitals. The session must END instead."""
+    import logging
+    caplog.set_level(logging.ERROR, logger="tepna-capture")
+    st = _run_auth_session(tmp_path, monkeypatch, auth_reply=_auth_key_blob())
+    assert st["auth_mode"] == oxyii.AUTH_ENCRYPTED
+    # `.get`, not `[...]`: the strongest outcome is that the keys were never published at all, which a
+    # subscript would turn into a KeyError instead of a pass. Absent and None are both "never read".
+    assert st.get("spo2") is None and st.get("pr") is None, (
+        "vitals-shaped bytes arrived behind the key blob and MUST NOT have reached the vitals path")
+    assert "auth: encrypted" in str(st.get("last_error"))
+    assert any("Ending the session rather than reading ciphertext as vitals" in r.getMessage()
+               for r in caplog.records)
+
+
+def test_an_UNPARSABLE_key_negotiation_also_ends_it(tmp_path, monkeypatch):
+    """AUTH_REFUSE: a negotiation this build does not understand is the case that risks fabricated
+    vitals most, because the ring HAS switched to ciphertext."""
+    st = _run_auth_session(tmp_path, monkeypatch, auth_reply=_auth_key_blob(type_byte=0x09))
+    assert st["auth_mode"] == oxyii.AUTH_REFUSE
+    assert st.get("spo2") is None
+    assert "auth: refused" in str(st.get("last_error"))
+
+
+def test_a_SILENT_ring_is_UNKNOWN_not_plaintext_and_keeps_capturing(tmp_path, monkeypatch):
+    """Every ring in this project stays silent on 0xFF. `classify_auth_reply(None)` returns
+    AUTH_PLAINTEXT — a positive claim — so it must not be called at all here: silence is UNDETERMINED,
+    it is counted so a night of it is visible, and capture proceeds exactly as before the wiring."""
+    st = _run_auth_session(tmp_path, monkeypatch, auth_reply=None)
+    assert st["auth_mode"] == "unknown", "silence must never be recorded as plaintext"
+    assert st["auth_unknown_links"] >= 1, "an undetermined link is COUNTED, not merely absent"
+    assert st["spo2"] == 96 and st["pr"] == 61, "an undetermined link still captures"
+    assert "auth" not in str(st.get("last_error") or ""), "silence is not an error"
+
+
+def test_a_SHORT_auth_reply_is_answered_PLAINTEXT_and_is_not_the_same_as_silence(tmp_path, monkeypatch):
+    """The measured middle case, and the one the whole wiring exists to separate from silence: a ring
+    that ANSWERS 0xFF with a reply too short to carry a key blob. On the branch-2D010001 ring in the
+    cited run this was a 16-byte reply and the plaintext session then worked end to end — so it must
+    read as a POSITIVE plaintext finding, distinct from the `unknown` a silent ring gets, and capture
+    must proceed."""
+    st = _run_auth_session(tmp_path, monkeypatch, auth_reply=b"\x01" * 16)
+    assert st["auth_mode"] == oxyii.AUTH_PLAINTEXT, "an answered short reply IS a plaintext finding"
+    assert st["auth_mode"] != "unknown", "…and must not be confused with a ring that said nothing"
+    assert "too short to carry a key blob" in st["auth_reason"]
+    assert st.get("auth_unknown_links") is None, "an answered link is not counted as undetermined"
+    assert st["spo2"] == 96 and st["pr"] == 61, "a plaintext session captures normally"
