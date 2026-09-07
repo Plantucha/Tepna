@@ -36,6 +36,14 @@
     "ppiAgreementPct": 100,
     "ppiCorrFootPct": 0,
     "ppiCorrPeakPct": 0,
+    "pinnedCoverage": [
+      {
+        "channel": 0,
+        "rail": null,
+        "spans": 0,
+        "samplesUnmeasured": 0
+      }
+    ],
     "timingSource": "host",
     "axisDrawn": true,
     "axisQuantizedShare": 0.7791,
