@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Cq4l88m5JYttjgdBBIE2aZe9X/ObdnWAwosttf3m8vU=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hfWm0E4m3miRXxd/D2vdNh3vekQBb+w35MUeysCvjS4=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ=' 'sha256-xYEpAegvjzPOjFl5oTwKl6Z8o/PGwjewwlBjIM06n9U='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gilz5TcfpNmhahfW99tZGldtav00/rpAVsaJyRjmMHk=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-avsW1EcgQsMuBeTRHic8R11rdf49ixA1ntEzFVDVe2I=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hfWm0E4m3miRXxd/D2vdNh3vekQBb+w35MUeysCvjS4=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-m1kaQ3p1u8Xhz9omrazxRf2x5rdQjlZ/pXR+oX1I7Vo=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ=' 'sha256-xYEpAegvjzPOjFl5oTwKl6Z8o/PGwjewwlBjIM06n9U='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -17201,6 +17201,201 @@ __exports.GlucoDex = window.GlucoDex;
     // the crystal-timebase gate). `beats` is additive — the same rows, as positions rather than a count.
     return { gap, rejected, kept, beats };
   }
+  /* ── §∅ ABSENCE-AS-VALUE — PINNED SPANS ────────────────────────────────────────────────────
+     A sample held at the stream's OBSERVED RANGE EXTREME carries no measurement. Both ends are one
+     mechanism: on the O2Ring the floor (0) and the ceiling (199/200) are entered the same way, and
+     on the Verity the 2,096,921 ceiling is the same shape. Detection is on the LEVEL, never on a
+     value list — 0, 199 and 19600 are all facts about one device at one moment, and a rule that
+     names them cannot see the next device.
+
+     🔴 THE RULE IS NOT "CONSTANT RUN", AND THAT WAS MEASURED, NOT ASSUMED (2026-09-06, 04:53 file,
+     843,032 samples). Legitimate plateaus reach 5-9 samples ROUTINELY (p50=1, p90=4, p99=14,
+     p99.9=31, p99.99=48), and the damaging band is 10-40 — i.e. the two distributions OVERLAP, so
+     no run-length threshold separates them. Nor is it a transition rule: the events RAMP in and out
+     at ~7 LSB/sample (`75 68 62 55 48 41 34 27 21 14 8 3 | 0…0 | 1 7 16 27 36 46 55`), so there is
+     no entry step to key on. An earlier "zero runs have mean boundary step 71.93" was an ARTIFACT —
+     44.9 % of zero runs have a 156 beat marker adjacent, and the marker was the step.
+
+     ⚠️ MARKER EXCLUSION IS LOAD-BEARING. An isolated 156 is a DOCUMENTED INSERTED ROW (capture-host
+     `oxyii.py PPG_BEAT_MARKER`, one per ring-detected beat), not a sample. Left in, it sits INSIDE a
+     span and splits it: recall 95.8 % → 100 % on the acceptance file once markers are transparent,
+     and the sibling geometry test goes 60 % → 121/121. Removing it is DECODING the stream, not
+     filtering data — which is why it is keyed on the documented marker rule and not on the value 156
+     appearing anywhere. */
+  const PIN_MIN_RUN = 5; // samples; below the 10-40 damage band, above nothing legitimate at an extreme
+  const PIN_RAIL_SCAN_VALUES = 8; // occupied values scanned inward from the edge (capture-host _RAIL_SCAN_VALUES)
+  const PIN_RAIL_GAP_MAX = 4; // the scan stops at a value gap wider than this (_RAIL_GAP_MAX)
+  const PIN_RAIL_SPIKE_MIN = 5; // a rail out-counts its nearest occupied neighbour by this (_RAIL_SPIKE_MIN)
+  const PIN_MERGE = 8; // fragments this close are one event (23.8 % of zero runs are fragments)
+  /* ⚠️ These are the RECOMPUTE defaults. When a `_PPGRUNS.txt` sidecar is present its comment line
+     carries the parameters that actually produced the rows, and THE FILE WINS for what was observed
+     — a later default change must not be able to rewrite history. Single-sourcing with the Python
+     writer's defaults (kernel-constants.js + a parity gate reading both) lands with that writer;
+     until it exists there is nothing to pair with, and moving a constant into the spine churns all
+     8 bundles' manifestHash for no reader. */
+  function pinnedSpans(x, opts) {
+    const o = opts || {};
+    const n = x.length;
+    if (!n) return { spans: [], lo: null, hi: null };
+    const minRun = o.minRun != null ? o.minRun : PIN_MIN_RUN;
+    const merge = o.merge != null ? o.merge : PIN_MERGE;
+    let lo = Infinity,
+      hi = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const v = x[i];
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+    if (!(hi > lo)) return { spans: [], lo, hi };
+    /* 🔴 AN EXTREME MUST BE HELD, NOT MERELY REACHED — or every peak is a span.
+       Found by the clean-stream assertion in `ppgdex-dsp · absence-as-value`, which six real files
+       could not have found: every real file tested carried anomalies, so its observed extremes were
+       anomalous BY CONSTRUCTION. On a genuinely clean quantised pleth the min and max ARE the
+       troughs and peaks, and a smooth signal LINGERS at its own peak (a 128-sample-period sine holds
+       its quantised max ~14 samples, past any min_run), so the first draft flagged 16 spans on 2000
+       clean samples.
+       The discriminator is the histogram, and it states the physics directly: a clean signal PASSES
+       THROUGH its extreme, so the extreme's count is comparable to its neighbours'; a pinned signal
+       is HELD there, so the extreme is a spike against a sparse approach. A percentile test does NOT
+       work here and was tried first — a planted anomaly large enough to matter contaminates the very
+       percentile meant to exclude it (30 samples in 2000 put p1 inside the anomaly). */
+    /* "Near" is the next few DISTINCT OCCUPIED values inward, never a fraction of the range. A
+       fraction breaks exactly where it matters: on a Verity stream the range is dominated by the
+       anomaly itself (−801,953 … 2,096,921), so 5 % of it is ~145,000 LSB and the approach window
+       swallows ordinary signal, making a real 41-sample rail event fail to qualify. The distinct-
+       value form is scale-free and works on an 8-bit ring and a 24-bit Verity unchanged. */
+    const freq = new Map();
+    for (let t = 0; t < n; t++) freq.set(x[t], (freq.get(x[t]) || 0) + 1);
+    const vals = Array.from(freq.keys()).sort((a, b) => a - b);
+    /* 🔴 THE RAIL IS NOT ALWAYS THE OBSERVED EXTREME. Measured on the 04:53 ring file: value 199
+       carries 2,596 samples, 200 carries 304 and 198 carries 75 — so the rail is 199 and the
+       observed MAXIMUM is a rare overshoot sitting one quantum above it. Keying on min/max would
+       look for the ceiling at 200, find 304 samples against a 2,596-sample neighbour, and conclude
+       the ceiling does not qualify — silently losing the entire ceiling class on every ring file.
+       So the rail is the HISTOGRAM SPIKE NEAREST THE EDGE, not the edge: scan the outermost few
+       occupied values and take the dominant one. On the floor that is the extreme itself (0); on
+       the ceiling it is one in. */
+    const steps = [];
+    for (let k = 1; k < vals.length; k++) steps.push(vals[k] - vals[k - 1]);
+    steps.sort((a, b) => a - b);
+    const quantum = steps.length ? steps[steps.length >> 1] || 1 : 1;
+    const railAt = (end) => {
+      const at = (k) => (end === 'lo' ? vals[k] : vals[vals.length - 1 - k]);
+      const cnt = (k) => freq.get(at(k)) || 0;
+      /* Scan inward from the edge, STOPPING at a value gap — so the window never reaches across an
+         empty region into the bulk and picks a bulk value as the "rail" (it did, and flagged every
+         clean peak). Then take the dominant value in the window. */
+      let take = 1;
+      while (take < Math.min(PIN_RAIL_SCAN_VALUES, vals.length) && Math.abs(at(take) - at(take - 1)) <= PIN_RAIL_GAP_MAX) take++;
+      let best = null,
+        bestC = -1;
+      for (let k = 0; k < take; k++)
+        if (cnt(k) > bestC) {
+          bestC = cnt(k);
+          best = at(k);
+        }
+      /* 🔴 AND IT MUST BE A SPIKE. Isolation alone is NOT sufficient, and the counter-example is
+         real: a Verity stream's minimum is a single sample sitting 556 quanta from anything else —
+         utterly isolated, and an outlier rather than a pin. Under "stands alone ⇒ rail" it invents
+         a floor class on every Verity file. Measured spike ratios against the nearest occupied
+         neighbour inward, over eight files: ring floor 34.3-43.0x · ring ceiling 16.4-38.4x ·
+         Verity ceiling 41.0x and 9.0x · clean sine 2.3-2.4x · Verity floor 1.0x. The 5x bound
+         clears clean signal by ~2x and sits ~1.8x below the weakest real rail — measured, not
+         chosen, and matched to capture-host `_RAIL_SPIKE_MIN` so the two ports agree. */
+      const neighbour = take < vals.length ? cnt(take) : 0;
+      return bestC >= PIN_RAIL_SPIKE_MIN * Math.max(1, neighbour) ? best : null;
+    };
+    const railLo = railAt('lo'),
+      railHi = railAt('hi');
+    const loQualifies = railLo != null,
+      hiQualifies = railHi != null;
+    /* ANNOTATION ROWS ARE A PER-STREAM PARAMETER, not a value this rule knows. `opts.annotations`
+       is the set of values the CAPTURE FORMAT inserts as rows rather than measures — the ring's
+       beat marker {156}, empty for a Verity. Passing it in is what makes the merge portable without
+       making it value-agnostic: a device that changes its marker changes the parameter, and a real
+       sample never becomes mergeable. (Ruled 2026-09-06 over a value-agnostic merge: the sidecar
+       asserts "not measured", and a real sample of value 1 inside a 0-run WAS measured, so merging
+       across it fabricates absence — §∅'s own mirror. The only measured basis for merging is the
+       22 % marker-split figure, taken with markers stripped, which this rule reproduces exactly.)
+       An annotation counts only when ISOLATED, matching capture-host's own definition; a RUN of the
+       marker value is signal that happens to sit there and must not be stepped over. */
+    const eightBit = lo >= 0 && hi <= 255;
+    const ann = o.annotations != null ? o.annotations : eightBit ? [O2_BEAT_MARKER] : [];
+    const isAnn = (v) => {
+      for (let k = 0; k < ann.length; k++) if (ann[k] === v) return true;
+      return false;
+    };
+    const skip = new Uint8Array(n);
+    if (ann.length) for (let t = 0; t < n; t++) if (isAnn(x[t]) && (t === 0 || !isAnn(x[t - 1])) && (t === n - 1 || !isAnn(x[t + 1]))) skip[t] = 1;
+    const pinned = (v) => (loQualifies && v <= railLo) || (hiQualifies && v >= railHi);
+    const spans = [];
+    let i = 0;
+    while (i < n) {
+      if (skip[i] || !pinned(x[i])) {
+        i++;
+        continue;
+      }
+      /* MERGE STEPS OVER ANNOTATION ROWS ONLY — never over real samples. Matched to capture-host
+         `nightqc.py _ANNOTATION_GAP_MAX = 8` so the two sidecars agree on span count, and it is the
+         more defensible rule on its own: stepping over a marker is DECODING (the row is not a
+         sample), while stepping over real samples is a judgement that the signal did not really
+         return. Priced on the 04:53 file: annotation-only gives 170 spans / 5,650 samples, gap-over-
+         any-non-pinned gives 166 / 5,968 — a 2.4 % span difference, so this is a semantic choice
+         rather than a tuning one. Observed marker runs there are 99.6 % singletons, max 6, so 8
+         clears the corpus and exists against a future burst. */
+      let j = i,
+        gap = 0;
+      while (j < n) {
+        if (pinned(x[j])) {
+          gap = 0;
+          j++;
+        } else if (skip[j]) {
+          gap++;
+          if (gap > merge) break;
+          j++;
+        } else break;
+      }
+      while (j > i && !pinned(x[j - 1])) j--; // a span ends on a pinned sample, never on annotation
+      if (j - i >= minRun) {
+        /* The label follows WHICH EXTREME the span's own samples sit at — not a comparison against
+           `lo`, which mislabels every ceiling span as 'hi' even when only the floor qualified. */
+        let atLoN = 0,
+          atHiN = 0;
+        for (let t = i; t < j; t++) {
+          if (loQualifies && x[t] <= railLo) atLoN++;
+          else if (hiQualifies && x[t] >= railHi) atHiN++;
+        }
+        spans.push({ first: i, n: j - i, value: x[i], end: atLoN >= atHiN ? 'lo' : 'hi', rule: 'pinned' });
+      }
+      i = Math.max(j, i + 1);
+    }
+    return { spans, lo, hi, railLo, railHi, loQualifies, hiQualifies, eightBit, annotations: ann };
+  }
+
+  /* ── SETTLING WIDENING — DERIVED, never a shipped constant ──────────────────────────────────
+     A span's damage is not confined to the span: the filter rings on either side of it. How far is
+     NOT a constant — it is LOGARITHMIC in the artifact's size, because settling to a FIXED threshold
+     takes t = tau · ln(A0 / A_thresh). Measured against the derivation:
+        ECG  derived 258 ms vs measured 320 ms (1.24x)   causal one-pole cascade, f_hp 5 Hz, 167 sd
+        PPG  derived 3.98 s vs measured 2.79 s (0.70x)   filtfilt biquad,  f_hp 0.5 Hz,  26 sd
+     A naive 3·tau understates ECG by 3.4x, which is exactly the unexplained factor an earlier note
+     recorded: 3·tau settles to 5 % of the INITIAL amplitude, while the measurement threshold is 5 %
+     of the SIGNAL's scale — for a 167-sd excursion that is 3340x down, i.e. 8.1·tau.
+
+     ⚠️ `scale` MUST NOT be a statistic the artifact inflates. A span raises the local (and the
+     whole-record) sd, so feeding that back in would RAISE the threshold and SHORTEN the widening
+     exactly where the artifact is largest. Pass a robust scale computed with the spans excluded.
+     ⚠️ `displacement` must be measured against the baseline OUTSIDE the marker-excluded window, or
+     an adjacent 156 inflates A0 and the log term with it. */
+  const PIN_WIDEN_MAX_TAU = 9; // ln(A0/A_thresh) stays in 6-9 for any plausible excursion — assert, don't tune
+  function settlingWidenSec(displacement, scale, fHp, zeroPhase) {
+    if (!(displacement > 0) || !(scale > 0) || !(fHp > 0)) return null;
+    const tau = (zeroPhase ? 2 : 1) / (2 * Math.PI * fHp);
+    const ratio = displacement / (0.05 * scale);
+    if (!(ratio > 1)) return 0;
+    return tau * Math.min(Math.log(ratio), PIN_WIDEN_MAX_TAU);
+  }
+
   // Host-anchor spacing, in accepted rows. 500 ≈ 2.8 s at 176 Hz, giving ~2400 anchors on a 190 min
   // file — the geometry the running-median window was tuned against (clock.js CK_AXIS_WIN).
   const PPG_AXIS_EVERY = 500;
@@ -17625,6 +17820,15 @@ __exports.GlucoDex = window.GlucoDex;
       siteSource: 'device-default',
       // Per-sample missing mask (1 = rejected sentinel). Null for the wrist layout. Never filled.
       gap: sent ? sent.gap : null,
+      /* §∅ ABSENCE-AS-VALUE — spans where the stream was PINNED at a rail and therefore measured
+         nothing. Out of band beside the samples, never written into them: `parsePPG` rejects a row
+         row-atomically on a non-finite value (`:429` and siblings), so a NaN would delete the ROW
+         and turn an absence of VALUE into an absence of TIME, shifting every index after it. One
+         entry per optical channel, in channel order; `null` when the stream carries no qualifying
+         rail, which is the honest answer for a clean recording. */
+      spans: chArr.map(function (c) {
+        return pinnedSpans(c);
+      }),
       sentinelRejected: sent ? sent.rejected : 0,
       sentinelKept: sent ? sent.kept : 0,
       /* The firmware's own beat fiducials, as TIMES on the published axis. Positions, not a count —
@@ -21146,6 +21350,8 @@ __exports.GlucoDex = window.GlucoDex;
       meanSQI,
       cleanBeatPct,
       analyzablePct,
+      // §∅ raw span sets, per optical channel — projected into the export's `quality.pinnedCoverage`.
+      pinnedSpanSets: rec.spans || null,
       coveragePct: cleanBeatPct,
       correctionRate,
       nCorrected: corr.nCorr,
@@ -21544,6 +21750,9 @@ __exports.GlucoDex = window.GlucoDex;
     cadenceSamples,
     beatRegularity,
     markO2BeatMarkers,
+    // §∅ absence-as-value: span detection + the DERIVED settling widening (never a constant).
+    pinnedSpans,
+    settlingWidenSec,
     markO2Sentinels: markO2BeatMarkers, // back-compat alias — the old name asserted the wrong semantics
     refineFeet,
     detectChannelsAsync,
@@ -21769,6 +21978,31 @@ __exports.GlucoDex = window.GlucoDex;
         ppiAgreementPct: nz(r.ppiAgreementPct),
         ppiCorrFootPct: nz(r.ppiCorrFootPct),
         ppiCorrPeakPct: nz(r.ppiCorrPeakPct),
+        /* §∅ PINNED COVERAGE — how much of each optical channel was a rail reporting NOTHING.
+           ⚠️ NAMED `pinnedCoverage`, NOT `coverage`: this export already publishes
+           `recording.coverage` (INTEGRATOR-GAP-AWARE-OVERLAP — TIME segments), and a first draft
+           called itself `coverage`, shadowed it, and reddened 14 assertions including the twin whose
+           whole purpose is declaring segment coverage. Two different absences — time not recorded vs
+           value not measured — must not share a name.
+           ⚠️ AND IT IS PUBLISHED HERE, in the EMITTER, not in `analyze`'s internal quality object.
+           The first attempt added it beside `sentinelRejected` on the assumption that block was the
+           exported one. It is not — `sentinelRejected` never reaches the export either — so the
+           field was INERT and every golden stayed byte-identical, which read as "export-inert" when
+           it was "not wired at all". The goldens passing is what exposed it.
+           Per CHANNEL because a hold is a property of a signal path: pooling lets one live channel
+           mask two pinned ones. `rail: null` is a clean stream, and is DISTINCT from a rail existing
+           with zero spans. Errs low — a consumer can filter `n` upward but can never recover a span
+           that was never emitted. */
+        pinnedCoverage: (r.pinnedSpanSets || []).map(function (sp, ci) {
+          var lost = 0;
+          for (var k = 0; k < sp.spans.length; k++) lost += sp.spans[k].n;
+          return {
+            channel: ci,
+            rail: sp.railLo != null || sp.railHi != null ? { lo: sp.railLo, hi: sp.railHi } : null,
+            spans: sp.spans.length,
+            samplesUnmeasured: lost
+          };
+        }),
         /* ── TIMING PROVENANCE (WEARABLE-HOST-AXIS-FOLLOWUPS §F1) — additive, contract-safe ──
            A consumer that spends this export as a CLOCK LEG (three-cornered hat, three-source closure,
            PAT) must branch on `timingSource` BEFORE using ppi.tSec as a time base:
