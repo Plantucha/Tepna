@@ -33124,7 +33124,13 @@
         return;
       }
       T.eq('capture-host carries ALL SIX or none — a partial landing is a silent divergence', present.length, 6);
-      var PAIR = { _ANNOTATION_GAP_MAX: 'PIN_MERGE', _RAIL_SPIKE_MIN: 'PIN_RAIL_SPIKE_MIN', _RAIL_SCAN_VALUES: 'PIN_RAIL_SCAN_VALUES', _RAIL_GAP_MAX: 'PIN_RAIL_GAP_MAX', _CLIP_MIN_RUN: 'PIN_MIN_RUN' };
+      var PAIR = {
+        _ANNOTATION_GAP_MAX: 'PIN_MERGE',
+        _RAIL_SPIKE_MIN: 'PIN_RAIL_SPIKE_MIN',
+        _RAIL_SCAN_VALUES: 'PIN_RAIL_SCAN_VALUES',
+        _RAIL_GAP_MAX: 'PIN_RAIL_GAP_MAX',
+        _CLIP_MIN_RUN: 'PIN_MIN_RUN'
+      };
       for (var pk in PAIR) {
         var pv = Number(new RegExp(pk + '\\s*=\\s*(-?\\d+)').exec(py)[1]);
         T.eq(pk + ' == ' + PAIR[pk], pv, EXPECT[PAIR[pk]]);
