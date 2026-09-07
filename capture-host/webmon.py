@@ -42,6 +42,12 @@ _log = logging.getLogger("tepna.webmon")
 # control commands (power off / remove <other-sensor>). Validate the EXACT MAC shape at this boundary.
 _MAC_RE = re.compile(r'^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$')
 
+# Timeline cache bounds. MODULE level, not locals inside `make_app`, so the relationship between the
+# TTL and monitor.html's poll interval is assertable — that relationship is the defect, not the value
+# (see the block above `_tl_cache`), and a constant a test cannot import is a constant nothing guards.
+_TL_CACHE_TTL_S = 300.0
+_TL_CACHE_MAX = 8
+
 
 def _valid_mac(a) -> bool:
     # fullmatch, NOT match: Python's `$` also matches just BEFORE a trailing newline, so
@@ -1439,8 +1445,26 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
 
     # ── Capture timeline (per-stream state strip + per-device dBm trace) ────────────────────────
     # Deliberately NOT folded into /api/state: state is polled every 5 s by every open tab, while this
-    # walks the night's files. Cached per (night, buckets) and recomputed at most every 60 s — a night
-    # is ~1500 files and re-counting rows on every poll is the stall #292 moved off the event loop.
+    # walks the night's files. Cached per (night, buckets) — a night is ~1500 files and re-counting
+    # rows on every poll is the stall #292 moved off the event loop.
+    #
+    # 🔴 THE TTL MUST EXCEED THE POLL INTERVAL, AND THE CACHE MUST HOLD MORE THAN ONE ENTRY. It did
+    # neither, and the two faults compounded into a monitor that visibly froze. Measured on the box
+    # 2026-09-07: a build costs 1.35 s for the night in progress and 2.05 s for a complete 1330 MB
+    # one, and the cost GROWS with the night, so it is worst by morning.
+    #   · `_tl_cache.clear()` ran before every insert, so the dict held exactly ONE entry despite the
+    #     line above promising "cached per (night, buckets)". A second viewer, or the same viewer on a
+    #     different `buckets`, evicted the other outright and both then rebuilt on every poll.
+    #   · the TTL equalled monitor.html's `setInterval(loadTimeline, 60000)`, so even the surviving
+    #     entry expired exactly as the next poll arrived — a coin flip, not a cache.
+    # The visible cost is not server latency (/api/state stays at 3 ms throughout, the build is
+    # already off the loop in a thread): it is that the page holds up to 4 permanent SSE connections
+    # of a browser's ~6 per-host HTTP/1.1 budget, so a two-second request occupies one of the two
+    # remaining slots and the 1 s `loadState` poll queues behind it.
+    #
+    # `_TL_CACHE_TTL_S` is chosen against the DISPLAY, not the poll: at the 600-bucket maximum over a
+    # ~10 h night one bucket is ~60 s wide, so sub-minute freshness cannot be rendered and is not
+    # worth a rebuild. Both bounds are module-level so a test can import them.
     _tl_cache: dict = {}
 
     async def timeline_get(req):
@@ -1473,15 +1497,19 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         key = (night, buckets)
         now = asyncio.get_event_loop().time()
         hit = _tl_cache.get(key)
-        if hit and now - hit[0] < 60:
+        if hit and now - hit[0] < _TL_CACHE_TTL_S:
             return web.json_response(hit[1])
         try:
             out = await asyncio.to_thread(_timeline.build,
                                           os.path.join(captures, night), cfg.get("devices", []), buckets)
         except Exception as e:      # a display aid must never 500 the monitor
             return web.json_response({"error": f"{type(e).__name__}: {e}"}, status=500)
-        _tl_cache.clear()
         _tl_cache[key] = (now, out)
+        # Bounded by EVICTING THE OLDEST, never by clearing: dropping everything is what made this a
+        # one-entry cache, and a second viewer must not be able to evict the first. The bound exists
+        # only so a long-lived process cannot accumulate entries for every night it is ever asked for.
+        if len(_tl_cache) > _TL_CACHE_MAX:
+            del _tl_cache[min(_tl_cache, key=lambda k: _tl_cache[k][0])]
         return web.json_response(out)
 
     async def timesync(req):
