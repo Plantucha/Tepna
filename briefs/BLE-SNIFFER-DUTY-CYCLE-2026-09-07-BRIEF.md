@@ -84,7 +84,7 @@ its subject, and returned a confident number.
 
 ## 5 · Proposals (not done — box ops are owner-authorized)
 
-1. **Name the hang site.** `py-spy dump --pid <pid>` is read-only and would show where the drain
+1. **Name the hot loop.** `py-spy dump --pid <pid>` is read-only and would show where the drain
    loop spends its core; py-spy is **not installed** on the box today. `/proc/<pid>/stack` needs root.
 2. **Reduce the input.** §4 measured ~60 % of captured packets as SCAN_REQs from neighbours' scanners.
    If the sniffer can filter those at the device or in the extcap, the drain may fit inside real time.
