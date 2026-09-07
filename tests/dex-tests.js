@@ -8213,11 +8213,16 @@
           }),
           Math.min.apply(null, blk.ms) + '…' + Math.max.apply(null, blk.ms)
         );
-        /* WHICH INTERVALS ARE MEASUREMENTS. Both nodes interpolate rejected beats (Malik/ectopy gate,
-           correctRR) and both TRACKED it internally while exporting a series that mixed the two. On a
-           real night that is 0.3 % of ECGDex intervals and 2.5 % of PpgDex's — and the first six PPI
-           read 1190, 1190, 1190, 1190, 1190, 1190, which is the running median, not six identical
-           heartbeats. rMSSD over interpolated beats is not a measurement of anything. */
+        /* WHICH INTERVALS ARE MEASUREMENTS. Both nodes interpolated rejected beats (Malik/ectopy
+           gate, correctRR) and both TRACKED it internally while exporting a series that mixed the
+           two. On a real night that was 0.3 % of ECGDex intervals and 2.5 % of PpgDex's — and the
+           first six PPI read 1190, 1190, 1190, 1190, 1190, 1190, which is the running median, not
+           six identical heartbeats. rMSSD over interpolated beats is not a measurement of anything.
+           ↻ For PpgDex that is now fixed at the SOURCE (punch list #2, 2026-09-07): `correctRR`
+           EXCLUDES a rejected interval instead of filling it, so PpgDex's mask is invariantly zero
+           and the assertions below hold trivially FOR THAT NODE — they still bite for ECGDex, which
+           continues to interpolate. Keep them: a PpgDex mask that ever reads 1 again means the fill
+           came back. */
         T.ok(label + ' · a corrected/interpolated mask rides alongside', Array.isArray(blk.corrected), typeof blk.corrected);
         if (Array.isArray(blk.corrected)) {
           T.eq(label + ' · the mask aligns with the series (not the pre-filter array)', blk.corrected.length, blk.ms.length);
@@ -11915,7 +11920,12 @@
       out = P.intervalsSpanningTimeGap(1);
       T.eq('P.intervalsSpanningTimeGap(1) → "1"', JSON.stringify(out.length), '1');
       out = P.correctRR([1, 2, 3], 0);
-      T.eq('P.correctRR([1,2,3],0) → "800"', JSON.stringify(out.nn[0]), '800');
+      /* 1, 2 and 3 ms are all physiologically impossible, so ALL THREE are rejected. This used to
+         assert `nn[0] === 800` — the global-median fill — i.e. the old contract answered a record
+         containing no valid interval with three fabricated 800 ms beats. Now it returns nothing,
+         which is the honest answer, and `nCorr` says how many it refused. */
+      T.eq('P.correctRR([1,2,3],0) keeps NOTHING — every interval is impossible', JSON.stringify(out.nn.length), '0');
+      T.eq('  ... and says so rather than inventing three 800 ms beats', JSON.stringify(out.nCorr), '3');
       out = P.quantile([1, 2, 3, 4], 0.5);
       T.eq('P.quantile([1,2,3,4],0.5) → "2.5"', JSON.stringify(out), '2.5');
       out = P.std([-1, 1]);
@@ -29110,7 +29120,13 @@
       T.ok('the tail tracks the TRUE rate (>1000 ms) rather than the ~776 ms lock', atTrue >= 55, 'atTrue=' + atTrue + '/60');
       T.ok('the tail is NOT one repeated constant — the lock-in signature', nUniq > 10, 'distinct=' + nUniq);
       T.ok('the burst itself is still corrected, so this is not "reject nothing"', r.nCorr > 0 && r.nCorr < rr.length / 3, 'nCorr=' + r.nCorr);
-      T.eq('one output interval per input interval', r.nn.length, rr.length);
+      /* CONTRACT CHANGED, punch list #2: `correctRR` now EXCLUDES a rejected interval rather than
+         filling it with the running median. So the output is SHORTER than the input by exactly the
+         number rejected — asserted as a conservation law rather than as a length, because
+         `nn.length === rr.length` was the assertion that encoded the fabrication. */
+      T.eq('kept + rejected == every input interval, none invented and none lost', r.nn.length + r.nCorr, rr.length);
+      T.eq('  ... and tt is the kept subset too, so nn/tt stay pairwise aligned', r.tt.length, r.nn.length);
+      T.ok('  ... the output really is shorter — the fill is gone', r.nn.length < rr.length, r.nn.length + ' < ' + rr.length);
 
       /* CONTROLS — the fix must not disable artifact rejection, nor perturb a clean record. */
       var rr2 = [],
@@ -32940,6 +32956,95 @@
        The rule was designed against the real 04:53 O2Ring file after three other shapes failed their
        pre-stated acceptance; every number in this group is a measurement, and the group exists so a
        later "simplification" back to a constant-run or transition rule reds instead of shipping. */
+    /* PUNCH LIST #2 — the fill is gone, and this group exists because NO COMMITTED FIXTURE CAN SHOW IT.
+       Measured on the committed inputs: correction rates 0.00 %, 0.00 % and 6.25 %, against the
+       ~28.8 % rate the brief measured on a real degraded night. So regenerating the goldens moved
+       `contentId` and NOTHING ELSE — every published metric rounded identically — which is silence by
+       construction, not evidence the change is small. This twin supplies the rate the corpus lacks and
+       carries the OLD behaviour as an explicit counterfactual, so the bias being removed is a number
+       rather than a claim. */
+    group('PPGDex #2 — correctRR EXCLUDES a rejected interval; the running-median fill is gone', 'ppgdex-dsp · correctrr-excludes', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.correctRR === 'function')) {
+        T.ok('PPGDSP.correctRR available', false);
+        return;
+      }
+      /* A physiological series at ~1000 ms with a burst of artifact intervals — the shape a motion
+         episode produces on a real night. ~29 % rejected, matching the measured corpus rate. */
+      var rr = [],
+        tt = [],
+        acc = 0,
+        i;
+      for (i = 0; i < 200; i++) {
+        var v = i % 7 === 0 || i % 7 === 1 ? 380 : 1000 + ((i * 37) % 40) - 20; // the burst is far outside the 30 % band
+        rr.push(v);
+        acc += v / 1000;
+        tt.push(acc);
+      }
+      var c = P.correctRR(rr, tt);
+      T.ok('the twin actually exercises the path — a materially rejected series', c.nCorr / rr.length > 0.2, ((100 * c.nCorr) / rr.length).toFixed(1) + ' % rejected');
+      T.eq('kept + rejected == input: nothing invented, nothing lost', c.nn.length + c.nCorr, rr.length);
+      T.eq('tt is the kept subset too, so nn/tt stay pairwise aligned', c.tt.length, c.nn.length);
+      T.ok('no kept interval is the 380 ms artifact — they are EXCLUDED, not repaired toward it', c.nn.indexOf(380) === -1);
+
+      /* THE COUNTERFACTUAL. Reconstruct what the OLD code produced — the rejected interval replaced
+         by the running median of the last 7 accepted — and show the two disagree. Without this the
+         test would pass equally against the fabricating implementation. */
+      var filled = [],
+        accepted = [];
+      var med = function (a) {
+        var q = a.slice().sort(function (x, y) {
+          return x - y;
+        });
+        return q.length ? q[q.length >> 1] : 800;
+      };
+      for (i = 0; i < rr.length; i++) {
+        var ref = accepted.length ? med(accepted.slice(-7)) : 800;
+        var bad = rr[i] < 300 || rr[i] > 2000 || Math.abs(rr[i] - ref) / ref > 0.3;
+        if (bad) filled.push(ref);
+        else {
+          accepted.push(rr[i]);
+          filled.push(rr[i]);
+        }
+      }
+      var sd = function (a) {
+        if (!a.length) return 0;
+        var m = 0,
+          k;
+        for (k = 0; k < a.length; k++) m += a[k];
+        m /= a.length;
+        var q = 0;
+        for (k = 0; k < a.length; k++) q += (a[k] - m) * (a[k] - m);
+        return Math.sqrt(q / a.length);
+      };
+      var sdKept = sd(c.nn),
+        sdFilled = sd(filled);
+      T.eq('the counterfactual really is the old shape — one output per input', filled.length, rr.length);
+      T.ok(
+        'SDNN over the kept series DIFFERS from the filled one — this is the bias being removed',
+        Math.abs(sdKept - sdFilled) > 1,
+        'kept ' + sdKept.toFixed(1) + ' ms vs filled ' + sdFilled.toFixed(1) + ' ms'
+      );
+      T.ok(
+        'and the filled series is the one carrying repeated constants',
+        new Set(filled).size < new Set(c.nn).size + filled.length - c.nn.length,
+        'filled distinct=' + new Set(filled).size + ' kept distinct=' + new Set(c.nn).size
+      );
+
+      // A clean series must be untouched — the fix must not become "reject more".
+      var clean = [],
+        ct = [],
+        ca = 0;
+      for (i = 0; i < 120; i++) {
+        clean.push(1000 + ((i * 13) % 30) - 15);
+        ca += clean[i] / 1000;
+        ct.push(ca);
+      }
+      var cc = P.correctRR(clean, ct);
+      T.eq('a clean series loses nothing', cc.nn.length, clean.length);
+      T.eq('  ... and rejects nothing', cc.nCorr, 0);
+    });
+
     group('PPGDex §∅ — pinned spans: both extremes, marker-transparent, and the widening is DERIVED', 'ppgdex-dsp · absence-as-value', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.pinnedSpans === 'function' && typeof P.settlingWidenSec === 'function')) {
@@ -45079,7 +45184,18 @@
          must therefore lower it, which is what happened. Corroborated on independent surfaces: the
          geometry harness recovers 12 real edge pairs (nPairs 1787 → 1799) and the regenerated equiv
          night moves cleanBeatPct 98 → 100 with correctionRatePct 4.8 → 0. */
-      T.eq('PpgDex rMSSD known-answer (seed 12345)', res.ppgRmssd, 41.4);
+      /* ↻ 41.4 → 41.5, punch list #2 (2026-09-07). `correctRR` no longer FILLS a rejected interval
+         with the running median of the last 7 accepted — it EXCLUDES it. Re-baselined deliberately,
+         with the direction reasoned rather than observed after the fact: the fill inserted a value
+         drawn from the LOCAL MEDIAN, i.e. an interval unusually close to its neighbours, and rMSSD
+         is a successive-difference statistic — so every fabricated interval contributed two
+         artificially SMALL differences and dragged rMSSD down. Removing them must therefore raise
+         it, and it rose. ⚠️ This is the ONLY metric anywhere in the committed set that moved: the
+         regenerated goldens moved `contentId` and nothing else, because the committed inputs reject
+         0.00 %, 0.00 % and 6.25 % of their intervals against the ~28.8 % this fix targets. So the
+         corpus cannot show the change and this seeded known-answer is the one witness it has —
+         which is why `ppgdex-dsp · correctrr-excludes` carries a 29 %-rejected twin as well. */
+      T.eq('PpgDex rMSSD known-answer (seed 12345) — fill removed, see #2', res.ppgRmssd, 41.5);
       T.ok('the worker reported no per-detector errors', res.errors && Object.keys(res.errors).length === 0, JSON.stringify(res.errors));
 
       // a worker changes WHEN the work runs, never WHAT — a second reconstruction is byte-identical
