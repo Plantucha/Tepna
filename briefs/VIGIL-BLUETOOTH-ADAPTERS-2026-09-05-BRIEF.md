@@ -115,6 +115,12 @@ stuck reconnect loop is answerable from the log by whoever owns the next capture
 
 ## 4 · nRF-sniffer air census (owner-directed) — errors, inefficiencies, hallucinations
 
+⚠️ **BOUNDED BY [`BLE-SNIFFER-DUTY-CYCLE-2026-09-07-BRIEF.md`](BLE-SNIFFER-DUTY-CYCLE-2026-09-07-BRIEF.md):**
+every capture below holds only the FIRST ~6 minutes of its 15-minute window (mean duty 40.3 %, n=14) because
+the sniffer drains air at ~55 % of real time and `timeout` kills it with the backlog undelivered. Rates and
+proportions here are probably sound; **absolute counts and any "never happened" are not**, and the unobserved
+time is the same phase of every window rather than a random sample. F2's single 2 h death is the general case.
+
 Instrument: nRF Sniffer via the installed Wireshark extcap (`~/.config/wireshark/extcap/`), one fresh
 **360 s all-advertising capture** (`/srv/tepna/captures/sniffer/allscan-20260905-1313.pcap`, 20,824
 pkts) plus re-analysis of the six 2026-09-04 `resmed-*` pcaps with `ble_sniff.py` **and** tshark
