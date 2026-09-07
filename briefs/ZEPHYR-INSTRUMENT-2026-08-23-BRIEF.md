@@ -50,6 +50,23 @@ This lands on the Clock-Contract / `hostAxis` / ppm-drift / Allan-deviation fron
 > apparent post-flash crash (device vanishing from the bus) was the OWNER'S UNPLUG during DFU
 > attempts — the tuned image never crashed; bisect images `build-stock`/`build-p1` exist unused.
 
+> **2026-09-07 — second nRF52840 unit arrived on the rig, WITH an external SMA antenna (owner: "better
+> timing will be possible").** Enumerates as Nordic `1915:c00a` "nRF52 Connectivity" on `/dev/ttyACM*`
+> (CDC) — that is the *pc-ble-driver* connectivity image, a host-driven central, NOT a sniffer and NOT
+> `hci_usb`; it needs the Task 1 image flashed over the same DFU bootloader (hold button while plugging
+> in; select the port by Nordic VENDOR ID, never "first ttyACM"). Why it changes the picture: the
+> Realtek's −102 dBm floor above was an ANTENNA advantage, not a chipset one — this unit removes the
+> one measured reason the Zephyr lost on RX, so the "open controller + deep floor" combination now
+> exists in one dongle. The timing goal is unchanged and is the still-open half of Task 1: a
+> **radio-event timestamp** (`RADIO->EVENTS_END` → PPI → `TIMER` capture on the dongle's own crystal,
+> ~µs) on every ACL/adv PDU, in place of host stamps that carry 0.1–0.47 s delivery jitter — which is
+> the entire reason `hostAxis` needs a width-21 median. Pre-stated bands for the first comparison
+> (Task 2 against one beacon, same night, both radios): controller-stamp inter-arrival spread on a
+> fixed-interval advertiser **< 2 ms** ⇒ the instrument is real and `quality.timingSource` gains a
+> `radio` value; **2–50 ms** ⇒ it is a better host stamp, not a new clock, keep the median; **> 50 ms**
+> ⇒ the timestamp is being taken above the radio and the build is wrong. External antenna is
+> receive-side only; it does not authorise any new write to a device (§🔒, standing).
+
 ### Task 1 — FLASH (physical, rig-side, owner)
 Build Zephyr `hci_usb` (or `hci_uart`) with **controller-side ACL packet timestamping** enabled and a
 **fixed static address** baked in (`CONFIG_BT_CTLR_*` / settings), flash on the rig via the cased
