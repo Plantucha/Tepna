@@ -97,6 +97,10 @@ uploads/*
 # O2Ring FINGER twin (PPGDEX-O2RING-FINGER-SITE §6) — single optical column, 8-bit, ~125.7 Hz,
 # carrying BOTH sentinel classes. Closed-form, no recording of any person.
 !uploads/synthetic_ppgdex_o2ring_finger.txt
+# §∅ the PINNED-SPAN plant and its expected span list. Committed so CI re-runs them and so the
+# Python back-check gates on the SAME BYTES — a parity fixture described in prose is not a fixture.
+!uploads/synthetic_ppgdex_o2ring_pinned.txt
+!uploads/synthetic_ppgdex_o2ring_pinned.expected.json
 !uploads/synthetic_ecgdex_h10.txt
 # FRAGMENTED H10 twin (INTEGRATOR-GAP-AWARE-OVERLAP part 2) — three recorded segments inside a 60 s
 # envelope. The only committed input in the repo that exercises `recording.coverage`; every other
