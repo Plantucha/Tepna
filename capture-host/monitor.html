@@ -2724,16 +2724,30 @@ function linkedWhy(){
 }
 
 function renderSideStats(){
+  // ⚠️ `active` IS NOT LIVE. The bus sets it on the first push and clears it only on `unregister`,
+  // which the O2Ring path never calls on disconnect — so it means "produced data at some point THIS
+  // PROCESS", and a stream that went silent an hour ago still carries it. Owner-reported 2026-09-07:
+  // the heading read "Streams · 2 of 12 live" with the ring disconnected since 09:49, because
+  // `motion_o2` and `pi_o2` had pushed before it dropped and nothing retracts the flag. Both were
+  // `health:'stall'` at the time, and `/api/stream/motion_o2` served a buffer of zeros — the stale
+  // reading looked exactly like a live one.
+  //
+  // Liveness is `health`, which IS recomputed from the age of the last sample (telemetry
+  // `stream_health`: 'stall' = prolonged silence, 'idle' = never produced). So a claim of LIVE excludes
+  // stalled streams; `active` still gates which cards exist, because a stalled stream is worth showing.
   const active = STREAMS.filter(s=>s.active);
-  const weak = active.filter(s=>s.health==='weak'||s.health==='stall').length;
+  const live = active.filter(s=>s.health!=='stall');
+  // Weak among the LIVE — a stalled stream is not a weak one, it is a silent one, and counting it
+  // under both would double-report the same stream in one heading.
+  const weak = live.filter(s=>s.health==='weak').length;
   // Say how many of the cards below are actually live, in the heading, where the claim is made.
   const gt = $('#ovGridTitle');
   if(gt) gt.textContent = STREAMS.length
-    ? `Streams · ${active.length} of ${STREAMS.length} live`
+    ? `Streams · ${live.length} of ${STREAMS.length} live`
     : 'Streams';
   $('#sideStats').innerHTML = [
-    ['Streams live', active.length,
-     (active.map(s=>s.key.split('_')[0].toUpperCase()).join(' · ')||'—') + (weak?`  ⚠ ${weak} weak`:''), ''],
+    ['Streams live', live.length,
+     (live.map(s=>s.key.split('_')[0].toUpperCase()).join(' · ')||'—') + (weak?`  ⚠ ${weak} weak`:''), ''],
     // Value unchanged (it is a true count of links); only the sub-label changes, to say which
     // question the number answers. See linkedWhy().
     ['Devices', DEVICES.filter(d=>d.connected).length+'/'+DEVICES.length, linkedWhy(), ''],
