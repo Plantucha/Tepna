@@ -86,30 +86,62 @@ over-counts by roughly the storm's size.
 Both are the same shape as the repo's dominant class: a query that ran, examined something other than
 its subject, and returned a confident number.
 
-## 5 · Proposals (not done — box ops are owner-authorized)
+## 5 · What was already done — corrected 2026-09-07 against the box
 
-1. **Name the hot loop.** `py-spy dump --pid <pid>` is read-only and would show where the drain
-   loop spends its core; py-spy is **not installed** on the box today. `/proc/<pid>/stack` needs root.
-2. **Reduce the input.** §4 measured ~60 % of captured packets as SCAN_REQs from neighbours' scanners.
-   If the sniffer can filter those at the device or in the extcap, the drain may fit inside real time.
-   This is a hypothesis with a mechanism, not a diagnosis — the CPU cost per packet class is unmeasured.
-3. **Run the audit that already exists.** The failure is silent: a full-looking file, no error, no gap
-   in the file *names*. The per-file check was **built four days before this brief** —
-   `capture-host/ble_sniff.py` reports `capture span`, takes `--expect-seconds`, holds
-   `WINDOW_MIN_FRACTION = 0.8`, and separates `--ran-full-window` from `--exited-early`; on this
-   morning's `air-20260907-0006` it prints `AIR AUDIT: FAILED — window: captured 566.3 s of 900 s
-   expected — the sniffer died 334 s early`. Its module header names this brief's F2 as the defect it
-   was written for. **The gap is that nothing runs it**: 28 of 28 captures today fail it, and the tool
-   has surfaced nothing because no invocation exists. Wiring one — per file or per morning — is three
-   lines plus a decision about WHERE the verdict lands, and that destination is the owner's call
-   (it changes how the box reports). *(This item first read "write a one-line check"; the check
-   existed — found by the pickup search, not by grep.)*
-4. **Do not wrap or restart the launcher** without the owner. The capture is running unattended
-   overnight and a wrapper that restarts on stall would change what the corpus contains mid-collection.
+⚠️ **This section proposed four things. Two were already done on 2026-09-05, one was TESTED and found
+insufficient, and the one that matters is blocked on an install, not on a proposal.** Verified
+read-only on the box; the running collector script and its chunk log are the evidence.
+
+**5.1 · The mechanism is NAMED, and was on 2026-09-05.** Not "unidentified", and no `py-spy` needed:
+the collector script's own comments carry the measurement — *the extcap python pegs ONE CORE at
+101 % and processes air at ~0.4× real time (newest packet 127→160→193 s behind over 110 s of wall
+clock), so a 900 s window yielded only 337–421 s of packets and the missing 60 % was always the END
+of the window — a systematic blind spot, not sampling.* §2's throughput reading and this are the same
+finding; only this brief did not know it.
+
+**Coverage well under 1.0 is therefore the NORMAL state of this rig, not an incident.** That is the
+sentence §1's numbers need beside them.
+
+**5.2 · Reducing the input was TESTED and is NOT the fix.** An `rssi >= -70` filter is in the
+collector today, with its rationale and its trade recorded. Measured: it cut written packets ~70 %
+and moved coverage **0.41 → 0.51**, and no further. The reason is structural — **the filter runs
+AFTER parse**, so it saves the write path and not the receive path, which is where the core is
+spent. Presenting this as an untested proposal was wrong; it is a measured, rejected remedy.
+
+*(The filter is still right for the storm question and WRONG for a foreign-connect audit, which
+needs the far-field packets it discards. The collector says so at the invocation.)*
+
+**5.3 · The audit RUNS per chunk, and the versioned unit is NOT INSTALLED.** Both halves were
+understated:
+
+- The collector already invokes `ble_sniff.py` on every chunk and appends the verdict to its chunk
+  log — **970 lines** since 2026-09-05T18:19:52, of which **160 carry a coverage figure**:
+  min **0.27**, p50 **0.49**, mean **0.66**. So "nothing runs it" was false; what is true is that
+  **nobody reads it**.
+- `capture-host/tepna-sniff.sh` captures AND audits in one unit, propagating the audit's exit status
+  (`ble_sniff` returns 3 when the window check fails, and the script exits with it), with versioned
+  `systemd/tepna-sniff.service` + `.timer` **in the repo**. Checked on the box in both user and
+  system scope: **not installed.**
+
+**That is the real gap, and it is not a proposal.** The tooling exists, versioned and gated;
+installing it is box ops and therefore owner-authorized. A brief proposing what is already built,
+while the built thing sits uninstalled, is the shape this correction exists to stop.
+
+**5.4 · Do not wrap or restart the launcher** without the owner — unchanged. The capture runs
+unattended overnight and a restart-on-stall wrapper would change what the corpus contains
+mid-collection.
 
 ## Done when
 
-- [ ] The duty-cycle deficit is either fixed or `ble_sniff.py`'s window audit RUNS on every file and its
-      verdict lands where a human sees it, so no future reader takes a pcap's span for its window.
+The open question, stated plainly: **coverage is ≈ 0.5, the one tested remedy does not fix it,
+nobody reads the verdicts that are already being produced, and the versioned unit that would put
+them somewhere a human looks is not installed.**
+
+- [ ] The chunk log's verdicts reach a human — the audit already runs per chunk, so this is a
+      DESTINATION decision, not a tooling one, and the destination is the owner's call.
+- [ ] `tepna-sniff.service` + `.timer` are installed on the box, or the decision not to is recorded.
+      Owner-authorized; nothing in the repo can close this.
 - [ ] §4's air-census claims carry the bound (a pointer line is added by this brief's PR).
-- [ ] The mechanism is named at the code level, not just at the throughput level.
+- [x] **The mechanism is named** — 2026-09-05, in the collector's own comments: extcap python at
+      101 % of one core, ~0.4× real time, deficit always at the END of the window. Closed by
+      correction rather than by work, and re-deriving it is what this section is here to prevent.
