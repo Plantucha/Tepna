@@ -7501,7 +7501,7 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
     # because it is pending. The brief is Heron's and its next step is an analysis, not code.
     #
     # ⚠️ The previous wording said `device_verdict` "becomes the primary source in unit 1b", which read
-    # as a ready-to-wire TODO and carried none of the above (#2314, mine). Anyone holding the code
+    # as a ready-to-wire TODO and carried none of the above (#2314). Anyone holding the code
     # without the brief would have wired it.
     end_source = "standby_hysteresis"
 
