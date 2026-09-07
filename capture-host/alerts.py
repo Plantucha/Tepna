@@ -408,7 +408,10 @@ def frozen_devices(qc: dict, live: dict, threshold_sec: float) -> list[str]:
 
 # ── THE RING POWERS ITSELF OFF AFTER A DOFF, AND THAT IS NOT AN OUTAGE ──────────────────────────────
 # MEASURED on device S8AW2100 over 244 harvested sessions (2026-07-25 → 2026-09-07), taking each
-# session's last worn frame → its last frame:
+# session's last worn frame → its last frame. The ~120 s figure itself is NOT new here: it was recorded
+# on 2026-07-17 (`briefs/O2RING-PROTOCOL-2026-07-17-BRIEF.md`, "powers off ~120 s after doff … the
+# harvest window is therefore that ~120 s"). What this block adds is the distribution, the 2026-08-27
+# discontinuity below, and the consequence that the figure is no longer observable on recent nights.
 #
 #     the ring's OWN power-off timer   n=23   min 116.7  median 121.9  max 123.0  sd 1.18
 #     our doff-triggered PULL settle   n=18   min  46.4  median  47.9  max  57.6  sd 2.33
