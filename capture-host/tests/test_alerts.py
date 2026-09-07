@@ -405,3 +405,43 @@ def test_the_storm_branch_does_not_change_WHETHER_it_fires():
     assert alerts.ring_barren_connects(2, restarts_recent=99) is None
     assert alerts.ring_barren_connects(3, storm_age_s=10.0) is not None
     assert alerts.ring_barren_connects(3) is not None
+
+
+# ── the ring's post-doff power-off is not an outage ─────────────────────────────────────────────────
+def test_a_ring_that_powered_off_after_a_SUCCESSFUL_pull_is_expected_not_missing():
+    """Measured 2026-09-07: the ring powered off on its own idle timer four minutes after a completed
+    pull, and the box alerted "capture is missing it". It was missing nothing — the pull had already
+    taken the night off the device."""
+    assert alerts.powered_off_after_pull(1000.0, 1000.0 + 300) is True
+
+
+def test_a_pull_that_never_SUCCEEDED_keeps_the_alert():
+    """🔴 The licence is the COMPLETED pull, not the doff. A doff whose pull failed or ran partial
+    leaves the night on the ring, so its silence is precisely the thing worth alerting about —
+    suppressing on the doff alone would silence the one night that mattered."""
+    assert alerts.powered_off_after_pull(None, 5000.0) is False
+
+
+def test_the_expected_state_EXPIRES_so_a_flat_ring_still_alerts():
+    """🔴 The second half, and it fails in the opposite direction. Without a bound, one quiet night
+    would silence this device forever: a ring left in a bag or with a dead cell would read as "expected"
+    indefinitely. A false alarm is noise; a false all-clear is the absence of the alarm."""
+    t0 = 1000.0
+    assert alerts.powered_off_after_pull(t0, t0 + alerts.RING_IDLE_EXPECT_MAX_S - 1) is True
+    assert alerts.powered_off_after_pull(t0, t0 + alerts.RING_IDLE_EXPECT_MAX_S) is False
+    assert alerts.powered_off_after_pull(t0, t0 + alerts.RING_IDLE_EXPECT_MAX_S + 3600) is False
+
+
+def test_a_pull_stamped_in_the_FUTURE_is_not_expected():
+    """A negative age is a clock that moved, not evidence of a recent pull. The predicate refuses it
+    rather than treating an unusable stamp as a licence — same instinct as the §∅ rule one layer up."""
+    assert alerts.powered_off_after_pull(2000.0, 1000.0) is False
+
+
+def test_the_measured_window_is_PLANTED_not_asserted_in_prose():
+    """The 121.9 s figure is the ring's own timer, measured over 244 sessions (n=23, sd 1.18) — and it
+    is only a HARDWARE figure because every observation of it predates 2026-08-27, after which our own
+    not-worn drop at ~48 s fires first and the ring's timer is never reached. Pinned so a later edit
+    cannot quietly relax it into the 40-60 s band, which would be measuring ourselves."""
+    assert 116.0 < alerts.RING_IDLE_TIMER_S < 124.0
+    assert alerts.RING_IDLE_EXPECT_MAX_S > alerts.RING_IDLE_TIMER_S * 200, "expiry must outlast a night"

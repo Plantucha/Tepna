@@ -4642,7 +4642,22 @@ async def run_oxyii(dev: dict, root: str):
                         break
         except Exception as e:
             _set(name, connected=False, last_error=repr(e))
-            log.warning("%s %s", name, link_error_text(e))
+            # NAME THE EXPECTED POWER-OFF INSTEAD OF WARNING ABOUT IT. The ring runs its own idle timer
+            # (~121.9 s after a doff, measured — `alerts.RING_IDLE_TIMER_S`) and then stops advertising.
+            # Once its stored session has been pulled, that absence is the device working as designed,
+            # not a link fault: warning about it filled the journal every backoff cycle from 06:14 on
+            # 2026-09-07 for a ring that was simply off. Still logged, and the loop still looks — this
+            # changes what the operator is TOLD, not what the daemon does. Expires with the predicate,
+            # so a ring that is genuinely flat goes back to warning.
+            if device_absent_error(e) and alerts.powered_off_after_pull(
+                    _LAST_PULL_OK.get(name), _time.monotonic()):
+                _set(name, last_error="powered off — idle timer")
+                if name not in _IDLE_TIMER_NAMED:
+                    _IDLE_TIMER_NAMED.add(name)
+                    log.info("%s: ring powered off — idle timer (expected until re-wear or charger; "
+                             "its stored session was already pulled)", name)
+            else:
+                log.warning("%s %s", name, link_error_text(e))
         finally:
             _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.DISCONNECTED, "session ended")
             # RECORDING axis on link loss: the ring is UNOBSERVABLE, which is not the same fact as
@@ -6163,6 +6178,7 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
             recording = alerts.device_is_recording(connected, _LAST_DATA.get(name), now, data_grace)
             if recording:
                 down_since.pop(name, None)
+                _IDLE_TIMER_NAMED.discard(name)            # re-worn: the next power-off is a new event
                 if name in alerted:                        # it had alerted → tell the operator it is back
                     alerted.discard(name)
                     log.info("alert: %s recording again", name)
@@ -6171,6 +6187,18 @@ async def alert_poller(cfg: dict, notifier: "alerts.Notifier"):
                 down_since.setdefault(name, now)
                 if alerts.offline_alert_suppressed(d.get("optional"), name in ever_connected):
                     continue                               # never showed up; not a thing we are missing
+                # THE RING POWERS ITSELF OFF ~122 s AFTER A DOFF, AND THAT IS NOT AN OUTAGE. Measured
+                # over 244 sessions (see `alerts.RING_IDLE_TIMER_S`). Once its pull has SUCCEEDED there
+                # is nothing left on it to miss, so the silence that follows is the device working as
+                # designed. Alerting on it cost a false "capture is missing it" at 06:18 on 2026-09-07,
+                # 4 min after a completed pull. The state EXPIRES (8 h) so a ring that is genuinely flat
+                # still alerts — a false all-clear is worse than the false alarm it replaces.
+                if not connected and alerts.powered_off_after_pull(_LAST_PULL_OK.get(name), now):
+                    if name not in _IDLE_TIMER_NAMED:
+                        _IDLE_TIMER_NAMED.add(name)
+                        log.info("%s: ring powered off — idle timer (expected until re-wear or "
+                                 "charger; its stored session was already pulled)", name)
+                    continue
                 if name not in alerted and alerts.offline_alert_due(down_since[name], now, threshold):
                     mins = int((now - down_since[name]) / 60)
                     # NAME THE FAILURE. "offline" and "linked but silent" want different responses from
@@ -6722,6 +6750,13 @@ _CHARGER_SINCE: dict[str, float] = {}   # addr -> monotonic when charging went T
 _CHARGER_PULLED: set[str] = set()       # addrs already pulled THIS charge session (cleared when off charger)
 _NOTWORN_SINCE: dict[str, float] = {}   # addr -> monotonic when worn went False (absent = worn/unknown)
 _NOTWORN_PULLED: set[str] = set()       # addrs already pulled THIS doff session (cleared when worn again)
+# name -> monotonic of the last SUCCESSFUL pull. Keyed by NAME, not address, because the alert loop it
+# feeds is keyed by name. Written only on a completed pull: a failed or partial one must leave the entry
+# as it was, so it cannot license `alerts.powered_off_after_pull` for data we did not collect.
+_LAST_PULL_OK: dict[str, float] = {}
+# Names already told "powered off — idle timer", so the log says it ONCE per power-off rather than every
+# 60 s poll. Cleared when the device records again, which is the same edge that clears `alerted`.
+_IDLE_TIMER_NAMED: set[str] = set()
 # ── The PRESENCE axis's daemon-side state (O2RING-AUTONOMOUS-HARVEST §5) ─────────────────────────────
 # Written by the advertisement scanner, read by `charger_pull_poller`'s dispatch. Same shape as the two
 # above, deliberately: presence is a NEW TRIGGER feeding the existing transactional harvest (§14), not
@@ -7048,6 +7083,13 @@ async def charger_pull_poller(cfg: dict, root: str):
                 STATUS.setdefault("autopull", {}).update({"last": _now().isoformat(timespec="seconds"),
                                                           "new": len(new) + drained, "trigger": trigger,
                                                           "drained": drained})
+                # HERE, and only here: the PRIMARY pull returned. This is what licenses
+                # `alerts.powered_off_after_pull` to read a following silence as the ring's idle timer
+                # rather than as an outage. Deliberately NOT set in the `except` arms below — a pull that
+                # hit OfflineBusy or a link error left data on the ring, so its silence is exactly the
+                # thing worth alerting about. A failed drain does not retract it: the comment above says
+                # the primary "already succeeded and is recorded", and the remainder stays reachable.
+                _LAST_PULL_OK[dev.get("name")] = _time.monotonic()
             except offline_lock.OfflineBusy:
                 _CHARGER_PULLED.discard(addr)           # slot held by another pull — retry next tick
                 _NOTWORN_PULLED.discard(addr)

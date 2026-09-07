@@ -6289,3 +6289,138 @@ def test_an_empty_pleth_reply_writes_no_rows_and_does_not_crash(tmp_path, monkey
     for h in hits:
         body = [r for r in h.read_text().strip().split("\n") if r and not r.startswith("Phone")]
         assert not body, f"an empty reply produced rows: {body[:2]}"
+
+
+def test_alert_poller_stays_QUIET_for_a_ring_that_powered_off_after_a_completed_pull(monkeypatch):
+    """MEASURED FALSE ALARM, 2026-09-07 06:18: "Wellue O2Ring-S has been offline for ~5 min — capture is
+    missing it", four minutes after a pull that succeeded. Capture was missing nothing — the ring runs
+    its own ~121.9 s idle timer after a doff and powers off, and the night was already on disk.
+
+    The wiring is what this pins: the pure predicate cannot show that the poller CONSULTS it."""
+    sent = []
+    class _N:
+        enabled = True
+        async def send(self, title, message, **kw): sent.append(title); return True
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="O2Ring")]}
+    capture.STATUS["devices"]["O2Ring"] = {"connected": False}
+    capture._LAST_DATA.pop("O2Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("O2Ring")
+    capture._LAST_PULL_OK["O2Ring"] = 1000.0          # a pull COMPLETED, one minute ago
+    calls = {"n": 0}
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3: capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1060.0)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_PULL_OK.pop("O2Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("O2Ring")
+    assert sent == [], "an expected power-off must not alert"
+
+
+def test_alert_poller_STILL_alerts_when_the_pull_did_not_succeed(monkeypatch):
+    """The mirror, and the one that matters. Same silence, same doff — but no completed pull, so the
+    night is still ON the ring. That is exactly the alert worth having, and licensing the quiet state
+    on the doff alone would have suppressed it."""
+    sent = []
+    class _N:
+        enabled = True
+        async def send(self, title, message, **kw): sent.append(title); return True
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="O2Ring")]}
+    capture.STATUS["devices"]["O2Ring"] = {"connected": False}
+    capture._LAST_DATA.pop("O2Ring", None)
+    capture._LAST_PULL_OK.pop("O2Ring", None)         # no pull ever completed for it
+    capture._IDLE_TIMER_NAMED.discard("O2Ring")
+    calls = {"n": 0}
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3: capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1060.0)
+    _run(capture.alert_poller(cfg, _N()))
+    assert sent == ["Tepna: sensor offline"]
+
+
+def test_a_ring_quiet_PAST_the_expiry_goes_back_to_alerting(monkeypatch):
+    """The state must not become a permanent silence. Same completed pull, but 9 h ago — past the 8 h
+    bound — so this is no longer explained by the idle timer and the real alert returns."""
+    sent = []
+    class _N:
+        enabled = True
+        async def send(self, title, message, **kw): sent.append(title); return True
+    cfg = {"alerts": {"poll_sec": 1, "offline_sec": 0}, "devices": [_dev(name="O2Ring")]}
+    capture.STATUS["devices"]["O2Ring"] = {"connected": False}
+    capture._LAST_DATA.pop("O2Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("O2Ring")
+    capture._LAST_PULL_OK["O2Ring"] = 1000.0
+    calls = {"n": 0}
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3: capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(capture._time, "monotonic", lambda: 1000.0 + 9 * 3600)
+    _run(capture.alert_poller(cfg, _N()))
+    capture._LAST_PULL_OK.pop("O2Ring", None)
+    assert sent == ["Tepna: sensor offline"]
+
+
+def test_run_oxyii_NAMES_an_expected_power_off_instead_of_warning_about_it(tmp_path, monkeypatch, caplog):
+    """The reconnect loop's half of the same fact. A ring that stopped advertising AFTER its pull
+    succeeded is running its own idle timer, not failing — measured 2026-09-07, where this path filled
+    the journal with `link error: BleakDeviceNotFoundError` every backoff cycle for a ring that was
+    simply off. The loop still looks; this changes what the operator is TOLD."""
+    import logging
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._IDLE_TIMER_NAMED.discard("Ring")
+    capture._LAST_PULL_OK["Ring"] = capture._time.monotonic()      # a pull COMPLETED, just now
+    def _boom(addr, *a, **k):
+        raise capture.DeviceNotAdvertising("O2Ring not advertising (wear it finger-in)")
+    monkeypatch.setattr(capture, "_connect_scan", _boom)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level(logging.INFO):
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    capture._LAST_PULL_OK.pop("Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("Ring")
+    assert "idle timer" in caplog.text, "the state must be named"
+    assert "link error" not in caplog.text, "and NOT reported as a link fault"
+    assert capture.STATUS["devices"]["Ring"]["last_error"] == "powered off — idle timer"
+
+
+def test_run_oxyii_STILL_warns_when_no_pull_succeeded(tmp_path, monkeypatch, caplog):
+    """The mirror. Same absence, no completed pull — the night is still on the ring, so this is a real
+    link error and must read as one."""
+    import logging
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._IDLE_TIMER_NAMED.discard("Ring")
+    capture._LAST_PULL_OK.pop("Ring", None)
+    def _boom(addr, *a, **k):
+        raise capture.DeviceNotAdvertising("O2Ring not advertising (wear it finger-in)")
+    monkeypatch.setattr(capture, "_connect_scan", _boom)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level(logging.INFO):
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    assert "link error" in caplog.text
+    assert "idle timer" not in caplog.text
+
+
+def test_run_oxyii_names_the_idle_timer_ONCE_not_every_backoff_cycle(tmp_path, monkeypatch, caplog):
+    """The latch is the reason this is an improvement rather than a re-wording. The reconnect loop
+    retries on a capped backoff for as long as the ring is off — on 2026-09-07 that was one line every
+    ~3 minutes, all night. Naming the state on every cycle would swap one stream of noise for another,
+    so the log fires once per power-off and the latch clears when the ring records again."""
+    import logging
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._LAST_PULL_OK["Ring"] = capture._time.monotonic()
+    capture._IDLE_TIMER_NAMED.add("Ring")          # already told the operator on an earlier cycle
+    def _boom(addr, *a, **k):
+        raise capture.DeviceNotAdvertising("O2Ring not advertising (wear it finger-in)")
+    monkeypatch.setattr(capture, "_connect_scan", _boom)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level(logging.INFO):
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    capture._LAST_PULL_OK.pop("Ring", None)
+    capture._IDLE_TIMER_NAMED.discard("Ring")
+    assert "idle timer" not in caplog.text, "already named — must not repeat every cycle"
+    assert "link error" not in caplog.text, "and still must not read as a fault"
+    assert capture.STATUS["devices"]["Ring"]["last_error"] == "powered off — idle timer", \
+        "the STATE is still published even when the log stays quiet"
