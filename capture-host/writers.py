@@ -707,6 +707,9 @@ OXYFRAME_COLUMNS = (
     "batt_state", "flag",          # ── the original 10
     "ppg_n", "ppg_dur_step",       # O2RING-FRAME-SAMPLE-LOCK §7
     "ppg_offset", "flag_raw",      # DEVICE-RATE-TRUTH §6.1
+    "alarm_raw",                   # RT_PARAM byte [14], four 2-bit alarm/IV subfields, raw and
+                                   # uninterpreted (2026-09-06). Blank when the frame was too short
+                                   # to carry it — an absent byte is not a quiet alarm.
     "run_status",                  # OXYII-PRESENCE-MODEL §5: parsed since day one, never persisted —
                                    # so no night could answer whether payload[4] discriminates states.
                                    # Recorded raw; interpretation happens in the brief, not here.
@@ -784,6 +787,7 @@ class OxyFrameLogWriter:
                                  _f(live.get("batt_state")), _f(live.get("flag")),
                                  _f(p.get("n")), _f(p.get("step")),
                                  _f(p.get("offset")), _f(live.get("flag_raw")),
+                                 _f(live.get("alarm_raw")),
                                  _f(live.get("run_status")))) + "\n")
         if landed:
             self.rows += 1
