@@ -195,7 +195,7 @@ free-run drift is measurable per-interval without touching the onboard .dat.
 | `[28]` | CONST* | `13` = 19 | **RTC hour** |
 | `[29]` | CLOCK | carried on sec-wrap | **RTC minute** |
 | `[30]` | CLOCK | advanced ≡ gap mod 60 | **RTC second** |
-| `[31:33]` | CONST | u16 LE `07E0` = **2016** | frozen date-year (manufacture/epoch?) — **semantics unverified, do not decode** |
+| `[31:33]` | **`protocolMaxLen`** | u16 LE `07E0` = 2016 | ⚠️ **CORRECTED 2026-09-06 — vendor SDK sources show this is the protocol's maximum payload length, not a frozen date-year.** The value 2016 is a LENGTH; reading it as a year was a coincidence of magnitude. Scope: OxyII family (O2Ring S / S8-AW / SF / SP; NOT the gen-1 O2Ring protocol) |
 | `[33:37]` | CONST | `00 00 00 00` | zeros |
 | `[37]` | CONST | `0A` = 10 | **serial length** (parsed) |
 | `[38:48]` | CONST | ASCII `2592302100` | **wire serial** — NOT the BLE-name-derived `S8AW2100` the capture filenames use |
