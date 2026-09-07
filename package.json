@@ -34,6 +34,8 @@
     "gates:browser": "node tests/browser-gates.mjs",
     "release": "node tools/release.mjs",
     "release:dry": "node tools/release.mjs --dry-run",
+    "release:full": "node tools/release.mjs --full",
+    "release:status": "node tools/release-land.mjs --status",
     "check": "node tools/run-check.mjs",
     "rebase": "node tools/rebase-safe.mjs",
     "verify:analysis": "node tools/build-analysis.mjs --check",
