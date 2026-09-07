@@ -14,6 +14,11 @@
  *      see the 12-commits-stranded incident). No PR, or PR still open ⇒ REFUSE.
  *   2. the tree is CLEAN — `git status --porcelain` empty. Dirty ⇒ REFUSE and say what is dirty;
  *      per CLAUDE.md §👥.2 those files may be someone's only copy.
+ *   3. the tree is IDLE — no process has its cwd inside it and none holds a file open there.
+ *      MERGED + CLEAN DOES NOT MEAN IDLE, and that gap was nearly paid for: on 2026-09-07 a sweep of
+ *      ten merged, clean trees included one where a peer had said 40 minutes earlier that a ~16-minute
+ *      gate was running. It had finished, so nothing was lost — but every guard the tool had read
+ *      green, and removing a tree out from under a live run destroys the run silently.
  * Removal is `git worktree remove` WITHOUT --force, so git's own guard stays the last line: if git
  * refuses after both checks passed, something raced us — stop, do not escalate to --force.
  *
@@ -22,7 +27,7 @@
  *   node tools/wt-done.mjs <path> [...]      # verify + remove each named worktree
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, readlinkSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts });
@@ -43,13 +48,85 @@ export function parseWorktrees(porcelain) {
   return out;
 }
 
-export function verdict({ prState, dirtyCount, isMain }) {
-  /* Pure decision core, so the refusals are testable without a repo. */
+/* WHO IS USING THIS TREE — by `/proc` inspection, NEVER by matching a command line.
+
+   ⚠️ A COMMAND-LINE GREP CANNOT ANSWER THIS QUESTION. The scanner's own argv contains the path it is
+   scanning, so it always matches itself: measured 2026-09-07, `pgrep -af <path>` exited 0 with its
+   only hit being the scanning shell. CLAUDE.md §4 documents that self-match as a waiter that hangs
+   forever; wired as a GUARD the same defect inverts — it refuses on nothing — so the fail-safe
+   direction depends entirely on which way the check is pointed, and neither direction is correct.
+   `/proc/<pid>/cwd` and `/proc/<pid>/fd/*` are readlinks to real kernel state and cannot self-match.
+
+   Returns `{ ok:true, users:[{pid, cmd}] }`, or `{ ok:false, why }` when the scan could not be made —
+   which is UNKNOWN, not idle. An absence of evidence spent as evidence of absence is the shape that
+   makes a missing tool read as a passing gate. */
+export function usersOfPath(dir, { procRoot = '/proc', self = process.pid } = {}) {
+  let pids;
+  try {
+    pids = readdirSync(procRoot).filter((d) => /^\d+$/.test(d));
+  } catch (e) {
+    return { ok: false, why: `cannot read ${procRoot} (${e.code || e.message}) — the tree may be in use` };
+  }
+  const root = path.resolve(dir);
+  const prefix = root + path.sep;
+  const under = (t) => t === root || t.startsWith(prefix);
+  const users = [];
+  for (const pid of pids) {
+    if (Number(pid) === self) continue; // never count the scanner
+    let hit = false;
+    try {
+      hit = under(readlinkSync(`${procRoot}/${pid}/cwd`));
+    } catch {
+      continue; // process exited mid-scan, or is another user's
+    }
+    if (!hit) {
+      try {
+        for (const fd of readdirSync(`${procRoot}/${pid}/fd`)) {
+          let tgt;
+          try {
+            tgt = readlinkSync(`${procRoot}/${pid}/fd/${fd}`);
+          } catch {
+            continue;
+          }
+          if (under(tgt)) {
+            hit = true;
+            break;
+          }
+        }
+      } catch {
+        /* fd dir unreadable — cwd was already checked, which is the load-bearing half */
+      }
+    }
+    if (hit) users.push({ pid: Number(pid), cmd: cmdlineOf(pid, procRoot) });
+  }
+  return { ok: true, users };
+}
+
+function cmdlineOf(pid, procRoot = '/proc') {
+  /* The refusal must NAME the process. "Tree in use" sends the next session hunting; "in use by PID
+     12345 running check.sh" ends the question in one line. */
+  try {
+    const raw = readFileSync(`${procRoot}/${pid}/cmdline`, 'utf8').replace(/\0/g, ' ').trim();
+    return raw ? raw.slice(0, 120) : '(no cmdline)';
+  } catch {
+    return '(unreadable)';
+  }
+}
+
+export function verdict({ prState, dirtyCount, isMain, inUse }) {
+  /* Pure decision core, so the refusals are testable without a repo. `inUse` is the result of
+     `usersOfPath`: omitted entirely means the caller did not scan (older callers keep working);
+     `{ok:false}` means the scan FAILED, which refuses — unknown is not idle. */
   if (isMain) return { ok: false, why: 'holds main/master — never remove the primary checkout' };
   if (dirtyCount > 0) return { ok: false, why: `${dirtyCount} dirty/untracked path(s) — may be someone's only copy` };
   if (prState === null) return { ok: false, why: 'no PR found for branch — cannot prove the work landed' };
   if (prState !== 'MERGED') return { ok: false, why: `PR is ${prState}, not MERGED` };
-  return { ok: true, why: 'PR merged + tree clean' };
+  if (inUse && inUse.ok === false) return { ok: false, why: `cannot prove idle: ${inUse.why}` };
+  if (inUse && inUse.users && inUse.users.length) {
+    const who = inUse.users.map((u) => `PID ${u.pid} (${u.cmd})`).join('; ');
+    return { ok: false, why: `IN USE by ${who} — removing it would destroy that run` };
+  }
+  return { ok: true, why: inUse ? 'PR merged + tree clean + idle' : 'PR merged + tree clean' };
 }
 
 function prStateFor(branch) {
@@ -73,7 +150,8 @@ function main(argv) {
     for (const w of wts) {
       const dirty = existsSync(w.path) ? dirtyCountFor(w.path) : -1;
       const pr = prStateFor(w.branch);
-      const v = verdict({ prState: pr, dirtyCount: Math.max(0, dirty), isMain: w.branch === 'main' || w.branch === 'master' });
+      const use = existsSync(w.path) ? usersOfPath(w.path) : { ok: true, users: [] };
+      const v = verdict({ prState: pr, dirtyCount: Math.max(0, dirty), isMain: w.branch === 'main' || w.branch === 'master', inUse: use });
       console.log(`${v.ok ? 'REMOVABLE ' : 'keep      '} ${w.path}  [${w.branch ?? 'detached'}]  pr=${pr ?? '-'} dirty=${dirty} — ${v.why}`);
     }
     return 0;
@@ -92,7 +170,12 @@ function main(argv) {
       fail++;
       continue;
     }
-    const v = verdict({ prState: prStateFor(w.branch), dirtyCount: dirtyCountFor(w.path), isMain: w.branch === 'main' || w.branch === 'master' });
+    const v = verdict({
+      prState: prStateFor(w.branch),
+      dirtyCount: dirtyCountFor(w.path),
+      isMain: w.branch === 'main' || w.branch === 'master',
+      inUse: usersOfPath(w.path)
+    });
     if (!v.ok) {
       console.error(`✕ REFUSE ${t}: ${v.why}`);
       fail++;
@@ -106,7 +189,12 @@ function main(argv) {
 
 /* self-test: node tools/wt-done.mjs --selftest (pure core only — no repo, no gh) */
 if (process.argv.includes('--selftest')) {
+  /* COUNTED, not narrated. This line read `selftest: 6/6 ok` as a hardcoded string while the file
+     carried fourteen assertions — the same defect as an advisory row that prints its baseline
+     instead of its measurement: a summary that cannot be wrong is not a summary. */
+  let ran = 0;
   const assert = (c, m) => {
+    ran++;
     if (!c) {
       console.error('SELFTEST FAIL:', m);
       process.exit(1);
@@ -117,9 +205,31 @@ if (process.argv.includes('--selftest')) {
   assert(!verdict({ prState: null, dirtyCount: 0, isMain: false }).ok, 'no PR must refuse');
   assert(!verdict({ prState: 'MERGED', dirtyCount: 0, isMain: true }).ok, 'main checkout must refuse');
   assert(verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false }).ok, 'merged+clean must pass');
+  /* ── the IDLE leg ─────────────────────────────────────────────────────────────────────────────
+     A tree can be merged AND clean AND have a gate running in it; that combination is what this
+     check exists for, so it is asserted directly rather than implied by the others. */
+  assert(!verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, inUse: { ok: true, users: [{ pid: 4242, cmd: 'bash ./check.sh' }] } }).ok, 'merged + clean + IN USE must refuse');
+  assert(
+    /PID 4242 \(bash \.\/check\.sh\)/.test(verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, inUse: { ok: true, users: [{ pid: 4242, cmd: 'bash ./check.sh' }] } }).why),
+    'the refusal must NAME the pid and its command line, not just say "in use"'
+  );
+  assert(!verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, inUse: { ok: false, why: 'cannot read /proc' } }).ok, 'an INCONCLUSIVE scan must refuse — unknown is not idle');
+  assert(verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false, inUse: { ok: true, users: [] } }).ok, 'merged + clean + proven idle must pass');
+  assert(verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false }).why === 'PR merged + tree clean', 'a caller that does not scan keeps the old verdict text, so older callers are unchanged');
+  /* The scanner must not count ITSELF. This process's cwd is inside the repo, so scanning the repo
+     root would self-match if `self` were not excluded — the §4 defect this function exists to avoid. */
+  {
+    const here = usersOfPath(process.cwd());
+    assert(here.ok, 'scanning a real path must succeed on this platform');
+    assert(!here.users.some((u) => u.pid === process.pid), 'the scanner must never report itself');
+  }
+  {
+    const bad = usersOfPath('/does/not/matter', { procRoot: '/no/such/proc' });
+    assert(bad.ok === false, 'an unreadable /proc must report FAILURE, never an empty user list');
+  }
   const wts = parseWorktrees('worktree /a\nHEAD abc\nbranch refs/heads/x\n\nworktree /b\nHEAD def\ndetached\n');
   assert(wts.length === 2 && wts[0].branch === 'x' && wts[1].branch === null, 'porcelain parse');
-  console.log('selftest: 6/6 ok');
+  console.log(`selftest: ${ran}/${ran} ok`);
   process.exit(0);
 }
 const isDirect = process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname;
