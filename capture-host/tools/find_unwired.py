@@ -119,6 +119,24 @@ ALLOW_MODULES = {
 }
 
 ALLOW_FUNCS = {
+    # ── The stored raw-PPG command family (type 1, opcodes 0x06-0x09), added 2026-09-06 ────────────
+    # BUILT AND DELIBERATELY UNDISPATCHED. These frames have never been sent to a ring: the first
+    # probe is owner-authorised separately, and wiring them into the daemon to satisfy this scan
+    # would be the gate causing the very thing it exists to prevent — code reaching hardware because
+    # a checker wanted a caller.
+    #
+    # `ppg_file_list_frame` is NOT here: `pull_session.py --family ppg --list` prints the frame it
+    # would send, which is a real consumer of exactly the one frame that touches nothing.
+    #
+    # RETIRES the moment the probe is authorised and a pull path calls them — at which point this
+    # block should shrink to nothing rather than be edited. If the family is abandoned instead,
+    # delete the functions with these entries.
+    "ppg_file_start_frame": "stored raw-PPG family (0x07) — built, UNPROBED, not dispatched pending "
+                            "an owner-authorised first ring contact",
+    "ppg_file_data_frame": "stored raw-PPG family (0x08) — same; retires with the authorised probe",
+    "ppg_file_end_frame": "stored raw-PPG family (0x09) — same; retires with the authorised probe",
+    "parse_ppg_file_header": "reads the stored raw-PPG file header; its only caller would be the "
+                             "pull path above, which cannot exist until the family is probed",
     # ── Swappability pure core (2026-08-30). ⚠️ THE ORIGINAL REASON HERE WAS WRONG AND IS CORRECTED.
     # It said the bluez hotplug watch "that calls them is unit 1's second half", implying these would
     # be discharged by wiring that watch. Tracing to the CONSUMER showed otherwise, twice over:
