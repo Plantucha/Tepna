@@ -250,3 +250,30 @@ def test_FAMILY_PPG_IN_CONFIG_WARNS_AND_STILL_PULLS_THE_OXIMETRY_STORE(caplog):
     finally:
         capture._STOP.clear()
     assert "UNPROBED" in caplog.text and "will not" in caplog.text
+
+
+def test_PULL_RESUME_ON_IS_ANNOUNCED_AT_LOAD_NOT_DISCOVERED_IN_A_FILE(caplog):
+    """`pull.resume` is the switch the physical drop test flips, and turning it on trades a bounded
+    cost (a redundant acquisition) for an unbounded one (a file of exactly the right size whose
+    middle is wrong). A config that has taken that side must SAY so where an operator reading the
+    journal will see it — the failure it enables is the one that leaves no short-file evidence."""
+    capture._STOP.set()
+    try:
+        with caplog.at_level("WARNING"):
+            asyncio.run(capture.charger_pull_poller(_cfg({"resume": True}), "/tmp"))
+    finally:
+        capture._STOP.clear()
+    assert "pull.resume=ON" in caplog.text
+    assert "drop test" in caplog.text, "the warning must name what would retire it"
+
+
+def test_PULL_RESUME_OFF_SAYS_NOTHING(caplog):
+    """The control. A warning that fires on the DEFAULT is noise, and noise is what makes the armed
+    case invisible."""
+    capture._STOP.set()
+    try:
+        with caplog.at_level("WARNING"):
+            asyncio.run(capture.charger_pull_poller(_cfg({}), "/tmp"))
+    finally:
+        capture._STOP.clear()
+    assert "pull.resume=ON" not in caplog.text
