@@ -32936,6 +32936,98 @@
       T.ok('an ACC-only recording reports no gyro floor', P.analyzeMotion(acc, null, 1782000000000, DUR).gyroBiasDps == null);
     });
 
+    /* §∅ ABSENCE-AS-VALUE — the pinned-span rule and the DERIVED settling widening.
+       The rule was designed against the real 04:53 O2Ring file after three other shapes failed their
+       pre-stated acceptance; every number in this group is a measurement, and the group exists so a
+       later "simplification" back to a constant-run or transition rule reds instead of shipping. */
+    group('PPGDex §∅ — pinned spans: both extremes, marker-transparent, and the widening is DERIVED', 'ppgdex-dsp · absence-as-value', function (T) {
+      var P = env.PPGDSP;
+      if (!(P && typeof P.pinnedSpans === 'function' && typeof P.settlingWidenSec === 'function')) {
+        T.ok('PPGDSP.pinnedSpans + settlingWidenSec available', false);
+        return;
+      }
+      // A pleth-ish 8-bit stream: baseline 100, ~8 LSB modulation, no extremes of its own.
+      function clean(n) {
+        var x = new Float64Array(n);
+        for (var i = 0; i < n; i++) x[i] = 100 + Math.round(8 * Math.sin((i / 128) * 2 * Math.PI));
+        return x;
+      }
+      // 1 · a clean stream yields NO spans. The floor/ceiling of a clean pleth are signal, not absence,
+      //     so this is the assertion that stops the rule flagging ordinary peaks and troughs.
+      var c = clean(2000);
+      var rc = P.pinnedSpans(c);
+      T.eq('a clean pleth yields zero spans', rc.spans.length, 0);
+
+      // 2 · a planted FLOOR span is found, and a planted CEILING span is found by the SAME rule —
+      //     one mechanism, both ends. Value lists (0/199/19600) are what this replaces.
+      /* The plant RAMPS in and out, because that is the measured shape of a real event
+         (`75 68 62 55 48 41 34 27 21 14 8 3 | 0…0 | 1 7 16 27 36 46 55`, ~7 LSB/sample). An
+         instant jump is not what the device does, and a plant that jumps is REJECTED by the spike
+         qualification for a good reason: with nothing occupied between the pin and the bulk, the
+         pin's nearest occupied neighbour IS the bulk, and a lone outlier is not a rail (a Verity
+         minimum sits 556 quanta from anything else and must NOT invent a floor class). */
+      var lo = clean(2000);
+      for (var d = 0; d < 13; d++) {
+        lo[887 + d] = Math.max(0, 92 - d * 7);
+        lo[930 + d] = Math.min(99, 7 + d * 7);
+      }
+      for (var i = 900; i < 900 + 30; i++) lo[i] = 0;
+      var rl = P.pinnedSpans(lo);
+      T.eq('a 30-sample floor span is found', rl.spans.length, 1);
+      T.eq('  ... and it is labelled at the low end', rl.spans[0].end, 'lo');
+      T.eq('  ... with its true length', rl.spans[0].n, 30);
+      var hi = clean(2000);
+      for (var d4 = 0; d4 < 21; d4++) {
+        hi[879 + d4] = Math.min(250, 108 + d4 * 7);
+        hi[930 + d4] = Math.max(109, 243 - d4 * 7);
+      }
+      for (var j = 900; j < 900 + 30; j++) hi[j] = 250;
+      var rh = P.pinnedSpans(hi);
+      T.eq('the SAME rule finds a ceiling span', rh.spans.length, 1);
+      T.eq('  ... labelled at the high end', rh.spans[0].end, 'hi');
+
+      // 3 · MARKER TRANSPARENCY. An isolated 156 is a documented INSERTED ROW, not a sample. Left
+      //     opaque it splits one span in two — measured on the real file as 95.8 % vs 100 % recall.
+      var mk = clean(2000);
+      for (var d2 = 0; d2 < 13; d2++) {
+        mk[887 + d2] = Math.max(0, 92 - d2 * 7);
+        mk[930 + d2] = Math.min(99, 7 + d2 * 7);
+      }
+      for (var k = 900; k < 900 + 30; k++) mk[k] = 0;
+      mk[915] = 156; // a beat marker landing INSIDE the span
+      var rm = P.pinnedSpans(mk);
+      T.eq('a marker inside a span does not split it', rm.spans.length, 1);
+      T.eq('  ... and the span still spans the marker', rm.spans[0].n, 30);
+
+      // 3b · ANNOTATIONS ARE A PARAMETER, not a value the rule knows. The same stream with an empty
+      //      annotation set must SPLIT at the marker — that is what makes the ring's {156} a
+      //      per-stream fact rather than a constant baked into the detector.
+      var rmEmpty = P.pinnedSpans(mk, { annotations: [] });
+      T.ok('with no annotation set declared, the same marker splits the span', rmEmpty.spans.length > 1, rmEmpty.spans.length + ' spans');
+      T.eq('  ... and the ring default supplies {156} when nothing is passed', P.pinnedSpans(mk).annotations[0], 156);
+
+      // 4 · min_run. Legitimate plateaus reach 5-9 samples routinely (p99 = 14 on the real file), so
+      //     a short pin must NOT become a span.
+      var sh = clean(2000);
+      for (var d3 = 0; d3 < 13; d3++) {
+        sh[887 + d3] = Math.max(0, 92 - d3 * 7);
+        sh[904 + d3] = Math.min(99, 7 + d3 * 7);
+      }
+      for (var m = 900; m < 904; m++) sh[m] = 0;
+      T.eq('a 4-sample pin is below min_run and is not a span', P.pinnedSpans(sh).spans.length, 0);
+
+      // 5 · THE WIDENING IS DERIVED, AND THE TWO MEASUREMENTS ARE THE GATE. A constant here would be
+      //     wrong for any artifact of a different size: settling to a fixed threshold is LOGARITHMIC
+      //     in the excursion, t = tau·ln(A0/A_thresh), tau doubled when the filter is zero-phase.
+      var wEcg = P.settlingWidenSec(167, 1, 5, false) * 1000; // measured 320 ms on planted ECG
+      var wPpg = P.settlingWidenSec(26, 1, 0.5, true); // measured 2.79 s on planted PPG
+      T.ok('ECG widening derives within 1.5x of the 320 ms measurement', wEcg > 320 / 1.5 && wEcg < 320 * 1.5, Math.round(wEcg) + ' ms');
+      T.ok('PPG widening derives within 1.5x of the 2.79 s measurement', wPpg > 2.79 / 1.5 && wPpg < 2.79 * 1.5, wPpg.toFixed(2) + ' s');
+      T.ok('zero-phase doubles it — the ECG/PPG asymmetry is structural, not tuned', P.settlingWidenSec(26, 1, 0.5, true) > P.settlingWidenSec(26, 1, 0.5, false) * 1.9);
+      T.ok('the log ceiling holds for an absurd excursion', P.settlingWidenSec(1e9, 1, 0.5, true) <= (9 * 2) / (2 * Math.PI * 0.5) + 1e-9);
+      T.eq('a non-finite scale refuses rather than returning 0', P.settlingWidenSec(26, 0, 0.5, true), null);
+    });
+
     group('PPGDex F19 — accFs is the NATIVE rate, not count ÷ span', 'ppgdex-dsp · regression', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.analyzeMotion === 'function')) {
