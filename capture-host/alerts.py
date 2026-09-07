@@ -411,13 +411,21 @@ def frozen_devices(qc: dict, live: dict, threshold_sec: float) -> list[str]:
 # session's last worn frame → its last frame:
 #
 #     the ring's OWN power-off timer   n=23   min 116.7  median 121.9  max 123.0  sd 1.18
-#     our not-worn drop                n=18   min  46.4  median  47.9  max  57.6  sd 2.33
+#     our doff-triggered PULL settle   n=18   min  46.4  median  47.9  max  57.6  sd 2.33
+#
+# ⚠️ THE SECOND BAND IS THE PULL SETTLE, NOT THE POWER DROP — this said "our not-worn drop" until
+# 2026-09-07 and that named the wrong knob. `pull.notworn_settle_sec` (45 s, capture.py:7001) is what
+# produces 47.9 s; `power.drop_not_worn_sec` is 180 s and is a different mechanism entirely. The
+# distinction is not cosmetic: 180 s is LONGER than the ring's own ~121.9 s idle timer, so the power
+# drop can never fire for this device — it has powered itself off first. `capture.py:6863` states it
+# outright, that `notworn_pull_due` is "the only reachable trigger for a coin-cell device". A reader
+# who wanted to move that 48 s would therefore change `drop_not_worn_sec` and see nothing happen.
 #
 # ⚠️ THE TWO BANDS ARE SEPARATED IN TIME, NOT MIXED, and that is what makes 121.9 s a HARDWARE figure
 # rather than a mixture of the ring and us: every 110-130 s observation is on or before 2026-08-26, and
-# every 40-60 s observation is on or after 2026-08-27. Since 08-27 we drop the link at ~48 s and so no
-# longer reach the ring's timer at all. Do not re-derive this number from recent nights — it is not
-# observable there any more.
+# every 40-60 s observation is on or after 2026-08-27. Since 08-27 the doff pull takes the link at
+# ~48 s and so we no longer reach the ring's timer at all. Do not re-derive this number from recent
+# nights — it is not observable there any more.
 #
 # So the sequence after a doff is: contact lost → we drop at ~48 s → connect + pull `latest` (27 s
 # measured 2026-09-07) → the ring's own idle timer expires at ~122 s and IT POWERS OFF. From then on it
