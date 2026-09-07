@@ -4781,7 +4781,7 @@ def session_meta(f: str, name: str = "") -> dict:
         return {"unreadable": True, "reason": type(e).__name__}
 
 
-async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype: int = 0, *,
+async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", *,
                              trigger: str = "manual") -> dict:
     """Pull the O2Ring's ONBOARD-recorded session(s) off flash to <root>/captures/stored/*.dat, driven from
     the monitor. Pauses live capture first (the ring has one BLE link), runs the same pull_session flow the
@@ -4828,7 +4828,9 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", ftype:
                     # when the ring does not answer its identity read — the SAME key the auto-harvest
                     # path and every earlier pull used, so a transient 0xE1 timeout cannot re-key a
                     # committed session as `0000/<stamp>` and pull it again (vigil 2026-08-29/30).
-                    return await pull_session.pull(dev["address"], out_dir, which=which, ftype=ftype,
+                    # 0, always: this argument is the oximetry START frame's byte OFFSET (see
+                    # oxyii.file_start_frame), and the daemon has no reason to resume mid-file.
+                    return await pull_session.pull(dev["address"], out_dir, which=which, ftype=0,
                                                    adapter=await adapter_hci(),
                                                    serial="0000", wait=45, on_progress=_prog,
                                                    device_id=dev.get("device_id")) or []
@@ -6882,7 +6884,26 @@ async def charger_pull_poller(cfg: dict, root: str):
     _pres_interval = float(_pres_cfg.get("min_probe_interval_sec", 300.0))
     _doff_cfg = float(pcfg.get("notworn_settle_sec", 45))
     doff_settle = _doff_cfg
-    ftype = int(pcfg.get("ftype", 0))
+    # ⚠️ `pull.ftype` NEVER SELECTED A FILE TYPE. It was written into the type-0 START frame's
+    # trailing u32, which is a BYTE OFFSET — so `ftype: 3` asked the oximetry store to begin reading
+    # at byte 3, and the raw-PPG store (a different COMMAND FAMILY, 0x06-0x09) was never reachable
+    # from here at all. Refused rather than ignored: silently accepting it would leave a config key
+    # that reads as a working switch and does nothing, which is how the misreading survived.
+    if int(pcfg.get("ftype", 0)) != 0:
+        raise ValueError(
+            "config pull.ftype=%r: that key was always the oximetry START frame's byte OFFSET, not a "
+            "file type. Remove it; use pull.file_family to choose a command family."
+            % pcfg.get("ftype"))
+    # WHICH STORED-FILE COMMAND FAMILY. `oxy` is the default and the only family ever spoken to a
+    # ring; `ppg` is built and UNPROBED, and the daemon does not dispatch it — the first contact is
+    # owner-authorised separately. Anything else is refused AT CONFIG LOAD rather than at use: a
+    # typo'd family that surfaces hours later, mid-night, is the shape this repo keeps paying for.
+    file_family = str(pcfg.get("file_family", "oxy"))
+    if file_family not in ("oxy", "ppg"):
+        raise ValueError("config pull.file_family=%r: expected 'oxy' or 'ppg'" % file_family)
+    if file_family == "ppg":
+        log.warning("pull.file_family=ppg — the raw-PPG family is UNPROBED and the daemon will not "
+                    "dispatch it; the oximetry store is still what gets pulled")
     devices = [d for d in cfg.get("devices", [])
                if not missing_identity(d) and d.get("vendor") in ("Wellue", "Viatom", "Polar")]
     if not devices:
@@ -6975,7 +6996,7 @@ async def charger_pull_poller(cfg: dict, root: str):
                 _WITNESS.setdefault(addr, {}).update(probe_attempted=now, pull_started=now)
             try:
                 if dev.get("vendor") in ("Wellue", "Viatom"):
-                    res = await pull_oxyii_session(dev, root, which=pull_scope_for(trigger), ftype=ftype,
+                    res = await pull_oxyii_session(dev, root, which=pull_scope_for(trigger),
                                                    trigger=trigger)
                 else:
                     res = await pull_polar_offline_all(dev, root)
@@ -7009,7 +7030,7 @@ async def charger_pull_poller(cfg: dict, root: str):
                     try:
                         # Booked under the SAME trigger as the primary pull — the POWER axis counts this
                         # as the event's second attempt, not a manual one.
-                        more = await pull_oxyii_session(dev, root, which="new", ftype=ftype,
+                        more = await pull_oxyii_session(dev, root, which="new",
                                                         trigger=trigger)
                         drained = len((more or {}).get("new_files", []) if isinstance(more, dict) else [])
                         if drained:
@@ -7627,7 +7648,6 @@ async def autopull_poller(cfg: dict, root: str):
         return
     name = ring["name"]
     interval = float(pcfg.get("auto_interval_sec", 3600))
-    ftype = int(pcfg.get("ftype", 0))
     retries = max(1, int(pcfg.get("auto_retries", 3)))
     # ⚠️ REPORT THE EVENT PATH HERE TOO. "auto-pull: enabled" was read fleet-wide as "auto-pull works",
     # while the event triggers had never armed once — 312 of these lines against 0 armed lines. The two
@@ -7671,7 +7691,7 @@ async def autopull_poller(cfg: dict, root: str):
         # so a retry only re-fetches what an earlier attempt missed; a clean pass returns 0 new and stops.
         for attempt in range(retries):
             try:
-                res = await pull_oxyii_session(ring, root, which="all", ftype=ftype, trigger="hourly")
+                res = await pull_oxyii_session(ring, root, which="all", trigger="hourly")
             except offline_lock.OfflineBusy:
                 pw.note_busy(_time.monotonic(), "offline slot")   # §17 — not a strike
                 _power_flush(name)
@@ -9155,12 +9175,12 @@ async def main():
     for dev in cfg.get("devices", []):
         _spawn(dev)
 
-    async def _pull(which: str = "latest", ftype: int = 0) -> dict:
+    async def _pull(which: str = "latest") -> dict:
         # Monitor "Pull stored session" → download the O2Ring's onboard .dat (pauses live capture).
         dev = next((d for d in cfg.get("devices", []) if d.get("vendor") in ("Wellue", "Viatom")), None)
         if not dev:
             raise RuntimeError("no O2Ring / Wellue device configured")
-        return await pull_oxyii_session(dev, root, which, ftype)
+        return await pull_oxyii_session(dev, root, which)
 
     # Monitor + control web surface (HEALTH-BOX-VISION §4 hero live-view). On by default; bind LAN only.
     web_runner = None

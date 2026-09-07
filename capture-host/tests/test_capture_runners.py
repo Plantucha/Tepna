@@ -2383,7 +2383,7 @@ def test_main_pull_closure_dispatches_and_errors(tmp_path, monkeypatch):
     pull_stored callback it is handed."""
     import webmon, yaml as _yaml, sys as _sys
     calls = {"n": 0}
-    async def fake_pull_oxyii(dev, root, which, ftype, **kw): calls["n"] += 1; return {"ok": True}
+    async def fake_pull_oxyii(dev, root, which, **kw): calls["n"] += 1; return {"ok": True}
     monkeypatch.setattr(capture, "pull_oxyii_session", fake_pull_oxyii)
     for r in ("run_polar", "run_oxyii", "run_viatom", "run_muse", "status_loop",
               "adapter_watchdog", "rssi_poller", "clock_watchdog", "host_clock_poller"):
