@@ -12,9 +12,11 @@ length check can see. That asymmetry is why `pull.resume` defaults OFF, why a re
 verified before commit, and why a failure DISCARDS the `.part` instead of keeping it for the next
 resume to splice onto.
 """
+import asyncio
 import hashlib
 import os
 
+import oxy_inventory as inv
 import oxyii
 import pull_session
 from test_oxyii import _fmt_a_file
@@ -142,3 +144,99 @@ def test_THE_STRATEGY_IS_STILL_THE_ONLY_PLACE_THE_CHOICE_IS_MADE():
     src = module_source("pull_session.py")
     assert "resume_strategy(" in src
     assert src.count("oxy_transfer.RESUME") <= 2, "the RESUME decision is being re-derived inline"
+
+
+def test_A_RESUME_START_THE_RING_NEVER_ANSWERS_FALLS_BACK_TO_RE_SERVING(tmp_path, monkeypatch):
+    """The seek can be REFUSED. A ring that ignores a non-zero START must not leave the pull waiting
+    on a reply that is never coming, and must not then splice ring bytes that begin at 0 onto a
+    prefix that ends at N — the right-size/wrong-middle failure again, arrived at from the other end.
+
+    The fallback re-serves from 0, so `resumed_from` stays 0 and the committed file is an ordinary
+    clean pull. ⚠️ The timeout is driven by patching `_wait`, not by waiting: the real bound is 20 s
+    (measured against a ring that answers FILE_LIST in 4.14 s), and a test that actually slept for it
+    would be the slowest in the suite for no added evidence."""
+    blob = _blob()
+    part = tmp_path / f"Wellue_O2Ring-S_{SESSION}_STORED.dat.part"
+    part.write_bytes(blob[:1024])
+    ring = FakeRing([SESSION], blob)
+    _install(monkeypatch, ring)
+
+    real_wait, refused = pull_session._wait, []
+
+    def _last_start_offset():
+        starts = [w for w in ring.writes if w[1] == oxyii.OP_FILE_START]
+        return int.from_bytes(starts[-1][7:-1][16:20], "little") if starts else None
+
+    async def flaky(q, op, timeout=20.0):
+        # Refuse the reply to the SEEK specifically — keyed on the offset actually written, not on a
+        # call count. The size-discovery START at 0 comes first (the reported size arrives in its
+        # reply, which is what `resume_strategy` needs), so "the first START wait" is the wrong
+        # target and refusing it tests nothing about the fallback.
+        if op == oxyii.OP_FILE_START and _last_start_offset() and not refused:
+            refused.append(op)
+            raise asyncio.TimeoutError()
+        return await real_wait(q, op, timeout)
+
+    monkeypatch.setattr(pull_session, "_wait", flaky)
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", True, None, "0000"))
+
+    offsets = [int.from_bytes(w[7:-1][16:20], "little")
+               for w in ring.writes if w[1] == oxyii.OP_FILE_START]
+    assert refused, "the test never exercised the unanswered-START path"
+    assert offsets == [0, 1024, 0], f"expected size-probe, seek, then re-serve from 0, got {offsets}"
+    out = tmp_path / f"Wellue_O2Ring-S_{SESSION}_STORED.dat"
+    assert out.exists(), sorted(os.listdir(tmp_path))
+    assert out.read_bytes() == blob, "the re-served file must be the whole recording, not a splice"
+
+
+def test_A_RESUMED_FILE_THAT_FAILS_VERIFICATION_IS_DISCARDED_NOT_COMMITTED(tmp_path, monkeypatch):
+    """🔴 THE ASYMMETRY THE UNIT IS BUILT ON. A resumed pull can produce a file of exactly the right
+    LENGTH whose middle is wrong, so length cannot be the check — and a `.part` that failed once must
+    not survive to be the input to the next resume, which could splice onto known-bad bytes and
+    verify by luck the second time.
+
+    The prefix here is genuine in SIZE and junk in CONTENT, which is precisely the shape no length
+    check can see."""
+    blob = _blob()
+    part = tmp_path / f"Wellue_O2Ring-S_{SESSION}_STORED.dat.part"
+    part.write_bytes(b"\xff" * 1024)            # right length, wrong bytes
+    _install(monkeypatch, FakeRing([SESSION], blob))
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", True, None, "0000"))
+
+    out = tmp_path / f"Wellue_O2Ring-S_{SESSION}_STORED.dat"
+    assert not out.exists(), "a file that failed verification must never be committed"
+    assert not part.exists(), "the bad .part must be DISCARDED, not left for the next resume to splice"
+
+    rows = inv.load_rows(str(tmp_path / "inventory.jsonl"))
+    failed = [r for r in rows if r.get("state") == inv.FAILED]
+    assert failed, f"the rejection must be on the record; states were {[r.get('state') for r in rows]}"
+    assert "resume rejected" in failed[-1].get("reason", ""), failed[-1]
+
+
+def test_A_PART_THAT_CANNOT_BE_REMOVED_STILL_LEAVES_THE_REJECTION_ON_THE_RECORD(tmp_path, monkeypatch):
+    """The discard is BEST-EFFORT and must stay that way. If the unlink fails (read-only mount, a
+    racing reader on Windows-ish semantics), the pull must not crash: the ledger row written just
+    above already says FAILED rather than PARTIAL, so the next pass re-serves regardless of whether
+    the bad bytes are still on disk. Swallowing the OSError is therefore the correct behaviour and
+    not a silent-failure defect — the outcome is recorded in the ledger, which is the channel that
+    can answer 'what happened to this session?'."""
+    blob = _blob()
+    part = tmp_path / f"Wellue_O2Ring-S_{SESSION}_STORED.dat.part"
+    part.write_bytes(b"\xff" * 1024)
+    _install(monkeypatch, FakeRing([SESSION], blob))
+
+    real_remove, blocked = os.remove, []
+
+    def refuse(path, *a, **kw):
+        if str(path).endswith(".part"):
+            blocked.append(path)
+            raise OSError(30, "Read-only file system")
+        return real_remove(path, *a, **kw)
+
+    monkeypatch.setattr(os, "remove", refuse)
+    _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", True, None, "0000"))
+
+    assert blocked, "the test never reached the discard"
+    assert not (tmp_path / f"Wellue_O2Ring-S_{SESSION}_STORED.dat").exists()
+    rows = inv.load_rows(str(tmp_path / "inventory.jsonl"))
+    assert [r for r in rows if r.get("state") == inv.FAILED], "the rejection must still be recorded"

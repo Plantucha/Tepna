@@ -73,7 +73,10 @@ def _hourly_cfg(retries=1):
 def _fake_pull(monkeypatch, result=None, raise_=None):
     calls = []
 
-    async def fake(dev, root, which="latest", ftype=0, *, trigger="manual"):
+    # Mirrors pull_oxyii_session's REAL signature: `resume` is keyword-only and replaced the dead
+    # `ftype` slot. A fake whose arity drifts from the real callee turns a signature break into a
+    # swallowed TypeError and an empty call list — which is how this stub failed when `resume` landed.
+    async def fake(dev, root, which="latest", *, resume=False, trigger="manual"):
         calls.append(trigger)
         if raise_ is not None:
             raise raise_
