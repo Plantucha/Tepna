@@ -163,6 +163,19 @@ def set_time_frame(dt, seq: int = 0) -> bytes:
 # printing bleak's PLACEHOLDER mtu_size (23 on BlueZ until a characteristic is acquired) plus a 6 s
 # timeout against a ~4.1 s FILE_LIST reply. Do not re-introduce an MTU precondition.
 OP_FILE_LIST, OP_FILE_START, OP_FILE_DATA, OP_FILE_END = 0xF1, 0xF2, 0xF3, 0xF4
+
+# 🔴 THE STORED FILE TYPE IS NOT A WIRE FIELD — IT SELECTS THE COMMAND FAMILY. Vendor SDK sources
+# (OxyII family; S8AW2100 — NOT gen-1 O2Ring) carry TWO transfer families over the same envelope:
+#
+#   oximetry store (type 0) → the OP_FILE_* block above, which is what this module has always spoken
+#   raw-PPG store  (type 1) → these four, which nothing here spoke until now
+#
+# So the long-standing advice "try a different --ftype" could never have worked: `ftype` was written
+# into a payload slot of the type-0 START frame (see `file_start_frame`), which is an OFFSET and is 0
+# in every vendor call. A different number there asks the SAME family for a different byte offset.
+# Reaching the PPG store needs different OPCODES, not a different argument.
+OP_PPG_FILE_LIST, OP_PPG_FILE_START = 0x06, 0x07
+OP_PPG_FILE_DATA, OP_PPG_FILE_END = 0x08, 0x09
 OP_GET_CONFIG, OP_GET_INFO, OP_GET_BATTERY = 0x00, 0xE1, 0xE4   # read-only device queries
 # ⚠️ NEVER IMPLEMENT — persistent DESTRUCTIVE writes. Named so the opcodes are not reused:
 #   0xE3 FACTORY_RESET     — wipes settings AND every recording; no settings-only path
@@ -180,8 +193,22 @@ OP_RT_PPG = 0x05          # raw TWO-CHANNEL optical buffer (see parse_rt_ppg + W
 def file_list_frame(seq: int = 0) -> bytes:
     return encode(OP_FILE_LIST, b"", seq)
 
-def file_start_frame(ts14: str, ftype: int = 0, seq: int = 0) -> bytes:
-    pl = ts14.encode("ascii")[:14].ljust(14, b"\x00") + b"\x00\x00" + int(ftype).to_bytes(4, "little")
+def file_start_frame(ts14: str, offset: int = 0, seq: int = 0, *, ftype: int | None = None) -> bytes:
+    """Open a type-0 (oximetry) stored file at `offset`.
+
+    ⚠️ THE TRAILING u32 IS AN OFFSET, NOT A FILE TYPE. It was named `ftype` here, and the whole
+    "try a different --ftype" folklore descends from that one wrong name: every value it was given
+    asked this SAME family to start reading at byte N. The vendor passes 0. `ftype=` survives as a
+    deprecated keyword that must be 0 — it RAISES on anything else rather than silently sending an
+    offset, because sending one quietly is exactly how the misreading lasted."""
+    if ftype is not None:
+        if int(ftype) != 0:
+            raise ValueError(
+                "file_start_frame(ftype=%r): `ftype` was always this frame's OFFSET, never a file "
+                "type — a non-zero value asks the oximetry family to start mid-file. The raw-PPG "
+                "store is a different COMMAND FAMILY (ppg_file_*_frame, opcodes 0x06-0x09)." % ftype)
+        offset = 0
+    pl = ts14.encode("ascii")[:14].ljust(14, b"\x00") + b"\x00\x00" + int(offset).to_bytes(4, "little")
     return encode(OP_FILE_START, pl, seq)
 
 def file_data_frame(offset: int, seq: int = 0) -> bytes:
@@ -189,6 +216,69 @@ def file_data_frame(offset: int, seq: int = 0) -> bytes:
 
 def file_end_frame(seq: int = 0) -> bytes:
     return encode(OP_FILE_END, b"", seq)
+
+
+# ── type 1 · the stored raw-PPG family (0x06-0x09) ───────────────────────────────────────────────
+# UNPROBED. These are built from vendor SDK sources and have never been sent to a ring: the first
+# probe is owner-authorised separately. They are here so the family EXISTS and is testable, not
+# because the wire behaviour is confirmed — do not read a passing test as a confirmed protocol.
+def ppg_file_list_frame(seq: int = 0) -> bytes:
+    """List stored raw-PPG files. Empty payload, exactly as the type-0 list is."""
+    return encode(OP_PPG_FILE_LIST, b"", seq)
+
+
+def ppg_file_start_frame(name16: bytes | str, seq: int = 0) -> bytes:
+    """Open a stored raw-PPG file by NAME — 16 bytes — with the trailing u32 offset at 0.
+
+    The name is 16 BYTES, not a timestamp string: type 0 addresses a file by its `YYYYMMDDhhmmss`
+    stamp, type 1 by whatever the list reply hands back. Truncating or padding to 16 here keeps the
+    frame well-formed whichever it turns out to be, and does not invent a format for it."""
+    raw = name16.encode("ascii") if isinstance(name16, str) else bytes(name16)
+    return encode(OP_PPG_FILE_START, raw[:16].ljust(16, b"\x00") + (0).to_bytes(4, "little"), seq)
+
+
+def ppg_file_data_frame(offset: int, seq: int = 0) -> bytes:
+    """Request the stored raw-PPG chunk at `offset` (u32 LE), as the type-0 data frame does."""
+    return encode(OP_PPG_FILE_DATA, int(offset).to_bytes(4, "little"), seq)
+
+
+def ppg_file_end_frame(seq: int = 0) -> bytes:
+    return encode(OP_PPG_FILE_END, b"", seq)
+
+
+#: Vendor SDK default for the stored raw-PPG rate. NOT a fallback — see `parse_ppg_file_header`.
+PPG_FILE_DEFAULT_RATE_HZ = 150
+#: Samples begin here in the stored-PPG header (vendor SDK).
+PPG_FILE_SAMPLE_OFFSET = 138
+#: `accuracy` sentinel → bytes per sample. All-ones at three widths, else one byte.
+_PPG_ACCURACY_BYTES = {0xFFFFFFFF: 4, 16777215: 3, 65535: 2}
+
+
+def parse_ppg_file_header(buf: bytes):
+    """Stored raw-PPG file header → `{sample_rate, sample_size, lead_size, sample_bytes}`, or None.
+
+    🔴 RETURNS None, NEVER A DEFAULT. The SDK's 150 Hz is what the vendor uses when it has a header;
+    substituting it for a header we could not read would manufacture a rate, and a fabricated rate is
+    the one error this corpus has paid for repeatedly — every duration, every epoch grid and every
+    export window downstream inherits it silently. `PPG_FILE_DEFAULT_RATE_HZ` is exported for a
+    caller that wants to COMPARE against the vendor default, not to stand in for a missing one.
+
+    Layout (vendor SDK sources, OxyII family): [16:18] u16 sample rate · [18:22] u32 sample count ·
+    [22] lead size · [35:39] u32 accuracy sentinel · samples from byte 138.
+
+    Implausible is refused as firmly as short: a zero rate, a rate past the Nyquist of anything this
+    hardware streams, or a zero sample count are not a header we understand, and reporting them as
+    one would put a number nobody can defend at the head of a decode."""
+    if not buf or len(buf) < 39:
+        return None                      # cannot even reach `accuracy`; there is nothing to report
+    rate = int.from_bytes(buf[16:18], "little")
+    size = int.from_bytes(buf[18:22], "little")
+    lead = buf[22]
+    acc = int.from_bytes(buf[35:39], "little")
+    if not (0 < rate <= 4000) or size <= 0:
+        return None
+    return {"sample_rate": rate, "sample_size": size, "lead_size": lead,
+            "sample_bytes": _PPG_ACCURACY_BYTES.get(acc, 1)}
 
 
 def parse_file_list(payload: bytes) -> list[str]:
@@ -430,7 +520,15 @@ def classify_auth_reply(payload: bytes | None) -> tuple[str, bytes | None, str]:
 # type rather than borrowing the handshake's.
 
 _MAX_PLAUSIBLE_DURATION_S = 7 * 24 * 3600  # a week; real ring sessions are hours
-_CONTACT_VALUES = (0x00, 0x01, 0x03)  # no finger, idle-present, file open
+# RtParam byte [5] `sensorState`, per vendor SDK sources (OxyII family — the S8AW2100 that this box
+# runs; NOT gen-1 O2Ring, whose byte means something else):
+#   0 = no finger / lead-off   1 = normal   2 = probe unplugged   3 = sensor or probe fault
+# ⚠️ Tepna read this as `(0, 1, 3)` labelled "no finger, idle-present, file open" until 2026-09-06,
+# which was wrong twice over: a 3 (probe FAULT) counted as WORN, and a 2 (probe unplugged) was outside
+# the enum entirely, so it fed `frame_looks_like_ciphertext` as evidence of encryption. All four are
+# in-enum now; only 1 is worn. Corpus-latent: 150.8M rows carry only 0 and 1, so no recorded night
+# changes — this is the first night with the right labels rather than a repair of past data.
+_CONTACT_VALUES = (0, 1, 2, 3)
 CIPHERTEXT_RUN = 5  # consecutive suspect frames before we call it
 
 
@@ -505,8 +603,16 @@ def parse_live(payload: bytes) -> dict | None:
 
     `[1]`=104 was never a constant: it is duration's second byte (104*256 ~ 7.4 h into a session), with
     the low byte ticking +1/s. `[10]`=199 (0xC7) is not a constant either; the SDK reads only bit 0.
-    `[14]` carries four 2-bit subfields the SDK parses but does not expose in RtParam — left unparsed
-    rather than surfaced under a name we cannot defend.
+    `[14]` carries four 2-bit subfields. ⚠️ CORRECTED 2026-09-06: vendor SDK sources show the OxyII
+    RtParam DOES expose all four (`&3` invalid-value state, `>>2` SpO2, `>>4` HR, `>>6` motion); the
+    earlier note here said the DTO discards them. **Tepna records the whole byte as `alarm_raw` since
+    2026-09-06** — raw and uninterpreted, because the byte is defensible and the per-field reading is
+    not yet; nothing here decodes it. Scope: OxyII family (O2Ring S / S8-AW / SF / SP; NOT the gen-1
+    O2Ring protocol).
+
+    Legends for the neighbouring raw columns, recorded once so no reader re-derives them:
+    `run_status` (payload[4]) 0 = prep · 1 = measure-prep · 2 = measuring · 3 = ended;
+    `batt_state` (payload[12]) 0 = normal · 1 = charging · 2 = full · 3 = low (<10 %).
     """
     if len(payload) < 14:
         return None
@@ -531,8 +637,12 @@ def parse_live(payload: bytes) -> dict | None:
         "batt": payload[13],
         "batt_state": payload[12],                     # 0 = not charging
         "run_status": payload[4],
-        "contact": contact,                            # 0x00 no finger, 0x01 idle-present, 0x03 file open
-        "worn": contact in (0x01, 0x03),
+        "contact": contact,                            # 0 lead-off · 1 normal · 2 probe unplugged · 3 fault
+        "worn": contact == 1,                          # ONLY 1; 2 and 3 are faults, not wear
+        # Byte [14]'s four 2-bit subfields (&3 invalid-IV state, >>2 SpO2 alarm, >>4 HR alarm,
+        # >>6 motion alarm), recorded RAW and uninterpreted — same discipline as `flag_raw`. None,
+        # never 0, when the frame is too short to carry it: an absent byte is not a quiet alarm.
+        "alarm_raw": payload[14] if len(payload) > 14 else None,
     }
 
 

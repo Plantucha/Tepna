@@ -240,7 +240,7 @@ def test_read_rssi_none_when_both_privilege_modes_fail(monkeypatch):
 def test_pull_session_main_parses_argv_and_drives_pull(monkeypatch):
     """Every argv value must reach pull() at the RIGHT POSITION, and every default must be the
     documented one. The previous version of this test recorded all seven arguments and asserted two
-    (address, which), so `out`, `ftype`, `adapter`, `serial` and `wait` were captured and discarded —
+    (address, which), so `out`, the offset, `adapter`, `serial` and `wait` were captured and discarded —
     the exact shape that leaves code unobservable while coverage still reads 100% because the line
     ran. Mutation testing found ~30 survivors here: every argparse default, both `type=int` casts,
     `required=True` on both mandatory flags, and six re-orderings of the positional call.
@@ -270,10 +270,14 @@ def test_pull_session_main_parses_argv_and_drives_pull(monkeypatch):
     # ── 2 · full argv: pins that each flag reaches its OWN position, not merely that some did ─────
     monkeypatch.setattr(_sys, "argv",
                         ["pull_session.py", "--address", "CC:DD", "--out", "/tmp/y",
-                         "--which", "all", "--ftype", "7", "--adapter", "hci1",
+                         "--which", "all", "--adapter", "hci1",
                          "--serial", "1234", "--wait", "45"])
     pull_session.main()
-    assert seen["args"] == ("CC:DD", "/tmp/y", "all", 7, "hci1", "1234", 45)
+    # ⚠️ POSITION 3 IS NOW A CONSTANT 0, not an argv value. `--ftype` is gone: it was never a file
+    # type, it was this frame's byte OFFSET, and the daemon has no reason to resume mid-file. The
+    # position is still pinned — a transposition moving another value into it would fail — but this
+    # test no longer proves that slot is WIRED to anything, because nothing selects it.
+    assert seen["args"] == ("CC:DD", "/tmp/y", "all", 0, "hci1", "1234", 45)
     # every value distinct above, so a transposition cannot pass by coincidence
     assert len(set(map(str, seen["args"]))) == 7
 

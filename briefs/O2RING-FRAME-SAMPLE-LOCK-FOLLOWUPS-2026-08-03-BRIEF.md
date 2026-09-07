@@ -197,7 +197,9 @@ parent brief's 126:1 lock a third independent way.
 
 **So "the ring is too jittery for PAT" is refuted, and §7.4's caveat is narrower than it was written.**
 
-### 5.3 · The ring has NO accelerometer — its route is constant-δ, not ACC  `[CODE]` `[CORPUS]`
+### 5.3 · ~~The ring has NO accelerometer~~ — STALE 2026-09-06; its route is constant-δ, not ACC  `[CODE]` `[CORPUS]`
+
+⚠️ **THE PREMISE IS STALE.** The ring DOES expose a 3-axis accelerometer (`AUTO_RT_ACC`, opcode `0x14`), and Tepna has recorded it in production since 2026-09-03 to `_ACCRAW.txt`. The section's CONCLUSION — that this route is constant-δ rather than ACC-derived — is unaffected and still stands; only the "no accelerometer" premise is wrong. Scope: OxyII family (O2Ring S / S8-AW / SF / SP; NOT the gen-1 O2Ring protocol).
 `tools/pat-matchrate-strict.mjs` aligns the two devices via **shared mechanical motion in both ACC
 streams**. The ring emits `SPO2` / `PPG` / `OXYFRAME` and **no ACC at all**, so that path can never run
 for an O2Ring↔H10 pair.
