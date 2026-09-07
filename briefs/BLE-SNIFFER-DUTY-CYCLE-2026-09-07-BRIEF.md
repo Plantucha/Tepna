@@ -25,8 +25,12 @@ Consecutive files, first and last packet, 2026-09-07:
 | `air-20260907-0136` | 01:36:55 | 01:43:06 | 371 s | 543 s unobserved |
 | `air-20260907-0151` | 01:51:56 | 01:58:02 | 366 s | 530 s unobserved |
 
-**Mean duty cycle 40.3 %, range 34.7–45.1 %, n = 14.** Of 40 files inspected across the day, **2**
-spanned more than 600 s. Every capture *starts* on schedule, so this is not a scheduling fault.
+**Mean duty cycle 40.3 %, range 34.7–45.1 %, n = 14 — but those 14 files are 00:06–03:21 only.**
+Re-measured over **28 files spanning the whole day** with `ble_sniff.py --expect-seconds 900` (§5.3):
+spans **311–570 s**, i.e. the deficit is present in every file and varies about **2×** across the day —
+the table above sampled one part of the night, the same error as quoting a cadence without its window.
+**28 of 28 fail the tool's own 80 % floor; zero pass.** Of 40 files inspected, **2** spanned more than
+600 s. Every capture *starts* on schedule, so this is not a scheduling fault.
 
 ## 2 · Mechanism — it does NOT hang, it falls behind
 
@@ -89,15 +93,23 @@ its subject, and returned a confident number.
 2. **Reduce the input.** §4 measured ~60 % of captured packets as SCAN_REQs from neighbours' scanners.
    If the sniffer can filter those at the device or in the extcap, the drain may fit inside real time.
    This is a hypothesis with a mechanism, not a diagnosis — the CPU cost per packet class is unmeasured.
-3. **Surface the deficit.** The failure is silent: a full-looking file, no error, no gap in the file
-   *names*. A one-line check per file — `last_packet − first_packet` against the rotation period —
-   turns it into an observation. That is the cheapest item here and does not require fixing the cause.
+3. **Run the audit that already exists.** The failure is silent: a full-looking file, no error, no gap
+   in the file *names*. The per-file check was **built four days before this brief** —
+   `capture-host/ble_sniff.py` reports `capture span`, takes `--expect-seconds`, holds
+   `WINDOW_MIN_FRACTION = 0.8`, and separates `--ran-full-window` from `--exited-early`; on this
+   morning's `air-20260907-0006` it prints `AIR AUDIT: FAILED — window: captured 566.3 s of 900 s
+   expected — the sniffer died 334 s early`. Its module header names this brief's F2 as the defect it
+   was written for. **The gap is that nothing runs it**: 28 of 28 captures today fail it, and the tool
+   has surfaced nothing because no invocation exists. Wiring one — per file or per morning — is three
+   lines plus a decision about WHERE the verdict lands, and that destination is the owner's call
+   (it changes how the box reports). *(This item first read "write a one-line check"; the check
+   existed — found by the pickup search, not by grep.)*
 4. **Do not wrap or restart the launcher** without the owner. The capture is running unattended
    overnight and a wrapper that restarts on stall would change what the corpus contains mid-collection.
 
 ## Done when
 
-- [ ] The duty-cycle deficit is either fixed or reported per file, so no future reader takes a pcap's
-      span for its window.
+- [ ] The duty-cycle deficit is either fixed or `ble_sniff.py`'s window audit RUNS on every file and its
+      verdict lands where a human sees it, so no future reader takes a pcap's span for its window.
 - [ ] §4's air-census claims carry the bound (a pointer line is added by this brief's PR).
 - [ ] The mechanism is named at the code level, not just at the throughput level.
