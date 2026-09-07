@@ -475,6 +475,67 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
         return saved_paths
 
 
+
+async def probe_ppg_list(address, adapter=None, serial="0000"):
+    """FIRST CONTACT with the stored raw-PPG family (0x06-0x09): send LIST, record what comes back.
+
+    A PROBE, not a pull. It sends exactly ONE family frame — `ppg_file_list_frame()`, cmd 0x06 — and no
+    START/DATA/END, so nothing is read off flash and nothing on the device is altered. Never 0xE3/0xEE.
+
+    ⚠️ IT DOES NOT PARSE THE REPLY, and that is the point. `oxyii` has `parse_file_list` for the OXY
+    family and nothing for this one, because the layout has never been observed — this is the run that
+    observes it. Interpreting the bytes with the oxy parser would manufacture a "confirmed protocol" out
+    of an assumption, which is the exact collapse the dry-path guard exists to prevent. So: raw hex,
+    length, and the opcode that answered. A parser comes AFTER someone reads this output.
+
+    The auth + setup preamble mirrors the live flow, as `pull` does — the daemon sends the same two
+    frames on every connect, so they are the ordinary way to open a session, not an escalation."""
+    # `bluez={"adapter": ...}`, NOT the bare `adapter=` kwarg: bleak shims the latter today with a
+    # warning, and when the shim goes it will be SWALLOWED rather than raise — the pin would vanish
+    # silently and the probe would quietly use the wrong radio. `test_no_bare_bleak_adapter_kwarg`
+    # gates this, and caught exactly that in the first draft of this function.
+    kw = {"bluez": {"adapter": adapter}} if adapter else {}
+    device = await BleakScanner.find_device_by_address(address, timeout=10.0, **kw)
+    if device is None:
+        print(f"probe: {address} is not advertising — nothing to probe", flush=True)
+        return None
+    q: asyncio.Queue = asyncio.Queue()
+    reasm = oxyii.Reassembler()
+    seen: list = []
+
+    def on_notify(_h, data):
+        for frame in reasm.feed(bytes(data)):
+            r = oxyii.decode(frame)
+            if r:
+                seen.append(r)
+                q.put_nowait(r)
+
+    async with BleakClient(device, timeout=oxy_power.TIMEOUTS.connect_s, **kw) as client:
+        await client.start_notify(oxyii.OXYII_NOTIFY, on_notify)
+        await client.write_gatt_char(oxyii.OXYII_WRITE, oxyii.auth_frame(serial), response=False)
+        await asyncio.sleep(0.5)
+        await client.write_gatt_char(oxyii.OXYII_WRITE, oxyii.setup_frame(), response=False)
+        await asyncio.sleep(0.5)
+        frame = oxyii.ppg_file_list_frame()
+        print(f"probe: sending cmd 0x{oxyii.OP_PPG_FILE_LIST:02x} LIST  {frame.hex()}", flush=True)
+        seen.clear()
+        await client.write_gatt_char(oxyii.OXYII_WRITE, frame, response=False)
+        # Collect for a fixed window rather than awaiting ONE opcode: an unprobed family may answer with
+        # an opcode we do not predict, or not at all, and "nothing came back" is itself the finding.
+        await asyncio.sleep(8.0)
+        await client.stop_notify(oxyii.OXYII_NOTIFY)
+
+    live = sum(1 for op, _ in seen if op == oxyii.OP_LIVE)
+    other = [(op, pl) for op, pl in seen if op != oxyii.OP_LIVE]
+    print(f"probe: {len(seen)} frame(s) in 8 s — {live} live (0x04), {len(other)} other", flush=True)
+    for op, pl in other:
+        print(f"  op=0x{op:02x}  len={len(pl)}  {pl.hex()}", flush=True)
+    if not other:
+        print("  NO non-live reply — the ring ignored cmd 0x06, or answers on a channel we do not read",
+              flush=True)
+    return other
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--address", required=True)
@@ -490,7 +551,17 @@ def main():
     ap.add_argument("--adapter", default=None, help="BlueZ adapter e.g. hci1 (omit = default)")
     ap.add_argument("--serial", default="0000")
     ap.add_argument("--wait", type=int, default=0, help="seconds to keep retrying if the ring is asleep")
+    # THE GUARD BELOW STAYS THE DEFAULT. This flag is the owner-authorised first contact and nothing
+    # else: it sends ONE frame (cmd 0x06 LIST) and records the raw reply. Deleting the refusal instead
+    # of gating past it would make every future `--family ppg` run a live probe by accident, which is
+    # what the refusal was written to prevent.
+    ap.add_argument("--probe-ppg-list", action="store_true",
+                    help="OWNER-AUTHORISED FIRST CONTACT: send cmd 0x06 LIST to the raw-PPG family and "
+                         "print the raw reply. Sends no START/DATA/END; writes nothing to the ring")
     a = ap.parse_args()
+    if a.probe_ppg_list:
+        asyncio.run(probe_ppg_list(a.address, a.adapter, a.serial))
+        raise SystemExit(0)
     if a.family == "ppg":
         # DRY PATH ONLY. The frames exist and are tested; nothing has ever sent them to a ring, and
         # the first probe is owner-authorised separately. Refusing here keeps "the code exists" and
