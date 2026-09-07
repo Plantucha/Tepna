@@ -304,3 +304,47 @@ def test_pull_session_main_requires_address_and_out(monkeypatch, missing):
         pull_session.main()
     assert e.value.code == 2, "argparse exits 2 on a missing required flag"
     assert not called, "pull() must not run when a required flag is absent"
+
+
+def test_pull_session_main_routes_the_ppg_probe_and_leaves_pull_UNTOUCHED(monkeypatch):
+    """`--probe-ppg-list` is the owner-authorised first contact with the raw-PPG family, and it must
+    reach `probe_ppg_list` with the argv values at the right positions — while `pull()` is never
+    called. Routing it into the ordinary pull would send FILE_START frames to an unprobed family,
+    which is the one thing the dry-path guard exists to prevent."""
+    seen = {}
+
+    async def fake_probe(*a, **k):
+        seen["args"], seen["kwargs"] = a, k
+        return []
+
+    def boom_pull(*a, **k):
+        raise AssertionError("the probe path must NOT drive pull()")
+
+    monkeypatch.setattr(pull_session, "probe_ppg_list", fake_probe)
+    monkeypatch.setattr(pull_session, "pull", boom_pull)
+    import sys as _sys
+    monkeypatch.setattr(_sys, "argv",
+                        ["pull_session.py", "--address", "EE:FF", "--out", "/tmp/z",
+                         "--adapter", "hci1", "--serial", "4321", "--probe-ppg-list"])
+    with pytest.raises(SystemExit) as exc:
+        pull_session.main()
+    assert exc.value.code == 0, "a completed probe exits clean"
+    assert seen["args"] == ("EE:FF", "hci1", "4321"), \
+        "argv -> probe_ppg_list must preserve (address, adapter, serial)"
+
+
+def test_pull_session_main_still_REFUSES_family_ppg_without_the_probe_flag(monkeypatch):
+    """The guard stays the default. Without `--probe-ppg-list`, `--family ppg` prints what it WOULD
+    send and exits without connecting — so an ordinary run can never become a live first contact by
+    accident, which is what deleting the guard would have allowed."""
+    def boom(*a, **k):
+        raise AssertionError("nothing may reach the ring on the dry path")
+    monkeypatch.setattr(pull_session, "pull", boom)
+    monkeypatch.setattr(pull_session, "probe_ppg_list", boom)
+    import sys as _sys
+    monkeypatch.setattr(_sys, "argv",
+                        ["pull_session.py", "--address", "EE:FF", "--out", "/tmp/z",
+                         "--family", "ppg", "--list"])
+    with pytest.raises(SystemExit) as exc:
+        pull_session.main()
+    assert exc.value.code == 0
