@@ -223,9 +223,15 @@ def night_view(session, files) -> "dict | None":
         st = f.get("session")
         if st is None:
             continue
-        dur = float(f.get("span_sec") or 0.0)
+        # `or 0.0` here would collapse UNKNOWN into ZERO — precisely what `file_span_sec`'s contract
+        # forbids ("Callers must treat None as unknown, never as zero"). The two are the same arm in
+        # this function, because a file whose span we cannot measure has to be placed SOMEWHERE and a
+        # point at its start stamp is the only defensible choice — but they are separated here so the
+        # distinction survives, and so a future caller reading this does not learn the wrong idiom.
+        raw = f.get("span_sec")
+        dur = 0.0 if raw is None else float(raw)
         if dur <= 0:
-            rows += f["rows"] if b0 <= st < b1 else 0.0      # a zero-span file is a point in time
+            rows += f["rows"] if b0 <= st < b1 else 0.0      # unknown or zero span ⇒ a point in time
             continue
         rows += f["rows"] * _overlap(st, st + dur, b0, b1) / dur
     total = sum(f["rows"] for f in files)
@@ -297,7 +303,24 @@ _NOMINAL_HZ = {
     # O2Ring ppg is the observed ROW rate (~125.7), NOT the 125.000 ADC clock: the file counts one row per
     # sample PLUS one per inserted `156` beat marker, and a coverage figure divides ROW count by span — so
     # the honest denominator here is the row rate. DEVICE-RATE-TRUTH §2; distinct from capture.O2PPG_FS_DEFAULT.
-    "O2Ring": {"spo2": 1, "ppg": 125.738},
+    # O2Ring `acc` is the RECORD rate (~9.979), and that is deliberate for the same reason `ppg` above
+    # is a row rate: `measured_hz` reads rows off the file and `_expected_hz` is what it is compared
+    # against, so a denominator that is not the row rate reports a healthy stream as mismatched. The
+    # ring's ACC is a ZERO-ORDER HOLD — it MEASURES at 1.5625 Hz and the capture path writes 10 Hz
+    # records, so ~84 % of records repeat the previous value (measured over two nights: record rate
+    # 9.979–10.000, distinct-value rate 1.562–1.565, 6.387–6.396 records per distinct value = 32/5).
+    # Coverage asks "did the stream keep arriving", which the record rate answers. Anything asking
+    # "how much was MEASURED" — epoch grids, independent-sample counts, information content — must use
+    # `_MEASUREMENT_HZ` below instead, or it is 6.4x wrong.
+    "O2Ring": {"spo2": 1, "ppg": 125.738, "acc": 9.979},
+}
+
+# The rate at which a device actually MEASURES, where that differs from the rate it emits records at.
+# Separate from `_NOMINAL_HZ` on purpose: they answer different questions and conflating them is the
+# defect this table exists to prevent. Absent ⇒ the two are the same and the record rate is the
+# measurement rate. NEVER use this as a coverage denominator against a row count.
+_MEASUREMENT_HZ = {
+    "O2Ring": {"acc": 1.5625},
 }
 
 # Below this fraction of the expected rows a stream that DID produce data is still "degraded" — the trickle
@@ -328,6 +351,27 @@ def _recognised_model(dev: dict):
         if any(m in blob for m in marks):
             return name
     return None
+
+
+def measurement_hz(dev: dict, stream: str):
+    """The rate this device MEASURES `stream` at, when that differs from the rate it writes records.
+
+    The O2Ring's ACC is the case this exists for: it measures at 1.5625 Hz and the capture path writes
+    ~10 Hz records, so 84 % of records are a zero-order hold of the previous value. That is the §7
+    DRAWN-AXIS shape and NOT the §∅ absence shape — the held value is real data at a real, lower rate,
+    so it must not be recorded as absence, and a run-length rule keyed on constant runs would convict
+    the device for working as designed (99.8 % of its runs are length 6 or 7).
+
+    None ⇒ no separate measurement rate is known, so the record rate IS the measurement rate. A caller
+    computing independent samples, an epoch grid or information content must use this and not
+    `_expected_hz`; a caller computing coverage must use `_expected_hz` and not this."""
+    dev_rate = (dev.get("measurement_rates") or {}).get(stream)
+    if dev_rate:
+        return float(dev_rate)
+    model = _recognised_model(dev)
+    if model is None:
+        return None
+    return _MEASUREMENT_HZ.get(model, {}).get(stream)
 
 
 def _expected_hz(dev: dict, stream: str):
@@ -523,6 +567,7 @@ def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
             # hundred rows cannot settle a rate, and would report a spurious mismatch
             path = max((os.path.join(night_dir, n) for n in cand), key=lambda p: _size(p))
             got = measured_hz(path)
+            meas = measurement_hz(dev, stream)
             ok = None
             if got is not None and want:
                 ok = bool(abs(got - want) <= _RATE_MISMATCH_TOL * want)
@@ -532,6 +577,13 @@ def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
                 "requested_hz": want,
                 "measured_hz": None if got is None else round(got, 2),
                 "matches_config": ok,
+                # Where a device MEASURES more slowly than it emits records, the two rates are reported
+                # side by side and the ratio is named. Without this a reader has only the record rate
+                # and no way to know that 6.4 of every 7 rows repeat the previous value — the ring's
+                # ACC writes ~9.979 Hz records from a 1.5625 Hz sensor. `held_ratio` is records per
+                # measurement: 1.0 (or None) means every record is its own measurement.
+                "measurement_hz": meas,
+                "held_ratio": None if not (meas and want) else round(want / meas, 3),
             })
     return out
 
@@ -620,7 +672,15 @@ def file_span_sec(path: str) -> float | None:
     for line in reversed(tail):
         last = _ns_at(line, idx)
         if last is not None and last >= first:
-            return (last - first) / 1e9
+            span = (last - first) / 1e9
+            # A span of EXACTLY zero is not a duration, it is a column that never moved — the shape a
+            # stream with no device clock leaves behind (the three O2Ring raw-buffer opcodes wrote a
+            # literal 0 on every row until 2026-09-07). Returning 0.0 hands the caller a measurement
+            # of no elapsed time; None says the file cannot answer, which is the truth and is what
+            # every caller is documented to expect. Kept for a BLANK column too — `_ns_at` returns
+            # None there, so first is None and we never reach here — this guards the legacy files
+            # already on disk, which will carry literal zeros forever.
+            return span if span > 0 else None
     return None
 
 
