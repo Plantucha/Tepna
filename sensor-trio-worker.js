@@ -851,15 +851,19 @@ function ppgHrMapReal(text, onPhase) {
       self.__ppgErr = 'buildPPI <20';
       return null;
     }
+    /* ⚠️ `corr.tt`, NOT `b.tt`. Since punch list #2, `correctRR` EXCLUDES rejected intervals rather
+       than filling them, so `nn` is the kept subset and is SHORTER than the input. Pairing it with
+       the input's `b.tt` by index would silently misalign every beat after the first rejection — and
+       `flags` is still INPUT-aligned, so the old `if (fl[i]) continue` would skip the wrong entries.
+       Both are fixed here: take the corrected time axis, and drop the skip because the corrector has
+       already removed what it rejected. */
     var corr = PPGDSP.correctRR(b.rr, b.tt),
       nn = corr.nn,
-      tt = b.tt,
-      fl = corr.flags || [],
+      tt = corr.tt,
       t0 = rec.t0Ms || 0,
       pairs = [],
       i;
     for (i = 0; i < nn.length; i++) {
-      if (fl[i]) continue;
       var hr = 60000 / nn[i];
       if (!(hr >= HR_MIN && hr <= HR_MAX)) continue;
       pairs.push([secFloor(t0 + tt[i] * 1000), hr]);

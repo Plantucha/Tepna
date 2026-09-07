@@ -2201,19 +2201,33 @@
       if (v < 300 || v > 2000) bad = true;
       else if (Math.abs(v - ref) / ref > PPI_ECTOPY_THR) bad = true; // >30% off the local median
       if (bad) {
-        v = ref;
+        /* 🔴 EXCLUDE, NEVER FILL (punch list #2, owner-approved 2026-09-06). This used to do
+           `v = ref` — replace the rejected interval with the running median of the last 7 accepted —
+           and push it, so a FABRICATED value entered `nn` and flowed into SDNN, LF/HF, DFA-α1,
+           SampEn, CVHR, the epochs and `contentId`. At the file's own 28.8 % correction rate that is
+           roughly 29 % of the exported series being a filled constant presented as measurement.
+           A rejected interval is now DROPPED. The series gets shorter and honest; `tt` carries the
+           real times of what survived, so the tachogram stays correctly placed in time rather than
+           uniformly spaced by construction. */
         nCorr++;
         runBad++;
         flags.push(1);
-      } else {
-        accepted.push(v);
-        runBad = 0;
-        flags.push(0);
+        continue;
       }
+      accepted.push(v);
+      runBad = 0;
+      flags.push(0);
       out.push(v);
       ot.push(tt[i]);
     }
-    return { nn: out, tt: ot, nCorr, flags };
+    /* ⚠️ DELIBERATE ASYMMETRY, and it is a footgun if you do not read it: `flags` is INPUT-aligned
+       (one entry per interval handed in, 1 = rejected) while `nn`/`tt` are the KEPT SUBSET. So
+       `flags[i]` does NOT index `nn[i]` — zipping them silently misaligns, which is exactly what
+       `sensor-trio-worker.js` did before this change and why it was migrated in the same commit.
+       flags stays input-aligned because `tools/beat-error-recovery.mjs` scores it against per-input
+       labels (precision/recall); an output-aligned flags would be all zeros and useless there.
+       `nDropped` is additive so a consumer can see the exclusion without recomputing it. */
+    return { nn: out, tt: ot, nCorr, flags, nDropped: nCorr };
   }
   // CVHR — Cyclic Variation of Heart Rate (Hayano), the autonomic cardiac correlate of
   // apnea/hypopnea recovery. OXYDEX-PULSE-RESOURCING §Phase 4: a FINGER PPG capture is the O2Ring's
@@ -5344,16 +5358,26 @@
           ms: r.nn.map(function (v) {
             return Math.round(v);
           }),
-          /* WHICH INTERVALS ARE MEASUREMENTS. 1 = interpolated by correctRR, not observed. Without it
-             the series mixes the two and a consumer cannot tell — and rMSSD over interpolated beats is
-             not a measurement of anything. This one is not hypothetical here: the first four PPI of a
-             real night read 1190, 1190, 1190, 1190 — the running median, not four identical heartbeats. */
-          corrected:
-            r.ppiFlags && r.ppiFlags.length === r.nn.length
-              ? Array.prototype.map.call(r.ppiFlags, function (f) {
-                  return f ? 1 : 0;
-                })
-              : null,
+          /* WHICH INTERVALS ARE MEASUREMENTS. 1 = interpolated, not observed.
+             ↻ SINCE PUNCH LIST #2 THIS IS INVARIANTLY ZERO, and that is the fix rather than a
+             regression. `correctRR` no longer interpolates a rejected interval — it EXCLUDES it — so
+             the emitted series contains no fabricated beat and the mask's original job ("tell the two
+             apart, because rMSSD over interpolated beats is not a measurement of anything") is now
+             done BY CONSTRUCTION. The example that motivated it was real: the first four PPI of a
+             real night read 1190, 1190, 1190, 1190 — the running median, not four identical
+             heartbeats. Those intervals are simply absent now.
+             The field is KEPT rather than dropped: it is a published contract, a consumer that
+             branches on it still gets a correct and aligned answer, and a future path that
+             reintroduces interpolation would have somewhere honest to say so. How many were refused
+             is reported separately by `quality.correctionRatePct` / `correctRR().nDropped`.
+             ⚠️ It is built from `nn`, NOT from `ppiFlags`: flags stay INPUT-aligned (see correctRR's
+             return note) so `ppiFlags.length !== nn.length` after any rejection, and the old
+             length-guard here — correctly — refused to emit a misaligned mask and returned `null`.
+             That guard is what caught this change in `verify-fixtures` rather than in the corpus-less
+             suite, which cannot see it. */
+          corrected: r.nn.map(function () {
+            return 0;
+          }),
           /* HOW MUCH TO TRUST EACH BEAT — the fused-weight hat's `c` (TCH-FUSED-ROBUST-HAT).
              density × SQI vs the record's own medians, AF-safe; low only where beat-density is an
              upper outlier AND SQI is depressed — i.e. residual optical over-detection (the dicrotic
