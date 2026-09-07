@@ -2341,6 +2341,26 @@ _STREAM_ANNOTATIONS = {
     "PPG2W": (156,),
 }
 _CLASS_B_TAGS = ("PPG", "PPG2W", "ECG")
+# Columns that are NOT WAVEFORMS, by capture FORMAT — the third term the detector needs beside
+# sample and annotation. A status or orientation column travels in the same row as the samples
+# and is not one: PPG2W's `motion` is the ring's u8 stillness byte, whose CORRECT reading — `0`,
+# still — is a rail by every distributional test, and ECG's `timestamp [ms]` is a device axis.
+# Both were being scanned because the reader took every column after the two stamps by POSITION;
+# measured 2026-09-07 on the 2026-09-06 night, `ppg2w:ch2` carried 156 spans and a 700,409-sample
+# run on a file whose two real channels were clean, and the H10's ECG was labelled `ecg:ch1`
+# behind its own timestamp. Declared by header NAME, never by position, so a format that gains a
+# column cannot silently become a waveform. Like `_STREAM_ANNOTATIONS` this is a property of the
+# format knowable in advance, not a value list; and it is a DENYLIST on purpose — a forgotten
+# status column over-flags, whereas a forgotten waveform in an allowlist would go unscanned.
+_NON_WAVEFORM_COLUMNS = frozenset({
+    "Phone timestamp", "sensor timestamp [ns]", "timestamp [ms]", "motion", "beat",
+})
+
+
+def _waveform_columns(header: str) -> tuple:
+    """`((index, name), …)` of the columns a class-B scan reads, from the file's own header row."""
+    names = [h.strip() for h in header.rstrip("\n").split(";")]
+    return tuple((i, n) for i, n in enumerate(names) if n and n not in _NON_WAVEFORM_COLUMNS)
 
 
 def class_b_quality(night_dir: str, *, emit=None) -> list:
@@ -2356,6 +2376,11 @@ def class_b_quality(night_dir: str, *, emit=None) -> list:
 
     Rows that do not parse are SKIPPED, not fatal: a mid-file repeated header is a real rotation
     artifact and one torn row must not erase a session's verdict.
+
+    The columns scanned are chosen from the file's OWN header by name (`_NON_WAVEFORM_COLUMNS`), and
+    the block records them as `columns` so a `<stream>:chN` row is resolvable to a column name: `chN`
+    indexes `columns`, not the file. A file whose header names no waveform column is skipped with a
+    warning — absent, not clean.
     """
     out = []
     for name in sorted(os.listdir(night_dir) if os.path.isdir(night_dir) else []):
@@ -2364,15 +2389,21 @@ def class_b_quality(night_dir: str, *, emit=None) -> list:
             continue
         tag = parsed[0]
         records = []
+        columns: tuple = ()
+        width = 0
         try:
             with open(os.path.join(night_dir, name), "r", encoding="utf-8", errors="replace") as fh:
-                fh.readline()                       # header
+                for line in fh:
+                    if not line.startswith("#"):    # `# timebase=…` precedes the header on box files
+                        columns = _waveform_columns(line)
+                        width = len(line.rstrip("\n").split(";"))
+                        break
                 for line in fh:
                     parts = line.rstrip("\n").split(";")
-                    if len(parts) < 3:
+                    if len(parts) != width:
                         continue
                     try:
-                        cols = tuple(int(float(p)) for p in parts[2:])
+                        cols = tuple(int(float(parts[i])) for i, _ in columns)
                     except ValueError:
                         continue      # a torn row is expected at a live file's tail and a repeated
                                       # mid-file header is a real rotation artifact; the spans are
@@ -2383,11 +2414,18 @@ def class_b_quality(night_dir: str, *, emit=None) -> list:
             log.warning("night-QC: %s is unreadable, so its class-B quality is ABSENT rather than "
                         "clean — the two must not read alike", name, exc_info=True)
             continue
-        if len(records) < _CLIP_MIN_RUN:
+        if width and not columns:
+            log.warning("night-QC: %s names no waveform column in its header, so its class-B quality "
+                        "is ABSENT rather than clean", name)
             continue
+        if len(records) < _CLIP_MIN_RUN:
+            continue        # includes a file with no header yet — a 0-byte open capture (seen on
+                            # the box: a Verity session file 30 s old), which is too few rows, not
+                            # a malformed header, and is not worth a warning per scan
         block = class_b_runs(records, stream=tag.lower(),
                              annotations=_STREAM_ANNOTATIONS.get(tag, ()), emit=emit)
         block["file"] = name
+        block["columns"] = [n for _, n in columns]
         out.append(block)
     return out
 
