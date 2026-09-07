@@ -14,7 +14,7 @@
 A fleet of local-only, single-signal physiological analyzers. No upload. No accounts. No network.
 
 [![Live at tepna.net](https://img.shields.io/badge/live-tepna.net-2a6fdb?style=for-the-badge)](https://tepna.net)
-[![Suite v2.9.0](https://img.shields.io/badge/suite-v2.9.0-2a6fdb?style=for-the-badge)](CHANGELOG.md)
+[![Suite v2.10.0](https://img.shields.io/badge/suite-v2.10.0-2a6fdb?style=for-the-badge)](CHANGELOG.md)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a6fdb?style=for-the-badge)](LICENSE)
 [![DOI](https://zenodo.org/badge/1286425809.svg)](https://doi.org/10.5281/zenodo.22068939)
 
@@ -24,7 +24,7 @@ A fleet of local-only, single-signal physiological analyzers. No upload. No acco
 [![Every metric graded](https://img.shields.io/badge/every_metric-evidence_graded-8a5cf6)](#the-evidence-ladder-every-metric-is-graded)
 [![Reproducible](https://img.shields.io/badge/every_paper-regenerates_from_its_tool-8a5cf6)](papers/papers.html)
 ![Nodes](https://img.shields.io/badge/nodes-8_live_%C2%B7_1_planned-555)
-![Releases](https://img.shields.io/badge/releases-35_shipped-555)
+![Releases](https://img.shields.io/badge/releases-36_shipped-555)
 
 **[tepna.net](https://tepna.net)**  ·  [github.com/Plantucha/Tepna](https://github.com/Plantucha/Tepna)
 
@@ -75,14 +75,14 @@ engineering constraint — is [`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.m
 
 ## 📊 Suite at a glance
 
-**Suite version:** 2.9.0 &nbsp;—&nbsp; **35** ledger-backed releases, each computed from a green tree, with **142 changesets** pending since (20 minor · 121 patch · 0 major — the next cut is a MINOR).
+**Suite version:** 2.10.0 &nbsp;—&nbsp; **36** ledger-backed releases, each computed from a green tree, with **0 changesets** pending since (the tree is exactly the release).
 
 | | |
 |---|---|
 | 🧠 **Analyzers** | **8 live** single-signal nodes · **1 planned** (EEGDex) |
 | 🔀 **Fusion** | **Integrator** (cross-signal) + 2 ingest front doors — **Data Unifier** · **OverDex** — all live |
-| 🧪 **Tests** | **9,124 assertions** across **583 groups**, run as **6 partitioned CI shards** — green on every push |
-| 🐍 **Capture lane** | the **Health Box** (`capture-host/`) — **6,500+ Python tests** at a **100 % statement *and* branch** coverage floor |
+| 🧪 **Tests** | **9,186 assertions** across **587 groups**, run as **6 partitioned CI shards** — green on every push |
+| 🐍 **Capture lane** | the **Health Box** (`capture-host/`) — **6,800+ Python tests** at a **100 % statement *and* branch** coverage floor |
 | 🛡️ **CI gates** | 8 required on every PR — `no-network` · `tests` · `types` · `biome` · `capture-host` (py3.12 · py3.13) · `browser-gates` · `stale-file` — plus `CodeQL`, a diff-scoped **mutation** run and the `static` ledger job; the privacy claim is **enforced, not asserted** |
 | 🎫 **Honesty** | every surfaced number carries an **evidence grade** — nothing ships unlabelled |
 | 🔬 **Reproducible** | every preprint **regenerates from its live tool**; every bundle is **content-addressed** |
@@ -104,7 +104,7 @@ engineering constraint — is [`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.m
 > refuses rather than guesses: an O2Ring axis that turned out to be **drawn** — synthesized from a
 > sample index, not a clock — is now detected and declared as such instead of being silently trusted.
 >
-> **Since `2.9.0` (2026-08-30 → 2026-09-06, 296 commits, 142 changesets).** The mutation program now
+> **In `2.10.0` (2026-08-30 → 2026-09-07, 354 commits, 160 changesets).** The mutation program now
 > covers all **nine DSP modules — 9,388 mutants, 50 % killed**, published per file in
 > [`docs/MUTATION-INVENTORY.md`](docs/MUTATION-INVENTORY.md) rather than as one headline. The capture
 > lane got a **power-aware BLE lifecycle** for the O2Ring (an explicit 12-state machine; presence
@@ -113,7 +113,7 @@ engineering constraint — is [`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.m
 > pleth stream is decoded and measured at **125.058 Hz** (the 125 Hz ADC to 0.05 % — the earlier 112.9 Hz
 > figure did not reproduce), and PpgDex now reads the ring's raw dual-wavelength `_PPG2W.txt`. BLE
 > identity is **address-only** throughout; a nightly sniffer audit of the box's own air is in service
-> (and honest about its ≈40 % window coverage). The clock work found a harder case than drift — a device
+> (and honest about its ≈50 % window coverage). The clock work found a harder case than drift — a device
 > counter **stepping 7.66 years mid-night** across a resync, now handled as *one device clock per axis*.
 > Two metrics were **re-tiered down** on measurement (ACC-derived respiration, EDR) and the open-defect
 > ledger moved to one row per verified defect in [`briefs/RESIDUE.md`](briefs/RESIDUE.md).
