@@ -1442,6 +1442,366 @@ def ppg2w_contact_quality(night_dir: str) -> list:
     return out
 
 
+_CLIP_MIN_RUN = 5               # the shortest plateau REPORTED. It is a sensitivity knob only, and
+                                # measurably not a specificity one: the clean-stream control yields 0
+                                # regions at min_run 5, 6 and 8 alike, because `rail_value` rejects an
+                                # unqualified rail before this is ever consulted. So raising it buys
+                                # nothing and costs real events.
+                                # ⚠️ IT COSTS DAMAGE, and the curve is why it is 5 and not 8. Magpie
+                                # measured the excursion a pin puts into the bandpassed signal against
+                                # the clean signal's own sd (2026-09-06):
+                                #     len  1 →  5.7x     20 → 40.2x (peak)
+                                #     len  5 → 25.4x     40 → 33.1x
+                                #     len 10 → 38.6x     94 → 22.1x
+                                # A 5-sample pin is a 25x-sd excursion — comparable to a 94-sample one
+                                # at 22x — so a "tidy" raise to 8 silently drops 9 spans on 045318 that
+                                # do real damage. Do not raise this without re-measuring that curve.
+_PLATEAU_LSB = 1                # a rail plateau flickers by one quantisation step, so the region is
+                                # NEAR-constant, not constant. Measured 2026-09-06 on the ring: exact
+                                # equality split one ceiling population into 118 regions at 200 and 81
+                                # at 199 and would have reported one plateau as two findings.
+_RAMP_SAMPLES = 6               # samples either side used to read the approach. One ring beat's rising
+                                # edge at 125 Hz — enough to see monotonicity, short enough not to
+                                # reach the neighbouring beat.
+_HELD_NEAR_DELTA = 0.90         # >= this share of runs on two ADJACENT lengths => a zero-order HOLD,
+                                # not a defect. Measured on the ring's `_ACCRAW.txt` (2026-09-06, three
+                                # sessions / two nights): 99.8 % of runs are 6 or 7, ratio 6.387-6.396,
+                                # because a 1.5625 Hz update is emitted into a 10 Hz record stream.
+
+
+def constant_runs(values, *, min_run: int = 2):
+    """Maximal runs of ONE repeated value that reach `min_run`, as `(first_index, n, value)`.
+
+    Keyed on length and never on value membership. A `!= 0` test — or any list of known-bad constants
+    — convicts every stream where the constant is real: ECG microvolts cross zero on every beat and an
+    ACC axis rests at 0 mG. This function has no opinion about the value; callers decide.
+    """
+    out = []
+    if min_run < 2:
+        raise ValueError("min_run must be at least 2 — a single sample is not a run")
+    i, n = 0, len(values)
+    while i < n:
+        j = i + 1
+        while j < n and values[j] == values[i]:
+            j += 1
+        if j - i >= min_run:
+            out.append((i, j - i, values[i]))
+        i = j
+    return out
+
+
+def _count_singletons(values) -> int:
+    """Values differing from BOTH neighbours — the runs `constant_runs` cannot return.
+
+    The held test reasons over the whole transition population; dropping singletons would let a stream
+    with one long hold and thousands of single samples read as a near-delta.
+    """
+    n = len(values)
+    if n <= 1:
+        return n
+    c = 0
+    for i in range(n):
+        prev_same = i > 0 and values[i - 1] == values[i]
+        next_same = i + 1 < n and values[i + 1] == values[i]
+        if not prev_same and not next_same:
+            c += 1
+    return c
+
+
+def held_stream(values, *, near_delta: float = _HELD_NEAR_DELTA):
+    """Is this stream a ZERO-ORDER HOLD of a slower measurement, rather than a damaged one?
+
+    A held stream repeats every value by construction, so a run-length rule would flag essentially the
+    whole file — 99.8 % of runs on the ring's ACC — and report working behaviour as corruption. The
+    discriminator is the SHAPE of the run-length distribution: a hold produces a near-delta at the two
+    integers bracketing a fixed ratio (6 and 7 for 6.4), because an integer number of records cannot
+    realise a non-integer ratio any other way. Damage is ragged and its short runs do not vanish.
+
+    Computed rather than configured ON PURPOSE. An exclusion list naming `acc` would keep protecting a
+    stream that stopped being held and would miss the next held stream nobody added to it.
+
+    FEED IT A RECORD, NOT A COLUMN, for a multi-column stream. Two axes change on the same tick, but
+    either alone also repeats across a change by coincidence, splicing neighbouring runs together.
+    Measured on the ring's ACC: the triplet gives ratio 6.387 / share 0.998 — reproducing an
+    independently measured 6.387 exactly — while X, Y and Z alone read 6.579, 6.613 and 6.603.
+
+    `None` when not held. Otherwise the ratio, which is the number a consumer needs: the record rate
+    OVERSTATES the measurement rate by exactly this factor.
+    """
+    runs = [n for _i, n, _v in constant_runs(values, min_run=2)]
+    singles = _count_singletons(values)
+    total = len(runs) + singles
+    if total < 20:
+        return None                      # too few transitions to have a shape at all
+    best = None
+    for a in sorted({n for n in runs}):
+        share = (sum(1 for n in runs if n in (a, a + 1)) + (singles if a == 1 else 0)) / total
+        if best is None or share > best[1]:
+            best = ((a, a + 1), share)
+    if best is None or best[1] < near_delta:
+        return None
+    return {"held": True, "ratio": (sum(runs) + singles) / total,
+            "lengths": best[0], "share": best[1]}
+
+
+_ANNOTATION_GAP_MAX = 8         # the longest run of consecutive annotation rows a plateau may be
+                                # merged ACROSS. Measured on 20260905045318, consecutive-`156` run
+                                # lengths are 1:5383 · 2:11 · 3:3 · 4:2 · 5:3 · 6:3 — 99.6 % singletons,
+                                # max 6, 5455 marker rows in 5405 runs. Eight clears that max without
+                                # room to spare being the point: unbounded stepping is safe on THIS
+                                # corpus and would silently merge two plateaus across any future
+                                # marker burst, reporting a span that is mostly annotation.
+
+
+def _ramp(values, first, n, *, toward_high, ramp=_RAMP_SAMPLES, annotations=()):
+    """Approach/departure shape around a plateau: `(monotone_in, monotone_out, projects_beyond)`.
+
+    `projects_beyond` continues the approach slope across the plateau and asks whether it would have
+    left the observed range — the question a rail answers YES to and a flat stretch of signal answers
+    NO to, with no threshold on the value.
+
+    ⚠️ The projection is LINEAR over a plateau that may be long, so it indicates DIRECTION, not depth.
+    Never quote its magnitude as the excursion the device would have recorded.
+    """
+    skip = frozenset(annotations)
+    a, b = [], []
+    k = first - 1
+    while k >= 0 and len(a) < ramp:
+        if values[k] not in skip:
+            a.append(values[k])
+        k -= 1
+    a.reverse()
+    k = first + n
+    while k < len(values) and len(b) < ramp:
+        if values[k] not in skip:
+            b.append(values[k])
+        k += 1
+    mono_in = mono_out = False
+    beyond = None
+    if len(a) == ramp:
+        mono_in = all(a[t + 1] >= a[t] for t in range(ramp - 1)) if toward_high \
+            else all(a[t + 1] <= a[t] for t in range(ramp - 1))
+        slope = (a[-1] - a[0]) / float(ramp - 1)
+        proj = a[-1] + slope * n
+        beyond = proj > values[first] if toward_high else proj < values[first]
+    if len(b) == ramp:
+        mono_out = all(b[t + 1] <= b[t] for t in range(ramp - 1)) if toward_high \
+            else all(b[t + 1] >= b[t] for t in range(ramp - 1))
+    return mono_in, mono_out, beyond
+
+
+_RAIL_SCAN_VALUES = 8           # how many OCCUPIED values inward from an edge are considered when
+                                # locating the rail.
+_RAIL_GAP_MAX = 4               # a wider gap than this between occupied values means the edge value
+                                # stands alone, so it IS the rail and no spike search is run.
+_RAIL_SPIKE_MIN = 5             # a rail must OUT-COUNT its nearest occupied neighbour by this factor.
+                                # Measured 2026-09-06 over eight files: real rails run 9.0-43.0x (ring
+                                # floor 34.3-43.0, ring ceiling 16.4-38.4, Verity ceiling 41.0 and 9.0),
+                                # a clean quantised sine reaches only 2.3-2.4x because a smooth signal
+                                # genuinely lingers at its own turning point, and the Verity's lone
+                                # minimum sample scores 1.0x. Five clears clean signal by ~2x and sits
+                                # ~1.8x under the weakest real rail.
+
+
+def rail_value(values, *, toward_high, scan=_RAIL_SCAN_VALUES, gap_max=_RAIL_GAP_MAX,
+               spike_min: float = _RAIL_SPIKE_MIN):
+    """The rail is the HISTOGRAM SPIKE NEAREST THE EDGE, not the edge.
+
+    🔴 The observed extreme is not the rail, and using it silently drops a whole class. Measured on
+    20260905045318, the top of the range is 195:34 · 196:39 · 197:41 · 198:75 · **199:2596** · 200:304 —
+    the rail is 199 and the maximum is a rare overshoot one quantum above it. A rule keyed on `max`
+    hunts for the ceiling at 200, weighs 304 samples against a 2,596-sample neighbour, and concludes
+    the ceiling is not pinned. The failure presents as "the ceiling behaves differently from the floor",
+    which is exactly the asymmetry the marker exclusion already had to dissolve once. (Found by Magpie
+    building the JS port against real files, 2026-09-06; this implementation had the same bug in a
+    milder form — a one-quantum tolerance caught the 199 class by accident while LABELLING it 200.)
+
+    The gap clause keeps this general: if the stream jumps away from the extreme, a spike search across
+    that gap would walk into the bulk of the distribution and return a value that is not a rail at all.
+    The Verity's 2 096 921 sits alone that way; the ring's 199 does not.
+    """
+    counts = {}
+    for v in values:
+        counts[v] = counts.get(v, 0) + 1
+    if not counts:
+        return None
+    occupied = sorted(counts, reverse=toward_high)
+    if len(occupied) < 2:
+        return None
+    edge = occupied[0]
+    window = [edge]
+    for v in occupied[1:scan]:
+        if abs(v - window[-1]) > gap_max:
+            break
+        window.append(v)
+    rail = max(window, key=lambda v: counts[v])
+    # `occupied` is sorted outward-edge first, so the first survivor is the NEAREST neighbour inward.
+    inward = [v for v in occupied if v < rail] if toward_high else [v for v in occupied if v > rail]
+    if not inward:
+        return None                      # the spike sits at the far end of a stream with only a
+                                         # couple of distinct values, so there is nothing inward of it
+                                         # to be a spike ABOVE. That is a flat/binary stream, not a rail.
+    neighbour = inward[0]
+    if counts[rail] < spike_min * counts[neighbour]:
+        return None                      # not a spike: a smooth signal lingering at its own turning
+                                         # point, or a lone outlier. This stream has no rail on this
+                                         # side, so it has no clip regions on this side either.
+    return rail
+
+
+def _at_rail(v, rail, toward_high, max_spread):
+    """At-or-BEYOND the pin, never short of it.
+
+    The tolerance exists for the OVERSHOOT: the ring's ceiling rail is 199 and it flickers up
+    to 200, and admitting that flicker is what merges one plateau reported as 118 + 81 regions
+    into one. It was never for the approach. A sample one LSB SHORT of the pin — a 198 under a
+    199 ceiling, a 1 above a 0 floor — is a value the encoding could represent and the device
+    did report, so a span covering it claims territory where the signal was still measuring.
+    Making the tolerance symmetric (an earlier draft here) extended every span by a sample at
+    each end and started ceiling spans during the ramp.
+    """
+    if toward_high:
+        return rail <= v <= rail + max_spread
+    return rail - max_spread <= v <= rail
+
+
+def _rail_runs(values, rail, *, toward_high, max_spread, min_run, annotations, annotation_gap_max):
+    """Runs of samples AT THE RAIL, grouped from the rail outward — not filtered out of generic
+    near-constant regions.
+
+    🔴 THE GENERIC SCAN GETS THE BOUNDARY WRONG, and this function exists because of it. A greedy
+    maximal near-constant scan is non-overlapping, so a sample that IS at the rail can be absorbed
+    into a shorter preceding region and lost from the plateau. Measured on 20260905045318 at 9294:
+    `190, 193, 196, 198, 199, 200, 199, 199 …` — the greedy scan emits `[9297, 9298] = (198, 199)`,
+    two samples, dropped by `min_run`, and the real plateau then opens at 9299 on the 200. The span
+    start therefore depended on WHAT PRECEDED the plateau rather than on the rail, which is
+    indefensible under any tolerance rule. (Found by Magpie diffing span lists, 2026-09-06.)
+
+    Grouping outward from the rail makes the boundary a property of the rail alone. Annotations stay
+    transparent up to `annotation_gap_max`, as everywhere else.
+    """
+    skip = frozenset(annotations)
+    n = len(values)
+    out = []
+    i = 0
+    while i < n:
+        if values[i] in skip or not _at_rail(values[i], rail, toward_high, max_spread):
+            i += 1
+            continue
+        first = last = i
+        j = i + 1
+        gap = 0
+        while j < n:
+            if values[j] in skip:
+                gap += 1
+                if gap > annotation_gap_max:
+                    break
+                j += 1
+                continue
+            if not _at_rail(values[j], rail, toward_high, max_spread):
+                break
+            gap = 0
+            last = j
+            j += 1
+        if last - first + 1 >= min_run:
+            out.append((first, last - first + 1))
+        i = max(j, first + 1)
+    return out
+
+
+def clip_regions(values, *, min_run: int = _CLIP_MIN_RUN, max_spread: int = _PLATEAU_LSB,
+                 ramp: int = _RAMP_SAMPLES, annotations=()):
+    """Plateaus PINNED AT AN OBSERVED EXTREME, at BOTH rails, with their approach shape measured.
+
+    Both extremes are read from the data and tested identically, which is what makes the ring's 0 and
+    the Verity's 2 096 921 the same rule rather than two entries on a list. There is no declared bound
+    to test against — the ring's 200 is not an encoding extreme — so the observed range is the only
+    honest reference, and that is why this is a whole-night back-check and not live-computable.
+
+    THE CEILING IS THE POSITIVE CONTROL. On 20260905045318 the ceiling scores 115/118 monotone-in and
+    113/118 monotone-out, so the shape test is known to fire on a rail this stream really does hit; the
+    floor's numbers are then a measurement against a working instrument rather than a hopeful
+    threshold. A rule with no positive control cannot tell "clean" from "blind".
+
+    ⚠️ THE GEOMETRY IS EVIDENCE, NOT THE DISCRIMINATOR. It rides with each region and it does not
+    decide which regions are emitted — the pin does. A slow turning point is approached monotonically
+    AND projects beyond its own extreme (the approach slope is non-zero), so both flags fire on clean
+    signal too; on the real corpus the ceiling projects beyond in only 54-62 % of regions while reading
+    94-97 % monotone. Anyone tempted to filter on these flags should read
+    `test_clip_clean_night_reports_the_signals_own_turning_points` first — an earlier draft of this
+    docstring claimed the separation and the test falsified it.
+    """
+    if not values:
+        return []
+    skip = frozenset(annotations)
+    real = [v for v in values if v not in skip]
+    if not real:
+        return []
+    out = []
+    for toward_high in (False, True):
+        rail = rail_value(real, toward_high=toward_high)
+        if rail is None:
+            continue                     # no rail on this side — a clean stream has none on either
+        for first, n in _rail_runs(values, rail, toward_high=toward_high, max_spread=max_spread, min_run=min_run,
+                                   annotations=skip, annotation_gap_max=_ANNOTATION_GAP_MAX):
+            mono_in, mono_out, beyond = _ramp(values, first, n, toward_high=toward_high,
+                                              ramp=ramp, annotations=skip)
+            out.append({"first_index": first, "n_samples": n, "rail": rail,
+                        "toward_high": toward_high, "monotone_in": mono_in,
+                        "monotone_out": mono_out, "projects_beyond": beyond})
+    out.sort(key=lambda r: r["first_index"])
+    return out
+
+
+def class_b_runs(records, *, stream: str, min_run: int = _CLIP_MIN_RUN,
+                 tick_ms: float | None = None, annotations=(), emit=None) -> dict:
+    """Class-B (QUALITY) signatures for one stream: `clip` regions, or a `held` mark, never both.
+
+    Class A is ABSENCE — a value that was not measured, which must reach a consumer as null. Class B is
+    a value that WAS measured and is untrustworthy: an input pinned at a rail carries no information
+    while looking exactly like data. The rule name is what lets a consumer tell them apart, which is
+    why it travels in the row rather than being inferred from the stream's name.
+
+    `records` is one entry per ROW — a tuple for a multi-channel stream, a scalar for one channel. A
+    HOLD is a property of the record (every channel freezes on the same tick); a RAIL is a property of
+    one channel (an ADC saturates by itself). Measuring either at the other's level is quietly wrong.
+
+    There is deliberately NO `collapse` rule. It was specified, built and then measured away: after
+    excluding the beat marker, the population of deviating near-constant regions that are not at a rail
+    is 3-17 regions in 843,032 samples (0.006-0.020 %) at any defensible minimum, and the survivors sit
+    a few LSB short of the ceiling — the same mechanism not quite reaching the rail, not a second one.
+    A detector with no population is a parameter with no evidence.
+
+    `emit` is the seam the sidecar writer fills — `emit(stream, value, first_index, n, dur_ms, closed,
+    rule)`. It defaults to collecting the rows, so a test sees the real rows rather than a no-op that
+    would pass while writing nothing.
+    """
+    rows = []
+    if emit is None:
+        def emit(stream, value, first_index, n, dur_ms, closed, rule):
+            rows.append({"stream": stream, "value": value, "first_index": first_index,
+                         "n_samples": n, "dur_ms": dur_ms, "closed": closed, "rule": rule})
+    held = held_stream(records)
+    if held is not None:
+        # Reported ONCE, as what it is. Emitting its runs would bury a real finding under thousands of
+        # rows describing the device working as designed.
+        emit(stream, None, 0, len(records), None, True, "held ratio=%.2f" % held["ratio"])
+        return {"stream": stream, "held": held, "rows": rows, "clips": {}}
+    wide = bool(records) and isinstance(records[0], tuple)
+    channels = list(zip(*records)) if wide else [list(records)]
+    last = len(records) - 1
+    clips = {}
+    for c, col in enumerate(channels):
+        name = "%s:ch%d" % (stream, c) if wide else stream
+        found = clip_regions(list(col), min_run=min_run, annotations=annotations)
+        clips[name] = len(found)
+        for r in found:
+            dur_ms = None if tick_ms is None else r["n_samples"] * tick_ms
+            closed = (r["first_index"] + r["n_samples"] - 1) != last
+            emit(name, r["rail"], r["first_index"], r["n_samples"], dur_ms, closed, "clip")
+    return {"stream": stream, "held": None, "rows": rows, "clips": clips}
+
+
 def rtc_drift_summary(path: str | Sequence[str]) -> dict | None:
     """Roll a night's `_RTCLOG.csv` sidecars (RingClockLogWriter) into one ring-clock verdict, or None
     when there is no readback to summarise. The daemon watches the O2Ring's RTC against the host every
@@ -1899,10 +2259,77 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # RING CONTACT from the raw 0x05 pair — the independent coupling vote (constants + validation
         # documented at ppg2w_contact). A session list, not a verdict; empty when never captured.
         "ppg2w_contact": ppg2w_contact_quality(night_dir),
+        # CLASS-B QUALITY — `clip` spans pinned at each stream's own observed rails, and a computed
+        # `held` mark. Whole-night because the rail is not knowable until the night is complete.
+        # Reported, never folded into `ok`: a clipped stretch is a defect of the SIGNAL, not of the
+        # capture, and conflating them would make a good recording read as a capture failure — the
+        # same separation `arrival` above is kept out of `ok` for.
+        "class_b": class_b_quality(night_dir),
         # What rate the files ACTUALLY carry, against what was asked for. Coverage notices a rate swap
         # only as `degraded`, which names it a link fault; this names it a rate fault.
         "rates": _rate_rows,
     }
+
+
+_STREAM_ANNOTATIONS = {
+    # Values that are NOT SAMPLES, by capture FORMAT rather than by defect. Keyed on the file tag.
+    # ⚠️ This is a value list, and the detectors refuse to be value lists — the difference is that
+    # this declares a property of the format, knowable in advance, rather than a property of the data.
+    # The O2Ring writes its beat marker into the sample column of its PPG streams; the Verity and the
+    # H10 write no such thing, so their entries are deliberately absent rather than empty-by-oversight.
+    "PPG": (156,),
+    "PPG2W": (156,),
+}
+_CLASS_B_TAGS = ("PPG", "PPG2W", "ECG")
+
+
+def class_b_quality(night_dir: str, *, emit=None) -> list:
+    """One class-B block per PPG/ECG capture in the night — the END-OF-NIGHT back-check.
+
+    Empty list when nothing was captured: nothing to report is not the same as everything healthy, so
+    the key holds sessions rather than a verdict, exactly as `ppg2w_contact_quality` does.
+
+    Whole-night by necessity, not by preference. `clip` is pinned at the stream's OWN observed rails
+    and there is no declared bound to test against — the ring's ceiling is 199 with a thin overshoot to
+    200, which is not an encoding extreme — so the rail cannot be known until the night is complete.
+    That is precisely the half the live writer cannot do.
+
+    Rows that do not parse are SKIPPED, not fatal: a mid-file repeated header is a real rotation
+    artifact and one torn row must not erase a session's verdict.
+    """
+    out = []
+    for name in sorted(os.listdir(night_dir) if os.path.isdir(night_dir) else []):
+        parsed = parse_capture_name(name)
+        if parsed is None or parsed[0] not in _CLASS_B_TAGS:
+            continue
+        tag = parsed[0]
+        records = []
+        try:
+            with open(os.path.join(night_dir, name), "r", encoding="utf-8", errors="replace") as fh:
+                fh.readline()                       # header
+                for line in fh:
+                    parts = line.rstrip("\n").split(";")
+                    if len(parts) < 3:
+                        continue
+                    try:
+                        cols = tuple(int(float(p)) for p in parts[2:])
+                    except ValueError:
+                        continue      # a torn row is expected at a live file's tail and a repeated
+                                      # mid-file header is a real rotation artifact; the spans are
+                                      # built from the rows that parsed, and `_CLIP_MIN_RUN` plus the
+                                      # rail qualification refuse a verdict built from too few
+                    records.append(cols[0] if len(cols) == 1 else cols)
+        except OSError:
+            log.warning("night-QC: %s is unreadable, so its class-B quality is ABSENT rather than "
+                        "clean — the two must not read alike", name, exc_info=True)
+            continue
+        if len(records) < _CLIP_MIN_RUN:
+            continue
+        block = class_b_runs(records, stream=tag.lower(),
+                             annotations=_STREAM_ANNOTATIONS.get(tag, ()), emit=emit)
+        block["file"] = name
+        out.append(block)
+    return out
 
 
 def qc_digest(summ) -> str | None:
