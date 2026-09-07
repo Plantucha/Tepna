@@ -1,6 +1,7 @@
 # tepna-capture — tests/test_nightqc.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 import json
+import logging
 import os
 import time
 
@@ -2558,15 +2559,76 @@ def test_class_b_quality_scans_waveform_columns_by_NAME_not_position(tmp_path):
     assert nightqc._waveform_columns("") == ()
 
 
-def test_class_b_quality_is_empty_when_the_night_holds_nothing_it_reads(tmp_path):
+def test_class_b_quality_is_empty_when_the_night_holds_nothing_it_reads(tmp_path, caplog):
     """Nothing to report is not everything healthy — an empty list, never a clean verdict."""
     night = str(tmp_path)
     assert nightqc.class_b_quality(night) == []
     _write_ppg(night, "Polar_H10_X_20260905045318_RR.txt", [800, 810, 790])   # not a class-B tag
     _write_ppg(night, "Wellue_O2Ring-S_X_20260905045318_PPG.txt", [5, 6, 7])  # too few rows
     open(os.path.join(night, "Wellue_O2Ring-S_X_20260905045319_PPG.txt"), "w").close()  # 0 bytes
-    assert nightqc.class_b_quality(night) == []
+    with caplog.at_level(logging.WARNING, logger="tepna-capture"):
+        assert nightqc.class_b_quality(night) == []
+    assert caplog.records == [], "a 0-byte open capture is too few rows, not a malformed header"
     assert nightqc.class_b_quality(os.path.join(night, "does-not-exist")) == []
+    # the row floor is `<`: a file carrying exactly `_CLIP_MIN_RUN` rows IS scanned
+    _write_ppg(night, "Wellue_O2Ring-S_X_20260905045318_PPG.txt", [5, 6, 7, 8, 9][:nightqc._CLIP_MIN_RUN])
+    assert [b["file"] for b in nightqc.class_b_quality(night)] == ["Wellue_O2Ring-S_X_20260905045318_PPG.txt"]
+
+
+def test_class_b_quality_skips_a_row_or_a_file_without_ending_the_scan(tmp_path, caplog):
+    """Every `continue` in the scan is a SKIP, and a skip must not read as a stop.
+
+    Planted so that the thing after the skipped thing carries the verdict: a torn row sits in the
+    MIDDLE of the file ahead of the rail, and a too-short file sorts AHEAD of the railed one. A
+    reader that broke out at either would report the night clean. The box's preamble also carries a
+    byte that is not UTF-8 (a `\\xff` on the `# timebase=` line): the reader decodes with
+    `errors="replace"`, so that byte costs one character, not the file.
+    """
+    night = str(tmp_path)
+    railed = _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline()
+    p = _write_rows(night, "Wellue_O2Ring-S_X_20260905045318_PPG2W.txt",
+                    "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion",
+                    [(0, 3_000_000 + v, 12_000 + (i % 7), 0) for i, v in enumerate(railed)])
+    body = open(p, "rb").read().split(b"\n")
+    body.insert(5, b"2026-09-05T04:53:05.000;0;3000100;12000;0;extra")        # torn: too wide
+    body.insert(3, b"2026-09-05T04:53:03.000;0;not-a-number;12000;0")         # torn: unparsable
+    with open(p, "wb") as fh:
+        fh.write(b"# timebase=host-disciplined \xff\n" + b"\n".join(body))
+    _write_ppg(night, "Wellue_O2Ring-S_A_20260905045318_PPG.txt", [5, 6, 7])  # sorts first; too few
+    with caplog.at_level(logging.WARNING, logger="tepna-capture"):
+        blocks = nightqc.class_b_quality(night)
+    assert caplog.records == []
+    assert [b["file"] for b in blocks] == ["Wellue_O2Ring-S_X_20260905045318_PPG2W.txt"]
+    assert [r["stream"] for r in blocks[0]["rows"]] == ["ppg2w:ch0"] and blocks[0]["rows"][0]["n_samples"] == 30
+
+
+def test_class_b_quality_names_the_file_in_both_ABSENT_warnings(tmp_path, monkeypatch, caplog):
+    """The two absences are logged, and a log line that omits the file names nothing a reader can act on."""
+    night = str(tmp_path)
+    _write_rows(night, "Wellue_O2Ring-S_Y_20260905045318_PPG2W.txt",
+                "Phone timestamp;sensor timestamp [ns];motion", [(0, 0)] * 40)
+    _write_ppg(night, "Wellue_O2Ring-S_Z_20260905045318_PPG.txt", _baseline())   # sorts AFTER the bad file
+    later = ["Wellue_O2Ring-S_Z_20260905045318_PPG.txt"]
+    with caplog.at_level(logging.WARNING, logger="tepna-capture"):
+        assert [b["file"] for b in nightqc.class_b_quality(night)] == later, "an absent file skips, not stops"
+    (rec,) = caplog.records
+    assert rec.getMessage() == ("night-QC: Wellue_O2Ring-S_Y_20260905045318_PPG2W.txt names no waveform "
+                                "column in its header, so its class-B quality is ABSENT rather than clean")
+    caplog.clear()
+    real_open = open
+
+    def boom(path, *a, **k):
+        if str(path).endswith("_PPG2W.txt"):
+            raise OSError("unreadable")
+        return real_open(path, *a, **k)
+
+    monkeypatch.setattr("builtins.open", boom)
+    with caplog.at_level(logging.WARNING, logger="tepna-capture"):
+        assert [b["file"] for b in nightqc.class_b_quality(night)] == later, "an absent file skips, not stops"
+    (rec,) = caplog.records
+    assert rec.getMessage() == ("night-QC: Wellue_O2Ring-S_Y_20260905045318_PPG2W.txt is unreadable, so its "
+                                "class-B quality is ABSENT rather than clean — the two must not read alike")
+    assert rec.exc_info and rec.exc_info[0] is OSError, "the traceback travels with the warning"
 
 
 def test_class_b_quality_skips_torn_rows_and_survives_an_unreadable_file(tmp_path, monkeypatch):
