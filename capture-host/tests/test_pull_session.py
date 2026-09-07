@@ -1014,3 +1014,101 @@ def test_which_NEW_with_nothing_owed_is_a_cheap_no_op(tmp_path, monkeypatch):
     ring = FakeRing(["20260828232644"], b"\x01\x03" + bytes(range(256)) * 8)
     _install(monkeypatch, ring)
     assert _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "new", 0, None, "0000")) == []
+
+
+# ── probe_ppg_list: FIRST CONTACT with the stored raw-PPG family (0x06-0x09) ────────────────────────
+class _ProbeRing:
+    """Minimal ring for the probe path: answers cmd 0x06 with genuine oxyii-encoded frames, or with
+    nothing. Speaks the real 0xA5 wire format, so the reply goes through the real Reassembler."""
+
+    def __init__(self, reply: bytes | None = None, live: int = 0):
+        self.reply, self.live, self.notify = reply, live, None
+        self.writes: list[bytes] = []
+        self.mtu_size = 517
+        self.stopped = False
+
+    async def __aenter__(self): return self
+    async def __aexit__(self, *a): return False
+    async def start_notify(self, _u, cb): self.notify = cb
+    async def stop_notify(self, _u): self.stopped = True
+
+    async def write_gatt_char(self, _u, data, response=False):
+        self.writes.append(bytes(data))
+        if bytes(data)[1] == oxyii.OP_PPG_FILE_LIST:
+            for _ in range(self.live):
+                self.notify(0, oxyii.encode(oxyii.OP_LIVE, b"\x00" * 8))
+            if self.reply is not None:
+                self.notify(0, oxyii.encode(oxyii.OP_PPG_FILE_LIST, self.reply))
+
+
+def _probe_ble(monkeypatch, ring, device=object()):
+    async def find(_addr, **k): return device
+    monkeypatch.setattr(pull_session.BleakScanner, "find_device_by_address", find)
+    monkeypatch.setattr(pull_session, "BleakClient", lambda dev, **kw: ring)
+    async def no_sleep(_s): return None
+    monkeypatch.setattr(pull_session.asyncio, "sleep", no_sleep)
+
+
+def test_probe_records_the_raw_reply_and_sends_ONE_frame(monkeypatch, capsys):
+    """MEASURED FIRST CONTACT, 2026-09-07 on S8AW2100: the family answered cmd 0x06 with
+    `0132303236303832393034303531310000` — a count byte, a 14-char ASCII stamp, two pad bytes.
+
+    Two things are asserted and the second is the point: exactly ONE frame reaches the ring (LIST; no
+    START/DATA/END, nothing written to flash), and the reply is reported as RAW HEX rather than parsed.
+    An unprobed family has no confirmed layout, and interpreting the bytes here would manufacture one."""
+    body = bytes.fromhex("0132303236303832393034303531310000")
+    ring = _ProbeRing(reply=body)
+    _probe_ble(monkeypatch, ring)
+    out = _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3"))
+    printed = capsys.readouterr().out
+    assert [w[1] for w in ring.writes] == [oxyii.OP_AUTH, oxyii.OP_SETUP, oxyii.OP_PPG_FILE_LIST], \
+        "auth + setup + LIST, and NOTHING else — no START, no DATA, no END"
+    assert out and out[0][0] == oxyii.OP_PPG_FILE_LIST
+    assert body.hex() in printed, "the raw reply must be reported verbatim"
+    assert ring.stopped
+
+
+def test_probe_reports_SILENCE_as_a_finding(monkeypatch, capsys):
+    """A family that ignores the frame is a result, not an error. Saying so beats a traceback, because
+    'the ring did not answer 0x06' is exactly what a first probe might be there to learn."""
+    ring = _ProbeRing(reply=None)
+    _probe_ble(monkeypatch, ring)
+    out = _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3"))
+    assert out == []
+    assert "NO non-live reply" in capsys.readouterr().out
+
+
+def test_probe_does_not_count_live_frames_as_the_answer(monkeypatch, capsys):
+    """The ring streams 0x04 continuously. Counting those as a reply would report success for a family
+    that said nothing — the same shape as reading a truncated gate as a pass."""
+    ring = _ProbeRing(reply=None, live=3)
+    _probe_ble(monkeypatch, ring)
+    out = _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3"))
+    assert out == []
+    assert "3 live (0x04), 0 other" in capsys.readouterr().out
+
+
+def test_probe_says_so_when_the_ring_is_not_advertising(monkeypatch, capsys):
+    """The ring powers itself off ~122 s after a doff, so 'not advertising' is its ordinary resting
+    state rather than a fault — the probe reports it and returns instead of raising."""
+    async def find(_addr, **k): return None
+    monkeypatch.setattr(pull_session.BleakScanner, "find_device_by_address", find)
+    assert _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3")) is None
+    assert "not advertising" in capsys.readouterr().out
+
+
+def test_probe_discards_a_frame_that_does_not_decode(monkeypatch, capsys):
+    """A corrupt frame must be dropped, not counted. `decode` returns None for a bad checksum, and
+    letting that through would put a `None` in the reply list and report a frame the ring never sent —
+    an invented observation in the one run whose whole purpose is to observe honestly."""
+    class _Corrupt(_ProbeRing):
+        async def write_gatt_char(self, _u, data, response=False):
+            self.writes.append(bytes(data))
+            if bytes(data)[1] == oxyii.OP_PPG_FILE_LIST:
+                bad = bytearray(oxyii.encode(oxyii.OP_PPG_FILE_LIST, b"\x01"))
+                bad[-1] ^= 0xFF                      # corrupt the checksum
+                self.notify(0, bytes(bad))
+    ring = _Corrupt(reply=None)
+    _probe_ble(monkeypatch, ring)
+    assert _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3")) == []
+    assert "NO non-live reply" in capsys.readouterr().out
