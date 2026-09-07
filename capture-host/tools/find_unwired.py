@@ -260,16 +260,17 @@ ALLOW_FUNCS = {
     # distinction is derived from hardware behaviour and is pinned by tests here; a caller cannot
     # make it, it can only obey it.
     #
-    # Retires the moment capture.py's OxyII connect calls classify_auth_reply() and its live poll
-    # feeds sustained_ciphertext(). If that wiring is not taken up, DELETE the functions and these
-    # entries together — the whole point of the guard is that something acts on the refusal, and a
-    # refusal nothing reads is worse than no guard, because it reads like protection.
-    "classify_auth_reply": "PENDING capture.py's OxyII connect path (separate unit, separate lane) — "
-                           "decides plaintext / encrypted / refuse from an OP_AUTH reply; the "
-                           "three-way outcome is the design and is measured against a real ring",
-    "sustained_ciphertext": "PENDING capture.py's OxyII live poll (same unit as classify_auth_reply) — "
-                            "the probabilistic secondary tell, deliberately separate from the primary "
-                            "classification so a caller can act on them differently",
+    # `classify_auth_reply` is WIRED (2026-09-07): capture.py's OxyII connect path reads the OP_AUTH
+    # reply and acts on it, so its entry is gone. The probabilistic pair below is still unclaimed, and
+    # the note that used to cover both now covers only them: if that wiring is never taken up, DELETE
+    # the functions and this entry together — a refusal nothing reads is worse than no guard, because
+    # it reads like protection.
+    "sustained_ciphertext": "PENDING capture.py's OxyII live poll — the PRIMARY landed (#2312's "
+                            "successor wired classify_auth_reply at connect), and this probabilistic "
+                            "secondary is still unclaimed. `frame_looks_like_ciphertext` is its only "
+                            "caller and rides this row. The corroborator actually running today is "
+                            "aes_session_suspect (capture.py's GET_INFO branch), which is an inference "
+                            "from a firmware label rather than a reading of this session",
     "oxy_is_finalized": "redundant — `oxy_inventory.classify` already gates on finalisation via "
                         "`parse_trailer` (and `oxy_transfer` reads the same trailer), which those "
                         "callers need anyway for the device summary",

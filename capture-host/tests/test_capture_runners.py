@@ -6424,3 +6424,85 @@ def test_run_oxyii_names_the_idle_timer_ONCE_not_every_backoff_cycle(tmp_path, m
     assert "link error" not in caplog.text, "and still must not read as a fault"
     assert capture.STATUS["devices"]["Ring"]["last_error"] == "powered off — idle timer", \
         "the STATE is still published even when the log stays quiet"
+
+
+# ── OP_AUTH as the PRIMARY encryption decision (wired 2026-09-07) ─────────────────────────────────
+def _auth_key_blob(key: bytes = b"K" * 16, *, type_byte: int = 0x01, key_len: int = 16) -> bytes:
+    import hashlib
+    lepu = hashlib.md5(b"lepucloud").digest()
+    plain = bytes([type_byte, key_len, 0x00, 0x00]) + key
+    return bytes(b ^ lepu[i % 16] for i, b in enumerate(plain))
+
+
+def _run_auth_session(tmp_path, monkeypatch, *, auth_reply=None, sleeps=6):
+    """Drive one link whose ring answers 0xFF with `auth_reply` (None = stays silent, the real case)
+    and then streams ordinary vitals behind it."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture.STATUS["devices"].pop("Ring", None)
+    c = FakeGattClient()
+
+    def on(data):
+        op = data[1]
+        if op == oxyii.OP_AUTH and auth_reply is not None:
+            c.notify(0, oxyii.encode(oxyii.OP_AUTH, auth_reply))
+        elif op == oxyii.OP_LIVE:
+            c.notify(0, _o2ring_live_reply(spo2=96, pr=61))
+        elif op == oxyii.OP_GET_INFO:
+            c.notify(0, _o2_info_reply_from("2592302100"))
+    c.on_live = on
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, sleeps)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    return capture.STATUS["devices"]["Ring"]
+
+
+def test_an_ENCRYPTED_auth_reply_ends_the_session_before_any_vitals_are_read(tmp_path, monkeypatch, caplog):
+    """THE PLANT THIS WIRING EXISTS FOR. The ring negotiates a session key and then streams frames the
+    parser would happily read as SpO2 and pulse — `decode()` computes its CRC over the envelope, so
+    ciphertext passes every structural check. With no decryptor on the live path, reading on means
+    publishing invented vitals. The session must END instead."""
+    import logging
+    caplog.set_level(logging.ERROR, logger="tepna-capture")
+    st = _run_auth_session(tmp_path, monkeypatch, auth_reply=_auth_key_blob())
+    assert st["auth_mode"] == oxyii.AUTH_ENCRYPTED
+    # `.get`, not `[...]`: the strongest outcome is that the keys were never published at all, which a
+    # subscript would turn into a KeyError instead of a pass. Absent and None are both "never read".
+    assert st.get("spo2") is None and st.get("pr") is None, (
+        "vitals-shaped bytes arrived behind the key blob and MUST NOT have reached the vitals path")
+    assert "auth: encrypted" in str(st.get("last_error"))
+    assert any("Ending the session rather than reading ciphertext as vitals" in r.getMessage()
+               for r in caplog.records)
+
+
+def test_an_UNPARSABLE_key_negotiation_also_ends_it(tmp_path, monkeypatch):
+    """AUTH_REFUSE: a negotiation this build does not understand is the case that risks fabricated
+    vitals most, because the ring HAS switched to ciphertext."""
+    st = _run_auth_session(tmp_path, monkeypatch, auth_reply=_auth_key_blob(type_byte=0x09))
+    assert st["auth_mode"] == oxyii.AUTH_REFUSE
+    assert st.get("spo2") is None
+    assert "auth: refused" in str(st.get("last_error"))
+
+
+def test_a_SILENT_ring_is_UNKNOWN_not_plaintext_and_keeps_capturing(tmp_path, monkeypatch):
+    """Every ring in this project stays silent on 0xFF. `classify_auth_reply(None)` returns
+    AUTH_PLAINTEXT — a positive claim — so it must not be called at all here: silence is UNDETERMINED,
+    it is counted so a night of it is visible, and capture proceeds exactly as before the wiring."""
+    st = _run_auth_session(tmp_path, monkeypatch, auth_reply=None)
+    assert st["auth_mode"] == "unknown", "silence must never be recorded as plaintext"
+    assert st["auth_unknown_links"] >= 1, "an undetermined link is COUNTED, not merely absent"
+    assert st["spo2"] == 96 and st["pr"] == 61, "an undetermined link still captures"
+    assert "auth" not in str(st.get("last_error") or ""), "silence is not an error"
+
+
+def test_a_SHORT_auth_reply_is_answered_PLAINTEXT_and_is_not_the_same_as_silence(tmp_path, monkeypatch):
+    """The measured middle case, and the one the whole wiring exists to separate from silence: a ring
+    that ANSWERS 0xFF with a reply too short to carry a key blob. On the branch-2D010001 ring in the
+    cited run this was a 16-byte reply and the plaintext session then worked end to end — so it must
+    read as a POSITIVE plaintext finding, distinct from the `unknown` a silent ring gets, and capture
+    must proceed."""
+    st = _run_auth_session(tmp_path, monkeypatch, auth_reply=b"\x01" * 16)
+    assert st["auth_mode"] == oxyii.AUTH_PLAINTEXT, "an answered short reply IS a plaintext finding"
+    assert st["auth_mode"] != "unknown", "…and must not be confused with a ring that said nothing"
+    assert "too short to carry a key blob" in st["auth_reason"]
+    assert st.get("auth_unknown_links") is None, "an answered link is not counted as undetermined"
+    assert st["spo2"] == 96 and st["pr"] == 61, "a plaintext session captures normally"

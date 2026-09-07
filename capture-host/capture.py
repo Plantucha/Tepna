@@ -3934,6 +3934,10 @@ async def run_oxyii(dev: dict, root: str):
         # us, worn or not); `identity_seen` is set by the 0xE1 branch of on_data.
         frames = [0]
         identity_seen = [False]
+        # An OP_AUTH verdict that ENDS the session is not a link fault, and must not be paid for like
+        # one: the exponential backoff exists for a radio that keeps dropping, and an encrypted ring is
+        # a device we cannot read at all. Named separately so the journal and the retry both say so.
+        auth_stop = [None]
         try:
             _set(name, connected=False, address=addr, last_error=None)
             _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.CONNECTING, "scan + connect")
@@ -4039,6 +4043,14 @@ async def run_oxyii(dev: dict, root: str):
                 # so each reconnect republishes a fresh ring-vs-host offset (and after a 0xC0 push the
                 # next session shows whether it landed).
                 _info_last: list[float | None] = [None]
+                # THE OP_AUTH REPLY, captured rather than discarded. Until 2026-09-07 the 0xFF frame was
+                # written `response=False` and NOTHING read what came back, so the only encryption
+                # evidence this daemon had was probabilistic (`frame_looks_like_ciphertext`) or indirect
+                # (the branch code). `seen` is deliberately separate from `payload`: "the ring answered
+                # with nothing" and "the ring never answered" are different facts, and only the first
+                # may be classified — `classify_auth_reply(None)` returns PLAINTEXT, which is a CLAIM,
+                # and we must not make it on a ring that simply stayed silent.
+                _auth = {"seen": False, "payload": None}
 
                 def on_data(_s, d):
                     for frame in reasm.feed(bytes(d)):
@@ -4047,6 +4059,11 @@ async def run_oxyii(dev: dict, root: str):
                         # ring-vs-host offset so a 0xC0 push that failed to land is VISIBLE on the monitor
                         # rather than silently trusted. An unset/out-of-range RTC publishes None — absence,
                         # never year-0 arithmetic (Clock Contract §2.7).
+                        if r and r[0] == oxyii.OP_AUTH:
+                            # Recorded, never acted on HERE: the connect path owns the decision, and a
+                            # BLE callback is the wrong place to tear a session down.
+                            _auth["seen"] = True
+                            _auth["payload"] = r[1]
                         if r and r[0] == oxyii.OP_GET_INFO:
                             _info = oxyii.parse_get_info(r[1])
                             # IDENTITY (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C). The same reply
@@ -4091,6 +4108,16 @@ async def run_oxyii(dev: dict, root: str):
                             # on branch-2D010001 rings is real (oxyii.py §"Encrypted-session guard")
                             # and is a different layer from the LE link encryption Probe A refuted.
                             _branch = (_info or {}).get("branch_code")
+                            if _auth.pop("unknown_pending", False):
+                                # The paired verdict, once per link, at the first moment BOTH halves
+                                # exist: the ring never answered 0xFF, and here is what its branch code
+                                # says instead. Reported together because either alone misleads — a
+                                # silent ring is not evidence of plaintext, and a branch code is an
+                                # inference from a label, not a measurement of this session.
+                                log.info("%s: no OP_AUTH reply — encryption UNDETERMINED; branch %s "
+                                         "(%s per the only corroborator this build has)", name,
+                                         _branch or "unread",
+                                         "SUSPECT" if aes_session_suspect(_branch) else "not suspect")
                             if aes_session_suspect(_branch):
                                 if _prev_branch != _branch:   # TRANSITION only — not once per frame
                                     log.warning("%s: ring reports branch %s, not the measured-plaintext %s "
@@ -4450,8 +4477,47 @@ async def run_oxyii(dev: dict, root: str):
                     BUS.register("o2ppg2w", "Raw 2-wavelength (O2Ring)", "raw", 0, chans=2,
                                  labels=("ch0", "ch1"))
                 await _bounded_setup(client.start_notify(nch, on_data))
-                await _bounded_setup(client.write_gatt_char(wch, oxyii.auth_frame(), response=False))   # 0xFF: no reply
-                await asyncio.sleep(0.6)
+                await _bounded_setup(client.write_gatt_char(wch, oxyii.auth_frame(), response=False))  # 0xFF
+                await asyncio.sleep(0.6)     # the reply's settle window — it arrives on `nch`, not here
+                # ── THE ENCRYPTION DECISION, PRIMARY (SomnoTrace-class item (c)) ──────────────────
+                # `classify_auth_reply` shipped unwired: the reply it exists to read was never read.
+                # It is now the FIRST-CLASS answer, and the two older signals are what they always
+                # said they were — `frame_looks_like_ciphertext` calls itself "probabilistic,
+                # secondary", and the branch-code check is an inference from a firmware label.
+                #
+                # ⚠️ NO REPLY IS NOT "PLAINTEXT". Every ring in this project stays silent on 0xFF, so
+                # silence is the common case and it carries no information about encryption: the pure
+                # classifier maps `None` to AUTH_PLAINTEXT, which is a positive claim, so it is simply
+                # NOT CALLED here unless a reply actually arrived. Silence leaves the decision unmade
+                # and the secondary signals in force — exactly the state that held before this wiring.
+                if _auth["seen"]:
+                    _mode, _key, _why = oxyii.classify_auth_reply(_auth["payload"])
+                    _set(name, auth_mode=_mode, auth_reason=_why)
+                    if _mode != oxyii.AUTH_PLAINTEXT:
+                        # ENCRYPTED and REFUSE both end the session, for one reason: this build has no
+                        # decryptor on the live path, so continuing means reading ciphertext as SpO2
+                        # and pulse. A negotiated key we cannot use is no better than one we cannot
+                        # parse — `decode()` passes ciphertext (its CRC covers the envelope), so
+                        # nothing downstream would notice.
+                        auth_stop[0] = "encrypted" if _mode == oxyii.AUTH_ENCRYPTED else "refused"
+                        log.error("%s: OP_AUTH says %s — %s. Ending the session rather than reading "
+                                  "ciphertext as vitals.", name, _mode, _why)
+                        _set(name, connected=False, last_error=f"auth: {auth_stop[0]} — {_why}")
+                        raise RuntimeError(f"auth: {auth_stop[0]}")
+                    log.info("%s: OP_AUTH answered — %s", name, _why)
+                else:
+                    # UNKNOWN, and SAID SO. Every ring in this project stays silent on 0xFF, so silence
+                    # is the common case and carries no information: `classify_auth_reply(None)` returns
+                    # AUTH_PLAINTEXT, a positive claim, so it is not called here at all. A silent
+                    # unknown would be the same shape as an `alarm_raw` of 0 — an absence rendered as a
+                    # clean reading — so it is published, counted, and logged once per link WITH the
+                    # branch-code verdict beside it, which is the only corroborator this daemon has
+                    # (`aes_session_suspect`, capture.py's GET_INFO branch). The pair is what a reader
+                    # needs: neither number means anything alone.
+                    _auth["unknown_pending"] = True
+                    _set(name, auth_mode="unknown",
+                         auth_reason="no OP_AUTH reply — encryption undetermined",
+                         auth_unknown_links=(STATUS["devices"].get(name, {}).get("auth_unknown_links") or 0) + 1)
                 # 0x10 AUTO_RT_SWITCH: `0x00` disables all four device-push streams, which is what this
                 # has always sent and what every existing recording was captured under. Asking for 'acc'
                 # in the device's `streams` opts into the ring's 3-axis accelerometer — the SAME
@@ -4765,7 +4831,13 @@ async def run_oxyii(dev: dict, root: str):
             log.error("%s: %s", name, _bar)
         _set(name, ring_barren_connects=barren, ring_barren_alert=_bar)
         if not _STOP.is_set():
-            if stalled:
+            if auth_stop[0]:
+                # NOT the error backoff: the radio is fine and the device is unreadable by this build,
+                # so doubling the wait models the wrong fault and buries the reason under "backoff".
+                # Fixed interval, named in the journal, so a reader sees `auth: encrypted` rather than
+                # a link that looks flaky.
+                await _retry_sleep(name, _STALL_RECONNECT_S, f"auth: {auth_stop[0]}", attempt)
+            elif stalled:
                 await _retry_sleep(name, _STALL_RECONNECT_S, "stalled", attempt)   # not an error backoff
             else:
                 attempt += 1
