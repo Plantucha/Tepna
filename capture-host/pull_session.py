@@ -499,7 +499,6 @@ async def probe_ppg_list(address, adapter=None, serial="0000"):
     if device is None:
         print(f"probe: {address} is not advertising — nothing to probe", flush=True)
         return None
-    q: asyncio.Queue = asyncio.Queue()
     reasm = oxyii.Reassembler()
     seen: list = []
 
@@ -508,7 +507,6 @@ async def probe_ppg_list(address, adapter=None, serial="0000"):
             r = oxyii.decode(frame)
             if r:
                 seen.append(r)
-                q.put_nowait(r)
 
     async with BleakClient(device, timeout=oxy_power.TIMEOUTS.connect_s, **kw) as client:
         await client.start_notify(oxyii.OXYII_NOTIFY, on_notify)
