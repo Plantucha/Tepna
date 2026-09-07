@@ -71,12 +71,18 @@ run_gate "unwired"    "$PY" tools/find_unwired.py --check
 adv_names=(); adv_codes=(); adv_notes=()
 run_advisory() {                    # run_advisory <label> <note-on-fail> <cmd...>
   local label="$1"; local note="$2"; shift 2
+  # A command may set ADVISORY_NOTE to replace the static note with what it MEASURED. Every other row
+  # in the summary block is a live verdict (`✓ ruff ok`, `✗ pytest FAILED`), so a row that is constant
+  # text formatted identically to those reads as a status while naming only a configured value — which
+  # is how a mypy count of 104 was reported as "baseline 103" and believed. Cleared before each run so
+  # a stale note cannot survive into the next advisory.
+  ADVISORY_NOTE=""
   printf '
 [1m▸ %s (advisory)[0m
 ' "$label"
   "$@"
   local rc=$?
-  adv_names+=("$label"); adv_codes+=("$rc"); adv_notes+=("$note")
+  adv_names+=("$label"); adv_codes+=("$rc"); adv_notes+=("${ADVISORY_NOTE:-$note}")
   return 0
 }
 # PERSIST MYPY'S OUTPUT — the §P2 fix lane's work queue. `qwen-idle-driver.sh` stage 5 reads
@@ -109,15 +115,19 @@ mypy_advisory() {
     # No summary line means mypy did not complete a run — an ABORT, not a clean tree. Reporting
     # "0 errors" here would be the loudest possible lie, so say what actually happened.
     printf '  mypy: NO COUNT — mypy did not report a summary line (it aborted, not passed)\n'
+    ADVISORY_NOTE="NO COUNT — mypy aborted; nothing was examined"
   elif [ "$n" -gt "$MYPY_BASELINE" ]; then
     printf '  mypy: %s errors — RISEN from the %s baseline (%s). The count may only go DOWN.\n' \
            "$n" "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"
+    ADVISORY_NOTE="$n (baseline $MYPY_BASELINE, RISEN) — the count may only go DOWN"
   elif [ "$n" -lt "$MYPY_BASELINE" ]; then
     printf '  mypy: %s errors — BELOW the %s baseline (%s). Lower MYPY_BASELINE to bank it, or the\n' \
            "$n" "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"
     printf '        improvement can be spent again without anything noticing.\n'
+    ADVISORY_NOTE="$n (baseline $MYPY_BASELINE, BELOW) — lower MYPY_BASELINE to bank it"
   else
     printf '  mypy: %s errors — at the %s baseline (%s).\n' "$n" "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"
+    ADVISORY_NOTE="$n (baseline $MYPY_BASELINE, at baseline)"
   fi
   return "$rc"
 }
