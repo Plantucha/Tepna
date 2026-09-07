@@ -2314,7 +2314,10 @@ def class_b_quality(night_dir: str, *, emit=None) -> list:
                     try:
                         cols = tuple(int(float(p)) for p in parts[2:])
                     except ValueError:
-                        continue
+                        continue      # a torn row is expected at a live file's tail and a repeated
+                                      # mid-file header is a real rotation artifact; the spans are
+                                      # built from the rows that parsed, and `_CLIP_MIN_RUN` plus the
+                                      # rail qualification refuse a verdict built from too few
                     records.append(cols[0] if len(cols) == 1 else cols)
         except OSError:
             log.warning("night-QC: %s is unreadable, so its class-B quality is ABSENT rather than "
