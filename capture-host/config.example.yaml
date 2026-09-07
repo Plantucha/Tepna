@@ -120,7 +120,18 @@ devices:
     model: O2Ring-S
     device_id: CCCCCCCC
     address: "WW:WW:WW:WW:WW:WW"        # Random-Static MAC — rotates on factory reset; re-scan if it changes
-    streams: [spo2]
+    streams: [spo2, ppg, acc]
+    # ⚠️ `acc` is a ZERO-ORDER HOLD and carries TWO rates that must not be conflated. The ring MEASURES
+    #    at 1.5625 Hz and the capture path writes ~9.979 Hz records, so ~84 % of records repeat the
+    #    previous value (measured two nights: 6.387-6.396 records per distinct value = 32/5). Coverage
+    #    is judged against the RECORD rate — that is what `measured_hz` reads off the file — while
+    #    anything counting independent samples, epochs or information content must use the MEASUREMENT
+    #    rate (`nightqc.measurement_hz`) or be 6.4x wrong. The repeats are real data at a real lower
+    #    rate (Clock Contract §7, a drawn axis), NOT absence: a run-length rule keyed on constant runs
+    #    would flag 99.8 % of the file and convict the device for working as designed.
+    # ⚠️ `_ACCRAW.txt`, `_PLETHA.txt` and `_PPG2W.txt` carry NO device clock, so their
+    #    `sensor timestamp [ns]` column is written BLANK. It is not `0`: a zero is in-band for a ns
+    #    counter and a reader that trusts it places every row at the epoch.
     # serial: "2592302100"             # OPTIONAL identity check (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2
                                        #   Mitigation C). The WIRE serial the ring answers in its 0xE1
                                        #   GET_INFO reply — read it off the monitor's "peer identity" line

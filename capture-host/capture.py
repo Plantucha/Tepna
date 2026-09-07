@@ -4195,7 +4195,7 @@ async def run_oxyii(dev: dict, root: str):
                                         # day the frame cadence is measured.
                                         _aph = _now()
                                         for _ax, _ay, _az in _acc:
-                                            accrawwr.write_acc(_aph, 0, 0.0, _ax, _ay, _az)
+                                            accrawwr.write_acc(_aph, None, 0.0, _ax, _ay, _az)
                                     note_data(name, _time.monotonic())
                             elif not _acc_unexpected[0]:
                                 _acc_unexpected[0] = True
@@ -4213,7 +4213,7 @@ async def run_oxyii(dev: dict, root: str):
                                     # sensor_ns 0: this opcode carries no device clock (see the header
                                     # comment on the `pletha` layout). Back-timing the block would be
                                     # inventing per-sample instants the device never reported.
-                                    plethawr.write_pletha(_ph, 0, _v, _bt)
+                                    plethawr.write_pletha(_ph, None, _v, _bt)
                                 BUS.push("o2pletha", [[_v] for _v, _ in _recs])
                         if r and r[0] == oxyii.OP_RT_PPG and ppg2wr:
                             recs = oxyii.parse_rt_ppg(r[1])
@@ -4230,9 +4230,11 @@ async def run_oxyii(dev: dict, root: str):
                                     # sensor_ns = 0: the ring exposes NO device clock on this opcode, and
                                     # the 125 Hz pleth's O2PpgGrid cannot be borrowed — it is built on a
                                     # MEASURED 125 Hz step, so reusing it here would stamp this stream
-                                    # with another stream's rate. A zero column reads as "no device
-                                    # timebase"; a plausible one would read as a measurement.
-                                    ppg2wr.write_ppg2w(ph, 0, a, b, mo)
+                                    # with another stream's rate. The column is written BLANK, not 0:
+                                    # a zero is in-band for a ns counter, so it cannot be told apart
+                                    # from a device that reported the instant zero, and a reader that
+                                    # trusts it places the row at the epoch. Blank parses as absent.
+                                    ppg2wr.write_ppg2w(ph, None, a, b, mo)
                                 BUS.push("o2ppg2w", [[a, b] for a, b, _m in recs])
                             continue
                         if not r or r[0] != oxyii.OP_LIVE:
