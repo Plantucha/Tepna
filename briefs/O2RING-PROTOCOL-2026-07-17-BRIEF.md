@@ -86,7 +86,10 @@ Flow: **connect → auth (0xFF) → setup (0x10) → poll (0x04) ~1/s**.
   preferable is untested; the point is that the choice was never made.
 - **LIVE `0x04`** — empty payload; the device replies with a 24-byte header. Offsets:
   `[5]` contact · `[6]` SpO₂ (%) · `[7]` motion · `[8]` HR (bpm) · `[13]` battery (%).
-  **contact:** `0x00` no finger · `0x01` idle-present · `0x03` file-open. SpO₂/HR are `None` off-finger.
+  **contact:** `0x00` no finger / lead-off · `0x01` normal · `0x02` probe unplugged · `0x03` sensor/probe
+  fault. SpO₂/HR are `None` off-finger. ⚠️ **CORRECTED 2026-09-06 — vendor SDK sources show the byte is a
+  four-state probe condition, not a file-state flag; the earlier `0x03` "file-open" reading was wrong.**
+  Scope: OxyII family (O2Ring S / S8-AW / SF / SP; NOT the gen-1 O2Ring protocol).
 
   **⚠️ LAYOUT CORRECTED 2026-07-18 against the vendor's own parser.** The offsets above were derived by
   correlating 244 real frames against known physiology. SpO₂ and PR were right; three others were not,
@@ -107,7 +110,7 @@ Flow: **connect → auth (0xFF) → setup (0x10) → poll (0x04) ~1/s**.
   | `[11]` | **motion** | was the unidentified byte |
   | `[12]` | batteryState | `0` = not charging |
   | `[13]` | battery % | ✓ as before |
-  | `[14]` | **four 2-bit alarm states** — decoded 2026-09-02, see below | on the wire; the vendor's own DTO discards them |
+  | `[14]` | **four 2-bit alarm states** — decoded 2026-09-02, see below | on the wire; **vendor SDK sources show the RtParam EXPOSES all four** (corrected 2026-09-06 — an earlier note here said the DTO discards them) |
 
   **`[14]` is fully decoded (2026-09-02).** Four 2-bit fields sharing one enum — `0` condition not met ·
   `1` condition met · `2` **condition met but the device deliberately does not sound the alarm**:
@@ -162,8 +165,13 @@ the whole story for our hardware. A ring on branch **`2D010001`** answers, and t
 - from then on **every request and reply PAYLOAD is AES-128-ECB** (PKCS7 padding; identical to PKCS5 at a
   16-byte block — do not "fix" one to match the other). The `0xFF` command itself, the envelope and the
   CRC stay plaintext.
+- ⚠️ **NEGOTIATION IS PER-CONNECT, NOT PAIRING-TIME (corrected 2026-09-06).** Vendor SDK sources show the
+  `0xFF` AUTH is attempted on **every** connect under a ~1 s deadline, with encryption decided from that
+  reply and a plaintext fallback when none arrives — so "pairing-time" below describes an observation,
+  not the mechanism. Tepna sends AUTH per connect but does not yet read the reply; wiring that is a
+  follow-up. Scope: OxyII family (O2Ring S / S8-AW / SF / SP; NOT the gen-1 O2Ring protocol).
 - **A reply is not proof of encryption.** On one such ring, the same physical device answered ~20 bytes on
-  the pairing connect and **16 bytes on later connects**, and those 16-byte sessions worked completely
+  the first connect and **16 bytes on later connects**, and those 16-byte sessions worked completely
   in plaintext — serial, firmware, file list, four file pulls. 16 B is exactly the length of the auth
   payload we send, so an *echo* is the likely reading — **inferred, not measured**. Key on *"too short to
   carry a key blob"*, never on *"a reply arrived"*: the latter rule was drafted here on 2026-09-02 and
@@ -264,10 +272,10 @@ Ticks are what `oxyii.py` implements today.
 | `0x03` | RT_WAVE | ❌ | the wave half alone |
 | `0x04` | **RT_DATA** = param + wave | ✅ `OP_LIVE` | §3 / §3b |
 | `0x05` | **RT_PPG** | ✅ `OP_RT_PPG` | request payload `{0x07, 0x01}` — matches ours exactly |
-| `0x06`–`0x09` | file list / start / data / end | ❌ | family-A duplicates of `0xF1`–`0xF4` |
-| `0x10` | **AUTO_RT_SWITCH** | ⚠️ `OP_SETUP` | we send `0x00` = disable all four push streams (§3) |
+| `0x06`–`0x09` | **stored raw-PPG file family** — list / start / data / end | ❌ | ⚠️ **NOT duplicates of `0xF1`–`0xF4` (corrected 2026-09-06).** Vendor SDK sources show a distinct family for the stored raw-PPG files: `0x06` list · `0x07` start (16-byte name + `u32 0`) · `0x08` data (`u32` offset) · `0x09` end. The file **type selects the family**; it is not a field on the wire |
+| `0x10` | **AUTO_RT_SWITCH** | ⚠️ `OP_SETUP` | corrected 2026-09-06: we send **`0x08` = `RT_PUSH_ACC`** when `acc` is in the device's streams, and `0x00` (disable all four) otherwise — `capture.py` `_push` |
 | `0x11`–`0x13` | auto RT_PARAM / RT_WAVE / RT_PPG | ❌ | the pushed counterparts of `0x02`/`0x03`/`0x05` |
-| `0x14` | **AUTO_RT_ACC** | ❌ | 3-axis accelerometer, `{u16 size, then 6 B/sample: i16 x, y, z}` |
+| `0x14` | **AUTO_RT_ACC** | ✅ | 3-axis accelerometer, `{u16 size, then 6 B/sample: i16 x, y, z}` — **in production since 2026-09-03**, written to `_ACCRAW.txt` (corrected 2026-09-06; this row read ❌) |
 | `0xC0` | SET_UTC_TIME (8 B) | ✅ | byte `[7]` decoded — §9 |
 | `0xEC` | SET_UTC_TIME (7 B) | ❌ | same but no timezone byte |
 | `0xE0` | ECHO | ❌ | a liveness probe we do not use |
@@ -395,7 +403,12 @@ saves the raw bytes verbatim as `Wellue_O2Ring-S_<ts>_STORED.dat` + a `.meta.jso
 (bytes, header, format_a flag, sample count, trailer). Header `01 03…` confirms Format A on decode.
 
 ## 6 · Operational quirks (the ones that cost hours — READ before automating)
-- **Advertises ONLY when worn (finger-in).** NOT while idle, NOT on the USB charger, NOT just after
+⚠️ **CORRECTED 2026-09-06 — the advertising claim below is wrong and the harvest design rests on the
+corrected line.** Measured externally: the ring **advertises the same on and off finger**, and simply
+**powers off ~120 s after doff**; once powered off the **button is dead**, so nothing can wake it. The
+harvest window is therefore that ~120 s, not a wear state. Scope: OxyII family (O2Ring S / S8-AW / SF / SP; NOT the gen-1 O2Ring protocol).
+
+- ~~**Advertises ONLY when worn (finger-in).**~~ NOT while idle, NOT on the USB charger, NOT just after
   removal. To connect for a download you must physically **wear it**.
   ⚠️ **This may be an artefact of how we scan, and there is a one-command test we have never run.**
   The public RE reference reports **two advertising modes on this device class**: a recording mode
