@@ -16,16 +16,25 @@
  * The version is computed ONCE, here, at the end — parallel coders only ever drop changesets, so
  * they never collide on a number. NEVER hand-edit a version or a manifestHash snapshot.
  *
- *     node tools/release.mjs            # cut a release from the pending changesets
+ *     node tools/release.mjs --full     # ← THE release command: stamp → build → gate → PR → merge →
+ *                                       #   tag → GitHub Release → cleanup, detached (tools/release-land.mjs)
+ *     node tools/release.mjs            # the STAMP step alone (what --full runs inside its worktree)
  *     node tools/release.mjs --dry-run  # preview; write nothing
  *     node tools/release.mjs --skip-gates   # dev only: skip the pre-flight gate run
+ *
+ * `--full` exists because the eleven steps AFTER the stamp were done by hand on every release and
+ * on v2.10.0 four of them went wrong (bare `build.mjs` builds nothing; staging deleted changesets;
+ * the GitHub Release object was never created so "Latest" read the old version; the worktree was
+ * left behind). The chain is a program now — see release-land.mjs's header. Progress:
+ * `node tools/release-land.mjs --status`.
  */
-import { readdirSync, readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, unlinkSync, existsSync, openSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -34,6 +43,21 @@ const ProvenanceLedger = require(join(ROOT, 'provenance-ledger.js'));
 const args = process.argv.slice(2);
 const DRY = args.includes('--dry-run');
 const SKIP_GATES = args.includes('--skip-gates');
+const FULL = args.includes('--full');
+
+/* --full: hand the whole chain to release-land.mjs as a DETACHED process and return at once. The
+   chain outlives any operator tool-loop timeout (measured cap: 10 min; the chain: 45–90 min), so it
+   must not be a child of this shell. Its log + state file are printed here; nothing runs hidden. */
+function launchFull() {
+  const dir = join(tmpdir(), 'tepna-release-land');
+  mkdirSync(dir, { recursive: true });
+  const logFile = join(dir, 'launch-' + new Date().toISOString().replace(/[:.]/g, '-') + '.log');
+  const fd = openSync(logFile, 'a');
+  const pass = args.filter((a) => a !== '--full');
+  const child = spawn(process.execPath, [join(ROOT, 'tools', 'release-land.mjs'), '--foreground', ...pass], { cwd: ROOT, detached: true, stdio: ['ignore', fd, fd] });
+  child.unref();
+  console.log('release-land launched, pid ' + child.pid + '\n  log:    ' + logFile + '\n  status: node tools/release-land.mjs --status');
+}
 const p = (...a) => join(ROOT, ...a);
 const readJSON = (f) => JSON.parse(readFileSync(p(f), 'utf8'));
 
@@ -303,25 +327,40 @@ function main() {
   for (const c of changesets) unlinkSync(join(CHANGE_DIR, c.name));
 
   console.log(
-    '\nReleased ' +
+    '\nStamped v' +
       to +
-      '. Now:\n\n    node tools/build.mjs        # \u00a7\ud83d\udce6 re-stamps the fleet displayed version (manifestHash-INVARIANT: zero fixtures move); build:check reds until run\n    node tools/build-docs.mjs   # projects v' +
+      '. This was the STAMP step only. The rest of the chain is `node tools/release.mjs --full`\n' +
+      '(tools/release-land.mjs) — if you are running the steps by hand, they are, in order:\n\n' +
+      '    node tools/build.mjs --all  # §📦 re-stamps the fleet displayed version (manifestHash-INVARIANT: zero fixtures move);\n' +
+      '                                #   build:check reds until run. ⚠ a BARE build.mjs builds NOTHING (measured, v2.10.0)\n' +
+      '    node tools/build-docs.mjs   # projects v' +
       to +
-      ' into the deploy surfaces, then PRINTS the exact `git add` line for what it wrote\n' +
-      '    # ↑ stage BOTH lists. The line below carries only what release.mjs itself wrote; every\n' +
-      '    #   deploy path belongs to build-docs and comes from the paths build-docs just printed.\n' +
-      '    #   Do not re-hardcode them here — a copy in this file drifted and silently omitted four.\n' +
-      '    git add suite.manifest.json CHANGELOG.md RELEASE-MANIFEST.json CITATION.cff changes/ \\\n' +
-      '      && git commit -m "release: v' +
+      ' into the served copies (docs/)\n' +
+      '    npm run check               # the FULL gate, once, on the final tree\n' +
+      '    git add -- <every modified path in git status --porcelain>       # stage by explicit path, never -A / -u;\n' +
+      '                                                                    #   the deploy surfaces are the paths build-docs just printed\n' +
+      '    git rm -q --cached -- $(git ls-files -d -- changes)               # the consumed changesets\n' +
+      '    git commit -m "release: v' +
       to +
-      '"\n    git tag -s v' +
+      '" && git push -u origin <branch> && gh pr create --title "release: v' +
+      to +
+      '"\n' +
+      '    # after the PR MERGES, at the MERGE sha (a squash rewrites the branch tip):\n' +
+      '    git tag -a v' +
       to +
       ' -m "v' +
       to +
-      '"   # -s = SIGNED → GitHub shows "Verified" (needs a GPG/SSH signing key; v1.8.0 was the last signed tag)\n' +
-      '    git push && git push origin v' +
+      '" <merge sha> && git push origin v' +
       to +
-      '\n'
+      '   # -s instead of -a when user.signingkey is configured\n' +
+      '    gh release create v' +
+      to +
+      ' --title "Tepna v' +
+      to +
+      '" --notes-file <the CHANGELOG [' +
+      to +
+      '] section> --verify-tag   # the object "Latest" reads; a tag alone is NOT a release\n' +
+      '    node tools/wt-done.mjs <worktree>\n'
   );
 }
 /* ⚠️ ENTRY GUARD — WITHOUT IT THIS FILE RUNS ITS CLI THE MOMENT ANYTHING IMPORTS IT.
@@ -329,4 +368,4 @@ function main() {
    `doc-search.mjs`'s `isEntryPoint` resolves rather than string-compares). Swept 2026-08-19 after
    `device-stability.mjs` was found unimportable for the sibling reason: of 143 `tools/*.mjs`, 48
    guarded, 90 have no entry point at all, and a handful executed on import. */
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) FULL ? launchFull() : main();

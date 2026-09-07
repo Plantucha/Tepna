@@ -234,6 +234,7 @@ scripts, and `tsc`/ESLint self-install via `npx -y` on demand. The **one** pinne
 | `npm run build` / `build:app -- <Name>` / `build:check` | `tools/build.mjs --all` / `--app` / `--check` | re-bundle owned bundles / drift guard |
 | `npm run verify:manifest` | `tests/verify-manifest.mjs` | provenance GATE A after a re-bundle |
 | `npm run release` / `release:dry` | `tools/release.mjs` | cut a release from a green tree |
+| **`npm run release:full`** / `release:status` | `tools/release.mjs --full` → `tools/release-land.mjs` | **the whole release, unattended**: stamp → build → docs → `npm run check` → PR → merge → tag → GitHub Release → cleanup (detached; `--status` shows the step) |
 | `npm run rebase` | `tools/rebase-safe.mjs` — fetch → rebase onto `origin/main` → auto-resolve **generated** conflicts → rebuild every generated tree → report what to amend | **before every push.** `main` moves during review and the two orchestrator bundles are re-bundled by ANY inlined-module change, so PRs sharing no source still collide. It STOPS on a SOURCE conflict instead of picking a side — `git checkout <ref> -- <source>` reverts work silently and is hook-denied (CLAUDE.md §2c) |
 
 > The `npm run` names are a convenience layer, **not** a new gate. The canonical gates are still
@@ -378,6 +379,15 @@ night pairing, byte-weighted parallel ETA) live in the brief.
   (`bump`/`type`/`brief` — `changes/README.md`). **Never hand-pick a version;** `tools/release.mjs`
   computes it at release time from the pending changesets, so parallel coders never collide on a
   number. The `release-ledger` gate reds if code moved with no changeset.
+- **Cutting the release is ONE command: `node tools/release.mjs --full`** (≥25 pending changesets or
+  weekly, owner ruling 2026-09-07). It launches `tools/release-land.mjs` detached and returns; the chain
+  (stamp · `build.mjs --all` · `build-docs` · `npm run check` · explicit-path stage · PR · wait for the
+  merge · tag at the MERGE sha · **GitHub Release object** · `wt-done`) runs 45–90 min and records
+  every step in a state file — `node tools/release-land.mjs --status` reads it, `--resume` continues
+  after a fix. Nothing in that list is done by hand any more: on v2.10.0 four of the hand steps went
+  wrong (a bare `build.mjs` builds nothing; the Release object was never created, so "Latest" read the
+  old version). The Release notes are the new `CHANGELOG.md` section, leak-scanned before publishing
+  (generic patterns; project-specific strings go in an EXTERNAL file named by `TEPNA_RELEASE_DENYLIST`).
 - **100% local. No network, no CDN, ever.** Fonts are system stacks. Assets are inlined at bundle time.
 - **Frozen / do-not-touch:** the bus name **`Ganglior`** (the Integrator still reads a `fascia` input
   alias for back-compat). Retired vocabulary (proxy→heuristic, composite→experimental) must not reappear.

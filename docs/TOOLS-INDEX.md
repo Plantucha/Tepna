@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**174 tools** · 172 with a purpose line · **2 without**
+**175 tools** · 173 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -153,6 +153,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`regen-oxydex-goldens.mjs`](../tools/regen-oxydex-goldens.mjs) | OxyDex was the one code-gated node WITHOUT a regenerator (CPAPDex/GlucoDex/PulseDex/MotionDex all had one), so DEEP-AUDIT-II §2.1/§2.2 — which moves every OxyDex export — had no sanctioned… |
 | [`regen-ppgdex-goldens.mjs`](../tools/regen-ppgdex-goldens.mjs) | Regenerate PpgDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs, then re-recording each fixture. |
 | [`regen-pulsedex-goldens.mjs`](../tools/regen-pulsedex-goldens.mjs) | It drives the SAME seam the equivalence gate drives — RR text → PulseDex.parseRRInput(frame) → PulseDex.compute({intervals,tsMs,t0Ms,offsetMin}) — in a vm realm co-loaded like… |
+| [`release-land.mjs`](../tools/release-land.mjs) | THE WHOLE RELEASE, ONE COMMAND, NO OPERATOR MEMORY — stamp → build → gate → PR → merge → tag → GitHub Release → cleanup. |
 | [`release.mjs`](../tools/release.mjs) | CONTROLLED-RELEASES-2026-07-05 — cut a controlled Tepna release. |
 | [`residue-ids.mjs`](../tools/residue-ids.mjs) | the CROSS-TREE half of the residue ledger's id contract. WHY THIS EXISTS. |
 | [`resp-acc-headless.mjs`](../tools/resp-acc-headless.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ Drive `resp-acc-analysis.html` THROUGH ITS OWN UI, headlessly, against a real corpus. |

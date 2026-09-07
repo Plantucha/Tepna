@@ -1111,6 +1111,13 @@ hand-typed version onto source files — `manifestHash` already identifies code 
   removal); **MINOR** adds backwards-compatibly (node/metric/adapter/gate/additive field); **PATCH**
   fixes without changing a contract shape (a moved fixture output is still PATCH but MUST regenerate
   fixtures per §🔏).
+- **The release is ONE command and runs unattended — `node tools/release.mjs --full`** (owner-ordered
+  2026-09-07 after v2.10.0 was hand-driven and four of its eleven post-stamp steps went wrong). It
+  launches `tools/release-land.mjs` detached: stamp → `build.mjs --all` → `build-docs` → `npm run check`
+  → explicit-path stage → PR → merge → tag at the merge sha → **GitHub Release object** (the thing
+  "Latest" reads — a tag alone is not a release) → `wt-done`. `node tools/release-land.mjs --status`
+  shows the step; `--resume` continues after a fix. Do not run those steps by hand from memory; if the
+  tool cannot do one, fix the tool. Cadence: ≥25 pending changesets or weekly, on the corpus machine.
 - **Parallel coders never hand-pick a number.** Each work-unit drops a collision-free **changeset** as
   its last action (`changes/*.md` — `bump`/`type`/`brief`; see `changes/README.md`). `tools/release.mjs`
   folds all pending changesets, computes the version ONCE from a **green tree**, stamps
