@@ -1623,6 +1623,65 @@ def _ramp(values, first, n, *, toward_high, ramp=_RAMP_SAMPLES, annotations=()):
     return mono_in, mono_out, beyond
 
 
+_RAIL_SCAN_VALUES = 8           # how many OCCUPIED values inward from an edge are considered when
+                                # locating the rail.
+_RAIL_GAP_MAX = 4               # a wider gap than this between occupied values means the edge value
+                                # stands alone, so it IS the rail and no spike search is run.
+_RAIL_SPIKE_MIN = 5             # a rail must OUT-COUNT its nearest occupied neighbour by this factor.
+                                # Measured 2026-09-06 over eight files: real rails run 9.0-43.0x (ring
+                                # floor 34.3-43.0, ring ceiling 16.4-38.4, Verity ceiling 41.0 and 9.0),
+                                # a clean quantised sine reaches only 2.3-2.4x because a smooth signal
+                                # genuinely lingers at its own turning point, and the Verity's lone
+                                # minimum sample scores 1.0x. Five clears clean signal by ~2x and sits
+                                # ~1.8x under the weakest real rail.
+
+
+def rail_value(values, *, toward_high, scan=_RAIL_SCAN_VALUES, gap_max=_RAIL_GAP_MAX,
+               spike_min: float = _RAIL_SPIKE_MIN):
+    """The rail is the HISTOGRAM SPIKE NEAREST THE EDGE, not the edge.
+
+    🔴 The observed extreme is not the rail, and using it silently drops a whole class. Measured on
+    20260905045318, the top of the range is 195:34 · 196:39 · 197:41 · 198:75 · **199:2596** · 200:304 —
+    the rail is 199 and the maximum is a rare overshoot one quantum above it. A rule keyed on `max`
+    hunts for the ceiling at 200, weighs 304 samples against a 2,596-sample neighbour, and concludes
+    the ceiling is not pinned. The failure presents as "the ceiling behaves differently from the floor",
+    which is exactly the asymmetry the marker exclusion already had to dissolve once. (Found by Magpie
+    building the JS port against real files, 2026-09-06; this implementation had the same bug in a
+    milder form — a one-quantum tolerance caught the 199 class by accident while LABELLING it 200.)
+
+    The gap clause keeps this general: if the stream jumps away from the extreme, a spike search across
+    that gap would walk into the bulk of the distribution and return a value that is not a rail at all.
+    The Verity's 2 096 921 sits alone that way; the ring's 199 does not.
+    """
+    counts = {}
+    for v in values:
+        counts[v] = counts.get(v, 0) + 1
+    if not counts:
+        return None
+    occupied = sorted(counts, reverse=toward_high)
+    if len(occupied) < 2:
+        return None
+    edge = occupied[0]
+    window = [edge]
+    for v in occupied[1:scan]:
+        if abs(v - window[-1]) > gap_max:
+            break
+        window.append(v)
+    rail = max(window, key=lambda v: counts[v])
+    # `occupied` is sorted outward-edge first, so the first survivor is the NEAREST neighbour inward.
+    inward = [v for v in occupied if v < rail] if toward_high else [v for v in occupied if v > rail]
+    if not inward:
+        return None                      # the spike sits at the far end of a stream with only a
+                                         # couple of distinct values, so there is nothing inward of it
+                                         # to be a spike ABOVE. That is a flat/binary stream, not a rail.
+    neighbour = inward[0]
+    if counts[rail] < spike_min * counts[neighbour]:
+        return None                      # not a spike: a smooth signal lingering at its own turning
+                                         # point, or a lone outlier. This stream has no rail on this
+                                         # side, so it has no clip regions on this side either.
+    return rail
+
+
 def clip_regions(values, *, min_run: int = _CLIP_MIN_RUN, max_spread: int = _PLATEAU_LSB,
                  ramp: int = _RAMP_SAMPLES, annotations=()):
     """Plateaus PINNED AT AN OBSERVED EXTREME, at BOTH rails, with their approach shape measured.
@@ -1651,9 +1710,11 @@ def clip_regions(values, *, min_run: int = _CLIP_MIN_RUN, max_spread: int = _PLA
     real = [v for v in values if v not in skip]
     if not real:
         return []
-    lo, hi = min(real), max(real)
     out = []
-    for rail, toward_high in ((lo, False), (hi, True)):
+    for toward_high in (False, True):
+        rail = rail_value(real, toward_high=toward_high)
+        if rail is None:
+            continue                     # no rail on this side — a clean stream has none on either
         for first, n, rlo, rhi in near_constant_regions(values, max_spread=max_spread,
                                                         min_run=min_run, annotations=skip):
             if abs(rlo - rail) > max_spread or abs(rhi - rail) > max_spread:

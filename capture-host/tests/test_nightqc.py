@@ -2319,24 +2319,46 @@ def test_clip_does_not_flag_a_long_constant_run_at_BASELINE():
     assert nightqc.class_b_runs(v, stream="ppg", annotations=(_MK,))["rows"] == []
 
 
-def test_clip_clean_night_reports_the_signals_own_turning_points():
-    """A known COST of a pinned rule, asserted so nobody rediscovers it as a bug.
+def test_clip_finds_NOTHING_in_a_clean_stream():
+    """The negative control real data cannot supply, because every real file's extremes are anomalous
+    BY CONSTRUCTION — which is exactly why a clean synthetic stream is the only place this can be
+    asserted. (Magpie's port flagged 16 spans on 2,000 clean samples before the rail was qualified.)
 
-    `clip` is pinned at the OBSERVED extremes, so on a stream that never reaches a real rail the
-    extremes are just the signal's own max and min, and a slow turning point sits near-constant for
-    several samples. Magpie measured the price on a clean night: 0.0538 % of samples flagged.
-
-    ⚠️ The geometry does NOT rescue this, and an earlier draft of this test asserted that it did. A
-    turning point is approached monotonically AND projects beyond its own extreme, because the
-    approach slope is non-zero — so `projects_beyond` is True here, exactly as it is at a real rail.
-    On the real corpus the ceiling projects beyond in only 54-62 % of regions while reading 94-97 %
-    monotone, so neither flag separates a rail from a turning point on its own. The geometry is
-    EVIDENCE carried with the region, never the discriminator; the discriminator is the pin.
+    A smooth signal genuinely lingers at its own turning point, so `min_run` alone will never reject it
+    and neither will the geometry: a turning point is approached monotonically AND projects beyond its
+    own extreme, just as a real rail does. The discriminator is that a rail is a histogram SPIKE.
+    Measured over eight files: real rails out-count their neighbour 9.0-43.0x, a clean quantised sine
+    only 2.3-2.4x, and a lone outlier 1.0x.
     """
-    slow = [100 + int(20 * math.sin(i / 40.0)) for i in range(400)]
-    geo = nightqc.clip_regions(slow, annotations=(_MK,))
-    assert geo, "a slow turning point does reach the observed extreme"
-    assert any(g["projects_beyond"] for g in geo)
+    clean = [int(100 + 90 * math.sin(i / 23.0)) for i in range(2000)]
+    assert nightqc.rail_value(clean, toward_high=False) is None
+    assert nightqc.rail_value(clean, toward_high=True) is None
+    assert nightqc.clip_regions(clean, annotations=(_MK,)) == []
+    assert nightqc.class_b_runs(clean, stream="ppg", annotations=(_MK,))["rows"] == []
+
+
+def test_the_rail_is_the_histogram_spike_NOT_the_observed_extreme():
+    """🔴 The observed maximum is not the rail, and keying on it drops a whole class silently.
+
+    Measured on 20260905045318 the top of the range is 195:34 · 196:39 · 197:41 · 198:75 · 199:2596 ·
+    200:304 — the rail is 199 and 200 is a rare overshoot one quantum above it. A `max`-keyed rule
+    hunts at 200, weighs 304 against a 2,596-sample neighbour, and reports no ceiling at all; the
+    symptom is "the ceiling behaves unlike the floor", not an error. Found by Magpie against real
+    files, 2026-09-06.
+    """
+    # a rail at 199 with a thin overshoot to 200, exactly the real shape
+    v = ([100] * 40 + [150, 170, 185, 193] + [199] * 60 + [200] * 3 + [199] * 40
+         + [193, 185, 170, 150] + [100] * 40)
+    assert nightqc.rail_value(v, toward_high=True) == 199, "the spike, not the maximum"
+    rails = {r["rail"] for r in nightqc.clip_regions(v, annotations=(_MK,))}
+    assert 199 in rails and 200 not in rails
+
+
+def test_a_lone_outlier_is_not_a_rail():
+    """The Verity's minimum is a SINGLE sample 556 quanta from anything else — isolated, and not a
+    pin. Isolation alone must not qualify a rail or one stray reading invents a class."""
+    v = [100 + (i % 7) for i in range(500)] + [-9000]
+    assert nightqc.rail_value(v, toward_high=False) is None
 
 
 def test_class_b_runs_emit_seam_receives_the_sidecar_columns():
@@ -2418,3 +2440,22 @@ def test_annotation_gap_is_bounded_so_a_marker_burst_cannot_merge_two_plateaus()
     merged = [r for r in nightqc.near_constant_regions(short, min_run=8, annotations=(_MK,))
               if r[2] == 0]
     assert len(merged) == 1 and merged[0][1] >= 30, "12 + 6 markers + 12 reported as one span"
+
+
+def test_rail_value_refuses_a_stream_with_nothing_to_compare_against():
+    """A rail is defined RELATIVE to its neighbour, so a stream with no neighbour has no rail.
+
+    Both arms matter: an empty stream, and a stream of one repeated value — the latter is the flat-
+    lined case, which is a `stuck` stream and must not be re-reported here as a clip against itself.
+    """
+    assert nightqc.rail_value([], toward_high=True) is None
+    assert nightqc.rail_value([7] * 500, toward_high=True) is None
+    assert nightqc.rail_value([7] * 500, toward_high=False) is None
+    assert nightqc.clip_regions([7] * 500) == []
+
+
+def test_rail_needs_something_inward_of_the_spike():
+    """A two-valued stream whose commoner value is the HIGHER one has no floor rail: scanning from the
+    low edge, the spike is the top value and there is nothing inward of it to out-count."""
+    v = [1] * 20 + [2] * 300
+    assert nightqc.rail_value(v, toward_high=False) is None
