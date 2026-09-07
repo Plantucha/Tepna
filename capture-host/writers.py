@@ -702,6 +702,11 @@ class StreamWriter:
 # (`test_oxyframe_header_is_the_single_source_the_js_fixture_tracks`), is what makes the append-never-
 # insert rule enforceable rather than merely written down. APPEND to the end of this tuple; never
 # insert, never reorder — a positional reader of an older layout must keep working.
+#
+# ⚠️ AND COLUMNS ARE ADDRESSED BY HEADER NAME: the row MAY grow at the tail, so an index counted from
+# the END has no contract and never had one. Appending `alarm_raw` (2026-09-06) silently moved three
+# writer tests that read `cells[-3]`/`[-2]`/`[-1]` onto different columns — one asserted `flag_raw`
+# and got `199` from `ppg_offset`. Read the header line and look the name up, as `oxydex-dsp.js` does.
 OXYFRAME_COLUMNS = (
     "Phone timestamp", "duration_s", "pi_pct", "motion", "spo2", "pr", "contact", "battery_pct",
     "batt_state", "flag",          # ── the original 10
