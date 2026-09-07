@@ -430,7 +430,15 @@ def classify_auth_reply(payload: bytes | None) -> tuple[str, bytes | None, str]:
 # type rather than borrowing the handshake's.
 
 _MAX_PLAUSIBLE_DURATION_S = 7 * 24 * 3600  # a week; real ring sessions are hours
-_CONTACT_VALUES = (0x00, 0x01, 0x03)  # no finger, idle-present, file open
+# RtParam byte [5] `sensorState`, per vendor SDK sources (OxyII family — the S8AW2100 that this box
+# runs; NOT gen-1 O2Ring, whose byte means something else):
+#   0 = no finger / lead-off   1 = normal   2 = probe unplugged   3 = sensor or probe fault
+# ⚠️ Tepna read this as `(0, 1, 3)` labelled "no finger, idle-present, file open" until 2026-09-06,
+# which was wrong twice over: a 3 (probe FAULT) counted as WORN, and a 2 (probe unplugged) was outside
+# the enum entirely, so it fed `frame_looks_like_ciphertext` as evidence of encryption. All four are
+# in-enum now; only 1 is worn. Corpus-latent: 150.8M rows carry only 0 and 1, so no recorded night
+# changes — this is the first night with the right labels rather than a repair of past data.
+_CONTACT_VALUES = (0, 1, 2, 3)
 CIPHERTEXT_RUN = 5  # consecutive suspect frames before we call it
 
 
@@ -507,9 +515,14 @@ def parse_live(payload: bytes) -> dict | None:
     the low byte ticking +1/s. `[10]`=199 (0xC7) is not a constant either; the SDK reads only bit 0.
     `[14]` carries four 2-bit subfields. ⚠️ CORRECTED 2026-09-06: vendor SDK sources show the OxyII
     RtParam DOES expose all four (`&3` invalid-value state, `>>2` SpO2, `>>4` HR, `>>6` motion); the
-    earlier note here said the DTO discards them. Tepna still leaves the byte unparsed today —
-    recording it raw is a separate change. Scope: OxyII family (O2Ring S / S8-AW / SF / SP; NOT the
-    gen-1 O2Ring protocol).
+    earlier note here said the DTO discards them. **Tepna records the whole byte as `alarm_raw` since
+    2026-09-06** — raw and uninterpreted, because the byte is defensible and the per-field reading is
+    not yet; nothing here decodes it. Scope: OxyII family (O2Ring S / S8-AW / SF / SP; NOT the gen-1
+    O2Ring protocol).
+
+    Legends for the neighbouring raw columns, recorded once so no reader re-derives them:
+    `run_status` (payload[4]) 0 = prep · 1 = measure-prep · 2 = measuring · 3 = ended;
+    `batt_state` (payload[12]) 0 = normal · 1 = charging · 2 = full · 3 = low (<10 %).
     """
     if len(payload) < 14:
         return None
@@ -534,8 +547,12 @@ def parse_live(payload: bytes) -> dict | None:
         "batt": payload[13],
         "batt_state": payload[12],                     # 0 = not charging
         "run_status": payload[4],
-        "contact": contact,                            # 0x00 no finger, 0x01 idle-present, 0x03 file open
-        "worn": contact in (0x01, 0x03),
+        "contact": contact,                            # 0 lead-off · 1 normal · 2 probe unplugged · 3 fault
+        "worn": contact == 1,                          # ONLY 1; 2 and 3 are faults, not wear
+        # Byte [14]'s four 2-bit subfields (&3 invalid-IV state, >>2 SpO2 alarm, >>4 HR alarm,
+        # >>6 motion alarm), recorded RAW and uninterpreted — same discipline as `flag_raw`. None,
+        # never 0, when the frame is too short to carry it: an absent byte is not a quiet alarm.
+        "alarm_raw": payload[14] if len(payload) > 14 else None,
     }
 
 
