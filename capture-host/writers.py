@@ -38,7 +38,7 @@
 
 from __future__ import annotations
 import errno as _errno, logging, os, re as _re, datetime as _dt, time as _time
-from typing import Iterable
+from typing import Iterable, TextIO
 
 # The annotation values a device INSERTS into a stream live with the device, not here — the merge
 # rule takes them as a parameter so it never carries a marker literal. `oxyii` imports nothing local,
@@ -474,7 +474,7 @@ class _RunSidecar:
         self._open: dict[str, list] = {}     # channel -> [value, first_index, n, first_phone, last_phone]
         self._idx: dict[str, int] = {}       # per-channel sample index, independent of row count
         self._held: dict[str, list] = {}     # a closed run awaiting a possible merge across a gap
-        self._gap: dict[str, int] = {}       # length of the candidate interruption, if one is pending
+        self._gap: dict[str, list] = {}      # the candidate interruption RUN itself, if one is pending
         self._merges: dict[str, int] = {}    # spans joined across an interruption, per channel
         # Hold classification, PER CHANNEL. Pooling channels was measured wrong on the very first
         # Verity test: one noisy channel's singleton runs dominated the histogram and classified the
@@ -484,7 +484,7 @@ class _RunSidecar:
         self._hist: dict[str, dict[int, int]] = {}   # channel -> {run length: count}, whole stream
         self._warm: dict[str, int] = {}      # channel -> runs seen in its warm-up window
         self._buf: dict[str, list[str]] = {}  # channel -> warm-up rows, held until its verdict
-        self._fh = None
+        self._fh: TextIO | None = None
         try:
             self._fh = open(self.path, "a" if resumed else "w", buffering=1 << 16, newline="\n")
             if not resumed:
@@ -608,6 +608,8 @@ class _RunSidecar:
 
     def _decide(self, channel: str) -> None:
         """Close ONE channel's warm-up window: a near-delta on two ADJACENT run lengths is a hold."""
+        fh = self._fh
+        assert fh is not None    # only reachable from feed(), which returns early on a closed handle
         hist = self._hist.get(channel, {})
         tot = sum(hist.values()) or 1
         best, share = 0, 0.0
@@ -617,16 +619,16 @@ class _RunSidecar:
                 best, share = ln, sh
         self.klass[channel] = "held" if share >= HELD_TOP2_SHARE else "variable"
         mean = sum(k * v for k, v in hist.items()) / tot
-        self._fh.write(f"# stream={self.stream} channel={channel} class={self.klass[channel]} "
-                       f"ratio={mean:.1f} top2={best},{best + 1} share={share:.3f} "
-                       f"decided_at={self._warm.get(channel, 0)}runs\n")
+        fh.write(f"# stream={self.stream} channel={channel} class={self.klass[channel]} "
+                 f"ratio={mean:.1f} top2={best},{best + 1} share={share:.3f} "
+                 f"decided_at={self._warm.get(channel, 0)}runs\n")
         if self.klass[channel] == "held":
             # Its runs ARE the sampling cadence, not absence. Drop what the window buffered rather
             # than publishing spans that describe the device's clock.
             self._buf.pop(channel, None)
         else:
             for line in self._buf.pop(channel, []):
-                self._fh.write(line)
+                fh.write(line)
 
     def close(self) -> None:
         """Flush every still-open run with `closed=0` — a run cut short by the recording ending is a
