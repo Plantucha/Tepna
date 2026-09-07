@@ -10,7 +10,7 @@
 #   "needs MTU >= 517" note was a misread placeholder MTU, CORRECTED in oxyii.py 2026-07-18.)
 #
 #   python pull_session.py --address D1:98:62:7C:92:B3 --out /home/michal/tepna-smoketest/captures/stored
-#     [--which latest|all|new|<YYYYMMDDhhmmss>]  [--ftype N]  [--adapter hciX]
+#     [--which latest|all|new|<YYYYMMDDhhmmss>]  [--family oxy|ppg]  [--adapter hciX]
 
 from __future__ import annotations
 import argparse, asyncio, json, os
@@ -287,7 +287,11 @@ async def _pull_once(address, out_dir, which, ftype, adapter, serial, on_progres
             size = int.from_bytes(meta[:4], "little")
             print(f"  size = {size} bytes  (meta {meta[:16].hex()})", flush=True)
             if not (0 < size < 50_000_000):
-                print(f"  ⚠ implausible size — try a different --ftype (got {size}); skipping.", flush=True)
+                # NOT "try a different --ftype": that argument is this frame's OFFSET, so every
+                # value of it asked the OXIMETRY family to start mid-file. If a stored raw-PPG file
+                # is what is wanted, it lives behind a different COMMAND FAMILY (0x06-0x09).
+                print(f"  ⚠ implausible size ({size}) from the oximetry store; skipping. This is not "
+                      f"a file-type argument — see --family.", flush=True)
                 oxy_inventory.append_row(
                     ledger_path,
                     oxy_inventory.make_row(
@@ -476,12 +480,27 @@ def main():
     ap.add_argument("--address", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--which", default="latest", help="latest | all | new | <YYYYMMDDhhmmss>")
-    ap.add_argument("--ftype", type=int, default=0)
+    # `--ftype` is GONE rather than deprecated in the CLI: it never did what its name said, and a
+    # flag that silently means "byte offset" is worse than one that errors. argparse rejects it.
+    ap.add_argument("--family", choices=("oxy", "ppg"), default="oxy",
+                    help="which stored-file COMMAND FAMILY to speak: oxy (0xF1-0xF4, the default and "
+                         "the only probed one) or ppg (0x06-0x09, stored raw PPG, UNPROBED)")
+    ap.add_argument("--list", action="store_true",
+                    help="list the store and exit — the dry path, sends no START/DATA frames")
     ap.add_argument("--adapter", default=None, help="BlueZ adapter e.g. hci1 (omit = default)")
     ap.add_argument("--serial", default="0000")
     ap.add_argument("--wait", type=int, default=0, help="seconds to keep retrying if the ring is asleep")
     a = ap.parse_args()
-    asyncio.run(pull(a.address, a.out, a.which, a.ftype, a.adapter, a.serial, a.wait))
+    if a.family == "ppg":
+        # DRY PATH ONLY. The frames exist and are tested; nothing has ever sent them to a ring, and
+        # the first probe is owner-authorised separately. Refusing here keeps "the code exists" and
+        # "the protocol is confirmed" from collapsing into each other.
+        print("--family ppg: the stored raw-PPG family (0x06-0x09) is built and UNPROBED. The first "
+              "ring contact is owner-authorised separately; no frame is sent.", flush=True)
+        if a.list:
+            print(f"  would send: {oxyii.ppg_file_list_frame().hex()}", flush=True)
+        raise SystemExit(0)
+    asyncio.run(pull(a.address, a.out, a.which, 0, a.adapter, a.serial, a.wait))
 
 
 if __name__ == "__main__":

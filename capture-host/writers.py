@@ -702,11 +702,19 @@ class StreamWriter:
 # (`test_oxyframe_header_is_the_single_source_the_js_fixture_tracks`), is what makes the append-never-
 # insert rule enforceable rather than merely written down. APPEND to the end of this tuple; never
 # insert, never reorder — a positional reader of an older layout must keep working.
+#
+# ⚠️ AND COLUMNS ARE ADDRESSED BY HEADER NAME: the row MAY grow at the tail, so an index counted from
+# the END has no contract and never had one. Appending `alarm_raw` (2026-09-06) silently moved three
+# writer tests that read `cells[-3]`/`[-2]`/`[-1]` onto different columns — one asserted `flag_raw`
+# and got `199` from `ppg_offset`. Read the header line and look the name up, as `oxydex-dsp.js` does.
 OXYFRAME_COLUMNS = (
     "Phone timestamp", "duration_s", "pi_pct", "motion", "spo2", "pr", "contact", "battery_pct",
     "batt_state", "flag",          # ── the original 10
     "ppg_n", "ppg_dur_step",       # O2RING-FRAME-SAMPLE-LOCK §7
     "ppg_offset", "flag_raw",      # DEVICE-RATE-TRUTH §6.1
+    "alarm_raw",                   # RT_PARAM byte [14], four 2-bit alarm/IV subfields, raw and
+                                   # uninterpreted (2026-09-06). Blank when the frame was too short
+                                   # to carry it — an absent byte is not a quiet alarm.
     "run_status",                  # OXYII-PRESENCE-MODEL §5: parsed since day one, never persisted —
                                    # so no night could answer whether payload[4] discriminates states.
                                    # Recorded raw; interpretation happens in the brief, not here.
@@ -784,6 +792,7 @@ class OxyFrameLogWriter:
                                  _f(live.get("batt_state")), _f(live.get("flag")),
                                  _f(p.get("n")), _f(p.get("step")),
                                  _f(p.get("offset")), _f(live.get("flag_raw")),
+                                 _f(live.get("alarm_raw")),
                                  _f(live.get("run_status")))) + "\n")
         if landed:
             self.rows += 1

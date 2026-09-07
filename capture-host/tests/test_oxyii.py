@@ -51,14 +51,14 @@ def test_parse_live_offsets():
     # SpO2 CSV's Motion column, which OxyDex filters on). p[7] is PI, p[11] is motion; see
     # oxyii.parse_live for the vendor-parser evidence and the corroborating corpus measurement.
     p = bytearray(24)
-    p[5], p[6], p[7], p[11], p[13] = 0x03, 97, 5, 9, 88
+    p[5], p[6], p[7], p[11], p[13] = 0x01, 97, 5, 9, 88
     p[8:10] = (62).to_bytes(2, "little")
     v = oxyii.parse_live(bytes(p))
     # Pin the OFFSETS, not the exact dict: parse_live is allowed to gain fields (the contract is
     # additive — new data goes in a NEW key, per CLAUDE.md §🧪), and asserting equality would red on
     # every additive change.
     for k, exp in {"spo2": 97, "pr": 62, "pi": 0.5, "motion": 9, "batt": 88,
-                   "contact": 0x03, "worn": True}.items():
+                   "contact": 0x01, "worn": True}.items():
         assert v[k] == exp, f"{k} offset moved"
 
 
@@ -905,3 +905,38 @@ def test_samples_a_frame_is_the_standard_envelope():
     f = oxyii.samples_a_frame()
     assert f[0] == 0xA5 and f[1] == oxyii.OP_SAMPLES_A and f[2] == (~oxyii.OP_SAMPLES_A) & 0xFF
     assert oxyii.decode(f) == (oxyii.OP_SAMPLES_A, oxyii.SAMPLES_A_ARG)
+
+
+# ── RtParam byte [5] sensorState, corrected 2026-09-06 ────────────────────────────────────────────
+def test_the_contact_enum_is_FOUR_states_and_only_ONE_of_them_is_worn():
+    """Per vendor SDK sources (OxyII family): 0 lead-off · 1 normal · 2 probe unplugged · 3 fault.
+
+    Until 2026-09-06 the code read `(0, 1, 3)` as "no finger, idle-present, file open", which was
+    wrong in both directions — a 3 (probe FAULT) counted as WORN, so a faulted probe would have been
+    recorded as a worn finger, and a 2 (probe unplugged) was outside the enum, so it fed the
+    ciphertext heuristic as evidence of encryption. The old test asserted `contact 0x03 -> worn True`;
+    that was the CODE's belief mirrored into an assertion, not evidence — the vendor-parser citation
+    beside it is about the PI/motion offsets, not about this byte."""
+    for value, worn in ((0, False), (1, True), (2, False), (3, False)):
+        v = oxyii.parse_live(_live_frame(contact=value))
+        assert v["contact"] == value
+        assert v["worn"] is worn, f"sensorState {value}: worn should be {worn}"
+
+
+def test_a_probe_fault_or_an_unplugged_probe_is_NOT_ciphertext_evidence():
+    """All four states are in-enum, so none of them is suspicious. A ring reporting a real fault must
+    not be read as an encrypted session — that is a device problem being renamed as a protocol one."""
+    for value in (0, 1, 2, 3):
+        parsed = oxyii.parse_live(_live_frame(contact=value))
+        assert oxyii.frame_looks_like_ciphertext(parsed) is False, f"sensorState {value} read as cipher"
+
+
+def test_alarm_raw_is_byte_14_recorded_raw_and_ABSENT_when_the_frame_is_short():
+    """Byte [14]'s four 2-bit subfields (&3 invalid-IV, >>2 SpO2 alarm, >>4 HR alarm, >>6 motion) are
+    recorded whole and uninterpreted, like `flag_raw`. A frame too short to carry it yields None —
+    never 0, which would read as "all alarms clear" on evidence that does not exist."""
+    b = bytearray(_live_frame())
+    b[14] = 0b11_01_10_01
+    assert oxyii.parse_live(bytes(b))["alarm_raw"] == 0b11_01_10_01
+    short = oxyii.parse_live(bytes(bytearray(_live_frame())[:14]))
+    assert short is not None and short["alarm_raw"] is None, "an absent byte is not a quiet alarm"

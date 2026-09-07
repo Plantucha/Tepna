@@ -186,13 +186,16 @@ def test_an_implausible_id_is_named_in_the_refusal(tmp_path, monkeypatch, capsys
 
 
 def test_an_implausible_size_reports_the_size_it_got(tmp_path, monkeypatch, capsys):
-    """The message tells the operator to try a different --ftype, which is only actionable if it also
-    says what size came back — 0 means wrong ftype, a huge number means a framing problem."""
+    """The message is only actionable if it says WHAT SIZE came back — 0 and a huge number are
+    different faults. It used to advise "try a different --ftype", which was never a file type but
+    this frame's byte OFFSET, so the advice could not work; the size half was always the useful
+    half and is what this pins."""
     blob = b"\x01\x03" + b"z" * 90
     _install(monkeypatch, FakeRing(["20260719010000", "20260720010000"], blob, declared_seq=[0, len(blob)]))
     _run(pull_session._pull_once("D1:98:62:7C:92:B3", str(tmp_path), "all", 0, None, "0000"))
     out = capsys.readouterr().out
-    assert "0" in out and "ftype" in out
+    assert "0" in out and "implausible size" in out
+    assert "try a different --ftype" not in out, "the misdiagnosis is back"
 
 
 def test_the_connection_lines_name_the_device_and_the_mtu(tmp_path, monkeypatch, capsys):

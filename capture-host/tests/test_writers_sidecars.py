@@ -38,13 +38,15 @@ def test_oxyframe_header_and_row_layout(tmp_path):
     head, row = _lines(str(p))[0], _rows(str(p))[0]
     assert head.split(";") == ["Phone timestamp", "duration_s", "pi_pct", "motion", "spo2", "pr",
                               "contact", "battery_pct", "batt_state", "flag",
-                              "ppg_n", "ppg_dur_step", "ppg_offset", "flag_raw", "run_status"]
+                              "ppg_n", "ppg_dur_step", "ppg_offset", "flag_raw", "alarm_raw",
+                              "run_status"]
     cells = row.split(";")
     assert cells[0] == "2026-07-19T03:04:05.678"
     # The appended columns are blank: this caller passed no `ppg`, no `flag_raw` and no `run_status`, and
     # the ORIGINAL ten columns are unmoved — the append-never-insert rule, asserted rather than assumed
     # (O2RING-FRAME-SAMPLE-LOCK, extended by DEVICE-RATE-TRUTH §6.1 and OXYII-PRESENCE-MODEL §5).
-    assert cells[1:] == ["900", "1.4", "0", "96", "54", "1", "73", "0", "0", "", "", "", "", ""]
+    assert cells[1:] == ["900", "1.4", "0", "96", "54", "1", "73", "0", "0",
+                         "", "", "", "", "", ""]
     assert len(cells) == len(head.split(";")), "row must have exactly as many cells as the header"
 
 
@@ -59,10 +61,15 @@ def test_oxyframe_records_the_ring_stream_offset_and_the_whole_flag_byte(tmp_pat
     w.close()
     rows = [r.split(";") for r in _rows(str(p))]
     # offset 0 on the first frame is a READING, not an absence — it must not render blank
-    assert rows[0][-3] == "0"
-    assert rows[1][-3] == "126"
-    assert [r[-2] for r in rows] == ["199", "199"]     # 0xC7, reported as the whole byte
-    assert [r[-1] for r in rows] == ["", ""]           # run_status: absent from `live` ⇒ blank, never 0
+    # BY NAME. These read `[-3]`/`[-2]`/`[-1]` until 2026-09-06, when appending `alarm_raw` moved every
+    # one of them onto a different column — the tail has no positional contract, only the header does.
+    _h = _lines(str(p))[0].split(";")
+    _c = lambda r, name: r[_h.index(name)]  # noqa: E731
+    assert _c(rows[0], "ppg_offset") == "0"
+    assert _c(rows[1], "ppg_offset") == "126"
+    assert [_c(r, "flag_raw") for r in rows] == ["199", "199"]   # 0xC7, reported as the whole byte
+    assert [_c(r, "alarm_raw") for r in rows] == ["", ""]        # absent from `live` ⇒ blank, never 0
+    assert [_c(r, "run_status") for r in rows] == ["", ""]       # same rule, same reason
 
 
 def test_oxyframe_offset_is_blank_when_the_ppg_stream_is_off(tmp_path):
@@ -74,8 +81,12 @@ def test_oxyframe_offset_is_blank_when_the_ppg_stream_is_off(tmp_path):
     w.write(WHEN, {"duration": 900, "flag": 1, "flag_raw": 0xC7})   # no `ppg` dict at all
     w.close()
     cells = _rows(str(p))[0].split(";")
-    assert cells[-3] == "", "ppg_offset must be blank, never 0, when the stream is off"
-    assert cells[-2] == "199", "flag_raw comes off `live`, so it survives a PPG-less frame"
+    # BY NAME, not by a negative index: the previous form read `cells[-3]`/`cells[-2]`, which silently
+    # pointed at different columns the moment `alarm_raw` was appended (2026-09-06). The header is the
+    # addressing scheme this format publishes; a positional reader of the TAIL has no such contract.
+    _h = _lines(str(p))[0].split(";")
+    assert cells[_h.index("ppg_offset")] == "", "ppg_offset must be blank, never 0, when the stream is off"
+    assert cells[_h.index("flag_raw")] == "199", "flag_raw comes off `live`, so it survives a PPG-less frame"
 
 
 def test_oxyframe_records_run_status_when_the_frame_carries_it(tmp_path):
@@ -742,3 +753,23 @@ def test_oxylife_writer_close_swallows_a_raising_handle(tmp_path):
 
     w._fh = _Boom()
     w.close()          # the except swallows it — no raise
+
+
+def test_alarm_raw_round_trips_into_the_oxyframe_sidecar(tmp_path):
+    """RT_PARAM byte [14], appended 2026-09-06. Two rows: one carrying the byte, one whose frame was
+    too short to have it — the second must land BLANK, not `0`, because a zero there reads as "no
+    alarms" on a measurement that never happened."""
+    p = tmp_path / "f.txt"
+    w = OxyFrameLogWriter(str(p), fsync=False)
+    w.write(WHEN, {"duration": 1, "spo2": 96, "pr": 60, "contact": 1,
+                   "alarm_raw": 0b11_01_10_01, "run_status": 2})
+    w.write(WHEN, {"duration": 2, "spo2": 96, "pr": 60, "contact": 1,
+                   "alarm_raw": None, "run_status": 2})
+    w.close()
+    lines = _lines(str(p))
+    hdr = lines[0].split(";")
+    assert hdr == list(OXYFRAME_COLUMNS), "the header must be the single source, not a hand-written copy"
+    i = hdr.index("alarm_raw")
+    assert lines[1].split(";")[i] == str(0b11_01_10_01)
+    assert lines[2].split(";")[i] == "", "an absent byte writes blank, never 0"
+    assert hdr[-1] == "run_status", "append-only: alarm_raw went BEFORE run_status, matching writers.py"

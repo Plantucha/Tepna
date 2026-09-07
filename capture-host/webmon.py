@@ -1024,6 +1024,23 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                     },
                     status=409,
                 )
+            # A CPAP HARVEST IS WORK IN FLIGHT TOO — same refusal, same force hatch, for the same
+            # reason. Measured on the box 2026-09-06: a deploy restart landed 108 s into a post-therapy
+            # harvest and the card was not read for another 5.5 h. A harvest runs 16-23 s, so this waits
+            # seconds and protects a night's therapy data. The deploy path — which is what actually fired
+            # that day — has the sibling guard in `tepna-update.sh`'s `recording_state`.
+            cpap_st = status.get("cpap")
+            if isinstance(cpap_st, dict) and cpap_st.get("state") == "running":
+                return web.json_response(
+                    {
+                        "ok": False,
+                        "verb": verb,
+                        "harvesting": True,
+                        "error": f"refusing to {verb} — a CPAP harvest is running (it takes ~20 s). "
+                        "Re-send with force:true if you mean it.",
+                    },
+                    status=409,
+                )
         if verb not in daemon_control.KILLS_SELF:
             # ⚠️ OFF THE EVENT LOOP. `daemon_control.run` is a blocking subprocess call, and the inline
             # verbs are not all fast: the helper sleeps 5 s inside `radio` and up to 11 s inside
