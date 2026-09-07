@@ -4279,6 +4279,60 @@
       "key": "- span_h = None | + span_h = \"\"",
       "probe": "read of the code, not a battery: the assignment is dead on every path (see `why`). tests/test_nightqc.py::test_span_h_is_HOURS_and_is_None_when_the_stamps_cannot_be_read covers BOTH live paths — the computed span and the except-branch None.",
       "why": "The initial value is never read. `span_h = None` is immediately followed by a try/except in which BOTH arms assign: the try sets `round((t1 - t0) / 3600, 1)` and the `except ValueError` sets None. `times` is non-empty whenever this line is reached (guarded by `if not offsets: return None`, and every offset appends a time), so there is no path that reaches the return with the initial binding intact. An argument about the CODE, not about the suite."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- names = [h.strip() for h in header.rstrip(\"\\n\").split(\";\")] | + names = [h.strip() for h in header.rstrip(None).split(\";\")]",
+      "probe": "a 1170-comparison probe (three header shapes × five line endings — \\n, \\r\\n, ' \\n', '', '\\t\\n' — × five row shapes incl. torn, unparsable and whitespace-only last field) run against the original and both mutants: identical (index, name) tuples and identical parsed rows in every case.",
+      "why": "Every name is `.strip()`ed after the split, so whatever trailing whitespace the outer rstrip did or did not remove is removed anyway; and `;` is not whitespace, so the column count is the same. No header can separate them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- names = [h.strip() for h in header.rstrip(\"\\n\").split(\";\")] | + names = [h.strip() for h in header.lstrip(\"\\n\").split(\";\")]",
+      "probe": "a 1170-comparison probe (three header shapes × five line endings — \\n, \\r\\n, ' \\n', '', '\\t\\n' — × five row shapes incl. torn, unparsable and whitespace-only last field) run against the original and both mutants: identical (index, name) tuples and identical parsed rows in every case.",
+      "why": "With lstrip the trailing newline stays on the last name until the per-name `.strip()` removes it; a header never begins with a newline (the `#` preamble skip and `for line in fh` both stop at the first non-comment line, which by construction has content). Same tuple either way."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- parts = line.rstrip(\"\\n\").split(\";\") | + parts = line.rstrip(None).split(\";\")",
+      "probe": "a 1170-comparison probe (three header shapes × five line endings — \\n, \\r\\n, ' \\n', '', '\\t\\n' — × five row shapes incl. torn, unparsable and whitespace-only last field) run against the original and both mutants: identical (index, name) tuples and identical parsed rows in every case.",
+      "why": "`len(parts)` is the number of `;`-separated fields, which no whitespace stripping changes, and `float()` accepts surrounding whitespace, so a field of `12000\\n`, `12000 ` and `12000` parse to the same int. A whitespace-only last field raises ValueError under both and the row is skipped either way."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- parts = line.rstrip(\"\\n\").split(\";\") | + parts = line.lstrip(\"\\n\").split(\";\")",
+      "probe": "a 1170-comparison probe (three header shapes × five line endings — \\n, \\r\\n, ' \\n', '', '\\t\\n' — × five row shapes incl. torn, unparsable and whitespace-only last field) run against the original and both mutants: identical (index, name) tuples and identical parsed rows in every case.",
+      "why": "As above: the trailing `\\n` rides on the last field and `float()` tolerates it; the field count is unchanged; a data row never starts with a newline because `for line in fh` splits on it."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- columns: tuple = () | + columns: tuple = None",
+      "probe": "tests/test_nightqc.py::test_class_b_quality_is_empty_when_the_night_holds_nothing_it_reads — the 0-byte capture is the only path on which the initial binding survives (any file with a header line reassigns it); asserts no block and no warning.",
+      "why": "On that path `width` is still 0, so `if width and not columns` short-circuits before reading `columns`, `records` is empty and the too-few-rows arm skips the file — `columns` is never read. Not a missing test: no night can separate () from None here."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- width = 0 | + width = None",
+      "probe": "tests/test_nightqc.py::test_class_b_quality_is_empty_when_the_night_holds_nothing_it_reads — the 0-byte capture is the only path on which the initial binding survives; asserts no block and no warning.",
+      "why": "The initial value is read exactly once, as the truthiness guard `if width and not columns`, and 0 and None are both falsy; the second loop never runs on a headerless file so `len(parts) != width` is never evaluated against it. Every output is identical."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(os.path.join(night_dir, name), \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(os.path.join(night_dir, name), \"r\", encoding=None, errors=\"replace\") as fh:",
+      "probe": "ran tests/test_nightqc.py -k class_b_quality under LANG=C.UTF-8, LANG=C and LANG=POSIX: locale.getpreferredencoding(False) is UTF-8 in all three (PEP 538 coercion), so open(..., encoding=None) resolves to the same codec as the explicit one on this box and in CI; no input distinguishes them here.",
+      "why": "Same class as the ble_visibility.py entries: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce. errors=\"replace\" is unchanged by the mutant, so the \\xff byte the torn-row test plants still lands in the same replacement character. Keeping the explicit encoding is correct; killing the mutant would need control of the runner's locale."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(os.path.join(night_dir, name), \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(os.path.join(night_dir, name), encoding=\"utf-8\", errors=\"replace\") as fh:",
+      "probe": "read of the code, not a battery: `\"r\"` is `open()`'s default mode, so the two calls are the same call by language definition; the class-B tests pass under both.",
+      "why": "Dropping the explicit mode leaves the default mode. Kept explicit for the reader; nothing can observe the difference."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- with open(os.path.join(night_dir, name), \"r\", encoding=\"utf-8\", errors=\"replace\") as fh: | + with open(os.path.join(night_dir, name), \"r\", errors=\"replace\") as fh:",
+      "probe": "ran tests/test_nightqc.py -k class_b_quality under LANG=C.UTF-8, LANG=C and LANG=POSIX: locale.getpreferredencoding(False) is UTF-8 in all three (PEP 538 coercion), so open(..., encoding=None) resolves to the same codec as the explicit one on this box and in CI; no input distinguishes them here.",
+      "why": "Same class as the ble_visibility.py entries: the mutant differs only where the runner's preferred encoding is not UTF-8, which this environment cannot produce. errors=\"replace\" is unchanged by the mutant, so the \\xff byte the torn-row test plants still lands in the same replacement character. Keeping the explicit encoding is correct; killing the mutant would need control of the runner's locale."
     }
   ],
   "probe_ring_adv.py": [
