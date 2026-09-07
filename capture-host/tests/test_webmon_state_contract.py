@@ -57,6 +57,9 @@ FULL_STATUS = {
     "ring_firmware_version": "1.13.1.0",  # the two COEXIST on one ring (§3c)
     "ring_identity_mismatch": "connected peer reports '2592302100', config expects '2592399999'",
     # Clause 2: the RUN of connects that answered identity and served nothing, and its verdict.
+    "auth_mode": "unknown",
+    "auth_reason": "no OP_AUTH reply — encryption undetermined",
+    "auth_unknown_links": 2,
     "ring_barren_connects": 3,
     "ring_barren_alert": "3 consecutive connects answered the identity query and delivered no frames",
     # The two OxyII lifecycle axes (charter G4). Journalled to OXYLIFE.csv and written to STATUS from
@@ -105,6 +108,10 @@ DEVICE_KEYS = {
     # …and clause 2, which is the OTHER way that link can be wrong: it answers and serves nothing. The
     # count ships beside the verdict because a zero and an absent field are different facts.
     "ring_barren_connects", "ring_barren_alert",
+    # The link's encryption verdict from the OP_AUTH reply. "unknown" is the COMMON case here — every
+    # ring in this project stays silent on 0xFF — so it must reach the monitor rather than being an
+    # absence that reads as clean.
+    "auth_mode", "auth_reason", "auth_unknown_links",
     # The O2Ring PRESENCE axis and its §19 EXECUTION WITNESS (O2RING-AUTONOMOUS-HARVEST §19/§20).
     # Added to this contract DELIBERATELY rather than by relaxing the assertion: the key set IS the
     # monitor's contract, and §20 exists because a field that reaches `/api/state` and no further is
@@ -175,6 +182,8 @@ def test_a_device_projects_every_field_it_promises(tmp_path):
     assert d["ring_branch_code"] == "2D010002" and d["ring_firmware_version"] == "1.13.1.0"
     assert d["ring_identity_mismatch"] == "connected peer reports '2592302100', config expects '2592399999'", (
         "the verdict must arrive as the SENTENCE the journal carries — the monitor draws it verbatim")
+    assert d["auth_mode"] == "unknown" and d["auth_unknown_links"] == 2
+    assert d["auth_reason"].startswith("no OP_AUTH reply")
     assert d["ring_barren_connects"] == 3
     assert d["ring_barren_alert"].startswith("3 consecutive connects")
     # G4: both axes arrive as the state STRINGS the journal uses, so the monitor draws the same word
@@ -199,7 +208,8 @@ def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):
     for k in ("battery", "rssi", "clock_synced", "device_time", "clock_skew_sec", "pull_progress",
               "link_epoch", "worn", "last_error", "oxy_lifecycle", "oxy_recording",
               "ring_serial", "ring_firmware", "ring_identity_mismatch",
-              "ring_barren_connects", "ring_barren_alert"):
+              "ring_barren_connects", "ring_barren_alert",
+              "auth_mode", "auth_reason", "auth_unknown_links"):
         assert d[k] is None, f"{k} must be null when the device has never reported"
 
 

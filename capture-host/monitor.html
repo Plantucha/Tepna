@@ -1232,6 +1232,19 @@ function renderRingIdentity(status) {
     out += `<div id="ring-barren" class="hint">connects that answered identity and served nothing:`
       + ` <b>${esc(String(status.ring_barren_connects))}</b> in a row</div>`;
   }
+  // The link's ENCRYPTION verdict. Drawn whenever we have one, including "unknown" — a ring that never
+  // answers 0xFF is the common case here, and rendering nothing for it would make the undetermined
+  // state look like a clean one. `encrypted`/`refuse` are red because the session ends on them.
+  if (status.auth_mode) {
+    const am = String(status.auth_mode);
+    const bad = am === 'encrypted' || am === 'refuse';
+    const unk = am === 'unknown';
+    out += `<div id="ring-auth" class="${bad ? 'mb' : 'hint'}"${bad ? ' style="color:#c55"' : ''}>`
+      + `link encryption: <b>${esc(am)}</b>`
+      + (status.auth_reason ? ` <span class="hint">${esc(String(status.auth_reason))}</span>` : '')
+      + (unk && status.auth_unknown_links ? ` <span class="hint">(${esc(String(status.auth_unknown_links))} link(s) undetermined)</span>` : '')
+      + '</div>';
+  }
   if (status.ring_barren_alert) {
     out += `<div id="ring-barren-alarm" class="mb" style="color:#c55">⚠ ${esc(String(status.ring_barren_alert))}`
       + ' — the link is up and nothing is arriving over it</div>';

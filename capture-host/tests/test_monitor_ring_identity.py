@@ -112,3 +112,22 @@ def test_a_hostile_barren_alert_string_is_entity_encoded_too():
     device-supplied fields beside it, and the next thing appended to that sentence may not be ours."""
     out = _render({"ring_barren_alert": "<img src=x onerror=alert(1)>"})
     assert "<img" not in out.lower() and "&lt;img" in out
+
+
+def test_the_link_encryption_verdict_renders_including_UNKNOWN():
+    """"unknown" is the common case on this hardware — every ring here stays silent on 0xFF — so it
+    must DRAW. Rendering nothing for an undetermined link would make it look like a clean one, which
+    is the failure the whole auth wiring exists to remove."""
+    unk = _render({"auth_mode": "unknown",
+                   "auth_reason": "no OP_AUTH reply — encryption undetermined",
+                   "auth_unknown_links": 3})
+    assert 'id="ring-auth"' in unk and "unknown" in unk
+    assert "3 link(s) undetermined" in unk, "the count is the point: one is normal, a night is not"
+    enc = _render({"auth_mode": "encrypted", "auth_reason": "AES-128-ECB session key negotiated"})
+    assert 'id="ring-auth"' in enc and "#c55" in enc, "a session-ending verdict is drawn as an alarm"
+    assert _render({"ring_serial": "2592302100"}).count("ring-auth") == 0, "no verdict ⇒ no line"
+
+
+def test_a_hostile_auth_reason_is_entity_encoded():
+    out = _render({"auth_mode": "unknown", "auth_reason": "<img src=x onerror=alert(1)>"})
+    assert "<img" not in out.lower() and "&lt;img" in out
