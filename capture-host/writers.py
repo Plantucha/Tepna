@@ -430,6 +430,22 @@ def night_dir(root: str, started: _dt.datetime) -> str:
     return d
 
 
+def _ns_col(sensor_ns: int | None) -> str:
+    """The `sensor timestamp [ns]` field, with ABSENCE written as absence.
+
+    `0` is IN-BAND for a nanosecond counter, so a literal zero cannot be told apart from a device that
+    genuinely reported the instant zero — and a reader that trusts the column places every such row at
+    the epoch. Three O2Ring raw-buffer opcodes carry no device clock at all (measured 2026-09-06 on one
+    real session: ACCRAW 15120/15120, PLETHA 583/583, PPG2W 303109/303109 rows at exactly 0, against
+    `PPG.txt` 1/190100 and H10 `ECG.txt` 0/214693 on the same night — so it is those opcodes, not the
+    night). The refusal to invent per-sample instants was always right; only the ENCODING was wrong.
+
+    An EMPTY field is out-of-band: it parses as absent for every reader (`int('')` raises), so
+    `nightqc.file_span_sec` returns None rather than a real 0.0 span, and `#∅` absence stays absence
+    instead of becoming a measurement of zero."""
+    return "" if sensor_ns is None else str(sensor_ns)
+
+
 def _phone_ts(when: _dt.datetime) -> str:
     # Local civil time, zone-free, millisecond precision. `when` MUST be a local (naive or local-tz)
     # datetime — pass the host arrival time. Do not pass a UTC instant.
@@ -675,8 +691,19 @@ class _RunSidecar:
                 mean = sum(k * v for k, v in hist.items()) / tot
                 self._fh.write(f"# final channel={channel} total_runs={tot} mean_run={mean:.2f} "
                                f"merges={self._merges.get(channel, 0)} "
+                               f"examined={self._idx.get(channel, 0)} "
                                f"class={self.klass.get(channel, 'undecided')}\n")
-            self._fh.write(f"# runs={self.runs} errors={self.errors}\n")
+            # WHAT WAS EXAMINED, ALWAYS — the mechanism, not a comment.
+            #
+            # `runs=0` alone cannot distinguish "read 66,535 samples and found no qualifying span" from
+            # "was never fed a sample". Those are the same bytes and opposite facts, and the second one
+            # SHIPPED: `RUN_MIN_BY_STREAM` carried `acc`/`accraw`, so every ACC stream got a sidecar
+            # reading `rule=stuck … runs=0` while `write_acc` never called `feed`. Writing the empty
+            # file is the whole point — it means "looked" — and the version that could not tell the two
+            # apart went out anyway. `examined` makes them different BYTES; a comment asserting the
+            # distinction is not a mechanism for detecting its absence.
+            self._fh.write(f"# runs={self.runs} errors={self.errors} "
+                           f"examined={sum(self._idx.values())} channels={len(self._idx)}\n")
         except Exception:
             self.errors += 1
         finally:
@@ -820,6 +847,9 @@ class StreamWriter:
         # The constant-run sidecar, for optical streams only. Built LAST among the file handles so a
         # failure here cannot leave the sample file half-open; `_RunSidecar` swallows its own OSError
         # for the same reason — the recording must not fail because a note about it could not.
+        # The sidecar's channel labels ARE this stream's header columns, so a run row can never name
+        # a column the data file does not have.
+        self._axis_labels = tuple(self.HEADERS[stream].split(";")[2:5]) if stream in self.HEADERS else ()
         self._runs: _RunSidecar | None = None
         if stream in RUN_MIN_BY_STREAM:
             self._runs = _RunSidecar(path, stream, RUN_MIN_BY_STREAM[stream], resumed=self.resumed,
@@ -851,25 +881,36 @@ class StreamWriter:
     def write_ecg(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, uv: int) -> None:
         self._row(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{uv}\n")
 
-    def write_acc(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: int, y: int, z: int) -> None:
-        self._row(f"{_phone_ts(phone)};{sensor_ns};{x};{y};{z}\n")
+    def write_acc(self, phone: _dt.datetime, sensor_ns: int | None, t_ms: float,
+                  x: int, y: int, z: int) -> None:
+        self._row(f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{x};{y};{z}\n")
+        # ACC feeds the run sidecar like the optical streams do. It was CREATING a sidecar and never
+        # feeding it — `RUN_MIN_BY_STREAM` carries `acc`/`accraw`, so the file existed, said
+        # "rule=stuck … runs=0" and had looked at nothing. An honest-empty file and a file that never
+        # ran are the same bytes; the whole point of writing the empty one is that it means "looked".
+        # The ring's ACC is also the case the hold classifier exists for, and it can only classify a
+        # stream it is fed.
+        if self._runs is not None:
+            for _lbl, _v in zip(self._axis_labels, (x, y, z)):
+                self._runs.feed(_lbl, _v, phone)
 
-    def write_pletha(self, phone: _dt.datetime, sensor_ns: int, sample: int, beat: int) -> None:
+    def write_pletha(self, phone: _dt.datetime, sensor_ns: int | None, sample: int, beat: int) -> None:
         """One raw single-channel optical sample (O2Ring cmd=0x03), with the beat-marker flag.
 
         Its own method rather than a branch in `write_ppg2w` for the reason that one is separate from
         `write_ppg`: the column set IS the contract a reader resolves the layout from, and a
         two-column-plus-flag row is neither of the others."""
-        self._row(f"{_phone_ts(phone)};{sensor_ns};{sample};{beat}\n")
+        self._row(f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{sample};{beat}\n")
 
-    def write_ppg2w(self, phone: _dt.datetime, sensor_ns: int, ch0: int, ch1: int, motion: int) -> None:
+    def write_ppg2w(self, phone: _dt.datetime, sensor_ns: int | None, ch0: int, ch1: int,
+                    motion: int) -> None:
         """One raw dual-wavelength sample (O2Ring cmd=0x05).
 
         A SEPARATE method rather than a branch inside `write_ppg`, because that function selects its
         layout by COUNTING optical columns — one means the ring's single reflectance path, three means
         the Verity. A two-wavelength row is neither, and squeezing it through the count would make the
         header and the row shape drift apart, which is the exact failure `ppg1` exists to prevent."""
-        self._row(f"{_phone_ts(phone)};{sensor_ns};{ch0};{ch1};{motion}\n")
+        self._row(f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{ch0};{ch1};{motion}\n")
         if self._runs is not None:          # both optical channels; `motion` is not an optical wave
             self._runs.feed("channel 0", ch0, phone)
             self._runs.feed("channel 1", ch1, phone)

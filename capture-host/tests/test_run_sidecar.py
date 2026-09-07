@@ -579,10 +579,11 @@ def test_the_write_paths_guard_against_a_stream_that_has_no_sidecar(tmp_path):
     assert w._runs is None
     w.write_ppg(_phone(0), 0, 0.0, (1,), 0)           # must not raise
     w.write_ppg2w(_phone(1), 0, 11, 22, 3)
+    w.write_acc(_phone(2), None, 0.0, 1, 2, 3)        # ACC feeds the sidecar too, so it needs the guard
     w.close()
 
     assert not os.path.exists(_sidecar(p))
-    assert w.rows == 2
+    assert w.rows == 3
 
 
 def test_a_failure_DURING_feed_is_isolated_from_the_live_write_path(tmp_path):
@@ -616,3 +617,39 @@ def test_a_failure_DURING_feed_is_isolated_from_the_live_write_path(tmp_path):
 
     assert w.rows == T_STUCK + 2 + 5 + 1 + 10
     assert len(open(p).read().splitlines()) == w.rows + 1     # header + every sample row
+
+
+def test_the_sidecar_publishes_WHAT_IT_EXAMINED_not_only_what_it_found(tmp_path):
+    """`runs=0` cannot distinguish "read 66,535 samples and found nothing" from "was never fed one".
+
+    Those are the same bytes and opposite facts, and the second SHIPPED: `acc`/`accraw` were in
+    RUN_MIN_BY_STREAM, so every ACC stream got a sidecar reading `rule=stuck … runs=0` while
+    `write_acc` never called `feed`. Writing the empty file is the whole point — it means "looked" —
+    and the version that could not prove it looked went out anyway. This is the mechanism that makes
+    the two different bytes; the comment that used to assert the distinction was not one."""
+    fed = tmp_path / "F_ACCRAW.txt"
+    w = StreamWriter(str(fed), "accraw", fsync=False)
+    for i in range(30):
+        w.write_acc(_phone(i, hz=10.0), None, 0.0, 1, 2, 3)
+    w.close()
+    fed_body = open(_sidecar(fed)).read()
+
+    never = tmp_path / "N_ACCRAW.txt"
+    StreamWriter(str(never), "accraw", fsync=False).close()
+    never_body = open(_sidecar(never)).read()
+
+    assert "runs=0" in fed_body and "runs=0" in never_body      # indistinguishable before this
+    assert "examined=90 channels=3" in fed_body
+    assert "examined=0 channels=0" in never_body
+    assert fed_body != never_body, "an unfed sidecar is still byte-identical to an examined one"
+
+
+def test_each_channel_reports_what_IT_examined(tmp_path):
+    """Per channel, so a stream that feeds two of three axes is visible as exactly that."""
+    p = tmp_path / "P_ACCRAW.txt"
+    w = StreamWriter(str(p), "accraw", fsync=False)
+    for i in range(12):
+        w.write_acc(_phone(i, hz=10.0), None, 0.0, 1, 2, 3)
+    w.close()
+    body = open(_sidecar(p)).read()
+    assert body.count("examined=12 ") == 3, body

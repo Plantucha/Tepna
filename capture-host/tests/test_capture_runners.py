@@ -4584,7 +4584,11 @@ def test_run_oxyii_captures_the_raw_two_wavelength_buffer(tmp_path, monkeypatch)
         "one row per record, and the trailer is not a record"
     assert [r.split(";")[2:] for r in rows[1:1 + len(recs)]] == [["1000", "2000", "0"], ["1001", "2001", "1"],
                                                                  ["1002", "2002", "2"], ["1003", "2003", "3"]]
-    assert all(r.split(";")[1] == "0" for r in rows[1:]), "no device clock exists on this opcode"
+    # BLANK, not "0". The refusal to invent per-sample instants was always right; the ENCODING was
+    # wrong — `0` is in-band for a ns counter, so absence read as the instant zero and a reader that
+    # trusts the column placed every row at the epoch (measured: PPG2W 303109/303109 rows at exactly 0
+    # in one real session). This assertion used to pin the defect as the contract.
+    assert all(r.split(";")[1] == "" for r in rows[1:]), "absence must be written as absence, not as 0"
 
 
 def test_run_oxyii_writes_no_two_wavelength_file_when_the_stream_is_off(tmp_path, monkeypatch):
