@@ -7486,9 +7486,23 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
     # process started — NOT that the last end was harvested; `_cpap_boot_job` logs which it found.
     job = _cpap_boot_job(root)
     # Where the end-of-therapy claim came from, carried onto the job so a manifest can say WHY a
-    # session was closed. `cpap_live`'s watcher is the standby-hysteresis path today; the supervisor's
-    # `device_verdict` becomes the primary source in unit 1b, which is why this is a variable and not a
-    # literal at the one call site.
+    # session was closed. `cpap_live`'s watcher is the standby-hysteresis path, and it is the only one.
+    #
+    # 🔴 `device_verdict` IS DELIBERATELY NOT WIRED HERE, AND THIS IS NOT A TODO.
+    # `AS11-AUTO-SESSION-DETECTION-2026-08-24-BRIEF.md`'s status header carries a standing decision —
+    # **"Do not promote to acting mode on this evidence"** — and the reason is worse than "unproven":
+    # the supervisor's detector reads `Standby`/`0.1` THROUGH nights when therapy provably ran, and
+    # slows 7x, because the AS11 permits one connection at a time. So during a capture it does not go
+    # blind, it returns a confident wrong answer that is indistinguishable from a quiet night. Feeding
+    # that into this variable would fire the harvest on a verdict the device never gave: 47 / 272 / 222
+    # spurious verdicts on 2026-08-26 -> 08-28, harmless in shadow, not harmless acting.
+    #
+    # A variable rather than a literal so the wiring is ONE LINE when that evidence changes — not
+    # because it is pending. The brief is Heron's and its next step is an analysis, not code.
+    #
+    # ⚠️ The previous wording said `device_verdict` "becomes the primary source in unit 1b", which read
+    # as a ready-to-wire TODO and carried none of the above (#2314, mine). Anyone holding the code
+    # without the brief would have wired it.
     end_source = "standby_hysteresis"
 
     def _fire(result):
