@@ -2399,3 +2399,22 @@ def test_marker_inside_the_APPROACH_RAMP_is_stepped_over():
     blind = [g for g in nightqc.clip_regions(v) if g["rail"] == 0]
     assert blind and not blind[0]["monotone_in"] and not blind[0]["monotone_out"], \
         "undeclared, the adjacent marker inverts the last step of the ramp on both sides"
+
+
+def test_annotation_gap_is_bounded_so_a_marker_burst_cannot_merge_two_plateaus():
+    """Unbounded stepping is safe on today's corpus and wrong in principle.
+
+    Consecutive-`156` runs on 20260905045318 are 1:5383 · 2:11 · 3:3 · 4:2 · 5:3 · 6:3 — max 6 — so the
+    bound of 8 never fires on real data. It bounds the case where a marker BURST separates two real
+    plateaus: merged, the region's span would be mostly annotation.
+    """
+    burst = _baseline() + _RAMP_DOWN + [0] * 12 + [_MK] * 20 + [0] * 12 + _RAMP_UP + _baseline()
+    at_floor = [r for r in nightqc.near_constant_regions(burst, min_run=8, annotations=(_MK,))
+                if r[2] == 0]
+    assert len(at_floor) == 2, "a 20-row burst is longer than the bound, so the plateaus stay apart"
+    assert all(r[1] < 20 for r in at_floor), "and no span swallows the 20 annotation rows"
+    # a burst SHORTER than the bound is still stepped over, giving one plateau spanning it
+    short = _baseline() + _RAMP_DOWN + [0] * 12 + [_MK] * 6 + [0] * 12 + _RAMP_UP + _baseline()
+    merged = [r for r in nightqc.near_constant_regions(short, min_run=8, annotations=(_MK,))
+              if r[2] == 0]
+    assert len(merged) == 1 and merged[0][1] >= 30, "12 + 6 markers + 12 reported as one span"

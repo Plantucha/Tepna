@@ -1534,8 +1534,17 @@ def held_stream(values, *, near_delta: float = _HELD_NEAR_DELTA):
             "lengths": best[0], "share": best[1]}
 
 
+_ANNOTATION_GAP_MAX = 8         # the longest run of consecutive annotation rows a plateau may be
+                                # merged ACROSS. Measured on 20260905045318, consecutive-`156` run
+                                # lengths are 1:5383 · 2:11 · 3:3 · 4:2 · 5:3 · 6:3 — 99.6 % singletons,
+                                # max 6, 5455 marker rows in 5405 runs. Eight clears that max without
+                                # room to spare being the point: unbounded stepping is safe on THIS
+                                # corpus and would silently merge two plateaus across any future
+                                # marker burst, reporting a span that is mostly annotation.
+
+
 def near_constant_regions(values, *, max_spread: int = _PLATEAU_LSB, min_run: int = 2,
-                          annotations=()):
+                          annotations=(), annotation_gap_max: int = _ANNOTATION_GAP_MAX):
     """Maximal regions spanning at most `max_spread` — a plateau, not a single repeated value.
 
     `annotations` names values that are NOT SAMPLES and must be stepped over. This is a value list, and
@@ -1552,7 +1561,8 @@ def near_constant_regions(values, *, max_spread: int = _PLATEAU_LSB, min_run: in
     other direction: an out-of-band fact riding in-band, unreadable as what it is.
 
     Regions are returned over ORIGINAL indices, so a region that spans a stepped-over annotation
-    reports the span it really covers.
+    reports the span it really covers — which is also why `annotation_gap_max` exists: merging across
+    an arbitrarily long marker burst would report a span that is mostly annotation.
     """
     skip = frozenset(annotations)
     idx = [i for i, v in enumerate(values) if v not in skip]
@@ -1562,6 +1572,8 @@ def near_constant_regions(values, *, max_spread: int = _PLATEAU_LSB, min_run: in
         lo = hi = values[idx[i]]
         j = i + 1
         while j < len(idx):
+            if idx[j] - idx[j - 1] - 1 > annotation_gap_max:
+                break                    # too much annotation between them to call it one plateau
             nlo = min(lo, values[idx[j]])
             nhi = max(hi, values[idx[j]])
             if nhi - nlo > max_spread:
