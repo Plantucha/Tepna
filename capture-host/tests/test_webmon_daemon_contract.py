@@ -391,3 +391,50 @@ def test_an_inline_verb_gets_ITS_OWN_timeout_not_the_default(tmp_path, monkeypat
     _serve(app, go)
     assert seen["deploy"] == daemon_control.DEPLOY_TIMEOUT_S, seen
     assert seen["status"] == 30.0, seen
+
+
+@pytest.mark.parametrize("verb", sorted(daemon_control.KILLS_SELF))
+def test_a_self_killing_verb_is_REFUSED_while_a_CPAP_HARVEST_is_running(verb, tmp_path, monkeypatch):
+    """A HARVEST IS WORK IN FLIGHT TOO, and it is cheaper to wait for than a recording. Measured on
+    the box 2026-09-06: a deploy restart landed 108 s into a post-therapy harvest, the boot path read
+    the fired marker as "already harvested", and the card was not read for another 5.5 h. A harvest
+    runs 16-23 s — so this refusal costs seconds and protects a night of therapy data.
+
+    `running` is the value `capture.py` actually writes across the transfer (set before the first byte,
+    cleared after the walk returns), which is the half worth pinning: a guard keyed to a state nothing
+    emits would pass its own unit test and never once fire in production."""
+    fired = []
+    # ⚠️ `cpap` is a TOP-LEVEL key of STATUS, beside `devices` — it is not a device. `_mk`'s `status=`
+    # kwarg fills `STATUS["devices"]`, so passing it there leaves the guard reading None and the test
+    # green for the wrong reason (it was, first time). The app closes over the dict, and mutating it
+    # is exactly what the daemon does: `STATUS["cpap"] = {...}` at capture.py:7111.
+    app, _cfg, st, *_ = _mk(tmp_path, devices=[], status={})
+    st["cpap"] = {"state": "running"}
+    monkeypatch.setattr(daemon_control, "run", lambda v, minutes=None, **kw: fired.append(v))
+
+    async def go(c):
+        r = await c.post("/api/daemon", json={"verb": verb})
+        return r.status, await r.json()
+    status_code, body = _serve(app, go)
+    assert status_code == 409, "a state conflict, not a malformed request"
+    assert body["ok"] is False and body["harvesting"] is True
+    assert "force" in body["error"] and verb in body["error"]
+    assert fired == [], "nothing may have been scheduled"
+
+
+@pytest.mark.parametrize("state", ["idle", "waiting", "error", "ok", "barren", "partial"])
+def test_every_NON_running_cpap_state_still_allows_a_restart(state, tmp_path, monkeypatch):
+    """The mirror of the test above, and the reason it is parametrised over the whole vocabulary: only
+    the transfer itself blocks. `waiting` means the harvest DEFERRED to something else and is not
+    holding the card; the terminal states are answers, not work. Blocking on any of them would refuse
+    restarts for the rest of the day on a box whose last harvest merely failed."""
+    fired = []
+    app, _cfg, st, *_ = _mk(tmp_path, devices=[], status={})
+    st["cpap"] = {"state": state}
+    monkeypatch.setattr(daemon_control, "run", lambda v, minutes=None, **kw: fired.append(v))
+
+    async def go(c):
+        r = await c.post("/api/daemon", json={"verb": "restart"})
+        return r.status, await r.json()
+    status_code, body = _serve(app, go)
+    assert status_code == 200 and body["ok"] is True

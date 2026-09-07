@@ -502,14 +502,21 @@ def test_the_completion_hook_sees_every_outcome_including_the_error_path(tmp_pat
 
     def _boom(*a, **k):
         raise RuntimeError("card fell over")
-    for harvest, want in ((None, "ok"), (_boom, "error")):
+    for i, (harvest, want) in enumerate(((None, "ok"), (_boom, "error"))):
         seen.clear()
+        # A FRESH root per iteration, and the reuse it replaces was load-bearing once the harvest job
+        # became durable (2026-09-06). The clock is frozen by `_at()`, so both iterations sit in the
+        # SAME daily window; iteration 1 completes a job stamped with that window, and reconciliation
+        # then correctly declines to re-walk the card for it. That is §6 working — the window must not
+        # re-harvest a night already on disk — so the two runs need two boxes, not one box twice.
+        root = tmp_path / f"run{i}"
+        root.mkdir()
         spy = _Spy(); spy.install(monkeypatch, harvest=harvest)
         monkeypatch.setattr(capture._dt, "datetime", _at())
         _stop_after(monkeypatch, 2)
-        _run(capture._cpap_loop(13, "prof", "http://card", str(tmp_path), 900, 30, 2,
+        _run(capture._cpap_loop(13, "prof", "http://card", str(root), 900, 30, 2,
                                 lambda **kw: capture.STATUS.setdefault("cpap", {}).update(kw),
-                                None, str(tmp_path), None, 600.0, seen.append))
+                                None, str(root), None, 600.0, seen.append))
         assert seen, f"the hook never fired on the {want} path"
         assert seen[-1]["state"] == want
         capture._STOP.clear()
@@ -617,3 +624,43 @@ def test_error_carries_consulted_TRUE_when_the_walk_COMPLETED_with_short_reads(t
     assert seen[-1]["state"] == "error", "short reads must still be an error"
     assert seen[-1]["consulted"] is True, (
         "a completed walk was reported as unread — `consulted` has collapsed into `state != error`")
+
+
+# ── §6 RECONCILIATION: the window asks the job store before paying for a card read ──────────────────
+def test_the_window_SKIPS_when_this_nights_job_is_already_COMPLETE(tmp_path, monkeypatch, caplog):
+    """The window is demoted from primary trigger to retry path. If the therapy-end trigger already
+    harvested tonight, the 13:00 run must not walk the card a second time — that double-harvest is
+    what the demotion exists to prevent, and it is not free: it re-associates the radio and re-reads
+    a card that has nothing new."""
+    import logging
+
+    import cpap_job as J
+    spy = _Spy(); spy.install(monkeypatch)
+    monkeypatch.setattr(capture._dt, "datetime", _at())
+    wdate = str(cpap_harvest.window_start_date(dt.datetime(2026, 7, 26, 13, 5), 13)
+                or dt.date(2026, 7, 26))
+    done = J.transition(J.new_job(1.0, "standby_hysteresis", 1.0), J.HARVEST_COMPLETED, 2.0,
+                        files=4, window_date=wdate)
+    capture._cpap_write_job(str(tmp_path), done)
+    _stop_after(monkeypatch, 3)
+    with caplog.at_level(logging.INFO):
+        _run(capture.cpap_poller(CFG, str(tmp_path)))
+    assert spy.up == 0, "the card must not be walked twice for one night"
+    assert "window skipped" in caplog.text
+    assert capture._cpap_read_job(str(tmp_path))["state"] == J.HARVEST_COMPLETED, "unchanged on disk"
+
+
+def test_the_window_STILL_RUNS_when_the_completed_job_answered_a_DIFFERENT_night(tmp_path, monkeypatch):
+    """🔴 The regression that would have silently skipped every night after the first. A completion
+    excuses only the window it was stamped for; yesterday's success must not cancel today's run.
+    Without the `window_date` bound, `should_reconcile` answered "nothing owed" forever."""
+    import cpap_job as J
+    spy = _Spy(); spy.install(monkeypatch)
+    monkeypatch.setattr(capture._dt, "datetime", _at())
+    stale = J.transition(J.new_job(1.0, "standby_hysteresis", 1.0), J.HARVEST_COMPLETED, 2.0,
+                         files=4, window_date="2026-07-25")      # the night BEFORE the frozen clock
+    capture._cpap_write_job(str(tmp_path), stale)
+    _stop_after(monkeypatch, 3)
+    _run(capture.cpap_poller(CFG, str(tmp_path)))
+    assert spy.up == 1, "a new night is owed a harvest even after a successful previous one"
+    assert capture.STATUS["cpap"]["state"] == "ok"

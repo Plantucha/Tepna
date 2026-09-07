@@ -130,34 +130,31 @@ def _reset_stop():
     capture._STOP.clear()
 
 
-def test_the_marker_round_trips(tmp_path):
-    capture._cpap_write_fired(str(tmp_path), 1234.5)
+def test_the_LEGACY_marker_still_READS_because_migration_needs_it(tmp_path):
+    """`_cpap_write_fired` is GONE (2026-09-06) — the marker recorded that a trigger FIRED and the boot
+    path read it as "harvested", which is the defect the job ledger replaces. The READER survives for
+    exactly one purpose: migrating a marker left by the previous build."""
+    import json as _json
+    (tmp_path / "captures").mkdir(exist_ok=True)
+    with open(capture._cpap_fired_marker(str(tmp_path)), "w") as fh:
+        _json.dump({"ended_at_ms": 1234.5}, fh)
     assert capture._cpap_read_fired(str(tmp_path)) == 1234.5
+    assert not hasattr(capture, "_cpap_write_fired"), "nothing may write the legacy marker any more"
 
 
-def test_the_marker_write_is_ATOMIC_never_in_place(tmp_path):
-    """🔴 A torn in-place write can leave a file that still PARSES with a truncated number — the
-    marker then points at a WRONG instant, which looks right. An atomic write can only fail by leaving
-    the file absent, which reads as unknown and merely risks a duplicate harvest."""
-    capture._cpap_write_fired(str(tmp_path), 1.0)
-    target = capture._cpap_fired_marker(str(tmp_path))
-    opened = []
-    real_open = open
-
-    def spy(path, *a, **k):
-        opened.append(str(path))
-        return real_open(path, *a, **k)
-
-    import builtins
-    orig = builtins.open
-    builtins.open = spy
-    try:
-        capture._cpap_write_fired(str(tmp_path), 2.0)
-    finally:
-        builtins.open = orig
-    assert target not in opened, "the marker file itself was opened for writing — not atomic"
-    assert any(p.endswith(".tmp") for p in opened)
-    assert capture._cpap_read_fired(str(tmp_path)) == 2.0
+def test_the_job_ledger_is_APPENDED_and_fsynced_never_rewritten(tmp_path):
+    """🔴 What replaced the atomic-marker rule, and it is stronger. A torn REWRITE can leave a file that
+    still parses and asserts something false; a torn APPEND is a trailing line with no authority, and the
+    earlier transitions survive it. Mirrors `cpap_spool`'s ledger, which this repo already argued is the
+    restart authority."""
+    import cpap_job as J
+    root = str(tmp_path)
+    j = J.new_job(1234.5, "device_verdict", 1.0)
+    capture._cpap_write_job(root, j)
+    capture._cpap_write_job(root, J.transition(j, J.HARVEST_ATTEMPTED, 2.0))
+    lines = [x for x in open(capture._cpap_job_path(root)) if x.strip()]
+    assert len(lines) == 2, "each transition APPENDS; a rewrite would leave one"
+    assert capture._cpap_read_job(root)["state"] == J.HARVEST_ATTEMPTED
 
 
 def test_an_ABSENT_or_CORRUPT_marker_reads_as_unknown_not_as_zero(tmp_path):
@@ -176,9 +173,10 @@ def test_an_ABSENT_or_CORRUPT_marker_reads_as_unknown_not_as_zero(tmp_path):
 def test_an_UNWRITEABLE_marker_does_not_cost_the_harvest(tmp_path, monkeypatch, caplog):
     """A marker we could not write means the next boot may re-harvest. Safe direction — and it must
     not raise into the loop that just completed a good harvest."""
+    import cpap_job as J
     monkeypatch.setattr(capture.os, "makedirs", lambda *a, **k: (_ for _ in ()).throw(OSError("ro")))
-    capture._cpap_write_fired(str(tmp_path), 5.0)          # must not raise
-    assert capture._cpap_read_fired(str(tmp_path)) is None
+    capture._cpap_write_job(str(tmp_path), J.new_job(5.0, "device_verdict", 1.0))   # must not raise
+    assert capture._cpap_read_job(str(tmp_path)) is None
 
 
 def test_the_boot_watch_SEEDS_from_the_journal_and_the_marker(tmp_path, monkeypatch):
@@ -190,11 +188,27 @@ def test_the_boot_watch_SEEDS_from_the_journal_and_the_marker(tmp_path, monkeypa
     assert w.seen_therapy is True and w.ended_at_ms == float(T0)
 
 
-def test_the_boot_watch_does_NOT_re_arm_an_end_the_marker_records(tmp_path, monkeypatch):
+def test_the_boot_watch_does_NOT_re_arm_an_end_a_COMPLETED_job_records(tmp_path, monkeypatch):
+    """The "already handled" input is now a COMPLETED job, not a fired marker — the whole point. A job
+    in any other state must NOT suppress the arm, which is asserted directly below."""
+    import cpap_job as J
     monkeypatch.setattr(capture._time, "time", lambda: (T0 + 45_000) / 1000.0)
     (tmp_path / "SESSIONDETECT.csv").write_text(_j(_therapy_then_standby(T0)))
-    capture._cpap_write_fired(str(tmp_path), float(T0))
+    done = J.transition(J.new_job(float(T0), "standby_hysteresis", 1.0), J.HARVEST_COMPLETED, 2.0, files=3)
+    capture._cpap_write_job(str(tmp_path), done)
     assert capture._cpap_boot_watch(str(tmp_path)).ended_at_ms is None
+
+
+def test_an_INTERRUPTED_job_still_arms_the_boot_watch(tmp_path, monkeypatch):
+    """The 2026-09-06 case. Under the old marker this end read as handled and nothing re-armed; the card
+    went unread for 5.5 h. An attempted-but-not-completed job must leave the end ARMED."""
+    import cpap_job as J
+    monkeypatch.setattr(capture._time, "time", lambda: (T0 + 45_000) / 1000.0)
+    (tmp_path / "SESSIONDETECT.csv").write_text(_j(_therapy_then_standby(T0)))
+    capture._cpap_write_job(str(tmp_path),
+                            J.transition(J.new_job(float(T0), "standby_hysteresis", 1.0),
+                                         J.HARVEST_ATTEMPTED, 2.0))
+    assert capture._cpap_boot_watch(str(tmp_path)).ended_at_ms == float(T0)
 
 
 def test_NO_JOURNAL_seeds_nothing_and_does_not_raise(tmp_path, monkeypatch):
