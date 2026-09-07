@@ -1553,49 +1553,6 @@ _ANNOTATION_GAP_MAX = 8         # the longest run of consecutive annotation rows
                                 # marker burst, reporting a span that is mostly annotation.
 
 
-def near_constant_regions(values, *, max_spread: int = _PLATEAU_LSB, min_run: int = 2,
-                          annotations=(), annotation_gap_max: int = _ANNOTATION_GAP_MAX):
-    """Maximal regions spanning at most `max_spread` — a plateau, not a single repeated value.
-
-    `annotations` names values that are NOT SAMPLES and must be stepped over. This is a value list, and
-    a value list is exactly what the detection rules refuse to be — the distinction is that this one
-    declares a property of the FORMAT (the ring writes its beat marker in the sample column) rather
-    than a property of the data. A format fact is knowable in advance; a defect is not.
-
-    ⚠️ THIS IS LOAD-BEARING, NOT A TIDY-UP. The ring's `156` beat marker rides in-band, so it lands
-    INSIDE plateaus and splits them. Measured 2026-09-06 across six nights, on the approach ramps of
-    zero plateaus: 67-79 % read monotone with the marker present and 686/689 (99.6 %) with it excluded,
-    and on one file the separation was total — 26/26 of the failing windows contained a marker, 0/95 of
-    the passing ones did. Left in, a fifth of events fragment and the population reads as a MIXTURE OF
-    TWO MECHANISMS that does not exist. It is the same one-shape family as the absence rule, in the
-    other direction: an out-of-band fact riding in-band, unreadable as what it is.
-
-    Regions are returned over ORIGINAL indices, so a region that spans a stepped-over annotation
-    reports the span it really covers — which is also why `annotation_gap_max` exists: merging across
-    an arbitrarily long marker burst would report a span that is mostly annotation.
-    """
-    skip = frozenset(annotations)
-    idx = [i for i, v in enumerate(values) if v not in skip]
-    out = []
-    i = 0
-    while i < len(idx):
-        lo = hi = values[idx[i]]
-        j = i + 1
-        while j < len(idx):
-            if idx[j] - idx[j - 1] - 1 > annotation_gap_max:
-                break                    # too much annotation between them to call it one plateau
-            nlo = min(lo, values[idx[j]])
-            nhi = max(hi, values[idx[j]])
-            if nhi - nlo > max_spread:
-                break
-            lo, hi = nlo, nhi
-            j += 1
-        if j - i >= min_run:
-            out.append((idx[i], idx[j - 1] - idx[i] + 1, lo, hi))
-        i = j if j > i else i + 1
-    return out
-
-
 def _ramp(values, first, n, *, toward_high, ramp=_RAMP_SAMPLES, annotations=()):
     """Approach/departure shape around a plateau: `(monotone_in, monotone_out, projects_beyond)`.
 
@@ -1692,6 +1649,66 @@ def rail_value(values, *, toward_high, scan=_RAIL_SCAN_VALUES, gap_max=_RAIL_GAP
     return rail
 
 
+def _at_rail(v, rail, toward_high, max_spread):
+    """At-or-BEYOND the pin, never short of it.
+
+    The tolerance exists for the OVERSHOOT: the ring's ceiling rail is 199 and it flickers up
+    to 200, and admitting that flicker is what merges one plateau reported as 118 + 81 regions
+    into one. It was never for the approach. A sample one LSB SHORT of the pin — a 198 under a
+    199 ceiling, a 1 above a 0 floor — is a value the encoding could represent and the device
+    did report, so a span covering it claims territory where the signal was still measuring.
+    Making the tolerance symmetric (an earlier draft here) extended every span by a sample at
+    each end and started ceiling spans during the ramp.
+    """
+    if toward_high:
+        return rail <= v <= rail + max_spread
+    return rail - max_spread <= v <= rail
+
+
+def _rail_runs(values, rail, *, toward_high, max_spread, min_run, annotations, annotation_gap_max):
+    """Runs of samples AT THE RAIL, grouped from the rail outward — not filtered out of generic
+    near-constant regions.
+
+    🔴 THE GENERIC SCAN GETS THE BOUNDARY WRONG, and this function exists because of it. A greedy
+    maximal near-constant scan is non-overlapping, so a sample that IS at the rail can be absorbed
+    into a shorter preceding region and lost from the plateau. Measured on 20260905045318 at 9294:
+    `190, 193, 196, 198, 199, 200, 199, 199 …` — the greedy scan emits `[9297, 9298] = (198, 199)`,
+    two samples, dropped by `min_run`, and the real plateau then opens at 9299 on the 200. The span
+    start therefore depended on WHAT PRECEDED the plateau rather than on the rail, which is
+    indefensible under any tolerance rule. (Found by Magpie diffing span lists, 2026-09-06.)
+
+    Grouping outward from the rail makes the boundary a property of the rail alone. Annotations stay
+    transparent up to `annotation_gap_max`, as everywhere else.
+    """
+    skip = frozenset(annotations)
+    n = len(values)
+    out = []
+    i = 0
+    while i < n:
+        if values[i] in skip or not _at_rail(values[i], rail, toward_high, max_spread):
+            i += 1
+            continue
+        first = last = i
+        j = i + 1
+        gap = 0
+        while j < n:
+            if values[j] in skip:
+                gap += 1
+                if gap > annotation_gap_max:
+                    break
+                j += 1
+                continue
+            if not _at_rail(values[j], rail, toward_high, max_spread):
+                break
+            gap = 0
+            last = j
+            j += 1
+        if last - first + 1 >= min_run:
+            out.append((first, last - first + 1))
+        i = max(j, first + 1)
+    return out
+
+
 def clip_regions(values, *, min_run: int = _CLIP_MIN_RUN, max_spread: int = _PLATEAU_LSB,
                  ramp: int = _RAMP_SAMPLES, annotations=()):
     """Plateaus PINNED AT AN OBSERVED EXTREME, at BOTH rails, with their approach shape measured.
@@ -1725,10 +1742,8 @@ def clip_regions(values, *, min_run: int = _CLIP_MIN_RUN, max_spread: int = _PLA
         rail = rail_value(real, toward_high=toward_high)
         if rail is None:
             continue                     # no rail on this side — a clean stream has none on either
-        for first, n, rlo, rhi in near_constant_regions(values, max_spread=max_spread,
-                                                        min_run=min_run, annotations=skip):
-            if abs(rlo - rail) > max_spread or abs(rhi - rail) > max_spread:
-                continue
+        for first, n in _rail_runs(values, rail, toward_high=toward_high, max_spread=max_spread, min_run=min_run,
+                                   annotations=skip, annotation_gap_max=_ANNOTATION_GAP_MAX):
             mono_in, mono_out, beyond = _ramp(values, first, n, toward_high=toward_high,
                                               ramp=ramp, annotations=skip)
             out.append({"first_index": first, "n_samples": n, "rail": rail,
@@ -2244,10 +2259,74 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # RING CONTACT from the raw 0x05 pair — the independent coupling vote (constants + validation
         # documented at ppg2w_contact). A session list, not a verdict; empty when never captured.
         "ppg2w_contact": ppg2w_contact_quality(night_dir),
+        # CLASS-B QUALITY — `clip` spans pinned at each stream's own observed rails, and a computed
+        # `held` mark. Whole-night because the rail is not knowable until the night is complete.
+        # Reported, never folded into `ok`: a clipped stretch is a defect of the SIGNAL, not of the
+        # capture, and conflating them would make a good recording read as a capture failure — the
+        # same separation `arrival` above is kept out of `ok` for.
+        "class_b": class_b_quality(night_dir),
         # What rate the files ACTUALLY carry, against what was asked for. Coverage notices a rate swap
         # only as `degraded`, which names it a link fault; this names it a rate fault.
         "rates": _rate_rows,
     }
+
+
+_STREAM_ANNOTATIONS = {
+    # Values that are NOT SAMPLES, by capture FORMAT rather than by defect. Keyed on the file tag.
+    # ⚠️ This is a value list, and the detectors refuse to be value lists — the difference is that
+    # this declares a property of the format, knowable in advance, rather than a property of the data.
+    # The O2Ring writes its beat marker into the sample column of its PPG streams; the Verity and the
+    # H10 write no such thing, so their entries are deliberately absent rather than empty-by-oversight.
+    "PPG": (156,),
+    "PPG2W": (156,),
+}
+_CLASS_B_TAGS = ("PPG", "PPG2W", "ECG")
+
+
+def class_b_quality(night_dir: str, *, emit=None) -> list:
+    """One class-B block per PPG/ECG capture in the night — the END-OF-NIGHT back-check.
+
+    Empty list when nothing was captured: nothing to report is not the same as everything healthy, so
+    the key holds sessions rather than a verdict, exactly as `ppg2w_contact_quality` does.
+
+    Whole-night by necessity, not by preference. `clip` is pinned at the stream's OWN observed rails
+    and there is no declared bound to test against — the ring's ceiling is 199 with a thin overshoot to
+    200, which is not an encoding extreme — so the rail cannot be known until the night is complete.
+    That is precisely the half the live writer cannot do.
+
+    Rows that do not parse are SKIPPED, not fatal: a mid-file repeated header is a real rotation
+    artifact and one torn row must not erase a session's verdict.
+    """
+    out = []
+    for name in sorted(os.listdir(night_dir) if os.path.isdir(night_dir) else []):
+        parsed = parse_capture_name(name)
+        if parsed is None or parsed[0] not in _CLASS_B_TAGS:
+            continue
+        tag = parsed[0]
+        records = []
+        try:
+            with open(os.path.join(night_dir, name), "r", encoding="utf-8", errors="replace") as fh:
+                fh.readline()                       # header
+                for line in fh:
+                    parts = line.rstrip("\n").split(";")
+                    if len(parts) < 3:
+                        continue
+                    try:
+                        cols = tuple(int(float(p)) for p in parts[2:])
+                    except ValueError:
+                        continue
+                    records.append(cols[0] if len(cols) == 1 else cols)
+        except OSError:
+            log.warning("night-QC: %s is unreadable, so its class-B quality is ABSENT rather than "
+                        "clean — the two must not read alike", name, exc_info=True)
+            continue
+        if len(records) < _CLIP_MIN_RUN:
+            continue
+        block = class_b_runs(records, stream=tag.lower(),
+                             annotations=_STREAM_ANNOTATIONS.get(tag, ()), emit=emit)
+        block["file"] = name
+        out.append(block)
+    return out
 
 
 def qc_digest(summ) -> str | None:

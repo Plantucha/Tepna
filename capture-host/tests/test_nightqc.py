@@ -2271,7 +2271,9 @@ def test_held_stream_wants_records_not_columns():
 def test_clip_floor_is_one_region():
     v = _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline()
     rows = nightqc.class_b_runs(v, stream="ppg", annotations=(_MK,))["rows"]
-    assert [(r["rule"], r["n_samples"], r["value"]) for r in rows] == [("clip", 31, 0)]
+    # exactly the 30 zeros: the `1` on the ramp-out is one LSB INWARD of the pin, a value the
+    # encoding could represent and the device did report, so the span stops short of it.
+    assert [(r["rule"], r["n_samples"], r["value"]) for r in rows] == [("clip", 30, 0)]
 
 
 def test_clip_marker_inside_a_plateau_stays_ONE_region():
@@ -2368,8 +2370,8 @@ def test_class_b_runs_emit_seam_receives_the_sidecar_columns():
                          emit=lambda *a: seen.append(a))
     assert len(seen) == 1
     stream, value, first_index, n, dur_ms, closed, rule = seen[0]
-    assert (stream, value, n, rule) == ("ppg", 0, 31, "clip")
-    assert dur_ms == 31 * 8.0 and closed is True and first_index > 0
+    assert (stream, value, n, rule) == ("ppg", 0, 30, "clip")
+    assert dur_ms == 30 * 8.0 and closed is True and first_index > 0
 
 
 def test_class_b_runs_multichannel_reports_per_channel_and_held_once():
@@ -2431,14 +2433,16 @@ def test_annotation_gap_is_bounded_so_a_marker_burst_cannot_merge_two_plateaus()
     plateaus: merged, the region's span would be mostly annotation.
     """
     burst = _baseline() + _RAMP_DOWN + [0] * 12 + [_MK] * 20 + [0] * 12 + _RAMP_UP + _baseline()
-    at_floor = [r for r in nightqc.near_constant_regions(burst, min_run=8, annotations=(_MK,))
-                if r[2] == 0]
+    at_floor = nightqc._rail_runs(burst, 0, toward_high=False, max_spread=1, min_run=8,
+                                  annotations=(_MK,),
+                                  annotation_gap_max=nightqc._ANNOTATION_GAP_MAX)
     assert len(at_floor) == 2, "a 20-row burst is longer than the bound, so the plateaus stay apart"
     assert all(r[1] < 20 for r in at_floor), "and no span swallows the 20 annotation rows"
     # a burst SHORTER than the bound is still stepped over, giving one plateau spanning it
     short = _baseline() + _RAMP_DOWN + [0] * 12 + [_MK] * 6 + [0] * 12 + _RAMP_UP + _baseline()
-    merged = [r for r in nightqc.near_constant_regions(short, min_run=8, annotations=(_MK,))
-              if r[2] == 0]
+    merged = nightqc._rail_runs(short, 0, toward_high=False, max_spread=1, min_run=8,
+                                annotations=(_MK,),
+                                annotation_gap_max=nightqc._ANNOTATION_GAP_MAX)
     assert len(merged) == 1 and merged[0][1] >= 30, "12 + 6 markers + 12 reported as one span"
 
 
@@ -2459,3 +2463,98 @@ def test_rail_needs_something_inward_of_the_spike():
     low edge, the spike is the top value and there is nothing inward of it to out-count."""
     v = [1] * 20 + [2] * 300
     assert nightqc.rail_value(v, toward_high=False) is None
+
+
+def _write_ppg(night, name, values, header="Phone timestamp;sensor timestamp [ns];channel 0\n"):
+    p = os.path.join(night, name)
+    with open(p, "w") as fh:
+        fh.write(header)
+        for i, v in enumerate(values):
+            fh.write(f"2026-09-05T04:53:{i % 60:02d}.000;0;{v}\n")
+    return p
+
+
+def test_class_b_quality_scans_a_night_and_reaches_the_seam(tmp_path):
+    """The production path: the per-night back-check finds the capture, runs the detector, and the
+    rows reach the sidecar seam. Without this the detector would be reachable only from tests."""
+    night = str(tmp_path)
+    clipped = _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline()
+    _write_ppg(night, "Wellue_O2Ring-S_X_20260905045318_PPG.txt", clipped)
+    seen = []
+    blocks = nightqc.class_b_quality(night, emit=lambda *a: seen.append(a))
+    assert [b["file"] for b in blocks] == ["Wellue_O2Ring-S_X_20260905045318_PPG.txt"]
+    assert seen and seen[0][6] == "clip" and seen[0][1] == 0
+    # and the marker is declared for this tag, so a marker-split plateau is still ONE span
+    marked = _baseline() + _RAMP_DOWN + [0] * 14 + [_MK] + [0] * 15 + _RAMP_UP + _baseline()
+    _write_ppg(night, "Wellue_O2Ring-S_X_20260905045319_PPG2W.txt", marked)
+    got = []
+    nightqc.class_b_quality(night, emit=lambda *a: got.append(a))
+    ppg2w = [g for g in got if g[0] == "ppg2w"]
+    ppg = [g for g in got if g[0] == "ppg"]
+    assert len(ppg2w) == 1
+    # the marker-split plateau reports the SAME span as the unmarked one — the invariant that
+    # matters, not the magic number beside it.
+    assert ppg2w[0][3] == ppg[0][3] == 30
+
+
+def test_class_b_quality_is_empty_when_the_night_holds_nothing_it_reads(tmp_path):
+    """Nothing to report is not everything healthy — an empty list, never a clean verdict."""
+    night = str(tmp_path)
+    assert nightqc.class_b_quality(night) == []
+    _write_ppg(night, "Polar_H10_X_20260905045318_RR.txt", [800, 810, 790])   # not a class-B tag
+    _write_ppg(night, "Wellue_O2Ring-S_X_20260905045318_PPG.txt", [5, 6, 7])  # too few rows
+    assert nightqc.class_b_quality(night) == []
+    assert nightqc.class_b_quality(os.path.join(night, "does-not-exist")) == []
+
+
+def test_class_b_quality_skips_torn_rows_and_survives_an_unreadable_file(tmp_path, monkeypatch):
+    """A torn row is expected at a live file's tail; an unreadable file is ABSENT, not clean."""
+    night = str(tmp_path)
+    p = _write_ppg(night, "Wellue_O2Ring-S_X_20260905045318_PPG.txt",
+                   _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline())
+    with open(p, "a") as fh:
+        fh.write("2026-09-05T04:54:00.000;0;not-a-number\n")   # torn tail row, skipped
+        fh.write("short;row\n")                                # too few fields, skipped
+    assert nightqc.class_b_quality(night)[0]["rows"], "the torn rows did not erase the verdict"
+    real_open = open
+
+    def boom(path, *a, **k):
+        if str(path).endswith("_PPG.txt"):
+            raise OSError("unreadable")
+        return real_open(path, *a, **k)
+
+    monkeypatch.setattr("builtins.open", boom)
+    assert nightqc.class_b_quality(night) == []
+
+
+def test_the_rail_tolerance_is_OUTWARD_only():
+    """`_PLATEAU_LSB` exists for the OVERSHOOT past the pin, not for the approach to it.
+
+    The ring's ceiling rail is 199 and flickers up to 200; admitting that flicker is what merges one
+    plateau otherwise reported as 118 + 81 regions. A symmetric tolerance — which this file carried
+    until 2026-09-06 — also admits a 198 under a 199 ceiling and a 1 above a 0 floor, which are values
+    the encoding CAN represent and the device DID report. It extended every span by a sample at each
+    end and opened ceiling spans during the ramp. Making it outward-only brought this implementation
+    to exact parity with the independent JS port: 170 spans, floor 91, ceiling 79, 5,647 samples.
+    """
+    assert nightqc._at_rail(199, 199, True, 1) and nightqc._at_rail(200, 199, True, 1)
+    assert not nightqc._at_rail(198, 199, True, 1), "one LSB short of the pin is measured signal"
+    assert nightqc._at_rail(0, 0, False, 1)
+    assert not nightqc._at_rail(1, 0, False, 1), "and so is one LSB above a floor rail"
+
+
+def test_a_pin_shorter_than_min_run_is_not_reported():
+    """`_CLIP_MIN_RUN` is the floor on what reaches the sidecar.
+
+    ⚠️ The stream must carry a QUALIFYING rail, or this passes for the wrong reason. A first draft
+    used one short pin on a clean baseline and asserted no regions — which was true because
+    `rail_value` found no rail at all (3 zeros against 1 neighbour is a ratio of 3.0, under
+    `_RAIL_SPIKE_MIN`), so `min_run` was never consulted and the assertion tested nothing.
+    """
+    long_pins = (_baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP) * 3
+    short_pin = _RAMP_DOWN + [0] * 3 + _RAMP_UP + _baseline()
+    v = long_pins + short_pin
+    assert nightqc.rail_value(v, toward_high=False) == 0, "the rail qualifies, so min_run is reached"
+    spans = nightqc.clip_regions(v, min_run=5, annotations=(_MK,))
+    assert [r["n_samples"] for r in spans] == [30, 30, 30], "the 3-sample pin is under the bar"
+    assert all(r["n_samples"] >= 5 for r in spans)
