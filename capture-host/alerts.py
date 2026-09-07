@@ -404,3 +404,55 @@ def frozen_devices(qc: dict, live: dict, threshold_sec: float) -> list[str]:
             continue
         out.append(name)
     return out
+
+
+# ── THE RING POWERS ITSELF OFF AFTER A DOFF, AND THAT IS NOT AN OUTAGE ──────────────────────────────
+# MEASURED on device S8AW2100 over 244 harvested sessions (2026-07-25 → 2026-09-07), taking each
+# session's last worn frame → its last frame:
+#
+#     the ring's OWN power-off timer   n=23   min 116.7  median 121.9  max 123.0  sd 1.18
+#     our not-worn drop                n=18   min  46.4  median  47.9  max  57.6  sd 2.33
+#
+# ⚠️ THE TWO BANDS ARE SEPARATED IN TIME, NOT MIXED, and that is what makes 121.9 s a HARDWARE figure
+# rather than a mixture of the ring and us: every 110-130 s observation is on or before 2026-08-26, and
+# every 40-60 s observation is on or after 2026-08-27. Since 08-27 we drop the link at ~48 s and so no
+# longer reach the ring's timer at all. Do not re-derive this number from recent nights — it is not
+# observable there any more.
+#
+# So the sequence after a doff is: contact lost → we drop at ~48 s → connect + pull `latest` (27 s
+# measured 2026-09-07) → the ring's own idle timer expires at ~122 s and IT POWERS OFF. From then on it
+# does not advertise, and every scan correctly reports absence. The daemon read that absence as a fault:
+# a 180 s reconnect backoff spent against a radio that is off, and at 5 minutes
+#
+#     WARNING  alert: Wellue O2Ring-S has been offline for ~5 min — capture is missing it
+#
+# which is false twice over — the ring is not missing, and capture is not missing anything, because the
+# pull that preceded the power-off already took the data off it.
+RING_IDLE_TIMER_S = 121.9           # the measured power-off timer (n=23, sd 1.18) — see above
+RING_IDLE_EXPECT_MAX_S = 8 * 3600   # how long "expected" may last before it becomes a real absence
+
+
+def powered_off_after_pull(last_pull_ok_sec: float | None, now: float,
+                           expiry_sec: float = RING_IDLE_EXPECT_MAX_S) -> bool:
+    """Is a non-advertising device in its EXPECTED post-doff power-off, rather than genuinely missing?
+
+    True only when a pull for this device SUCCEEDED and that success is recent. Both halves are
+    load-bearing and they fail in opposite directions:
+
+    · **The pull must have SUCCEEDED.** A doff whose pull failed or ran partial leaves data on the ring
+      that we still need, so its silence IS something to alert about. Licensing the quiet state on the
+      doff alone would suppress exactly the alert that matters — the night we did not collect.
+
+    · **It must EXPIRE.** A ring that has not advertised for well past its timer AND past any plausible
+      re-wear is no longer explained by the idle timer; it is a flat battery, a ring left in a bag, or a
+      radio that died. Without the bound the first quiet night would silence this device permanently,
+      which is a worse failure than the false alert it replaces — a false alarm is noise, a false all-
+      clear is the absence of the alarm. 8 h is chosen to span a night plus a morning: longer than any
+      sleep session, shorter than a day left uncharged.
+
+    `last_pull_ok_sec` is the monotonic time of the last SUCCESSFUL pull for this device, or None if it
+    has never had one (never pulled, or every attempt failed) — in which case this is never expected."""
+    if last_pull_ok_sec is None:
+        return False
+    age = now - last_pull_ok_sec
+    return 0 <= age < expiry_sec
