@@ -577,7 +577,19 @@ class TelemetryBus:
         self._rings: dict[str, collections.deque] = {}
         self._meta: dict[str, StreamMeta] = dict(DEFAULT_META)
         self._subs: set[asyncio.Queue] = set()
-        self._active: set[str] = set()   # streams that have produced data this session
+        # EVER PUSHED IN THIS PROCESS — not "live now". Set on a stream's first push and cleared
+        # only by `unregister`, which `run_polar` calls and `run_oxyii` does not, so an O2Ring stream
+        # stays in this set after the ring disconnects. `health` is the recomputed liveness; this is
+        # a has-ever-produced-data marker, and the old name `_active` is what made it read otherwise.
+        #
+        # ⚠️ CLEARING IT ON DISCONNECT WAS CONSIDERED AND REJECTED. The set also gates which Overview
+        # cards render, and a stalled stream is DELIBERATELY still shown — clearing would hide the
+        # evidence that a stream existed and stopped, which is the thing worth seeing. The name was
+        # the defect; the lifetime is correct.
+        #
+        # A derived liveness field in `meta()` is DEFERRED, not planned: monitor.html is the only
+        # consumer deriving liveness today, and one consumer does not justify a second source.
+        self._ever_pushed: set[str] = set()
         self._win: dict[str, collections.deque] = {}   # stream -> deque[(mono_ts, n_samples)] for rate calc
         self._last_mono: dict[str, float] = {}         # stream -> monotonic time of last push (stall calc)
         self._shape_err: dict[str, str] = {}           # stream -> "declared N, got M" (channel-count breach)
@@ -635,7 +647,9 @@ class TelemetryBus:
             eff, age, warmup = self._stream_rate(m.key, now)
             row = {"key": m.key, "label": m.label, "unit": m.unit, "fs": m.fs,
                    "chans": m.chans, "labels": list(m.labels),
-                   "active": m.key in self._active,
+                   # WIRE KEY UNCHANGED — `capture_status.py` and `monitor.html` read "active".
+                   # It means "ever pushed in this process", not "live now"; `health` is liveness.
+                   "active": m.key in self._ever_pushed,
                    # null, not 0, when the window holds no interval — the JSON contract mirrors
                    # `_stream_rate`'s refusal rather than flattening it into a measured zero.
                    "effFs": None if eff is None else round(eff, 3),
@@ -663,7 +677,7 @@ class TelemetryBus:
         """Drop a stream (e.g. its START was rejected) so it stops showing as an idle card."""
         self._meta.pop(key, None)
         self._rings.pop(key, None)
-        self._active.discard(key)
+        self._ever_pushed.discard(key)
         self._win.pop(key, None)
         self._last_mono.pop(key, None)
         # `_shape_err` is deliberately NOT cleared: a breach recorded against this key is evidence about
@@ -717,7 +731,7 @@ class TelemetryBus:
             ring = collections.deque(ring or (), maxlen=cap)
             self._rings[stream] = ring
         ring.extend(rows)
-        self._active.add(stream)
+        self._ever_pushed.add(stream)
         now = time.monotonic()                       # link-health: track packets/sec vs nominal (no root)
         self._last_mono[stream] = now
         w = self._win.get(stream)
