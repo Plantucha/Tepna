@@ -964,6 +964,15 @@
       siteSource: 'device-default',
       // Per-sample missing mask (1 = rejected sentinel). Null for the wrist layout. Never filled.
       gap: sent ? sent.gap : null,
+      /* §∅ ABSENCE-AS-VALUE — spans where the stream was PINNED at a rail and therefore measured
+         nothing. Out of band beside the samples, never written into them: `parsePPG` rejects a row
+         row-atomically on a non-finite value (`:429` and siblings), so a NaN would delete the ROW
+         and turn an absence of VALUE into an absence of TIME, shifting every index after it. One
+         entry per optical channel, in channel order; `null` when the stream carries no qualifying
+         rail, which is the honest answer for a clean recording. */
+      spans: chArr.map(function (c) {
+        return pinnedSpans(c);
+      }),
       sentinelRejected: sent ? sent.rejected : 0,
       sentinelKept: sent ? sent.kept : 0,
       /* The firmware's own beat fiducials, as TIMES on the published axis. Positions, not a count —
@@ -4485,6 +4494,8 @@
       meanSQI,
       cleanBeatPct,
       analyzablePct,
+      // §∅ raw span sets, per optical channel — projected into the export's `quality.pinnedCoverage`.
+      pinnedSpanSets: rec.spans || null,
       coveragePct: cleanBeatPct,
       correctionRate,
       nCorrected: corr.nCorr,
@@ -5111,6 +5122,31 @@
         ppiAgreementPct: nz(r.ppiAgreementPct),
         ppiCorrFootPct: nz(r.ppiCorrFootPct),
         ppiCorrPeakPct: nz(r.ppiCorrPeakPct),
+        /* §∅ PINNED COVERAGE — how much of each optical channel was a rail reporting NOTHING.
+           ⚠️ NAMED `pinnedCoverage`, NOT `coverage`: this export already publishes
+           `recording.coverage` (INTEGRATOR-GAP-AWARE-OVERLAP — TIME segments), and a first draft
+           called itself `coverage`, shadowed it, and reddened 14 assertions including the twin whose
+           whole purpose is declaring segment coverage. Two different absences — time not recorded vs
+           value not measured — must not share a name.
+           ⚠️ AND IT IS PUBLISHED HERE, in the EMITTER, not in `analyze`'s internal quality object.
+           The first attempt added it beside `sentinelRejected` on the assumption that block was the
+           exported one. It is not — `sentinelRejected` never reaches the export either — so the
+           field was INERT and every golden stayed byte-identical, which read as "export-inert" when
+           it was "not wired at all". The goldens passing is what exposed it.
+           Per CHANNEL because a hold is a property of a signal path: pooling lets one live channel
+           mask two pinned ones. `rail: null` is a clean stream, and is DISTINCT from a rail existing
+           with zero spans. Errs low — a consumer can filter `n` upward but can never recover a span
+           that was never emitted. */
+        pinnedCoverage: (r.pinnedSpanSets || []).map(function (sp, ci) {
+          var lost = 0;
+          for (var k = 0; k < sp.spans.length; k++) lost += sp.spans[k].n;
+          return {
+            channel: ci,
+            rail: sp.railLo != null || sp.railHi != null ? { lo: sp.railLo, hi: sp.railHi } : null,
+            spans: sp.spans.length,
+            samplesUnmeasured: lost
+          };
+        }),
         /* ── TIMING PROVENANCE (WEARABLE-HOST-AXIS-FOLLOWUPS §F1) — additive, contract-safe ──
            A consumer that spends this export as a CLOCK LEG (three-cornered hat, three-source closure,
            PAT) must branch on `timingSource` BEFORE using ppi.tSec as a time base:

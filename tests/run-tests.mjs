@@ -1933,7 +1933,20 @@ async function main() {
     console.error(paint('  ! pat-host-offset failed to load: ' + e.message, C.yellow));
   }
 
+  /* §∅ cross-language constant parity reads SOURCE TEXT on both sides — the Python file cannot be
+     imported here, and the JS constants are module-private. `nightqc.py` is optional: absent, the
+     gate still pins the JS half and asserts the Python side carries NONE of the names, so a partial
+     landing cannot slip through as a skip. */
+  const _readOpt = (rel) => {
+    try {
+      return readFileSync(join(ROOT, rel), 'utf8');
+    } catch {
+      return null;
+    }
+  };
   const env = {
+    ppgdexDspSource: _readOpt('ppgdex-dsp.js'),
+    nightqcSource: _readOpt('capture-host/nightqc.py'),
     PatStrict: PatStrict,
     PatFiducial: PatFiducial,
     CohortWorker: CohortWorker,

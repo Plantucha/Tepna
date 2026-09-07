@@ -33006,15 +33006,67 @@
       T.ok('with no annotation set declared, the same marker splits the span', rmEmpty.spans.length > 1, rmEmpty.spans.length + ' spans');
       T.eq('  ... and the ring default supplies {156} when nothing is passed', P.pinnedSpans(mk).annotations[0], 156);
 
-      // 4 · min_run. Legitimate plateaus reach 5-9 samples routinely (p99 = 14 on the real file), so
-      //     a short pin must NOT become a span.
+      /* 4 · min_run — AND THE RAIL MUST QUALIFY, or the assertion is vacuous. The first version of
+         this test planted a 4-sample pin alone and asserted zero spans; it passed because NO RAIL
+         QUALIFIED (4 samples against a dense neighbour never clears the spike bound), so `min_run`
+         was never consulted and the assertion proved nothing. Caught by the sibling Python port
+         hitting the identical shape. The plant now carries a LONG pin so the rail is real, plus a
+         SHORT one, and asserts the short one alone is dropped — which is a claim about `min_run`
+         rather than about rail qualification. */
       var sh = clean(2000);
       for (var d3 = 0; d3 < 13; d3++) {
-        sh[887 + d3] = Math.max(0, 92 - d3 * 7);
+        sh[487 + d3] = Math.max(0, 92 - d3 * 7); // ramp into the LONG pin
+        sh[540 + d3] = Math.min(99, 7 + d3 * 7);
+        sh[887 + d3] = Math.max(0, 92 - d3 * 7); // ramp into the SHORT pin
         sh[904 + d3] = Math.min(99, 7 + d3 * 7);
       }
-      for (var m = 900; m < 904; m++) sh[m] = 0;
-      T.eq('a 4-sample pin is below min_run and is not a span', P.pinnedSpans(sh).spans.length, 0);
+      for (var mL = 500; mL < 540; mL++) sh[mL] = 0; // 40 samples — well past min_run
+      for (var m = 900; m < 904; m++) sh[m] = 0; // 4 samples — below it
+      var rs = P.pinnedSpans(sh);
+      T.ok('the plant produces a QUALIFYING rail — without this the next assertion is vacuous', rs.railLo === 0, 'railLo=' + rs.railLo);
+      T.eq('with a real rail, the 4-sample pin is still dropped by min_run', rs.spans.length, 1);
+      T.eq('  ... and the span kept is the long one, not the short', rs.spans[0].n, 40);
+
+      /* 4b · THE PARITY FIXTURE — the SPAN LIST, not a count. Kestrel's rule, and this work is its
+         own argument: the JS and Python ports once agreed on sample count to within ONE while their
+         span counts differed by eight, so a count-based fixture would have reported success about
+         boundaries it never examined. The same plant is committed as
+         `uploads/synthetic_ppgdex_o2ring_pinned.txt` for the Python back-check to run byte-for-byte;
+         this rebuilds it in-code so the gate needs no file (the `tests/*-twins.js` pattern). Four
+         cases in one stream: a 20-sample floor pin in the measured worst-severity band, the same pin
+         SPLIT by an isolated marker (must stay ONE span), a 199 ceiling pin carrying a 200 overshoot
+         (must be ONE span across both values, since the tolerance is at-or-beyond the pin only), and
+         a 4-sample pin that min_run must drop. */
+      var BASE = 123;
+      function ramp(a, b, cnt) {
+        var out = [];
+        for (var q = 0; q < cnt; q++) out.push(Math.round(a + ((b - a) * (q + 1)) / (cnt + 1)));
+        return out;
+      }
+      var plant = new Float64Array(5029);
+      for (var pi = 0; pi < plant.length; pi++) plant[pi] = BASE + Math.round(4 * Math.sin((pi / 125) * 2 * Math.PI * 1.1));
+      function pin(at, len, val, markerAt) {
+        var rin = ramp(BASE, val, 10),
+          rout = ramp(val, BASE, 10);
+        for (var q = 0; q < 10; q++) plant[at - 10 + q] = rin[q];
+        for (var w = 0; w < len; w++) plant[at + w] = val;
+        if (markerAt != null) plant[at + markerAt] = 156;
+        for (var e = 0; e < 10; e++) plant[at + len + e] = rout[e];
+      }
+      pin(1500, 20, 0, null); // floor pin, worst-severity band
+      pin(2200, 20, 0, 9); // the same pin, split by an isolated marker
+      pin(2900, 16, 199, null);
+      plant[2907] = 200; // overshoot INSIDE the ceiling pin
+      pin(3600, 4, 0, null); // below min_run
+      var rp = P.pinnedSpans(plant);
+      T.eq('the plant qualifies BOTH rails', String(rp.railLo) + ',' + String(rp.railHi), '0,199');
+      var list = rp.spans.map(function (z) {
+        return z.first + ':' + z.n + ':' + z.end;
+      });
+      T.eq('the parity fixture is the SPAN LIST, exactly', list.join(' | '), '1500:20:lo | 2200:20:lo | 2900:16:hi');
+      T.eq('  ... the marker-split pin is ONE span, not two', rp.spans[1].n, 20);
+      T.eq('  ... the ceiling pin spans the 200 overshoot as one', rp.spans[2].n, 16);
+      T.eq('  ... and the 4-sample pin is absent (min_run), so three spans not four', rp.spans.length, 3);
 
       // 5 · THE WIDENING IS DERIVED, AND THE TWO MEASUREMENTS ARE THE GATE. A constant here would be
       //     wrong for any artifact of a different size: settling to a fixed threshold is LOGARITHMIC
@@ -33026,6 +33078,64 @@
       T.ok('zero-phase doubles it — the ECG/PPG asymmetry is structural, not tuned', P.settlingWidenSec(26, 1, 0.5, true) > P.settlingWidenSec(26, 1, 0.5, false) * 1.9);
       T.ok('the log ceiling holds for an absurd excursion', P.settlingWidenSec(1e9, 1, 0.5, true) <= (9 * 2) / (2 * Math.PI * 0.5) + 1e-9);
       T.eq('a non-finite scale refuses rather than returning 0', P.settlingWidenSec(26, 0, 0.5, true), null);
+    });
+
+    /* §∅ CROSS-LANGUAGE CONSTANT PARITY. The JS recompute path and the capture-host writer/back-check
+       must agree on the constants that decide WHICH spans exist and HOW LONG they are, or the two
+       sidecars disagree about a night while both look healthy. This scans SOURCE TEXT on both sides
+       rather than importing, because the Python side cannot be imported here.
+       ⚠️ IT MUST ASSERT SOMETHING IN BOTH STATES. `capture-host/nightqc.py` does not yet carry these
+       names (WU-7 is unlanded), so a gate that only compared-when-present would pass vacuously on an
+       empty set — the failure this repo keeps finding. So: the JS literals are pinned unconditionally,
+       and the Python file is asserted to carry EITHER all six with matching values OR none of them.
+       A partial landing, a rename, or a changed value all red. */
+    group('PPGDex §∅ — the span constants are pinned, and cross-language parity cannot pass vacuously', 'ppgdex-dsp · absence-as-value · parity', function (T) {
+      var src = env.ppgdexDspSource || null;
+      if (!src) {
+        T.skip('ppgdex-dsp.js source not injected in this lane');
+        return;
+      }
+      var EXPECT = { PIN_MIN_RUN: 5, PIN_MERGE: 8, PIN_RAIL_SCAN_VALUES: 8, PIN_RAIL_GAP_MAX: 4, PIN_RAIL_SPIKE_MIN: 5 };
+      function literal(text, name) {
+        var m = new RegExp('const\\s+' + name + '\\s*=\\s*(-?\\d+)').exec(text);
+        return m ? Number(m[1]) : null;
+      }
+      var found = 0;
+      for (var k in EXPECT) {
+        var got = literal(src, k);
+        if (got != null) found++;
+        T.eq('JS ' + k + ' is pinned at the agreed value', got, EXPECT[k]);
+      }
+      // The extractor itself must be provable: a plant with a changed value MUST fail the comparison.
+      T.eq('the extractor reads a planted CHANGE (it is not matching on absence)', literal('const PIN_MIN_RUN = 99;', 'PIN_MIN_RUN'), 99);
+      T.eq('the extractor returns null when the constant is ABSENT, so an empty scan cannot read as a match', literal('const SOMETHING_ELSE = 5;', 'PIN_MIN_RUN'), null);
+      T.eq('all five JS literals were actually found — a zero-find scan must not read as agreement', found, 5);
+
+      var py = env.nightqcSource;
+      if (py == null) {
+        T.skip('capture-host/nightqc.py not injected in this lane — the JS half above still gates');
+        return;
+      }
+      var PY = ['_ANNOTATION_GAP_MAX', '_RAIL_SPIKE_MIN', '_RAIL_SCAN_VALUES', '_RAIL_GAP_MAX', '_CLIP_MIN_RUN', '_PLATEAU_LSB'];
+      var present = [];
+      for (var i = 0; i < PY.length; i++) if (new RegExp(PY[i] + '\\s*=\\s*-?\\d+').test(py)) present.push(PY[i]);
+      if (present.length === 0) {
+        T.ok('capture-host carries NONE of the span constants yet (WU-7 unlanded) — a partial landing would red here', true, '0 of 6');
+        return;
+      }
+      T.eq('capture-host carries ALL SIX or none — a partial landing is a silent divergence', present.length, 6);
+      var PAIR = { _ANNOTATION_GAP_MAX: 'PIN_MERGE', _RAIL_SPIKE_MIN: 'PIN_RAIL_SPIKE_MIN', _RAIL_SCAN_VALUES: 'PIN_RAIL_SCAN_VALUES', _RAIL_GAP_MAX: 'PIN_RAIL_GAP_MAX', _CLIP_MIN_RUN: 'PIN_MIN_RUN' };
+      for (var pk in PAIR) {
+        var pv = Number(new RegExp(pk + '\\s*=\\s*(-?\\d+)').exec(py)[1]);
+        T.eq(pk + ' == ' + PAIR[pk], pv, EXPECT[PAIR[pk]]);
+      }
+      /* `_PLATEAU_LSB` has NO JS counterpart, deliberately: the JS emits at-or-beyond the pin
+         (`v <= railLo || v >= railHi`), which is the one-sided semantics the Python side adopted
+         after measurement — a symmetric ±1 would admit a 198 under a 199 rail, and a 198 is signal.
+         Pinned as a VALUE so a change reds, with the asymmetry stated so the omission reads as a
+         decision. `_RAMP_SAMPLES` is excluded entirely: it drives geometry flags, which are evidence
+         and never gate emission. */
+      T.eq('_PLATEAU_LSB is 1 (overshoot past the pin only — no symmetric JS counterpart, by decision)', Number(new RegExp('_PLATEAU_LSB\\s*=\\s*(-?\\d+)').exec(py)[1]), 1);
     });
 
     group('PPGDex F19 — accFs is the NATIVE rate, not count ÷ span', 'ppgdex-dsp · regression', function (T) {
