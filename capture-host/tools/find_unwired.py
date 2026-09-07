@@ -119,6 +119,19 @@ ALLOW_MODULES = {
 }
 
 ALLOW_FUNCS = {
+    # ── Class-B quality signatures (WU-7, 2026-09-06). PENDING, and the consumer it waits on is
+    # NAMED: the live sidecar writer that owns the `emit_run(stream, value, first_index, n, dur_ms,
+    # closed, rule)` seam. `class_b_runs` was built deliberately as detection-plus-seam with no writer
+    # of its own, so that one writer serves the live path and this back-check instead of two
+    # implementations drifting apart on the same schema. It is exercised end-to-end by its plants,
+    # which drive the real rows through the default seam rather than a no-op.
+    # RETIRES when the writer lands and calls it; if that writer is abandoned, DELETE this function
+    # with the entry rather than leaving a detector nothing runs.
+    "class_b_runs": (
+        "PENDING the sidecar writer that owns the `emit_run` seam — built as detection + seam on "
+        "purpose so the live path and the night back-check share one writer. Retires when that "
+        "writer calls it; delete both if it is abandoned"
+    ),
     # ── Swappability pure core (2026-08-30). ⚠️ THE ORIGINAL REASON HERE WAS WRONG AND IS CORRECTED.
     # It said the bluez hotplug watch "that calls them is unit 1's second half", implying these would
     # be discharged by wiring that watch. Tracing to the CONSUMER showed otherwise, twice over:

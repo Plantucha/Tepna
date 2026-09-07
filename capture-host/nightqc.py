@@ -1442,10 +1442,20 @@ def ppg2w_contact_quality(night_dir: str) -> list:
     return out
 
 
-_CLIP_MIN_RUN = 8               # a plateau shorter than this is the signal sitting still for a moment.
-                                # It is a floor on the REPORTED region, not a detection threshold: the
-                                # rule is "pinned at an observed extreme", and this only keeps a
-                                # two-sample pause at a rail out of the sidecar.
+_CLIP_MIN_RUN = 5               # the shortest plateau REPORTED. It is a sensitivity knob only, and
+                                # measurably not a specificity one: the clean-stream control yields 0
+                                # regions at min_run 5, 6 and 8 alike, because `rail_value` rejects an
+                                # unqualified rail before this is ever consulted. So raising it buys
+                                # nothing and costs real events.
+                                # ⚠️ IT COSTS DAMAGE, and the curve is why it is 5 and not 8. Magpie
+                                # measured the excursion a pin puts into the bandpassed signal against
+                                # the clean signal's own sd (2026-09-06):
+                                #     len  1 →  5.7x     20 → 40.2x (peak)
+                                #     len  5 → 25.4x     40 → 33.1x
+                                #     len 10 → 38.6x     94 → 22.1x
+                                # A 5-sample pin is a 25x-sd excursion — comparable to a 94-sample one
+                                # at 22x — so a "tidy" raise to 8 silently drops 9 spans on 045318 that
+                                # do real damage. Do not raise this without re-measuring that curve.
 _PLATEAU_LSB = 1                # a rail plateau flickers by one quantisation step, so the region is
                                 # NEAR-constant, not constant. Measured 2026-09-06 on the ring: exact
                                 # equality split one ceiling population into 118 regions at 200 and 81
