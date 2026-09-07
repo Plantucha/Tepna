@@ -1620,7 +1620,7 @@ def rail_value(values, *, toward_high, scan=_RAIL_SCAN_VALUES, gap_max=_RAIL_GAP
     that gap would walk into the bulk of the distribution and return a value that is not a rail at all.
     The Verity's 2 096 921 sits alone that way; the ring's 199 does not.
     """
-    counts = {}
+    counts: dict[int, int] = {}
     for v in values:
         counts[v] = counts.get(v, 0) + 1
     if not counts:

@@ -7192,23 +7192,130 @@ def _cpap_read_fired(root):
         return None
 
 
-def _cpap_write_fired(root, ended_at_ms):
-    """Persist the fired edge ATOMICALLY — tmp + os.replace.
+def _cpap_migrate_fired(root):
+    """One-time migration off `cpap-therapy-end-fired.json`, then delete it.
 
-    ⚠️ A plain in-place write can be interrupted mid-flush and leave a file that still PARSES as valid
-    JSON with a truncated number, which would silently move the marker to a wrong instant. The failure
-    of an atomic write is a missing file, which reads as "unknown" and merely risks a duplicate
-    harvest; the failure of a torn write is a wrong answer that looks right."""
-    p = _cpap_fired_marker(root)
+    The legacy marker recorded that a trigger FIRED, and the boot path read it as "harvested" — the
+    defect this unit removes. So a marker found here is NOT evidence of a completed harvest and must
+    not be translated into one: it becomes a job in `harvest_requested`, i.e. the night is re-queued.
+    Worst case that is one extra card read, which is the direction the marker's own docstring already
+    argued for — *"a duplicate costs one extra card read; a skip costs the night's data"*.
+
+    The file is REMOVED once read. Leaving it would keep two durable records of one fact with only one
+    of them maintained, which is the state this function exists to end.
+    """
+    import cpap_job
+    ended = _cpap_read_fired(root)
+    if ended is None:
+        return None
+    job = cpap_job.transition(cpap_job.new_job(ended, "unknown", _time.time() * 1000.0),
+                              cpap_job.HARVEST_REQUESTED, _time.time() * 1000.0)
+    _cpap_write_job(root, job)
+    with contextlib.suppress(OSError):
+        os.unlink(_cpap_fired_marker(root))
+    log.info("[HARVEST] MIGRATED legacy fired-marker -> job %s (re-queued: the marker recorded a "
+             "TRIGGER, never a completed harvest)", job["job_id"])
+    return job
+
+
+_CPAP_JOB_FILE = "cpap-harvest-jobs.jsonl"
+
+
+def _cpap_job_path(root):
+    """Beside `status.json` and the legacy fired-marker, for the reason `_cpap_fired_marker` gives."""
+    return os.path.join(root, "captures", _CPAP_JOB_FILE)
+
+
+def _cpap_read_job(root):
+    """The CURRENT job — the last valid row of the append-only ledger — or None.
+
+    APPEND-ONLY WITH fsync, mirroring `cpap_spool`'s `cpap_spool_ledger.jsonl` deliberately rather
+    than by coincidence: that is this repo's already-argued answer to "survive a crash mid-operation",
+    and a first draft of this file used a single rewritten JSON instead. Two properties a rewrite
+    cannot give — (1) a crash can never corrupt EARLIER rows, so the transition history survives even
+    if the tail is torn, which is what the owner's §15 asks for ("reconstruct exactly why and when");
+    (2) a torn trailing line is SKIPPED and carries no authority, where a torn rewrite can still parse
+    and assert something false.
+
+    A row that will not parse is skipped, not fatal. If nothing parses at all the caller gets the
+    unreadable sentinel and `resume_action` re-queues — the safe direction, as everywhere here."""
+    path = _cpap_job_path(root)
+    if not os.path.exists(path):
+        return None
+    last, seen = None, False
     try:
-        os.makedirs(os.path.dirname(p), exist_ok=True)
-        with open(p + ".tmp", "w") as fh:
-            json.dump({"ended_at_ms": ended_at_ms}, fh)
-        os.replace(p + ".tmp", p)
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                seen = True
+                with contextlib.suppress(ValueError):
+                    row = json.loads(line)
+                    if isinstance(row, dict):
+                        last = row
     except OSError:
-        # A marker we could not write means the NEXT boot may re-harvest this end. That is the safe
-        # direction and must not cost the harvest that just succeeded.
-        log.warning("cpap: could not persist the therapy-end marker; a restart may re-harvest")
+        # NOT `None`. The existence check above already answered absence, so reaching here means the
+        # ledger IS on disk and could not be read — ignorance, not emptiness. Returning None would
+        # convert "I could not look" into "there is nothing owed", which is the precise sin this
+        # module exists to abolish: the predecessor marker was true about the trigger and false about
+        # the work. Same sentinel as a ledger that parses to nothing, for the same reason.
+        return {"state": "unreadable"}
+    if last is None and seen:
+        return {"state": "unreadable"}     # not in STATES -> resume_action re-queues and says why
+    return last
+
+
+def _cpap_write_job(root, job) -> None:
+    """APPEND one transition, flushed and fsynced — a job that survives power loss, not merely a
+    clean exit. `sort_keys` for byte-stability so two identical transitions serialize identically.
+
+    Deliberately NOT tmp+os.replace: that rewrite loses every earlier transition, and the history is
+    the evidence. `cpap_spool.append_ledger` does exactly this for spool rounds; the two ledgers carry
+    different schemas so the file I/O is mirrored rather than shared — worth folding into one helper
+    later, and flagged as such rather than done mid-unit."""
+    path = _cpap_job_path(root)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(job, sort_keys=True) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+    except OSError:
+        log.warning("cpap: could not persist the harvest job; a restart will re-queue it")
+
+
+def _cpap_defer_job(root, job, why: str):
+    """Park a job with the reason, or pass None through. Deferring is the loop WORKING — a resource
+    interlock is not a failure — so this never logs at warning and never touches `completed_ms`."""
+    import cpap_job
+    if job is None:
+        return None
+    job = cpap_job.transition(job, cpap_job.HARVEST_DEFERRED, _time.time() * 1000.0, error=why)
+    _cpap_write_job(root, job)
+    log.info("[HARVEST] DEFERRED id=%s reason=%s", job["job_id"], why)
+    return job
+
+
+def _cpap_boot_job(root):
+    """The job a just-started loop should resume, or None. THE FIX FOR THE 2026-09-06 CASE.
+
+    The predecessor asked "did a trigger fire for this end?" and reported the answer as "was it
+    harvested?". This asks the question that matters and re-queues everything that is not a verified
+    completion — including a record that claims `harvest_completed` with no completion stamp."""
+    import cpap_job
+    job = _cpap_read_job(root)
+    if job is None:
+        # No job yet — the first boot after this change. If a legacy fired-marker is on disk, convert it
+        # (as a RE-QUEUE, never a completion) and delete it. Guarded on `job is None` so a real job is
+        # never overwritten by a migration on some later boot where both files somehow coexist.
+        job = _cpap_migrate_fired(root) or job
+    do, why = cpap_job.resume_action(job, _time.time() * 1000.0)
+    if do == "requeue":
+        log.info("[HARVEST] RESUME %s", why)
+        return job if isinstance(job, dict) and job.get("state") in cpap_job.STATES else None
+    log.info("cpap boot: %s", why)
+    return None
 
 
 def _cpap_boot_watch(root):
@@ -7226,7 +7333,14 @@ def _cpap_boot_watch(root):
     except OSError:
         pass                              # no journal: `boot_state` seeds nothing, and says so
     end_ms, ended = cpap_live.last_therapy_end(cpap_live.journal_rows(text))
-    watch, why = cpap_live.boot_state(end_ms, ended, _cpap_read_fired(root), _time.time() * 1000.0)
+    # THE "ALREADY HANDLED" INPUT NOW COMES FROM THE JOB, AND ONLY FROM ONE THAT COMPLETED. The legacy
+    # marker this replaces meant "a trigger fired" — which is exactly what made the boot path claim a
+    # harvest that had not happened. Passing a job in any other state would carry that lie one function
+    # deeper; such a job is owed work, and `_cpap_boot_job` re-queues it.
+    import cpap_job
+    _job = _cpap_read_job(root)
+    _handled = _job.get("therapy_end_ms") if cpap_job.is_complete(_job) else None
+    watch, why = cpap_live.boot_state(end_ms, ended, _handled, _time.time() * 1000.0)
     log.info("cpap boot: %s", why)
     return watch
 
@@ -7235,6 +7349,7 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
                      root=None, notifier=None, end_debounce_s=600.0, on_complete=None):
     """The daily loop, split out so `cpap_poller` can wrap it in a teardown-guaranteeing `finally`."""
     import cpap_harvest
+    import cpap_job
     import cpap_live
     last_run_date = None
     # THERAPY-END TRIGGER. The owner wants the card pulled shortly after a session ends rather than at
@@ -7244,6 +7359,14 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
     # end of the session, during which the shadow poll defers entirely — must still harvest that day.
     # So this can only make a harvest EARLIER, never replace it.
     watch = _cpap_boot_watch(root)
+    # A job left unfinished by a restart, re-queued. `None` means nothing is owed from before this
+    # process started — NOT that the last end was harvested; `_cpap_boot_job` logs which it found.
+    job = _cpap_boot_job(root)
+    # Where the end-of-therapy claim came from, carried onto the job so a manifest can say WHY a
+    # session was closed. `cpap_live`'s watcher is the standby-hysteresis path today; the supervisor's
+    # `device_verdict` becomes the primary source in unit 1b, which is why this is a variable and not a
+    # literal at the one call site.
+    end_source = "standby_hysteresis"
 
     def _fire(result):
         """Hand one harvest OUTCOME to the completion consumer. Never raises: the hook is a consumer,
@@ -7264,24 +7387,59 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
         # after a session and harvesting in the MIDDLE of one.
         watch = cpap_live.observe(watch, (STATUS.get("cpap") or {}).get("therapy"), _time.time() * 1000.0)
         end_due, end_why = cpap_live.harvest_due(watch, _time.time() * 1000.0, end_debounce_s)
-        if not (end_due or cpap_harvest.due_now(now, at_hour, last_run_date)):
+        window_due = cpap_harvest.due_now(now, at_hour, last_run_date)
+        # A job re-queued at boot, or deferred earlier, is owed work RIGHT NOW — it must not wait for
+        # 13:00. This is what demotes the window from primary trigger to retry path: an outstanding job
+        # drives the loop, and the window is one more thing that can notice one.
+        job_due = job is not None and not cpap_job.is_complete(job)
+        if not (end_due or window_due or job_due):
             continue
+        if window_due and not end_due and not job_due:
+            # §6 RECONCILIATION. The window arrived with nothing owed. Ask the job store before paying
+            # for a card read: a completed job means the night is already on disk, and re-walking it
+            # would be the double-harvest the demotion exists to prevent.
+            # Scoped to THIS window: a completion from a previous night cannot excuse today's run.
+            # Without the bound the window skips forever after the first success — see should_reconcile.
+            _wdate = str(cpap_harvest.window_start_date(now, at_hour) or now.date())
+            needed, why = cpap_job.should_reconcile(_cpap_read_job(root), _time.time() * 1000.0, _wdate)
+            if not needed:
+                last_run_date = cpap_harvest.window_start_date(now, at_hour) or now.date()
+                log.info("[HARVEST] RECONCILE id=%s — %s; window skipped",
+                         (_cpap_read_job(root) or {}).get("job_id"), why)
+                continue
+            # Nothing owed on disk and nothing seen live: the window IS the trigger that saw this night,
+            # which is exactly the guarantee it has always been. Give the job that provenance.
+            job = cpap_job.new_job(None, "daily_window", _time.time() * 1000.0)
+            job = cpap_job.transition(job, cpap_job.HARVEST_REQUESTED, _time.time() * 1000.0)
+            _cpap_write_job(root, job)
+            log.info("[HARVEST] JOB_CREATED id=%s source=daily_window — %s", job["job_id"], why)
         if end_due:
             # Record the fire before any interlock can `continue`: this trigger fires ONCE per therapy
             # end, and a deferral must not re-arm it every minute for the rest of the night. The daily
             # window is the retry path for a deferred harvest, exactly as it always was.
             watch.fired_for = watch.ended_at_ms
-            # Durably, so a restart before the next end cannot re-harvest this one. Written HERE, with
-            # the in-RAM field, so the two can never disagree about which end was handled.
-            _cpap_write_fired(root, watch.ended_at_ms)
-            log.info("CPAP harvest armed by therapy end (%s)", end_why)
+            # 🔴 WHAT IS PERSISTED HERE IS A JOB IN `harvest_requested`, NOT A CLAIM THAT ANYTHING WAS
+            # HARVESTED — and that distinction is the whole of this change. The predecessor wrote one
+            # number (`cpap-therapy-end-fired.json`) at exactly this point, and the boot path read it as
+            # "already harvested". Measured 2026-09-06: fired 07:31:02, a DEPLOY restarted the daemon at
+            # 07:32:50, boot logged "the last therapy end was already harvested" — and the card was not
+            # read until 13:00, 5.5 h later. The marker was true about the trigger and false about the work.
+            job = cpap_job.new_job(watch.ended_at_ms, end_source, _time.time() * 1000.0)
+            job = cpap_job.transition(job, cpap_job.HARVEST_REQUESTED, _time.time() * 1000.0)
+            _cpap_write_job(root, job)
+            log.info("[THERAPY] STOP source=%s (%s) · [HARVEST] JOB_CREATED id=%s state=%s",
+                     end_source, end_why, job["job_id"], job["state"])
         if _RECOVER.is_set():
+            # Deferred, not dropped: the job stays on disk in `harvest_deferred` and the next tick — or
+            # the next boot — picks it up. Nothing here may look like completion.
+            job = _cpap_defer_job(root, job, "adapter mid-recovery")
             continue                                    # adapter mid-recovery — do not add radio traffic
         busy = cpap_harvest.blocking_devices(STATUS["devices"])
         if busy:
             # Do NOT consume today's slot: leave last_run_date unchanged so it retries next minute once
             # the sensor comes off. A daily job that burns its one chance on a late-sleeping user is a
             # job that silently skips days.
+            job = _cpap_defer_job(root, job, "streaming: " + ", ".join(busy[:3]))
             _st(state="waiting", detail="streaming: " + ", ".join(busy[:3]))
             continue
 
@@ -7290,6 +7448,21 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
         # — due again a minute later, forever.
         last_run_date = cpap_harvest.window_start_date(now, at_hour) or now.date()
         started = _time.monotonic()
+        # ATTEMPTED, persisted BEFORE the first byte moves. A restart from here on finds the job in
+        # `harvest_attempted` and RE-QUEUES it — the resume half of the fix. A lock alone cannot do
+        # this: today's restart landed 108 s in, and a lock held by the dying process protects nothing
+        # across that boundary. It stops a SECOND harvest starting; it cannot resume an interrupted one.
+        #
+        # `pragma: no branch` — the False side is UNREACHABLE, settled by an earlier guard rather than
+        # merely untested (the house rule for a pragma is a proof at the line). Reaching here required
+        # passing `if not (end_due or window_due or job_due): continue`, and each of those three leaves
+        # `job` non-None: `job_due` is defined as `job is not None and ...`; the `window_due` branch
+        # assigns a `daily_window` job; the `end_due` branch assigns one from the therapy end. The guard
+        # is kept as a cheap invariant against a future fourth trigger, not deleted.
+        if job is not None:  # pragma: no branch
+            job = cpap_job.transition(job, cpap_job.HARVEST_ATTEMPTED, _time.time() * 1000.0)
+            _cpap_write_job(root, job)
+            log.info("[HARVEST] ATTEMPT started id=%s attempt=%s", job["job_id"], job["retry_count"])
         _st(state="running", detail=None, last_run=now.isoformat(timespec="seconds"))
         # Note the box's lifeline BEFORE associating, and hand it to wifi_up as a guard. If the default
         # route moves to the card — a routeless dead end — wifi_up tears the association down and fails,
@@ -7390,6 +7563,25 @@ async def _cpap_loop(at_hour, profile, base, dest, max_run, timeout, retries, _s
         # The promise was in prose and nothing enforced it, which is the `writers.IDENTITY_FIELDS`
         # shape exactly: remembered ✓, then never captured.
         barren = not bad and res["files"] == 0 and res["skipped"] == 0
+        # COMPLETED — written only HERE, only after the walk returned, and only when it did not fail.
+        # `bad` keeps the job owed so the next tick or the 13:00 window retries it; a `barren` walk DID
+        # complete against the card and is a real answer, so it closes the job rather than looping on a
+        # card that genuinely holds nothing new.
+        #
+        # `pragma: no branch` for the same proof as the ATTEMPTED guard above: `job` is non-None on
+        # every path that reaches the harvest, and the two guards are the same invariant read twice.
+        if job is not None:  # pragma: no branch
+            if bad:
+                job = _cpap_defer_job(root, job, "harvest failed: " + "; ".join(res["errors"][:2])[:180])
+                log.info("[HARVEST] FAILED id=%s attempt=%s — job stays owed", job["job_id"], job["retry_count"])
+            else:
+                job = cpap_job.transition(job, cpap_job.HARVEST_COMPLETED, _time.time() * 1000.0,
+                                          files=res["files"], nbytes=res["bytes"],
+                                          window_date=str(cpap_harvest.window_start_date(now, at_hour)
+                                                          or now.date()))
+                _cpap_write_job(root, job)
+                log.info("[HARVEST] COMPLETE id=%s files=%s bytes=%s duration_ms=%d",
+                         job["job_id"], res["files"], res["bytes"], int(dur * 1000))
         _st(state="error" if bad else ("barren" if barren else ("partial" if res["partial"] else "ok")),
             last_ok=None if (bad or barren) else now.isoformat(timespec="seconds"),
             files=res["files"], bytes=res["bytes"], nights=res["nights"], skipped=res["skipped"],
