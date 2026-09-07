@@ -193,7 +193,35 @@ if missing or "recording" not in d:
           % len(missing))
     sys.exit(0)
 live = [n for n, v in devs.items() if v.get("recording")]
-print("recording" if (live or d.get("recording")) else "idle")
+if live or d.get("recording"):
+    print("recording")
+    sys.exit(0)
+# A CPAP HARVEST IS ALSO WORK IN FLIGHT, and restarting through one is not free. Measured on the box
+# 2026-09-06: the post-therapy harvest was armed at 07:31:02, THIS updater restarted the daemon at
+# 07:32:50 (a deploy — 127 restarts in six days, every one a clean exit, median 18/day), and the card
+# was not read until the 13:00 window, 5.5 h later. A harvest completes in 16-23 s, so deferring costs
+# at most one tick of an hourly timer; interrupting one cost five and a half hours of therapy data.
+#
+# ⚠️ TWO KINDS OF ABSENCE, and they get OPPOSITE answers — the distinction is the whole care here.
+#   · no `cpap` block at all  -> `idle`. There is no CPAP subsystem reporting, so there is no harvest to
+#     interrupt. Blocking here would refuse every restart forever on a box with no CPAP configured, and
+#     `tepna-restart.sh`'s own header names that failure by name: "a guard that is usually wrong is worse
+#     than an honest absence".
+#   · a `cpap` block WITHOUT `state` -> `unknown`, which blocks. That is a daemon that HAS the subsystem
+#     and predates the field, so its silence is ignorance rather than quiet — the same reasoning the
+#     `recording` check above applies to its own key.
+cp = d.get("cpap")
+if cp is not None and not isinstance(cp, dict):
+    print("unknown:status.json `cpap` is not an object")
+    sys.exit(0)
+if isinstance(cp, dict):
+    if "state" not in cp:
+        print("unknown:this daemon does not publish `cpap.state` — deploy the capture fix first")
+        sys.exit(0)
+    if cp.get("state") == "running":
+        print("harvesting")
+        sys.exit(0)
+print("idle")
 PY
 }
 
@@ -355,6 +383,14 @@ else
       # deferral is indistinguishable from having nothing to do, which is precisely how it was lost.
       printf '%s\n' "$running_sha" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
       say "deferred — a device is recording; the daemon keeps the old code until the box is idle"
+      ;;
+    harvesting)
+      # Its OWN branch, not the catch-all: a harvest in flight is a known, legitimate reason to wait,
+      # and the catch-all sets `drifted=1`, which fails the unit and reports root-level drift. Deferring
+      # for 16-23 s of card read is this script working exactly as designed, and must not look like a
+      # fault on a box nobody logs into. Same debt write as `recording` so the next tick still sees it.
+      printf '%s\n' "$running_sha" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
+      say "deferred — a CPAP harvest is running; the daemon keeps the old code until it finishes"
       ;;
     *)
       printf '%s\n' "$running_sha" > "$DEPLOYED_MARK" 2>/dev/null || true
