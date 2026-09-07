@@ -2497,12 +2497,74 @@ def test_class_b_quality_scans_a_night_and_reaches_the_seam(tmp_path):
     assert ppg2w[0][3] == ppg[0][3] == 30
 
 
+def _write_rows(night, name, header, rows, preamble=""):
+    p = os.path.join(night, name)
+    with open(p, "w") as fh:
+        fh.write(preamble + header + "\n")
+        for i, r in enumerate(rows):
+            fh.write(f"2026-09-05T04:53:{i % 60:02d}.000;{';'.join(str(v) for v in r)}\n")
+    return p
+
+
+def test_class_b_quality_scans_waveform_columns_by_NAME_not_position(tmp_path):
+    """The third term beside sample and annotation: a STATUS column is not a waveform.
+
+    PPG2W's real row is `channel 0;channel 1;motion`, and `motion` is the ring's stillness byte whose
+    correct reading is a constant `0` — a rail by every distributional test. The reader took every
+    column after the two stamps by position, so a still night reported the 24-bit stream's stillest
+    hours as its worst (156 spans, a 700,409-sample run, ch0/ch1 clean, 2026-09-06). ECG's
+    `timestamp [ms]` was scanned the same way and pushed the real ECG to `ecg:ch1`. Both files also
+    open with the box's `# timebase=` line ahead of the header, which the old reader consumed AS the
+    header.
+    """
+    night = str(tmp_path)
+    clean = _baseline() * 4
+    n = len(clean)
+    # plant: a still ring — the motion byte as the ring writes it, 0 with a brief stir now and then,
+    # both PPG channels clean. The stirs matter: an all-zero column is refused by `rail_value` as a
+    # stream with nothing to compare against, so a constant plant would read clean under the OLD
+    # reader too and prove nothing (verified: this shape yields 2 `ppg2w:ch2` clips on it).
+    motion = [0 if i % 97 else 1 + i % 3 for i in range(n)]
+    _write_rows(night, "Wellue_O2Ring-S_X_20260905045318_PPG2W.txt",
+                "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion",
+                [(0, 3_000_000 + v, 12_000 + v, m) for v, m in zip(clean, motion)],
+                preamble="# timebase=host-disciplined\n")
+    (block,) = nightqc.class_b_quality(night)
+    assert block["columns"] == ["channel 0", "channel 1"], "the status byte is not scanned"
+    assert block["rows"] == [] and set(block["clips"]) == {"ppg2w:ch0", "ppg2w:ch1"}, \
+        "a still ring is not a clipped one"
+    # the same plant with a REAL rail on channel 0 still reds — the exclusion did not blind the scan
+    railed = _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline()
+    _write_rows(night, "Wellue_O2Ring-S_X_20260905045318_PPG2W.txt",
+                "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;motion",
+                [(0, 3_000_000 + v, 12_000 + (i % 7), 0) for i, v in enumerate(railed)])
+    (block,) = nightqc.class_b_quality(night)
+    assert [r["stream"] for r in block["rows"]] == ["ppg2w:ch0"] and block["rows"][0]["n_samples"] == 30
+    # ECG: the device axis column is not a channel, so the H10's ECG is `ecg`, not `ecg:ch1`
+    _write_rows(night, "Polar_H10_X_20260905045318_ECG.txt",
+                "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]",
+                [(841982897265081688 + i, i * 7.692308, v) for i, v in enumerate(railed)])
+    ecg = [b for b in nightqc.class_b_quality(night) if b["stream"] == "ecg"]
+    assert ecg[0]["columns"] == ["ecg [uV]"] and set(ecg[0]["clips"]) == {"ecg"}
+    # a row whose width disagrees with the header is torn, not re-interpreted
+    with open(os.path.join(night, "Polar_H10_X_20260905045318_ECG.txt"), "a") as fh:
+        fh.write(f"2026-09-05T04:54:00.000;0;{n * 7.692308};5;extra\n")
+    assert [b for b in nightqc.class_b_quality(night) if b["stream"] == "ecg"][0]["rows"] == ecg[0]["rows"]
+    # a header naming NO waveform column is absent, not clean
+    _write_rows(night, "Wellue_O2Ring-S_Y_20260905045318_PPG2W.txt",
+                "Phone timestamp;sensor timestamp [ns];motion", [(0, 0)] * n)
+    assert all(b["file"] != "Wellue_O2Ring-S_Y_20260905045318_PPG2W.txt"
+               for b in nightqc.class_b_quality(night))
+    assert nightqc._waveform_columns("") == ()
+
+
 def test_class_b_quality_is_empty_when_the_night_holds_nothing_it_reads(tmp_path):
     """Nothing to report is not everything healthy — an empty list, never a clean verdict."""
     night = str(tmp_path)
     assert nightqc.class_b_quality(night) == []
     _write_ppg(night, "Polar_H10_X_20260905045318_RR.txt", [800, 810, 790])   # not a class-B tag
     _write_ppg(night, "Wellue_O2Ring-S_X_20260905045318_PPG.txt", [5, 6, 7])  # too few rows
+    open(os.path.join(night, "Wellue_O2Ring-S_X_20260905045319_PPG.txt"), "w").close()  # 0 bytes
     assert nightqc.class_b_quality(night) == []
     assert nightqc.class_b_quality(os.path.join(night, "does-not-exist")) == []
 
