@@ -1024,16 +1024,22 @@ class _ProbeRing:
     def __init__(self, reply: bytes | None = None, live: int = 0):
         self.reply, self.live, self.notify = reply, live, None
         self.writes: list[bytes] = []
+        self.responses: list[bool] = []      # `response=` per write — a True here is a protocol change
+        self.ctor_kwargs: dict = {}          # what BleakClient was CONSTRUCTED with (the adapter pin)
+        self.notified: list = []             # characteristics subscribed, in order
         self.mtu_size = 517
         self.stopped = False
 
     async def __aenter__(self): return self
     async def __aexit__(self, *a): return False
-    async def start_notify(self, _u, cb): self.notify = cb
+    async def start_notify(self, u, cb):
+        self.notified.append(u)
+        self.notify = cb
     async def stop_notify(self, _u): self.stopped = True
 
     async def write_gatt_char(self, _u, data, response=False):
         self.writes.append(bytes(data))
+        self.responses.append(response)
         if bytes(data)[1] == oxyii.OP_PPG_FILE_LIST:
             for _ in range(self.live):
                 self.notify(0, oxyii.encode(oxyii.OP_LIVE, b"\x00" * 8))
@@ -1042,11 +1048,18 @@ class _ProbeRing:
 
 
 def _probe_ble(monkeypatch, ring, device=object()):
-    async def find(_addr, **k): return device
+    scan = {}
+    async def find(_addr, **k):
+        scan.update(k)
+        return device
     monkeypatch.setattr(pull_session.BleakScanner, "find_device_by_address", find)
-    monkeypatch.setattr(pull_session, "BleakClient", lambda dev, **kw: ring)
+    def _client(dev, **kw):
+        ring.ctor_kwargs = kw            # RECORDED, not discarded — see the adapter-pin test
+        return ring
+    monkeypatch.setattr(pull_session, "BleakClient", _client)
     async def no_sleep(_s): return None
     monkeypatch.setattr(pull_session.asyncio, "sleep", no_sleep)
+    return scan
 
 
 def test_probe_records_the_raw_reply_and_sends_ONE_frame(monkeypatch, capsys):
@@ -1112,3 +1125,68 @@ def test_probe_discards_a_frame_that_does_not_decode(monkeypatch, capsys):
     _probe_ble(monkeypatch, ring)
     assert _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3")) == []
     assert "NO non-live reply" in capsys.readouterr().out
+
+
+def test_probe_ADAPTER_PIN_actually_reaches_the_scanner_and_the_client(monkeypatch):
+    """🔴 THE SURVIVOR THAT MATTERED. Dropping `**kw` from `BleakClient(...)` — which deletes the
+    adapter pin outright — passed all five earlier probe tests, because they observed the OUTPUT and
+    the routing and never the CALL.
+
+    That is the same defect the pin exists to prevent, one layer up: `test_no_bare_bleak_adapter_kwarg`
+    checks the FORM of the kwarg and cannot see whether it is passed at all. Measured 2026-09-07 —
+    three connect attempts failed identically at service discovery because the probe used the default
+    adapter while the ring is bonded to hci1, so an unpinned probe does not fail loudly, it fails as a
+    puzzling timeout."""
+    ring = _ProbeRing(reply=bytes.fromhex("0100"))
+    scan = _probe_ble(monkeypatch, ring)
+    _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3", adapter="hci1"))
+    assert scan.get("bluez") == {"adapter": "hci1"}, "the SCAN must be pinned to the right radio"
+    assert ring.ctor_kwargs.get("bluez") == {"adapter": "hci1"}, \
+        "and so must the CLIENT — a scan-only pin connects on whichever adapter bleak picks"
+    assert "adapter" not in ring.ctor_kwargs, "never the bare kwarg: the shim will one day swallow it"
+
+
+def test_probe_without_an_adapter_pins_NOTHING_rather_than_guessing_one(monkeypatch):
+    """The mirror. With no `--adapter` the probe must pass no bluez kwarg at all and let bleak choose,
+    rather than defaulting to a hardcoded radio that happens to be right on this box."""
+    ring = _ProbeRing(reply=bytes.fromhex("0100"))
+    scan = _probe_ble(monkeypatch, ring)
+    _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3"))
+    # `timeout` is legitimately passed to both and is not a pin — assert on the pin specifically,
+    # not on an empty dict. (The first draft asserted `== {}` and failed on the timeout: an
+    # over-specified assertion that would have read as a defect in the code.)
+    assert "bluez" not in scan, "no --adapter: the scan must not invent one"
+    assert "bluez" not in ring.ctor_kwargs, "nor the client"
+    assert "adapter" not in scan and "adapter" not in ring.ctor_kwargs
+
+
+def test_probe_sends_EXACTLY_three_frames_in_order_and_none_expects_a_response(monkeypatch):
+    """WHAT REACHES THE RING is the contract of a probe, and it was unpinned: `response=True` on the
+    LIST write survived, as did changes to the auth/setup frame arguments. The earlier test asserted
+    the opcodes; it did not assert the frames' CONTENT or the write mode.
+
+    `response=False` is write-without-response, which is how the daemon speaks to this ring. Flipping
+    it to True changes the ATT operation — a different thing on the wire, for a family whose behaviour
+    is exactly what is being probed."""
+    ring = _ProbeRing(reply=bytes.fromhex("0100"))
+    _probe_ble(monkeypatch, ring)
+    _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3", serial="4321"))
+    assert ring.writes == [oxyii.auth_frame("4321"), oxyii.setup_frame(),
+                           oxyii.ppg_file_list_frame()], \
+        "auth(serial) + setup + LIST, byte-for-byte — and NOTHING else reaches the ring"
+    assert ring.responses == [False, False, False], "write-without-response, as the daemon does"
+    assert ring.notified == [oxyii.OXYII_NOTIFY], "subscribed once, to the notify characteristic"
+
+
+def test_probe_reports_the_reply_LENGTH_and_OPCODE_not_merely_some_hex(monkeypatch, capsys):
+    """A dropped or blanked reply must not read as the "silence" finding. `q.put_nowait(None)` survived,
+    and silence is a RESULT here — "the ring ignored cmd 0x06" is a thing a first probe may exist to
+    learn, so a bug that manufactures it is worse than one that crashes."""
+    body = bytes.fromhex("0132303236303832393034303531310000")
+    ring = _ProbeRing(reply=body)
+    _probe_ble(monkeypatch, ring)
+    out = _run(pull_session.probe_ppg_list("D1:98:62:7C:92:B3"))
+    printed = capsys.readouterr().out
+    assert out == [(oxyii.OP_PPG_FILE_LIST, body)], "the decoded frame is returned verbatim"
+    assert f"len={len(body)}" in printed and body.hex() in printed
+    assert "NO non-live reply" not in printed, "a real reply must never render as silence"
