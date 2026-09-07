@@ -505,8 +505,11 @@ def parse_live(payload: bytes) -> dict | None:
 
     `[1]`=104 was never a constant: it is duration's second byte (104*256 ~ 7.4 h into a session), with
     the low byte ticking +1/s. `[10]`=199 (0xC7) is not a constant either; the SDK reads only bit 0.
-    `[14]` carries four 2-bit subfields the SDK parses but does not expose in RtParam — left unparsed
-    rather than surfaced under a name we cannot defend.
+    `[14]` carries four 2-bit subfields. ⚠️ CORRECTED 2026-09-06: vendor SDK sources show the OxyII
+    RtParam DOES expose all four (`&3` invalid-value state, `>>2` SpO2, `>>4` HR, `>>6` motion); the
+    earlier note here said the DTO discards them. Tepna still leaves the byte unparsed today —
+    recording it raw is a separate change. Scope: OxyII family (O2Ring S / S8-AW / SF / SP; NOT the
+    gen-1 O2Ring protocol).
     """
     if len(payload) < 14:
         return None
