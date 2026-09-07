@@ -3937,7 +3937,7 @@ async def run_oxyii(dev: dict, root: str):
         # An OP_AUTH verdict that ENDS the session is not a link fault, and must not be paid for like
         # one: the exponential backoff exists for a radio that keeps dropping, and an encrypted ring is
         # a device we cannot read at all. Named separately so the journal and the retry both say so.
-        auth_stop = [None]
+        auth_stop: "list[str | None]" = [None]
         try:
             _set(name, connected=False, address=addr, last_error=None)
             _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.CONNECTING, "scan + connect")
@@ -4050,7 +4050,9 @@ async def run_oxyii(dev: dict, root: str):
                 # with nothing" and "the ring never answered" are different facts, and only the first
                 # may be classified — `classify_auth_reply(None)` returns PLAINTEXT, which is a CLAIM,
                 # and we must not make it on a ring that simply stayed silent.
-                _auth = {"seen": False, "payload": None}
+                _auth_seen = [False]
+                _auth_payload: "list[bytes | None]" = [None]
+                _auth_unknown: list[bool] = [False]
 
                 def on_data(_s, d):
                     for frame in reasm.feed(bytes(d)):
@@ -4062,8 +4064,8 @@ async def run_oxyii(dev: dict, root: str):
                         if r and r[0] == oxyii.OP_AUTH:
                             # Recorded, never acted on HERE: the connect path owns the decision, and a
                             # BLE callback is the wrong place to tear a session down.
-                            _auth["seen"] = True
-                            _auth["payload"] = r[1]
+                            _auth_seen[0] = True
+                            _auth_payload[0] = r[1]
                         if r and r[0] == oxyii.OP_GET_INFO:
                             _info = oxyii.parse_get_info(r[1])
                             # IDENTITY (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT §6.2 Mitigation C). The same reply
@@ -4108,7 +4110,8 @@ async def run_oxyii(dev: dict, root: str):
                             # on branch-2D010001 rings is real (oxyii.py §"Encrypted-session guard")
                             # and is a different layer from the LE link encryption Probe A refuted.
                             _branch = (_info or {}).get("branch_code")
-                            if _auth.pop("unknown_pending", False):
+                            if _auth_unknown[0]:
+                                _auth_unknown[0] = False
                                 # The paired verdict, once per link, at the first moment BOTH halves
                                 # exist: the ring never answered 0xFF, and here is what its branch code
                                 # says instead. Reported together because either alone misleads — a
@@ -4490,21 +4493,25 @@ async def run_oxyii(dev: dict, root: str):
                 # classifier maps `None` to AUTH_PLAINTEXT, which is a positive claim, so it is simply
                 # NOT CALLED here unless a reply actually arrived. Silence leaves the decision unmade
                 # and the secondary signals in force — exactly the state that held before this wiring.
-                if _auth["seen"]:
-                    _mode, _key, _why = oxyii.classify_auth_reply(_auth["payload"])
-                    _set(name, auth_mode=_mode, auth_reason=_why)
-                    if _mode != oxyii.AUTH_PLAINTEXT:
+                if _auth_seen[0]:
+                    # `_auth_why`, not `_why`: this function already binds `_why` later, for the RTC
+                    # resync reason, and that one is `str | None`. Reusing the name here narrowed it to
+                    # `str` and broke the later assignment — one name, two meanings, in a function long
+                    # enough that nothing local made the collision visible.
+                    _auth_mode, _auth_key, _auth_why = oxyii.classify_auth_reply(_auth_payload[0])
+                    _set(name, auth_mode=_auth_mode, auth_reason=_auth_why)
+                    if _auth_mode != oxyii.AUTH_PLAINTEXT:
                         # ENCRYPTED and REFUSE both end the session, for one reason: this build has no
                         # decryptor on the live path, so continuing means reading ciphertext as SpO2
                         # and pulse. A negotiated key we cannot use is no better than one we cannot
                         # parse — `decode()` passes ciphertext (its CRC covers the envelope), so
                         # nothing downstream would notice.
-                        auth_stop[0] = "encrypted" if _mode == oxyii.AUTH_ENCRYPTED else "refused"
+                        auth_stop[0] = "encrypted" if _auth_mode == oxyii.AUTH_ENCRYPTED else "refused"
                         log.error("%s: OP_AUTH says %s — %s. Ending the session rather than reading "
-                                  "ciphertext as vitals.", name, _mode, _why)
-                        _set(name, connected=False, last_error=f"auth: {auth_stop[0]} — {_why}")
+                                  "ciphertext as vitals.", name, _auth_mode, _auth_why)
+                        _set(name, connected=False, last_error=f"auth: {auth_stop[0]} — {_auth_why}")
                         raise RuntimeError(f"auth: {auth_stop[0]}")
-                    log.info("%s: OP_AUTH answered — %s", name, _why)
+                    log.info("%s: OP_AUTH answered — %s", name, _auth_why)
                 else:
                     # UNKNOWN, and SAID SO. Every ring in this project stays silent on 0xFF, so silence
                     # is the common case and carries no information: `classify_auth_reply(None)` returns
@@ -4514,7 +4521,7 @@ async def run_oxyii(dev: dict, root: str):
                     # branch-code verdict beside it, which is the only corroborator this daemon has
                     # (`aes_session_suspect`, capture.py's GET_INFO branch). The pair is what a reader
                     # needs: neither number means anything alone.
-                    _auth["unknown_pending"] = True
+                    _auth_unknown[0] = True
                     _set(name, auth_mode="unknown",
                          auth_reason="no OP_AUTH reply — encryption undetermined",
                          auth_unknown_links=(STATUS["devices"].get(name, {}).get("auth_unknown_links") or 0) + 1)
