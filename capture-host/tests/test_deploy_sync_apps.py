@@ -201,7 +201,8 @@ def _tree(tmp_path, capture_user_repo="tepna", capture_user_etc="tepna"):
     # after the live box was found running a STALE root-owned tepna-clock.sh and tepna-restart.sh, with
     # tepna-usbreset.sh never installed at all — drift in the most privileged files on the box, invisible
     # because they were not on this list.
-    for u in ("tepna-update.service", "tepna-update.timer", "tepna-sniff.service", "tepna-sniff.timer"):
+    for u in ("tepna-update.service", "tepna-update.timer", "tepna-sniff.service", "tepna-sniff.timer",
+              "tepna-update-pending.service", "tepna-update-pending.timer"):
         (src / u).write_text(f"[Unit]\nDescription={u}\n")
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
     lib = tmp_path / "lib-tepna"; lib.mkdir()
@@ -293,7 +294,8 @@ def _tree_two_sources(tmp_path, deploy_body, systemd_body, etc_body):
     (systemd / "tepna-capture.service").write_text(etc_body)
     # The privileged helpers, in sync — this fixture is about AMBIGUOUS SOURCES, so they must not be
     # the thing that reds it.
-    for u in ("tepna-update.service", "tepna-update.timer", "tepna-sniff.service", "tepna-sniff.timer"):
+    for u in ("tepna-update.service", "tepna-update.timer", "tepna-sniff.service", "tepna-sniff.timer",
+              "tepna-update-pending.service", "tepna-update-pending.timer"):
         (src / "systemd" / u).write_text(f"[Unit]\nDescription={u}\n")
         (systemd / u).write_text(f"[Unit]\nDescription={u}\n")
     lib = tmp_path / "lib-tepna"; lib.mkdir()

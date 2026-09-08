@@ -45,6 +45,23 @@ else
   echo "  ✗ updater units missing under $UPD_SRC"
 fi
 
+# THE PATIENT RESTART (§4), INSTALLED BUT NOT ENABLED. Its timer takes an owed restart within ~2 min of
+# the box going idle instead of within ~1 h — worth a median 8.27 h of running on-disk-but-not-loaded
+# code. It is deliberately left OFF: it changes when the daemon is restarted, and a restart drops every
+# live BLE link, so turning it on for a recording box is an owner decision and not an installer's.
+# Until it is enabled the hourly unit behaves exactly as it does today.
+if [ -f "$UPD_SRC/tepna-update-pending.service" ] && [ -f "$UPD_SRC/tepna-update-pending.timer" ]; then
+  install -m644 "$UPD_SRC/tepna-update-pending.service" /etc/systemd/system/tepna-update-pending.service
+  install -m644 "$UPD_SRC/tepna-update-pending.timer"   /etc/systemd/system/tepna-update-pending.timer
+  systemctl daemon-reload
+  # NOT enabled, and reported rather than faked: an installer that printed a tick here would be claiming
+  # a behaviour change nobody authorised.
+  echo "  ✓ tepna-update-pending units installed (NOT enabled — owner decision)"
+  echo "    → enable when wanted: systemctl enable --now tepna-update-pending.timer"
+else
+  echo "  ✗ patient-restart units missing under $UPD_SRC"
+fi
+
 say "1c/5  nightly BLE air audit (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT D3)"
 # Same shape as the updater: an unprivileged oneshot on a timer, installed from the repo. It needs the
 # nRF Sniffer on the bus and the extcap under the vigil user's ~/.config/wireshark/extcap — neither

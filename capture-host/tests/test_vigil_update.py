@@ -45,7 +45,8 @@ def box(tmp_path):
     # The deployed-SHA marker, isolated per test. On the box it lives in /run — cleared on boot, which
     # is correct, because after a boot the daemon started on whatever was checked out.
     return {"up": up, "repo": repo, "status": status, "helper": helper, "called": called,
-            "mark": tmp_path / "deployed-sha", "fails": tmp_path / "update-fails"}
+            "mark": tmp_path / "deployed-sha", "fails": tmp_path / "update-fails",
+            "defers": tmp_path / "update-defers", "lock": tmp_path / "update.lock"}
 
 
 def _write_status(path, devices, top=None, publish=True, age=0.0):
@@ -67,7 +68,13 @@ def _run(box, *mode, **env):
          "TEPNA_DEPLOYED_MARK": str(box["mark"]),
          # Isolated per test. Without this the suite would write the streak marker to the REAL
          # /srv/tepna path, which on the box itself is a live operational file.
-         "TEPNA_FAIL_MARK": str(box["fails"]), **env}
+         "TEPNA_FAIL_MARK": str(box["fails"]),
+         # Same isolation for the DEFERRAL streak marker, and for the same reason: the default path is
+         # a live operational file on the box.
+         "TEPNA_DEFER_MARK": str(box["defers"]),
+         # The single-run lock, isolated per test for the same reason as the two markers above — the
+         # default path is a live operational file on the box, and a test must not take the box's lock.
+         "TEPNA_LOCK_FILE": str(box["lock"]), **env}
     return subprocess.run(["bash", UPD, *mode], capture_output=True, text=True, env=e)
 
 
@@ -788,3 +795,295 @@ def test_A_MARKER_THAT_CANNOT_BE_WRITTEN_WARNS_AND_DOES_NOT_ABORT_THE_DEPLOY(box
     r = _run(box, TEPNA_DEPLOYED_MARK=str(unwritable))
     assert box["called"].read_text().strip() == "restart", "a marker failure blocked the restart"
     assert "could not record" in (r.stdout + r.stderr), "the marker failure was silent"
+
+
+# ── the DEFERRAL streak (VIGIL-AUTO-UPDATE-FOLLOWUPS §4, second box) ─────────────────────────────
+# `deferred` is this script working, so it stays INFO-level prose. What it could not say is "…and it
+# has been saying this since Tuesday". Measured over 13 days: 17 streaks, median 8.27 h, max 70.09 h,
+# 68.6 % of the window running on-disk-but-not-loaded code. These tests are about the DISTINCTION
+# between a normal night's deferral and a debt that outlived a day — flattening those is what made the
+# 70 h case invisible.
+
+def _defer_state(box):
+    """`(count, first_epoch)` from the marker, or None when there is no streak."""
+    if not box["defers"].exists():
+        return None
+    n, first = box["defers"].read_text().split()
+    return int(n), int(first)
+
+
+def test_a_deferral_is_COUNTED_and_stays_quiet_below_the_bar(box):
+    """A normal night. The deferral line prints as it always did and NOTHING is escalated — at 4 h a
+    bar would fire on 16 of 17 real streaks, which is a warning that teaches its reader to skip it."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": True})
+    r = _run(box)
+    assert "deferred — a device is recording" in r.stdout
+    assert "NOT LOADED" not in r.stderr, "a single night's deferral must not warn"
+    assert _defer_state(box) == (1, _defer_state(box)[1])
+    assert _defer_state(box)[0] == 1
+
+
+def test_the_streak_ACCUMULATES_across_ticks_and_keeps_the_FIRST_timestamp(box):
+    """The whole point: the debt is dated from when it was incurred, not from the latest tick. A
+    streak that re-stamped `first` every time could never report a duration at all."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": True})
+    _run(box)
+    first_seen = _defer_state(box)[1]
+    _run(box)
+    _run(box)
+    assert _defer_state(box) == (3, first_seen), "count rises, the start does not move"
+
+
+def test_a_debt_OLDER_THAN_THE_BAR_escalates_to_a_warning_that_names_the_span(box):
+    """🔴 The 70.09 h case. Backdate the streak past the bar and the tick must say so at WARN level —
+    with the span and the first-deferred stamp, so the reader learns "since when" and not "again"."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": True})
+    _run(box)
+    n, _ = _defer_state(box)
+    box["defers"].write_text("%d %d\n" % (n, int(time.time()) - 30 * 3600))
+    r = _run(box)
+    assert "NOT LOADED for 30h" in r.stderr
+    assert "first deferred at" in r.stderr
+    assert "an idle window was available and not taken" in r.stderr
+    assert "deferred — a device is recording" in r.stdout, "the normal line is still printed"
+
+
+def test_the_bar_is_CONFIGURABLE_and_the_default_does_not_fire_at_the_median_streak(box):
+    """8.27 h is the MEDIAN real streak. The default bar must be silent there, or it is measuring
+    "a night happened" rather than "something is wrong"."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": True})
+    _run(box)
+    n, _ = _defer_state(box)
+    box["defers"].write_text("%d %d\n" % (n, int(time.time()) - int(8.27 * 3600)))
+    assert "NOT LOADED" not in _run(box).stderr, "the median night must not warn"
+    box["defers"].write_text("%d %d\n" % (n, int(time.time()) - int(8.27 * 3600)))
+    r = _run(box, TEPNA_DEFER_WARN_HOURS="4")
+    assert "NOT LOADED for 8h" in r.stderr, "a box that wants a tighter bar can set one"
+
+
+def test_a_RESTART_clears_the_streak_and_reports_how_long_it_ran(box):
+    """The other half of the ask. Whoever reads the journal after the fact needs the duration, and by
+    then every deferring tick is behind them."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": True})
+    _run(box)
+    box["defers"].write_text("5 %d\n" % (int(time.time()) - 9 * 3600,))
+    _write_status(box["status"], {"Ring": False})
+    r = _run(box)
+    assert "daemon restarted on" in r.stdout
+    assert "the deferral streak is over: 5 deferral(s) spanning 9h" in r.stdout
+    assert _defer_state(box) is None, "a paid debt leaves no marker"
+
+
+def test_the_CONTENT_GATE_proving_a_restart_redundant_also_clears_the_streak(box):
+    """§5b advances the marker without restarting when the delta is docs-only. That pays the debt just
+    as truly as a restart does — leaving the streak open would keep reporting a debt that is gone.
+
+    The state is CONSTRUCTED rather than driven, because the ordinary path cannot reach it: the content
+    gate runs before the recording interlock, so a docs-only change never defers in the first place.
+    What reaches it is an outstanding debt whose delta has SINCE become docs-only — a revert of the
+    capture-host commit that was deferred on, or an outside restart that moved the daemon forward
+    without updating the marker. Rare, and exactly why it is worth pinning: nobody will drive it by
+    hand, and a stale streak here would outlive the debt it describes."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": True})
+    _run(box)
+    assert _defer_state(box)[0] == 1, "the debt is real and the streak is open"
+    # The daemon is now on HEAD (an outside restart), and the only new commit is docs-only.
+    head = _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
+    box["mark"].write_text(head + "\n")
+    _advance(box, path="README")
+    _write_status(box["status"], {"Ring": False})
+    r = _run(box)
+    assert "no capture-host/ change" in r.stdout
+    assert "the deferral streak is over" in r.stdout
+    assert _defer_state(box) is None
+    assert str(box["called"]) and not box["called"].exists(), "…and nothing was restarted"
+
+
+def test_a_HEALTHY_box_never_mentions_the_streak_at_all(box):
+    """Silence is the correct output when there is nothing to say. A line on every tick would be the
+    same noise the bar exists to avoid, one level down."""
+    _advance(box)
+    r = _run(box)
+    assert "deferral streak" not in r.stdout and "NOT LOADED" not in r.stderr
+    assert _defer_state(box) is None
+
+
+def test_an_UNKNOWN_recording_state_counts_as_a_deferral_because_it_is_one(box):
+    """The catch-all branch defers too, and it is the one that can persist for a whole night — the same
+    reason the failure counter is keyed on the exit status rather than on `die`. Excluding it would omit
+    exactly the longest-running kind."""
+    _advance(box)
+    box["status"].write_text("{ truncated")
+    r = _run(box)
+    assert "refusing to restart blind" in r.stderr
+    assert _defer_state(box)[0] == 1
+
+
+def test_a_CORRUPT_marker_reads_as_no_streak_and_never_stops_the_update(box):
+    """An observability aid must never be the reason the box stops updating. Malformed content starts a
+    fresh streak rather than aborting, matching the failure counter's own rule."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": True})
+    for junk in ("", "garbage\n", "notanumber 123\n", "3 notanepoch\n"):
+        box["defers"].write_text(junk)
+        r = _run(box)
+        assert "deferred — a device is recording" in r.stdout, junk
+        assert _defer_state(box) == (1, _defer_state(box)[1]), junk
+
+
+def test_an_UNWRITABLE_marker_warns_but_the_deploy_still_proceeds(box, tmp_path):
+    """Same degradation as the deployed-SHA marker: the aid fails, the deploy does not."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": True})
+    r = _run(box, TEPNA_DEFER_MARK=str(tmp_path / "no-such-dir" / "defers"))
+    assert "could not record the deferral streak" in r.stderr
+    assert "deferred — a device is recording" in r.stdout
+
+
+# ── --pending-only: the PATIENT restart (§4, first box, owner-ordered 2026-09-07) ────────────────
+# `--force-restart` covers the impatient operator. Nothing covered the box that merged at 23:50 and
+# waited for the next 30-minute tick to re-ask a question whose answer changed the moment the last
+# device stopped — median 8.27 h of running on-disk-but-not-loaded code. This mode runs the SAME step
+# 5 and skips only the fetch, so it is cheap enough to put on a two-minute timer.
+
+def test_pending_only_with_NOTHING_OWED_is_silent_and_costs_nothing(box):
+    """🔴 The design's whole basis. At a two-minute cadence a line per tick is 720 journal lines a day
+    in the unit whose legibility §4 is about — and it must not fetch, because 720 fetches a day is the
+    other reason a fast timer would be unacceptable."""
+    _advance(box)
+    _run(box)                                  # normal tick: merges and restarts, marker now at HEAD
+    r = _run(box, "--pending-only")
+    assert r.returncode == 0
+    assert r.stdout == "" and r.stderr == "", "a healthy box says nothing at all"
+
+
+def test_pending_only_RESTARTS_a_debt_the_moment_the_box_goes_idle(box):
+    """The night's shape: merge while recording (deferred), then the subject takes the sensor off. The
+    patient tick must take it without waiting for the next half-hourly wake-up."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": True})
+    _run(box)
+    assert "deferred — a device is recording" in _run(box).stdout
+    assert not box["called"].exists(), "still recording, so nothing restarted"
+
+    _write_status(box["status"], {"Ring": False})
+    r = _run(box, "--pending-only")
+    assert "box is idle — restarting the daemon" in r.stdout
+    assert box["called"].read_text().strip() == "restart"
+    assert box["mark"].read_text().strip() == _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
+
+
+def test_pending_only_still_DEFERS_while_the_box_is_recording(box):
+    """It is the same interlock, not a second one — a fast timer must not become a way around it."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": True})
+    _run(box)
+    r = _run(box, "--pending-only")
+    assert "deferred — a device is recording" in r.stdout
+    assert not box["called"].exists()
+
+
+def test_pending_only_NEVER_FETCHES_so_it_cannot_deploy_new_code_by_itself(box):
+    """It closes an OUTSTANDING debt; it does not open one. A commit that has not been pulled must stay
+    unpulled — otherwise the two-minute timer becomes a two-minute deploy cadence, which is a different
+    change than the one the owner ordered."""
+    head_before = _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
+    _advance(box)                               # new commit exists upstream, NOT yet on the box
+    r = _run(box, "--pending-only")
+    assert r.stdout == "" and r.stderr == ""
+    assert _git(box["repo"], "rev-parse", "HEAD").stdout.strip() == head_before, "no fetch, no merge"
+    assert not box["called"].exists()
+
+
+def test_pending_only_with_an_ABSENT_marker_does_nothing_because_it_is_an_ACCELERATOR(box):
+    """An absent marker leaves this mode with nothing to act on, and it exits silently.
+
+    That reads like the fail-toward-restart rule being broken, and it is worth being explicit about why
+    it is not. This mode never fetches, so `before` and `after` are the same local HEAD and cannot
+    reveal a debt by themselves — the marker is the only witness. Its contract is an ACCELERATOR's: it
+    closes debts the ordinary tick already RECORDED, it cannot discover one, and it is not the backstop.
+    The half-hourly `auto` run still is, and it writes the marker on every restart and every deferral.
+    A lost marker blinds that path identically (`running_sha` falls back to `$before` there too), so
+    this adds no blind spot — it declines to invent a debt out of no information."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": True})
+    _run(box)
+    assert box["mark"].exists(), "the deferral recorded the debt"
+    box["mark"].unlink()
+    r = _run(box, "--pending-only")
+    assert r.stdout == "" and r.stderr == ""
+    assert not box["called"].exists(), "and above all it did not restart a box it knows nothing about"
+    # …while the ordinary tick, which fetches, remains the backstop and is not silent.
+    assert "up to date" in _run(box).stdout
+
+
+def test_pending_only_honours_the_content_gate_and_does_not_restart_for_docs(box):
+    """Same gate, same reasoning: a restart drops every live BLE link, and at a two-minute cadence a
+    gate that leaked would multiply that cost by the timer's frequency."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": True})
+    _run(box)
+    head = _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
+    box["mark"].write_text(head + "\n")
+    _advance(box, path="README")
+    _git(box["repo"], "fetch", "-q", "origin", "main")
+    _git(box["repo"], "merge", "-q", "--ff-only", "origin/main")
+    _write_status(box["status"], {"Ring": False})
+    r = _run(box, "--pending-only")
+    assert "no capture-host/ change" in r.stdout
+    assert not box["called"].exists(), "a docs-only delta must not restart, however often we look"
+
+
+def test_an_unknown_mode_is_still_refused_and_the_usage_names_the_new_one(box):
+    r = _run(box, "--nonsense")
+    assert r.returncode != 0 and "--pending-only" in r.stderr
+
+
+# ── one run at a time ─────────────────────────────────────────────────────────────────────────────
+
+def test_a_SECOND_run_does_not_restart_the_daemon_a_second_time(box):
+    """🔴 The reason the lock exists, and the reason it is taken BEFORE the marker is read. With the
+    two-minute `--pending-only` timer alongside the hourly tick, two runs can overlap for the first
+    time — and the restart decision is read-then-act on the marker. Both would read the OLD marker,
+    both conclude a restart is owed, and both restart: the daemon's BLE links drop TWICE and bonding
+    re-runs twice, for one debt."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": True})
+    _run(box)                                    # merged, deferred: the debt is recorded
+    _write_status(box["status"], {"Ring": False})
+
+    import fcntl
+    box["lock"].touch()
+    with open(box["lock"], "w") as held:         # stand in for the other run, holding the lock
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        blocked = _run(box, "--pending-only")
+        assert blocked.returncode == 0, "a lost race is not a failure"
+        assert blocked.stdout == "" and blocked.stderr == "", "and the fast timer says nothing"
+        assert not box["called"].exists(), "above all, it did not restart"
+        hourly = _run(box)
+        assert "holds the lock" in hourly.stdout, "an hourly tick DOES say why it did nothing"
+        assert not box["called"].exists()
+
+    # …and with the lock free, the same run restarts exactly once.
+    r = _run(box, "--pending-only")
+    assert "restarting the daemon" in r.stdout
+    assert box["called"].read_text().strip() == "restart"
+
+
+def test_an_UNWRITABLE_lock_path_degrades_OPEN_and_prints_nothing(box, tmp_path):
+    """A box that cannot lock must still be able to finish a deploy — the failure this guards against
+    costs a reconnect, not a night. And it must degrade SILENTLY: the shell reports a failed redirection
+    on its own stderr, which is why the probe is wrapped in a subshell. Without that wrapper this path
+    printed 'No such file or directory' on every single run, into the journal of the unit the lock
+    exists to keep quiet."""
+    _advance(box)
+    r = _run(box, TEPNA_LOCK_FILE=str(tmp_path / "no-such-dir" / "update.lock"))
+    assert r.returncode == 0
+    assert "No such file" not in r.stdout and "No such file" not in r.stderr
+    assert "restarting the daemon" in r.stdout, "the deploy still completes without a lock"
