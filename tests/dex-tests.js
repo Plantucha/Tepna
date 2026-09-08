@@ -1325,6 +1325,65 @@
        `ecgdex-dsp.js` had none, so a per-node curve would have meant a fourth implementation
        (HOSTAXIS-STABILITY §4.3). These pin the spine copy against the node copy exactly, so the two
        cannot drift while the duplicate remains. */
+    group('PpgDex exports the stability it MEASURED — tau0/noiseType were permanent null', 'ppgdex-dsp · hostaxis-stability · ALLAN-STABILITY-GAPS', function (T) {
+      var C = env.DexClock;
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!C || typeof C.hostAxis !== 'function' || !P || typeof P.buildNodeExport !== 'function') {
+        T.skip('DexClock.hostAxis + PPGDSP.buildNodeExport available', 'not loaded');
+        return;
+      }
+      /* §2.1. The export block read `stability.tau0` and `stability.noiseType`; the spine publishes
+         `tau0Sec` and `noise`. Neither exported key existed on the source object, so BOTH were `null`
+         on every recording ever exported — a fabricated absence that reads exactly like "this pair
+         had no second clock", which is the one thing `stability: null` is supposed to mean.
+         It survived because every existing assertion checks the SPINE object, where the names are
+         right; nothing drove the PpgDex EXPORT. So this test drives the export. */
+      var seed = 12345;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647 - 0.5;
+      };
+      // An INDEPENDENT pair: a real 30 ppm rate plus ±20 ms of delivery jitter, so spreadMs clears the
+      // 2 ms quantum and `hostAxis` treats the host column as a second clock rather than a derivation.
+      var anchors = [];
+      for (var m = 0; m < 400; m++) anchors.push({ devMs: m * 100, hostMs: m * 100 * (1 + 30e-6) + 40 * rnd() });
+      var ha = C.hostAxis(anchors, {});
+      T.ok(
+        'ANTI-VACUITY · the planted pair IS independent, so a stability object exists to export',
+        !!(ha && ha.ok && ha.independent && ha.stability),
+        'ok=' + (ha && ha.ok) + ' independent=' + (ha && ha.independent)
+      );
+      if (!(ha && ha.ok && ha.stability)) return;
+
+      // `rich` is what carries hostAxis into the export at all — a plain build omits the whole block.
+      var out = P.buildNodeExport({ hostAxis: ha, t0Ms: Date.UTC(2026, 8, 7, 0, 0, 0), fs: 125, n: 400, ch: [new Float32Array(400)], site: 'finger', beats: [], events: [] }, { rich: true });
+      var st = out && out.recording && out.recording.hostAxis && out.recording.hostAxis.stability;
+      T.ok('the export carries a stability block', !!st, JSON.stringify(st));
+      if (!st) return;
+
+      T.ok('tau0 is the MEASURED sample interval, not null — it read `stability.tau0`, which never existed', typeof st.tau0 === 'number' && st.tau0 > 0, 'tau0 = ' + st.tau0);
+      T.ok(
+        'noiseType is a string or null — it read `stability.noiseType`, which never existed',
+        st.noiseType === null || typeof st.noiseType === 'string',
+        'noiseType = ' + JSON.stringify(st.noiseType)
+      );
+      /* THE HONEST-ABSENCE INVARIANT. The spine names a noise type OR publishes the candidates it could
+         not separate; it never does neither. `noiseType:null` WITH `candidates:null` is the shape that
+         says nothing at all, and it is exactly what the broken keys produced. */
+      T.ok(
+        'never null noiseType AND null candidates — that shape carries no information',
+        !(st.noiseType === null && st.candidates === null),
+        'noiseType=' + JSON.stringify(st.noiseType) + ' candidates=' + JSON.stringify(st.candidates)
+      );
+      /* The four fields added alongside the fix, each verified PUBLISHED on the spine object first —
+         `nTau` is deliberately absent: the classifier computes it but `hostAxis.stability` does not
+         forward it, so exporting it would re-create this defect one field over. */
+      T.ok('slopeSE is exported and finite', typeof st.slopeSE === 'number' && isFinite(st.slopeSE), 'slopeSE = ' + st.slopeSE);
+      T.ok('optimalTauSec is exported and positive', typeof st.optimalTauSec === 'number' && st.optimalTauSec > 0, 'optimalTauSec = ' + st.optimalTauSec);
+      T.ok('atLongestPpm is exported and finite', typeof st.atLongestPpm === 'number' && isFinite(st.atLongestPpm), 'atLongestPpm = ' + st.atLongestPpm);
+      T.ok('candidates is a non-empty array or null, never an empty array', st.candidates === null || (Array.isArray(st.candidates) && st.candidates.length > 0), JSON.stringify(st.candidates));
+    });
+
     group('hostAxis stability — the spine Allan core, and it refuses when there is no second clock', 'clock · hostaxis-stability', function (T) {
       var C = env.DexClock;
       if (!C || typeof C.hostAxis !== 'function' || typeof C.allanFromPhase !== 'function') {
