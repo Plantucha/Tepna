@@ -1,0 +1,25 @@
+# tepna-capture — the morning report (one file per night, one line to the operator)
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# ⚠️ USER SCOPE, DELIBERATELY — `systemctl --user`, not the system manager.
+# It needs no privilege: it reads finished files and posts one webhook. Writing it as a system unit
+# would buy nothing and cost the confusion the sibling sniffer unit already carries, where
+# `After=tepna-capture.service`, `User=` and `Group=` are all silent NO-OPS because a user unit cannot
+# order against a system unit. So there is no After= here at all: this runs long after the night has
+# closed, and ordering against a daemon it must never touch would be a claim rather than a constraint.
+#
+# The daemon is not a dependency in either direction. A reporting failure must not be able to cost a
+# recording, and a recording failure is exactly when the report is most worth reading.
+[Unit]
+Description=Tepna — write the morning report for the night that just closed
+Documentation=file:/opt/tepna/capture-host/night_report.py
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/tepna/capture-host
+ExecStart=/opt/tepna/capture-host/tepna-report.sh
+# Reporting is never urgent and the box may still be finishing a harvest.
+Nice=19
+# Exit 4 is "no night to report", which is normal on a box that has not captured yet — not a failure.
+SuccessExitStatus=0 4
+TimeoutStartSec=300
