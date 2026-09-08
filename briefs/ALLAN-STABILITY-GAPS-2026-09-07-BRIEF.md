@@ -1,4 +1,4 @@
-**Status:** PROPOSED · **Created:** 2026-09-07
+**Status:** PROPOSED · **Created:** 2026-09-07 · **Residue:** 2026-09-07-hostaxis-stability-ntau-not-forwarded
 
 # Allan stability — the gaps that remain after eight PRs (and the ones that were never gaps)
 
@@ -55,6 +55,13 @@ Gated by a new Node-lane group that drives the EXPORT (not the spine, where the 
 which is why this survived): 9 assertions, **5 red without the fix**, including the honest-absence invariant
 that `noiseType:null` must never coincide with `candidates:null`. 11 bundles clean, verify:docs +
 verify:analysis OK, verify-fixtures green with one PpgDex fixture re-stamped.
+
+⚠️ **TWO MECHANICS THAT COST AN HOUR EACH — read them before touching this export again.** (1) The
+hostAxis block is inside `if (opts.rich)`, so `buildNodeExport(r, {})` omits it entirely: a probe that
+passes `{}` gets `undefined` and that reads exactly like *the fix did not work*. Pass `{rich: true}`.
+(2) `node tools/build.mjs --app PpgDex` is NOT enough — `Data Unifier.html` and `OverDex.html` inline
+`ppgdex-dsp.js`, so both drift until `--all` runs. `npm run build:check` catches it; reasoning about
+which bundles "use" the file does not. Bare `build.mjs` with no args is a usage error, not a full build.
 
 `ppgdex-dsp.js:5217-5218` reads `r.hostAxis.stability.tau0` and `.noiseType`; the spine publishes
 `tau0Sec` (`clock.js:645`) and `noise` (`:650`). Both keys are therefore `null` in every PpgDex export
