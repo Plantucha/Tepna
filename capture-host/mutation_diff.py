@@ -496,3 +496,44 @@ def selftest() -> int:
 
     return 0 if ok else 1
 
+
+def refresh_scratch(tree, work, extras) -> int:
+    """Copy every sibling in `extras` from `tree` into a reused mutation scratch, in BOTH `work/` and
+    `work/mutants/`. Returns how many entries were refreshed.
+
+    HERE rather than in `tools/mutate.py` for the reason that file's own header gives: a function that
+    can give a WRONG ANSWER rather than failing loudly belongs inside the coverage floor. This one can
+    — it decides WHICH files a reused scratch carries, and getting that wrong produces a verdict that
+    is wrong in either direction while every run looks healthy.
+
+    The scratch is reused on the mutated module's hash alone, which is right for the mutants (a pure
+    function of that module) and blind to everything else. Before this existed only `tests/` was
+    refreshed, so a changed sibling module, shell script or fixture did not move the key and did not
+    get copied: the run executed the NEW tests against the OLD sibling. Measured 2026-09-07 on
+    `night_report.py` — three consecutive runs reported a baseline failure already fixed, byte-identical
+    each time, because the scratch's `tepna-report.sh` predated the fix.
+
+    `extras` is the SAME list the initial copy builds, so reuse and creation cannot drift about what a
+    scratch contains — that drift IS the defect. The mutated module is absent from it by construction,
+    which is what protects mutmut's generated `mutants/<module>` from being overwritten by the
+    unmutated source.
+
+    ⚠️ Copy-only: a sibling DELETED from the tree still lingers in a reused scratch. Same class, not
+    handled here, because pruning unknown entries risks removing mutmut's own bookkeeping; `--no-reuse`
+    is the escape hatch until it is measured to matter.
+    """
+    import shutil
+
+    n = 0
+    for sub in ("", "mutants"):
+        dest_root = work / sub if sub else work
+        for name in extras:
+            src = tree / name.rstrip("/")
+            dst = dest_root / name.rstrip("/")
+            if src.is_dir():
+                shutil.rmtree(dst, ignore_errors=True)
+                shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+            else:
+                shutil.copy2(src, dst)
+            n += 1
+    return n

@@ -87,6 +87,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
+from mutation_diff import refresh_scratch  # noqa: E402  (after the sys.path fix above)
 from mutation_sweep import (  # noqa: E402
     BUDGET_OK, budget_verdict, deselect_args, deselect_notes, select_tests,
 )
@@ -329,16 +330,30 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         plan["pruned_scratches"] = pruned
     if reuse and (reusable / "work" / "mutants" / module).exists():
         scratch, work = reusable, reusable / "work"
-        # REFRESH THE WHOLE tests/ TREE, not just the selected files. Copying only the selection was a
-        # real bug: `tests/_srcscan.py` is a HELPER, never named in a selection, so a scratch predating
-        # it kept an old tests/ and every run died with `ModuleNotFoundError: tests._srcscan` — which
-        # mutmut reports as "Failed to collect list of tests", i.e. a beautiful, meaningless 100%.
-        # Any new conftest, fixture module or helper would have done the same. tests/ is small; copy it.
-        for sub in ("", "mutants"):
-            dest_root = work / sub / "tests" if sub else work / "tests"
-            shutil.rmtree(dest_root, ignore_errors=True)
-            shutil.copytree(HERE / "tests", dest_root,
-                            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        # REFRESH EVERY SIBLING, not just tests/. The cache key is the MUTATED MODULE's hash alone,
+        # which is right for the mutants (a pure function of that module) and blind to everything else
+        # in the scratch — so a change to a sibling module, a shell script, a fixture or any data file
+        # does not move the key and did not get copied. The run then executed the NEW tests against the
+        # OLD sibling, and the verdict can be wrong in EITHER direction: a fixed bug still reported, or
+        # a fresh one not seen. Measured 2026-09-07 on `night_report.py` — three consecutive runs
+        # reported a baseline failure already fixed, byte-identical each time, because the scratch's
+        # `tepna-report.sh` predated the fix (`grep -c TEPNA_PYTHON`: 1 in the tree, 0 in the scratch,
+        # while its refreshed `tests/` had 3).
+        #
+        # This subsumes the tests/-only refresh it replaces, which existed for the same reason one
+        # level down: `tests/_srcscan.py` is a HELPER never named in a selection, so a scratch
+        # predating it died with `ModuleNotFoundError: tests._srcscan` — which mutmut reports as
+        # "Failed to collect list of tests", i.e. a beautiful, meaningless 100%.
+        #
+        # `extras` is the SAME list the initial copy uses, so reuse and creation cannot drift about
+        # what a scratch contains — the bug above was exactly that drift. The mutated module is absent
+        # from it by construction, which is what protects mutmut's generated `mutants/<module>` (835 KB
+        # against the original's 15 KB) from being overwritten by the unmutated source.
+        #
+        # ⚠️ Copy-only: a sibling DELETED from the tree still lingers in a reused scratch. That is the
+        # same class and is not handled here, because pruning unknown entries risks removing mutmut's
+        # own bookkeeping; `--no-reuse` is the escape hatch until it is measured to matter.
+        plan["refreshed_siblings"] = refresh_scratch(HERE, work, extras)
         plan["reused_scratch"] = str(scratch)
     else:
         scratch = reusable if reuse else Path(tempfile.mkdtemp(prefix=f"mut-{module[:-3]}-"))
