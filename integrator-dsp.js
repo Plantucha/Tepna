@@ -2759,6 +2759,50 @@ function _tchRhoFromMotion(triplet, keys) {
 // Generic reference-free per-sensor hat for ONE metric ('rmssd' | 'hr'). PURE; {ok:false, reason}
 // when <3 nodes carry that per-epoch series (→ caller degrades). Estimates ρ from cross-node motion
 // (§1) and passes it to the estimator's external-ρ path; attaches per-node mean level for reconciling.
+/* ── THE `timingSource` VOCABULARY — ENUMERATED, AND UNKNOWN IS FAIL-CLOSED ────────────────────
+   🔴 THIS REPLACES A STRICT `!==` PAIR THAT WAS ALREADY WRONG IN PRODUCTION. The test here read
+   `s.timingSource !== 'device' && s.timingSource !== 'device+host'` — a CLOSED vocabulary written
+   as an open one. Any value outside those two literals marked the corner `pseudo`, i.e. "declares
+   no per-sample device timing", and OxyDex has emitted **`'device+host-verified'`** since #1643
+   (`oxydex-dsp.js` night.timingSource, RTC-verified against the `_rtclog.csv` sidecar). That is a
+   STRONGER provenance than `device+host`, and it has been silently downgrading the three-cornered
+   hat to a heuristic badge ever since — no red, no warning, because the failure direction is the
+   conservative-looking one. Pinned as a live case by `tests/dex-tests.js` ("a VERIFIED ANCHOR …
+   does NOT make the corner timed") and recorded in OXYDEX-PB-DETECTOR-FOLLOWUPS §3b.
+
+   So the fix is the CLASS, not the instance: every value an emitter can produce carries an
+   explicit `timed` decision here, and a value with no entry is `timed: false` — fail-closed, so an
+   unknown string can never be spent as a clock. The accompanying gate (`timingsource-vocabulary`)
+   scans the emitters for `timingSource` literals and REDS on any value missing from this table, so
+   adding a value without deciding what it means becomes impossible rather than merely discouraged.
+
+   ⚠️ `timed: true` means "this corner carries per-sample timing a σ solve may spend as a clock" —
+   NOT "this axis is accurate". A drawn axis placed on the host timeline is `'host'`: real timing
+   exists, but it came from the host and the device contributed sample ORDER only, so it is not an
+   independent corner (CLAUDE.md §🔒 §7, "a drawn axis is PLACED, never SPENT"). */
+const TIMING_SOURCE_VOCABULARY = {
+  /* ⚠️ `timed: FALSE`, and this entry is the reason the table exists rather than a prefix match.
+     A first draft of this vocabulary set it TRUE — "verified is strictly stronger than device+host"
+     — and the gate that exists for exactly this caught it: `tests/dex-tests.js` asserts a VERIFIED
+     ANCHOR does NOT make the corner timed. The assertion is right and the draft was wrong, because
+     THE TWO VALUES ANSWER DIFFERENT QUESTIONS. OxyDex's `'device+host-verified'` is an RTC-ANCHOR
+     verdict (the device's real-time clock agreed with a host-stamped `_rtclog.csv` sidecar at a
+     point); `timed` asks CLAUDE.md §🔒 §7's PER-SAMPLE question — did the device report real
+     per-sample stamps this σ solve may spend as an independent clock. An anchor agreeing once says
+     nothing about per-sample timing, so this stays FALSE until someone MEASURES that OxyDex's
+     per-sample axis is independent. Recorded in OXYDEX-PB-DETECTOR-FOLLOWUPS §3b; changing it is a
+     measurement, not a rename. */
+  'device+host-verified': { timed: false, why: 'an RTC-ANCHOR verdict, not a per-sample timing claim — see the note above; NOT the same question `timed` asks' },
+  'device+host': { timed: true, why: 'device reported real per-sample stamps, host-disciplined — an independent clock' },
+  device: { timed: true, why: 'device clock only, per-sample and real' },
+  host: { timed: false, why: 'the device column was DRAWN; all real timing came from the host, so this is not an INDEPENDENT corner' },
+  none: { timed: false, why: 'drawn AND no host anchors — no timing information exists in this recording' }
+};
+function timingSourceIsTimed(v) {
+  const e = Object.prototype.hasOwnProperty.call(TIMING_SOURCE_VOCABULARY, v) ? TIMING_SOURCE_VOCABULARY[v] : null;
+  return e ? e.timed === true : false; // unknown ⇒ NOT timed. Fail closed.
+}
+
 function _tchHat(like, ptsFn, metric) {
   var TCH = _tchEngine();
   if (!TCH) return null;
@@ -2913,7 +2957,7 @@ function _tchHat(like, ptsFn, metric) {
     r.axisProvenance[_cornerIds[i]] = s.timingSource != null ? s.timingSource : null;
   });
   r.pseudo = [best.A, best.B, best.C].some(function (s) {
-    return s.timingSource !== 'device' && s.timingSource !== 'device+host';
+    return !timingSourceIsTimed(s.timingSource);
   });
   r.pseudoReason = r.pseudo ? 'a corner declares no per-sample device timing — σ is a ranking, not a calibrated instability' : null;
   r.coMotion = {};
@@ -7107,6 +7151,11 @@ function gradeFor(node, id) {
 
 /* expose to other page scripts (plain global scope, but be explicit) */
 window.IntegratorDSP = {
+  /* §timingSource vocabulary — exported so the gate can assert that every value ANY emitter
+     produces has an explicit `timed` decision here. Without the export the table would be a
+     private convention and the next value could be added without anyone deciding. */
+  TIMING_SOURCE_VOCABULARY: TIMING_SOURCE_VOCABULARY,
+  timingSourceIsTimed: timingSourceIsTimed,
   segmentsOverlap: segmentsOverlap, // §6.2 — recorded-time overlap (sparse-aware); gate-visible
   overlapIntervals: overlapIntervals, // gap-aware intersected intervals — the quantity-bearing sibling
   recSegments: recSegments,
