@@ -89,7 +89,7 @@
        sidecar as a recording. The `.CSV` extension is deliberately NOT added to the type list below:
        a genuine waveform legitimately arrives as `.csv`, and excluding by extension would set those
        aside too. Name the file that announces itself, not the container. */
-    if (/_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|RTCLOG|QC|SUMMARY|TELEMETRY)\b|_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|RTCLOG|QC|SUMMARY|TELEMETRY)\./.test(u)) return true;
+    if (/_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|RADIOCLOCK|RTCLOG|QC|SUMMARY|TELEMETRY)\b|_(CLOCK|LINK|OXYFRAME|PMDARRIVAL|RADIOCLOCK|RTCLOG|QC|SUMMARY|TELEMETRY)\./.test(u)) return true;
     /* DEEP-AUDIT-VI F12 — the SAME defect a third time. The alternation above requires a LEADING
        UNDERSCORE, so the capture host's FIXED-NAME sidecars — no device, no stamp, just the name —
        never matched it: on the real 2026-08-30 folder `planIngest` queued `CPAP-INVENTORY.jsonl` and
