@@ -70,12 +70,21 @@ is, and the brief stops there (§4 bands).
 - **Built 2026-09-07 on the rig** from exactly that conf (`build-holyiot-anchor`, EXIT=0; `.config` verified
   `ANCHOR_POINT_REPORT=y` · `MPSL_FEM=y` · `K32SRC_XTAL=y`; FLASH 155 020 B / RAM 60 276 B; elf carries the
   public-address patch). Package: `/srv/data/ncs/vigil_sdc_holyiot21017_anchor_dfu.zip` (application-version
-  4, sha256 `98efae2b61560246…`). Rig-local, not a repo artifact — the repo carries the INPUTS.
+  5, sha256 `0e55c6d5efe5ca7f…`). Rig-local, not a repo artifact — the repo carries the INPUTS.
+- **The image announces itself, so "is it flashed?" has an answer that can be false.** The USB product
+  string is `Zephyr USBD BT HCI anchor` (`CONFIG_SAMPLE_USBD_PRODUCT`, also in `vigil-sdc.conf`); the
+  predecessor reads `Zephyr USBD BT HCI`. `lsusb -d 2fe3:000b` shows it unprivileged. The USB ID
+  `2fe3:000b` is the SAME before and after and is not a signal (Wren, 2026-09-07 — it was already on the
+  bus, so a gate on its presence was already true).
 - Flash per the dongle brief §5 (magnet → `1915:521f` → `nrfutil dfu usb-serial`). The dongle keeps its
   address (`99:67:24:2E:CD:98`, FICR-derived) so no config on vigil changes.
 - **Nothing else on vigil changes.** Pinning the Holyiot as a capture adapter is a separate owner deploy
-  (dongle brief §9) and is NOT required for this brief — the collector can run on hci3 while the Sena keeps
-  capturing, as long as the Polar links it observes are on hci3. See §3 "which links".
+  (dongle brief §9) and is NOT required for this brief — the collector can run on the Holyiot while the
+  Sena keeps capturing, as long as the Polar links it observes are on the Holyiot. See §3 "which links".
+- ⚠️ **Name the adapter by ADDRESS, never by `hciN`.** Indices are enumeration order: the Holyiot was
+  `hci3` while the UB500 was on the bus and became `hci0` the moment it was pulled (Wren, 2026-09-07).
+  Resolve the index at run time (`hciconfig` / `btmgmt info`, match the address) — every command below
+  that needs an index means "the index that currently carries `99:67:24:2E:CD:98`".
 
 ## 3 · Collector — `capture-host/radioclock.py` + `tepna-radioclock.service` (Heron)
 
@@ -147,9 +156,18 @@ corpus; changeset `minor` — additive `timingSource` value).
 - **Every §🔒 §7 rule still applies to the radio anchors**: ≥3, median not fit, flat outside, refusal
   bound, ONE DEVICE CLOCK PER AXIS (a `_clockResyncs` seam splits the radio anchors exactly as it splits
   host anchors — a resync is a change of *device* clock, and the radio side does not exempt it).
-- **Export:** `recording.timingSource` may now read `'radio'`; additive, so consumers that switch on the
-  old three values must treat unknown as "at least `device+host`"-class — verify `integrator-dsp
-  normalizeFile` does (ecgdex-dsp.js:5288 says it honours the field; check the branch, do not assume).
+- **Export:** `recording.timingSource` may now read `'radio'`; additive — and the Integrator is IN SCOPE
+  for this unit, because it was checked and the pass-through claim is only half true (Magpie, 2026-09-07):
+  `integrator-dsp.js:741` forwards the value verbatim, but **`:2916` marks a TCH corner `pseudo` unless the
+  value is literally `'device'` or `'device+host'`** — so the BEST band would downgrade the hat to a
+  heuristic badge, silently and in the safe-looking direction. Same defect as `'device+host-verified'`
+  (#1643, OXYDEX-PB §3b, pinned by `tests/dex-tests.js:4707`). **A radio-disciplined axis IS a timed
+  corner** (three independent clocks is what TCH wants; a radio clock is more independent than
+  `device+host`, not less). Fix the *class*, not the instance: ONE exported predicate over an enumerated
+  `timingSource` vocabulary (each value carries `timed: true|false`), used at `:2916`, and a test that
+  reds when a value exists in any emitter without an entry — so the next value cannot be added without
+  deciding. `:5833` (`=== 'host'`, host-only list) is correct as-is for `'radio'`; `pat-gate.js:131/:321`
+  (`=== 'none'`) are safe. Integrator `computeHash` moves ⇒ its 3 fixtures are in the verify-fixtures run.
 - **Fixtures:** a **committed** synthetic twin (an H10 `_ECG.txt` + matching `_RADIOCLOCK.csv` with a
   planted 1.3 ms spread and a planted 80 ms one) so CI exercises both the accept and reject band without
   the corpus. Then `node tools/verify-fixtures.mjs` on the corpus: **zero existing outputs move** — that is
@@ -159,8 +177,9 @@ corpus; changeset `minor` — additive `timingSource` value).
 
 ## 5 · Box-side verification BEFORE §3/§4 are built (Wren, physical-vigil step; ~15 min, daytime)
 
-After the reflash: with one Polar strap connected on **hci3** (bleak `bluez={'adapter': …}` by address,
-not on the Sena), run `btmon -i hci3` (needs the caps — `sudo`, owner present) and confirm (a) `0xfd1f`
+After the reflash (confirmed by the product string in §2, not by the USB ID): with one Polar strap
+connected on **the Holyiot** (bleak `bluez={'adapter': <index resolved from its address>}`, not on the
+Sena), run `btmon -i <that index>` (needs the caps — `sudo`, owner present) and confirm (a) `0xfd1f`
 returns status 0x00, (b) `0xff/0x82` events arrive once per connection interval with a monotonic
 `anchor_point_us`, (c) the ACL packets of the strap appear on the same stream with kernel timestamps.
 Record the first 20 anchors' deltas and the interval the strap negotiated. If (a) fails, the image is
@@ -173,7 +192,7 @@ This is the first measurement of the §4 spread; write the number into this head
 |---|---|---|
 | conf line in `vigil-sdc.conf` (after #2349 merges) | Kestrel | docs-ledger (doc-only) |
 | magnet reflash of the Holyiot | **owner** | dongle brief §5 tells |
-| §5 verification on hci3 | Wren (owner present for `sudo btmon`) | number in this header |
+| §5 verification on the Holyiot (by address) | Wren (owner present for `sudo btmon`) | number in this header |
 | §3 collector + unit + tests + changeset | Heron | `capture-host/check.sh` |
 | §4 consumer + committed twin + verify-fixtures | Magpie | `npm run check` + corpus verify |
 | enable on vigil (`radio_clock.enabled: true` + `systemctl enable`) | **owner deploy** | `/api/version` + unit active |
