@@ -33045,6 +33045,60 @@
       T.eq('  ... and rejects nothing', cc.nCorr, 0);
     });
 
+    /* §timingSource VOCABULARY — the gate that makes "add a value without deciding" impossible.
+       This exists because the failure already happened: `integrator-dsp.js` tested
+       `timingSource !== 'device' && !== 'device+host'`, a CLOSED vocabulary written as an open one,
+       and OxyDex has emitted `'device+host-verified'` since #1643 — silently marked pseudo, in the
+       conservative-looking direction, so nothing ever reddened. Fixing the instance would have left
+       the class: the NEXT value (`'radio'`, RADIO-CLOCK-SIDECAR §4) would have done it again. */
+    group('Integrator — every emitted timingSource has an explicit timed decision', 'integrator-dsp · timingsource-vocabulary', function (T) {
+      var I = env.IntegratorDSP;
+      if (!(I && I.TIMING_SOURCE_VOCABULARY && typeof I.timingSourceIsTimed === 'function')) {
+        T.ok('IntegratorDSP.TIMING_SOURCE_VOCABULARY + timingSourceIsTimed exported', false);
+        return;
+      }
+      var VOC = I.TIMING_SOURCE_VOCABULARY;
+      // every entry must actually DECIDE — a missing/loose `timed` is the thing being prevented
+      var keys = Object.keys(VOC);
+      T.ok('the vocabulary is non-empty', keys.length >= 3, keys.length + ' values');
+      var allDecided = keys.every(function (k) {
+        return VOC[k] && typeof VOC[k].timed === 'boolean' && typeof VOC[k].why === 'string' && VOC[k].why.length > 10;
+      });
+      T.ok('every value carries an explicit boolean `timed` AND a stated reason', allDecided);
+
+      /* THE CLASS GATE: scan the EMITTERS for timingSource literals; any value without an entry reds. */
+      var srcs = [
+        ['ecgdex-dsp.js', env.ecgdexDspSource],
+        ['ppgdex-dsp.js', env.ppgdexDspSource],
+        ['oxydex-dsp.js', env.oxydexDspSource]
+      ].filter(function (p) {
+        return typeof p[1] === 'string' && p[1].length > 0;
+      });
+      T.ok('at least one emitter source reached this lane — an empty scan must not read as agreement', srcs.length > 0, srcs.length + ' source(s)');
+      var found = {};
+      srcs.forEach(function (pair) {
+        var re = /timingSource[^;\n]{0,40}?'([a-z][a-z+-]*)'/g,
+          m;
+        while ((m = re.exec(pair[1])) !== null) found[m[1]] = (found[m[1]] || []).concat(pair[0]);
+      });
+      var emitted = Object.keys(found);
+      T.ok('the scan actually found emitted values (a zero-find scan is not agreement)', emitted.length >= 3, emitted.join(','));
+      var missing = emitted.filter(function (v) {
+        return !Object.prototype.hasOwnProperty.call(VOC, v);
+      });
+      T.eq('every emitted timingSource value has a vocabulary entry — add the value, decide `timed`', missing.join(','), '');
+
+      /* FAIL-CLOSED: an unknown value is never spent as a clock. */
+      T.eq('an unknown value is NOT timed', I.timingSourceIsTimed('radio-from-the-future'), false);
+      T.eq('undefined is NOT timed', I.timingSourceIsTimed(undefined), false);
+      T.eq('null is NOT timed', I.timingSourceIsTimed(null), false);
+      // and the decisions the corpus depends on today
+      T.eq("'device+host' is timed", I.timingSourceIsTimed('device+host'), true);
+      T.eq("'host' (a DRAWN axis placed on the host timeline) is NOT timed", I.timingSourceIsTimed('host'), false);
+      T.eq("'none' is NOT timed", I.timingSourceIsTimed('none'), false);
+      T.eq("'device+host-verified' is NOT timed — an RTC-anchor verdict is not a per-sample claim", I.timingSourceIsTimed('device+host-verified'), false);
+    });
+
     group('PPGDex §∅ — pinned spans: both extremes, marker-transparent, and the widening is DERIVED', 'ppgdex-dsp · absence-as-value', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.pinnedSpans === 'function' && typeof P.settlingWidenSec === 'function')) {
@@ -52464,7 +52518,15 @@
         'QC-SUMMARY.json',
         '.archived',
         'Polar_H10_02849638_20260813000348_PMDARRIVAL.csv',
-        'Polar_VeritySense_0C301E3F_20260813000305_PMDARRIVAL.csv'
+        'Polar_VeritySense_0C301E3F_20260813000305_PMDARRIVAL.csv',
+        /* `_RADIOCLOCK.csv` ADDED 2026-09-07 — the SAME defect a FOURTH time, and this one is added
+           BEFORE the file exists rather than after it bit. The radio-clock sidecar (RADIO-CLOCK-
+           SIDECAR §3) lands beside `_ECG.txt`/`_PPG.txt` in the night folder and matches no companion
+           suffix, so without an entry here it would fall through to the bare-name default and be
+           queued as a PRIMARY waveform in BOTH nodes — exactly what `_PMDARRIVAL` did a generation
+           earlier. Both device spellings pinned, as above. */
+        'Polar_H10_02849638_20260907012233_RADIOCLOCK.csv',
+        'Polar_VeritySense_0C301E3F_20260907012233_RADIOCLOCK.csv'
       ].forEach(function (n) {
         T.eq('§6.4b · non-signal file is set aside, not queued as an ECG: ' + n, I.ecgKind(n), 'skip');
         T.eq('§6.4b · …nor as a PPG: ' + n, I.ppgKind(n), 'skip');
