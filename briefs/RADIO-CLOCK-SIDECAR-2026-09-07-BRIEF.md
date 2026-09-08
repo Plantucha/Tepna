@@ -106,9 +106,15 @@ is, and the brief stops there (§4 bands).
   `devices:` are written; anything else is ignored (no unrelated addresses land on disk).
 - **The join key is inside the packet, so `capture.py` needs no hook.** The monitor channel carries the
   ACL payload. A Polar PMD data frame is `[meas_type][8-byte LE ns since 2000-01-01][frame_type][payload]`
-  (`capture-host/polar_pmd.py`, known-answer-pinned by `tests/test_polar_pmd.py`) — bytes 1..9 are the same
-  `first_sensor_ns` `PmdArrivalLogWriter` records — so the collector reuses that decoder and the sidecar
-  joins to the vendor files and to `*_PMDARRIVAL.csv` on `(device, first_sensor_ns)`. O2Ring realtime
+  (`capture-host/polar_pmd.py`, known-answer-pinned by `tests/test_polar_pmd.py`) — bytes 1..9 are the
+  frame's **LAST** sample stamp (`polar_pmd.py:589` `last_ns`), which is exactly the `last_sensor_ns` column
+  `PmdArrivalLogWriter` records (`capture.py:2719` writes `samples[-1].sensor_ns`) — so the sidecar reads
+  the raw 8 bytes, decodes nothing, and joins to `*_PMDARRIVAL.csv` on `(device, last_sensor_ns)`: an exact
+  integer identity. ⚠️ This read `first_sensor_ns` until 2026-09-07 (Heron, measured on a synthetic 3-sample
+  H10 frame: raw field == `samples[-1]`, ≠ `samples[0]` by 2 sample periods). `first_sensor_ns` is a value the
+  decoder BACK-TIMES from `fs` and `prev_last_ns`; a collector joining on it would have matched **zero** rows
+  on every multi-sample frame, and an empty join reads exactly like a night with no correlated packets. Do
+  not reimplement the back-timing in the collector to recover the first-sample key — the raw field is the key. O2Ring realtime
   frames carry no device clock and are OUT of scope for v1 (a later increment may key them on
   `(handle, event_counter)`).
 - **Association of an ACL packet to its connection event:** nearest anchor with
@@ -117,7 +123,7 @@ is, and the brief stops there (§4 bands).
   (`event_counter`) so the choice is auditable; if two anchors are within `ctrl_host_offset` jitter of the
   packet, write the row with `anchor_us` blank — ambiguous is absent, not guessed.
 - **Sidecar:** `<night>/<stamp>_<DEVICE>_RADIOCLOCK.csv`, header
-  `Phone timestamp;device;meas;first_sensor_ns;conn_handle;event_counter;anchor_us;vs_rx_ns;acl_rx_ns`
+  `Phone timestamp;device;meas;last_sensor_ns;conn_handle;event_counter;anchor_us;vs_rx_ns;acl_rx_ns`
   — `Phone timestamp` = the kernel monitor timestamp of the ACL packet rendered as the existing
   `_phone_ts` floating wall-clock (so a reader that only knows `PMDARRIVAL` can read it), `vs_rx_ns` /
   `acl_rx_ns` the raw `CLOCK_REALTIME` ns of the two monitor packets. Blank cell = not measured (never 0).
@@ -140,8 +146,8 @@ corpus; changeset `minor` — additive `timingSource` value).
   is never mistaken for a signal; this is the generation-later defect that line's comment already names.
 - **Ingest:** a `*_RADIOCLOCK.csv` beside a `_ECG.txt` / `_PPG.txt` / `_ACC.txt` is parsed into
   `rec.radioClock = { rows, anchors:[{devMs, ctrlMs, hostMs}], spreadMs, n }` keyed by device address;
-  absent ⇒ the field is **absent** (not `null`-filled, not `[]`). Join on `first_sensor_ns` ≡ the vendor
-  row's `sensor timestamp [ns]` for the packet's first sample (PpgDex/ECGDex already know packet
+  absent ⇒ the field is **absent** (not `null`-filled, not `[]`). Join on `last_sensor_ns` ≡ the vendor
+  row's `sensor timestamp [ns]` for the packet's LAST sample (PpgDex/ECGDex already know packet
   boundaries — `PMDARRIVAL` consumers in `ppgdex-dsp.js` / `ecgdex-dsp.js` are the pattern).
 - **Pre-stated bands on the device↔anchor residual spread (after the host-axis-style running median),
   written here before anyone measures it:**

@@ -1,0 +1,41 @@
+diff --git a/samples/bluetooth/hci_usb/src/main.c b/samples/bluetooth/hci_usb/src/main.c
+index ceb51282..b53e896c 100644
+--- a/samples/bluetooth/hci_usb/src/main.c
++++ b/samples/bluetooth/hci_usb/src/main.c
+@@ -7,14 +7,36 @@
+ #include <zephyr/kernel.h>
+ #include <zephyr/sys/printk.h>
+ #include <zephyr/usb/usbd.h>
++#include <zephyr/bluetooth/controller.h>
++#include <nrfx.h>
+ 
+ #include <sample_usbd.h>
+ 
++/* Tepna vigil patch (ZEPHYR-INSTRUMENT brief): bake the chip's factory FICR DEVICEADDR in as the
++ * controller's PUBLIC BD address, so every layer (hciconfig, BlueZ, any host) sees ONE stable
++ * identity forever — measured 2026-08-25: without this, BlueZ invents a fresh static-random
++ * identity per host (FA:88... on the rig, DA:44... on vigil, C6:CF... under the old firmware).
++ * Timing: sdc_init runs at POST_KERNEL, sdc_enable at host-open — main() sits between, the
++ * documented window for bt_ctlr_set_public_addr(). Diff archived at /srv/data/ncs/vigil-main.c.patch. */
++static void set_fixed_public_addr(void)
++{
++	uint32_t lo = NRF_FICR->DEVICEADDR[0];
++	uint32_t hi = NRF_FICR->DEVICEADDR[1];
++	uint8_t addr[6] = { lo & 0xff, (lo >> 8) & 0xff, (lo >> 16) & 0xff,
++			    (lo >> 24) & 0xff, hi & 0xff, (hi >> 8) & 0xff };
++
++	bt_ctlr_set_public_addr(addr);
++	printk("Public BD addr set from FICR: %02X:%02X:%02X:%02X:%02X:%02X\n",
++	       addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]);
++}
++
+ int main(void)
+ {
+ 	struct usbd_context *sample_usbd;
+ 	int ret;
+ 
++	set_fixed_public_addr();
++
+ 	sample_usbd = sample_usbd_init_device(NULL);
+ 	if (sample_usbd == NULL) {
+ 		printk("Failed to initialize USB device");
