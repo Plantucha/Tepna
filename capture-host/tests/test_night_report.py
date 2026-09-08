@@ -18,6 +18,20 @@ REAL_DEVICES = [{"name": "Wellue O2Ring-S",
                 {"name": "Polar H10 02849638", "streams": {"ecg": 31878900}}]
 REAL_SUMMARY = {"night": "2026-09-06", "ok": False, "span_sec": 67730, "devices": REAL_DEVICES}
 
+#: 🔴 THE REAL class-B BLOCKS, copied from /srv/tepna/captures/2026-09-08/QC-SUMMARY.json on the box.
+#: `nightqc.class_b_runs` returns `{"stream", "held", "rows", "clips", "file", "columns"}` where
+#: **`clips` is a DICT** of `{channel: number_of_clip_regions}` — NOT a list, and NOT under a key
+#: called `clip`. An earlier version of these tests invented the shape the code had also invented, so
+#: both agreed and neither was right: every night reported "0 spans, back-check ok" while this very
+#: night carried 25 clipped ppg regions. The fixture is the thing that decides whether this file can
+#: see that class of bug at all, so it is copied, never composed.
+REAL_CLASS_B = [
+    {"stream": "ppg", "held": None, "rows": 25, "clips": {"ppg": 25},
+     "file": "Wellue_O2Ring-S_S8AW2100_20260908034935_PPG.txt", "columns": 1},
+    {"stream": "ppg2w", "held": None, "rows": 0, "clips": {"ppg2w:ch0": 0, "ppg2w:ch1": 0},
+     "file": "Wellue_O2Ring-S_S8AW2100_20260908034935_PPG2W.txt", "columns": 2},
+]
+
 
 def test_the_real_night_reports_hours_and_says_unknown_for_everything_absent():
     """The 2026-09-06 night exactly as it sits on the box: a ring that measured, no back-check key,
@@ -43,17 +57,29 @@ def test_an_EMPTY_back_check_is_ok_with_zero_spans_and_an_ABSENT_one_is_unknown(
     """The distinction the whole file exists for. `class_b: []` means it LOOKED and found nothing;
     no `class_b` key means it never ran. Flattening those is how a report starts lying."""
     ran = nr.back_check(dict(REAL_SUMMARY, class_b=[]))
-    assert ran == ("ok", 0), "an empty list is a completed check with nothing to report"
-    assert nr.back_check(REAL_SUMMARY) == ("unknown", None), "an absent key never ran"
-    assert nr.back_check(None) == ("unknown", None)
-    assert nr.back_check({"class_b": "not a list"}) == ("unknown", None)
+    assert ran == ("ok", 0, 0), "an empty list is a completed check with nothing to report"
+    assert nr.back_check(REAL_SUMMARY) == ("unknown", None, None), "an absent key never ran"
+    assert nr.back_check(None) == ("unknown", None, None)
+    assert nr.back_check({"class_b": "not a list"}) == ("unknown", None, None)
 
 
-def test_clipped_spans_are_counted_across_sessions_and_fail_the_check():
-    r = nr.build("2026-09-08", dict(REAL_SUMMARY, class_b=[{"clip": [1, 2]}, {"clip": []},
-                                                           {"clip": [3]}]), None)
-    assert r["spans"] == 3 and r["back_check"] == "fail"
-    assert "3 spans, back-check fail" in r["line"]
+def test_the_REAL_night_that_was_being_reported_as_CLEAN_now_fails():
+    """🔴 The regression. This is `/srv/tepna/captures/2026-09-08`'s own class-B blocks, and before the
+    key and the type were corrected this night rendered "0 spans, back-check ok" — a fabricated clean
+    verdict on a night with 25 clipped ppg regions."""
+    r = nr.build("2026-09-08", dict(REAL_SUMMARY, class_b=REAL_CLASS_B), None)
+    assert r["spans"] == 25 and r["back_check"] == "fail"
+    assert "25 spans, back-check fail" in r["line"]
+    assert "0 spans" not in r["line"]
+
+
+def test_clip_regions_are_summed_ACROSS_channels_and_blocks():
+    """`clips` is per CHANNEL — a two-column stream reports `ppg2w:ch0` and `ppg2w:ch1` separately —
+    so the night's total is the sum over every channel of every block, not a count of either."""
+    blocks = [{"stream": "ppg", "held": None, "clips": {"ppg": 2}},
+              {"stream": "ppg2w", "held": None, "clips": {"ppg2w:ch0": 3, "ppg2w:ch1": 1}},
+              {"stream": "acc", "held": None, "clips": {}}]
+    assert nr.back_check({"class_b": blocks}) == ("fail", 6, 0)
 
 
 def test_a_ring_absent_from_the_summary_is_unknown_hours_not_zero():
@@ -172,11 +198,14 @@ def test_a_back_check_BLOCK_whose_clip_is_not_a_list_contributes_no_spans():
     """A malformed block must not become a span. Counting it as one turns a summary this code cannot
     read into a `fail` verdict — inventing a clipped span nobody measured, which is the same
     fabrication as reporting a number for an absent input, one level in."""
-    for broken in ({}, {"clip": None}, {"clip": "3"}, {"clip": 7}, None):
+    for broken in ({}, {"clips": None}, {"clips": "3"}, {"clips": 7}, {"clips": []}, None, "nope"):
         got = nr.back_check({"class_b": [broken]})
-        assert got == ("ok", 0), broken
-    mixed = nr.back_check({"class_b": [{"clip": [1, 2]}, {"clip": "nonsense"}]})
-    assert mixed == ("fail", 2), "the readable block still counts, the unreadable one adds nothing"
+        assert got == ("ok", 0, 0), broken
+    mixed = nr.back_check({"class_b": [{"clips": {"ppg": 2}}, {"clips": "nonsense"}]})
+    assert mixed == ("fail", 2, 0), "the readable block still counts, the unreadable one adds nothing"
+    # A non-integer or negative count is not a region count and must not become one.
+    assert nr.back_check({"class_b": [{"clips": {"a": "5", "b": True, "c": -1, "d": 2}}]}) == \
+        ("fail", 2, 0)
 
 
 def test_main_ACCEPTS_a_sniffer_directory_as_its_third_argument_and_uses_it(tmp_path, capsys):
@@ -238,3 +267,27 @@ def test_an_AIR_AUDIT_line_with_an_UNRECOGNISED_word_is_a_QUESTION_MARK_not_a_CR
     # …and a recognised one is still read, so the fallback has not swallowed the real cases.
     assert nr.sniffer_verdict("AIR AUDIT: OK\n")[0] == "pass"
     assert nr.sniffer_verdict("AIR AUDIT: FAILED — x\n")[0] == "fail"
+
+
+def test_a_HELD_stream_FAILS_the_check_even_though_it_reports_ZERO_clips():
+    """🔴 The second half of the same bug, and the worse half. `class_b_runs` reports a held stream
+    INSTEAD of clip regions — `clips` is then `{}` — because a stream frozen at one value for its whole
+    length is ONE fact, not thousands. So a night where the ring's optical stream was pinned throughout
+    has zero clips, and the old code called that `ok`: a total sensor failure reported as a clean night.
+    It is counted separately rather than folded in, because "25 clipped regions" and "the sensor was
+    pinned all night" call for different actions."""
+    held = [{"stream": "ppg", "held": {"ratio": 0.99}, "rows": 1, "clips": {}}]
+    assert nr.back_check({"class_b": held}) == ("fail", 0, 1)
+    line = nr.build("2026-09-08", {"devices": [], "class_b": held}, None)["line"]
+    assert "0 spans (1 held), back-check fail" in line
+    # Both findings at once, and neither hides the other.
+    both = nr.back_check({"class_b": held + [{"stream": "ppg2w", "held": None,
+                                              "clips": {"ppg2w:ch0": 4}}]})
+    assert both == ("fail", 4, 1)
+
+
+def test_a_clean_night_does_not_grow_a_permanent_zero_held_note():
+    """The held count is shown only when there IS one. A standing "(0 held)" would be one more number
+    a reader learns to skip, and this line has to stay readable on a phone at breakfast."""
+    clean = nr.build("2026-09-08", dict(REAL_SUMMARY, class_b=[]), None)["line"]
+    assert "held" not in clean and "0 spans, back-check ok" in clean

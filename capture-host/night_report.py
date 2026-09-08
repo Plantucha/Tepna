@@ -60,29 +60,52 @@ def _hours_from_spo2(devices) -> float | None:
     return None
 
 
-def back_check(summary: dict | None) -> tuple[str, int | None]:
-    """(verdict, span_count) for the end-of-night class-B back-check.
+def back_check(summary: dict | None) -> tuple[str, int | None, int | None]:
+    """(verdict, clip_regions, held_streams) for the end-of-night class-B back-check.
 
     Three outcomes, and the third is the one that must not be flattened into the second:
-      * `ok`      — the back-check ran and no session reported a clipped span.
-      * `fail`    — it ran and at least one session did.
+      * `ok`      — the back-check ran and found neither a clipped region nor a held stream.
+      * `fail`    — it ran and found at least one of either.
       * `unknown` — it did NOT run: the key is absent, which is what a summary written by a daemon
                     predating the back-check looks like (measured on the 2026-09-06 night, whose
                     QC-SUMMARY.json carries no `class_b` key at all).
 
-    An EMPTY list is `ok` with zero spans — the back-check looked and found nothing. An ABSENT key is
-    `unknown` with no count. Those are different facts and the report says so.
+    An EMPTY list is `ok` with zero of each — the back-check looked and found nothing. An ABSENT key
+    is `unknown` with no counts. Those are different facts and the report says so.
+
+    🔴 THE SHAPE IS `nightqc.class_b_runs`'s, AND AN EARLIER VERSION OF THIS FUNCTION INVENTED ONE.
+    It read `b["clip"]` — singular, and expected a LIST of spans. The real block is
+    `{"stream", "held", "rows", "clips", "file", "columns"}` where **`clips` is a DICT** of
+    `{channel: number_of_clip_regions}`. Both the key and the type were wrong, so the sum was
+    unconditionally zero and every night reported **"0 spans, back-check ok"** — a fabricated clean
+    verdict, which is the one statement this module exists to make impossible. Caught 2026-09-08 by
+    reading a real summary off the box: the 2026-09-08 night carries `clips: {"ppg": 25}` and was
+    being reported as clean. The tests could not see it because they invented the same shape the code
+    did — the fixture and the bug were written from the same misreading.
+
+    ⚠️ `held` IS A SECOND, DIFFERENT FINDING AND WAS BEING IGNORED ENTIRELY. `class_b_runs` reports a
+    held stream INSTEAD of clip regions, never both (`clips` is then `{}`), because a stream frozen at
+    one value for its whole length is one fact and not thousands. A night where the ring's optical
+    stream was held throughout therefore had zero clips — and would have read `ok`. It is counted
+    separately here rather than folded in, because "25 clipped regions" and "the sensor was pinned all
+    night" call for different actions.
     """
     if not isinstance(summary, dict) or "class_b" not in summary:
-        return UNKNOWN, None
+        return UNKNOWN, None, None
     blocks = summary.get("class_b")
     if not isinstance(blocks, list):
-        return UNKNOWN, None
-    spans = 0
+        return UNKNOWN, None, None
+    clips = held = 0
     for b in blocks:
-        got = (b or {}).get("clip")
-        spans += len(got) if isinstance(got, list) else 0
-    return ("fail" if spans else "ok"), spans
+        if not isinstance(b, dict):
+            continue
+        got = b.get("clips")
+        if isinstance(got, dict):
+            clips += sum(v for v in got.values() if isinstance(v, int) and not isinstance(v, bool)
+                         and v > 0)
+        if b.get("held") is not None:
+            held += 1
+    return ("fail" if (clips or held) else "ok"), clips, held
 
 
 def sniffer_verdict(verdict_text: str | None) -> tuple[str, str]:
@@ -118,19 +141,25 @@ def sniffer_verdict(verdict_text: str | None) -> tuple[str, str]:
 def build(night: str, summary: dict | None, verdict_text: str | None) -> dict:
     """Everything the report says, as data. `line` is what the operator reads; `detail` is the file."""
     hours = _hours_from_spo2((summary or {}).get("devices") if isinstance(summary, dict) else None)
-    check, spans = back_check(summary)
+    check, spans, held = back_check(summary)
     sniff, coverage = sniffer_verdict(verdict_text)
+    # A HELD stream is named in the line rather than folded into the clip count: "25 clipped regions"
+    # and "a stream was pinned all night" are different findings and call for different actions. It is
+    # shown only when there is one, so a clean night's line does not grow a permanent "(0 held)".
+    held_note = "" if not held else " (%d held)" % held
     return {
         "night": night,
         "ring_hours": hours,
         "spans": spans,
+        "held": held,
         "back_check": check,
         "sniffer": sniff,
         "coverage": coverage,
-        "line": "%s: ring %s h, %s spans, back-check %s, sniffer coverage %s %s" % (
+        "line": "%s: ring %s h, %s spans%s, back-check %s, sniffer coverage %s %s" % (
             night,
             UNKNOWN if hours is None else "%.1f" % hours,
             UNKNOWN if spans is None else spans,
+            held_note,
             check,
             coverage,
             "?" if sniff == UNKNOWN else ("✓" if sniff == "pass" else "✗"),
@@ -141,7 +170,7 @@ def build(night: str, summary: dict | None, verdict_text: str | None) -> dict:
 def render(report: dict) -> str:
     """The file beside the night: the line, then the numbers it compressed, one per row."""
     out = [report["line"], ""]
-    for k in ("night", "ring_hours", "spans", "back_check", "sniffer", "coverage"):
+    for k in ("night", "ring_hours", "spans", "held", "back_check", "sniffer", "coverage"):
         v = report.get(k)
         out.append("%-12s %s" % (k, UNKNOWN if v is None else v))
     out.append("")
