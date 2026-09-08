@@ -365,9 +365,34 @@ function planConcurrency() {
   return { cores, totalGB, freeGB, budgetGB, byCpu, byMem, auto, jobs, forced: asked > 0 };
 }
 // Child heap: enough for one night with room for the filter scratch, but never more than the host has.
+// The child heap cap is a MEASURED constant, not a share of free RAM, because peak RSS tracks the
+// ceiling V8 is given rather than the live data — and the extra memory buys nothing. Swept on
+// 2026-08-06 (103 files, one 260 MB `_ECG.txt`), each run in its own 8 GB cgroup with swap off:
+//
+//     heapMB   outcome  exports   peak GB     wall
+//        384   ABORT      0 / 5      0.57   0:05.9
+//       1024   ABORT      2 / 5      1.56   0:53
+//       1536   ok         5 / 5      1.80   2:38
+//       2048   ok         5 / 5      2.01   2:35
+//       3072   ok         5 / 5      2.21   2:35
+//       4096   ok         5 / 5      2.65   2:35
+//       8192   ok         5 / 5      2.67   2:42
+//
+// Wall time is FLAT across every completing run while peak climbs 1.80 -> 2.67 GB for identical work
+// (exports re-checked over the UNION of filenames against the 8192 reference: same five, none
+// missing, content identical volatile-stripped). So the old 8192 ceiling cost ~0.66 GB per child and
+// bought nothing — which matters on the 15.4 GB capture box, where several children run at once.
+//
+// ⚠️ The OLD 1536 floor sat one notch above the abort edge on the heaviest night measured (1024
+// aborts, 1536 completes with no observed margin), so it is raised rather than kept: an abort wastes
+// the whole fold and leaves partial exports behind. Both bounds are 2048 deliberately — if a night is
+// ever found that needs more, raise the ceiling on THAT evidence; the failure is loud (the parent
+// sees `code !== 0`, counts it failed and leaves the night unstamped for redo), so it will be seen.
+const CHILD_HEAP_MB = 2048;
+
 function childHeapMB(planned) {
   const perJobMB = Math.floor((planned.budgetGB / Math.max(1, planned.jobs)) * 1024 * 0.9);
-  return Math.max(1536, Math.min(8192, perJobMB));
+  return Math.max(CHILD_HEAP_MB, Math.min(CHILD_HEAP_MB, perJobMB));
 }
 
 if (!SRC || !existsSync(SRC)) {
