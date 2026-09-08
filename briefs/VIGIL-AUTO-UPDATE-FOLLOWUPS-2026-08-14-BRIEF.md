@@ -167,7 +167,7 @@ PID 1 *is* reachable from inside (the `reload` verb's `daemon-reload` proves it)
 spends a large fraction of its life running code that is on disk but not loaded**, bounded only by when
 the subject stops wearing a sensor.
 
-- [ ] Decide whether that is acceptable, or whether a deploy should be able to say "restart at the next
+- [x] Decide whether that is acceptable, or whether a deploy should be able to say "restart at the next
       idle moment" rather than waiting for the next 30-minute tick to re-check. The `--force-restart`
       mode added 2026-08-14 covers the impatient case but not the patient one.
       **📊 MEASURED 2026-08-18 — the decision now has its number, and "a large fraction" is 68.6 %.**
@@ -192,8 +192,87 @@ the subject stops wearing a sensor.
       that can say *"restart at the next idle moment"* would collapse the median from ~8 h to minutes, and
       it is the 16-of-17 that it fixes, not the outlier. Left unticked deliberately: this supplies the
       number the box asked for, it does not make the call.
-- [ ] `deferred` is currently INFO-level prose in a journal. If a deploy matters, nothing surfaces "this
+- [x] `deferred` is currently INFO-level prose in a journal. If a deploy matters, nothing surfaces "this
       box has been deferring the same commit for 9 hours".
+
+
+### ✅ §4 BUILT 2026-09-07 (Heron) — both boxes, under the owner's ruling of the same day
+
+**The patient restart — `tepna-update.sh --pending-only`.** `--force-restart` covered the impatient
+operator; nothing covered the box that merged at 23:50 and then waited **up to an hour** to re-ask a
+question whose answer changed the moment the last device stopped. (⚠️ The prose above this section says
+"the next 30-minute tick". That figure is stale: `tepna-update.timer` is `OnUnitActiveSec=1h` with
+`RandomizedDelaySec=5min`, so the real wait is up to ~65 min — which makes the gap *larger* than the
+section argues, not smaller. Read the unit, not the paragraph.) The new mode runs the **same step 5**
+— same interlock, same content gate, same fail-safes — and skips only steps 1-4, so there is no second
+copy of the restart decision to drift out of sync with the first. That is what makes it safe on a
+two-minute timer: **no fetch, no merge, no network.** It reads the marker and the local HEAD, and when
+they agree it does **nothing, silently** — a healthy box's state almost all of the time (720 journal
+lines a day would be the same noise this section is about, one clock faster).
+
+⚠️ That silence needed no new code, and the first version had some: an explicit "marker equals HEAD,
+exit 0" short-circuit. It was redundant — step 5 already answers `restart_owed=0` with `:` and says
+nothing — and being redundant it was **unkillable**: replacing its condition with `false` left all 72
+tests green, because the path it skipped is silent too. Deleted rather than excused. The mode's
+cheapness comes from skipping steps 1-4, where the fetch and the merge are; the short-circuit was
+saving a few lines of arithmetic and adding a branch no test could ever hold to account.
+
+⚠️ **It is an ACCELERATOR, not an authority, and the distinction is load-bearing.** Nothing is fetched,
+so `before` and `after` are the same local HEAD and cannot themselves reveal a debt — the marker is the
+only witness. An **absent** marker therefore means this mode has nothing to act on and it does nothing.
+That reads like a violation of §5b's fail-toward-restart rule and is not: this mode only ever closes a
+debt the ordinary tick already RECORDED, the half-hourly `auto` run is still the backstop, and it writes
+the marker on every restart and every deferral. A lost marker blinds that path identically
+(`running_sha` falls back to `$before` there too), so this adds no blind spot rather than inventing a
+debt out of no information.
+
+**The deferral streak — `DEFER_MARK` + `_defer_note`/`_defer_clear`,** mirroring §5's failure counter
+(same marker shape `<count> <epoch of the first>`, same "malformed reads as no streak, and must never
+be the reason the box stops updating"). Deferring stays INFO-level prose, because deferring is this
+script working; what it could not say before is *"…and it has been saying this since Tuesday"*.
+
+🔴 **The bar is 24 hours, and it is NOT derived from the measured distribution.** At 4 h it would warn
+on **16 of 17** real streaks — a warning that means nothing and teaches its reader to skip it — and the
+median streak is 8.27 h, so any bar near the middle is measuring "a night happened". Deferring across
+ONE night is the interlock doing its job. A debt that outlives a whole DAY is a different statement: the
+box had an idle window and did not take it. So the bar comes from what the box **does** (a night is
+~8-10 h; a day contains an idle window) rather than from a percentile of the very distribution being
+judged, which would define "normal" as whatever is currently happening. Override with
+`TEPNA_DEFER_WARN_HOURS`.
+
+⚠️ **Flagged to the owner, and it belongs with the result rather than after it:** collapsing the median
+from ~8 h to ~2 min changes *when* restarts happen, not *whether* they can hurt. A restart drops every
+live BLE link and re-runs bonding, and "idle" is `recording_state`'s reading of `status.json` — so a
+faster trigger exercises that reading roughly 240× more per unit of debt. The fail-safe direction is
+already right (`unknown` is never idle, and the §5b content gate removed the gratuitous docs-only
+case), but the exposure is new and is stated here rather than discovered later.
+
+**Tests:** 19 added to `tests/test_vigil_update.py` (53 → 72),
+including the silent-and-no-fetch guarantee, the interlock still deferring under the fast timer, the
+content gate holding, and the absent-marker contract. Four mutation plants each named the right test
+red: never escalating past the bar, escalating on every deferral, re-stamping the streak's start every
+tick, and a restart not clearing it.
+
+**ONE RUN AT A TIME, and the lock is taken BEFORE the marker is read.** Two runs can now overlap for the
+first time — the hourly tick and the two-minute one — and the restart decision is read-then-act on
+`$DEPLOYED_MARK`. Without a lock both read the OLD marker, both conclude a restart is owed, and both
+restart: the daemon's BLE links drop TWICE and bonding re-runs twice, for ONE debt. Locking after the
+read would not help, because by then both have already decided. `flock -n`, because whoever holds it is
+doing the same job; a losing `--pending-only` run is silent (the next tick is two minutes away), a
+losing hourly run says so once. It degrades OPEN — no `flock`, or an uncreatable lock file, and the run
+proceeds exactly as before, because a box that cannot lock must still be able to finish a deploy and the
+cost being guarded against is a reconnect, not a night.
+
+⚠️ The probe for that lock file is wrapped in a SUBSHELL, and this brief's own §5 counter explains why
+150 lines earlier: a redirection failure is the SHELL's, on the shell's own stderr, and a `2>/dev/null`
+attached to the command cannot suppress it. Written the obvious way it printed `No such file or
+directory` on every run — into the journal of the unit the lock exists to keep quiet. The test whose
+subject is that this path prints nothing is what caught it.
+
+**NOT enabled.** `tepna-update-pending.service` + `.timer` are installed by `install-services.sh` and
+left OFF, with the installer reporting that rather than printing a tick it has not earned. Turning them
+on for vigil is an owner act, like every other deploy to that box — and specifically because this
+changes *when* the daemon is restarted on a box that is recording.
 
 ## 5 · Transient network failure is handled, and is worth a counter
 
