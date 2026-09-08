@@ -77,6 +77,26 @@ else
   echo "  ✗ sniff units missing under $UPD_SRC"
 fi
 
+say "1d/5  morning report (one file per night, one line to the operator)"
+# ⚠️ USER SCOPE, unlike the units above. It needs no privilege — it reads finished files and posts one
+# webhook — and installing it system-wide would repeat the sniffer unit's confusion, where a user-scope
+# install silently no-ops `After=`/`User=`/`Group=`. Installed for the SERVICE user so its `--user`
+# manager owns it; a system install would also put the webhook token's reader under root for no gain.
+if [ -f "$UPD_SRC/tepna-report.service" ] && [ -f "$UPD_SRC/tepna-report.timer" ]; then
+  _ud="$(getent passwd "${TEPNA_USER:-vigil}" | cut -d: -f6)/.config/systemd/user"
+  install -d -o "${TEPNA_USER:-vigil}" -g "${TEPNA_USER:-vigil}" "$_ud"
+  install -m644 -o "${TEPNA_USER:-vigil}" -g "${TEPNA_USER:-vigil}" \
+    "$UPD_SRC/tepna-report.service" "$_ud/tepna-report.service"
+  install -m644 -o "${TEPNA_USER:-vigil}" -g "${TEPNA_USER:-vigil}" \
+    "$UPD_SRC/tepna-report.timer" "$_ud/tepna-report.timer"
+  # `--user` needs that user's own manager, and enabling it from here needs their bus. Reported rather
+  # than faked: an install step that cannot verify its own result must say so, not print a tick.
+  echo "  ✓ tepna-report units installed to $_ud"
+  echo "    → enable as ${TEPNA_USER:-vigil}: systemctl --user enable --now tepna-report.timer"
+else
+  echo "  ✗ report units missing under $UPD_SRC"
+fi
+
 say "2/5  mDNS so the origin is a NAME, not an IP"
 # PIN ONE ORIGIN. localStorage is per-origin, so http://vigil.local, http://localhost and
 # http://192.168.0.61 are THREE different profiles + longitudinal histories. A DHCP lease change would

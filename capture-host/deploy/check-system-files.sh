@@ -108,6 +108,11 @@ JSON=0
 # tepna-restart.sh, the one thing that lets a deploy finish itself without an interactive password.
 # That is strictly worse than the drift it repairs, and it became reachable the moment these files
 # were made MANAGED. A file that is installed must be installed with the mode it needs to work.
+# ⚠️ tepna-report.service/.timer are DELIBERATELY ABSENT from this manifest. They are USER-scope units
+# (~/.config/systemd/user), so they never appear under /etc/systemd — a MANAGED row for them would
+# report them absent every run, forever, and a check that is always red is a check nobody reads.
+#
+# (The manifest below has NO comment syntax — every line in it is parsed as a row.)
 MANIFEST="
 systemd/99-tepna-btdongle.rules|$ETC_UDEV/99-tepna-btdongle.rules|MANAGED|0644
 systemd/99-tepna-hidraw.rules|$ETC_UDEV/99-tepna-hidraw.rules|MANAGED|0644

@@ -621,7 +621,8 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh", "enable-cpap-wifi.sh",
                         "tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh",
                         "tepna-usbreset.sh", "tepna-btreset.sh", "tepna-wifi.sh", "check.sh",
-                        "tepna-update.sh", "vigil.sh", "tepna-btmon.sh", "tepna-sniff.sh"}, (
+                        "tepna-update.sh", "vigil.sh", "tepna-btmon.sh", "tepna-sniff.sh",
+                        "tepna-report.sh"}, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")
 

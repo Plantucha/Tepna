@@ -104,10 +104,31 @@ async function gateTestSuite() {
   const r = await page.evaluate(() => ({
     hasFail: !!document.querySelector('#summary .pill.fail'),
     bootSkips: window.__rcBootSkips || [],
-    summary: (document.getElementById('summary').innerText || '').replace(/\s+/g, ' ').trim()
+    summary: (document.getElementById('summary').innerText || '').replace(/\s+/g, ' ').trim(),
+    /* NAME THE FAILURES, do not just count them. This gate used to report "✕ 2 failing" and
+       nothing else, so every consumer — CI log reader or a session debugging their own PR — had
+       to reproduce a ~15 minute browser run just to learn WHICH assertions broke. The names are
+       already in the page: the suite renders each failing assertion as `div.test.no` with `.name`
+       and `.detail` children (Dex-Test-Suite.html, the `_cls=t.skip?'sk':(t.pass?'ok':'no')`
+       line). Reading them costs one extra selector inside an evaluate we are already making.
+       ⚠️ Selected by CLASS, not by the ✕ glyph. A glyph filter also matches the "✕ Clear" buttons
+       inside the app UIs the render-coverage rigs boot in iframes — measured while debugging
+       #2352, where it returned button labels instead of assertions. Match structure, not
+       presentation. Capped at 25 so a mass failure cannot flood a CI log. */
+    failures: Array.from(document.querySelectorAll('div.test.no'))
+      .slice(0, 25)
+      .map((d) => {
+        const n = ((d.querySelector('.name') || {}).textContent || '').trim();
+        const det = ((d.querySelector('.detail') || {}).textContent || '').trim();
+        return det ? n + '  —  ' + det : n;
+      })
+      .filter((t) => t.length > 0),
+    failTotal: document.querySelectorAll('div.test.no').length
   }));
   console.log('   summary:', r.summary + (r.bootSkips.length ? '   [boot-skips: ' + r.bootSkips.join(', ') + ']' : ''));
-  if (r.hasFail) FAILS.push('Dex-Test-Suite RED — ' + r.summary);
+  r.failures.forEach((f) => console.log('   ✕', f));
+  if (r.failTotal > r.failures.length) console.log('   … and ' + (r.failTotal - r.failures.length) + ' more (listing capped at 25)');
+  if (r.hasFail) FAILS.push('Dex-Test-Suite RED — ' + r.summary + (r.failures.length ? '\n     ' + r.failures.join('\n     ') : ''));
   await page.close();
 }
 
