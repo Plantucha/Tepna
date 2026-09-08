@@ -62,6 +62,22 @@ else
   echo "  ✗ patient-restart units missing under $UPD_SRC"
 fi
 
+# THE RADIO CLOCK (RADIO-CLOCK-SIDECAR-2026-09-07), INSTALLED BUT NOT ENABLED. It records the Nordic
+# controller's connection-event anchors beside the night as an optional second clock, on its own unit
+# with CAP_NET_RAW only — tepna-capture is not touched and keeps running without those capabilities,
+# which is the owner's first invariant. Left OFF for two independent reasons: `radio_clock.enabled` is
+# false by default in the config, and the unit is not enabled here. On a non-Nordic box it would exit 0
+# and write nothing anyway, but installing-and-enabling would still be asserting a capability nobody
+# measured on THIS box.
+if [ -f "$UPD_SRC/tepna-radioclock.service" ]; then
+  install -m644 "$UPD_SRC/tepna-radioclock.service" /etc/systemd/system/tepna-radioclock.service
+  systemctl daemon-reload
+  echo "  ✓ tepna-radioclock.service installed (NOT enabled — needs radio_clock.enabled and a Nordic radio)"
+  echo "    → enable when wanted: systemctl enable --now tepna-radioclock.service"
+else
+  echo "  ✗ radio-clock unit missing under $UPD_SRC"
+fi
+
 say "1c/5  nightly BLE air audit (VIGIL-BLUETOOTH-ADVERSARIAL-AUDIT D3)"
 # Same shape as the updater: an unprivileged oneshot on a timer, installed from the repo. It needs the
 # nRF Sniffer on the bus and the extcap under the vigil user's ~/.config/wireshark/extcap — neither
