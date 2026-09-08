@@ -1,4 +1,4 @@
-**Status:** PROPOSED · **Created:** 2026-09-07
+**Status:** PROPOSED · **Created:** 2026-09-07 · **Residue:** 2026-09-07-hostaxis-stability-ntau-not-forwarded
 
 # Allan stability — the gaps that remain after eight PRs (and the ones that were never gaps)
 
@@ -41,7 +41,27 @@ reopen either.
 
 ## §2 Units — what is missing and worth building
 
-### 2.1 🔴 DEFECT — PpgDex exports `hostAxis.stability.tau0` and `.noiseType` as permanent `null`
+### 2.1 ✅ FIXED 2026-09-07 — PpgDex exported `hostAxis.stability.tau0` and `.noiseType` as permanent `null`
+
+**EXECUTED (Brief runner).** Source keys corrected to `tau0Sec` / `noise`; the exported NAMES `tau0` and
+`noiseType` are kept, so consumers already reading them are unaffected. Verified both ways against the real
+export path (`buildNodeExport`, which carries the block only under `opts.rich`): before, `tau0:null` and
+`noiseType:null`; after, `tau0` 0.1 s and `noiseType` `white/flicker-phase` on a planted independent pair.
+Four fields added alongside — `slopeSE`, `candidates`, `optimalTauSec`, `atLongestPpm` — **each checked to
+be published on the spine object first**. ⚠️ **`nTau` is deliberately NOT exported:** the classifier computes
+it (`cls.nTau`) but `hostAxis.stability` does not forward it, so exporting it would have re-created this very
+defect one field over; forwarding it is a spine change and belongs to its own unit.
+Gated by a new Node-lane group that drives the EXPORT (not the spine, where the names were always right —
+which is why this survived): 9 assertions, **5 red without the fix**, including the honest-absence invariant
+that `noiseType:null` must never coincide with `candidates:null`. 11 bundles clean, verify:docs +
+verify:analysis OK, verify-fixtures green with one PpgDex fixture re-stamped.
+
+⚠️ **TWO MECHANICS THAT COST AN HOUR EACH — read them before touching this export again.** (1) The
+hostAxis block is inside `if (opts.rich)`, so `buildNodeExport(r, {})` omits it entirely: a probe that
+passes `{}` gets `undefined` and that reads exactly like *the fix did not work*. Pass `{rich: true}`.
+(2) `node tools/build.mjs --app PpgDex` is NOT enough — `Data Unifier.html` and `OverDex.html` inline
+`ppgdex-dsp.js`, so both drift until `--all` runs. `npm run build:check` catches it; reasoning about
+which bundles "use" the file does not. Bare `build.mjs` with no args is a usage error, not a full build.
 
 `ppgdex-dsp.js:5217-5218` reads `r.hostAxis.stability.tau0` and `.noiseType`; the spine publishes
 `tau0Sec` (`clock.js:645`) and `noise` (`:650`). Both keys are therefore `null` in every PpgDex export

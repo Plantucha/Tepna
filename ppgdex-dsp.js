@@ -5212,11 +5212,24 @@
           drawn: r.hostAxis.drawn == null ? null : r.hostAxis.drawn,
           quantizedShare: nz(r.hostAxis.quantizedShare),
           timingSource: r.timingSource || null,
+          /* ⚠️ THE SOURCE KEYS ARE `tau0Sec` AND `noise`, NOT `tau0`/`noiseType`
+             (ALLAN-STABILITY-GAPS §2.1). This block read the EXPORTED names back off the spine object,
+             which never carried them, so `tau0` and `noiseType` were exported as PERMANENT null on
+             every recording — a fabricated absence rather than a measurement, and one that reads
+             exactly like "this pair has no second clock". The exported NAMES are kept for the
+             consumers that already read them; only the source keys are corrected.
+             `nTau` is deliberately NOT exported: the spine's classifier computes it (`cls.nTau`) but
+             `hostAxis.stability` does not forward it, so reading it here would re-create this very
+             defect one field over. Forwarding it is a spine change and belongs to its own unit. */
           stability: r.hostAxis.stability
             ? {
-                tau0: nz(r.hostAxis.stability.tau0),
-                noiseType: r.hostAxis.stability.noiseType || null,
+                tau0: nz(r.hostAxis.stability.tau0Sec),
+                noiseType: r.hostAxis.stability.noise || null,
                 slope: nz(r.hostAxis.stability.slope),
+                slopeSE: nz(r.hostAxis.stability.slopeSE),
+                candidates: r.hostAxis.stability.candidates || null,
+                optimalTauSec: nz(r.hostAxis.stability.optimalTauSec),
+                atLongestPpm: nz(r.hostAxis.stability.atLongestPpm),
                 ppmUncertainty: nz(r.hostAxis.stability.ppmUncertainty)
               }
             : null
