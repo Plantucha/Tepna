@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (owner-requested 2026-09-07 — "wire up holyiot with time improvement, but keep in mind that not everybody will have same ability so original functionality must be kept"; firmware image with the anchor reports is BUILT on the rig, not yet flashed — the dongle is on vigil and DFU needs the magnet) · **Created:** 2026-09-07
+**Status:** PROPOSED (owner-requested 2026-09-07 — "wire up holyiot with time improvement, but keep in mind that not everybody will have same ability so original functionality must be kept"; firmware image with the anchor reports is BUILT and **FLASHED 2026-09-07 21:30** — `iProduct` reads `Zephyr USBD BT HCI anchor` on vigil, address `99:67:24:2E:CD:98` unchanged; **§5(a) MEASURED 2026-09-07 21:34: `0xfd1f enable=1` → Command Complete status 0x00 in 0.8 ms**, sent from uid 1000 on a RAW HCI socket with `CAP_NET_RAW` alone while bluetoothd kept the adapter, monitor file `/srv/tepna/captures/probe-fd1f-20260907T213441.btsnoop`; §5(b)/(c) still owed — they need a strap connected on the Holyiot) · **Created:** 2026-09-07
 
 # Radio-clock sidecar — controller-side connection-event timestamps as an OPTIONAL second clock
 
@@ -91,9 +91,18 @@ is, and the brief stops there (§4 bands).
 **Lane:** capture-host (`./check.sh` gate; additive behavioural feature ⇒ changeset `minor`).
 
 - **Source:** the HCI **monitor channel** (`AF_BLUETOOTH` / `HCI_CHANNEL_MONITOR`, what `btmon` reads) on
-  the configured adapter, filtered to that index. Needs `CAP_NET_RAW`; the one VS enable command needs a raw
-  HCI socket and `CAP_NET_ADMIN`. **Separate unit** — `tepna-radioclock.service`, `User=vigil`,
-  `AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN`, `ExecStart=… radioclock.py --config …`. Do NOT widen
+  the configured adapter, filtered to that index. Needs `CAP_NET_RAW` — and **that is the whole grant**: the VS
+  enable goes out on a RAW HCI socket under `CAP_NET_RAW` alone (measured 2026-09-07 on vigil, uid 1000, both
+  before and after the reflash; the kernel gates a vendor-OGF opcode on CAP_NET_RAW, not CAP_NET_ADMIN, and
+  without it the send fails `EPERM`). `CAP_NET_ADMIN` adds nothing but a "privileged" tag on the monitor
+  stream — do not grant it. Two more measured facts for the writer: `setsockopt(SOL_HCI, HCI_FILTER)` wants the
+  full 16-byte `hci_ufilter` (`<IIIH2x`; 14 bytes → `EINVAL` on kernel 7.0), and **a hung controller answers
+  nothing at all** — the 2026-09-07 21:20 run got the command onto the wire and no event back, because the
+  Holyiot had been wedged since 20:31 (`command 0x0406 tx timeout` ×99). So the enable has FOUR outcomes,
+  not three: `status 0` · `Unknown Command` · `send refused: <errno>` · **`no reply` — which is UNKNOWN, never
+  "not this image"**; the collector logs it as such and retries on the next adapter reset (§∅: absence is
+  null). **Separate unit** — `tepna-radioclock.service`, `User=vigil`,
+  `AmbientCapabilities=CAP_NET_RAW`, `ExecStart=… radioclock.py --config …`. Do NOT widen
   `tepna-capture.service`'s capabilities for this; the whole point is that capture runs without them.
 - **Feature detection, in order, before any file is opened:** (1) adapter resolved by **address** from
   `radio_clock.adapter` (never `hciN`, §BLE identity rule); (2) `HCI_Read_Local_Version` manufacturer ==
@@ -186,7 +195,7 @@ corpus; changeset `minor` — additive `timingSource` value).
 After the reflash (confirmed by the product string in §2, not by the USB ID): with one Polar strap
 connected on **the Holyiot** (bleak `bluez={'adapter': <index resolved from its address>}`, not on the
 Sena), run `btmon -i <that index>` (needs the caps — `sudo`, owner present) and confirm (a) `0xfd1f`
-returns status 0x00, (b) `0xff/0x82` events arrive once per connection interval with a monotonic
+returns status 0x00 — **DONE 2026-09-07 21:34, status 0x00, see header**; (b) `0xff/0x82` events arrive once per connection interval with a monotonic
 `anchor_point_us`, (c) the ACL packets of the strap appear on the same stream with kernel timestamps.
 Record the first 20 anchors' deltas and the interval the strap negotiated. If (a) fails, the image is
 wrong (check `.config`), not the design; if (b) shows anchors but no monotonicity, stop and report.
@@ -213,6 +222,7 @@ being pinned as capture adapter.
 - [ ] Collector on a non-Nordic controller exits 0, logs one line, creates no file — test-backed (§0.3).
 - [ ] `verify-fixtures` reports **0 outputs moved** on the corpus after the consumer lands; the committed twin reds if either band is mis-assigned (§0.4, §4).
 - [ ] `dex-ingest.js` excludes `_RADIOCLOCK` (test in the existing sidecar-exclusion group).
+- [x] §5(a) `0xfd1f` → status 0x00 on the flashed image (2026-09-07 21:34; `probe-fd1f-20260907T213441.btsnoop`).
 - [ ] §5 spread measured and written into this header with `n` and the strap's connection interval.
 - [ ] `timingSource:'radio'` appears on ≥1 real night with spread < 2 ms — or the header records the measured spread and which band it fell in, and the brief is DONE either way (a measured "no" is a result).
 - [ ] Residue rows in `briefs/RESIDUE.md` for anything surfaced (O2Ring frames, the Sena-vs-Holyiot production decision).
