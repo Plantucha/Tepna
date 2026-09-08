@@ -291,3 +291,15 @@ def test_a_clean_night_does_not_grow_a_permanent_zero_held_note():
     a reader learns to skip, and this line has to stay readable on a phone at breakfast."""
     clean = nr.build("2026-09-08", dict(REAL_SUMMARY, class_b=[]), None)["line"]
     assert "held" not in clean and "0 spans, back-check ok" in clean
+
+
+def test_held_streams_are_COUNTED_not_latched_at_one():
+    """`held += 1` mutated to `held = 1` is invisible until a night holds TWO streams — and a night
+    where both the ring's optical channels are pinned is exactly the night the count matters, because
+    "1 held" and "2 held" are different statements about how much of the recording is untrustworthy."""
+    two = [{"stream": "ppg", "held": {"ratio": 0.99}, "clips": {}},
+           {"stream": "ppg2w", "held": {"ratio": 0.97}, "clips": {}}]
+    assert nr.back_check({"class_b": two}) == ("fail", 0, 2)
+    assert "(2 held)" in nr.build("2026-09-08", {"devices": [], "class_b": two}, None)["line"]
+    three = two + [{"stream": "acc", "held": {"ratio": 1.0}, "clips": {"acc": 4}}]
+    assert nr.back_check({"class_b": three}) == ("fail", 4, 3)

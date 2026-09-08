@@ -939,3 +939,183 @@ def test_the_HCI_FILTER_struct_is_SIXTEEN_bytes_because_the_kernel_says_so():
     type_mask, ev_lo, ev_hi, opcode = _s.unpack("<IIIH2x", rc._HCI_FILTER_EVENTS)
     assert type_mask == 1 << rc.HCI_EVENT_PKT, "events only — we send commands, we read events"
     assert (ev_lo, ev_hi, opcode) == (0xFFFFFFFF, 0xFFFFFFFF, 0)
+
+
+# ── the gaps the mutation audit found ────────────────────────────────────────────────────────────
+
+def test_a_DISCONNECT_for_a_handle_we_never_saw_CONNECT_is_survivable():
+    """🔴 Not hypothetical — it is the normal case on startup. The collector attaches to a monitor
+    stream that is already running, so the first thing it may ever see for a live link is that link
+    ENDING. Every drop here is a `.pop(key, None)`; without the default each of the three would raise
+    KeyError and take the collector down on a packet that means "nothing to do"."""
+    c = _collector()
+    for _ in range(2):                       # twice: the second proves the first left no residue
+        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _disconnect(0x0055)), host_ns=1)
+    assert len(c.handles) == 0 and c.rows == 0
+    m = rc.HandleMap()
+    m.apply(rc.parse_hci_event(_disconnect(0x0077)))
+    assert m.address(0x77) is None
+    # …and a disconnect for an unknown handle must not disturb a DIFFERENT live one.
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=2)
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _disconnect(0x0099)), host_ns=3)
+    assert c.handles.address(0x40) == H10
+
+
+def test_the_row_and_writer_counters_COUNT_rather_than_latch():
+    """`+= 1` mutated to `= 1` is invisible until something produces a second row — and every count in
+    this module is reported as telemetry, so a latched 1 would understate a whole night."""
+    c = _collector()
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
+    for i in range(3):
+        c.feed(*_mon(rc.MONITOR_OPCODE_ACL_RX, _pmd_acl(0x0040, 0x00, 100 + i)), host_ns=10 + i)
+    assert c.rows == 3
+
+
+def test_the_writer_counts_every_row_it_writes(tmp_path):
+    w = rc.SidecarWriter(str(tmp_path / "s.csv"))
+    for i in range(4):
+        w.write(rc.format_row("t", H10, 0, i, 64, 1, 2, 3, 4))
+    assert w.rows == 4
+    w.close()
+
+
+def test_every_column_lands_in_its_OWN_position_when_all_are_present():
+    """The earlier row test carried several `None`s, so a cell replaced by `None` was indistinguishable
+    from the real thing. With every field populated and distinct, a swapped or dropped column shows."""
+    row = rc.format_row("2026-09-08T03:00:00.000", H10, 7, 819_000_000_000_000, 0x40, 4242,
+                        1_050_000, 111, 222).rstrip("\n").split(";")
+    assert row == ["2026-09-08T03:00:00.000", H10, "7", "819000000000000", "64", "4242",
+                   "1050000", "111", "222"]
+    header = rc.SIDECAR_HEADER.rstrip("\n").split(";")
+    assert len(row) == len(header)
+    assert header[5] == "event_counter" and row[5] == "4242"
+    assert header[6] == "anchor_us" and row[6] == "1050000"
+
+
+def test_the_monitor_socket_is_opened_with_the_BLUETOOTH_family_and_HCI_protocol():
+    """A socket opened with the wrong family or protocol still constructs under a stub and then reads
+    nothing on the box. The arguments are the contract, so they are asserted rather than assumed."""
+    seen = {}
+
+    class _Recording(_FakeSocketModule):
+        def socket(self, family, kind, proto):
+            seen.update(family=family, kind=kind, proto=proto)
+            return super().socket(family, kind, proto)
+
+    mod = _Recording()
+    rc.open_monitor_socket(socket_module=mod)
+    assert seen == {"family": mod.AF_BLUETOOTH, "kind": mod.SOCK_RAW, "proto": mod.BTPROTO_HCI}
+
+
+def test_the_offset_window_drops_the_OLDEST_sample_not_the_second_oldest():
+    """Trimming the wrong end keeps the oldest sample forever, so the window stops being a window and
+    the median never forgets the start of the night."""
+    t = rc.OffsetTracker(window=3)
+    for d in (10.0, 20.0, 30.0, 40.0, 50.0):
+        t.add(1000 + d, 1000)
+    assert t.n == 3
+    assert t.offset == 40.0, "the surviving window is the LAST three (30, 40, 50)"
+
+
+def test_the_anchor_series_drops_the_OLDEST_anchor_not_the_second():
+    c = _collector()
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
+    for counter in range(rc.ANCHOR_WINDOW + 3):
+        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, 1000 + counter)),
+               host_ns=(1000 + counter) * 1000)
+    kept = c._anchors[0x40]
+    assert len(kept) == rc.ANCHOR_WINDOW
+    assert kept[0][0] == 3, "the first three anchors were dropped, oldest first"
+    assert kept[-1][0] == rc.ANCHOR_WINDOW + 2
+
+
+def test_the_median_of_an_EVEN_sample_averages_the_two_MIDDLE_values():
+    """An even-length window takes the mean of the pair either side of centre. Reaching for the wrong
+    pair is invisible on a symmetric sample, so the values here are deliberately asymmetric."""
+    assert rc._median([1.0, 2.0, 10.0, 100.0]) == 6.0
+    assert rc._median([1.0, 2.0, 3.0]) == 2.0
+    assert rc._median([5.0]) == 5.0
+    assert rc._median([1.0, 2.0]) == 1.5
+
+
+def test_the_nearest_anchor_is_chosen_by_TIME_even_after_the_counter_WRAPS():
+    """🔴 The reason `max(...)` carries an explicit `key`. Without it, tuples compare `event_counter`
+    FIRST — which tracks time only while the counter is monotonic. It is a u16 that wraps at 0xFFFF,
+    and at a 50 ms connection interval that is roughly once an hour, several times a night. Across a
+    wrap the highest counter is the OLDEST anchor, so a keyless `max` would attribute every packet
+    after a wrap to an event from before it, silently and with a plausible-looking result."""
+    wrapped = [(0xFFFE, 1_000_000), (0xFFFF, 1_050_000), (0x0000, 1_100_000), (0x0001, 1_150_000)]
+    assert rc.associate(1_160_000 + 200.0, wrapped, 200.0, 5.0) == (0x0001, 1_150_000)
+    assert rc.associate(1_110_000 + 200.0, wrapped, 200.0, 5.0) == (0x0000, 1_100_000)
+    # Keyed on the counter instead, both of these would answer (0xFFFF, 1_050_000).
+
+
+def test_a_configured_device_with_NO_address_is_dropped_not_carried_as_None(tmp_path):
+    """BLE identity is the address. A device entry without one cannot be matched against anything, and
+    carrying it through as `None` would put a null in the set every ACL packet is checked against."""
+    sysfs = _sysfs(tmp_path, {"hci1": "28:0C:50:0C:18:FD"})
+    cfg = dict(CFG, devices=[{"name": "no address here"}, {"address": H10}, {"address": ""}])
+    index, devices, why = rc.decide(cfg, sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None))
+    assert devices == [H10] and why is None
+    only_nameless = dict(CFG, devices=[{"name": "x"}])
+    assert rc.decide(only_nameless, sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None))[2] \
+        is not None, "a config with no usable address records nothing and says so"
+
+
+def test_the_offset_window_keeps_the_LAST_n_samples_and_the_choice_is_observable():
+    """Chosen so trimming the wrong end changes the answer: with these values `del [0]` and `del [1]`
+    leave different windows AND different medians, which a symmetric fixture cannot show."""
+    t = rc.OffsetTracker(window=3)
+    for d in (100.0, 50.0, 1.0, 2.0, 3.0):
+        t.add(1000 + d, 1000)
+    assert t.n == 3
+    assert t.offset == 2.0, "the window is (1, 2, 3); dropping the second-oldest would leave (100,2,3)"
+
+
+def test_the_probe_is_asked_about_the_RESOLVED_index_and_its_error_reaches_the_verdict(tmp_path):
+    """Two arguments that are easy to drop and invisible when dropped: the adapter index the probe is
+    asked about, and the error it hands back."""
+    sysfs = _sysfs(tmp_path, {"hci0": "AA:BB:CC:DD:EE:FF", "hci1": "28:0C:50:0C:18:FD"})
+    asked = []
+
+    def _probe(index):
+        asked.append(index)
+        return rc.NORDIC_COMPANY_ID, None, "the socket said no"
+
+    _, _, why = rc.decide(CFG, sysfs, probe=_probe)
+    assert asked == [1], "the probe is asked about the adapter we resolved, not index 0"
+    assert "the socket said no" in why, "the probe's own error reaches the operator's line"
+
+
+def test_the_config_path_DEFAULTS_when_no_argument_is_given(tmp_path, caplog):
+    """The unit passes --config explicitly, so a broken default is invisible there and only bites the
+    operator running it by hand in the capture-host directory."""
+    sysfs = _sysfs(tmp_path, {"hci1": "28:0C:50:0C:18:FD"})
+    with caplog.at_level("INFO"):
+        assert rc.main([], sysfs) == 0
+    assert "config.yaml" in caplog.text, "the default names the file it looked for"
+
+
+def test_a_RECONNECT_on_the_same_handle_starts_the_anchor_counter_afresh():
+    """The per-connection counter is dropped with its handle on disconnect. Keeping it would compare
+    the new connection's first counter against the old connection's last and charge the difference to
+    `missed_anchors` — inventing thousands of missed anchors out of a reconnect."""
+    c = _collector()
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, 60000, 1_000_000)), host_ns=2)
+    assert c.missed_anchors == 0
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _disconnect(0x0040)), host_ns=3)
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=4)
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, 5, 2_000_000)), host_ns=5)
+    assert c.missed_anchors == 0, "a reconnect is not 60000 missed anchors"
+
+
+def test_the_host_stamp_is_converted_to_MICROSECONDS_exactly():
+    """The anchor clock is microseconds and the monitor stamp is nanoseconds. A wrong divisor is a
+    constant offset that no band would flag — it just quietly moves every association."""
+    c = _collector()
+    c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _le_conn_complete(0x0040, H10)), host_ns=1)
+    for counter, us in ((10, 1_000_000), (11, 1_050_000), (12, 1_100_000)):
+        c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)),
+               host_ns=(us + 300) * 1000)
+    assert c.offsets.offset == 300.0, "ns/1000 == us; any other divisor shifts this off 300"
