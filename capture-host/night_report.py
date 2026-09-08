@@ -32,10 +32,17 @@ import sys as _sys
 #: consumers — read the structured dict if you need to branch; this is what a HUMAN reads.
 UNKNOWN = "unknown"
 
-#: The ring's SpO2 stream is exactly one row per second, so its row count IS its measured seconds.
-#: That is why hours come from this stream and not from the night's wall-clock span: the span includes
-#: time the ring was on the charger, and reporting that as "ring hours" would overstate every night.
-_SPO2_HZ = 1.0
+#: The ring's SpO2 stream is exactly one row per second, so its row count IS its measured seconds and
+#: 3600 rows are one hour. That is why hours come from this stream and not from the night's wall-clock
+#: span: the span includes time the ring was on the charger, and reporting that as "ring hours" would
+#: overstate every night.
+#:
+#: Expressed as rows-per-hour rather than as a rate the arithmetic then divides by. An earlier version
+#: carried `_SPO2_HZ = 1.0` and wrote `rows / _SPO2_HZ / 3600.0`, where dividing by one is a no-op the
+#: reader has to check — and mutation testing found it the way it finds every no-op: as a mutant
+#: (`/ _SPO2_HZ` → `* _SPO2_HZ`) that no input can distinguish, and which would therefore have had to
+#: be excused forever in `mutate-equivalence.json`. Removing the redundancy is better than excusing it.
+_SPO2_ROWS_PER_HOUR = 3600.0
 
 
 def _hours_from_spo2(devices) -> float | None:
@@ -45,10 +52,10 @@ def _hours_from_spo2(devices) -> float | None:
     ring was present and measured nothing.
     """
     for dev in devices or []:
-        if "O2Ring" in str((dev or {}).get("name", "")):
+        if "O2Ring" in str((dev or {}).get("name")):
             rows = ((dev or {}).get("streams") or {}).get("spo2")
             if isinstance(rows, (int, float)) and rows >= 0:
-                return float(rows) / _SPO2_HZ / 3600.0
+                return float(rows) / _SPO2_ROWS_PER_HOUR
             return None
     return None
 
@@ -87,19 +94,25 @@ def sniffer_verdict(verdict_text: str | None) -> tuple[str, str]:
     """
     if not verdict_text:
         return UNKNOWN, UNKNOWN
-    ok = fail = False
+    verdict = UNKNOWN
     coverage = UNKNOWN
     for line in verdict_text.splitlines():
         st = line.strip()
         if st.startswith("AIR AUDIT:"):
-            ok = "OK" in st.split("AIR AUDIT:", 1)[1][:6]
-            fail = "FAILED" in st
+            # `partition` is deliberate: it means "at the FIRST occurrence" without a maxsplit number
+            # that can be wrong, and the six-character window is what stops a longer phrase leaking a
+            # false pass — "AIR AUDIT: NOT OK" must not read as OK, and a wider window finds it.
+            verdict = UNKNOWN
+            tail = st.partition("AIR AUDIT:")[2]
+            if "OK" in tail[:6]:
+                verdict = "pass"
+            elif "FAILED" in st:
+                verdict = "fail"
         elif st.startswith("coverage"):
-            after = st.split(":", 1)[1].strip() if ":" in st else ""
+            # An absent separator yields an empty tail, so a malformed line needs no guard of its own.
+            after = st.partition(":")[2].strip()
             coverage = after.split()[0] if after else UNKNOWN
-    if not (ok or fail):
-        return UNKNOWN, coverage
-    return ("pass" if ok else "fail"), coverage
+    return verdict, coverage
 
 
 def build(night: str, summary: dict | None, verdict_text: str | None) -> dict:
@@ -139,7 +152,6 @@ def render(report: dict) -> str:
 
 def read_night(captures_root: str, night: str, sniffer_dir: str | None = None) -> dict:
     """Gather one night's inputs off disk. Anything unreadable is simply absent → `unknown`."""
-    summary = None
     try:
         with open(os.path.join(captures_root, night, "QC-SUMMARY.json"), encoding="utf-8") as fh:
             summary = json.load(fh)
