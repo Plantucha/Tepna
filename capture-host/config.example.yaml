@@ -396,3 +396,27 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
 as11_detector:
   enabled: false
   poll_interval_sec: 30
+
+# RADIO CLOCK — the Nordic controller's own connection-event anchor points, recorded as an OPTIONAL
+# second clock (RADIO-CLOCK-SIDECAR-2026-09-07). It writes `*_RADIOCLOCK.csv` beside the night and
+# CHANGES NOTHING ELSE: no consumer uses the anchors until the pre-stated bands in §4 admit them.
+#
+# WHAT IT IS FOR. Today the second clock on a box capture is the HOST ARRIVAL STAMP of each PMD packet,
+# which reaches Python through USB → kernel → BlueZ → D-Bus → bleak; `hostAxis` measures its spread at
+# 102–5124 ms on box nights. A Nordic controller can report the anchor point of every connection event
+# on its own clock, below all of that.
+#
+# 🔴 DEFAULT OFF, AND FEATURE-DETECTED EVEN WHEN ON. Turning this on does not assert that your box can
+# do it: the collector proves the controller is Nordic AND that the vendor enable command succeeds
+# before it opens a file, and on any miss it logs one line, exits 0 and writes NOTHING. A non-Nordic
+# controller is the common case, not an error — and absence is the absence of a FILE, never an empty one.
+#
+# ⚠️ `adapter` is an ADDRESS and defaults to the capture adapter above. Set it when the radio clock
+# lives on a DIFFERENT dongle from the one the daemon bonds through — a timing part rather than the
+# permanent fixture. Never `hciN`: that is an enumeration order which changes when a dongle is
+# re-plugged, and BLE identity here is address-only.
+#
+# It runs as its own unit (`tepna-radioclock.service`, CAP_NET_RAW only) and never touches capture.
+radio_clock:
+  enabled: false
+  # adapter: "XX:XX:XX:XX:XX:XX"
