@@ -42,6 +42,7 @@ COVERED = {
     "tepna-btmon.sh": "test_tepna_btmon_sh.py",
     "tepna-update.sh": "test_vigil_update.py",
     "tepna-sniff.sh": "test_tepna_sniff_sh.py",
+    "tepna-report.sh": "test_tepna_report_sh.py",
     "vigil.sh": "test_vigil_sh.py",
     "deploy/sync-apps.sh": "test_deploy_sync_apps.py",
     "deploy/check-system-files.sh": "test_deploy_sync_apps.py",
