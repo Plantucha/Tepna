@@ -68,7 +68,11 @@ def test_a_reused_scratch_refreshes_EVERY_sibling_not_only_tests(tmp_path):
     src = tmp_path / "tree"; src.mkdir(); _fake_tree(src)
     work = tmp_path / "scratch" / "work"; (work / "mutants").mkdir(parents=True); _stale_scratch(work)
 
-    _refresh(src, work, _extras(src))
+    n = _refresh(src, work, _extras(src))
+    # The RETURN VALUE is published as `plan["refreshed_siblings"]`, so a wrong count is a wrong
+    # report about what the run actually refreshed. Asserted here because the diff-scoped mutation
+    # gate found it unkilled: every copy happened and nothing checked the tally.
+    assert n == 2 * len(_extras(src)), "refreshed count must cover both work/ and work/mutants/"
 
     for sub in ("", "mutants"):
         d = work / sub if sub else work
@@ -118,3 +122,19 @@ def test_the_tool_delegates_to_the_in_floor_function_and_it_refreshes_everything
     body = inspect.getsource(mutation_diff.refresh_scratch)
     assert "for name in extras" in body
     assert '"mutants"' in body, "the mutants/ tree must be refreshed too, not only work/"
+
+
+def test_the_refreshed_count_is_reported_per_tree(tmp_path):
+    """`refresh_scratch` returns what it copied and the caller publishes it as
+    `plan["refreshed_siblings"]`. Each sibling is copied into BOTH `work/` and `work/mutants/`, so the
+    count is twice the sibling list — a tally that counted one tree would under-report a refresh that
+    did happen, which is the kind of number a later reader would trust."""
+    src = tmp_path / "tree"; src.mkdir(); _fake_tree(src)
+    work = tmp_path / "scratch" / "work"; (work / "mutants").mkdir(parents=True); _stale_scratch(work)
+
+    extras = _extras(src)
+    assert len(extras) == 4                      # sibling.py, tepna-report.sh, tests/, data/
+    assert _refresh(src, work, extras) == 8      # each one, into each of the two trees
+
+    # and an empty list is an honest zero, not a crash or a silent full copy
+    assert _refresh(src, work, []) == 0
