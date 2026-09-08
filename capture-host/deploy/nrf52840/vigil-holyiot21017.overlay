@@ -1,0 +1,28 @@
+/* Holyiot-21017 nRF52840 USB dongle (external SMA antenna + RFX2401C PA/LNA).
+ * Built on the raytac_mdbt50q_cx_40_dongle board (same Open-DFU partition layout,
+ * same LED pins P0.06/P0.08/P1.09/P0.12, 32 kHz crystal present).
+ * From the vendor schematic 21017-52840+PA(RESET), 2021-05-11:
+ *   RFX2401C TXEN <- P0.24 (pin AD20), RXEN <- P0.22 (pin AD18).
+ * The Raytac board routes uart0 RX/CTS onto P0.24/P0.22 with pull-ups, which
+ * parks the FEM in TX with the LNA off -> the radio hears nothing.
+ */
+
+&uart0 {
+	status = "disabled";
+};
+
+/ {
+	nrf_radio_fem: fem {
+		compatible = "radio-fem-two-ctrl-pins";
+		ctx-gpios = <&gpio0 24 GPIO_ACTIVE_HIGH>;
+		crx-gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>;
+		ctx-settle-time-us = <5>;
+		crx-settle-time-us = <5>;
+		tx-gain-db = <22>;
+		rx-gain-db = <12>;
+	};
+};
+
+&radio {
+	fem = <&nrf_radio_fem>;
+};
