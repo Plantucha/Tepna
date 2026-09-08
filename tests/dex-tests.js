@@ -33074,19 +33074,39 @@
       ].filter(function (p) {
         return typeof p[1] === 'string' && p[1].length > 0;
       });
-      T.ok('at least one emitter source reached this lane — an empty scan must not read as agreement', srcs.length > 0, srcs.length + ' source(s)');
-      var found = {};
-      srcs.forEach(function (pair) {
-        var re = /timingSource[^;\n]{0,40}?'([a-z][a-z+-]*)'/g,
-          m;
-        while ((m = re.exec(pair[1])) !== null) found[m[1]] = (found[m[1]] || []).concat(pair[0]);
-      });
-      var emitted = Object.keys(found);
-      T.ok('the scan actually found emitted values (a zero-find scan is not agreement)', emitted.length >= 3, emitted.join(','));
-      var missing = emitted.filter(function (v) {
-        return !Object.prototype.hasOwnProperty.call(VOC, v);
-      });
-      T.eq('every emitted timingSource value has a vocabulary entry — add the value, decide `timed`', missing.join(','), '');
+      /* ⚠️ LANE SPLIT, and the distinction is load-bearing. The BROWSER lane cannot read files at all
+         (same reason `docs-ledger` is Node-only), so zero sources there is a property of the lane and
+         must SKIP. Zero sources in the NODE lane means the injection broke and must FAIL — an empty
+         scan reporting agreement is exactly what this group exists to prevent. The two are told apart
+         by whether the runner injected anything, never by the count alone.
+         The vocabulary assertions above and the fail-closed ones below need no file access and keep
+         gating in BOTH lanes, so the browser still checks every `timed` decision. */
+      var browserLane = typeof process === 'undefined' || !process || !process.env;
+      if (browserLane) {
+        T.skip('emitter sources are not readable in the browser lane — the scan half is Node-only; the vocabulary decisions above and below still gate here');
+      } else {
+        /* NODE LANE: zero sources here means the runner's INJECTION broke, not that the lane cannot
+           read files — so it FAILS. Detecting the lane by `typeof process` rather than by an empty
+           result is the whole point: inferring "browser" from `srcs.length === 0` would turn a broken
+           injection into a silent skip, which is the "empty scan reads as agreement" failure this
+           group exists to prevent. A first draft of this fix did exactly that. */
+        T.ok('the Node lane injected the emitter sources — a broken injection must FAIL, never skip', srcs.length > 0, srcs.length + ' source(s)');
+        if (srcs.length > 0) runScan(srcs);
+      }
+      function runScan(srcList) {
+        var found = {};
+        srcList.forEach(function (pair) {
+          var re = /timingSource[^;\n]{0,40}?'([a-z][a-z+-]*)'/g,
+            m;
+          while ((m = re.exec(pair[1])) !== null) found[m[1]] = (found[m[1]] || []).concat(pair[0]);
+        });
+        var emitted = Object.keys(found);
+        T.ok('the scan actually found emitted values (a zero-find scan is not agreement)', emitted.length >= 3, emitted.join(','));
+        var missing = emitted.filter(function (v) {
+          return !Object.prototype.hasOwnProperty.call(VOC, v);
+        });
+        T.eq('every emitted timingSource value has a vocabulary entry — add the value, decide `timed`', missing.join(','), '');
+      }
 
       /* FAIL-CLOSED: an unknown value is never spent as a clock. */
       T.eq('an unknown value is NOT timed', I.timingSourceIsTimed('radio-from-the-future'), false);
