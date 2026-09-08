@@ -22,7 +22,18 @@
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG="${TEPNA_CONFIG:-$here/config.yaml}"
-PY="$here/.venv/bin/python"; [ -x "$PY" ] || PY="python3"
+# The interpreter seam, named so a test can substitute it — the same pattern as tepna-update.sh's
+# `TEPNA_SUDO`. On the box this always resolves to the venv beside the script.
+#
+# ⚠️ IT IS ALSO WHAT MAKES THIS SCRIPT MUTATION-TESTABLE, which is not obvious and cost a red CI job.
+# `tools/mutate_diff.py` rewrites `night_report.py` into a mutants tree under /tmp and runs the suite
+# there. This script re-executes that module as a SUBPROCESS, so inside the mutants tree `$here` has
+# no `.venv`, the fallback picked the system `python3`, and the mutated module died on
+# `ModuleNotFoundError: No module named 'mutmut'` — every mutant crashing rather than being tested.
+# The gate correctly REFUSED rather than reporting an empty survivor list as green. With the seam the
+# test passes its own `sys.executable`, so the subprocess runs the mutant under the interpreter that
+# can load it, and the shell tests actually kill mutants instead of erasing them.
+PY="${TEPNA_PYTHON:-$here/.venv/bin/python}"; [ -x "$PY" ] || PY="python3"
 log() { echo "tepna-report: $*" >&2; logger -t tepna-report -- "$*" 2>/dev/null || true; }
 
 # The captures root and the sniffer directory come from the same config the daemon reads, so a box

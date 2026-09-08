@@ -4360,5 +4360,63 @@
       "why": "Omitting the argument selects the locale codec exactly as encoding=None does. `load_rows` reads what `JsonlSink` wrote (ensure_ascii=True → ASCII by construction), and the test round-trip label \"prstýnek — ⚠ removed\" lands on disk as \\u escapes. ASCII is codec-invariant, so the three spellings of the open() decode identical bytes. A hand-edited non-ASCII JSONL would decode the same under any UTF-8 locale, which is every environment this tool runs in (box + CI). This key also matches the identical open() in `label_reader_for` (the operator's label file, typed in a shell under the same UTF-8 locale): same argument, same verdict.",
       "probe": "wrote {\"label\": \"prstýnek — ⚠ removed\"} through JsonlSink, read it back via load_rows under encoding=\"utf-8\", encoding=None and with the argument omitted: byte-identical file, equal rows, all three. Also ran the module's tests under LANG=C.UTF-8 and LANG=C — identical."
     }
+  ],
+  "night_report.py": [
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "untestable-by-design",
+      "key": "- with open(os.path.join(root, night, \"NIGHT-REPORT.txt\"), \"w\", encoding=\"utf-8\") as fh: | + with open(os.path.join(root, night, \"NIGHT-REPORT.txt\"), \"w\", encoding=None) as fh:",
+      "probe": "read_night+render over 4 nights (real summary / truncated JSON / empty devices / non-ASCII verdict text) with open() forced to encoding=None and to the argument omitted: byte-identical output in both cases; locale UTF-8.",
+      "why": "The explicit encoding is REAL and worth keeping — the report carries the tick/cross glyphs and a night's own text, and dropping it would make the file's meaning depend on the ambient locale. It is untestable HERE because CI, the rig and vigil all run a UTF-8 locale, so no input distinguishes the mutant; what the argument guards against is a host that does not, which the suite cannot stand up. Same class and same reasoning as oxy_inventory.py's four entries."
+    },
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "untestable-by-design",
+      "key": "- with open(os.path.join(root, night, \"NIGHT-REPORT.txt\"), \"w\", encoding=\"utf-8\") as fh: | + with open(os.path.join(root, night, \"NIGHT-REPORT.txt\"), \"w\", ) as fh:",
+      "probe": "read_night+render over 4 nights (real summary / truncated JSON / empty devices / non-ASCII verdict text) with open() forced to encoding=None and to the argument omitted: byte-identical output in both cases; locale UTF-8.",
+      "why": "The explicit encoding is REAL and worth keeping — the report carries the tick/cross glyphs and a night's own text, and dropping it would make the file's meaning depend on the ambient locale. It is untestable HERE because CI, the rig and vigil all run a UTF-8 locale, so no input distinguishes the mutant; what the argument guards against is a host that does not, which the suite cannot stand up. Same class and same reasoning as oxy_inventory.py's four entries."
+    },
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "untestable-by-design",
+      "key": "- with open(os.path.join(captures_root, night, \"QC-SUMMARY.json\"), encoding=\"utf-8\") as fh: | + with open(os.path.join(captures_root, night, \"QC-SUMMARY.json\"), encoding=None) as fh:",
+      "probe": "read_night+render over 4 nights (real summary / truncated JSON / empty devices / non-ASCII verdict text) with open() forced to encoding=None and to the argument omitted: byte-identical output in both cases; locale UTF-8.",
+      "why": "The explicit encoding is REAL and worth keeping — the report carries the tick/cross glyphs and a night's own text, and dropping it would make the file's meaning depend on the ambient locale. It is untestable HERE because CI, the rig and vigil all run a UTF-8 locale, so no input distinguishes the mutant; what the argument guards against is a host that does not, which the suite cannot stand up. Same class and same reasoning as oxy_inventory.py's four entries."
+    },
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "untestable-by-design",
+      "key": "- with open(os.path.join(captures_root, night, \"QC-SUMMARY.json\"), encoding=\"utf-8\") as fh: | + with open(os.path.join(captures_root, night, \"QC-SUMMARY.json\"), ) as fh:",
+      "probe": "read_night+render over 4 nights (real summary / truncated JSON / empty devices / non-ASCII verdict text) with open() forced to encoding=None and to the argument omitted: byte-identical output in both cases; locale UTF-8.",
+      "why": "The explicit encoding is REAL and worth keeping — the report carries the tick/cross glyphs and a night's own text, and dropping it would make the file's meaning depend on the ambient locale. It is untestable HERE because CI, the rig and vigil all run a UTF-8 locale, so no input distinguishes the mutant; what the argument guards against is a host that does not, which the suite cannot stand up. Same class and same reasoning as oxy_inventory.py's four entries."
+    },
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "no-distinguishing-input",
+      "key": "- summary = None | + summary = \"\"",
+      "probe": "build()/back_check()/render() over both values against 4 shapes (real summary / truncated JSON / absent file / no sniffer dir): identical line and identical rendered file in every pairing.",
+      "why": "Both values mean 'no summary' to every consumer downstream: build() takes the devices list only when isinstance(summary, dict), and back_check() returns unknown for anything that is not a dict — so the empty string and None travel the same path and render the same word. Deliberately NOT 'fixed' by making them differ: an unreadable summary reading as absent is the behaviour, not an accident of which falsy value was chosen."
+    },
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "no-distinguishing-input",
+      "key": "- verdict = None | + verdict = \"\"",
+      "probe": "sniffer_verdict(None) vs sniffer_verdict('') — both return (unknown, unknown); read_night over 4 nights with and without a sniffer directory: output identical.",
+      "why": "The falsy-sniffer_dir path. Its only consumer is sniffer_verdict(), whose first line treats None and the empty string identically (an 'if not verdict_text' guard), so both render the word unknown — the correct answer for a box with no sniffer directory. No input distinguishes them."
+    },
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "untestable-by-design",
+      "key": "- with open(os.path.join(sniffer_dir, names[-1]), encoding=\"utf-8\") as fh: | + with open(os.path.join(sniffer_dir, names[-1]), encoding=None) as fh:",
+      "probe": "read_night+render over 4 nights (real summary / truncated JSON / empty devices / non-ASCII verdict text) with open() forced to encoding=None and to the argument omitted: byte-identical output in both cases; locale UTF-8.",
+      "why": "The explicit encoding is REAL and worth keeping — the report carries the tick/cross glyphs and a night's own text, and dropping it would make the file's meaning depend on the ambient locale. It is untestable HERE because CI, the rig and vigil all run a UTF-8 locale, so no input distinguishes the mutant; what the argument guards against is a host that does not, which the suite cannot stand up. Same class and same reasoning as oxy_inventory.py's four entries."
+    },
+    {
+      "brief": "MUTATION-EQUIVALENCE §3",
+      "class": "untestable-by-design",
+      "key": "- with open(os.path.join(sniffer_dir, names[-1]), encoding=\"utf-8\") as fh: | + with open(os.path.join(sniffer_dir, names[-1]), ) as fh:",
+      "probe": "read_night+render over 4 nights (real summary / truncated JSON / empty devices / non-ASCII verdict text) with open() forced to encoding=None and to the argument omitted: byte-identical output in both cases; locale UTF-8.",
+      "why": "The explicit encoding is REAL and worth keeping — the report carries the tick/cross glyphs and a night's own text, and dropping it would make the file's meaning depend on the ambient locale. It is untestable HERE because CI, the rig and vigil all run a UTF-8 locale, so no input distinguishes the mutant; what the argument guards against is a host that does not, which the suite cannot stand up. Same class and same reasoning as oxy_inventory.py's four entries."
+    }
   ]
 }

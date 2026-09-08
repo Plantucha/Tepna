@@ -161,3 +161,80 @@ def test_main_still_reports_when_the_night_is_unwritable(tmp_path, capsys):
 def test_main_rejects_a_wrong_argument_count_rather_than_guessing(capsys):
     assert nr.main([]) == 2 and nr.main(["a"]) == 2 and nr.main(["a", "b", "c", "d"]) == 2
     assert "usage:" in capsys.readouterr().err
+
+
+# ── the gaps mutation testing found ──────────────────────────────────────────────────────────────
+# Each of these was a surviving mutant: a line that could be changed with the suite staying green.
+# They are grouped here because they share a shape — every one is an input the report can actually
+# receive and that no test had ever handed it.
+
+def test_a_back_check_BLOCK_whose_clip_is_not_a_list_contributes_no_spans():
+    """A malformed block must not become a span. Counting it as one turns a summary this code cannot
+    read into a `fail` verdict — inventing a clipped span nobody measured, which is the same
+    fabrication as reporting a number for an absent input, one level in."""
+    for broken in ({}, {"clip": None}, {"clip": "3"}, {"clip": 7}, None):
+        got = nr.back_check({"class_b": [broken]})
+        assert got == ("ok", 0), broken
+    mixed = nr.back_check({"class_b": [{"clip": [1, 2]}, {"clip": "nonsense"}]})
+    assert mixed == ("fail", 2), "the readable block still counts, the unreadable one adds nothing"
+
+
+def test_main_ACCEPTS_a_sniffer_directory_as_its_third_argument_and_uses_it(tmp_path, capsys):
+    """`main` takes three arguments, and the third is the one the shell script always passes. Nothing
+    exercised that path end-to-end, so a `main` that ignored it — or rejected three arguments outright
+    — would have passed every test while the deployed script called it exactly that way."""
+    night = tmp_path / "2026-09-15"; night.mkdir()
+    night.joinpath("QC-SUMMARY.json").write_text(json.dumps(dict(REAL_SUMMARY, class_b=[])),
+                                                 encoding="utf-8")
+    sniff = tmp_path / "sniffer"; sniff.mkdir()
+    sniff.joinpath("nightly-20260915-0300.pcap.verdict.txt").write_text(
+        "AIR AUDIT: OK\n  coverage        : 0.93 (837 s)\n", encoding="utf-8")
+    assert nr.main([str(tmp_path), "2026-09-15", str(sniff)]) == 0
+    line = capsys.readouterr().out.strip()
+    assert "sniffer coverage 0.93 ✓" in line, "the third argument must actually reach the verdict"
+    assert "2026-09-15" in line
+
+
+def test_the_NEWEST_verdict_is_taken_when_there_are_more_than_two(tmp_path):
+    """With exactly two files `names[-1]` and `names[1]` are the same file, so a two-file fixture
+    cannot tell "the last" from "the second". Three can."""
+    night = tmp_path / "2026-09-16"; night.mkdir()
+    sniff = tmp_path / "sniffer"; sniff.mkdir()
+    for day, cov in (("14", "0.10"), ("15", "0.50"), ("16", "0.97")):
+        sniff.joinpath("nightly-202609%s-0300.pcap.verdict.txt" % day).write_text(
+            "AIR AUDIT: OK\n  coverage        : %s (1 s)\n" % cov, encoding="utf-8")
+    assert nr.read_night(str(tmp_path), "2026-09-16", str(sniff))["coverage"] == "0.97"
+
+
+def test_NOT_OK_is_not_OK():
+    """🔴 The verdict word is read out of a fixed-width slice of the audit line, and the slice's width
+    is what stops a longer phrase leaking a false pass. "AIR AUDIT: NOT OK" must never read as a pass —
+    a wider window would find the "OK" in "NOT OK" and report a clean night for a failed audit."""
+    assert nr.sniffer_verdict("AIR AUDIT: NOT OK\n  coverage        : 0.90 (1 s)\n")[0] != "pass"
+    assert nr.sniffer_verdict("AIR AUDIT: OK\n")[0] == "pass", "…while the real thing still passes"
+
+
+def test_a_second_AIR_AUDIT_marker_does_not_move_which_verdict_is_read():
+    """The verdict is taken from the FIRST marker on the line. A file that quotes the phrase after its
+    own verdict — a message, a path, a previous run echoed back — must not flip the reading."""
+    assert nr.sniffer_verdict("AIR AUDIT: FAILED — see AIR AUDIT: OK from 09-14\n")[0] == "fail"
+
+
+def test_a_COLON_inside_the_coverage_value_does_not_move_where_the_number_is_read():
+    """The number is everything after the FIRST colon, not the last. A tail carrying its own colon —
+    a duration, a timestamp — would otherwise hand back the fragment after that one instead."""
+    got = nr.sniffer_verdict("AIR AUDIT: OK\n  coverage        : 0.42 (elapsed 1:23)\n")
+    assert got == ("pass", "0.42")
+
+
+def test_an_AIR_AUDIT_line_with_an_UNRECOGNISED_word_is_a_QUESTION_MARK_not_a_CROSS():
+    """🔴 "We did not look" and "it failed" are different facts and get different glyphs. A verdict
+    line the parser does not recognise — a future wording, a truncated write, `AIR AUDIT: pending` —
+    must fall back to `unknown`/`?`, never to `fail`/`✗`. Reporting a failed audit for one nobody could
+    read manufactures a finding, which is the same class of lie as reporting a number for an absence."""
+    for line in ("AIR AUDIT: pending\n", "AIR AUDIT: \n", "AIR AUDIT: INCONCLUSIVE — no packets\n"):
+        assert nr.sniffer_verdict(line)[0] == "unknown", line
+        assert "unknown ?" in nr.build("2026-09-17", REAL_SUMMARY, line)["line"], line
+    # …and a recognised one is still read, so the fallback has not swallowed the real cases.
+    assert nr.sniffer_verdict("AIR AUDIT: OK\n")[0] == "pass"
+    assert nr.sniffer_verdict("AIR AUDIT: FAILED — x\n")[0] == "fail"

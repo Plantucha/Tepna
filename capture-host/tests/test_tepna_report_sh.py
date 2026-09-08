@@ -15,6 +15,7 @@
 
 import os
 import subprocess
+import sys
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SH = os.path.join(HERE, "tepna-report.sh")
@@ -51,8 +52,13 @@ def _run(tmp_path, *args, nights=("2026-09-06",), enabled=False, url=None, summa
     syslog = tmp_path / "syslog.txt"
     (bin_dir / "logger").write_text("#!/bin/sh\nshift 2; shift; echo \"$*\" >> \"%s\"\n" % syslog)
     (bin_dir / "logger").chmod(0o755)
+    # `TEPNA_PYTHON` is this interpreter, not the venv beside the script. Under `mutate_diff.py` the
+    # script runs from a mutants tree that has no `.venv`, so the fallback would pick a system python3
+    # without `mutmut` and every mutated `night_report.py` would die on import — which the mutation
+    # gate reports as "0 tested", not as "all killed". Handing over `sys.executable` is what lets these
+    # subprocess tests actually kill mutants.
     env = {**os.environ, "PATH": "%s:%s" % (bin_dir, os.environ["PATH"]),
-           "TEPNA_CONFIG": str(cfg)}
+           "TEPNA_CONFIG": str(cfg), "TEPNA_PYTHON": sys.executable}
     r = subprocess.run(["bash", SH, *args], capture_output=True, text=True, env=env, timeout=120)
     return r, root, (syslog.read_text(encoding="utf-8") if syslog.exists() else "")
 
@@ -69,7 +75,8 @@ def test_the_night_is_found_under_root_SLASH_captures_and_not_under_root(tmp_pat
     cfg = tmp_path / "config.yaml"
     cfg.write_text("root: %s\nalerts:\n  enabled: false\n" % base, encoding="utf-8")
     r = subprocess.run(["bash", SH], capture_output=True, text=True, timeout=120,
-                       env={**os.environ, "TEPNA_CONFIG": str(cfg)})
+                       env={**os.environ, "TEPNA_CONFIG": str(cfg),
+                            "TEPNA_PYTHON": sys.executable})
     assert r.returncode == 0, r.stderr
     assert (base / "captures" / "2026-09-06" / "NIGHT-REPORT.txt").exists()
     assert not (decoy / "NIGHT-REPORT.txt").exists()
