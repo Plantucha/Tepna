@@ -959,6 +959,104 @@ def test_cpap_ble_connect_without_an_adapter_passes_no_bluez_kwarg(monkeypatch):
     _run(go())
 
 
+# ── #2170: bleak's snapshot lacks the notify characteristic → close, reconnect ONCE on the same adapter ──
+class BleakCharacteristicNotFoundError(Exception):
+    """Same NAME as bleak's — capture matches by class name so the stubbed-bleak lanes need no bleak.exc."""
+
+
+class _Char:
+    def __init__(self, uuid, handle): self.uuid, self.handle = uuid, handle
+
+
+class _Svc:
+    def __init__(self, uuid, chars): self.uuid, self.characteristics = uuid, chars
+
+
+class _MissingCharBleak(_FakeBleak):
+    """Raises the #2170 exception on the first N start_notify calls (class attribute), then behaves."""
+    fail_first = 1
+    services = [_Svc("0000fd56-0000-1000-8000-00805f9b34fb", [_Char("a6220002-35f1-4b20-afae-cb089d2044aa", 0x20)])]
+
+    async def start_notify(self, uuid, cb):
+        if len(_FakeBleak.instances) <= _MissingCharBleak.fail_first:
+            raise BleakCharacteristicNotFoundError(uuid)
+        await super().start_notify(uuid, cb)
+
+
+def test_cpap_ble_connect_retries_once_when_the_snapshot_lacks_the_notify_char(monkeypatch, caplog):
+    import capture
+    import bleak
+    _FakeBleak.instances.clear()
+    _MissingCharBleak.fail_first = 1
+    monkeypatch.setattr(bleak, "BleakClient", _MissingCharBleak)
+
+    async def go():
+        with caplog.at_level(logging.WARNING, logger="capture"):
+            write, recv_frame, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+        first, second = _FakeBleak.instances
+        assert not first.connected, "the leak guard closed the failed link before the retry"
+        assert second.connected and second.bluez == {"adapter": "hci2"}, "the retry rides the SAME adapter"
+        assert second.notify_cb is not None
+        msg = next(r.getMessage() for r in caplog.records if "#2170" in r.getMessage())
+        # the snapshot names what bleak HELD: service, characteristic uuid@handle — the write char only
+        assert "0000fd56-0000-1000-8000-00805f9b34fb[a6220002-35f1-4b20-afae-cb089d2044aa@0x0020]" in msg
+        assert "a6220003-35f1-4b20-afae-cb089d2044aa" in msg and "on hci2" in msg
+        await disconnect()
+    _run(go())
+
+
+def test_cpap_ble_connect_retry_is_one_retry_not_a_loop(monkeypatch):
+    import capture
+    import bleak
+    _FakeBleak.instances.clear()
+    _MissingCharBleak.fail_first = 99
+    monkeypatch.setattr(bleak, "BleakClient", _MissingCharBleak)
+
+    async def go():
+        with pytest.raises(BleakCharacteristicNotFoundError):
+            await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+    _run(go())
+    assert len(_FakeBleak.instances) == 2, "exactly one retry — a second identical failure raises, no loop"
+    assert all(not c.connected for c in _FakeBleak.instances), "both links closed (#1770 leak guard)"
+
+
+def test_cpap_ble_connect_retry_can_be_declined_and_other_errors_never_retry(monkeypatch):
+    import capture
+    import bleak
+    _FakeBleak.instances.clear()
+    _MissingCharBleak.fail_first = 99
+    monkeypatch.setattr(bleak, "BleakClient", _MissingCharBleak)
+    with pytest.raises(BleakCharacteristicNotFoundError):
+        _run(capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2", retry_missing_char=False))
+    assert len(_FakeBleak.instances) == 1, "retry_missing_char=False → no second connect"
+
+    class _OtherErrorBleak(_FakeBleak):
+        async def start_notify(self, uuid, cb):
+            raise RuntimeError("not the #2170 class")
+    _FakeBleak.instances.clear()
+    monkeypatch.setattr(bleak, "BleakClient", _OtherErrorBleak)
+    with pytest.raises(RuntimeError):
+        _run(capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2"))
+    assert len(_FakeBleak.instances) == 1 and not _FakeBleak.instances[0].connected
+
+
+def test_gatt_snapshot_names_what_bleak_held_or_says_it_held_nothing():
+    import capture
+
+    class _NoSnapshot:
+        @property
+        def services(self):
+            raise RuntimeError("Service Discovery has not been performed yet")
+
+    class _Empty:
+        services = []
+
+    assert capture._gatt_snapshot(_NoSnapshot()) == "no service snapshot (RuntimeError)"
+    assert capture._gatt_snapshot(_Empty()) == "empty snapshot"
+    assert capture._gatt_snapshot(_MissingCharBleak) == (
+        "0000fd56-0000-1000-8000-00805f9b34fb[a6220002-35f1-4b20-afae-cb089d2044aa@0x0020]")
+
+
 # ── P1+P3 wiring: durable sink ordering (INV9) + non-fatal-but-loud sink failure ────────────────────
 class _SnapSink:
     """Records how many bus pushes had happened at the moment its on_batch ran — proves ordering."""

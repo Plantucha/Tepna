@@ -9106,8 +9106,42 @@ async def _cpap_connect_any_adapter(ble_addr, pinned, timeout=20.0, *, connect=N
     raise first_exc if first_exc is not None else RuntimeError("no adapter to try")
 
 
-async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.0):
+def _gatt_snapshot(client) -> str:
+    """One line naming what bleak's service snapshot HELD when a characteristic lookup failed — each
+    service UUID with its characteristic UUIDs and handles — so the next #2170 event explains itself.
+
+    The wire is not where the answer is. btmon on the box (2026-09-08 18:14, the pinned Intel adapter)
+    shows the ATT discovery COMPLETE — the vendor service, the notify characteristic, its CCCD at
+    0x0023 — with the link up, and 1.9 s later OUR host tearing it down because bleak raised
+    `BleakCharacteristicNotFoundError` for that very characteristic. Whatever is missing is missing from
+    the D-Bus snapshot bleak built at ServicesResolved, and this is the only place that snapshot is
+    visible; a log line that says only the exception name cannot tell a partial snapshot from an empty
+    one from a whole other service tree. Reads only; tolerates a client with no snapshot at all
+    (bleak raises on `.services` before discovery) — that too is an answer, so it is named, not hidden."""
+    try:
+        services = client.services
+    except Exception as exc:  # bleak: "Service Discovery has not been performed yet"
+        return f"no service snapshot ({type(exc).__name__})"
+    parts = []
+    for svc in services:
+        chars = ",".join(f"{c.uuid}@{c.handle:#06x}" for c in svc.characteristics)
+        parts.append(f"{svc.uuid}[{chars}]")
+    return " ".join(parts) or "empty snapshot"
+
+
+async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.0, *,
+                            retry_missing_char: bool = True):
     """Open the AS11 link on the FREE radio and return (write, recv_frame, disconnect) for as11_pull.
+
+    `retry_missing_char` (keyword, LAST, default on — every caller keeps its signature): when bleak's
+    snapshot lacks the notify characteristic although the link and the discovery completed (#2170 —
+    95 of 96 failures on the pinned adapter, the wire clean under btmon), close the link and connect
+    ONCE MORE on the SAME adapter. A fresh connect is a fresh ServicesResolved and a fresh snapshot,
+    which is exactly what the failover to the other radio buys today — minus the radio. If the retry
+    succeeds the mechanism is a per-connect race and the reservation stays honest; if it fails the
+    same way twice, the snapshot logged beside it says what the adapter's device object really
+    exports, and that is the next question. The second attempt passes False, so this is one retry,
+    never a loop — a loop around the leak guard below is #1770's mistake again.
 
     The only un-unit-tested code in the CPAP stream path: real bleak connect + notify plumbing, which
     CI has no radio to exercise. Everything it feeds (session, stream, bus push, lifecycle) is tested.
@@ -9153,9 +9187,16 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
     # converts a transient failure into a permanent one.
     try:
         await client.start_notify(_L.GATT_RX, _on_notify)
-    except BaseException:
+    except BaseException as exc:
         with contextlib.suppress(Exception):
             await client.disconnect()
+        # Matched by NAME, like ble_discovery's `_REACHED_TYPES`: bleak is imported lazily so the
+        # bleak-free test lanes (and a stubbed `bleak` module) never need `bleak.exc`.
+        if retry_missing_char and type(exc).__name__ == "BleakCharacteristicNotFoundError":
+            log.warning("CPAP %s on %s: bleak's service snapshot lacks %s although the link is up (#2170) "
+                        "— snapshot: %s; link closed, reconnecting once on the same adapter",
+                        ble_addr, hci or "default adapter", _L.GATT_RX, _gatt_snapshot(client))
+            return await _cpap_ble_connect(ble_addr, hci, timeout, retry_missing_char=False)
         raise
     mtu = getattr(client, "mtu_size", 23) or 23
     step = max(20, mtu - 3)
