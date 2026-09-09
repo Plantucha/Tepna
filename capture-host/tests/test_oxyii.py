@@ -1025,3 +1025,13 @@ def test_setup_frame_still_disables_every_push_stream():
     changing it is a device-behaviour decision that belongs to the owner and a night on the box."""
     assert oxyii.setup_frame()[7] == 0x00
     assert (oxyii.RT_PUSH_PARAM, oxyii.RT_PUSH_WAVE, oxyii.RT_PUSH_PPG, oxyii.RT_PUSH_ACC) == (1, 2, 4, 8)
+
+
+def test_set_time_frame_seq_defaults_to_zero_and_is_forwarded():
+    """The sequence byte (frame index 4) rides `seq` straight into `encode`: default 0, and a caller's
+    value lands verbatim. Pinned because the mutation gate showed the default and the forwarding were
+    both invisible to the suite (2026-09-09)."""
+    when = dt.datetime(2026, 7, 19, 3, 4, 5, tzinfo=dt.timezone.utc)
+    assert oxyii.set_time_frame(when)[4] == 0
+    assert oxyii.set_time_frame(when, seq=7)[4] == 7
+    assert oxyii.set_time_frame(when, 7)[7:15] == oxyii.set_time_frame(when)[7:15]

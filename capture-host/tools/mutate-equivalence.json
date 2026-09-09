@@ -4418,5 +4418,28 @@
       "probe": "read_night+render over 4 nights (real summary / truncated JSON / empty devices / non-ASCII verdict text) with open() forced to encoding=None and to the argument omitted: byte-identical output in both cases; locale UTF-8.",
       "why": "The explicit encoding is REAL and worth keeping — the report carries the tick/cross glyphs and a night's own text, and dropping it would make the file's meaning depend on the ambient locale. It is untestable HERE because CI, the rig and vigil all run a UTF-8 locale, so no input distinguishes the mutant; what the argument guards against is a host that does not, which the suite cannot stand up. Same class and same reasoning as oxy_inventory.py's four entries."
     }
+  ],
+  "oxyii.py": [
+    {
+      "brief": "O2RING-PROTOCOL-2026-07-17-BRIEF.md §9a (residue 2026-09-02-oxyii-timezone-hardcoded, #2370)",
+      "class": "no-distinguishing-input",
+      "key": "- tenths = (abs(sec) * 2 + 360) // 720 # floor(|sec| / 360 + 0.5) — half away from zero | + tenths = (abs(sec) * 2 + 361) // 720 # floor(|sec| / 360 + 0.5) — half away from zero",
+      "probe": "every integer offset from -15 h to +15 h (108,001 values), both formulas, zero differences",
+      "why": "A PROOF: `abs(sec) * 2` is even, so `2|sec| + 361` is odd and can never be a multiple of 720 — floor division by 720 therefore returns the same quotient for `+360` and `+361` on every integer input. `sec` is `int(total_seconds())`, so no non-integer reaches the line."
+    },
+    {
+      "brief": "O2RING-PROTOCOL-2026-07-17-BRIEF.md §9a (residue 2026-09-02-oxyii-timezone-hardcoded, #2370)",
+      "class": "no-distinguishing-input",
+      "key": "- if sec < 0: | + if sec <= 0:",
+      "probe": "every integer offset from -15 h to +15 h, zero differences; the only input the guards disagree on is sec == 0",
+      "why": "A PROOF: the guards differ only at `sec == 0`, where `tenths` is `(0 + 360) // 720 == 0` and negating 0 yields 0. Same output on every input."
+    },
+    {
+      "brief": "O2RING-PROTOCOL-2026-07-17-BRIEF.md §9a (residue 2026-09-02-oxyii-timezone-hardcoded, #2370)",
+      "class": "no-distinguishing-input",
+      "key": "- if sec < 0: | + if sec < 1:",
+      "probe": "every integer offset from -15 h to +15 h, zero differences; `sec` is an int so `< 1` and `<= 0` are the same guard",
+      "why": "A PROOF: `sec = int(off.total_seconds())`, so `sec < 1` is `sec <= 0`, and that guard differs from `sec < 0` only at zero, where negating `tenths == 0` changes nothing."
+    }
   ]
 }
