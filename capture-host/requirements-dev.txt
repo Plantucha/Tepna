@@ -4,6 +4,7 @@ mypy>=2.3.1          # advisory type gate (PYTHON-TYPES-AND-FORMAT-2026-08-27) â
 ruff>=0.16.5           # lint (blocking) + `ruff format` (black-compatible style; changed-files advisory)
 pytest>=9.1.1
 pytest-cov>=7.1.0
+pytest-xdist>=3.8.0    # CI runs the suite `-n 4` (see capture-host-ci.yml); check.sh uses it when present
 pytest-asyncio>=1.4.0
 hypothesis>=6.165.10      # property tests for the clock surface â€” invariants over an input space,
                        # where a known-answer table cannot go (tests/test_clock_properties.py)

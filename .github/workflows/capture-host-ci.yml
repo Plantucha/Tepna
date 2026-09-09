@@ -176,7 +176,7 @@ jobs:
           # dependency there declares it to humans and to `check.sh`, and NOT to the job that runs the
           # tests. Measured: the property suite passed locally (my venv had it from a manual install)
           # and both matrix legs failed collection here with ModuleNotFoundError.
-          pip install pytest pytest-cov ruff shellcheck-py hypothesis
+          pip install pytest pytest-cov pytest-xdist ruff shellcheck-py hypothesis
           pip install -r requirements.txt
       - name: Lint (ruff — real errors only)
         if: needs.changes.outputs.run == 'true'
@@ -202,7 +202,8 @@ jobs:
       # published status key or public function that reached nobody could sit on main indefinitely —
       # the "gate that protects nobody" class. It exits 1 on anything unexplained; wire it or allowlist
       # it WITH A REASON in ALLOW_KEYS/ALLOW_FUNCS (the file's own header documents the pattern). Placed
-      # before the ~9 min pytest so a structural break fails fast.
+      # before the pytest step (≈22 min serial on the runner, 2026-09-07 ci-timing) so a structural break
+      # fails fast.
       - name: Structural gate (find_unwired — every published key/function wired or explained)
         if: needs.changes.outputs.run == 'true'
         run: python tools/find_unwired.py --check
@@ -211,7 +212,14 @@ jobs:
         # Bare `--cov` (no path) on purpose — it defers to pyproject's `source = [".", "deploy"]`. An
         # explicit `--cov=.` OVERRIDES that list and silently drops deploy/ back out of the denominator,
         # which is how deploy/ezparse.py sat untested and invisible.
-        run: pytest -q --cov --cov-branch --cov-report=term-missing --cov-fail-under=100
+        # `-n 4` (pytest-xdist): this job is the whole repo's merge race — ci-timing 2026-09-07 measured
+        # it at p50 21m49s while every other check finishes under 4 min, and the comment above still
+        # said "~9 min". Measured on the rig before wiring it: serial 15m52s, `-n 4` 8m37s, IDENTICAL
+        # test count (6833) and identical coverage table, so the suite is worker-safe and pytest-cov
+        # combines the workers' data itself. 4 = the runner's vCPU count, not `auto`: `auto` reads
+        # whatever the image happens to expose and moves when the image does; a fixed number is a
+        # number someone measured, and a change to it is a diff.
+        run: pytest -q -n 4 --cov --cov-branch --cov-report=term-missing --cov-fail-under=100
 
   # ── DIFF-SCOPED MUTATION GATE ──────────────────────────────────────────────────────────────────────
   # Coverage answers "did this line run?". This answers "would any test NOTICE if it were wrong?", and
