@@ -9077,7 +9077,13 @@ async def _cpap_connect_any_adapter(ble_addr, pinned, timeout=20.0, *, connect=N
             # `=other`** — 80 % of the evidence in the bucket that says least. The type was in hand
             # at classification time and discarded, so owner issue #2170 could not establish WHY the
             # configured radio never answers; the log cannot express it.
-            hint = f"; {pinned} raised {type(first_exc).__name__}" if first_exc is not None else ""
+            # ⚠️ THE MESSAGE TOO, capped. The type alone was enough while 95 of 96 events were
+            # `BleakCharacteristicNotFoundError`; the first event after #2365 landed (2026-09-08
+            # 22:39 EDT) was a bare `BleakError`, whose class says nothing — bleak raises it for
+            # "failed to discover services, device disconnected" (a link drop, mechanism (b)) and
+            # for a dozen unrelated things. The text was in hand and discarded, again.
+            text = "" if first_exc is None else " ".join(str(first_exc).split())[:160]
+            hint = "" if first_exc is None else f"; {pinned} raised {type(first_exc).__name__}({text!r})"
             log.warning("CPAP discovery failed over: %s did not answer, found on %s (%s)%s",
                         pinned, adapter, ", ".join(f"{a}={k}" for a, k in attempts), hint)
             # ⚠️ SEPARATE LINE, deliberately, when the fallback is the RESERVED radio.

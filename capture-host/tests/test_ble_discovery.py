@@ -276,6 +276,25 @@ def test_the_failover_log_NAMES_the_pinned_adapters_exception_type(caplog):
     msg = "\n".join(r.getMessage() for r in caplog.records)
     assert "failed over" in msg
     assert "hci1 raised" in msg, f"the pinned adapter's exception TYPE must be named: {msg!r}"
+    assert "hci1 says no" in msg, f"…and its MESSAGE: a bare BleakError's class says nothing: {msg!r}"
+
+
+def test_the_failover_log_caps_the_exception_text_and_flattens_newlines(caplog):
+    """The first post-#2365 event on vigil (2026-09-08 22:39 EDT) was a bare `BleakError` — the one
+    class whose NAME carries no verdict; bleak's text does ("failed to discover services, device
+    disconnected" is a link drop, "Connection was not successful" is not). One line, capped: a
+    D-Bus error can carry a multi-line dump, and the failover line is grepped by shape."""
+    class Chatty(Exception):
+        pass
+
+    conn, _seen = _conn(good="hci2", err=lambda m: Chatty("line one\n  line two " + "x" * 400))
+    with caplog.at_level("WARNING"):
+        _run(capture._cpap_connect_any_adapter("04:CD", "hci1", 8.0, connect=conn,
+                                               adapters=["hci1", "hci2"]))
+    line = next(r.getMessage() for r in caplog.records if "failed over" in r.getMessage())
+    assert "hci1 raised Chatty('line one line two x" in line, line
+    assert "\n" not in line
+    assert len(line.split("raised Chatty(")[1]) < 180, "the text is capped at 160 chars"
 
 
 def test_falling_back_onto_the_RESERVED_wearables_radio_says_so_SEPARATELY(caplog):
