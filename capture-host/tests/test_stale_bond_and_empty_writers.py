@@ -240,3 +240,67 @@ def test_the_START_REJECTED_branch_also_refuses_to_delete_a_resumed_set():
     assert "writers[meas].discard()" in branch, "a set this session created must still be pruned"
     assert branch.index("if writers[meas].resumed:") < branch.index("writers[meas].discard()"), \
         "the guard must precede the discard, not follow it"
+
+
+# ── the same branch, EXECUTED — not scanned ─────────────────────────────────────────────────────────
+# The scan above pins the shape; the two drives below pin the behaviour, and they exist because the
+# branch was otherwise reached by accident. Measured 2026-09-09 (#2366, py3.12 leg): its only executor
+# was test_run_polar_live_contract's blanket status-name check, whose SECOND drive re-used the first
+# drive's tmp_path and so happened to open a pre-existing ECG file — `resumed` by coincidence, and on
+# one CI lap the coincidence did not hold: `capture.py` 3272-3277 uncovered, 99.99 %, the gate red on
+# a diff that never touched them. A branch covered only incidentally is covered until the incident
+# changes. These pin the path by CONSTRUCTION: `_now` is fixed, so `started` is fixed, so the writer's
+# filename is fixed, and the file is planted at that name before the session opens it.
+_FIXED = dt.datetime(2026, 9, 9, 3, 0, 0)
+# The runners' module-global reset, re-exported so it is autouse HERE too (the live-contract file does the
+# same): `run_polar` leaves `_STOP` set, and conftest's tripwire fails the test that leaks it.
+import test_capture_runners as _T   # noqa: E402  — sits with the drives it serves, not the header
+_clean_stop = _T._clean_stop
+_SEED = "Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]\n2026-09-09T02:59:00.000;1;0;123\n"
+
+
+def _ecg_path_for(tmp_path, dev):
+    ndir = writers.night_dir(str(tmp_path), _FIXED)
+    return os.path.join(ndir, writers.capture_filename(dev["vendor"], dev["model"], dev["device_id"],
+                                                       _FIXED, "ecg", "txt"))
+
+
+def _drive_rejected_start(monkeypatch, tmp_path, dev):
+    import capture
+    import test_capture_runners as T
+    monkeypatch.setattr(capture, "_now", lambda: _FIXED)
+    T._polar_common(monkeypatch)
+    # 0x03 = the "truly unsupported settings" answer — neither transient (0x0C/0x0D) nor NO_ACK, so the
+    # session lands in the branch under test rather than the charging hold or the keep-and-wait path.
+    # No data frames: a stream whose START was rejected delivers none, and a planted frame would append
+    # rows to the resumed set and turn "closed untouched" into an assertion about the fake.
+    c = T.FlexPolarClient(data_frames=[], start_status=0x03)
+    T._inject_connect(monkeypatch, c)
+    T._stop_after(monkeypatch, 1)
+    _run(capture.run_polar(dev, str(tmp_path)))
+
+
+def test_a_rejected_START_on_a_RESUMED_set_keeps_the_file_and_says_so(tmp_path, monkeypatch, caplog):
+    import test_capture_runners as T
+    dev = T._pdev(streams=["ecg"])
+    p = _ecg_path_for(tmp_path, dev)
+    with open(p, "w", newline="\n") as fh:
+        fh.write(_SEED)                       # an earlier session's rows: the thing the branch protects
+    with caplog.at_level("WARNING", logger="tepna-capture"):
+        _drive_rejected_start(monkeypatch, tmp_path, dev)
+    assert os.path.exists(p), "a rejected START deleted a set earlier sessions filled"
+    with open(p, newline="\n") as fh:
+        assert fh.read() == _SEED, "the resumed set must be closed untouched — not truncated, not re-headed"
+    assert any("START rejected on a RESUMED set" in r.getMessage() and os.path.basename(p) in r.getMessage()
+               for r in caplog.records), "keeping the file must be visible at WARNING, naming the file"
+
+
+def test_a_rejected_START_on_a_FRESH_set_still_prunes_it(tmp_path, monkeypatch):
+    """The twin: no pre-existing set → `resumed` is False → the header-only file this session created
+    is discarded, exactly as before resume existed. Together the pair executes BOTH arms."""
+    import test_capture_runners as T
+    dev = T._pdev(streams=["ecg"])
+    p = _ecg_path_for(tmp_path, dev)
+    assert not os.path.exists(p)
+    _drive_rejected_start(monkeypatch, tmp_path, dev)
+    assert not os.path.exists(p), "a set THIS session created must still be pruned on a rejected START"
