@@ -93,10 +93,8 @@ OP_RT_ACC = 0x14          # device-PUSHED 3-axis accelerometer; enabled via AUTO
 # obtained by polling because of it. See O2RING-PROTOCOL §3 and residue 2026-09-02-oxyii-autortswitch-unexamined.
 RT_PUSH_PARAM, RT_PUSH_WAVE, RT_PUSH_PPG, RT_PUSH_ACC = 0x01, 0x02, 0x04, 0x08
 
-# WHAT EACH BIT SWITCHES (documented 2026-09-06 · residue 2026-09-02-oxyii-autortswitch-unexamined).
-# The command is the vendor's `oxyAutoSwitch(model, autoParam, autoWave, autoPpg, autoAcc)` and the
-# payload is those four booleans OR-ed into one byte. Set = the ring sends that stream unprompted for
-# the rest of the session; clear = it answers only when polled.
+# WHAT EACH BIT SWITCHES (residue 2026-09-02-oxyii-autortswitch-unexamined). Set = the ring sends
+# that stream unprompted for the rest of the session; clear = it answers only when polled.
 #
 #   bit 0  RT_PUSH_PARAM  0x01  the 0x02 RT_PARAM body, pushed — the vitals half (SpO2/HR/PI/motion).
 #                               ⚠️ Pushing it is NOT a way to reach the on-device sleep staging: that
@@ -107,17 +105,10 @@ RT_PUSH_PARAM, RT_PUSH_WAVE, RT_PUSH_PPG, RT_PUSH_ACC = 0x01, 0x02, 0x04, 0x08
 #                               `parse_rt_ppg` decodes (signed 24-bit pairs).
 #   bit 3  RT_PUSH_ACC    0x08  the 0x14 AUTO_RT_ACC body, pushed — 3-axis accelerometer, `parse_rt_acc`.
 #
-# THE ONLY VALUE WE HAVE EVER SENT IS 0x00, which clears all four: every ring in this project has run
-# with device push fully OFF, and every sample this project holds was therefore obtained by polling.
-# That is visible rather than inferred — the per-night `*_OXYFRAME.txt` sidecars hold one decoded 0x04
-# row per poll and carry no unsolicited-opcode rows at all. The defect the residue names is not that
-# 0x00 is wrong; it is that 0x00 was chosen by nobody, recorded for months as "setup, payload 00,
-# purpose unknown", and left to decide the acquisition model in silence.
-#
-# ⚠️ THE MAPPING IS THE VENDOR'S, NOT A MEASUREMENT, and the table must not be read as one. No ring
-# here has ever been asked to push, so whether a pushed stream beats polling on throughput, battery or
-# gap behaviour is untested — it needs a night on the box. Changing what we send is a device-behaviour
-# change and is deliberately NOT part of this unit; `setup_frame`'s default stays 0x00.
+# ⚠️ THE MAPPING IS THE VENDOR SDK'S, NOT A MEASUREMENT. No ring here has ever been asked to push, so
+# whether a pushed stream beats polling on throughput, battery or gap behaviour is untested — it needs a
+# night on the box. That the per-night `*_OXYFRAME.txt` sidecars carry one decoded 0x04 row per poll and
+# no unsolicited-opcode rows is the visible record that every sample so far was polled.
 
 
 def setup_frame(push: int = 0x00) -> bytes:
