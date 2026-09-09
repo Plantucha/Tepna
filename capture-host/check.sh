@@ -53,7 +53,12 @@ mapfile -t sh_files < <(find . -name '*.sh' -not -path './.venv*' | sort)
 # When neither location has it the bare name still fails with 127 — a missing tool stays visible.
 SC="$(dirname "$PY")/shellcheck"; [ -x "$SC" ] || SC=shellcheck
 run_gate "shellcheck" "$SC" --severity=style "${sh_files[@]}"
-run_gate "pytest"     "$PY" -m pytest -q --cov --cov-branch --cov-fail-under=100
+# pytest-xdist WHEN PRESENT (requirements-dev.txt declares it; CI runs `-n 4`). Measured on the rig
+# 2026-09-09: serial 15m52s, `-n 4` 8m37s, same 6833 tests and the same coverage table — pytest-cov
+# combines the workers' data itself. A venv without the plugin still runs the identical gate serially
+# rather than failing on an unknown flag: absence of a speed-up is not absence of a gate.
+XDIST=(); "$PY" -c 'import xdist' 2>/dev/null && XDIST=(-n auto)
+run_gate "pytest"     "$PY" -m pytest -q --cov --cov-branch --cov-fail-under=100 "${XDIST[@]}"
 # Machinery that exists, is tested, and is connected to NOTHING — the sibling of "a check that reports
 # success about something it never examined". No other gate can see it: every instance HAS passing
 # tests, and the tests call the function directly, which is exactly the wiring production lacks. Seconds,
