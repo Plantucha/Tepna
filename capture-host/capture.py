@@ -3938,6 +3938,13 @@ async def run_oxyii(dev: dict, root: str):
         # one: the exponential backoff exists for a radio that keeps dropping, and an encrypted ring is
         # a device we cannot read at all. Named separately so the journal and the retry both say so.
         auth_stop: "list[str | None]" = [None]
+        # WHY the episode's failure class is a variable and not read off the exception below: the
+        # DISCONNECTED row is emitted in the `finally`, and Python UNBINDS an `except … as e` name at
+        # the end of its clause — so a later reader who "just passes `e`" down there gets a NameError,
+        # not a classification. Binding here also gives the clean path the right answer: a session that
+        # ended without an exception carries `None`, which is the honest reading of a normal end and
+        # NOT a failure class meaning "nothing went wrong".
+        link_failure = None
         try:
             _set(name, connected=False, address=addr, last_error=None)
             _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.CONNECTING, "scan + connect")
@@ -4715,6 +4722,20 @@ async def run_oxyii(dev: dict, root: str):
                         break
         except Exception as e:
             _set(name, connected=False, last_error=repr(e))
+            # 🔴 CLASSIFY BEFORE THE EXCEPTION GOES OUT OF SCOPE. `OXYLIFE.csv` has carried a `failure`
+            # column since the file was created and it has NEVER been populated on the LINK axis —
+            # measured 2026-09-10 over 18 nights: 1389 connect attempts, 392 sessions, and **0** rows
+            # with a failure cell. So the journal records THAT three-quarters of attempts end without a
+            # session and cannot say WHY ANY of them did, which is exactly what makes that ratio
+            # uninterpretable: an attempt against a ring on its charger SHOULD fail, and nothing in the
+            # file distinguishes it from a radio that could not answer.
+            #
+            # `oxy_power.classify_exception` is the SHARED taxonomy (`cpap_acq.FailureClass`) the pull
+            # path and the power axis already use — not a second vocabulary invented for this column.
+            # Reusing it is the point: two axes disagreeing about what a failure was is worse than
+            # neither reporting one.
+            import oxy_power as _oxp
+            link_failure = _oxp.classify_exception(e)
             # NAME THE EXPECTED POWER-OFF INSTEAD OF WARNING ABOUT IT. The ring runs its own idle timer
             # (~121.9 s after a doff, measured — `alerts.RING_IDLE_TIMER_S`) and then stops advertising.
             # Once its stored session has been pulled, that absence is the device working as designed,
@@ -4732,7 +4753,13 @@ async def run_oxyii(dev: dict, root: str):
             else:
                 log.warning("%s %s", name, link_error_text(e))
         finally:
-            _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.DISCONNECTED, "session ended")
+            # The REASON string is deliberately unchanged. "session ended" is the transition vocabulary
+            # every existing reader and count keys on, and a failed connect is still a session ending —
+            # the new information belongs in the `failure` column, which is the one nothing was using.
+            # Widening the reason instead would have moved 997 historical rows' worth of vocabulary to
+            # carry a fact a dedicated column already has a place for.
+            _oxy_emit(_oxylc, _oxywr["w"], name, oxy_lifecycle.OxyState.DISCONNECTED, "session ended",
+                      failure=link_failure)
             # RECORDING axis on link loss: the ring is UNOBSERVABLE, which is not the same fact as
             # not-recording (§5: BLE loss must never read as "recording ended").
             _rec_emit(_oxyrec.observe_link_lost())

@@ -393,6 +393,77 @@ def test_run_oxyii_the_contact_vote_still_owns_the_worn_edge_in_both_directions(
     assert worn_axis == ["live", "idle_unworn", "live", "idle_unworn"], link
 
 
+# ── the OXYLIFE `failure` column on the LINK axis (row 2026-09-10-ring-connect-yield-is-not-a-failure-rate) ──
+def _oxyii_connect_raises(monkeypatch, exc):
+    """Make the production connect path raise, so the DISCONNECTED row is written by the real `finally`."""
+    def _boom(addr, *a, **k):
+        raise exc
+    monkeypatch.setattr(capture, "_connect_scan", _boom)
+
+
+def test_run_oxyii_journals_WHY_a_connect_attempt_failed(tmp_path, monkeypatch):
+    """🔴 THE COLUMN THAT WAS NEVER WRITTEN. `OXYLIFE.csv` has carried a `failure` field since the file
+    was created and, measured on vigil 2026-09-10 over 18 nights, it was populated on **0** of the link
+    axis's rows — 1389 connect attempts, 392 sessions, and no statement of why any of the other 997
+    ended. That is what makes the yield uninterpretable rather than merely bad: an attempt against a
+    ring on its charger SHOULD fail, and nothing in the file separated it from a radio that could not
+    answer.
+
+    Driven through `run_oxyii` rather than `_oxy_emit`, because the defect was never in the emit helper
+    (which has always accepted `failure=`) — it was in the caller, which had no value to give it."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+
+    class BleakDeviceNotFoundError(Exception):
+        """Matched by NAME, as `oxy_power.classify_exception` does — the tests import no bleak."""
+
+    _oxyii_connect_raises(monkeypatch, BleakDeviceNotFoundError("device not found"))
+    _stop_after(monkeypatch, 2)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    rows = _oxylife_link_rows(tmp_path)
+    ended = [r for r in rows if r[3] == "disconnected"]
+    assert ended, "a failed attempt still journals the DISCONNECTED transition"
+    assert ended[0][7] == "device_unavailable", (
+        f"the row must name WHY, using the shared cpap_acq taxonomy: {ended[0]}")
+    # ...and the reason vocabulary is UNCHANGED, because 997 historical rows and every existing count
+    # key on it. The new information belongs in the column that had a place for it.
+    assert ended[0][4] == "session ended"
+
+
+@pytest.mark.parametrize("exc,want", [
+    (OSError("dbus: le-connection-abort-by-local"), "transport_failure"),
+    (TimeoutError("timed out"), "timeout"),
+])
+def test_run_oxyii_different_causes_get_DIFFERENT_classes(tmp_path, monkeypatch, exc, want):
+    """The column earns nothing if every failure lands in one bucket — that is the state it replaces.
+    Two different causes must produce two different labels, or the classification is decorative.
+
+    ⚠️ PARAMETRIZED, not looped. A loop reuses one `monkeypatch` and one `_stop_after` counter across
+    both cases, and the second run then never starts — which presents as a missing OXYLIFE.csv rather
+    than as a wrong class, i.e. the test fails for a reason that has nothing to do with the assertion."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    _oxyii_connect_raises(monkeypatch, exc)
+    _stop_after(monkeypatch, 2)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    got = [r[7] for r in _oxylife_link_rows(tmp_path) if r[3] == "disconnected"]
+    assert got and got[0] == want, f"{type(exc).__name__} must classify as {want}, got {got}"
+
+
+def test_run_oxyii_a_clean_session_end_carries_NO_failure_class(tmp_path, monkeypatch):
+    """∅ THE CONTROL, and the reason `link_failure` is initialised before the `try` rather than inside
+    the handler. A session that ended without an exception has no failure class, and the honest record
+    of that is an EMPTY cell — not a class meaning 'nothing went wrong', which would make the column
+    unusable as a denominator the moment anyone counted populated cells."""
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    c = FakeGattClient()
+    replies = [_o2ring_live_reply(worn=True, duration=900)]
+    c.on_live = lambda data: (c.notify(0, replies.pop(0)) if data[1] == oxyii.OP_LIVE and replies else None)
+    _inject_connect_scan(monkeypatch, c)
+    _stop_after(monkeypatch, 5)
+    _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+    ended = [r for r in _oxylife_link_rows(tmp_path) if r[3] == "disconnected"]
+    assert ended and ended[0][7] == "", f"a clean end must leave the cell EMPTY: {ended[0]}"
+
+
 def test_run_oxyii_reports_a_ring_in_recording_mode(tmp_path, monkeypatch):
     """No OxyII characteristics present -> the 'ring in recording mode' hint, no crash."""
     capture._OXYII_PAUSE.clear(); capture._RECOVER.clear()
