@@ -27317,7 +27317,12 @@
         });
         return v;
       }
-      var RV = residueVerdict(RR.rows, DL.briefs, DL.fsPaths || null),
+      /* check8d resolves a SOURCE PATH, which is a different question from check4b's link targets:
+         `.claude/hooks/*` and `.github/workflows/*` are real, tracked, and are where this suite's
+         guards and CI gates live. `fsPathsAll` is the walk that admits dot-entries; the `|| fsPaths`
+         fallback keeps a runner that has not been updated working rather than silently resolving
+         nothing (a null pathSet SKIPS the check, which would be this defect wearing a green tick). */
+      var RV = residueVerdict(RR.rows, DL.briefs, DL.fsPathsAll || DL.fsPaths || null),
         dupId = RV.dupId,
         badSrc = RV.badSrc,
         badPromo = RV.badPromo,
@@ -27493,6 +27498,26 @@
         'self-test · check8 FIRES on each planted defect exactly once (missing source · missing back-ref · dup id · bad promotion ×2) and NOT on the clean row',
         PV.badSrc.length === 1 && PV.noBackRef.length === 1 && PV.dupId.join() === '2026-01-02-k3' && PV.badPromo.length === 2 && PV.noBackRef[0].indexOf('2026-01-02-k2') === 0,
         JSON.stringify(PV)
+      );
+
+      /* ── check8d · a SOURCE PATH under a dot-directory resolves. `.claude/hooks/*` and
+         `.github/workflows/*` are tracked and are exactly where this suite's guards and CI gates live,
+         so while check8d resolved against check4b's LINK inventory — which excludes every dot-entry by
+         design — no guard could ever be cited as a residue source. It reds with "no such path in the
+         tree" for a committed, present file, which pushes the author toward a plausible-but-wrong
+         source cell: the one edit §📌 names as making a real defect disappear.
+
+         PLANTED BOTH WAYS on purpose. Accepting the dot-path alone would also pass if the check had
+         simply stopped resolving paths at all, so the absent path is asserted to still FIRE — the
+         verdict has to discriminate, not merely go quiet. */
+      var dotRows = residueRows(
+        ['| 2026-01-02-k5 | 2026-01-02 | `.claude/hooks/guard-x.sh` | d | e | OPEN |', '| 2026-01-02-k6 | 2026-01-02 | `.claude/hooks/absent.sh` | d | e | OPEN |'].join('\n')
+      ).rows;
+      var DPV = residueVerdict(dotRows, {}, ['.claude', '.claude/hooks', '.claude/hooks/guard-x.sh']);
+      T.ok(
+        'check8d · a source path under a dot-directory resolves, and an absent one still FIRES',
+        DPV.badSrc.length === 1 && DPV.badSrc[0].indexOf('2026-01-02-k6') === 0,
+        JSON.stringify(DPV.badSrc)
       );
 
       // ── FLOOR · the brief set was actually loaded from fs (a non-vacuous gate). CPAP-REAL-CORPUS-
