@@ -321,6 +321,134 @@ def test_THE_WORKER_STARTS_RUNS_AND_DRAINS_FOR_REAL(tmp_path):
     fh.close()
 
 
+def test_THE_WORKER_LOOP_DRAINS_EVERY_ITEM_THEN_RETURNS_ON_THE_SENTINEL(tmp_path, monkeypatch):
+    """The worker loop, driven ON THIS THREAD — and that is the point, not a convenience.
+
+    `_fsync_worker` only ever runs on a background thread in production, and coverage does not
+    attribute threaded lines to the test that started them. So mutmut saw NO covering test and every
+    mutant of this function survived unexamined: swapping the queued fd for the health object, passing
+    `None`, dropping an argument, reading `item[2]`, and inverting the sentinel check. Seven of them,
+    none of which any assertion could see. Calling the loop directly makes it ordinary covered code.
+
+    Pins three things at once: every queued item is processed, IN ORDER, with its own pair of
+    arguments; and the sentinel — and only the sentinel — ends the loop."""
+    seen = []
+    monkeypatch.setattr(writers, "_do_fsync", lambda dup, health: seen.append((dup, health)))
+    h1 = writers._FlushHealth(str(tmp_path / "one.txt"))
+    h2 = writers._FlushHealth(str(tmp_path / "two.txt"))
+    writers._FSYNC_Q.put((11, h1))
+    writers._FSYNC_Q.put((22, h2))
+    writers._FSYNC_Q.put(None)
+    writers._fsync_worker()                         # returns at the sentinel, or this test hangs
+    assert seen == [(11, h1), (22, h2)], (
+        "each item is passed through whole and in order — fd first, its own health second")
+    assert writers._FSYNC_Q.empty(), "the sentinel was consumed, not left for the next worker"
+
+
+def test_A_FRESH_FLUSH_HEALTH_STARTS_FROM_A_KNOWN_STATE(tmp_path):
+    """The constructor contract, every field. Five `__init__` mutants survived the diff-scoped gate —
+    `self.path = None` among them — because nothing asserted the starting state, only what happened
+    after something went wrong.
+
+    ⚠️ Four of those five are on lines this branch never touched. The gate scopes by FUNCTION, not by
+    line, so adding one attribute to a constructor pulls every pre-existing assignment into the PR's
+    scope. They are closed here rather than argued about — a constructor is cheap to pin and the next
+    person to add a field should not inherit the argument."""
+    path = str(tmp_path / "fresh.txt")
+    h = writers._FlushHealth(path)
+    assert h.path == path, "the path is what every warning line names — a None here mislabels them all"
+    assert h.failures == 0 and h.rows_lost == 0
+    assert h.fsync_max_ms == 0.0 and h.fsync_last_ms == 0.0
+    assert h._failing is False, "a fresh writer is not failing, and `not None` would agree wrongly"
+    assert h._slow_said is False, "nothing has been said yet"
+    assert h._fsync_pending is False, "no barrier is outstanding before the first flush"
+
+
+def test_THE_BARRIER_DURATION_IS_CONVERTED_EXACTLY(tmp_path, monkeypatch):
+    """`* 1000.0` mutated to `* 1001.0` survived, and the reason is worth stating: every existing
+    assertion about this number is a TOLERANCE (`>= 250`, `< 250`, `>= 0`), and a 0.1 % error passes
+    all of them. Timing noise on a real disk is orders of magnitude larger, so no test that measures a
+    real barrier can ever see it.
+
+    Controlling the clock instead of tolerating it makes the conversion exact and the mutant visible —
+    seconds → milliseconds is arithmetic, not a measurement, and arithmetic can be asserted exactly."""
+    ticks = iter([10.0, 11.5])                      # t0, then the reading after the barrier
+    monkeypatch.setattr(writers._time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(writers.os, "fsync", lambda fd: None)
+    h = writers._FlushHealth(str(tmp_path / "ms.txt"))
+    fh = open(tmp_path / "ms.txt", "w")
+    writers._do_fsync(os.dup(fh.fileno()), h)
+    assert h.fsync_last_ms == 1500.0, "1.5 s is 1500 ms exactly, not 1501.5"
+    assert h.fsync_max_ms == 1500.0
+    fh.close()
+
+
+def test_THE_WORKER_THREAD_IS_A_NAMED_DAEMON(tmp_path):
+    """🔴 `daemon=True` is load-bearing and nothing observed it. A non-daemon thread keeps the
+    interpreter alive at shutdown, so a mutant flipping it turns every clean stop into a hang — the
+    exact failure `_drain_fsync`'s bound exists to prevent, arriving by the other door.
+
+    The NAME is not cosmetic either: it is how an operator reading a stack dump on the box tells this
+    thread from bleak's, and an unnamed thread shows as `Thread-N`."""
+    writers._drain_fsync(timeout=0.1)
+    h = writers._FlushHealth(str(tmp_path / "n.txt"))
+    fh = open(tmp_path / "n.txt", "w")
+    writers._submit_fsync(os.dup(fh.fileno()), h)
+    t = writers._FSYNC_THREAD
+    assert t is not None
+    assert t.daemon is True, "a non-daemon worker would hold the interpreter open at shutdown"
+    assert t.name == "tepna-fsync", "the thread must be findable by name in a stack dump"
+    writers._drain_fsync(timeout=5.0)
+    fh.close()
+
+
+def test_THE_EXIT_DRAIN_IS_BOUNDED_SO_A_WEDGED_DISK_CANNOT_HOLD_SHUTDOWN(tmp_path, monkeypatch):
+    """🔴 THE BOUND IS THE POINT, and nothing observed it until now — `t.join(timeout)` mutated to
+    `t.join(None)` survived the diff-scoped gate on the commit that introduced it.
+
+    `_drain_fsync` exists so a clean shutdown does not return before the night's tail reaches the
+    platter. It is BOUNDED so the opposite failure cannot happen: a disk that has stopped answering
+    must not hold the daemon open forever, because the rows are already in the kernel and the machine
+    needs to be able to stop. An unbounded join turns a storage stall into a daemon that will not die.
+
+    Killed by TIME, not by a hang: the worker is busy for 0.6 s and the drain is given 0.05 s, so an
+    unbounded join is caught by the elapsed assertion rather than by the suite timing out — a hang
+    reads as 'killed' to the mutation runner while telling a human nothing."""
+    writers._drain_fsync(timeout=0.1)               # start from a known state
+    h = writers._FlushHealth(str(tmp_path / "slow.txt"))
+    fh = open(tmp_path / "slow.txt", "w")
+    monkeypatch.setattr(writers.os, "fsync", lambda fd: time.sleep(0.6))
+    writers._submit_fsync(os.dup(fh.fileno()), h)
+    t0 = time.monotonic()
+    writers._drain_fsync(timeout=0.05)
+    elapsed = time.monotonic() - t0
+    assert elapsed < 0.4, f"the drain waited {elapsed:.2f}s on a busy worker — the bound is not applied"
+    writers._drain_fsync(timeout=5.0)               # now let it finish, so the thread does not leak
+    while not writers._FSYNC_Q.empty():             # and drop the surplus sentinel this test queued
+        writers._FSYNC_Q.get_nowait()
+    fh.close()
+
+
+def test_A_BARRIER_EXACTLY_AT_THE_THRESHOLD_IS_NAMED(tmp_path, caplog):
+    """The boundary, both sides. `SLOW_FSYNC_MS` is documented as the point at which the disk is
+    struggling, so AT it must warn — `>=` mutated to `>` survived, which means the threshold's own
+    definition was untested at the only value where the two differ.
+
+    Also pins the message the operator actually reads, including the clause that REPLACED the retired
+    "on the event loop": a truncated format string survived too, so nothing was asserting the text."""
+    thr = writers._FlushHealth.SLOW_FSYNC_MS
+    with caplog.at_level("WARNING"):
+        writers._FlushHealth(str(tmp_path / "at.txt")).note_fsync(thr)
+    assert "SLOW fsync" in caplog.text, "at the threshold it must be named"
+    assert "capture was not stalled by it" in caplog.text
+    assert "off-loop worker" in caplog.text
+    assert "on the event loop" not in caplog.text, "the retired claim must not come back"
+    caplog.clear()
+    with caplog.at_level("WARNING"):
+        writers._FlushHealth(str(tmp_path / "below.txt")).note_fsync(thr - 0.001)
+    assert "SLOW fsync" not in caplog.text, "just below it stays silent"
+
+
 def test_THE_DRAIN_IS_A_NO_OP_WHEN_NOTHING_EVER_STARTED():
     """∅ Draining with no worker must not hang or raise — the state of every process that never wrote
     a file, including most of this suite."""
