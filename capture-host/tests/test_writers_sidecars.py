@@ -442,6 +442,10 @@ def test_every_writer_fsyncs_by_default(tmp_path, monkeypatch, cls, kw):
     # patching writers.os alone would miss it
     synced = []
     monkeypatch.setattr(_os, "fsync", lambda fd: synced.append(fd))
+    # The barrier is queued to a worker since 2026-09-10 (writers._submit_fsync), so run it inline —
+    # otherwise this asserts against a thread that has not been scheduled yet and is a race, not a
+    # test. What it pins is unchanged: the DEFAULT is fsync=True and flush() reaches the platform.
+    monkeypatch.setattr(_w, "_submit_fsync", lambda dup, health: _w._do_fsync(dup, health))
     w = cls(str(tmp_path / "x.dat"), **kw)          # no fsync= — the default is the subject
     try:
         assert w._fsync is True, "durability is opt-OUT, never opt-in"

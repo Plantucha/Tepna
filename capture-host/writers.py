@@ -37,7 +37,7 @@
 #   parseDeviceACC, whose worst 175 ms slip never crosses its 30 s epoch boundary.
 
 from __future__ import annotations
-import errno as _errno, logging, os, re as _re, datetime as _dt, time as _time
+import atexit as _atexit, errno as _errno, logging, os, queue as _queue, re as _re, threading as _threading, datetime as _dt, time as _time
 from typing import Iterable, TextIO
 
 # The annotation values a device INSERTS into a stream live with the device, not here — the merge
@@ -139,6 +139,70 @@ def _write_error_name(exc: BaseException) -> str:
     return _errno.errorcode.get(num, f"errno {num}")
 
 
+# ── THE OFF-LOOP FSYNC WORKER ────────────────────────────────────────────────────────────────
+# ONE daemon thread for the whole process, serving every writer. Serial by design: the disk is one
+# device, so N threads would not make N barriers faster — they would just make the queue invisible.
+#
+# The queue carries (dup'd fd, health) pairs, never rows. See `_FlushHealth.fsync` for why that is
+# the whole safety argument rather than an implementation detail.
+_FSYNC_Q: "_queue.Queue" = _queue.Queue()
+_FSYNC_THREAD = None
+_FSYNC_LOCK = _threading.Lock()
+
+
+def _do_fsync(dup: int, health) -> None:
+    """One barrier, on the worker. Owns `dup` and ALWAYS closes it — a leaked descriptor per flush
+    would exhaust the daemon's fd budget over a night far faster than any capture bug."""
+    t0 = _time.monotonic()
+    try:
+        os.fsync(dup)
+    except OSError:
+        pass                # the description went away under us; the rows are still in the kernel
+    finally:
+        try:
+            os.close(dup)
+        except OSError:
+            pass            # already closed (a drain raced us): the barrier still ran, nothing owed
+        health.note_fsync((_time.monotonic() - t0) * 1000.0)
+
+
+def _fsync_worker() -> None:
+    while True:
+        item = _FSYNC_Q.get()
+        if item is None:
+            return                          # shutdown sentinel from `_drain_fsync`
+        _do_fsync(item[0], item[1])
+
+
+def _submit_fsync(dup: int, health) -> None:
+    """Hand one barrier to the worker, starting it on first use.
+
+    Seam for the tests: they replace this with an inline call, so every branch of `_do_fsync` is
+    reachable without a thread and the suite stays deterministic."""
+    global _FSYNC_THREAD
+    with _FSYNC_LOCK:
+        if _FSYNC_THREAD is None or not _FSYNC_THREAD.is_alive():
+            _FSYNC_THREAD = _threading.Thread(target=_fsync_worker, name="tepna-fsync", daemon=True)
+            _FSYNC_THREAD.start()
+    _FSYNC_Q.put((dup, health))
+
+
+def _drain_fsync(timeout: float = 5.0) -> None:
+    """Finish outstanding barriers at exit. A DAEMON thread is killed wherever it stands, so without
+    this a clean shutdown could return before the night's tail reached the platter — the one case
+    where moving the fsync off-loop would have cost durability rather than latency. Bounded: a wedged
+    disk must not hold the daemon open, and the data is in the kernel either way."""
+    with _FSYNC_LOCK:
+        t = _FSYNC_THREAD
+    if t is None or not t.is_alive():
+        return
+    _FSYNC_Q.put(None)
+    t.join(timeout)
+
+
+_atexit.register(_drain_fsync)
+
+
 class _FlushHealth:
     """Whether one file's writes are reaching the disk, logged on TRANSITIONS only.
 
@@ -161,6 +225,7 @@ class _FlushHealth:
         self.fsync_last_ms = 0.0
         self._failing = False
         self._slow_said = False
+        self._fsync_pending = False
 
     def failed(self, exc: BaseException) -> None:
         self.failures += 1
@@ -198,25 +263,54 @@ class _FlushHealth:
             return False
         return True
 
-    # A single `fsync` on the eMMC/SD this box records to has been measured in the hundreds of ms under
-    # concurrent load, and it runs ON THE EVENT LOOP inside a notification callback — every other device's
-    # host stamp waits behind it (§S2). This does not move it off the loop; it makes the stall a NUMBER
-    # (`fsync_max_ms` in STATUS) so the decision to move it is taken on a measurement, not a guess.
+    # 🟢 THE FSYNC IS OFF THE EVENT LOOP (2026-09-10). It used to run inline in a notification
+    # callback, so every device's host stamps waited behind every other device's disk barrier.
+    # MEASURED before moving it, against the band `2026-09-05-fsync-on-loop-unmeasured` pre-stated:
+    # 20 SLOW events over six nights, on every night, 252–506 ms with one at 1702 ms. The band said
+    # ≥250 ms on a live stream ⇒ move it, so this is the remedy that decision authorised.
+    #
+    # 🔴 WHAT MOVED IS THE FSYNC, NOT THE WRITER — and that distinction is the whole safety argument.
+    # The row that set the band declined to build "a thread or queue writer" because queueing ROWS
+    # "introduces a loss class the current code does not have (rows in a queue at crash)". Correct,
+    # and it does not apply here: `flush()` has already copied the rows userspace → kernel before this
+    # runs, so nothing is in flight and a PROCESS crash loses nothing. `tests/test_chaos_ordering.py`
+    # states the same invariant independently — "a process kill does not lose page-cache data: the
+    # kernel writes those pages back regardless of whether fsync was ever called". What fsync defends
+    # is a MACHINE failure, and the window for that is unchanged in kind: it was 5 s of unsynced data
+    # before, it is 5 s plus one queue hop now.
+    #
+    # ⚠️ THE WORKER SYNCS A `dup`, NOT THE CALLER'S FD. A pending fsync must not be able to touch a
+    # descriptor the writer has since closed and the OS has reused — that would sync an unrelated file
+    # and report it under this path. `os.dup` gives the worker its own reference to the SAME open file
+    # description, so the data still reaches disk, `close()` needs no coordination and no signature
+    # change, and the worst case is one extra fd per writer with a sync outstanding.
     SLOW_FSYNC_MS = 250.0
 
     def fsync(self, fh) -> None:
-        t0 = _time.monotonic()
+        """Queue this file's disk barrier. Returns immediately; the stall happens on the worker."""
+        if self._fsync_pending:
+            return                          # coalesce: one outstanding barrier per file is enough
         try:
-            os.fsync(fh.fileno())
-        finally:
-            ms = (_time.monotonic() - t0) * 1000.0
-            self.fsync_last_ms = ms
-            if ms > self.fsync_max_ms:
-                self.fsync_max_ms = ms
-            if ms >= self.SLOW_FSYNC_MS and not self._slow_said:
-                self._slow_said = True      # once per file: the onset is the fact, the max is in STATUS
-                _log.warning("%s: SLOW fsync %.0f ms on the event loop — every live stream's host "
-                             "stamps waited behind it", self.path, ms)
+            dup = os.dup(fh.fileno())
+        except (OSError, ValueError):
+            return                          # handle already gone: nothing to sync, and not an error
+        self._fsync_pending = True
+        _submit_fsync(dup, self)
+
+    def note_fsync(self, ms: float) -> None:
+        """Record one completed barrier. Called FROM THE WORKER THREAD — assignments only, no I/O."""
+        self._fsync_pending = False
+        self.fsync_last_ms = ms
+        if ms > self.fsync_max_ms:
+            self.fsync_max_ms = ms
+        if ms >= self.SLOW_FSYNC_MS and not self._slow_said:
+            self._slow_said = True          # once per file: the onset is the fact, the max is in STATUS
+            # ⚠️ NO LONGER "on the event loop" — that clause was true of the old call site and would be
+            # a fabricated finding here. A slow barrier still matters (the disk is struggling, and the
+            # NEXT one may queue behind it), so it is still said; it just no longer claims to have
+            # stalled capture, because it did not.
+            _log.warning("%s: SLOW fsync %.0f ms (off-loop worker) — the disk took that long to "
+                         "confirm the write; capture was not stalled by it", self.path, ms)
 
     def ok(self) -> None:
         """Called ONLY from `flush`, never from `close`.

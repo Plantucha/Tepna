@@ -139,12 +139,23 @@ def test_THE_RR_SIDECAR_LOSS_IS_COUNTED_TOO(tmp_path):
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
-# §S2 — fsync on the event loop is MEASURED, and a slow one names itself once
+# §S2 — the fsync is MEASURED, a slow one names itself once, and it is OFF THE EVENT LOOP
 # ══════════════════════════════════════════════════════════════════════════════════════════════
+
+
+def _inline_fsync(monkeypatch):
+    """Run the barrier on the CALLER's thread so a test can assert the measurement it just caused.
+
+    The seam is `_submit_fsync`, not the worker: swapping it exercises `_do_fsync` — the code that
+    actually runs in production — rather than a test-only reimplementation of it. Every §S2 test below
+    that asserts a number immediately after `flush()` needs this, because in production that number
+    arrives on another thread a moment later."""
+    monkeypatch.setattr(writers, "_submit_fsync", lambda dup, health: writers._do_fsync(dup, health))
 
 @pytest.mark.parametrize("cls", _CLASSES)
 def test_A_SLOW_FSYNC_IS_A_NUMBER_IN_THE_WRITER_AND_ONE_WARNING(cls, tmp_path, monkeypatch, caplog):
     # drive the class's flush with fsync ON, against a planted 300 ms os.fsync
+    _inline_fsync(monkeypatch)
     w = getattr(writers, cls)(str(tmp_path / f"{cls}-f.csv"), *(["hr"] if cls == "StreamWriter" else []),
                               fsync=True)
     # the threshold is lowered so eight classes × two flushes do not cost 5 s of wall clock; the real
@@ -163,15 +174,21 @@ def test_THE_SLOW_FSYNC_THRESHOLD_IS_250_MS(tmp_path, monkeypatch, caplog):
     """250 ms is ~32 ECG samples at 130 Hz queued behind one syscall — the point at which the host
     stamps of every other stream are visibly late. Below it: measured, silent. At it: named once."""
     assert writers._FlushHealth.SLOW_FSYNC_MS == 250.0
+    _inline_fsync(monkeypatch)
     w = writers.StreamWriter(str(tmp_path / "t.txt"), "ecg", fsync=True)
     monkeypatch.setattr(writers.os, "fsync", lambda fd: time.sleep(0.26))
     with caplog.at_level("WARNING"):
         w.flush()
     assert w.fsync_max_ms >= 250 and "SLOW fsync" in caplog.text
+    # ∅ THE RETIRED CLAIM. The line used to say the stall happened "on the event loop"; it does not
+    # any more, and a warning that kept saying so would be a fabricated finding about capture.
+    assert "on the event loop" not in caplog.text
+    assert "capture was not stalled by it" in caplog.text
     w.close()
 
 
 def test_A_FAST_FSYNC_SAYS_NOTHING_BUT_STILL_MEASURES(tmp_path, monkeypatch, caplog):
+    _inline_fsync(monkeypatch)
     w = writers.StreamWriter(str(tmp_path / "q.txt"), "ecg", fsync=True)
     monkeypatch.setattr(writers.os, "fsync", lambda fd: None)
     with caplog.at_level("WARNING"):
@@ -180,6 +197,135 @@ def test_A_FAST_FSYNC_SAYS_NOTHING_BUT_STILL_MEASURES(tmp_path, monkeypatch, cap
     assert 0.0 <= w.fsync_max_ms < 250
     assert w._health.fsync_last_ms == pytest.approx(w.fsync_max_ms)
     w.close()
+
+
+def test_THE_BARRIER_IS_QUEUED_NOT_PAID_BY_THE_CALLER(tmp_path, monkeypatch):
+    """🟢 THE FIX. `flush()` must return without waiting on the disk — that wait is what put every
+    device's host stamps behind every other device's barrier, measured at 252–1702 ms over six nights.
+    The caller now pays a queue put; the worker pays the disk."""
+    submitted = []
+    monkeypatch.setattr(writers, "_submit_fsync", lambda dup, health: submitted.append((dup, health)))
+    monkeypatch.setattr(writers.os, "fsync", lambda fd: pytest.fail("fsync ran on the caller's thread"))
+    w = writers.StreamWriter(str(tmp_path / "a.txt"), "ecg", fsync=True)
+    w.flush()
+    assert len(submitted) == 1, "the barrier was handed off, exactly once"
+    os.close(submitted[0][0])
+    w.close()
+
+
+def test_ONE_OUTSTANDING_BARRIER_PER_FILE_NOT_A_BACKLOG(tmp_path, monkeypatch):
+    """Coalescing. A disk slow enough to matter is slow enough for the next flush to arrive first, and
+    a queue that grows one entry per flush would hold an fd per entry and sync data already covered by
+    the barrier ahead of it. The second flush is a no-op until the first completes."""
+    submitted = []
+    monkeypatch.setattr(writers, "_submit_fsync", lambda dup, health: submitted.append((dup, health)))
+    w = writers.StreamWriter(str(tmp_path / "b.txt"), "ecg", fsync=True)
+    w.flush(); w.flush(); w.flush()
+    assert len(submitted) == 1, "three flushes, one outstanding barrier"
+    dup, health = submitted[0]
+    writers._do_fsync(dup, health)                 # the worker completes it...
+    w.flush()
+    assert len(submitted) == 2, "...and the next flush may queue again"
+    os.close(submitted[1][0])
+    w.close()
+
+
+def test_THE_WORKER_SYNCS_A_DUP_SO_A_CLOSED_WRITER_CANNOT_MISDIRECT_IT(tmp_path, monkeypatch):
+    """🔴 THE SAFETY ARGUMENT, planted. A pending barrier must not be able to touch a descriptor the
+    writer has since closed — the OS reuses fd numbers, so syncing a raw `fileno()` after close could
+    sync an unrelated file and report it under this path. The worker holds its own `dup` of the same
+    open file description, so a closed writer is harmless.
+
+    Asserted by the number rather than by reading the code: the fd handed to the worker differs from
+    the writer's own, and the barrier still succeeds after the writer is fully closed."""
+    submitted = []
+    monkeypatch.setattr(writers, "_submit_fsync", lambda dup, health: submitted.append((dup, health)))
+    w = writers.StreamWriter(str(tmp_path / "c.txt"), "ecg", fsync=True)
+    own_fd = w._fh.fileno()
+    w.flush()
+    dup, health = submitted[0]
+    assert dup != own_fd, "the worker must not be handed the writer's own descriptor"
+    w.close()                                       # the writer's fd is gone...
+    synced = []
+    monkeypatch.setattr(writers.os, "fsync", lambda fd: synced.append(fd))
+    writers._do_fsync(dup, health)                  # ...and the barrier still runs, on the dup
+    assert synced == [dup]
+    assert health.fsync_last_ms >= 0.0, "and it is still measured"
+
+
+def test_THE_WORKER_ALWAYS_CLOSES_ITS_DUP_EVEN_WHEN_THE_SYNC_FAILS(tmp_path, monkeypatch):
+    """A leaked descriptor per flush would exhaust the daemon's fd budget over a night faster than any
+    capture bug. Both arms: a clean sync and a failing one."""
+    w = writers.StreamWriter(str(tmp_path / "d.txt"), "ecg", fsync=True)
+    for boom in (False, True):
+        dup = os.dup(w._fh.fileno())
+        if boom:
+            monkeypatch.setattr(writers.os, "fsync", lambda fd: (_ for _ in ()).throw(OSError("EIO")))
+        writers._do_fsync(dup, w._health)
+        with pytest.raises(OSError):
+            os.fstat(dup)                           # closed → the descriptor is gone
+    w.close()
+
+
+def test_A_DUP_ALREADY_CLOSED_IS_NOT_AN_ERROR_AND_STILL_RECORDS(tmp_path, monkeypatch):
+    """The drain and the worker can race for the same barrier. A double close must not raise out of
+    the worker — an exception there kills the thread, and the next flush would silently never sync."""
+    w = writers.StreamWriter(str(tmp_path / "f.txt"), "ecg", fsync=True)
+    dup = os.dup(w._fh.fileno())
+    monkeypatch.setattr(writers.os, "fsync", lambda fd: None)
+    os.close(dup)                                   # closed under the worker
+    writers._do_fsync(dup, w._health)               # must not raise
+    assert w._health.fsync_last_ms >= 0.0, "the barrier is still recorded as having run"
+    w.close()
+
+
+def test_A_VANISHED_HANDLE_QUEUES_NOTHING_AND_IS_NOT_AN_ERROR(tmp_path, monkeypatch):
+    """∅ A writer whose handle is already closed has no barrier to take, and that is not a failure —
+    the rows it wrote are in the kernel either way. It must not raise into a notification callback."""
+    submitted = []
+    monkeypatch.setattr(writers, "_submit_fsync", lambda dup, health: submitted.append(dup))
+    h = writers._FlushHealth(str(tmp_path / "gone.txt"))
+    fh = open(tmp_path / "gone.txt", "w")
+    fh.close()
+    h.fsync(fh)                                     # ValueError from fileno() on a closed handle
+    assert submitted == [] and h._fsync_pending is False
+
+
+def test_THE_WORKER_STARTS_RUNS_AND_DRAINS_FOR_REAL(tmp_path):
+    """The real thread, end to end — no seam, because the seam is what every other test replaces and
+    something must exercise the thing itself.
+
+    Covers the three states `_submit_fsync` distinguishes: no worker yet (start one), a live worker
+    (reuse it), and a worker that has exited via the drain sentinel (start a fresh one). That last arm
+    is the one that matters in production: a drain at shutdown must not leave the process unable to
+    sync if anything writes afterwards."""
+    writers._drain_fsync(timeout=0.1)               # whatever earlier tests left: start from no worker
+    h = writers._FlushHealth(str(tmp_path / "real.txt"))
+    fh = open(tmp_path / "real.txt", "w")
+    fh.write("x")
+
+    writers._submit_fsync(os.dup(fh.fileno()), h)   # arm 1: no worker → start one
+    t1 = writers._FSYNC_THREAD
+    assert t1 is not None and t1.is_alive(), "the worker starts on first use"
+
+    writers._submit_fsync(os.dup(fh.fileno()), h)   # arm 2: live worker → reuse it
+    assert writers._FSYNC_THREAD is t1, "a live worker is reused, never duplicated"
+
+    writers._drain_fsync(timeout=5.0)               # the sentinel returns the worker
+    assert not t1.is_alive(), "the drain joined it"
+    assert h.fsync_last_ms >= 0.0, "both barriers completed before the drain returned"
+
+    writers._submit_fsync(os.dup(fh.fileno()), h)   # arm 3: dead worker → start a fresh one
+    assert writers._FSYNC_THREAD is not t1, "a drained worker does not leave the process unable to sync"
+    writers._drain_fsync(timeout=5.0)
+    fh.close()
+
+
+def test_THE_DRAIN_IS_A_NO_OP_WHEN_NOTHING_EVER_STARTED():
+    """∅ Draining with no worker must not hang or raise — the state of every process that never wrote
+    a file, including most of this suite."""
+    writers._drain_fsync(timeout=0.1)
+    writers._drain_fsync(timeout=0.1)
 
 
 def test_THE_RUNNERS_PUBLISH_THE_TWO_NEW_COUNTERS_BESIDE_FLUSH_FAILURES():
