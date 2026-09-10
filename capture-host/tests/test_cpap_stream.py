@@ -899,8 +899,19 @@ def test_build_controller_coexistence_gate_defaults_DISABLED_and_config_can_enab
 
 # ── capture._cpap_ble_connect (the bleak I/O edge, mocked) ───────────────────────
 class _FakeBleak:
-    """Records the bleak calls _cpap_ble_connect makes and lets a test drive the notify callback."""
+    """Records the bleak calls _cpap_ble_connect makes and lets a test drive the notify callback.
+
+    🔴 `disconnect()` NULLS `services`, AND THAT IS LOAD-BEARING — do not "simplify" it away. Real
+    bleak's `disconnect()` ends with `assert self.services is None` (`_cleanup_all` resets the
+    collection), so a stub that keeps its snapshot across the close lets a diagnostic that reads the
+    snapshot AFTER disconnecting pass here while returning nothing on the box. That is exactly what
+    happened: #2365's probe shipped green through this file and printed the byte-identical
+    `no service snapshot (BleakError)` for 98 of 98 real events. The stub modelled the calls bleak
+    receives and not the state bleak KEEPS, so the test encoded the shape and not the contract."""
     instances: "list[_FakeBleak]" = []
+    # Annotated, not inferred: a bare `= None` types the attribute as `None`, so a subclass holding a
+    # real service list is a mypy [assignment] error — and that count may only go DOWN.
+    _services: "list | None" = None   # class-level so a subclass can hold one; the instance shadows it on close
 
     def __init__(self, addr, timeout=None, bluez=None):
         self.addr, self.bluez = addr, bluez
@@ -909,6 +920,17 @@ class _FakeBleak:
         self.written = []
         self.mtu_size = 100
         _FakeBleak.instances.append(self)
+
+    @property
+    def is_connected(self):
+        return self.connected
+
+    @property
+    def services(self):
+        # bleak's own `BleakClient.services`: raises rather than handing back an empty collection.
+        if not self._services:
+            raise RuntimeError("Service Discovery has not been performed yet")
+        return self._services
 
     async def connect(self):
         self.connected = True
@@ -921,6 +943,7 @@ class _FakeBleak:
 
     async def disconnect(self):
         self.connected = False
+        self._services = None     # bleak: `_cleanup_all` resets the collection — see the class docstring
 
 
 def test_cpap_ble_connect_wires_write_recv_and_disconnect(monkeypatch):
@@ -973,9 +996,13 @@ class _Svc:
 
 
 class _MissingCharBleak(_FakeBleak):
-    """Raises the #2170 exception on the first N start_notify calls (class attribute), then behaves."""
+    """Raises the #2170 exception on the first N start_notify calls (class attribute), then behaves.
+
+    Its snapshot holds the vendor service carrying only the WRITE characteristic — mechanism (b) of
+    #2170, a collection bleak built before BlueZ published the notify characteristic. `_FakeBleak`
+    drops it on `disconnect()`, so this snapshot is only readable BEFORE the leak guard closes."""
     fail_first = 1
-    services = [_Svc("0000fd56-0000-1000-8000-00805f9b34fb", [_Char("a6220002-35f1-4b20-afae-cb089d2044aa", 0x20)])]
+    _services = [_Svc("0000fd56-0000-1000-8000-00805f9b34fb", [_Char("a6220002-35f1-4b20-afae-cb089d2044aa", 0x20)])]
 
     async def start_notify(self, uuid, cb):
         if len(_FakeBleak.instances) <= _MissingCharBleak.fail_first:
@@ -1051,10 +1078,69 @@ def test_gatt_snapshot_names_what_bleak_held_or_says_it_held_nothing():
     class _Empty:
         services = []
 
+    class _Held:
+        services = _MissingCharBleak._services
+
     assert capture._gatt_snapshot(_NoSnapshot()) == "no service snapshot (RuntimeError)"
     assert capture._gatt_snapshot(_Empty()) == "empty snapshot"
-    assert capture._gatt_snapshot(_MissingCharBleak) == (
+    assert capture._gatt_snapshot(_Held()) == (
         "0000fd56-0000-1000-8000-00805f9b34fb[a6220002-35f1-4b20-afae-cb089d2044aa@0x0020]")
+
+
+def test_gatt_link_state_separates_a_dropped_link_from_an_unreadable_one():
+    """∅ The three answers are `connected`, `DISCONNECTED` and `unknown` — and the third may never
+    collapse into the second. bleak's `is_connected` raises once the backend is torn down, so a
+    `except: return False` here would report "the peer dropped" every time the probe merely could not
+    look, manufacturing the exact finding #2170 is trying to measure."""
+    import capture
+
+    class _Up:
+        is_connected = True
+
+    class _Down:
+        is_connected = False
+
+    class _Unreadable:
+        @property
+        def is_connected(self):
+            raise RuntimeError("backend is gone")
+
+    assert capture._gatt_link_state(_Up()) == "connected"
+    assert capture._gatt_link_state(_Down()) == "DISCONNECTED"
+    assert capture._gatt_link_state(_Unreadable()) == "unknown (RuntimeError)"
+
+
+def test_the_snapshot_and_link_state_are_read_BEFORE_the_leak_guard_closes_the_link(monkeypatch, caplog):
+    """🔴 THE #2365 DEFECT, pinned. `client.disconnect()` nulls bleak's service collection — it ends
+    with `assert self.services is None` — so a diagnostic that reads the snapshot AFTER the close can
+    only ever print "no service snapshot", whatever happened. Measured on vigil 2026-09-09: 98 of 98
+    events byte-identical, from a probe that never examined its subject.
+
+    The assertion is that the log carries what bleak HELD AT THE FAILURE, which is unreachable once
+    the guard has run — `_FakeBleak.disconnect()` drops `_services` exactly as bleak does, so this
+    test REDS against the old ordering rather than passing on a stub that kept its state."""
+    import capture
+    import bleak
+    _FakeBleak.instances.clear()
+    _MissingCharBleak.fail_first = 1
+    monkeypatch.setattr(bleak, "BleakClient", _MissingCharBleak)
+
+    async def go():
+        with caplog.at_level(logging.WARNING, logger="capture"):
+            _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+        first = _FakeBleak.instances[0]
+        # The evidence is genuinely GONE by the time the guard finishes — so a log line that still
+        # names it can only have read it beforehand. This is the plant: without it the assertions
+        # below pass against either ordering.
+        assert capture._gatt_snapshot(first) == "no service snapshot (RuntimeError)"
+        assert capture._gatt_link_state(first) == "DISCONNECTED"
+
+        msg = next(r.getMessage() for r in caplog.records if "#2170" in r.getMessage())
+        assert "a6220002-35f1-4b20-afae-cb089d2044aa@0x0020" in msg, "the snapshot bleak held at failure"
+        assert "link at failure: connected" in msg, "the link WAS up — mechanism (b), not a peer drop"
+        assert "although the link is up" not in msg, "the retired claim was asserted, never measured"
+        await disconnect()
+    _run(go())
 
 
 # ── P1+P3 wiring: durable sink ordering (INV9) + non-fatal-but-loud sink failure ────────────────────

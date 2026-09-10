@@ -9123,7 +9123,16 @@ def _gatt_snapshot(client) -> str:
     the D-Bus snapshot bleak built at ServicesResolved, and this is the only place that snapshot is
     visible; a log line that says only the exception name cannot tell a partial snapshot from an empty
     one from a whole other service tree. Reads only; tolerates a client with no snapshot at all
-    (bleak raises on `.services` before discovery) — that too is an answer, so it is named, not hidden."""
+    (bleak raises on `.services` before discovery) — that too is an answer, so it is named, not hidden.
+
+    🔴 CALL THIS **BEFORE** `client.disconnect()`, NEVER AFTER — and the same for `_gatt_link_state`.
+    bleak's `disconnect()` ends with `assert self.services is None` (`_cleanup_all` nulls the
+    collection), so a snapshot read after the close can only ever return "no service snapshot",
+    whatever actually happened. #2365 shipped the call one line too late and it was measured on vigil
+    2026-09-09: **98 of 98 events printed the byte-identical `no service snapshot (BleakError)`** —
+    zero variance, a probe that ran and never examined its subject. THE UNIFORMITY WAS THE TELL: a
+    real mixture of partial, empty and torn-down snapshots cannot agree to the byte 98 times, so an
+    output with no spread is evidence about the instrument, not about the link."""
     try:
         services = client.services
     except Exception as exc:  # bleak: "Service Discovery has not been performed yet"
@@ -9135,6 +9144,26 @@ def _gatt_snapshot(client) -> str:
     return " ".join(parts) or "empty snapshot"
 
 
+def _gatt_link_state(client) -> str:
+    """Was the LINK still up when the characteristic lookup failed? The discriminator the snapshot
+    alone cannot supply, and the one #2170 now turns on.
+
+    Two mechanisms produce the identical `BleakCharacteristicNotFoundError`, and they want opposite
+    fixes: (a) the peer dropped mid-discovery, so bleak's `_cleanup_all` had already nulled the
+    collection before our lookup ran — `link=DISCONNECTED`; (b) bleak built the collection from
+    `_service_map`/`_characteristic_map` before BlueZ finished publishing the characteristic objects,
+    so the service is present carrying no characteristics — `link=connected` with a non-empty
+    snapshot. Same exception, same log line until now.
+
+    ∅ AN UNREADABLE STATE IS `unknown`, NEVER `DISCONNECTED`. bleak's `is_connected` raises once the
+    backend is torn down, and defaulting that to False would report mechanism (a) every time the
+    probe simply could not look — fabricating the very finding this exists to measure."""
+    try:
+        return "connected" if client.is_connected else "DISCONNECTED"
+    except Exception as exc:  # bleak raises once the backend is gone; ignorance is not disconnection
+        return f"unknown ({type(exc).__name__})"
+
+
 async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.0, *,
                             retry_missing_char: bool = True):
     """Open the AS11 link on the FREE radio and return (write, recv_frame, disconnect) for as11_pull.
@@ -9143,11 +9172,21 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
     snapshot lacks the notify characteristic although the link and the discovery completed (#2170 —
     95 of 96 failures on the pinned adapter, the wire clean under btmon), close the link and connect
     ONCE MORE on the SAME adapter. A fresh connect is a fresh ServicesResolved and a fresh snapshot,
-    which is exactly what the failover to the other radio buys today — minus the radio. If the retry
-    succeeds the mechanism is a per-connect race and the reservation stays honest; if it fails the
-    same way twice, the snapshot logged beside it says what the adapter's device object really
-    exports, and that is the next question. The second attempt passes False, so this is one retry,
-    never a loop — a loop around the leak guard below is #1770's mistake again.
+    which is exactly what the failover to the other radio buys today — minus the radio.
+
+    ✅ THAT PREDICTION IS SETTLED, AND IT SETTLES #2170's HEADLINE. Measured on vigil 2026-09-09:
+    **98 retries, 97 succeeded on the same adapter, 1 escalated to a failover.** So the mechanism is
+    a per-connect race and NOT a property of the radio — the pinned adapter was never the variable,
+    "first attempt" was. That also explains the four days before the pin moved, when the *unbonded*
+    Intel served as the successful failover target 863 times: failing over works because it is the
+    SECOND attempt, not because the other radio is better.
+
+    ⚠️ The rest of that prediction — "if it fails the same way twice, the snapshot logged beside it
+    says what the device object really exports" — did NOT hold, twice over. The second failure raises
+    without logging anything at all, and until this commit the snapshot was read after the leak guard
+    had closed the link, so it could not describe either attempt (see `_gatt_snapshot`). The second
+    attempt passes False, so this is one retry, never a loop — a loop around the leak guard below is
+    #1770's mistake again.
 
     The only un-unit-tested code in the CPAP stream path: real bleak connect + notify plumbing, which
     CI has no radio to exercise. Everything it feeds (session, stream, bus push, lifecycle) is tested.
@@ -9194,14 +9233,25 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
     try:
         await client.start_notify(_L.GATT_RX, _on_notify)
     except BaseException as exc:
+        # 🔴 READ THE EVIDENCE BEFORE DESTROYING IT — these two lines MUST precede the disconnect.
+        # `client.disconnect()` nulls bleak's service collection (it ends with
+        # `assert self.services is None`), so reading either state afterwards reports the teardown we
+        # just performed instead of the failure we are trying to explain. #2365 read the snapshot one
+        # line below the close and the log went blind for 98 of 98 events — see `_gatt_snapshot`.
+        # Cheap, total-order, and unconditional on purpose: computing them only for the retry branch
+        # would put an `if` between the failure and the reading, which is where this bug lives.
+        snapshot, link = _gatt_snapshot(client), _gatt_link_state(client)
         with contextlib.suppress(Exception):
             await client.disconnect()
         # Matched by NAME, like ble_discovery's `_REACHED_TYPES`: bleak is imported lazily so the
         # bleak-free test lanes (and a stubbed `bleak` module) never need `bleak.exc`.
         if retry_missing_char and type(exc).__name__ == "BleakCharacteristicNotFoundError":
-            log.warning("CPAP %s on %s: bleak's service snapshot lacks %s although the link is up (#2170) "
-                        "— snapshot: %s; link closed, reconnecting once on the same adapter",
-                        ble_addr, hci or "default adapter", _L.GATT_RX, _gatt_snapshot(client))
+            # ⚠️ NOT "although the link is up" — that was ASSERTED, never measured, and it is one of
+            # the two things `link` now decides. A log line may not carry a claim its own reading
+            # contradicts.
+            log.warning("CPAP %s on %s: start_notify could not find %s (#2170) — link at failure: %s; "
+                        "snapshot: %s; link closed, reconnecting once on the same adapter",
+                        ble_addr, hci or "default adapter", _L.GATT_RX, link, snapshot)
             return await _cpap_ble_connect(ble_addr, hci, timeout, retry_missing_char=False)
         raise
     mtu = getattr(client, "mtu_size", 23) or 23
