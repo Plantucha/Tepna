@@ -4441,5 +4441,14 @@
       "probe": "every integer offset from -15 h to +15 h, zero differences; `sec` is an int so `< 1` and `<= 0` are the same guard",
       "why": "A PROOF: `sec = int(off.total_seconds())`, so `sec < 1` is `sec <= 0`, and that guard differs from `sec < 0` only at zero, where negating `tenths == 0` changes nothing."
     }
+  ],
+  "writers.py": [
+    {
+      "brief": "residue 2026-09-10-fsync-band-crossed-and-the-remedy-is-narrower (#2381, built in #2382)",
+      "class": "untestable-by-design",
+      "key": "-def _drain_fsync(timeout: float = 5.0) -> None: | +def _drain_fsync(timeout: float = 6.0) -> None:",
+      "probe": "ATTEMPTED AND REVERTED: `assert writers._drain_fsync.__defaults__ == (5.0,)`. Under mutmut the function is replaced by a dispatcher whose `__defaults__` is None, so that assertion fails on the CLEAN run too — it crashed four whole globs (_do_fsync, _drain_fsync, _fsync_worker, _submit_fsync) and mutate_diff REFUSED with `0 tested mutants`. Measured 2026-09-10; the test was removed rather than kept.",
+      "why": "The INVARIANT is that the exit drain is BOUNDED, and that is tested — test_THE_EXIT_DRAIN_IS_BOUNDED_SO_A_WEDGED_DISK_CANNOT_HOLD_SHUTDOWN kills `t.join(timeout)` -> `t.join(None)` by elapsed time. The specific number is a policy bound with no observable consequence at test scale: 5 s and 6 s both complete a healthy barrier and both give up on a wedged disk. The only way to assert the value is introspection of the function object, which is exactly what disables the mutation gate for the whole module — so a test here would trade one real mutant for four blinded functions."
+    }
   ]
 }
