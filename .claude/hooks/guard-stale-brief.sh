@@ -121,6 +121,7 @@ printf '%s' "${cmd:-}" | grep -qE '(^|[;&|])[[:space:]]*CLAUDE_ALLOW_STALE_BRIEF
 #      gap is documented rather than hidden: a computed edit from a worktree is measured against the
 #      root until the payload carries a cwd we can trust.
 edit_dir="."
+cd_missing=""
 [ -n "$f" ] && edit_dir="$(dirname "$f")"
 
 # ── THE BASH ROUTE'S TREE, from a leading `cd` ────────────────────────────────
@@ -139,6 +140,23 @@ if [ -z "$f" ] && [ -n "$cmd" ]; then
   cd_dir="$(printf '%s' "$cmd" \
     | grep -oE '(^|[;&|][[:space:]]*)cd[[:space:]]+([^[:space:];&|]+)' \
     | head -1 | sed -E 's/^.*cd[[:space:]]+//' | tr -d '\042\047')"
+  #    ⚠ THE TREE MAY NOT EXIST YET, AND THEN THIS BASE IS THE ROOT'S. A command that CREATES its
+  #      worktree and edits a guarded file in the same invocation — `git worktree add <p> && cd <p>
+  #      && cat >> briefs/X.md` — reaches this hook BEFORE the directory exists, so `-d` fails and
+  #      `edit_dir` stays at the hook's cwd (the shared root). The verdict is then measured against
+  #      a tree the author is not editing, and the root is the checkout §👥.2b-bis names as most
+  #      likely to be stale: measured 2026-09-10, 33 commits behind, producing a denial listing ten
+  #      commits the new worktree already contained.
+  #
+  #      NOT SILENTLY REPAIRED, because it cannot be: at PreToolUse time there is no tree to ask, so
+  #      any base would be a guess. It fails CLOSED (deny), which is the safe direction — the
+  #      dangerous one is the false NEGATIVE this guard was rewritten to remove. What IS fixed is the
+  #      message: a denial that cannot explain itself teaches the reader to reach for the escape
+  #      hatch reflexively, and a guard whose hatch is reflex is the guard that fails the day it is
+  #      right. `cd_missing` carries that fact into the report.
+  if [ -n "$cd_dir" ] && [ ! -d "$cd_dir" ]; then
+    cd_missing="$cd_dir"
+  fi
   [ -n "$cd_dir" ] && [ -d "$cd_dir" ] && edit_dir="$cd_dir"
 fi
 
@@ -238,6 +256,13 @@ concurrent session's §2 from GENERATOR-FOLLOWUPS-III: no hunks overlapped, so g
 no conflict, the squash took the newer text, and the brief was left contradicting its own
 §4 for two commits. Nothing in CI could have caught it.
 
+${cd_missing:+
+⚠ THIS BASE IS THE SHARED ROOT'S, NOT YOUR BRANCH'S. The command names \`cd $cd_missing\`, which does
+  not exist yet — it is created by this same command — so there was no tree to measure and the base
+  fell back to the checkout this hook runs in. If that worktree is current, these commits are ones
+  you already have and this denial is spurious. CREATE THE WORKTREE IN ITS OWN CALL FIRST, then edit
+  from it, and the guard measures your branch instead.
+}
 READ those commits first — they may already answer what you are about to write:
 
     git log -p $base..origin/main -- '$first'
