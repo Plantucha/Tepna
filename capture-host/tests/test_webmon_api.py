@@ -265,9 +265,18 @@ def test_pull_reports_unavailable_when_the_daemon_offers_no_puller(tmp_path):
     assert status == 400 and body["ok"] is False
 
 
+# 🔴 EVERY FAKE BELOW TAKES `(which)`, BECAUSE THAT IS THE REAL CALLBACK'S SIGNATURE.
+# `capture.py` supplies `async def _pull(which: str = "latest")`. These tests used to inject
+# `async def puller(which, ftype)` — a stub shaped to WEBMON'S CALL rather than to the thing being
+# stood in for — so the endpoint's contract was asserted against an arity that could not exist in
+# production. Result: `/api/pull` returned 500 on every request for as long as the tests were green.
+# Keeping the fakes faithful IS the regression guard here; no separate assertion can replace it,
+# because the whole failure was a stub agreeing with the caller instead of with the callee.
+
+
 def test_pull_surfaces_a_busy_offline_slot_as_409(tmp_path):
     """Two downloads at once would fight over the single BLE link; the UI needs to know WHO holds it."""
-    async def busy(which, ftype):
+    async def busy(which):
         raise offline_lock.OfflineBusy("Polar H10")
     app, *_ = _mk(tmp_path, pull_stored=busy)
 
@@ -278,11 +287,33 @@ def test_pull_surfaces_a_busy_offline_slot_as_409(tmp_path):
     assert status == 409 and body["busy"] == "Polar H10"
 
 
+def test_pull_reaches_a_callback_with_the_REAL_signature(tmp_path):
+    """The regression, stated directly: a one-parameter callback must be CALLED, not TypeError'd.
+
+    Against the old two-argument call this is a 500 with
+    `TypeError: _pull() takes from 0 to 1 positional arguments but 2 were given` — swallowed by the
+    handler's broad `except Exception`, which is why the failure presented as a server fault rather
+    than as the signature mismatch it was."""
+    seen = {}
+
+    async def puller(which):
+        seen["which"] = which
+        return {"files": ["a.dat"]}
+    app, *_ = _mk(tmp_path, pull_stored=puller)
+
+    async def go(c):
+        r = await c.post("/api/pull", json={"which": "latest"})
+        return r.status, await r.json()
+    status, body = _serve(app, go)
+    assert status == 200, f"the button must reach the puller, got {status}"
+    assert seen["which"] == "latest" and body["files"] == ["a.dat"]
+
+
 def test_pull_tolerates_a_malformed_json_body(tmp_path):
     seen = {}
 
-    async def puller(which, ftype):
-        seen.update(which=which, ftype=ftype)
+    async def puller(which):
+        seen.update(which=which)
         return {"files": []}
     app, *_ = _mk(tmp_path, pull_stored=puller)
 
@@ -291,20 +322,27 @@ def test_pull_tolerates_a_malformed_json_body(tmp_path):
                          headers={"Content-Type": "application/json"})
         return r.status
     assert _serve(app, go) == 200
-    assert seen["ftype"] == 0, "a malformed body must fall back to defaults, not 500"
+    assert seen["which"] == "latest", "a malformed body must fall back to defaults, not 500"
 
 
-def test_pull_coerces_a_non_numeric_ftype(tmp_path):
+def test_pull_IGNORES_an_ftype_in_the_body(tmp_path):
+    """∅ `ftype` is not coerced any more — it is DROPPED, and the endpoint must not fail on one.
+
+    It never selected a file type: the value went into the type-0 START frame's trailing u32, which is
+    a BYTE OFFSET (`oxyii.file_start_frame`), so a non-zero one asked the oximetry store to start
+    reading mid-file. `capture.py` already warns about `pull.ftype` in config for the same reason.
+    A stale UI or a scripted caller may still send it, and that must be a no-op rather than a 500."""
     seen = {}
 
-    async def puller(which, ftype):
-        seen["ftype"] = ftype
+    async def puller(which):
+        seen["which"] = which
         return {}
     app, *_ = _mk(tmp_path, pull_stored=puller)
 
     async def go(c):
-        return (await c.post("/api/pull", json={"ftype": "abc"})).status
-    assert _serve(app, go) == 200 and seen["ftype"] == 0
+        return (await c.post("/api/pull", json={"which": "latest", "ftype": "abc"})).status
+    assert _serve(app, go) == 200, "an ignored key must not reach the callback or fail the request"
+    assert seen == {"which": "latest"}
 
 
 # ── /api/timesync ───────────────────────────────────────────────────────────────────────────────────
