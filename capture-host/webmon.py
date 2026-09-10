@@ -791,21 +791,29 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         # (one BLE link). Synchronous: returns when the pull completes (a night file is small, ~a minute).
         if not pull_stored:
             return web.json_response({"ok": False, "detail": "stored-session pull not available"}, status=400)
-        # DELIBERATELY TOLERANT, unlike the other POSTs. This body carries only which/ftype DEFAULTS —
+        # DELIBERATELY TOLERANT, unlike the other POSTs. This body carries only the `which` DEFAULT —
         # there is no state to half-apply and nothing to destroy — and two tests pin the tolerance as
         # the intended behaviour. Contrast `storage_post`, where the same leniency deleted the
         # configured offload target (CAPTURE-HOST-DEEP-AUDIT §D1). Non-object bodies are folded to the
         # defaults here rather than 500'ing on `.get`, which is §D3's half of the fix.
+        #
+        # 🔴 `ftype` IS GONE, AND THIS ENDPOINT COULD NEVER WORK WHILE IT WAS FORWARDED. The callback
+        # `capture.py` actually supplies is `async def _pull(which: str = "latest")` — ONE parameter —
+        # so `pull_stored(which, ftype)` raised `TypeError: _pull() takes from 0 to 1 positional
+        # arguments but 2 were given` on EVERY request, was caught by the broad handler below, and
+        # returned 500. The button has never downloaded anything.
+        #
+        # Removing the argument rather than widening `_pull` is the right direction because the value
+        # was never a file type: it is the type-0 START frame's trailing u32, a BYTE OFFSET
+        # (`oxyii.file_start_frame`), and `capture.py` already warns that a non-zero `pull.ftype` asks
+        # the oximetry store to begin reading mid-file. Accepting it here would keep a knob whose only
+        # effect is corruption.
         body = await _body(req)
         if body is BAD_BODY:
             body = {}
         which = body.get("which", "latest")
         try:
-            ftype = int(body.get("ftype", 0))
-        except (TypeError, ValueError):
-            ftype = 0
-        try:
-            return web.json_response(await pull_stored(which, ftype))
+            return web.json_response(await pull_stored(which))
         except offline_lock.OfflineBusy as e:
             # 409, not 500: another device owns the single download slot. Expected, retryable, not a fault.
             return web.json_response({"ok": False, "busy": e.holder, "detail": str(e)}, status=409)
