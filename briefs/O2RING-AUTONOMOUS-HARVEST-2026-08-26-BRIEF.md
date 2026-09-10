@@ -455,3 +455,66 @@ artifact, verified and committed it, released the device, and left an auditable 
 
 **CHARTER COMPLETE — received in three deliveries 2026-08-26/27; nothing invented, nothing
 omitted.**
+
+---
+
+## Coordinator appendix — §34 acceptance, mapped to evidence (NOT part of the charter)
+
+**Added 2026-09-10 (Kestrel).** §34 is the owner's verbatim checkbox skeleton, so **its boxes are left
+exactly as received** — this table is the coordinator's reading beside it, not an edit of it.
+
+**Why it exists.** The status header has said since 2026-09-02 that most §34 items are already
+code-backed, and named eleven of them. The list did not move, so a reader — including whoever opens
+the box session — meets **28 undifferentiated empty boxes** and has to re-derive which ones actually
+need hardware. That re-derivation is the cost CLAUDE.md §📌 names when a triage's verdict stays in a
+status line: *"A triage that leaves the header untouched has thrown away its own product."* Here the
+inverse happened, and this is the product being put back.
+
+**Read the states literally.** `code` means I opened the cited file and the mechanism is there and
+wired. `BOX` means it cannot be closed from the repo at all. `check` means the mechanism exists but I
+did **not** verify it end to end, and the next reader should not treat it as closed — those are marked
+so nobody inherits my confidence without my evidence.
+
+| # | acceptance item | state | evidence |
+|---|---|---|---|
+| 1 | presence observable cheaply | code | `oxy_presence.probe_justified` / `Presence`; ships COLD (`oxy_presence.py:238-242`) |
+| 2 | presence ≠ connection | code | `ProbePlan` decides a probe *without* connecting; `probe_justified` §21 arms first |
+| 3 | connection ≠ recording | code | `oxy_lifecycle.OxyRecEngine`; `observe_link_lost` (`:322`) moves to `rec_unknown`, not "not recording" |
+| 4 | recording state from authoritative device evidence | code | `VERIFIED` requires `oxyii.parse_oxy_trailer`'s `48 12 5a da` sub-magic, not size (`oxy_inventory.py:15-19`) |
+| 5 | end-of-recording detection automatic | check | duration-reset → `END_CANDIDATE` is journalled and tested (`test_run_oxyii_journals_both_axes_worn_flip_and_recording_close`); I did not trace every close path |
+| 6 | `.dat` finalization explicitly awaited | code | `PARTIAL` vs `VERIFIED` — a right-sized file without a parsed trailer is never VERIFIED (`oxy_inventory.py:43-45`) |
+| 7 | arbitrary sleeps are not the correctness mechanism | check | `oxy_power` is a state machine with `attempt_allowed`/`harvest_request` returning `Decision`s, and `oxy_transfer` gates on `pull_deadline`; "no sleep is load-bearing anywhere" is broader than I checked |
+| 8 | a newer recording cannot silently replace the correct one | code | identity is `(device id, session stamp)`; size and hash are VERIFICATION fields, explicitly not the key (`oxy_inventory.py:27-30`) |
+| 9 | reuses the existing transactional downloader | code | `pull_session.py:26` imports `oxy_inventory`; `oxy_transfer` is the commit primitive (`pull_session.py:24-25`) |
+| 10 | `.part`/verify/commit remains authoritative | code | `oxy_transfer.py:438-440` — "Bytes → `.part`. The `.part` suffix is load-bearing: a crash here (crash point 3)…" |
+| 11 | hash/provenance authoritative | code | `oxy_transfer.py:317` `sha256`; `:544` records `size+finalised+records` with `inv.sha256_bytes` |
+| 12 | validation separate from completeness | code | the `PARTIAL`/`VERIFIED` split is exactly this distinction (`oxy_inventory.py:43-45`) |
+| 13 | UNKNOWN remains UNKNOWN | code | `oxy_lifecycle.py:217` — `rec_unknown` = "no current observation (never seen, or the link is gone)"; asserted post-teardown in `test_run_oxyii_journals_both_axes…` |
+| 14 | hard abort deadline | code | `pull_deadline` refuses without touching the link; §14a flush gate re-checks internally (`oxy_transfer.py:132-139`) |
+| 15 | ring cannot be kept awake by a stuck pull | code | `oxy_power` `MAX_ATTEMPTS=3` → `COOLDOWN` (`oxy_power.py:52`), plus the deadline above |
+| 16 | BLE connections minimized | check | `attempt_allowed`/`harvest_request` veto before the link is spent; "minimized" is a comparative I did not measure |
+| 17 | **CPAP/H10/Verity/PPS not disrupted** | **BOX** | the coexistence matrix. The gate already exists — `oxy_presence.py:256` earns `scan_coexistence_verified`, refusal at `capture.py:7355`. **Only the measurement is missing.** |
+| 18 | adapter identity survives reboot/renumbering | code | `capture.resolve_adapter_name` (`:1365`) and `_resolve_cpap_adapter` (`:9010`), re-read every connect (`:9122` "MAC → current hciN") |
+| 19 | event-driven + periodic reconciliation coexist | code | triggers `charger`/`not-worn`/`presence` in the auto-pull dispatch, with the hourly poller as the "RECONCILIATION NET" (its own arm-time log line on the box) |
+| 20 | duplicate harvests idempotent | code | `pull_session.py:22-24` — no longer "a lone size-equality check"; ledger-first. ⚠️ `oxy_inventory.py`'s R6 fence ("touches… no pull_session.py") is HISTORICAL — G1's wiring has since landed, and reading R6 as current is how this item gets re-opened wrongly |
+| 21 | host/process restart recoverable | code | `oxy_restart.plan` — the ledger↔disk plan (`pull_session.py:24-25`) |
+| 22 | can be disabled safely | code | `presence=OFF` and `on_close` default OFF and **never inherit** — stated at arm time in the daemon's own log |
+| 23 | "enabled" and "armed" separately observable | code | `oxy_presence.py:238-242` — "`enabled` is what the operator asked for. `armed` is what the system can actually do." |
+| 24 | execution-witness telemetry | code | `capture._WITNESS` (`:6854`), `artifact_committed` stamped ONLY when a file was produced (`:7132`) |
+| 25 | **physical autonomous harvest demonstrated** | **BOX** | §25's A–O run with observed timestamps |
+| 26 | **negative hardware cases** | **BOX** | §26 — false harvests do not occur |
+| 27 | existing tests remain green | code | `capture-host/check.sh` 2026-09-10: 7017 passed, coverage 100.00 %, mypy at the 103 baseline |
+| 28 | scientific algorithms unchanged | check | no DSP file is touched by the harvest path, but "unchanged" is a claim about the whole tree and I checked only that path |
+
+### What this changes for the box session
+
+**Three items need hardware — 17, 25, 26 — and they are one session.** Item 17 is the cheapest of the
+three to misjudge: the gate and its refusal are already built, so the session produces a *measurement*,
+not an implementation.
+
+⚠️ **Four items are `check`, not `code` (5, 7, 16, 28), and they are not the same as BOX.** They are
+repo-closable by a reader with more time than I spent; leaving them unmarked would have been the
+overclaim this appendix exists to prevent, and marking them `code` would have made the box session's
+list look shorter than it is.
+
+⚠️ **This appendix is a snapshot, and its citations are line numbers.** `2026-09-06-brief-header-file-line-citations-rot` records that exact decay. If a line moved, re-derive from the identifier, not the number.
