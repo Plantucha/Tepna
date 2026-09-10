@@ -256,6 +256,37 @@ expectcmd_from DENY  "bash cd->STALE, cwd inside IT - still denied"  "$STALE" \
 expectcmd_from ALLOW "bash cd->CURRENT, cwd inside IT - still allowed" "$CUR" \
   "cd $CUR && python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v3')\""
 
+# ── THE TREE THAT DOES NOT EXIST YET (measured 2026-09-10) ────────────────────────────────────
+# `git worktree add <p> && cd <p> && cat >> briefs/X.md` reaches this hook BEFORE <p> exists, so the
+# `-d` test fails, `edit_dir` falls back to the hook's cwd, and the verdict is measured against the
+# shared root — 33 commits behind at the time, producing a denial that listed ten commits the new
+# worktree already contained. It cannot be repaired silently (at PreToolUse there is no tree to ask,
+# so any base would be a guess) and it fails CLOSED, which is the safe direction. What is asserted
+# here is that the denial SAYS SO: a block that cannot explain itself trains the reader to reach for
+# the escape hatch by reflex, and a hatch-by-reflex guard is one that fails the day it is right.
+msgcmd_from() { # msgcmd_from <cwd> <command> — the hook's stderr
+  ( cd "$1" && jq -nc --arg c "$2" '{tool_input:{command:$c}}' | bash "$H" 2>&1 >/dev/null )
+}
+ghost="$STALE/does-not-exist-yet"
+ghost_cmd="cd $ghost && python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v3')\""
+expectcmd_from DENY "bash cd->a tree that does not exist yet - still denied" "$STALE" "$ghost_cmd"
+gm="$(msgcmd_from "$STALE" "$ghost_cmd")"
+case "$gm" in
+  *"THIS BASE IS THE SHARED ROOT'S"*) printf '  ok    %-58s %s\n' "...and the denial NAMES the missing tree" "explained" ;;
+  *) printf '  FAIL  %-58s %s\n' "...and the denial NAMES the missing tree" "message does not explain the fallback"; fail=$((fail+1)) ;;
+esac
+case "$gm" in
+  *"$ghost"*) printf '  ok    %-58s %s\n' "...and quotes the path it could not resolve" "quoted" ;;
+  *) printf '  FAIL  %-58s %s\n' "...and quotes the path it could not resolve" "path absent from message"; fail=$((fail+1)) ;;
+esac
+# ANTI-VACUITY for the message: a tree that DOES exist must NOT carry the explanation, or the note
+# becomes wallpaper on every denial and stops meaning anything.
+em="$(msgcmd_from "$STALE" "cd $STALE && python3 -c \"open('briefs/SHARED-BRIEF.md','w').write('v3')\"")"
+case "$em" in
+  *"THIS BASE IS THE SHARED ROOT'S"*) printf '  FAIL  %-58s %s\n' "...and an EXISTING tree carries no such note" "note leaked onto a normal denial"; fail=$((fail+1)) ;;
+  *) printf '  ok    %-58s %s\n' "...and an EXISTING tree carries no such note" "clean" ;;
+esac
+
 # ...and an unparseable/absent cd must fall back to the old behaviour rather than erroring:
 # cwd is the STALE tree and nothing names another, so the stale answer still applies.
 expectcmd_from DENY  "bash with NO cd - falls back to cwd (stale)"   "$STALE" \
