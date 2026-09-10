@@ -23,8 +23,27 @@ import { join } from 'node:path';
 export const EXCLUDE_DIRS = new Set(['node_modules', 'screenshots', 'scraps', '_diag', 'uploads', 'screens', 'derive-bundle', 'Ecg nightly', 'ppg-nights']);
 
 /* Dot-entries (.git, .github, .gitignore, .thumbnail, …) are never a DOCS-INDEX link target and add
-   only noise + churn; skipping them keeps the walk deterministic and the inventory focused. */
+   only noise + churn; skipping them keeps the walk deterministic and the inventory focused.
+
+   🔴 CORRECT FOR check4b'S QUESTION, WRONG FOR check8d'S — ONE INVENTORY WAS ANSWERING TWO.
+   check4b asks *"is this a link target?"*, where a dot-entry never is. check8d — the residue
+   ledger's source cell — asks *"does this repo path EXIST?"*, and there `.claude/hooks/*` and
+   `.github/workflows/*` are tracked, real, and exactly where this suite's guards and CI gates live,
+   so every one of them was uncitable. Measured 2026-09-10: a row sourced to
+   `.claude/hooks/guard-stale-brief.sh` reds check8d with "no such path in the tree" for a file that
+   is committed and present, which sends the author to fabricate a plausible source cell — the one
+   edit CLAUDE.md §📌 names as making a real defect disappear.
+
+   The two callers now get TWO WALKS rather than one widened set: widening this one would re-admit
+   dot-noise into the link inventory that deliberately excludes it, trading check8d's blindness for
+   check4b's churn. */
 const isExcluded = (name) => name.charAt(0) === '.' || EXCLUDE_DIRS.has(name);
+
+/* `.git` stays out of BOTH walks, always. It is enormous, it churns on every git command, and
+   `isNestedRepo` reads it as the marker that a directory belongs to somebody else's checkout — so
+   admitting it would be slow, non-deterministic, AND would break the nested-repo skip that keeps
+   another session's worktree from resolving this tree's paths. */
+const isExcludedAll = (name) => name === '.git' || EXCLUDE_DIRS.has(name);
 
 /* A NESTED REPOSITORY OR WORKTREE IS NOT PART OF THIS TREE. `git worktree add ../wt-x` is the house
    rule (CLAUDE.md §👥.1), and sessions routinely place one INSIDE the checkout — `Tepna/wt-odigate`,
@@ -47,7 +66,8 @@ const isNestedRepo = (dirPath) => existsSync(join(dirPath, '.git'));
 /* Every non-excluded file AND directory under `root`, as forward-slash relative path strings.
    Directories are included so a directory-targeted link (`](wiring)`) resolves too. Returns a sorted
    array of path STRINGS only — file vs directory is irrelevant to a link-resolution set. */
-export function walkRepoPaths(root) {
+export function walkRepoPaths(root, opts) {
+  const skip = opts && opts.includeDotEntries ? isExcludedAll : isExcluded;
   const out = [];
   (function rec(dir, prefix) {
     let ents;
@@ -57,7 +77,7 @@ export function walkRepoPaths(root) {
       return;
     }
     for (const name of ents) {
-      if (isExcluded(name)) continue;
+      if (skip(name)) continue;
       const rel = prefix ? prefix + '/' + name : name;
       const abs = join(dir, name);
       let isDir = false;
@@ -74,4 +94,12 @@ export function walkRepoPaths(root) {
     }
   })(root, '');
   return out.sort();
+}
+
+/* The EXISTENCE inventory — the same walk with dot-entries admitted, for callers asking "does this
+   repo path exist?" rather than "is this a link target?". `.git`, the dependency/data dirs and
+   nested repos stay excluded exactly as above; the only difference is that `.claude/`, `.github/`
+   and friends are walked. Used by check8d (residue source cells); check4b keeps `walkRepoPaths`. */
+export function walkRepoPathsAll(root) {
+  return walkRepoPaths(root, { includeDotEntries: true });
 }

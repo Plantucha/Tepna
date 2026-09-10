@@ -33,7 +33,7 @@ import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
 import { spawn, execSync } from 'node:child_process';
 import { cpus, tmpdir } from 'node:os';
-import { walkRepoPaths } from './docs-ledger-fs.mjs';
+import { walkRepoPaths, walkRepoPathsAll } from './docs-ledger-fs.mjs';
 import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1525,6 +1525,11 @@ function readDocsLedger() {
   // fsPaths — the whole-tree link inventory recomputed from disk (F2); check4b resolves DOCS-INDEX +
   // root-doc links against it.
   const fsPaths = walkRepoPaths(ROOT);
+  // fsPathsAll — the same walk with dot-entries admitted, for check8d's DIFFERENT question: a residue
+  // source cell asks "does this repo path exist?", not "is this a link target?". `.claude/hooks/*` and
+  // `.github/workflows/*` are tracked and are where the guards and CI gates live, so resolving them
+  // against the LINK inventory made every guard uncitable (measured 2026-09-10).
+  const fsPathsAll = walkRepoPathsAll(ROOT);
   // X3 (EFFICIENCY-AUDIT-FINDINGS-2026-07-12): the OTHER root docs, so check4b's markdown-link
   // resolution extends from DOCS-INDEX.md to the whole constitution set (a moved target the prose
   // missed is otherwise ungated).
@@ -1540,7 +1545,7 @@ function readDocsLedger() {
   const crossSpec = existsSync(csP) ? readFileSync(csP, 'utf8') : '';
   const longP = join(ROOT, 'integrator-longitudinal.js');
   const longHeader = existsSync(longP) ? readFileSync(longP, 'utf8').slice(0, 1600) : '';
-  return { briefs, indexText, rootBriefNames, fsBriefNames, fsPaths, rootDocs, crossSpec, longHeader };
+  return { briefs, indexText, rootBriefNames, fsBriefNames, fsPaths, fsPathsAll, rootDocs, crossSpec, longHeader };
 }
 
 // release-ledger gate (CONTROLLED-RELEASES-2026-07-05): controlled releases machine-checked. Node-lane
