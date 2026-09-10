@@ -496,7 +496,7 @@ so nobody inherits my confidence without my evidence.
 | 17 | **CPAP/H10/Verity/PPS not disrupted** | **BOX** | the coexistence matrix. The gate already exists — `oxy_presence.py:256` earns `scan_coexistence_verified`, refusal at `capture.py:7355`. **Only the measurement is missing.** |
 | 18 | adapter identity survives reboot/renumbering | code | `capture.resolve_adapter_name` (`:1365`) and `_resolve_cpap_adapter` (`:9010`), re-read every connect (`:9122` "MAC → current hciN") |
 | 19 | event-driven + periodic reconciliation coexist | code | triggers `charger`/`not-worn`/`presence` in the auto-pull dispatch, with the hourly poller as the "RECONCILIATION NET" (its own arm-time log line on the box) |
-| 20 | duplicate harvests idempotent | code | `pull_session.py:22-24` — no longer "a lone size-equality check"; ledger-first. ⚠️ `oxy_inventory.py`'s R6 fence ("touches… no pull_session.py") is HISTORICAL — G1's wiring has since landed, and reading R6 as current is how this item gets re-opened wrongly |
+| 20 | duplicate harvests idempotent | code | `pull_session.py:21-25` — *"`_pull_once` no longer decides 'do we already have this?' from a lone size-equality check — it drives the append-only inventory ledger and the restart-safe plan"*; `import oxy_inventory` at `:26` |
 | 21 | host/process restart recoverable | code | `oxy_restart.plan` — the ledger↔disk plan (`pull_session.py:24-25`) |
 | 22 | can be disabled safely | code | `presence=OFF` and `on_close` default OFF and **never inherit** — stated at arm time in the daemon's own log |
 | 23 | "enabled" and "armed" separately observable | code | `oxy_presence.py:238-242` — "`enabled` is what the operator asked for. `armed` is what the system can actually do." |
@@ -516,5 +516,26 @@ not an implementation.
 repo-closable by a reader with more time than I spent; leaving them unmarked would have been the
 overclaim this appendix exists to prevent, and marking them `code` would have made the box session's
 list look shorter than it is.
+
+### Correction, 2026-09-10 (Kestrel) — a "trap" I invented by misreading
+
+The first version of row 20 warned that `oxy_inventory.py`'s **R6** fence was *"HISTORICAL"* and that
+reading it as current would re-open the idempotency item wrongly. **That was wrong, and the error was
+mine, not the comment's.** R6 says:
+
+> R6 · KEEP files are fenced. This module touches nothing else: no capture.py, no pull_session.py, no
+> writers.py. The `_pull_once` ledger-first wiring is G1's row, not this one.
+
+It is a statement about `oxy_inventory`'s **outbound** dependencies — the module is a leaf and does not
+reach into those files — and about the WIRING being a separate work item (G1's). It says nothing about
+whether anything imports `oxy_inventory`, and the dependency in fact runs the other way:
+`pull_session.py:26` imports it. **R6 is current, accurate, and consistent with the wiring existing.**
+
+I read *"touches nothing else"* as *"nothing touches it"*, concluded the fix was built-but-unwired,
+checked, found it wired, and then wrote up the contradiction as a trap for future readers instead of
+recognising there had never been one. Recorded here rather than quietly deleted because the failure is
+worth more than the row was: **the check I ran was right and the conclusion I drew from it was
+backwards**, and a warning about a colleague's comment being stale is exactly the kind of claim that
+propagates unexamined.
 
 ⚠️ **This appendix is a snapshot, and its citations are line numbers.** `2026-09-06-brief-header-file-line-citations-rot` records that exact decay. If a line moved, re-derive from the identifier, not the number.
