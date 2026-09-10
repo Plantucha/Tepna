@@ -9164,6 +9164,126 @@ def _gatt_link_state(client) -> str:
         return f"unknown ({type(exc).__name__})"
 
 
+# How long to let BlueZ finish publishing the GATT objects before giving up on a snapshot that is
+# missing them, and how many rebuilds to spend waiting. ~1 s total, and the shape is deliberate: the
+# InterfacesAdded signals carrying the absent objects are ALREADY IN FLIGHT when bleak snapshots
+# (BlueZ emits them right behind the Connect reply), so the FIRST rebuild is expected to succeed. The
+# other three are headroom for a loaded box, not a second mechanism — if the box ever routinely needs
+# all four, that is a finding about the box, not a number to raise. Module-level so a test can drive
+# the step to 0 rather than sleep through it.
+_GATT_SETTLE_STEP_S = 0.25
+_GATT_SETTLE_REBUILDS = 4
+
+
+def _gatt_missing(client, uuids) -> tuple | None:
+    """Which of `uuids` bleak's CURRENT snapshot does not hold — or None if it cannot be read at all.
+
+    Walks the collection exactly as `_gatt_snapshot` does rather than calling
+    `BleakGATTServiceCollection.get_characteristic`: same traversal, so the log line and this decision
+    can never disagree about what was there, and no second collection API to keep true.
+
+    ∅ UNREADABLE IS NOT ABSENT, and the two want opposite responses. `client.services` raises outright
+    before discovery has happened. Reporting that as absent would send the settle below chasing
+    characteristics on a client that has no snapshot at all, and would print a fabricated finding into
+    the one log line #2170 turns on. None means "do not intervene": the caller stands down and lets
+    `start_notify` — the only reader whose verdict is authoritative — decide."""
+    try:
+        have = {c.uuid.lower() for svc in client.services for c in svc.characteristics}
+    except Exception:
+        return None
+    return tuple(u for u in uuids if u.lower() not in have)
+
+
+async def _gatt_rebuild(client) -> bool:
+    """Drop bleak's cached service snapshot and build a NEW one from BlueZ's CURRENT objects.
+
+    bleak 3.0.2 has no public equivalent — `BleakClient` exposes no `get_services`,
+    `discover_services` or any refresh, and the collection it hands out is a frozen snapshot taken
+    once at connect. Two facts make this the whole mechanism: `services` is a plain, public, settable
+    attribute on the BACKEND (`bleak/backends/client.py:41`), and `_get_services` returns the cached
+    collection untouched unless it is None (`bleak/backends/bluezdbus/client.py:670`). So clearing it
+    first is what forces the rebuild, and the rebuild reads `BlueZManager._service_map` /
+    `_characteristic_map`, which the manager's global-bus signal handlers have been filling all along.
+
+    Reached through `client._backend`, which IS private — hence the getattr guards. A bleak that
+    renames either name must degrade to the #2365 reconnect, never raise a new exception type into the
+    leak guard this runs inside."""
+    backend = getattr(client, "_backend", None)
+    rebuild = getattr(backend, "_get_services", None)
+    if backend is None or rebuild is None:   # `backend is None` also narrows it for mypy
+        return False
+    prior = getattr(backend, "services", None)
+    backend.services = None
+    try:
+        await rebuild()
+    except BaseException:
+        # 🔴 PUT THE EVIDENCE BACK. A failed rebuild must not become the reason `_gatt_snapshot`
+        # reports "no service snapshot" — that is #2365's blindness with a new cause, and in the
+        # journal it would be indistinguishable from it.
+        #
+        # UNCONDITIONAL, not `if backend.services is None`. bleak's `_get_services` assigns ONCE,
+        # after its await (`bluezdbus/client.py:677`), so a raise leaves the attribute exactly as we
+        # left it and the guarded form has a second arm no input can reach. Coverage found it as a
+        # partial branch, which is the honest reading: a branch nothing can take is not a safety net,
+        # it is an untestable claim. Identical behaviour on every reachable input, one fewer of those.
+        backend.services = prior
+        raise
+    return True
+
+
+async def _settle_gatt_chars(client, uuids) -> str:
+    """Wait, bounded, for BlueZ to finish publishing `uuids`; "" when there was nothing to wait for,
+    else one short phrase saying what happened. #2170.
+
+    THE RACE, which #2365 measured but did not close. BlueZ replies to `Connect()` and then emits the
+    per-object InterfacesAdded signals, in that order, on one bus; bleak reads the reply on a
+    per-connect bus (`bluezdbus/client.py:156-166`) and the signals on its global one, so nothing
+    orders the two. It can and does build the service collection before the objects exist. It fires on
+    the UNBONDED adapter, where BlueZ clears the GATT cache at every disconnect and re-discovers the
+    whole tree (`device_is_paired()` gates `gatt_cache_is_enabled()`); the bonded radio has never
+    shown it.
+
+    ⚠️ IT IS THE TREE, NOT THE LAST CHARACTERISTIC — the docstrings above predicted the milder shape
+    and vigil refuted it on 2026-09-09, the first night #2372's snapshot could be read. Seven events,
+    six of them byte-identical: `snapshot: 00001801-…[]` — the Generic Attribute service alone,
+    LOWEST handles and therefore FIRST on the wire, carrying no characteristics, with the vendor
+    service `0000fd56` absent entirely. The seventh had advanced by exactly one object
+    (`00002a05@0x0002`, Service Changed). So bleak is not missing the tail of the tree; it snapshots
+    while nearly all of it is still in flight, and the two variants are the race caught mid-stride.
+    That is also why this waits on a REBUILD rather than on one characteristic appearing.
+
+    #2365's remedy throws the link away and reconnects, which works — 97 of 98 measured on vigil
+    2026-09-09 — and spends a whole connect on a snapshot that would have been correct a quarter of a
+    second later. This rebuilds the snapshot instead of the link.
+
+    ⚠️ BEST-EFFORT BY CONSTRUCTION — every failure path returns a string and none raises. Two reasons,
+    both load-bearing: it runs INSIDE the leak guard with the link already open, so a new exception
+    type here would be a new way to leak the link; and it is a PROBE, so it may never become the thing
+    that decides the connect. `start_notify` stays the authoritative reader and the #2365 reconnect
+    stays the backstop. `CancelledError` is deliberately NOT caught — cancellation is not a rebuild
+    failure, and the leak guard already closes the link on it."""
+    missing = _gatt_missing(client, uuids)
+    if missing is None:
+        return "snapshot unreadable"
+    if not missing:
+        return ""
+    t0 = _time.monotonic()
+    for n in range(1, _GATT_SETTLE_REBUILDS + 1):
+        await asyncio.sleep(_GATT_SETTLE_STEP_S)
+        try:
+            if not await _gatt_rebuild(client):
+                return "absent, and this bleak exposes no way to rebuild the snapshot"
+        except Exception as exc:
+            return f"absent; the rebuild raised {type(exc).__name__} on attempt {n}"
+        missing = _gatt_missing(client, uuids)
+        if missing is None:
+            return f"unreadable after {n} rebuild(s)"
+        if not missing:
+            return f"appeared after {n} rebuild(s), {(_time.monotonic() - t0) * 1000:.0f} ms"
+    return (f"STILL absent after {_GATT_SETTLE_REBUILDS} rebuilds, "
+            f"{(_time.monotonic() - t0) * 1000:.0f} ms: {','.join(missing)}")
+
+
 async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.0, *,
                             retry_missing_char: bool = True):
     """Open the AS11 link on the FREE radio and return (write, recv_frame, disconnect) for as11_pull.
@@ -9187,6 +9307,12 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
     had closed the link, so it could not describe either attempt (see `_gatt_snapshot`). The second
     attempt passes False, so this is one retry, never a loop — a loop around the leak guard below is
     #1770's mistake again.
+
+    🟢 THE RETRY IS NOW THE BACKSTOP, NOT THE REMEDY. `_settle_gatt_chars` runs first and rebuilds
+    bleak's snapshot in place, which is what the reconnect was buying at the price of a whole connect.
+    The retry stays exactly as it was: if the settle does not close the window, `start_notify` still
+    raises and the link is still thrown away once. Two independent chances at a per-connect race, and
+    the cheaper one goes first.
 
     The only un-unit-tested code in the CPAP stream path: real bleak connect + notify plumbing, which
     CI has no radio to exercise. Everything it feeds (session, stream, bus push, lifecycle) is tested.
@@ -9230,7 +9356,27 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
     # ⚠️ #1770's broad `except` in run_shadow_loop makes this WORSE, not better: it faithfully retries
     # a link that can never succeed while the leak persists. A retry loop around a leaked resource
     # converts a transient failure into a permanent one.
+    # BOUND BEFORE THE GUARD, not as the guard's first statement. `_settle_gatt_chars` promises never
+    # to raise, but `CancelledError` is a BaseException that reaches `except BaseException` from ANY
+    # await inside it — and an unbound `settle` there would raise UnboundLocalError from the handler,
+    # masking the cancellation with a stack trace about a diagnostic. A default is cheaper than the
+    # promise being exactly true forever.
+    settle = ""
     try:
+        # CLOSE THE PUBLISH RACE BEFORE ASKING FOR THE CHARACTERISTIC, not after failing to find it.
+        # Costs one set-comprehension on the ~95 % path; only a miss sleeps. BOTH UUIDs, not just the
+        # notify one: `GATT_TX` is consumed by `write` AFTER this function returns — i.e. OUTSIDE the
+        # leak guard, where the identical missing-object failure has no retry at all.
+        settle = await _settle_gatt_chars(client, (_L.GATT_RX, _L.GATT_TX))
+        if settle:
+            # ~98 lines a night is the POINT: this is the measurement that says whether rebuilding the
+            # snapshot closed #2170, and it is stated so it can be wrong. The prediction — these lines
+            # appear AND the `start_notify could not find` warnings below go to ~zero. Both appearing
+            # means the settle window is too short. NEITHER appearing means the race stopped for some
+            # other reason (bonding the adapter, or `Cache = always`, would each do exactly that), and
+            # that is a different finding, not this fix working.
+            log.info("CPAP %s on %s: BlueZ had not published %s/%s when bleak snapshotted (#2170) — %s",
+                     ble_addr, hci or "default adapter", _L.GATT_TX, _L.GATT_RX, settle)
         await client.start_notify(_L.GATT_RX, _on_notify)
     except BaseException as exc:
         # 🔴 READ THE EVIDENCE BEFORE DESTROYING IT — these two lines MUST precede the disconnect.
@@ -9250,8 +9396,9 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
             # the two things `link` now decides. A log line may not carry a claim its own reading
             # contradicts.
             log.warning("CPAP %s on %s: start_notify could not find %s (#2170) — link at failure: %s; "
-                        "snapshot: %s; link closed, reconnecting once on the same adapter",
-                        ble_addr, hci or "default adapter", _L.GATT_RX, link, snapshot)
+                        "snapshot: %s; settle: %s; link closed, reconnecting once on the same adapter",
+                        ble_addr, hci or "default adapter", _L.GATT_RX, link, snapshot,
+                        settle or "present in the first snapshot")
             return await _cpap_ble_connect(ble_addr, hci, timeout, retry_missing_char=False)
         raise
     mtu = getattr(client, "mtu_size", 23) or 23
