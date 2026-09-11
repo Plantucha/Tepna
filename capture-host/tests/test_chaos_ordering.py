@@ -56,17 +56,32 @@ class _FsyncSpy:
 
     A spy rather than a no-op mock: the real fsync still runs, so this observes the calls without
     weakening the behaviour under test — a no-op would silently convert this file into the false
-    green the module docstring warns about."""
+    green the module docstring warns about.
 
-    def __init__(self, monkeypatch):
+    🔴 SCOPED TO ONE SUBTREE, because `os.fsync` is PROCESS-GLOBAL and this spy is not the only
+    thing calling it. Since the writers' barrier moved off the event loop (#2382) a daemon thread
+    can fsync a file belonging to an entirely different test while this one is asserting call ORDER,
+    and an unrelated `'file'` landing after the directory reads as the transactional writer getting
+    its ordering backwards. Measured on `main` 2026-09-10: CI red with `['dir', 'file']` while
+    `cpap_spool` was synchronous and correct throughout — a true report about a false subject.
+
+    `root` confines the recording to descendants of the directory under test, so a foreign barrier is
+    invisible here rather than mistaken for evidence. Passing no root keeps the old whole-process
+    behaviour for the call-site tests, which only assert THAT an fsync happened."""
+
+    def __init__(self, monkeypatch, root: str | None = None):
         self.calls: list[str] = []
         real = os.fsync
+        root_abs = os.path.abspath(root) if root else None
 
         def spy(fd):
             try:
-                self.calls.append("dir" if os.path.isdir(f"/proc/self/fd/{fd}") else "file")
+                target = os.path.realpath(f"/proc/self/fd/{fd}")
+                is_dir = os.path.isdir(f"/proc/self/fd/{fd}")
             except OSError:  # pragma: no cover - defensive; the fd is open by construction here
-                self.calls.append("file")
+                target, is_dir = "", False
+            if root_abs is None or target == root_abs or target.startswith(root_abs + os.sep):
+                self.calls.append("dir" if is_dir else "file")
             return real(fd)
 
         monkeypatch.setattr(os, "fsync", spy)
@@ -110,7 +125,7 @@ class TestFsyncCallSites:
         transaction is built to avoid."""
         data = b"payload"
         part = cpap_spool.write_part(str(tmp_path), "r1", data)
-        spy = _FsyncSpy(monkeypatch)
+        spy = _FsyncSpy(monkeypatch, root=str(tmp_path))   # ONLY this spool's fsyncs count
         cpap_spool.promote(str(tmp_path), part, "r1",
                            expected_sha=cpap_spool.sha256_bytes(data), expected_len=len(data))
         assert spy.calls, "no fsync at all during promote"

@@ -268,3 +268,28 @@ def _capture_events_are_not_leaked(request):
             f"`@pytest.mark.sets_capture_events` — the fixture is a reset, not a ban, and the marker "
             f"is what keeps this tripwire silent on correct code and loud on a real leak."
         )
+
+
+@_pytest.fixture(autouse=True)
+def _no_fsync_barrier_spans_tests():
+    """Drain the off-loop fsync worker between tests. Same discipline as the capture-event reset
+    above, for the same reason: a PROCESS-GLOBAL side effect that outlives the test that caused it.
+
+    🔴 THE FAILURE THIS CLOSES, measured on `main` 2026-09-10. `writers` runs one daemon thread for
+    the whole process (the barrier was moved off the event loop in #2382). A barrier queued by one
+    test can therefore fire DURING AN UNRELATED LATER TEST — and
+    `test_chaos_ordering.py::test_both_writers_fsync_the_file_BEFORE_the_directory` installs a spy on
+    the global `os.fsync`, so the stray barrier was recorded as an extra `'file'` call and the
+    ordering assertion read `['dir', 'file']` instead of ending on `'dir'`.
+
+    ⚠️ NOTHING WAS WRONG WITH THE ORDERING IT WAS CHECKING. `cpap_spool` is synchronous throughout —
+    `write_part` calls `os.fsync` directly and `promote` fsyncs only the directory — so the
+    transactional guarantee held the whole time. The failure was a true report about a false subject,
+    which is why it reproduced in CI and not locally: it depends on which tests share a worker
+    process and in what order, and xdist distributes them differently every run.
+
+    A drain, not a ban: tests that exercise the real worker are correct to queue barriers, and this
+    only guarantees none is still in flight when the next test starts."""
+    yield
+    import writers
+    writers._drain_fsync(timeout=5.0)
