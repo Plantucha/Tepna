@@ -159,11 +159,17 @@ class PairingSession:
     def busy(self) -> bool:
         return self._starting or self._pending is not None
 
-    #: BD addresses no reconnect can be pinned to. A Zephyr/nRF52840 dongle reports all-zero to
-    #: `hciconfig` because that firmware has no PUBLIC address (it identifies by static-random, and a
-    #: host-side public pin is refused `0x0c Not Supported`). `capture._addressable` already guards the
-    #: failover ladder against exactly this; the pairing panel showed nothing at all, so an operator
-    #: could pair "successfully" against a radio no device can be reached on.
+    #: BD addresses no reconnect can be pinned to. An UNPATCHED Zephyr/nRF52840 image reports all-zero
+    #: to `hciconfig` because it has no PUBLIC address (it identifies by static-random, and a host-side
+    #: public pin is refused `0x0c Not Supported`). `capture._addressable` already guards the failover
+    #: ladder against exactly this; the pairing panel showed nothing at all, so an operator could pair
+    #: "successfully" against a radio no device can be reached on.
+    #:
+    #: ⚠️ This is a property of the IMAGE, not the vendor — the line above said "a Zephyr/nRF52840
+    #: dongle" and that read as a blanket exclusion. A fixed-address build reports a real address and
+    #: serves the AS11 normally: measured 2026-09-11, three such dongles reported real addresses and one
+    #: opened the AS11 link unbonded (5 services / 14 characteristics). All-zero means REBUILD the image,
+    #: not "this radio cannot do CPAP". The set below is value-based and needs no vendor exception.
     UNPAIRABLE_BD = frozenset({"00:00:00:00:00:00", "FF:FF:FF:FF:FF:FF"})
 
     def _creds_view(self) -> dict:
