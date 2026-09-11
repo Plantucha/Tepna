@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (owner-requested 2026-09-07 — "wire up holyiot with time improvement, but keep in mind that not everybody will have same ability so original functionality must be kept"; firmware image with the anchor reports is BUILT and **FLASHED 2026-09-07 21:30** — `iProduct` reads `Zephyr USBD BT HCI anchor` on vigil, address `99:67:24:2E:CD:98` unchanged; **§5(a) MEASURED 2026-09-07 21:34: `0xfd1f enable=1` → Command Complete status 0x00 in 0.8 ms**, sent from uid 1000 on a RAW HCI socket with `CAP_NET_RAW` alone while bluetoothd kept the adapter, monitor file `/srv/tepna/captures/probe-fd1f-20260907T213441.btsnoop`; §5(b)/(c) still owed — they need a strap connected on the Holyiot; **2026-09-11 — `CONFIG_BT_CTLR_PRIVACY=n` flashed to all three dongles on the rig and the anchor report re-confirmed under it (`0xfd1f` → status `0x00`, echo `1F FD`, 3/3; `ll-privacy` absent from supported settings, 3/3), BUT the Holyiot `99:67:24:2E:CD:98` was flashed with the FEM-LESS dongle image by mistake and its RX is degraded until reflashed — corrected image BUILT NOT FLASHED at `/srv/data/ncs/vigil_sdc_holyiot21017_anchor_nopriv_dfu.zip`; see §2.1**) · **Created:** 2026-09-07
+**Status:** PROPOSED (owner-requested 2026-09-07 — "wire up holyiot with time improvement, but keep in mind that not everybody will have same ability so original functionality must be kept"; firmware image with the anchor reports is BUILT and **FLASHED 2026-09-07 21:30** — `iProduct` reads `Zephyr USBD BT HCI anchor` on vigil, address `99:67:24:2E:CD:98` unchanged; **§5(a) MEASURED 2026-09-07 21:34: `0xfd1f enable=1` → Command Complete status 0x00 in 0.8 ms**, sent from uid 1000 on a RAW HCI socket with `CAP_NET_RAW` alone while bluetoothd kept the adapter, monitor file `/srv/tepna/captures/probe-fd1f-20260907T213441.btsnoop`; §5(b)/(c) still owed — they need a strap connected on the Holyiot; **2026-09-11 — `CONFIG_BT_CTLR_PRIVACY=n` flashed to all three dongles on the rig and the anchor report re-confirmed under it (`0xfd1f` → status `0x00`, echo `1F FD`, 3/3; `ll-privacy` absent from supported settings, 3/3), BUT ALL THREE were first flashed with the FEM-LESS dongle image by mistake, which left them deaf (0/7/16 live peers) — corrected image since FLASHED to all three 2026-09-11 and the fix measured — the deaf unit went 0 -> 82 live peers, the set beats the Realtek control by ~30 dB, and one of them opened the AS11 link UNBONDED (5 services / 14 characteristics); see §2.1**) · **Created:** 2026-09-07
 
 # Radio-clock sidecar — controller-side connection-event timestamps as an OPTIONAL second clock
 
@@ -48,7 +48,7 @@ kernel that saw the bytes some hundreds of milliseconds later.
 | event | HCI event **`0xff`** (vendor), subevent **`0x82`** `SDC_HCI_SUBEVENT_VS_CONN_ANCHOR_POINT_UPDATE_REPORT` |
 | payload | `{ uint16 conn_handle, uint16 event_counter, uint64 anchor_point_us }` — "absolute time of the new anchor point in microseconds on the controller's clock" |
 | cadence | one per connection interval per link, on the **central** |
-| firmware gate | routed by `nrf/subsys/bluetooth/controller/hci_internal.c:1820` **only** under `CONFIG_BT_CTLR_SDC_CONN_ANCHOR_POINT_REPORT` (`Kconfig:369`) — **NOT set in the image currently flashed on the Holyiot** (`build-holyiot`); `CONFIG_BT_HCI_VS=y` is |
+| firmware gate | routed by `nrf/subsys/bluetooth/controller/hci_internal.c:1820` **only** under `CONFIG_BT_CTLR_SDC_CONN_ANCHOR_POINT_REPORT` (`Kconfig:369`) — **NOT set in `build-holyiot`**, the image this row was written against; `CONFIG_BT_HCI_VS=y` is. ⚠️ It IS set in the images flashed since — `build-holyiot-anchor` (2026-09-07) and `build-holyiot-nopriv` (2026-09-11), the latter now on all three dongles, which answer `0xfd1f` with status `0x00`. Read this row as a property of a named BUILD, not of the hardware |
 
 So the chain becomes two hops instead of one: **device sample ↔ controller anchor** (tight — the packet
 was received inside that event, a few ms wide at most) and **controller clock ↔ host clock** (slow and
@@ -115,7 +115,30 @@ TX with the LNA off -> the radio hears nothing."* Consistent with measurement �
 in a 20 s scan in which two siblings saw 7 and 16. **Do not put it on vigil as a capture adapter until
 it is reflashed**; its RX is worse than before the flash, on the one unit whose purpose is range.
 
-**Corrected image, BUILT AND NOT FLASHED** (needs a magnet; owner, on-site):
+🟢 **RESOLVED 2026-09-11 — corrected image flashed to ALL THREE, and the fix is measured.** Two
+corrections to the paragraph above, both against myself. (1) **It was not one unit.** All three dongles
+are the same model (owner-confirmed), so all three lost their front end, not just the Holyiot; the text
+above says "the Holyiot" and understated it. (2) The deafness is now quantified rather than argued —
+40 s scans counting only addresses that emit a live RSSI update, so BlueZ cache replay cannot inflate
+them:
+
+| adapter | live peers | median RSSI | AS11 sightings |
+|---|---|---|---|
+| Realtek (control) | 22 | −95 | 8 |
+| `99:67:24:2E:CD:98` | **0 → 82** | −66 | 66 |
+| `21:BF:D5:80:09:C0` | 44 | −59 | 24 |
+| `E7:FC:6D:6B:A4:4E` | 96 | −68 | 19 |
+
+All three report `iProduct` = `Zephyr USBD BT HCI anchor np`, keep their BD addresses across the
+reflash, and answer `0xfd1f` with status `00`. The previously-deaf unit went **0 → 82** and the set now
+beats the Realtek control by ~30 dB on median RSSI.
+
+⚠️ **The earlier "the rig is too far from the CPAP" conclusion in this session was an ARTIFACT of this
+bug.** It was measured on the Realtek and on radios that had been made deaf; the AS11 actually sits at
+**−53…−73 dBm** here. A broken instrument that agrees with a plausible story is worse than no
+measurement, because it closes the question.
+
+**Original image, built 2026-09-11** (kept for provenance; superseded by the flash above):
 `/srv/data/ncs/vigil_sdc_holyiot21017_anchor_nopriv_dfu.zip`, 154 322 B, sha256 `2a6f64a82665f3c0e646…`,
 from `vigil-sdc-holyiot-nopriv.conf` + `vigil-holyiot21017.overlay`. Verified in the GENERATED output
 against the known-good reference rather than in the conf: `CONFIG_MPSL_FEM=y`, `CONFIG_BT_CTLR_PRIVACY`
