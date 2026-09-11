@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** DONE — 2026-09-11 (**NEGATIVE RESULT: the check is REFUTED and must not be built.** The §5 measurement landed the same day and killed it twice over — 15 of 15 candidates were false positives with zero true findings, and it has ZERO SENSITIVITY on the very case that motivated it. Declining was listed in §5.3 as a legitimate outcome and it is the outcome. The question is answered, so this is DONE with a negative, not parked — and §7 records what the measurement pointed at instead) · **Created:** 2026-09-11 · **Promoted-from:** residue `2026-09-11-brief-code-anchors-are-unchecked` · **Extends:** `DOCS-LEDGER-HEADER-REFS-2026-08-27-BRIEF.md` (`docs-ledger` check7, same family, different reference kind)
+**Status:** IN-PROGRESS — 2026-09-11 (**the IDENTIFIER-EXISTENCE check is REFUTED and must not be built** — 15/15 false positives, zero sensitivity on its own defining case. ⚠️ **SCOPE CORRECTED same day — that is NOT 'the class is undetectable', and §7 was recorded one step too broad; see §8.** The §5 measurement landed the same day and killed it twice over — 15 of 15 candidates were false positives with zero true findings, and it has ZERO SENSITIVITY on the very case that motivated it. Declining was listed in §5.3 as a legitimate outcome and it is the outcome. The question is answered, so this is DONE with a negative, not parked — and §7 records what the measurement pointed at instead) · **Created:** 2026-09-11 · **Promoted-from:** residue `2026-09-11-brief-code-anchors-are-unchecked` · **Extends:** `DOCS-LEDGER-HEADER-REFS-2026-08-27-BRIEF.md` (`docs-ledger` check7, same family, different reference kind)
 
 # A brief's quoted code anchor is checked by nothing
 
@@ -133,3 +133,98 @@ afterwards, and costs one line in a PR already touching the work.
 ⚠️ **Scope of the negative, stated honestly:** 22 punch-list briefs of 507, the highest-yield slice. That
 bounds the FP rate where the check would have been most useful; it does not prove the wider class empty.
 The instance in §1.1 is real. It is simply **not identifier-shaped**.
+
+
+## 8 · ⚠️ SCOPE CORRECTION — the negative was recorded one step too broad
+
+§7 refuted the **identifier-existence** check and that refutation stands on its measurement. It does
+**not** establish that the class is undetectable, and §7.3's implied *"only a convention change works"*
+is withdrawn. Exactly one detector SHAPE was tested — the grep-shaped one — while CLAUDE.md's **standing
+pickup step** (`node tools/doc-search.mjs`, owner-mandated 2026-08-26: *"a brief pickup starts with a
+semantic search, not a grep: grep finds only your own vocabulary"*) went unused by both the sweep and
+this design. A negative from one untried-alternative is a negative about the instrument, not the class.
+
+### 8.1 The semantic shape, demonstrated at n = 1
+
+Measured 2026-09-11:
+
+| query | top hits |
+|---|---|
+| the **stale** claim — *"correctRR fills rejected intervals with a running median"* | **the brief 0.636** · DEEP-AUDIT-FOLLOWUPS 0.604 · `sensor-trio-worker.js` 0.602 |
+| the **true** claim — *"correctRR excludes a rejected interval instead of filling it"* | `sensor-trio-worker.js` 0.630 · **the brief 0.612** · `ppgdex-dsp.js` 0.595 |
+
+The direction is real, and it is the one shape that CAN see this failure: the stale claim ranks the
+brief first; the true claim ranks code above it. An identifier check scores zero here because
+`correctRR` is alive (21 occurrences) and only its BEHAVIOUR is stale.
+
+### 8.2 ⚠️ But the separation is WEAK, and weaker than first relayed
+
+The brief scores **0.636 vs 0.612** across the two queries — a **0.024** gap — and it is **rank 2 on the
+negation, not absent from the top 3** as an earlier relay of this result stated. A detector keyed on
+"does the brief outrank the code" would decide on a margin indistinguishable from embedding noise at
+n = 1, and the runner-up on the stale query is a DIFFERENT brief, not code.
+
+**So this is a demonstration, not a baseline.** It needs exactly what §5 demanded of the identifier
+check and for the same reason: an FP tally over the same 22-brief slice with each flag judged RIGHT or
+WRONG by hand, BEFORE any gate is proposed. Proposing one on a single favourable pair would repeat the
+error this brief exists to document — and would do it in the document that documents it.
+
+### 8.3 Status
+
+**IN-PROGRESS, not DONE.** One shape is closed; the question is open. The baseline is owned by the
+session that ran the first sweep; this brief folds the result when it lands.
+
+
+## 9 · The semantic shape, measured further — three threats before any FP rate
+
+A second pass (Magpie) plus verification here. **None of this is a baseline** — n = 1 stale + 3
+accurate — but three properties are already established and each could kill the approach independently
+of whatever false-positive rate the full slice returns.
+
+### 9.1 ⚠️ THE INDEX MOVES UNDER THE MEASUREMENT
+
+`doc-search` re-embeds as the repo changes. Verified here by running one query twice in succession:
+
+| run | newly embedded | top hit |
+|---|---|---|
+| 1 | **2312** | brief 0.636 |
+| 2 | **0** | brief 0.636 |
+
+Deterministic at a settled index, and *only* there. It also explains why two sessions measuring the same
+brief got 0.612 / rank 2 and 0.590 / rank 4 — peers were landing PRs between the queries.
+
+**A gate thresholding a ~0.02 margin would be measuring INDEX FRESHNESS as much as brief staleness.**
+That is a stability problem, not a tuning problem, and it stands regardless of the FP rate.
+
+### 9.2 The discriminator is CODE-OUTRANKS-BRIEF, not margin-between-phrasings
+
+§8.2's 0.024 was real but measured the wrong thing — a claim against its own NEGATION, which is a weak
+test. The better-shaped question is whether **code outranks the brief on the brief's OWN claim**:
+
+| claim | top hit | gap |
+|---|---|---|
+| STALE — *correctRR fills …* | **the brief**, no code in the top 2 | — |
+| accurate — *markO2BeatMarkers flags an isolated 156 …* | **`ppgdex-dsp.js`** | 0.080 |
+| accurate — *dex-ingest excludes PMDARRIVAL sidecars …* | **`dex-ingest.js`** | 0.046 |
+
+On that framing the separation is presence-vs-absence of code in the top slots, not a 0.02 margin.
+
+### 9.3 ⚠️ "NO RELEVANT MATCH" MUST BE ITS OWN OUTCOME, NEVER "STALE"
+
+An accurate claim about `pinnedSpans` — code that landed days ago — returned no code match at all, only
+unrelated PAT briefs at the noise floor (0.582 / 0.581). Under a naive *"code does not outrank the brief
+⇒ stale"* rule that flags a brief describing code that shipped last week.
+
+Absence of evidence is being read as evidence, which is the fail-open/fail-closed distinction the
+`timingSource` vocabulary exists to keep separate. **How many of the 22 land in this state may kill the
+approach faster than the FP rate does.**
+
+### 9.4 ⚠️ THE DETECTOR IS PART OF THE CORPUS IT SEARCHES
+
+Verified here: on the stale query, `DOCS-INDEX.md` now ranks **second at 0.614** — because THIS brief's
+index row quotes the stale claim in order to describe it. Every document written about the failure
+becomes a retrieval competitor for it, and this brief and its row are now two such documents.
+
+So a "brief outranks code" rule degrades as the failure gets documented, and a fleet that writes up its
+findings — which this one does, deliberately — is systematically eroding the signal. Any baseline must
+be taken with the write-ups already in the index, or it will flatter itself.
