@@ -173,3 +173,58 @@ error this brief exists to document — and would do it in the document that doc
 
 **IN-PROGRESS, not DONE.** One shape is closed; the question is open. The baseline is owned by the
 session that ran the first sweep; this brief folds the result when it lands.
+
+
+## 9 · The semantic shape, measured further — three threats before any FP rate
+
+A second pass (Magpie) plus verification here. **None of this is a baseline** — n = 1 stale + 3
+accurate — but three properties are already established and each could kill the approach independently
+of whatever false-positive rate the full slice returns.
+
+### 9.1 ⚠️ THE INDEX MOVES UNDER THE MEASUREMENT
+
+`doc-search` re-embeds as the repo changes. Verified here by running one query twice in succession:
+
+| run | newly embedded | top hit |
+|---|---|---|
+| 1 | **2312** | brief 0.636 |
+| 2 | **0** | brief 0.636 |
+
+Deterministic at a settled index, and *only* there. It also explains why two sessions measuring the same
+brief got 0.612 / rank 2 and 0.590 / rank 4 — peers were landing PRs between the queries.
+
+**A gate thresholding a ~0.02 margin would be measuring INDEX FRESHNESS as much as brief staleness.**
+That is a stability problem, not a tuning problem, and it stands regardless of the FP rate.
+
+### 9.2 The discriminator is CODE-OUTRANKS-BRIEF, not margin-between-phrasings
+
+§8.2's 0.024 was real but measured the wrong thing — a claim against its own NEGATION, which is a weak
+test. The better-shaped question is whether **code outranks the brief on the brief's OWN claim**:
+
+| claim | top hit | gap |
+|---|---|---|
+| STALE — *correctRR fills …* | **the brief**, no code in the top 2 | — |
+| accurate — *markO2BeatMarkers flags an isolated 156 …* | **`ppgdex-dsp.js`** | 0.080 |
+| accurate — *dex-ingest excludes PMDARRIVAL sidecars …* | **`dex-ingest.js`** | 0.046 |
+
+On that framing the separation is presence-vs-absence of code in the top slots, not a 0.02 margin.
+
+### 9.3 ⚠️ "NO RELEVANT MATCH" MUST BE ITS OWN OUTCOME, NEVER "STALE"
+
+An accurate claim about `pinnedSpans` — code that landed days ago — returned no code match at all, only
+unrelated PAT briefs at the noise floor (0.582 / 0.581). Under a naive *"code does not outrank the brief
+⇒ stale"* rule that flags a brief describing code that shipped last week.
+
+Absence of evidence is being read as evidence, which is the fail-open/fail-closed distinction the
+`timingSource` vocabulary exists to keep separate. **How many of the 22 land in this state may kill the
+approach faster than the FP rate does.**
+
+### 9.4 ⚠️ THE DETECTOR IS PART OF THE CORPUS IT SEARCHES
+
+Verified here: on the stale query, `DOCS-INDEX.md` now ranks **second at 0.614** — because THIS brief's
+index row quotes the stale claim in order to describe it. Every document written about the failure
+becomes a retrieval competitor for it, and this brief and its row are now two such documents.
+
+So a "brief outranks code" rule degrades as the failure gets documented, and a fleet that writes up its
+findings — which this one does, deliberately — is systematically eroding the signal. Any baseline must
+be taken with the write-ups already in the index, or it will flatter itself.
