@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (owner-requested 2026-09-07 — "wire up holyiot with time improvement, but keep in mind that not everybody will have same ability so original functionality must be kept"; firmware image with the anchor reports is BUILT and **FLASHED 2026-09-07 21:30** — `iProduct` reads `Zephyr USBD BT HCI anchor` on vigil, address `99:67:24:2E:CD:98` unchanged; **§5(a) MEASURED 2026-09-07 21:34: `0xfd1f enable=1` → Command Complete status 0x00 in 0.8 ms**, sent from uid 1000 on a RAW HCI socket with `CAP_NET_RAW` alone while bluetoothd kept the adapter, monitor file `/srv/tepna/captures/probe-fd1f-20260907T213441.btsnoop`; §5(b)/(c) still owed — they need a strap connected on the Holyiot) · **Created:** 2026-09-07
+**Status:** PROPOSED (owner-requested 2026-09-07 — "wire up holyiot with time improvement, but keep in mind that not everybody will have same ability so original functionality must be kept"; firmware image with the anchor reports is BUILT and **FLASHED 2026-09-07 21:30** — `iProduct` reads `Zephyr USBD BT HCI anchor` on vigil, address `99:67:24:2E:CD:98` unchanged; **§5(a) MEASURED 2026-09-07 21:34: `0xfd1f enable=1` → Command Complete status 0x00 in 0.8 ms**, sent from uid 1000 on a RAW HCI socket with `CAP_NET_RAW` alone while bluetoothd kept the adapter, monitor file `/srv/tepna/captures/probe-fd1f-20260907T213441.btsnoop`; §5(b)/(c) still owed — they need a strap connected on the Holyiot; **2026-09-11 — `CONFIG_BT_CTLR_PRIVACY=n` flashed to all three dongles on the rig and the anchor report re-confirmed under it (`0xfd1f` → status `0x00`, echo `1F FD`, 3/3; `ll-privacy` absent from supported settings, 3/3), BUT the Holyiot `99:67:24:2E:CD:98` was flashed with the FEM-LESS dongle image by mistake and its RX is degraded until reflashed — corrected image BUILT NOT FLASHED at `/srv/data/ncs/vigil_sdc_holyiot21017_anchor_nopriv_dfu.zip`; see §2.1**) · **Created:** 2026-09-07
 
 # Radio-clock sidecar — controller-side connection-event timestamps as an OPTIONAL second clock
 
@@ -85,6 +85,73 @@ is, and the brief stops there (§4 bands).
   `hci3` while the UB500 was on the bus and became `hci0` the moment it was pulled (Wren, 2026-09-07).
   Resolve the index at run time (`hciconfig` / `btmgmt info`, match the address) — every command below
   that needs an index means "the index that currently carries `99:67:24:2E:CD:98`".
+
+### 2.1 · 2026-09-11 — privacy disabled on all three dongles, and the Holyiot got the WRONG image (Kestrel)
+
+**What was flashed and why.** The 2026-09-07 image carries the anchor report but still carries LL Privacy,
+and that is the `0x202d` wedge which took vigil's capture down on 09-10: BlueZ disables address
+resolution during every connection setup, `LE Set Address Resolution Enable` never returns, and each
+attempt leaves a half-finished operation (`org.bluez.Error.InProgress` on all three sensors). With
+`CONFIG_BT_CTLR_PRIVACY=n` there is no resolving list to manage and the command is never sent.
+
+**Measured on rig-x870, three units, 2026-09-11:**
+
+| adapter | BD address | `ll-privacy` in supported settings | `0xfd1f enable=1` |
+|---|---|---|---|
+| hci1 | `21:BF:D5:80:09:C0` | absent | Command Complete, echo `1F FD`, status `00` |
+| hci2 | `E7:FC:6D:6B:A4:4E` | absent | same |
+| hci3 | `99:67:24:2E:CD:98` | absent | same |
+
+So the two changes are **independent**: disabling controller privacy does not disturb anchor reporting.
+That is the result this section exists to record.
+
+🔴 **AND THE HOLYIOT GOT THE FEM-LESS IMAGE — my error, and it is still in that state.** I flashed
+`vigil_sdc_nopriv_dfu.zip` (the plain-dongle build) onto `99:67:24:2E:CD:98`. `build-hci-nopriv`'s
+`.config` has **no `CONFIG_MPSL_FEM=y`**; `build-holyiot-anchor`'s does. Both target the same
+`CONFIG_BOARD="raytac_mdbt50q_cx_40_dongle"`, so **FEM is a conf+overlay choice, not a board default** —
+which is exactly why a filename is not a build. `vigil-holyiot21017.overlay` exists for this: the Raytac
+board routes uart0 RX/CTS onto the FEM control pins P0.24/P0.22 with pull-ups, which *"parks the FEM in
+TX with the LNA off -> the radio hears nothing."* Consistent with measurement — that unit saw **0 peers**
+in a 20 s scan in which two siblings saw 7 and 16. **Do not put it on vigil as a capture adapter until
+it is reflashed**; its RX is worse than before the flash, on the one unit whose purpose is range.
+
+**Corrected image, BUILT AND NOT FLASHED** (needs a magnet; owner, on-site):
+`/srv/data/ncs/vigil_sdc_holyiot21017_anchor_nopriv_dfu.zip`, 154 322 B, sha256 `2a6f64a82665f3c0e646…`,
+from `vigil-sdc-holyiot-nopriv.conf` + `vigil-holyiot21017.overlay`. Verified in the GENERATED output
+against the known-good reference rather than in the conf: `CONFIG_MPSL_FEM=y`, `CONFIG_BT_CTLR_PRIVACY`
+unset, anchor `=y`, FEM node on P0.24/P0.22 at 22 dB TX gain, and `uart0 status="disabled"` sourced from
+the overlay — the last being the load-bearing line, since the FEM node alone does not help while the
+pull-ups still hold it in TX.
+
+⚠️ **§2's `iProduct` FLASH-VERIFICATION SIGNAL IS NOW AMBIGUOUS, AND THAT IS WHAT MADE THIS INVISIBLE.**
+§2 says the product string distinguishes the anchor image from its predecessor. Three strings are now in
+play, and the bare one is no longer a negative:
+
+| `iProduct` | means |
+|---|---|
+| `Zephyr USBD BT HCI` | the predecessor **OR** the 2026-09-11 mis-flash (anchor present, FEM absent) |
+| `Zephyr USBD BT HCI anchor` | 2026-09-07 build (anchor + FEM, privacy ON) |
+| `Zephyr USBD BT HCI anchor np` | the corrected build (anchor + FEM + privacy off) |
+
+The mis-flashed unit answers `0xfd1f` with status `00` **while reporting the bare string**, so the
+string is NECESSARY, NOT SUFFICIENT, until every unit is on a named build. A reader applying §2's rule
+to it today would conclude the anchor image is absent, and be wrong. `CONFIG_SAMPLE_USBD_PRODUCT` lives
+in the conf, so any build from a conf lacking that line silently inherits the predecessor's identity —
+which is how the wrong image passed its own verification.
+
+⚠️ **THE USB SERIAL IS AN APPLICATION-MODE IDENTITY, NOT AN ABSOLUTE ONE.** The same three devices read
+`E1BFD58009C0` / `E7FC6D6BA44E` / `D967242ECD98` in the DFU bootloader and `E8724F4F4D09CE57` /
+`9D08E454B242A0BF` / `B1BAA52EE6EDB771` in the application. Different strings, same hardware. **Only the
+BD address survived both the mode change and the reflash**, which is why §2's "name the adapter by
+ADDRESS" is the rule that holds across a flash as well as across enumeration. The DFU-mode serial's last
+five bytes do match the BD address (`E1BFD58009C0` → `21:BF:D5:80:09:C0`), but the top byte does **not**
+transform consistently across the three units (`E1`→`21`, `D9`→`99`, `E7`→`E7`) — treat it as a lookup,
+never as a derivation.
+
+**Consequence for §3:** the anchor enable is a RUNTIME command and is not expected to survive a
+controller reset, so a collector that sends `0xfd1f` once at startup stops receiving anchors silently
+after any adapter bounce. Found live in `radioclock.py` and fixed in #2392, keyed on the BD address the
+`hci_mon_new_index` packet carries at offset 2 rather than on a remembered index (Heron).
 
 ## 3 · Collector — `capture-host/radioclock.py` + `tepna-radioclock.service` (Heron)
 
