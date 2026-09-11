@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-09-07 · **Owner:** Kestrel (coordination) — units go to the rig coders · **Scope:** out-of-suite `capture-host/` + one CPAPDex vocabulary unit; no bundle/provenance impact except WU7
+**Status:** PROPOSED (**the AS11 TRANSPORT is BUILT; this brief wires DECODE and consumers on top of it — verified 2026-09-11 (Osprey) in the tree, not from the prose.** Present: `as11_pull.py`, `as11_link.py`, `as11_cipher.py`, `as11_pair.py`, `as11_clock.py`, `cpap_spool.py`, `cpap_edf_dict.py`. Absent and therefore genuinely WU1 work: `cpap_spool_decode.py`. So no unit here should be sized as "bring up AS11 over BLE" — pairing, cipher, link, clock and the spool round-transaction all already exist and ship green; what is owed is decoding the committed Summary rounds rig-side and the consumers above it (WU2 CPAPDex-loadable, WU10 the monitor stream-rate selector, WU7 the one bundle/provenance touch). Owner: Kestrel (coordination); units go to the rig coders.) · **Created:** 2026-09-07 · **Owner:** Kestrel (coordination) — units go to the rig coders · **Scope:** out-of-suite `capture-host/` + one CPAPDex vocabulary unit; no bundle/provenance impact except WU7
 
 # CPAP AS11 over BLE — WIRE NOW (stock firmware · BLE only · read-only RPCs)
 
