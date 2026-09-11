@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** PROPOSED — 2026-09-11 (DESIGN ONLY, deliberately unbuilt: the false-positive rate over the real brief set is being measured by a separate manual sweep and MUST land before any gate is proposed — see §5) · **Created:** 2026-09-11 · **Promoted-from:** residue `2026-09-11-brief-code-anchors-are-unchecked` · **Extends:** `DOCS-LEDGER-HEADER-REFS-2026-08-27-BRIEF.md` (`docs-ledger` check7, same family, different reference kind)
+**Status:** DONE — 2026-09-11 (**NEGATIVE RESULT: the check is REFUTED and must not be built.** The §5 measurement landed the same day and killed it twice over — 15 of 15 candidates were false positives with zero true findings, and it has ZERO SENSITIVITY on the very case that motivated it. Declining was listed in §5.3 as a legitimate outcome and it is the outcome. The question is answered, so this is DONE with a negative, not parked — and §7 records what the measurement pointed at instead) · **Created:** 2026-09-11 · **Promoted-from:** residue `2026-09-11-brief-code-anchors-are-unchecked` · **Extends:** `DOCS-LEDGER-HEADER-REFS-2026-08-27-BRIEF.md` (`docs-ledger` check7, same family, different reference kind)
 
 # A brief's quoted code anchor is checked by nothing
 
@@ -90,3 +90,46 @@ is *declared* by the author and machine-visible, and everything undeclared is as
 
 Node-lane only (it reads `briefs/` and the tree from the filesystem, as `docs-ledger` already does).
 No bundle, no runtime surface, no fixture movement.
+
+
+## 7 · 🔴 REFUTED 2026-09-11 — the measurement, and where it points instead
+
+The §5.1 sweep (Magpie, by hand over the 22 punch-list/★ briefs, PAT excluded) returned **15 of 15
+false positives and zero true findings**. Two independent reasons, either of which is fatal.
+
+### 7.1 The false positives are STRUCTURAL, not incidental
+
+The dominant class is **proposed-but-not-yet-built**: `spanHours` from *"additive `spanHours`"*,
+`_PREF_RANGE` from *"**Fix.** A `_PREF_RANGE` table beside `_PREF_RATE`"*. **A brief's PURPOSE is to
+describe work not yet done, so its identifiers are EXPECTED to be absent.** The check was pointed at the
+one document class where absence is the normal state — which §3.2 half-saw (it anticipated
+quoted-as-removed) and still under-counted, because it treated the exemption as an edge case rather
+than the majority.
+
+The rest: quoted to say it was removed (`morningCount`) · a row already marked FIXED (`pickSite`) · **the
+absence IS the argument** (`effortPresentFrac` — the brief says the registry has no such entry, so the
+check would flag exactly the briefs that state an absence correctly) · renamed with the mechanism alive
+(`fuseHrvConsensus` → `hrvConsensus`) · third-party identifiers (`engzee_ecg_detector`, `start_from`) ·
+not code at all (a fixture name, a filename fragment, a DOM class).
+
+### 7.2 🔴 AND IT IS BLIND TO ITS OWN DEFINING CASE
+
+Run as a positive control against `PPGDEX-ALGORITHM-DEEP-DIVE` — §1.1, the instance this brief exists
+for — it flags **nothing**. Verified here: `correctRR` occurs **21 times** in `ppgdex-dsp.js` today. The
+identifier is ALIVE; what went stale was the BEHAVIOUR it was described as having.
+
+**An existence check cannot see a behaviour change**, and a behaviour change is precisely what lands
+when an approved item ships. So the check would be 100 % noise AND miss the thing it was built for —
+worse than nothing, because its silence would read as *"no stale briefs"*.
+
+### 7.3 What the negative result points at
+
+The defining instance was found by a human reading a brief against a merged PR — and **#2333 already
+named the brief item in its own body**. So the cheap mechanism is not a scanner over briefs; it is **the
+landing PR stamping the brief row it executes, in the same PR** — CLAUDE.md's *"triage stamps the brief"*
+rule extended from TRIAGE to EXECUTION. That removes the class at the source rather than detecting it
+afterwards, and costs one line in a PR already touching the work.
+
+⚠️ **Scope of the negative, stated honestly:** 22 punch-list briefs of 507, the highest-yield slice. That
+bounds the FP rate where the check would have been most useful; it does not prove the wider class empty.
+The instance in §1.1 is real. It is simply **not identifier-shaped**.
