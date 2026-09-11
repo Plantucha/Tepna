@@ -1119,3 +1119,122 @@ def test_the_host_stamp_is_converted_to_MICROSECONDS_exactly():
         c.feed(*_mon(rc.MONITOR_OPCODE_EVENT, _anchor_event(0x0040, counter, us)),
                host_ns=(us + 300) * 1000)
     assert c.offsets.offset == 300.0, "ns/1000 == us; any other divisor shifts this off 300"
+
+
+# ── re-arming the enable, which does not survive a controller reset ───────────────────────────────
+
+def _mon_index(opcode, index=ADAPTER):
+    return opcode, index, b"", 1
+
+
+def _reset_complete(status=0x00):
+    params = bytes([1]) + struct.pack("<H", rc.HCI_OPCODE_RESET) + bytes([status])
+    return bytes([rc.HCI_EVT_COMMAND_COMPLETE, len(params)]) + params
+
+
+def test_an_adapter_coming_UP_needs_the_enable_re_sent():
+    """🔴 `0xfd1f` is a RUNTIME command, not a build setting: any controller reset clears it, and a
+    collector that sends it once at startup then stops receiving anchors SILENTLY — no error, no
+    refusal, just an absence indistinguishable from a quiet night. Measured on three reflashed
+    nRF52840s (Kestrel, 2026-09-11). New/Open Index also covers the case the startup probe structurally
+    cannot: an adapter that appears AFTER we started."""
+    for op in (rc.MONITOR_OPCODE_NEW_INDEX, rc.MONITOR_OPCODE_OPEN_INDEX):
+        assert rc.rearm_needed(*_mon_index(op)[:3], ADAPTER) is True, op
+
+
+def test_an_HCI_RESET_completing_needs_the_enable_re_sent():
+    """BlueZ resets on power-cycle and on some suspend/resume paths; the controller returns with the
+    flag cleared and nothing says so."""
+    assert rc.rearm_needed(rc.MONITOR_OPCODE_EVENT, ADAPTER, _reset_complete(), ADAPTER) is True
+    # A reset that FAILED still cleared nothing we can rely on — re-arming is the safe direction.
+    assert rc.rearm_needed(rc.MONITOR_OPCODE_EVENT, ADAPTER, _reset_complete(0x0C), ADAPTER) is True
+
+
+def test_re_arm_does_NOT_fire_on_another_adapter_or_on_ordinary_traffic():
+    """The monitor channel carries every controller on the box. Re-arming on a neighbour's reset would
+    send a vendor command to a radio we were never pointed at."""
+    assert rc.rearm_needed(rc.MONITOR_OPCODE_NEW_INDEX, ADAPTER + 1, b"", ADAPTER) is False
+    assert rc.rearm_needed(rc.MONITOR_OPCODE_EVENT, ADAPTER, _reset_complete(), ADAPTER + 1) is False
+    assert rc.rearm_needed(rc.MONITOR_OPCODE_ACL_RX, ADAPTER, _pmd_acl(0x0040, 0, 5), ADAPTER) is False
+    assert rc.rearm_needed(rc.MONITOR_OPCODE_EVENT, ADAPTER, _anchor_event(0x40, 1, 2), ADAPTER) is False
+    other = bytes([rc.HCI_EVT_COMMAND_COMPLETE, 4, 1]) + struct.pack("<H", 0x1001) + b"\x00"
+    assert rc.rearm_needed(rc.MONITOR_OPCODE_EVENT, ADAPTER, other, ADAPTER) is False
+
+
+def test_re_arm_does_NOT_fire_when_the_adapter_is_GOING_AWAY():
+    """Del/Close Index means there is nothing to arm. Re-arming into a disappearing controller is how
+    a retry loop is born."""
+    for op in (rc.MONITOR_OPCODE_DEL_INDEX, rc.MONITOR_OPCODE_CLOSE_INDEX):
+        assert rc.rearm_needed(op, ADAPTER, b"", ADAPTER) is False, op
+
+
+def test_run_CALLS_the_re_arm_and_counts_it(tmp_path):
+    calls = []
+
+    def open_writer(address):
+        return rc.SidecarWriter(str(tmp_path / rc.sidecar_name("s", address)))
+
+    stream = ([(rc.MONITOR_OPCODE_OPEN_INDEX, ADAPTER, b"", 1)]
+              + _stream()
+              + [(rc.MONITOR_OPCODE_EVENT, ADAPTER, _reset_complete(), 9)])
+    got = rc.run(stream, _collector(), open_writer, rearm=lambda: calls.append(1))
+    assert got["rearmed"] == 2 and len(calls) == 2
+    assert got["rows"] == 1, "the re-arm does not disturb the rows"
+
+
+def test_run_without_a_re_arm_callback_is_unchanged(tmp_path):
+    """Back-compat: the parameter is optional and its absence must not raise on an index packet."""
+    def open_writer(address):
+        return rc.SidecarWriter(str(tmp_path / rc.sidecar_name("s", address)))
+
+    got = rc.run([(rc.MONITOR_OPCODE_OPEN_INDEX, ADAPTER, b"", 1)] + _stream(), _collector(),
+                 open_writer)
+    assert got["rearmed"] == 0 and got["rows"] == 1
+
+
+def test_main_re_arms_through_the_REAL_probe_and_reports_both_outcomes(tmp_path, caplog):
+    """The re-arm must be as loud as the thing it repairs is quiet. A cleared flag is invisible, so a
+    re-arm that FAILED cannot be — otherwise the fix reproduces the bug one level up."""
+    sysfs = _sysfs(tmp_path, {"hci1": "28:0C:50:0C:18:FD"})
+    root = tmp_path / "srv"
+    cfg = _cfg_file(tmp_path, dict(CFG, root=str(root)))
+    stream = [(rc.MONITOR_OPCODE_OPEN_INDEX, 1, b"", 1)] + _stream(acls=((1_051_300_000,),))
+
+    # 1 · the adapter comes back and the enable takes
+    with caplog.at_level("INFO"):
+        assert rc.main(["--config", cfg], sysfs, probe=lambda i: (rc.NORDIC_COMPANY_ID, 0, None),
+                       packets=[(o, 1, p, t) for (o, _i, p, t) in stream]) == 0
+    assert "anchors re-enabled after an adapter reset" in caplog.text
+    assert "1 re-arm(s)" in caplog.text
+
+    # 2 · it comes back and the enable does NOT take — a warning, never silence
+    caplog.clear()
+    with caplog.at_level("INFO"):
+        rc.main(["--config", cfg], sysfs,
+                probe=_flaky_probe([(rc.NORDIC_COMPANY_ID, 0, None),
+                                    (rc.NORDIC_COMPANY_ID, rc.HCI_STATUS_UNKNOWN_COMMAND, None)]),
+                packets=[(o, 1, p, t) for (o, _i, p, t) in stream])
+    assert "anchors NOT re-enabled" in caplog.text and "not this image" in caplog.text
+
+    # 3 · the probe raises on the re-arm — still reported, still exit 0
+    caplog.clear()
+    with caplog.at_level("INFO"):
+        rc.main(["--config", cfg], sysfs,
+                probe=_flaky_probe([(rc.NORDIC_COMPANY_ID, 0, None),
+                                    rc.RadioClockUnavailable("adapter vanished mid-re-arm")]),
+                packets=[(o, 1, p, t) for (o, _i, p, t) in stream])
+    assert "re-arm failed on the adapter that just came up" in caplog.text
+
+
+def _flaky_probe(sequence):
+    """A probe whose answer differs between the startup call and the re-arm — which is the whole
+    situation: it worked once, and the question is what happens the second time."""
+    calls = iter(sequence)
+
+    def _probe(index):
+        got = next(calls)
+        if isinstance(got, Exception):
+            raise got
+        return got
+
+    return _probe
