@@ -336,9 +336,16 @@ def associate(pkt_rx_us: float, anchors: list[tuple[int, int]],
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 
 #: Monitor-channel opcodes (`hci_mon_hdr.opcode`) — the same framing `btmon` reads.
+MONITOR_OPCODE_NEW_INDEX = 0x00
+MONITOR_OPCODE_DEL_INDEX = 0x01
 MONITOR_OPCODE_EVENT = 0x03
 MONITOR_OPCODE_ACL_TX = 0x04
 MONITOR_OPCODE_ACL_RX = 0x05
+MONITOR_OPCODE_OPEN_INDEX = 0x08
+MONITOR_OPCODE_CLOSE_INDEX = 0x09
+
+#: `HCI_Reset`. Its Command Complete is one of the two things that means the anchor enable is gone.
+HCI_OPCODE_RESET = 0x0C03
 
 #: `bind()` targets for the monitor channel. HCI_DEV_NONE takes every adapter; the per-adapter filter
 #: is applied to the header's `index` field, because the monitor channel does not bind per-index.
@@ -513,8 +520,13 @@ class Collector:
     ask for reaches the disk.
     """
 
-    def __init__(self, adapter_index: int, devices, offset_window: int = OFFSET_WINDOW) -> None:
+    def __init__(self, adapter_index: int, devices, offset_window: int = OFFSET_WINDOW,
+                 adapter_address: str | None = None) -> None:
+        #: The index is a CACHE and the address is the identity. `hciN` reorders across a reflash or a
+        #: replug, so the index is re-resolved whenever the adapter returns and the address is what
+        #: that resolution is keyed on. Optional only for back-compat with callers that predate it.
         self.adapter_index = adapter_index
+        self.adapter_address = adapter_address
         #: Matched case-insensitively: BlueZ prints uppercase, configs are written by humans.
         self.devices = {str(a).upper() for a in (devices or [])}
         self.handles = HandleMap()
@@ -676,7 +688,60 @@ def read_monitor(sock, bufsize: int = 4096):     # pragma: no cover — a raw so
         yield opcode, index, payload, host_ns
 
 
-def run(packets, collector: Collector, open_writer, flush_every: int = 64) -> dict:
+def parse_new_index(payload: bytes) -> str | None:
+    """The BD ADDRESS out of a New Index packet, or None.
+
+    `hci_mon_new_index` is `{ u8 type; u8 bus; bdaddr_t bdaddr; char name[8] }`, so the address is six
+    little-endian bytes at offset 2. This matters because New Index is the ONE re-arm trigger that
+    carries an identity: everything else we can only key on the index, and the index is precisely what
+    is unstable across this event.
+    """
+    if len(payload) < 8:
+        return None
+    return _address(payload[2:8])
+
+
+def rearm_needed(opcode: int, index: int, payload: bytes, adapter_index: int,
+                 adapter_address: str | None = None) -> bool:
+    """Has this packet invalidated the anchor enable on our adapter?
+
+    🔴 THE ENABLE IS A RUNTIME COMMAND AND DOES NOT SURVIVE A CONTROLLER RESET. `0xfd1f` is not a build
+    setting — it is sent to a live controller, and any reset clears it. A collector that sends it once
+    at startup therefore stops receiving anchors **silently**: no error, no refusal, no log line, just
+    an absence that looks exactly like a quiet night. That is the failure this whole module is written
+    against, arriving through the one door it had left open (measured by Kestrel on three reflashed
+    nRF52840s, 2026-09-11).
+
+    Two packets mean the enable is gone, and both are visible on the monitor stream we already read:
+      * **New/Open Index** for our adapter — it has just come up, so nothing has been enabled on it yet.
+        This also covers the case the startup probe cannot: an adapter that appears *after* we started.
+      * a **Command Complete for `HCI_Reset`** on our adapter — BlueZ resets on power-cycle and on some
+        suspend/resume paths, and the controller comes back with the flag cleared.
+
+    Deliberately NOT triggered by Del/Close Index: the adapter is going away, there is nothing to arm,
+    and re-arming into a disappearing controller is how a retry loop is born.
+    """
+    # 🔴 NEW INDEX IS MATCHED ON THE ADDRESS, NOT THE INDEX, and that is the whole point of this
+    # branch. `hciN` is assigned at enumeration and REORDERS across exactly the event we re-arm on —
+    # measured on three dongles across a reflash (Kestrel, 2026-09-11), and the brief already records
+    # a unit moving hci3 → hci0 the moment another dongle was pulled. Keying the return of our adapter
+    # on a remembered integer would miss it when it comes back under a new number AND fire when a
+    # neighbour inherits the old one. The packet carries the address; use it.
+    if opcode == MONITOR_OPCODE_NEW_INDEX:
+        seen = parse_new_index(payload)
+        if adapter_address and seen:
+            return seen.upper() == adapter_address.upper()
+        return index == adapter_index          # no address to compare — fall back, and say so upstream
+    if index != adapter_index:
+        return False
+    if opcode == MONITOR_OPCODE_OPEN_INDEX:
+        return True
+    if opcode == MONITOR_OPCODE_EVENT:
+        return parse_command_complete(payload, HCI_OPCODE_RESET) is not None
+    return False
+
+
+def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm=None) -> dict:
     """Drive `collector` over an iterable of monitor packets, writing rows through `open_writer`.
 
     `open_writer(address) -> SidecarWriter`, called once per device and cached by the caller — a device
@@ -687,8 +752,15 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64) -> di
     """
     writers_by_device: dict[str, SidecarWriter] = {}
     written = 0
+    rearmed = 0
     try:
         for opcode, index, payload, host_ns in packets:
+            # BEFORE feeding: an adapter that just came up has no anchors enabled, so the sooner the
+            # command goes out the fewer connection events are missed.
+            if rearm is not None and rearm_needed(opcode, index, payload, collector.adapter_index,
+                                                  collector.adapter_address):
+                rearmed += 1
+                rearm()
             row = collector.feed(opcode, index, payload, host_ns)
             if row is None:
                 continue
@@ -705,7 +777,8 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64) -> di
             sink.close()
     return {"rows": written, "devices": sorted(writers_by_device),
             "missed_anchors": collector.missed_anchors,
-            "offset_samples": collector.offsets.n}
+            "offset_samples": collector.offsets.n,
+            "rearmed": rearmed}
 
 
 #: Where BlueZ publishes each controller's address. Read rather than assumed, because **BLE identity is
@@ -899,7 +972,9 @@ def main(argv: list[str], sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller,
         return 0
 
     root = cfg.get("root") or "/srv/tepna"
-    collector = Collector(index, devices)
+    rc_cfg = (cfg or {}).get("radio_clock") or {}
+    address = rc_cfg.get("adapter") or cfg.get("adapter")
+    collector = Collector(index, devices, adapter_address=address)
     if packets is None:                      # pragma: no cover — the socket path, exercised on the box
         packets = read_monitor(open_monitor_socket(socket_module))
 
@@ -913,10 +988,36 @@ def main(argv: list[str], sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller,
         stamp = _dt.datetime.now().strftime("%Y%m%dT%H%M%S")
         return SidecarWriter(os.path.join(night, sidecar_name(stamp, address)))
 
-    got = run(packets, collector, open_writer)
+    def _rearm() -> None:
+        """Re-send the enable after the adapter came up or was reset. Reported, never silent: the
+        whole point is that a cleared flag is otherwise invisible, so a FAILED re-arm must not be."""
+        # 🔴 RE-RESOLVE THE INDEX FROM THE ADDRESS. Never re-arm a remembered integer: `hciN` is
+        # assigned at enumeration and reorders across precisely this event, so a cached index can send
+        # a vendor command to a DIFFERENT adapter than the one we were pointed at — the neighbour
+        # safety this function exists for, inverted.
+        now_index = adapter_index(address, sysfs)
+        if now_index is None:
+            log.warning("radio clock: %s is not present after the reset — nothing to re-arm", address)
+            return
+        if now_index != collector.adapter_index:
+            log.info("radio clock: %s moved hci%d → hci%d; following the address, not the index",
+                     address, collector.adapter_index, now_index)
+            collector.adapter_index = now_index
+        try:
+            _m, status, error = probe(now_index)
+        except RadioClockUnavailable as exc:
+            log.warning("radio clock: re-arm failed on the adapter that just came up: %s", exc)
+            return
+        outcome = describe_enable(status, error)
+        if outcome == ENABLE_ENABLED:
+            log.info("radio clock: anchors re-enabled after an adapter reset")
+        else:
+            log.warning("radio clock: anchors NOT re-enabled after an adapter reset: %s", outcome)
+
+    got = run(packets, collector, open_writer, rearm=_rearm)
     log.info("radio clock: %d row(s) for %s, %d anchor(s) missed (discardable by design), "
-             "%d offset sample(s)", got["rows"], ", ".join(got["devices"]) or "no device",
-             got["missed_anchors"], got["offset_samples"])
+             "%d offset sample(s), %d re-arm(s)", got["rows"], ", ".join(got["devices"]) or "no device",
+             got["missed_anchors"], got["offset_samples"], got["rearmed"])
     return 0
 
 
