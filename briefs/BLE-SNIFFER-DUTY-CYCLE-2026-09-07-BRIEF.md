@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED · **Created:** 2026-09-07
+**Status:** PROPOSED (**sniffer BUILT, this brief is duty-cycle POLICY over it, and its remainder is BOX work — verified 2026-09-11 (Osprey) in the tree.** `capture-host/ble_sniff.py` exists and already carries the CRC/span handling (#2240), so nothing here is "write a sniffer". 1 of 4 Done-when boxes is ticked (the mechanism named, 2026-09-05). Of the three open: `tepna-sniff.service`/`.timer` are NOT in the tree — confirmed absent, so that box is genuinely open and is a BOX install, owner-authorized; the chunk-log verdicts reaching a human and §4's air-census bound are both small repo units against live code. Sized as policy + one pointer line, not as a build.) · **Created:** 2026-09-07
 
 # The air captures hold ~40 % of the air — the sniffer drains slower than real time
 
