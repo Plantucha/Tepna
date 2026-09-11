@@ -30,3 +30,16 @@ re-arm would reproduce the original bug one level up.
 
 Four plants: adapter-up never re-arming (3 tests red), `HCI_Reset` never re-arming (2), re-arming on
 any adapter (1), and a failed re-arm staying silent (1).
+
+🔴 **And the re-arm must not trust a remembered index.** `hciN` is assigned at enumeration and
+**reorders across exactly the event being re-armed on** — measured on three dongles across a reflash
+(Kestrel, 2026-09-11), and the brief already records a unit moving `hci3` → `hci0` the moment another
+dongle was pulled. A cached integer therefore fails in both directions: our adapter returning under a
+new number is **missed**, and a neighbour inheriting the old number gets **sent a vendor command** —
+the safety property inverted.
+
+So New Index is matched on the **BD address**, which the packet itself carries (`hci_mon_new_index` =
+`{u8 type; u8 bus; bdaddr[6]; char name[8]}`), and the index is **re-resolved from the address**
+before anything is sent. A move is stated in the log rather than followed silently. The address is the
+identity; the index is a cache — the same ruling the repo already applies to devices, applied to
+adapters.

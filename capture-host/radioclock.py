@@ -520,8 +520,13 @@ class Collector:
     ask for reaches the disk.
     """
 
-    def __init__(self, adapter_index: int, devices, offset_window: int = OFFSET_WINDOW) -> None:
+    def __init__(self, adapter_index: int, devices, offset_window: int = OFFSET_WINDOW,
+                 adapter_address: str | None = None) -> None:
+        #: The index is a CACHE and the address is the identity. `hciN` reorders across a reflash or a
+        #: replug, so the index is re-resolved whenever the adapter returns and the address is what
+        #: that resolution is keyed on. Optional only for back-compat with callers that predate it.
         self.adapter_index = adapter_index
+        self.adapter_address = adapter_address
         #: Matched case-insensitively: BlueZ prints uppercase, configs are written by humans.
         self.devices = {str(a).upper() for a in (devices or [])}
         self.handles = HandleMap()
@@ -683,7 +688,21 @@ def read_monitor(sock, bufsize: int = 4096):     # pragma: no cover — a raw so
         yield opcode, index, payload, host_ns
 
 
-def rearm_needed(opcode: int, index: int, payload: bytes, adapter_index: int) -> bool:
+def parse_new_index(payload: bytes) -> str | None:
+    """The BD ADDRESS out of a New Index packet, or None.
+
+    `hci_mon_new_index` is `{ u8 type; u8 bus; bdaddr_t bdaddr; char name[8] }`, so the address is six
+    little-endian bytes at offset 2. This matters because New Index is the ONE re-arm trigger that
+    carries an identity: everything else we can only key on the index, and the index is precisely what
+    is unstable across this event.
+    """
+    if len(payload) < 8:
+        return None
+    return _address(payload[2:8])
+
+
+def rearm_needed(opcode: int, index: int, payload: bytes, adapter_index: int,
+                 adapter_address: str | None = None) -> bool:
     """Has this packet invalidated the anchor enable on our adapter?
 
     🔴 THE ENABLE IS A RUNTIME COMMAND AND DOES NOT SURVIVE A CONTROLLER RESET. `0xfd1f` is not a build
@@ -702,9 +721,20 @@ def rearm_needed(opcode: int, index: int, payload: bytes, adapter_index: int) ->
     Deliberately NOT triggered by Del/Close Index: the adapter is going away, there is nothing to arm,
     and re-arming into a disappearing controller is how a retry loop is born.
     """
+    # 🔴 NEW INDEX IS MATCHED ON THE ADDRESS, NOT THE INDEX, and that is the whole point of this
+    # branch. `hciN` is assigned at enumeration and REORDERS across exactly the event we re-arm on —
+    # measured on three dongles across a reflash (Kestrel, 2026-09-11), and the brief already records
+    # a unit moving hci3 → hci0 the moment another dongle was pulled. Keying the return of our adapter
+    # on a remembered integer would miss it when it comes back under a new number AND fire when a
+    # neighbour inherits the old one. The packet carries the address; use it.
+    if opcode == MONITOR_OPCODE_NEW_INDEX:
+        seen = parse_new_index(payload)
+        if adapter_address and seen:
+            return seen.upper() == adapter_address.upper()
+        return index == adapter_index          # no address to compare — fall back, and say so upstream
     if index != adapter_index:
         return False
-    if opcode in (MONITOR_OPCODE_NEW_INDEX, MONITOR_OPCODE_OPEN_INDEX):
+    if opcode == MONITOR_OPCODE_OPEN_INDEX:
         return True
     if opcode == MONITOR_OPCODE_EVENT:
         return parse_command_complete(payload, HCI_OPCODE_RESET) is not None
@@ -727,7 +757,8 @@ def run(packets, collector: Collector, open_writer, flush_every: int = 64, rearm
         for opcode, index, payload, host_ns in packets:
             # BEFORE feeding: an adapter that just came up has no anchors enabled, so the sooner the
             # command goes out the fewer connection events are missed.
-            if rearm is not None and rearm_needed(opcode, index, payload, collector.adapter_index):
+            if rearm is not None and rearm_needed(opcode, index, payload, collector.adapter_index,
+                                                  collector.adapter_address):
                 rearmed += 1
                 rearm()
             row = collector.feed(opcode, index, payload, host_ns)
@@ -941,7 +972,9 @@ def main(argv: list[str], sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller,
         return 0
 
     root = cfg.get("root") or "/srv/tepna"
-    collector = Collector(index, devices)
+    rc_cfg = (cfg or {}).get("radio_clock") or {}
+    address = rc_cfg.get("adapter") or cfg.get("adapter")
+    collector = Collector(index, devices, adapter_address=address)
     if packets is None:                      # pragma: no cover — the socket path, exercised on the box
         packets = read_monitor(open_monitor_socket(socket_module))
 
@@ -958,8 +991,20 @@ def main(argv: list[str], sysfs: str = SYSFS_BLUETOOTH, probe=probe_controller,
     def _rearm() -> None:
         """Re-send the enable after the adapter came up or was reset. Reported, never silent: the
         whole point is that a cleared flag is otherwise invisible, so a FAILED re-arm must not be."""
+        # 🔴 RE-RESOLVE THE INDEX FROM THE ADDRESS. Never re-arm a remembered integer: `hciN` is
+        # assigned at enumeration and reorders across precisely this event, so a cached index can send
+        # a vendor command to a DIFFERENT adapter than the one we were pointed at — the neighbour
+        # safety this function exists for, inverted.
+        now_index = adapter_index(address, sysfs)
+        if now_index is None:
+            log.warning("radio clock: %s is not present after the reset — nothing to re-arm", address)
+            return
+        if now_index != collector.adapter_index:
+            log.info("radio clock: %s moved hci%d → hci%d; following the address, not the index",
+                     address, collector.adapter_index, now_index)
+            collector.adapter_index = now_index
         try:
-            _m, status, error = probe(index)
+            _m, status, error = probe(now_index)
         except RadioClockUnavailable as exc:
             log.warning("radio clock: re-arm failed on the adapter that just came up: %s", exc)
             return

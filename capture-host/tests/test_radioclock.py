@@ -1238,3 +1238,126 @@ def _flaky_probe(sequence):
         return got
 
     return _probe
+
+
+def _new_index(address, index=ADAPTER, bus=1, kind=0):
+    """A `hci_mon_new_index` payload: type, bus, bdaddr[6], name[8]."""
+    return (rc.MONITOR_OPCODE_NEW_INDEX, index,
+            bytes([kind, bus]) + _addr_bytes(address) + b"hci\x00\x00\x00\x00\x00", 1)
+
+
+OURS = "28:0C:50:0C:18:FD"
+
+
+def test_our_adapter_returning_under_a_DIFFERENT_index_still_re_arms():
+    """🔴 `hciN` reorders across exactly the event we re-arm on — measured on three dongles across a
+    reflash, and a unit is on record moving hci3 → hci0 the moment another dongle was pulled. Keyed on
+    a remembered integer, our adapter coming back as a new number would be MISSED."""
+    assert rc.rearm_needed(*_new_index(OURS, index=ADAPTER + 3)[:3], ADAPTER, OURS) is True
+    assert rc.rearm_needed(*_new_index(OURS.lower(), index=99)[:3], ADAPTER, OURS) is True
+
+
+def test_a_NEIGHBOUR_inheriting_our_old_index_does_NOT_re_arm():
+    """The mirror image, and the worse half: a vendor command sent to a radio we were never pointed
+    at. Same packet index we used to own, different device."""
+    assert rc.rearm_needed(*_new_index(H10, index=ADAPTER)[:3], ADAPTER, OURS) is False
+
+
+def test_without_a_configured_address_New_Index_falls_back_to_the_index():
+    """Back-compat: a caller that never supplied an address keeps the old behaviour rather than
+    silently never re-arming."""
+    assert rc.rearm_needed(*_new_index(H10, index=ADAPTER)[:3], ADAPTER, None) is True
+    assert rc.rearm_needed(*_new_index(H10, index=ADAPTER + 1)[:3], ADAPTER, None) is False
+
+
+def test_a_TRUNCATED_new_index_payload_yields_no_address_rather_than_a_wrong_one():
+    full = _new_index(OURS)[2]
+    assert rc.parse_new_index(full) == OURS
+    for cut in range(0, 8):
+        assert rc.parse_new_index(full[:cut]) is None, cut
+    # …and with no parseable address it falls back to the index rather than matching nothing.
+    assert rc.rearm_needed(rc.MONITOR_OPCODE_NEW_INDEX, ADAPTER, b"\x00\x01", ADAPTER, OURS) is True
+
+
+def test_main_FOLLOWS_the_address_when_the_index_moves(tmp_path, caplog):
+    """End to end: the adapter comes back as a different `hciN`, and the re-arm must be sent to where
+    the ADDRESS now is — not to the integer we started with."""
+    sysfs = _sysfs(tmp_path, {"hci0": "AA:BB:CC:DD:EE:FF", "hci1": OURS})
+    root = tmp_path / "srv"
+    cfg = _cfg_file(tmp_path, dict(CFG, root=str(root)))
+    probed = []
+
+    def _probe(index):
+        probed.append(index)
+        return rc.NORDIC_COMPANY_ID, 0, None
+
+    # The adapter announces itself as hci7; sysfs says the address now lives at hci1.
+    stream = [_new_index(OURS, index=7)]
+    with caplog.at_level("INFO"):
+        assert rc.main(["--config", cfg], sysfs, probe=_probe, packets=stream) == 0
+    assert probed == [1, 1], "startup resolved hci1, and the re-arm re-resolved to hci1 — not 7"
+    assert "1 re-arm(s)" in caplog.text
+
+
+def test_a_re_arm_when_the_adapter_is_GONE_says_so_and_sends_nothing(tmp_path, caplog):
+    """Unplugged between the packet and the re-arm. Sending to whatever now holds that index is the
+    exact mistake this re-resolution prevents."""
+    sysfs = _sysfs(tmp_path, {"hci1": OURS})
+    cfg = _cfg_file(tmp_path, dict(CFG, root=str(tmp_path / "srv")))
+    probed = []
+
+    def _probe(index):
+        probed.append(index)
+        return rc.NORDIC_COMPANY_ID, 0, None
+
+    gone = tmp_path / "gone"; gone.mkdir()
+    empty = _sysfs(gone, {"hci1": "AA:BB:CC:DD:EE:FF"})
+    calls = {"n": 0}
+    real = rc.adapter_index
+
+    def _flaky(addr, root=rc.SYSFS_BLUETOOTH):
+        calls["n"] += 1
+        return real(addr, sysfs if calls["n"] == 1 else empty)
+
+    rc.adapter_index = _flaky
+    try:
+        with caplog.at_level("INFO"):
+            rc.main(["--config", cfg], sysfs, probe=_probe, packets=[_new_index(OURS, index=1)])
+    finally:
+        rc.adapter_index = real
+    assert probed == [1], "startup probed; the re-arm did NOT send to a vanished adapter"
+    assert "is not present after the reset" in caplog.text
+
+
+def test_when_the_address_MOVES_to_a_new_index_the_collector_follows_it(tmp_path, caplog):
+    """🔴 The scenario the whole re-resolution exists for, and the one a same-index test cannot reach:
+    the adapter comes back at a DIFFERENT `hciN`. The probe must go to where the address now is, the
+    collector's filter must follow, and the move must be stated — an adapter silently changing index
+    under us is how the next person loses an evening."""
+    before = _sysfs(tmp_path, {"hci1": OURS})
+    after_dir = tmp_path / "after"; after_dir.mkdir()
+    after = _sysfs(after_dir, {"hci0": "AA:BB:CC:DD:EE:FF", "hci5": OURS})
+    cfg = _cfg_file(tmp_path, dict(CFG, root=str(tmp_path / "srv")))
+    probed = []
+
+    def _probe(index):
+        probed.append(index)
+        return rc.NORDIC_COMPANY_ID, 0, None
+
+    calls = {"n": 0}
+    real = rc.adapter_index
+
+    def _moving(addr, root=rc.SYSFS_BLUETOOTH):
+        calls["n"] += 1
+        return real(addr, before if calls["n"] == 1 else after)
+
+    rc.adapter_index = _moving
+    try:
+        with caplog.at_level("INFO"):
+            rc.main(["--config", cfg], before, probe=_probe, packets=[_new_index(OURS, index=5)])
+    finally:
+        rc.adapter_index = real
+
+    assert probed == [1, 5], "startup found hci1; the re-arm followed the address to hci5"
+    assert "moved hci1 → hci5" in caplog.text
+    assert "following the address, not the index" in caplog.text
