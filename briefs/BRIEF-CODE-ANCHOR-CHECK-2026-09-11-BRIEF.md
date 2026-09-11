@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** DONE — 2026-09-11 (**NEGATIVE RESULT: the check is REFUTED and must not be built.** The §5 measurement landed the same day and killed it twice over — 15 of 15 candidates were false positives with zero true findings, and it has ZERO SENSITIVITY on the very case that motivated it. Declining was listed in §5.3 as a legitimate outcome and it is the outcome. The question is answered, so this is DONE with a negative, not parked — and §7 records what the measurement pointed at instead) · **Created:** 2026-09-11 · **Promoted-from:** residue `2026-09-11-brief-code-anchors-are-unchecked` · **Extends:** `DOCS-LEDGER-HEADER-REFS-2026-08-27-BRIEF.md` (`docs-ledger` check7, same family, different reference kind)
+**Status:** IN-PROGRESS — 2026-09-11 (**the IDENTIFIER-EXISTENCE check is REFUTED and must not be built** — 15/15 false positives, zero sensitivity on its own defining case. ⚠️ **SCOPE CORRECTED same day — that is NOT 'the class is undetectable', and §7 was recorded one step too broad; see §8.** The §5 measurement landed the same day and killed it twice over — 15 of 15 candidates were false positives with zero true findings, and it has ZERO SENSITIVITY on the very case that motivated it. Declining was listed in §5.3 as a legitimate outcome and it is the outcome. The question is answered, so this is DONE with a negative, not parked — and §7 records what the measurement pointed at instead) · **Created:** 2026-09-11 · **Promoted-from:** residue `2026-09-11-brief-code-anchors-are-unchecked` · **Extends:** `DOCS-LEDGER-HEADER-REFS-2026-08-27-BRIEF.md` (`docs-ledger` check7, same family, different reference kind)
 
 # A brief's quoted code anchor is checked by nothing
 
@@ -133,3 +133,43 @@ afterwards, and costs one line in a PR already touching the work.
 ⚠️ **Scope of the negative, stated honestly:** 22 punch-list briefs of 507, the highest-yield slice. That
 bounds the FP rate where the check would have been most useful; it does not prove the wider class empty.
 The instance in §1.1 is real. It is simply **not identifier-shaped**.
+
+
+## 8 · ⚠️ SCOPE CORRECTION — the negative was recorded one step too broad
+
+§7 refuted the **identifier-existence** check and that refutation stands on its measurement. It does
+**not** establish that the class is undetectable, and §7.3's implied *"only a convention change works"*
+is withdrawn. Exactly one detector SHAPE was tested — the grep-shaped one — while CLAUDE.md's **standing
+pickup step** (`node tools/doc-search.mjs`, owner-mandated 2026-08-26: *"a brief pickup starts with a
+semantic search, not a grep: grep finds only your own vocabulary"*) went unused by both the sweep and
+this design. A negative from one untried-alternative is a negative about the instrument, not the class.
+
+### 8.1 The semantic shape, demonstrated at n = 1
+
+Measured 2026-09-11:
+
+| query | top hits |
+|---|---|
+| the **stale** claim — *"correctRR fills rejected intervals with a running median"* | **the brief 0.636** · DEEP-AUDIT-FOLLOWUPS 0.604 · `sensor-trio-worker.js` 0.602 |
+| the **true** claim — *"correctRR excludes a rejected interval instead of filling it"* | `sensor-trio-worker.js` 0.630 · **the brief 0.612** · `ppgdex-dsp.js` 0.595 |
+
+The direction is real, and it is the one shape that CAN see this failure: the stale claim ranks the
+brief first; the true claim ranks code above it. An identifier check scores zero here because
+`correctRR` is alive (21 occurrences) and only its BEHAVIOUR is stale.
+
+### 8.2 ⚠️ But the separation is WEAK, and weaker than first relayed
+
+The brief scores **0.636 vs 0.612** across the two queries — a **0.024** gap — and it is **rank 2 on the
+negation, not absent from the top 3** as an earlier relay of this result stated. A detector keyed on
+"does the brief outrank the code" would decide on a margin indistinguishable from embedding noise at
+n = 1, and the runner-up on the stale query is a DIFFERENT brief, not code.
+
+**So this is a demonstration, not a baseline.** It needs exactly what §5 demanded of the identifier
+check and for the same reason: an FP tally over the same 22-brief slice with each flag judged RIGHT or
+WRONG by hand, BEFORE any gate is proposed. Proposing one on a single favourable pair would repeat the
+error this brief exists to document — and would do it in the document that documents it.
+
+### 8.3 Status
+
+**IN-PROGRESS, not DONE.** One shape is closed; the question is open. The baseline is owned by the
+session that ran the first sweep; this brief folds the result when it lands.
