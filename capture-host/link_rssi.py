@@ -68,8 +68,14 @@ async def dbus_hci() -> dict[str, str]:
 
     THE ONLY SOURCE THAT KNOWS A CONTROLLER WITH NO PUBLIC ADDRESS. sysfs and `hcitool dev` both read
     the controller's PUBLIC address, and an LE-only controller is entitled not to have one: a Raytac
-    MDBT50Q running Zephyr's USB HCI reports 00:00:00:00:00:00 to both while BlueZ has given it the
-    static-random identity C6:CF:3C:4E:75:F0 (top two bits set — that is what makes it static random).
+    MDBT50Q running a STOCK Zephyr USB HCI image reports 00:00:00:00:00:00 to both while BlueZ has given
+    it the static-random identity C6:CF:3C:4E:75:F0 (top two bits set — that is what makes it static
+    random).
+
+    ⚠️ Not every Zephyr image behaves that way, and this docstring implied they all do. A FIXED-ADDRESS
+    build reports a real public address to `hciconfig`/sysfs — measured 2026-09-11 on three dongles
+    (`99:67:24:2E:CD:98`, `21:BF:D5:80:09:C0`, `E7:FC:6D:6B:A4:4E`). This function stays necessary
+    either way: it resolves BOTH kinds, and the unpatched image is still the case it was written for.
 
     That identity is not cosmetic. It is the address BlueZ bonds with, the one `bluetoothctl` prints,
     and the one an operator would put in `adapter:`. Without this source resolve_hci returned None for

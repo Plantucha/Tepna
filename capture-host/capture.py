@@ -1660,10 +1660,23 @@ def _addressable(bd: str) -> bool:
 
         hci1:  BD Address: 00:00:00:00:00:00  ACL MTU: 251:6  SCO MTU: 0:0
 
-    because that firmware has no PUBLIC address — Zephyr identifies by static-random, and a
+    when that firmware has no PUBLIC address — stock Zephyr identifies by static-random, and a
     host-side public pin is refused (`0x0c Not Supported`). BlueZ shows the static-random address
     (`C6:CF:3C:4E:75:F0`); `hciconfig` — the layer THIS parser reads — shows zeros. Both are true,
     and only one of them reaches `failover_target`.
+
+    ⚠️ **"A Zephyr reports all-zero" IS A PROPERTY OF THE IMAGE, NOT OF THE VENDOR, and this comment
+    used to say otherwise.** An image carrying the fixed-address patch reports a real public address
+    and is addressable like any other radio. Measured 2026-09-11 on rig-x870, three dongles on
+    `vigil_sdc_holyiot21017_anchor_nopriv_dfu.zip`: `hciconfig` reports `99:67:24:2E:CD:98`,
+    `21:BF:D5:80:09:C0` and `E7:FC:6D:6B:A4:4E` — none all-zero — and one of them opened the AS11 link
+    (5 services / 14 characteristics, unbonded). `NRF52840-DONGLE-FLASHING` §"all-zero" already records
+    the discriminator: zeros mean the patch is absent from the image, so REBUILD rather than conclude
+    the radio is unusable.
+
+    This guard is unaffected either way, and deliberately so: it tests the ADDRESS VALUE, never the
+    vendor or the USB id. A patched dongle passes it without an exception being added, and an unpatched
+    one is excluded whoever made it. Do not turn it into a vendor check.
 
     Why it matters: `parse_hciconfig`'s own contract says *"a block with no MAC is dropped — an
     adapter we cannot address is not a failover target"*, and a shape-valid null address defeats

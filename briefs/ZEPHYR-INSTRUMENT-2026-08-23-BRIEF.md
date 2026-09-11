@@ -23,6 +23,29 @@ and what it is FOR — recorded here so the work isn't re-derived.
   (Three "Realtek heard 0" readings that night were all the double-scan confound, not deafness —
   the clean single scan proved it. A near-miss fabricated disproof; do not repeat the "it's deaf"
   claim without a clean single scan.)
+- 🟢 **THAT LAST BULLET IS NOW REFUTED — measured 2026-09-11, and the mechanism is the one §2 predicted.**
+  The 08-23 comparison was a BARE nRF52840 against an externally-antenna'd Realtek, so it measured
+  antennas, not radios — as the 2026-09-07 note above already said (*"the Realtek's −102 dBm floor was
+  an ANTENNA advantage, not a chipset one"*). With the Holyiot-21017 hardware (external SMA + RFX2401C
+  PA/LNA) on the FEM overlay, 40 s scans on rig-x870, counting only addresses that emit a live RSSI
+  update so BlueZ cache replay cannot inflate them:
+
+  | adapter | live peers | median RSSI | AS11 sightings |
+  |---|---|---|---|
+  | Realtek (control) | 22 | **−95** | 8 |
+  | `99:67:24:2E:CD:98` | 82 | −66 | 66 |
+  | `21:BF:D5:80:09:C0` | 44 | −59 | 24 |
+  | `E7:FC:6D:6B:A4:4E` | 96 | −68 | 19 |
+
+  ~30 dB better than the Realtek on median RSSI, on all three. **So the Zephyr IS a capture upgrade
+  once it has the antenna and the front end** — and the CPAP, which the Realtek hears at the noise
+  floor, sits at −53…−73 on these. One of them then opened the AS11 link unbonded (5 services / 14
+  characteristics) through `_cpap_ble_connect`'s transport.
+  ⚠️ **The FEM is not optional and its absence is silent.** The same units WITHOUT the overlay measured
+  **0, 7 and 16 peers** — `vigil-holyiot21017.overlay` exists because the Raytac board parks the FEM in
+  TX with the LNA off, and the deaf radio looks exactly like a distant one. `NRF52840-DONGLE-FLASHING`
+  §troubleshooting already names this ("HCI up, address correct, hears ~0–1 devices at −90: FEM"); read
+  that row before theorising about range, as this session failed to.
 
 ## The role: clock-metrology instrument (what the closed radios cannot do)
 This lands on the Clock-Contract / `hostAxis` / ppm-drift / Allan-deviation frontier.
