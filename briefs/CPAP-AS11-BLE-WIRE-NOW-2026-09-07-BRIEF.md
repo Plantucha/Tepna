@@ -62,6 +62,48 @@ when blocked). **Done when:** both rounds decode with zero unknown-field bytes l
 usage hours match the SD `STR.edf` for the same dates to the minute, and the silence has a named cause
 with a journal line quoted.
 
+#### WU1 sizing, against the source document (Kestrel, 2026-09-12)
+
+WU1 says "protobuf-wrapper walk → the documented Summary record fields". **The document it leans on has
+now been read at source** — `m-kozlowski/airbreak-plus` `docs/as11/rpc_spools.md` — and it settles the
+question that decided whether this unit was one job or two: it is a **payload schema**, not an RPC
+guide. It documents the record that arrives *after* a successful pull; the calls that request one live
+in `rpc_protocol.md#spool-rpc`. Since Tepna's transport already works and the two rounds are committed
+on disk, **only the schema half is owed**, which is what makes WU1 sizeable at all.
+
+Three components, and the third is the one the unit was under-sized for:
+
+| component | prior art in Tepna | verdict |
+|---|---|---|
+| protobuf field walk (nested, numeric field IDs) | `polar_psftp.py` `_read_varint` (:95), `_uvarint` (:61) | **reuse** — hand-rolled, no library |
+| fixed-point divisors (Leak · RespiratoryFlow · BlowerFlow ÷ 100 → L/s) | none needed | cited constants, inlined at author time |
+| **Rice / second-difference streams** (fields `1..7`, `18`, `21`; RC03 delta reconstruction) | **NONE** | **genuinely new, and the bulk of the unit** |
+
+⚠️ **Do not take a protobuf dependency.** `capture-host/requirements*.txt` carries **zero runtime
+third-party packages** — every entry is dev/test tooling (mypy, ruff, pytest, hypothesis, mutmut). The
+varint reader already in `polar_psftp.py` is the precedent and it is ~30 lines; adding `protobuf` to
+decode a handful of documented fields would be the first runtime dependency in the tree, for something
+already solved twice in it.
+
+⚠️ **The Rice half has NO prior art here, and a grep will tell you otherwise.** Searching the tree for
+`rice` returns exactly one hit — the word "**Priced**" inside `ppgdex-dsp.js`. `allan.py` and `clock.js`
+match "second-difference" because Allan deviation *is* a second difference, which is a different thing
+entirely from a second-difference-coded byte stream. Size this component as new work, not as an
+adaptation.
+
+**This does not change WU1's Done-when**, and that bar is well chosen: *"both rounds decode with zero
+unknown-field bytes left over"* is exactly the check a Rice decoder can fail silently — a wrong `k`
+parameter yields plausible numbers and a residue of unconsumed bytes, so the leftover-byte count is the
+signal, not the values looking reasonable.
+
+**Provenance.** `docs/as11` is citable as `m-kozlowski/airbreak-plus docs/as11`. Take protocol FACTS
+(field ids, divisors, stream layout) and cite them per §📚; do not lift source, identifiers or structure
+— the implementation is clean-room in Tepna's own terms. Everything else in that repository is a
+**firmware-modification toolkit** (`patches/`, `ota_protocol.md`, `bootloader_service_protocol.md`,
+`patch_rpc_dispatcher.md`, `conf_block_format.md`) and is **out of scope for Tepna at any priority** —
+Tepna is read-only acquisition and opens no write path to the device. The `can_*` documents are out for
+a second reason: CAN is the internal bus and needs a physical adapter, while this brief is BLE-only.
+
 ### WU9 — the therapy-end CHAIN: spool first, card second; 10:00 / 13:00 become the backup (owner ruling 2026-09-07)
 Today the two retrievals are triggered differently. The Wi-Fi harvest is already **edge-triggered on
 therapy end** (`_cpap_loop`: `cpap_live.observe` → `harvest_due` with `therapy_end_debounce_sec` 600 s,
