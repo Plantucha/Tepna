@@ -1375,10 +1375,16 @@
         !(st.noiseType === null && st.candidates === null),
         'noiseType=' + JSON.stringify(st.noiseType) + ' candidates=' + JSON.stringify(st.candidates)
       );
-      /* The four fields added alongside the fix, each verified PUBLISHED on the spine object first —
-         `nTau` is deliberately absent: the classifier computes it but `hostAxis.stability` does not
-         forward it, so exporting it would re-create this defect one field over. */
+      /* The fields added alongside the fix, each verified PUBLISHED on the spine object first. */
       T.ok('slopeSE is exported and finite', typeof st.slopeSE === 'number' && isFinite(st.slopeSE), 'slopeSE = ' + st.slopeSE);
+      /* `nTau` was withheld here while the spine dropped it (residue
+         `2026-09-07-hostaxis-stability-ntau-not-forwarded`); exporting it then would have written a
+         permanent null, which is the `tau0`/`noiseType` defect this group exists for. The spine now
+         forwards it, so the SE ships with the n it was computed over — a tight SE from 3 tau points
+         and one from 12 are different claims, and the export previously let a reader see only the
+         first half of that sentence. */
+      T.ok("nTau is exported and is the SE's own n, never null", typeof st.nTau === 'number' && st.nTau >= 3, 'nTau = ' + JSON.stringify(st.nTau));
+      T.eq("…and it is the spine's value, not a recomputation that could drift", st.nTau, ha.stability.nTau);
       T.ok('optimalTauSec is exported and positive', typeof st.optimalTauSec === 'number' && st.optimalTauSec > 0, 'optimalTauSec = ' + st.optimalTauSec);
       T.ok('atLongestPpm is exported and finite', typeof st.atLongestPpm === 'number' && isFinite(st.atLongestPpm), 'atLongestPpm = ' + st.atLongestPpm);
       T.ok('candidates is a non-empty array or null, never an empty array', st.candidates === null || (Array.isArray(st.candidates) && st.candidates.length > 0), JSON.stringify(st.candidates));
@@ -1553,6 +1559,56 @@
         'the legacy …Ms pair survives, so integrator-dsp and ppgdex readers do not break',
         ha2.stability && typeof ha2.stability.atShortestMs === 'number',
         'atShortestMs=' + (ha2.stability && ha2.stability.atShortestMs)
+      );
+      /* ── THE SE'S OWN n IS PUBLISHED, AND IT IS NOT `taus`.
+         `_ckClassifyAllan` has carried `nTau` on both return paths since it was written (asserted
+         above), but the published `stability` object forwarded `slope`, `slopeSE`, `noise`,
+         `candidates`, `meaning` and dropped it — so no consumer could reach it and any node writing
+         `nTau: stability.nTau` got a permanent null, the identical defect §2.1 fixed for
+         `tau0`/`noiseType` one field over. A standard error without its n is not a claim a reader can
+         size: the SE divides by k−2, so a tight SE over 3 tau points and one over 12 are different
+         evidence, and only this field separates them. */
+      T.ok(
+        "the published stability object forwards the fit's tau count",
+        ha2.stability && typeof ha2.stability.nTau === 'number' && ha2.stability.nTau >= 3,
+        'nTau=' + JSON.stringify(ha2.stability && ha2.stability.nTau)
+      );
+      /* ⚠️ AND `taus` IS NOT A SUBSTITUTE — the assertion that makes the one above non-vacuous.
+         `taus` counts the CURVE; `nTau` counts the points the log-log fit actually used, and
+         `_ckAllanSlope` keeps only those with `adev > 0 && tau > 0`. A tau whose adev is exactly zero
+         is therefore dropped from the fit while still being counted in `taus`, so reading `taus` as
+         the SE's n OVERSTATES it.
+         Exactly-zero adev is reachable and is planted here rather than argued: a phase perturbation
+         with period 8 on an exact 1000 ms device grid makes every 8-sample window sum identical, so
+         the overlapping second difference is exactly 0 at tau = 8, 16, 32, 64 (integer phase and a
+         tau0 of exactly 1.0 s keep the prefix sums exact, so this is 0 and not 1e-16). The curve then
+         has 7 points and the fit has 3. An implementation forwarding `curve.length` passes the leg
+         above and FAILS this one. */
+      var per8 = [0, 7, -3, 11, -9, 4, -6, 2],
+        zt = [];
+      for (var z = 0; z < 200; z++) zt.push({ devMs: z * 1000, hostMs: z * 1000 + per8[z % 8] });
+      var haZ = C.hostAxis(zt, {});
+      T.ok(
+        'ANTI-VACUITY · the planted period-8 pair is independent and yields a curve',
+        !!(haZ && haZ.ok && haZ.independent && haZ.stability),
+        'ok=' + (haZ && haZ.ok) + ' independent=' + (haZ && haZ.independent)
+      );
+      T.eq('the curve reaches 7 tau points', haZ.stability && haZ.stability.taus, 7);
+      T.eq('…but the fit used only the 3 with a non-zero adev', haZ.stability && haZ.stability.nTau, 3);
+      T.ok("…so nTau is strictly below taus here — `taus` would overstate the SE's n", haZ.stability.nTau < haZ.stability.taus, 'nTau=' + haZ.stability.nTau + ' taus=' + haZ.stability.taus);
+      /* And it is the SAME number the standalone fit reports, so the forward cannot silently diverge
+         from the value the SE was actually divided down by. */
+      T.eq(
+        '…and it equals what allanSlope reports for the same phase',
+        haZ.stability.nTau,
+        C.allanSlope(
+          C.allanFromPhase(
+            zt.map(function (a) {
+              return a.hostMs - a.devMs;
+            }),
+            1
+          )
+        ).nTau
       );
     });
 

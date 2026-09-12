@@ -48,9 +48,12 @@ reopen either.
 export path (`buildNodeExport`, which carries the block only under `opts.rich`): before, `tau0:null` and
 `noiseType:null`; after, `tau0` 0.1 s and `noiseType` `white/flicker-phase` on a planted independent pair.
 Four fields added alongside — `slopeSE`, `candidates`, `optimalTauSec`, `atLongestPpm` — **each checked to
-be published on the spine object first**. ⚠️ **`nTau` is deliberately NOT exported:** the classifier computes
-it (`cls.nTau`) but `hostAxis.stability` does not forward it, so exporting it would have re-created this very
-defect one field over; forwarding it is a spine change and belongs to its own unit.
+be published on the spine object first**. ⚠️ **`nTau` was deliberately NOT exported by this unit** — the
+classifier computed it (`cls.nTau`) but `hostAxis.stability` did not forward it, so exporting it would have
+re-created this very defect one field over. It was logged as residue
+`2026-09-07-hostaxis-stability-ntau-not-forwarded` and **the spine forward has since landed**: the field is
+now published on `hostAxis.stability` and exported by both host-axis consumers (PpgDex, ECGDex), with a gate
+pinning that it is the FIT's n and not `taus` (the fit drops any τ whose `adev` is exactly zero).
 Gated by a new Node-lane group that drives the EXPORT (not the spine, where the names were always right —
 which is why this survived): 9 assertions, **5 red without the fix**, including the honest-absence invariant
 that `noiseType:null` must never coincide with `candidates:null`. 11 bundles clean, verify:docs +
