@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
-from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_stamp,
+from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
                      HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, capture_filename, missing_identity,
                      night_dir, open_sample_writers)
 import proc_util
@@ -2607,11 +2607,20 @@ async def run_polar(dev: dict, root: str):
         # where SAMPLES land, never what the LINK sidecar records.
         _rw = _RESUME_WINDOW_S
         if _rw > 0:
-            _prev = resumable_stamp(ndir, dev["vendor"], dev["model"], dev["device_id"], started, _rw)
-            if _prev is not None:
-                log.info("%s: resuming file-set %s (gap < %.0fs)",
-                         dev.get("name") or dev["address"], f"{_prev:%Y%m%d%H%M%S}", _rw)
-                started = _prev
+            _res = resumable_set(ndir, dev["vendor"], dev["model"], dev["device_id"], started, _rw)
+            if _res is not None:
+                # BOTH values, never the stamp alone: a set resumed across midnight lives in
+                # YESTERDAY's folder and must be appended to where it is. Adopting the stamp while
+                # writing into today's folder would put one set name in two directories.
+                _prev, _pdir = _res
+                if _pdir != ndir:
+                    log.info("%s: resuming file-set %s ACROSS the folder boundary (into %s)",
+                             dev.get("name") or dev["address"], f"{_prev:%Y%m%d%H%M%S}",
+                             os.path.basename(_pdir))
+                else:
+                    log.info("%s: resuming file-set %s (gap < %.0fs)",
+                             dev.get("name") or dev["address"], f"{_prev:%Y%m%d%H%M%S}", _rw)
+                started, ndir = _prev, _pdir
         charging_hold = False              # device refused PMD because it is on the charger (status 0x0D).
         drop_for_power = False             # not-worn long enough that we dropped the link to save battery
         stalled = False                    # started streams went silent behind a live link — re-negotiate
@@ -3974,12 +3983,20 @@ async def run_oxyii(dev: dict, root: str):
         # timelines, which is a Clock-Contract fabrication strictly worse than fragmenting.
         resumed_set = False
         if _RESUME_WINDOW_S > 0:
-            _prev = resumable_stamp(ndir, dev["vendor"], dev["model"], dev["device_id"],
-                                    started, _RESUME_WINDOW_S)
-            if _prev is not None:
-                log.info("%s: resuming file-set %s (gap < %.0fs)", name,
-                         f"{_prev:%Y%m%d%H%M%S}", _RESUME_WINDOW_S)
-                started = _prev
+            _res = resumable_set(ndir, dev["vendor"], dev["model"], dev["device_id"],
+                                 started, _RESUME_WINDOW_S)
+            if _res is not None:
+                # BOTH values — see the Polar site above. `ndir` feeds every path built below, so
+                # reassigning it here is what actually sends the resumed set's writers back to the
+                # folder it lives in.
+                _prev, _pdir = _res
+                if _pdir != ndir:
+                    log.info("%s: resuming file-set %s ACROSS the folder boundary (into %s)", name,
+                             f"{_prev:%Y%m%d%H%M%S}", os.path.basename(_pdir))
+                else:
+                    log.info("%s: resuming file-set %s (gap < %.0fs)", name,
+                             f"{_prev:%Y%m%d%H%M%S}", _RESUME_WINDOW_S)
+                started, ndir = _prev, _pdir
                 resumed_set = True
         if _oxywr["w"] is None:                  # G4: open the lifecycle sidecar once, in the first night dir
             _oxywr["w"] = OxyLifeLogWriter(os.path.join(ndir, "OXYLIFE.csv"), device=name)
