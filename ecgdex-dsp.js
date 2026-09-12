@@ -5264,6 +5264,9 @@
           ? {
               slope: r.hostAxis.stability.slope,
               slopeSE: r.hostAxis.stability.slopeSE,
+              /* The SE's own n. Without it `slopeSE` is not a claim a reader can size — and it is NOT
+                 `taus`: the log-log fit drops any τ whose `adev` is exactly zero. */
+              nTau: r.hostAxis.stability.nTau,
               noise: r.hostAxis.stability.noise,
               candidates: r.hostAxis.stability.candidates,
               optimalTauSec: r.hostAxis.stability.optimalTauSec,

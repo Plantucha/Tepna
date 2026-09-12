@@ -1375,10 +1375,16 @@
         !(st.noiseType === null && st.candidates === null),
         'noiseType=' + JSON.stringify(st.noiseType) + ' candidates=' + JSON.stringify(st.candidates)
       );
-      /* The four fields added alongside the fix, each verified PUBLISHED on the spine object first —
-         `nTau` is deliberately absent: the classifier computes it but `hostAxis.stability` does not
-         forward it, so exporting it would re-create this defect one field over. */
+      /* The fields added alongside the fix, each verified PUBLISHED on the spine object first. */
       T.ok('slopeSE is exported and finite', typeof st.slopeSE === 'number' && isFinite(st.slopeSE), 'slopeSE = ' + st.slopeSE);
+      /* `nTau` was withheld here while the spine dropped it (residue
+         `2026-09-07-hostaxis-stability-ntau-not-forwarded`); exporting it then would have written a
+         permanent null, which is the `tau0`/`noiseType` defect this group exists for. The spine now
+         forwards it, so the SE ships with the n it was computed over — a tight SE from 3 tau points
+         and one from 12 are different claims, and the export previously let a reader see only the
+         first half of that sentence. */
+      T.ok("nTau is exported and is the SE's own n, never null", typeof st.nTau === 'number' && st.nTau >= 3, 'nTau = ' + JSON.stringify(st.nTau));
+      T.eq("…and it is the spine's value, not a recomputation that could drift", st.nTau, ha.stability.nTau);
       T.ok('optimalTauSec is exported and positive', typeof st.optimalTauSec === 'number' && st.optimalTauSec > 0, 'optimalTauSec = ' + st.optimalTauSec);
       T.ok('atLongestPpm is exported and finite', typeof st.atLongestPpm === 'number' && isFinite(st.atLongestPpm), 'atLongestPpm = ' + st.atLongestPpm);
       T.ok('candidates is a non-empty array or null, never an empty array', st.candidates === null || (Array.isArray(st.candidates) && st.candidates.length > 0), JSON.stringify(st.candidates));
@@ -1553,6 +1559,56 @@
         'the legacy …Ms pair survives, so integrator-dsp and ppgdex readers do not break',
         ha2.stability && typeof ha2.stability.atShortestMs === 'number',
         'atShortestMs=' + (ha2.stability && ha2.stability.atShortestMs)
+      );
+      /* ── THE SE'S OWN n IS PUBLISHED, AND IT IS NOT `taus`.
+         `_ckClassifyAllan` has carried `nTau` on both return paths since it was written (asserted
+         above), but the published `stability` object forwarded `slope`, `slopeSE`, `noise`,
+         `candidates`, `meaning` and dropped it — so no consumer could reach it and any node writing
+         `nTau: stability.nTau` got a permanent null, the identical defect §2.1 fixed for
+         `tau0`/`noiseType` one field over. A standard error without its n is not a claim a reader can
+         size: the SE divides by k−2, so a tight SE over 3 tau points and one over 12 are different
+         evidence, and only this field separates them. */
+      T.ok(
+        "the published stability object forwards the fit's tau count",
+        ha2.stability && typeof ha2.stability.nTau === 'number' && ha2.stability.nTau >= 3,
+        'nTau=' + JSON.stringify(ha2.stability && ha2.stability.nTau)
+      );
+      /* ⚠️ AND `taus` IS NOT A SUBSTITUTE — the assertion that makes the one above non-vacuous.
+         `taus` counts the CURVE; `nTau` counts the points the log-log fit actually used, and
+         `_ckAllanSlope` keeps only those with `adev > 0 && tau > 0`. A tau whose adev is exactly zero
+         is therefore dropped from the fit while still being counted in `taus`, so reading `taus` as
+         the SE's n OVERSTATES it.
+         Exactly-zero adev is reachable and is planted here rather than argued: a phase perturbation
+         with period 8 on an exact 1000 ms device grid makes every 8-sample window sum identical, so
+         the overlapping second difference is exactly 0 at tau = 8, 16, 32, 64 (integer phase and a
+         tau0 of exactly 1.0 s keep the prefix sums exact, so this is 0 and not 1e-16). The curve then
+         has 7 points and the fit has 3. An implementation forwarding `curve.length` passes the leg
+         above and FAILS this one. */
+      var per8 = [0, 7, -3, 11, -9, 4, -6, 2],
+        zt = [];
+      for (var z = 0; z < 200; z++) zt.push({ devMs: z * 1000, hostMs: z * 1000 + per8[z % 8] });
+      var haZ = C.hostAxis(zt, {});
+      T.ok(
+        'ANTI-VACUITY · the planted period-8 pair is independent and yields a curve',
+        !!(haZ && haZ.ok && haZ.independent && haZ.stability),
+        'ok=' + (haZ && haZ.ok) + ' independent=' + (haZ && haZ.independent)
+      );
+      T.eq('the curve reaches 7 tau points', haZ.stability && haZ.stability.taus, 7);
+      T.eq('…but the fit used only the 3 with a non-zero adev', haZ.stability && haZ.stability.nTau, 3);
+      T.ok("…so nTau is strictly below taus here — `taus` would overstate the SE's n", haZ.stability.nTau < haZ.stability.taus, 'nTau=' + haZ.stability.nTau + ' taus=' + haZ.stability.taus);
+      /* And it is the SAME number the standalone fit reports, so the forward cannot silently diverge
+         from the value the SE was actually divided down by. */
+      T.eq(
+        '…and it equals what allanSlope reports for the same phase',
+        haZ.stability.nTau,
+        C.allanSlope(
+          C.allanFromPhase(
+            zt.map(function (a) {
+              return a.hostMs - a.devMs;
+            }),
+            1
+          )
+        ).nTau
       );
     });
 
@@ -33203,6 +33259,68 @@
       T.eq("'device+host-verified' is NOT timed — an RTC-anchor verdict is not a per-sample claim", I.timingSourceIsTimed('device+host-verified'), false);
     });
 
+    /* wt-done's IN-USE check — gated for the FIRST time. It shipped ungated in #2321, the defect was
+       found and fixed in #2402, and that fix ALSO shipped ungated: `usersOfPath` still has no test on
+       main. What #2402 established is that the invocation is wider than the scanner — its CALLER (a
+       shell that cd'd into the worktree) and its PIPELINE SIBLINGS (`… | tail -3`, same process group)
+       are all "this command", not tenants of the tree.
+       The boundary that matters is the one its own comment draws and nothing checks: the exemption is
+       the INVOCATION, deliberately NOT "same session" or "same user" — a PEER session working in the
+       tree has its own pgid and its own ancestry and must still refuse. That is where a later
+       simplification would blind the guard, so it is asserted here.
+       Driven against a SYNTHETIC /proc: usersOfPath takes procRoot and self as options, so this needs
+       no live process and cannot flake. Node-lane only — it writes symlinks. */
+    group('wt-done — the INVOCATION is not a user, but a peer session is', 'tools · wt-done · self-match', function (T) {
+      if (typeof process === 'undefined' || !env.nodeFs || !env.nodeOs || !env.wtDone) {
+        T.skip('needs Node fs/os and tools/wt-done.mjs — not available in the browser lane');
+        return;
+      }
+      var fs = env.nodeFs,
+        os = env.nodeOs,
+        pathMod = env.nodePath,
+        usersOfPath = env.wtDone.usersOfPath;
+      var base = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'wtdone-'));
+      var tree = pathMod.join(base, 'worktree');
+      var proc = pathMod.join(base, 'proc');
+      fs.mkdirSync(tree, { recursive: true });
+      /* `/proc/<pid>/stat` is `pid (comm) state ppid pgrp …`; comm may itself contain spaces AND
+         parentheses, which is why the reader must parse after the LAST ')' — pid 101 is named so that
+         a left-to-right parse would take the wrong fields and mis-read pgrp. */
+      function mk(pid, ppid, pgid, cwd, comm) {
+        var d = pathMod.join(proc, String(pid));
+        fs.mkdirSync(d, { recursive: true });
+        fs.symlinkSync(cwd, pathMod.join(d, 'cwd'));
+        fs.writeFileSync(pathMod.join(d, 'stat'), pid + ' (' + comm + ') S ' + ppid + ' ' + pgid + ' 0 0');
+        fs.writeFileSync(pathMod.join(d, 'cmdline'), comm);
+      }
+      mk(1, 0, 1, base, 'init');
+      mk(99, 1, 99, tree, 'bash'); // the CALLER — cd'd into the tree to run the removal
+      mk(100, 99, 99, tree, 'node wt-done'); // the scanner itself
+      mk(101, 99, 99, tree, '(tail -3)'); // a pipeline SIBLING of the scanner, same shell job
+      mk(500, 1, 500, tree, 'node peer-session'); // ANOTHER session working in the tree
+
+      var r = usersOfPath(tree, { procRoot: proc, self: 100 });
+      T.ok('the scan succeeds against a synthetic /proc', r.ok === true, JSON.stringify(r.why || ''));
+      var pids = (r.users || []).map(function (u) {
+        return Number(u.pid);
+      });
+      T.eq('the SCANNER is not a user', pids.indexOf(100), -1);
+      T.eq("the CALLER's shell is not a user — #2402's defect, it refused real removals", pids.indexOf(99), -1);
+      T.eq('a PIPELINE SIBLING is not a user — same shell job, one process wider than the caller', pids.indexOf(101), -1);
+      T.ok('a PEER SESSION in the tree IS still reported — the exemption is the invocation, not the user', pids.indexOf(500) >= 0, 'users=' + pids.join(','));
+      T.eq('exactly one user, and it is the peer', pids.length, 1);
+
+      /* A process whose cwd is OUTSIDE the tree is not a user even with no kinship exemption at all. */
+      var proc2 = pathMod.join(base, 'proc2');
+      var d2 = pathMod.join(proc2, '700');
+      fs.mkdirSync(d2, { recursive: true });
+      fs.symlinkSync(base, pathMod.join(d2, 'cwd'));
+      fs.writeFileSync(pathMod.join(d2, 'stat'), '700 (elsewhere) S 1 700 0 0');
+      fs.writeFileSync(pathMod.join(d2, 'cmdline'), 'elsewhere');
+      var r2 = usersOfPath(tree, { procRoot: proc2, self: 700 });
+      T.eq('a process outside the tree is not a user', (r2.users || []).length, 0);
+    });
+
     group('PPGDex §∅ — pinned spans: both extremes, marker-transparent, and the widening is DERIVED', 'ppgdex-dsp · absence-as-value', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.pinnedSpans === 'function' && typeof P.settlingWidenSec === 'function')) {
@@ -38996,6 +39114,119 @@
          UNWEIGHTED mean of rates = (6+12)/2 = 9/h  ← the bug
        8 ≠ 9 only because the two sessions differ in length, so this cannot pass vacuously; a regression to
        rate-averaging reports 9, and a regression that splits the night reports nSessions 1. ════ */
+    /* ════ THE TWIN BUILDERS' BROWSER SHAPE — a LANE-ASYMMETRY trap, not a bug in any one file.
+       Residue `2026-09-06-twin-builders-three-export-shapes`.
+
+       The four committed twin-input builders are loaded two ways: `require` in the Node lane,
+       `<script src>` in the browser. `require` returns `module.exports` regardless of what the file
+       put on the global, so THE NODE LANE CANNOT SEE the difference — and the four files had drifted
+       into different browser shapes. `tch-golden-inputs.js` exposed only a NAMESPACE
+       (`TchGoldenInputs`), so a consumer written against the bare `tchGoldenInputs` — correct against
+       its two siblings, and correct in Node against all three — threw in the browser.
+       `respiration-fusion-twins.js` was unwrapped and leaked three private helpers onto `window`.
+
+       Measured on #2264: green in Node, red on `browser-gates` ALONE, reported as
+       `(intermediate value)(intermediate value)(intermediate value) is not a function` — naming
+       neither the builder nor the lane — and CI prints only the summary count, so identifying it took
+       a local playwright run reading `div.test.no` out of the DOM.
+
+       ⚠️ THE REGISTRY IS READ FROM THE LOADERS, never written here: `env.twinBuilders` derives the
+       file/name pairs from `run-tests.mjs`'s own `require(join(ROOT, 'tests', …))` sites and the load
+       set from `Dex-Test-Suite.html`'s script tags, then evaluates each file in a bare `vm` context —
+       classic-script semantics, no `module`, no `require` — so `globals` IS what a `<script>` tag puts
+       on `window`. A fifth builder wired into either loader is covered with no edit to this group, and
+       one wired into only ONE of them is what the cross-check below reports. ════ */
+    group('the twin builders expose ONE browser shape — the property `require` structurally hides', 'tests · twin-builders · lane-asymmetry', function (T) {
+      var B = env.twinBuilders;
+      if (!B) {
+        T.skip('env.twinBuilders (Node lane: reads the loaders + evaluates each file as a classic script)', 'not available in this lane');
+        return;
+      }
+      /* ANTI-VACUITY, and it is load-bearing twice: an empty registry makes every per-builder loop
+         below pass having examined nothing, and a registry that silently lost an entry would read as
+         a clean sweep of the survivors. Pinned as an EQUALITY against the browser's own load set, so
+         the denominator cannot shrink unnoticed — a floor would never count what was excluded. */
+      T.ok(
+        'ANTI-VACUITY · the registry is non-empty',
+        B.length >= 3,
+        'n=' +
+          B.length +
+          ' → ' +
+          B.map(function (b) {
+            return b.file;
+          }).join(', ')
+      );
+      var notInHtml = B.filter(function (b) {
+        return !b.inHtml;
+      });
+      T.eq(
+        'every builder the Node lane requires is ALSO a <script src> in Dex-Test-Suite.html — a browser lane that never loaded it cannot resolve it',
+        notInHtml
+          .map(function (b) {
+            return b.file;
+          })
+          .join(', '),
+        ''
+      );
+      var threw = B.filter(function (b) {
+        return b.threw;
+      });
+      T.eq(
+        'every builder EVALUATES as a bare classic script — no `module`, no `require` in scope',
+        threw
+          .map(function (b) {
+            return b.file + ': ' + b.threw;
+          })
+          .join(' | '),
+        ''
+      );
+      /* THE DEFECT ITSELF. The bare name is the shape three of the four already had and the shape the
+         consumer (`fusion-night-twins.js` `pick()`) reaches for first. */
+      var missing = B.filter(function (b) {
+        return b.globals.indexOf(b.name) < 0;
+      });
+      T.eq(
+        'every builder exposes its own name as a BARE global — the namespace-only shape is what threw in the browser',
+        missing
+          .map(function (b) {
+            return b.file + ' exposes [' + b.globals.join(', ') + '] not `' + b.name + '`';
+          })
+          .join(' | '),
+        ''
+      );
+      /* AND NOTHING ELSE. A builder may publish its own identifier in either casing — the namespace
+         alias `TchGoldenInputs` is a deliberate, still-read back-compat name — but a private helper on
+         `window` is a leak: it collides across files that are loaded into ONE global, and it is the
+         same divergence one step further, since the other three leak nothing. Keyed on the builder's
+         own name rather than an exception list, so a new builder needs no entry here. */
+      var leaks = B.map(function (b) {
+        return {
+          file: b.file,
+          extra: b.globals.filter(function (k) {
+            return k.toLowerCase() !== b.name.toLowerCase();
+          })
+        };
+      }).filter(function (r) {
+        return r.extra.length;
+      });
+      T.eq(
+        'no builder leaks a global that is not its own name — they share one `window`',
+        leaks
+          .map(function (r) {
+            return r.file + ' → ' + r.extra.join(', ');
+          })
+          .join(' | '),
+        ''
+      );
+      /* POSITIVE CONTROL. Every leg above passes on an EMPTY difference, which is also what a broken
+         probe returns — so assert the probe actually observed something. Without this, an
+         `env.twinBuilders` whose `globals` were all `[]` would read as four clean builders. */
+      var withGlobals = B.filter(function (b) {
+        return b.globals.length > 0;
+      });
+      T.eq('POSITIVE CONTROL · every builder was actually observed to define at least one global', withGlobals.length, B.length);
+    });
+
     group('CPAPDex adversarial two-session night — one night, N sessions, pooled not averaged', 'cpapdex-dsp · cpapdex-fusion · adversarial-twin', function (T) {
       var D = env.CpapDsp,
         F = env.CpapFusion;

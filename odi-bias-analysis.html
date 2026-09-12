@@ -881,6 +881,14 @@
           /* Published UNCONDITIONALLY, including when the type IS named — a caller with a wider
              tolerance can then decide for itself instead of being forced to accept this default. */
           slopeSE: cls.slopeSE,
+          /* ⚠️ THE SE'S OWN n — and it is NOT `taus`. `slopeSE` is a standard error, so it is
+             uninterpretable without the number of points it was fitted over: a tight SE from 3 τ
+             points and one from 12 are different claims. `_ckAllanSlope` fits only the points with
+             `adev > 0 && tau > 0`, so an exactly-flat τ (a frequency series periodic in that τ —
+             reachable, and gate-pinned) is dropped from the fit while still being counted in `taus`.
+             Reading `taus` as the SE's n therefore OVERSTATES it. Published because a consumer that
+             quotes the SE owes this beside it, the same way `ppm` owes its span. */
+          nTau: cls.nTau,
           noise: cls.noise,
           candidates: cls.candidates,
           meaning: cls.meaning,

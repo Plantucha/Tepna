@@ -1747,28 +1747,28 @@ def test_qc_digest_formats_ranges_and_absences():
 # CAPTURE-FILESET-RESUME — a reconnect inside the window reuses the set; outside it, fragments.
 # Each of the brief's §3 invariants is a test here, not a hope.
 # ═══════════════════════════════════════════════════════════════════════════════════════════
-def test_resumable_stamp_finds_the_set_inside_the_window(tmp_path):
+def test_resumable_set_legacy_finds_the_set_inside_the_window(tmp_path):
     import writers, datetime as dt, os, time
     d = str(tmp_path)
     f = tmp_path / "Polar_H10_02849638_20260819210000_ECG.txt"
     f.write_text("hdr\n1;2;3;4\n")
     now = dt.datetime.now()
-    got = writers.resumable_stamp(d, "Polar", "H10", "02849638", now, 300.0)
-    assert got == dt.datetime(2026, 8, 19, 21, 0, 0), got
+    got = writers.resumable_set(d, "Polar", "H10", "02849638", now, 300.0)
+    assert got[0] == dt.datetime(2026, 8, 19, 21, 0, 0), got
     # DENY twin: age the file past the window — a true outage must fragment
     old = time.time() - 400
     os.utime(str(f), (old, old))
-    assert writers.resumable_stamp(d, "Polar", "H10", "02849638", now, 300.0) is None
+    assert writers.resumable_set(d, "Polar", "H10", "02849638", now, 300.0) is None
     # and a different device's set is never adopted
-    assert writers.resumable_stamp(d, "Polar", "H10", "DEADBEEF", now, 300.0) is None
+    assert writers.resumable_set(d, "Polar", "H10", "DEADBEEF", now, 300.0) is None
     # missing dir refuses rather than raising
-    assert writers.resumable_stamp(str(tmp_path / "nope"), "Polar", "H10", "x", now, 300.0) is None
+    assert writers.resumable_set(str(tmp_path / "nope"), "Polar", "H10", "x", now, 300.0) is None
 
 
-def test_resumable_stamp_ignores_stampless_and_unparseable_names(tmp_path):
+def test_resumable_set_legacy_ignores_stampless_and_unparseable_names(tmp_path):
     import writers, datetime as dt
     (tmp_path / "Polar_H10_02849638_notes.txt").write_text("x\n")
-    assert writers.resumable_stamp(str(tmp_path), "Polar", "H10", "02849638",
+    assert writers.resumable_set(str(tmp_path), "Polar", "H10", "02849638",
                                    dt.datetime.now(), 300.0) is None
 
 
@@ -1839,13 +1839,154 @@ def test_resumed_hr_writer_appends_the_rr_sibling_too(tmp_path):
     assert sum(1 for x in rr if x.startswith("Phone timestamp")) == 1, rr
 
 
-def test_resumable_stamp_survives_races_and_junk_dates(tmp_path, monkeypatch):
+def _mkset(d, stamp, now, age_s=0.0, dev="02849638", stream="ECG"):
+    """Write one member of a file-set with an mtime `age_s` seconds before `now`. Returns the path.
+
+    ⚠️ The age is measured from the TEST's `now`, never from `time.time()`. These tests assert against a
+    synthetic midnight, so aging from the wall clock makes `now - mtime` NEGATIVE and the window check
+    passes no matter what it does — three of these tests were green for exactly that reason before a
+    fourth caught it. A test whose subject cannot fail it is not testing the subject."""
+    import os
+    os.makedirs(d, exist_ok=True)
+    f = os.path.join(d, f"Polar_H10_{dev}_{stamp}_{stream}.txt")
+    with open(f, "w") as fh:
+        fh.write("x\n")
+    t = now.timestamp() - age_s
+    os.utime(f, (t, t))
+    return f
+
+
+def test_prev_night_dir_is_civil_date_arithmetic_across_dst(tmp_path):
+    """The folder name is a CIVIL date, so the arithmetic that produces it must be civil.
+
+    ⚠️ The date that matters is 2026-03-09 — the day AFTER spring-forward, not the changeover day.
+    2026-03-08 is only 23 h long, so `fromtimestamp(local_midnight - 86400)` lands at 23:00 on 03-07 and
+    reports the wrong civil day. Measured: the changeover days themselves (03-08, 11-01) give the SAME
+    answer under both implementations, so a test keyed to them passes against the broken one. This test
+    was originally written that way and caught nothing."""
+    import writers
+    import os
+    cap = str(tmp_path / "captures")
+    # 🔴 the one that actually separates the implementations
+    assert os.path.basename(writers.prev_night_dir(os.path.join(cap, "2026-03-09"))) == "2026-03-08"
+    # the changeover days themselves — safe under both, kept as the contrast
+    assert os.path.basename(writers.prev_night_dir(os.path.join(cap, "2026-03-08"))) == "2026-03-07"
+    assert os.path.basename(writers.prev_night_dir(os.path.join(cap, "2026-11-01"))) == "2026-10-31"
+    assert os.path.basename(writers.prev_night_dir(os.path.join(cap, "2026-11-02"))) == "2026-11-01"
+    # month, year and leap-day boundaries
+    assert os.path.basename(writers.prev_night_dir(os.path.join(cap, "2026-01-01"))) == "2025-12-31"
+    assert os.path.basename(writers.prev_night_dir(os.path.join(cap, "2024-03-01"))) == "2024-02-29"
+    # the sibling stays in the same parent, and a trailing slash is not a different answer
+    assert os.path.dirname(writers.prev_night_dir(os.path.join(cap, "2026-03-08"))) == cap
+    assert writers.prev_night_dir(os.path.join(cap, "2026-03-08") + os.sep) == \
+           writers.prev_night_dir(os.path.join(cap, "2026-03-08"))
+
+
+def test_prev_night_dir_refuses_a_non_date_basename(tmp_path):
+    """A folder that is not a date has no previous day — None, never a guess."""
+    import writers
+    assert writers.prev_night_dir(str(tmp_path / "captures" / "scratch")) is None
+    assert writers.prev_night_dir(str(tmp_path / "captures" / "2026-13-45")) is None
+
+
+def test_resumable_set_finds_the_set_across_the_folder_boundary(tmp_path):
+    """🔴 THE MIDNIGHT FIX. A device reconnecting at 00:01 must find the set it wrote at 23:58.
+
+    night_dir() rolls by session start, so at midnight the folder changes under a recording that never
+    stopped; a one-directory scan then saw an empty folder and minted a fresh set. Measured over the
+    corpus: 16 of 29 sub-5-minute seams straddled a boundary."""
+    import writers
+    import datetime as dt
+    cap = tmp_path / "captures"
+    today, yday = str(cap / "2026-09-12"), str(cap / "2026-09-11")
+    now = dt.datetime(2026, 9, 12, 0, 1, 0)
+    _mkset(yday, "20260911235800", now, age_s=60.0)  # written 60 s ago, just before midnight
+    os.makedirs(today, exist_ok=True)                # today's folder exists and is EMPTY
+    got = writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0)
+    assert got is not None, "the set written 60 s ago must be resumable across the boundary"
+    stamp, where = got
+    assert stamp == dt.datetime(2026, 9, 11, 23, 58, 0)
+    # THE DIRECTORY IS THE LOAD-BEARING HALF: appending into today's folder under yesterday's stamp
+    # would put one set name in two directories, which is worse than the split being fixed.
+    assert where == yday
+
+
+def test_resumable_set_window_still_bounds_the_previous_folder(tmp_path):
+    """A genuine outage keeps fragmenting — crossing midnight is not a licence to resume anything."""
+    import writers
+    import datetime as dt
+    cap = tmp_path / "captures"
+    today, yday = str(cap / "2026-09-12"), str(cap / "2026-09-11")
+    now = dt.datetime(2026, 9, 12, 0, 1, 0)
+    _mkset(yday, "20260911200000", now, age_s=4000.0)   # last wrote over an hour ago
+    os.makedirs(today, exist_ok=True)
+    assert writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0) is None
+
+
+def test_resumable_set_newest_write_wins_not_newest_folder(tmp_path):
+    """Both folders hold a set: the one that WROTE most recently wins, wherever it lives.
+
+    Ordering by folder instead would let a stale set in today's folder outrank a live one still being
+    written last night — the inversion that makes a resume adopt the wrong stamp."""
+    import writers
+    import datetime as dt
+    cap = tmp_path / "captures"
+    today, yday = str(cap / "2026-09-12"), str(cap / "2026-09-11")
+    now = dt.datetime(2026, 9, 12, 0, 7, 0)
+    _mkset(yday, "20260911235800", now, age_s=5.0)     # yesterday's folder, 5 s ago  <- live
+    _mkset(today, "20260912000500", now, age_s=120.0)  # today's folder, 2 min ago    <- staler
+    stamp, where = writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0)
+    assert (stamp, where) == (dt.datetime(2026, 9, 11, 23, 58, 0), yday)
+    # the mirror: when today's is the live one, today's wins and no boundary hop happens
+    _mkset(today, "20260912000500", now, age_s=1.0)
+    stamp, where = writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0)
+    assert (stamp, where) == (dt.datetime(2026, 9, 12, 0, 5, 0), today)
+
+
+def test_resumable_set_ignores_another_devices_set_in_the_previous_folder(tmp_path):
+    """The prefix still scopes the search — a second device's live set next door is not ours."""
+    import writers
+    import datetime as dt
+    cap = tmp_path / "captures"
+    today, yday = str(cap / "2026-09-12"), str(cap / "2026-09-11")
+    now = dt.datetime(2026, 9, 12, 0, 1, 0)
+    _mkset(yday, "20260911235800", now, age_s=5.0, dev="DEADBEEF")
+    os.makedirs(today, exist_ok=True)
+    assert writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0) is None
+
+
+def test_resumable_set_rejects_a_junk_stamp_in_the_previous_folder(tmp_path):
+    """A filename whose stamp parses as digits but not as a date must not anchor a resume.
+
+    file_stamp accepts the 14-digit SHAPE; only strptime knows 20261345 is not a date."""
+    import writers
+    import datetime as dt
+    cap = tmp_path / "captures"
+    today, yday = str(cap / "2026-09-12"), str(cap / "2026-09-11")
+    now = dt.datetime(2026, 9, 12, 0, 1, 0)
+    _mkset(yday, "20261345995959", now, age_s=5.0)   # 14 digits, not a calendar instant
+    os.makedirs(today, exist_ok=True)
+    assert writers.resumable_set(today, "Polar", "H10", "02849638", now, 300.0) is None
+
+
+def test_resumable_set_works_when_the_folder_has_no_previous_day(tmp_path):
+    """A non-date folder yields no sibling; the search must still work on the folder it was given."""
+    import writers
+    import datetime as dt
+    d = str(tmp_path / "captures" / "scratch")
+    now = dt.datetime(2026, 9, 12, 0, 7, 0)
+    _mkset(d, "20260912000500", now, age_s=5.0)
+    stamp, where = writers.resumable_set(d, "Polar", "H10", "02849638", now, 300.0)
+    assert (stamp, where) == (dt.datetime(2026, 9, 12, 0, 5, 0), d)
+
+
+def test_resumable_set_legacy_survives_races_and_junk_dates(tmp_path, monkeypatch):
     """The unhappy paths: a file deleted between listdir and getmtime is skipped, not raised; a token
     that matches the stamp REGEX but is not a real date (month 13) refuses rather than crashing."""
     import writers, datetime as dt, os as _os
     (tmp_path / "Polar_H10_02849638_20261340000000_ECG.txt").write_text("h\n")   # month 13
     now = dt.datetime.now()
-    assert writers.resumable_stamp(str(tmp_path), "Polar", "H10", "02849638", now, 300.0) is None
+    assert writers.resumable_set(str(tmp_path), "Polar", "H10", "02849638", now, 300.0) is None
     (tmp_path / "Polar_H10_02849638_20260819210000_ECG.txt").write_text("h\n")
     real = _os.path.getmtime
 
@@ -1855,7 +1996,7 @@ def test_resumable_stamp_survives_races_and_junk_dates(tmp_path, monkeypatch):
         return real(p)
     monkeypatch.setattr(writers.os.path, "getmtime", flaky)
     # the raced file is skipped; the junk-date one is newest-by-mtime and then refuses on strptime
-    assert writers.resumable_stamp(str(tmp_path), "Polar", "H10", "02849638", now, 300.0) is None
+    assert writers.resumable_set(str(tmp_path), "Polar", "H10", "02849638", now, 300.0) is None
 
 
 def test_resumed_ecg_anchor_skips_comments_and_junk_rows(tmp_path):

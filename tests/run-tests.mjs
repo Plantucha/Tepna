@@ -33,6 +33,13 @@ import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
 import { spawn, execSync } from 'node:child_process';
 import { cpus, tmpdir } from 'node:os';
+/* Node-only handles for the `tools · wt-done · self-match` gate: it drives `usersOfPath`
+   against a SYNTHETIC /proc, so it needs real fs/os/path plus the tool. The browser lane
+   skips the group rather than receiving these. */
+import * as _nodeFs from 'node:fs';
+import * as _nodeOs from 'node:os';
+import * as _nodePath from 'node:path';
+import * as _wtDone from '../tools/wt-done.mjs';
 import { walkRepoPaths, walkRepoPathsAll } from './docs-ledger-fs.mjs';
 import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
 
@@ -1951,6 +1958,10 @@ async function main() {
   };
   const env = {
     ppgdexDspSource: _readOpt('ppgdex-dsp.js'),
+    nodeFs: _nodeFs,
+    nodeOs: _nodeOs,
+    nodePath: _nodePath.default || _nodePath,
+    wtDone: _wtDone,
     /* §timingSource vocabulary gate — the EMITTERS' source, scanned for `timingSource` string
        literals so a value added without a vocabulary entry reds. Source text rather than imports
        because the literals live inside functions the suite never calls on every path. */
@@ -2329,6 +2340,43 @@ async function main() {
     respirationFusionTwins: (() => {
       try {
         return require(join(ROOT, 'tests', 'respiration-fusion-twins.js')).respirationFusionTwins;
+      } catch {
+        return null;
+      }
+    })(),
+    /* THE TWIN BUILDERS' BROWSER SHAPE — the one property `require` structurally hides.
+       Residue `2026-09-06-twin-builders-three-export-shapes`. The four entries above load these files
+       as CommonJS, where `module.exports` answers whatever the file put on the global, so the Node
+       lane could not tell a bare global from a namespace object from a leak. The browser loads the
+       SAME files as classic scripts, where that difference is the whole contract — and it surfaced as
+       `(intermediate value)(...) is not a function` on `browser-gates` alone, naming neither the
+       builder nor the lane.
+       Evaluated here in a bare `vm` context, which is classic-script semantics with no `module` and no
+       `require`, so `Object.keys(ctx)` IS what a `<script src>` tag would put on `window`.
+       ⚠️ BOTH lists are READ FROM THE LOADERS, never hand-kept: the registry from this file's own
+       `require(join(ROOT, 'tests', …))` sites, the load order from `Dex-Test-Suite.html`'s script
+       tags. A fifth builder wired into either is picked up with no edit here, and one wired into only
+       ONE of them is exactly what the cross-check reports. */
+    twinBuilders: (() => {
+      try {
+        const selfSrc = readFileSync(join(ROOT, 'tests', 'run-tests.mjs'), 'utf8');
+        const htmlSrc = readFileSync(join(ROOT, 'Dex-Test-Suite.html'), 'utf8');
+        const htmlFiles = Array.from(htmlSrc.matchAll(/<script src="tests\/([a-z0-9-]+\.js)"><\/script>/g), (m) => m[1]);
+        const seen = new Set();
+        return Array.from(selfSrc.matchAll(/require\(join\(ROOT, 'tests', '([a-z0-9-]+\.js)'\)\)\.(\w+)/g))
+          .filter((m) => !seen.has(m[1]) && seen.add(m[1]))
+          .map((m) => {
+            const file = m[1],
+              name = m[2];
+            const ctx = vm.createContext({});
+            let threw = null;
+            try {
+              vm.runInContext(readFileSync(join(ROOT, 'tests', file), 'utf8'), ctx, { filename: file });
+            } catch (e) {
+              threw = String((e && e.message) || e);
+            }
+            return { file: file, name: name, globals: Object.keys(ctx), threw: threw, inHtml: htmlFiles.indexOf(file) >= 0 };
+          });
       } catch {
         return null;
       }
