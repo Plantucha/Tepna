@@ -108,7 +108,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { resolveStatePath, stateDirs } from './mutation-map.mjs';
+import { resolveStatePath, sharedStatePath, stateDirs } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
 import { stripCode } from './strip-markup.mjs';
 
@@ -350,6 +350,35 @@ export function pullExternalRoots(roots, run = (args) => execFileSync('git', arg
     }
   }
   return out;
+}
+
+/* ── THE SESSION STAMP — what `.claude/hooks/guard-doc-search.sh` reads ─────────────────────────
+   CLAUDE.md §📌 has said "search before you size or build" since 2026-08-26 and it stayed a rule
+   nobody could be held to: measured 2026-09-12, a firmware TX + bond-layer diagnosis was done
+   grep-first, and the search that would have found the prior fix (CHANGELOG, `link_rssi.dbus_hci`)
+   ran only after the owner asked "did you use bge". The guard needs a FACT to read, so a successful
+   query leaves one: a stamp file named by the Claude Code session, in the SHARED state dir (the git
+   common dir — one place for every worktree, like the index itself). Its mtime is the freshness the
+   hook measures; the body is an audit line per query.
+
+   No session id ⇒ no stamp ⇒ nothing written: a human at a terminal has no session, and the hook
+   fails open for them anyway. Best-effort — a stamp that cannot be written must not fail a search. */
+export const SESSION_STAMP_DIR = 'doc-search-sessions';
+export function sessionStampPath(root, sessionId, shared = (r, n) => sharedStatePath(r, n)[0]) {
+  const id = String(sessionId || '').trim();
+  if (!id || !/^[A-Za-z0-9._-]+$/.test(id)) return null; // an id that is not a filename is not a key
+  return shared(root, join(SESSION_STAMP_DIR, id));
+}
+export function stampSession(root, sessionId, query, fs = { mkdirSync, writeFileSync }) {
+  const p = sessionStampPath(root, sessionId);
+  if (!p) return null;
+  try {
+    fs.mkdirSync(dirname(p), { recursive: true });
+    fs.writeFileSync(p, `${new Date().toISOString()}\t${String(query).replace(/\s+/g, ' ').trim()}\n`, { flag: 'a' });
+    return p;
+  } catch {
+    return null;
+  }
 }
 
 /* Recursive walk of one external root → `[{ key, abs }]`, key = `ext:<name>/<relative path>` with
@@ -620,6 +649,29 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   });
   ok('only opted-in roots are pulled, with --ff-only', pulled.length === 1 && pulled[0] === '-C /a pull --ff-only --quiet', pulled.join(' | '));
   ok('a failed pull is reported, not thrown, first stderr line kept', res.length === 1 && res[0].ok === false && res[0].note === 'fatal: not a git repository', JSON.stringify(res));
+  /* The session stamp: keyed by the session, in the SHARED state dir, absent without a session. */
+  const sp = sessionStampPath('/repo', 'abc-123', (r, n) => `${r}/SHARED/${n}`);
+  ok('the stamp lives under the shared state dir, named by the session', sp === '/repo/SHARED/doc-search-sessions/abc-123', String(sp));
+  ok('no session id ⇒ no stamp path', sessionStampPath('/repo', '') === null && sessionStampPath('/repo', undefined) === null);
+  ok('a session id that is not a filename ⇒ no stamp path', sessionStampPath('/repo', '../x') === null && sessionStampPath('/repo', 'a b') === null);
+  const wrote = [];
+  const fakeStampFs = { mkdirSync: (d) => wrote.push('mkdir ' + d), writeFileSync: (f, body, o) => wrote.push(`${o && o.flag} ${f} ${body.trim()}`) };
+  const sres = stampSession('/repo', 'abc-123', '  what   moved\n', fakeStampFs);
+  ok(
+    'a stamp is appended, mkdir -p first, with the query on one line',
+    sres !== null && wrote.length === 2 && wrote[0].startsWith('mkdir ') && /^a .*doc-search-sessions\/abc-123 \d{4}-.*\twhat moved$/.test(wrote[1]),
+    wrote.join(' | ')
+  );
+  ok('no session ⇒ nothing written', stampSession('/repo', '', 'q', fakeStampFs) === null && wrote.length === 2);
+  ok(
+    'an unwritable stamp is null, not a failed search',
+    stampSession('/repo', 'abc-123', 'q', {
+      mkdirSync: () => {
+        throw new Error('ro');
+      },
+      writeFileSync: () => {}
+    }) === null
+  );
   console.log(fail ? '\n✗ ' + fail + ' failed, ' + pass + ' passed' : '\n✓ all ' + pass + ' selftests passed');
   process.exit(fail ? 1 : 0);
 }
@@ -661,6 +713,9 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
   console.log('    A FLAT FIELD IS NOT ABSENCE: similar scores mean shared vocabulary, not no match.');
   console.log('    Read all five before concluding a thing was never decided.');
   console.log('    because a plausible summary of a brief nobody opens is the failure it exists to prevent.\n');
+  /* The stamp the edit guard reads (see SESSION STAMP above). After the hits, so a refused or
+     crashed search leaves nothing — a stamp is evidence a search RAN, never that one was attempted. */
+  stampSession(ROOT, process.env.CLAUDE_CODE_SESSION_ID, query);
 }
 
 /* ⚠️ A THIRD BRANCH THAT CANNOT BE REACHED BY ACCIDENT. If this file is the entry point and neither
