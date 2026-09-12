@@ -5218,15 +5218,18 @@
              every recording — a fabricated absence rather than a measurement, and one that reads
              exactly like "this pair has no second clock". The exported NAMES are kept for the
              consumers that already read them; only the source keys are corrected.
-             `nTau` is deliberately NOT exported: the spine's classifier computes it (`cls.nTau`) but
-             `hostAxis.stability` does not forward it, so reading it here would re-create this very
-             defect one field over. Forwarding it is a spine change and belongs to its own unit. */
+             `nTau` IS exported as of the spine forward (residue `2026-09-07-hostaxis-stability-
+             ntau-not-forwarded`) — it was withheld here only while `hostAxis.stability` dropped it,
+             because reading an absent key would have re-created this very defect one field over. It
+             is the n behind `slopeSE` and is NOT `taus`: the fit drops any τ whose `adev` is exactly
+             zero, so `taus` overstates the SE's sample. */
           stability: r.hostAxis.stability
             ? {
                 tau0: nz(r.hostAxis.stability.tau0Sec),
                 noiseType: r.hostAxis.stability.noise || null,
                 slope: nz(r.hostAxis.stability.slope),
                 slopeSE: nz(r.hostAxis.stability.slopeSE),
+                nTau: nz(r.hostAxis.stability.nTau),
                 candidates: r.hostAxis.stability.candidates || null,
                 optimalTauSec: nz(r.hostAxis.stability.optimalTauSec),
                 atLongestPpm: nz(r.hostAxis.stability.atLongestPpm),
