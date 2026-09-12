@@ -60,7 +60,46 @@ export function parseWorktrees(porcelain) {
    Returns `{ ok:true, users:[{pid, cmd}] }`, or `{ ok:false, why }` when the scan could not be made —
    which is UNKNOWN, not idle. An absence of evidence spent as evidence of absence is the shape that
    makes a missing tool read as a passing gate. */
+/* THE INVOCATION IS NOT A USER. `self` alone is not enough: the scanner's own CALLER — a shell that
+   `cd`'d into the worktree to run this tool from inside it — has `/proc/<pid>/cwd` under the target and
+   was reported as a user, so the removal was refused by the act of asking. Measured 2026-09-11 running
+   the scanner with cwd = the target: it correctly skipped itself and flagged BOTH its parent shell and
+   a SIBLING in the same pipeline (`… | tail -3`), which is one process wider than the residue row
+   described.
+   So the exclusion is the scanner's ANCESTOR CHAIN plus its PROCESS GROUP: a parent is the invocation
+   by definition, and a same-pgid sibling is the same shell job. Both are "this command", not a tenant.
+   ⚠️ It is deliberately NOT "same session" or "same user" — a peer session working in the tree has its
+   own pgid and its own ancestry, and must still refuse. Narrow the exemption to the invocation or it
+   stops being a guard. */
+function invocationPids(procRoot, self) {
+  const skip = new Set([self]);
+  const statOf = (pid) => {
+    try {
+      return readFileSync(`${procRoot}/${pid}/stat`, 'utf8');
+    } catch {
+      return null;
+    }
+  };
+  /* `comm` can contain spaces and parentheses, so ppid/pgid are read AFTER the final ')' — parsing
+     from the left breaks on a process named `(tail -3)`. */
+  const fields = (raw) => (raw ? raw.slice(raw.lastIndexOf(')') + 2).split(' ') : null);
+  const own = fields(statOf(self));
+  const ownPgid = own ? own[2] : null;
+  // ancestors: walk ppid to init, bounded so a cycle cannot hang the scan
+  let cur = self;
+  for (let hop = 0; hop < 64; hop++) {
+    const f = fields(statOf(cur));
+    if (!f) break;
+    const ppid = Number(f[1]);
+    if (!ppid || ppid === cur || skip.has(ppid)) break;
+    skip.add(ppid);
+    cur = ppid;
+  }
+  return { skip, ownPgid, fields, statOf };
+}
+
 export function usersOfPath(dir, { procRoot = '/proc', self = process.pid } = {}) {
+  const { skip, ownPgid, fields, statOf } = invocationPids(procRoot, self);
   let pids;
   try {
     pids = readdirSync(procRoot).filter((d) => /^\d+$/.test(d));
@@ -72,7 +111,11 @@ export function usersOfPath(dir, { procRoot = '/proc', self = process.pid } = {}
   const under = (t) => t === root || t.startsWith(prefix);
   const users = [];
   for (const pid of pids) {
-    if (Number(pid) === self) continue; // never count the scanner
+    if (skip.has(Number(pid))) continue; // the scanner or one of its ancestors — the invocation
+    if (ownPgid !== null) {
+      const f = fields(statOf(pid));
+      if (f && f[2] === ownPgid) continue; // same shell job (a pipeline sibling), not a tenant
+    }
     let hit = false;
     try {
       hit = under(readlinkSync(`${procRoot}/${pid}/cwd`));
@@ -222,6 +265,20 @@ if (process.argv.includes('--selftest')) {
     const here = usersOfPath(process.cwd());
     assert(here.ok, 'scanning a real path must succeed on this platform');
     assert(!here.users.some((u) => u.pid === process.pid), 'the scanner must never report itself');
+    /* REGRESSION (residue `2026-09-08-wt-done-idle-check-counts-its-caller`). Excluding `self` alone
+       left the scanner's CALLER — and, measured, any SIBLING in the same pipeline — reported as users
+       whenever the tool was run from inside the tree, so asking the question refused the answer. The
+       scan runs with cwd = the directory being scanned, which is exactly that case: every process this
+       may now legitimately find is an outside tenant, and the INVOCATION must contribute none. */
+    const ppid = (() => {
+      try {
+        const raw = readFileSync(`/proc/${process.pid}/stat`, 'utf8');
+        return Number(raw.slice(raw.lastIndexOf(')') + 2).split(' ')[1]);
+      } catch {
+        return null;
+      }
+    })();
+    if (ppid) assert(!here.users.some((u) => u.pid === ppid), 'the scanner must never report its own CALLER');
   }
   {
     const bad = usersOfPath('/does/not/matter', { procRoot: '/no/such/proc' });
