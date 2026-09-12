@@ -1,0 +1,28 @@
+# tepna-capture — tepna-btattach.map.example
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# HARDWARE INVENTORY FOR tepna-btattach.sh. Install the real file as /etc/tepna/btattach.map
+# (or point TEPNA_BTATTACH_MAP at it). THIS example ships in the repo; the real map does NOT —
+# which dongle carries which address is per-box, changes when someone buys a dongle, and means
+# nothing in a checkout.
+#
+#   <usb-serial>   <bd-address>
+#
+# The USB serial is the APPLICATION-mode serial — read it with:
+#
+#   cat /sys/class/tty/ttyACM0/device/../serial
+#
+# ⚠️ Three identities per dongle, and only one of them belongs here. The DFU-mode USB serial, the
+# application-mode USB serial and the BD address are all different, and only the BD address survives
+# a reflash. Reading the serial while the dongle sits in bootloader mode gives a value that will
+# never match at runtime.
+#
+# ⚠️ The address is what an operator pins in config.yaml `adapter:`. Changing a line here silently
+# re-points that pin at a different radio, so treat this file as identity, not preference.
+#
+# Pick addresses that are stable and unique per box. Any non-zero value works; what matters is that
+# it never changes under a given dongle, because everything downstream — the `adapter:` pin, BlueZ
+# bonds, the failover ladder — names the radio by this address and nothing else.
+
+# AA:BB:CC:DD:EE:01  -- example only; delete these two lines in the real map
+0000000000000000    AA:BB:CC:DD:EE:01
