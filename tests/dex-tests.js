@@ -9501,10 +9501,25 @@
           });
           T.ok('EVERY PATGate.verdict call in the worker passes an axis — a 3-arg call IS the inert-guard defect', vcalls.length > 0 && thin.length === 0, 'axis-less call(s): ' + thin.join(' | '));
           T.ok('and the axis it passes is the WORSE of the two legs, not whichever came first', /PATGate\.worstAxis\(/.test(wsrc), 'worker does not call PATGate.worstAxis');
-          T.ok(
-            'both parsers forward their axis rather than dropping it in the reshape',
-            (wsrc.match(/hostAxis:\s*rec\.hostAxis/g) || []).length >= 2,
-            'ecgRpeakTimes/ppgFootTimes must forward rec.hostAxis'
+          /* ⚠️ COUNTING THE FORWARDS IS WEAKER THAN NAMING THEM, and not only for the future.
+             The previous form asserted `hostAxis: rec.hostAxis` occurs >= 2 times in the file, which
+             a parser that forwards TWICE satisfies while its sibling drops the field entirely — the
+             exact defect, passing. It also reds on a legitimate consolidation of the two parsers into
+             one. Residue `2026-09-06-plural-call-site-counts-unswept`.
+             The population is DERIVED from the source instead of counted: every `return {` in this
+             worker that carries a `times:` key IS a parser record, whatever it is called, so a third
+             parser added later is covered with no edit here and one that drops the axis is named. */
+          var _recs = wsrc.match(/return \{[^}]*\btimes:[^}]*\}/g) || [];
+          T.ok('ANTI-VACUITY · the worker returns parser records at all (a scan of none passes every leg below)', _recs.length >= 2, _recs.length + ' record-returning site(s)');
+          var _noAxis = _recs.filter(function (r) {
+            return !/hostAxis:\s*rec\.hostAxis/.test(r);
+          });
+          T.eq(
+            'EVERY record-returning parser forwards rec.hostAxis — a count would pass if one forwarded twice and its sibling not at all',
+            _noAxis.map(function (r) {
+              return r.replace(/\s+/g, ' ').slice(0, 70);
+            }),
+            []
           );
         }
       }
@@ -25317,9 +25332,47 @@
       }
       T.eq('_dedupeBySession defined exactly once', (src.match(/function\s+_dedupeBySession\s*\(/g) || []).length, 1);
       T.eq('_isDeviceEligible defined exactly once', (src.match(/function\s+_isDeviceEligible\s*\(/g) || []).length, 1);
-      // both planners (+ the _dedupeGroups companion wrapper) route through the shared primitives.
-      T.ok('the shared dedupe is CALLED by both planners (≥2 call sites beyond its definition)', (src.match(/_dedupeBySession\s*\(/g) || []).length >= 3);
-      T.ok('the shared eligibility predicate is CALLED by both planners (≥2 call sites beyond its definition)', (src.match(/_isDeviceEligible\s*\(/g) || []).length >= 3);
+      /* ⚠️ A COUNT OF CALL SITES IS NOT THE PROPERTY IT STANDS IN FOR. This read
+         `(src.match(/_dedupeBySession\s*\(/g)).length >= 3` — one definition plus "≥2 call sites" —
+         as a proxy for "both planners route through the shared primitive". It is wrong in both
+         directions: three calls from ONE planner satisfy it while the other re-implements inline
+         (the defect, passing), and consolidating the two planners into one drops it to 2 and reds
+         the gate on the improvement. Residue `2026-09-06-plural-call-site-counts-unswept`.
+         The planners are ENUMERATED from the source rather than counted, so the assertion names
+         which function is missing which primitive, and a third planner is covered with no edit. */
+      var _planners = (function () {
+        var out = [],
+          lines = src.split('\n');
+        for (var i = 0; i < lines.length; i++) {
+          var m = lines[i].match(/^  function (planIngest\w*)\s*\(/);
+          if (!m) continue;
+          var body = [];
+          for (var j = i + 1; j < lines.length && lines[j] !== '  }'; j++) body.push(lines[j]);
+          out.push({ name: m[1], body: body.join('\n') });
+        }
+        return out;
+      })();
+      /* ANTI-VACUITY, pinned as an EQUALITY rather than a floor: a floor never counts what it
+         excluded, and an extractor that silently matched nothing would make every leg below pass. */
+      T.eq(
+        'ANTI-VACUITY · the planner set is extracted from dex-ingest.js — not an empty sweep',
+        _planners.map(function (p) {
+          return p.name;
+        }),
+        ['planIngest', 'planIngestPpg']
+      );
+      ['_dedupeBySession', '_isDeviceEligible'].forEach(function (prim) {
+        var missing = _planners.filter(function (p) {
+          return p.body.indexOf(prim + '(') < 0;
+        });
+        T.eq(
+          'every planner routes through ' + prim + ' rather than re-implementing it inline',
+          missing.map(function (p) {
+            return p.name;
+          }),
+          []
+        );
+      });
       // the keep-first signature loop now lives in EXACTLY ONE place (no second inline copy in a planner).
       T.eq('the `seen[sig]` keep-first loop exists in ONE place only (_dedupeBySession)', (src.match(/seen\[sig\]\s*=\s*1/g) || []).length, 1);
     });
@@ -51986,7 +52039,11 @@
          the specimen that motivated it is decoration. */
       var hardcoded = [];
       var assigns = IN.match(/summary\.respRateMethod = [^;]+;/g) || [];
-      T.ok('the consumer assigns a respiration METHOD somewhere', assigns.length >= 2, assigns.length + ' assignment site(s)');
+      /* ANTI-VACUITY for the forEach below: there must be at least one assignment to examine. The bar
+         was `>= 2`, which additionally asserted that TWO branches exist — encoding the duplication as
+         the invariant, so folding the two branches into one would red this on the improvement while
+         the forEach kept working. Residue `2026-09-06-plural-call-site-counts-unswept`. */
+      T.ok('ANTI-VACUITY · the consumer assigns a respiration METHOD somewhere, so the scan below has a subject', assigns.length >= 1, assigns.length + ' assignment site(s)');
       assigns.forEach(function (a) {
         var rhs = a.slice(a.indexOf('=') + 1);
         /* A branch is honest iff its RHS READS a method from the node's own object — anything
