@@ -537,3 +537,68 @@ def refresh_scratch(tree, work, extras) -> int:
                 shutil.copy2(src, dst)
             n += 1
     return n
+
+
+# Every line `mutmut results` prints is a mutant that was NOT killed — that is mutmut's own contract,
+# not an enumeration of ours: `results()` walks `exit_code_by_key` and does
+# `if status == "killed" and not all: continue`. So the listing is exactly the non-killed set.
+#
+# The gate used to keep only `": survived"` lines and drop the rest, on a comment claiming the listing
+# held "survivors and not-checked ONLY". It does not. `status_by_exit_code` maps at least
+# `survived · timeout · suspicious · skipped · no tests · not checked · caught by type check ·
+# check was interrupted by user`, and its DEFAULT is `suspicious`, so any exit code nobody has seen
+# lands there too. Two false verdicts followed: a mutant that timed out under load vanished from the
+# listing entirely, and the gate then reported "every mutant on the changed functions was killed"
+# about a mutant no test ever saw; and `classify`'s REFUTED, derived as generated-but-not-survived,
+# turned a correct equivalence entry whose mutant timed out into "a distinguishing input exists" —
+# an instruction to delete a right answer.
+#
+# INVERTED rather than enumerated, deliberately. Listing the statuses we know would silently ignore
+# the next one mutmut adds; asking "is this line a survivor, and if not it is UNDECIDED" fails closed
+# on a status nobody has met. UNDECIDED is never `killed` and never refutes an equivalence entry.
+UNDECIDED = "undecided"
+SURVIVED = "survived"
+KILLED = "killed"
+
+
+def classify_results_line(line: str):
+    """`(name, SURVIVED|UNDECIDED, status_word)` for one `mutmut results` line, or None if it is not
+    a result line at all (mutmut interleaves headers and blank lines).
+
+    The status word is kept so a report can say WHICH kind of undecided it was — "timeout" and
+    "no tests" want different responses from a reader, and collapsing them to one bucket for the
+    VERDICT does not mean collapsing them in the OUTPUT."""
+    if ":" not in line:
+        return None
+    name, _, rest = line.partition(":")
+    name = name.strip()
+    status = rest.strip()
+    if not name or not status or " " in name:
+        return None
+    # `killed` only appears under `mutmut results --all`; the gate does not pass it, but classifying a
+    # killed mutant as UNDECIDED would turn a clean run into a refusal, so it is handled rather than
+    # assumed away.
+    if status == "killed":
+        return (name, KILLED, status)
+    return (name, SURVIVED if status == "survived" else UNDECIDED, status)
+
+
+def split_results(results_text: str):
+    """`{"survived": [...], "undecided": [(name, status), ...]}` over a whole `mutmut results` blob.
+
+    A caller must treat `undecided` as NOT KILLED: it is the set the run could not settle, so a gate
+    that reports green while it is non-empty is reporting about mutants it never saw."""
+    out = {SURVIVED: [], UNDECIDED: [], KILLED: []}
+    for line in (results_text or "").splitlines():
+        got = classify_results_line(line)
+        if got is None:
+            continue
+        name, bucket, status = got
+        if bucket == SURVIVED:
+            out[SURVIVED].append(name)
+        elif bucket == KILLED:
+            out[KILLED].append(name)
+        else:
+            out[UNDECIDED].append((name, status))
+    return out
+
