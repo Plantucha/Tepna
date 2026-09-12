@@ -1309,6 +1309,10 @@ class OxyFrameLogWriter:
         # way. Self-detecting like StreamWriter: a non-empty file means resume, append, and do
         # not re-emit the header.
         _resumed = os.path.exists(path) and os.path.getsize(path) > 0
+        # EXPOSED (2026-09-12): the teardown pruners consult `resumed` before `os.remove` — a resumed
+        # file holds EARLIER episodes' rows that this writer's `rows` cannot see, and two files of a
+        # live ring session were deleted tonight because only StreamWriter carried the attribute.
+        self.resumed = _resumed
         self._fh = open(path, "a" if _resumed else "w", buffering=1 << 16, newline="\n")
         # ppg_n / ppg_dur_step APPENDED, never inserted — the same "never shift an
         # existing column" discipline LinkLogWriter keeps, so a reader written against the 10-column
@@ -1589,6 +1593,10 @@ class RingClockLogWriter:
         # way. Self-detecting like StreamWriter: a non-empty file means resume, append, and do
         # not re-emit the header.
         _resumed = os.path.exists(path) and os.path.getsize(path) > 0
+        # EXPOSED (2026-09-12): the teardown pruners consult `resumed` before `os.remove` — a resumed
+        # file holds EARLIER episodes' rows that this writer's `rows` cannot see, and two files of a
+        # live ring session were deleted tonight because only StreamWriter carried the attribute.
+        self.resumed = _resumed
         self._fh = open(path, "a" if _resumed else "w", buffering=1 << 16, newline="\n")
         if not _resumed:
             self._fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;"
@@ -1959,6 +1967,10 @@ class Spo2CsvWriter:
         # way. Self-detecting like StreamWriter: a non-empty file means resume, append, and do
         # not re-emit the header.
         _resumed = os.path.exists(path) and os.path.getsize(path) > 0
+        # EXPOSED (2026-09-12): the teardown pruners consult `resumed` before `os.remove` — a resumed
+        # file holds EARLIER episodes' rows that this writer's `rows` cannot see, and two files of a
+        # live ring session were deleted tonight because only StreamWriter carried the attribute.
+        self.resumed = _resumed
         self._fh = open(path, "a" if _resumed else "w", buffering=1 << 16, newline="\n")
         if not _resumed:
             self._fh.write("Time,Oxygen Level,Pulse Rate,Motion\n")

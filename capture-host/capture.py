@@ -3689,14 +3689,22 @@ async def run_viatom(dev: dict, root: str):
             log.warning("%s %s", name, link_error_text(e))
         finally:
             if wr:
-                _empty, _p = not wr.rows, wr.path      # discard header-only files, as run_polar does
+                # Discard header-only files, as run_polar does — INCLUDING its `resumed` guard. `rows`
+                # counts THIS process's rows only; a resumed file holds earlier episodes' data that a
+                # 0-row episode must not delete (the 2026-09-12 ring loss). Unknown ⇒ keep: the cost of
+                # a wrong keep is a header-only file, the cost of a wrong delete is the night.
+                _empty, _p = not wr.rows, wr.path
+                _resumed = getattr(wr, "resumed", True)
                 wr.close()
-                if _empty:
+                if _empty and not _resumed:
                     try:
                         os.remove(_p)
                     except OSError:
                         log.debug("%s: could not discard the header-only %s", name, os.path.basename(_p),
                                   exc_info=True)   # it stays on disk carrying 0 rows: harmless, but not silent
+                elif _empty:
+                    log.info("%s: keeping RESUMED %s — 0 rows this episode, earlier episodes' rows inside",
+                             name, os.path.basename(_p))
         if not _STOP.is_set():
             if stalled:
                 await _retry_sleep(name, _STALL_RECONNECT_S, "stalled", attempt)
@@ -4915,20 +4923,37 @@ async def run_oxyii(dev: dict, root: str):
             # nothing but its header — indistinguishable from a real capture until something opens it,
             # and the Dex ingest walks this directory. On the documented 359-reconnect night that was
             # ~1000 junk files in one night dir. The Polar path already solved this; the ring never got it.
+            # ⚠ RESUMED FILES ARE NEVER PRUNED (2026-09-12). `rows` counts THIS process's rows only:
+            # a file-set resumed within _RESUME_WINDOW_S reopens the same paths in append mode, so an
+            # episode that delivers 0 rows for a stream (a short reconnect where SPO2/ACCRAW stay quiet)
+            # read as "header-only" here and deleted the whole prior file — a live session lost its
+            # SPO2.csv and an 800 KB ACCRAW.txt that way. run_polar got this guard on 2026-09-03; this
+            # site said "exactly as run_polar does" and never did. Unknown ⇒ keep (getattr default True):
+            # a writer class without `resumed` must fail toward the header-only file, never the night.
+            # `discard()` where the writer owns sidecars (StreamWriter's RUNS), so no orphan is left.
             _spo2_kept = None
             for _w in (wr, ppgwr, oxyflagwr, ppg2wr, plethawr, rtcwr, accrawwr):
                 if not _w:
                     continue
                 _empty, _p = not _w.rows, _w.path
                 _rows = _w.rows
-                _w.close()
-                if _empty:
+                _resumed = getattr(_w, "resumed", True)
+                if _empty and not _resumed:
                     try:
-                        os.remove(_p)
+                        if hasattr(_w, "discard"):
+                            _w.discard()
+                        else:
+                            _w.close()
+                            os.remove(_p)
                         log.debug("%s: discarded header-only %s", name, os.path.basename(_p))
                     except OSError:
                         log.debug("%s: could not discard the header-only %s", name, os.path.basename(_p),
                                   exc_info=True)
+                    continue
+                _w.close()
+                if _empty:
+                    log.info("%s: keeping RESUMED %s — 0 rows this episode, earlier episodes' rows inside",
+                             name, os.path.basename(_p))
                 elif _w is wr:
                     _spo2_kept = (_p, _rows)
             # ACQUISITION EVIDENCE, the LIVE half (ACQ-EVIDENCE-CONTRACT spec §10 — BOTH O2Ring paths,
