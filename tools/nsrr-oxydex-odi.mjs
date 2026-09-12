@@ -212,7 +212,13 @@ function pairsFrom(edfDir, annDir) {
   if (!existsSync(edfDir) || !existsSync(annDir)) return [];
   const anns = readdirSync(annDir).filter((f) => /\.xml$/i.test(f));
   const byStem = new Map();
-  for (const a of anns) byStem.set(basename(a).replace(/\.xml$/i, '').replace(/-nsrr$/, ''), join(annDir, a));
+  for (const a of anns)
+    byStem.set(
+      basename(a)
+        .replace(/\.xml$/i, '')
+        .replace(/-nsrr$/, ''),
+      join(annDir, a)
+    );
   const out = [];
   for (const e of readdirSync(edfDir).filter((f) => /\.edf$/i.test(f))) {
     const stem = basename(e).replace(/\.edf$/i, '');
@@ -329,7 +335,15 @@ function selftest() {
   };
   console.log('▸ nsrr-oxydex-odi --selftest  (arithmetic; no records, no detector rate)\n');
 
-  A('severity: the clinical 4-class edges', severityClass(4.9) === 'none' && severityClass(5) === 'mild' && severityClass(14.9) === 'mild' && severityClass(15) === 'moderate' && severityClass(29.9) === 'moderate' && severityClass(30) === 'severe');
+  A(
+    'severity: the clinical 4-class edges',
+    severityClass(4.9) === 'none' &&
+      severityClass(5) === 'mild' &&
+      severityClass(14.9) === 'mild' &&
+      severityClass(15) === 'moderate' &&
+      severityClass(29.9) === 'moderate' &&
+      severityClass(30) === 'severe'
+  );
   A('severity: a missing AHI is null, never a class', severityClass(null) === null && severityClass(Number.NaN) === null);
 
   // a PLANTED severity-proportional under-count must be recovered as a negative slope
@@ -338,7 +352,10 @@ function selftest() {
   const f1 = olsSlope(ref, under);
   A('OLS recovers a planted −0.30 gradient', Math.abs(f1.slope + 0.3) < 1e-9, 'slope=' + f1.slope);
   A('…and that is called UNDER-COUNT SURVIVES', verdictSlope(f1.slope) === 'UNDER-COUNT SURVIVES');
-  const f0 = olsSlope(ref, ref.map(() => 1.5));
+  const f0 = olsSlope(
+    ref,
+    ref.map(() => 1.5)
+  );
   A('OLS on a constant offset gives slope 0', Math.abs(f0.slope) < 1e-9, 'slope=' + f0.slope);
   A('…and that is called NO GRADIENT', verdictSlope(f0.slope) === 'NO GRADIENT');
   A('an over-correction is named separately', verdictSlope(0.4) === 'OVER-CORRECTED');
@@ -428,9 +445,24 @@ function main(argv) {
   const okc = (v, lim) => (v == null ? C.d : Math.abs(v) <= lim ? C.g : C.r);
   console.log(paint('  ' + '─'.repeat(76), C.d));
   console.log(`\n  ${sum.scored} scored · ${sum.failed} failed, of ${sum.records} records`);
-  console.log('  Bland–Altman  bias ' + paint((sum.biasEventsPerHour == null ? '—' : sum.biasEventsPerHour.toFixed(2)) + ' /h', okc(sum.biasEventsPerHour, BANDS.biasAbs)) + '   95 % LoA ±' + (sum.loaHalfWidth == null ? '—' : sum.loaHalfWidth.toFixed(2)));
-  console.log('  Severity gradient  slope ' + paint(sum.slope == null ? '—' : sum.slope.toFixed(4), okc(sum.slope, BANDS.slopeAbs)) + '   → ' + paint(sum.slopeVerdict, sum.slopeVerdict === 'NO GRADIENT' ? C.g : C.r));
-  console.log('  Severity class  exact ' + (sum.classExactPct == null ? '—' : sum.classExactPct.toFixed(1) + ' %') + '   within one ' + (sum.classWithinOnePct == null ? '—' : sum.classWithinOnePct.toFixed(1) + ' %'));
+  console.log(
+    '  Bland–Altman  bias ' +
+      paint((sum.biasEventsPerHour == null ? '—' : sum.biasEventsPerHour.toFixed(2)) + ' /h', okc(sum.biasEventsPerHour, BANDS.biasAbs)) +
+      '   95 % LoA ±' +
+      (sum.loaHalfWidth == null ? '—' : sum.loaHalfWidth.toFixed(2))
+  );
+  console.log(
+    '  Severity gradient  slope ' +
+      paint(sum.slope == null ? '—' : sum.slope.toFixed(4), okc(sum.slope, BANDS.slopeAbs)) +
+      '   → ' +
+      paint(sum.slopeVerdict, sum.slopeVerdict === 'NO GRADIENT' ? C.g : C.r)
+  );
+  console.log(
+    '  Severity class  exact ' +
+      (sum.classExactPct == null ? '—' : sum.classExactPct.toFixed(1) + ' %') +
+      '   within one ' +
+      (sum.classWithinOnePct == null ? '—' : sum.classWithinOnePct.toFixed(1) + ' %')
+  );
   console.log(paint('\n  ⚠️ CARRY THE DOMAIN SHIFT: clinical PSG on a clinical cohort is not a consumer ring on a', C.d));
   console.log(paint('     healthy sleeper, and the reference AHI is scorer-derived, not truth.', C.d));
   console.log(paint('     §P5 gates PUBLICATION of these numbers, not their measurement.', C.d));
