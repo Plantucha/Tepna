@@ -33203,6 +33203,68 @@
       T.eq("'device+host-verified' is NOT timed — an RTC-anchor verdict is not a per-sample claim", I.timingSourceIsTimed('device+host-verified'), false);
     });
 
+    /* wt-done's IN-USE check — gated for the FIRST time. It shipped ungated in #2321, the defect was
+       found and fixed in #2402, and that fix ALSO shipped ungated: `usersOfPath` still has no test on
+       main. What #2402 established is that the invocation is wider than the scanner — its CALLER (a
+       shell that cd'd into the worktree) and its PIPELINE SIBLINGS (`… | tail -3`, same process group)
+       are all "this command", not tenants of the tree.
+       The boundary that matters is the one its own comment draws and nothing checks: the exemption is
+       the INVOCATION, deliberately NOT "same session" or "same user" — a PEER session working in the
+       tree has its own pgid and its own ancestry and must still refuse. That is where a later
+       simplification would blind the guard, so it is asserted here.
+       Driven against a SYNTHETIC /proc: usersOfPath takes procRoot and self as options, so this needs
+       no live process and cannot flake. Node-lane only — it writes symlinks. */
+    group('wt-done — the INVOCATION is not a user, but a peer session is', 'tools · wt-done · self-match', function (T) {
+      if (typeof process === 'undefined' || !env.nodeFs || !env.nodeOs || !env.wtDone) {
+        T.skip('needs Node fs/os and tools/wt-done.mjs — not available in the browser lane');
+        return;
+      }
+      var fs = env.nodeFs,
+        os = env.nodeOs,
+        pathMod = env.nodePath,
+        usersOfPath = env.wtDone.usersOfPath;
+      var base = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'wtdone-'));
+      var tree = pathMod.join(base, 'worktree');
+      var proc = pathMod.join(base, 'proc');
+      fs.mkdirSync(tree, { recursive: true });
+      /* `/proc/<pid>/stat` is `pid (comm) state ppid pgrp …`; comm may itself contain spaces AND
+         parentheses, which is why the reader must parse after the LAST ')' — pid 101 is named so that
+         a left-to-right parse would take the wrong fields and mis-read pgrp. */
+      function mk(pid, ppid, pgid, cwd, comm) {
+        var d = pathMod.join(proc, String(pid));
+        fs.mkdirSync(d, { recursive: true });
+        fs.symlinkSync(cwd, pathMod.join(d, 'cwd'));
+        fs.writeFileSync(pathMod.join(d, 'stat'), pid + ' (' + comm + ') S ' + ppid + ' ' + pgid + ' 0 0');
+        fs.writeFileSync(pathMod.join(d, 'cmdline'), comm);
+      }
+      mk(1, 0, 1, base, 'init');
+      mk(99, 1, 99, tree, 'bash'); // the CALLER — cd'd into the tree to run the removal
+      mk(100, 99, 99, tree, 'node wt-done'); // the scanner itself
+      mk(101, 99, 99, tree, '(tail -3)'); // a pipeline SIBLING of the scanner, same shell job
+      mk(500, 1, 500, tree, 'node peer-session'); // ANOTHER session working in the tree
+
+      var r = usersOfPath(tree, { procRoot: proc, self: 100 });
+      T.ok('the scan succeeds against a synthetic /proc', r.ok === true, JSON.stringify(r.why || ''));
+      var pids = (r.users || []).map(function (u) {
+        return Number(u.pid);
+      });
+      T.eq('the SCANNER is not a user', pids.indexOf(100), -1);
+      T.eq("the CALLER's shell is not a user — #2402's defect, it refused real removals", pids.indexOf(99), -1);
+      T.eq('a PIPELINE SIBLING is not a user — same shell job, one process wider than the caller', pids.indexOf(101), -1);
+      T.ok('a PEER SESSION in the tree IS still reported — the exemption is the invocation, not the user', pids.indexOf(500) >= 0, 'users=' + pids.join(','));
+      T.eq('exactly one user, and it is the peer', pids.length, 1);
+
+      /* A process whose cwd is OUTSIDE the tree is not a user even with no kinship exemption at all. */
+      var proc2 = pathMod.join(base, 'proc2');
+      var d2 = pathMod.join(proc2, '700');
+      fs.mkdirSync(d2, { recursive: true });
+      fs.symlinkSync(base, pathMod.join(d2, 'cwd'));
+      fs.writeFileSync(pathMod.join(d2, 'stat'), '700 (elsewhere) S 1 700 0 0');
+      fs.writeFileSync(pathMod.join(d2, 'cmdline'), 'elsewhere');
+      var r2 = usersOfPath(tree, { procRoot: proc2, self: 700 });
+      T.eq('a process outside the tree is not a user', (r2.users || []).length, 0);
+    });
+
     group('PPGDex §∅ — pinned spans: both extremes, marker-transparent, and the widening is DERIVED', 'ppgdex-dsp · absence-as-value', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.pinnedSpans === 'function' && typeof P.settlingWidenSec === 'function')) {
