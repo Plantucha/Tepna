@@ -134,6 +134,14 @@ function runNight(night, labels) {
     evidence: night.pseudo ? 'heuristic' : null,
     axisProvenance: night.prov
   };
+  /* BEFORE the overlap verdict — an incomplete night has no overlap to report, and saying so in
+     overlap's words sends the reader to the wrong place (see classifyCompleteness). */
+  const incomplete = classifyCompleteness(
+    labels.filter((l) => Array.isArray(night.series[l]) && night.series[l].length > 0),
+    labels,
+    night.hasStamp !== false
+  );
+  if (incomplete) return { ...base, ok: false, reason: incomplete };
   if (al.keys.length < 12) return { ...base, ok: false, reason: 'overlap ' + al.keys.length + ' < 12' };
 
   // align motion onto the SAME shared epoch keys the HR triplet resolved on
@@ -270,6 +278,36 @@ function synthCorpus() {
  * per-epoch `hr` and (for the motion-ρ) `motionIndex`, plus a floating `tMs`.
  * Node identity is read from schema.node / the filename (ECGDex/PpgDex/OxyDex).
  * ──────────────────────────────────────────────────────────────────────── */
+/* ⚠️ AN INCOMPLETE NIGHT IS NOT AN OVERLAP FAILURE, and before this it reported as one.
+   A `trio-batch` fold child that dies on a V8 heap-limit abort leaves the exports it had already
+   written in the night directory and no `.trio-stamp` (the stamp is written only at 3/3). This tool
+   is the consumer that lists such a directory — `readdirSync` + every `*.json` — and it never read
+   the stamp, so a 2-of-3 night fell through to `alignTriplet`, produced an empty intersection, and
+   was reported as `overlap 0 < 12`.
+
+   Measured 2026-09-12 on a planted 2-of-3 directory: exactly that string. It is the SAME string a
+   genuine three-corner night with no epoch overlap produces — one name, two causes, and the one a
+   reader would chase (epoch alignment) is not the one that happened (a fold that aborted).
+
+   Residue `2026-09-07-partial-exports-survive-child-abort`. The row proposed writer-side remedies
+   (temp name + rename, or a `.partial` marker) and blocked on "no such consumer has been shown to
+   exist". One does, and the protection it needs is already ON DISK: the fold's own stamp. So the fix
+   is that the reader USES it, not that the writer drops a second marker.
+
+   PURE so `--selftest` can pin it without a filesystem — the tool's real `--dir` path needs the
+   gitignored corpus, which is how the `prov` ReferenceError above reached main. */
+function classifyCompleteness(cornersPresent, labels, hasStamp) {
+  const missing = labels.filter((l) => cornersPresent.indexOf(l) < 0);
+  if (!missing.length) return null;
+  return (
+    'incomplete night — ' +
+    (cornersPresent.length ? cornersPresent.join('+') : 'no') +
+    ' corner(s) present, missing ' +
+    missing.join('+') +
+    (hasStamp ? '' : ' · no .trio-stamp in this directory, so the fold did not complete')
+  );
+}
+
 function readNightDir(dir) {
   const files = readdirSync(dir).filter((f) => /\.json$/i.test(f));
   const series = {},
@@ -327,7 +365,10 @@ function readNightDir(dir) {
     if (hr.length) series[node] = hr;
     if (mo.length) motion[node] = mo;
   }
-  return { label: dir.split('/').pop(), series, motion, marker, prov, pseudo };
+  /* Read, not inferred: the fold's own completion stamp. `.trio-stamp` is deliberately NOT `*.json`
+     (see `trio-batch.mjs`'s STAMP comment) precisely so the glob above cannot see it — which is why
+     it has to be asked for by name. */
+  return { label: dir.split('/').pop(), series, motion, marker, prov, pseudo, hasStamp: existsSync(join(dir, '.trio-stamp')) };
 }
 function nodeOf(j, fname) {
   const s = (j.schema && (j.schema.node || j.node)) || j.node || '';
@@ -474,6 +515,29 @@ function verify(rows, corpus) {
     checks.push({ name, pass: !!cond, detail: detail || '' });
   };
   const byLabel = Object.fromEntries(corpus.map((c) => [c.label, c]));
+
+  /* ── AN INCOMPLETE NIGHT MUST NOT REPORT AS AN OVERLAP FAILURE (residue
+     `2026-09-07-partial-exports-survive-child-abort`). Pinned here rather than on a directory
+     because `--dir` needs the gitignored corpus, and that gap is how a `ReferenceError` in
+     `readNightDir` reached main. `classifyCompleteness` is pure for exactly this reason.
+
+     ⚠️ THE CONTROL IS THE POINT, not the positive. Before the fix, a 2-of-3 night and a genuine
+     three-corner night with disjoint epochs BOTH printed `overlap 0 < 12` — measured side by side
+     2026-09-12. A rule that merely fires on the partial night would be indistinguishable from one
+     that fires on everything, so the completeness check must return null for a full corner set and
+     let overlap keep its own verdict. */
+  const _L = ['ECGDex', 'PpgDex', 'OxyDex'];
+  ok('completeness · a full corner set is NOT convicted — overlap keeps its own verdict', classifyCompleteness(_L, _L, false) === null, String(classifyCompleteness(_L, _L, false)));
+  ok('completeness · …and a full set with the fold stamp is equally uncontested', classifyCompleteness(_L, _L, true) === null);
+  const _p = classifyCompleteness(['ECGDex', 'PpgDex'], _L, false);
+  ok('completeness · a 2-of-3 night NAMES the missing corner instead of blaming overlap', /missing OxyDex/.test(_p || '') && !/overlap/.test(_p || ''), String(_p));
+  ok('completeness · …and says the corners it DID find, so the reader can see what the fold got through', /ECGDex\+PpgDex/.test(_p || ''), String(_p));
+  ok('completeness · an absent .trio-stamp is reported as the cause', /no \.trio-stamp/.test(_p || ''), String(_p));
+  /* A directory with the stamp but a missing corner is a DIFFERENT fault — a stamped fold that
+     nonetheless lacks a node — so the stamp sentence must not be appended where it is untrue. */
+  const _ps = classifyCompleteness(['ECGDex', 'PpgDex'], _L, true);
+  ok('completeness · a STAMPED night missing a corner is still incomplete, but is not blamed on the stamp', /missing OxyDex/.test(_ps || '') && !/trio-stamp/.test(_ps || ''), String(_ps));
+  ok('completeness · an empty directory names all three, not none', /missing ECGDex\+PpgDex\+OxyDex/.test(classifyCompleteness([], _L, false) || ''), String(classifyCompleteness([], _L, false)));
 
   for (const row of rows) {
     const spec = byLabel[row.label];
