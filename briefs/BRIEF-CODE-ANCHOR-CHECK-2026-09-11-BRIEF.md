@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS — 2026-09-11 (**the IDENTIFIER-EXISTENCE check is REFUTED and must not be built** — 15/15 false positives, zero sensitivity on its own defining case. ⚠️ **SCOPE CORRECTED same day — that is NOT 'the class is undetectable', and §7 was recorded one step too broad; see §8.** The §5 measurement landed the same day and killed it twice over — 15 of 15 candidates were false positives with zero true findings, and it has ZERO SENSITIVITY on the very case that motivated it. Declining was listed in §5.3 as a legitimate outcome and it is the outcome. The question is answered, so this is DONE with a negative, not parked — and §7 records what the measurement pointed at instead) · **Created:** 2026-09-11 · **Promoted-from:** residue `2026-09-11-brief-code-anchors-are-unchecked` · **Extends:** `DOCS-LEDGER-HEADER-REFS-2026-08-27-BRIEF.md` (`docs-ledger` check7, same family, different reference kind)
+**Status:** DONE — 2026-09-11 (**NEGATIVE RESULT, and scoped: BOTH SHAPES TESTED ARE REFUTED — build neither.** Semantic-over-extracted-claims joins the identifier check: the discriminator is UNDEFINED for 10 of 19, margins are noise-scale, and the positive control has been CONSUMED — §10. ⚠️ NOT claimed: that no detector is possible; §10.4 states the precondition a third attempt owes before it starts. Original finding: the IDENTIFIER-EXISTENCE check is REFUTED and must not be built** — 15/15 false positives, zero sensitivity on its own defining case. ⚠️ **SCOPE CORRECTED same day — that is NOT 'the class is undetectable', and §7 was recorded one step too broad; see §8.** The §5 measurement landed the same day and killed it twice over — 15 of 15 candidates were false positives with zero true findings, and it has ZERO SENSITIVITY on the very case that motivated it. Declining was listed in §5.3 as a legitimate outcome and it is the outcome. The question is answered, so this is DONE with a negative, not parked — and §7 records what the measurement pointed at instead) · **Created:** 2026-09-11 · **Promoted-from:** residue `2026-09-11-brief-code-anchors-are-unchecked` · **Extends:** `DOCS-LEDGER-HEADER-REFS-2026-08-27-BRIEF.md` (`docs-ledger` check7, same family, different reference kind)
 
 # A brief's quoted code anchor is checked by nothing
 
@@ -228,3 +228,59 @@ becomes a retrieval competitor for it, and this brief and its row are now two su
 So a "brief outranks code" rule degrades as the failure gets documented, and a fleet that writes up its
 findings — which this one does, deliberately — is systematically eroding the signal. Any baseline must
 be taken with the write-ups already in the index, or it will flatter itself.
+
+
+## 10 · 🔴 CLOSED — the semantic baseline, and what a third attempt owes
+
+The §5/§9 baseline landed (22 punch-list briefs, one claim extracted per brief, `doc-search` run over
+each brief's own claim). **The semantic shape is refuted too**, for three independent reasons.
+
+| outcome | n |
+|---|---|
+| **NO-CODE** — no code file anywhere in the top 5 | **10** ← the MODAL outcome |
+| CODE-ONLY (code present, brief absent) | 2 |
+| CODE > BRIEF | 4 — gaps 0.002 · 0.004 · 0.007 · 0.041 |
+| BRIEF > CODE | 3 — gaps −0.001 · −0.005 · −0.101 |
+
+### 10.1 The discriminator is UNDEFINED for the majority
+
+10 of 19 claims retrieve **no code at all** — the top hits are other briefs. §9.3 flagged "no relevant
+match" as a third state that must never be folded into "stale"; the baseline shows it is not an edge
+case but the **modal outcome**. A brief's claim retrieves briefs because the corpus is brief-dense and
+briefs discuss each other; the code it describes does not surface.
+
+### 10.2 The margins are smaller than the index moves
+
+Six of seven decided cases fall within **±0.007** — §8.2's 0.024 warning was generous. Against that,
+`doc-search` re-embedded **2074** chunks between two queries in the baseline run, and **2285** during
+verification here. **The index moves by more than the signal.** That is not tunable.
+
+### 10.3 🔴 THE POSITIVE CONTROL HAS BEEN CONSUMED
+
+`PPGDEX-ALGORITHM-DEEP-DIVE` now scores CODE > BRIEF — *correctly*, because §1.1's row was stamped
+`✅ LANDED #2333` and the brief no longer asserts the stale claim; it records it as history. Verified
+here: the OLD phrasing still retrieves the brief (0.636, no code in the top 3) precisely because the
+brief still QUOTES it, while its current claim retrieves code.
+
+**Fixing the defining instance destroyed the only ground truth either detector could be scored on.**
+
+### 10.4 ⚠️ What a third attempt owes before it starts
+
+**PLANT A KNOWN-STALE BRIEF FIRST.** With the control consumed, any proposal here measures specificity
+with no way to measure sensitivity — and a detector whose sensitivity is unmeasurable is the
+confidently-quiet failure this brief exists to document: its silence would read as *"no stale briefs"*.
+
+### 10.5 The sentence to hand anyone proposing "check briefs against the tree"
+
+**Briefs are not descriptions of CODE. They are descriptions of WORK** — proposed, rejected, past-tense,
+hypothetical, third-party. Identifier checks flag the proposals; semantic checks retrieve the
+discussions. `citation-ledger` already excludes `briefs/` at 35 % false positives, and this is now the
+same finding measured three independent ways.
+
+### 10.6 Limits of this negative, stated
+
+22 punch-list briefs of 507 — the highest-yield slice, not the whole set. One claim per brief, extracted
+by heuristic (longest present-tense line naming a code file); **a better extractor might do better, and
+that is not refuted here.** The baseline's per-row index chunk count was lost to a redirected stderr, so
+**it cannot be compared against a later run** — a re-run was offered and declined, because §10.1 and
+§10.3 do not depend on margins at all and the conclusion does not rest on the missing number.
