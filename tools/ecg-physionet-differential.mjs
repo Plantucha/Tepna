@@ -42,7 +42,14 @@
  * `STRATEGIC-PRIORITIES` §P5 ("PUBLIC-BENCHMARK VALIDATION — GATED") names MIT-BIH (QRS) as
  * credibility currency behind an owner-set gate: "~2 weeks of error-free operation; possibly PAT
  * producing credible output". **Nothing produced here may be published as external validation until
- * the owner opens that gate.** The instrument is not the claim — `tools/nsrr-stage-validate.mjs`
+ * the owner opens that gate.**
+ *
+ * ⚖️ OWNER RULING 2026-09-12 — the gate is on PUBLICATION, not on MEASUREMENT. Running this tool
+ * internally and acting on what it finds is PERMITTED NOW: a benchmark that exposes a real DSP
+ * defect is an ordinary bug report and an ordinary PR. Only quoting a rate OUTSIDE the repo is
+ * gated. And "~2 weeks of error-free operation" is deliberately NOT mechanised — three checkable
+ * criteria were offered and all three declined; it stays the owner's judgment call, so ASK, and
+ * never read a green proxy (nights folded, CI passing) as the gate having opened. The instrument is not the claim — `tools/nsrr-stage-validate.mjs`
  * covers NSRR/MESA, which sits in the same gated list, and landed on exactly that basis: the work is
  * "blocked on RECORDS, not on code, and the way to keep that true is to build the path and PROVE it,
  * so the day a record arrives the only new variable is the record."
