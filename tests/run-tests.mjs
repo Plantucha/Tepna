@@ -33,6 +33,13 @@ import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
 import { spawn, execSync } from 'node:child_process';
 import { cpus, tmpdir } from 'node:os';
+/* Node-only handles for the `tools · wt-done · self-match` gate: it drives `usersOfPath`
+   against a SYNTHETIC /proc, so it needs real fs/os/path plus the tool. The browser lane
+   skips the group rather than receiving these. */
+import * as _nodeFs from 'node:fs';
+import * as _nodeOs from 'node:os';
+import * as _nodePath from 'node:path';
+import * as _wtDone from '../tools/wt-done.mjs';
 import { walkRepoPaths, walkRepoPathsAll } from './docs-ledger-fs.mjs';
 import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
 
@@ -1951,6 +1958,10 @@ async function main() {
   };
   const env = {
     ppgdexDspSource: _readOpt('ppgdex-dsp.js'),
+    nodeFs: _nodeFs,
+    nodeOs: _nodeOs,
+    nodePath: _nodePath.default || _nodePath,
+    wtDone: _wtDone,
     /* §timingSource vocabulary gate — the EMITTERS' source, scanned for `timingSource` string
        literals so a value added without a vocabulary entry reds. Source text rather than imports
        because the literals live inside functions the suite never calls on every path. */
