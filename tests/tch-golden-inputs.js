@@ -78,6 +78,14 @@
     });
   }
 
+  /* THE BARE NAME IS THE SHAPE THE OTHER BUILDERS USE, and the Node lane cannot see the difference:
+     `require` returns `module.exports` whatever the global shape is, so a consumer written against
+     `tchGoldenInputs` was correct in Node and threw in the browser, where this file exposed ONLY the
+     namespace. Residue `2026-09-06-twin-builders-three-export-shapes`, found the hard way on #2264 —
+     green in Node, red on `browser-gates` alone, with an error naming neither the builder nor the lane.
+     The namespace is KEPT: `fusion-night-twins.js` `pick()` and the shared suite both read it, and
+     removing a published name is a contract change for no gain. */
+  root.tchGoldenInputs = tchGoldenInputs;
   root.TchGoldenInputs = { tchGoldenInputs: tchGoldenInputs };
   if (typeof module !== 'undefined' && module.exports) module.exports = { tchGoldenInputs: tchGoldenInputs };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

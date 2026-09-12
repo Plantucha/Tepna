@@ -34,57 +34,66 @@
 
 /* A fixed, arbitrary night. Floating wall-clock ms per the Clock Contract — Date.UTC of local civil
    time, never a real UTC instant. */
-var RT0 = Date.UTC(2026, 5, 27, 22, 0, 0);
-var RSPAN = 8 * 3600 * 1000;
+/* WRAPPED so the browser global carries this builder's NAME and nothing else. Unwrapped, a
+   classic script puts every top-level binding on `window`: this file leaked `respExport`, `RT0`
+   and `RSPAN` — private helpers no consumer outside this file reads — while its three siblings
+   leaked only their own export. Residue `2026-09-06-twin-builders-three-export-shapes`; the
+   `module.exports` surface below is unchanged, so every Node consumer is unaffected. */
+(function (root) {
+  'use strict';
+  var RT0 = Date.UTC(2026, 5, 27, 22, 0, 0);
+  var RSPAN = 8 * 3600 * 1000;
 
-/* A node export carrying a respiration rate in the place THAT node's adapter branch reads it. */
-function respExport(node, brpm, method, opts) {
-  var o = opts || {};
-  var start = o.startMs != null ? o.startMs : RT0;
-  var end = o.endMs != null ? o.endMs : RT0 + RSPAN;
-  var json = {
-    schema: { name: 'ganglior.node-export', version: '1.0', bus: 'ganglior', node: node },
-    node: node,
-    recording: { startEpochMs: start, endEpochMs: end, node: node },
-    ganglior_events: []
-  };
-  if (node === 'MotionDex') {
-    json.motion = { respRateBrpm: brpm, respRateMethod: method };
-  } else {
-    json.hrv = { frequency: { respRate: brpm, respRateMethod: method } };
+  /* A node export carrying a respiration rate in the place THAT node's adapter branch reads it. */
+  function respExport(node, brpm, method, opts) {
+    var o = opts || {};
+    var start = o.startMs != null ? o.startMs : RT0;
+    var end = o.endMs != null ? o.endMs : RT0 + RSPAN;
+    var json = {
+      schema: { name: 'ganglior.node-export', version: '1.0', bus: 'ganglior', node: node },
+      node: node,
+      recording: { startEpochMs: start, endEpochMs: end, node: node },
+      ganglior_events: []
+    };
+    if (node === 'MotionDex') {
+      json.motion = { respRateBrpm: brpm, respRateMethod: method };
+    } else {
+      json.hrv = { frequency: { respRate: brpm, respRateMethod: method } };
+    }
+    return json;
   }
-  return json;
-}
 
-function respirationFusionTwins() {
-  var HOUR = 3600 * 1000;
-  return {
-    /* Three distinct nodes, one overlapping window, rates within a breath of each other. */
-    agree: [
-      { node: 'ECGDex', json: respExport('ECGDex', 14.2, 'RSA (HF-peak of RR spectrum)') },
-      { node: 'PpgDex', json: respExport('PpgDex', 13.8, 'RSA (PPG)') },
-      { node: 'MotionDex', json: respExport('MotionDex', 14.0, 'acc-spectral-viterbi') }
-    ],
-    /* Guard (a): two nodes that never share a minute. Fusing them would average two different
-       nights — a consensus over inputs with no common instant. */
-    disjoint: [
-      { node: 'ECGDex', json: respExport('ECGDex', 14.2, 'RSA (HF-peak of RR spectrum)', { startMs: RT0, endMs: RT0 + 3 * HOUR }) },
-      {
-        node: 'MotionDex',
-        json: respExport('MotionDex', 19.6, 'acc-spectral-viterbi', { startMs: RT0 + 5 * HOUR, endMs: RT0 + 8 * HOUR })
-      }
-    ],
-    /* Guard (b): two observers, ONE node. `n` must count distinct SOURCES, not records — otherwise a
-       node that happens to export twice manufactures its own agreement. */
-    sameNode: [
-      { node: 'PpgDex', json: respExport('PpgDex', 13.8, 'RSA (PPG)') },
-      { node: 'PpgDex', json: respExport('PpgDex', 13.9, 'RSA (PPG)') }
-    ],
-    /* Below the floor: one source cannot corroborate itself. */
-    single: [{ node: 'ECGDex', json: respExport('ECGDex', 14.2, 'RSA (HF-peak of RR spectrum)') }]
-  };
-}
+  function respirationFusionTwins() {
+    var HOUR = 3600 * 1000;
+    return {
+      /* Three distinct nodes, one overlapping window, rates within a breath of each other. */
+      agree: [
+        { node: 'ECGDex', json: respExport('ECGDex', 14.2, 'RSA (HF-peak of RR spectrum)') },
+        { node: 'PpgDex', json: respExport('PpgDex', 13.8, 'RSA (PPG)') },
+        { node: 'MotionDex', json: respExport('MotionDex', 14.0, 'acc-spectral-viterbi') }
+      ],
+      /* Guard (a): two nodes that never share a minute. Fusing them would average two different
+         nights — a consensus over inputs with no common instant. */
+      disjoint: [
+        { node: 'ECGDex', json: respExport('ECGDex', 14.2, 'RSA (HF-peak of RR spectrum)', { startMs: RT0, endMs: RT0 + 3 * HOUR }) },
+        {
+          node: 'MotionDex',
+          json: respExport('MotionDex', 19.6, 'acc-spectral-viterbi', { startMs: RT0 + 5 * HOUR, endMs: RT0 + 8 * HOUR })
+        }
+      ],
+      /* Guard (b): two observers, ONE node. `n` must count distinct SOURCES, not records — otherwise a
+         node that happens to export twice manufactures its own agreement. */
+      sameNode: [
+        { node: 'PpgDex', json: respExport('PpgDex', 13.8, 'RSA (PPG)') },
+        { node: 'PpgDex', json: respExport('PpgDex', 13.9, 'RSA (PPG)') }
+      ],
+      /* Below the floor: one source cannot corroborate itself. */
+      single: [{ node: 'ECGDex', json: respExport('ECGDex', 14.2, 'RSA (HF-peak of RR spectrum)') }]
+    };
+  }
 
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { respirationFusionTwins: respirationFusionTwins, respExport: respExport, RESP_T0: RT0 };
-}
+  root.respirationFusionTwins = respirationFusionTwins;
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { respirationFusionTwins: respirationFusionTwins, respExport: respExport, RESP_T0: RT0 };
+  }
+})(typeof globalThis !== 'undefined' ? globalThis : this);
