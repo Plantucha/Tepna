@@ -1,0 +1,152 @@
+{
+  "_note": "MIT-BIH Arrhythmia Database (mitdb) \u2014 the 48 records of the standard set. sha256 is of each .dat.",
+  "_absence": "null means NOT YET PINNED \u2014 an unmeasured value, never a fabricated match (CLAUDE.md ss-absence). The tool scores an unpinned record and labels it `unpinned`; a MISMATCH against a non-null hash is refused outright.",
+  "_pin": "node tools/ecg-physionet-differential.mjs --dir <mitdb> --pin   (an explicit act, by whoever holds the corpus)",
+  "_source": "PhysioNet mitdb. This repo never fetches it; see docs/ECG-PHYSIONET-DIFFERENTIAL-README.md.",
+  "records": {
+    "100": {
+      "sha256": null
+    },
+    "101": {
+      "sha256": null
+    },
+    "102": {
+      "sha256": null
+    },
+    "103": {
+      "sha256": null
+    },
+    "104": {
+      "sha256": null
+    },
+    "105": {
+      "sha256": null
+    },
+    "106": {
+      "sha256": null
+    },
+    "107": {
+      "sha256": null
+    },
+    "108": {
+      "sha256": null
+    },
+    "109": {
+      "sha256": null
+    },
+    "111": {
+      "sha256": null
+    },
+    "112": {
+      "sha256": null
+    },
+    "113": {
+      "sha256": null
+    },
+    "114": {
+      "sha256": null
+    },
+    "115": {
+      "sha256": null
+    },
+    "116": {
+      "sha256": null
+    },
+    "117": {
+      "sha256": null
+    },
+    "118": {
+      "sha256": null
+    },
+    "119": {
+      "sha256": null
+    },
+    "121": {
+      "sha256": null
+    },
+    "122": {
+      "sha256": null
+    },
+    "123": {
+      "sha256": null
+    },
+    "124": {
+      "sha256": null
+    },
+    "200": {
+      "sha256": null
+    },
+    "201": {
+      "sha256": null
+    },
+    "202": {
+      "sha256": null
+    },
+    "203": {
+      "sha256": null
+    },
+    "205": {
+      "sha256": null
+    },
+    "207": {
+      "sha256": null
+    },
+    "208": {
+      "sha256": null
+    },
+    "209": {
+      "sha256": null
+    },
+    "210": {
+      "sha256": null
+    },
+    "212": {
+      "sha256": null
+    },
+    "213": {
+      "sha256": null
+    },
+    "214": {
+      "sha256": null
+    },
+    "215": {
+      "sha256": null
+    },
+    "217": {
+      "sha256": null
+    },
+    "219": {
+      "sha256": null
+    },
+    "220": {
+      "sha256": null
+    },
+    "221": {
+      "sha256": null
+    },
+    "222": {
+      "sha256": null
+    },
+    "223": {
+      "sha256": null
+    },
+    "228": {
+      "sha256": null
+    },
+    "230": {
+      "sha256": null
+    },
+    "231": {
+      "sha256": null
+    },
+    "232": {
+      "sha256": null
+    },
+    "233": {
+      "sha256": null
+    },
+    "234": {
+      "sha256": null
+    }
+  }
+}
