@@ -13,6 +13,7 @@ The paths that need no hardware are EXECUTED here (fail-closed on an unmapped se
 dongle, the usage error); the sequence that does need a controller (write → down/up → read-back) is
 asserted against the source, the same way the autosuspend sibling is.
 """
+
 import os
 import re
 import subprocess
@@ -141,8 +142,12 @@ def test_check_passes_when_the_read_back_matches_the_map(tmp_path):
     """The verdict is the READ-BACK: hciconfig answers with the mapped address, so ✓ — and it is
     compared case-insensitively, the map being hand-typed."""
     _plug(tmp_path, "ttyACM9", FAKE_SERIAL, hci="hci7")
-    r = _run(tmp_path, ["--check"], map_text=f"{FAKE_SERIAL} {ADDR.lower()}\n",
-             hciconfig_out=f"hci7:\tType: Primary  Bus: UART\n\tBD Address: {ADDR}  ACL MTU: 27:7")
+    r = _run(
+        tmp_path,
+        ["--check"],
+        map_text=f"{FAKE_SERIAL} {ADDR.lower()}\n",
+        hciconfig_out=f"hci7:\tType: Primary  Bus: UART\n\tBD Address: {ADDR}  ACL MTU: 27:7",
+    )
     assert r.returncode == 0, r.stderr
     assert f"✓ ttyACM9  hci7  {ADDR}" in r.stderr and "0 problem" in r.stderr
 
@@ -151,8 +156,12 @@ def test_check_calls_out_the_zero_address_as_the_invisible_failure(tmp_path):
     """An attached dongle whose write never took reads all zeros; downstream that is indistinguishable
     from 'not present', so the report has to say what it means."""
     _plug(tmp_path, "ttyACM9", FAKE_SERIAL, hci="hci7")
-    r = _run(tmp_path, ["--check"], map_text=f"{FAKE_SERIAL} {ADDR}\n",
-             hciconfig_out="\tBD Address: 00:00:00:00:00:00  ACL MTU: 27:7")
+    r = _run(
+        tmp_path,
+        ["--check"],
+        map_text=f"{FAKE_SERIAL} {ADDR}\n",
+        hciconfig_out="\tBD Address: 00:00:00:00:00:00  ACL MTU: 27:7",
+    )
     assert r.returncode == 1
     assert "capture will silently exclude it" in r.stderr
 
@@ -244,8 +253,9 @@ def test_there_is_no_derive_an_address_from_the_serial_fallback():
     """The serial→address transform is not a function across the dongles in hand; any rule would be
     invented, and a second path that yields a different address than the pinned one is worse than
     stopping."""
-    assert re.findall(r"^ADDR=(.*)$", _sh(), re.M) == ['$(addr_for "$SERIAL")'], \
+    assert re.findall(r"^ADDR=(.*)$", _sh(), re.M) == ['$(addr_for "$SERIAL")'], (
         "ADDR may come from the map lookup and nowhere else"
+    )
 
 
 # ── the unit ──────────────────────────────────────────────────────────────────────────────────
