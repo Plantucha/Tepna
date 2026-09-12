@@ -6577,3 +6577,143 @@ def test_a_SHORT_auth_reply_is_answered_PLAINTEXT_and_is_not_the_same_as_silence
     assert "too short to carry a key blob" in st["auth_reason"]
     assert st.get("auth_unknown_links") is None, "an answered link is not counted as undetermined"
     assert st["spo2"] == 96 and st["pr"] == 61, "a plaintext session captures normally"
+
+
+# ── the RING file-set resume: the grid must CARRY, not restart (residue 2026-09-06-ring-never-resumes) ──
+def test_A_CARRIED_GRID_BRIDGES_A_RECONNECT_GAP_INSTEAD_OF_RESTARTING_THE_TIMELINE():
+    """🔴 THE CLOCK-CONTRACT HALF of the ring resume, and the reason it is not a one-line change.
+
+    The ring publishes no per-sample clock, so `O2PpgGrid` IS the `sensor timestamp [ns]` column. If a
+    resumed file-set reuses the path but rebuilds the grid, `ns` restarts at 0 inside a file that is
+    being APPENDED to — two overlapping synthesized timelines in one column, which is a fabricated
+    timebase and strictly worse than the fragmentation the resume was meant to remove.
+
+    Carrying it needs no new machinery: `frame()` measures elapsed against the session anchor `t0` and
+    already inserts an honest gap when `target` outruns `idx`. A reconnect gap is exactly that case —
+    time passed that carries no samples."""
+    import datetime as dt
+    g = capture.O2PpgGrid()
+    t = dt.datetime(2026, 9, 12, 1, 0, 0)
+    step = 1.0 / g.nominal_fs
+    before = []
+    for k in range(5):                                   # ~5 frames of 127 samples, back to back
+        before += g.frame(t + dt.timedelta(seconds=k * 127 * step), 127)
+    last, gaps_before = before[-1], g.gaps
+
+    # …the link drops for 28 s (the measured median seam) and the SAME grid absorbs the next frame.
+    after = g.frame(t + dt.timedelta(seconds=5 * 127 * step + 28.0), 127)
+
+    assert after[0] > last, "carried grid went BACKWARDS across the reconnect"
+    assert g.gaps == gaps_before + 1, "the reconnect gap was not recorded as a gap"
+    # the jump must be ~28 s of grid, not one sample-step: the hole is honest, not compressed away
+    jump_s = (after[0] - last) / 1e9
+    assert 20.0 < jump_s < 36.0, f"gap spanned {jump_s:.1f}s, expected ~28s of inserted grid"
+    assert after == sorted(after) and len(set(after)) == len(after), "ns must be strictly increasing"
+
+    # CONTROL: a REBUILT grid is what the bug looks like — it restarts at 0 and collides with the
+    # rows already in the file. Without this leg the assertions above could pass on a no-op.
+    fresh = capture.O2PpgGrid()
+    restarted = fresh.frame(t + dt.timedelta(seconds=5 * 127 * step + 28.0), 127)
+    assert restarted[0] < last, "control failed: a rebuilt grid should restart below the carried one"
+
+
+# ── ∅ an ABSENT device stamp must never become a clock (the 26.7-year skew) ────────────────────────
+def test_AN_IMPLAUSIBLE_SKEW_NEVER_TRIGGERS_A_RESYNC():
+    """🔴 A re-sync DROPS THE LINK, which mints a new file-set. Acting on a physically impossible skew
+    is therefore strictly worse than waiting for the next sample.
+
+    Measured on vigil over 14 days: 22 reads beyond a year on one device, every one bracketed by a sane
+    skew, i.e. transient absence — while 288 H10 device-clock events produced ZERO. The two populations
+    do not overlap anywhere near the bound, so this is not a tuned threshold."""
+    jump, tol = 2.0, 2.0
+    # the real shape: -842505658.4 s, from a previous skew of -1.3
+    assert capture.clock_resync_reason(-842505658.4, -1.3, jump, tol) is None
+    assert capture.clock_resync_reason(842505658.4, -1.3, jump, tol) is None
+    assert capture.clock_resync_reason(None, -1.3, jump, tol) is None
+
+    # CONTROL — the bound must not swallow the errors this machinery exists for.
+    # a real jump: the delta must reach `jump`, which -2.9 from -1.3 does NOT (1.6 < 2.0) — that
+    # case is `adrift`, and getting it wrong here is how a control stops controlling anything.
+    assert capture.clock_resync_reason(-5.0, -1.3, jump, tol) == "jump"
+    assert capture.clock_resync_reason(-2.9, -1.3, jump, tol) == "adrift"  # last night's H10
+    assert capture.clock_resync_reason(-9.0, -9.0, jump, tol) == "adrift"   # steady, out of tolerance
+    assert capture.clock_resync_reason(-1.0, -1.0, jump, tol) is None       # in tolerance
+
+
+def test_A_ZERO_SENSOR_STAMP_IS_ABSENCE_NOT_THE_POLAR_EPOCH():
+    """∅ `_POLAR_EPOCH + 0 ns` is a REAL instant — 2000-01-01 — so a zero stamp does not look absent
+    downstream, it looks like a device 26.7 years slow. This pins the arithmetic that made the bug
+    invisible, so nobody 'simplifies' the guard away later."""
+    import datetime as dt
+    assert capture._POLAR_EPOCH == dt.datetime(2000, 1, 1)
+    fabricated = capture._POLAR_EPOCH + dt.timedelta(microseconds=0 / 1000)
+    assert fabricated == dt.datetime(2000, 1, 1), "a zero stamp resolves to a real instant, not to None"
+    # and that instant is ~26.7 years before now, i.e. exactly the skew observed in the journal
+    skew = (fabricated - dt.datetime(2026, 9, 12, 1, 21)).total_seconds()
+    assert -8.5e8 < skew < -8.3e8, f"expected the observed ~-8.42e8 s skew, got {skew:.3e}"
+    assert capture.clock_resync_reason(skew, -1.3, 2.0, 2.0) is None, "the guard must refuse exactly this"
+
+
+
+def test_THE_RING_RESUMES_ITS_FILE_SET_INSTEAD_OF_MINTING_A_NEW_ONE(tmp_path, monkeypatch, caplog):
+    """🔴 residue `2026-09-06-ring-never-resumes`: the Polar path has consulted `resumable_stamp` since
+    #1532 and the ring never did — 11.3x the fragmentation, from that asymmetry alone.
+
+    Drives the ring twice against the same night dir. The second episode must ADOPT the first set's
+    stamp, so the SpO2 sidecar count does not grow: a reconnect inside the window is one recording."""
+    import logging
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._CLOCK_ABSENT.clear()
+
+    def _one_episode():
+        # ⚠️ `_stop_after` SETS `_STOP`, and `run_oxyii` loops on `while not _STOP.is_set()` — so
+        # without this the second call returns instantly and the whole test passes on a no-op.
+        capture._STOP.clear()
+        c = FakeGattClient()
+        c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+        _inject_connect_scan(monkeypatch, c)
+        _stop_after(monkeypatch, 4)
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+
+    _one_episode()
+    first = sorted(p.name for p in (tmp_path / "captures").rglob("*_SPO2.csv"))
+    assert len(first) == 1, f"expected one set from the first episode, got {first}"
+
+    before_sz = str(next((tmp_path / "captures").rglob("*_SPO2.csv")).stat().st_size)
+    with caplog.at_level(logging.INFO):
+        _one_episode()                      # the reconnect, moments later — inside the resume window
+    second = sorted(p.name for p in (tmp_path / "captures").rglob("*_SPO2.csv"))
+
+    assert second == first, (
+        f"the ring minted a NEW file-set on reconnect: {first} -> {second}. The resume decision did not "
+        "reach the ring path.")
+    # identical names alone would also be satisfied by a second episode that wrote NOTHING, so the
+    # file must have GROWN — that is what distinguishes an append from a no-op.
+    assert (tmp_path / "captures").rglob("*_SPO2.csv"), "no sidecar at all"
+    grew = [p for p in (tmp_path / "captures").rglob("*_SPO2.csv") if p.stat().st_size > len(before_sz)]
+    assert grew, f"the resumed set did not grow — episode 2 appended nothing (size {before_sz!r})"
+    assert any("resuming file-set" in r.getMessage() for r in caplog.records), \
+        "a resume must say so — a silent one cannot be told from never having fragmented"
+
+
+def test_SETTING_THE_RESUME_WINDOW_TO_ZERO_DISABLES_RING_RESUME(tmp_path, monkeypatch, caplog):
+    """`write.resume_window_sec: 0` disables resume entirely — the documented escape hatch. The ring
+    path must honour it exactly as the Polar path does, otherwise the switch reads as working while one
+    device quietly ignores it, which is the asymmetry this whole fix exists to remove."""
+    import logging
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    monkeypatch.setattr(capture, "_RESUME_WINDOW_S", 0.0)
+
+    def _one_episode():
+        capture._STOP.clear()
+        c = FakeGattClient()
+        c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+        _inject_connect_scan(monkeypatch, c)
+        _stop_after(monkeypatch, 4)
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+
+    _one_episode()
+    with caplog.at_level(logging.INFO):
+        _one_episode()
+    assert not any("resuming file-set" in r.getMessage() for r in caplog.records), \
+        "resume fired with the window set to 0 — the disable switch does not reach the ring path"
