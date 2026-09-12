@@ -620,11 +620,23 @@ def test_no_test_executes_a_deploy_script_that_mutates_host_state_unguarded():
     #     `chown --reference=<the output dir>` on the file it just created — inside the redirected root,
     #     and `|| true` so a non-root run proceeds;
     #   • it NEVER self-elevates: like tepna-wifi.sh it is the sudo TARGET, not a sudo caller.
+    # systemd/tepna-btattach.sh added 2026-09-12 — runs as root under its unit, so the confirmation is
+    # about what a test invocation can REACH rather than what root could do:
+    #   • its two inputs are the map ($TEPNA_BTATTACH_MAP, real default /etc/tepna/btattach.map) and the
+    #     tty class tree ($TEPNA_BTATTACH_TTY_SYSFS, real default /sys/class/tty); test_btattach_unit's
+    #     `_run()` sets BOTH into tmp_path unconditionally, and a source scan there pins that no other
+    #     `/sys/class/tty` literal exists — so no path through the script can find a real dongle;
+    #   • every privileged command (btattach, hcitool, hciconfig) is resolved through $PATH, and `_run()`
+    #     prepends stubs that exit 99 — a reach for real hardware is a visible failure, never a silent
+    #     success. Unstubbed, btattach/hcitool need CAP_NET_ADMIN and would be refused for the test user;
+    #   • it writes NO file: no install, no systemctl, no udevadm, no mount, no ip; the only state it
+    #     touches is an HCI controller's address, and only one found under the redirected tree;
+    #   • it NEVER self-elevates: it is the unit's ExecStart, not a sudo caller.
     assert executed <= {"check-system-files.sh", "sync-apps.sh", "sse-frames.sh", "enable-cpap-wifi.sh",
                         "tepna-clock.sh", "tepna-restart.sh", "tepna-rssi.sh",
                         "tepna-usbreset.sh", "tepna-btreset.sh", "tepna-wifi.sh", "check.sh",
                         "tepna-update.sh", "vigil.sh", "tepna-btmon.sh", "tepna-sniff.sh",
-                        "tepna-report.sh"}, (
+                        "tepna-report.sh", "tepna-btattach.sh"}, (
         f"a test now executes {sorted(executed)} — confirm it cannot mutate real host state "
         f"(systemctl / udevadm / mount / ip / install into /etc) before adding it here")
 

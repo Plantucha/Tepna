@@ -57,7 +57,11 @@
 # precisely the race, and it is silent when it loses.)
 set -uo pipefail
 
+# TEPNA_BTATTACH_MAP / TEPNA_BTATTACH_TTY_SYSFS exist so the tests can drive a fake inventory without
+# touching this host's: the map is the only file read, the tty class is the only sysfs tree walked, and
+# with both redirected the script cannot reach a real dongle — same seam as tepna-btmon.sh's SYSFS.
 MAP="${TEPNA_BTATTACH_MAP:-/etc/tepna/btattach.map}"
+TTY_SYSFS="${TEPNA_BTATTACH_TTY_SYSFS:-/sys/class/tty}"
 SPEED="${TEPNA_BTATTACH_SPEED:-1000000}"
 SETTLE_S="${TEPNA_BTATTACH_SETTLE_S:-15}"
 ZERO="00:00:00:00:00:00"
@@ -67,13 +71,13 @@ log() { echo "$*" >&2; }
 # serial_of <ttyname> -> the USB serial of the device owning that tty, or empty.
 # /sys/class/tty/ttyACM1/device is the INTERFACE (11-1.2:1.0); its parent holds `serial`.
 serial_of() {
-  cat "/sys/class/tty/$1/device/../serial" 2>/dev/null
+  cat "$TTY_SYSFS/$1/device/../serial" 2>/dev/null
 }
 
 # hci_of <ttyname> -> the hciN attached to that tty, or empty. See the sysfs note above.
 hci_of() {
   local h
-  for h in "/sys/class/tty/$1"/hci*; do
+  for h in "$TTY_SYSFS/$1"/hci*; do
     [ -e "$h" ] && { basename "$h"; return; }
   done
 }
@@ -112,7 +116,7 @@ addr_for() {
 # tty_for <serial> -> the ttyACMn carrying that serial, or empty.
 tty_for() {
   local t n
-  for t in /sys/class/tty/ttyACM*; do
+  for t in "$TTY_SYSFS"/ttyACM*; do
     [ -e "$t" ] || continue
     n=$(basename "$t")
     [ "$(serial_of "$n")" = "$1" ] && { echo "$n"; return; }
@@ -122,7 +126,7 @@ tty_for() {
 # ── --check: report every Zephyr tty, what it maps to, and what it ACTUALLY reads back ─────────────
 if [ "${1:-}" = "--check" ]; then
   found=0; problems=0
-  for t in /sys/class/tty/ttyACM*; do
+  for t in "$TTY_SYSFS"/ttyACM*; do
     [ -e "$t" ] || continue
     name=$(basename "$t")
     ser=$(serial_of "$name")
