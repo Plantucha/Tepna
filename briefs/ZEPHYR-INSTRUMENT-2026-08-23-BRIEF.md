@@ -47,7 +47,16 @@ and what it is FOR — recorded here so the work isn't re-derived.
   §troubleshooting already names this ("HCI up, address correct, hears ~0–1 devices at −90: FEM"); read
   that row before theorising about range, as this session failed to.
 
-## Task 1 CONCLUDED 2026-09-11 — `hci_usb` CANNOT serve capture; `hci_uart` over CDC is the transport
+## Task 1's FIRMWARE CHOICE settled 2026-09-11 — `hci_usb` cannot serve capture; `hci_uart` over CDC can
+
+⚠️ **SCOPE, because the first version of this heading said "Task 1 CONCLUDED" and that was an overreach
+(Brief runner, same night).** This settles ONE open sub-item — which HCI transport the firmware uses —
+and nothing else. It does not conclude Task 1, whose other remainders stand unchanged, and it does not
+touch **Task 2**: the jitter probe is passive `btmon` sniffing, which establishes no connections and is
+therefore untouched by a concurrency defect in connection establishment. This brief already said both
+things ("*Still open from Task 1: … a multi-connection STREAMING soak (the scan proves RX only). Task 2
+(jitter probe) untouched*") — so the soak named as UNPROVEN below is **that** soak, not a new finding,
+and a reader must not retire a probe that still works on the strength of this section.
 
 🔴 **THE FAILURE, on vigil, with all three sensors configured onto a Zephyr.** Two devices connecting at
 once produced **one link with an EMPTY GATT snapshot** (`services=0`, the `no oxyii chars` /
