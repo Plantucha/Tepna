@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**175 tools** · 173 with a purpose line · **2 without**
+**176 tools** · 174 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -51,6 +51,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`dsp-review-qwen.mjs`](../tools/dsp-review-qwen.mjs) | IDLE-TIME DSP REVIEW — the local model loops through DSP files proposing improvements: inefficiencies, logical problems, signal-flow violations, and concrete refactors. |
 | [`dual-clock-rate.mjs`](../tools/dual-clock-rate.mjs) | DIRECT device-vs-host rate, from the two clocks already in every raw file. |
 | [`ecg-apnea-correlate.mjs`](../tools/ecg-apnea-correlate.mjs) | Correlates every candidate in ECGDex's `apnea` block against the CPAP's OWN device-scored `residualAHI`, across the nights where both exist. |
+| [`ecg-physionet-differential.mjs`](../tools/ecg-physionet-differential.mjs) | The suite has never had independent ground truth for Pan–Tompkins. |
 | [`eqc-power.mjs`](../tools/eqc-power.mjs) | how many simultaneous epochs does Extended Quadruple Collocation need before it can say WHICH pair of sources shares error? |
 | [`eqc-run.mjs`](../tools/eqc-run.mjs) | Extended Quadruple Collocation on the real 4-stream corpus. WHAT IT ANSWERS. |
 | [`extreme-mutate.mjs`](../tools/extreme-mutate.mjs) | EXTREME MUTATION (Descartes, Niedermayr et al.; see the STAMP tool and the industrial study in arXiv:2103.08480). |
