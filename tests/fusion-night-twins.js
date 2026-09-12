@@ -73,17 +73,20 @@
     return out;
   }
 
-  /* ⚠ THE THREE SIBLING FILES DO NOT EXPOSE THEMSELVES THE SAME WAY, and assuming they did is what
-     broke the browser lane while Node stayed green (#2264):
-       · `respiration-fusion-twins.js` declares `function respirationFusionTwins()` at classic-script
-         top level, so the BARE NAME is a browser global.
-       · `apnea-null-twins.js` assigns `root.apneaNullTwins`, also a bare global.
-       · `tch-golden-inputs.js` wraps in an IIFE and exposes `root.TchGoldenInputs = { tchGoldenInputs }`
-         — a NAMESPACE OBJECT, so the bare name is undefined in the browser.
-     Node hid all of it: `require` returns the module exports regardless of the global shape.
-     `pick` therefore tries bare global, then namespace object, then require — and THROWS BY NAME.
-     The original one-liner failed as "(intermediate value)(intermediate value) is not a function",
-     which names neither the builder nor the lane. */
+  /* ⚠ THE THREE SIBLING FILES ONCE EXPOSED THEMSELVES THREE DIFFERENT WAYS, and assuming they did not
+     is what broke the browser lane while Node stayed green (#2264): `tch-golden-inputs.js` published
+     only a NAMESPACE (`root.TchGoldenInputs = { tchGoldenInputs }`), so the bare name was undefined in
+     the browser, while its two siblings were bare globals. Node hid all of it — `require` returns the
+     module exports regardless of the global shape.
+     ALL FOUR NOW EXPOSE THEIR BARE NAME and nothing but their own identifier (residue
+     `2026-09-06-twin-builders-three-export-shapes`); `TchGoldenInputs` is kept as a back-compat alias,
+     which is why the namespace rung below is still wired. The shape is now gate-backed in the NODE
+     lane — the `tests · twin-builders` group evaluates each file in a bare `vm` context, which is
+     classic-script semantics, so the lane that could not see this now can.
+     `pick` stays as defence in depth: it tries bare global, then namespace object, then require, and
+     THROWS BY NAME. The original one-liner failed as
+     "(intermediate value)(intermediate value) is not a function", which names neither the builder nor
+     the lane — diagnosis, where the group above is prevention. */
   function pick(bareName, nsName, modName, key) {
     const g = typeof globalThis !== 'undefined' ? globalThis : {};
     if (typeof g[bareName] === 'function') return g[bareName];

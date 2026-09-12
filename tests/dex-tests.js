@@ -39114,6 +39114,119 @@
          UNWEIGHTED mean of rates = (6+12)/2 = 9/h  ← the bug
        8 ≠ 9 only because the two sessions differ in length, so this cannot pass vacuously; a regression to
        rate-averaging reports 9, and a regression that splits the night reports nSessions 1. ════ */
+    /* ════ THE TWIN BUILDERS' BROWSER SHAPE — a LANE-ASYMMETRY trap, not a bug in any one file.
+       Residue `2026-09-06-twin-builders-three-export-shapes`.
+
+       The four committed twin-input builders are loaded two ways: `require` in the Node lane,
+       `<script src>` in the browser. `require` returns `module.exports` regardless of what the file
+       put on the global, so THE NODE LANE CANNOT SEE the difference — and the four files had drifted
+       into different browser shapes. `tch-golden-inputs.js` exposed only a NAMESPACE
+       (`TchGoldenInputs`), so a consumer written against the bare `tchGoldenInputs` — correct against
+       its two siblings, and correct in Node against all three — threw in the browser.
+       `respiration-fusion-twins.js` was unwrapped and leaked three private helpers onto `window`.
+
+       Measured on #2264: green in Node, red on `browser-gates` ALONE, reported as
+       `(intermediate value)(intermediate value)(intermediate value) is not a function` — naming
+       neither the builder nor the lane — and CI prints only the summary count, so identifying it took
+       a local playwright run reading `div.test.no` out of the DOM.
+
+       ⚠️ THE REGISTRY IS READ FROM THE LOADERS, never written here: `env.twinBuilders` derives the
+       file/name pairs from `run-tests.mjs`'s own `require(join(ROOT, 'tests', …))` sites and the load
+       set from `Dex-Test-Suite.html`'s script tags, then evaluates each file in a bare `vm` context —
+       classic-script semantics, no `module`, no `require` — so `globals` IS what a `<script>` tag puts
+       on `window`. A fifth builder wired into either loader is covered with no edit to this group, and
+       one wired into only ONE of them is what the cross-check below reports. ════ */
+    group('the twin builders expose ONE browser shape — the property `require` structurally hides', 'tests · twin-builders · lane-asymmetry', function (T) {
+      var B = env.twinBuilders;
+      if (!B) {
+        T.skip('env.twinBuilders (Node lane: reads the loaders + evaluates each file as a classic script)', 'not available in this lane');
+        return;
+      }
+      /* ANTI-VACUITY, and it is load-bearing twice: an empty registry makes every per-builder loop
+         below pass having examined nothing, and a registry that silently lost an entry would read as
+         a clean sweep of the survivors. Pinned as an EQUALITY against the browser's own load set, so
+         the denominator cannot shrink unnoticed — a floor would never count what was excluded. */
+      T.ok(
+        'ANTI-VACUITY · the registry is non-empty',
+        B.length >= 3,
+        'n=' +
+          B.length +
+          ' → ' +
+          B.map(function (b) {
+            return b.file;
+          }).join(', ')
+      );
+      var notInHtml = B.filter(function (b) {
+        return !b.inHtml;
+      });
+      T.eq(
+        'every builder the Node lane requires is ALSO a <script src> in Dex-Test-Suite.html — a browser lane that never loaded it cannot resolve it',
+        notInHtml
+          .map(function (b) {
+            return b.file;
+          })
+          .join(', '),
+        ''
+      );
+      var threw = B.filter(function (b) {
+        return b.threw;
+      });
+      T.eq(
+        'every builder EVALUATES as a bare classic script — no `module`, no `require` in scope',
+        threw
+          .map(function (b) {
+            return b.file + ': ' + b.threw;
+          })
+          .join(' | '),
+        ''
+      );
+      /* THE DEFECT ITSELF. The bare name is the shape three of the four already had and the shape the
+         consumer (`fusion-night-twins.js` `pick()`) reaches for first. */
+      var missing = B.filter(function (b) {
+        return b.globals.indexOf(b.name) < 0;
+      });
+      T.eq(
+        'every builder exposes its own name as a BARE global — the namespace-only shape is what threw in the browser',
+        missing
+          .map(function (b) {
+            return b.file + ' exposes [' + b.globals.join(', ') + '] not `' + b.name + '`';
+          })
+          .join(' | '),
+        ''
+      );
+      /* AND NOTHING ELSE. A builder may publish its own identifier in either casing — the namespace
+         alias `TchGoldenInputs` is a deliberate, still-read back-compat name — but a private helper on
+         `window` is a leak: it collides across files that are loaded into ONE global, and it is the
+         same divergence one step further, since the other three leak nothing. Keyed on the builder's
+         own name rather than an exception list, so a new builder needs no entry here. */
+      var leaks = B.map(function (b) {
+        return {
+          file: b.file,
+          extra: b.globals.filter(function (k) {
+            return k.toLowerCase() !== b.name.toLowerCase();
+          })
+        };
+      }).filter(function (r) {
+        return r.extra.length;
+      });
+      T.eq(
+        'no builder leaks a global that is not its own name — they share one `window`',
+        leaks
+          .map(function (r) {
+            return r.file + ' → ' + r.extra.join(', ');
+          })
+          .join(' | '),
+        ''
+      );
+      /* POSITIVE CONTROL. Every leg above passes on an EMPTY difference, which is also what a broken
+         probe returns — so assert the probe actually observed something. Without this, an
+         `env.twinBuilders` whose `globals` were all `[]` would read as four clean builders. */
+      var withGlobals = B.filter(function (b) {
+        return b.globals.length > 0;
+      });
+      T.eq('POSITIVE CONTROL · every builder was actually observed to define at least one global', withGlobals.length, B.length);
+    });
+
     group('CPAPDex adversarial two-session night — one night, N sessions, pooled not averaged', 'cpapdex-dsp · cpapdex-fusion · adversarial-twin', function (T) {
       var D = env.CpapDsp,
         F = env.CpapFusion;
