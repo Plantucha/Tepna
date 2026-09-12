@@ -49,7 +49,34 @@ with pre-stated nulls (the treatment-response step-R²-under-null lesson applies
 ## P5 · PUBLIC-BENCHMARK VALIDATION — GATED *(owner: "not until we have some 2 weeks without errors, possibly after PAT works — that will probably proof there is not processing errors")*
 MIT-BIH (QRS) · CinC sets · NSRR/MESA — the credibility currency. **Gate, owner-set: ~2 weeks of
 error-free operation; possibly PAT producing credible output as the internal no-processing-errors
-proof.** **Owner position on the PAT wall, ratified 2026-08-26: the "physiological" attribution is
+proof.**
+
+> ### ⚖️ OWNER RULING 2026-09-12 — what the gate does and does not cover. Do not re-ask the first half.
+>
+> **1 · The gate is on PUBLICATION, not on MEASUREMENT.** Running a public-benchmark instrument
+> internally and acting on what it finds is **PERMITTED NOW**. Quoting any resulting number outside
+> the repo — a paper, a README, a claim of external validation — remains **GATED**. So a benchmark
+> that exposes a real DSP defect is a normal bug report and a normal PR; the same benchmark's Se/PPV
+> is not a credibility claim until the gate opens.
+>
+> This is what `tools/ecg-physionet-differential.mjs` (#2413) and `tools/nsrr-stage-validate.mjs`
+> were built under, and it is why building an instrument while the gate is shut was never a
+> violation: *the instrument is not the claim.*
+>
+> **2 · "~2 weeks of error-free operation" is DELIBERATELY NOT MECHANISED, and that is the ruling.**
+> Asked whether to convert it into a checkable criterion (clean-night count · no new data-integrity
+> residue · a conjunction with PAT), the owner declined all three and kept it a judgment call:
+> **ask, each time.** A session must NOT invent a proxy for it, and must not read a green proxy —
+> nights folded, commits landed, CI passing — as the gate having opened. Those were the exact
+> candidates rejected.
+>
+> The reasoning is the one this repo keeps paying for: a proxy that reads green while something real
+> is wrong is worse than no proxy, because it converts an owner's judgment into a number nobody
+> re-examines. `§∅`'s fabricated value, `§🎫`'s fabricated tier, `§4b`'s fabricated pass — a
+> mechanised gate criterion would be the same shape applied to authority.
+>
+> **Do not re-derive either half.** If you need the gate opened, ask the owner; if you want to run a
+> benchmark internally, you already may. **Owner position on the PAT wall, ratified 2026-08-26: the "physiological" attribution is
 NOT accepted** — *"if it's possible with other humans it must be possible on me; error is either
 data collection or processing."* The fleet's own record supports the challenge: the measured spread
 sits exactly where the 450 ms acceptance window puts it (450/√12 ≈ 130 ms — `pat-sd-is-the-window`),
