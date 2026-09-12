@@ -154,6 +154,29 @@ function edfToEcgRec(edf) {
   return { rec: { int16, fs: sig.fs, t0Ms, durSec: Math.floor(data.length / (sig.fs || 1)), gaps: [] }, label: key };
 }
 
+/* ⚠️ A DETECTED STAGE IS AN OBJECT, NOT A STRING — and that silently zeroed every number this tool
+   ever produced. `ECGDSP.stageSleep` returns `{ tMin, stage, y }`, and `scoreRecord` selects between
+   `res.stages` and a direct `stageSleep` call — BOTH of which are that shape, so there was no
+   string branch to fall back to. Used as a label, the object stringifies to `[object Object]`, which
+   never equals 'REM': recall was STRUCTURALLY 0 and the confusion table keyed every expert stage to
+   a single `[object Object]` column.
+
+   Measured 2026-09-12 on real SHHS records — shhs1-200001/2/3 each reported REM recall 0.0 % against
+   expert REM fractions of 11 / 5 / 10 %, which reads exactly like a stager that never fires.
+
+   ⚠️ WHY NO GATE COULD SEE IT, which is the part worth keeping. `--selftest` REFUSES to compute
+   recall/precision from synthetic input — deliberately, because a synthetic record scored by the
+   detector's own assumptions is the circular oracle `REM-STAGING-FOLLOWUPS` §1 bans. That refusal is
+   correct and stays. But it meant the one computation that would have exposed this was never
+   exercised in the only mode that ever ran: a guard against a false POSITIVE created a blind spot for
+   a false NEGATIVE. The fix is not to weaken it — the new assertions score the JOIN against PLANTED
+   labels, which is arithmetic, never the detector. */
+export function stageLabel(s) {
+  if (s == null) return null;
+  if (typeof s === 'string') return s;
+  return typeof s.stage === 'string' ? s.stage : null;
+}
+
 /* ── the join: 5-min detector epochs ↔ 30 s expert epochs ───────────────────────────────────────
    Pure, and exported, so the gate can assert the arithmetic without an EDF. */
 export function joinToExpert(detEpochs, detStages, expertEpochs, t0Ms, epochMin, minCoverage) {
@@ -180,7 +203,7 @@ export function joinToExpert(detEpochs, detStages, expertEpochs, t0Ms, epochMin,
         bestN = counts[s];
         best = s;
       }
-    pairs.push({ tMin: detEpochs[i].tMin, expert: best, detected: detStages[i] || null, coverage: seen / per });
+    pairs.push({ tMin: detEpochs[i].tMin, expert: best, detected: stageLabel(detStages[i]), coverage: seen / per });
   }
   return pairs;
 }
@@ -339,6 +362,63 @@ if (IS_CLI) {
     console.log(`  expert labels       ✓  ${out.nExpertEpochs} × 30 s epochs, REM fraction ${(out.expertRemFrac * 100).toFixed(0)}%`);
     console.log(`  shipped stager      ✓  ${out.detEpochMin}-min epochs`);
     console.log(`  join → graded pairs ✓  ${out.score.n}`);
+
+    /* ── THE JOIN'S ARITHMETIC, against PLANTED labels ──────────────────────────────────────────
+       These are NOT a detector rate and must never be read as one: both sides are supplied here, so
+       what is asserted is that the join maps labels correctly. That distinction is what lets them
+       live inside `--selftest` without touching the circular-oracle refusal below.
+       They exist because the refusal left a blind spot: recall was structurally 0 on every real
+       record for as long as this tool has existed, and no mode that ever ran computed it. */
+    let bad = 0;
+    const A = (name, cond, detail) => {
+      if (cond) console.log(`  ${name}  ✓`);
+      else {
+        bad++;
+        console.log(`  ${name}  ✕  ${detail}`);
+      }
+    };
+    A('stageLabel: unwraps stageSleep objects  ', stageLabel({ tMin: 0, stage: 'REM', y: 4 }) === 'REM');
+    A('stageLabel: passes a bare string through', stageLabel('REM') === 'REM');
+    A('stageLabel: refuses a shapeless value   ', stageLabel({ nope: 1 }) === null && stageLabel(null) === null);
+
+    // 4 detector epochs of 5 min = 40 expert epochs of 30 s. Plant perfect agreement.
+    const dEp = [{ tMin: 0 }, { tMin: 5 }, { tMin: 10 }, { tMin: 15 }];
+    const truth = ['REM', 'N2', 'REM', 'Wake'];
+    const exp = [];
+    for (const t of truth) for (let k = 0; k < 10; k++) exp.push(t);
+    // detected supplied as stageSleep's OBJECT shape — the exact shape that silently failed
+    const detObj = truth.map((s, i) => ({ tMin: i * 5, stage: s, y: 0 }));
+    const pPerfect = joinToExpert(dEp, detObj, exp, 0, 5, 0.5);
+    A(
+      'join: object-shaped stages yield string labels',
+      pPerfect.every((p) => typeof p.detected === 'string'),
+      JSON.stringify(pPerfect.map((p) => p.detected))
+    );
+    const sPerfect = scoreREM(pPerfect, 'REM');
+    A('join: planted perfect agreement scores recall 1', sPerfect.recall === 1 && sPerfect.precision === 1, `recall=${sPerfect.recall} prec=${sPerfect.precision}`);
+
+    // and the mirror, so the assertion above cannot pass vacuously
+    const detWrong = truth.map((_, i) => ({ tMin: i * 5, stage: 'Wake', y: 0 }));
+    const sWrong = scoreREM(joinToExpert(dEp, detWrong, exp, 0, 5, 0.5), 'REM');
+    A('join: planted total disagreement scores recall 0', sWrong.recall === 0, `recall=${sWrong.recall}`);
+    // the regression itself: a raw object must NOT survive into the confusion table
+    const sRaw = scoreREM(
+      joinToExpert(
+        dEp,
+        truth.map((s, i) => ({ tMin: i * 5, stage: s })),
+        exp,
+        0,
+        5,
+        0.5
+      ),
+      'REM'
+    );
+    A('join: no "[object Object]" reaches the confusion table', !JSON.stringify(sRaw.confusion).includes('object Object'), JSON.stringify(sRaw.confusion));
+    if (bad) {
+      console.error(`\nSELFTEST FAILED: ${bad} join assertion(s)\n`);
+      process.exit(1);
+    }
+
     console.log('\n  ⚠️  Recall/precision are DELIBERATELY NOT PRINTED here. The synthetic record is scored');
     console.log('     by the same assumptions the detector holds — the circular oracle REM-STAGING-FOLLOWUPS');
     console.log('     §1 bans for staging claims. This proves every link works; only --dir over real NSRR');
