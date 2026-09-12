@@ -416,24 +416,14 @@ def file_stamp(fname: str) -> str | None:
     return tok if _DATE14.match(tok) else None
 
 
-def resumable_stamp(ndir: str, vendor: str, model: str, device_id: str,
-                    now: _dt.datetime, window_s: float) -> _dt.datetime | None:
-    """CAPTURE-FILESET-RESUME §2: the stamp of THIS device's newest file-set in `ndir`, IF its last
-    write is younger than `window_s` — else None (mint a fresh set).
+def _newest_set_in(d: str, prefix: str) -> tuple[float, str] | None:
+    """`(newest member's mtime, that set's stamp)` for this device's newest file-set in ONE directory.
 
-    PURE decision, filesystem-read-only. The window is judged on the newest member file's MTIME, not
-    the set's stamp: the stamp says when the set STARTED, and a set that started hours ago but wrote
-    ten seconds ago is exactly the one to resume. A true outage (>= window) returns None so it still
-    fragments — that fragmentation is information (the 37/75-minute wedges must stay visible).
-
-    Measured driver (2026-08-19): 2,154 sets across 76 device-nights (28.3x), and the majority case is
-    the drop_not_worn duty cycle — drop at 180 s, recheck at 90 s, a fresh set per recheck. Its cadence
-    sits INSIDE the default 300 s window, which is the point.
-    """
-    prefix = f"{vendor}_{model}_{device_id}_"
+    Split out so the identical scan can run over a second folder without a second copy of it — see
+    resumable_set. None when the directory is unreadable or holds no such set."""
     newest: tuple[float, str] | None = None
     try:
-        names = os.listdir(ndir)
+        names = os.listdir(d)
     except OSError:
         return None
     for f in names:
@@ -443,18 +433,99 @@ def resumable_stamp(ndir: str, vendor: str, model: str, device_id: str,
         if st is None:
             continue
         try:
-            m = os.path.getmtime(os.path.join(ndir, f))
+            m = os.path.getmtime(os.path.join(d, f))
         except OSError:
             continue      # vanished between listing and stat: it cannot anchor a resume, and one
                           # such file is not a reason to abandon the others
         if newest is None or m > newest[0]:
             newest = (m, st)
-    if newest is None:
+    return newest
+
+
+def prev_night_dir(ndir: str) -> str | None:
+    """The sibling capture folder for the PREVIOUS calendar day, or None if the basename is not a date.
+
+    ⚠️ CALENDAR arithmetic on a `date`, never a fixed `-86400 s` through a real timezone. MEASURED
+    (America/New_York, 2026) rather than assumed, because the dangerous date is not the obvious one:
+
+        folder      d - 1 day     fromtimestamp(midnight - 86400)
+        2026-03-08  2026-03-07    2026-03-07   <- the changeover day itself is SAFE
+        2026-03-09  2026-03-08    2026-03-07   <- WRONG, and the only one that breaks
+
+    It is the day AFTER spring-forward that fails: 2026-03-08 was 23 hours long, so subtracting 86400 s
+    from local midnight on the 9th lands at 23:00 on the 7th and `.date()` reports the wrong civil day.
+    An earlier draft of this note said "the two changeover days", tested exactly those, and would have
+    passed against the broken implementation — the test is now keyed to 03-09.
+
+    `date - timedelta(days=1)` carries no time component to be shifted and is right on every day.
+
+    (nightqc has its own `_prev_day_dir`. Deliberately NOT imported from there: nightqc imports writers
+    for `file_stamp`, so the dependency is kept running one way only.)"""
+    base = os.path.basename(ndir.rstrip(os.sep))
+    try:
+        d = _dt.datetime.strptime(base, "%Y-%m-%d").date()
+    except ValueError:
         return None
-    if (now.timestamp() - newest[0]) >= window_s:
+    return os.path.join(os.path.dirname(ndir.rstrip(os.sep)),
+                        (d - _dt.timedelta(days=1)).isoformat())
+
+
+def resumable_set(ndir: str, vendor: str, model: str, device_id: str,
+                  now: _dt.datetime, window_s: float) -> tuple[_dt.datetime, str] | None:
+    """`(stamp, directory)` of this device's newest resumable set, searching `ndir` AND the previous
+    day's folder — or None, meaning mint a fresh set.
+
+    -- WHY A SECOND FOLDER, AND WHY THIS IS THE MIDNIGHT FIX ---------------------------------------
+    `night_dir()` rolls by the session's START date, so at 00:00 the folder changes underneath a
+    recording that never stopped. A one-directory scan therefore leaves a device reconnecting at 00:01
+    looking in the new, empty folder: it cannot see the set it wrote at 23:58 and mints a fresh one.
+    The gap is seconds; the split is an artefact of the calendar and of nothing else.
+    Measured 2026-09-12 over the corpus: 16 of 29 sub-5-minute seams straddle a folder boundary.
+
+    -- WHY NOT MOVE THE BOUNDARY (the noon-to-noon proposal) ---------------------------------------
+    Rolling the folder at noon also closes the seam, and was rejected. It changes where every future
+    file lands while the existing corpus keeps the old layout, so every reader would carry two
+    conventions permanently; and it silently re-points the folder-name-derived dates in
+    `nightqc._midnight_of` / `_prev_day_dir` and `timeline.build`'s pooling gate, none of which would
+    fail loudly — they would just quietly stop matching. This fix changes no layout, no folder name and
+    no filename. It only lets the search see the folder the data is already in.
+
+    -- THE RETURNED DIRECTORY IS LOAD-BEARING; ADOPT BOTH OR NEITHER ------------------------------
+    A resumed set must be appended to WHERE IT LIVES. Adopting yesterday's stamp while writing into
+    today's folder would put the same set name in two directories — one recording split across two
+    folders under one stamp — which is strictly worse than the fragmentation being fixed, because the
+    two halves then read as a single set to every name-keyed consumer.
+
+    The window is judged on the newest member's MTIME, not the set's stamp: the stamp says when the set
+    STARTED, and a set that started hours ago but wrote ten seconds ago is exactly the one to resume. A
+    true outage (>= window) returns None so it still fragments — that fragmentation is information (the
+    37/75-minute wedges must stay visible). Measured driver (2026-08-19): 2,154 sets across 76
+    device-nights (28.3x), the majority case being the drop_not_worn duty cycle — drop at 180 s, recheck
+    at 90 s, a fresh set per recheck, a cadence that sits INSIDE the default 300 s window.
+
+    No extra time guard is needed for cost or correctness: `window_s` (default 300 s) already means a
+    set in yesterday's folder can only win within minutes of midnight. The price is one `os.listdir` of
+    a directory that is nearly always either the right answer or empty."""
+    prefix = f"{vendor}_{model}_{device_id}_"
+    prev = prev_night_dir(ndir)
+    cands: list[tuple[float, str, str]] = []
+    for d in (ndir, prev):
+        # `prev` is always a DIFFERENT day than `ndir` when it is not None, so there is no same-folder
+        # case to guard against — a guard for one would be an unreachable branch, not a safety net.
+        if not d:
+            continue
+        found = _newest_set_in(d, prefix)
+        if found is not None:
+            cands.append((found[0], found[1], d))
+    if not cands:
+        return None
+    # Newest WRITE wins, never newest folder: the entire judgement is "did this set write recently",
+    # and a stale set in today's folder must not outrank a live one still being written last night.
+    mtime, stamp, where = max(cands, key=lambda c: c[0])
+    if (now.timestamp() - mtime) >= window_s:
         return None
     try:
-        return _dt.datetime.strptime(newest[1], "%Y%m%d%H%M%S")
+        return _dt.datetime.strptime(stamp, "%Y%m%d%H%M%S"), where
     except ValueError:
         return None
 
@@ -1233,7 +1304,12 @@ class OxyFrameLogWriter:
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
         self._health = _FlushHealth(path)
-        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
+        # RESUME-AWARE (2026-09-12): a resumed file-set reopens the SAME path, so opening "w"
+        # would truncate the very file it is resuming onto — #2166 already cost one writer that
+        # way. Self-detecting like StreamWriter: a non-empty file means resume, append, and do
+        # not re-emit the header.
+        _resumed = os.path.exists(path) and os.path.getsize(path) > 0
+        self._fh = open(path, "a" if _resumed else "w", buffering=1 << 16, newline="\n")
         # ppg_n / ppg_dur_step APPENDED, never inserted — the same "never shift an
         # existing column" discipline LinkLogWriter keeps, so a reader written against the 10-column
         # layout still parses positionally. They carry the per-frame PPG arithmetic
@@ -1253,7 +1329,8 @@ class OxyFrameLogWriter:
         # `flag_raw` is the whole [10] byte whose bit 0 we already record: that bit is set on 100 % of
         # frames across 8 nights, so it is a setting, not an event — the varying bits are 1-7 and nothing
         # has ever read them.
-        self._fh.write(OXYFRAME_HEADER + "\n")
+        if not _resumed:
+            self._fh.write(OXYFRAME_HEADER + "\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
@@ -1507,9 +1584,15 @@ class RingClockLogWriter:
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
         self._health = _FlushHealth(path)
-        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
-        self._fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;"
-                       "battery_raw2;battery_raw3\n")
+        # RESUME-AWARE (2026-09-12): a resumed file-set reopens the SAME path, so opening "w"
+        # would truncate the very file it is resuming onto — #2166 already cost one writer that
+        # way. Self-detecting like StreamWriter: a non-empty file means resume, append, and do
+        # not re-emit the header.
+        _resumed = os.path.exists(path) and os.path.getsize(path) > 0
+        self._fh = open(path, "a" if _resumed else "w", buffering=1 << 16, newline="\n")
+        if not _resumed:
+            self._fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;"
+                           "battery_raw2;battery_raw3\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
@@ -1871,8 +1954,14 @@ class Spo2CsvWriter:
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
         self._health = _FlushHealth(path)
-        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
-        self._fh.write("Time,Oxygen Level,Pulse Rate,Motion\n")
+        # RESUME-AWARE (2026-09-12): a resumed file-set reopens the SAME path, so opening "w"
+        # would truncate the very file it is resuming onto — #2166 already cost one writer that
+        # way. Self-detecting like StreamWriter: a non-empty file means resume, append, and do
+        # not re-emit the header.
+        _resumed = os.path.exists(path) and os.path.getsize(path) > 0
+        self._fh = open(path, "a" if _resumed else "w", buffering=1 << 16, newline="\n")
+        if not _resumed:
+            self._fh.write("Time,Oxygen Level,Pulse Rate,Motion\n")
         self._n = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
