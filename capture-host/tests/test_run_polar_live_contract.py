@@ -660,3 +660,27 @@ def test_an_optional_device_that_TURNS_UP_stops_being_quiet(tmp_path, monkeypatc
     assert addr not in capture._OPT_QUIET, (
         "a device that connected must be un-quieted — leaving it quiet means its LATER absence is "
         "never reported")
+
+
+def test_A_ZERO_STAMPED_FRAME_PUBLISHES_NO_SKEW_AT_ALL(tmp_path, monkeypatch, caplog):
+    """∅ END TO END: a frame whose sensor_ns is 0 must leave `clock_skew_sec` unset rather than
+    publishing the -26.7 year value that `_POLAR_EPOCH + 0` produces.
+
+    The control is the sibling test that drives a NORMAL frame and asserts the skew IS published — so
+    this cannot pass by the card simply never being written."""
+    import logging
+    with caplog.at_level(logging.WARNING):
+        _drive(monkeypatch, tmp_path, ["ecg"], frames=[T._ecg_frame(ns=0)])
+    card = capture.STATUS["devices"]["H10"]
+    assert card.get("clock_skew_sec") is None, (
+        f"a zero stamp produced a skew of {card.get('clock_skew_sec')!r} — the Polar epoch was "
+        "published as a real device clock")
+    assert any("ABSENT" in r.message or "ABSENT" in r.getMessage() for r in caplog.records), \
+        "the refusal must be visible in the journal, not silent"
+
+
+def test_THE_CONTROL_a_normal_frame_still_publishes_its_skew(tmp_path, monkeypatch):
+    """Without this leg the test above passes on a card that was never written at all."""
+    _drive(monkeypatch, tmp_path, ["ecg"], frames=[T._ecg_frame()])
+    card = capture.STATUS["devices"]["H10"]
+    assert isinstance(card.get("clock_skew_sec"), float), "a real stamp must still yield a skew"

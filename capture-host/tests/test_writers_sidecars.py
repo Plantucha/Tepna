@@ -777,3 +777,48 @@ def test_alarm_raw_round_trips_into_the_oxyframe_sidecar(tmp_path):
     assert lines[1].split(";")[i] == str(0b11_01_10_01)
     assert lines[2].split(";")[i] == "", "an absent byte writes blank, never 0"
     assert hdr[-1] == "run_status", "append-only: alarm_raw went BEFORE run_status, matching writers.py"
+
+
+# ── CAPTURE-FILESET-RESUME for the RING (residue 2026-09-06-ring-never-resumes) ────────────────────
+# The trap the residue row names: the ring's three sidecar writers opened "w", so adding the resume
+# decision ALONE would truncate the very file it resumes onto. #2166 already cost one writer that way.
+
+import pytest as _pytest
+
+import writers as _w
+
+
+@_pytest.mark.parametrize("cls,header_frag", [
+    (_w.Spo2CsvWriter, "Oxygen Level"),
+    (_w.RingClockLogWriter, "rtc_offset_s"),
+    (_w.OxyFrameLogWriter, None),          # header is OXYFRAME_HEADER, matched by first-line identity
+])
+def test_RING_SIDECAR_WRITERS_APPEND_ONTO_A_RESUMED_FILE_INSTEAD_OF_TRUNCATING_IT(tmp_path, cls, header_frag):
+    """🔴 Open "w" here and the resumed set loses everything written before the reconnect.
+
+    This is the half of the ring-resume fix that has nothing to do with resuming: the decision to reuse
+    a stamp is upstream, but if these writers still truncate then reusing it DESTROYS data rather than
+    continuing it — strictly worse than the fragmentation it was meant to remove."""
+    p = str(tmp_path / "x.csv")
+    w1 = cls(p)
+    w1.close()                        # read AFTER close: the header sits in a 64 KB buffer until then
+    before = open(p, encoding="utf-8").read()
+    assert before.strip(), "the first open must have written a header to resume onto"
+
+    w2 = cls(p)                       # same path == the resumed set
+    w2.close()
+    after = open(p, encoding="utf-8").read()
+
+    assert after.startswith(before), "resumed open TRUNCATED the file it was appending to"
+    assert len(after.splitlines()) == len(before.splitlines()), "header re-emitted mid-file on resume"
+    hdr = before.splitlines()[0]
+    assert after.splitlines().count(hdr) == 1, "exactly one header must survive a resume"
+
+
+def test_A_FRESH_PATH_STILL_GETS_ITS_HEADER(tmp_path):
+    """The control for the test above: self-detection must not suppress the header on a NEW file.
+    Without this leg, a writer that never emitted a header at all would pass the resume assertions."""
+    for cls in (_w.Spo2CsvWriter, _w.RingClockLogWriter, _w.OxyFrameLogWriter):
+        p = str(tmp_path / f"{cls.__name__}.csv")
+        w = cls(p); w.close()
+        assert _os.path.getsize(p) > 0, f"{cls.__name__} wrote no header to a fresh file"
