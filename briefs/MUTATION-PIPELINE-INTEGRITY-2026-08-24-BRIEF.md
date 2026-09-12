@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-08-28 (**two of §6's five items shipped and were never stamped here** — their closure is recorded in a *sibling* brief. Audited item-by-item against the code and the on-disk corpus 2026-08-28; the three that remain now carry numbers instead of adjectives. See §6a.) · **Created:** 2026-08-24 · **Follows:** `MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md` (§3e) · **Affects:** `tools/mutation-ai-probe.mjs`, `tools/mutation-crawl.mjs`, `tools/mutate_diff.py`, `tools/ai-probe-overnight.sh` · **DRAIN 2026-09-02 (Osprey):** verified 1 of 8 Done-when boxes ticked, 7 open — the least-advanced brief in this family. **Owner: Osprey. Next step:** re-scope before executing; 7 open boxes is more than one work-unit and the brief should be split or trimmed rather than picked up whole.
+**Status:** IN-PROGRESS — 2026-09-11 (**UPDATE 2026-09-11 (Osprey): the scratch-verdict-cache box is OVERTAKEN by #2358 — see the `[~]` item. The staleness it guards was real and measured, but the fix is a sibling REFRESH on reuse, not a re-keyed cache: the mutants are a pure function of the mutated module, so folding a test or sibling revision into the key would discard a byte-identical 100 MB mutant file and the warm `.pyc`, i.e. the 22 min → 18 s reuse the cache exists for. Boxes now 1 ticked · 1 overtaken · 6 open. Recorded here because the 2026-09-02 drain line below says "1 of 8 … 7 open" and a reader would otherwise re-derive a box that a landing has already answered — the exact loss §📌 records seven times in one day.) · (originally 2026-08-28: **two of §6's five items shipped and were never stamped here** — their closure is recorded in a *sibling* brief. Audited item-by-item against the code and the on-disk corpus 2026-08-28; the three that remain now carry numbers instead of adjectives. See §6a.) · **Created:** 2026-08-24 · **Follows:** `MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md` (§3e) · **Affects:** `tools/mutation-ai-probe.mjs`, `tools/mutation-crawl.mjs`, `tools/mutate_diff.py`, `tools/ai-probe-overnight.sh` · **DRAIN 2026-09-02 (Osprey):** verified 1 of 8 Done-when boxes ticked, 7 open — the least-advanced brief in this family. **Owner: Osprey. Next step:** re-scope before executing; 7 open boxes is more than one work-unit and the brief should be split or trimmed rather than picked up whole.
 
 # The mutation pipeline reported converged for three days while discarding its own results
 
@@ -96,8 +96,21 @@ is the one that discriminates.**
 - [ ] **The MODIFY asymmetry** (`MUTATION-SUITE-FOLLOWUPS` §3e): tests are absent from
       `hash_by_function_name`, so a modified test should have been missed too — and was not. Measured,
       unexplained, and deliberately not guessed at.
-- [ ] **Scratch verdict cache keyed on source + test revision**, with the regression asserting on the
-      **first** run after an addition. A control that runs the gate twice passes today.
+- [~] ~~**Scratch verdict cache keyed on source + test revision**~~ — **OVERTAKEN 2026-09-11 by #2358,
+      which fixes the DEFECT by a different mechanism and deliberately does not re-key.** The staleness
+      this box guards is real and was measured: the key is the mutated module's sha alone, so a changed
+      sibling (`tepna-report.sh`, a fixture, another module) did not move it and was not copied — three
+      consecutive runs on `night_report.py` reported a baseline failure already fixed, byte-identical
+      each time. #2358 refreshes EVERY sibling on reuse from the same `extras` list the initial copy
+      builds, rather than adding the revision to the key.
+      ⚠️ **Re-keying was the wrong fix and that is why it was not done**: the mutants are a pure
+      function of the mutated module, so folding a test or sibling revision into the key throws away a
+      byte-identical 100 MB mutant file and the warm `.pyc` with it — the 22 min → 18 s reuse this
+      cache exists for. Refreshing the non-mutant content keeps both correctness and the reuse.
+      The regression this box asks for EXISTS and asserts on a stale scratch directly rather than by
+      running the gate twice (`tests/test_mutation_scratch_reuse.py`, plant-verified: reverting to the
+      tests-only copy reds 2 of 4). Residual, recorded rather than hidden: a sibling DELETED from the
+      tree still lingers in a reused scratch — copy-only, `--no-reuse` is the hatch.
 - [ ] **Zero-mutant-module guard** keyed on `exit_code_by_key` entries under the glob prefix. The
       `_ran` counter cannot express it: a crashed invocation increments it.
 - [ ] **`before` is stored `.slice(0, 120)`** — would corrupt a replay on a longer line. **0 of 165
