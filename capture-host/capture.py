@@ -88,6 +88,16 @@ BATTERY_UUID = "00002a19-0000-1000-8000-00805f9b34fb"   # standard Battery Level
 FIRMWARE_UUID = "00002a26-0000-1000-8000-00805f9b34fb"  # standard Firmware Revision String (0x2A26) — ASCII
 log = logging.getLogger("tepna-capture")
 _POLAR_EPOCH = _dt.datetime(2000, 1, 1)   # Polar device-time epoch (TimeSystemExplained.md)
+
+
+class _AbsentDeviceStamp(Exception):
+    """A device stamp that was NOT MEASURED. Not an error: the ∅ case, caught and counted where the
+    stamp would otherwise become a fabricated instant."""
+
+
+# Absent device stamps per device this run, so the refusal is OBSERVABLE. A guard that drops values
+# without saying so is indistinguishable from a device that simply never reported.
+_CLOCK_ABSENT: dict = {}
 STATUS: dict = {"devices": {}}
 _CFG: dict = {}          # set in main(); lets sync_device_time resolve a device family by model
 _STOP = asyncio.Event()
@@ -2163,6 +2173,9 @@ async def _retry_sleep(name: str, delay: float, why: str, attempt: int) -> float
 _NIGHT_SETTLE_S = 1200.0     # 20 min of no writes ⇒ a night is complete; overridable via storage.settle_sec
 
 
+CLOCK_IMPLAUSIBLE_S = 365 * 24 * 3600.0   # beyond a year is a bad read, not drift
+
+
 def clock_resync_reason(skew, prev, jump, tolerance, failed_adrift=0, giveup=CLOCK_ADRIFT_GIVEUP):
     """PURE: why (if at all) a device clock should be re-synced now.
       'jump'   — the clock MOVED. Always worth correcting, no matter how often we have tried before: an
@@ -2170,6 +2183,13 @@ def clock_resync_reason(skew, prev, jump, tolerance, failed_adrift=0, giveup=CLO
       'adrift' — steady, but outside tolerance. Worth correcting until we have PROVEN we cannot shift it.
       None     — in tolerance, or an offset we have repeatedly failed to move (see CLOCK_ADRIFT_GIVEUP).
     """
+    # ∅ DEFENCE IN DEPTH, device-agnostic: a skew beyond a year is not a clock error, it is a bad or
+    # absent read. Re-syncing on it DROPS THE LINK, so acting is strictly worse than waiting for the
+    # next sample. Layer 1 stops the known source; this stops sources we have not met.
+    # Not a tuned threshold: 288 H10 device-clock events in 14 days produced ZERO reads beyond a year,
+    # against 22 on the Verity, so the two populations do not overlap anywhere near it.
+    if skew is None or abs(skew) > CLOCK_IMPLAUSIBLE_S:
+        return None
     if prev is not None and abs(skew - prev) >= jump:
         return "jump"
     if abs(skew) > tolerance and failed_adrift < giveup:
@@ -2746,7 +2766,27 @@ async def run_polar(dev: dict, root: str):
                     # confirmation that a sync took effect (and the H10 resets to its 2019 default
                     # whenever it leaves the strap, so it must be watched, not assumed).
                     try:
-                        dev_dt = _POLAR_EPOCH + _dt.timedelta(microseconds=samples[-1].sensor_ns / 1000)
+                        # ∅ A ZERO sensor stamp is ABSENCE, and `_POLAR_EPOCH + 0` is a REAL instant (2000-01-01),
+                        # so an unset stamp silently becomes a device clock 26.7 years in the past. Measured on vigil
+                        # over 14 days: 22 implausible reads on ONE device, every one from a sane preceding skew
+                        # (-1.1..-1.9 s) and sane again by the next — a transient absent read, not a reset. The
+                        # fabricated skew then drove `clock_watchdog` into `sync_device_time`, which drops the link,
+                        # which mints a new file-set: the largest single source of capture fragmentation.
+                        # `_ns_col` already refuses in-band zeros one layer down; this is the same rule at the layer
+                        # that turns a stamp into a CLOCK. Device-agnostic on purpose — only one device has done this
+                        # so far, and a guard keyed to that device would not catch the next one.
+                        _sns = samples[-1].sensor_ns
+                        if not _sns:
+                            _CLOCK_ABSENT[name] = _CLOCK_ABSENT.get(name, 0) + 1
+                            # The JOURNAL, not a STATUS key: `find_unwired` correctly calls a key
+                            # nothing reads decorative, and a refusal nobody can see is the same
+                            # silence this guard exists to break. Rare by measurement — 22 in 14
+                            # days — so one line each is affordable and a rate limit would only
+                            # hide a change in rate, which is the interesting signal.
+                            log.warning("%s: device stamp ABSENT (zero) — refusing to derive a clock "
+                                        "from it; %d so far this run", name, _CLOCK_ABSENT[name])
+                            raise _AbsentDeviceStamp
+                        dev_dt = _POLAR_EPOCH + _dt.timedelta(microseconds=_sns / 1000)
                         # `arrival_rows` rides along here because the arrival write above is wrapped in a
                         # bare `except: pass` — correct, since telemetry must never disturb the data
                         # callback, but it makes a PERSISTENT writer failure invisible: a dead sidecar
@@ -3874,6 +3914,14 @@ async def run_oxyii(dev: dict, root: str):
                 _power_observe(name, rec_state=t.new.value)   # §19 chain: RECORDING is one of its links
             except Exception:   # pragma: no cover - defensive: telemetry must not kill the data path
                 log.exception("%s: recording-axis journal write failed", name)
+    # Carried ACROSS episodes so a resumed file-set keeps one synthesized timeline; reset inside
+    # the loop whenever a genuinely new set is minted. Declared here, not in the loop, for the
+    # same reason the writer names are: the loop rebinds them per episode.
+    # Constructed EAGERLY, not lazily: a lazy [None] needs an `or cell is None` guard whose second
+    # arm is unreachable once the first episode has run — an untestable partial branch — AND it
+    # crashes if the FIRST episode ever resumes (a daemon restart onto tonight's own files).
+    ppg_grid_cell = [O2PpgGrid()]
+    ppg_led_cell = [O2PpgFrameLedger()]
     while not _STOP.is_set():
         if _OXYII_PAUSE.is_set() or _RECOVER.is_set():   # a stored-session pull owns the link, or the adapter is recovering
             _set(name, connected=False,
@@ -3916,6 +3964,23 @@ async def run_oxyii(dev: dict, root: str):
             _power_flush(name, _oxywr["w"])
         started = _now()
         ndir = night_dir(root, started)
+        # ── CAPTURE-FILESET-RESUME for the RING (residue 2026-09-06-ring-never-resumes) ──────
+        # The Polar path has done this since #1532; the ring never did, and that asymmetry was
+        # 11.3x its fragmentation. Same chokepoint, same window: adopt the newest set's stamp so
+        # every capture_filename() below regenerates identical names and the writers append.
+        # ⚠️ NOT a one-line change — the two halves below are load-bearing and were the trap the
+        # residue row names: three ring writers opened "w" (they now self-detect and append), and
+        # the sample grid must CARRY across the gap or the file gets two overlapping synthesized
+        # timelines, which is a Clock-Contract fabrication strictly worse than fragmenting.
+        resumed_set = False
+        if _RESUME_WINDOW_S > 0:
+            _prev = resumable_stamp(ndir, dev["vendor"], dev["model"], dev["device_id"],
+                                    started, _RESUME_WINDOW_S)
+            if _prev is not None:
+                log.info("%s: resuming file-set %s (gap < %.0fs)", name,
+                         f"{_prev:%Y%m%d%H%M%S}", _RESUME_WINDOW_S)
+                started = _prev
+                resumed_set = True
         if _oxywr["w"] is None:                  # G4: open the lifecycle sidecar once, in the first night dir
             _oxywr["w"] = OxyLifeLogWriter(os.path.join(ndir, "OXYLIFE.csv"), device=name)
         path = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "spo2", "csv"))
@@ -3931,14 +3996,25 @@ async def run_oxyii(dev: dict, root: str):
         # guard reported "the arrival writer did not close cleanly" for a writer that was never opened —
         # a warning about something it had not examined, logged once per reconnect all night.
         wr = ppgwr = oxyflagwr = ppg2wr = rtcwr = oxy_arr_wr = accrawwr = plethawr = None
-        # The synthesized PPG sample clock (O2RING-PPG-GAP §1 + CAPTURE-HOST-DEEP-AUDIT §A3), per
-        # SESSION — a reconnect opens a new file and a new grid, so it is rebuilt with the writers
-        # rather than persisting across links. Boxed so the BLE callback can reach it.
-        ppg_grid = [O2PpgGrid()]
-        # The COUNTED half of the same question (O2RING-FRAME-SAMPLE-LOCK). Per SESSION for the same
-        # reason the grid is: its arithmetic is a span between two of the ring's own session-seconds,
-        # and a reconnect is precisely where that span stops being continuous.
-        ppg_led = [O2PpgFrameLedger()]
+        # The synthesized PPG sample clock (O2RING-PPG-GAP §1 + CAPTURE-HOST-DEEP-AUDIT §A3).
+        # ⚠️ This read "per SESSION — a reconnect opens a new file and a new grid" until
+        # 2026-09-12, which the residue row correctly called circular: it justified the file
+        # behaviour by the grid behaviour and the grid behaviour by the file behaviour.
+        # It is now per FILE-SET. Carrying it across a resumed reconnect is not new machinery —
+        # `frame()` measures elapsed against the SESSION ANCHOR `t0` and already inserts an
+        # honest gap when `target` outruns `idx`, which is exactly what a reconnect gap is:
+        # time passed that carries no samples. Rebuilding it instead would restart `ns` at 0
+        # inside a file that is being appended to, i.e. two overlapping timelines in one column.
+        # (`duration_s` cannot bridge the gap either — it counts seconds of SIGNAL, not time,
+        # so across a gap where the ring produced nothing it advances by nothing.)
+        if not resumed_set:
+            ppg_grid_cell[0] = O2PpgGrid()
+            ppg_led_cell[0] = O2PpgFrameLedger()
+        ppg_grid = ppg_grid_cell
+        # The COUNTED half of the same question (O2RING-FRAME-SAMPLE-LOCK). Per FILE-SET for the
+        # same reason the grid is: its arithmetic is a span between two of the ring's own
+        # session-seconds, and a RESUMED reconnect keeps that span continuous.
+        ppg_led = ppg_led_cell
         stalled = False                               # link held but no frames decoded — reconnect
         # BOTH per EPISODE, and both declared HERE rather than inside the connected block: an absent
         # ring raises at connect, and the barren check below runs after the `finally` — reading a name
