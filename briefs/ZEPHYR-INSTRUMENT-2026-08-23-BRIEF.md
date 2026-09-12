@@ -47,6 +47,90 @@ and what it is FOR — recorded here so the work isn't re-derived.
   §troubleshooting already names this ("HCI up, address correct, hears ~0–1 devices at −90: FEM"); read
   that row before theorising about range, as this session failed to.
 
+## Task 1 CONCLUDED 2026-09-11 — `hci_usb` CANNOT serve capture; `hci_uart` over CDC is the transport
+
+🔴 **THE FAILURE, on vigil, with all three sensors configured onto a Zephyr.** Two devices connecting at
+once produced **one link with an EMPTY GATT snapshot** (`services=0`, the `no oxyii chars` /
+`failed to discover` signature) and one `org.bluez.Error.InProgress`; then `0x200c` (LE Set Scan Enable)
+stopped returning (`-110`, repeating every 2 s); then the wedge went **sticky** — sequential connects
+afterwards failed too; then **`HCI Reset` (`0x0c03`) itself timed out at `-110`**; and a USB
+de/re-authorize did not restore it. The devices stayed enumerated on the bus (`authorized=1`,
+`lsusb` fine) while creating **no HCI device at all** — dead at the HCI layer, alive at USB.
+
+**THE ELIMINATION CHAIN, so nobody re-walks it:**
+
+| hypothesis | verdict |
+|---|---|
+| `CONFIG_BT_MAX_CONN` too low | **refuted** — it is 6, same as every prior build |
+| BlueZ GATT cache not in effect | **refuted** — `Cache = always` at `main.conf:264`, bluetoothd started 09-10 21:02, *after* the 09-09 21:18 edit |
+| rapid scan enable/disable | **refuted** — 6 paced cycles, 284 live RSSI samples, **0** errors |
+| `CONFIG_BT_CTLR_PRIVACY=n` (our change) | **refuted** — the idle sibling ran the same image with 0 errors until it was asked to connect |
+
+**It is the TRANSPORT, and upstream has it.** `zephyrproject-rtos/zephyr#18583`: connecting a second
+peripheral *while the first is exchanging data* fails **~75 %** of the time, and either the new
+connection fails **or the existing peripheral's reads stop** — and enabling `BT_DEBUG` makes it
+irreproducible, i.e. a timing-sensitive race. Closed with no visible fix. Siblings: #23280 (cannot
+connect to two devices), #40776 (drops after 30 s), #34593 (BlueZ), #10678 (timeout during BlueZ init),
+#34659 (`k_sem_take` failures under multiple connections). ⚠️ The frequently-quoted line *"HCI over USB
+is unstable by design — use UART or SPI"* is from a DevZone thread this session did **not** open; the
+sample README carries no such disclaimer. Cite #18583, which was read at source.
+
+**THE REPLACEMENT, built and measured.** `hci_uart` over USB CDC ACM — the sample README's own
+§"Using a USB CDC ACM UART" — which this board already supports: `raytac_mdbt50q_cx_40_dongle` includes
+`boards/common/usb/cdc_acm_serial.dtsi`, choosing `zephyr,bt-c2h-uart = &board_cdc_acm_uart`. Image:
+`/srv/data/ncs/vigil_hciuart_holyiot21017_anchor_nopriv_dfu.zip` (155 902 B, sha256 `2012ddc2e448dc8dcebb…`),
+carrying `MPSL_FEM=y` · anchor report `=y` · `BT_CTLR_PRIVACY` unset · `BT_MAX_CONN=6`. Only **24**
+Kconfig lines differ from the `hci_usb` build and every one is USB-class plumbing — **nothing
+address- or controller-related**, which is what makes the transport the isolated variable.
+
+| | old `hci_usb` | new `hci_uart` |
+|---|---|---|
+| GATT discovery | `services=0` | **5 services / 14 chars**, repeatably |
+| after a failed connect | never recovered | **recovered unaided** (cycle 1 timed out, 2 and 3 clean) |
+| `-110` / tx timeout | yes, then unrecoverable | **0** |
+| adapter afterwards | DOWN; `HCI Reset` timed out | **UP RUNNING** |
+| scanning | fine | fine — 33 peers, 0 errors |
+
+⚠️ **STILL UNPROVEN: the concurrency bug itself.** Two simultaneous connects is what killed `hci_usb`,
+and the rig has no authorised pair of peripherals — the sensors live on vigil. Everything above is
+"the transport carries GATT and survives repeated use", NOT "the race is fixed". Do not deploy on the
+strength of this table. Note also `CONFIG_USB_DEVICE_STACK_NEXT=y` is still set: USBD-next still provides
+the CDC function, so this removes the `hci_usb` class driver from the path, not the USB stack.
+
+### Bring-up: THREE identities per dongle, none derivable from the others
+
+The adapter is no longer auto-created. Per dongle: `btattach`, write the address, cycle.
+
+| DFU-mode USB serial | application-mode USB serial | BD address |
+|---|---|---|
+| `E1BFD58009C0` | `E8724F4F4D09CE57` | `21:BF:D5:80:09:C0` |
+| `D967242ECD98` | `B1BAA52EE6EDB771` | `99:67:24:2E:CD:98` |
+| `E7FC6D6BA44E` | `9D08E454B242A0BF` | `E7:FC:6D:6B:A4:4E` |
+
+🔴 **The USB serial CHANGES between DFU and application mode on the same hardware** — measured on all
+three. The BD address is the only identifier stable across a mode change AND a firmware change, which
+is why §2's "name the adapter by ADDRESS" is the rule that survives a reflash. The DFU serial's last
+five bytes do match the BD address, but the top byte does **not** transform consistently
+(`E1`→`21`, `D9`→`99`, `E7`→`E7`): a lookup, never a formula.
+
+```sh
+btattach -B /dev/ttyACM<n> -S 1000000 &          # resolve <n> by APPLICATION-mode USB serial
+hcitool -i hciN cmd 0x3f 0x006 <addr, LITTLE-ENDIAN>   # 0xFC06 SDC_HCI_OPCODE_CMD_VS_ZEPHYR_WRITE_BD_ADDR
+hciconfig hciN down && hciconfig hciN up         # BlueZ caches BD_ADDR at init; this re-reads it
+```
+
+- **The address write is REQUIRED, not cosmetic.** Fresh from `btattach` the controller reports
+  `00:00:00:00:00:00`, and `capture._addressable()` REFUSES that — the daemon would exclude the adapter
+  entirely. `btmgmt public-addr` is rejected `0x0b` (it needs the controller powered down); `0xFC06`
+  is accepted with status `00`.
+- **Ask the CONTROLLER, not `hciconfig`, when checking.** After the write, `hcitool cmd 0x04 0x09`
+  (Read BD_ADDR) returned the new address while `hciconfig` still showed zeros — BlueZ's cached view.
+  The `down`/`up` reconciles them, and the address **survives the HCI Reset** that `up` issues
+  (predicted otherwise; measured, and the prediction was wrong).
+- ⚠️ **Persistence across a REPLUG is untested.** It is a runtime vendor write, the same class as the
+  anchor enable that does not survive a controller reset — so assume the unit must set it on every
+  attach until someone measures otherwise.
+
 ## The role: clock-metrology instrument (what the closed radios cannot do)
 This lands on the Clock-Contract / `hostAxis` / ppm-drift / Allan-deviation frontier.
 
