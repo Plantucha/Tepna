@@ -73,8 +73,8 @@ HERE = Path(__file__).resolve().parent.parent
 VENV_PY = HERE / ".venv" / "bin" / "python"
 sys.path.insert(0, str(HERE))
 from mutation_diff import (  # noqa: E402
-    EMPTY_DIFF, STRING_ONLY, UNDECIDABLE, annotation_only, classify, diff_key, functions_covering,
-    refusal_reason, selftest, string_only_verdict,
+    EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, classify, diff_key,
+    functions_covering, refusal_reason, selftest, split_results, string_only_verdict,
 )
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
@@ -162,6 +162,7 @@ def load_equivalence() -> dict:
 
 
 def main(argv=None) -> int:
+    undecided = []   # mutants mutmut could not settle — never "killed"; see split_results
     ap = argparse.ArgumentParser(description="Diff-scoped mutation gate for capture-host")
     ap.add_argument("--base", default="origin/main", help="merge base to diff against")
     ap.add_argument("--report-only", action="store_true", help="never exit non-zero")
@@ -308,10 +309,16 @@ def main(argv=None) -> int:
                             generated_keys.add(k)
                 except OSError:
                     pass                      # no mutants file ⇒ nothing to enumerate, stay silent
-            for line in (r.get("results") or "").splitlines():
-                if ": survived" not in line:
-                    continue
-                name = line.split(":")[0].strip()
+            # EVERY line mutmut prints here is a mutant it did NOT kill (results() skips `killed`).
+            # Keeping only `": survived"` silently dropped `timeout`/`suspicious`/`no tests`/`not
+            # checked` — so a mutant that timed out under load vanished and the gate then reported
+            # "every mutant on the changed functions was killed" about a mutant no test ever saw.
+            # `split_results` inverts that: survivors are blocking, everything else is UNDECIDED, and
+            # UNDECIDED is never killed and never refutes an equivalence entry.
+            _split = split_results(r.get("results") or "")
+            for _nm, _status in _split[UNDECIDED]:
+                undecided.append({"mutant": _nm, "module": module, "status": _status})
+            for name in _split[SURVIVED]:
                 show = subprocess.run([str(VENV_PY), "-m", "mutmut", "show", name],
                                       cwd=work, capture_output=True, text=True)
                 sverdict, sdetail = string_only_verdict(show.stdout)
@@ -440,6 +447,28 @@ def main(argv=None) -> int:
         print("\n  Fix the ENTRY, never the test that killed it. Delete it, or reclassify it as real-gap\n"
               "  with the evidence that changed.")
         return 0 if a.report_only else 1
+
+    # UNDECIDED BLOCKS, and says so before the survivor report. A mutant mutmut could not settle
+    # (timeout, suspicious, no tests, not checked) was never seen by a test, so "every mutant was
+    # killed" is not a claim this run is entitled to make. Reported as its own class rather than
+    # folded into survivors: a survivor means "a test COULD see this and none does", an undecided
+    # means "nobody knows", and they want different responses.
+    if undecided:
+        by_status = {}
+        for u in undecided:
+            by_status.setdefault(u["status"], []).append(u)
+        print(f"\nmutate-diff: REFUSING — {len(undecided)} mutant(s) UNDECIDED, so this run cannot say "
+              f"they were killed:\n")
+        for st, items in sorted(by_status.items()):
+            print(f"  {st}: {len(items)}")
+            for u in items[:6]:
+                print(f"    ── {u['module']}  {u['mutant']}")
+            if len(items) > 6:
+                print(f"    … and {len(items) - 6} more")
+        print("\n  A timeout is UNMEASURED, never killed — a tighter bound cannot manufacture a pass.\n"
+              "  Re-run under less load, or raise `timeout_multiplier`, before reading the verdict.")
+        if not a.report_only:
+            return 2
 
     blocking = cls["unclassified"] + cls["real_gap"]
     if not blocking:
