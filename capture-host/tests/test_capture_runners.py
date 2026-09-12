@@ -5438,8 +5438,8 @@ def test_run_polar_resumes_a_recent_fileset(tmp_path, monkeypatch, caplog):
 
     def spy(ndir, vendor, model, device_id, now, window):
         calls["args"] = (vendor, model, device_id, window)
-        return dt.datetime(2026, 8, 19, 21, 0, 0)
-    monkeypatch.setattr(capture, "resumable_stamp", spy)
+        return dt.datetime(2026, 8, 19, 21, 0, 0), ndir
+    monkeypatch.setattr(capture, "resumable_set", spy)
 
     async def _bonded(addr, adapter, force=False):
         return True
@@ -5464,10 +5464,47 @@ def test_run_polar_resumes_a_recent_fileset(tmp_path, monkeypatch, caplog):
         f"the adopt decision must be logged: {[m for m in msgs if 'resum' in m.lower()]}"
 
 
+def test_run_polar_resume_logs_and_adopts_the_previous_folder(tmp_path, monkeypatch, caplog):
+    """The Polar call site must adopt the DIRECTORY too, not just the stamp — and say it crossed.
+
+    run_polar stops at _connect, so the observable is the log plus the fact that the directory adopted
+    is the one resumable_set named rather than the one night_dir returned."""
+    import datetime as dt
+    import os
+    yday = str(tmp_path / "captures" / "2026-09-11")
+    today = str(tmp_path / "captures" / "2026-09-12")
+    os.makedirs(yday, exist_ok=True)
+    os.makedirs(today, exist_ok=True)
+    monkeypatch.setattr(capture, "resumable_set",
+                        lambda *a: (dt.datetime(2026, 9, 11, 23, 58, 0), yday))
+
+    async def _bonded(addr, adapter, force=False):
+        return True
+    monkeypatch.setattr(capture.bonding, "ensure_bonded", _bonded)
+    monkeypatch.setattr(capture.bonding, "is_bonded", _bonded)
+
+    async def _no_sync(name, addr, root=None):
+        return None
+    monkeypatch.setattr(capture, "auto_sync_clock", _no_sync)
+
+    def _no_ble(addr):
+        raise RuntimeError("stop before BLE")
+    monkeypatch.setattr(capture, "_connect", _no_ble)
+    monkeypatch.setattr(capture, "night_dir", lambda root, when: today)
+    dev = {"name": "H10", "address": "C2:11:44:AB:9E:01", "vendor": "Polar",
+           "model": "H10", "device_id": "02849638", "streams": ["ecg"]}
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level("INFO"):
+        _run(capture.run_polar(dev, str(tmp_path)))
+    msgs = [r.getMessage() for r in caplog.records]
+    assert any("ACROSS the folder boundary" in m and "2026-09-11" in m for m in msgs), \
+        f"the boundary hop must name the folder it moved into: {[m for m in msgs if 'resum' in m.lower()]}"
+
+
 def test_run_polar_resume_disabled_by_zero_window(tmp_path, monkeypatch):
     """DENY twin: write.resume_window_sec 0 must not even consult the resolver."""
     consulted = []
-    monkeypatch.setattr(capture, "resumable_stamp", lambda *a: consulted.append(a))
+    monkeypatch.setattr(capture, "resumable_set", lambda *a: consulted.append(a))
 
     async def _bonded(addr, adapter, force=False):
         return True
@@ -6694,6 +6731,60 @@ def test_THE_RING_RESUMES_ITS_FILE_SET_INSTEAD_OF_MINTING_A_NEW_ONE(tmp_path, mo
     assert grew, f"the resumed set did not grow — episode 2 appended nothing (size {before_sz!r})"
     assert any("resuming file-set" in r.getMessage() for r in caplog.records), \
         "a resume must say so — a silent one cannot be told from never having fragmented"
+
+
+def test_ring_resumes_across_the_midnight_folder_boundary(tmp_path, monkeypatch, caplog):
+    """🔴 THE MIDNIGHT FIX, end to end: a reconnect after 00:00 must append to YESTERDAY's folder.
+
+    night_dir() rolls by session start, so at midnight the folder changes under a recording that never
+    stopped — and a one-directory search then saw an empty folder and minted a fresh set. Measured over
+    the corpus: 16 of 29 sub-5-minute seams straddled a boundary.
+
+    Episode 1 writes into 2026-09-11; the clock then 'passes midnight' and episode 2 is handed
+    2026-09-12. It must stay ONE set, in the folder it started in — adopting the stamp while writing
+    into today's folder would put one set name in two directories, which is worse than the split."""
+    import logging
+    import os
+    capture._OXYII_PAUSE.clear(); capture._RECOVER.clear(); capture._OXYII_RTC_AT.clear()
+    capture._CLOCK_ABSENT.clear()
+    cap = tmp_path / "captures"
+    yday, today = str(cap / "2026-09-11"), str(cap / "2026-09-12")
+    which = [yday]
+
+    def _nd(root, when):
+        os.makedirs(which[0], exist_ok=True)
+        return which[0]
+    monkeypatch.setattr(capture, "night_dir", _nd)
+
+    def _one_episode():
+        capture._STOP.clear()
+        c = FakeGattClient()
+        c.on_live = lambda data: (c.notify(0, _o2ring_live_reply()) if data[1] == oxyii.OP_LIVE else None)
+        _inject_connect_scan(monkeypatch, c)
+        _stop_after(monkeypatch, 4)
+        _run(capture.run_oxyii(_o2dev(), str(tmp_path)))
+
+    _one_episode()
+    first = sorted(p.name for p in cap.rglob("*_SPO2.csv"))
+    assert len(first) == 1, f"expected one set from episode 1, got {first}"
+    assert os.path.dirname(str(next(cap.rglob("*_SPO2.csv")))) == yday
+    before = next(cap.rglob("*_SPO2.csv")).stat().st_size
+
+    which[0] = today                      # -- midnight --
+    os.makedirs(today, exist_ok=True)
+    with caplog.at_level(logging.INFO):
+        _one_episode()
+
+    sets = sorted(cap.rglob("*_SPO2.csv"))
+    assert len(sets) == 1, (
+        "the ring minted a NEW set across the folder boundary: "
+        f"{[str(x.relative_to(cap)) for x in sets]}")
+    assert os.path.dirname(str(sets[0])) == yday, \
+        f"the resumed set was written into the wrong folder: {sets[0]}"
+    assert sets[0].stat().st_size > before, \
+        "episode 2 appended nothing — identical names alone would also be satisfied by a no-op"
+    assert any("ACROSS the folder boundary" in r.getMessage() for r in caplog.records), \
+        "a boundary-crossing resume must say so; a silent one cannot be told from a fresh set"
 
 
 def test_SETTING_THE_RESUME_WINDOW_TO_ZERO_DISABLES_RING_RESUME(tmp_path, monkeypatch, caplog):
