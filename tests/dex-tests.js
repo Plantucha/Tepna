@@ -33203,6 +33203,61 @@
       T.eq("'device+host-verified' is NOT timed — an RTC-anchor verdict is not a per-sample claim", I.timingSourceIsTimed('device+host-verified'), false);
     });
 
+    /* wt-done's IN-USE check — gated for the first time. It shipped in #2321 with NO test at all, and
+       the defect below is what an untested guard buys: it excluded its own pid, and its header claimed
+       the /proc readlink form "cannot self-match" — true of the SCANNER and false one process up. The
+       caller's shell, cd'd into the worktree to run the removal, is reported as a user and the removal
+       is refused on the invocation itself.
+       Driven against a SYNTHETIC /proc — usersOfPath takes procRoot and self as options, so this is
+       deterministic and needs no live process. Node-lane only: it writes symlinks. */
+    group('wt-done — the CALLER is not a user of the tree it is removing', 'tools · wt-done · self-match', function (T) {
+      if (typeof process === 'undefined' || !env.nodeFs || !env.nodeOs || !env.wtDone) {
+        T.skip('needs Node fs/os and tools/wt-done.mjs — not available in the browser lane');
+        return;
+      }
+      var fs = env.nodeFs,
+        os = env.nodeOs,
+        pathMod = env.nodePath,
+        usersOfPath = env.wtDone.usersOfPath;
+      var base = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'wtdone-'));
+      var tree = pathMod.join(base, 'worktree');
+      var proc = pathMod.join(base, 'proc');
+      fs.mkdirSync(tree, { recursive: true });
+      /* A fake process table. 100 is the scanner, 99 its parent shell with cwd INSIDE the tree (the
+         caller), 1 is init, and 500 is an UNRELATED process also sitting in the tree. */
+      function mk(pid, ppid, cwd, comm) {
+        var d = pathMod.join(proc, String(pid));
+        fs.mkdirSync(d, { recursive: true });
+        fs.symlinkSync(cwd, pathMod.join(d, 'cwd'));
+        // field 2 is parenthesised and may itself contain spaces — the parser must survive that
+        fs.writeFileSync(pathMod.join(d, 'stat'), pid + ' (' + comm + ') S ' + ppid + ' 0 0 0');
+        fs.writeFileSync(pathMod.join(d, 'cmdline'), comm);
+      }
+      mk(1, 0, base, 'init');
+      mk(99, 1, tree, 'bash -c (the caller)');
+      mk(100, 99, tree, 'node wt-done');
+      mk(500, 1, tree, 'python3 -m http.server');
+
+      var r = usersOfPath(tree, { procRoot: proc, self: 100 });
+      T.ok('the scan succeeds against a synthetic /proc', r.ok === true, JSON.stringify(r.why || ''));
+      var pids = (r.users || []).map(function (u) {
+        return Number(u.pid);
+      });
+      T.eq('the SCANNER is not a user', pids.indexOf(100), -1);
+      T.eq("the CALLER's shell is not a user — the defect, and it refused real removals", pids.indexOf(99), -1);
+      T.ok('an UNRELATED process in the tree IS still reported — the fix must not blind the guard', pids.indexOf(500) >= 0, pids.join(','));
+      T.eq('exactly one user, and it is the unrelated one', pids.length, 1);
+
+      var proc2 = pathMod.join(base, 'proc2');
+      var d2 = pathMod.join(proc2, '700');
+      fs.mkdirSync(d2, { recursive: true });
+      fs.symlinkSync(base, pathMod.join(d2, 'cwd'));
+      fs.writeFileSync(pathMod.join(d2, 'stat'), '700 (elsewhere) S 1 0 0 0');
+      fs.writeFileSync(pathMod.join(d2, 'cmdline'), 'elsewhere');
+      var r2 = usersOfPath(tree, { procRoot: proc2, self: 700 });
+      T.eq('a process outside the tree is not a user', (r2.users || []).length, 0);
+    });
+
     group('PPGDex §∅ — pinned spans: both extremes, marker-transparent, and the widening is DERIVED', 'ppgdex-dsp · absence-as-value', function (T) {
       var P = env.PPGDSP;
       if (!(P && typeof P.pinnedSpans === 'function' && typeof P.settlingWidenSec === 'function')) {

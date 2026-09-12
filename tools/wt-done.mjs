@@ -60,6 +60,39 @@ export function parseWorktrees(porcelain) {
    Returns `{ ok:true, users:[{pid, cmd}] }`, or `{ ok:false, why }` when the scan could not be made —
    which is UNKNOWN, not idle. An absence of evidence spent as evidence of absence is the shape that
    makes a missing tool read as a passing gate. */
+/* THE CALLER IS NOT A USER. `usersOfPath` excluded only its own pid, and its header claimed the
+   `/proc` readlink form "cannot self-match" — true of the SCANNER and false one process up. A shell
+   that has `cd`'d into the worktree to run `node tools/wt-done.mjs .` from inside it has
+   `/proc/<pid>/cwd` under the target, so it is reported as a user and the removal is REFUSED on the
+   invocation itself. Measured 2026-09-11: run from inside a directory, the scan returns exactly one
+   user — the caller's own bash.
+   Third self-match shape in this codebase, each one process further out than the last: a `pgrep -f`
+   pattern matches its own argv (CLAUDE.md §4); a path grep matches its own command line; a cwd scan
+   matches its own CALLER. The family is "the instrument is inside the population it measures".
+   So the exclusion is the ANCESTOR CHAIN, not the pid: every process between the scanner and init is
+   there BECAUSE it invoked the scan. Non-ancestors are still reported — a stray editor or a server
+   left running in the tree must still refuse, and that refusal is real (it caught a forgotten
+   `python3 -m http.server` of mine the same night). */
+function ancestorsOf(pid, procRoot) {
+  const chain = new Set();
+  let cur = Number(pid);
+  for (let hops = 0; hops < 64 && cur > 1; hops++) {
+    chain.add(cur);
+    let ppid = 0;
+    try {
+      const st = readFileSync(`${procRoot}/${cur}/stat`, 'utf8');
+      /* field 4 is ppid, but field 2 (comm) is parenthesised and may itself contain spaces or
+         parens — so parse AFTER the last ')', never by splitting the whole line. */
+      ppid = Number(st.slice(st.lastIndexOf(')') + 2).split(' ')[1]);
+    } catch {
+      break; // the chain left the world mid-walk; stop rather than guess
+    }
+    if (!Number.isFinite(ppid) || ppid <= 1 || ppid === cur) break;
+    cur = ppid;
+  }
+  return chain;
+}
+
 export function usersOfPath(dir, { procRoot = '/proc', self = process.pid } = {}) {
   let pids;
   try {
@@ -70,9 +103,10 @@ export function usersOfPath(dir, { procRoot = '/proc', self = process.pid } = {}
   const root = path.resolve(dir);
   const prefix = root + path.sep;
   const under = (t) => t === root || t.startsWith(prefix);
+  const kin = ancestorsOf(self, procRoot);
   const users = [];
   for (const pid of pids) {
-    if (Number(pid) === self) continue; // never count the scanner
+    if (kin.has(Number(pid))) continue; // never count the scanner OR the chain that invoked it
     let hit = false;
     try {
       hit = under(readlinkSync(`${procRoot}/${pid}/cwd`));
