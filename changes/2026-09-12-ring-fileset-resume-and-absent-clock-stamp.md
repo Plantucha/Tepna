@@ -1,6 +1,6 @@
 ---
 bump: patch
-type: fix
+type: fixed
 brief: residue 2026-09-06-ring-never-resumes
 ---
 
