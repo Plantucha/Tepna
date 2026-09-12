@@ -49,6 +49,18 @@ credibility currency behind an owner-set gate: *"~2 weeks of error-free operatio
 producing credible output."* **Nothing this tool prints may be published as external validation until
 the owner opens that gate.**
 
+**⚖️ Owner ruling, 2026-09-12 — read this before deciding the tool is unusable.** The gate is on
+**publication, not measurement**. Running this internally and acting on what it finds is *permitted
+now*: a benchmark that exposes a real DSP defect is an ordinary bug report and an ordinary PR. Only
+quoting a rate outside the repo is gated.
+
+The *"~2 weeks of error-free operation"* criterion is **deliberately not mechanised**. Three
+checkable versions were offered — consecutive clean capture nights, no new data-integrity residue, a
+conjunction with PAT — and all three were declined in favour of keeping it a judgment call. So
+**ask**, and never read a green proxy (nights folded, commits landed, CI passing) as the gate having
+opened. A proxy that reads green while something real is wrong is the failure this repo keeps paying
+for; mechanising an owner's judgment is that failure applied to authority.
+
 Building the instrument while the gate is shut is the precedent `tools/nsrr-stage-validate.mjs` set for
 NSRR/MESA, which sits in the same gated list: the work is *"blocked on RECORDS, not on code, and the
 way to keep that true is to build the path and PROVE it, so the day a record arrives the only new
