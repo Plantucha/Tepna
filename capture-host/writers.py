@@ -1233,7 +1233,12 @@ class OxyFrameLogWriter:
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
         self._health = _FlushHealth(path)
-        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
+        # RESUME-AWARE (2026-09-12): a resumed file-set reopens the SAME path, so opening "w"
+        # would truncate the very file it is resuming onto — #2166 already cost one writer that
+        # way. Self-detecting like StreamWriter: a non-empty file means resume, append, and do
+        # not re-emit the header.
+        _resumed = os.path.exists(path) and os.path.getsize(path) > 0
+        self._fh = open(path, "a" if _resumed else "w", buffering=1 << 16, newline="\n")
         # ppg_n / ppg_dur_step APPENDED, never inserted — the same "never shift an
         # existing column" discipline LinkLogWriter keeps, so a reader written against the 10-column
         # layout still parses positionally. They carry the per-frame PPG arithmetic
@@ -1253,7 +1258,8 @@ class OxyFrameLogWriter:
         # `flag_raw` is the whole [10] byte whose bit 0 we already record: that bit is set on 100 % of
         # frames across 8 nights, so it is a setting, not an event — the varying bits are 1-7 and nothing
         # has ever read them.
-        self._fh.write(OXYFRAME_HEADER + "\n")
+        if not _resumed:
+            self._fh.write(OXYFRAME_HEADER + "\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
@@ -1507,9 +1513,15 @@ class RingClockLogWriter:
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
         self._health = _FlushHealth(path)
-        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
-        self._fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;"
-                       "battery_raw2;battery_raw3\n")
+        # RESUME-AWARE (2026-09-12): a resumed file-set reopens the SAME path, so opening "w"
+        # would truncate the very file it is resuming onto — #2166 already cost one writer that
+        # way. Self-detecting like StreamWriter: a non-empty file means resume, append, and do
+        # not re-emit the header.
+        _resumed = os.path.exists(path) and os.path.getsize(path) > 0
+        self._fh = open(path, "a" if _resumed else "w", buffering=1 << 16, newline="\n")
+        if not _resumed:
+            self._fh.write("Phone timestamp;event;rtc_offset_s;battery_state;battery_level;"
+                           "battery_raw2;battery_raw3\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
@@ -1871,8 +1883,14 @@ class Spo2CsvWriter:
     def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
         self.path = path
         self._health = _FlushHealth(path)
-        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
-        self._fh.write("Time,Oxygen Level,Pulse Rate,Motion\n")
+        # RESUME-AWARE (2026-09-12): a resumed file-set reopens the SAME path, so opening "w"
+        # would truncate the very file it is resuming onto — #2166 already cost one writer that
+        # way. Self-detecting like StreamWriter: a non-empty file means resume, append, and do
+        # not re-emit the header.
+        _resumed = os.path.exists(path) and os.path.getsize(path) > 0
+        self._fh = open(path, "a" if _resumed else "w", buffering=1 << 16, newline="\n")
+        if not _resumed:
+            self._fh.write("Time,Oxygen Level,Pulse Rate,Motion\n")
         self._n = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
