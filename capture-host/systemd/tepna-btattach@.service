@@ -1,0 +1,44 @@
+# tepna-btattach@.service — Tepna Vigil
+# Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
+#
+# A TEMPLATE UNIT, ONE INSTANCE PER DONGLE, INSTANCED BY USB SERIAL:
+#
+#     systemctl enable --now tepna-btattach@<usb-serial>.service
+#
+# The instance name is the USB serial and NOT a ttyACM index, because the indices renumber on every
+# replug (observed twice inside ten minutes on 2026-09-12: the dongle that was ttyACM0 came back as
+# ttyACM3). An index-pinned unit attaches whichever radio holds that number today, silently.
+#
+# 🔴 DOES NOT TOUCH tepna-capture.service, AND MUST NOT. Capture runs unprivileged and keeps doing so —
+# the owner's first invariant. This unit needs root only because `btattach` installs a line discipline
+# and `hcitool cmd` needs a raw HCI socket; both are hardware setup that finishes before capture opens
+# anything. Same split as tepna-usb-autosuspend: the privileged work is a separate, short unit.
+#
+# WHY Restart=on-failure AND NOT always: a dongle that is absent exits 0 by design (the box may boot
+# before it is plugged in), and restarting that forever would spin. A dongle that is present but whose
+# serial is not in the map exits 1 — that IS a configuration error and should keep showing up in
+# `systemctl --failed` until someone fixes the map, because the alternative is a radio that quietly
+# never joins the failover ladder.
+[Unit]
+Description=Tepna — attach Zephyr HCI-UART controller %i and restore its BD address
+Documentation=file:/opt/tepna/capture-host/systemd/tepna-btattach.sh
+# The adapter must exist before bluetoothd enumerates, or BlueZ never sees it; and before capture,
+# which picks its radio at startup.
+After=systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+Before=bluetooth.service tepna-capture.service
+
+[Service]
+# btattach holds the line discipline for the life of the unit — when it exits, the adapter disappears.
+Type=simple
+User=root
+# INVOKED VIA bash, NOT AS AN EXECUTABLE. Every shell script in this repo is tracked mode 644; naming
+# one directly in ExecStart failed with 203/EXEC when tepna-usb-autosuspend first installed.
+ExecStart=/bin/bash /opt/tepna/capture-host/systemd/tepna-btattach.sh %i
+Restart=on-failure
+RestartSec=10s
+# Hardware setup, not a night-long workload; it should never compete with capture for the radio.
+Nice=5
+
+[Install]
+WantedBy=multi-user.target
