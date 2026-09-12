@@ -177,6 +177,77 @@ silent · ✅ loop starvation observable · ✅ background tasks supervised · �
 | watchdog false-alive / shutdown ordering | separate audit; not on the charter's P0 path | — |
 | `connected=False` during `_retry_sleep` | stall path today keeps `connected` true while sleeping; changing it moves `_LINK_EPOCH` semantics — residue row | design decision |
 
+## 9 · 2026-09-12 — THREE of §7's gates have been MET by measurement (Kestrel)
+
+A fresh charter arrived asking for a system-wide Resource Orchestrator: resource identity, real
+ownership, claim/queue/lease/release, priority, fairness, deadlines, dependency ordering, crash
+recovery, BLE arbitration, observability. **Most of it is this brief**, already audited and landed on
+2026-09-05, and the rest is §7 — deferred with a stated reason and a named gate, not overlooked. That
+is recorded here so the next reader does not re-derive it, and because the charter's own first rule is
+*inspect before designing*.
+
+What is genuinely new is that **three of §7's gates have since been met**, so those rows are now
+actionable rather than waiting:
+
+| §7 item | gate it waited on | status 2026-09-12 |
+|---|---|---|
+| move fsync off the loop | `fsync_max_ms` ≥ 250 ms on one real night | ✅ **MET, and the remedy is narrower than the row assumed** |
+| adapter hotplug / quarantine / flap cap | a second adapter in the deployed config | ✅ **MET — vigil ran FOUR adapters** |
+| post-recovery verification ("connected ≠ healthy" for a *radio*) | — (no gate was stated) | ✅ **now has a measured instance** |
+
+**fsync.** Residue `2026-09-10-fsync-band-crossed-and-the-remedy-is-narrower`: 20 `SLOW fsync` events
+across six consecutive nights, 252–1702 ms. The band this brief set is crossed many times over. ⚠️ And
+the objection that justified deferring it — *"changes the P0 write path from direct to queued — new
+loss class (queue on crash)"* — **does not apply to the shape that is actually needed**: `flush()` is
+userspace→kernel and cheap; only `fsync` is the 250–1702 ms part, and after `flush()` the rows are
+already in the kernel, so a *process* crash loses nothing. Move the **fsync**, not the writer, and the
+loss class never appears. A disk-pressure confound is NOT excluded (`/srv/data` was 98 % full that day),
+so a post-fix measurement must record free space beside the latency.
+
+**Adapters.** On 2026-09-11/12 vigil ran **four** radios at once (two Zephyr dongles, the CSR, the
+Intel), which is exactly the operating mode this row said did not yet exist. It also produced the
+failure the row anticipated: residue `2026-09-11-dead-adapter-goes-unnoticed` — a configured adapter
+wedged at 19:23 and was still wedged 15 minutes later, `org.bluez.Error.InProgress` and kernel `-110`
+repeating every 2 s, **zero of three sensors connected, and nothing on the box said so**. No btreset
+systemd unit exists; `journalctl` logged **0** reset attempts across the window. ⚠️ Not Zephyr-specific:
+the detection gap applies to whichever radio is configured, and `ZEPHYR-INSTRUMENT` already records the
+Realtek's own intermittent deafness.
+
+**"Connected ≠ healthy."** This item had no gate because nobody had a clean instance. There is one now,
+and it is unusually sharp: the wedged adapter reported `UP RUNNING` to `hciconfig` **while `HCI Reset`
+(`0x0c03`) itself timed out at `-110`**, and a USB de/re-authorize left the device enumerated with no
+HCI node at all — alive at USB, dead at HCI. A health check that reads link state, or even adapter
+state, would have called that radio healthy for fifteen minutes. Post-recovery verification for a radio
+therefore has to probe a command round-trip, not a flag.
+
+### What today's fragmentation work contributes to this brief
+
+A link drop that mints a new file-set **is** a resource-lifecycle event, and two of its causes were
+fixed under this brief's model rather than beside it (#2405): the ring never consulted `resumable_stamp`
+while the Polar path had since #1532 — a resource whose release/re-claim was not idempotent across a
+reconnect — and a zero device stamp resolving to `_POLAR_EPOCH` drove `clock_watchdog` into a re-sync
+that *drops the link*, i.e. background maintenance preempting live acquisition, which §8's priority
+ordering exists to prevent. Both are now guarded and gated.
+
+### Honest score, against the charter's own categories
+
+The charter asks for a score and forbids claiming 100 % because code exists. On its 22 categories, with
+this brief's §6 marks carried forward and the three gates above re-opened: **roughly 10 implemented, 3
+now actionable-with-evidence, 4 deliberately not-applicable to a one-task-per-link design (admission
+enum, generations, quiesce coordinator, CPU budget), and the remainder partial.** The single largest
+real gap is not a missing abstraction — it is that **no resource on this box is health-checked after
+recovery**, which the 15-minute dead adapter demonstrates end to end.
+
+⚠️ **What this brief still declines to build, and why that has not changed.** The charter asks for a
+generic orchestrator with priority, fairness, aging, deadlines and dependency ordering. §1's diagnosis
+stands: the daemon is **one task per link** with a process-global `_CONNECT_LOCK` for establishment.
+There is no shared queue for priorities to order, no second waiter for fairness to arbitrate between,
+and no A-holds-1-wants-2 pair for deadlock ordering to prevent. Building that machinery would model
+contention this design does not have — and `find_unwired` would correctly call every unused field of it
+decorative, exactly as it did for `adapter_pool` (5 public functions, allowlisted as ASPIRATIONAL,
+waiting on per-device pinning nobody has asked for). **Build the three gated items; do not build the
+framework around them.**
+
 ## 8 · Verification
 
 `capture-host/check.sh` (ruff · shellcheck · pytest `--cov --cov-branch --cov-fail-under=100` ·
