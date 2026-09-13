@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fRTlodOVWM5MN5OqqkR5qgBpyK9uRGwVg2OPzTJnw6o=' 'sha256-i6jRg4w3FkJGmcHdy4VzKqroE3ERveXtU1iJw7vqCBQ=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s=' 'sha256-sEEnnGtQ3WZzpPa7gTX9mVYX7vYKfkNPF+WKya+4VZA='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1GrXbohtkzRFVggsxtLXO0QbIxenXu06mqtKLv0Xrjs=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-YWQmU3TzDTsJSyURLwLlmbvJIzFCkh1VUbAWSSQK8N8=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i6jRg4w3FkJGmcHdy4VzKqroE3ERveXtU1iJw7vqCBQ=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.11.0</title>
@@ -9858,6 +9858,42 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     return ['supine', 'prone', 'lateral', 'upright'].indexOf(p) >= 0 ? p : 'unknown';
   }
 
+  /* ── SELF-PPI INTEROP TEXT — the Polar *_PPI.txt column layout, filled only where WE MEASURED ──
+     PpgDex derives its PPI optically; it does not have a Polar device's telemetry. Four of the seven
+     columns are that telemetry — `error estimate [ms]`, `blocker`, and the two `contact` flags — and
+     this writer used to emit a literal `0;0;1;1` for them on every single row. Read back through
+     `parseDevicePPI` that is `err:0, blocker:0, contact:1`: zero uncertainty, nothing blocked, skin
+     contact confirmed, asserted beat by beat about four quantities this node never measured. §∅ — a
+     value that was not measured is null, and in this format the null is an EMPTY FIELD, which
+     `parseDevicePPI` already maps back to `null` (`isFinite(err) ? err : null`, and the same for the
+     other two). The reader was ready for the honest answer before the writer gave it.
+
+     ⚠️ Deliberately NOT substituting a PpgDex quantity that looks similar. `ppiConf` is a 0–1 weight
+     and the column is MILLISECONDS — writing it there is a unit error wearing the shape of a fix. The
+     clean-interval mask is close in spirit to `blocker` but means something different (our SQI/gap
+     judgement, not the device flagging a beat), and quietly redefining another vendor's field is how
+     a consumer ends up comparing two things that share a name. Blank says what is true: we did not
+     measure this. And `contact` is the one to be most careful with — a fabricated 1 is a positive
+     claim about skin contact, and even the Verity's OWN contact bit reports worn in its charger.
+
+     Kept as a pure function so it is gate-able: the app owns the download, this owns the format. */
+  const SELF_PPI_HEADER = 'Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]';
+  function buildSelfPPIText(r) {
+    let out = SELF_PPI_HEADER + '\n';
+    if (!r || !r.nn || !r.tt) return out;
+    for (let i = 0; i < r.nn.length; i++) {
+      const nn = r.nn[i];
+      if (!isFinite(nn) || nn <= 0) continue; // no interval ⇒ no row, rather than a row of zeros
+      const tMs = r.t0Ms != null && isFinite(r.tt[i]) ? r.t0Ms + Math.round(r.tt[i] * 1000) : null;
+      // §5 — floating tMs must be read back with the UTC family, and fmtDateTime is second-resolution,
+      // so the ISO form is built here to keep the milliseconds the device format carries.
+      const ts = tMs != null ? new Date(tMs).toISOString().replace('Z', '') : '';
+      // columns 3-6 are the device's telemetry: absent, therefore empty.
+      out += ts + ';' + Math.round(nn) + ';;;;;' + Math.round(60000 / nn) + '\n';
+    }
+    return out;
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   //  DEVICE-PPI VALIDATION  — self-PPI vs Polar *_PPI.txt (validation lane only)
   // ════════════════════════════════════════════════════════════════════════
@@ -11562,6 +11598,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
     parsePPG,
     parseSensorXYZ,
     parseDevicePPI,
+    buildSelfPPIText,
     analyze,
     analyzeMotion,
     movementOnsets,
@@ -17584,12 +17621,11 @@ const { PPGUI } = __require('ppgdex-render.js');
   function exportPPI() {
     const r = allSessions[activeKey];
     if (!r) return;
-    let out = 'Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]\n';
-    for (let i = 0; i < r.nn.length; i++) {
-      const tMs = r.t0Ms != null ? r.t0Ms + Math.round(r.tt[i] * 1000) : null;
-      const ts = tMs != null ? new Date(tMs).toISOString().replace('Z', '') : '';
-      out += `${ts};${Math.round(r.nn[i])};0;0;1;1;${Math.round(60000 / r.nn[i])}\n`;
-    }
+    /* The row format lives in DSP.buildSelfPPIText, not here — it is the one part of this function
+       that carries a CLAIM (which of the Polar columns we actually measured) and the app layer has no
+       test lane to hold it to. The four device-telemetry columns are now empty rather than `0;0;1;1`;
+       see that function for why a plausible-looking substitute is worse than a blank. */
+    const out = DSP.buildSelfPPIText(r);
     // INTEROP file (self-PPI in Polar device .txt format, for the PulseDex handoff) — stays OFF the
     // <Node>_<date>_<kind> scheme (EXPORT-HYGIENE-FOLLOWUPS §4), recording-anchored inline (getUTC* via
     // DSP.fmtDate), like ECGDex's computed-RR / PulseDex's welltory exports.

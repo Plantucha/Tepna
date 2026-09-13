@@ -3233,6 +3233,42 @@
     return ['supine', 'prone', 'lateral', 'upright'].indexOf(p) >= 0 ? p : 'unknown';
   }
 
+  /* ── SELF-PPI INTEROP TEXT — the Polar *_PPI.txt column layout, filled only where WE MEASURED ──
+     PpgDex derives its PPI optically; it does not have a Polar device's telemetry. Four of the seven
+     columns are that telemetry — `error estimate [ms]`, `blocker`, and the two `contact` flags — and
+     this writer used to emit a literal `0;0;1;1` for them on every single row. Read back through
+     `parseDevicePPI` that is `err:0, blocker:0, contact:1`: zero uncertainty, nothing blocked, skin
+     contact confirmed, asserted beat by beat about four quantities this node never measured. §∅ — a
+     value that was not measured is null, and in this format the null is an EMPTY FIELD, which
+     `parseDevicePPI` already maps back to `null` (`isFinite(err) ? err : null`, and the same for the
+     other two). The reader was ready for the honest answer before the writer gave it.
+
+     ⚠️ Deliberately NOT substituting a PpgDex quantity that looks similar. `ppiConf` is a 0–1 weight
+     and the column is MILLISECONDS — writing it there is a unit error wearing the shape of a fix. The
+     clean-interval mask is close in spirit to `blocker` but means something different (our SQI/gap
+     judgement, not the device flagging a beat), and quietly redefining another vendor's field is how
+     a consumer ends up comparing two things that share a name. Blank says what is true: we did not
+     measure this. And `contact` is the one to be most careful with — a fabricated 1 is a positive
+     claim about skin contact, and even the Verity's OWN contact bit reports worn in its charger.
+
+     Kept as a pure function so it is gate-able: the app owns the download, this owns the format. */
+  const SELF_PPI_HEADER = 'Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]';
+  function buildSelfPPIText(r) {
+    let out = SELF_PPI_HEADER + '\n';
+    if (!r || !r.nn || !r.tt) return out;
+    for (let i = 0; i < r.nn.length; i++) {
+      const nn = r.nn[i];
+      if (!isFinite(nn) || nn <= 0) continue; // no interval ⇒ no row, rather than a row of zeros
+      const tMs = r.t0Ms != null && isFinite(r.tt[i]) ? r.t0Ms + Math.round(r.tt[i] * 1000) : null;
+      // §5 — floating tMs must be read back with the UTC family, and fmtDateTime is second-resolution,
+      // so the ISO form is built here to keep the milliseconds the device format carries.
+      const ts = tMs != null ? new Date(tMs).toISOString().replace('Z', '') : '';
+      // columns 3-6 are the device's telemetry: absent, therefore empty.
+      out += ts + ';' + Math.round(nn) + ';;;;;' + Math.round(60000 / nn) + '\n';
+    }
+    return out;
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   //  DEVICE-PPI VALIDATION  — self-PPI vs Polar *_PPI.txt (validation lane only)
   // ════════════════════════════════════════════════════════════════════════
@@ -4937,6 +4973,7 @@
     parsePPG,
     parseSensorXYZ,
     parseDevicePPI,
+    buildSelfPPIText,
     analyze,
     analyzeMotion,
     movementOnsets,

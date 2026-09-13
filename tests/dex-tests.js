@@ -34073,6 +34073,95 @@
        empty set — the failure this repo keeps finding. So: the JS literals are pinned unconditionally,
        and the Python file is asserted to carry EITHER all six with matching values OR none of them.
        A partial landing, a rename, or a changed value all red. */
+    group('PPGDex §∅ — the self-PPI interop file claimed four device telemetry columns it never measured', 'ppgdex-dsp · absence-as-value · export-boundary', function (T) {
+      /* The self-PPI export writes the Polar `*_PPI.txt` column layout so PulseDex can read it. Four
+         of the seven columns are the DEVICE's telemetry — `error estimate [ms]`, `blocker`, and two
+         `contact` flags — and PpgDex derives its PPI optically, so it has none of them. The writer
+         emitted a literal `0;0;1;1` on every row, which `parseDevicePPI` reads back as
+         `err:0, blocker:0, contact:1`: zero uncertainty, nothing blocked, skin contact CONFIRMED,
+         asserted beat by beat about four quantities never measured. §∅ — and in this format the null
+         is an empty field, which the parser already maps to null. The reader was ready before the
+         writer was.
+
+         ASSERTED THROUGH THE ROUND TRIP, not by scanning the emitted text: `parseDevicePPI` is what
+         a consumer actually sees, so a fabrication is only really gone when the consumer reads null.
+         (A source scan would prove the literal is absent from the file and nothing about what the
+         consumer gets — the failure #2463 was landed to fix, one layer up.) */
+      var D = env.PPGDSP;
+      if (!(D && typeof D.buildSelfPPIText === 'function' && typeof D.parseDevicePPI === 'function')) {
+        T.ok('PPGDSP.buildSelfPPIText + parseDevicePPI exported', false, 'export them from ppgdex-dsp.js');
+        return;
+      }
+      var rec = { t0Ms: Date.UTC(2026, 5, 27, 23, 14, 5), nn: [812, 845, 798, 863], tt: [1.2, 2.045, 2.843, 3.706] };
+      var txt = D.buildSelfPPIText(rec);
+      var back = D.parseDevicePPI(txt);
+      // ANTI-VACUITY: if nothing round-trips, every null below is trivially satisfied by an empty set.
+      T.eq('ANTI-VACUITY · every interval survives the round trip', back.length, rec.nn.length);
+      T.eq(
+        '…and the intervals themselves are preserved exactly',
+        back.map(function (b) {
+          return b.ppi;
+        }),
+        [812, 845, 798, 863]
+      );
+      /* THE FOUR FABRICATIONS. Each asserted separately, because `0;0;1;1` had three distinct wrong
+         values and a fix that blanked only some of them would pass a pooled check. */
+      T.eq(
+        '§∅ · error estimate is NULL — we never measured an uncertainty in ms',
+        back.map(function (b) {
+          return b.err;
+        }),
+        [null, null, null, null]
+      );
+      T.eq(
+        '§∅ · blocker is NULL — the device never told us it blocked a beat',
+        back.map(function (b) {
+          return b.blocker;
+        }),
+        [null, null, null, null]
+      );
+      T.eq(
+        '§∅ · contact is NULL, never a fabricated 1 — the strongest of the four claims',
+        back.map(function (b) {
+          return b.contact;
+        }),
+        [null, null, null, null]
+      );
+      /* …and the columns we DO measure are still there, or this is a fix that deleted the file's
+         content rather than its fabrications. */
+      T.ok(
+        'the measured columns survive — hr is derived from the interval',
+        back.every(function (b, i) {
+          return b.hr === Math.round(60000 / rec.nn[i]);
+        }),
+        JSON.stringify(
+          back.map(function (b) {
+            return b.hr;
+          })
+        )
+      );
+      T.ok(
+        '…and the timestamps are real, reconstructed from t0Ms + tt',
+        back.every(function (b) {
+          return typeof b.tMs === 'number' && isFinite(b.tMs);
+        }),
+        JSON.stringify(
+          back.map(function (b) {
+            return b.tMs;
+          })
+        )
+      );
+      T.eq('…the first row lands at t0Ms + tt[0]', back[0].tMs, rec.t0Ms + 1200);
+      /* §∅ AT THE OTHER END: a record with no anchor cannot state a wall-clock, so the stamp is blank
+         rather than an epoch-0 fabrication — and the interval, which IS measured, still ships. */
+      var anchorless = D.parseDevicePPI(D.buildSelfPPIText({ t0Ms: null, nn: [900], tt: [1.0] }));
+      T.eq('§∅ · no recording anchor ⇒ the timestamp is null, not 1970', anchorless.length && anchorless[0].tMs, null);
+      T.eq('…while the measured interval still ships', anchorless.length && anchorless[0].ppi, 900);
+      /* A non-finite interval is not a row of zeros — it is not a row. */
+      var dirty = D.parseDevicePPI(D.buildSelfPPIText({ t0Ms: Date.UTC(2026, 5, 27), nn: [800, NaN, 0, 810], tt: [1, 2, 3, 4] }));
+      T.eq('§∅ · an absent interval emits NO row rather than a fabricated zero', dirty.length, 2);
+    });
+
     group('PPGDex §∅ — the span constants are pinned, and cross-language parity cannot pass vacuously', 'ppgdex-dsp · absence-as-value · parity', function (T) {
       var src = env.ppgdexDspSource || null;
       if (!src) {
