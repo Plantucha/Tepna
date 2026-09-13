@@ -4609,6 +4609,21 @@
          0.001-0.088 measured), reported as a number so a reader can judge the borderline rather than
          inherit a verdict. */
       timingSource: (rec.hostAxis && rec.hostAxis.timingSource) || null,
+      /* ── THE AXIS OBJECT ITSELF, and why one scalar was not enough ──────────────────────────────
+         `ppgBuildNodeExport` has a whole `recording.hostAxis` block gated on `r.hostAxis && .ok`,
+         mirroring ECGDex field for field — and `analyze` never forwarded the object, so `r.hostAxis`
+         was `undefined` on every compute() and the block has never once emitted. The three scalars
+         above (`timingSource`, `axisDrawn`, `axisQuantizedShare`) were projected out one at a time as
+         each was needed, which is exactly how the object came to be dropped: each projection looked
+         like the fix for the field it added and none of them restored the source.
+         What was lost is everything the block names and no scalar carries: `ppm`, `anchors`,
+         `spreadMs`, `independent`, `inertReason`, `maxStepMs`, `stability`. `independent` is §7's
+         discriminator for whether a second clock exists at all, and `inertReason` is the sentence
+         DexClock wrote when it said no — a consumer reading `timingSource: 'host'` alone cannot tell
+         a measured refusal from a missing measurement.
+         The block is CONDITIONAL on `.ok`, so a recording without an axis still omits it and stays
+         byte-identical; this makes the condition reachable, it does not widen it. */
+      hostAxis: rec.hostAxis || null,
       // Which RATE reference governed this recording (O2RING-ADAPTIVE-TIMEBASE): 'device-crystal' (the
       // 125.000 ADC clock, markers deflated) or 'host-disciplined' (the host-referenced row axis) for an
       // O2Ring finger recording; null for a Verity (a real multi-oscillator device, not an either/or).
