@@ -1,0 +1,30 @@
+diff --git a/samples/bluetooth/hci_uart/src/main.c b/samples/bluetooth/hci_uart/src/main.c
+index cdd65627..f63e63d4 100644
+--- a/samples/bluetooth/hci_uart/src/main.c
++++ b/samples/bluetooth/hci_uart/src/main.c
+@@ -28,6 +28,8 @@
+ #include <zephyr/bluetooth/buf.h>
+ #include <zephyr/bluetooth/hci_raw.h>
+ #include <zephyr/bluetooth/hci_vs.h>
++#include <zephyr/bluetooth/controller.h>
++#include <hal/nrf_ficr.h>
+ 
+ #define LOG_MODULE_NAME hci_uart
+ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
+@@ -410,6 +412,16 @@ int main(void)
+ 	/* Enable the raw interface, this will in turn open the HCI driver */
+ 	bt_enable_raw(&rx_queue);
+ 
++	/* Tepna: derived PUBLIC address = Nordic OUI F4:CE:36 + low 24 bits of the FICR device
++	 * address. Same value every boot, unique per die, no NVS. HCI BD_ADDR is little-endian:
++	 * pub[5] is the first octet on the air. Survives HCI_Reset, not power-cycle, hence here. */
++	{
++		uint32_t tepna_public_addr = nrf_ficr_deviceaddr_get(NRF_FICR, 0);
++		uint8_t pub[6] = { tepna_public_addr & 0xff, (tepna_public_addr >> 8) & 0xff,
++				   (tepna_public_addr >> 16) & 0xff, 0x36, 0xCE, 0xF4 };
++		bt_ctlr_set_public_addr(pub);
++	}
++
+ 	if (IS_ENABLED(CONFIG_BT_WAIT_NOP)) {
+ 		/* Issue a Command Complete with NOP */
+ 		int i;

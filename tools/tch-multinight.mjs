@@ -141,7 +141,7 @@ function runNight(night, labels) {
     labels,
     night.hasStamp !== false
   );
-  if (incomplete) return { ...base, ok: false, reason: incomplete };
+  if (incomplete) return { ...base, ok: false, incomplete: true, reason: incomplete };
   if (al.keys.length < 12) return { ...base, ok: false, reason: 'overlap ' + al.keys.length + ' < 12' };
 
   // align motion onto the SAME shared epoch keys the HR triplet resolved on
@@ -395,6 +395,32 @@ function median(xs) {
   return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
 }
 
+/* THE DENOMINATOR IS THE PRODUCT, so it is computed here and pinned by `--selftest` rather than
+   only formatted inline. Residue `2026-09-12-partial-fold-reads-as-zero-overlap`.
+
+   ⚠️ THE CONTROL IS WHAT MAKES THIS A RULE AND NOT A BLANKET. A night that failed for a REAL reason
+   — a genuine `overlap 0 < 12`, a degenerate solve — is a night this tool tried and could not
+   estimate, and it MUST keep counting in the denominator: excluding those would flatter the yield,
+   which is the same defect in the opposite direction. Only `incomplete` (the fold never produced
+   the corners) is excluded, and the count and the night names are printed on the same line as the
+   number they change, because a filter the reader cannot see is not an improvement over a wrong
+   denominator. */
+function distributionHeading(nSolved, rows) {
+  const incomplete = rows.filter((x) => x.incomplete);
+  const foldable = rows.length - incomplete.length;
+  return (
+    'distribution (' +
+    nSolved +
+    ' estimated / ' +
+    foldable +
+    ' foldable night(s)' +
+    (incomplete.length
+      ? ' · ' + incomplete.length + ' incomplete night(s) EXCLUDED from both counts — the fold never finished, so this is not an estimation failure: ' + incomplete.map((x) => x.label).join(', ')
+      : '') +
+    '):'
+  );
+}
+
 function report(rows, { json } = {}) {
   if (json) {
     console.log(JSON.stringify(rows, null, 2));
@@ -458,11 +484,22 @@ function report(rows, { json } = {}) {
   /* BEFORE the medians, not after. §F3's PpgDex 2.71 → 3.44 was published and only later found to span
      different night sets; a reader must meet the corpus verdict before the number it qualifies. */
   const solvedSet = new Set(solved.map((x) => x.label));
-  const split = TchCorpus.cohortSplit(rows.map((x) => ({ night: x.label, marker: x.marker, solved: solvedSet.has(x.label) })));
+  /* ── A NIGHT THAT WAS NEVER FOLDED IS NOT A NIGHT THIS TOOL FAILED TO ESTIMATE.
+     Residue `2026-09-12-partial-fold-reads-as-zero-overlap`. The sibling fix taught the per-night
+     line to say `incomplete night` instead of `overlap 0 < 12`; the DENOMINATOR still counted it.
+     A `trio-batch` child that aborted mid-fold therefore degraded the reported estimation yield —
+     `1 estimated / 2 nights` where only one night was ever foldable — and inflated the corpus line
+     to `all 2 cohorted night(s)`. Two runs over the same recordings then disagree on yield because
+     of a heap limit, and nothing in the output says so.
+     Treated exactly like the degenerate-boundary nights above: reported, EXCLUDED, and the count
+     and reason printed on the same line as the number they change. Removing them silently would be
+     the mirror-image defect — a filter the reader cannot see. */
+  const foldable = rows.filter((x) => !x.incomplete);
+  const split = TchCorpus.cohortSplit(foldable.map((x) => ({ night: x.label, marker: x.marker, solved: solvedSet.has(x.label) })));
   const corpusVerdict = TchCorpus.corpusVerdict(split);
   const corpusLine = TchCorpus.corpusLine(split);
   if (corpusLine) console.log('\n' + corpusLine);
-  console.log('\n  distribution (' + solved.length + ' estimated / ' + rows.length + ' nights):');
+  console.log('\n  ' + distributionHeading(solved.length, rows));
   if (degenerate.length) {
     console.log(
       '    ' +
@@ -538,6 +575,26 @@ function verify(rows, corpus) {
   const _ps = classifyCompleteness(['ECGDex', 'PpgDex'], _L, true);
   ok('completeness · a STAMPED night missing a corner is still incomplete, but is not blamed on the stamp', /missing OxyDex/.test(_ps || '') && !/trio-stamp/.test(_ps || ''), String(_ps));
   ok('completeness · an empty directory names all three, not none', /missing ECGDex\+PpgDex\+OxyDex/.test(classifyCompleteness([], _L, false) || ''), String(classifyCompleteness([], _L, false)));
+
+  /* ── THE DENOMINATOR (residue `2026-09-12-partial-fold-reads-as-zero-overlap`). The sibling fix
+     taught the per-night line to stop blaming overlap; the yield still counted an unfolded night,
+     so a heap-limit abort silently degraded a run's reported estimation rate. */
+  const _rows = (...xs) => xs;
+  const _n = (label, extra) => ({ label: label, ...extra });
+  const _mixed = _rows(_n('a'), _n('b'), _n('bad-fold', { incomplete: true }));
+  ok('denominator · an unfolded night leaves the yield denominator', /2 foldable night\(s\)/.test(distributionHeading(2, _mixed)), distributionHeading(2, _mixed));
+  ok('denominator · …and the exclusion is STATED with its count, never applied silently', /1 incomplete night\(s\) EXCLUDED/.test(distributionHeading(2, _mixed)), distributionHeading(2, _mixed));
+  ok('denominator · …and the excluded night is NAMED, so the reader can go and look at it', /bad-fold/.test(distributionHeading(2, _mixed)), distributionHeading(2, _mixed));
+  /* ⚠️ THE CONTROL. A night that failed for a REAL reason — genuine zero overlap, a degenerate
+     solve — is one this tool TRIED and could not estimate. It must keep counting, or the yield
+     flatters itself: the same defect pointing the other way. */
+  const _tried = _rows(_n('a'), _n('no-overlap'), _n('degenerate'));
+  ok(
+    'denominator · CONTROL · a night that genuinely failed still counts — excluding it would flatter the yield',
+    /1 estimated \/ 3 foldable night\(s\)\)?:/.test(distributionHeading(1, _tried)),
+    distributionHeading(1, _tried)
+  );
+  ok('denominator · CONTROL · …and with nothing incomplete the line carries no exclusion clause at all', !/EXCLUDED/.test(distributionHeading(1, _tried)), distributionHeading(1, _tried));
 
   for (const row of rows) {
     const spec = byLabel[row.label];
