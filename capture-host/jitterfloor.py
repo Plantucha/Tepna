@@ -62,8 +62,8 @@ def parse_pmdarrival(path: Path) -> dict[str, list[tuple[float, int]]]:
         try:
             first_ns = int(parts[3])
         except ValueError:
-            continue   # the floor is a MINIMUM over parsed rows, so a dropped row can only make
-                       # the estimate more conservative, never smaller than the truth
+            continue  # the floor is a MINIMUM over parsed rows, so a dropped row can only make
+            # the estimate more conservative, never smaller than the truth
         streams.setdefault(parts[1] + "|" + parts[2], []).append((host, first_ns))
     return streams
 
@@ -113,18 +113,62 @@ def _device_axis_is_drawn(dev_deltas_ns: list[int]) -> bool:
     return sum(1 for d in positive if d % grid == 0) / len(positive) >= DRAWN_CONCENTRATION
 
 
+# A residual is at most c/2 by construction of round(), so half of that is the natural line between
+# "these deltas cluster on the lattice" and "they do not". It is a property of the arithmetic, not a
+# tuned constant: nothing here was fitted to a corpus.
+FOLD_FIT_TOL = 0.25
+
+
+def _lattice_fit(deltas: list[float], c: float) -> float:
+    """Share of deltas within FOLD_FIT_TOL*c of a multiple of c — a COUNT, never a central statistic.
+    The deltas of a stream with dropped frames are bimodal by construction, and a median residual over
+    a bimodal population describes whichever cluster it lands in while saying nothing about the other."""
+    return sum(1 for d in deltas if abs(d - round(d / c) * c) < c * FOLD_FIT_TOL) / len(deltas)
+
+
 def _folded_base(host_deltas: list[float]) -> float:
-    """Base interval by candidate testing with a RELATIVE residual score (see module docstring)."""
+    """Base interval by candidate testing, scored by HOW MANY deltas fit the lattice — not by a
+    residual average, and not normalised by the candidate.
+
+    🔴 BOTH EARLIER SCORES FAILED, IN MIRROR-IMAGE WAYS, and the module docstring only recorded the
+    first. An absolute argmin hands the win to the SMALLEST candidate (every divisor of the true base
+    leaves the same residual). Dividing that residual by `c` to fix it hands the win to the LARGEST
+    candidate for exactly the same reason — measured 2026-09-13 on the 1-in-3-dropped fixture, every
+    candidate scored an identical 1.0 ms absolute residual, so the `/c` normalisation ranked them
+    1:2:3:4 and picked m=1 (base 999 ms, jitter 248 ms) over the true m=2 (base 499.5, jitter ~3).
+
+    ⚠️ AND THE 1.0 ms THAT DROVE IT WAS ITSELF AN ARTEFACT — the deeper defect. The deltas are bimodal
+    (half ~500 ms, half ~1000 ms). Against c=999 the big half leaves ~1 ms and the small half leaves
+    ~496 ms, and with one more big delta than small, the MEDIAN residual lands in the small cluster and
+    reports 1.0 — a number that describes half the data while the other half misses the lattice
+    entirely. A central statistic cannot score a fit that is bimodal by construction, whichever way it
+    is normalised.
+
+    So the score counts instead: the share of deltas landing within `FOLD_FIT_TOL * c` of a multiple.
+    Ties go to the LARGEST candidate, which happens for free because `m` ascends (so `c` descends) and
+    only a STRICTLY better fit displaces the incumbent — a divisor of the true base fits equally well
+    and must not win, or the fold reports a base that is a submultiple of the real schedule."""
     med = statistics.median(host_deltas)
-    best_base, best_score = med, None
+    # ⛔ WHEN MAY A CANDIDATE GO FINER THAN THE SMALLEST OBSERVED DELTA? Only when the deltas are whole
+    # multiples of it — i.e. when the short gaps are single frames and the long ones are drops. Then a
+    # finer grid is finding a schedule the stream never got to show. When they are NOT (30×100 with
+    # 10×150: 1.5 is no one's missed frame), a finer grid is subdividing genuine irregularity until it
+    # disappears, and a jitter floor that does that reports ~0 for a stream that is visibly uneven.
+    #
+    # Both halves are needed and neither is sufficient: this test admits c=500 AND c=1000 for a
+    # dropped-frame stream, and it is the fit count below that prefers 500. Measured 2026-09-13 —
+    # the discriminator is Wren's, the exception that killed a bare floor is the shipped 400/800
+    # fixture, whose true base 200 lies BELOW every gap it ever emits.
+    smallest = min(host_deltas)
+    multiples_only = _lattice_fit(host_deltas, smallest) >= DRAWN_CONCENTRATION
+    best_base, best_fit = max(med, 8.0), -1.0
     for m in (1, 2, 3, 4):
         c = med / m
-        if c < 8.0:
+        if c < 8.0 or (not multiples_only and c < smallest * 0.9):
             break
-        # no cap needed: |d - round(d/c)*c| <= c/2 by construction of round()
-        score = statistics.median(abs(d - round(d / c) * c) for d in host_deltas) / c
-        if best_score is None or score < best_score * 0.95:
-            best_base, best_score = c, score
+        fit = _lattice_fit(host_deltas, c)
+        if fit > best_fit:
+            best_base, best_fit = c, fit
     return max(best_base, 8.0)
 
 

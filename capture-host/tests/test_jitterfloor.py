@@ -4,7 +4,6 @@
 
 import json
 
-import pytest
 
 import jitterfloor as jf
 
@@ -68,28 +67,18 @@ def test_drawn_axis_refused_and_folded_fallback(tmp_path):
     assert abs(f["base_ms"] - 500.0) < 10.0, f
 
 
-@pytest.mark.xfail(strict=True, reason="_folded_base picks 2x the true base at a 1/3 drop rate — see below")
 def test_missed_frames_do_not_inflate_folded_jitter(tmp_path):
     # every 3rd frame missing: gaps of 2×base must fold out, not read as 500 ms of "jitter".
     #
-    # 🔴 XFAIL SINCE THE LATTICE GUARD LANDED — a SECOND defect, in `_folded_base`, that this fixture
-    # could not reach before. Its axis is `int(i * 0.5e9)`, i.e. exactly drawn, so the corrected guard
-    # now routes it to `folded` where the old modal guard sent it to `vs-device`. Folded then picks the
-    # WRONG BASE: measured 2026-09-13, median delta 999.0 (just over half the deltas ARE the doubled
-    # gaps, so the median lands ON the 2× cluster), and every candidate leaves the same ~1 ms absolute
-    # residual, so the `/c` normalisation ranks the LARGEST base best — m=1 c=999.0 score 0.001001 wins
-    # over the true m=2 c=499.5 score 0.002002. Base 999 makes every genuine 500 ms delta read as a
-    # 499 ms residual → jitter 248 ms instead of ~8 ms.
+    # 🔴 THIS FIXTURE IS THE ONE THAT CAUGHT `_folded_base`, and it could not reach it before the
+    # lattice guard landed: its axis is `int(i * 0.5e9)`, exactly drawn, so the corrected guard routes
+    # it to `folded` where the old modal guard sent it to `vs-device`. Measured 2026-09-13, the old
+    # relative score then picked base 999 ms and reported jitter 248 ms; the fit-count score picks
+    # 499.5 ms and reports 2 ms. Both numbers come from this fixture — keep it.
     #
-    # The module docstring justifies the relative score because "an absolute argmin always hands the
-    # win to the smallest base". It does — and the relative score hands it to the largest, which is the
-    # same error mirrored. Fixing that is a separate unit (residue 2026-09-13-folded-base-prefers-the-
-    # largest-candidate); it is NOT folded into the guard fix, because a base estimator wants its own
-    # design and its own plants.
-    #
-    # `strict=True` on purpose: when `_folded_base` is fixed this test must go GREEN and fail the xfail,
-    # so the marker cannot outlive the bug. Real-corpus impact is small — the O2Ring's true drop rate is
-    # ~2 %, where folded returns 10.5 ms; this bites near a 1/3 drop rate.
+    # The deltas are bimodal ON PURPOSE (half ~500 ms, half ~1000 ms, one more big than small): that is
+    # what makes a MEDIAN residual land inside one cluster and describe half the data, which was the
+    # defect underneath the ranking bug. A fixture with a single delta population cannot express it.
     # The miss rate is deliberately high enough that Q3 lands INSIDE the doubled-gap cluster if
     # the fold formula is broken — half-IQR is translation-invariant, so a fold that merely
     # SHIFTS residuals is invisible unless the k=2 gaps land in the quartile span.
@@ -240,7 +229,7 @@ def test_being_an_integer_multiple_is_not_enough_to_convict():
     separates them, so a real axis whose deltas are near-multiples must still read as real."""
     real = []
     for i in range(100):
-        step = _G if i % 7 else 2 * _G          # genuine dropped frames
+        step = _G if i % 7 else 2 * _G  # genuine dropped frames
         real.append(step + (37 if i % 2 else -53))  # ...and genuine sub-µs crystal wander
     assert jf._device_axis_is_drawn(real) is False
 
@@ -349,3 +338,36 @@ def test_folded_base_hysteresis_keeps_incumbent():
     # loosened switch threshold (anything above 0.95) walks down to 31.25
     near = [100.0] * 20 + [150.0] * 20
     assert jf._folded_base(near) == 125.0
+
+
+def test_folded_base_prefers_the_true_base_over_its_own_divisors(tmp_path):
+    # THE MIRROR CONTROL for the fit-count score. Every divisor of the true base fits the lattice
+    # perfectly, so a fit-count alone TIES them; only "ties go to the largest candidate" separates
+    # them. Without that rule this returns 250 (or 166.7) and every genuine 500 ms delta still folds
+    # to ~0 residual — a base that is wrong while the jitter it produces looks right, which is why
+    # this asserts the BASE and not only the jitter.
+    lines = []
+    for i in range(300):
+        host_s = i * 0.5 + (0.002 if i % 2 else -0.002)
+        lines.append(_row(_stamp(host_s), "O2Ring R", "spo2", int(i * 0.5e9)))
+    _write_night(tmp_path, "ring", lines)
+    f = jf.night_floor(tmp_path)["floor"]
+    assert f is not None and 495.0 <= f["base_ms"] <= 505.0, f
+
+
+def test_folded_base_is_not_fooled_by_a_median_residual_that_describes_half_the_data(tmp_path):
+    # THE PLANT the ranking fix owes: deltas bimodal at base and 2x base, arranged so the MEDIAN
+    # absolute residual against the 2x candidate lands in the small cluster and reads ~1 ms — the
+    # artefact that made the retired score rank 2x best. Asserted on the BASE, because the retired
+    # code produced a plausible-looking small residual while choosing the wrong lattice.
+    lines = []
+    for i in range(220):
+        if i % 3 == 2:
+            continue
+        host_s = i * 0.5 + (0.002 if i % 2 else -0.002)
+        lines.append(_row(_stamp(host_s), "O2Ring R", "spo2", int(i * 0.5e9)))
+    _write_night(tmp_path, "ring", lines)
+    f = jf.night_floor(tmp_path)["floor"]
+    assert f is not None, f
+    assert 495.0 <= f["base_ms"] <= 505.0, f  # retired score returned 999.0 here
+    assert f["jitter_ms"] < 10.0, f  # ... and 248.0 ms of "jitter" with it
