@@ -80,8 +80,7 @@ export function loadCohortGen(root) {
   const ctx = { console, Math, Date, JSON, Object, Array, Number, String, isNaN, parseFloat, parseInt };
   createContext(ctx);
   runInContext(readFileSync(join(root || ROOT, 'cohort-gen.js'), 'utf8'), ctx, { filename: 'cohort-gen.js' });
-  if (!ctx.CohortGen || typeof ctx.CohortGen.sampleProfile !== 'function')
-    throw new Error('cohort-gen.js loaded but exposed no sampleProfile — the surface moved');
+  if (!ctx.CohortGen || typeof ctx.CohortGen.sampleProfile !== 'function') throw new Error('cohort-gen.js loaded but exposed no sampleProfile — the surface moved');
   return ctx.CohortGen;
 }
 
@@ -206,14 +205,24 @@ function selftest() {
   let cg = null;
   try {
     cg = loadCohortGen(ROOT);
-  } catch (e) {
+  } catch {
     /* reported by the assertion below */
   }
   A('generator: cohort-gen.js loads headlessly and exposes sampleProfile', !!cg);
   if (cg) {
     const p = cg.sampleProfile(1);
-    A('generator: a profile carries the fields this tool reads', p && p.age != null && p.bmi != null && p.baseAHI != null && !!p.osaSeverity, JSON.stringify(p && { a: p.age, b: p.bmi, s: p.osaSeverity }));
-    A('generator: sampleProfile is deterministic in its seed', JSON.stringify(cg.sampleProfile(7)) === JSON.stringify(cg.sampleProfile(7)));
+    A(
+      'generator: a profile carries the fields this tool reads',
+      p && p.age != null && p.bmi != null && p.baseAHI != null && !!p.osaSeverity,
+      JSON.stringify(p && { a: p.age, b: p.bmi, s: p.osaSeverity })
+    );
+    /* two separately-taken draws, held in variables — comparing two textually identical call
+       expressions is a self-compare a compiler may fold, so it can pass without the calls differing */
+    const d1 = JSON.stringify(cg.sampleProfile(7));
+    const d2 = JSON.stringify(cg.sampleProfile(7));
+    const d3 = JSON.stringify(cg.sampleProfile(8));
+    A('generator: sampleProfile is deterministic in its seed', d1 === d2);
+    A('generator: …and a DIFFERENT seed gives a different profile (so the above is not vacuous)', d1 !== d3);
     /* the uniform-covariate finding, asserted against the real sampler rather than read off source:
        a uniform draw has its median at the midpoint of its range, a real cohort's does not */
     const n = 20000,
@@ -274,7 +283,15 @@ function main(argv) {
   console.log('');
   console.log('  SEVERITY MIX     synthetic      real     weight');
   for (const b of SEVERITY_BANDS)
-    console.log('    ' + b.padEnd(8) + (100 * w[b].synShare).toFixed(1).padStart(8) + '%' + (100 * w[b].realShare).toFixed(1).padStart(9) + '%' + (w[b].weight != null ? ('×' + w[b].weight).padStart(11) : '  (unrepresented)'));
+    console.log(
+      '    ' +
+        b.padEnd(8) +
+        (100 * w[b].synShare).toFixed(1).padStart(8) +
+        '%' +
+        (100 * w[b].realShare).toFixed(1).padStart(9) +
+        '%' +
+        (w[b].weight != null ? ('×' + w[b].weight).padStart(11) : '  (unrepresented)')
+    );
   console.log('');
   console.log('  REPRESENTABLE RANGE');
   console.log('    generator emits AHI ' + un.synMin + ' … ' + un.synMax + ';  real max ' + un.realMax);

@@ -1,7 +1,7 @@
 ---
 bump: minor
 type: added
-brief: briefs/COHORT-VALIDATION-BRIEF.md
+brief: COHORT-VALIDATION-BRIEF.md
 ---
 
 `tools/cohort-fit.mjs` — compares `cohort-gen.js`'s synthetic patients against a real scored cohort
