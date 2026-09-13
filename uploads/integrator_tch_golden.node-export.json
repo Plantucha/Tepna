@@ -89,6 +89,11 @@
           },
           "caveat": "TCH estimates precision (instability), not trueness — a bias shared by all three sensors is invisible. Positive common-mode noise also biases classic without going negative; supply opts.rho to remove a co-motion correlation you can estimate externally.",
           "metric": "hr",
+          "cornerIds": [
+            "ECGDex",
+            "PpgDex",
+            "OxyDex"
+          ],
           "axisProvenance": {
             "ECGDex": null,
             "PpgDex": null,
