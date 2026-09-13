@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS (2026-09-12, Kestrel: TX raised to +20 dBm at the antenna and the public address moved into firmware (`F4:CE:36` + FICR) on the `hci_uart` image — `hciuart-txpwr20-pub.zip` flashed to all three units 20:39, `F4:CE:36:` addresses verified; two units deployed on vigil (hci0 `F4:CE:36:2E:CD:98`, hci3 `F4:CE:36:6B:A4:4E`) via `tepna-btattach@` 21:13 and hci0's advertising decoded on hci3; live capture on hci0 from 21:36 — ring + Verity + H10 concurrently, both Polars re-bonded (the two-peripheral concurrent connect is now measured, the overnight soak is not); full configuration + recipe in `NRF52840-DONGLE-FLASHING-2026-09-07-BRIEF.md` §0b, the why in § "2026-09-12" below. Previously: Task 1 remainder picked up 2026-09-07 → `RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md` — the SDC anchor-point report is the controller-side timestamp source; image built, reflash pending; parked 2026-09-02 — drain triage, Kestrel: the remainder is ON-BOX HARDWARE work — controller-side timestamping is a rebuild+reflash of the dongle (owner, rig-side) and the Task 2 jitter probe needs `btmon` with `CAP_NET_RAW` on vigil's free adapter, a daytime paired session the brief itself says not to run as an interrupt; nothing is blocked on repo code. Owner: Heron with the owner present; next step: Task 2 on hci2 against one beacon, Zephyr vs Realtek. Previously 2026-08-25: Task 1 flash executed on the SDC path; timestamping + Task 2 probe still open) · **Created:** 2026-08-23
+**Status:** IN-PROGRESS (2026-09-13, Wren: Task 2 TRIAGED ON THE BOX — its tooling is ALREADY BUILT (`capture-host/jitterfloor.py` + `tools/ble-jitter-probe.py`), the header's `btmon`/`CAP_NET_RAW` blocker is STALE (`tepna-btmon.sh` is a NOPASSWD helper), and `Zephyr vs Realtek` is UNRUNNABLE here — no Realtek on vigil, substituted by Zephyr#1 vs Zephyr#2; see §"Task 2 status, corrected on the box 2026-09-13". A `jitterfloor` drawn-axis defect found in passing is fixed; ring figures before that date are retracted. Probe NOT yet run — held off the radios during the first overnight Zephyr soak. **Residue:** 2026-09-13-folded-base-prefers-the-largest-candidate. Previously 2026-09-12, Kestrel: TX raised to +20 dBm at the antenna and the public address moved into firmware (`F4:CE:36` + FICR) on the `hci_uart` image — `hciuart-txpwr20-pub.zip` flashed to all three units 20:39, `F4:CE:36:` addresses verified; two units deployed on vigil (hci0 `F4:CE:36:2E:CD:98`, hci3 `F4:CE:36:6B:A4:4E`) via `tepna-btattach@` 21:13 and hci0's advertising decoded on hci3; live capture on hci0 from 21:36 — ring + Verity + H10 concurrently, both Polars re-bonded (the two-peripheral concurrent connect is now measured, the overnight soak is not); full configuration + recipe in `NRF52840-DONGLE-FLASHING-2026-09-07-BRIEF.md` §0b, the why in § "2026-09-12" below. Previously: Task 1 remainder picked up 2026-09-07 → `RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md` — the SDC anchor-point report is the controller-side timestamp source; image built, reflash pending; parked 2026-09-02 — drain triage, Kestrel: the remainder is ON-BOX HARDWARE work — controller-side timestamping is a rebuild+reflash of the dongle (owner, rig-side) and the Task 2 jitter probe needs `btmon` with `CAP_NET_RAW` on vigil's free adapter, a daytime paired session the brief itself says not to run as an interrupt; nothing is blocked on repo code. Owner: Heron with the owner present; next step: Task 2 on hci2 against one beacon, Zephyr vs Realtek. Previously 2026-08-25: Task 1 flash executed on the SDC path; timestamping + Task 2 probe still open) · **Created:** 2026-08-23
 
 # Zephyr dongle as the open BLE timing instrument — flash + jitter probe (paired daytime task)
 
@@ -257,6 +257,42 @@ the Realtek. Honest scope: measures the host-side stack until Task 1 lands the c
 **Do them together** — the probe is the analysis tool for the flash's new timestamp source, so pairing
 them means the instrument arrives with its instrument-reader. Neither blocks the mutation programme;
 this is a deliberate daytime session, not an interrupt.
+
+#### Task 2 status, corrected on the box 2026-09-13 (Wren)
+
+🟢 **THE TOOLING IS BUILT — do not size this as a build.** Both layers exist: `capture-host/jitterfloor.py`
+(production layer, `*_PMDARRIVAL.csv`, no privileges) and `tools/ble-jitter-probe.py` (HCI layer). The
+text above reads as "write a tool", which is a false sizing a pickup can only avoid by searching first.
+
+⚠️ **"needs `btmon` with `CAP_NET_RAW`" IS STALE — that capability exists.** `/usr/local/lib/tepna/tepna-btmon.sh`
+is a NOPASSWD-sudo helper (`tepna-btmon.sh <hciN> <seconds> <out.btsnoop>`; bounded, read-only, never
+transmits), so a box session runs the HCI layer today without an owner-attended escalation. The status
+header's blocker line predates that helper.
+
+🔴 **"ZEPHYR vs REALTEK ON THE SAME BEACON" IS UNRUNNABLE ON VIGIL — the control arm is not on the box.**
+`lsusb` 2026-09-13: Intel AX210 `8087:0032`, Cambridge CSR `0a12:0001`, two Nordic `2fe3:0004`. No
+Realtek; it moved to rig-x870. **The substitution is Zephyr #1 (`F4:CE:36:2E:CD:98`, hci0) vs Zephyr #2
+(`F4:CE:36:6B:A4:4E`, hci3)** — and it is the better experiment, not a fallback: identical silicon,
+identical image, identical TX, so the only difference left is antenna and placement. That makes it a
+reproducibility measurement OF THE INSTRUMENT, and no cross-radio delta can be quoted before it.
+
+⚠️ **A production-layer comparison is NOT a radio attribution.** Splitting `*_PMDARRIVAL.csv` by the LINK
+sidecars' own `# adapter=` headers (cutover `2026-09-12T21:37:43`, the two Holyiot windows excluded)
+gives Sena/CSR vs Zephyr over the same devices: floor 26.97 → 25.02 ms, H10 `ecg` 48.00 → 25.02, Verity
+`ppi` 76 → 118 (worse). But **three things changed at that cutover together** — the radio, TX to
++20 dBm, and both Polars re-bonded — and the arms are not simultaneous (~2 days vs ~7 h). Isolating the
+radio is what the simultaneous same-beacon probe is FOR; this is the argument for Task 2, not a
+substitute for it.
+
+⚠️ **Split by the LINK header, never by the PMD filename.** The filename stamp is the session START and
+sessions span a radio change — three sidecars begun 18:19/19:03/20:59 were still being appended at
+04:47 next morning. A filename split reports zero Zephyr data and reads as "the Zephyr captured
+nothing", which is false.
+
+🔴 **Ring figures from before 2026-09-13 are retracted.** `jitterfloor`'s drawn-axis guard missed the
+O2Ring, so any ring jitter on the `vs-device` path was computed against a fabricated clock (changeset
+`2026-09-13-jitterfloor-drawn-axis-lattice`). Corrected: Sena **499.5 → 10.5 ms**, Zephyr
+**11.5 → 11.5 ms** — i.e. the ring shows **no Zephyr advantage**, slightly favouring the Sena.
 
 ## Also on the shelf (lower priority)
 - Second-radio simultaneous capture (same sensor on Realtek + Zephyr → radio timing delta for the

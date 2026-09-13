@@ -34,7 +34,7 @@ from datetime import datetime
 from pathlib import Path
 
 MIN_FRAMES = 100  # a floor claimed from fewer frames is an anecdote, not a floor
-DRAWN_CONCENTRATION = 0.99  # modal-delta share above this ⇒ the device axis is drawn, not a clock
+DRAWN_CONCENTRATION = 0.99  # lattice share at or above this ⇒ the device axis is drawn, not a clock
 _STAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}$")
 
 
@@ -76,11 +76,41 @@ def _jitter_scale(xs: list[float]) -> float:
     return (q[2] - q[0]) / 2.0
 
 
-def _device_axis_is_drawn(dev_deltas_ms: list[float]) -> bool:
-    """A drawn axis concentrates on one delta value — `clock.js`'s provenance test, ported."""
-    rounded = [round(d, 1) for d in dev_deltas_ms]
-    modal = statistics.mode(rounded)
-    return rounded.count(modal) / len(rounded) >= DRAWN_CONCENTRATION
+def _device_axis_is_drawn(dev_deltas_ns: list[int]) -> bool:
+    """A drawn axis lies on an EXACT INTEGER LATTICE: every advance is a whole multiple of one grid
+    step, because it was built as `sample_index × an assumed rate` and never measured anything.
+
+    🔴 THIS USED TO TEST MODAL CONCENTRATION AND IT MISSED THE O2RING — the device whose axis is the
+    canonical drawn one. Measured on vigil 2026-09-13 over 09-11/09-12: the ring's device deltas are
+    exactly 1000/2000/3000/4000 ms, unmistakably drawn, but DROPPED FRAMES put ~2 % of the mass on the
+    multiples, so the modal share was 0.9787 / 0.9725 — under the 0.99 bar. The guard passed, vs-device
+    ran against a fabricated clock, and the ring reported 499.5 ms on one adapter and 11.5 ms on
+    another from host inter-arrivals that are statistically identical (median 1001 ms both, 84.7 % vs
+    82.9 % within ±50 ms of 1000). 499.5 is just half the base interval: the residual is `host − 0` on
+    the 49.9 % of device deltas that do not advance at all.
+
+    ⚠️ AND THE OBVIOUS FIX IS WRONG — do not "simplify" this back to it. Keying on the share of deltas
+    that are integer MULTIPLES of the modal delta convicts the honest clocks: measured the same day,
+    Polar H10 `acc` scores 0.9930 and `ecg` 0.9990 on that test, because a REAL clock delivering at a
+    fixed frame interval with occasional misses also produces 2×/3× of its modal. Being a multiple does
+    not separate the populations; being EXACT does. In the raw nanosecond field the two populations sit
+    six orders of magnitude apart, with no threshold to tune:
+
+        O2Ring OXYLIVE   1.000000   (grid exactly 1_000_000_000 ns)
+        H10 acc / ecg    0.000003 … 0.000018
+        Verity acc / ppg 0.000015 … 0.000068
+
+    Integer ns on purpose: `%` on floats would reintroduce the fuzz this test exists to avoid.
+
+    ∅ NO POSITIVE DELTA AT ALL ⇒ DRAWN. An axis that never advances (Verity `ppi`: 100 % zero deltas in
+    both arms) is not a clock either, and vs-device against it would difference host stamps against a
+    constant. The old code reached the same verdict by accident — modal 0.0 at 100 % concentration — so
+    this branch preserves a behaviour that was previously a coincidence."""
+    positive = [d for d in dev_deltas_ns if d > 0]
+    if not positive:
+        return True
+    grid = min(positive)
+    return sum(1 for d in positive if d % grid == 0) / len(positive) >= DRAWN_CONCENTRATION
 
 
 def _folded_base(host_deltas: list[float]) -> float:
@@ -104,8 +134,11 @@ def stream_jitter(rows: list[tuple[float, int]]) -> dict | None:
         return None
     rows = sorted(rows)
     host_deltas = [b[0] - a[0] for a, b in zip(rows, rows[1:])]
-    dev_deltas = [(b[1] - a[1]) / 1e6 for a, b in zip(rows, rows[1:])]
-    drawn = _device_axis_is_drawn(dev_deltas)
+    # The guard reads the RAW ns integers (exact lattice test); the ms floats below are for the
+    # vs-device residual only. Converting first and testing after is what let float fuzz in.
+    dev_deltas_ns = [b[1] - a[1] for a, b in zip(rows, rows[1:])]
+    dev_deltas = [d / 1e6 for d in dev_deltas_ns]
+    drawn = _device_axis_is_drawn(dev_deltas_ns)
     if drawn:
         base = _folded_base(host_deltas)
         resid = [d - round(d / base) * base for d in host_deltas]
