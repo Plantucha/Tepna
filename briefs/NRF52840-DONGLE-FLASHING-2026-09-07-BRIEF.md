@@ -431,7 +431,10 @@ a new write path to any device; the ring, the CPAP, and the Polars are talked to
 
 - [x] `hciuart-txpwr20-pub.zip` flashed to `E7FC6D6BA44E`; after `btattach`, `hciconfig` shows
       `F4:CE:36:6B:A4:4E` with **no** `0xFC06` write issued (2026-09-12 20:40, rig-x870; ACL MTU 251:6)
-- [ ] survives a replug (power-cycle) — not yet exercised
+- [x] survives a replug (power-cycle) — 2026-09-12 20:53: all three units re-enumerated on NEW ttys (ACM3/4/5 → 6/7/8)
+      and came back with identical addresses after `btattach` by USB serial. ⚠️ `btattach` does NOT exit when its tty
+      vanishes — six stale ones were found holding dead ttys; `pkill -x btattach` before re-attaching, and attach by
+      `/dev/serial/by-id/usb-Zephyr_Project_Zephyr_HCI_UART_anchor_np_<app serial>-if00`, never by index
 - [ ] the dongle's own advertisement heard on vigil's second adapter at ≥ −55 dBm (0 dBm image: −86)
 - [x] the other two units (`D967242ECD98`, `E1BFD58009C0`) flashed with the same zip and §8 updated
       with measured addresses — all three match the derivation exactly
