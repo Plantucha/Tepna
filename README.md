@@ -427,22 +427,25 @@ the count follows.
 
 ## 💰 The hardware — what this actually runs on
 
-Max information, minimum hardware, priced honestly — and **everything is bone-stock**: no firmware
-modifications, no rooting, no hardware mods. Every sensor, the CPAP included, runs exactly as it
+Max information, minimum hardware, priced honestly. **Every sensor is bone-stock**: no rooting, no
+hardware mods, no modified sensor firmware. Every sensor, the CPAP included, runs exactly as it
 shipped from the factory and is spoken to over the vendor's own protocol. Where therapy is involved
 the code is **read-only by construction** — the CPAP link contains no write commands at all; Tepna
-only reads what the machine records. Every signal in the suite comes off this kit
+only reads what the machine records. The one thing that is *not* stock is on our side of the link:
+the box's BLE radios are nRF52840 dongles running a **self-built open-source Zephyr `hci_uart`
+image** (+20 dBm TX, fixed public address). That is our own controller, built from published
+sources — no vendor firmware is touched, and nothing in the therapy path changes. Every signal in the suite comes off this kit
 (approximate US street prices, August 2026; the box was bought **used**):
 
 | Hardware | Role | Approx. price |
 |---|---|---:|
-| **Lenovo ThinkCentre M900 Tiny** (refurbished — any 6th-gen-i5 tiny works) | the Health Box — 24/7 bedside capture daemon · LAN server · clock disciplined µs-level against the GPS+PPS stratum-1 below | ~$80–130 |
+| **Lenovo ThinkCentre M900 Tiny** (refurbished — any 6th-gen-i5 tiny works) | the Health Box — 24/7 bedside capture daemon · LAN server · clock disciplined µs-level against the GPS+PPS stratum-1 below; its built-in Intel AX210 carries the CPAP link | ~$80–130 |
 | **Wellue O2Ring** (O2Ring-S) | overnight SpO₂ · pulse · raw PPG → OxyDex / PpgDex | ~$170 |
 | **Polar H10** chest strap | raw ECG (~130 Hz) · RR · ACC → ECGDex / PulseDex / MotionDex | ~$90 |
 | **Polar Verity Sense** armband | raw 4-channel PPG · IMU → PpgDex / MotionDex | ~$105 |
-| **TP-Link UB500 Plus** | the box's first BLE radio — works, but drops links under load; now the watchdog-managed spare | **$13** |
-| **Sena Parani UD100-G03** *(recommended radio)* | class-1 long-range BLE, exchangeable antenna — the wearables adapter in service on the box | ~$40–52 |
-| **nRF52840 dongle** | in service as the **BLE sniffer** behind the nightly air audit (what the box's radios actually said on the air, CRC-checked); a timing-honest controller candidate | ~$12 |
+| **TP-Link UB500 Plus** | the box's first BLE radio — cheap and adequate, but it stalled links for 27–87 s under a three-wearable load; no longer fitted | **$13** |
+| **Sena Parani UD100-G03** | class-1 long-range BLE, exchangeable antenna — carried the wearables 2026-08-25 → 2026-09-12 (0 s of data lost on its first night); now the warm spare | ~$40–52 |
+| **nRF52840 dongle** ×3 *(recommended radio)* | the current radio tier, and the only one whose controller we can read: one carries all three wearables as the capture adapter, one is the advertising anchor, one runs the **BLE sniffer** behind the nightly air audit (what the box's radios actually said on the air, CRC-checked) | ~$12 each |
 | **ez Share WiFi SD card** | pulls the CPAP's SD card over WiFi, no cable | ~$25 |
 | **COOSPO H808S** chest strap | second RR source → PulseDex cross-checks | ~$35 |
 | | **Core capture kit** | **≈ $550** |
