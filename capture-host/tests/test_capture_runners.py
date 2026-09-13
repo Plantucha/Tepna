@@ -176,7 +176,8 @@ def test_clock_watchdog_resyncs_on_a_drifted_device(monkeypatch):
     _stop_after(monkeypatch, 1)
     cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 300, "resync_jump_sec": 30},
            "devices": [_dev(name="H10")]}
-    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 99, "address": "24:AC:AC:02:84:96"}
+    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 99, "clock_skew_floor_sec": 99,
+                                        "address": "24:AC:AC:02:84:96"}
     _run(capture.clock_watchdog(cfg))
     assert synced.get("addr") == "24:AC:AC:02:84:96", "a 99 s skew must trigger a re-sync"
 
@@ -1186,7 +1187,8 @@ def test_clock_watchdog_resyncs_on_absolute_drift(monkeypatch):
     cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 300, "resync_jump_sec": 30},
            "devices": [_dev(name="H10")]}
     # a small, steady skew beyond CLOCK_TOLERANCE_S (2 s) — "adrift", not "jumped"
-    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 5, "address": "24:AC:AC:02:84:96"}
+    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 5, "clock_skew_floor_sec": 5,
+                                        "address": "24:AC:AC:02:84:96"}
     _run(capture.clock_watchdog(cfg))
     assert synced, "an absolute skew past tolerance must re-sync even without a jump"
 
@@ -1197,7 +1199,7 @@ def test_clock_watchdog_ignores_a_disconnected_or_unskewed_device(monkeypatch):
     monkeypatch.setattr(capture, "sync_device_time", fake_sync)
     _stop_after(monkeypatch, 1)
     cfg = {"time": {"auto_sync_devices": True}, "devices": [_dev(name="H10")]}
-    capture.STATUS["devices"]["H10"] = {"connected": False, "clock_skew_sec": 99}
+    capture.STATUS["devices"]["H10"] = {"connected": False, "clock_skew_sec": 99, "clock_skew_floor_sec": 99}
     _run(capture.clock_watchdog(cfg))
     assert not synced, "a disconnected device must not be re-synced"
 
@@ -2176,8 +2178,8 @@ def test_clock_watchdog_ignores_non_polar_and_in_tolerance_devices(monkeypatch):
     cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 1},
            "devices": [_dev(name="Ring", vendor="Wellue"),        # non-Polar → skipped (1323-1324)
                        _dev(name="H10")]}
-    capture.STATUS["devices"]["Ring"] = {"connected": True, "clock_skew_sec": 99, "address": "R"}
-    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 0.1,   # in tolerance, steady
+    capture.STATUS["devices"]["Ring"] = {"connected": True, "clock_skew_sec": 99, "clock_skew_floor_sec": 99, "address": "R"}
+    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 0.1, "clock_skew_floor_sec": 0.1,   # in tolerance, steady
                                         "address": "24:AC:AC:02:84:96"}
     _run(capture.clock_watchdog(cfg))
     assert synced == [], "neither a non-Polar nor an in-tolerance steady device is re-synced"
@@ -2189,13 +2191,18 @@ def test_clock_watchdog_resyncs_on_a_jump(monkeypatch):
     async def fake_sync(addr):
         synced.append(addr); capture._STOP.set(); return {"ok": True}   # one sync ends the loop
     monkeypatch.setattr(capture, "sync_device_time", fake_sync)
-    st = {"connected": True, "clock_skew_sec": 0.0, "address": "24:AC:AC:02:84:96"}
+    st = {"connected": True, "clock_skew_sec": 0.0, "clock_skew_floor_sec": 0.0,
+          "address": "24:AC:AC:02:84:96"}
     capture.STATUS["devices"]["H10"] = st
     calls = {"n": 0}
     async def fake_sleep(_s):
         calls["n"] += 1
         if calls["n"] >= 2:
+            # BOTH keys: the watchdog decides on `clock_skew_floor_sec` (the envelope over a window),
+            # and a jump is a jump in the quantity it decides on. Moving only the per-frame key left
+            # the floor at 0.0 forever, so this loop — which ends only when a sync fires — hung.
             st["clock_skew_sec"] = 40.0     # check 1 is a 0-skew baseline; check 2 sees the jump
+            st["clock_skew_floor_sec"] = 40.0
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
     cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 1, "resync_jump_sec": 30},
            "devices": [_dev(name="H10")]}
@@ -2209,7 +2216,7 @@ def _clock_watchdog_error_case(monkeypatch, raiser):
     _stop_after(monkeypatch, 1)
     cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 1},
            "devices": [_dev(name="H10")]}
-    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 5,   # adrift → attempt sync
+    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 5, "clock_skew_floor_sec": 5,   # adrift → attempt sync
                                         "address": "24:AC:AC:02:84:96"}
     _run(capture.clock_watchdog(cfg))
 
@@ -3272,7 +3279,7 @@ def test_clock_watchdog_stops_chasing_an_uncorrectable_offset(monkeypatch):
     async def fake_sync(addr):
         syncs.append(addr)                                   # never moves the skew — the real behaviour
     monkeypatch.setattr(capture, "sync_device_time", fake_sync)
-    capture.STATUS["devices"]["Verity"] = {"connected": True, "clock_skew_sec": 14400.0}
+    capture.STATUS["devices"]["Verity"] = {"connected": True, "clock_skew_sec": 14400.0, "clock_skew_floor_sec": 14400.0}
     cfg = {"time": {"drift_check_sec": 1, "resync_jump_sec": 30},
            "devices": [{"name": "Verity", "vendor": "Polar", "address": "AA"}]}
     _stop_after(monkeypatch, 12)                             # ~12 drift-check cycles
@@ -3295,7 +3302,7 @@ def test_clock_watchdog_still_resyncs_a_real_jump_after_giving_up(monkeypatch):
     calls = {"n": 0}
     async def stepping_sleep(_s):
         calls["n"] += 1
-        capture.STATUS["devices"]["Verity"] = {"connected": True, "clock_skew_sec": next(skews, 3600.0)}
+        capture.STATUS["devices"]["Verity"] = {"connected": True, "clock_skew_sec": (_s := next(skews, 3600.0)), "clock_skew_floor_sec": _s}
         if calls["n"] >= 14:
             capture._STOP.set()
     monkeypatch.setattr(capture.asyncio, "sleep", stepping_sleep)
@@ -6808,3 +6815,137 @@ def test_SETTING_THE_RESUME_WINDOW_TO_ZERO_DISABLES_RING_RESUME(tmp_path, monkey
         _one_episode()
     assert not any("resuming file-set" in r.getMessage() for r in caplog.records), \
         "resume fired with the window set to 0 — the disable switch does not reach the ring path"
+
+
+# ── C1 · A LATE PACKET IS NOT A DRIFTING CLOCK ──────────────────────────────────────────────────────
+#
+# `clock_skew_sec` is `device_stamp - host_now` at the moment a frame LANDS, so it is the clock offset
+# MINUS the delivery latency. Latency is one-sided, so a single reading can only ever understate the
+# offset, and a stalled link is indistinguishable from drift at one sample. Measured on vigil over the
+# 14 days to 2026-09-13: 341 adrift re-syncs, every one negative, H10 median -3.6 s against a true link
+# delay of ~0.23 s off the PMDARRIVAL sidecars — and 0 give-ups, so the loop never stopped.
+
+def test_a_late_packet_on_a_flat_clock_does_not_look_like_drift():
+    """THE PLANT: one 2.5 s-late frame inside a window of a perfectly synced clock.
+
+    2.5 s is chosen to sit just past `CLOCK_TOLERANCE_S` (2.0), which is exactly where the real triggers
+    landed — the median was -3.6 s. Reading that one frame re-syncs a clock that is fine; reading the
+    window's envelope does not.
+    """
+    now = 1000.0
+    samples = [(now - 100 + i, 0.01) for i in range(40)]     # a flat, healthy clock
+    samples.insert(20, (now - 80.0, -2.5))                   # one frame delivered 2.5 s late
+    est = capture.clock_skew_estimate(samples, now)
+    assert est is not None and est["n"] == 41, est
+    assert est["skew"] == 0.01, "the envelope is the least-delayed frame, not the latest and not the worst"
+    assert abs(est["skew"]) <= capture.CLOCK_TOLERANCE_S, "a flat clock must not read as adrift"
+
+
+def test_the_estimate_refuses_a_window_too_thin_to_have_an_envelope():
+    """Below `CLOCK_SKEW_MIN_N` the maximum is just one latency-contaminated read wearing the shape of
+    a statistic. Absent is None, never a number (§∅)."""
+    now = 1000.0
+    thin = [(now - 1, -3.0)] * (capture.CLOCK_SKEW_MIN_N - 1)
+    assert capture.clock_skew_estimate(thin, now) is None
+    ok = [(now - 1, -3.0)] * capture.CLOCK_SKEW_MIN_N
+    assert capture.clock_skew_estimate(ok, now)["n"] == capture.CLOCK_SKEW_MIN_N
+
+
+def test_the_estimate_drops_samples_older_than_the_window():
+    """A verdict about now must not be carried by frames from an hour ago — the link state that
+    produced them is gone."""
+    now = 1000.0
+    stale = [(now - capture.CLOCK_SKEW_WINDOW_S - 1, 5.0)] * 20
+    fresh = [(now - 1, -0.2)] * 10
+    est = capture.clock_skew_estimate(stale + fresh, now)
+    assert est["n"] == 10 and est["skew"] == -0.2, est
+
+
+def test_the_estimate_recovers_a_device_that_is_AHEAD():
+    """Sign-agnostic by construction: latency only ever subtracts, so the maximum approaches the true
+    offset whichever side of the host the device sits on. A `min` or a mean would not."""
+    now = 1000.0
+    s = [(now - i, 5.0 - (i % 4)) for i in range(20)]        # true offset +5, latency 0..3
+    assert capture.clock_skew_estimate(s, now)["skew"] == 5.0
+
+
+def test_clock_watchdog_ignores_a_latency_spike_and_reads_the_envelope(monkeypatch):
+    """The integration half of the plant: the decision must come off the floor, not the last frame."""
+    synced = []
+    async def fake_sync(addr): synced.append(addr)
+    monkeypatch.setattr(capture, "sync_device_time", fake_sync)
+    _stop_after(monkeypatch, 2)
+    cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 300, "resync_jump_sec": 30},
+           "devices": [_dev(name="H10")]}
+    capture.STATUS["devices"]["H10"] = {
+        "connected": True,
+        "clock_skew_sec": -2.5,           # THIS frame landed late — well past tolerance
+        "clock_skew_floor_sec": -0.01,    # the window says the clock itself is fine
+        "address": "24:AC:AC:02:84:96"}
+    _run(capture.clock_watchdog(cfg))
+    assert synced == [], "a late packet re-synced a healthy clock — the watchdog read the wrong key"
+
+
+def test_clock_watchdog_declines_to_act_before_the_window_has_measured(monkeypatch):
+    """`clock_skew_floor_sec` is None until the window holds `CLOCK_SKEW_MIN_N` frames. Not-measured is
+    not a fault, and it is not zero — the watchdog must do NOTHING, however alarming the live reading."""
+    synced = []
+    async def fake_sync(addr): synced.append(addr)
+    monkeypatch.setattr(capture, "sync_device_time", fake_sync)
+    _stop_after(monkeypatch, 2)
+    cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 300, "resync_jump_sec": 30},
+           "devices": [_dev(name="H10")]}
+    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 99,
+                                        "clock_skew_floor_sec": None,
+                                        "address": "24:AC:AC:02:84:96"}
+    _run(capture.clock_watchdog(cfg))
+    assert synced == [], "acted on a quantity the window had not measured"
+
+
+def test_a_fresh_sync_does_not_discharge_the_give_up_budget(monkeypatch):
+    """A successful WRITE is not a successful CORRECTION.
+
+    `failed_adrift` counts corrections that did not move the skew and is the only thing that can stop an
+    unfixable device being re-synced all night. The reconnect ladder records every successful write in
+    `_CLOCK_FRESHLY_SYNCED`, and the watchdog used to zero the budget on finding it there — so on a box
+    where the device reconnects constantly (445 `connected` events in 14 days, against 341 adrift
+    re-syncs and **0** give-ups) the budget could never reach `CLOCK_ADRIFT_GIVEUP`.
+
+    Here the ladder "succeeds" on EVERY cycle while the skew never moves — the observed shape. The
+    give-up must still arrive.
+    """
+    syncs = []
+    async def fake_sync(addr): syncs.append(addr)
+    monkeypatch.setattr(capture, "sync_device_time", fake_sync)
+    cfg = {"time": {"drift_check_sec": 1, "resync_jump_sec": 30},
+           "devices": [{"name": "Verity", "vendor": "Polar", "address": "AA"}]}
+    calls = {"n": 0}
+    async def stepping_sleep(_s):
+        calls["n"] += 1
+        capture._CLOCK_FRESHLY_SYNCED.add("AA")      # the reconnect ladder, every cycle
+        capture.STATUS["devices"]["Verity"] = {"connected": True, "clock_skew_sec": 14400.0,
+                                               "clock_skew_floor_sec": 14400.0}
+        if calls["n"] >= 14:
+            capture._STOP.set()
+    monkeypatch.setattr(capture.asyncio, "sleep", stepping_sleep)
+    _run(capture.clock_watchdog(cfg))
+    assert len(syncs) <= capture.CLOCK_ADRIFT_GIVEUP, (
+        f"the give-up never arrived: {len(syncs)} re-syncs in 14 cycles — a fresh sync is discharging "
+        "a budget it did not earn")
+    assert capture.STATUS["devices"]["Verity"].get("clock_uncorrectable") is True
+
+
+def test_the_skew_window_is_bounded_and_drops_the_OLDEST():
+    """A per-device ring that grew without bound would be a slow leak on a daemon that runs for weeks.
+
+    Exercised at a small `cap` on purpose: at the real `_CLOCK_SKEW_CAP` (4096) this needs a
+    four-minute fixture, which is exactly how a bound ends up shipping untested.
+    """
+    win = []
+    for i in range(5):
+        capture.clock_skew_record(win, float(i), float(i), cap=3)
+    assert [v for _, v in win] == [2.0, 3.0, 4.0], "the window must keep the NEWEST readings"
+    assert len(win) == 3
+    # Below the cap it is a plain append.
+    w2 = capture.clock_skew_record([], 1.0, -0.5, cap=3)
+    assert w2 == [(1.0, -0.5)]

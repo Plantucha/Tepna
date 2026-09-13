@@ -82,6 +82,9 @@ DEV = {"name": "H10", "vendor": "Polar", "model": "H10", "device_id": "12345678"
 DEVICE_KEYS = {
     "name", "vendor", "model", "device_id", "device_id_aliases", "name_aliases", "address", "streams",
     "connected", "battery", "rssi", "clock_synced", "device_time", "clock_skew_sec", "pull_progress",
+    # The measured verdict beside the live reading: the watchdog decides on the floor, so an operator
+    # who can see only `clock_skew_sec` cannot explain a re-sync that disagrees with it.
+    "clock_skew_floor_sec", "clock_skew_n",
     "link_epoch", "worn", "worn_why", "worn_optical", "worn_optical_why", "charging", "last_error",
     "clock_uncorrectable", "rate_unmet",
     # How many of this device's flushes to disk have FAILED. Declared here rather than by relaxing
@@ -205,7 +208,8 @@ def test_an_unreported_device_yields_nulls_not_missing_keys(tmp_path):
     assert set(d) == DEVICE_KEYS
     assert d["connected"] is False, "never reported is a definite NO, not unknown"
     assert d["charging"] is False
-    for k in ("battery", "rssi", "clock_synced", "device_time", "clock_skew_sec", "pull_progress",
+    for k in ("battery", "rssi", "clock_synced", "device_time", "clock_skew_sec",
+              "clock_skew_floor_sec", "clock_skew_n", "pull_progress",
               "link_epoch", "worn", "last_error", "oxy_lifecycle", "oxy_recording",
               "ring_serial", "ring_firmware", "ring_identity_mismatch",
               "ring_barren_connects", "ring_barren_alert",
