@@ -1087,3 +1087,80 @@ def test_an_UNWRITABLE_lock_path_degrades_OPEN_and_prints_nothing(box, tmp_path)
     assert r.returncode == 0
     assert "No such file" not in r.stdout and "No such file" not in r.stderr
     assert "restarting the daemon" in r.stdout, "the deploy still completes without a lock"
+
+
+# ── a ring .dat pull is work in flight (OXYII-G1-TRANSACTIONAL-SYNC-FOLLOWUPS §1.2) ──────────────
+
+def _write_status_oxy(path, lifecycle, *, recording=False):
+    """A status.json whose ring publishes `oxy_lifecycle`, as the real daemon does."""
+    d = {"updated": "now", "recording": recording,
+         "devices": {"Wellue O2Ring-S": {"connected": True, "recording": recording,
+                                         "oxy_lifecycle": lifecycle},
+                     "Polar H10": {"connected": True, "recording": recording}},
+         "cpap": {"state": "idle"}}
+    path.write_text(json.dumps(d))
+
+
+def test_a_ring_PULL_in_flight_defers_the_restart(box):
+    """🔴 The doff does two things at once — it ends the recording (so the box turns idle) AND it
+    triggers the not-worn auto-pull. Neither pull state was a deferral condition, so the box read
+    `idle` through a transactional sync and a restart could land mid-transfer. With the hourly timer
+    that was roughly one tick in thirty; with tepna-update-pending.timer enabled it fires ~2 min after
+    idle, squarely inside a pull that starts ~60-80 s after the doff settle."""
+    _advance(box)
+    for state in ("pulling", "paused_for_pull"):
+        _write_status_oxy(box["status"], state)
+        r = _run(box)
+        assert "a ring .dat pull owns the link" in r.stdout, state
+        assert not box["called"].exists(), f"{state} must not restart the daemon"
+        assert box["mark"].exists(), "the debt is recorded so the next tick still sees it"
+
+
+def test_the_pull_deferral_is_NOT_reported_as_a_CPAP_harvest(box):
+    """Reusing the `harvesting` state would have been the one-line fix and would print a sentence that
+    is false — the operator reading it would go looking at the CPAP."""
+    _advance(box)
+    _write_status_oxy(box["status"], "pulling")
+    out = _run(box).stdout
+    assert "CPAP harvest" not in out
+    assert "ring .dat pull" in out
+
+
+def test_a_pull_deferral_is_not_a_FAILURE(box):
+    """Same contract as `harvesting`: deferring is this script working, so it must not set drifted and
+    must not land the unit in systemctl --failed on a box nobody logs into."""
+    _advance(box)
+    _write_status_oxy(box["status"], "pulling")
+    assert _run(box).returncode == 0
+
+
+def test_an_ordinary_lifecycle_does_NOT_defer(box):
+    """`live`, `connected`, `idle_unworn` and friends are not pulls. A guard that blocked on any
+    lifecycle value would refuse every restart forever."""
+    _advance(box)
+    for state in ("live", "connected", "idle_unworn", "disconnected", "not_seen", "recovering"):
+        _write_status_oxy(box["status"], state)
+        r = _run(box)
+        assert "box is idle — restarting" in r.stdout, state
+        box["called"].unlink(missing_ok=True)
+        box["mark"].unlink(missing_ok=True)
+        _advance(box)
+
+
+def test_a_device_WITHOUT_oxy_lifecycle_reads_idle_not_unknown(box):
+    """⚠️ The opposite of the `cpap.state` rule, deliberately. `oxy_lifecycle` is a RING field — the
+    Polars and the Coospo never publish it — so requiring presence would make every non-ring device
+    read `unknown` and refuse restarts forever on a box with no O2Ring."""
+    _advance(box)
+    _write_status(box["status"], {"Polar H10": False, "Polar Sense": False})
+    r = _run(box)
+    assert "box is idle — restarting the daemon" in r.stdout
+    assert "unknown" not in r.stdout and "unknown" not in r.stderr
+
+
+def test_RECORDING_still_outranks_a_pull_state(box):
+    """Both can be true during a handoff. `recording` is the older and better-evidenced guard and its
+    message is the one an operator needs, so it must win rather than being shadowed."""
+    _advance(box)
+    _write_status_oxy(box["status"], "pulling", recording=True)
+    assert "a device is recording" in _run(box).stdout
