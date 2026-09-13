@@ -265,11 +265,30 @@ function discover(argv) {
 
 /* ── one record ──────────────────────────────────────────────────────────────────────────────
    Everything here is `NSRR.analyzeRecord`; this function only reads bytes and normalises the row. */
+/* ── THE UNCONFOUNDED COMPARISON ──────────────────────────────────────────────────────────────
+   ODI-4 against scored AHI is NOT apples to apples, and reporting only that would overstate what the
+   run shows. SHHS scored a hypopnea without requiring a 4 % desaturation, so an ODI-derived estimate
+   is expected to sit below AHI on DEFINITION alone, before any detector behaviour is involved.
+
+   But the same annotation files score `SpO2 desaturation` events directly — the same quantity OxyDex
+   computes, on the same channel, over the same night. Comparing OxyDex's desaturation index to the
+   SCORER's desaturation index removes the definitional gap entirely and isolates the detector.
+
+   ⚠️ It does not remove EVERY difference: SHHS scorers marked desaturations at a ≥3 % drop, so the
+   honest pairing is the expert index against OxyDex's ODI-3, with ODI-4 reported beside it as the
+   stricter variant. That is why both are carried. */
+const DESAT_RE = /<EventConcept>[^<]*SpO2 desaturation[^<]*<\/EventConcept>/gi;
+export function expertDesatIndex(xmlText, tstHours) {
+  const n = (String(xmlText).match(DESAT_RE) || []).length;
+  return { nDesat: n, index: tstHours && tstHours > 0 ? +(n / tstHours).toFixed(2) : null };
+}
+
 export function scoreRecord(ctx, rec) {
+  const xmlText = readFileSync(rec.xml, 'utf8');
   const out = ctx.NSRR.analyzeRecord({
     id: rec.id,
     edfBuffer: toArrayBuffer(readFileSync(rec.edf)),
-    xmlText: readFileSync(rec.xml, 'utf8')
+    xmlText
   });
   if (out.err) return { id: rec.id, err: out.err };
   const est = out.ahiOxyEst,
@@ -277,6 +296,9 @@ export function scoreRecord(ctx, rec) {
   return {
     id: rec.id,
     spo2Label: out.spo2Label || null,
+    /* §∅: a rate computed over a night that was partly absent is not the same claim as one over a
+       complete night. Published per record so the two are never indistinguishable again. */
+    coveragePct: out.spo2CoveragePct != null ? out.spo2CoveragePct : null,
     hours: out.durSec != null ? +(out.durSec / 3600).toFixed(2) : null,
     odi3: out.odi3 != null ? +out.odi3 : null,
     odi4: out.odi4 != null ? +out.odi4 : null,
@@ -284,7 +306,18 @@ export function scoreRecord(ctx, rec) {
     scoredAHI: ref != null ? +ref : null,
     residual: est != null && ref != null ? +(est - ref).toFixed(3) : null,
     classEst: severityClass(est),
-    classRef: severityClass(ref)
+    classRef: severityClass(ref),
+    ...(() => {
+      const d = expertDesatIndex(xmlText, out.tstHours);
+      const odi3 = out.odi3 != null ? +out.odi3 : null;
+      return {
+        tstHours: out.tstHours != null ? +out.tstHours.toFixed(2) : null,
+        expertDesatN: d.nDesat,
+        expertDesatIdx: d.index,
+        // the unconfounded residual: OxyDex's 3 % index minus the scorer's 3 % index
+        desatResidual: odi3 != null && d.index != null ? +(odi3 - d.index).toFixed(2) : null
+      };
+    })()
   };
 }
 
@@ -429,7 +462,7 @@ function main(argv) {
   }
 
   console.log('\n' + paint('OxyDex ODI-4 → AHI  vs  EXPERT-SCORED PSG AHI', C.B) + '\n');
-  console.log(paint('  record            hours    ODI-3   ODI-4   est AHI   scored   resid   class', C.d));
+  console.log(paint('  record            hours   cov   ODI-3   ODI-4   est AHI   scored   resid   class', C.d));
   console.log(paint('  ' + '─'.repeat(76), C.d));
   for (const r of rows) {
     if (r.err) {
@@ -440,7 +473,9 @@ function main(argv) {
     const near = Math.abs(CLASS_ORDER.indexOf(r.classEst) - CLASS_ORDER.indexOf(r.classRef)) === 1;
     const cls = agree ? paint('✓ ' + r.classRef, C.g) : near ? paint('~ ' + r.classEst + '/' + r.classRef, C.y) : paint('✗ ' + r.classEst + '/' + r.classRef, C.r);
     const f = (v, w) => (v == null ? '—'.padStart(w) : v.toFixed(1).padStart(w));
-    console.log('  ' + r.id.padEnd(17) + f(r.hours, 5) + f(r.odi3, 9) + f(r.odi4, 8) + f(r.ahiOxyEst, 10) + f(r.scoredAHI, 9) + f(r.residual, 8) + '   ' + cls);
+    const cov = r.coveragePct;
+    const covTxt = cov == null ? '   —' : paint(cov.toFixed(0).padStart(3) + '%', cov >= 99 ? C.g : cov >= 90 ? C.y : C.r);
+    console.log('  ' + r.id.padEnd(17) + f(r.hours, 5) + '  ' + covTxt + f(r.odi3, 8) + f(r.odi4, 8) + f(r.ahiOxyEst, 10) + f(r.scoredAHI, 9) + f(r.residual, 8) + '   ' + cls);
   }
   const okc = (v, lim) => (v == null ? C.d : Math.abs(v) <= lim ? C.g : C.r);
   console.log(paint('  ' + '─'.repeat(76), C.d));
