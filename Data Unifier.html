@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4yLwlzF2LWkBH0U02j3eVwAIqPXmT3YcA+N8fprjH+g=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hfWm0E4m3miRXxd/D2vdNh3vekQBb+w35MUeysCvjS4=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-lUMjebuuCYMO+MZw/Jj4lYHFDoLJBmQ2Bt5SsiQW9xU=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4yLwlzF2LWkBH0U02j3eVwAIqPXmT3YcA+N8fprjH+g=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8SXe9FsQqMjNq7+fSPGPcTQLrL87bEAdjpMUSbdxA6Y=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hfWm0E4m3miRXxd/D2vdNh3vekQBb+w35MUeysCvjS4=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -27203,6 +27203,60 @@ __exports.PpgDex = window.PpgDex;
        correction rather than an amplified one. That boundedness is precisely what `.ppm` lacks. */
     var _ecgCorrAt = ecgHostAx.ok && ecgHostAx.independent !== false && typeof ecgHostAx.correctionAt === 'function' ? ecgHostAx.correctionAt : null;
     var _ecgMsPerSample = 1000 / fsDevice;
+    /* ── A SAMPLE INDEX IS NOT A CLOCK ACROSS A DROPOUT ───────────────────────────────────────────
+       `analyze` has folded gap dead-time into its beat times since DEEP-AUDIT-II §4.2 (#6) — "beat
+       time is sample-index/fs, which silently UNDER-counts wall-clock across a dropout". `tMsAt` was
+       written later, for the same axis, and never learned it: it is pure index arithmetic, so on a
+       gappy night it under-reads by the whole accumulated dead time while `analyze`'s own series does
+       not. Measured on 2026-09-12 (H10, 33 holes, Σ 2525 s): tMsAt − export = −260.7 s / −628.3 s /
+       −2522.8 s at three tracked beats — the folded deadSec, exactly.
+
+       It matters because `tMsAt` is what the PAT legs read (`pat-feasibility-worker.js:99`,
+       `sensor-trio-worker.js:763`), while the PPG leg reads `relSec`, which SPANS its gaps. The first
+       hole of that night lands 20 s in, so from there on the two legs are on different axes and every
+       pair is mis-lagged by the dead time — pairs vanish rather than come out wrong, which is why PAT
+       reads null on box nights instead of reading badly.
+
+       Same rule as `analyze`, deliberately: a gap contributes `max(0, ms − one nominal step)`, because
+       one step of the interval is the sample that WOULD have arrived and is already counted by the
+       index arithmetic. The step here is the RAW device step, since `tMsAt` builds the device axis and
+       applies the host interpolation on top of it (see `fsDevice` above); `analyze` uses the corrected
+       `fs`, a difference of ~1e-5 ms per step against gaps measured in seconds.
+
+       No consumer folds gaps itself, so nothing double-counts: the export's `rr.tSec` comes from
+       `analyze`'s `times`, not from here, and every committed golden is contiguous. */
+    var _ecgGaps =
+      gaps && gaps.length
+        ? gaps.slice().sort(function (a, b) {
+            return a.idx - b.idx;
+          })
+        : null;
+    var _ecgDeadPrefix = null;
+    if (_ecgGaps) {
+      _ecgDeadPrefix = new Float64Array(_ecgGaps.length);
+      var _dead = 0;
+      for (var _gk = 0; _gk < _ecgGaps.length; _gk++) {
+        _dead += Math.max(0, _ecgGaps[_gk].ms - _ecgMsPerSample);
+        _ecgDeadPrefix[_gk] = _dead;
+      }
+    }
+    /* Dead ms accumulated at or before sample `i`. Binary search, because `tMsAt` is called per beat
+       and per sample by `geometry-scan`; a linear scan would be O(beats x gaps). `i` may be fractional
+       — a gap AT the sample counts, matching `analyze`'s `g[gi].idx <= refIdx[k]`. */
+    function _ecgDeadMsBefore(i) {
+      if (!_ecgGaps) return 0;
+      var lo = 0,
+        hi = _ecgGaps.length - 1,
+        ans = -1;
+      while (lo <= hi) {
+        var mid = (lo + hi) >> 1;
+        if (_ecgGaps[mid].idx <= i) {
+          ans = mid;
+          lo = mid + 1;
+        } else hi = mid - 1;
+      }
+      return ans < 0 ? 0 : _ecgDeadPrefix[ans];
+    }
     // endEpochMs — the CLOCK position of the last sample, read from the file, never derived. Null when
     // the row carries no parseable stamp (§2.6: a missing stamp is visible, never fabricated). Kept
     // ALONGSIDE durSec, not instead of it: durSec answers "how much signal do I have", endEpochMs
@@ -27230,13 +27284,14 @@ __exports.PpgDex = window.PpgDex;
     var deviceEpoch = deviceEpochOffsetMs !== null ? { offsetMs: Math.round(deviceEpochOffsetMs), plausible: Math.abs(deviceEpochOffsetMs) <= 48 * 3600e3 } : null;
     return {
       fs: fs,
-      /* Absolute floating wall-clock ms of sample `i`, host-disciplined where a second clock exists.
-         `i` may be fractional — `refinePeaks` returns sub-sample R positions and they must not be
-         rounded before the correction is applied. Consumers that need a TIME use this; consumers that
-         need a RATE keep using `fs`. */
+      /* Absolute floating wall-clock ms of sample `i`, host-disciplined where a second clock exists
+         and GAP-AWARE (see `_ecgDeadMsBefore` above — a sample index does not count the wall-clock a
+         dropout consumed). `i` may be fractional — `refinePeaks` returns sub-sample R positions and
+         they must not be rounded before the correction is applied. Consumers that need a TIME use
+         this; consumers that need a RATE keep using `fs`. */
       tMsAt: function (i) {
         var devMs = i * _ecgMsPerSample;
-        return t0Ms + devMs + (_ecgCorrAt ? _ecgCorrAt(devMs) : 0);
+        return t0Ms + devMs + (_ecgCorrAt ? _ecgCorrAt(devMs) : 0) + _ecgDeadMsBefore(i);
       },
       /* Whether `tMsAt` is actually disciplined. Reported so a caller can tell a corrected axis from a
          device-clock one WITHOUT re-deriving the condition — and so `applied:false` on `hostAxis`
