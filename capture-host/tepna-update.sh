@@ -275,7 +275,7 @@ if command -v flock >/dev/null 2>&1 && ( : > "$LOCK_FILE" ) 2>/dev/null && exec 
 fi
 
 # --- the recording interlock -------------------------------------------------------------------
-# Prints one of: recording | idle | unknown:<why>
+# Prints one of: recording | harvesting | pulling | idle | unknown:<why>
 #
 # EVERY non-answer is `unknown`, and `unknown` blocks the restart. A missing, stale, truncated or
 # unparseable status.json is not evidence of an idle box; it is the absence of evidence, and the cost of
@@ -334,6 +334,32 @@ if isinstance(cp, dict):
     if cp.get("state") == "running":
         print("harvesting")
         sys.exit(0)
+# A RING .dat PULL IS ALSO WORK IN FLIGHT, and it is the one this guard was missing. `oxy_lifecycle`
+# publishes `pulling` (the autopull owns the link) and `paused_for_pull` (a stored-session pull does),
+# and NEITHER was a deferral condition — so the box read `idle` through a transactional sync and a
+# restart could land mid-transfer.
+#
+# ⚠️ WHY THIS BECAME LIKELY RATHER THAN MERELY POSSIBLE. The doff does two things at once: it ends the
+# recording (so the box turns idle) and it TRIGGERS the not-worn auto-pull. With the hourly timer alone
+# the restart landed in that window about one tick in thirty; with `tepna-update-pending.timer` enabled
+# (2026-09-12) it fires ~2 min after idle, which is squarely inside a pull that starts ~60-80 s after
+# the doff settle. The defect predates the timer; the timer is what made it routine.
+#
+# The cost is bounded rather than fatal, and that is why this is a deferral and not an alarm:
+# `oxy_transfer.resume_strategy` runs with `allow_resume=False`, so an interrupted transfer discards its
+# partial bytes and re-serves from the start. Nothing is corrupted — a harvest is wasted and retried.
+#
+# ⚠️ ABSENCE IS `idle` HERE, WHICH IS THE OPPOSITE OF THE `cpap.state` RULE ABOVE, deliberately.
+# `oxy_lifecycle` is a RING field: the Polars and the Coospo never publish it, so requiring it to be
+# present would make every non-ring device read `unknown` and refuse restarts forever on a box with no
+# O2Ring. A missing field here is a device without the subsystem, not a daemon hiding its state — the
+# same judgement `cpap`'s "no block at all -> idle" arm makes, for the same reason.
+_PULL_STATES = ("pulling", "paused_for_pull")
+pulling = [n for n, v in devs.items()
+           if isinstance(v, dict) and v.get("oxy_lifecycle") in _PULL_STATES]
+if pulling:
+    print("pulling")
+    sys.exit(0)
 print("idle")
 PY
 }
@@ -542,6 +568,15 @@ else
       # fault on a box nobody logs into. Same debt write as `recording` so the next tick still sees it.
       printf '%s\n' "$running_sha" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
       say "deferred — a CPAP harvest is running; the daemon keeps the old code until it finishes"
+      _defer_note
+      ;;
+    pulling)
+      # Its OWN branch for the same reason `harvesting` has one: a stored-session pull in flight is a
+      # legitimate reason to wait, and the catch-all would set `drifted=1` and report it as root-level
+      # drift on a box nobody logs into. A ring pull is seconds to a couple of minutes, so deferring
+      # costs at most one tick — against discarding a transfer that has to be re-served from byte zero.
+      printf '%s\n' "$running_sha" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
+      say "deferred — a ring .dat pull owns the link; the daemon keeps the old code until it finishes"
       _defer_note
       ;;
     *)
