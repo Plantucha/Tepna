@@ -160,16 +160,38 @@ artifact may be written under `uploads/trio/` at any point, including as a tempo
 
 🔴 **SHHS carries data-use terms our own recordings do not.** The 11 tracked EDFs are the owner's own
 device output, deliberately allowlisted; that mechanism is **not** a precedent. **Whether any
-SHHS-derived artifact may be committed, and in what form, is an owner decision** and is deliberately
-not taken here. Until it is ruled: analysis and briefs (which read only) proceed; committing derived
-artifacts does not.
+SHHS-derived artifact may be committed, and in what form, is an owner decision** and was deliberately
+not taken here.
+
+✅ **RULED 2026-09-13 (owner): AGGREGATE ONLY.** Pooled statistics derived from the corpus MAY be
+committed — kappa, per-stage recall, distributions, counts, and the `n` they rest on. **Per-record
+rows and NSRR record identifiers MAY NOT**, in any artifact: not in a brief, a changeset, a commit
+message or a PR body, all of which are public on this repository. The discriminator is whether a
+number is traceable to an individual recording, not whether it is "small" or "already public".
+
+⚠️ The 11 tracked EDFs remain **not** a precedent, exactly as the paragraph above says: those are the
+owner's own device output. This ruling licenses aggregate DERIVED VALUES, never corpus bytes.
 
 **Done when**
 
-- [ ] the owner rules on the drain-completion condition (§0) — the live gate
-- [ ] `nsrr-stage-validate.mjs` traced to confirm it consumes `stagesToEpochs`/`stageOf`
+- [x] the owner rules on the drain-completion condition (§0) — **CANCELLED by the owner 2026-09-13**;
+      the condition no longer gates anything
+- [x] `nsrr-stage-validate.mjs` traced to confirm it consumes `stagesToEpochs`/`stageOf` — it did
+      **not**: it compared a stage OBJECT against a stage STRING, so REM recall was 0 by construction
+      and the selftest passed because it asserted only non-emptiness (fixed #2423)
 - [ ] E3 run (needs no SHHS data or policy decision — do this first)
-- [ ] E1, E2 run with their plants, results recorded either way
-- [ ] the owner rules on the derived-artifact commit policy
+- [x] **E1 run — the stager does NOT transfer.** Full corpus, all 5136 records:
+      **Cohen's kappa 0.0967 +/-0.0031** (n=5134 records, 505 868 epochs), raw agreement 39.2 %,
+      per-stage recall Wake 27.7 % · Light 56.5 % · Deep 16.3 % · REM 23.9 %. Pre-stated bands were
+      >=0.60 transfers / 0.40-0.60 partial / <0.40 does not; this is barely above chance.
+      **The alternative explanation was tested and excluded:** a near-chance kappa can mean "wrong" or
+      "shifted", so kappa was recomputed over a window of lags. Best-lag SCATTERS across all seven
+      instead of concentrating, which is what noise looks like and what a pipeline shift does not —
+      `populationMisalignment` returns `no-systematic-shift`. A planted uniform shift is caught by the
+      same test, so the negative is not a blind instrument.
+      ⚠️ An n=24 pilot gave 0.055 +/-0.045; the full-corpus 0.0967 lies inside that interval. Quoted
+      because the *clustered* interval covered it and the naive per-epoch interval (+/-0.0223) would
+      not have — epochs within a night are not independent observations.
+- [x] the owner rules on the derived-artifact commit policy — **RULED 2026-09-13, §5 above**
 - [ ] `PAPERS-ROADMAP` §3.2 and `REM-STAGING-FOLLOWUPS` §2b banners re-stamped — both now state
       conditions that events have overtaken
