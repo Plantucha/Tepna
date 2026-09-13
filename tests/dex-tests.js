@@ -5133,9 +5133,7 @@
       T.ok(
         'F5: a two-corner node still produces a weighted mean',
         !!(blk5 && blk5.tch && blk5.tch.ok && blk5.rmssd && blk5.rmssd.weightedMean != null),
-        'wm=' + (blk5 && blk5.rmssd && blk5.rmssd.weightedMean) +
-          ' tchStatus=' + (blk5 && blk5.tchStatus) +
-          ' nodes=' + (blk5 && blk5.rmssd && blk5.rmssd.values.length)
+        'wm=' + (blk5 && blk5.rmssd && blk5.rmssd.weightedMean) + ' tchStatus=' + (blk5 && blk5.tchStatus) + ' nodes=' + (blk5 && blk5.rmssd && blk5.rmssd.values.length)
       );
       if (blk5 && blk5.rmssd && blk5.rmssd.weightedMean != null) {
         var wm5 = blk5.rmssd.weightedMean;
@@ -5145,18 +5143,34 @@
         var isCorner = vals5.some(function (v) {
           return Math.abs(v - wm5) < 1e-9;
         });
-        T.ok(
-          'F5: …and it is NOT any single corner verbatim — both duplicates contributed',
-          !isCorner,
-          'wm=' + wm5 + ' values=[' + vals5.join(', ') + ']'
+        T.ok('F5: …and it is NOT any single corner verbatim — both duplicates contributed', !isCorner, 'wm=' + wm5 + ' values=[' + vals5.join(', ') + ']');
+        /* ⚠ THE DISCRIMINATOR FOR F5 IS THE `verbatim` ASSERTION ABOVE, not the two below.
+           This slot first read `o.src != null` under the label "every corner resolved a weight" — a
+           SHAPE check wearing a contract's name. Replacing it with the identity lookup was no better
+           and is worth recording: PLANT-VERIFIED by restoring the original defect (resolve by bare
+           `o.node`), the lookup assertion still PASSED, because a test that performs the lookup
+           ITSELF observes only that the data is resolvable — never that the production consumer
+           resolved it. It is a PRECONDITION, labelled as one. Only the verbatim check reds (wm=47.3,
+           the first corner exactly). */
+        var _unresolvable = blk5.rmssd.values.filter(function (o) {
+          var i = blk5.tch.cornerSrcs ? blk5.tch.cornerSrcs.indexOf(o.src) : -1;
+          return !(i >= 0 && blk5.tch.weights[blk5.tch.cornerIds[i]] != null);
+        });
+        T.eq('F5: precondition — every published value is resolvable to a weight by identity', _unresolvable.length, 0);
+        T.eq('F5: precondition — all three corners are published, not a subset', blk5.rmssd.values.length, 3);
+        /* The identity wiring must NOT reach the published export: `src`/`cornerSrcs` hold whole
+           source RECORDS, so a plain field serialises every one of them into a ganglior.node-export.
+           Caught by the equivalence gate against the committed goldens; asserted HERE too so the
+           property is pinned locally rather than only as a by-product of two real fixtures. */
+        var _pub = JSON.parse(JSON.stringify(blk5));
+        T.eq(
+          'F5: `src` is internal — it does not serialise into the export',
+          _pub.rmssd.values.filter(function (o) {
+            return 'src' in o;
+          }).length,
+          0
         );
-        T.ok(
-          'F5: every corner resolved a weight (none silently skipped)',
-          blk5.rmssd.values.every(function (o) {
-            return o.src != null;
-          }),
-          'values carry their source for identity lookup'
-        );
+        T.eq('F5: `cornerSrcs` is internal — it does not serialise into the export', 'cornerSrcs' in _pub.tch, false);
       }
     });
 
@@ -6312,18 +6326,30 @@
         ).recs[0];
       };
       var SPAN_S = tSec[tSec.length - 1];
-      var linP = det([recA, mkWalk('lin.json', function (t) { return -137e-6 * t; })], {}).beatCheck.pairs[0];
-      var decP = det([recA, mkWalk('dec.json', function (t) { return -2.0 * (1 - Math.exp(-t / (SPAN_S / 4))); })], {}).beatCheck.pairs[0];
+      var linP = det(
+        [
+          recA,
+          mkWalk('lin.json', function (t) {
+            return -137e-6 * t;
+          })
+        ],
+        {}
+      ).beatCheck.pairs[0];
+      var decP = det(
+        [
+          recA,
+          mkWalk('dec.json', function (t) {
+            return -2.0 * (1 - Math.exp(-t / (SPAN_S / 4)));
+          })
+        ],
+        {}
+      ).beatCheck.pairs[0];
       T.ok(
         'a LINEAR drift is still certified confident — the curvature leg does not refuse everything',
         linP && linP.confident === true,
         'confident=' + (linP && linP.confident) + ' reason=' + (linP && linP.reason)
       );
-      T.ok(
-        'a DECELERATING walk is NOT certified as a drift rate',
-        decP && decP.confident === false,
-        'confident=' + (decP && decP.confident) + ' reason=' + (decP && decP.reason)
-      );
+      T.ok('a DECELERATING walk is NOT certified as a drift rate', decP && decP.confident === false, 'confident=' + (decP && decP.confident) + ' reason=' + (decP && decP.reason));
 
       /* IT MUST NOT DECIDE. `skewApplied` shifts real event times off `findings[].offsetSec`; a
          corroborating observer that quietly started steering that would be a behaviour change wearing
@@ -52637,6 +52663,62 @@
         return !/respRateMethod/.test(exportBlock(f));
       });
       T.eq('every node that exports a respiration rate also exports its method', methodGaps.sort(), []);
+    });
+
+    /* The same seam one node in: `detectClockSkew` returns an object, and `runFusion` does NOT pass it
+       through — it rebuilds `clockSkew` FIELD BY FIELD. So every key the producer adds is dropped by
+       default, silently, and the drop is invisible to every behavioural test because the producer's own
+       group still sees the value it computed. That is exactly how `beatCheck` came to be computed on
+       every fusion and read by nobody: a beat-level cross-check on a verdict made by a coarse 30 s grid,
+       discarded at the seam. Gating the INSTANCE (`beatCheck` is exported) would leave the next field to
+       repeat it, so what is asserted is the CLASS — the producer's key set is a subset of the rebuild's.
+       Source scan because no executable entry spans both sides: the consumer's literal is the evidence. */
+    group('detectClockSkew → runFusion seam — a field-by-field rebuild drops every new key by default', 'integrator-dsp · export-boundary · seam-parity', function (T) {
+      var S = String((env.sources || {})['integrator-dsp.js'] || '');
+      if (!S) {
+        T.skip('integrator-dsp.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      /* Balanced-brace, depth-aware — the same lesson as the respiration seam above: a regex to a fixed
+         indent overshoots, and a flat key regex would read NESTED keys as if they were top-level. */
+      function blockFrom(open) {
+        if (open < 0) return '';
+        for (var k = open, d = 0; k < S.length; k++) {
+          if (S[k] === '{') d++;
+          else if (S[k] === '}' && --d === 0) return S.slice(open, k + 1);
+        }
+        return '';
+      }
+      function topKeys(block) {
+        var out = [];
+        for (var k = 1, d = 0; k < block.length; k++) {
+          var c = block[k];
+          if (c === '{' || c === '[' || c === '(') d++;
+          else if (c === '}' || c === ']' || c === ')') d--;
+          else if (d === 0 && /[A-Za-z_$]/.test(c) && !/[\w$.'"]/.test(block[k - 1])) {
+            var m = /^([A-Za-z_$][\w$]*)\s*:/.exec(block.slice(k));
+            if (m) out.push(m[1]);
+          }
+        }
+        return out.sort();
+      }
+      /* Anchored on the beatCheck CALL rather than the literal's opening text, then walked back to the
+         `return {` — so a formatter reflowing the object's interior cannot silently empty this scan. */
+      var at = S.indexOf('beatCheck: _beatSkewCheck');
+      var retAt = at < 0 ? -1 : S.lastIndexOf('return {', at);
+      var producer = topKeys(blockFrom(retAt < 0 ? -1 : S.indexOf('{', retAt)));
+      var consumer = topKeys(blockFrom(S.indexOf('{', S.indexOf('clockSkew: {'))));
+      /* ANTI-VACUITY FIRST. Both scans resolve to '' if an anchor moves, and two empty key sets satisfy
+         a subset check perfectly — the green would mean "found nothing", which is this repo's dominant
+         defect shape. Assert each side is non-empty BEFORE comparing them. */
+      T.ok('ANTI-VACUITY · the producer literal was found and carries keys', producer.length >= 3, producer.join(', ') || 'EMPTY — the `return {` anchor in detectClockSkew moved');
+      T.ok('ANTI-VACUITY · the consumer rebuild was found and carries keys', consumer.length >= 3, consumer.join(', ') || 'EMPTY — the `clockSkew: {` anchor in runFusion moved');
+      var dropped = producer.filter(function (k) {
+        return consumer.indexOf(k) < 0;
+      });
+      T.eq("every key detectClockSkew computes survives runFusion's rebuild into clockSkew", dropped, []);
+      /* And the instance that taught it, named so a reader can trace the class back to its case. */
+      T.ok('…including beatCheck, the field this gate was written for', consumer.indexOf('beatCheck') >= 0, consumer.join(', '));
     });
 
     group('PpgDex publishes the axis MEASUREMENTS, not only its verdict — parity with ECGDex', 'ppgdex-dsp · ecgdex-dsp · export-boundary · host-axis', function (T) {

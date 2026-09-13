@@ -2940,7 +2940,10 @@ function _tchHat(like, ptsFn, metric) {
   }
   r.metric = metric;
   r.cornerIds = _cornerIds;
-  r.cornerSrcs = _cornerSrcs;
+  // NON-ENUMERABLE for the same reason as `src` on a spread() value: these are the source RECORDS,
+  // internal wiring for identity lookup, and a plain field serialises every one of them into the
+  // published export. `cornerIds` stays enumerable — it is a list of strings and is readable output.
+  Object.defineProperty(r, 'cornerSrcs', { value: _cornerSrcs, enumerable: false, configurable: true });
   /* PSEUDO THREE-CORNERED HAT — the corner's axis, not the corner's crystal (2026-08-17).
      The `timingSource === 'none'` filter above removes a leg that declares it has no timing. It cannot
      see the commoner case: a leg that declares NOTHING. OxyDex emits no `quality` block at all, so it
@@ -3588,8 +3591,13 @@ function fuseHRVConsensus(recs, dtMs) {
           values: like
             .map(function (s) {
               // `src` is the SOURCE OBJECT, kept so a weight can be resolved by identity rather than
-              // by `node` — which is not unique once two corners share a node name.
-              return { node: s.node, v: _cmpVal(s, key), src: s };
+              // by `node` — which is not unique once two corners share a node name. NON-ENUMERABLE:
+              // it is internal wiring, and a plain field would serialise the ENTIRE rec into the
+              // published export (caught by the equivalence gate, which reported
+              // `rmssd.values.0.src: {"node":"ECGDex","label":…}` against the committed golden).
+              var _o = { node: s.node, v: _cmpVal(s, key) };
+              Object.defineProperty(_o, 'src', { value: s, enumerable: false });
+              return _o;
             })
             .filter(function (o) {
               return o.v != null;
@@ -5405,17 +5413,29 @@ function fitClockDrift(aTimes, bTimes, opts) {
     var fit = function (rs) {
       var n = rs.length;
       if (n < 3) return null;
-      var sx = 0, sy = 0;
-      rs.forEach(function (r) { sx += r.tMs; sy += r.off; });
-      var mxx = sx / n, myy = sy / n, num = 0, den = 0;
-      rs.forEach(function (r) { num += (r.tMs - mxx) * (r.off - myy); den += (r.tMs - mxx) * (r.tMs - mxx); });
+      var sx = 0,
+        sy = 0;
+      rs.forEach(function (r) {
+        sx += r.tMs;
+        sy += r.off;
+      });
+      var mxx = sx / n,
+        myy = sy / n,
+        num = 0,
+        den = 0;
+      rs.forEach(function (r) {
+        num += (r.tMs - mxx) * (r.off - myy);
+        den += (r.tMs - mxx) * (r.tMs - mxx);
+      });
       return den > 0 ? (num / den) * 1e6 : null;
     };
-    var a = fit(rows.slice(0, mid)), b = fit(rows.slice(mid));
+    var a = fit(rows.slice(0, mid)),
+      b = fit(rows.slice(mid));
     if (a == null || b == null) return null;
-    var lo = Math.min(Math.abs(a), Math.abs(b)), hi = Math.max(Math.abs(a), Math.abs(b));
+    var lo = Math.min(Math.abs(a), Math.abs(b)),
+      hi = Math.max(Math.abs(a), Math.abs(b));
     return { firstPpm: +a.toFixed(1), secondPpm: +b.toFixed(1), sameSign: a * b > 0, ratio: hi > 0 ? +(lo / hi).toFixed(3) : null };
-    })();
+  })();
   return {
     /* THE SERIES THE FIT WAS MADE FROM, which was being discarded. `off` at `tMs` is a PHASE series —
        the only input from which this leg's own rate uncertainty can be measured. Without it a consumer
@@ -5462,7 +5482,8 @@ function fitClockDrift(aTimes, bTimes, opts) {
        true 185 and a −137 ppm walk was reported as "beyond my reach" while sitting well inside the
        search window. The bound belongs to the blocks that were actually fitted. */
     maxDriftPpm: (function () {
-      var f = rows.length ? rows[0].tMs : null, l = rows.length ? rows[rows.length - 1].tMs : null;
+      var f = rows.length ? rows[0].tMs : null,
+        l = rows.length ? rows[rows.length - 1].tMs : null;
       return f != null && l > f ? (searchMs / (l - f)) * 1e6 : null;
     })(),
     /* Correspondence must beat its OWN chance control by a clear margin — the block fit maximises the
@@ -5472,11 +5493,7 @@ function fitClockDrift(aTimes, bTimes, opts) {
        curvature says the walk is a LINE. A fit can pass the first and fail the second — that is
        exactly the decelerating walk this gate was added for — and certifying it as a drift rate
        publishes a ppm for something that is not a constant-rate clock. */
-    confident:
-      chance != null &&
-      medFrac >= 2 * chance &&
-      medFrac >= 0.5 &&
-      !(_h && (!_h.sameSign || (_h.ratio != null && _h.ratio < 1 / 3))),
+    confident: chance != null && medFrac >= 2 * chance && medFrac >= 0.5 && !(_h && (!_h.sameSign || (_h.ratio != null && _h.ratio < 1 / 3))),
     reason:
       chance == null
         ? 'no control blocks'
