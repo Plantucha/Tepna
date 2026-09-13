@@ -30,6 +30,57 @@ changesets.)
 
 ---
 
+## [2.11.0] — 2026-09-13
+
+### Added
+- **A night either happened or it did not, and the only way to know was to open the box and read four
+- **The box spends most of its life running code that is on disk but not loaded, and now it can stop.** (`VIGIL-AUTO-UPDATE-FOLLOWUPS-2026-08-14-BRIEF.md`)
+- **The controller's own connection-event anchors, recorded as an OPTIONAL second clock.** Today the (`RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md`)
+- Add the §2 coexistence-matrix harness — the measurement that earns `scan_coexistence_verified` and unblocks the presence trigger. (`O2RING-PRESENCE-TRIGGER-IMPL-2026-08-26-BRIEF.md`)
+- A systemd template unit that attaches a Zephyr HCI-UART controller and re-issues its BD address,
+- `tools/ecg-physionet-differential.mjs` — score ECGDex's Pan–Tompkins against independently annotated
+- `ECGDSP.analyze()` returned seconds and milliseconds on one object with no field naming its unit.
+- `tools/nsrr-criterion-sweep.mjs` — derive the desaturation criterion from expert-scored PSG instead of (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- `tools/nsrr-oxydex-odi.mjs` — the second NSRR arm: OxyDex's ODI-4 → AHI estimate scored against (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- The O2Ring raw dual-wavelength FILL rate, measured for the first time: median 200 Hz.
+- `wt-done`'s in-use check is gated — the first test it has ever had.
+- The residue ledger gains a fourth closing state, `withdrawn <key>` — owner ruling 2026-09-13.
+
+### Changed
+- **The morning report's mutation survivors, worked rather than excused: 26 → 0.** Twelve were real
+- **27 surviving mutants closed on the radio-clock collector and the night report — no production code (`RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md`)
+- `tools/doc-search.mjs` leaves a per-session stamp after every search that ran; a new PreToolUse
+- §P5's public-benchmark gate is recorded as covering PUBLICATION, not MEASUREMENT. (`STRATEGIC-PRIORITIES-2026-08-26-BRIEF.md`)
+
+### Fixed
+- The `0xC0` timezone byte was a constant, and the `0x10` bitfield had never been written down.
+- PpgDex exported `hostAxis.stability.tau0` and `.noiseType` as permanent null. (`ALLAN-STABILITY-GAPS-2026-09-07-BRIEF.md`)
+- The Integrator's three-cornered-hat tested `timingSource !== 'device' && !== 'device+host'` — a (`OXYDEX-PB-DETECTOR-FOLLOWUPS-2026-08-17-BRIEF.md`)
+- 🔴 **The morning report was fabricating a clean verdict.** `back_check` read `b["clip"]` — singular,
+- Retry the CPAP BLE connect ONCE on the same adapter when bleak's service snapshot lacks the notify
+- The CPAP discovery-failover warning now carries the pinned adapter's exception TEXT (one line, capped at 160 chars) beside its type — a bare `BleakError` names no verdict without it (#2170).
+- Rebuild bleak's GATT snapshot in place when BlueZ published it late, instead of throwing the CPAP link away and reconnecting (#2170).
+- Read the GATT snapshot and link state **before** the leak guard closes the link — #2170's diagnostic
+- Move the writers' disk barrier off the event loop, so one stream's fsync no longer delays every other stream's host stamps.
+- Fix the monitor's "Pull stored session" button, which raised TypeError on every request and returned 500.
+- Record WHY an O2Ring connect attempt ended in `OXYLIFE.csv`'s link-axis `failure` column, which had never been populated.
+- 🔴 **The anchor enable does not survive a controller reset, and the collector sent it once.** `0xfd1f` (`RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md`)
+- `wt-done`'s in-use check no longer counts its own invocation as a user of the tree.
+- **A pinned Zephyr HCI dongle was bonded, forgotten and power-cycled on the WRONG radio.** The dongle
+- `hostAxis.stability` published `slopeSE` without the n it was computed over. (`ALLAN-STABILITY-GAPS-2026-09-07-BRIEF.md`)
+- A night that was never folded counted in the estimation yield.
+- An incomplete night reported as an overlap failure — one string for two causes.
+- The expert desaturation index is computed at a matched DEPTH threshold, not from the raw event count. (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- `nsrr-adapter.js` no longer fabricates absent SpO₂ and heart rate. (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- `nsrr-stage-validate` compared a stage OBJECT against a stage STRING, so every number it ever (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- Three gates counted call sites in source text as a proxy for a structural property. A count is wrong
+- A reconnect that crosses midnight no longer mints a fresh file-set. `night_dir()` rolls by the
+- The ring now resumes its file-set across a short reconnect, as the Polar path has since
+- **The ring's header-only pruner deleted resumed files — a live session lost its `_SPO2.csv` and an
+- The four committed twin-input builders exposed three different browser shapes, and the Node lane
+
+---
+
 ## [2.10.0] — 2026-09-07
 
 ### Added
@@ -2190,7 +2241,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.10.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.11.0...HEAD
+[2.11.0]: https://github.com/Plantucha/Tepna/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/Plantucha/Tepna/compare/v2.9.0...v2.10.0
 [2.9.0]: https://github.com/Plantucha/Tepna/compare/v2.8.0...v2.9.0
 [2.8.0]: https://github.com/Plantucha/Tepna/compare/v2.7.0...v2.8.0
