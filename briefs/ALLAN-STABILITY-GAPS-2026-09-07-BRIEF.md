@@ -1,4 +1,4 @@
-**Status:** PROPOSED (**core BUILT — this brief is a GAP LIST over existing machinery, not a build; verified 2026-09-11 (Osprey) in the tree, not from the prose.** `capture-host/allan.py` exists and implements the overlapping estimators (`adev`/`mdev`/`tdev`/`hdev`/`gcov`/`mtie`), each returning its own `n` per tau, and `stability(phase, tau0, tdev_tau=None)` already returns the curve, the slope, the noise type and `optimal_tau`. `clock.js` forwards `stability` (4 sites) and `ppgdex-dsp.js` references `tau0` at 18 sites, so §2.1 — the permanent-`null` export it records as ✅ FIXED 2026-09-07 — is confirmed fixed rather than merely claimed. What remains is the brief's OWN named gaps 2.2–2.5 (gap/unequal-spacing segmentation with Sesia–Tavella deferred, provenance ON the `stability()` result, one human-readable line in the night report, and the tests §2.5 names), each a small unit against live code. No one should size any of this as "build the Allan machinery" — §1 exists precisely to stop that, and this header now says so where a reader looks first.) · **Created:** 2026-09-07 · **Residue:** 2026-09-07-hostaxis-stability-ntau-not-forwarded
+**Status:** PROPOSED (**core BUILT — this brief is a GAP LIST over existing machinery, not a build; verified 2026-09-11 (Osprey) in the tree, not from the prose.** `capture-host/allan.py` exists and implements the overlapping estimators (`adev`/`mdev`/`tdev`/`hdev`/`gcov`/`mtie`), each returning its own `n` per tau, and `stability(phase, tau0, tdev_tau=None)` already returns the curve, the slope, the noise type and `optimal_tau`. `clock.js` forwards `stability` (4 sites) and `ppgdex-dsp.js` references `tau0` at 18 sites, so §2.1 — the permanent-`null` export it records as ✅ FIXED 2026-09-07 — is confirmed fixed rather than merely claimed. What remains is the brief's OWN named gaps 2.2–2.5 (gap/unequal-spacing segmentation with Sesia–Tavella deferred, provenance ON the `stability()` result, one human-readable line in the night report, and the tests §2.5 names), each a small unit against live code. No one should size any of this as "build the Allan machinery" — §1 exists precisely to stop that, and this header now says so where a reader looks first.) · **Created:** 2026-09-07 · 🔴 **tau_max MEASURED 2026-09-13 (Osprey) — §2.6: the item is MIS-SHAPED, not unexecuted.** `allan.py` stops at T/8 (>=4 INDEPENDENT spans), `clock.js` at ~T/2 (a count of OVERLAPPING terms). On the two longest contiguous segments of 2026-09-12 H10 ECG, every octave tau to **T/3.5** reproduces within 1.5x, so T/8 discards two octaves two disjoint hours agree on — but the cross-segment ratio is **tau-INDEPENDENT** (1.06-1.30, no trend), which measures how the two hours differ in noise LEVEL, not how the estimator degrades, so it cannot license T/2 either. **Do not unify these constants:** the supportable tau_max is a function of the noise type the curve reports, so one constant is the wrong shape. The discriminating experiment needs a tau^0/tau^+1 stream and **none exists in that night** — H10 ECG -0.379+-0.100 and ACC -0.400+-0.096 (classifier REFUSES both), Verity ACC -0.940 / PPG -0.971 (white/flicker-phase); the O2Ring is excluded by construction (§🔒.7, a drawn axis is not a clock). ⚠️ §2.2 gained one stream of Step 1 evidence on the way: that night carries **33 device-counter gaps of 44-74 s** against a 7.69 ms median — `max_gap/median ~ 9600` against the `<= 4` band, agreeing with #2461's independent -2522.8 s `tMsAt` error on the same night. · **Residue:** 2026-09-07-hostaxis-stability-ntau-not-forwarded
 
 # Allan stability — the gaps that remain after eight PRs (and the ones that were never gaps)
 
@@ -169,6 +169,88 @@ ntfy line is untouched. **Owned by the night-report unit — do not build a seco
 - Neither node exports the ADEV **curve** — only scalars (`ppgdex-dsp.js:5215`, `ecgdex-dsp.js:5263`).
   The prompt is right that the curve carries more than `optimal_tau`; an export-shape change on two
   nodes, owed a consumer first. → `briefs/RESIDUE.md` row on pickup.
+
+## §2.6 — tau_max: MEASURED 2026-09-13 (Osprey), and the item is MIS-SHAPED, not unexecuted
+
+**The question.** The two lanes disagree on how far out the curve may be reported, and neither cites the
+other:
+
+| lane | rule | effective ceiling |
+|---|---|---|
+| `capture-host/allan.py:207` | `m <= n / (2 * _MIN_SPAN_MULTIPLE)` — demands >= 4 **independent** spans | **T/8** |
+| `clock.js:314-316` | `cnt >= CK_ALLAN_MIN_TERMS` where `cnt` counts **overlapping** terms | **~T/2** |
+
+The hypothesis was that `clock.js` is wrong in a way its own source already names: it warns, of its
+slope SE, that *"Overlapping ADEV points are CORRELATED"*, and then uses a correlated count as if it
+were independent for the ceiling. **The measurement did not support that hypothesis.**
+
+**A prerequisite had to be handled first, and it is §2.2's own evidence.** The 2026-09-12 H10 ECG night
+(2 691 292 rows, 6.45 h) carries **33 device-counter gaps of 44-74 s** against a **7.69 ms** median
+interval — `max_gap / median ~ 9600`, where §2.2 Step 1's band is `<= 4`. Nothing on `main` segments, so
+a whole-night ADEV would have been computed across 33 fabricated phase steps, each tau^+1 energy the
+classifier names "drift". **This is one stream's worth of §2.2 Step 1 and it fails the band by three
+orders of magnitude.** It also agrees with #2461 from an independent instrument: ECGDex's `tMsAt` was
+pure index arithmetic and did not count the wall-clock those same dropouts consumed, reading
+**-2522.8 s** by the end of this very night. Two instruments, one conclusion — the 09-12 gaps are large
+enough to invalidate anything computed across them unsegmented.
+
+Measured instead on the two longest **contiguous** segments (3558 s and 3556 s, adjacent disjoint hours),
+using `allan.adev` with explicit taus on both sides so that **only the ceiling varies**. Reliability is
+reproducibility across disjoint segments; bands fixed before the read at 1.5x / 2.0x.
+
+| tau_s | ADEV_A | ADEV_B | ratio | verdict |
+|---|---|---|---|---|
+| 8 | 1.355e+02 | 1.235e+02 | 1.10 | RELIABLE — `allan.py`'s ceiling is 445 s |
+| 128 | 2.312e+01 | 1.800e+01 | 1.28 | RELIABLE |
+| 512 | 5.754e+00 | 4.427e+00 | 1.30 | RELIABLE — past T/8, still reproducible |
+| 1024 | 2.696e+00 | 2.291e+00 | 1.18 | RELIABLE — T/3.5, the largest octave the segment supports |
+
+Every octave to **T/3.5** reproduces within 1.5x; `allan.py`'s T/8 discards **two octaves** that two
+disjoint hours agree on.
+
+**Why this does NOT become a constant change — both reasons are limits on the experiment, not hedges.**
+
+1. **The ratio is tau-INDEPENDENT** (1.06-1.30, no trend with tau). A disagreement that does not move
+   with the parameter being swept is not estimator variance — it is the two hours genuinely differing in
+   noise LEVEL, appearing identically at every tau. So this licenses *"agreement does not degrade out to
+   T/3.5"* and **cannot** license *"the estimator is sound at T/2"*. The experiment separates neither.
+2. **The subject is the favourable case.** Over tau >= 32 s the H10 curve halves as tau doubles
+   (slope -1, jitter that averages away). Failing to falsify a ceiling on the noise type where
+   falsification is hardest is close to no evidence.
+
+**Verdict: a single constant is the wrong SHAPE.** The supportable `tau_max` is a function of the noise
+type the curve itself reports, so unifying to either current value picks a lane rather than measuring
+one. Recorded here so the next triage does not re-derive that this item is mis-shaped rather than
+unexecuted.
+
+### The discriminating experiment has no subject in this night
+
+The test that WOULD separate the two ceilings needs a stream whose slope is tau^0 (a floor) or tau^+1
+(drift), where long-tau estimates are ill-conditioned. Measured over every stream in 2026-09-12 that
+carries two clocks, on each one's longest contiguous segment:
+
+| stream | segments | best segment | slope | slope SE | `allan.py` classification |
+|---|---|---|---|---|---|
+| H10 ECG | 34 | 3558 s | **-0.379** | 0.100 | **refused** — CI straddles a boundary |
+| H10 ACC | 34 | 3558 s | **-0.400** | 0.096 | **refused** |
+| Verity ACC | 3 | 10 139 s | -0.940 | 0.022 | white/flicker-phase |
+| Verity PPG | 3 | 10 140 s | -0.971 | 0.008 | white/flicker-phase |
+
+**No tau^0 or tau^+1 subject exists here** — all four slopes are negative. The H10 pair is nearest a
+floor at ~ -0.39 and the classifier still refuses it, which is the honest answer for a slope whose
++-1.96 SE band crosses a category boundary.
+
+⚠️ This also corrects a claim made earlier the same day: the H10 ECG stream is **not** cleanly
+"white-phase". It is tau^-1 only over tau >= 32 s; the full curve is non-monotone (128.5, 93.6, 102.0,
+135.5, 142.8, 90.0 ms at tau = 1..32) and unclassifiable, which is exactly why `allan.py` returns
+`None`. The long-tau half is what makes point 2 above a real limit; the whole curve is not one noise type.
+
+⚠️ **Scope of this negative.** One night, two devices. The O2Ring — the obvious third candidate — is
+excluded **by construction**, not by measurement: CLAUDE.md §🔒.7 rules that a drawn axis is not a clock,
+so it can never serve as the second clock this test needs. A corpus-wide answer is the §2.2 Step 1
+`QC-SUMMARY.json` survey on the box, which is assigned there and not duplicated here. Until that runs,
+the honest status is **"not decidable on the streams measured; needs a stream this night does not
+contain"** — which is a result, not an open task.
 
 ## §3 What the prompt asks for that is NOT done, and the ruling that decides it
 
