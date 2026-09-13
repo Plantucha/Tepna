@@ -212,7 +212,12 @@ def test_summarize_flags_a_degraded_trickle(tmp_path):
     assert s["span_sec"] == 1000
     h10 = next(d for d in s["devices"] if d["name"] == "H10")
     assert h10["coverage"] == {"ecg": 1.0, "acc": 0.2, "hr": 1.0}
-    assert s["degraded"] == ["H10:acc 20%"] and s["ok"] is False    # nothing missing, but ACC trickled
+    # `(rate assumed)` is deliberate and is asserted, not tolerated: this fixture writes too few rows
+    # for `measured_hz` to read a rate, so coverage here is computed against the CONFIGURED rate. A
+    # degraded line is worth exactly what its rate is worth, and before `coverage_basis` the two were
+    # indistinguishable at the one place an operator actually reads.
+    assert s["degraded"] == ["H10:acc 20% (rate assumed)"] and s["ok"] is False
+    assert h10["coverage_basis"] == {"ecg": "expected", "acc": "expected", "hr": "expected"}
     assert s["missing"] == []
 
 
