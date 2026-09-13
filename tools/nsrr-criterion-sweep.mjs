@@ -214,6 +214,22 @@ export const COARSE = {
    miss here would refine outside a clamp and report a boundary optimum as a discovery. */
 export const AXIS_CLAMP = { a: 'dropPct', b: 'b', minSec: 'minSec', WIN: 'WIN', pct: 'pct' };
 
+/* A REDUCED grid, for when an answer now beats a complete answer later. It pins the baseline
+   parameters at their clinical values (WIN 300 s, pct 90) and sweeps only the model itself — the
+   intercept, the slope and the minimum duration. That is ~38× fewer points.
+
+   ⚠️ It is a DIFFERENT EXPERIMENT, not a preview of the full one, and the report says which grid ran.
+   The baseline-method question (record- vs event-specific, window width) is exactly what the
+   literature treats as live, so fixing WIN/pct answers the model question while explicitly declining
+   the baseline one. A --quick result may NOT be quoted as though the full grid produced it. */
+export const QUICK = {
+  a: [2, 3, 4, 5, 6],
+  b: [-1, -0.5, 0, 0.5, 1],
+  minSec: [5, 10, 15, 20, 30],
+  WIN: [300],
+  pct: [90]
+};
+
 export function refineAround(best, coarse) {
   const out = {};
   for (const k of Object.keys(coarse)) {
@@ -418,10 +434,6 @@ function buildCache(dir) {
   return recs;
 }
 
-/* ── one evaluation ───────────────────────────────────────────────────────────────────────────
-   The expert side moves WITH the parameter: a detector asked for ≥5 % drops is scored against the
-   scorer's ≥5 % events. Holding the reference fixed while sweeping the threshold would make the
-   objective a function of the threshold itself and guarantee a boundary optimum. */
 /* ── THE SMART HALF OF BRUTE FORCE — measured, not assumed ────────────────────────────────────
    Timed over 20 records: the rolling ceiling baseline is ~100 % of `detectDesatEvents`'s cost
    (168 ms of a 167 ms call), and the event scan with a PRE-COMPUTED baseline is 7 ms — a 24× speedup.
@@ -472,9 +484,36 @@ export function baselineCache(ctx, maxEntries) {
   return get;
 }
 
-export function evalPoint(ctx, recs, params, std, blFor) {
-  /* the SEARCH's request is clamp-checked and REFUSED if out of range; the per-night value the
-     function produces is clamped instead (see effectiveDrop) — different things, deliberately. */
+/* ── THE REFERENCE MUST BE FIXED DURING A SEARCH ─────────────────────────────────────────────
+   ⚠️ THIS WAS WRONG AND THE FIRST SWEEP IS VOID. The evaluation moved the expert side WITH the
+   threshold, which is correct for EVALUATION — comparing like with like is the whole lesson of this
+   lane. It is fatal for OPTIMISATION: if the search can move the reference, it will.
+
+   Measured 2026-09-12 on the quick grid:
+
+     shipped default (4 %, 10 s)   detected 9.12/h   expert 2.94/h   score 4.84   n=91
+     "winner"        (5.5 %, 30 s) detected 0.98/h   expert 0.66/h   score 0.74   n=74
+     clamp extreme   (6 %, 30 s)   detected 0.98/h   expert 0.66/h   score 0.74   n=74
+
+   The winner ties EXACTLY with the clamp extreme, and both sides have collapsed to ~1 event/h. A
+   median-absolute-difference objective is minimised by making both counts small, so the search walked
+   to the corner that detects almost nothing. Worse, `n` fell 91 → 74: the "a record with no expert
+   events cannot grade a detector" guard becomes an escape hatch, and raising the threshold DELETES the
+   hard nights from the denominator.
+
+   So: the reference is pinned at a FIXED clinical depth (ODI-4, the 4 % variant) for the whole search,
+   and the record set is fixed with it. The question becomes well-posed — "which detector settings best
+   reproduce the expert ODI-4 index" — and cannot be answered by finding nothing, because finding
+   nothing now scores as badly as it should.
+
+   Depth-matching remains correct for REPORTING agreement (nsrr-oxydex-odi.mjs). It is only the search
+   that must hold the target still. */
+export const REFERENCE_DEPTH = 4; // the clinical ODI-4 variant; the target the search must not move
+
+/* ── one evaluation ───────────────────────────────────────────────────────────────────────────
+   The detector's threshold varies; the reference does not. Records are the SAME set at every point. */
+export function evalPoint(ctx, recs, params, std, blFor, refDepth) {
+  const ref = refDepth == null ? REFERENCE_DEPTH : refDepth;
   const c = clampCheck({ minSec: params.minSec, WIN: params.WIN, pct: params.pct, dropPct: params.a });
   if (!c.ok) return { ok: false, refusals: c.refusals };
   const stdv = std || { centre: 0, scale: 1 };
@@ -482,26 +521,20 @@ export function evalPoint(ctx, recs, params, std, blFor) {
   const drops = [];
   for (const r of recs) {
     if (r.err || !r.tstHours || !r.spo2) continue;
+    /* the record set is decided by the FIXED reference, so no parameter choice can shrink it */
+    const want = r.depths.filter((d) => d >= ref).length / r.tstHours;
+    if (!(want > 0)) continue;
     const drop = effectiveDrop(params, r, stdv);
     drops.push(drop);
     const ev = ctx.__detect(
       r.spo2,
       blFor ? { dropPct: drop, minSec: params.minSec, blArr: blFor(r, params.WIN, params.pct) } : { dropPct: drop, minSec: params.minSec, WIN: params.WIN, pct: params.pct }
     );
-    const got = ev.length / r.tstHours;
-    /* the expert side moves WITH this night's threshold. Holding the reference fixed while the
-       threshold varies would make the objective a function of the threshold itself. */
-    const want = r.depths.filter((d) => d >= drop).length / r.tstHours;
-    pairs.push({ id: r.id, a: got, b: want, drop });
+    pairs.push({ id: r.id, a: ev.length / r.tstHours, b: want, drop });
   }
   const m = medianAbsDiff(pairs);
   drops.sort((x, y) => x - y);
-  return {
-    ok: true,
-    ...m,
-    pairs,
-    dropRange: drops.length ? [drops[0], drops[drops.length - 1]] : null
-  };
+  return { ok: true, ...m, pairs, dropRange: drops.length ? [drops[0], drops[drops.length - 1]] : null };
 }
 
 /* Render the fitted model as something a reader can apply by hand — the point of returning a function
@@ -616,6 +649,42 @@ function selftest() {
   A('kfold: deterministic across runs', JSON.stringify(kFold(['a', 'b', 'c', 'd', 'e', 'f'], 3)) === JSON.stringify(folds));
   A('materiality: the bound comes from the published spread, not taste', MATERIAL_GAIN === 0.5);
 
+  /* THE DEGENERACY REGRESSION. With the reference free to move, raising the threshold shrank BOTH
+     sides and the objective was minimised by detecting nothing — the first sweep's "winner" tied
+     exactly with the clamp extreme at 0.7398 while n fell 91 → 74. The reference is pinned now, so a
+     threshold that detects nothing must score WORSE and the record set must not shrink. */
+  try {
+    const ctxD = makeRealm();
+    const flatD = new Array(3600).fill(96);
+    for (let k2 = 0; k2 < 12; k2++) for (let i2 = 200 + k2 * 250; i2 < 225 + k2 * 250; i2++) flatD[i2] = 90;
+    const recD = { id: 'd', spo2: flatD, tstHours: 1, depths: [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6] };
+    const blD = baselineCache(ctxD, 64);
+    const loose = evalPoint(ctxD, [recD], { a: 4, b: 0, cov: 'none', minSec: 10, WIN: 300, pct: 90 }, null, blD);
+    const strict = evalPoint(ctxD, [recD], { a: 6, b: 0, cov: 'none', minSec: 30, WIN: 300, pct: 90 }, null, blD);
+    A('degeneracy: the record set does NOT shrink when the threshold rises', loose.n === strict.n, loose.n + ' → ' + strict.n);
+    A('degeneracy: a threshold that detects nothing scores WORSE, not better', strict.score >= loose.score, 'loose ' + loose.score + ' vs strict ' + strict.score);
+  } catch (e) {
+    A('degeneracy regression runs', false, String((e && e.message) || e));
+  }
+  A('reference: pinned at the clinical ODI-4 depth', REFERENCE_DEPTH === 4);
+
+  /* The shipped ODI threshold is a FROZEN kernel constant with no injection point, so this tool
+     optimises the raw detector and cannot drive the shipped pipeline. Pinned so a future refactor that
+     unfreezes it, or adds an override, surfaces here rather than silently changing what is measured. */
+  try {
+    const ctxK = makeRealm();
+    let froze = false;
+    try {
+      ctxK.DexKernel.K.ODI_DROP = 3;
+    } catch {
+      froze = true;
+    }
+    A('kernel: ODI_DROP is frozen, so the shipped path cannot be swept from here', froze || ctxK.DexKernel.K.ODI_DROP === 4, String(ctxK.DexKernel.K.ODI_DROP));
+    A('kernel: processNight exists but takes no threshold override', typeof ctxK.OxyDex._bare.processNight === 'function');
+  } catch (e) {
+    A('kernel freeze check runs', false, String((e && e.message) || e));
+  }
+
   const sp = splitRecords(['e', 'd', 'c', 'b', 'a']);
   A(
     'split: fit and held are disjoint',
@@ -687,6 +756,21 @@ function selftest() {
 /* ══ MAIN ═════════════════════════════════════════════════════════════════════════════════════ */
 const C = { g: '\x1b[32m', y: '\x1b[33m', r: '\x1b[31m', d: '\x1b[2m', B: '\x1b[1m', c: '\x1b[36m', x: '\x1b[0m' };
 const paint = (s, c) => (process.stdout.isTTY || process.env.FORCE_COLOR ? c + s + C.x : s);
+/* ⚠️ THIS IS THE EVENT DETECTOR, NOT THE SHIPPED ODI-4 — and the two differ by 3.4×.
+   `detectDesatEvents` at the shipped parameters yields a median 9.12 events/h over TST; the ODI-4 that
+   OxyDex actually publishes, through `processNight`, is 2.70 events/h on the same records. The pipeline
+   around the detector — gating, artifact handling, its own denominator — removes roughly two thirds of
+   the raw events.
+
+   So the row below is "the same detector at shipped parameter values", NOT "the shipped ODI-4", and a
+   sweep result must never be quoted as beating the shipped index. An earlier run reported the best
+   constant at 1.35 against this row's 4.51 and read as a 3.4 events/h improvement; it was measuring the
+   missing pipeline, and the chosen `minSec` of 20–25 s was compensating for it.
+
+   ⚠️ AND THE SHIPPED PATH CANNOT BE SWEPT. `DexKernel.K.ODI_DROP` is FROZEN (assignment throws) and
+   `processNight` takes no threshold override, so there is no injection point. That is right for
+   shipping — a constant nobody can retune by accident — and it means criterion research needs either a
+   source change or this parallel path, knowingly. Tracked as residue. */
 const DEFAULT = { dropPct: 4, minSec: 10, WIN: 300, pct: 90 };
 
 function main(argv) {
@@ -715,6 +799,8 @@ function main(argv) {
 
   const cache = JSON.parse(readFileSync(CACHE, 'utf8'));
   const all = cache.records.filter((r) => !r.err);
+  const GRID = argv.includes('--quick') ? QUICK : COARSE;
+  const gridName = argv.includes('--quick') ? 'QUICK (baseline pinned at WIN 300 / pct 90)' : 'COARSE (full)';
   const K = 5;
   const folds = kFold(
     all.map((r) => r.id),
@@ -724,7 +810,7 @@ function main(argv) {
   const ctx = makeRealm();
   const pick = (ids) => ids.map((i2) => byId.get(i2)).filter(Boolean);
 
-  const blFor = baselineCache(ctx, cacheCapFor(all.length, COARSE));
+  const blFor = baselineCache(ctx, cacheCapFor(all.length, GRID));
   const searchFamily = (recs, grid, covName, std) => {
     let best = null;
     for (const p2 of gridPoints(grid)) {
@@ -746,13 +832,13 @@ function main(argv) {
     let best = null;
     for (const cov of Object.keys(COVARIATES)) {
       stds[cov] = fitStandardiser(tr, cov);
-      const grid = cov === 'none' ? { ...COARSE, b: [0] } : COARSE;
+      const grid = cov === 'none' ? { ...GRID, b: [0] } : GRID;
       const c1 = searchFamily(tr, grid, cov, stds[cov]);
       if (!c1) continue;
       const c2 = searchFamily(tr, refineAround(c1, grid), cov, stds[cov]) || c1;
       if (!best || c2.score < best.score) best = c2;
     }
-    const constBest = searchFamily(tr, { ...COARSE, b: [0] }, 'none', stds.none);
+    const constBest = searchFamily(tr, { ...GRID, b: [0] }, 'none', stds.none);
     if (!best || !constBest) return null;
     const hw = evalPoint(ctx, te, best, stds[best.cov], blFor);
     const hc = evalPoint(ctx, te, constBest, stds.none, blFor);
@@ -802,9 +888,11 @@ function main(argv) {
   const out = {
     records: all.length,
     folds: K,
+    grid: gridName,
     objective: 'median |computed − expert| events/h, expert filtered to the SAME per-night depth',
     materialGainEventsPerHour: MATERIAL_GAIN,
-    heldShipped: med(results.map((r) => r.heldShipped)),
+    cacheStats: blFor.stats(),
+    heldDetectorAtShippedParams: med(results.map((r) => r.heldShipped)),
     heldConstant: med(results.map((r) => r.heldConstant)),
     heldFunction: med(results.map((r) => r.heldFunction)),
     gainOverConstant: { median: medGain, spreadAcrossFolds: gainSpread, perFold: gains },
@@ -829,10 +917,12 @@ function main(argv) {
   }
 
   console.log('\n' + paint('DESATURATION CRITERION — fitted as a FUNCTION, k-fold cross-validated', C.B) + '\n');
-  console.log(paint(`  ${all.length} records · ${K}-fold · objective: median |computed − expert| events/h`, C.d));
+  console.log(paint(`  ${all.length} records · ${K}-fold · grid: ${gridName}`, C.d));
+  console.log(paint('  objective: median |computed − expert| events/h · reference PINNED at ODI-4', C.d));
+  console.log(paint('  ⚠️ this optimises detectDesatEvents, NOT the shipped ODI-4 (3.4x lower via processNight)', C.y));
   console.log(paint('  the expert side moves WITH each night’s threshold; the standardiser is fitted per fold', C.d) + '\n');
   const line = (lab, v, col) => console.log('  ' + lab.padEnd(32) + (v == null ? '—' : paint(v.toFixed(3), col)).padStart(10) + paint('  events/h', C.d));
-  line('shipped default (drop 4)', out.heldShipped, C.c);
+  line('detector @ shipped params', out.heldDetectorAtShippedParams, C.c);
   line('best CONSTANT (nested null)', out.heldConstant, C.c);
   line('best FUNCTION', out.heldFunction, medGain > 0 ? C.g : C.y);
   console.log('');

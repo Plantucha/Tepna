@@ -250,3 +250,6 @@ capture-host/.mypy-latest.txt
 # entry is therefore belt-and-braces, stated as such: it makes the intent explicit at the repo level
 # rather than leaving it dependent on a tool's internal behaviour.
 capture-host/.hypothesis/
+
+# nsrr-criterion-sweep SpO2 cache — derived from the gitignored NSRR corpus, never committed
+.cache/
