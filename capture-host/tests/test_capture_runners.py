@@ -6817,6 +6817,60 @@ def test_SETTING_THE_RESUME_WINDOW_TO_ZERO_DISABLES_RING_RESUME(tmp_path, monkey
         "resume fired with the window set to 0 — the disable switch does not reach the ring path"
 
 
+# ── C2 · THE ABSENT-STAMP REFUSAL MUST STAY AUDIBLE WITHOUT BEING PER-FRAME ─────────────────────────
+
+def test_the_first_absent_stamp_is_always_logged():
+    """Onset is the signal. Delaying the first line to save volume would hide the very transition the
+    guard exists to announce.
+
+    ⚠️ This assertion does NOT discriminate the fix — it passes under the old per-frame behaviour too,
+    by construction. It is here to lock the invariant against a FUTURE cadence change that starts
+    counting from 0 and swallows the first line; the two tests below are the ones that red on a revert.
+    """
+    assert capture.absent_stamp_should_log(1) is True
+
+
+def test_the_absent_stamp_line_then_repeats_on_a_cadence():
+    """After the first, one line every `ABSENT_STAMP_LOG_EVERY` — each carrying its running count, so
+    the RATE is still recoverable from the journal."""
+    every = capture.ABSENT_STAMP_LOG_EVERY
+    assert capture.absent_stamp_should_log(2) is False
+    assert capture.absent_stamp_should_log(every) is False, "the cadence counts from the FIRST, not from 0"
+    assert capture.absent_stamp_should_log(1 + every) is True
+    assert capture.absent_stamp_should_log(1 + 2 * every) is True
+    logged = [n for n in range(1, 1 + 4 * every) if capture.absent_stamp_should_log(n)]
+    assert logged == [1, 1 + every, 1 + 2 * every, 1 + 3 * every], logged
+
+
+def test_the_measured_day_collapses_to_a_readable_number_of_lines():
+    """THE NUMBER THAT MOTIVATED THIS. 4589 absent stamps landed on 2026-09-13 alone, one line each,
+    all from one device — against a comment claiming 22 in 14 days, a figure transposed from a count of
+    22 refused STREAMS over 5 NIGHTS in `nightqc`'s offline analysis.
+
+    The assertion is a bound rather than an exact count so the cadence can be retuned without editing a
+    magic number here — what must hold is that a day of this no longer floods the journal, and that it
+    still produces more than one line so the rate remains visible.
+    """
+    lines = sum(1 for n in range(1, 4590) if capture.absent_stamp_should_log(n))
+    assert lines < 20, f"a day of absent stamps still costs {lines} journal lines"
+    assert lines > 1, "collapsing to a single line would lose the rate, which is the interesting signal"
+
+
+def test_log_absent_stamp_emits_on_the_first_and_holds_its_tongue_on_the_second(caplog):
+    """Both arms of the cadence decision, driven directly.
+
+    The callback calls this unconditionally so that this branch is reachable from a test at all: with the
+    `if` at the call site, the False arm needed a second absent frame inside one run and no test could
+    get there.
+    """
+    with caplog.at_level("WARNING"):
+        assert capture.log_absent_stamp("Verity", 1) is True
+        assert capture.log_absent_stamp("Verity", 2) is False
+    lines = [r for r in caplog.records if "device stamp ABSENT" in r.getMessage()]
+    assert len(lines) == 1, [r.getMessage() for r in lines]
+    msg = lines[0].getMessage()
+    assert "Verity" in msg and "1 so far this run" in msg
+    assert str(capture.ABSENT_STAMP_LOG_EVERY) in msg, "the line must say what cadence follows it"
 # ── C1 · A LATE PACKET IS NOT A DRIFTING CLOCK ──────────────────────────────────────────────────────
 #
 # `clock_skew_sec` is `device_stamp - host_now` at the moment a frame LANDS, so it is the clock offset

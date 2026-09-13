@@ -98,6 +98,10 @@ class _AbsentDeviceStamp(Exception):
 # Absent device stamps per device this run, so the refusal is OBSERVABLE. A guard that drops values
 # without saying so is indistinguishable from a device that simply never reported.
 _CLOCK_ABSENT: dict = {}
+# How often the absent-stamp refusal repeats itself in the journal after the first. See
+# `absent_stamp_should_log` for why this exists and why it is not a silencer: the first line is always
+# emitted, and each later one carries the running count, so the RATE stays recoverable from the journal.
+ABSENT_STAMP_LOG_EVERY = 500
 STATUS: dict = {"devices": {}}
 _CFG: dict = {}          # set in main(); lets sync_device_time resolve a device family by model
 _STOP = asyncio.Event()
@@ -2230,6 +2234,39 @@ def clock_resync_reason(skew, prev, jump, tolerance, failed_adrift=0, giveup=CLO
     return None
 
 
+def log_absent_stamp(name, n) -> bool:
+    """Emit the absent-stamp refusal line if this occurrence is due one. Returns whether it logged.
+
+    The DECISION and the emission live together here, and the callback calls this unconditionally, so the
+    branch sits in a function a test can drive both ways. Left as an `if` at the call site it was
+    structurally unreachable in its False arm from any test — the callback needs a second absent frame in
+    one run to get there — which is a partial branch that reads as a coverage gap and is really a
+    testability one.
+    """
+    if not absent_stamp_should_log(n):
+        return False
+    log.warning("%s: device stamp ABSENT (zero) — refusing to derive a clock from it; "
+                "%d so far this run (then every %d)", name, n, ABSENT_STAMP_LOG_EVERY)
+    return True
+
+
+def absent_stamp_should_log(n, first=1, every=ABSENT_STAMP_LOG_EVERY) -> bool:
+    """PURE: is this the Nth absent device stamp worth a journal line?
+
+    True for the FIRST — onset must never be delayed, it is the whole point of the guard — and then
+    every `every`-th, so the line becomes a periodic ROLLUP carrying its own running count.
+
+    ⚠️ This is NOT "quieten a noisy warning". The original chose one line per occurrence on the reasoning
+    that "a rate limit would only hide a change in rate, which is the interesting signal", and that
+    reasoning is right — it is the arithmetic under it that was wrong. It cited "22 in 14 days"; the real
+    source (`nightqc.py`) had measured **22 of 23 refused STREAMS over 5 nights** in an offline sidecar
+    analysis. Wrong unit (a refused stream spans thousands of frames), wrong window, wrong population.
+    Measured after the guard actually shipped (#2405, 2026-09-12): **7283 lines in a single day**, every
+    one the Verity — 2694 on 09-12 from 18:21, 4589 on 09-13.
+    At 4589 lines/day a rate CHANGE is harder to see, not easier, because the signal is buried in its own
+    volume. A count that survives is strictly better evidence about rate than 4589 lines that do not.
+    """
+    return n == first or (n - first) % every == 0
 def clock_skew_record(window, now_mono, skew, cap=_CLOCK_SKEW_CAP):
     """PURE: append one reading to a device's skew window and keep it bounded. Returns the window.
 
@@ -2854,11 +2891,14 @@ async def run_polar(dev: dict, root: str):
                             _CLOCK_ABSENT[name] = _CLOCK_ABSENT.get(name, 0) + 1
                             # The JOURNAL, not a STATUS key: `find_unwired` correctly calls a key
                             # nothing reads decorative, and a refusal nobody can see is the same
-                            # silence this guard exists to break. Rare by measurement — 22 in 14
-                            # days — so one line each is affordable and a rate limit would only
-                            # hide a change in rate, which is the interesting signal.
-                            log.warning("%s: device stamp ABSENT (zero) — refusing to derive a clock "
-                                        "from it; %d so far this run", name, _CLOCK_ABSENT[name])
+                            # silence this guard exists to break. ⚠️ This comment used to read
+                            # "Rare by measurement — 22 in 14 days — so one line each is affordable".
+                            # That number was transposed from `nightqc.py`, which had measured 22 of 23
+                            # refused STREAMS over 5 NIGHTS in an offline analysis — a different unit,
+                            # window and population. Measured once the guard shipped: 7283 lines in one
+                            # day, all Verity. `absent_stamp_should_log` keeps the onset and the rate
+                            # while dropping the per-frame repetition.
+                            log_absent_stamp(name, _CLOCK_ABSENT[name])
                             raise _AbsentDeviceStamp
                         dev_dt = _POLAR_EPOCH + _dt.timedelta(microseconds=_sns / 1000)
                         # `arrival_rows` rides along here because the arrival write above is wrapped in a
