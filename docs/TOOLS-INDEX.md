@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**176 tools** · 174 with a purpose line · **2 without**
+**177 tools** · 175 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -89,6 +89,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`mutation-suite.mjs`](../tools/mutation-suite.mjs) | THIS TOOL REUSES; IT DOES NOT REPLACE. `mutate.mjs` (2032 lines) already does the hard part — mutant generation, the worker pool, the journal, `--resume` with jammed-mutant quarantine, the… |
 | [`mutation-worklist.mjs`](../tools/mutation-worklist.mjs) | The target is 99 % OF DISTINGUISHABLE (owner-ratified 2026-08-11, raised from 90 %). |
 | [`nearest-advocate.mjs`](../tools/nearest-advocate.mjs) | EVENT-BASED time-shift estimation, for the case where cross-correlation is known to fail. |
+| [`nsrr-oxydex-odi.mjs`](../tools/nsrr-oxydex-odi.mjs) | The second NSRR arm. `tools/nsrr-stage-validate.mjs` drives the ECG channel into the sleep stager; this one drives the **SaO2** channel into OxyDex and compares its AHI estimate to the AHI… |
 | [`nsrr-stage-validate.mjs`](../tools/nsrr-stage-validate.mjs) | REM-STAGING-FOLLOWUPS §2b: "the shipped conjunction scored against REAL PSG labels; REM recall/precision recorded. |
 | [`o2ring-dat-timefit.mjs`](../tools/o2ring-dat-timefit.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ PIN THE O2RING'S STORED-SESSION CLOCK TO HOST TIME by fitting the onboard.dat against the live… |
 | [`o2ring-finger-roundtrip.mjs`](../tools/o2ring-finger-roundtrip.mjs) | // PPGDEX-O2RING-FINGER-SITE §6 — the round-trip acceptance, on a REAL capture. |
