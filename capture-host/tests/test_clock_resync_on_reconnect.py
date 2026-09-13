@@ -258,7 +258,7 @@ def test_clock_watchdog_leaves_a_docked_device_alone(monkeypatch):
     _stop_after(monkeypatch, 1)
     cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 300, "resync_jump_sec": 30},
            "devices": [_dev(name="H10")]}
-    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 99,
+    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 99, "clock_skew_floor_sec": 99,
                                         "charging": True, "address": "24:AC:AC:02:84:96"}
     asyncio.run(capture.clock_watchdog(cfg))
     assert "addr" not in synced, "the watchdog must not spend its give-up budget on a docked device"
@@ -272,7 +272,7 @@ def test_clock_watchdog_forgives_a_device_that_just_synced(monkeypatch):
     _stop_after(monkeypatch, 1)
     cfg = {"time": {"auto_sync_devices": True, "drift_check_sec": 300, "resync_jump_sec": 30},
            "devices": [_dev(name="H10")]}
-    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 99,
+    capture.STATUS["devices"]["H10"] = {"connected": True, "clock_skew_sec": 99, "clock_skew_floor_sec": 99,
                                         "address": "24:AC:AC:02:84:96"}
     capture._CLOCK_FRESHLY_SYNCED.add("24:AC:AC:02:84:96")
     asyncio.run(capture.clock_watchdog(cfg))
@@ -319,7 +319,7 @@ def _drive_watchdog(monkeypatch, devices, skews, cycles):
         v = skews[name]
         return v[min(i, len(v) - 1)] if isinstance(v, list) else v
 
-    capture.STATUS["devices"] = {d["name"]: {"clock_skew_sec": _skew(d["name"], 0), "connected": True}
+    capture.STATUS["devices"] = {d["name"]: {"clock_skew_sec": (_v := _skew(d["name"], 0)), "clock_skew_floor_sec": _v, "connected": True}
                                  for d in devices}
     capture._CLOCK_FRESHLY_SYNCED.clear()
 
@@ -328,7 +328,9 @@ def _drive_watchdog(monkeypatch, devices, skews, cycles):
     async def fake_sleep(_s):
         n["i"] += 1
         for d in devices:                       # advance the schedule before this cycle's pass
-            capture.STATUS["devices"][d["name"]]["clock_skew_sec"] = _skew(d["name"], n["i"] - 1)
+            _v = _skew(d["name"], n["i"] - 1)
+            capture.STATUS["devices"][d["name"]]["clock_skew_sec"] = _v
+            capture.STATUS["devices"][d["name"]]["clock_skew_floor_sec"] = _v
         if n["i"] >= cycles:
             capture._STOP.set()
     monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
