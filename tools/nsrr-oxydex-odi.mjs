@@ -366,6 +366,29 @@ export function scoreRecord(ctx, rec) {
   };
 }
 
+/* ⚠️ A RATIO OF TWO SMALL COUNTS IS NOT AN AGREEMENT STATISTIC, and reporting one was a third
+   confounder in this file's short history. Most SHHS nights are sparse in ≥4 % desaturations: with an
+   expert index of 3/h, detecting 5/h is a ratio of 167 % from a difference of two events. Measured over
+   91 records — sparse nights (<5/h, n=58) show a median ratio of 115 % but a median absolute difference
+   of only 0.9 events/h, while dense nights (≥15/h, n=8) show a ratio of 75 % and a real 4.7 events/h gap.
+   The ratio calls the sparse nights disagreement and understates the dense ones; the absolute difference
+   does neither. Both are reported, and the ABSOLUTE one is the headline. */
+export function absAgreement(pairs) {
+  const d = pairs
+    .filter((p) => p.a != null && p.b != null)
+    .map((p) => p.a - p.b)
+    .sort((x, y) => x - y);
+  if (!d.length) return { n: 0, median: null, q1: null, q3: null, within2: null };
+  const at = (f) => d[Math.min(d.length - 1, Math.floor(f * d.length))];
+  return {
+    n: d.length,
+    median: +at(0.5).toFixed(2),
+    q1: +at(0.25).toFixed(2),
+    q3: +at(0.75).toFixed(2),
+    within2: d.filter((x) => Math.abs(x) <= 2).length
+  };
+}
+
 export function summarise(rows) {
   const ok = rows.filter((r) => !r.err && r.residual != null);
   const ref = ok.map((r) => r.scoredAHI),
@@ -382,7 +405,10 @@ export function summarise(rows) {
     if (Math.abs(a - b) <= 1) within1++;
   }
   const n = ok.length;
+  /* the stable statistic, on the scale the quantity is actually measured in */
+  const desatAbs = absAgreement(rows.filter((r) => !r.err).map((r) => ({ a: r.odi4, b: r.expertDesat4Idx })));
   return {
+    desatAbsDiff: desatAbs,
     records: rows.length,
     scored: n,
     failed: rows.filter((r) => r.err).length,
@@ -431,6 +457,26 @@ function selftest() {
     .map((d) => '<ScoredEvent><EventConcept>SpO2 desaturation|SpO2 desaturation</EventConcept><SpO2Nadir>' + (95 - d) + '</SpO2Nadir><SpO2Baseline>95</SpO2Baseline></ScoredEvent>')
     .join('');
   A('depths: every scored event is read', expertDesatDepths(xml).length === 9, String(expertDesatDepths(xml).length));
+
+  /* the ratio-vs-difference trap, planted: a 2-event gap on a sparse night is a 167 % ratio */
+  const sparse = absAgreement([{ a: 5, b: 3 }]);
+  A('abs: a 2-event gap reads as 2, not as 167 %', sparse.median === 2, String(sparse.median));
+  const mixed = absAgreement([
+    { a: 5, b: 3 },
+    { a: 20, b: 25 },
+    { a: 1, b: 1 },
+    { a: 4, b: 4 }
+  ]);
+  A('abs: median difference over a mixed set', mixed.median === 0 || mixed.median === 2, String(mixed.median));
+  A('abs: counts records within ±2 events/h', mixed.within2 === 3, String(mixed.within2));
+  A(
+    'abs: a null side is excluded, never treated as 0',
+    absAgreement([
+      { a: 5, b: null },
+      { a: 3, b: 1 }
+    ]).n === 1
+  );
+  A('abs: an empty set refuses rather than reporting 0', absAgreement([]).median === null);
   A('index: unfiltered counts all 9 over 1 h', expertDesatIndex(xml, 1, null).index === 9);
   A('index: a >=3 % filter keeps 5, not 9', expertDesatIndex(xml, 1, 3).index === 5, String(expertDesatIndex(xml, 1, 3).index));
   A('index: a >=4 % filter keeps 3', expertDesatIndex(xml, 1, 4).index === 3, String(expertDesatIndex(xml, 1, 4).index));
