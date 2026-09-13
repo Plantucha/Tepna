@@ -384,6 +384,39 @@ must know the discarded part cannot change the verdict.** For a gate summary it 
 The family (`grep -q` exit codes, `npx` no-op greens, a child's JSON truncated through a pipe) all share
 one shape: **the check ran, and reported success about something it never examined.**
 
+### 4c · A GATE THAT DIES WITH NO VERDICT IS NOT YOUR DIFF — detach anything over ~100 s
+
+§4 and §4b are about a check that reported the wrong answer. This is about one that reports **no**
+answer: a long run is SIGKILLed mid-suite, the task ends with no exit code and no failing test, and it
+reads like the gate hanging on your change. It is not — it is the **Claude Code harness watchdog**
+reaping harness-tracked background tasks when the BOX is low on memory. Measured 2026-09-13 across
+three sessions in one afternoon: **five** deaths — `check.sh` at 106 s and 40 s against a completed
+464 s run of the same command minutes earlier, and `verify-fixtures` twice, once at group 126/594.
+
+Three things that cost the fleet an afternoon to establish, so you do not have to:
+
+- **A `MemoryMax` cgroup cap does NOT protect you.** One of the killed runs was single-threaded under
+  `MemoryMax=8G/MemorySwapMax=0`. The watchdog reads the box, not the cgroup. Capping is false comfort;
+  **`setsid nohup <gate> > log 2>&1 &` plus an `EXIT=` sentinel is the only shape that survived** — the
+  same prescription §4 gives for a different reason.
+- **Rule out the kernel with `journalctl -k`, NEVER `dmesg`.** `dmesg` on rig-x870 returns
+  `read kernel buffer failed: Operation not permitted`, so its silence is an unreadable source, not a
+  negative (§4b's family). `journalctl -k` is readable and carries 63 historical OOM kills — that is the
+  positive control proving the instrument can see them, which is what makes "zero in the window" a real
+  negative.
+- **Load alone is NOT this.** Contention makes an 8-minute gate take 30; it does not stop it at 43 %. A
+  death at an arbitrary time with no verdict means something signalled. (A death at exactly 114 s or
+  600 s is the tool timeout instead — a different thing, §4's arithmetic tell.)
+
+⚠️ **And the memory pressure may be nobody's session.** That afternoon it was
+`tepna-nightly-triage.service` — a systemd **user timer**, 10.4 GB resident, running `mutate.mjs
+--jobs 16` for 2 h 31 m. Two sessions independently blamed each other from a `ps -eo pid,ppid` walk,
+because every session's cwd is the shared root and one hop up lands on `mutation-crawl.mjs`, *the same
+tool a session would run*. **Read `/proc/<pid>/cgroup`, and walk the ppid chain to the TOP** — an
+`app.slice/<unit>.service` is a timer, a `tmux-spawn-….scope` is a session. Stopping one hop early
+produces a confident wrong attribution, and `kill-only-owned-pids` cuts both ways: a timer unit is the
+owner's, not yours.
+
 ### 5 · LANDING: `main` moves faster than CI, so every extra PR is another lost race
 
 **Re-measured 2026-08-16 — state the WINDOW with any of these numbers, because the value depends on it.**
@@ -877,19 +910,34 @@ node tools/build.mjs --app OxyDex     # edit the *.js / .src.html first, then re
 npm run check                         # ← the FULL gate. Not `build.mjs --check` alone.
 ```
 
-⚠️ **`node tools/build.mjs --check` is NOT the drift guard — it is one of THREE.** There are three
-generated trees, and re-bundling can staleness any of them:
+⚠️ **`node tools/build.mjs --check` is NOT the drift guard — it is one of FOUR.** There are four
+generated trees, and a change can staleness any of them:
 
 | tree | built by | checked by |
 |---|---|---|
 | the 11 owned bundles | `tools/build.mjs` | `npm run build:check` |
 | **`docs/` — SERVED COPIES of those same bundles** | **`tools/build-docs.mjs`** | **`npm run verify:docs`** |
 | the analysis tools | `tools/build-analysis.mjs` | `npm run verify:analysis` |
+| **`docs/TOOLS-INDEX.md`** | **`tools/tools-index.mjs`** | **`npm run verify:tools-index`** |
 
-`npm run check` runs all three (plus typecheck · lint · `test:par` · `verify:shard-union` ·
+⚠️ **The fourth row is not stalened by a re-bundle — it is stalened by `tools/`.** `tools-index.mjs`
+reads every tool's header comment, so **adding a tool stales it AND so does reflowing an existing
+tool's purpose line.** Measured 2026-09-13: #2457/#2458 added `cohort-fit.mjs` + `nsrr-score-pool.mjs`,
+the index stayed at "178 tools" against an actual 180, and `verify:tools-index` (step 14/16) then failed
+on **`origin/main` itself** — so every branch cut from it inherited a red that looks like the brancher's
+fault. Fixed in #2465.
+
+That row read as absent for a specific reason, and it is the reason to distrust any list here that
+*looks* complete: this table said THREE, so a careful author checked three builders, ran a hand-picked
+subset, and shipped. Same shape as `clockBundles` reading "every bundle" while being 5 of 8 (§✅). The
+enumeration is `package.json` — `grep -E '"(verify|build):' package.json` — not memory, and not this
+table if you have any reason to think it has drifted again.
+
+`npm run check` runs all four (plus typecheck · lint · `test:par` · `verify:shard-union` ·
 `test:build-core` · `verify:manifest`) and is exactly what CI gates on. **Run it, not a hand-picked
-subset.** `CONTRIBUTING.md` has carried the full builder table all along — this line exists so the
-file you read *first* points at it too.
+subset** — a rule keyed to the full gate fires on every cause of drift, where "after adding a tool,
+regenerate the index" under-fires on all the others. `CONTRIBUTING.md` has carried the full builder
+table all along — this line exists so the file you read *first* points at it too.
 
 ⚠️ **FORMAT BEFORE YOU BUNDLE, not after.** `npm run check` puts `typecheck` and `lint` first by design:
 they cost seconds, and everything after them costs minutes. A one-line type error or a Biome reflow

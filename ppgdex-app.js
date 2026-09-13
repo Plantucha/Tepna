@@ -1514,12 +1514,11 @@ import { PPGUI } from './ppgdex-render.js';
   function exportPPI() {
     const r = allSessions[activeKey];
     if (!r) return;
-    let out = 'Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]\n';
-    for (let i = 0; i < r.nn.length; i++) {
-      const tMs = r.t0Ms != null ? r.t0Ms + Math.round(r.tt[i] * 1000) : null;
-      const ts = tMs != null ? new Date(tMs).toISOString().replace('Z', '') : '';
-      out += `${ts};${Math.round(r.nn[i])};0;0;1;1;${Math.round(60000 / r.nn[i])}\n`;
-    }
+    /* The row format lives in DSP.buildSelfPPIText, not here — it is the one part of this function
+       that carries a CLAIM (which of the Polar columns we actually measured) and the app layer has no
+       test lane to hold it to. The four device-telemetry columns are now empty rather than `0;0;1;1`;
+       see that function for why a plausible-looking substitute is worse than a blank. */
+    const out = DSP.buildSelfPPIText(r);
     // INTEROP file (self-PPI in Polar device .txt format, for the PulseDex handoff) — stays OFF the
     // <Node>_<date>_<kind> scheme (EXPORT-HYGIENE-FOLLOWUPS §4), recording-anchored inline (getUTC* via
     // DSP.fmtDate), like ECGDex's computed-RR / PulseDex's welltory exports.
