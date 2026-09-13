@@ -81,7 +81,7 @@
  *   node tools/nsrr-criterion-sweep.mjs --sweep                   # search the cache (fast, in memory)
  *   node tools/nsrr-criterion-sweep.mjs --sweep --json
  */
-import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, statSync, renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { dirname, join, basename } from 'node:path';
@@ -394,44 +394,140 @@ export function expertDepths(xmlText) {
   return out;
 }
 
+/* ── EDF TRUNCATION, DETECTED FROM THE FILE'S OWN HEADER ─────────────────────────────────────
+   The corpus arrives over ~40 hours, so the cache builder runs WHILE files are being written. A
+   half-written EDF parses fine — `readEDF` reads the header, believes it, and returns a record whose
+   signal arrays are short. Cached, that is a night silently missing its last hours, and no downstream
+   check could tell it from a genuinely short recording.
+
+   An EDF states its own expected size, so this needs no heuristic and no mtime guesswork:
+
+       header  = 256 + ns × 256                          (bytes 184-191 also carry it)
+       data    = nDataRecords × Σ(samples per record) × 2
+       total   = header + data
+
+   A file smaller than that is still in flight (or corrupt) and is SKIPPED — not cached, not counted
+   as an error, just deferred to the next run. Larger is also refused: that is not an EDF we understand.
+   ⚠️ mtime was the obvious alternative and is wrong here — NFS mtime granularity plus a stalled
+   transfer makes a partial file look settled. The header is authoritative. */
+export function edfExpectedBytes(buf) {
+  if (!buf || buf.length < 256) return null;
+  const txt = (o, n) => buf.toString('ascii', o, o + n).trim();
+  const nrec = Number.parseInt(txt(236, 8), 10);
+  const ns = Number.parseInt(txt(252, 4), 10);
+  if (!Number.isFinite(nrec) || !Number.isFinite(ns) || ns < 1 || nrec < 1) return null;
+  const header = 256 + ns * 256;
+  if (buf.length < header) return null; // header itself not fully written yet
+  let perRecord = 0;
+  for (let k = 0; k < ns; k++) {
+    const v = Number.parseInt(txt(256 + 216 * ns + k * 8, 8), 10);
+    if (!Number.isFinite(v) || v < 0) return null;
+    perRecord += v;
+  }
+  return header + nrec * perRecord * 2;
+}
+
+/* ── INCREMENTAL CACHE BUILD ──────────────────────────────────────────────────────────────────
+   Re-runnable while the corpus is still arriving. Three properties, each one a failure this would
+   otherwise have:
+
+   1 · SKIP WHAT IS ALREADY CACHED, keyed on id AND source size. Size is what makes a re-run correct
+       rather than merely fast: a record cached from a truncated file is re-processed once the file
+       grows, instead of being trusted forever because its id was seen.
+   2 · SKIP WHAT IS STILL ARRIVING, via the header check above.
+   3 · FLUSH PERIODICALLY AND ATOMICALLY (temp file + rename). A 40-hour corpus means a build that
+       runs for a long time; losing all of it to one interruption is the avoidable part. Rename is
+       atomic on the same filesystem, so a reader never sees a half-written cache. */
+function loadCache() {
+  if (!existsSync(CACHE)) return { records: [] };
+  try {
+    const c = JSON.parse(readFileSync(CACHE, 'utf8'));
+    return c && Array.isArray(c.records) ? c : { records: [] };
+  } catch {
+    return { records: [] }; // an unreadable cache is rebuilt, never half-trusted
+  }
+}
+
+function saveCache(dir, records) {
+  mkdirSync(dirname(CACHE), { recursive: true });
+  const tmp = CACHE + '.tmp';
+  writeFileSync(tmp, JSON.stringify({ built: new Date().toISOString().slice(0, 10), dir, records }));
+  renameSync(tmp, CACHE);
+}
+
 function buildCache(dir) {
   const ctx = makeRealm();
+  const prev = loadCache();
+  const byId = new Map(prev.records.map((r) => [r.id, r]));
   const files = readdirSync(dir).filter((f) => /\.edf$/i.test(f));
-  const recs = [];
+  const out = [];
+  let fresh = 0,
+    reused = 0,
+    inflight = 0,
+    nopair = 0;
+
   for (const f of files) {
     const id = basename(f, '.edf');
+    const edfPath = join(dir, f);
     const xmlPath = [join(dir, id + '-nsrr.xml'), join(dir, id + '.xml')].find(existsSync);
-    if (!xmlPath) continue;
+    if (!xmlPath) {
+      nopair++;
+      continue;
+    }
+    const srcBytes = statSync(edfPath).size;
+    const cached = byId.get(id);
+    if (cached && cached.srcBytes === srcBytes) {
+      out.push(cached);
+      reused++;
+      continue;
+    }
+    let b;
+    try {
+      b = readFileSync(edfPath);
+    } catch {
+      inflight++;
+      continue;
+    }
+    const want = edfExpectedBytes(b);
+    if (want == null || b.length !== want) {
+      inflight++; // still arriving, or a shape we do not understand — defer, never cache short
+      continue;
+    }
     let edf;
     try {
-      const b = readFileSync(join(dir, f));
       edf = ctx.CpapEdf.readEDF(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
     } catch (e) {
-      recs.push({ id, err: String((e && e.message) || e) });
+      out.push({ id, srcBytes, err: String((e && e.message) || e) });
+      fresh++;
       continue;
     }
     const conv = ctx.NSRR.edfToOxyRows(edf);
     if (!conv) {
-      recs.push({ id, err: 'no SpO₂ channel' });
+      out.push({ id, srcBytes, err: 'no SpO₂ channel' });
+      fresh++;
       continue;
     }
     const xml = readFileSync(xmlPath, 'utf8');
-    const p = ctx.NSRR.parseNsrrXml(xml, conv.t0Ms);
-    /* nulls are preserved as nulls in the cache — §∅. A dropout must not become a number on the way
-       to disk, or the sweep optimises against fabricated data. */
-    recs.push({
+    const pr = ctx.NSRR.parseNsrrXml(xml, conv.t0Ms);
+    /* nulls stay null — §∅. A dropout must not become a number on the way to disk, or the sweep
+       optimises against fabricated data. */
+    out.push({
       id,
+      srcBytes,
       spo2: conv.rows.map((r) => (r.spo2 == null ? null : r.spo2)),
-      tstHours: p && p.tstHours != null ? +p.tstHours.toFixed(4) : null,
+      tstHours: pr && pr.tstHours != null ? +pr.tstHours.toFixed(4) : null,
       coveragePct: conv.spo2CoveragePct,
       depths: expertDepths(xml)
     });
-    process.stderr.write(`\r  cached ${recs.length}/${files.length}`);
+    fresh++;
+    if (fresh % 25 === 0) saveCache(dir, out); // progress survives an interruption
+    const msg = `  cached ${out.length}/${files.length}  (+${fresh} new, ${reused} reused, ${inflight} still arriving)`;
+    if (process.stderr.isTTY) process.stderr.write('\r' + msg);
+    else if (fresh % 100 === 0) process.stderr.write(`[${new Date().toISOString().slice(11, 19)}]${msg}\n`);
   }
-  process.stderr.write('\r');
-  mkdirSync(dirname(CACHE), { recursive: true });
-  writeFileSync(CACHE, JSON.stringify({ built: new Date().toISOString().slice(0, 10), dir, records: recs }));
-  return recs;
+  if (process.stderr.isTTY) process.stderr.write('\r' + ' '.repeat(78) + '\r');
+  saveCache(dir, out);
+  return { records: out, fresh, reused, inflight, nopair, seen: files.length };
 }
 
 /* ── THE SMART HALF OF BRUTE FORCE — measured, not assumed ────────────────────────────────────
@@ -510,6 +606,8 @@ export function baselineCache(ctx, maxEntries) {
    that must hold the target still. */
 export const REFERENCE_DEPTH = 4; // the clinical ODI-4 variant; the target the search must not move
 
+/* ── one evaluation ───────────────────────────────────────────────────────────────────────────
+   The detector's threshold varies; the reference does not. Records are the SAME set at every point. */
 /* ── one evaluation ───────────────────────────────────────────────────────────────────────────
    The detector's threshold varies; the reference does not. Records are the SAME set at every point. */
 export function evalPoint(ctx, recs, params, std, blFor, refDepth) {
@@ -668,6 +766,36 @@ function selftest() {
   }
   A('reference: pinned at the clinical ODI-4 depth', REFERENCE_DEPTH === 4);
 
+  /* ── TRUNCATION DETECTION — the corpus arrives over ~40 h, so the builder runs while files are
+     being written, and a short EDF parses FINE into a night silently missing its last hours. */
+  (function () {
+    const mkHdr = (ns, nrec, spr) => {
+      const hdr = Buffer.alloc(256 + ns * 256, 0x20);
+      hdr.write(String(nrec).padEnd(8), 236, 'ascii');
+      hdr.write(String(ns).padEnd(4), 252, 'ascii');
+      for (let k = 0; k < ns; k++) hdr.write(String(spr).padEnd(8), 256 + 216 * ns + k * 8, 'ascii');
+      return hdr;
+    };
+    const ns = 2,
+      nrec = 10,
+      spr = 100;
+    const hdr = mkHdr(ns, nrec, spr);
+    const want = 256 + ns * 256 + nrec * (spr * ns) * 2;
+    A('truncation: expected size is computed from the header', edfExpectedBytes(hdr) === want, edfExpectedBytes(hdr) + ' vs ' + want);
+    const complete = Buffer.concat([hdr, Buffer.alloc(want - hdr.length)]);
+    A('truncation: a COMPLETE file matches its own declaration', complete.length === edfExpectedBytes(complete));
+    /* A download in flight passes through TWO distinct states and both must be handled. Early, the
+       header itself is incomplete and the expected size is UNKNOWABLE — refuse. Later, the header is
+       whole but the data is short — detectable, and the common case. The first version of this test
+       used a record so small that "truncated" landed below the header, so it was only ever exercising
+       the refusal branch while claiming to test the short-data one. */
+    const short = complete.subarray(0, want - 1000); // header intact, data short
+    A('truncation: header intact but data short ⇒ detectable', edfExpectedBytes(short) === want && short.length < want, short.length + ' vs ' + edfExpectedBytes(short));
+    A('truncation: a header-only fragment refuses rather than guessing', edfExpectedBytes(hdr.subarray(0, 200)) === null);
+    A('truncation: a file shorter than its own header refuses', edfExpectedBytes(complete.subarray(0, 300)) === null);
+    A('truncation: garbage in the count fields refuses', edfExpectedBytes(Buffer.alloc(2048, 0x20)) === null);
+  })();
+
   /* The shipped ODI threshold is a FROZEN kernel constant with no injection point, so this tool
      optimises the raw detector and cannot drive the shipped pipeline. Pinned so a future refactor that
      unfreezes it, or adds an override, surfaces here rather than silently changing what is measured. */
@@ -785,7 +913,10 @@ function main(argv) {
       return 0;
     }
     const r = buildCache(dir);
-    console.log(`cached ${r.filter((x) => !x.err).length} records → ${CACHE}`);
+    const scored = r.records.filter((x) => !x.err).length;
+    console.log(`cache: ${scored} usable of ${r.records.length} entries → ${CACHE}`);
+    console.log(`  +${r.fresh} newly read · ${r.reused} reused from the previous cache · ${r.inflight} still arriving · ${r.nopair} without an annotation pair`);
+    if (r.inflight) console.log(`  ⚠️ ${r.inflight} EDF(s) are shorter than their own header declares — still downloading. Re-run this when they land; nothing short was cached.`);
     return 0;
   }
 
