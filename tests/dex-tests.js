@@ -27499,17 +27499,33 @@
             var srcKind = srcBrief ? 'brief' : srcPath ? 'path' : srcPr ? 'pr' : null;
             var st = c[5];
             var promoted = st.match(/^→\s*`([A-Za-z0-9._-]+-BRIEF\.md)`$/);
-            var stateOk = st === 'OPEN' || !!promoted || /^fixed #\d+$/.test(st);
+            /* FOURTH STATE — `withdrawn <key>` (owner ruling 2026-09-13). The other three all assert
+               that something HAPPENED: a fix, or a promotion. A row whose defect turned out not to
+               exist can claim none of them, and closing it `fixed #N` would assert a repair that never
+               occurred — the fabricated-close analogue of §🎫's fabricated tier. Measured at the time
+               of the ruling: 8 such pairs, 16 rows, 25 % of the OPEN queue, growing by two every time
+               the ledger corrects itself.
+               ⚠️ It is GATE-ENFORCED for the reason the owner was asked: an unchecked withdrawal would
+               let a genuine defect be closed by asserting it is not one, which is strictly worse than a
+               queue that over-counts. check8f below requires the named key to EXIST and to state the
+               withdrawal itself, so retiring a row takes two rows and the second is a permanent public
+               claim under a session's own name. */
+            var withdrawn = /^withdrawn (\d{4}-\d{2}-\d{2}-[a-z0-9-]+)$/.exec(st);
+            var stateOk = st === 'OPEN' || !!promoted || !!withdrawn || /^fixed #\d+$/.test(st);
             if (!/^\d{4}-\d{2}-\d{2}$/.test(c[1]) || !src || !stateOk || !c[3] || !c[4]) {
               out.malformed.push(
                 c[0] +
                   ' (' +
-                  (!src ? 'source not a backticked *-BRIEF.md, repo path or #PR' : !stateOk ? 'state "' + st + '" not OPEN | → `brief` | fixed #N' : 'bad date or empty defect/evidence') +
+                  (!src
+                    ? 'source not a backticked *-BRIEF.md, repo path or #PR'
+                    : !stateOk
+                      ? 'state "' + st + '" not OPEN | → `brief` | fixed #N | withdrawn <key>'
+                      : 'bad date or empty defect/evidence') +
                   ')'
               );
               return;
             }
-            out.rows.push({ id: c[0], date: c[1], source: src[1], srcKind: srcKind, state: st, promoted: promoted ? promoted[1] : null });
+            out.rows.push({ id: c[0], date: c[1], source: src[1], srcKind: srcKind, state: st, withdrawnBy: withdrawn ? withdrawn[1] : null, defect: c[3], promoted: promoted ? promoted[1] : null });
           });
         return out;
       }
@@ -27530,6 +27546,71 @@
         RR.malformed.length === 0,
         RR.malformed.length ? RR.malformed.slice(0, 6).join('; ') : RR.rows.length + ' row(s) parsed'
       );
+      /* ── check8i · A WITHDRAWAL MUST BE CORROBORATED BY THE ROW IT NAMES ──────────────────────
+         The fourth state exists so a row whose defect turned out not to exist can close honestly. The
+         danger the owner was asked about is the mirror image: a GENUINE defect closed by asserting it
+         is not one. So `withdrawn <key>` is only valid when the named key EXISTS in the ledger and
+         that row itself says so — it must name the withdrawn row back, in terms.
+
+         That makes retiring a row cost two rows, the second a standing public claim, which is exactly
+         the friction a false withdrawal should meet and an honest one should not. A dangling or
+         unsupported withdrawal reds here rather than quietly shrinking the queue. */
+      var byKey = {};
+      RR.rows.forEach(function (r) {
+        byKey[r.id] = r;
+      });
+      var badWithdraw = [];
+      RR.rows.forEach(function (r) {
+        if (!r.withdrawnBy) return;
+        var w = byKey[r.withdrawnBy];
+        if (!w) {
+          badWithdraw.push(r.id + ' → ' + r.withdrawnBy + ' (no such row)');
+          return;
+        }
+        if (w.id === r.id) {
+          badWithdraw.push(r.id + ' withdraws ITSELF');
+          return;
+        }
+        if (String(w.defect).indexOf(r.id) < 0) badWithdraw.push(r.id + ' → ' + w.id + ' (that row does not name it back)');
+      });
+      T.ok(
+        'check8i · every `withdrawn <key>` names a row that EXISTS and states the withdrawal itself',
+        badWithdraw.length === 0,
+        badWithdraw.length
+          ? badWithdraw.slice(0, 5).join('; ')
+          : RR.rows.filter(function (r) {
+              return r.withdrawnBy;
+            }).length + ' withdrawal(s) corroborated'
+      );
+      /* self-test — the check must FIRE, or a withdrawal state is decoration. Both failure modes are
+         planted: a withdrawal naming nothing, and one naming a row that does not name it back. */
+      (function () {
+        var mk = function (id, state, defect) {
+          return { id: id, state: state, withdrawnBy: /^withdrawn (.+)$/.test(state) ? /^withdrawn (.+)$/.exec(state)[1] : null, defect: defect };
+        };
+        var probe = function (rows) {
+          var m = {},
+            bad = [];
+          rows.forEach(function (r) {
+            m[r.id] = r;
+          });
+          rows.forEach(function (r) {
+            if (!r.withdrawnBy) return;
+            var w = m[r.withdrawnBy];
+            if (!w) return bad.push('dangling');
+            if (w.id === r.id) return bad.push('self');
+            if (String(w.defect).indexOf(r.id) < 0) bad.push('unsupported');
+          });
+          return bad;
+        };
+        var good = [mk('2026-01-01-a', 'withdrawn 2026-01-02-b', 'x'), mk('2026-01-02-b', 'OPEN', 'REFUTES 2026-01-01-a because …')];
+        T.eq('self-test · check8i ACCEPTS a corroborated withdrawal', probe(good).length, 0);
+        T.eq('self-test · …and REJECTS one naming a row that does not exist', probe([mk('2026-01-01-a', 'withdrawn 2026-01-09-z', 'x')])[0], 'dangling');
+        var un = [mk('2026-01-01-a', 'withdrawn 2026-01-02-b', 'x'), mk('2026-01-02-b', 'OPEN', 'unrelated finding')];
+        T.eq('self-test · …and REJECTS one the named row never mentions', probe(un)[0], 'unsupported');
+        T.eq('self-test · …and REJECTS a row withdrawing itself', probe([mk('2026-01-01-a', 'withdrawn 2026-01-01-a', 'x')])[0], 'self');
+      })();
+
       /* A residue's origin is not always a brief. `find_unwired.py` learning to stop counting a COMMENT
          as a consumer surfaced two real orphans (2026-09-02) whose parent is the instrument fix, not any
          brief — Heron refused to name the nearest brief, correctly: a false source cell PASSES this gate
