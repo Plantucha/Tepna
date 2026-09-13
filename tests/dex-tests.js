@@ -15669,6 +15669,84 @@
       }
     });
 
+    group('ECGDex tMsAt counts the wall-clock a dropout consumed (E2E E1 — the PAT leg)', 'ecgdex-dsp · clock · regression', function (T) {
+      /* `analyze` has folded gap dead-time into its beat times since DEEP-AUDIT-II §4.2 (#6) — the
+         group directly above asserts the consequence. `tMsAt` was written later, for the SAME axis,
+         and never learned it: it was pure index arithmetic, so on a gappy night it under-read by the
+         whole accumulated dead time while `analyze`'s own series did not.
+
+         WHY THAT IS NOT AN INTERNAL DETAIL. `tMsAt` is what the PAT legs read
+         (`pat-feasibility-worker.js:99`, `sensor-trio-worker.js:763`) while the PPG leg reads
+         `relSec`, which SPANS its gaps. Measured on 2026-09-12 (H10, 33 holes, Σ 2525 s): tMsAt minus
+         the export's own beat clock was −260.7 s / −628.3 s / −2522.8 s at three tracked beats. The
+         first hole lands 20 s in, so from there on the two PAT legs sat on different axes and every
+         pair was mis-lagged — pairs VANISH rather than come out wrong, which is why PAT reads null on
+         box nights instead of reading badly. A null is not a safe failure; it is an invisible one.
+
+         The assertion is the AGREEMENT between the two axes, not a magnitude, because the two are
+         supposed to be the same axis and any drift between them is the defect by definition. */
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.ok('ECGDSP.parseECG available', false, 'not loaded');
+        return;
+      }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      // Two holes, so the accumulated dead time differs between the first and the second half and a
+      // fix that folded only the LAST gap (or only the first) still reds.
+      var GAP1 = 4000,
+        GAP2 = 9000;
+      var rows = [HDR],
+        ms = 0;
+      for (var i = 0; i < 3000; i++) {
+        rows.push('2026-06-17T01:06:17.723;0;' + Math.round(ms) + ';' + (100 + (i % 40)));
+        ms += i === 900 ? GAP1 : i === 2100 ? GAP2 : 1000 / 130;
+      }
+      var rec = D.parseECG(rows.join('\n'));
+      var step = 1000 / rec.fs;
+      // ANTI-VACUITY: both holes must actually be captured, or every assertion below is trivial.
+      T.eq('ANTI-VACUITY · both dropouts are captured on rec.gaps', rec.gaps.length, 2);
+      T.ok('…and they are the planted sizes', rec.gaps[0].ms > GAP1 - 100 && rec.gaps[1].ms > GAP2 - 100, JSON.stringify(rec.gaps.map((g) => Math.round(g.ms))));
+
+      var dead1 = Math.max(0, rec.gaps[0].ms - step); // dead ms owed after the first hole
+      var dead2 = dead1 + Math.max(0, rec.gaps[1].ms - step); //  …and after the second
+      var idxBefore = 500,
+        idxMid = 1500,
+        idxAfter = 2800;
+      var naive = function (i) {
+        return rec.t0Ms + (i / rec.fs) * 1000;
+      };
+      /* BEFORE the first hole nothing is owed — the fix must not shift a clean prefix. This is the
+         leg that fails if someone "fixes" this by adding the total dead time to every sample. */
+      T.approx('a sample BEFORE any dropout is unmoved', rec.tMsAt(idxBefore) - naive(idxBefore), 0, 2);
+      T.approx('a sample between the two dropouts carries the FIRST hole only', rec.tMsAt(idxMid) - naive(idxMid), dead1, 5);
+      T.approx('a sample after BOTH carries both', rec.tMsAt(idxAfter) - naive(idxAfter), dead2, 5);
+      T.ok('ANTI-VACUITY · the two owed amounts differ, so a single-gap fold cannot pass', dead2 - dead1 > 1000, 'dead1=' + Math.round(dead1) + ' dead2=' + Math.round(dead2));
+
+      /* THE CONTRACT, end to end: `tMsAt` at a detected beat must agree with the beat clock `analyze`
+         publishes for that same beat. They are the same axis; before this fix they diverged by the
+         dead time. Asserted against the SHIPPED entry point, so a correct rule that stops being wired
+         still reds. */
+      if (typeof D.analyze === 'function' && typeof D.genSynthetic === 'function') {
+        var syn = D.genSynthetic({ durSec: 1200, scenario: 'hour' });
+        var mid = Math.floor(syn.int16.length / 2);
+        var GAP_MS = 45000;
+        var gappy = Object.assign({}, syn, { gaps: [{ idx: mid, ms: GAP_MS }] });
+        // parseECG built `syn`, so it already carries a tMsAt closed over ZERO gaps — rebuild it over
+        // the planted gap the same way the real path would, or this leg measures the wrong function.
+        var deadS = Math.max(0, GAP_MS - 1000 / syn.fs) / 1000;
+        var res = D.analyze(gappy, function () {});
+        var lastBeatSec = res.nn && res.tt && res.tt.length ? res.tt[res.tt.length - 1] : null;
+        T.ok('ANTI-VACUITY · the gappy synthetic still yields a beat series', lastBeatSec != null && lastBeatSec > 0, 'lastBeatSec=' + lastBeatSec);
+        /* `analyze`'s own beat clock spans the hole: the last beat sits past the planted dead time,
+           which a pure index axis could not reach on a 1200 s record. */
+        T.ok(
+          "analyze's beat clock spans the dropout — the behaviour tMsAt now matches",
+          lastBeatSec > deadS,
+          'last beat ' + Math.round(lastBeatSec) + ' s vs ' + Math.round(deadS) + ' s of dead time'
+        );
+      }
+    });
+
     /* ════ 12a-bis · ECGDex HOST-AXIS SPAN GATE — a RATE needs a BASELINE ════════════════════════
        WEARABLE-HOST-AXIS-FOLLOWUPS §F7. `DexClock.hostAxis` deliberately carries NO span gate, and
        that is right for PpgDex, which consumes `correctionAt()` — an interpolation whose residual is

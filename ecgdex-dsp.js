@@ -4747,6 +4747,60 @@
        correction rather than an amplified one. That boundedness is precisely what `.ppm` lacks. */
     var _ecgCorrAt = ecgHostAx.ok && ecgHostAx.independent !== false && typeof ecgHostAx.correctionAt === 'function' ? ecgHostAx.correctionAt : null;
     var _ecgMsPerSample = 1000 / fsDevice;
+    /* ── A SAMPLE INDEX IS NOT A CLOCK ACROSS A DROPOUT ───────────────────────────────────────────
+       `analyze` has folded gap dead-time into its beat times since DEEP-AUDIT-II §4.2 (#6) — "beat
+       time is sample-index/fs, which silently UNDER-counts wall-clock across a dropout". `tMsAt` was
+       written later, for the same axis, and never learned it: it is pure index arithmetic, so on a
+       gappy night it under-reads by the whole accumulated dead time while `analyze`'s own series does
+       not. Measured on 2026-09-12 (H10, 33 holes, Σ 2525 s): tMsAt − export = −260.7 s / −628.3 s /
+       −2522.8 s at three tracked beats — the folded deadSec, exactly.
+
+       It matters because `tMsAt` is what the PAT legs read (`pat-feasibility-worker.js:99`,
+       `sensor-trio-worker.js:763`), while the PPG leg reads `relSec`, which SPANS its gaps. The first
+       hole of that night lands 20 s in, so from there on the two legs are on different axes and every
+       pair is mis-lagged by the dead time — pairs vanish rather than come out wrong, which is why PAT
+       reads null on box nights instead of reading badly.
+
+       Same rule as `analyze`, deliberately: a gap contributes `max(0, ms − one nominal step)`, because
+       one step of the interval is the sample that WOULD have arrived and is already counted by the
+       index arithmetic. The step here is the RAW device step, since `tMsAt` builds the device axis and
+       applies the host interpolation on top of it (see `fsDevice` above); `analyze` uses the corrected
+       `fs`, a difference of ~1e-5 ms per step against gaps measured in seconds.
+
+       No consumer folds gaps itself, so nothing double-counts: the export's `rr.tSec` comes from
+       `analyze`'s `times`, not from here, and every committed golden is contiguous. */
+    var _ecgGaps =
+      gaps && gaps.length
+        ? gaps.slice().sort(function (a, b) {
+            return a.idx - b.idx;
+          })
+        : null;
+    var _ecgDeadPrefix = null;
+    if (_ecgGaps) {
+      _ecgDeadPrefix = new Float64Array(_ecgGaps.length);
+      var _dead = 0;
+      for (var _gk = 0; _gk < _ecgGaps.length; _gk++) {
+        _dead += Math.max(0, _ecgGaps[_gk].ms - _ecgMsPerSample);
+        _ecgDeadPrefix[_gk] = _dead;
+      }
+    }
+    /* Dead ms accumulated at or before sample `i`. Binary search, because `tMsAt` is called per beat
+       and per sample by `geometry-scan`; a linear scan would be O(beats x gaps). `i` may be fractional
+       — a gap AT the sample counts, matching `analyze`'s `g[gi].idx <= refIdx[k]`. */
+    function _ecgDeadMsBefore(i) {
+      if (!_ecgGaps) return 0;
+      var lo = 0,
+        hi = _ecgGaps.length - 1,
+        ans = -1;
+      while (lo <= hi) {
+        var mid = (lo + hi) >> 1;
+        if (_ecgGaps[mid].idx <= i) {
+          ans = mid;
+          lo = mid + 1;
+        } else hi = mid - 1;
+      }
+      return ans < 0 ? 0 : _ecgDeadPrefix[ans];
+    }
     // endEpochMs — the CLOCK position of the last sample, read from the file, never derived. Null when
     // the row carries no parseable stamp (§2.6: a missing stamp is visible, never fabricated). Kept
     // ALONGSIDE durSec, not instead of it: durSec answers "how much signal do I have", endEpochMs
@@ -4774,13 +4828,14 @@
     var deviceEpoch = deviceEpochOffsetMs !== null ? { offsetMs: Math.round(deviceEpochOffsetMs), plausible: Math.abs(deviceEpochOffsetMs) <= 48 * 3600e3 } : null;
     return {
       fs: fs,
-      /* Absolute floating wall-clock ms of sample `i`, host-disciplined where a second clock exists.
-         `i` may be fractional — `refinePeaks` returns sub-sample R positions and they must not be
-         rounded before the correction is applied. Consumers that need a TIME use this; consumers that
-         need a RATE keep using `fs`. */
+      /* Absolute floating wall-clock ms of sample `i`, host-disciplined where a second clock exists
+         and GAP-AWARE (see `_ecgDeadMsBefore` above — a sample index does not count the wall-clock a
+         dropout consumed). `i` may be fractional — `refinePeaks` returns sub-sample R positions and
+         they must not be rounded before the correction is applied. Consumers that need a TIME use
+         this; consumers that need a RATE keep using `fs`. */
       tMsAt: function (i) {
         var devMs = i * _ecgMsPerSample;
-        return t0Ms + devMs + (_ecgCorrAt ? _ecgCorrAt(devMs) : 0);
+        return t0Ms + devMs + (_ecgCorrAt ? _ecgCorrAt(devMs) : 0) + _ecgDeadMsBefore(i);
       },
       /* Whether `tMsAt` is actually disciplined. Reported so a caller can tell a corrected axis from a
          device-clock one WITHOUT re-deriving the condition — and so `applied:false` on `hostAxis`
