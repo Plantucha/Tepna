@@ -1,6 +1,6 @@
 ---
 bump: patch
-type: fix
+type: fixed
 brief: ZEPHYR-INSTRUMENT-2026-08-23-BRIEF.md
 ---
 
