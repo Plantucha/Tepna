@@ -38,3 +38,15 @@
 # never a silent no-CI PR. Regenerate, never hand-edit.
 tests/docs-ledger-list.txt  merge=union
 tests/changes-list.txt      merge=union
+
+# ── The residue ledger: the same conflict engine, one level up (2026-09-13) ──
+# briefs/RESIDUE.md is append-only at ONE end by rule (rows are added and closed, never edited or
+# deleted — CLAUDE.md §📌), so any two PRs that each file a row conflict on the same tail bytes by
+# construction. Measured 2026-09-12: 19 of 32 commits to main (59 %, one full-drain day — not a
+# steady-state rate) touched it; one PR was rebased three times for this and nothing else, and every
+# resolution was "keep both sides' rows" with no judgement. That is exactly what union does. The
+# worst case is a doubled row, and docs-ledger check8c (row ids unique) reds on it — never a silent
+# merge. A row CLOSE edits an existing line's last cell; two PRs closing the SAME row union to two
+# copies and red the same way. Local merges/rebases only (rebase-safe treats the file as source and
+# now finds no conflict); GitHub's server-side merge does not honour this attribute.
+briefs/RESIDUE.md           merge=union
