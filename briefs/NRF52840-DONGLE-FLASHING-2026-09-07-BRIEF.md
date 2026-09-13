@@ -85,7 +85,8 @@ Last build: FLASH 155 540 B (14.89 %), RAM 59 656 B (22.76 %). The one warning �
 board's own partition map and is benign. `nrfutil` prints an "unsigned package" banner; also benign.
 Zips on the rig: `hciuart-txpwr20.zip` (sha256 `655b9cc565d3c33f…`, TX only — **flashed** to
 `E7FC6D6BA44E` 2026-09-12) and `hciuart-txpwr20-pub.zip` (sha256 `84c4d508cc9e2ded…`, TX + public
-address — **built, flash pending**). Earlier: `vigil_hciuart_holyiot21017_anchor_nopriv_dfu.zip`
+address — **flashed to all three units 2026-09-12 20:39**; each came up with exactly its expected
+`F4:CE:36:` address after `btattach`, measured on rig-x870, see §8). Earlier: `vigil_hciuart_holyiot21017_anchor_nopriv_dfu.zip`
 (2026-09-11, 155 902 B, sha256 `2012ddc2e448dc8d…`, 0 dBm, no address patch — the image the three
 units ran for the 09-11 measurements).
 
@@ -363,11 +364,11 @@ Holyiot is 35 dB better" anywhere.
 
 ## 8 · Unit register — addresses are FICR-fixed, one row per physical dongle
 
-| unit | DFU-mode USB serial (by-id) | app-mode USB serial (`hci_uart` CDC) | BD address written 09-11 (`0xFC06`, raw FICR) | **public address under `-pub` (expected)** | where (2026-09-12) | image |
+| unit | DFU-mode USB serial (by-id) | app-mode USB serial (`hci_uart` CDC) | BD address written 09-11 (`0xFC06`, raw FICR) | **public address under `-pub` (MEASURED 2026-09-12, `hciconfig` after `btattach`)** | where (2026-09-12) | image |
 |---|---|---|---|---|---|---|
-| Holyiot-21017 #1 | `D967242ECD98` | `B1BAA52EE6EDB771` | `99:67:24:2E:CD:98` | `F4:CE:36:2E:CD:98` | rig-x870 | `…anchor_nopriv` (09-11); `-pub` pending |
-| Holyiot-21017 #2 | `E7FC6D6BA44E` | `9D08E454B242A0BF` | `E7:FC:6D:6B:A4:4E` | `F4:CE:36:6B:A4:4E` | rig-x870 → vigil (the capture candidate) | `hciuart-txpwr20.zip` **flashed** 09-12; `-pub` pending |
-| Holyiot-21017 #3 | `E1BFD58009C0` | `E8724F4F4D09CE57` | `21:BF:D5:80:09:C0` | `F4:CE:36:80:09:C0` | rig-x870 (control unit) | `…anchor_nopriv` (09-11); `-pub` pending |
+| Holyiot-21017 #1 | `D967242ECD98` | `B1BAA52EE6EDB771` | `99:67:24:2E:CD:98` | `F4:CE:36:2E:CD:98` ✓ (rig hci1) | rig-x870 | `hciuart-txpwr20-pub.zip` **flashed** 09-12 |
+| Holyiot-21017 #2 | `E7FC6D6BA44E` | `9D08E454B242A0BF` | `E7:FC:6D:6B:A4:4E` | `F4:CE:36:6B:A4:4E` ✓ (rig hci3) | rig-x870 → vigil (the capture candidate) | `hciuart-txpwr20-pub.zip` **flashed** 09-12 (over `hciuart-txpwr20.zip`) |
+| Holyiot-21017 #3 | `E1BFD58009C0` | `E8724F4F4D09CE57` | `21:BF:D5:80:09:C0` | `F4:CE:36:80:09:C0` ✓ (rig hci2) | rig-x870 (control unit) | `hciuart-txpwr20-pub.zip` **flashed** 09-12 |
 | Raytac MDBT50Q-CX | — | — | was `C6:CF:3C:4E:75:F0` (pre-fixed-address), then BlueZ static-random `FA:88:98:C3:7F:E5` (08-25) | not applicable until reflashed with §0b | moved to rig-x870 2026-08-25 (ZEPHYR-INSTRUMENT); not enumerated on vigil at the 09-12 read | `vigil_sdc_fixedaddr_dfu.zip` (2026-08-25, `hci_usb`) |
 
 Under the 09-07 `hci_usb` patch the address was the low 48 bits of `NRF_FICR->DEVICEADDR`
@@ -426,13 +427,14 @@ a new write path to any device; the ring, the CPAP, and the Polars are talked to
 - [ ] paired scan (§6) recorded in the §6 table; device count ≥ the Realtek's or the reason is written down
 - [ ] §8 row added with the FICR address; the address — not an `hciN` — is what gets pinned on the box
 
-**Done-when for the 2026-09-12 image (§0b), all pending at the time of writing:**
+**Done-when for the 2026-09-12 image (§0b):**
 
-- [ ] `hciuart-txpwr20-pub.zip` flashed to `E7FC6D6BA44E`; after `btattach`, `hciconfig` shows
-      `F4:CE:36:6B:A4:4E` with **no** `0xFC06` write issued; survives a replug (power-cycle)
+- [x] `hciuart-txpwr20-pub.zip` flashed to `E7FC6D6BA44E`; after `btattach`, `hciconfig` shows
+      `F4:CE:36:6B:A4:4E` with **no** `0xFC06` write issued (2026-09-12 20:40, rig-x870; ACL MTU 251:6)
+- [ ] survives a replug (power-cycle) — not yet exercised
 - [ ] the dongle's own advertisement heard on vigil's second adapter at ≥ −55 dBm (0 dBm image: −86)
-- [ ] the other two units (`D967242ECD98`, `E1BFD58009C0`) flashed with the same zip and §8 updated
-      with measured, not expected, addresses
+- [x] the other two units (`D967242ECD98`, `E1BFD58009C0`) flashed with the same zip and §8 updated
+      with measured addresses — all three match the derivation exactly
 - [ ] Polars re-paired to the new address on vigil (owner) and a two-peripheral concurrent connect
       survives — the soak ZEPHYR-INSTRUMENT still names as unproven
 - [ ] `vigil-hciuart-holyiot-txpwr20.conf` / `vigil-hciuart-main.c.patch` in the repo match what was
