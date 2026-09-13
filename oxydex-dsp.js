@@ -7170,7 +7170,24 @@
     for (var i = 0; i < arr.length; i++) {
       var r = arr[i];
       if (!r || r.tMs == null) continue;
-      out.push({ tMs: r.tMs, t: new Date(r.tMs), spo2: r.spo2, hr: r.hr, motion: r.motion || 0 });
+      /* §∅ — `motion: r.motion || 0` RE-FABRICATED the exact zero this file already fixed at parse
+         time, one path over. `parseCSV` deliberately writes `null` when the device has no Motion
+         column, and the block at the top of this file records what a 0 there costs, measured on a
+         real night with only that column removed:
+             motionPct 1.8 → 0 · sleepEff 98.2 → 100 · wasoPct 4 → 0 · stability 22 → 35
+         — "the body never moved", published as a perfect motion sub-score. `|| 0` reintroduces all of
+         it for every row that reaches OxyDex through `compute`/`oxyComputeNight` instead of through
+         the CSV parser: a SignalFrame, a rows array, a self-ingested export. `processNight`'s
+         `_motionAbsent` seam tests `r.motion != null`, so it is ALREADY able to handle the honest
+         value — it simply never saw one on this path. Note `|| 0` also swallows a real 0 and rewrites
+         it as 0, which is why this looked harmless: the fabricated and the genuine case are
+         indistinguishable in the output, and only the null one is wrong.
+
+         `pi` was dropped entirely by the same line. `computeStats` computes `meanPi` over rows
+         carrying a reading and returns null when none do — correct, and unreachable here, because the
+         key never survived the copy. Carried through now; absent stays absent (undefined ⇒ the same
+         null-ish the parser writes), so a source without perfusion still reports `meanPi: null`. */
+      out.push({ tMs: r.tMs, t: new Date(r.tMs), spo2: r.spo2, hr: r.hr, motion: r.motion == null ? null : r.motion, pi: r.pi == null ? null : r.pi });
     }
     return out;
   }

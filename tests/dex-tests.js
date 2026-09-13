@@ -579,6 +579,60 @@
        over 37 O2Ring nights it missed 1 of 44 artifacts and DELETED 11 of 35 genuine arousals (31 %),
        because +-4 min of every hour is 6.7 % of the night. This group locks the physiologic rule that
        replaced it, and specifically locks the regression that the time-window rule caused. */
+    group('OxyDex §∅ — _oxyEnsureRows re-fabricated the absent-motion zero the parser had just fixed', 'oxydex-dsp · absence-as-value · regression', function (T) {
+      /* `parseCSV` writes `motion: null` when the device has no Motion column, and the block above it
+         records what a 0 there costs, measured on a real night with ONLY that column removed:
+             motionPct 1.8 → 0 · sleepEff 98.2 → 100 · wasoPct 4 → 0 · stability 22 → 35
+         — "the body never moved", published as a PERFECT motion sub-score. `_oxyEnsureRows` then did
+         `motion: r.motion || 0`, reintroducing every bit of it for rows that reach OxyDex any other
+         way: a SignalFrame, a rows array, a self-ingested export. `processNight`'s `_motionAbsent`
+         seam already tests `r.motion != null`, so it could always have handled the honest value — it
+         simply never saw one on this path.
+
+         ⚠️ WHY IT LOOKED HARMLESS AND WHY THAT MATTERS: `|| 0` also maps a GENUINE 0 to 0, so the
+         fabricated and the real case are indistinguishable in the output. Only the null one is wrong,
+         and nothing downstream could tell which it was holding. */
+      // `_oxyEnsureRows` lives on the BARE namespace, not on the public OxyDex surface.
+      var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_od && _od._bare) || _od;
+      if (!OD || typeof OD._oxyEnsureRows !== 'function') {
+        // NOT a skip: a skip is neither pass nor fail, and this group would then shrink the gate silently.
+        T.ok('OxyDex._bare._oxyEnsureRows is reachable', false, 'not loaded — this group cannot run and must not read as a pass');
+        return;
+      }
+      var t0 = Date.UTC(2026, 5, 27, 23, 0, 0);
+      /* Three rows covering the three cases that `|| 0` conflated: no motion key at all (a
+         SignalFrame), an explicit null (what parseCSV writes), and a GENUINE zero (the body was
+         still). The third is the control — it must stay 0, or this "fix" has invented an absence. */
+      var rows = [
+        { tMs: t0, spo2: 96, hr: 60, pi: 3.2 },
+        { tMs: t0 + 1000, spo2: 96, hr: 61, motion: null, pi: 3.1 },
+        { tMs: t0 + 2000, spo2: 95, hr: 62, motion: 0, pi: null }
+      ];
+      var out = OD._oxyEnsureRows(rows);
+      T.eq('ANTI-VACUITY · every row survives the copy', out.length, 3);
+      T.eq('§∅ · an absent motion key stays absent — not a fabricated 0', out[0].motion, null);
+      T.eq('§∅ · an explicit null stays null — the value parseCSV deliberately writes', out[1].motion, null);
+      T.eq('CONTROL · a GENUINE zero is preserved — "still" is a real measurement', out[2].motion, 0);
+      /* …and the seam downstream must actually SEE the absence, or the honest value is carried into a
+         consumer that still cannot use it. This is the predicate `processNight` runs. */
+      var absent = !out.slice(0, 2).some(function (r) {
+        return r.motion != null && isFinite(r.motion);
+      });
+      T.ok('the _motionAbsent predicate now reads TRUE on a motionless source (it read false before)', absent, 'rows 0-1 carry no usable motion');
+      T.ok(
+        '…and FALSE once a genuine reading is present, so the guard is not stuck on',
+        !!out.slice(2).some(function (r) {
+          return r.motion != null && isFinite(r.motion);
+        }),
+        'row 2 is a real 0'
+      );
+      /* `pi` was dropped by the same line, so `computeStats`'s meanPi — which is careful to return
+         null rather than a fabricated 0 — could never see a perfusion reading on this path at all. */
+      T.eq('§∅ · perfusion survives the copy (it was silently dropped)', out[0].pi, 3.2);
+      T.eq('…and an absent perfusion reading stays null rather than becoming 0', out[2].pi, null);
+    });
+
     group('an impossible HR onset is rejected; a real arousal near a clock hour is NOT', 'oxydex · hr-artifact', function (T) {
       var OD = env.OxyDSP || env.OXYDSP || env.OxyDex;
       if (!OD || typeof OD.compute !== 'function') {
