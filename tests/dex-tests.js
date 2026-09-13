@@ -44682,37 +44682,80 @@
       T.eq('findSignal · no oximetry channel ⇒ null', N.findSignal({ EEG: {}, ECG: {} }, N.SPO2_LABELS), null);
       T.eq('findSignal · pulse channel matched by HR labels', N.findSignal({ EEG: {}, SpO2: {}, Pulse: {} }, ['pulse', 'heart rate', 'hr', 'pr']), 'Pulse');
 
-      // ── 1 Hz resample (via the public edfToOxyRows — to1Hz is internal): nearest-sample,
-      //    forward-fill an out-of-range dropout, backfill leading invalids so the head is never NaN ──
+      /* ── 1 Hz resample: a DROPOUT IS NULL, never the last reading and never a default ──────────
+         ⚠️ THIS BLOCK PREVIOUSLY ASSERTED THE OPPOSITE, and that is why the defect survived. It
+         required `to1Hz` to forward-fill an out-of-range sample from the last valid one, to backfill
+         leading invalids, and to seed a wholly-invalid channel with a hardcoded 97 % (or 60 bpm) —
+         each with a comment explaining why that fabricated value was the SAFE one to invent. Choosing
+         which value to fabricate instead of not fabricating is precisely CLAUDE.md §∅'s error, and the
+         gate held it in place: any correct fix reddened four assertions and read as a regression.
+
+         Measured 2026-09-12 on real SHHS1 records, which is what forced this: mean 2.76 % of SaO₂
+         samples invalid, and shhs1-200001 held ONE value across 3840 s — 64 minutes of flat, invented
+         saturation, over which no desaturation can be detected and the rolling baseline is computed
+         from a run that never happened.
+
+         The old "forward-fill keeps the trace continuous, which is what the ODI detector expects" was
+         also factually wrong: `processNight` already SKIPS an out-of-range row, so null is the shape it
+         handles. Continuity was the property a dropout must NOT have. */
       var rs = N.edfToOxyRows({ signals: { SpO2: { fs: 2, data: [95, 95, 96, 96, 200, 200, 97, 97] } }, clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) } });
       T.eq('resample · fs=2/n=8 ⇒ 4 one-second rows', rs.rows.length, 4);
       T.eq('resample · row 0 nearest sample', rs.rows[0].spo2, 95);
-      T.eq('resample · an out-of-range (200%) sample forward-fills from last valid', rs.rows[2].spo2, 96);
+      T.eq('resample · an out-of-range (200 %) sample is NULL, not the last valid value', rs.rows[2].spo2, null);
+      T.eq('resample · a valid sample after a dropout is itself, not a carried value', rs.rows[3].spo2, 97);
       var lead = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: [200, 200, 98, 97] } }, clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) } });
-      T.eq('resample · leading invalids backfill from first valid (no head NaN → round 98)', lead.rows[0].spo2, 98);
+      T.eq('resample · a LEADING dropout is null — never backfilled from the future', lead.rows[0].spo2, null);
       T.eq('resample · trailing valid preserved', lead.rows[3].spo2, 97);
-      /* #97 (TEST-AUDIT-FINDINGS) — when the ENTIRE SpO₂ channel is invalid (every sample out of
-         [40,100]), the seeded baseline is 97% — a physiologic NORMOXIC default (validLo===40 branch),
-         never a hypoxic value. A 97→90 slip would seed hypoxia and shift every derived desat/ODI number
-         for a fully-invalid night. No existing leg exercised the whole-channel-junk fallback. */
+
+      /* A wholly-invalid channel yields NO measurements — not a normoxic default. The previous
+         assertion demanded 97 here on the reasoning that inventing a normal value is safer than
+         inventing a hypoxic one. Both are inventions; a night with no oximetry must report that it has
+         none, and `processNight` drops every null row so the night is honestly empty rather than
+         quietly normal. */
       var junk = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: [200, 200, 200] } }, clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) } });
-      T.eq('resample · whole-channel-junk SpO₂ ⇒ 97% normoxic baseline (row 0)', junk.rows[0].spo2, 97);
-      T.eq('resample · whole-channel-junk baseline fills every row (row 2)', junk.rows[2].spo2, 97);
-      /* deep-scout §AD, the last residue — `firstValid = validLo === 40 ? 97 : 60` has TWO arms and only
-         the SpO₂ one (97) was pinned by finding #97. The HR arm seeds 60 bpm, and it is reached with a
-         DIFFERENT `validLo` (20, from the HR band) — so a `97 : 60 → 97 : 0` slip, or the two arms being
-         swapped, would seed an impossible pulse on a junk HR channel and go unseen. The SpO₂ leg above
-         cannot catch it: it never takes this arm. */
+      T.eq('resample · whole-channel-junk SpO₂ ⇒ null, NOT a 97 % normoxic default', junk.rows[0].spo2, null);
+      T.eq('resample · …and every row, so no fabricated night survives', junk.rows[2].spo2, null);
+      T.eq('resample · a fully absent channel reports 0 % coverage', junk.spo2CoveragePct, 0);
+      T.ok(
+        'resample · the fabricated 97 is gone from every row',
+        junk.rows.every(function (r) {
+          return r.spo2 !== 97;
+        }),
+        JSON.stringify(
+          junk.rows.map(function (r) {
+            return r.spo2;
+          })
+        )
+      );
+
+      /* The HR arm of the same fallback seeded 60 bpm on a junk pulse channel — an invented heart rate,
+         in band, indistinguishable from a measured bradycardia. Same rule. */
       var junkHr = N.edfToOxyRows({
         signals: { SpO2: { fs: 1, data: [96, 96, 96] }, Pulse: { fs: 1, data: [999, 999, 999] } },
         clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) }
       });
-      T.eq('resample · whole-channel-junk PULSE ⇒ 60 bpm baseline, the OTHER arm of the same fallback', junkHr.rows[0].hr, 60);
-      T.eq('resample · …and it fills every row, like the SpO₂ arm', junkHr.rows[2].hr, 60);
-      // CONTROL — the arms are not interchangeable: a junk pulse must NOT seed 97, and the good SpO₂
-      // beside it must be untouched, so the two fallbacks are proven independent rather than coincident.
-      T.ok('CONTROL · the junk-pulse arm seeds 60, never the SpO₂ arm’s 97', junkHr.rows[0].hr !== 97, 'hr=' + junkHr.rows[0].hr);
-      T.eq('CONTROL · …and a valid SpO₂ channel beside a junk pulse is unaffected', junkHr.rows[0].spo2, 96);
+      T.eq('resample · whole-channel-junk PULSE ⇒ null, NOT an invented 60 bpm', junkHr.rows[0].hr, null);
+      T.eq('resample · …and it does not fabricate on any row', junkHr.rows[2].hr, null);
+      T.ok(
+        'resample · neither fabricated constant (97 / 60) appears anywhere',
+        junkHr.rows.every(function (r) {
+          return r.hr !== 60 && r.spo2 !== 97;
+        }),
+        JSON.stringify(
+          junkHr.rows.map(function (r) {
+            return [r.spo2, r.hr];
+          })
+        )
+      );
+      T.eq('CONTROL · a valid SpO₂ channel beside a junk pulse is unaffected', junkHr.rows[0].spo2, 96);
+
+      /* §∅: an output computed over absent input REPORTS the absence. Coverage is published so a rate
+         can be qualified; before this, a 15 %-dropout night and a complete night were indistinguishable
+         downstream because the gaps had been filled in. */
+      T.eq('coverage · a clean channel reports 100 %', junkHr.spo2CoveragePct, 100);
+      var halfGone = N.edfToOxyRows({ signals: { SpO2: { fs: 1, data: [96, 200, 96, 200] } }, clock: { t0Ms: Date.UTC(2020, 0, 1, 0, 0, 0) } });
+      T.eq('coverage · half-dropout reports 50 %, not a silently short night', halfGone.spo2CoveragePct, 50);
+      T.eq('coverage · valid seconds counted, not assumed', halfGone.spo2ValidSec, 2);
       /* deep-scout §AD — the to1Hz physiologic window is INCLUSIVE at BOTH edges (>= validLo && <= validHi);
          the existing legs use interior values (95/96/98) so the exact edges were unpinned. SpO₂ 100 % and
          40 % are legitimate readings, NOT artifacts — a `<= → <` / `>= → >` slip would drop them (forward-
