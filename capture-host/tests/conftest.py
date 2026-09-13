@@ -271,6 +271,39 @@ def _capture_events_are_not_leaked(request):
 
 
 @_pytest.fixture(autouse=True)
+def _bonding_select_is_the_configured_address(request):
+    """`bonding.bluez_address` (2026-09-12) resolves the configured adapter to the address BlueZ lists,
+    through `link_rssi.dbus_hci` (a `/sys/class/bluetooth` glob + busctl) and `resolve_hci` (`hcitool dev`).
+    Every watchdog / bond / forget test would otherwise spawn those probes on the test host and get an
+    answer that depends on ITS radios. Pinned to identity here — the configured address is what
+    `select` gets — and the resolver itself is tested, unpinned, in test_bonding.py; test_link_rssi.py
+    exercises the sources directly. Guarded like `_fresh_power_engines`: never the importer.
+
+    Saved/restored by hand, NOT via `monkeypatch`: a conftest autouse fixture that REQUESTS
+    `monkeypatch` instantiates it ahead of every module-level autouse fixture, so `monkeypatch` is
+    torn down LAST — after a module's own reset fixture, which then meets whatever a test patched
+    in. Measured: `test_link_distress_wire._reset` called `.clear()` on the `None` its test had
+    planted into `_RADIO_EVENTS`."""
+    if request.module.__name__ in ("test_bonding", "test_link_rssi"):
+        yield
+        return
+    mod = sys.modules.get("bonding")
+    if mod is None:
+        yield
+        return
+
+    async def identity(adapter_mac):
+        return adapter_mac
+
+    saved = mod.bluez_address
+    mod.bluez_address = identity
+    try:
+        yield
+    finally:
+        mod.bluez_address = saved
+
+
+@_pytest.fixture(autouse=True)
 def _no_fsync_barrier_spans_tests():
     """Drain the off-loop fsync worker between tests. Same discipline as the capture-event reset
     above, for the same reason: a PROCESS-GLOBAL side effect that outlives the test that caused it.

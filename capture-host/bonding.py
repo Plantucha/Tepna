@@ -13,9 +13,12 @@
 # works headless. Adapter-aware so a multi-radio host bonds on the intended dongle.
 
 from __future__ import annotations
-import asyncio, re
+import asyncio, logging, re
 import proc_util
+import link_rssi
 from dataclasses import dataclass, asdict
+
+log = logging.getLogger("tepna.bonding")
 
 _ADDR_RE = re.compile(r"Device ([0-9A-F:]{17}) (.+)")
 # bluetoothctl emits PROPERTY UPDATES in the same `Device <addr> <rest>` shape as announcements:
@@ -110,9 +113,48 @@ def _adapter_prefix(adapter_mac: str | None) -> list[tuple[float, str]]:
     return [(0, f"select {adapter_mac}")] if adapter_mac else []
 
 
+async def bluez_address(adapter_mac: str | None) -> str | None:
+    """The address BlueZ knows the configured adapter by — the ONLY form `bluetoothctl select` accepts.
+
+    A Zephyr HCI dongle carries TWO addresses: the one the kernel/`hciconfig` reports (what an operator
+    reads off `hciconfig` and pins as `adapter:`), and the static-random identity BlueZ assigned it
+    because the controller has no public one — `bluetoothctl list` shows only the second. `select <the
+    first>` therefore prints `Controller … not available` and bluetoothctl CARRIES ON ON THE DEFAULT
+    CONTROLLER, so every bond/forget/power-cycle "pinned" to that dongle silently ran on whichever
+    adapter BlueZ had marked [default] — on 2026-09-12 the OTHER Zephyr dongle. bleak never saw this: it
+    takes `hciN`, which `link_rssi.resolve_hci` derives from the kernel address just fine. Two views
+    of one radio, and only the bluetoothctl path was reading the wrong one.
+
+    Resolution: the configured address is returned as-is when BlueZ lists it (a Sena/Intel/UB500, or an
+    operator who already pinned the BlueZ form); otherwise it is mapped to its hciN and back through
+    BlueZ's D-Bus view. Unresolvable ⇒ the configured value, unchanged and WARNED — the failure then
+    reads `Controller X not available` in the transcript instead of vanishing; refusing outright would
+    turn a resolver hiccup into a strap that never bonds."""
+    if not adapter_mac:
+        return None
+    key = adapter_mac.upper()
+    by_bluez = await link_rssi.dbus_hci()
+    if key in by_bluez:
+        return key
+    hci = await link_rssi.resolve_hci(key, refresh=True)
+    if hci:
+        for addr, name in by_bluez.items():
+            if name == hci:
+                return addr
+    log.warning("bonding: adapter %s is not an address BlueZ lists — bluetoothctl `select` will fall "
+                "through to the default controller", adapter_mac)
+    return adapter_mac
+
+
+async def select_line(adapter_mac: str | None) -> str:
+    """`select <BlueZ address>\\n` for a `_btctl` script, or "" when unpinned."""
+    a = await bluez_address(adapter_mac)
+    return f"select {a}\n" if a else ""
+
+
 async def scan(adapter_mac: str | None = None, seconds: float = 8.0) -> list[Found]:
     """Discover advertising devices on `adapter_mac` (or the default controller)."""
-    script = _adapter_prefix(adapter_mac) + [
+    script = _adapter_prefix(await bluez_address(adapter_mac)) + [
         (0.5, "scan on"), (seconds, "scan off"), (0.3, "devices"), (0.2, "quit")]
     out = await _delayed_script(script)
     seen: dict[str, Found] = {}
@@ -133,9 +175,11 @@ async def scan(adapter_mac: str | None = None, seconds: float = 8.0) -> list[Fou
         f = seen.get(m.group(1))
         if f:
             f.rssi = int(m.group(2))
-    # Enrich with bonded / connected (and RSSI, when a live link makes `info` report it) from `info`.
+    # Enrich with bonded / connected (and RSSI, when a live link makes `info` report it) from `info` —
+    # SELECTED: bond state is per-adapter, and an unselected `info` answers for the default controller.
+    sel = await select_line(adapter_mac)
     for addr, f in seen.items():
-        info = await _btctl(f"info {addr}\nquit\n", timeout=8)
+        info = await _btctl(sel + f"info {addr}\nquit\n", timeout=8)
         f.bonded = "Bonded: yes" in info or "Paired: yes" in info
         f.connected = "Connected: yes" in info
         r = re.search(r"RSSI:.*\((-?\d+)\)", info)
@@ -149,8 +193,7 @@ async def scan(adapter_mac: str | None = None, seconds: float = 8.0) -> list[Fou
 
 
 async def is_bonded(address: str, adapter_mac: str | None = None) -> bool:
-    info = await _btctl(
-        ("".join([f"select {adapter_mac}\n"] if adapter_mac else []) + f"info {address}\nquit\n"), timeout=8)
+    info = await _btctl(await select_line(adapter_mac) + f"info {address}\nquit\n", timeout=8)
     # `Bonded: yes` ONLY (VIGIL-DEEP-ANALYSIS §2D). For LE, `Paired: yes` can be a transient pairing that
     # lacks the stored long-term keys `Bonded` implies — and the bond exists precisely because the strap
     # drops discovery on an unauthenticated link, so treating Paired-without-Bonded as bonded skips the
@@ -169,11 +212,10 @@ async def trusted_flags(addresses, adapter_mac: str | None = None) -> list[str]:
     invisible until the race bites. One `bluetoothctl info` per address; an unreadable or unknown
     device simply does not appear (absence of evidence, not evidence of untrusted)."""
     out: list[str] = []
+    sel = await select_line(adapter_mac)
     for address in addresses:
         try:
-            info = await _btctl(
-                ("".join([f"select {adapter_mac}\n"] if adapter_mac else [])
-                 + f"info {address}\nquit\n"), timeout=8)
+            info = await _btctl(sel + f"info {address}\nquit\n", timeout=8)
         except Exception:
             continue  # unreadable ⇒ unknown, never "trusted"; the caller warns only on evidence
         if "Trusted: yes" in info:
@@ -226,7 +268,7 @@ async def bond(address: str, adapter_mac: str | None = None) -> dict:
     that races bleak for the single ACL slot, br-connection-canceled). The 9.8 s wait is discovery
     time, unchanged. The final `untrust` stays as RETROFIT cleanup: it clears a flag left by the old
     script, an operator's hand-`trust`, or a vendor tool — idempotent, keeps the bond."""
-    script = _adapter_prefix(adapter_mac) + [
+    script = _adapter_prefix(await bluez_address(adapter_mac)) + [
         (0.5, "agent NoInputNoOutput"), (0.5, "default-agent"),
         (0.5, "scan on"),
         (9.8, f"pair {address}"), (11.0, "scan off"), (0.5, f"untrust {address}"), (0.3, "quit")]
@@ -239,8 +281,7 @@ async def bond(address: str, adapter_mac: str | None = None) -> dict:
 
 
 async def forget(address: str, adapter_mac: str | None = None) -> dict:
-    out = await _btctl("".join(
-        [f"select {adapter_mac}\n"] if adapter_mac else []) + f"remove {address}\nquit\n")
+    out = await _btctl(await select_line(adapter_mac) + f"remove {address}\nquit\n")
     return {"ok": ("Device has been removed" in out) or ("removed" in out.lower()), "address": address}
 
 
