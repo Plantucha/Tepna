@@ -1214,6 +1214,33 @@
         "INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS-2026-07-22-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.11.0",
+      "date": "2026-09-13",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "593cc935e5bb",
+        "OxyDex": "1917bbe324cf",
+        "PulseDex": "22f5b27c04de",
+        "GlucoDex": "958f8087e117",
+        "PpgDex": "30b32d0e314b",
+        "HRVDex": "6951cfedcbb9",
+        "CPAPDex": "b91242c4af2e",
+        "Integrator": "15f8592a26fa",
+        "MotionDex": "41e72c00259f"
+      },
+      "briefs": [
+        "VIGIL-AUTO-UPDATE-FOLLOWUPS-2026-08-14-BRIEF.md",
+        "ALLAN-STABILITY-GAPS-2026-09-07-BRIEF.md",
+        "RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md",
+        "OXYDEX-PB-DETECTOR-FOLLOWUPS-2026-08-17-BRIEF.md",
+        "O2RING-PRESENCE-TRIGGER-IMPL-2026-08-26-BRIEF.md",
+        "SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md",
+        "STRATEGIC-PRIORITIES-2026-08-26-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
