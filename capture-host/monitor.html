@@ -833,7 +833,18 @@ function clockStatus(dev){
   // clock that was fine. Out of tolerance IS worth a warning — and then we say so with the number.
   const sk = dev.clock_skew_sec;
   const measured = (sk != null && isFinite(sk));
-  if(measured && Math.abs(sk) > 2) return {cls:'warn', txt:'clock drifting'};
+  // 🔴 THE WARNING USES THE ENVELOPE; THE ALL-CLEAR MAY USE THE LIVE READING. The asymmetry is not a
+  // hedge — the two directions carry different evidence. `clock_skew_sec` is one frame's
+  // `device_stamp - host_now`, so it includes that frame's delivery latency, and latency is one-sided:
+  // it can only make the clock look WORSE. So a SMALL |sk| is conclusive (a late frame could not have
+  // produced it) while a LARGE |sk| is ambiguous between a drifting clock and a stalled link.
+  // Warning on the live value put "clock drifting" on the card every time the radio hiccuped — the same
+  // defect the daemon had, where it re-synced 341 times in 14 days on clocks that were fine.
+  // `clock_skew_floor_sec` is the maximum over a window, i.e. the least-delayed frame in it, and is the
+  // number `clock_watchdog` itself decides on. Absent (null until the window fills) ⇒ we have not
+  // measured drift, so we do not claim it.
+  const fl = dev.clock_skew_floor_sec;
+  if(fl != null && isFinite(fl) && Math.abs(fl) > 2) return {cls:'warn', txt:'clock drifting'};
   // ⚠️ ONLY WHEN NOTHING MEASURED CONTRADICTS IT. A clock we could not WRITE may still be RIGHT, and
   // the block above already settles that a measured agreement outranks "we set it hours ago". Letting
   // the give-up verdict override a sub-second measurement would repeat the exact mistake that comment
@@ -917,10 +928,15 @@ function clkChip(dev){
   const st = clockStatus(dev);
   if(!st) return '';
   const s = dev.clock_skew_sec;
+  const f = dev.clock_skew_floor_sec;
   const t = `device clock ${dev.device_time}`
           + (dev.clock_uncorrectable ? ' · AUTO-SYNC GAVE UP — the daemon could not write this clock' : '')
           + (dev.clock_synced ? ` · set from host at ${String(dev.clock_synced).slice(11,19)}` : ' · not set by us this session')
-          + (s!=null ? ` · sample-stamp offset ${s>=0?'+':''}${Math.abs(s)>=3600?(s/3600).toFixed(1)+'h':Math.round(s)+'s'} vs host` : '');
+          + (s!=null ? ` · sample-stamp offset ${s>=0?'+':''}${Math.abs(s)>=3600?(s/3600).toFixed(1)+'h':Math.round(s)+'s'} vs host` : '')
+          // The number the watchdog acts on, beside the live one. When they disagree the difference IS
+          // the delivery latency, which is the thing worth seeing — a re-sync explained by an envelope
+          // the operator cannot see reads as the daemon acting at random.
+          + (f!=null ? ` · windowed floor ${f>=0?'+':''}${Math.abs(f)>=3600?(f/3600).toFixed(1)+'h':Math.round(f)+'s'} over ${dev.clock_skew_n||0} frames` : ' · window not yet measured');
   return `<span class="clk ${st.cls}" title="${esc(t)}">🕐 ${st.txt}</span>`;
 }
 // Charging pill. A Polar on its dock REFUSES every PMD START with status 0x0D `in_charger` — that is

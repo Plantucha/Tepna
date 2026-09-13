@@ -76,7 +76,7 @@ inner try (`night_dir()` per iteration → a full disk or read-only mount); `ada
 calls `_btctl` under a bare try/finally; `rssi_poller` writes outside any try. Now every device runner and
 every background poller restarts with a capped backoff, surfaces on the device card, and pushes an alert.
 
-### 6 · Clock re-sync now converges — **LATENT, not observed at scale (corrected 2026-07-20)**
+### 6 · Clock re-sync now converges — **LIVE AND MEASURED 2026-09-13** (was: LATENT, corrected 2026-07-20)
 `clock_watchdog`'s `adrift` trigger fires on **absolute** skew, and the post-sync `seen.pop()` erases the
 memory of having tried. For a skew that is constant and non-zero — an offset that cannot be shifted from
 here, e.g. the Verity stamping PMD samples ~4 h ahead (measured 2026-07-18) — that pair cannot converge:
@@ -95,6 +95,36 @@ still re-syncs however often we gave up on the steady offset.
 > cost a night. The 10 offline-op pauses clustered in 21:35–21:43 that prompted the original claim are a
 > **different path**: the startup clock-sync ladder retrying (see the follow-up on its ~14 min worst case,
 > which those 10 pauses in 8 minutes *do* corroborate).
+
+> **Second correction — 2026-09-13 (Heron). The loop is live at scale, and BOTH halves of the paragraph
+> above have the mechanism wrong.** Measured over the 14 days to 2026-09-13 on vigil's journal (503 295
+> lines): **341 adrift re-syncs fired** — 302 Polar H10, 39 Verity — at up to **74 in a single day**, a
+> median **330 s apart** against a `drift_check_sec` of 300, i.e. on *every* watchdog cycle. The
+> give-up this section added fired **0 times** in that whole window.
+>
+> Two independent defects, neither of which is the steady uncorrectable offset this section was written
+> about:
+>
+> 1. **The trigger's input is not a clock offset.** `clock_skew_sec` is `device_stamp − _utcnow()` at the
+>    moment a frame LANDS, so it carries the delivery latency. Every one of the 341 triggers was
+>    **negative** — the sign latency produces — with an H10 median of **−3.6 s** (p25 −12.1, min −31.0)
+>    against a true link delay of ~**0.23 s** measured off the PMDARRIVAL sidecars. **The arithmetic that
+>    settles it:** this H10's crystal measures −20.3 ppm, so 330 s of real drift is **6.7 ms**; returning
+>    to −2.0 s within one cycle of a successful write would need ≈−6700 ppm, three hundred times a
+>    crystal's rate. A clock cannot do that. A stalled link does it constantly (5689 connect timeouts in
+>    the same window).
+> 2. **The give-up cannot be reached.** `_CLOCK_FRESHLY_SYNCED` zeroed `failed_adrift` on any successful
+>    *write*, and the H10 reconnects constantly (**445** `connected` events in 14 days), so the
+>    reconnect ladder discharged the budget before it could ever count to 3. A successful write is not a
+>    successful correction, and conflating them disabled the only stop this section installed.
+>
+> So the 2026-07-20 retraction was right to refuse an unmeasured claim, and its *explanation* of why the
+> trigger does not repeat ("an unreadable clock leaves it `None`") does not describe what the box
+> actually does. Fixed by reading a windowed envelope (`clock_skew_floor_sec`, `clock_skew_estimate`) and
+> by making the budget measurement-driven — see the changeset for 2026-09-13. ⚠️ The original claim this
+> section retracted, "~15 % of every night", is **not** thereby vindicated: it was still inference from
+> eight minutes, and the cost here has not been measured as a fraction of a night — only the trigger rate
+> has.
 
 ### 7 · Ring/legacy paths brought up to the Polar path's standard
 `run_oxyii` and `run_viatom` never deleted **header-only files** (on the documented 359-reconnect night that
