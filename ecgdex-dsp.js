@@ -2411,6 +2411,31 @@
   //  FULL PIPELINE — orchestrates everything from an Int16 ECG buffer.
   //  onProgress(pct,msg) optional.
   // ════════════════════════════════════════════════════════════════════════
+  /* ── THE UNIT OF EVERY UNIT-BEARING FIELD `analyze()` RETURNS, declared once.
+     Residue `2026-09-12-ecgdsp-analyze-mixes-seconds-and-ms`. `analyze` returns SECONDS and
+     MILLISECONDS on the same object and none of the five array fields carries its unit in its name,
+     while every scalar beside them does (`durSec`, `durMin`, `spanMin`, `gapMin`, `artifactSec`).
+     A consumer comparing `times` to a ms timebase is off by 1000x, and the error is invisible to the
+     assertion shape people actually write: #2413's own end-to-end selftest shipped that exact bug and
+     PASSED, because it asserted only that both beat trains were non-empty.
+
+     ⚠️ A DECLARED UNIT THAT IS WRONG IS WORSE THAN NO UNIT, so this map holds only fields whose unit
+     the gate PROVES from the data — `nn` against the difference of consecutive `tt`, `times` against
+     `refIdx / fs`. `corrected`, `nnCorrected` and `nnConf` are deliberately ABSENT: the first two are
+     per-beat masks and the third is a [0.5, 1] confidence, none of them a physical quantity. Reading
+     this map is not a substitute for reading them.
+
+     The names `times`/`tt`/`nn`/`peaks`/`refIdx` are the published return shape and a consumer
+     contract, so they are NOT renamed (CLAUDE.md §📦 back-compat). The unit-suffixed aliases below
+     are additive and share the same array reference — no copy, no second source of truth. */
+  const ANALYZE_UNITS = Object.freeze({
+    times: 's',
+    tt: 's',
+    nn: 'ms',
+    peaks: 'sampleIndex',
+    refIdx: 'sampleIndexFractional'
+  });
+
   function analyze(rec, onProgress) {
     const prog = onProgress || (() => {});
     const { int16, fs } = rec;
@@ -2733,6 +2758,8 @@
 
     prog(100, 'Done');
 
+    /* ONE converted array, referenced by both `times` and `timesSec` — see ANALYZE_UNITS. */
+    const timesArr = Array.from(times);
     return {
       source: rec.source,
       fs,
@@ -2764,10 +2791,20 @@
       bp,
       peaks,
       refIdx,
-      times: Array.from(times),
+      times: timesArr,
       sqi: Array.from(sqi),
       nn,
       tt,
+      /* Unit-suffixed ALIASES of the five fields in ANALYZE_UNITS. They share the SAME reference as
+         the legacy name — `timesArr` is the one converted array, not a second copy — so the two names
+         cannot drift and the gate asserts IDENTITY rather than equality. New code should prefer these.
+         `sqi`, `corrected`, `nnCorrected` and `nnConf` get no alias because they carry no unit. */
+      units: ANALYZE_UNITS,
+      timesSec: timesArr,
+      ttSec: tt,
+      nnMs: nn,
+      peaksIdx: peaks,
+      refIdxFrac: refIdx,
       corrected: Array.from(nnRes.corrected),
       // Filter-aligned twin of `corrected`, safe to publish beside nn/tt (see the loop above).
       nnCorrected: nnCorr,

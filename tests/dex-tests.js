@@ -12666,6 +12666,140 @@
       }
     });
 
+    /* ════ `analyze()` RETURNS SECONDS AND MILLISECONDS ON ONE OBJECT — the units are now DECLARED,
+       and the declaration is PROVED from the data rather than trusted.
+       Residue `2026-09-12-ecgdsp-analyze-mixes-seconds-and-ms`.
+
+       `times` and `tt` are seconds, `nn` is milliseconds and is derived from `tt`, `peaks` is an
+       integer sample index and `refIdx` a fractional one — and none of those five names carries its
+       unit, while every scalar beside them does (`durSec`, `durMin`, `spanMin`, `artifactSec`). A
+       consumer comparing `times` to a ms timebase is off by 1000x.
+
+       ⚠️ THE ERROR IS INVISIBLE TO THE ASSERTION SHAPE PEOPLE ACTUALLY WRITE, which is why this is a
+       group and not a comment: #2413's own end-to-end selftest shipped that exact bug and PASSED,
+       because it asserted only that both beat trains were non-empty. Non-emptiness survives a 1000x
+       scale error intact. So every leg below is a RELATION between two fields in different units —
+       `nn` against the difference of consecutive `tt`, `times` against `refIdx / fs` — which a scale
+       error cannot satisfy.
+
+       ⚠️ A DECLARED UNIT THAT IS WRONG IS WORSE THAN NO UNIT. `corrected`, `nnCorrected` and `nnConf`
+       are deliberately OUTSIDE the map (masks and a confidence, not physical quantities), and the key
+       set is pinned as an EQUALITY so widening it is a deliberate act that must bring its own proof. ════ */
+    group('ECGDSP.analyze declares its units — and the declaration is proved, not trusted', 'ecgdex-dsp · units · analyze-contract', function (T) {
+      var D = env.ECGDSP;
+      if (!D || typeof D.analyze !== 'function' || typeof D.genSynthetic !== 'function') {
+        T.skip('ECGDSP.analyze + genSynthetic available', 'not loaded in this runner');
+        return;
+      }
+      var syn = D.genSynthetic({ minutes: 3, seed: 42 });
+      var r = D.analyze({ int16: syn.int16, fs: syn.fs });
+      /* ANTI-VACUITY, and it must be a REAL LENGTH rather than "non-empty" — the exact bar that let
+         the 1000x bug through. Every relation below is a loop over beats; three beats would pass them
+         and prove nothing about a record. */
+      T.ok(
+        'ANTI-VACUITY · the synthetic record yields a real beat train, not merely a non-empty one',
+        r.nn && r.nn.length >= 100 && r.tt.length === r.nn.length,
+        'nn=' + (r.nn && r.nn.length) + ' tt=' + (r.tt && r.tt.length)
+      );
+      if (!(r.nn && r.nn.length >= 100)) return;
+
+      T.eq('the unit map names EXACTLY the five unit-bearing fields — masks and confidences stay out', Object.keys(r.units || {}).sort(), ['nn', 'peaks', 'refIdx', 'times', 'tt']);
+      T.eq('…and it is frozen, so a consumer cannot rewrite the contract it just read', Object.isFrozen(r.units), true);
+
+      /* ── PROOF 1: `nn` is MILLISECONDS and `tt` is SECONDS — the same quantity in two units, so
+         the SCALE between them is the assertion, and a 1000x error cannot survive it.
+
+         ⚠️ THE OBVIOUS FORM IS NOT UNIVERSALLY TRUE, and asserting it would be a gate that convicts
+         working code. `nn[i] === (tt[i] − tt[i−1]) × 1000` fails on two legitimate populations, and
+         both were found by PRINTING THE OUTLIERS rather than widening a tolerance until they fit:
+           · `tt` SKIPS where the confidence filter dropped a beat (below c = 0.5 a beat is gone, not
+             down-weighted), so the gap legitimately exceeds the interval;
+           · `nn` is the MALIK-CORRECTED series while `tt` is raw beat times, so a corrected interval
+             need not equal the spacing it replaced. Measured on this record: every one of the 22
+             shorter-than-interval gaps carries `nnCorrected = 1`, with no exceptions — which is what
+             identifies the population rather than a guess about it.
+         So the exact leg runs over the UNCORRECTED beats, and the excluded ones are counted and named
+         by their cause. That is also the first written statement of a real contract: `nn` is
+         corrected, `tt` is not. */
+      var exact = 0,
+        uncorrected = 0,
+        corrected = 0,
+        ratios = [];
+      for (var i = 1; i < r.tt.length; i++) {
+        var dMs = (r.tt[i] - r.tt[i - 1]) * 1000;
+        if (!(dMs > 0)) continue;
+        ratios.push(dMs / r.nn[i]);
+        var wasCorrected = !!(r.nnCorrected && r.nnCorrected[i]);
+        if (wasCorrected) {
+          corrected++;
+          continue;
+        }
+        uncorrected++;
+        if (Math.abs(dMs - r.nn[i]) / dMs < 1e-9 || dMs > r.nn[i]) exact++;
+      }
+      ratios.sort(function (x, y) {
+        return x - y;
+      });
+      var medRatio = ratios[ratios.length >> 1];
+      /* SCALE: a tt-gap expressed in ms must BE an nn. If `nn` were seconds this lands at ~1000; if
+         `tt` were ms it lands at ~0.001. Median, so neither population above can move it. */
+      T.ok('PROOF · a tt-gap in ms IS an nn — median ratio 1, so tt is seconds and nn is milliseconds', medRatio > 0.98 && medRatio < 1.02, 'median (Δtt×1000)/nn = ' + medRatio);
+      T.ok('…and nowhere near the two values a unit error would give (1000, or 0.001)', medRatio < 100 && medRatio > 0.01, 'median ratio = ' + medRatio);
+      /* ANTI-VACUITY for the exact leg: excluding the corrected beats must not have excluded the
+         corpus. Stated as a count so a future correction-rate change cannot hollow it out silently. */
+      T.ok(
+        'ANTI-VACUITY · the uncorrected beats are the bulk of the record, so the exact leg has a subject',
+        uncorrected > 0.5 * ratios.length,
+        uncorrected + ' uncorrected of ' + ratios.length + ' (' + corrected + ' corrected, excluded by name not by tolerance)'
+      );
+      T.eq('PROOF · on every UNCORRECTED beat the tt-gap in ms equals nn, or exceeds it across a dropped beat', exact, uncorrected);
+      T.eq('…and the map says so', r.units.nn + '/' + r.units.tt, 'ms/s');
+      /* The declared units must be the ones the relation just proved — a map that said `s/ms` would
+         pass the relation above and still be a lie, so the two legs are both needed. */
+      T.ok('a typical nn sits in the ms band for a human heart, not the s band', r.nn[10] > 250 && r.nn[10] < 2500, 'nn[10] = ' + r.nn[10]);
+      T.ok('…and a typical tt gap sits in the s band', r.tt[11] - r.tt[10] > 0.25 && r.tt[11] - r.tt[10] < 2.5, 'Δtt = ' + (r.tt[11] - r.tt[10]));
+
+      /* ── PROOF 2: `times` is SECONDS and `refIdx` is a FRACTIONAL SAMPLE INDEX. Same quantity,
+         related by fs — the one relation a 1000x error cannot survive. */
+      var wi = 0;
+      for (var k = 0; k < Math.min(r.times.length, r.refIdx.length); k++) wi = Math.max(wi, Math.abs(r.times[k] - r.refIdx[k] / r.fs));
+      T.ok('PROOF · times[k] IS refIdx[k] / fs — so times is seconds and refIdx is a sample index', wi < 1e-6, 'worst |Δ| = ' + wi + ' s');
+      T.eq('…and the map says so', r.units.times + '/' + r.units.refIdx, 's/sampleIndexFractional');
+      /* `peaks` is the INTEGER twin — pinned separately because "sample index" is the same words for
+         both and only this leg distinguishes them. */
+      var nonInt = 0;
+      for (var q = 0; q < r.peaks.length; q++) if (r.peaks[q] !== Math.round(r.peaks[q])) nonInt++;
+      T.eq('PROOF · every `peaks` entry is an INTEGER sample index, unlike its fractional twin', nonInt, 0);
+      var anyFrac = false;
+      for (var z = 0; z < r.refIdx.length; z++) if (r.refIdx[z] !== Math.round(r.refIdx[z])) anyFrac = true;
+      T.ok(
+        '…and `refIdx` actually carries sub-sample refinement, or the distinction is decorative',
+        anyFrac,
+        anyFrac ? 'fractional entries present' : 'NO fractional refIdx — the two fields would be interchangeable'
+      );
+
+      /* ── THE ALIASES SHARE A REFERENCE, so the two names cannot drift into two answers. Identity,
+         not equality: an equal COPY would pass a deep-compare today and diverge on the first edit. */
+      T.eq('timesSec IS times — one array, two names', r.timesSec === r.times, true);
+      T.eq('ttSec IS tt', r.ttSec === r.tt, true);
+      T.eq('nnMs IS nn', r.nnMs === r.nn, true);
+      T.eq('peaksIdx IS peaks', r.peaksIdx === r.peaks, true);
+      T.eq('refIdxFrac IS refIdx', r.refIdxFrac === r.refIdx, true);
+      /* BACK-COMPAT (CLAUDE.md §📦): the legacy names are a published contract and an export surface.
+         The aliases are additive; nothing may have been renamed away. */
+      T.ok(
+        'the legacy names all survive — these are aliases, never a rename',
+        ['times', 'tt', 'nn', 'peaks', 'refIdx'].every(function (k) {
+          return r[k] != null;
+        }),
+        Object.keys(r)
+          .filter(function (k) {
+            return ['times', 'tt', 'nn', 'peaks', 'refIdx'].indexOf(k) >= 0;
+          })
+          .join(',')
+      );
+    });
+
     /* ════ ONE ARTIFACT MUST NOT DISABLE DETECTOR B — TCH-FUSED-ROBUST-HAT-FOLLOWUPS Do 5 ════
        `detectPeaksB` scaled BOTH its thresholds off the global maximum of |bp|, and the floor
        `Math.max(0.3·env, 0.18·mx)` is the one that bites: a max is a 1-sample order statistic, so a
