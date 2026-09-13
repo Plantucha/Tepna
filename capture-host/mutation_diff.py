@@ -588,7 +588,7 @@ def split_results(results_text: str):
 
     A caller must treat `undecided` as NOT KILLED: it is the set the run could not settle, so a gate
     that reports green while it is non-empty is reporting about mutants it never saw."""
-    out = {SURVIVED: [], UNDECIDED: [], KILLED: []}
+    out: dict[str, list[str]] = {SURVIVED: [], UNDECIDED: [], KILLED: []}
     for line in (results_text or "").splitlines():
         got = classify_results_line(line)
         if got is None:

@@ -36,7 +36,7 @@ _SUBMAGIC = b"\x48\x12\x5a\xda"
 
 def parse_oxy_dat(data: bytes):
     """Raw Format-A .dat -> (meta, samples, trailer). samples are 1 Hz."""
-    samples = []
+    samples: list = []
     off, n = HEADER_LEN, len(data)
     while off + 3 <= n:
         s, h, mo = data[off], data[off + 1], data[off + 2]
