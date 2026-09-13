@@ -5070,7 +5070,7 @@
          UNCHANGED), so ECG (σ²≈4) dominates and the reconciled value is pulled toward ECG's ~42, far
          below the arithmetic mean ~62. RED under `_acc += w*o.v; _ws += w` → `_acc += o.v; _ws += 1`
          (a plain mean → weightedMean === arithmetic ~62, no longer near the low-σ node). */
-      function mkOff(node, noiseStd, seed, offset) {
+      function mkOff(node, noiseStd, seed, offset, fname) {
         var nz = normals(seed, NE),
           eps = [];
         for (var i = 0; i < NE; i++) {
@@ -5091,7 +5091,7 @@
             ganglior_events: [{ t: '23:00:10', tMs: t0 + 10000, impulse: 'x', node: node, conf: 0.8 }]
           },
           node,
-          node + '.json'
+          (fname || node) + '.json'
         )[0];
       }
       // ECG cleanest (σ²≈4, whole≈42) · HRV medium (σ²≈25, whole≈52) · PPG noisiest (σ²≈196, whole≈92)
@@ -5112,6 +5112,50 @@
           '#3: weightedMean pulled DOWN toward the low-σ nodes, clearly below the arithmetic mean (inverse-variance, not plain)',
           wm < arith - 3 && wm < ecgV + 15,
           'wm=' + wm + ' ecg=' + ecgV + ' arith=' + arith.toFixed(1)
+        );
+      }
+
+      /* F5 · TWO CORNERS OF THE SAME NODE MUST STILL CARRY WEIGHT (DEEP-AUDIT-V-FOLLOWUPS row 118).
+         `_cornerIds` disambiguates duplicates into "PpgDex <tag>", and `tch.weights` is keyed by THAT
+         label — so a lookup by bare `o.node` returned undefined for BOTH PpgDex corners and the
+         `if (w != null)` skipped them. The published inverse-variance RMSSD was then the remaining
+         corner VERBATIM. Measured on uploads/trio 07-19: weights {0.0385, 0.4808, 0.4808}, values
+         [45, 32.6, 31.7], published 31.7 (ECGDex's own) against an honest mean of 32.64.
+         RED before the identity re-key: weightedMean === the ECGDex value exactly. */
+      var cons5 = FC(
+        // DISTINCT filenames on purpose: `_cornerIds` disambiguates on deviceKey/file/fname, so two
+        // corners sharing one collapse to a SINGLE label and never reach the defect — the fixture
+        // would pass while testing nothing.
+        [mkOff('ECGDex', 2, 11, 0, 'ecg'), mkOff('PpgDex', 3, 44, 20, 'ppgFinger'), mkOff('PpgDex', 4, 55, 40, 'ppgWrist')],
+        1000
+      );
+      var blk5 = cons5 && cons5.blocks && cons5.blocks[0];
+      T.ok(
+        'F5: a two-corner node still produces a weighted mean',
+        !!(blk5 && blk5.tch && blk5.tch.ok && blk5.rmssd && blk5.rmssd.weightedMean != null),
+        'wm=' + (blk5 && blk5.rmssd && blk5.rmssd.weightedMean) +
+          ' tchStatus=' + (blk5 && blk5.tchStatus) +
+          ' nodes=' + (blk5 && blk5.rmssd && blk5.rmssd.values.length)
+      );
+      if (blk5 && blk5.rmssd && blk5.rmssd.weightedMean != null) {
+        var wm5 = blk5.rmssd.weightedMean;
+        var vals5 = blk5.rmssd.values.map(function (o) {
+          return o.v;
+        });
+        var isCorner = vals5.some(function (v) {
+          return Math.abs(v - wm5) < 1e-9;
+        });
+        T.ok(
+          'F5: …and it is NOT any single corner verbatim — both duplicates contributed',
+          !isCorner,
+          'wm=' + wm5 + ' values=[' + vals5.join(', ') + ']'
+        );
+        T.ok(
+          'F5: every corner resolved a weight (none silently skipped)',
+          blk5.rmssd.values.every(function (o) {
+            return o.src != null;
+          }),
+          'values carry their source for identity lookup'
         );
       }
     });
@@ -6241,6 +6285,45 @@
       var far = det([recA, NF(mkShifted(12000), 'far.json').recs[0]], {}).beatCheck.pairs[0];
       T.ok('an offset beyond the search range is NOT reported as confident', far && far.confident === false, far && far.offsetSec + ' s, confident=' + far.confident);
       T.ok('…and no disagreement verdict is issued off an unconfident fit', far && far.disagrees === null, far && far.disagrees);
+
+      /* A WALK IS NOT A DRIFT (I5). `confident` used to certify a fit on correspondence alone — how
+         often the blocks agree WHICH beat pairs with which. That measures whether the pairing is
+         real, not whether the offset walks in a straight LINE, so a smoothly decelerating clock was
+         certified as a constant drift rate (measured 2026-09-12: −137 ppm, confident:true, over a
+         0 → −2,030 ms decelerating walk; same shape 08-26). Publishing a ppm for that is a fabricated
+         rate. Both directions are planted, because a gate that refuses everything is not a gate. */
+      var mkWalk = function (fname, offFn) {
+        return NF(
+          {
+            schema: { name: 'ganglior.node-export' },
+            node: 'PpgDex',
+            recording: { startEpochMs: t0 },
+            timeseries: {
+              ppi: {
+                tSec: tSec.map(function (t) {
+                  return +(t + offFn(t)).toFixed(3);
+                }),
+                corrected: corrected.slice()
+              }
+            },
+            ganglior_events: []
+          },
+          fname
+        ).recs[0];
+      };
+      var SPAN_S = tSec[tSec.length - 1];
+      var linP = det([recA, mkWalk('lin.json', function (t) { return -137e-6 * t; })], {}).beatCheck.pairs[0];
+      var decP = det([recA, mkWalk('dec.json', function (t) { return -2.0 * (1 - Math.exp(-t / (SPAN_S / 4))); })], {}).beatCheck.pairs[0];
+      T.ok(
+        'a LINEAR drift is still certified confident — the curvature leg does not refuse everything',
+        linP && linP.confident === true,
+        'confident=' + (linP && linP.confident) + ' reason=' + (linP && linP.reason)
+      );
+      T.ok(
+        'a DECELERATING walk is NOT certified as a drift rate',
+        decP && decP.confident === false,
+        'confident=' + (decP && decP.confident) + ' reason=' + (decP && decP.reason)
+      );
 
       /* IT MUST NOT DECIDE. `skewApplied` shifts real event times off `findings[].offsetSec`; a
          corroborating observer that quietly started steering that would be a behaviour change wearing
