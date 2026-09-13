@@ -391,7 +391,10 @@ These are the real-validation front. Each names the **stack dependency** so sequ
     and **99 EDF + 5136 annotation XML are on disk** at `/srv/data/shhs/polysomnography/`, all 99 ids
     paired. The DUA question is settled; the remaining gate is the owner's SEPARATE condition that NSRR
     stays closed until the brief drain completes (**unmet: 73 open vs a ≤20 target**). So this item is no
-    longer cancelled-for-want-of-data — it is owner-gated. Inventory, boundaries and pre-stated bands:
+    longer cancelled-for-want-of-data — it is owner-gated.
+
+    ⊗ **THE DRAIN CONDITION IS CANCELLED — owner, 2026-09-12.** *"im canceling this condition now. proceed with it."* The owner's separate condition that **NSRR stays closed until the brief drain completes** is WITHDRAWN and is no longer a gate on anything. It was never met — 52 open against a ≤20 target at cancellation, down from the 73 recorded above — and the brief count is now irrelevant to NSRR work. **Do not re-derive it, do not re-measure the open-brief count as an NSRR precondition, and do not treat a high brief count as blocking this lane.** The only gate remaining on this work is `STRATEGIC-PRIORITIES` §P5, which covers **publication, not measurement** (owner ruling the same day). The staging arm is EXECUTED (#2423): 99/99 records scored, REM recall
+    32 % median. Inventory, boundaries and pre-stated bands:
     `SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`. ⚠ It measures **PPG 0/99**, so the staging arm scoped
     here is reachable while nothing PPG-derived is.
   - **Carry the domain-shift caveat:** NSRR is clinical PSG on a clinical population, not a consumer
