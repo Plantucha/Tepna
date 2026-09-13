@@ -19,7 +19,20 @@
     "sessions": 1,
     "events": 0,
     "site": "wrist",
-    "siteSource": "device-default"
+    "siteSource": "device-default",
+    "hostAxis": {
+      "anchors": 11,
+      "ppm": -11.002189437793822,
+      "maxStepMs": 0,
+      "totalMs": -0.40740700000060315,
+      "independent": false,
+      "spreadMs": 0.9259260000035283,
+      "inertReason": "host ≡ device — residual spread 0.93 ms ≤ 2 ms (one stamp quantum); this host column is not an independent clock",
+      "drawn": false,
+      "quantizedShare": 0.5925171328023708,
+      "timingSource": "device",
+      "stability": null
+    }
   },
   "ganglior_events": [],
   "reserved": {

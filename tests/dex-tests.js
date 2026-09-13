@@ -52778,6 +52778,81 @@
       T.ok('the block is conditional on an axis existing', /if \(r\.hostAxis && r\.hostAxis\.ok\)/.test(P), 'guarded emission');
       /* ANTI-VACUITY: the field list must be non-empty, or every assertion above passes trivially. */
       T.ok('the discriminator set is non-empty (the gate is not vacuous)', need.length >= 4, need.length + ' fields required of both');
+
+      /* ── …AND THE BLOCK MUST ACTUALLY RUN. Everything above reads SOURCE TEXT ────────────────────
+         Every assertion in this group greps `ppgdex-dsp.js` for the emitter and checks its field list,
+         which proves the block is WRITTEN and says nothing about whether it EXECUTES. Measured: it
+         never did. `ppgBuildNodeExport` gates on `r.hostAxis && r.hostAxis.ok`, and `analyze` returned
+         `timingSource`/`axisDrawn`/`axisQuantizedShare` — three scalars PROJECTED out of the axis — but
+         not the axis object, so `r.hostAxis` was `undefined` on every `compute()` and the condition was
+         unreachable. The source gate passed throughout, because a grep proves occurrence, not
+         reference. This leg runs the shipped entry point instead. */
+      var PD = env.PPGDSP;
+      if (PD && typeof PD.compute === 'function' && typeof PD.parsePPG === 'function') {
+        // Two clocks ~40 ms apart ⇒ hostAxis.ok AND independent — the case the block exists to report.
+        var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'],
+          dMs = 0,
+          stp = 1000 / 135;
+        for (var q = 0; q < 1600; q++) {
+          dMs += stp + (((q * 7919) % 1000) / 1000 - 0.5) * 1.8;
+          var nz2 = (((q * 6271) % 1000) / 1000 - 0.5) * 80;
+          rows.push(
+            new Date(Date.UTC(2026, 6, 1) + Math.round(dMs + nz2)).toISOString().replace('T', ' ').replace('Z', '') +
+              ';' +
+              Math.round(dMs * 1e6) +
+              ';' +
+              (1000 + q) +
+              ';' +
+              (2000 + q) +
+              ';' +
+              (3000 + q) +
+              ';' +
+              (400 + q)
+          );
+        }
+        var txt2 = rows.join('\n');
+        var recA = PD.parsePPG(txt2);
+        // ANTI-VACUITY: if the axis does not resolve, the emitter is right to stay silent and this
+        // leg would pass against the defect. Assert the PRECONDITION before asserting the emission.
+        T.ok(
+          'ANTI-VACUITY · the synthetic really does resolve an axis, so the block is owed',
+          !!(recA && recA.hostAxis && recA.hostAxis.ok === true),
+          'hostAxis.ok=' + (recA && recA.hostAxis && recA.hostAxis.ok)
+        );
+        if (recA && recA.hostAxis && recA.hostAxis.ok === true) {
+          var expA = PD.compute(txt2, { rich: true });
+          var ha = expA && expA.recording && expA.recording.hostAxis;
+          T.ok(
+            'RUNTIME · compute() actually EMITS recording.hostAxis — the block is reachable',
+            !!ha,
+            ha ? 'emitted' : 'ABSENT — written but never executed, which every source assertion above still passes'
+          );
+          if (ha) {
+            /* The fields NO scalar carries. `timingSource`/`axisDrawn`/`axisQuantizedShare` survived
+               the drop because each was projected out separately; these did not, and `independent` is
+               §7's discriminator for whether a second clock exists at all. */
+            T.ok(
+              'RUNTIME · it carries the measurements the scalars cannot express',
+              typeof ha.ppm === 'number' && typeof ha.anchors === 'number' && typeof ha.spreadMs === 'number',
+              JSON.stringify({ ppm: ha.ppm, anchors: ha.anchors, spreadMs: ha.spreadMs })
+            );
+            T.eq('RUNTIME · …including the independence verdict, strictly boolean', ha.independent, true);
+          }
+        }
+        /* THE OTHER DIRECTION — the emission stays CONDITIONAL. A record with no resolvable axis must
+           omit the key entirely rather than gain a wall of nulls; that is what keeps committed exports
+           byte-identical, and a "fix" that emitted unconditionally would pass every assertion above. */
+        var shortTxt = rows.slice(0, 60).join('\n');
+        var recB = PD.parsePPG(shortTxt);
+        if (recB && !(recB.hostAxis && recB.hostAxis.ok)) {
+          var expB = PD.compute(shortTxt, { rich: true });
+          T.ok(
+            'RUNTIME · a record with no resolvable axis omits the key (absent, not null-filled)',
+            !(expB && expB.recording && 'hostAxis' in expB.recording),
+            'too few anchors to resolve an axis ⇒ no block'
+          );
+        }
+      }
     });
     group('An ABSENT value is not a measured zero — the || 0 fleet pattern (DEEP-AUDIT-IV §3)', 'oxydex-dsp · oxydex-render · integrator-dsp · fabricated-absence', function (T) {
       var src = env.sources || {};
