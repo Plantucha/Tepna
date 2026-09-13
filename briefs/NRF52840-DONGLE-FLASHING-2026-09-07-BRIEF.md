@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** REFERENCE (living — last-verified 2026-09-12: the image is now `hci_uart` over USB CDC ACM, TX +20 dBm at the antenna, public address derived in firmware (`F4:CE:36:` + FICR); `hciuart-txpwr20-pub.zip` flashed to all three units, `F4:CE:36:` addresses verified on rig-x870; on-box TX/RSSI check + Polar re-pair pending — §0b) · **Created:** 2026-09-07
+**Status:** REFERENCE (living — last-verified 2026-09-12: the image is now `hci_uart` over USB CDC ACM, TX +20 dBm at the antenna, public address derived in firmware (`F4:CE:36:` + FICR); `hciuart-txpwr20-pub.zip` flashed to all three units, `F4:CE:36:` addresses verified on rig-x870; units #1 + #2 live on vigil as hci0/hci3 via `tepna-btattach@` and hci0's ADV decoded on hci3 (−17/−18 dBm, near-field — see done-when); Polar re-pair pending — §0b) · **Created:** 2026-09-07
 
 # nRF52840 dongle flashing — the runbook for the NEXT adapter (Zephyr `hci_uart` over CDC ACM + SoftDevice Controller, fixed MAC)
 
@@ -435,7 +435,20 @@ a new write path to any device; the ring, the CPAP, and the Polars are talked to
       and came back with identical addresses after `btattach` by USB serial. ⚠️ `btattach` does NOT exit when its tty
       vanishes — six stale ones were found holding dead ttys; `pkill -x btattach` before re-attaching, and attach by
       `/dev/serial/by-id/usb-Zephyr_Project_Zephyr_HCI_UART_anchor_np_<app serial>-if00`, never by index
-- [ ] the dongle's own advertisement heard on vigil's second adapter at ≥ −55 dBm (0 dBm image: −86)
+- [x] the dongle's own advertisement heard on vigil's second adapter at ≥ −55 dBm (0 dBm image: −86) —
+      **measured 2026-09-12 21:23, on the box:** units #1 (`B1BAA52EE6EDB771` → `hci0 F4:CE:36:2E:CD:98`) and
+      #2 (`9D08E454B242A0BF` → `hci3 F4:CE:36:6B:A4:4E`) brought up by `tepna-btattach@` from
+      `/etc/tepna/btattach.map` (`--check`: 2 controllers, 0 problems; the `0xFC06` write is a same-value no-op
+      under `-pub`); `hciconfig hci0 leadv 3`, passive `lescan` on hci3, 45 s `tepna-btmon.sh` capture
+      (`probe-txcheck-hci3-20260912T212337.btsnoop`): **28 reports from hci0, RSSI −17/−18 dBm** (19 × −18,
+      9 × −17), 6032 reports total in the window. ⚠️ Passes the letter of the line but does NOT reproduce the
+      −86 baseline's geometry: the listener is the sibling dongle in the ADJACENT USB port (cm apart, near
+      field), not the adapter the −86 was read on. What it proves is that the `-pub` image transmits and is
+      decoded by a second radio on the box; the +20 dBm gain is only demonstrable by the Polars connecting from
+      the bed (next item). Two box-side lessons: (1) under the `!` prefix a `printf … | sudo tee <file>` write
+      is LOST — the pipe's stdin goes to sudo — write with `sudo sh -c "printf … > <file>"`; (2) a dongle in a
+      socket the kernel never enumerates logs NOTHING (no descriptor error) — `lsusb` count is the check, and a
+      reseat fixed it
 - [x] the other two units (`D967242ECD98`, `E1BFD58009C0`) flashed with the same zip and §8 updated
       with measured addresses — all three match the derivation exactly
 - [ ] Polars re-paired to the new address on vigil (owner) and a two-peripheral concurrent connect
