@@ -2046,6 +2046,33 @@ CLOCK_TOLERANCE_S = 2.0
 # blind spot every five minutes. Prove it cannot be fixed, then stop and say so. A real JUMP still
 # re-syncs however many times we have given up on the steady offset.
 CLOCK_ADRIFT_GIVEUP = 3
+
+# 🔴 `clock_skew_sec` IS NOT A CLOCK OFFSET — IT IS THE OFFSET PLUS THE DELIVERY LATENCY.
+# It is computed as `device_stamp - _utcnow()` at the moment a PMD frame LANDS, so it carries the
+# packet fill time, BLE buffering and any link stall on top of whatever the clock is really doing.
+# Latency is one-sided (it can only delay a frame, never advance it), so the reading is biased in one
+# direction and a stalled link is indistinguishable from a drifting clock at a single sample.
+#
+# Measured on vigil over the 14 days to 2026-09-13: 341 adrift re-syncs fired (302 H10, 39 Verity) and
+# EVERY ONE was negative — the sign latency produces — with an H10 median of -3.6 s against a true link
+# delay of ~0.23 s measured off the PMDARRIVAL sidecars. The triggers came a median 330 s apart, i.e.
+# on every single watchdog cycle, peaking at 74 in one day.
+#
+# THE ARITHMETIC THAT SETTLES IT: this same H10's crystal measures -20.3 ppm, so 330 s of real drift is
+# 6.7 ms. Returning to -2.0 s within one cycle of a successful clock write would take ~-6700 ppm, three
+# hundred times a crystal's rate. A clock cannot do that; a stalled link does it constantly. So the
+# quantity crossing the tolerance is the LATENCY term, and re-syncing cannot move it — each attempt only
+# pauses live capture and holds the connect lock.
+#
+# So the watchdog acts on a WINDOW, not a sample. Because `skew = offset - latency` with `latency >= 0`,
+# the MAXIMUM over the window is the least-contaminated estimate of the offset — the same lower-envelope
+# reasoning `clock_offset.estimate` already uses on the arrival sidecars, in the opposite sign
+# convention (there `delay = -skew`, so its minimum is this maximum).
+CLOCK_SKEW_WINDOW_S = 300.0   # one drift_check_sec at the default — the interval the verdict covers
+CLOCK_SKEW_MIN_N = 8          # below this the window has not measured an envelope; refuse, never guess
+_CLOCK_SKEW_CAP = 4096        # per-device ring bound; ~4 min of ECG+ACC frames, far more than the window
+# name -> [(monotonic_s, skew_s), ...] most recent last. Keyed by NAME because STATUS is.
+_CLOCK_SKEW_SAMPLES: dict[str, list] = {}
 CHARGE_RETRY_S = 60          # how often to re-attempt PMD START while a device sits on the charger
 _CHARGING: set[str] = set()  # devices currently refusing PMD with in_charger (log-once bookkeeping)
 
@@ -2240,6 +2267,36 @@ def absent_stamp_should_log(n, first=1, every=ABSENT_STAMP_LOG_EVERY) -> bool:
     volume. A count that survives is strictly better evidence about rate than 4589 lines that do not.
     """
     return n == first or (n - first) % every == 0
+def clock_skew_record(window, now_mono, skew, cap=_CLOCK_SKEW_CAP):
+    """PURE: append one reading to a device's skew window and keep it bounded. Returns the window.
+
+    Extracted from the PMD callback rather than inlined so the BOUND is reachable in a test at a small
+    `cap` — at the real 4096 it would take a four-minute fixture to exercise, which is how a ring buffer
+    ends up shipping untested. Trims from the FRONT: the window is a recent-history statistic, so the
+    oldest readings are the ones that must go.
+    """
+    window.append((now_mono, skew))
+    if len(window) > cap:
+        del window[:-cap]
+    return window
+
+
+def clock_skew_estimate(samples, now_mono, window_s=CLOCK_SKEW_WINDOW_S, min_n=CLOCK_SKEW_MIN_N):
+    """PURE: the latency-robust device-clock offset over a window, or None if it was not measured.
+
+    `samples` is `[(monotonic_s, skew_s), ...]`. Returns `{"skew", "n"}` using the MAXIMUM skew in the
+    window, because `skew = offset - latency` and latency is one-sided: every sample is the offset
+    minus something non-negative, so the largest is the closest to the offset. This recovers the offset
+    for either sign — a device 5 s AHEAD reads `5 - latency` and maxes toward +5.
+
+    **Refuses below `min_n`.** A window with two frames in it has not seen an envelope; returning its
+    maximum would be a single latency-contaminated read wearing the shape of a statistic, which is the
+    defect this function exists to remove. Absent is None, never a number (§∅).
+    """
+    fresh = [v for t, v in samples if now_mono - t <= window_s]
+    if len(fresh) < min_n:
+        return None
+    return {"skew": max(fresh), "n": len(fresh)}
 
 
 def clock_sync_due(is_polar, enabled, charging, first_attempt) -> bool:
@@ -2849,9 +2906,23 @@ async def run_polar(dev: dict, root: str):
                         # callback, but it makes a PERSISTENT writer failure invisible: a dead sidecar
                         # would look exactly like a quiet night. A count that stops advancing while
                         # samples keep arriving is the tell, and it costs one field.
+                        _skew = round((dev_dt - _utcnow()).total_seconds(), 2)
+                        # THE WINDOW, not just the latest sample. `_skew` carries this frame's delivery
+                        # latency (see CLOCK_SKEW_WINDOW_S), so `clock_watchdog` reads the envelope over
+                        # the last CLOCK_SKEW_WINDOW_S instead of whatever the most recent packet
+                        # happened to cost. `clock_skew_sec` stays exactly as it was — it is the live
+                        # per-frame reading the web monitor shows, and demoting it would change a
+                        # displayed value to fix a decision.
+                        _win = clock_skew_record(_CLOCK_SKEW_SAMPLES.setdefault(name, []),
+                                                 _time.monotonic(), _skew)
+                        _est = clock_skew_estimate(_win, _time.monotonic())
                         _set(name, device_time=dev_dt.isoformat(timespec="seconds"),
                              arrival_rows=(arr_wr.rows if arr_wr is not None else None),
-                             clock_skew_sec=round((dev_dt - _utcnow()).total_seconds(), 2))
+                             clock_skew_sec=_skew,
+                             # None until the window has min_n samples — the watchdog then declines to
+                             # act rather than acting on an unmeasured quantity.
+                             clock_skew_floor_sec=(None if _est is None else round(_est["skew"], 2)),
+                             clock_skew_n=(0 if _est is None else _est["n"]))
                     except Exception:  # pragma: no cover — sensor_ns is an unsigned 64-bit int, so
                         pass           # _POLAR_EPOCH + timedelta(µs=ns/1000) is bounded far inside
                                        # datetime's range and cannot raise; the guard is belt-and-braces.
@@ -6031,7 +6102,12 @@ async def clock_watchdog(cfg: dict, root=None):
             if d.get("vendor") != "Polar" or not name or not addr:
                 continue
             st = STATUS["devices"].get(name, {})
-            skew = st.get("clock_skew_sec")
+            # THE ENVELOPE OVER A WINDOW, NOT THE LAST FRAME. `clock_skew_sec` is the offset plus that
+            # one frame's delivery latency, and on this box the latency term alone cleared the 2.0 s
+            # tolerance 341 times in 14 days on clocks that were fine (see CLOCK_SKEW_WINDOW_S for the
+            # measurement and the ppm arithmetic that rules out drift). `clock_skew_floor_sec` is the
+            # maximum over the window, which is the least latency-contaminated sample in it.
+            skew = st.get("clock_skew_floor_sec")
             # A FRESH SYNC FORGIVES THE HISTORY. run_polar re-syncs on every reconnect and records the
             # address here on success; the give-up bookkeeping below is task-local, so without this
             # drain a device written off while docked would stay `clock_uncorrectable` for the whole
@@ -6040,8 +6116,21 @@ async def clock_watchdog(cfg: dict, root=None):
             if addr in _CLOCK_FRESHLY_SYNCED:
                 _CLOCK_FRESHLY_SYNCED.discard(addr)
                 gave_up.discard(addr)
-                failed_adrift[addr] = 0
-                tried_adrift.pop(addr, None)
+                # 🔴 A SUCCESSFUL WRITE IS NOT A SUCCESSFUL CORRECTION, and zeroing the budget here
+                # confused the two. `failed_adrift` counts corrections that DID NOT MOVE the skew, and
+                # it is the only thing that can stop an unfixable device being re-synced forever — so
+                # discharging it on the mere act of writing means the give-up can never be reached.
+                # Measured on vigil over the 14 days to 2026-09-13: 341 adrift re-syncs fired and the
+                # give-up fired **0 times**, because the H10 reconnects constantly (445 `connected`
+                # events, 5689 link timeouts) and every reconnect's ladder sync landed here and reset
+                # the count before it could reach CLOCK_ADRIFT_GIVEUP.
+                #
+                # The documented intent — a device written off while DOCKED must recover when it comes
+                # off — is preserved and is now measurement-driven rather than act-driven: `gave_up` is
+                # still discharged so it is re-evaluated, and `tried_adrift` below makes the NEXT cycle
+                # judge the write by whether the skew actually came back into tolerance, which is the
+                # same verdict path every other correction goes through.
+                tried_adrift[addr] = True
                 seen.pop(addr, None)
             # A DOCKED DEVICE CANNOT TAKE A CLOCK WRITE. Re-syncing one only burns the give-up budget
             # and ends with it permanently marked uncorrectable — the exact failure observed on the
