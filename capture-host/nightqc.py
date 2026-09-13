@@ -551,7 +551,7 @@ def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
     judged at all rather than judged wrong. A device with no configured rate is likewise unjudged,
     which is the correct answer for a sensor this suite has never seen.
     """
-    out = []
+    out: list = []
     try:
         names = sorted(os.listdir(night_dir))
     except OSError:
@@ -1210,7 +1210,7 @@ def arrival_quality(night_dir: str) -> list[dict]:
     The ring is unaffected: its writer passes the same `_dur_ns` as both first and last.
     """
     import csv as _csv
-    out = []
+    out: list = []
     try:
         names = [n for n in sorted(os.listdir(night_dir)) if n.endswith("_PMDARRIVAL.csv")]
     except OSError:

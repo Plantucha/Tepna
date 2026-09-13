@@ -115,9 +115,31 @@ cannot re-admit it.
 
 ## Done when
 
-- [ ] `docs-ledger` resolves backticked `*-BRIEF.md` names on the `**Status:**` line against the brief set.
-- [ ] A self-test plants a dangling header ref and asserts the group REDS (the house discipline: a check
+**All three met — re-verified against the tree 2026-09-13, item by item, not read off §4a.** The
+assertions were located by name in `tests/dex-tests.js` AND observed to RUN green, which are different
+claims: `check7` scanned **537 header refs across 508 briefs** in that run.
+
+- [x] `docs-ledger` resolves backticked `*-BRIEF.md` names on the `**Status:**` line against the brief set.
+      — `check7`, `tests/dex-tests.js`.
+- [x] A self-test plants a dangling header ref and asserts the group REDS (the house discipline: a check
       verified only by passing on clean input is a check that has never been shown to fail).
-- [ ] The false-positive boundary is pinned by a test carrying `ESM-MIGRATION-YYYY-MM-DD-BRIEF.md` in
+      — `self-test · check7 FIRES on a dangling header ref`, with its anti-vacuity twin
+      `…RESOLVES a real header ref (the plant above is not firing on everything)`.
+- [x] The false-positive boundary is pinned by a test carrying `ESM-MIGRATION-YYYY-MM-DD-BRIEF.md` in
       PROSE and asserting the group stays GREEN — otherwise a later "improvement" widens the scope and
       re-admits it.
+      — `self-test · check7 IGNORES a template name in PROSE below the header (scope pin)`.
+
+### Residue of this verification — the SAME hole, one cell over (2026-09-13)
+
+A DOCS-INDEX row states its status **twice**: the trailing `*(DONE …)*` marker `check3b` compares, and
+the description cell's opening bold word, which is the first and most prominent thing a reader scanning
+"what is open?" sees. Nothing checked the second. Measured at `dfb29983`: **15 rows whose trailing
+marker AGREED with the header while the opening disagreed** — eleven DONE briefs announced as PROPOSED
+at the head of their own row, **this brief among them**, whose entire subject is a header status fact
+that nothing resolves.
+
+Fixed and gated in the same pass as `check3c`, scoped to the executable statuses only: a row opening
+`**REFERENCE — the standing PAT verdict …**` labels what the DOCUMENT IS rather than claiming a
+lifecycle state, and widening the rule to all five would rewrite a role label into a status. That
+boundary is pinned by a self-test, not merely described — the same discipline §5 applied to `check7`.

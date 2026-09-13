@@ -26929,6 +26929,17 @@
         return m ? m[1] : null;
       }
       var idxLines = indexText.split('\n');
+      /* The DESCRIPTION cell's opening status word, or null when the row opens with anything else.
+         EXECUTABLE statuses only — see check3c's scope note. */
+      function descOpeningStatus(line) {
+        var cells = line.split('|');
+        for (var i = 0; i < cells.length; i++) {
+          var m = cells[i].trim().match(/^\*\*(DONE|PROPOSED|IN-PROGRESS)\b/);
+          if (m) return m[1];
+          if (/^\*\*/.test(cells[i].trim())) return null; // a bold opener that is not an executable status
+        }
+        return null;
+      }
       var statusMismatch = [];
       var statusBlind = [];
       /*  DOCS-LEDGER-CHECK3B-BLIND-ROW — check3b used to report "in sync" about rows it never read.
@@ -26972,6 +26983,52 @@
           if (m[1] !== hs) statusMismatch.push(n + ' [index ' + m[1] + ' ≠ header ' + hs + ']');
         });
       });
+      /* ── CHECK 3c · THE ROW STATES ITS STATUS TWICE, AND check3b READS ONLY ONE OF THEM ──────────
+         A DOCS-INDEX row carries the status in two places: the trailing `*(DONE …)*` marker check3b
+         compares, and the DESCRIPTION cell's opening bold word — `**DONE — 2026-08-15 (executed as
+         #1227) — hostAxis publishes …**`. The opening is the MORE prominent of the two: it is the
+         first thing a reader scanning "what is open?" sees, and it is bold.
+
+         Nothing checked it. Measured 2026-09-13 at `dfb29983`: 15 rows whose trailing marker AGREED
+         with the header — so check3b was green, correctly — while the opening disagreed. Eleven DONE
+         briefs were announced as PROPOSED at the head of their own row, including
+         `DOCS-LEDGER-HEADER-REFS`, whose entire subject is a header status fact that nothing resolves.
+         Same defect as the brief that built check7, one cell over.
+
+         ⚠️ SCOPE: EXECUTABLE STATUSES ONLY (DONE | PROPOSED | IN-PROGRESS), the same scope check3b
+         uses. `REFERENCE` and `CHECKPOINT` are also status words, but a description opening
+         `**REFERENCE — the standing PAT verdict …**` is labelling what the DOCUMENT IS, not claiming a
+         lifecycle state, and both such rows sit on briefs that are DONE and superseded. Widening this
+         to all five would rewrite a role label into a status and destroy meaning — a rule convicting
+         deliberate practice. The boundary is pinned below, not merely described. */
+      var descMismatch = [];
+      names.forEach(function (n) {
+        var hs = headerStatus(DL.briefs[n]);
+        if (hs !== 'DONE' && hs !== 'PROPOSED' && hs !== 'IN-PROGRESS') return;
+        idxLines.forEach(function (line) {
+          if (line.indexOf('](briefs/' + n + ')') < 0) return;
+          if ((line.match(/\]\(briefs\//g) || []).length > 1) return; // multi-brief row → shared cell
+          var opener = descOpeningStatus(line);
+          if (opener && opener !== hs) descMismatch.push(n + ' [row opens ' + opener + ' ≠ header ' + hs + ']');
+        });
+      });
+      T.ok(
+        'check3c · a DOCS-INDEX row that OPENS with a status states the header’s status',
+        descMismatch.length === 0,
+        descMismatch.length ? descMismatch.slice(0, 8).join('; ') + '  → copy the header word into the row opening' : names.length + ' brief(s) scanned'
+      );
+      /* THE PLANTED CONTROL — this check passes on clean input by design once the 15 are fixed, so
+         without a plant it is indistinguishable from one that examines nothing. */
+      T.eq('self-test · check3c FIRES on a row that opens with the wrong status', descOpeningStatus('| [`X`](briefs/X.md) | **PROPOSED — a thing** | Brief *(DONE)* |'), 'PROPOSED');
+      /* THE SCOPE BOUNDARY, pinned so a later "improvement" cannot widen it and start rewriting role
+         labels: a REFERENCE/CHECKPOINT opening is NOT read as a status claim. */
+      T.eq(
+        'self-test · check3c IGNORES a REFERENCE opening — that is a role label, not a status',
+        descOpeningStatus('| [`X`](briefs/X.md) | **REFERENCE — the standing PAT verdict** | Brief *(DONE)* |'),
+        null
+      );
+      T.eq('self-test · …and ignores a plain bold description that merely starts with a capital', descOpeningStatus('| [`X`](briefs/X.md) | **The cross-night projection** | Brief *(DONE)* |'), null);
+
       T.ok(
         'check3b · DOCS-INDEX row status ≡ brief header status (header is source of truth)',
         statusMismatch.length === 0,
@@ -29561,6 +29618,97 @@
       var same = true;
       for (var c = 0; c < rr3.length; c++) if (Math.abs(r3.nn[c] - rr3[c]) > 1e-9) same = false;
       T.ok('a clean series passes through UNCHANGED (nCorr = 0)', same && r3.nCorr === 0);
+    });
+
+    group('PpgDex clean-interval mask is in the KEPT frame, not the input one (E2E P2)', 'ppgdex-dsp · known-answer · regression', function (T) {
+      /* THE DEFECT THIS REPRODUCES. Since punch list #2 (#2333) `correctRR` DROPS a rejected interval
+         instead of filling it in place, so `nn` is a SUBSET of the intervals handed in while `flags`,
+         the per-beat `sqi` and the gap-straddle test stay in the INPUT frame. `analyze` went on reading
+         those input-frame arrays at `nn`'s index — exact up to the first rejection and shifted by one
+         more per rejection after it. On a real night at a ~29 % correction rate that means most of the
+         pairs feeding rMSSD / SD1 / LF:HF were judged by a NEIGHBOUR's quality, and the gap-straddle
+         test ran over the first `nn.length` input intervals only.
+
+         There is nothing to compare against here — the shift produces a plausible mask either way — so
+         these assert the ALIGNMENT ITSELF, which a shifted implementation cannot satisfy. */
+      var D = env.PPGDSP;
+      if (!D || typeof D.correctRR !== 'function' || typeof D.timeDomain !== 'function') {
+        T.ok('PPGDSP.correctRR + timeDomain exported', false, 'export them from ppgdex-dsp.js');
+        return;
+      }
+      /* THE FIRST INTERVAL IS THE REJECTED ONE — deliberately. A rejection anywhere shifts the frames,
+         but one at index 0 shifts EVERY kept interval, so a mask read at the wrong index is wrong for
+         the whole series rather than for a tail. A planted rejection later in the series leaves a
+         correct prefix, which is exactly how this survived review. */
+      var rr = [],
+        tt = [],
+        t = 0;
+      for (var i = 0; i < 40; i++) {
+        var v = i === 0 ? 250 : i === 20 ? 400 : 1000 + (i % 5) * 8; // 250 ms and 400 ms are both refused
+        rr.push(v);
+        t += v / 1000;
+        tt.push(t);
+      }
+      var c = D.correctRR(rr, tt);
+      T.ok('ANTI-VACUITY · the plants are actually refused, so the two frames really differ', c.nCorr === 2 && c.nn.length === rr.length - 2, 'nCorr=' + c.nCorr + ' kept=' + c.nn.length);
+      T.eq('keptIdx has one entry per KEPT interval', c.keptIdx.length, c.nn.length);
+      T.eq('flags stays INPUT-aligned — one entry per interval handed in', c.flags.length, rr.length);
+      /* THE CONTRACT: keptIdx[j] is nn[j]'s index in the input frame. Two independent checks, because
+         a monotone index that is off by a constant would pass the first alone. */
+      var mono = true,
+        pointsAtKept = true,
+        valuesMatch = true;
+      for (var j = 0; j < c.keptIdx.length; j++) {
+        if (j > 0 && !(c.keptIdx[j] > c.keptIdx[j - 1])) mono = false;
+        if (c.flags[c.keptIdx[j]] !== 0) pointsAtKept = false;
+        if (Math.abs(rr[c.keptIdx[j]] - c.nn[j]) > 1e-9) valuesMatch = false;
+      }
+      T.ok('keptIdx is strictly increasing', mono);
+      T.ok('every keptIdx entry lands on an UNFLAGGED input interval — the mask cannot be read off-by-one', pointsAtKept);
+      T.ok('…and on the interval whose VALUE was kept — index and value agree', valuesMatch);
+      T.eq('the very first kept interval is input #1, not #0 — the shift the old code took', c.keptIdx[0], 1);
+
+      /* A PAIR THAT BRIDGES A DROPPED INTERVAL IS NOT A BEAT-TO-BEAT PAIR. The two survivors sit side
+         by side in `nn` with nothing in the array to say a beat between them was never accepted, so
+         rMSSD/pNN50/SD1 would count their difference as successive. `adj` is that missing statement. */
+      var adj = c.keptIdx.map(function (ix, k) {
+        return k === 0 || ix === c.keptIdx[k - 1] + 1;
+      });
+      var nonAdj = adj.filter(function (a) {
+        return a === false;
+      }).length;
+      T.eq('exactly one bridged pair per dropped interval (the first drop has no predecessor)', nonAdj, 1);
+      var tdAll = D.timeDomain(c.nn, null, null),
+        tdAdj = D.timeDomain(c.nn, null, null, adj);
+      T.ok('rMSSD over adjacent pairs only differs from rMSSD over every pair — `adj` is WIRED, not inert', tdAll.rmssd !== tdAdj.rmssd, tdAll.rmssd + ' vs ' + tdAdj.rmssd);
+      /* …and it excludes rather than empties: a mask that refused everything would also change rMSSD. */
+      T.ok('the record survives the exclusion — rMSSD is still a number', tdAdj.rmssd != null && isFinite(tdAdj.rmssd));
+
+      /* END TO END through `analyze`, so a correct rule that stops being WIRED still reds. The §4
+         sentinel record below drops beats AND has correctRR reject intervals, so its two frames differ
+         by construction (117 in, 115 kept at the time of writing — asserted as a relation, not a
+         count, so beat-detection changes do not red this). */
+      if (typeof D.analyze === 'function' && typeof D.parsePPG === 'function') {
+        var FS = 125.7,
+          DUR = 120,
+          NS = Math.round(FS * DUR);
+        var txt = 'Phone timestamp;sensor timestamp [ns];channel 0\n';
+        var t0 = Date.UTC(2026, 6, 25, 1, 0, 0);
+        for (var s = 0; s < NS; s++) {
+          var ts = s / FS,
+            ph = ts % 1.0;
+          var val = 1000 + 200 * Math.exp(-Math.pow((ph - 0.18) / 0.07, 2)) + 60 * Math.exp(-Math.pow((ph - 0.42) / 0.11, 2));
+          if ((ts > 39.85 && ts < 40.15) || (ts > 74.85 && ts < 75.15)) val = 156;
+          txt += new Date(t0 + Math.round(ts * 1000)).toISOString().replace('Z', '') + ';' + Math.round(ts * 1e9) + ';' + Math.round(val) + '\n';
+        }
+        var r = D.analyze(D.parsePPG(txt));
+        T.ok('ANTI-VACUITY · the exported record really has rejections, so alignment is testable', r.ppiFlags.length > r.nn.length, 'in=' + r.ppiFlags.length + ' kept=' + r.nn.length);
+        T.eq('export · ppiKeptIdx is nn-length', r.ppiKeptIdx.length, r.nn.length);
+        T.eq('export · ppiClean is nn-length — the mask describes the series that shipped', r.ppiClean.length, r.nn.length);
+        var allKept = true;
+        for (var m = 0; m < r.ppiKeptIdx.length; m++) if (r.ppiFlags[r.ppiKeptIdx[m]] !== 0) allKept = false;
+        T.ok('export · every ppiKeptIdx entry lands on an unflagged input interval', allKept);
+      }
     });
 
     group('PpgDex resolves the REAL-HARDWARE polarity — an invariant, not a recorded answer (PPG-FOOT-PLACEMENT §0)', 'ppgdex-dsp · orientation · committed-input', function (T) {
@@ -45895,7 +46043,19 @@
          0.00 %, 0.00 % and 6.25 % of their intervals against the ~28.8 % this fix targets. So the
          corpus cannot show the change and this seeded known-answer is the one witness it has —
          which is why `ppgdex-dsp · correctrr-excludes` carries a 29 %-rejected twin as well. */
-      T.eq('PpgDex rMSSD known-answer (seed 12345) — fill removed, see #2', res.ppgRmssd, 41.5);
+      /* ↻ 41.5 → 41.4, clean-mask kept-frame fix (2026-09-13). Same lineage one step on: the fix above
+         made `nn` a SUBSET of the intervals handed to `correctRR`, and the clean-interval mask went on
+         being read at `nn`'s index in the INPUT-frame arrays (`flags`, per-beat SQI, gap straddle), so
+         from the first rejection onwards each pair was judged by a NEIGHBOUR's quality. Two populations
+         were wrongly admitted to rMSSD and both inflate it: a pair whose real endpoint SQI is below the
+         cut, and a pair BRIDGING a dropped interval (its successive difference spans a beat that was
+         never accepted, so it reads ~2x). Excluding them must therefore LOWER rMSSD, and it fell.
+         ⚠️ Still the only committed witness, for the reason the block above gives — the committed
+         inputs reject 0.00 / 0.00 / 6.25 % of their intervals, so no golden can express this. Measured
+         on a real 7 h Verity night (2026-08-17, 22706 NN): rMSSD 36.6 → 34.8, SD1 25.9 → 24.6, SDNN
+         unchanged (whole-record, not pair-based) and `nn` byte-identical — the fix changes which pairs
+         COUNT, never which intervals are kept. */
+      T.eq('PpgDex rMSSD known-answer (seed 12345) — fill removed, see #2; mask now kept-frame', res.ppgRmssd, 41.4);
       T.ok('the worker reported no per-detector errors', res.errors && Object.keys(res.errors).length === 0, JSON.stringify(res.errors));
 
       // a worker changes WHEN the work runs, never WHAT — a second reconstruction is byte-identical
