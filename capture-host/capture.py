@@ -1766,12 +1766,18 @@ def failover_target(pinned_mac: str | None, adapters: list[dict], reserved=()) -
 
 
 async def list_adapters() -> list[dict]:
-    """Enumerate BLE controllers via `hciconfig -a` → parse_hciconfig. [] on ANY failure — a failover
+    """Enumerate BLE controllers via `hciconfig` → parse_hciconfig. [] on ANY failure — a failover
     onto an adapter we could not confirm UP is worse than staying put on the wedged one, so an
     unconfirmable spare is no spare."""
     try:
+        # PLAIN `hciconfig`, NOT `-a`. `-a` additionally issues the BR/EDR `Read Local Name` per controller
+        # and ABORTS THE WHOLE LISTING on the first failure — an LE-only Zephyr/SDC dongle answers it with
+        # I/O error 5, so on a box carrying one, `hciconfig -a` printed exactly ONE controller (the first
+        # Zephyr it met) and this function offered no other spare to fail over to. Measured 2026-09-12 on
+        # vigil: `-a` → hci3 alone; plain → hci0..hci3, all `UP RUNNING`. Everything parse_hciconfig reads
+        # (`hciN:`, `BD Address:`, `UP RUNNING`) is in the plain output.
         p = await asyncio.create_subprocess_exec(
-            "hciconfig", "-a", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+            "hciconfig", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
         out, _ = await proc_util.communicate(p, 8)   # bounds AND kills+reaps the child on timeout
         return parse_hciconfig(out.decode("utf-8", "replace"))
     except Exception as e:
@@ -5632,7 +5638,10 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
     wedge_restarts, wedge_day = 0, None      # per-device wedge budget, reset each day
     cpap_handoffs = 0                        # adapter-ladder handoffs after that budget is SPENT (1/day)
     max_failovers = int(wcfg.get("max_failovers", 3))   # P1.5: cap ping-pong between two flaky radios
-    sel = f"select {adapter_mac}\n" if adapter_mac else ""
+    # The BlueZ address, not the configured one: a Zephyr dongle is known to bluetoothctl by the
+    # static-random identity BlueZ gave it, and `select <kernel address>` falls through to the DEFAULT
+    # controller — a power-cycle aimed at the wedged radio would cycle a healthy one (bonding.bluez_address).
+    sel = await bonding.select_line(adapter_mac)
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         if _RECOVER.is_set() or _OXYII_PAUSE.is_set() or _POLAR_PAUSED:
@@ -5829,7 +5838,7 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                                 verdict={**(adapter_v.get("worst") or {}), "detail": adapter_v.get("detail")},
                                 device_label=", ".join(adapter_v.get("distressed") or []) or "(adapter)")
                             adapter_mac = spare
-                            sel = f"select {adapter_mac}\n"
+                            sel = await bonding.select_line(adapter_mac)
                             cycles = consecutive = 0
                             distress_fired = False   # fresh episode accounting on the new radio
                 else:
@@ -5878,7 +5887,7 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                                                                f"{max_cycles} power-cycle(s)"},
                                             device_label="(all wearables)")
                     adapter_mac = spare
-                    sel = f"select {adapter_mac}\n"
+                    sel = await bonding.select_line(adapter_mac)
                     cycles = consecutive = 0          # a fresh reset budget on the new radio
                     continue
                 if wcfg.get("exit_on_giveup"):

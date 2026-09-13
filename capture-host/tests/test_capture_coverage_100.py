@@ -15,6 +15,7 @@ fakes. No BLE hardware, no real subprocesses, no sleeping.
 """
 import asyncio
 import datetime as _dt
+import inspect
 import os
 import sys
 
@@ -450,6 +451,50 @@ def test_a_sustained_recovery_restores_the_power_cycle_BUDGET(monkeypatch, caplo
         [m for m in msgs if "power-cycl" in m or "STILL wedged" in m]
     assert not any("STILL wedged after" in m for m in msgs), \
         "the budget was not restored — one early wedge disarmed the ladder for the rest of the night"
+
+
+def test_the_watchdog_power_cycles_the_adapter_by_its_BLUEZ_address(monkeypatch):
+    """The watchdog's `select` line — before the loop and at both failover repoints — comes from
+    `bonding.select_line`, i.e. the address BlueZ lists for the pinned radio. Measured 2026-09-12: a
+    Zephyr dongle pinned by its kernel address made `select` print "Controller … not available" and
+    bluetoothctl carried on on the DEFAULT controller, so the power-cycle aimed at the wedged radio
+    cycled the healthy one. Driven: the resolver is stubbed to a distinct address and every
+    bluetoothctl script the cycle sends must select THAT, never the configured value."""
+    _wedge_rig(monkeypatch, adapter_up=False)
+    scripts = []
+
+    async def btctl(script, timeout=8):
+        scripts.append(script)
+        return ""
+    monkeypatch.setattr(capture.bonding, "_btctl", btctl)
+
+    async def resolved(adapter_mac):
+        assert adapter_mac == "99:67:24:2E:CD:98"
+        return "select DA:44:2D:51:0F:54\n"
+    monkeypatch.setattr(capture.bonding, "select_line", resolved)
+
+    async def fake_cmd(cmd):
+        return True
+    monkeypatch.setattr(capture, "_adapter_cmd", fake_cmd)
+
+    async def no_spare(*a, **k):
+        return []
+    monkeypatch.setattr(capture, "list_adapters", no_spare)
+    _stop_after(monkeypatch, 40)
+    capture._EXIT_CODE[0] = 0
+    cfg = {"devices": [_dev(name="H10")],
+           "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1,
+                        "exit_on_giveup": True}}
+    _run(capture.adapter_watchdog("99:67:24:2E:CD:98", cfg))
+    capture._EXIT_CODE[0] = 0
+    power = [s for s in scripts if "power off" in s or "power on" in s]
+    assert len(power) >= 2, scripts
+    assert all(s.startswith("select DA:44:2D:51:0F:54\n") for s in power), power
+    assert not any("99:67:24:2E:CD:98" in s for s in scripts), "the kernel address must never reach bluetoothctl"
+    src = inspect.getsource(capture.adapter_watchdog)
+    assert src.count("await bonding.select_line(adapter_mac)") == 3, \
+        "before the loop + both failover repoints — a hand-built select f-string is the defect returning"
+    assert 'f"select {adapter_mac}' not in src
 
 
 def test_the_last_power_cycle_escalates_to_hci_reset_and_a_usb_rebind(monkeypatch):
@@ -2077,6 +2122,25 @@ def test_list_adapters_parses_the_probe(monkeypatch):
     monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
     a = _run(capture.list_adapters())
     assert {x["hci"] for x in a} == {"hci0", "hci1"}
+
+
+def test_list_adapters_runs_PLAIN_hciconfig_not_dash_a(monkeypatch):
+    """`hciconfig -a` issues the BR/EDR `Read Local Name` per controller and aborts the whole listing on
+    the first failure. An LE-only Zephyr/SDC dongle answers it with I/O error 5, so on 2026-09-12 vigil's
+    `-a` listed exactly ONE of its four controllers and the failover rung had no spare to offer. Plain
+    `hciconfig` lists all four, with every field parse_hciconfig reads."""
+    argv = []
+
+    class _P:
+        async def communicate(self, stdin=None):
+            return (_HCI_TWO.encode(), b"")
+
+    async def fake_exec(*a, **k):
+        argv.append(a)
+        return _P()
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
+    assert len(_run(capture.list_adapters())) == 2
+    assert argv == [("hciconfig",)], argv
 
 
 def test_list_adapters_is_empty_when_hciconfig_is_missing(monkeypatch):
