@@ -45,6 +45,10 @@
       "bus": "ganglior",
       "clockSkew": {
         "applied": [],
+        "beatCheck": {
+          "pairs": [],
+          "reason": "fewer than two nodes carry a usable beat series"
+        },
         "findings": [],
         "fits": {
           "ECGDex": {
@@ -1901,6 +1905,10 @@
       "bus": "ganglior",
       "clockSkew": {
         "applied": [],
+        "beatCheck": {
+          "pairs": [],
+          "reason": "fewer than two nodes carry a usable beat series"
+        },
         "findings": [],
         "fits": {
           "ECGDex": {
@@ -2823,6 +2831,10 @@
       "bus": "ganglior",
       "clockSkew": {
         "applied": [],
+        "beatCheck": {
+          "pairs": [],
+          "reason": "fewer than two nodes carry a usable beat series"
+        },
         "findings": [],
         "fits": {},
         "pairs": []
@@ -2953,6 +2965,11 @@
                 "OxyDex": 32.336,
                 "PpgDex": 33.758
               },
+              "cornerIds": [
+                "ECGDex",
+                "PpgDex",
+                "OxyDex"
+              ],
               "culprit": "OxyDex",
               "diffVar": {
                 "AB": 12.298119834710745,

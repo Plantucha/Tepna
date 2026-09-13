@@ -5070,7 +5070,7 @@
          UNCHANGED), so ECG (σ²≈4) dominates and the reconciled value is pulled toward ECG's ~42, far
          below the arithmetic mean ~62. RED under `_acc += w*o.v; _ws += w` → `_acc += o.v; _ws += 1`
          (a plain mean → weightedMean === arithmetic ~62, no longer near the low-σ node). */
-      function mkOff(node, noiseStd, seed, offset) {
+      function mkOff(node, noiseStd, seed, offset, fname) {
         var nz = normals(seed, NE),
           eps = [];
         for (var i = 0; i < NE; i++) {
@@ -5091,7 +5091,7 @@
             ganglior_events: [{ t: '23:00:10', tMs: t0 + 10000, impulse: 'x', node: node, conf: 0.8 }]
           },
           node,
-          node + '.json'
+          (fname || node) + '.json'
         )[0];
       }
       // ECG cleanest (σ²≈4, whole≈42) · HRV medium (σ²≈25, whole≈52) · PPG noisiest (σ²≈196, whole≈92)
@@ -5113,6 +5113,64 @@
           wm < arith - 3 && wm < ecgV + 15,
           'wm=' + wm + ' ecg=' + ecgV + ' arith=' + arith.toFixed(1)
         );
+      }
+
+      /* F5 · TWO CORNERS OF THE SAME NODE MUST STILL CARRY WEIGHT (DEEP-AUDIT-V-FOLLOWUPS row 118).
+         `_cornerIds` disambiguates duplicates into "PpgDex <tag>", and `tch.weights` is keyed by THAT
+         label — so a lookup by bare `o.node` returned undefined for BOTH PpgDex corners and the
+         `if (w != null)` skipped them. The published inverse-variance RMSSD was then the remaining
+         corner VERBATIM. Measured on uploads/trio 07-19: weights {0.0385, 0.4808, 0.4808}, values
+         [45, 32.6, 31.7], published 31.7 (ECGDex's own) against an honest mean of 32.64.
+         RED before the identity re-key: weightedMean === the ECGDex value exactly. */
+      var cons5 = FC(
+        // DISTINCT filenames on purpose: `_cornerIds` disambiguates on deviceKey/file/fname, so two
+        // corners sharing one collapse to a SINGLE label and never reach the defect — the fixture
+        // would pass while testing nothing.
+        [mkOff('ECGDex', 2, 11, 0, 'ecg'), mkOff('PpgDex', 3, 44, 20, 'ppgFinger'), mkOff('PpgDex', 4, 55, 40, 'ppgWrist')],
+        1000
+      );
+      var blk5 = cons5 && cons5.blocks && cons5.blocks[0];
+      T.ok(
+        'F5: a two-corner node still produces a weighted mean',
+        !!(blk5 && blk5.tch && blk5.tch.ok && blk5.rmssd && blk5.rmssd.weightedMean != null),
+        'wm=' + (blk5 && blk5.rmssd && blk5.rmssd.weightedMean) + ' tchStatus=' + (blk5 && blk5.tchStatus) + ' nodes=' + (blk5 && blk5.rmssd && blk5.rmssd.values.length)
+      );
+      if (blk5 && blk5.rmssd && blk5.rmssd.weightedMean != null) {
+        var wm5 = blk5.rmssd.weightedMean;
+        var vals5 = blk5.rmssd.values.map(function (o) {
+          return o.v;
+        });
+        var isCorner = vals5.some(function (v) {
+          return Math.abs(v - wm5) < 1e-9;
+        });
+        T.ok('F5: …and it is NOT any single corner verbatim — both duplicates contributed', !isCorner, 'wm=' + wm5 + ' values=[' + vals5.join(', ') + ']');
+        /* ⚠ THE DISCRIMINATOR FOR F5 IS THE `verbatim` ASSERTION ABOVE, not the two below.
+           This slot first read `o.src != null` under the label "every corner resolved a weight" — a
+           SHAPE check wearing a contract's name. Replacing it with the identity lookup was no better
+           and is worth recording: PLANT-VERIFIED by restoring the original defect (resolve by bare
+           `o.node`), the lookup assertion still PASSED, because a test that performs the lookup
+           ITSELF observes only that the data is resolvable — never that the production consumer
+           resolved it. It is a PRECONDITION, labelled as one. Only the verbatim check reds (wm=47.3,
+           the first corner exactly). */
+        var _unresolvable = blk5.rmssd.values.filter(function (o) {
+          var i = blk5.tch.cornerSrcs ? blk5.tch.cornerSrcs.indexOf(o.src) : -1;
+          return !(i >= 0 && blk5.tch.weights[blk5.tch.cornerIds[i]] != null);
+        });
+        T.eq('F5: precondition — every published value is resolvable to a weight by identity', _unresolvable.length, 0);
+        T.eq('F5: precondition — all three corners are published, not a subset', blk5.rmssd.values.length, 3);
+        /* The identity wiring must NOT reach the published export: `src`/`cornerSrcs` hold whole
+           source RECORDS, so a plain field serialises every one of them into a ganglior.node-export.
+           Caught by the equivalence gate against the committed goldens; asserted HERE too so the
+           property is pinned locally rather than only as a by-product of two real fixtures. */
+        var _pub = JSON.parse(JSON.stringify(blk5));
+        T.eq(
+          'F5: `src` is internal — it does not serialise into the export',
+          _pub.rmssd.values.filter(function (o) {
+            return 'src' in o;
+          }).length,
+          0
+        );
+        T.eq('F5: `cornerSrcs` is internal — it does not serialise into the export', 'cornerSrcs' in _pub.tch, false);
       }
     });
 
@@ -6241,6 +6299,57 @@
       var far = det([recA, NF(mkShifted(12000), 'far.json').recs[0]], {}).beatCheck.pairs[0];
       T.ok('an offset beyond the search range is NOT reported as confident', far && far.confident === false, far && far.offsetSec + ' s, confident=' + far.confident);
       T.ok('…and no disagreement verdict is issued off an unconfident fit', far && far.disagrees === null, far && far.disagrees);
+
+      /* A WALK IS NOT A DRIFT (I5). `confident` used to certify a fit on correspondence alone — how
+         often the blocks agree WHICH beat pairs with which. That measures whether the pairing is
+         real, not whether the offset walks in a straight LINE, so a smoothly decelerating clock was
+         certified as a constant drift rate (measured 2026-09-12: −137 ppm, confident:true, over a
+         0 → −2,030 ms decelerating walk; same shape 08-26). Publishing a ppm for that is a fabricated
+         rate. Both directions are planted, because a gate that refuses everything is not a gate. */
+      var mkWalk = function (fname, offFn) {
+        return NF(
+          {
+            schema: { name: 'ganglior.node-export' },
+            node: 'PpgDex',
+            recording: { startEpochMs: t0 },
+            timeseries: {
+              ppi: {
+                tSec: tSec.map(function (t) {
+                  return +(t + offFn(t)).toFixed(3);
+                }),
+                corrected: corrected.slice()
+              }
+            },
+            ganglior_events: []
+          },
+          fname
+        ).recs[0];
+      };
+      var SPAN_S = tSec[tSec.length - 1];
+      var linP = det(
+        [
+          recA,
+          mkWalk('lin.json', function (t) {
+            return -137e-6 * t;
+          })
+        ],
+        {}
+      ).beatCheck.pairs[0];
+      var decP = det(
+        [
+          recA,
+          mkWalk('dec.json', function (t) {
+            return -2.0 * (1 - Math.exp(-t / (SPAN_S / 4)));
+          })
+        ],
+        {}
+      ).beatCheck.pairs[0];
+      T.ok(
+        'a LINEAR drift is still certified confident — the curvature leg does not refuse everything',
+        linP && linP.confident === true,
+        'confident=' + (linP && linP.confident) + ' reason=' + (linP && linP.reason)
+      );
+      T.ok('a DECELERATING walk is NOT certified as a drift rate', decP && decP.confident === false, 'confident=' + (decP && decP.confident) + ' reason=' + (decP && decP.reason));
 
       /* IT MUST NOT DECIDE. `skewApplied` shifts real event times off `findings[].offsetSec`; a
          corroborating observer that quietly started steering that would be a behaviour change wearing
@@ -33964,6 +34073,95 @@
        empty set — the failure this repo keeps finding. So: the JS literals are pinned unconditionally,
        and the Python file is asserted to carry EITHER all six with matching values OR none of them.
        A partial landing, a rename, or a changed value all red. */
+    group('PPGDex §∅ — the self-PPI interop file claimed four device telemetry columns it never measured', 'ppgdex-dsp · absence-as-value · export-boundary', function (T) {
+      /* The self-PPI export writes the Polar `*_PPI.txt` column layout so PulseDex can read it. Four
+         of the seven columns are the DEVICE's telemetry — `error estimate [ms]`, `blocker`, and two
+         `contact` flags — and PpgDex derives its PPI optically, so it has none of them. The writer
+         emitted a literal `0;0;1;1` on every row, which `parseDevicePPI` reads back as
+         `err:0, blocker:0, contact:1`: zero uncertainty, nothing blocked, skin contact CONFIRMED,
+         asserted beat by beat about four quantities never measured. §∅ — and in this format the null
+         is an empty field, which the parser already maps to null. The reader was ready before the
+         writer was.
+
+         ASSERTED THROUGH THE ROUND TRIP, not by scanning the emitted text: `parseDevicePPI` is what
+         a consumer actually sees, so a fabrication is only really gone when the consumer reads null.
+         (A source scan would prove the literal is absent from the file and nothing about what the
+         consumer gets — the failure #2463 was landed to fix, one layer up.) */
+      var D = env.PPGDSP;
+      if (!(D && typeof D.buildSelfPPIText === 'function' && typeof D.parseDevicePPI === 'function')) {
+        T.ok('PPGDSP.buildSelfPPIText + parseDevicePPI exported', false, 'export them from ppgdex-dsp.js');
+        return;
+      }
+      var rec = { t0Ms: Date.UTC(2026, 5, 27, 23, 14, 5), nn: [812, 845, 798, 863], tt: [1.2, 2.045, 2.843, 3.706] };
+      var txt = D.buildSelfPPIText(rec);
+      var back = D.parseDevicePPI(txt);
+      // ANTI-VACUITY: if nothing round-trips, every null below is trivially satisfied by an empty set.
+      T.eq('ANTI-VACUITY · every interval survives the round trip', back.length, rec.nn.length);
+      T.eq(
+        '…and the intervals themselves are preserved exactly',
+        back.map(function (b) {
+          return b.ppi;
+        }),
+        [812, 845, 798, 863]
+      );
+      /* THE FOUR FABRICATIONS. Each asserted separately, because `0;0;1;1` had three distinct wrong
+         values and a fix that blanked only some of them would pass a pooled check. */
+      T.eq(
+        '§∅ · error estimate is NULL — we never measured an uncertainty in ms',
+        back.map(function (b) {
+          return b.err;
+        }),
+        [null, null, null, null]
+      );
+      T.eq(
+        '§∅ · blocker is NULL — the device never told us it blocked a beat',
+        back.map(function (b) {
+          return b.blocker;
+        }),
+        [null, null, null, null]
+      );
+      T.eq(
+        '§∅ · contact is NULL, never a fabricated 1 — the strongest of the four claims',
+        back.map(function (b) {
+          return b.contact;
+        }),
+        [null, null, null, null]
+      );
+      /* …and the columns we DO measure are still there, or this is a fix that deleted the file's
+         content rather than its fabrications. */
+      T.ok(
+        'the measured columns survive — hr is derived from the interval',
+        back.every(function (b, i) {
+          return b.hr === Math.round(60000 / rec.nn[i]);
+        }),
+        JSON.stringify(
+          back.map(function (b) {
+            return b.hr;
+          })
+        )
+      );
+      T.ok(
+        '…and the timestamps are real, reconstructed from t0Ms + tt',
+        back.every(function (b) {
+          return typeof b.tMs === 'number' && isFinite(b.tMs);
+        }),
+        JSON.stringify(
+          back.map(function (b) {
+            return b.tMs;
+          })
+        )
+      );
+      T.eq('…the first row lands at t0Ms + tt[0]', back[0].tMs, rec.t0Ms + 1200);
+      /* §∅ AT THE OTHER END: a record with no anchor cannot state a wall-clock, so the stamp is blank
+         rather than an epoch-0 fabrication — and the interval, which IS measured, still ships. */
+      var anchorless = D.parseDevicePPI(D.buildSelfPPIText({ t0Ms: null, nn: [900], tt: [1.0] }));
+      T.eq('§∅ · no recording anchor ⇒ the timestamp is null, not 1970', anchorless.length && anchorless[0].tMs, null);
+      T.eq('…while the measured interval still ships', anchorless.length && anchorless[0].ppi, 900);
+      /* A non-finite interval is not a row of zeros — it is not a row. */
+      var dirty = D.parseDevicePPI(D.buildSelfPPIText({ t0Ms: Date.UTC(2026, 5, 27), nn: [800, NaN, 0, 810], tt: [1, 2, 3, 4] }));
+      T.eq('§∅ · an absent interval emits NO row rather than a fabricated zero', dirty.length, 2);
+    });
+
     group('PPGDex §∅ — the span constants are pinned, and cross-language parity cannot pass vacuously', 'ppgdex-dsp · absence-as-value · parity', function (T) {
       var src = env.ppgdexDspSource || null;
       if (!src) {
@@ -52556,6 +52754,62 @@
       T.eq('every node that exports a respiration rate also exports its method', methodGaps.sort(), []);
     });
 
+    /* The same seam one node in: `detectClockSkew` returns an object, and `runFusion` does NOT pass it
+       through — it rebuilds `clockSkew` FIELD BY FIELD. So every key the producer adds is dropped by
+       default, silently, and the drop is invisible to every behavioural test because the producer's own
+       group still sees the value it computed. That is exactly how `beatCheck` came to be computed on
+       every fusion and read by nobody: a beat-level cross-check on a verdict made by a coarse 30 s grid,
+       discarded at the seam. Gating the INSTANCE (`beatCheck` is exported) would leave the next field to
+       repeat it, so what is asserted is the CLASS — the producer's key set is a subset of the rebuild's.
+       Source scan because no executable entry spans both sides: the consumer's literal is the evidence. */
+    group('detectClockSkew → runFusion seam — a field-by-field rebuild drops every new key by default', 'integrator-dsp · export-boundary · seam-parity', function (T) {
+      var S = String((env.sources || {})['integrator-dsp.js'] || '');
+      if (!S) {
+        T.skip('integrator-dsp.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      /* Balanced-brace, depth-aware — the same lesson as the respiration seam above: a regex to a fixed
+         indent overshoots, and a flat key regex would read NESTED keys as if they were top-level. */
+      function blockFrom(open) {
+        if (open < 0) return '';
+        for (var k = open, d = 0; k < S.length; k++) {
+          if (S[k] === '{') d++;
+          else if (S[k] === '}' && --d === 0) return S.slice(open, k + 1);
+        }
+        return '';
+      }
+      function topKeys(block) {
+        var out = [];
+        for (var k = 1, d = 0; k < block.length; k++) {
+          var c = block[k];
+          if (c === '{' || c === '[' || c === '(') d++;
+          else if (c === '}' || c === ']' || c === ')') d--;
+          else if (d === 0 && /[A-Za-z_$]/.test(c) && !/[\w$.'"]/.test(block[k - 1])) {
+            var m = /^([A-Za-z_$][\w$]*)\s*:/.exec(block.slice(k));
+            if (m) out.push(m[1]);
+          }
+        }
+        return out.sort();
+      }
+      /* Anchored on the beatCheck CALL rather than the literal's opening text, then walked back to the
+         `return {` — so a formatter reflowing the object's interior cannot silently empty this scan. */
+      var at = S.indexOf('beatCheck: _beatSkewCheck');
+      var retAt = at < 0 ? -1 : S.lastIndexOf('return {', at);
+      var producer = topKeys(blockFrom(retAt < 0 ? -1 : S.indexOf('{', retAt)));
+      var consumer = topKeys(blockFrom(S.indexOf('{', S.indexOf('clockSkew: {'))));
+      /* ANTI-VACUITY FIRST. Both scans resolve to '' if an anchor moves, and two empty key sets satisfy
+         a subset check perfectly — the green would mean "found nothing", which is this repo's dominant
+         defect shape. Assert each side is non-empty BEFORE comparing them. */
+      T.ok('ANTI-VACUITY · the producer literal was found and carries keys', producer.length >= 3, producer.join(', ') || 'EMPTY — the `return {` anchor in detectClockSkew moved');
+      T.ok('ANTI-VACUITY · the consumer rebuild was found and carries keys', consumer.length >= 3, consumer.join(', ') || 'EMPTY — the `clockSkew: {` anchor in runFusion moved');
+      var dropped = producer.filter(function (k) {
+        return consumer.indexOf(k) < 0;
+      });
+      T.eq("every key detectClockSkew computes survives runFusion's rebuild into clockSkew", dropped, []);
+      /* And the instance that taught it, named so a reader can trace the class back to its case. */
+      T.ok('…including beatCheck, the field this gate was written for', consumer.indexOf('beatCheck') >= 0, consumer.join(', '));
+    });
+
     group('PpgDex publishes the axis MEASUREMENTS, not only its verdict — parity with ECGDex', 'ppgdex-dsp · ecgdex-dsp · export-boundary · host-axis', function (T) {
       var src = env.sources || {};
       var P = String(src['ppgdex-dsp.js'] || ''),
@@ -52613,6 +52867,81 @@
       T.ok('the block is conditional on an axis existing', /if \(r\.hostAxis && r\.hostAxis\.ok\)/.test(P), 'guarded emission');
       /* ANTI-VACUITY: the field list must be non-empty, or every assertion above passes trivially. */
       T.ok('the discriminator set is non-empty (the gate is not vacuous)', need.length >= 4, need.length + ' fields required of both');
+
+      /* ── …AND THE BLOCK MUST ACTUALLY RUN. Everything above reads SOURCE TEXT ────────────────────
+         Every assertion in this group greps `ppgdex-dsp.js` for the emitter and checks its field list,
+         which proves the block is WRITTEN and says nothing about whether it EXECUTES. Measured: it
+         never did. `ppgBuildNodeExport` gates on `r.hostAxis && r.hostAxis.ok`, and `analyze` returned
+         `timingSource`/`axisDrawn`/`axisQuantizedShare` — three scalars PROJECTED out of the axis — but
+         not the axis object, so `r.hostAxis` was `undefined` on every `compute()` and the condition was
+         unreachable. The source gate passed throughout, because a grep proves occurrence, not
+         reference. This leg runs the shipped entry point instead. */
+      var PD = env.PPGDSP;
+      if (PD && typeof PD.compute === 'function' && typeof PD.parsePPG === 'function') {
+        // Two clocks ~40 ms apart ⇒ hostAxis.ok AND independent — the case the block exists to report.
+        var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'],
+          dMs = 0,
+          stp = 1000 / 135;
+        for (var q = 0; q < 1600; q++) {
+          dMs += stp + (((q * 7919) % 1000) / 1000 - 0.5) * 1.8;
+          var nz2 = (((q * 6271) % 1000) / 1000 - 0.5) * 80;
+          rows.push(
+            new Date(Date.UTC(2026, 6, 1) + Math.round(dMs + nz2)).toISOString().replace('T', ' ').replace('Z', '') +
+              ';' +
+              Math.round(dMs * 1e6) +
+              ';' +
+              (1000 + q) +
+              ';' +
+              (2000 + q) +
+              ';' +
+              (3000 + q) +
+              ';' +
+              (400 + q)
+          );
+        }
+        var txt2 = rows.join('\n');
+        var recA = PD.parsePPG(txt2);
+        // ANTI-VACUITY: if the axis does not resolve, the emitter is right to stay silent and this
+        // leg would pass against the defect. Assert the PRECONDITION before asserting the emission.
+        T.ok(
+          'ANTI-VACUITY · the synthetic really does resolve an axis, so the block is owed',
+          !!(recA && recA.hostAxis && recA.hostAxis.ok === true),
+          'hostAxis.ok=' + (recA && recA.hostAxis && recA.hostAxis.ok)
+        );
+        if (recA && recA.hostAxis && recA.hostAxis.ok === true) {
+          var expA = PD.compute(txt2, { rich: true });
+          var ha = expA && expA.recording && expA.recording.hostAxis;
+          T.ok(
+            'RUNTIME · compute() actually EMITS recording.hostAxis — the block is reachable',
+            !!ha,
+            ha ? 'emitted' : 'ABSENT — written but never executed, which every source assertion above still passes'
+          );
+          if (ha) {
+            /* The fields NO scalar carries. `timingSource`/`axisDrawn`/`axisQuantizedShare` survived
+               the drop because each was projected out separately; these did not, and `independent` is
+               §7's discriminator for whether a second clock exists at all. */
+            T.ok(
+              'RUNTIME · it carries the measurements the scalars cannot express',
+              typeof ha.ppm === 'number' && typeof ha.anchors === 'number' && typeof ha.spreadMs === 'number',
+              JSON.stringify({ ppm: ha.ppm, anchors: ha.anchors, spreadMs: ha.spreadMs })
+            );
+            T.eq('RUNTIME · …including the independence verdict, strictly boolean', ha.independent, true);
+          }
+        }
+        /* THE OTHER DIRECTION — the emission stays CONDITIONAL. A record with no resolvable axis must
+           omit the key entirely rather than gain a wall of nulls; that is what keeps committed exports
+           byte-identical, and a "fix" that emitted unconditionally would pass every assertion above. */
+        var shortTxt = rows.slice(0, 60).join('\n');
+        var recB = PD.parsePPG(shortTxt);
+        if (recB && !(recB.hostAxis && recB.hostAxis.ok)) {
+          var expB = PD.compute(shortTxt, { rich: true });
+          T.ok(
+            'RUNTIME · a record with no resolvable axis omits the key (absent, not null-filled)',
+            !(expB && expB.recording && 'hostAxis' in expB.recording),
+            'too few anchors to resolve an axis ⇒ no block'
+          );
+        }
+      }
     });
     group('An ABSENT value is not a measured zero — the || 0 fleet pattern (DEEP-AUDIT-IV §3)', 'oxydex-dsp · oxydex-render · integrator-dsp · fabricated-absence', function (T) {
       var src = env.sources || {};

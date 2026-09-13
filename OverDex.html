@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4yLwlzF2LWkBH0U02j3eVwAIqPXmT3YcA+N8fprjH+g=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8SXe9FsQqMjNq7+fSPGPcTQLrL87bEAdjpMUSbdxA6Y=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hfWm0E4m3miRXxd/D2vdNh3vekQBb+w35MUeysCvjS4=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-sVHW7KXvn5FOyci1sSFIoCa+/07jMtJE9s+iQt1wUbw=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1GrXbohtkzRFVggsxtLXO0QbIxenXu06mqtKLv0Xrjs=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-8SXe9FsQqMjNq7+fSPGPcTQLrL87bEAdjpMUSbdxA6Y=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-S5xWs61KIOEqryji7NLMb1W3FwFpmk6zIulVu3FLmvg=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hfWm0E4m3miRXxd/D2vdNh3vekQBb+w35MUeysCvjS4=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -5291,6 +5291,15 @@ function _tchHat(like, ptsFn, metric) {
     });
   })([best.A, best.B, best.C]);
   var opts = { labels: _cornerIds, minN: 12 };
+  // The corner SOURCES, parallel to `_cornerIds`. A consumer cannot resolve a weight by node NAME:
+  // `_cornerIds` disambiguates duplicates ("PpgDex 1"/"PpgDex 2"), so two corners of the same node
+  // share a name and differ only by label. Published alongside so a lookup can match by IDENTITY,
+  // which is the only key that is unique. DEEP-AUDIT-V-FOLLOWUPS F5 required this re-key; it was
+  // stamped DONE with this half unbuilt, and the result was that BOTH PpgDex corners silently
+  // dropped out of the inverse-variance mean and the published figure was the remaining corner
+  // verbatim (measured 07-19: weights {0.0385, 0.4808, 0.4808}, values [45, 32.6, 31.7], published
+  // 31.7 — ECGDex's own value — against an honest label-aligned mean of 32.64).
+  var _cornerSrcs = [best.A, best.B, best.C];
   if (rho && rho.value > 0) opts.rho = rho.value;
   var r = TCH.threeCorneredHat(best.al.A, best.al.B, best.al.C, opts);
   if (!r.ok) {
@@ -5298,6 +5307,11 @@ function _tchHat(like, ptsFn, metric) {
     return r;
   }
   r.metric = metric;
+  r.cornerIds = _cornerIds;
+  // NON-ENUMERABLE for the same reason as `src` on a spread() value: these are the source RECORDS,
+  // internal wiring for identity lookup, and a plain field serialises every one of them into the
+  // published export. `cornerIds` stays enumerable — it is a list of strings and is readable output.
+  Object.defineProperty(r, 'cornerSrcs', { value: _cornerSrcs, enumerable: false, configurable: true });
   /* PSEUDO THREE-CORNERED HAT — the corner's axis, not the corner's crystal (2026-08-17).
      The `timingSource === 'none'` filter above removes a leg that declares it has no timing. It cannot
      see the commoner case: a leg that declares NOTHING. OxyDex emits no `quality` block at all, so it
@@ -5944,7 +5958,14 @@ function fuseHRVConsensus(recs, dtMs) {
         return {
           values: like
             .map(function (s) {
-              return { node: s.node, v: _cmpVal(s, key) };
+              // `src` is the SOURCE OBJECT, kept so a weight can be resolved by identity rather than
+              // by `node` — which is not unique once two corners share a node name. NON-ENUMERABLE:
+              // it is internal wiring, and a plain field would serialise the ENTIRE rec into the
+              // published export (caught by the equivalence gate, which reported
+              // `rmssd.values.0.src: {"node":"ECGDex","label":…}` against the committed golden).
+              var _o = { node: s.node, v: _cmpVal(s, key) };
+              Object.defineProperty(_o, 'src', { value: s, enumerable: false });
+              return _o;
             })
             .filter(function (o) {
               return o.v != null;
@@ -5977,7 +5998,11 @@ function fuseHRVConsensus(recs, dtMs) {
         var _ws = 0,
           _acc = 0;
         rm.values.forEach(function (o) {
-          var w = tch.weights[o.node];
+          // BY IDENTITY, not by name. `tch.weights` is keyed by the disambiguated corner label, so
+          // `tch.weights[o.node]` is undefined for every corner whose node name is shared — which is
+          // exactly the finger/wrist PpgDex pair this fusion exists to combine.
+          var _ci = tch.cornerSrcs ? tch.cornerSrcs.indexOf(o.src) : -1;
+          var w = _ci >= 0 ? tch.weights[tch.cornerIds[_ci]] : null;
           if (w != null) {
             _acc += w * o.v;
             _ws += w;
@@ -7739,6 +7764,46 @@ function fitClockDrift(aTimes, bTimes, opts) {
   iq.sort(function (x, y) {
     return x - y;
   });
+  var _h = (function () {
+    if (rows.length < 6) return null;
+    /* ONLY WHEN THERE IS A TREND TO BE LINEAR ABOUT. A slope-ratio test is meaningless on a fit whose
+       true drift is ~0: the two halves then measure noise around zero, their ratio is random and their
+       signs are a coin flip, so the test refuses the CLEANEST case there is — a perfectly aligned pair
+       with a constant offset. (Caught by the existing planted-1.5 s-offset fixture, which is exactly
+       that case and which this gate failed on its first draft.) Require the excursion the fit CLAIMS
+       to clear the scatter it sits in before asking about its shape; below that, curvature is not
+       measurable and the leg stays silent rather than convicting. */
+    var _resid = _wrapped && _wrapped.residRmsMs != null ? _wrapped.residRmsMs : null;
+    if (_resid == null) return null;
+    var _span = rows[rows.length - 1].tMs - rows[0].tMs;
+    if (!(Math.abs(slope) * _span > 3 * _resid)) return null;
+    var mid = Math.floor(rows.length / 2);
+    var fit = function (rs) {
+      var n = rs.length;
+      if (n < 3) return null;
+      var sx = 0,
+        sy = 0;
+      rs.forEach(function (r) {
+        sx += r.tMs;
+        sy += r.off;
+      });
+      var mxx = sx / n,
+        myy = sy / n,
+        num = 0,
+        den = 0;
+      rs.forEach(function (r) {
+        num += (r.tMs - mxx) * (r.off - myy);
+        den += (r.tMs - mxx) * (r.tMs - mxx);
+      });
+      return den > 0 ? (num / den) * 1e6 : null;
+    };
+    var a = fit(rows.slice(0, mid)),
+      b = fit(rows.slice(mid));
+    if (a == null || b == null) return null;
+    var lo = Math.min(Math.abs(a), Math.abs(b)),
+      hi = Math.max(Math.abs(a), Math.abs(b));
+    return { firstPpm: +a.toFixed(1), secondPpm: +b.toFixed(1), sameSign: a * b > 0, ratio: hi > 0 ? +(lo / hi).toFixed(3) : null };
+  })();
   return {
     /* THE SERIES THE FIT WAS MADE FROM, which was being discarded. `off` at `tMs` is a PHASE series —
        the only input from which this leg's own rate uncertainty can be measured. Without it a consumer
@@ -7748,6 +7813,16 @@ function fitClockDrift(aTimes, bTimes, opts) {
        proportional model has no support; and naive OLS on these blocks underestimates the observed
        closure noise 10x, because consecutive block offsets share the same wander and OLS assumes
        independent residuals. A correlation-safe uncertainty needs the series, not a summary of it. */
+    /* CURVATURE — a linearity check the beat-match statistic structurally cannot make.
+       `confident` used to certify a fit on correspondence alone: how often the blocks agree about
+       WHICH beat pairs with which. That measures whether the pairing is real, not whether the offset
+       walks in a straight line, so a smoothly DECELERATING clock walk certified as a linear drift
+       (measured 2026-09-12: −137 ppm, confident:true, over a 0 → −2,030 ms decelerating walk; the
+       same shape on 08-26). A line has the SAME slope in both halves of its own blocks; a walk that
+       flattens does not. Split the fitted blocks, fit each half, and compare.
+       The ratio bound is deliberately loose (1/3) and is NOT corpus-tuned — it is set to refuse the
+       shape (a half that has flattened toward zero, or reversed) rather than to grade a fit. */
+    _halves: _h,
     blocks_: rows.map(function (b) {
       return { tMs: b.tMs, off: b.off };
     }),
@@ -7769,12 +7844,34 @@ function fitClockDrift(aTimes, bTimes, opts) {
        range mid-night and the regression flattens toward zero (measured: a planted 250 ppm reads 49).
        Published so a caller can tell "no drift" from "drift beyond my reach" — the distinction a bare
        number hides. */
-    maxDriftPpm: A[A.length - 1] > A[0] ? (searchMs / (A[A.length - 1] - A[0])) * 1e6 : null,
+    /* Over the FITTED BLOCK span, not A's full span. Using A's span understates the reach of a fit
+       that only spans part of the recording, and the error is in the dangerous direction: on
+       2026-09-12 A spans 387 min while the fitted blocks span 270, so reach read 129 ppm against a
+       true 185 and a −137 ppm walk was reported as "beyond my reach" while sitting well inside the
+       search window. The bound belongs to the blocks that were actually fitted. */
+    maxDriftPpm: (function () {
+      var f = rows.length ? rows[0].tMs : null,
+        l = rows.length ? rows[rows.length - 1].tMs : null;
+      return f != null && l > f ? (searchMs / (l - f)) * 1e6 : null;
+    })(),
     /* Correspondence must beat its OWN chance control by a clear margin — the block fit maximises the
        statistic it reports, so "high" alone means nothing. 2x is deliberately conservative: the
        measured pair sits at 90.6 % vs 21.3 %, a 4.3x margin. */
-    confident: chance != null && medFrac >= 2 * chance && medFrac >= 0.5,
-    reason: chance == null ? 'no control blocks' : medFrac < 2 * chance ? 'correspondence does not clear its own chance control' : null,
+    /* BOTH legs, and they answer different questions. Correspondence says the PAIRING is real; the
+       curvature says the walk is a LINE. A fit can pass the first and fail the second — that is
+       exactly the decelerating walk this gate was added for — and certifying it as a drift rate
+       publishes a ppm for something that is not a constant-rate clock. */
+    confident: chance != null && medFrac >= 2 * chance && medFrac >= 0.5 && !(_h && (!_h.sameSign || (_h.ratio != null && _h.ratio < 1 / 3))),
+    reason:
+      chance == null
+        ? 'no control blocks'
+        : medFrac < 2 * chance
+          ? 'correspondence does not clear its own chance control'
+          : _h && !_h.sameSign
+            ? 'the two halves of the fit drift in OPPOSITE directions — not a constant rate'
+            : _h && _h.ratio != null && _h.ratio < 1 / 3
+              ? 'the fit CURVES: half-slopes ' + _h.firstPpm + ' / ' + _h.secondPpm + ' ppm (ratio ' + _h.ratio + ') — a walk, not a drift'
+              : null,
     perBlock: rows
   };
 }
@@ -9339,7 +9436,20 @@ function runFusion(recs, opts) {
     /* CROSS-DEVICE-CLOCK-SKEW §3.1 — always present, so a consumer can tell "checked, clean" from
        "never checked". `findings` names the offending node and the fitted offset; `applied` names
        what was actually shifted before fusing; `pairs` is the raw per-pair evidence. */
-    clockSkew: { findings: skew.findings, applied: skewApplied, pairs: skew.pairs, fits: skewFits, vetoes: skew.vetoes && skew.vetoes.length ? skew.vetoes : undefined },
+    /* `beatCheck` rides here with its siblings. `detectClockSkew` computed it and `runFusion` then
+       rebuilt `clockSkew` field-by-field WITHOUT it, so a beat-level cross-check on a verdict made
+       by a coarse 30 s grid was computed on every fusion and discarded — no consumer anywhere.
+       Wired rather than deleted because it joins a block that IS consumed (`fusion.clockSkew` is
+       passed up at the end of runFusion); publishing it into an unread key would have recreated
+       the defect one field over. */
+    clockSkew: {
+      findings: skew.findings,
+      applied: skewApplied,
+      pairs: skew.pairs,
+      fits: skewFits,
+      beatCheck: skew.beatCheck || null,
+      vetoes: skew.vetoes && skew.vetoes.length ? skew.vetoes : undefined
+    },
     hrSource: hrSource,
     pairs: pairs,
     apnea: apnea,
@@ -28642,6 +28752,42 @@ __exports.GlucoDex = window.GlucoDex;
     return ['supine', 'prone', 'lateral', 'upright'].indexOf(p) >= 0 ? p : 'unknown';
   }
 
+  /* ── SELF-PPI INTEROP TEXT — the Polar *_PPI.txt column layout, filled only where WE MEASURED ──
+     PpgDex derives its PPI optically; it does not have a Polar device's telemetry. Four of the seven
+     columns are that telemetry — `error estimate [ms]`, `blocker`, and the two `contact` flags — and
+     this writer used to emit a literal `0;0;1;1` for them on every single row. Read back through
+     `parseDevicePPI` that is `err:0, blocker:0, contact:1`: zero uncertainty, nothing blocked, skin
+     contact confirmed, asserted beat by beat about four quantities this node never measured. §∅ — a
+     value that was not measured is null, and in this format the null is an EMPTY FIELD, which
+     `parseDevicePPI` already maps back to `null` (`isFinite(err) ? err : null`, and the same for the
+     other two). The reader was ready for the honest answer before the writer gave it.
+
+     ⚠️ Deliberately NOT substituting a PpgDex quantity that looks similar. `ppiConf` is a 0–1 weight
+     and the column is MILLISECONDS — writing it there is a unit error wearing the shape of a fix. The
+     clean-interval mask is close in spirit to `blocker` but means something different (our SQI/gap
+     judgement, not the device flagging a beat), and quietly redefining another vendor's field is how
+     a consumer ends up comparing two things that share a name. Blank says what is true: we did not
+     measure this. And `contact` is the one to be most careful with — a fabricated 1 is a positive
+     claim about skin contact, and even the Verity's OWN contact bit reports worn in its charger.
+
+     Kept as a pure function so it is gate-able: the app owns the download, this owns the format. */
+  const SELF_PPI_HEADER = 'Phone Data RX timestamp;PP-interval [ms];error estimate [ms];blocker;contact;contact;hr [bpm]';
+  function buildSelfPPIText(r) {
+    let out = SELF_PPI_HEADER + '\n';
+    if (!r || !r.nn || !r.tt) return out;
+    for (let i = 0; i < r.nn.length; i++) {
+      const nn = r.nn[i];
+      if (!isFinite(nn) || nn <= 0) continue; // no interval ⇒ no row, rather than a row of zeros
+      const tMs = r.t0Ms != null && isFinite(r.tt[i]) ? r.t0Ms + Math.round(r.tt[i] * 1000) : null;
+      // §5 — floating tMs must be read back with the UTC family, and fmtDateTime is second-resolution,
+      // so the ISO form is built here to keep the milliseconds the device format carries.
+      const ts = tMs != null ? new Date(tMs).toISOString().replace('Z', '') : '';
+      // columns 3-6 are the device's telemetry: absent, therefore empty.
+      out += ts + ';' + Math.round(nn) + ';;;;;' + Math.round(60000 / nn) + '\n';
+    }
+    return out;
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   //  DEVICE-PPI VALIDATION  — self-PPI vs Polar *_PPI.txt (validation lane only)
   // ════════════════════════════════════════════════════════════════════════
@@ -30018,6 +30164,21 @@ __exports.GlucoDex = window.GlucoDex;
          0.001-0.088 measured), reported as a number so a reader can judge the borderline rather than
          inherit a verdict. */
       timingSource: (rec.hostAxis && rec.hostAxis.timingSource) || null,
+      /* ── THE AXIS OBJECT ITSELF, and why one scalar was not enough ──────────────────────────────
+         `ppgBuildNodeExport` has a whole `recording.hostAxis` block gated on `r.hostAxis && .ok`,
+         mirroring ECGDex field for field — and `analyze` never forwarded the object, so `r.hostAxis`
+         was `undefined` on every compute() and the block has never once emitted. The three scalars
+         above (`timingSource`, `axisDrawn`, `axisQuantizedShare`) were projected out one at a time as
+         each was needed, which is exactly how the object came to be dropped: each projection looked
+         like the fix for the field it added and none of them restored the source.
+         What was lost is everything the block names and no scalar carries: `ppm`, `anchors`,
+         `spreadMs`, `independent`, `inertReason`, `maxStepMs`, `stability`. `independent` is §7's
+         discriminator for whether a second clock exists at all, and `inertReason` is the sentence
+         DexClock wrote when it said no — a consumer reading `timingSource: 'host'` alone cannot tell
+         a measured refusal from a missing measurement.
+         The block is CONDITIONAL on `.ok`, so a recording without an axis still omits it and stays
+         byte-identical; this makes the condition reachable, it does not widen it. */
+      hostAxis: rec.hostAxis || null,
       // Which RATE reference governed this recording (O2RING-ADAPTIVE-TIMEBASE): 'device-crystal' (the
       // 125.000 ADC clock, markers deflated) or 'host-disciplined' (the host-referenced row axis) for an
       // O2Ring finger recording; null for a Verity (a real multi-oscillator device, not an either/or).
@@ -30331,6 +30492,7 @@ __exports.GlucoDex = window.GlucoDex;
     parsePPG,
     parseSensorXYZ,
     parseDevicePPI,
+    buildSelfPPIText,
     analyze,
     analyzeMotion,
     movementOnsets,

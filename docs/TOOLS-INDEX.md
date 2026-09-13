@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**178 tools** · 176 with a purpose line · **2 without**
+**180 tools** · 178 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -38,6 +38,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`ci-timing.mjs`](../tools/ci-timing.mjs) | CLAUDE.md §👥.5 costs this out: `main` moves a MEDIAN 7.2 min between merges, CI is ~10–12 min across the required checks, and `protect-main` sets `required_status_checks.strict = true`,… |
 | [`circular-stats.mjs`](../tools/circular-stats.mjs) | INTERDISCIPLINARY-LITERATURE §13h.1: the "phase concentration" this repo computes in `_wrappedSlopeFit` (integrator-dsp.js — R = √(Σcos² + Σsin²)/n over per-block offsets wrapped modulo… |
 | [`closure-tol-hac.mjs`](../tools/closure-tol-hac.mjs) | derive the 3-source clock-closure tolerance from the legs' own PRECISION instead of their MAGNITUDE. |
+| [`cohort-fit.mjs`](../tools/cohort-fit.mjs) | `cohort-gen.js` samples synthetic patients; the SHHS1 corpus holds 5136 scored real ones. |
 | [`commit-shape.mjs`](../tools/commit-shape.mjs) | the AGENT-NEUTRAL half of the shared-tree guards. WHY THIS EXISTS. |
 | [`cpap-corpus.mjs`](../tools/cpap-corpus.mjs) | drive a WHOLE ResMed SD card through the REAL CPAPDex. Walks a day-foldered SD-card tree, groups each night's EDF files into session sets, and runs the real headless surface —… |
 | [`cpap-oxy-couple.mjs`](../tools/cpap-oxy-couple.mjs) | cross-node event↔event coupling with a SHUFFLED NULL. Folds O2Ring (OxyDex) into a CPAP corpus and asks the question the Integrator cannot currently ask: is a co-occurrence between two… |
@@ -91,6 +92,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`nearest-advocate.mjs`](../tools/nearest-advocate.mjs) | EVENT-BASED time-shift estimation, for the case where cross-correlation is known to fail. |
 | [`nsrr-criterion-sweep.mjs`](../tools/nsrr-criterion-sweep.mjs) | `tools/nsrr-oxydex-odi.mjs` scores the SHIPPED detector against expert scoring at a fixed criterion. |
 | [`nsrr-oxydex-odi.mjs`](../tools/nsrr-oxydex-odi.mjs) | The second NSRR arm. `tools/nsrr-stage-validate.mjs` drives the ECG channel into the sleep stager; this one drives the **SaO2** channel into OxyDex and compares its AHI estimate to the AHI… |
+| [`nsrr-score-pool.mjs`](../tools/nsrr-score-pool.mjs) | `nsrr-oxydex-odi.mjs --dir` scores serially: measured 4.15 s/record, so 5136 records is ~5.9 h in one core of twenty-four, with no progress output, no checkpoint, and nothing to show if it… |
 | [`nsrr-stage-validate.mjs`](../tools/nsrr-stage-validate.mjs) | REM-STAGING-FOLLOWUPS §2b: "the shipped conjunction scored against REAL PSG labels; REM recall/precision recorded. |
 | [`o2ring-dat-timefit.mjs`](../tools/o2ring-dat-timefit.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ PIN THE O2RING'S STORED-SESSION CLOCK TO HOST TIME by fitting the onboard.dat against the live… |
 | [`o2ring-finger-roundtrip.mjs`](../tools/o2ring-finger-roundtrip.mjs) | // PPGDEX-O2RING-FINGER-SITE §6 — the round-trip acceptance, on a REAL capture. |
