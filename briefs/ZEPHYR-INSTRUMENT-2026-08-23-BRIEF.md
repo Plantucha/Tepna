@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS (Task 1 remainder picked up 2026-09-07 → `RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md` — the SDC anchor-point report is the controller-side timestamp source; image built, reflash pending; parked 2026-09-02 — drain triage, Kestrel: the remainder is ON-BOX HARDWARE work — controller-side timestamping is a rebuild+reflash of the dongle (owner, rig-side) and the Task 2 jitter probe needs `btmon` with `CAP_NET_RAW` on vigil's free adapter, a daytime paired session the brief itself says not to run as an interrupt; nothing is blocked on repo code. Owner: Heron with the owner present; next step: Task 2 on hci2 against one beacon, Zephyr vs Realtek. Previously 2026-08-25: Task 1 flash executed on the SDC path; timestamping + Task 2 probe still open) · **Created:** 2026-08-23
+**Status:** IN-PROGRESS (2026-09-12, Kestrel: TX raised to +20 dBm at the antenna and the public address moved into firmware (`F4:CE:36` + FICR) on the `hci_uart` image — `hciuart-txpwr20-pub.zip` built, flash + Polar re-pair pending; full configuration + recipe in `NRF52840-DONGLE-FLASHING-2026-09-07-BRIEF.md` §0b, the why in § "2026-09-12" below. Previously: Task 1 remainder picked up 2026-09-07 → `RADIO-CLOCK-SIDECAR-2026-09-07-BRIEF.md` — the SDC anchor-point report is the controller-side timestamp source; image built, reflash pending; parked 2026-09-02 — drain triage, Kestrel: the remainder is ON-BOX HARDWARE work — controller-side timestamping is a rebuild+reflash of the dongle (owner, rig-side) and the Task 2 jitter probe needs `btmon` with `CAP_NET_RAW` on vigil's free adapter, a daytime paired session the brief itself says not to run as an interrupt; nothing is blocked on repo code. Owner: Heron with the owner present; next step: Task 2 on hci2 against one beacon, Zephyr vs Realtek. Previously 2026-08-25: Task 1 flash executed on the SDC path; timestamping + Task 2 probe still open) · **Created:** 2026-08-23
 
 # Zephyr dongle as the open BLE timing instrument — flash + jitter probe (paired daytime task)
 
@@ -139,6 +139,62 @@ hciconfig hciN down && hciconfig hciN up         # BlueZ caches BD_ADDR at init;
 - ⚠️ **Persistence across a REPLUG is untested.** It is a runtime vendor write, the same class as the
   anchor enable that does not survive a controller reset — so assume the unit must set it on every
   attach until someone measures otherwise.
+- 🟢 **Superseded 2026-09-12** — the address is now written by the firmware itself on every boot
+  (next section); the `0xFC06` recipe above stays as the stopgap for an unpatched image.
+
+## 2026-09-12 — the Polars would not connect: TX power raised, public MAC moved into firmware
+
+The 09-11 measurements above are all **receive** side: the dongle hears the Polars at −59…−68. The
+Polars still failed to *connect* to it on vigil. Two causes, one on each side of the link:
+
+- **(B) host side — kernel address ≠ BlueZ identity**, fixed in `capture-host` (#2422, merged): on
+  these dongles `bluetoothctl select <kernel address>` fails *silently* onto the default controller,
+  so pair/info/scan/watchdog repoints ran on the wrong adapter. `bonding.bluez_address()` +
+  `select_line()` now front every entry point. A pure software defect; it stays fixed whatever the
+  firmware does — and once the firmware registers a valid public address the two addresses coincide
+  and the mismatch it guards against no longer arises.
+- **(A) radio side — the dongle transmits at 0 dBm into a peripheral with a tiny antenna.** RX is
+  asymmetric: a 22 dB PA + 12 dB LNA behind an SMA antenna hears a Polar at −60, but the Polar
+  hears a 0 dBm dongle no better than it heard the Realtek. Measured as a control: the dongle's own
+  advertisement, received on vigil's second adapter, sat at **−86 dBm** under the 0 dBm image. The
+  fix is `CONFIG_BT_CTLR_TX_PWR_ANTENNA=20` (18 first, then 20 — the Holyiot listing's maximum; the
+  SDC subtracts the overlay's FEM gain, so the SoC itself runs ≈ −2 dBm, well under its +8 ceiling,
+  and `SDC_LE_POWER_CLASS_1` is selected automatically). The `.config` of the 18 dBm build differs
+  from the 09-11 image in **exactly those two lines**, so TX power is the isolated variable.
+  **Pre-stated pass: ≥ −55 dBm on the same receiver.** Pending.
+
+**Why the address moved into the firmware.** The 09-11 bring-up wrote the raw FICR word as a public
+address at runtime, and the value has bit 0 of its first on-air octet **set** on all three units
+(`E1`/`D9`/`E7`) — a *group* address, invalid as a public identity, which is the mechanism behind the
+"top byte transforms inconsistently" row above and behind BlueZ minting its own static-random
+identity on some hosts. The `hci_uart` `main.c` now calls `bt_ctlr_set_public_addr()` after
+`bt_enable_raw()` with **Nordic's OUI `F4:CE:36` + the low 24 bits of FICR `DEVICEADDR[0]`** — a
+globally-administered unicast address, unique per die, the same on every host, no NVS, no runtime
+write. It survives `HCI_Reset` but not a power-cycle, which is why it is set in `main()` rather than
+once. Expected: `E7FC6D6BA44E → F4:CE:36:6B:A4:4E`, `D967242ECD98 → F4:CE:36:2E:CD:98`,
+`E1BFD58009C0 → F4:CE:36:80:09:C0` (the DFU serial's last three octets *are* the FICR tail).
+**Cost:** BlueZ keys its store by address, so every bond to the old address is orphaned — the Polars
+are re-paired once, by the owner, and #2422 becomes the safety net rather than the mechanism.
+
+**State at the time of writing.** `hciuart-txpwr20.zip` (TX only) is flashed on `E7FC6D6BA44E`;
+`hciuart-txpwr20-pub.zip` (TX + address) is built and verified in `.config`, not yet flashed; all
+three units sat in DFU mode on the rig at the last read. Build inputs are committed
+(`capture-host/deploy/nrf52840/vigil-hciuart-holyiot-txpwr20.conf`, `vigil-hciuart-main.c.patch`);
+the full recipe, the `.config` inventory, the vendor-command capability list and the recommended
+*next* image (`SDC_QOS_CONN_EVENT_REPORT` + `SDC_QOS_CHANNEL_SURVEY` → per-channel PER/energy sidecar)
+are in the flashing brief §0b and are not repeated here.
+
+**Can the dongle be disciplined by the LAN stratum-1? No — referenced, not steered.** vigil is
+stratum 2 off `192.168.0.123` (offset +49 µs, root delay 0.45 ms, skew 0.033 ppm, measured
+2026-09-12), so the *host* axis is as good as this project will ever need. The dongle has no path to
+follow it: a free-running 32 MHz HFXO, a 50 ppm LFXO, no network, no PPS input. What the instrument
+does is what §7 of the Clock Contract already describes — the SDC's anchor-point reports are paired
+with host `CLOCK_REALTIME` at delivery, so every radio event is *placed on* the host axis with a
+residual equal to USB CDC delivery jitter (~0.1–1 ms, median-filtered), and the drift of the radio
+crystal is measured against the host rather than removed. That is the `radio_clock` sidecar
+(RADIO-CLOCK-SIDECAR brief; enabling it on vigil is owner-gated). Hardware discipline — a PPS edge
+from the stratum-1's GNSS into a dongle GPIO, `TIMER` capture over PPI at 62.5 ns — is soldering and
+an owner's deploy, and is not owed by anything the Polar problem needs.
 
 ## The role: clock-metrology instrument (what the closed radios cannot do)
 This lands on the Clock-Contract / `hostAxis` / ppm-drift / Allan-deviation frontier.

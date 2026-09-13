@@ -1,7 +1,15 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** REFERENCE (living — last-verified 2026-09-07: Holyiot-21017 flashed, FEM-enabled, 40 devices / −74 dBm floor on the rig) · **Created:** 2026-09-07
+**Status:** REFERENCE (living — last-verified 2026-09-12: the image is now `hci_uart` over USB CDC ACM, TX +20 dBm at the antenna, public address derived in firmware (`F4:CE:36:` + FICR); `hciuart-txpwr20-pub.zip` built, flash + on-box verification pending — §0b) · **Created:** 2026-09-07
 
-# nRF52840 dongle flashing — the runbook for the NEXT adapter (Zephyr `hci_usb` + SoftDevice Controller, fixed MAC)
+# nRF52840 dongle flashing — the runbook for the NEXT adapter (Zephyr `hci_uart` over CDC ACM + SoftDevice Controller, fixed MAC)
+
+> **2026-09-12 — READ §0b FIRST.** The `hci_usb` recipe below is the 09-07 state and is kept because
+> every board fact in §1–§3 and §7 still holds. The *image* changed twice since: the transport moved to
+> `hci_uart` over USB CDC ACM on 2026-09-11 (`hci_usb` wedges on concurrent connection establishment —
+> ZEPHYR-INSTRUMENT § "Task 1's FIRMWARE CHOICE"), and on 2026-09-12 the TX power was raised and the
+> public address moved from a host-side runtime write into the firmware. §0b is the current recipe;
+> where §3–§5 say `hci_usb` / `vigil-sdc.conf` / `vigil-main.c.patch` / `2fe3:000b`, read §0b's
+> replacements.
 
 **Read this before touching a new dongle.** Two units have been flashed so far and each cost a
 session-day to a failure that gave no error message: the first (Raytac, 2026-07-26) booted into
@@ -38,6 +46,149 @@ The files this brief builds from are committed under **`capture-host/deploy/nrf5
 
 ---
 
+## 0b · The CURRENT image (2026-09-12): `hci_uart` over CDC ACM · +20 dBm · firmware-derived public MAC
+
+Everything in this section was built on rig-x870 on 2026-09-12 and grep-verified in the generated
+`.config`; what has **not** yet happened is marked *pending*. Three inputs, all committed under
+`capture-host/deploy/nrf52840/`:
+
+| input | file | what it does |
+|---|---|---|
+| Kconfig fragment | **`vigil-hciuart-holyiot-txpwr20.conf`** | `vigil-sdc.conf` (6 links · DLE 251 · 2M PHY · RSSI · LE_ENC · SDC TX/RX 6/6 · `BT_HCI_VS` · anchor-point report) **plus three lines**: `CONFIG_BT_CTLR_PRIVACY=n` · `CONFIG_CDC_ACM_SERIAL_PRODUCT_STRING="Zephyr HCI UART anchor np"` · `CONFIG_BT_CTLR_TX_PWR_ANTENNA=20`. The rationale for each is in the file's comments — read them before changing a value |
+| source patch | **`vigil-hciuart-main.c.patch`** | `samples/bluetooth/hci_uart/src/main.c`: after `bt_enable_raw()`, registers a **public** BD address = Nordic OUI `F4:CE:36` + the low 24 bits of `NRF_FICR->DEVICEADDR[0]` via `bt_ctlr_set_public_addr()` (→ SDC `zephyr_write_bd_addr`). 12 added lines, no other change |
+| device-tree overlay | `vigil-holyiot21017.overlay` | unchanged since 09-07 — `&uart0` off, `nrf_radio_fem` on P0.24/P0.22, 22/12 dB gains |
+
+**Sample:** `zephyr/samples/bluetooth/hci_uart` — *not* `hci_usb`. The board's `cdc_acm_serial.dtsi`
+already selects `zephyr,bt-c2h-uart = &board_cdc_acm_uart`, so no overlay change is needed for the
+transport; the host sees a CDC ACM port, not an HCI device, and must `btattach` it (below).
+
+**Build · package · flash** (rig-x870, NCS v3.4.0 workspace `/srv/data/ncs`, toolchain
+`/srv/data/ncs-toolchains` — the same `toolchain-manager launch` form as §4; `ncs` below stands for
+`nrfutil toolchain-manager launch --install-dir /srv/data/ncs-toolchains --chdir /srv/data/ncs --`):
+
+```sh
+cd /srv/data/ncs
+git -C zephyr apply <repo>/capture-host/deploy/nrf52840/vigil-hciuart-main.c.patch   # once; `git -C zephyr diff --stat samples/bluetooth/hci_uart` must show main.c +12
+ncs west build -p always --sysbuild -b raytac_mdbt50q_cx_40_dongle/nrf52840 -d build-hciuart-holyiot-txpwr20-pub \
+    zephyr/samples/bluetooth/hci_uart -- \
+    -DEXTRA_CONF_FILE=/srv/data/ncs/vigil-hciuart-holyiot-txpwr20.conf \
+    -DEXTRA_DTC_OVERLAY_FILE=/srv/data/ncs/vigil-holyiot21017.overlay
+nrfutil nrf5sdk-tools pkg generate --hw-version 52 --sd-req 0x00 --application-version 1 \
+    --application build-hciuart-holyiot-txpwr20-pub/hci_uart/zephyr/zephyr.hex hciuart-txpwr20-pub.zip
+# magnet → red LED → 1915:521f → by-id port (NEVER "first ttyACM": ttyACM0 on the rig is the u-blox GNSS)
+nrfutil nrf5sdk-tools dfu usb-serial -pkg hciuart-txpwr20-pub.zip \
+    -p /dev/serial/by-id/usb-Nordic_Semiconductor_Open_DFU_Bootloader_<DFU serial>-if00
+```
+
+Last build: FLASH 155 540 B (14.89 %), RAM 59 656 B (22.76 %). The one warning —
+`unit address and first address in 'reg' (0xf0000) don't match for … partition@dc000` — is the
+board's own partition map and is benign. `nrfutil` prints an "unsigned package" banner; also benign.
+Zips on the rig: `hciuart-txpwr20.zip` (sha256 `655b9cc565d3c33f…`, TX only — **flashed** to
+`E7FC6D6BA44E` 2026-09-12) and `hciuart-txpwr20-pub.zip` (sha256 `84c4d508cc9e2ded…`, TX + public
+address — **built, flash pending**). Earlier: `vigil_hciuart_holyiot21017_anchor_nopriv_dfu.zip`
+(2026-09-11, 155 902 B, sha256 `2012ddc2e448dc8d…`, 0 dBm, no address patch — the image the three
+units ran for the 09-11 measurements).
+
+**The tells for THIS image** (replace §3's four; each was verified on `build-hciuart-holyiot-txpwr20-pub/hci_uart/zephyr/.config`):
+
+```sh
+B=build-hciuart-holyiot-txpwr20-pub/hci_uart/zephyr
+grep -E '^CONFIG_(MPSL_FEM|MPSL_FEM_SIMPLE_GPIO|BT_CTLR_SDC_LE_POWER_CLASS_1)=y' $B/.config   # 3 lines: FEM wired, class-1 power
+grep -E '^CONFIG_BT_CTLR_TX_PWR_ANTENNA=20' $B/.config                                        # the antenna figure, not the SoC one
+grep -c 'BT_CTLR_PRIVACY is not set' $B/.config                                               # 1 — the 0x202d wedge fix
+grep -E '^CONFIG_CLOCK_CONTROL_NRF_K32SRC_XTAL=y' $B/.config                                  # schematic has Y2
+git -C zephyr diff --stat samples/bluetooth/hci_uart                                          # main.c | 12 ++++++++++++
+```
+
+Measured fact worth keeping: the `.config` of the first TX-raised build (18 dBm) differs from the
+09-11 `nopriv` build in **exactly two lines** — `CONFIG_BT_CTLR_TX_PWR_ANTENNA 0→18` and
+`CONFIG_BT_CTLR_SDC_LE_POWER_CLASS_1 n→y` (the second is selected automatically by the first). Nothing
+else in the controller moved, so any behaviour change between those images is TX power.
+
+**What the verified `.config` carries** (the inventory, so nobody re-greps it): `BT_LL_SOFTDEVICE=y` ·
+`BT_HCI_RAW=y` · `USB_DEVICE_STACK_NEXT=y` (USBD-next still provides the CDC function) · `MPSL_FEM=y`
++ `MPSL_FEM_SIMPLE_GPIO=y` · `BT_CTLR_TX_PWR_ANTENNA=20` + `SDC_LE_POWER_CLASS_1=y` · `BT_CTLR_PRIVACY`
+unset · `PHY_2M=y` · `PHY_CODED=y` · `BT_MAX_CONN=6` · `SDC_PERIPHERAL_COUNT=1` (5 central + 1
+peripheral; 0 is refused by SDC's BUILD_ASSERT) · `DATA_LENGTH_MAX=251` · `BT_BUF_ACL_TX_COUNT=12` ·
+`BT_BUF_EVT_RX_COUNT=16` · `SDC_TX/RX_PACKET_COUNT=6/6` · `CONN_RSSI=y` · `LE_ENC=y` · `BT_HCI_VS=y` ·
+`SDC_CONN_ANCHOR_POINT_REPORT=y` · `SDC_CENTRAL_ACL_EVENT_SPACING_DEFAULT=7500` ·
+`SDC_MAX_CONN_EVENT_LEN_DEFAULT=7500` · `SDC_CONN_EVENT_EXTEND_DEFAULT=y` ·
+`CLOCK_CONTROL_NRF_K32SRC_XTAL=y` (`ACCURACY=50` ppm) · `MPSL_HFCLK_LATENCY=1400`. **Not set:**
+`TX_PWR_DYNAMIC_CONTROL`, `SDC_QOS_CONN_EVENT_REPORT`, `SDC_QOS_CHANNEL_SURVEY`, `LE_POWER_CONTROL`,
+`ADV_EXT`, `SUBRATING`, `SDC_LLPM`, `DF`, `SDC_ALLOW_PARALLEL_SCANNING_AND_INITIATING`.
+
+**TX power, what the number means.** `TX_PWR_ANTENNA` is the figure *at the antenna*; the SDC
+subtracts the overlay's 22 dB FEM TX gain to set the SoC (so +20 at the antenna is ≈ −2 dBm from the
+nRF52840, whose own ceiling is +8). The RFX2401C listing tops out around +20–22 dBm, so 20 is the
+board's number, not a tuning choice; 18 was flashed first as the step below it. **This changes §10's
+FCC line** — we no longer run the stock 0 dBm-into-PA configuration; raising it was the owner's act.
+Why raise it at all: RX on these units is ~30 dB better than the Realtek (§6 / ZEPHYR-INSTRUMENT), but
+the *peripherals* have to hear the dongle too, and the small-antenna Polars did not connect. The
+pre-stated pass criterion: the dongle's own advertisement heard on vigil's second adapter at
+**≥ −55 dBm** (the 0 dBm image measured **−86** there). *Pending.*
+
+**Public address, why in firmware now.** The SDC ships no factory public address. Under the 09-11
+image the adapter came up from `btattach` with no usable BD address and needed a runtime
+`0xFC06` vendor write per attach (ZEPHYR-INSTRUMENT § "Bring-up"); the value written there — the raw
+FICR word — has bit 0 of its first on-air octet **set** on all three units (`E1`, `D9`, `E7` are all
+odd), i.e. a *group* address, which is not a valid public identity and is consistent with the
+per-unit top-byte mutation that section recorded as "a lookup, never a formula". The patch instead
+composes a globally-administered unicast address: **`F4:CE:36` (Nordic's OUI) + the low 24 bits of
+FICR `DEVICEADDR[0]`** — the same three octets that end the DFU-mode USB serial, so the expected
+address is readable off the by-id port *before* the flash:
+
+| DFU serial | expected public address after `-pub` |
+|---|---|
+| `E7FC6D6BA44E` | `F4:CE:36:6B:A4:4E` |
+| `D967242ECD98` | `F4:CE:36:2E:CD:98` |
+| `E1BFD58009C0` | `F4:CE:36:80:09:C0` |
+
+It is written every boot (the SDC keeps it across `HCI_Reset` but not a power-cycle — hence in
+`main()` after `bt_enable_raw()`, once `sdc_enable` has run), so the host-side `0xFC06` + `down`/`up`
+dance is no longer needed. Consequence to plan for: BlueZ keys its adapter directory by address, so
+each unit gets a **fresh identity store** on first attach — every peripheral bonded to the old
+address must be **re-paired** (owner's act; the bond-selection fix that reads the kernel's address
+rather than BlueZ's, #2422, is then the safety net, not the mechanism). *Pending: `hciconfig` on the
+host must show the table's value with no vendor write issued.*
+
+**Host bring-up under `hci_uart`** (per attach; the port is a CDC ACM device, product string
+`Zephyr HCI UART anchor np`, found by its *application-mode* USB serial — which differs from the DFU
+serial, §8):
+
+```sh
+btattach -B /dev/ttyACM<n> -S 1000000 &   # <n> resolved by application-mode USB serial (udevadm/lsusb -v), never by index
+hciconfig hciN                            # expect F4:CE:36:… — no 0xFC06 write
+```
+
+`hciconfig -a` still prints `Can't read local name … (5)` — LE-only controller, benign (§2). On vigil,
+attaching is one thing and *using* is another: making it the capture adapter is `config.yaml` by
+address + a daemon restart = owner deploy (§9), and installing a `btattach` unit on the box is the
+same class of change.
+
+**Controller capabilities compiled in (`BT_HCI_VS=y`, SDC vendor set) — what the image can be asked
+without another flash:** `zephyr_write_bd_addr` · `read_static_addresses` · `read_chip_temp` ·
+`write/read_tx_power` (per-role/handle, within the class-1 ceiling) · `conn_event_extend` ·
+`read_average_rssi` · `central_acl_event_spacing_set` · `event_length_set` · `scan_channel_map_set`
+· `set_power_control_request_params` · `conn_anchor_point_update_event_report_enable` (the
+RADIO-CLOCK-SIDECAR source) · `transmitter_carrier_test` · `set_adv_randomness` ·
+`get_next_conn_event_counter`. **Needs a flash to enable:** `SDC_QOS_CONN_EVENT_REPORT` (per
+connection event: `crc_ok`/`crc_error`/`nak`/`rx_timeout` **per channel**) and `SDC_QOS_CHANNEL_SURVEY`
+(`int8_t channel_energy[40]`) — together they are a per-night, per-channel PER/energy sidecar, and
+with `LE Set Host Channel Classification` a way to steer a link off a jammed channel. That is the
+recommended *next* image once the `-pub` one is verified; do not fold it into this flash, or the TX
+and address changes stop being isolated variables. Not worth chasing on this hardware: LLPM, ISO /
+periodic advertising / direction finding, subrating, LE Power Control, extended advertising.
+
+**Clock: the dongle is referenced, never steered.** vigil's `chrony` is stratum 2 off the LAN
+stratum-1 server (`192.168.0.123`; measured 2026-09-12: offset +49 µs, root delay 0.45 ms, skew
+0.033 ppm, frequency 4.0 ppm; NTS pool fallbacks), and the dongle has no input that could follow it —
+a free-running 32 MHz HFXO plus the 50 ppm LFXO, no network, no PPS pin wired. So the radio clock is
+*placed on* the host axis (SDC anchor-point reports paired with host `CLOCK_REALTIME`, `hostAxis` /
+`radio_clock` — enabling the latter on vigil is owner-gated) with a residual set by USB CDC delivery
+jitter (~0.1–1 ms, median-filtered per CLAUDE.md §🔒 7), not disciplined to it. True hardware
+discipline would be a PPS edge into a dongle GPIO with `TIMER` capture over PPI (62.5 ns) — soldering
+and an owner's deploy, not a config line. See ZEPHYR-INSTRUMENT § "2026-09-12".
+
 ## 1 · Identify the board FIRST — the checklist that would have saved both days
 
 The nRF52840 is the same on every dongle; the *board* is everything around it, and the build encodes
@@ -63,7 +214,8 @@ Holyiot has only the SMA path (`U2` RF coaxial connector via `L2`/`C15`/`C16`).
 |---|---|---|---|
 | `1915:c00a` | nRF52 Connectivity | Nordic connectivity firmware (pc-ble-driver serialisation) — what the Holyiot ships with. Has a CDC port **and** a DFU-trigger vendor interface. `nrfutil … dfu usb-serial` on its CDC port answers `No Response: 0x00`: that port is not the bootloader | magnet/button while plugging in |
 | `1915:521f` | Open DFU Bootloader | red LED; the only state that accepts a DFU package; port appears under `/dev/serial/by-id/…Open_DFU_Bootloader_<serial>-if00` | flash, or unplug |
-| `2fe3:000b` | Zephyr USBD BT HCI | our image. `btusb` binds it as `hciN`. **No trigger interface** — after this, the magnet is the only way back to DFU | magnet/button while plugging in |
+| `2fe3:000b` | Zephyr USBD BT HCI | the **09-07 `hci_usb`** image. `btusb` binds it as `hciN`. **No trigger interface** — after this, the magnet is the only way back to DFU | magnet/button while plugging in |
+| CDC ACM, product `Zephyr HCI UART anchor np`, `/dev/ttyACM*` | Zephyr CDC ACM | the **current `hci_uart`** image (§0b). A serial port, **no `hciN` until `btattach`**; its USB serial differs from the DFU one (§8). No trigger interface either | magnet/button while plugging in |
 | `/dev/ttyACM*` only, `1915:520f`-ish | stock "nRF52 USB CDC BLE demo" (Raytac out of the box) | a serial port; BlueZ never sees it | reset-button DFU |
 
 `hciconfig -a` prints `Can't read local name on hciN: Input/output error (5)` for the Zephyr image —
@@ -147,6 +299,12 @@ Failure shapes, in the order to suspect them:
 - **`2fe3:000b` but `hciconfig` shows `00:00:00:00:00:00`:** the fixed-address patch is not in the
   image. BlueZ will invent a static-random identity **per host** — the address you pin on the rig is
   not the one vigil sees. Rebuild with the patch.
+- **`hci_uart` image (§0b): "Device programmed." then no `hciN` at all** — expected; it is a CDC port
+  now. `btattach` it. **`hciN` exists but the address is zeros or not `F4:CE:36:…`:** the `main.c`
+  patch was not in the tree at build time (`git -C zephyr diff --stat samples/bluetooth/hci_uart`
+  must show `+12`); the 09-11 `0xFC06` runtime write still works as a stopgap, but rebuild.
+- **Reflashing a unit that already runs Zephyr:** there is no DFU trigger in either Zephyr image —
+  magnet (Holyiot) / button-while-plugging (Raytac) is the only way back to `1915:521f`.
 - **`No Response: 0x00`** from `dfu usb-serial`: you are talking to the *application's* CDC port, not
   the bootloader. Magnet.
 
@@ -205,16 +363,21 @@ Holyiot is 35 dB better" anywhere.
 
 ## 8 · Unit register — addresses are FICR-fixed, one row per physical dongle
 
-| unit | FICR public address | USB serial (bootloader by-id) | where | image |
-|---|---|---|---|---|
-| Holyiot-21017 #1 | `99:67:24:2E:CD:98` | `D967242ECD98` | rig-x870 → moving to vigil | `vigil_sdc_holyiot21017_dfu.zip` (2026-09-07) |
-| Raytac MDBT50Q-CX | read on the box (`hciconfig` on vigil; was `C6:CF:3C:4E:75:F0` under the pre-fixed-address image) | — | vigil, hci2 | `vigil_sdc_fixedaddr_dfu.zip` (2026-08-25) |
-| next | — | — | — | — |
+| unit | DFU-mode USB serial (by-id) | app-mode USB serial (`hci_uart` CDC) | BD address written 09-11 (`0xFC06`, raw FICR) | **public address under `-pub` (expected)** | where (2026-09-12) | image |
+|---|---|---|---|---|---|---|
+| Holyiot-21017 #1 | `D967242ECD98` | `B1BAA52EE6EDB771` | `99:67:24:2E:CD:98` | `F4:CE:36:2E:CD:98` | rig-x870 | `…anchor_nopriv` (09-11); `-pub` pending |
+| Holyiot-21017 #2 | `E7FC6D6BA44E` | `9D08E454B242A0BF` | `E7:FC:6D:6B:A4:4E` | `F4:CE:36:6B:A4:4E` | rig-x870 → vigil (the capture candidate) | `hciuart-txpwr20.zip` **flashed** 09-12; `-pub` pending |
+| Holyiot-21017 #3 | `E1BFD58009C0` | `E8724F4F4D09CE57` | `21:BF:D5:80:09:C0` | `F4:CE:36:80:09:C0` | rig-x870 (control unit) | `…anchor_nopriv` (09-11); `-pub` pending |
+| Raytac MDBT50Q-CX | — | — | was `C6:CF:3C:4E:75:F0` (pre-fixed-address), then BlueZ static-random `FA:88:98:C3:7F:E5` (08-25) | not applicable until reflashed with §0b | moved to rig-x870 2026-08-25 (ZEPHYR-INSTRUMENT); not enumerated on vigil at the 09-12 read | `vigil_sdc_fixedaddr_dfu.zip` (2026-08-25, `hci_usb`) |
 
-The address is the low 48 bits of `NRF_FICR->DEVICEADDR` with the top two bits **not** forced (the
-patch registers it as *public*, so `hciconfig` shows it verbatim and it does not change when BlueZ's
-identity store is wiped). The USB serial the stock/bootloader firmware reports is the same number —
-that is how you know which physical dongle a by-id port belongs to before it is flashed.
+Under the 09-07 `hci_usb` patch the address was the low 48 bits of `NRF_FICR->DEVICEADDR`
+registered verbatim as public. **That is superseded** (§0b): the raw word is a *group* address on
+every unit seen (odd first octet), so the current patch composes `F4:CE:36` + the low 24 bits. Both
+schemes are FICR-derived — the address does not change when BlueZ's identity store is wiped and is
+the same on every host — and in both the DFU-mode USB serial's last three octets are the unit's
+FICR tail, which is how a by-id bootloader port is matched to a physical dongle before it is flashed.
+The *application-mode* serial is a different number (measured on all three) — match by DFU serial
+or by address, never by the CDC serial alone, and never by `ttyACM` index.
 
 ## 9 · Moving a flashed dongle to vigil
 
@@ -235,8 +398,10 @@ a new write path to any device; the ring, the CPAP, and the Polars are talked to
   <http://www.holyiot.com/tp/2021091017064271075.pdf> — the source of every pin in §3
 - Holyiot product page: <http://www.holyiot.com/eacp_view.asp?id=336>; DFU manual (magnet procedure,
   nRF Connect screenshots) ships with the unit and is on manuals.plus under "Holyiot nRF52840+PA"
-- FCC ID `2ALGY-21017` (the PA-equipped product as certified — relevant if TX power is ever raised;
-  we run the nRF at the 0 dBm default into the PA, which is the stock configuration)
+- FCC ID `2ALGY-21017` (the PA-equipped product as certified). ⚠️ **Since 2026-09-12 we no longer
+  run the 0 dBm default** — §0b's image sets `CONFIG_BT_CTLR_TX_PWR_ANTENNA=20` (the listing's
+  maximum; 18 was flashed first). Raising it was the owner's decision; this line used to say the
+  stock configuration was in use and is kept so the change is visible.
 - RFX2401C: two-pin control (TXEN, RXEN; both low = sleep), ≈ +22 dB PA / ≈ 12 dB LNA — the gains in
   the overlay
 - Zephyr two-pin FEM binding: `zephyr/dts/bindings/net/wireless/radio-fem-two-ctrl-pins.yaml`;
@@ -260,6 +425,18 @@ a new write path to any device; the ring, the CPAP, and the Polars are talked to
 - [ ] flashed by the by-id bootloader port; `2fe3:000b`; `hciconfig` shows a non-zero address
 - [ ] paired scan (§6) recorded in the §6 table; device count ≥ the Realtek's or the reason is written down
 - [ ] §8 row added with the FICR address; the address — not an `hciN` — is what gets pinned on the box
+
+**Done-when for the 2026-09-12 image (§0b), all pending at the time of writing:**
+
+- [ ] `hciuart-txpwr20-pub.zip` flashed to `E7FC6D6BA44E`; after `btattach`, `hciconfig` shows
+      `F4:CE:36:6B:A4:4E` with **no** `0xFC06` write issued; survives a replug (power-cycle)
+- [ ] the dongle's own advertisement heard on vigil's second adapter at ≥ −55 dBm (0 dBm image: −86)
+- [ ] the other two units (`D967242ECD98`, `E1BFD58009C0`) flashed with the same zip and §8 updated
+      with measured, not expected, addresses
+- [ ] Polars re-paired to the new address on vigil (owner) and a two-peripheral concurrent connect
+      survives — the soak ZEPHYR-INSTRUMENT still names as unproven
+- [ ] `vigil-hciuart-holyiot-txpwr20.conf` / `vigil-hciuart-main.c.patch` in the repo match what was
+      built (`diff` against `/srv/data/ncs/…` and `git -C /srv/data/ncs/zephyr diff samples/bluetooth/hci_uart`)
 
 Residue from this pass: none surfaced. The RSSI-offset question (how much of +35 dB is the LNA's
 12 dB vs calibration) is answerable with a fixed beacon at a fixed distance and is not owed until
