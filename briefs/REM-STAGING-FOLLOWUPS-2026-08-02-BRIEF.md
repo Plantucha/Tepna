@@ -68,8 +68,10 @@ re-bundle rather than causing one; this is that deferral, named rather than skip
   kills 1, first-block-wins-on-overlap kills 1). The browser-only legs were run headless rather than
   shipped unrun: 5070 passing, 0 failing.
 
-  **What 2b still needs is the records, and only the records.** No NSRR data is on this machine, and
-  none can be fetched — NSRR/PhysioNet require a signed DUA and the suite is 100 % local by construction.
+  **What 2b still needs is the records, and only the records.** ⚠️ **SUPERSEDED 2026-09-13 — the
+  records are now on this machine; see the stamp below.** The paragraph is kept because its reasoning
+  is still the right reading of the period it describes. No NSRR data was on this machine, and
+  none could be fetched — NSRR/PhysioNet require a signed DUA and the suite is 100 % local by construction.
   2b is unblocked on code and blocked on a human dropping EDF+XML pairs in. That is a materially different
   status from "the annotation files are the gap".
 
@@ -77,6 +79,45 @@ re-bundle rather than causing one; this is that deferral, named rather than skip
   deferral; revisit only if records are ever actually obtained). 2b's scoring path stays built and
   dormant — do not re-surface this as pending work, and do not re-argue the DUA's value; the
   decision was made with that value on the table.
+
+  ✅ **THE REVISIT CONDITION FIRED — records were obtained 2026-09-13, and §2b HAS NOW BEEN RUN.**
+  The cancellation above is unchanged and is not being re-argued: it names its own trigger ("revisit
+  only if records are ever actually obtained"), and that trigger is met. The full SHHS1 cohort —
+  **5136 records, EDF + expert-scored annotations, all paired** — is on local storage, and the
+  scoring path this brief left "built and dormant" ran across every one of them.
+
+  **The number §2b says has never existed now exists:**
+
+  | | |
+  |---|---|
+  | REM recall vs expert PSG | **23.9 %** |
+  | Wake · Light · Deep recall | 27.7 % · 56.5 % · 16.3 % |
+  | Cohen's kappa (4-class, AASM collapse) | **0.0967 +/- 0.0031** |
+  | n | 5134 records · 505 868 epochs |
+
+  Pre-stated bands (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md` §4 E1, published before the run):
+  >=0.60 transfers · 0.40-0.60 partial · **<0.40 does not**. So the answer to §2b is **negative**, and
+  the conjunction does not transfer to clinical PSG. Misalignment was tested and excluded rather than
+  assumed — kappa recomputed over a window of lags scatters its peak instead of concentrating, and a
+  planted shift IS caught by the same test, so the negative comes from an instrument shown to react.
+
+  ⚠️ **§2c is therefore unblocked and its premise is inverted.** It reads "only then revisit a
+  detector change, with the falsifiers demoted from primary evidence to sanity checks". The labels now
+  exist and they say the shipped conjunction is near chance — so a detector change is no longer
+  *optional refinement*, it is what the real labels call for. That is a materially different starting
+  point from the one §2c anticipated, which assumed the labels would broadly confirm the falsifiers.
+
+  ⚠️ **`DEEP-AUDIT-V` F8 is unblocked too, by the same records, and nobody has said so.** The block
+  quote below already established that F8 needs these records and that §2a's parser delivers the
+  respiratory events it wants. Both conditions now hold. F8 remains unrun; this is a status
+  correction, not a claim that it is done.
+
+  🔴 **What is NOT settled, and is the owner's:** whether §2b/§2c resume as active work. The
+  cancellation was an owner decision taken with the value on the table; this stamp records only that
+  its stated condition has fired and what the run found. It does not reopen the item.
+
+  *(Aggregate figures only — per-record rows and NSRR record identifiers are excluded under the
+  derived-artifact ruling in `SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md` §5, owner 2026-09-13.)*
 - **2b** Derive ECGDex's per-epoch feature vector (LF/HF, RMSSD, motionIndex, resp, respCv) from NSRR ECG
   on records that also carry expert staging, and evaluate the shipped conjunction against *real* labels.
   That single number — real recall/precision for REM — has never existed and is the thing every staging
