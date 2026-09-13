@@ -459,6 +459,47 @@ function loadInto(ctx, file) {
   vm.runInContext(DexBuild.classicify(readFileSync(p, 'utf8')), ctx, { filename: file });
 }
 
+// ── BOUNDED LAZY LINE READER ──────────────────────────────────────────────────────────────────
+// The fold's dominant allocation was `readFileSync(f, 'utf8')` handed to a parser that then did
+// `split(/\r?\n/)`. For the H10 ECG files in this corpus (up to 260 MB) that is the whole file as one
+// string PLUS ~3.4 M line objects, both live at once, per file.
+//
+// This reads the file in bounded chunks and yields complete lines, so the working set is the chunk
+// plus one line — never the file. The parser side is `ECGDSP.parseECGLines`, an ADDITIVE entry point:
+// `parseECG` still takes whole text for the browser and every existing caller, and both share one
+// parse body so the two cannot drift. Verified export-inert on a real night (2026-08-23): the
+// volatile-stripped `node-export` JSONs are identical before and after.
+const LINE_CHUNK_BYTES = 16 * 1024 * 1024; // 16 MB — the bound on the read buffer
+
+function* readLinesBounded(path, chunkBytes = LINE_CHUNK_BYTES) {
+  const fd = openSync(path, 'r');
+  try {
+    const buf = Buffer.allocUnsafe(chunkBytes);
+    const dec = new TextDecoder('utf-8');
+    let carry = '';
+    for (;;) {
+      const got = readSync(fd, buf, 0, chunkBytes, null);
+      if (got <= 0) break;
+      // `stream: true` so a multi-byte character split across a chunk boundary is not corrupted —
+      // silently mangling one row is worse than failing, because the parse still succeeds.
+      const text = carry + dec.decode(buf.subarray(0, got), { stream: true });
+      let start = 0;
+      for (;;) {
+        const nl = text.indexOf('\n', start);
+        if (nl < 0) break;
+        const end = nl > start && text.charCodeAt(nl - 1) === 13 ? nl - 1 : nl;
+        yield text.slice(start, end);
+        start = nl + 1;
+      }
+      carry = text.slice(start);
+    }
+    carry += dec.decode();
+    if (carry.length) yield carry; // a final line with no trailing newline is still a row
+  } finally {
+    closeSync(fd);
+  }
+}
+
 // LAZY — the DSP realm is built only by a process that actually COMPUTES. A dispatching parent never
 // loads it (it only plans + spawns), which keeps the coordinator at a few MB instead of carrying a full
 // DSP realm for the whole run.
@@ -2018,7 +2059,9 @@ for (const p of work) {
      never going to exist. A missing leg is a fact about the night, not a failure. */
   if (wantNode('ECGDex') && p.ecg && p.ecg.length)
     try {
-      const rec = mergeEcg(p.ecg.map((f) => ECGDex.parseECG(readFileSync(f.full, 'utf8'))));
+      // STREAMED, not slurped — see readLinesBounded. `map` runs one file at a time, so peak is
+      // one chunk plus the compact Int16Array the parser accumulates, not the whole text.
+      const rec = mergeEcg(p.ecg.map((f) => ECGDex.parseECGLines(readLinesBounded(f.full))));
       if (p.accH10 && p.accH10.length) {
         /* ALL concurrent ACC sessions, laid on ONE UNIFORM GRID with the silence between them padded.
            `[0]` was wrong (the earliest session is often a settling fragment: 2026-07-27 had 7 sessions

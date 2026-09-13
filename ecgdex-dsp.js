@@ -4879,7 +4879,17 @@
   //  analyze(): { int16, fs, gaps, t0Ms, offsetMin, source, durSec, … }.
   // ════════════════════════════════════════════════════════════════════════
   function parseECGText(text) {
-    var lines = String(text == null ? '' : text).split(/\r?\n/);
+    // Whole-text entry point — UNCHANGED contract, kept for the browser and every existing caller.
+    // It delegates so there is exactly ONE parse body: a second copy would drift, and the two would
+    // disagree about a real recording before anyone noticed.
+    return parseECGLines(String(text == null ? '' : text).split(/\r?\n/));
+  }
+
+  // LINE-FEED entry point. Takes any ITERABLE of lines, so a Node caller can stream a file in bounded
+  // chunks instead of materialising it: a 260 MB `_ECG.txt` costs a 260 MB string PLUS ~3.4 M line
+  // objects under `split()`, and both die at once here. The numeric result is identical — the loop
+  // below never looked at anything but one line at a time.
+  function parseECGLines(lines) {
     var cap = 1 << 16,
       arr = new Int16Array(cap),
       n = 0;
@@ -4894,8 +4904,8 @@
       }
       arr[n++] = v;
     }
-    for (var li = 0; li < lines.length; li++) {
-      var line = lines[li].trim();
+    for (var line0 of lines) {
+      var line = String(line0).trim();
       if (!line) continue;
       var p = line.split(/[;\t,]/);
       var v = parseFloat(p[p.length - 1]);
@@ -5702,6 +5712,7 @@
   }
 
   global.ECGDSP.parseECG = parseECGText;
+  global.ECGDSP.parseECGLines = parseECGLines; // bounded/streaming callers (Node fold path)
   /* THE TWO HALVES OF THE TIMING WALK, exported because the APP LANE IS A CONSUMER (DEEP-AUDIT-VI F2)
      — not merely for assertability. `ecgdex-app.js` builds its streaming Worker from
      `ecgTimingScan.toString()` and calls `ecgTimingResolve` on the scan the Worker ships back, so
@@ -5783,6 +5794,7 @@
   global.ECGDex = global.ECGDex || {
     compute: compute,
     parseECG: parseECGText,
+    parseECGLines: parseECGLines,
     analyze: analyze,
     genSynthetic: genSynthetic,
     buildNodeExport: ecgBuildNodeExport,

@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0mqhj4PCQsNRywYOCDIa/lI1dB/pbF/OnCPxEs9VBIo=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-humLfsum3iuPyxKG/voJNiH8l+wh7lokogz90PMwyJs=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-qDLkD6CA1mDoytLt0rRlor/ScfbRv1fJsgN5mqQ3mx0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0mqhj4PCQsNRywYOCDIa/lI1dB/pbF/OnCPxEs9VBIo=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-humLfsum3iuPyxKG/voJNiH8l+wh7lokogz90PMwyJs=' 'sha256-lUMjebuuCYMO+MZw/Jj4lYHFDoLJBmQ2Bt5SsiQW9xU=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.11.0</title>
@@ -13510,7 +13510,17 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   //  analyze(): { int16, fs, gaps, t0Ms, offsetMin, source, durSec, … }.
   // ════════════════════════════════════════════════════════════════════════
   function parseECGText(text) {
-    var lines = String(text == null ? '' : text).split(/\r?\n/);
+    // Whole-text entry point — UNCHANGED contract, kept for the browser and every existing caller.
+    // It delegates so there is exactly ONE parse body: a second copy would drift, and the two would
+    // disagree about a real recording before anyone noticed.
+    return parseECGLines(String(text == null ? '' : text).split(/\r?\n/));
+  }
+
+  // LINE-FEED entry point. Takes any ITERABLE of lines, so a Node caller can stream a file in bounded
+  // chunks instead of materialising it: a 260 MB `_ECG.txt` costs a 260 MB string PLUS ~3.4 M line
+  // objects under `split()`, and both die at once here. The numeric result is identical — the loop
+  // below never looked at anything but one line at a time.
+  function parseECGLines(lines) {
     var cap = 1 << 16,
       arr = new Int16Array(cap),
       n = 0;
@@ -13525,8 +13535,8 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       }
       arr[n++] = v;
     }
-    for (var li = 0; li < lines.length; li++) {
-      var line = lines[li].trim();
+    for (var line0 of lines) {
+      var line = String(line0).trim();
       if (!line) continue;
       var p = line.split(/[;\t,]/);
       var v = parseFloat(p[p.length - 1]);
@@ -14333,6 +14343,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   }
 
   global.ECGDSP.parseECG = parseECGText;
+  global.ECGDSP.parseECGLines = parseECGLines; // bounded/streaming callers (Node fold path)
   /* THE TWO HALVES OF THE TIMING WALK, exported because the APP LANE IS A CONSUMER (DEEP-AUDIT-VI F2)
      — not merely for assertability. `ecgdex-app.js` builds its streaming Worker from
      `ecgTimingScan.toString()` and calls `ecgTimingResolve` on the scan the Worker ships back, so
@@ -14414,6 +14425,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   global.ECGDex = global.ECGDex || {
     compute: compute,
     parseECG: parseECGText,
+    parseECGLines: parseECGLines,
     analyze: analyze,
     genSynthetic: genSynthetic,
     buildNodeExport: ecgBuildNodeExport,
