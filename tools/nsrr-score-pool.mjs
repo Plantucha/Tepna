@@ -62,6 +62,10 @@
  *   node tools/nsrr-score-pool.mjs --dir <d> --workers 8              # cap the pool
  *   node tools/nsrr-score-pool.mjs --dir <d> --precision 0.25         # stop at +/-0.25 events/h
  *   node tools/nsrr-score-pool.mjs --dir <d> --resume                 # continue from checkpoint
+ *   node tools/nsrr-score-pool.mjs --scorer ./nsrr-stage-validate.mjs # drive a different scorer
+ *
+ * A SCORER is any module exporting `makeRealm()` and `scoreRecord(ctx, rec)` (or `poolScoreRecord`
+ * when its own CLI needs a different signature), with `rec = { id, edf, xml }`.
  */
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -222,6 +226,31 @@ function selftest() {
 
 if (process.argv.includes('--selftest')) process.exit(selftest());
 
+/* Probe whether a scorer can support early stopping AT ALL, before a run starts — an unsupported
+   `--precision` must fail loudly at second 0, not run to the end pretending to watch. */
+export function liveStatProbe(mod, rows) {
+  const f = typeof mod.liveStat === 'function' ? mod.liveStat : defaultLiveStat;
+  const st = f(rows || []);
+  return st && st.halfWidth !== undefined ? 0 : null;
+}
+
+/* ── the LIVE STATISTIC ───────────────────────────────────────────────────────────────────────
+   The running answer, recomputed from the rows scored so far, for the heartbeat and the early stop.
+
+   ⚠️ THIS WAS HARDWIRED TO THE ODI METRIC AND THAT WAS A DEFECT, not a missing feature. Driving the
+   pool with `--scorer ./nsrr-stage-validate.mjs` printed `median —  +/-—` for a whole run: the
+   progress meter reported nothing and the early stop could never fire, because its input was always
+   empty. Same shape as every other check here that reported on something it never examined — and it
+   FAILS SILENTLY, because an em-dash reads as "not yet" rather than "structurally unavailable".
+
+   A scorer supplies its own `liveStat(rows) -> { label, value, halfWidth, n, detail? }`; this is the
+   fallback. `halfWidth: null` disables early stopping for that scorer rather than stopping on a
+   number nobody computed. */
+export function defaultLiveStat(rows) {
+  const d = rows.filter((r) => r && !r.err && r.odi4 != null && r.expertDesat4Idx).map((r) => r.odi4 - r.expertDesat4Idx);
+  return { label: 'median ODI-4 − expert (events/h)', value: median(d), halfWidth: medianHalfWidth(d), n: d.length };
+}
+
 /* ── record pairing ───────────────────────────────────────────────────────────────────────────
    An EDF with no annotation cannot be scored and an annotation with no EDF has nothing to score, so
    the population is the INTERSECTION. Returned sorted so the shuffle is the only source of order. */
@@ -242,14 +271,20 @@ export function pairRecords(edfDir, xmlDir) {
    would dominate the runtime, and the realm is the reason a worker is worth having at all. */
 async function workerMain() {
   const { parentPort, workerData } = await import('node:worker_threads');
-  const odi = await import('./nsrr-oxydex-odi.mjs');
-  const ctx = odi.makeRealm();
+  const mod = await import(workerData.scorer);
+  /* A module may expose a pool-shaped entry point beside its own differently-shaped one — the stage
+     validator's `scoreRecord` takes (ctx, edfBuffer, xmlText) because that is what its own CLI needs.
+     `poolScoreRecord` is the opt-in adapter; no arity sniffing, which would silently call the wrong
+     function the day a signature grows an optional argument. */
+  const score = mod.poolScoreRecord || mod.scoreRecord;
+  if (typeof mod.makeRealm !== 'function' || typeof score !== 'function') throw new Error(workerData.scorer + ' is not a pool scorer: needs makeRealm() and scoreRecord/poolScoreRecord(ctx, rec)');
+  const ctx = mod.makeRealm();
   parentPort.postMessage({ ready: true, w: workerData.w });
   parentPort.on('message', (m) => {
     if (m.stop) return process.exit(0);
     let row;
     try {
-      row = odi.scoreRecord(ctx, m.rec);
+      row = score(ctx, m.rec);
     } catch (e) {
       /* §∅: a record that threw is an ERROR, never a zero score silently folded into the median */
       row = { id: m.rec.id, err: String((e && e.message) || e) };
@@ -270,6 +305,10 @@ async function main(argv) {
   const precision = arg('--precision', null) != null ? Number(arg('--precision', null)) : null;
   const noShuffle = argv.includes('--no-shuffle');
   const resume = argv.includes('--resume');
+  /* WHICH scorer this pool drives. The pool was born hardwired to the ODI driver, which meant the one
+     other long serial run in this repo — `nsrr-stage-validate.mjs`, 5136 records — could not use the
+     machinery built to end exactly that. A pool that parallelises one caller is a script. */
+  const scorerSpec = arg('--scorer', './nsrr-oxydex-odi.mjs');
   const limit = arg('--limit', null) != null ? Number(arg('--limit', null)) : null;
 
   /* the two new features are only sound together — refuse rather than silently produce a precise
@@ -301,6 +340,13 @@ async function main(argv) {
   const total = queue.length;
   queue = queue.filter((r) => !seen.has(r.id));
 
+  /* imported in the MAIN thread for its liveStat; the workers import it separately for scoring */
+  const scorerMod = await import(scorerSpec);
+  if (precision != null && liveStatProbe(scorerMod, []) === null) {
+    console.error('✕ --precision given, but ' + scorerSpec + ' publishes no halfWidth, so no stopping');
+    console.error('  rule could ever fire. Refusing rather than running to the end pretending to watch.');
+    process.exit(2);
+  }
   const { Worker } = await import('node:worker_threads');
   const nw = poolSize(arg('--workers', null) != null ? Number(arg('--workers', null)) : null, (cpus() || []).length);
   const tier = nw > 1 ? 'worker pool x' + nw : 'serial (1 core)';
@@ -309,6 +355,7 @@ async function main(argv) {
   console.log('▸ nsrr-score-pool');
   console.log('  records   ' + total + (done.length ? '  (' + done.length + ' already done, resuming)' : ''));
   console.log('  order     ' + (noShuffle ? 'directory (BIASED prefix — early stop disabled)' : 'hash-shuffled — any prefix is a random sample'));
+  console.log('  scorer    ' + scorerSpec);
   console.log('  tier      ' + tier + why);
   console.log('  stop      ' + (precision != null ? 'when 95% half-width <= +/-' + precision + ' events/h (pre-stated)' : 'full corpus'));
   console.log('');
@@ -324,7 +371,8 @@ async function main(argv) {
     fin = done.length,
     stopped = null,
     lastBeat = 0;
-  const deltas = done.filter((r) => r.odi4 != null && r.expertDesat4Idx).map((r) => r.odi4 - r.expertDesat4Idx);
+  const liveStat = typeof scorerMod.liveStat === 'function' ? scorerMod.liveStat : defaultLiveStat;
+  let stat = liveStat(done);
 
   const beat = (force) => {
     const now = Date.now();
@@ -333,7 +381,7 @@ async function main(argv) {
     const el = (now - t0) / 1000;
     const rate = el > 0 ? (fin - done0) / el : 0;
     const eta = rate > 0 ? (total - fin) / rate : null;
-    const hw = medianHalfWidth(deltas);
+    const hw = stat.halfWidth;
     /* the heartbeat carries the ANSWER SO FAR, not just a position — a partial run of a shuffled
        corpus has a real estimate in it, and hiding it until the end is the observability failure */
     process.stdout.write(
@@ -348,9 +396,9 @@ async function main(argv) {
         ' rec/s  eta ' +
         (eta != null ? (eta / 60).toFixed(0) + 'm' : '?') +
         '  median ' +
-        (median(deltas) != null ? median(deltas).toFixed(3) : '—') +
+        (stat.value != null ? Number(stat.value).toFixed(3) : '—') +
         '  +/-' +
-        (hw != null ? hw.toFixed(3) : '—') +
+        (hw != null ? Number(hw).toFixed(3) : '—') +
         '   '
     );
   };
@@ -367,19 +415,19 @@ async function main(argv) {
       w.postMessage({ rec: queue[idx++] });
     };
     for (let i = 0; i < nw; i++) {
-      const w = new Worker(fileURLToPath(import.meta.url), { workerData: { w: i }, argv: ['--worker-child'] });
+      const w = new Worker(fileURLToPath(import.meta.url), { workerData: { w: i, scorer: scorerSpec }, argv: ['--worker-child'] });
       live++;
       workers.push(w);
       w.on('message', (m) => {
         if (m.ready) return feed(w);
         done.push(m.row);
         fin++;
-        if (m.row.odi4 != null && m.row.expertDesat4Idx) deltas.push(m.row.odi4 - m.row.expertDesat4Idx);
+        stat = liveStat(done);
         if (fin % 25 === 0) saveCheckpoint(CKPT, { done, n: fin, total });
         beat(false);
         if (precision != null && !stopped) {
-          const hw = medianHalfWidth(deltas);
-          if (hw != null && hw <= precision) stopped = { n: deltas.length, fin, hw, floor: stoppedAtFloor(deltas.length) };
+          const hw = stat.halfWidth;
+          if (hw != null && hw <= precision) stopped = { n: stat.n, fin, hw, floor: stoppedAtFloor(stat.n) };
         }
         feed(w);
       });
@@ -399,8 +447,10 @@ async function main(argv) {
   const rps = (fin - done0) / Math.max(1e-9, (Date.now() - t0) / 1000);
   console.log('\n');
   console.log('  scored    ' + fin + ' of ' + total + ' in ' + mins + ' min  (' + rps.toFixed(2) + ' rec/s)');
-  console.log('  median    ' + (median(deltas) != null ? median(deltas).toFixed(3) + ' events/h (OxyDex ODI-4 - expert)' : '—'));
-  console.log('  95% CI    +/-' + (medianHalfWidth(deltas) != null ? medianHalfWidth(deltas) : '—'));
+  stat = liveStat(done);
+  console.log('  ' + String(stat.label).padEnd(36) + (stat.value != null ? Number(stat.value).toFixed(4) : '—') + '   (n=' + stat.n + ')');
+  console.log('  95% half-width' + ' '.repeat(22) + (stat.halfWidth != null ? '+/-' + Number(stat.halfWidth).toFixed(4) : '— (scorer publishes none; early stop disabled)'));
+  if (Array.isArray(stat.detail)) for (const line of stat.detail) console.log('    ' + line);
   if (stopped) {
     console.log('');
     console.log('  ⏹ STOPPED EARLY at n=' + stopped.n + ' of ' + total + ' — half-width ' + stopped.hw + ' <= target ' + precision);
