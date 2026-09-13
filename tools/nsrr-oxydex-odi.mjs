@@ -277,10 +277,46 @@ function discover(argv) {
    ⚠️ It does not remove EVERY difference: SHHS scorers marked desaturations at a ≥3 % drop, so the
    honest pairing is the expert index against OxyDex's ODI-3, with ODI-4 reported beside it as the
    stricter variant. That is why both are carried. */
-const DESAT_RE = /<EventConcept>[^<]*SpO2 desaturation[^<]*<\/EventConcept>/gi;
-export function expertDesatIndex(xmlText, tstHours) {
-  const n = (String(xmlText).match(DESAT_RE) || []).length;
-  return { nDesat: n, index: tstHours && tstHours > 0 ? +(n / tstHours).toFixed(2) : null };
+/* ⚠️ AND THE EXPERT EVENT LIST IS NOT A ≥3 % POPULATION EITHER — measured, after asserting otherwise.
+   An earlier version of this file stated that "SHHS scorers marked desaturations at a ≥3 % drop" and
+   paired their event count against ODI-3 on that basis. That was an ASSUMPTION, and it is false.
+   Measured 2026-09-12 over 99 records from the scorers' own `SpO2Baseline`/`SpO2Nadir` fields: a MEDIAN
+   70.9 % of scored desaturations are shallower than 3 %, and the minimum observed drop is 0.0 %.
+
+   So `SpO2 desaturation` names two different populations — the scorer's, and any threshold index. A
+   3 %-threshold detector CANNOT count an event the scorer marked at 1 %, and the shortfall that produces
+   is arithmetic, not detector behaviour. Reported against the unfiltered list, OxyDex looked like it
+   found 37 % of desaturations. Depth-matched it finds a median 119 % (ODI-3 vs ≥3 %) and 96.5 %
+   (ODI-4 vs ≥4 %) — the opposite conclusion.
+
+   The index is therefore computed at a DEPTH THRESHOLD and paired with the matching ODI variant. The
+   unfiltered count is kept beside it, labelled, so the two can never again be mistaken for each other. */
+const DESAT_BLOCK_RE = /<ScoredEvent>[\s\S]*?<\/ScoredEvent>/g;
+const NADIR_RE = /<SpO2Nadir>([\d.]+)<\/SpO2Nadir>/;
+const BASELINE_RE = /<SpO2Baseline>([\d.]+)<\/SpO2Baseline>/;
+
+export function expertDesatDepths(xmlText) {
+  const out = [];
+  for (const b of String(xmlText).match(DESAT_BLOCK_RE) || []) {
+    if (!/SpO2 desaturation/i.test(b)) continue;
+    const n = NADIR_RE.exec(b),
+      base = BASELINE_RE.exec(b);
+    if (!n || !base) continue;
+    const d = Number(base[1]) - Number(n[1]);
+    if (Number.isFinite(d)) out.push(d);
+  }
+  return out;
+}
+
+export function expertDesatIndex(xmlText, tstHours, minDropPct) {
+  const depths = expertDesatDepths(xmlText);
+  const keep = minDropPct == null ? depths : depths.filter((d) => d >= minDropPct);
+  return {
+    nDesat: keep.length,
+    nAll: depths.length,
+    index: tstHours && tstHours > 0 ? +(keep.length / tstHours).toFixed(2) : null,
+    shallowSharePct: depths.length ? +((100 * (depths.length - keep.length)) / depths.length).toFixed(1) : null
+  };
 }
 
 export function scoreRecord(ctx, rec) {
@@ -308,14 +344,23 @@ export function scoreRecord(ctx, rec) {
     classEst: severityClass(est),
     classRef: severityClass(ref),
     ...(() => {
-      const d = expertDesatIndex(xmlText, out.tstHours);
+      const all = expertDesatIndex(xmlText, out.tstHours, null);
+      const d3 = expertDesatIndex(xmlText, out.tstHours, 3);
+      const d4 = expertDesatIndex(xmlText, out.tstHours, 4);
       const odi3 = out.odi3 != null ? +out.odi3 : null;
+      const odi4 = out.odi4 != null ? +out.odi4 : null;
+      const ratio = (a, b) => (a != null && b ? +(a / b).toFixed(3) : null);
       return {
         tstHours: out.tstHours != null ? +out.tstHours.toFixed(2) : null,
-        expertDesatN: d.nDesat,
-        expertDesatIdx: d.index,
-        // the unconfounded residual: OxyDex's 3 % index minus the scorer's 3 % index
-        desatResidual: odi3 != null && d.index != null ? +(odi3 - d.index).toFixed(2) : null
+        // UNFILTERED — kept and labelled, never paired with a threshold index
+        expertDesatAllIdx: all.index,
+        expertShallowSharePct: d3.shallowSharePct,
+        // DEPTH-MATCHED — each ODI variant against the scorer's events at the SAME depth
+        expertDesat3Idx: d3.index,
+        expertDesat4Idx: d4.index,
+        ratio3: ratio(odi3, d3.index),
+        ratio4: ratio(odi4, d4.index),
+        desatResidual3: odi3 != null && d3.index != null ? +(odi3 - d3.index).toFixed(2) : null
       };
     })()
   };
@@ -378,6 +423,20 @@ function selftest() {
       severityClass(30) === 'severe'
   );
   A('severity: a missing AHI is null, never a class', severityClass(null) === null && severityClass(Number.NaN) === null);
+
+  /* THE DEPTH-MATCHING REGRESSION. Planted scorer events at known depths: an index computed WITHOUT a
+     depth filter counts shallow events a threshold detector cannot see, and pairing the two is the
+     error that produced a 37 % figure where the depth-matched answer is ~119 %. */
+  const xml = [0.5, 1, 2, 2.9, 3, 3.5, 4, 5, 9]
+    .map((d) => '<ScoredEvent><EventConcept>SpO2 desaturation|SpO2 desaturation</EventConcept><SpO2Nadir>' + (95 - d) + '</SpO2Nadir><SpO2Baseline>95</SpO2Baseline></ScoredEvent>')
+    .join('');
+  A('depths: every scored event is read', expertDesatDepths(xml).length === 9, String(expertDesatDepths(xml).length));
+  A('index: unfiltered counts all 9 over 1 h', expertDesatIndex(xml, 1, null).index === 9);
+  A('index: a >=3 % filter keeps 5, not 9', expertDesatIndex(xml, 1, 3).index === 5, String(expertDesatIndex(xml, 1, 3).index));
+  A('index: a >=4 % filter keeps 3', expertDesatIndex(xml, 1, 4).index === 3, String(expertDesatIndex(xml, 1, 4).index));
+  A('index: the shallow share is REPORTED, not silently dropped', expertDesatIndex(xml, 1, 3).shallowSharePct === 44.4, String(expertDesatIndex(xml, 1, 3).shallowSharePct));
+  A('index: 2.9 % is below a 3 % threshold — the edge is not rounded in', expertDesatIndex(xml, 1, 3).nDesat === 5);
+  A('index: an event with no nadir/baseline is skipped, never counted as depth 0', expertDesatDepths('<ScoredEvent><EventConcept>SpO2 desaturation</EventConcept></ScoredEvent>' + xml).length === 9);
 
   // a PLANTED severity-proportional under-count must be recovered as a negative slope
   const ref = [2, 6, 10, 18, 25, 33, 44, 60];
