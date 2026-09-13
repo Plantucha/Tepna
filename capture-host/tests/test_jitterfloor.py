@@ -4,6 +4,7 @@
 
 import json
 
+
 import jitterfloor as jf
 
 
@@ -68,6 +69,16 @@ def test_drawn_axis_refused_and_folded_fallback(tmp_path):
 
 def test_missed_frames_do_not_inflate_folded_jitter(tmp_path):
     # every 3rd frame missing: gaps of 2×base must fold out, not read as 500 ms of "jitter".
+    #
+    # 🔴 THIS FIXTURE IS THE ONE THAT CAUGHT `_folded_base`, and it could not reach it before the
+    # lattice guard landed: its axis is `int(i * 0.5e9)`, exactly drawn, so the corrected guard routes
+    # it to `folded` where the old modal guard sent it to `vs-device`. Measured 2026-09-13, the old
+    # relative score then picked base 999 ms and reported jitter 248 ms; the fit-count score picks
+    # 499.5 ms and reports 2 ms. Both numbers come from this fixture — keep it.
+    #
+    # The deltas are bimodal ON PURPOSE (half ~500 ms, half ~1000 ms, one more big than small): that is
+    # what makes a MEDIAN residual land inside one cluster and describe half the data, which was the
+    # defect underneath the ranking bug. A fixture with a single delta population cannot express it.
     # The miss rate is deliberately high enough that Q3 lands INSIDE the doubled-gap cluster if
     # the fold formula is broken — half-IQR is translation-invariant, so a fold that merely
     # SHIFTS residuals is invisible unless the k=2 gaps land in the quartile span.
@@ -173,23 +184,54 @@ def test_jitter_scale_is_quartile_based():
     assert jf._jitter_scale([float(x) for x in range(20)]) == 5.25
 
 
-def test_drawn_concentration_boundary_is_inclusive():
-    # exactly 99 of 100 deltas modal → concentration == DRAWN_CONCENTRATION → drawn (>=, not >)
-    deltas = [500.0] * 99 + [499.0]
-    assert jf._device_axis_is_drawn(deltas) is True
-    # and 98/100 is below the bound
-    assert jf._device_axis_is_drawn([500.0] * 98 + [499.0, 501.0]) is False
+_G = 500_000_000  # 500 ms in ns — the grid every fixture below is built on
 
 
-def test_drawn_detector_quantum_is_one_decimal():
-    # deltas alternating ±0.4 ms: distinct at 1 decimal (real clock), identical at 0 decimals —
-    # an int-rounding detector would misclassify this real crystal as drawn
-    wobbly = [500.4 if i % 2 else 499.6 for i in range(100)]
-    assert jf._device_axis_is_drawn(wobbly) is False
-    # deltas alternating ±0.02 ms: identical at 1 decimal (sub-quantum) → drawn; a 2-decimal
-    # detector would see them as distinct and let a drawn axis through
-    subq = [500.02 if i % 2 else 499.98 for i in range(100)]
-    assert jf._device_axis_is_drawn(subq) is True
+def test_drawn_lattice_boundary_is_inclusive():
+    # 99 of 100 deltas on the lattice → share == DRAWN_CONCENTRATION → drawn (>=, not >)
+    assert jf._device_axis_is_drawn([_G] * 99 + [_G + 1]) is True
+    # 98/100 is below the bound
+    assert jf._device_axis_is_drawn([_G] * 98 + [_G + 1, _G + 3]) is False
+
+
+def test_a_real_crystal_is_not_convicted_by_one_ns_of_wander():
+    # A real clock misses the lattice by NANOSECONDS and must survive: `%` is exact, so a single ns
+    # of wander is enough to be off-grid. This is the mirror of the plant below — a guard that
+    # cannot clear an honest axis is as useless as one that cannot catch a drawn one.
+    assert jf._device_axis_is_drawn([_G + (1 if i % 2 else -1) for i in range(100)]) is False
+
+
+def test_an_axis_that_never_advances_is_drawn():
+    # ∅ Verity `ppi`: 100 % zero device deltas in both arms on the real corpus. Not a clock, so
+    # vs-device must not run against it. The old modal test reached this verdict by coincidence.
+    assert jf._device_axis_is_drawn([0] * 100) is True
+
+
+def test_DROPPED_FRAMES_DO_NOT_HIDE_A_DRAWN_AXIS():
+    """🔴 THE REGRESSION PLANT — this is the exact shape that shipped past the modal guard.
+
+    The O2Ring's axis is drawn (`sample_index × 1 s`), but dropped frames put ~2 % of the mass on
+    2×/3×/4× the grid, dropping the MODAL share to 0.9787 on the real corpus — under the 0.99 bar.
+    So the old detector passed it and vs-device ran against a fabricated clock.
+
+    The plant is built to pass the OLD test and fail the NEW one, and both halves are asserted here
+    so it can never quietly become vacuous."""
+    deltas = [_G] * 97 + [2 * _G] * 2 + [3 * _G]  # modal share 0.97, lattice share 1.00
+    modal_share = deltas.count(_G) / len(deltas)
+    assert modal_share < jf.DRAWN_CONCENTRATION, "the plant must DEFEAT the retired modal test"
+    assert jf._device_axis_is_drawn(deltas) is True, "the lattice test must CATCH it"
+
+
+def test_being_an_integer_multiple_is_not_enough_to_convict():
+    """⚠️ THE OTHER HALF, and the reason the obvious fix is wrong. A REAL clock at a fixed frame
+    interval also emits 2×/3× of its modal when frames are missed — measured on the corpus, Polar
+    H10 `acc` scores 0.9930 and `ecg` 0.9990 on a multiple-of-the-MODAL test. Only EXACTNESS
+    separates them, so a real axis whose deltas are near-multiples must still read as real."""
+    real = []
+    for i in range(100):
+        step = _G if i % 7 else 2 * _G  # genuine dropped frames
+        real.append(step + (37 if i % 2 else -53))  # ...and genuine sub-µs crystal wander
+    assert jf._device_axis_is_drawn(real) is False
 
 
 def test_folded_base_finds_half_median_grid():
@@ -296,3 +338,36 @@ def test_folded_base_hysteresis_keeps_incumbent():
     # loosened switch threshold (anything above 0.95) walks down to 31.25
     near = [100.0] * 20 + [150.0] * 20
     assert jf._folded_base(near) == 125.0
+
+
+def test_folded_base_prefers_the_true_base_over_its_own_divisors(tmp_path):
+    # THE MIRROR CONTROL for the fit-count score. Every divisor of the true base fits the lattice
+    # perfectly, so a fit-count alone TIES them; only "ties go to the largest candidate" separates
+    # them. Without that rule this returns 250 (or 166.7) and every genuine 500 ms delta still folds
+    # to ~0 residual — a base that is wrong while the jitter it produces looks right, which is why
+    # this asserts the BASE and not only the jitter.
+    lines = []
+    for i in range(300):
+        host_s = i * 0.5 + (0.002 if i % 2 else -0.002)
+        lines.append(_row(_stamp(host_s), "O2Ring R", "spo2", int(i * 0.5e9)))
+    _write_night(tmp_path, "ring", lines)
+    f = jf.night_floor(tmp_path)["floor"]
+    assert f is not None and 495.0 <= f["base_ms"] <= 505.0, f
+
+
+def test_folded_base_is_not_fooled_by_a_median_residual_that_describes_half_the_data(tmp_path):
+    # THE PLANT the ranking fix owes: deltas bimodal at base and 2x base, arranged so the MEDIAN
+    # absolute residual against the 2x candidate lands in the small cluster and reads ~1 ms — the
+    # artefact that made the retired score rank 2x best. Asserted on the BASE, because the retired
+    # code produced a plausible-looking small residual while choosing the wrong lattice.
+    lines = []
+    for i in range(220):
+        if i % 3 == 2:
+            continue
+        host_s = i * 0.5 + (0.002 if i % 2 else -0.002)
+        lines.append(_row(_stamp(host_s), "O2Ring R", "spo2", int(i * 0.5e9)))
+    _write_night(tmp_path, "ring", lines)
+    f = jf.night_floor(tmp_path)["floor"]
+    assert f is not None, f
+    assert 495.0 <= f["base_ms"] <= 505.0, f  # retired score returned 999.0 here
+    assert f["jitter_ms"] < 10.0, f  # ... and 248.0 ms of "jitter" with it

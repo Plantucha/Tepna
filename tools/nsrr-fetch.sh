@@ -44,6 +44,40 @@ mkdir -p "$DEST" "$EDFDIR"
 mapfile -t ALL < <(ls "$IDSRC" | sed 's/-nsrr\.xml$//' | sort -u)
 # Count .edf files without `ls | grep` (SC2010): a glob is correct for any filename, and an unmatched
 # glob under `nullglob` yields an empty array rather than the literal pattern.
+# ── A FILE THAT EXISTS IS NOT A FILE THAT IS COMPLETE ────────────────────────────────────────
+# The skip test was `[ -s file ]` — exists and non-empty. A truncated EDF left by a killed worker
+# passes that and is then skipped FOREVER, silently, surfacing only when something downstream reads a
+# night mysteriously missing its last hours. That scenario is not hypothetical: a careless `pkill -f`
+# stalled every worker during this corpus fetch.
+#
+# An EDF declares its own size, so completeness is checkable without a manifest or a checksum:
+#   header = 256 + ns*256      (ns at bytes 252-255)
+#   data   = nDataRecords * sum(samples per record) * 2
+# Samples-per-record live at 256 + 216*ns, eight ASCII bytes each.
+#
+# Verified against this corpus: 4928 of 4928 complete, 0 short, 0 unreadable — so the guard costs
+# nothing on a healthy tree and is the only thing standing between an interrupted run and a corpus
+# with a permanent hole in it.
+edf_complete() {
+  local f=$1 ns nrec hdr per want actual i off v
+  [ -s "$f" ] || return 1
+  actual=$(stat -c%s "$f" 2>/dev/null) || return 1
+  nrec=$(dd if="$f" bs=1 skip=236 count=8 2>/dev/null | tr -d ' ')
+  ns=$(dd if="$f" bs=1 skip=252 count=4 2>/dev/null | tr -d ' ')
+  [[ "$nrec" =~ ^[0-9]+$ && "$ns" =~ ^[0-9]+$ ]] || return 1
+  [ "$ns" -ge 1 ] && [ "$nrec" -ge 1 ] || return 1
+  hdr=$(( 256 + ns * 256 ))
+  [ "$actual" -ge "$hdr" ] || return 1
+  per=0; off=$(( 256 + 216 * ns ))
+  for ((i=0; i<ns; i++)); do
+    v=$(dd if="$f" bs=1 skip=$(( off + i*8 )) count=8 2>/dev/null | tr -d ' ')
+    [[ "$v" =~ ^[0-9]+$ ]] || return 1
+    per=$(( per + v ))
+  done
+  want=$(( hdr + nrec * per * 2 ))
+  [ "$actual" -eq "$want" ]
+}
+
 count_edf() {
   local -a f=()
   shopt -s nullglob
@@ -59,7 +93,12 @@ worker() {
   for id in "${ALL[@]}"; do
     i=$((i+1))
     [ $(( (i-1) % N )) -eq "$k" ] || continue
-    if [ -s "$EDFDIR/$id.edf" ]; then skip=$((skip+1)); continue; fi
+    if edf_complete "$EDFDIR/$id.edf"; then skip=$((skip+1)); continue; fi
+    # present but INCOMPLETE: remove it so the fetch below is a clean retry rather than a no-op
+    if [ -e "$EDFDIR/$id.edf" ]; then
+      echo "re-fetching incomplete $id.edf" >> "$DEST/shard.log"
+      rm -f "$EDFDIR/$id.edf"
+    fi
     if "$NSRR" download "shhs/polysomnography/edfs/shhs1/$id.edf" \
          --token="$(cat "$TOKEN_FILE")" >/dev/null 2>&1; then got=$((got+1))
     else fail=$((fail+1)); fi
