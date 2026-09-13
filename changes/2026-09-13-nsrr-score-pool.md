@@ -1,7 +1,7 @@
 ---
 bump: minor
 type: added
-brief: null
+brief: none
 ---
 
 `tools/nsrr-score-pool.mjs` — parallel, resumable, observable corpus scoring, with a sequential
