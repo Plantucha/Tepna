@@ -65,7 +65,7 @@ const EPOCH_SEC = 30; // the expert grid
    `parseNsrrXml` queries (ScoredEvent elements with EventConcept/Start/Duration children), and it
    throws on anything else rather than silently returning an empty NodeList — a stub that quietly
    finds nothing would make every record score as "no labels" and look like a data problem. */
-function makeRealm() {
+export function makeRealm() {
   const sandbox = {};
   sandbox.window = sandbox;
   sandbox.self = sandbox;
@@ -302,6 +302,205 @@ function syntheticNight(minutes) {
 }
 
 /* ── one record, end to end ─────────────────────────────────────────────────────────────────────*/
+/* ── THE LIVE STATISTIC: pooled Cohen's kappa ─────────────────────────────────────────────────
+   What `nsrr-score-pool.mjs` shows in its heartbeat and stops on. Pooled over every record scored so
+   far, so a partial run of a hash-shuffled corpus carries a real kappa rather than a placeholder.
+
+   ⚠️ THE TWO LABEL SETS ARE NOT THE SAME VOCABULARY, and this is the whole difficulty. The expert
+   scores `Wake/N1/N2/N3/REM`; the detector emits `Wake/Light/Deep/REM`. A kappa computed over the
+   union of those would be a 9-class agreement in which `N2` and `Light` are DIFFERENT categories that
+   can never agree — the detector would score near zero no matter how right it was. The mapping is
+   therefore declared, not inferred, and it is the standard AASM collapse. This is `same-name-two-
+   populations` in its most expensive form: two label sets, one word "stage". */
+export const EXPERT_TO_DET = { Wake: 'Wake', N1: 'Light', N2: 'Light', N3: 'Deep', N4: 'Deep', REM: 'REM' };
+export const DET_CLASSES = ['Wake', 'Light', 'Deep', 'REM'];
+
+/* Cohen's kappa over a pooled confusion matrix, with the standard large-sample SE so the pool can
+   stop when it is precise enough. Returns null rather than a number when kappa is undefined —
+   pe === 1 means one class swallowed everything, and (po-pe)/(1-pe) is 0/0 there, not "perfect". */
+export function kappaFromMatrix(M) {
+  let N = 0;
+  const rs = {},
+    cs = {};
+  for (const e of DET_CLASSES)
+    for (const d of DET_CLASSES) {
+      const v = (M[e] && M[e][d]) || 0;
+      N += v;
+      rs[e] = (rs[e] || 0) + v;
+      cs[d] = (cs[d] || 0) + v;
+    }
+  if (!N) return null;
+  let po = 0,
+    pe = 0;
+  for (const c of DET_CLASSES) {
+    po += ((M[c] && M[c][c]) || 0) / N;
+    pe += (rs[c] / N) * (cs[c] / N);
+  }
+  if (!(pe < 1)) return null;
+  const k = (po - pe) / (1 - pe);
+  const se = Math.sqrt((po * (1 - po)) / (N * (1 - pe) * (1 - pe)));
+  const recall = {};
+  for (const c of DET_CLASSES) recall[c] = rs[c] ? +(((M[c] && M[c][c]) || 0) / rs[c]).toFixed(4) : null;
+  return { kappa: +k.toFixed(4), halfWidth: +(1.96 * se).toFixed(4), nEpochs: N, po: +po.toFixed(4), recall };
+}
+
+/* Pool every record's confusion matrix into one, mapping expert labels into the detector's
+   vocabulary on the way in. An expert label with no mapping is DROPPED and counted, never bucketed
+   into a default class — §∅: an unmapped category is absent, not "Wake". */
+export function poolConfusion(rows) {
+  const M = {},
+    unmapped = {};
+  for (const e of DET_CLASSES) {
+    M[e] = {};
+    for (const d of DET_CLASSES) M[e][d] = 0;
+  }
+  for (const r of rows || []) {
+    const c = r && r.score && r.score.confusion;
+    if (!c) continue;
+    for (const expert of Object.keys(c)) {
+      const me = EXPERT_TO_DET[expert];
+      if (!me) {
+        unmapped[expert] = (unmapped[expert] || 0) + 1;
+        continue;
+      }
+      for (const det of Object.keys(c[expert])) if (M[me][det] !== undefined) M[me][det] += c[expert][det];
+    }
+  }
+  return { M, unmapped };
+}
+
+/* ⚠️ EPOCHS ARE NOT INDEPENDENT, AND THE POOLED SE PRETENDS THEY ARE — measured 2026-09-13.
+   `kappaFromMatrix` returns the textbook large-sample SE, which assumes N independent observations.
+   Epochs within one night are heavily correlated (a stager that mistakes a subject's N2 for Light
+   does so for hundreds of consecutive epochs), so that SE is computed on an N that does not exist:
+   10 records reported n=976 and a half-width of +/-0.046, a precision the sample cannot support.
+
+   Left uncorrected, the pool's `--precision` would stop after a handful of records believing it had
+   converged — the same failure as a stopping rule that reports its own floor as a criterion, one
+   level deeper, because here the over-confidence is in the ARITHMETIC rather than in a guard.
+
+   So the half-width published for STOPPING is the between-RECORD spread of per-record kappa, whose
+   unit of independence is the night. The pooled kappa remains the headline estimate; only its
+   uncertainty changes. Both are reported so the difference is visible rather than chosen silently. */
+export function perRecordKappas(rows) {
+  const out = [];
+  for (const r of rows || []) {
+    if (!r || r.err || !r.score || !r.score.confusion) continue;
+    const k = kappaFromMatrix(poolConfusion([r]).M);
+    if (k && Number.isFinite(k.kappa)) out.push(k.kappa);
+  }
+  return out;
+}
+
+export function liveStat(rows) {
+  const { M, unmapped } = poolConfusion(rows);
+  const k = kappaFromMatrix(M);
+  if (!k) return { label: "Cohen's kappa (stager vs expert)", value: null, halfWidth: null, n: 0 };
+  /* between-record 95 % half-width: 1.96 * SE of the mean over nights. Below 5 nights it is null —
+     a spread estimated from four numbers is not a precision, and publishing one would re-introduce
+     exactly the false confidence this block exists to remove. */
+  const ks = perRecordKappas(rows);
+  let clusterHW = null;
+  if (ks.length >= 5) {
+    const mu = ks.reduce((a, b) => a + b, 0) / ks.length;
+    const sd = Math.sqrt(ks.reduce((a, b) => a + (b - mu) * (b - mu), 0) / (ks.length - 1));
+    clusterHW = +((1.96 * sd) / Math.sqrt(ks.length)).toFixed(4);
+  }
+  const det = [
+    'per-stage recall: ' + DET_CLASSES.map((c) => c + ' ' + (k.recall[c] != null ? (100 * k.recall[c]).toFixed(1) + '%' : '—')).join('  '),
+    'epochs ' + k.nEpochs + '  ·  raw agreement ' + (100 * k.po).toFixed(1) + '%' + (Object.keys(unmapped).length ? '  ·  UNMAPPED expert labels: ' + Object.keys(unmapped).join(',') : '')
+  ];
+  det.push(
+    'uncertainty: between-record +/-' +
+      (clusterHW != null ? clusterHW.toFixed(4) : '— (needs >=5 records)') +
+      '   [naive per-epoch +/-' +
+      k.halfWidth.toFixed(4) +
+      ' assumes independent epochs — it does not hold]'
+  );
+  /* `n` is the RECORD count, not the epoch count: it is what the stopping rule's floor must count. */
+  return { label: "Cohen's kappa (stager vs expert)", value: k.kappa, halfWidth: clusterHW, n: ks.length, detail: det };
+}
+
+/* ── the pool adapter ─────────────────────────────────────────────────────────────────────────
+   `tools/nsrr-score-pool.mjs` hands a worker `{ id, edf, xml }` PATHS and expects one row back; this
+   file's own CLI already holds the bytes, so its `scoreRecord` takes buffers. Rather than change that
+   signature (and every caller with it), expose the path-taking shape the pool asks for by name. The
+   pool looks for this export explicitly and never sniffs arity — a sniff would quietly call the wrong
+   function the day either signature gains an optional argument.
+
+   This exists because 5136 records serially is ~5.9 h and the pool does it in ~37 min. */
+export function poolScoreRecord(ctx, rec) {
+  return { id: rec.id, ...scoreRecord(ctx, toArrayBuffer(readFileSync(rec.edf)), readFileSync(rec.xml, 'utf8')) };
+}
+
+/* ── ALIGNMENT DIAGNOSTIC ─────────────────────────────────────────────────────────────────────
+   A near-chance kappa has two very different causes, and a confusion matrix at lag 0 cannot tell
+   them apart: the detector genuinely disagrees, or it agrees but is SHIFTED in time. The second is a
+   bug in the join or the anchor and is recoverable; the first is a finding about the detector. This
+   tool previously reported only the lag-0 matrix, so it could grade agreement but never diagnose it.
+
+   Recompute kappa over a small window of lags. If it peaks at zero, a low kappa is a real
+   disagreement. If it peaks off zero — especially if it peaks HIGH — the grids are misaligned and
+   every number the tool has ever printed for that record is about the wrong pairing.
+
+   This is the counterpart to the brief's planted-shift control, and the two are not the same test:
+   the plant proves the scorer REACTS to a shift; this finds a shift nobody planted. */
+export function alignmentScan(pairs, maxLag) {
+  const L = maxLag == null ? 3 : maxLag;
+  const det = pairs.map((p) => p.detected);
+  const exp = pairs.map((p) => p.expert);
+  const out = [];
+  for (let lag = -L; lag <= L; lag++) {
+    const M = {};
+    for (const e of DET_CLASSES) {
+      M[e] = {};
+      for (const d of DET_CLASSES) M[e][d] = 0;
+    }
+    for (let i = 0; i < pairs.length; i++) {
+      const j = i + lag;
+      if (j < 0 || j >= pairs.length) continue;
+      const me = EXPERT_TO_DET[exp[i]] || (DET_CLASSES.includes(exp[i]) ? exp[i] : null);
+      const md = det[j];
+      if (!me || M[me][md] === undefined) continue;
+      M[me][md]++;
+    }
+    const k = kappaFromMatrix(M);
+    out.push({ lag, kappa: k ? k.kappa : null });
+  }
+  const scored = out.filter((o) => o.kappa != null);
+  if (!scored.length) return { lags: out, bestLag: null, bestKappa: null, kappa0: null, misaligned: null };
+  const best = scored.reduce((a, b) => (b.kappa > a.kappa ? b : a));
+  const zero = scored.find((o) => o.lag === 0);
+  /* ⚠️ THIS PER-RECORD FLAG OVER-FIRES AND MUST NOT BE COUNTED AS EVIDENCE — measured 2026-09-13.
+     Taking the MAXIMUM kappa over 7 lags and comparing it to lag 0 is a selection over 7 noisy
+     values: when true agreement is near chance, some lag beats lag 0 by >0.05 most of the time, for
+     nothing but sampling. On 24 real records it fired 9 times while the population showed no shift
+     at all. It is retained as a per-record HINT only; `populationMisalignment` below is the test.
+     Same family as a threshold tuned on the data it judges — the margin is not wrong, the
+     multiplicity is unaccounted for. */
+  const misaligned = best.lag !== 0 && zero != null && best.kappa - zero.kappa > 0.05;
+  return { lags: out, bestLag: best.lag, bestKappa: best.kappa, kappa0: zero ? zero.kappa : null, misaligned };
+}
+
+/* THE TEST THAT ACTUALLY DISCRIMINATES: a systematic misalignment is a property of the PIPELINE, so
+   it shows up as every record peaking at the SAME non-zero lag. Sampling noise scatters the peak
+   uniformly. Comparing the modal best-lag's share against the 1/(2L+1) a uniform scatter predicts
+   separates the two without any per-record threshold at all. */
+export function populationMisalignment(rows, maxLag) {
+  const L = maxLag == null ? 3 : maxLag;
+  const lags = (rows || []).map((r) => r && r.alignment && r.alignment.bestLag).filter((v) => v != null);
+  if (lags.length < 10) return { n: lags.length, verdict: 'insufficient', modalLag: null, modalShare: null };
+  const c = {};
+  for (const l of lags) c[l] = (c[l] || 0) + 1;
+  const modal = Object.entries(c).reduce((a, b) => (b[1] > a[1] ? b : a));
+  const share = modal[1] / lags.length;
+  const expected = 1 / (2 * L + 1);
+  /* a genuine pipeline shift concentrates nearly everything on one lag; 2x the uniform expectation is
+     the floor for calling it, and even that is stated as "suspect" rather than proven */
+  const verdict = Number(modal[0]) === 0 ? 'aligned' : share > 2 * expected ? 'suspect-shift' : 'no-systematic-shift';
+  return { n: lags.length, modalLag: Number(modal[0]), modalShare: +share.toFixed(3), uniformExpected: +expected.toFixed(3), verdict };
+}
+
 export function scoreRecord(ctx, edfBuffer, xmlText) {
   const { CpapEdf, ECGDSP, NSRR } = ctx;
   let edf;
@@ -335,6 +534,7 @@ export function scoreRecord(ctx, edfBuffer, xmlText) {
     detEpochMin: epochMin,
     nExpertEpochs: ann.epochs.filter(Boolean).length,
     expertRemFrac: ann.remFrac,
+    alignment: alignmentScan(pairs, 3),
     score: scoreREM(pairs, 'REM')
   };
 }
