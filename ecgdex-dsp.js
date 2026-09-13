@@ -33,10 +33,14 @@
     for (let i = 0; i < a.length; i++) s += (a[i] - m) * (a[i] - m);
     return Math.sqrt(s / (a.length - 1));
   }; // sample SD (÷N−1) — HRV Task Force / Kubios convention, unified fleet-wide 2026-06-24
-  const rmssd = (a) => {
+  /* `skip` (optional): `skip[i]` truthy ⇒ the pair (i-1, i) is not a successive difference — the two
+     beats are separated by a dropout, so real time passed with no signal between them. Absent ⇒ every
+     pair, which is the legacy behaviour and every contiguous recording. */
+  const rmssd = (a, skip) => {
     let s = 0,
       n = 0;
     for (let i = 1; i < a.length; i++) {
+      if (skip && skip[i]) continue;
       const d = a[i] - a[i - 1];
       s += d * d;
       n++;
@@ -63,10 +67,17 @@
     _ckZoneMin = DexClock._ckZoneMin,
     _ckDMY = DexClock._ckDMY,
     parseTimestamp = DexClock.parseTimestamp;
-  const pnn50 = (a) => {
-    let n = 0;
-    for (let i = 1; i < a.length; i++) if (Math.abs(a[i] - a[i - 1]) > 50) n++;
-    return a.length > 1 ? (n / (a.length - 1)) * 100 : 0;
+  /* `skip` as in `rmssd` — and the DENOMINATOR must shrink with the numerator, or excluding a pair
+     silently lowers the percentage instead of leaving it out of the population. */
+  const pnn50 = (a, skip) => {
+    let n = 0,
+      d = 0;
+    for (let i = 1; i < a.length; i++) {
+      if (skip && skip[i]) continue;
+      d++;
+      if (Math.abs(a[i] - a[i - 1]) > 50) n++;
+    }
+    return d ? (n / d) * 100 : 0;
   };
   const nn50c = (a) => {
     let n = 0;
@@ -1012,18 +1023,46 @@
     // NB: start at k=0 — the FIRST beat (sensor-contact startup artifact, e.g. a 474 ms
     // beat ≈127 bpm against a ~1200 ms mean) must be range/relative-gated too, or it
     // survives into minRR/maxHR. The local median uses forward neighbours for k=0.
+    /* §∅ — AN INTERVAL THAT STRADDLES A DROPOUT IS NOT A CORRUPTED BEAT, IT IS AN ABSENCE ─────────
+       Every rule below repairs a beat that was MIS-MEASURED: low SQI, out of physiological range, or
+       ectopic. A beat separated from its predecessor by a 74-second hole is none of those. It is a
+       true statement — that much time really did pass with no signal — and it is out of range for
+       exactly that reason, so `rangeBad` fires and the local median gets written over it. Measured on
+       a real H10 night (2026-08-25, 5 dropouts): **5 of 5 gap-straddling intervals were median-filled**,
+       each a multi-second absence replaced by a plausible ~1 s heartbeat that then fed rMSSD and SDNN
+       as if it were a measurement. Same class as PpgDex punch list #2, still live here.
+
+       THE FIX IS NEITHER TO FILL IT BETTER NOR TO DROP IT. The raw value is the honest one — leave it.
+       What it is NOT is a beat-to-beat measurement, so it is marked (`spansGap`) and excluded from the
+       successive-difference statistics, exactly as PpgDex's `cleanMask` does. Nothing is fabricated
+       and nothing is discarded: `nn`/`tt` keep their length and their meaning, and a consumer wanting
+       whole-record dispersion still has every interval.
+
+       The cut is buildNN's own `GAP_S`, hoisted so the interval this excludes and the interval that
+       lands in `gapSec` can never disagree — two constants for one question eventually diverge. */
+    const GAP_S = 10; // any inter-beat interval longer than this is a coverage gap, not a missed beat
+    const spansGap = new Uint8Array(n);
+    for (let k = 1; k < n; k++) if (times[k] - times[k - 1] > GAP_S) spansGap[k] = 1;
     for (let k = 0; k < n; k++) {
       const seg = [];
+      // …and an absence must not be a NEIGHBOUR either: it would drag the local median it is judged against.
       for (let j = Math.max(0, k - 5); j < Math.min(n, k + 6); j++) {
-        if (j !== k && sqi[j] >= sqiThr && rr[j] >= 300 && rr[j] <= 2000) seg.push(rr[j]);
+        if (j !== k && !spansGap[j] && sqi[j] >= sqiThr && rr[j] >= 300 && rr[j] <= 2000) seg.push(rr[j]);
       }
       seg.sort((a, b) => a - b);
       const med = seg.length ? seg[seg.length >> 1] : 0;
       const dev = med ? Math.abs(nn[k] - med) / med : 0; // deviation from local median (relative-plausibility gate)
       const rangeBad = sqi[k] < sqiThr || nn[k] < 300 || nn[k] > 2000;
       const ectopic = med && dev > ectopyThr;
+      if (spansGap[k]) continue; // an absence is not a correctable beat — see the block above
       if (rangeBad || ectopic) {
-        nn[k] = med || nn[k + 1] || nn[k - 1] || 1000;
+        /* ⚠️ `|| 1000` was the last resort and it is a FABRICATION — a hardcoded 60 bpm written into
+           the series precisely when the record is least trustworthy, because it is reachable only
+           where the entire ±5-beat neighbourhood failed the gate and there is nothing to interpolate
+           from. Keeping the measured value and flagging it (`corrected`) says "do not trust this"
+           without inventing a heart rate. */
+        const repl = med || nn[k + 1] || nn[k - 1];
+        if (repl) nn[k] = repl;
         corrected[k] = 1;
         if (ectopic && !rangeBad) nEctopy++;
       }
@@ -1035,8 +1074,7 @@
     // ── gap-aware coverage ──────────────────────────────────────────────────────
     // A real recording with the strap off (or a sensor dropout) leaves big inter-beat
     // gaps. tt[N-1] then over-states duration and % clean-beats hides the dead time.
-    // GAP_S: any inter-beat interval longer than this is a coverage gap, not a missed beat.
-    const GAP_S = 10;
+    // GAP_S is declared above, where the same cut decides which intervals are absences.
     let activeSec = 0,
       gapSec = 0,
       nGaps = 0;
@@ -1057,6 +1095,12 @@
       nn,
       tt,
       corrected,
+      /* nn-aligned: 1 where interval k straddles a >GAP_S dropout, i.e. real time passed with no
+         signal between beat k-1 and beat k. Such an interval is a true elapsed time and NOT a
+         beat-to-beat measurement, so every successive-difference statistic must skip the pair.
+         All-zero on a contiguous recording, which is every committed fixture. */
+      spansGap,
+      nSpansGap: spansGap.reduce((a, b) => a + b, 0),
       correctionRate: +((nCorr / n) * 100).toFixed(2),
       analyzablePct,
       cleanBeatPct,
@@ -2496,7 +2540,15 @@
          reading a committed export can only run the UNWEIGHTED hat, so the σ the papers publish
          (fused-weight) was not reproducible from the corpus. Surviving beats span [0.5, 1] by
          construction; a beat below that is not down-weighted, it is gone (and counted in artifactSec). */
-      nnConf = [];
+      nnConf = [],
+      /* §∅, aligned with nn/tt the same way: 1 where this interval straddles a dropout. Carried
+         THROUGH the confidence filter rather than re-derived after it — `nnRes.spansGap` indexes the
+         unfiltered series, and reading it at the filtered index is the frame error that shipped in
+         PpgDex for a fortnight (#2333 → the kept-frame fix). Rebuilt here in the kept frame instead:
+         a pair is a non-measurement if it straddled a gap OR if the filter removed a beat between its
+         endpoints, since the survivors are then adjacent in the array and not in time. */
+      nnSpansGap = [];
+    let _lastKept = -1;
     let artifactSec = 0,
       _pSec = null;
     for (let i = 0; i < nnRes.nn.length; i++) {
@@ -2508,6 +2560,10 @@
         nnCorr.push(nnRes.corrected[i] ? 1 : 0);
         nnSqi.push(Number.isFinite(sqi[i]) ? sqi[i] : null);
         nnConf.push(Number.isFinite(c) ? +c.toFixed(3) : 1);
+        // straddled a dropout in the source frame, OR the filter dropped a beat between this one and
+        // the previous survivor (first survivor has no predecessor, so its pair is vacuous)
+        nnSpansGap.push(nn.length === 1 ? 0 : (nnRes.spansGap && nnRes.spansGap[i]) || i !== _lastKept + 1 ? 1 : 0);
+        _lastKept = i;
       } else if (secAbs !== _pSec) {
         artifactSec++;
         _pSec = secAbs;
@@ -2517,10 +2573,34 @@
     if (N < 12) throw new Error('Too few clean R-peaks after artifact gating — signal may be all-artifact.');
 
     prog(64, 'HRV suite…');
-    const meanRR = mean(nn),
-      sdnn = std(nn),
-      rm = rmssd(nn),
-      pn = pnn50(nn);
+    /* §∅ — A GAP-STRADDLING INTERVAL IS NOT AN RR INTERVAL, so it leaves EVERY HRV statistic ────────
+       `buildNN` no longer median-fills it (see its §∅ block), so the honest value — tens of seconds —
+       now reaches here. That fix upstream creates the obligation here, and doing one without the
+       other is worse than doing neither: measured on the 2026-08-25 H10 night, excluding the fill but
+       not the statistic moved rMSSD 45.3 → 1020.2 ms, trading a quiet fabrication for a loud one.
+
+       TWO THINGS THE FIRST ATTEMPT GOT WRONG, both caught by that measurement:
+
+       1 · A bad interval at k poisons TWO successive differences — (k−1,k) AND (k,k+1) — because it
+           is an endpoint of both. Masking only the pair it indexes leaves the other one, which is why
+           rMSSD stayed at 1020 after the first cut. `_gapPair` widens the mask by one on each side.
+       2 · meanRR and SDNN are not exempt. They are whole-record CENTRAL TENDENCY and DISPERSION over
+           RR intervals, and a 74-second absence is not an RR interval at all — including it is the
+           same category error one statistic along. PpgDex already does this (`timeDomain(nn,
+           cleanMask, spansGap)` omits from its dispersion base); ECGDex now matches, which is also
+           what keeps the two nodes comparable.
+
+       All-zero mask ⇒ every pair and every interval, so a contiguous recording is byte-identical. */
+    // `skip[i]` governs the pair (i-1, i), whose ENDPOINTS are intervals i-1 and i — so a bad interval
+    // at k must set skip[k] (pair k-1,k) and skip[k+1] (pair k,k+1). Widening the other way (i, i+1)
+    // leaves the second pair live and rMSSD stayed at 1020 ms, which is how this was caught.
+    const _gapPair = nnSpansGap.length ? nnSpansGap.map((_, i) => (nnSpansGap[i] || nnSpansGap[i - 1] ? 1 : 0)) : nnSpansGap;
+    const _rrOnly = nnSpansGap.some((v) => v) ? nn.filter((_, i) => !nnSpansGap[i]) : nn;
+    const _base = _rrOnly.length >= 2 ? _rrOnly : nn; // never let the omission empty the record
+    const meanRR = mean(_base),
+      sdnn = std(_base),
+      rm = rmssd(nn, _gapPair),
+      pn = pnn50(nn, _gapPair);
     const hr = +(60000 / meanRR).toFixed(1);
     // Duration = ACTIVE (beat-covered) time, not raw span. Stray beats detected in
     // noise hours after the strap comes off must NOT inflate duration or the tier.

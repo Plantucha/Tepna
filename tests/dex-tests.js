@@ -15734,6 +15734,80 @@
       T.eq('…and the real-dropout control (no resync) drops nothing — the key is absent', ctrl.hostAxis && ctrl.hostAxis.anchorsDroppedPreResync, undefined);
     });
 
+    group('ECGDex §∅ — an interval straddling a dropout is an ABSENCE, not a correctable beat', 'ecgdex-dsp · absence-as-value · regression', function (T) {
+      /* `buildNN` repairs beats that were MIS-MEASURED: low SQI, out of physiological range, ectopic.
+         A beat separated from its predecessor by a 74-second hole is none of those — it is a true
+         elapsed time, and it is out of range for exactly that reason, so `rangeBad` fired and the
+         local median was written over it. Measured on a real H10 night (2026-08-25, 5 dropouts):
+         5 of 5 gap-straddling intervals were median-filled, each a multi-second absence rendered as a
+         plausible ~1 s heartbeat that then fed rMSSD and SDNN as a measurement.
+
+         The fix keeps the honest value and MARKS it, rather than filling or dropping it — so this
+         group asserts BOTH halves, because either alone is worse than neither: removing the fill
+         without excluding the statistic moved rMSSD 45.3 → 1020.2 ms on that same night, trading a
+         quiet fabrication for a loud one. */
+      var D = env.ECGDSP;
+      if (!(D && typeof D.buildNN === 'function')) {
+        T.skip('ECGDSP.buildNN not exported in this lane');
+        return;
+      }
+      // 60 clean 1000 ms beats with a 74 s dropout before beat 30. SQI is high throughout, so the ONLY
+      // reason that interval is out of range is the hole — nothing else can trip the repair gate.
+      var times = [],
+        rr = [],
+        sqi = [],
+        t = 0;
+      for (var i = 0; i < 60; i++) {
+        var d = i === 30 ? 74000 : 1000;
+        t += d / 1000;
+        times.push(t);
+        rr.push(d);
+        sqi.push(0.9);
+      }
+      var res = D.buildNN(times, rr, sqi);
+      // ANTI-VACUITY: the planted hole must actually be seen as one, or everything below is trivial.
+      T.ok('ANTI-VACUITY · the planted dropout is marked as a gap-straddling interval', !!(res.spansGap && res.spansGap[30]), 'spansGap[30]=' + (res.spansGap && res.spansGap[30]));
+      T.eq('…and it is the ONLY one — a clean neighbourhood is not swept in', res.nSpansGap, 1);
+      /* THE FABRICATION: before the fix `nn[30]` came back as the local median (~1000 ms) — 74 seconds
+         of absence rendered as one ordinary heartbeat, indistinguishable downstream from a real beat. */
+      T.eq('§∅ · the absence is NOT median-filled — the honest elapsed time survives', res.nn[30], 74000);
+      T.ok('§∅ · …nor flagged as a CORRECTED beat — it was never mis-measured', !res.corrected[30], 'corrected[30]=' + res.corrected[30]);
+      /* …while the repair machinery still works on beats that ARE mis-measured. A "fix" that merely
+         disabled correction would satisfy every assertion above. */
+      var ect = [],
+        ectT = [],
+        ectS = [],
+        et = 0;
+      for (var j = 0; j < 40; j++) {
+        var v = j === 20 ? 400 : 1000; // ectopic beat, no gap anywhere
+        et += v / 1000;
+        ectT.push(et);
+        ect.push(v);
+        ectS.push(0.9);
+      }
+      var ectRes = D.buildNN(ectT, ect, ectS);
+      T.ok('CONTROL · a genuinely ectopic beat is STILL corrected (this is not "repair nothing")', ectRes.corrected[20] === 1 && Math.abs(ectRes.nn[20] - 400) > 100, 'nn[20]=' + ectRes.nn[20]);
+      T.eq('CONTROL · …and a contiguous record marks no gaps at all', ectRes.nSpansGap, 0);
+
+      /* THE SECOND HALF — the statistics, end to end through `analyze`, because that is where rMSSD
+         and SDNN are published and where the obligation created upstream has to be met. */
+      if (typeof D.analyze === 'function' && typeof D.genSynthetic === 'function') {
+        var clean = D.genSynthetic({ durSec: 900, scenario: 'hour' });
+        var base = D.analyze(clean, function () {});
+        var gappy = D.analyze(Object.assign({}, clean, { gaps: [{ idx: Math.floor(clean.int16.length / 2), ms: 74000 }] }), function () {});
+        T.ok('ANTI-VACUITY · the gappy twin really does carry a dropout', gappy.nGaps > 0 || gappy.gapSec > 0, 'nGaps=' + gappy.nGaps);
+        /* A 74 s interval left in rMSSD is a ~74000 ms successive difference and cannot hide. The bar
+           is the CLEAN twin's own value, so this cannot pass by the statistic merely being small. */
+        T.ok(
+          '§∅ · rMSSD does not absorb the dropout — near the clean twin, not orders above it',
+          isFinite(gappy.rmssd) && gappy.rmssd < base.rmssd * 3 + 20,
+          'clean ' + base.rmssd + ' vs gappy ' + gappy.rmssd
+        );
+        T.ok('§∅ · …and SDNN likewise — a 74 s absence is not an RR interval', isFinite(gappy.sdnn) && gappy.sdnn < base.sdnn * 3 + 20, 'clean ' + base.sdnn + ' vs gappy ' + gappy.sdnn);
+        T.ok('…while the record still reports HRV at all (the exclusion did not empty it)', gappy.rmssd != null && gappy.sdnn != null && gappy.hr > 20, 'hr=' + gappy.hr);
+      }
+    });
+
     group('ECGDex parseECG — mean-interval fs + raw-gap accounting (DEEP-AUDIT-II §4.3/§4.2)', 'ecgdex-dsp', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.parseECG === 'function')) {
