@@ -281,7 +281,20 @@ function discover(argv) {
    An earlier version of this file stated that "SHHS scorers marked desaturations at a ≥3 % drop" and
    paired their event count against ODI-3 on that basis. That was an ASSUMPTION, and it is false.
    Measured 2026-09-12 over 99 records from the scorers' own `SpO2Baseline`/`SpO2Nadir` fields: a MEDIAN
-   70.9 % of scored desaturations are shallower than 3 %, and the minimum observed drop is 0.0 %.
+   66.7 % of scored desaturations are shallower than 3 %, and the minimum observed drop is 0.0 %.
+
+   ⚠️ THAT FIGURE IS NOW COHORT-SCALE, and it corrects an earlier one. It was first measured as 70.9 %
+   over the 99 records that have SIGNALS. The annotation side of SHHS1 is the FULL cohort — 5136 scored
+   records, no EDF required — so the convention can be measured 50× wider for the cost of parsing:
+
+       5136 records · 735 880 scored desaturations · 0 records with none
+       depth: min 0.0 · p25 1.0 · MEDIAN 2.0 · p75 4.0 · p95 8.0 · max 59.0 %
+       pooled share below 3 %: 59.3 %   ·   below 4 %: 74.6 %
+       median PER-RECORD share below 3 %: 66.7 %   (the 70.9 % figure, re-measured)
+
+   The conclusion is unchanged and the number moved ~4 points, which is the useful part: a scoring
+   convention is a property of the COHORT, and 99 records happened to over-state it. Quote 66.7 % with
+   its n, or 59.3 % pooled — the two answer different questions and are not interchangeable.
 
    So `SpO2 desaturation` names two different populations — the scorer's, and any threshold index. A
    3 %-threshold detector CANNOT count an event the scorer marked at 1 %, and the shortfall that produces
