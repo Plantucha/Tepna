@@ -92,8 +92,13 @@ def _bluez_view(monkeypatch, listed: dict, hci_of: dict | None = None):
 
 
 @pytest.fixture(autouse=True)
-def _no_real_bluez(monkeypatch):
-    """This module is exempt from conftest's identity pin so the resolver can be tested; the default
+def _empty_bluez_view(monkeypatch):
+    """⚠️ THIS WAS NAMED `_no_real_bluez` AND SILENTLY REPLACED THE FIXTURE OF THAT NAME ABOVE — a
+    module-level rebind, so the subprocess guard #937 added was dead from 2026-09-12 until it was
+    renamed here. Two autouse fixtures cannot share a name; the later one simply wins, and nothing
+    reports it but mypy's `no-redef`.
+
+    This module is exempt from conftest's identity pin so the resolver can be tested; the default
     here is an EMPTY BlueZ view, so a test that does not set one up gets the configured address
     passed through (the documented unresolvable path) and never touches D-Bus or hcitool."""
     _bluez_view(monkeypatch, {})

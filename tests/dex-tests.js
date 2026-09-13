@@ -26929,6 +26929,17 @@
         return m ? m[1] : null;
       }
       var idxLines = indexText.split('\n');
+      /* The DESCRIPTION cell's opening status word, or null when the row opens with anything else.
+         EXECUTABLE statuses only — see check3c's scope note. */
+      function descOpeningStatus(line) {
+        var cells = line.split('|');
+        for (var i = 0; i < cells.length; i++) {
+          var m = cells[i].trim().match(/^\*\*(DONE|PROPOSED|IN-PROGRESS)\b/);
+          if (m) return m[1];
+          if (/^\*\*/.test(cells[i].trim())) return null; // a bold opener that is not an executable status
+        }
+        return null;
+      }
       var statusMismatch = [];
       var statusBlind = [];
       /*  DOCS-LEDGER-CHECK3B-BLIND-ROW — check3b used to report "in sync" about rows it never read.
@@ -26972,6 +26983,52 @@
           if (m[1] !== hs) statusMismatch.push(n + ' [index ' + m[1] + ' ≠ header ' + hs + ']');
         });
       });
+      /* ── CHECK 3c · THE ROW STATES ITS STATUS TWICE, AND check3b READS ONLY ONE OF THEM ──────────
+         A DOCS-INDEX row carries the status in two places: the trailing `*(DONE …)*` marker check3b
+         compares, and the DESCRIPTION cell's opening bold word — `**DONE — 2026-08-15 (executed as
+         #1227) — hostAxis publishes …**`. The opening is the MORE prominent of the two: it is the
+         first thing a reader scanning "what is open?" sees, and it is bold.
+
+         Nothing checked it. Measured 2026-09-13 at `dfb29983`: 15 rows whose trailing marker AGREED
+         with the header — so check3b was green, correctly — while the opening disagreed. Eleven DONE
+         briefs were announced as PROPOSED at the head of their own row, including
+         `DOCS-LEDGER-HEADER-REFS`, whose entire subject is a header status fact that nothing resolves.
+         Same defect as the brief that built check7, one cell over.
+
+         ⚠️ SCOPE: EXECUTABLE STATUSES ONLY (DONE | PROPOSED | IN-PROGRESS), the same scope check3b
+         uses. `REFERENCE` and `CHECKPOINT` are also status words, but a description opening
+         `**REFERENCE — the standing PAT verdict …**` is labelling what the DOCUMENT IS, not claiming a
+         lifecycle state, and both such rows sit on briefs that are DONE and superseded. Widening this
+         to all five would rewrite a role label into a status and destroy meaning — a rule convicting
+         deliberate practice. The boundary is pinned below, not merely described. */
+      var descMismatch = [];
+      names.forEach(function (n) {
+        var hs = headerStatus(DL.briefs[n]);
+        if (hs !== 'DONE' && hs !== 'PROPOSED' && hs !== 'IN-PROGRESS') return;
+        idxLines.forEach(function (line) {
+          if (line.indexOf('](briefs/' + n + ')') < 0) return;
+          if ((line.match(/\]\(briefs\//g) || []).length > 1) return; // multi-brief row → shared cell
+          var opener = descOpeningStatus(line);
+          if (opener && opener !== hs) descMismatch.push(n + ' [row opens ' + opener + ' ≠ header ' + hs + ']');
+        });
+      });
+      T.ok(
+        'check3c · a DOCS-INDEX row that OPENS with a status states the header’s status',
+        descMismatch.length === 0,
+        descMismatch.length ? descMismatch.slice(0, 8).join('; ') + '  → copy the header word into the row opening' : names.length + ' brief(s) scanned'
+      );
+      /* THE PLANTED CONTROL — this check passes on clean input by design once the 15 are fixed, so
+         without a plant it is indistinguishable from one that examines nothing. */
+      T.eq('self-test · check3c FIRES on a row that opens with the wrong status', descOpeningStatus('| [`X`](briefs/X.md) | **PROPOSED — a thing** | Brief *(DONE)* |'), 'PROPOSED');
+      /* THE SCOPE BOUNDARY, pinned so a later "improvement" cannot widen it and start rewriting role
+         labels: a REFERENCE/CHECKPOINT opening is NOT read as a status claim. */
+      T.eq(
+        'self-test · check3c IGNORES a REFERENCE opening — that is a role label, not a status',
+        descOpeningStatus('| [`X`](briefs/X.md) | **REFERENCE — the standing PAT verdict** | Brief *(DONE)* |'),
+        null
+      );
+      T.eq('self-test · …and ignores a plain bold description that merely starts with a capital', descOpeningStatus('| [`X`](briefs/X.md) | **The cross-night projection** | Brief *(DONE)* |'), null);
+
       T.ok(
         'check3b · DOCS-INDEX row status ≡ brief header status (header is source of truth)',
         statusMismatch.length === 0,

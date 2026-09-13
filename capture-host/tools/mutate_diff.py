@@ -454,7 +454,7 @@ def main(argv=None) -> int:
     # folded into survivors: a survivor means "a test COULD see this and none does", an undecided
     # means "nobody knows", and they want different responses.
     if undecided:
-        by_status = {}
+        by_status: dict[str, list[dict]] = {}
         for u in undecided:
             by_status.setdefault(u["status"], []).append(u)
         print(f"\nmutate-diff: REFUSING — {len(undecided)} mutant(s) UNDECIDED, so this run cannot say "
