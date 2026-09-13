@@ -214,6 +214,16 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                         "clock_synced": st.get("clock_synced"),
                         "device_time": st.get("device_time"),
                         "clock_skew_sec": st.get("clock_skew_sec"),
+                        # THE NUMBER THE WATCHDOG ACTUALLY DECIDES ON, beside the one an operator sees.
+                        # `clock_skew_sec` is a single frame's reading and carries that frame's delivery
+                        # latency; `clock_skew_floor_sec` is the envelope over CLOCK_SKEW_WINDOW_S and is
+                        # what `clock_watchdog` compares against tolerance. Surfacing only the first made
+                        # a re-sync look unexplained whenever the two disagreed — which is exactly when
+                        # the link was stalling. `_n` ships with it because the floor is None until the
+                        # window has CLOCK_SKEW_MIN_N samples, and "not measured yet" must be legible as
+                        # itself rather than as a clock that is fine.
+                        "clock_skew_floor_sec": st.get("clock_skew_floor_sec"),
+                        "clock_skew_n": st.get("clock_skew_n"),
                         # THE WATCHDOG'S GIVE-UP VERDICT, which until now reached nobody. `capture.py`
                         # sets it when the clock write has failed its whole budget and retracts it on the
                         # next successful sync — a fact with 7 tests pinning it and, before this line, no
