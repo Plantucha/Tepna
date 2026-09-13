@@ -16,6 +16,8 @@ ones still executed.
 The real gates take ~11 minutes, so they are stubbed on PATH. That is the point of the isolation, not a
 shortcut: what is being tested is check.sh's own control flow, not pytest's.
 """
+
+import re
 import os
 import shutil
 import stat
@@ -41,10 +43,13 @@ def _sandbox(tmp_path, *, ruff_rc=0, shellcheck_rc=0, pytest_rc=0, mypy_found=No
     # `mypy_found` scripts the SUMMARY LINE, not a line count: check.sh reads the count off mypy's
     # own "Found N errors" line, because the output also carries `note:` lines and counting those
     # would drift from the number the baseline describes.
-    mypy_emit = (f'echo "Found {mypy_found} errors in 3 files (checked 300 source files)"'
-                 if mypy_found is not None else "true")
+    mypy_emit = (
+        f'echo "Found {mypy_found} errors in 3 files (checked 300 source files)"' if mypy_found is not None else "true"
+    )
     # One fake `python` dispatching on `-m <tool>`; check.sh invokes ruff and pytest through $PYTHON.
-    _write_exec(str(binn / "fakepy"), f"""#!/usr/bin/env bash
+    _write_exec(
+        str(binn / "fakepy"),
+        f"""#!/usr/bin/env bash
 for a in "$@"; do
   case "$a" in
     ruff)   echo ruff   >> "{log}"; exit {ruff_rc} ;;
@@ -53,11 +58,15 @@ for a in "$@"; do
   esac
 done
 exit 0
-""")
-    _write_exec(str(binn / "shellcheck"), f"""#!/usr/bin/env bash
+""",
+    )
+    _write_exec(
+        str(binn / "shellcheck"),
+        f"""#!/usr/bin/env bash
 echo shellcheck >> "{log}"
 exit {shellcheck_rc}
-""")
+""",
+    )
     env = dict(os.environ)
     env["PATH"] = f"{binn}{os.pathsep}{env['PATH']}"
     env["PYTHON"] = str(binn / "fakepy")
@@ -124,16 +133,19 @@ def test_check_sh_is_executable_and_shebanged():
     script in CI died with PermissionError while this test passed locally. The committed mode is the
     only one that reaches anybody else — fix with `git update-index --chmod=+x`.
     """
-    out = subprocess.run(["git", "ls-files", "-s", "--", os.path.basename(CHECK)],
-                         cwd=HERE, capture_output=True, text=True, timeout=30)
+    out = subprocess.run(
+        ["git", "ls-files", "-s", "--", os.path.basename(CHECK)], cwd=HERE, capture_output=True, text=True, timeout=30
+    )
     assert out.returncode == 0 and out.stdout.strip(), (
         "could not read the committed mode from git — an unverifiable mode is the gap itself, "
-        f"not a reason to skip: {out.stderr}")
+        f"not a reason to skip: {out.stderr}"
+    )
     mode = out.stdout.split()[0]
     assert mode == "100755", (
         f"check.sh is committed as {mode}, not 100755 — it will be non-executable for everyone who "
         "clones. `chmod` alone does not fix this where core.fileMode=false; use "
-        "`git update-index --chmod=+x capture-host/check.sh`")
+        "`git update-index --chmod=+x capture-host/check.sh`"
+    )
     with open(CHECK, encoding="utf-8") as fh:
         assert fh.readline().startswith("#!"), "check.sh needs a shebang"
 
@@ -150,7 +162,7 @@ def test_it_actually_names_all_three_gates(monkeypatch):
     # and the 127 read as "not installed" four times. The fallback must stay bare so a genuinely
     # missing tool still fails visibly instead of being pointed at a path that does not exist.
     assert '"$(dirname "$PY")/shellcheck"' in src, "shellcheck must be looked up beside $PY first"
-    assert '|| SC=shellcheck' in src, "the PATH fallback keeps a missing tool visible (127)"
+    assert "|| SC=shellcheck" in src, "the PATH fallback keeps a missing tool visible (127)"
 
 
 def test_it_is_not_set_e(monkeypatch):
@@ -160,7 +172,7 @@ def test_it_is_not_set_e(monkeypatch):
     assert "set -euo" not in src, "set -e aborts on the first failing gate"
 
 
-if sys.platform == "win32":          # pragma: no cover - the box is Linux; guard kept honest
+if sys.platform == "win32":  # pragma: no cover - the box is Linux; guard kept honest
     raise RuntimeError("capture-host is Linux-only")
 
 
@@ -180,17 +192,30 @@ def _mypy_run(tmp_path, found):
     return p.stdout + p.stderr
 
 
+def _baseline():
+    """READ THE BASELINE FROM check.sh, never restate it. These tests hardcoded 103/104 and went red
+    the first time the ratchet was tightened (2026-09-13, 103 → 99) — a test that repeats a constant
+    instead of reading it turns every legitimate improvement into a failure, which is the incentive
+    a ratchet must not create."""
+    with open(CHECK, encoding="utf-8") as fh:
+        m = re.search(r"^MYPY_BASELINE=(\d+)$", fh.read(), re.M)
+    assert m, "check.sh no longer declares MYPY_BASELINE — the tests below cannot mean anything"
+    return int(m.group(1))
+
+
 def test_A_RISEN_COUNT_IS_NAMED_AS_RISEN(tmp_path):
     """🔴 THE DEFECT THIS CLOSES. The baseline lived inside the advisory's note string, where nothing
     read it — so 'count may only go DOWN' was prose, and the count rose from 102 (2026-09-03) to 103
     three days later with every gate green throughout."""
-    out = _mypy_run(tmp_path, 104)
-    assert "RISEN" in out and "104" in out
+    risen = _baseline() + 1
+    out = _mypy_run(tmp_path, risen)
+    assert "RISEN" in out and str(risen) in out
 
 
 def test_A_COUNT_AT_THE_BASELINE_SAYS_SO_WITHOUT_ALARM(tmp_path):
-    out = _mypy_run(tmp_path, 103)
-    assert "at the 103 baseline" in out
+    at = _baseline()
+    out = _mypy_run(tmp_path, at)
+    assert f"at the {at} baseline" in out
     assert "RISEN" not in out
 
 
