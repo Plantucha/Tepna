@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** REFERENCE (living — last-verified 2026-09-12: the image is now `hci_uart` over USB CDC ACM, TX +20 dBm at the antenna, public address derived in firmware (`F4:CE:36:` + FICR); `hciuart-txpwr20-pub.zip` flashed to all three units, `F4:CE:36:` addresses verified on rig-x870; units #1 + #2 live on vigil as hci0/hci3 via `tepna-btattach@` and hci0's ADV decoded on hci3 (−17/−18 dBm, near-field — see done-when); Polar re-pair pending — §0b) · **Created:** 2026-09-07
+**Status:** REFERENCE (living — last-verified 2026-09-12: the image is now `hci_uart` over USB CDC ACM, TX +20 dBm at the antenna, public address derived in firmware (`F4:CE:36:` + FICR); `hciuart-txpwr20-pub.zip` flashed to all three units, `F4:CE:36:` addresses verified on rig-x870; units #1 + #2 live on vigil as hci0/hci3 via `tepna-btattach@` and hci0's ADV decoded on hci3 (−17/−18 dBm, near-field — see done-when); **live capture on hci0 since 21:36** — ring + Verity + H10 concurrently, both Polars re-bonded (H10 by the daemon itself, 14 min later), §0b "Live capture moved to hci0") · **Residue:** 2026-09-12-h10-rebond-waits-behind-psftp-sync · **Created:** 2026-09-07
 
 # nRF52840 dongle flashing — the runbook for the NEXT adapter (Zephyr `hci_uart` over CDC ACM + SoftDevice Controller, fixed MAC)
 
@@ -189,6 +189,41 @@ a free-running 32 MHz HFXO plus the 50 ppm LFXO, no network, no PPS pin wired. S
 jitter (~0.1–1 ms, median-filtered per CLAUDE.md §🔒 7), not disciplined to it. True hardware
 discipline would be a PPS edge into a dongle GPIO with `TIMER` capture over PPI (62.5 ns) — soldering
 and an owner's deploy, not a config line. See ZEPHYR-INSTRUMENT § "2026-09-12".
+
+**Live capture moved to hci0 (2026-09-12 21:36, owner-ordered) — what the first hour measured.**
+`config.yaml`'s adapter line was re-pinned from the Sena (`00:01:95:CC:53:02`, hci1) to unit #1
+(`F4:CE:36:2E:CD:98`, hci0) and the daemon restarted 21:36:53. Outcome, read off the box:
+
+- **Three peripherals concurrently on one Zephyr link, held.** Ring connected 21:37:25 and *resumed*
+  its file-set `20260912205935` (gap < 300 s — #2418's guard, live); Verity bonded fresh on hci0 and
+  resumed `20260912181913` (acc 52 Hz · ppg 55 Hz/22-bit/4-ch · ppi); H10 streaming ECG+ACC from
+  21:51:05. `hcitool -i hci0 con` = 3 LE links at 21:55. The `BT_MAX_CONN=6` budget is real.
+- **Bonds are per-adapter in BlueZ, and that is the whole H10 story.** The Verity re-paired on the
+  first connect; the H10 did not, because it *requests* security: btmon on hci0
+  (`probe-h10-hci0-20260912T214207.btsnoop`, 60 s, 4 cycles) shows connect → LE features → MTU →
+  service discovery → H10 `SMP: Security Request` → box `SMP: Pairing Failed, Reason: Pairing not
+  supported (0x05)` (hci0 is `Pairable: no` and holds no LTK for it) → PMD writes return nothing →
+  daemon `MGMT Disconnect` ~2 s in → `Disconnect Complete, Reason: Connection Terminated By Local
+  Host (0x16)`. Not radio, not the connection limit — the reason code says *we* hung up.
+- **The daemon healed it itself, 14 min later.** `capture.py`'s re-bond gate fires only every
+  `_REBOND_EVERY = 5` iterations, and each iteration first burns the PS-FTP clock auto-sync
+  (120 s budget, up to 12 `NotConnected` retries — "gave up after 129s of a 120s budget") before
+  `_connect` runs, so the first `BlueZ reports no bond — re-pairing (attempt 1/72)` landed at
+  21:50:40 and `re-bonded — PMD should hold again` at 21:51:03; `Paired/Bonded/Connected: yes` on
+  hci0 by 21:55. No manual pair was needed. The cost (bond checked *after* a sync that needs the
+  bond, ×5) is residue `2026-09-12-h10-rebond-waits-behind-psftp-sync`.
+- **Delivery jitter, first look — NOT a result** (`jitterfloor.stream_jitter` half-IQR, host-minus-
+  device per PMD frame, the SENA-VS-UB500-JITTER §2 method; Zephyr window 17.6 min, unmatched,
+  no pre-stated bands): H10 ecg **25.0 ms** (n=483, folded) · H10 acc 25.0 (n=1528) · Verity ppg
+  60.5 (n=1522) · Verity acc 210.2 · ring 38.0. Against that brief's window-matched baselines
+  (H10 ecg 22.5 UB500 / 29.5 Sena) the Zephyr sits in the normal band. Tonight's own Sena window
+  (19:10–21:36) read 115 ms on H10 ecg and is *not* a baseline — it carried 6 link errors and 39
+  offline-op cycles. The comparison worth quoting is that brief's §8 on the next full night,
+  window-matched against 08-22/23/24.
+- **Still pending:** the ≥ −55 dBm criterion above in the −86 baseline's geometry (the −17/−18 dBm
+  read on hci3 is near-field, see done-when). Both Polars connecting tonight does not discriminate
+  either — they also held on the Sena earlier the same evening; the +20 dBm gain shows only in a
+  night where the 0 dBm image failed and this one does not.
 
 ## 1 · Identify the board FIRST — the checklist that would have saved both days
 
@@ -451,11 +486,17 @@ a new write path to any device; the ring, the CPAP, and the Polars are talked to
       reseat fixed it
 - [x] the other two units (`D967242ECD98`, `E1BFD58009C0`) flashed with the same zip and §8 updated
       with measured addresses — all three match the derivation exactly
-- [ ] Polars re-paired to the new address on vigil (owner) and a two-peripheral concurrent connect
-      survives — the soak ZEPHYR-INSTRUMENT still names as unproven
-- [ ] `vigil-hciuart-holyiot-txpwr20.conf` / `vigil-hciuart-main.c.patch` in the repo match what was
-      built (`diff` against `/srv/data/ncs/…` and `git -C /srv/data/ncs/zephyr diff samples/bluetooth/hci_uart`)
+- [x] Polars re-paired to the new address on vigil and a two-peripheral concurrent connect
+      survives — **2026-09-12 21:36–21:55, live capture on hci0:** Verity re-bonded on first connect,
+      H10 re-bonded by the daemon's own `_REBOND_EVERY` gate at 21:51:03 (no manual pair), ring resumed
+      its set; **three** LE links held on hci0 at 21:55 (§0b "Live capture moved to hci0"). The
+      *overnight* soak ZEPHYR-INSTRUMENT names is a different claim and is read off the morning's
+      `LINK.csv`, not off one hour
+- [x] `vigil-hciuart-holyiot-txpwr20.conf` / `vigil-hciuart-main.c.patch` in the repo match what was
+      built — measured 2026-09-12: the conf is byte-identical to `/srv/data/ncs/vigil-hciuart-holyiot-txpwr20.conf`
+      and the patch's hunks equal `git -C /srv/data/ncs/zephyr diff samples/bluetooth/hci_uart` (12
+      insertions; no separate patch file exists in the ncs tree — the diff IS the source)
 
-Residue from this pass: none surfaced. The RSSI-offset question (how much of +35 dB is the LNA's
+Residue from this pass: `2026-09-12-h10-rebond-waits-behind-psftp-sync` (the bond is checked after five PS-FTP syncs that each need it — §0b). The RSSI-offset question (how much of +35 dB is the LNA's
 12 dB vs calibration) is answerable with a fixed beacon at a fixed distance and is not owed until
 someone wants to compare RSSI across adapters — which §6 says not to do.
