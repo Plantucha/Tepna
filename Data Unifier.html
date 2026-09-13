@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-TPNVwFFWD/go4U7uZy8BUCF5hziZBta11XIKUMjfFH8=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hfWm0E4m3miRXxd/D2vdNh3vekQBb+w35MUeysCvjS4=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-lUMjebuuCYMO+MZw/Jj4lYHFDoLJBmQ2Bt5SsiQW9xU=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4yLwlzF2LWkBH0U02j3eVwAIqPXmT3YcA+N8fprjH+g=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-hfWm0E4m3miRXxd/D2vdNh3vekQBb+w35MUeysCvjS4=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-lUMjebuuCYMO+MZw/Jj4lYHFDoLJBmQ2Bt5SsiQW9xU=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -19007,7 +19007,8 @@ __exports.GlucoDex = window.GlucoDex;
     // cascade the whole series to a constant).
     const out = [],
       ot = [],
-      flags = [];
+      flags = [],
+      keptIdx = []; // input index of each kept element — the bridge from `flags`'s frame to `nn`'s
     let nCorr = 0;
     // robust global baseline from in-range intervals
     const inRange = rr.filter((v) => v >= 300 && v <= 2000);
@@ -19083,6 +19084,7 @@ __exports.GlucoDex = window.GlucoDex;
       flags.push(0);
       out.push(v);
       ot.push(tt[i]);
+      keptIdx.push(i);
     }
     /* ⚠️ DELIBERATE ASYMMETRY, and it is a footgun if you do not read it: `flags` is INPUT-aligned
        (one entry per interval handed in, 1 = rejected) while `nn`/`tt` are the KEPT SUBSET. So
@@ -19090,8 +19092,16 @@ __exports.GlucoDex = window.GlucoDex;
        `sensor-trio-worker.js` did before this change and why it was migrated in the same commit.
        flags stays input-aligned because `tools/beat-error-recovery.mjs` scores it against per-input
        labels (precision/recall); an output-aligned flags would be all zeros and useless there.
-       `nDropped` is additive so a consumer can see the exclusion without recomputing it. */
-    return { nn: out, tt: ot, nCorr, flags, nDropped: nCorr };
+       `nDropped` is additive so a consumer can see the exclusion without recomputing it.
+       `keptIdx[j]` is the input index of `nn[j]` — the one honest way to carry any per-INPUT
+       property (SQI at the endpoints, a gap-straddle, `flags` itself) into `nn`'s frame. `analyze`
+       built its clean-interval mask by reading those input-frame arrays at `nn`'s index for the
+       whole of #2333's life: correct up to the first rejection, shifted by one per rejection after
+       it, so on a real night ~29 % of the pairs feeding rMSSD/SD1/LF:HF were judged by a neighbour's
+       quality. It also says which kept neighbours are NOT adjacent in the input — a dropped interval
+       between them makes their successive difference a non-measurement, exactly the pair the old
+       in-place fill used to exclude via its own `flags`. */
+    return { nn: out, tt: ot, nCorr, flags, nDropped: nCorr, keptIdx };
   }
   // CVHR — Cyclic Variation of Heart Rate (Hayano), the autonomic cardiac correlate of
   // apnea/hypopnea recovery. OXYDEX-PULSE-RESOURCING §Phase 4: a FINGER PPG capture is the O2Ring's
@@ -19232,7 +19242,13 @@ __exports.GlucoDex = window.GlucoDex;
   // trust for beat-to-beat work: a NN measured across lost time spans an unknown number of absent
   // beats, so it must leave the whole-record dispersion too, not just rMSSD. Omitting it is not a
   // quality judgement, it is declining to invent a number. Absent/empty ⇒ byte-identical behaviour.
-  function timeDomain(nn, cleanMask, omit) {
+  /* `adj` (optional, LAST): `adj[i] === false` says `nn[i]` was NOT the input neighbour of `nn[i-1]`
+     — `correctRR` dropped an interval between them — so their successive difference spans a beat
+     that was never accepted and is not a beat-to-beat quantity. Since punch list #2 a rejection
+     REMOVES the interval instead of filling it in place, so the two survivors sit side by side in
+     `nn` with nothing in the array to say they were not side by side in the heart. Absent ⇒ every
+     pair is adjacent (legacy callers, and the epoch path's within-epoch slices). */
+  function timeDomain(nn, cleanMask, omit, adj) {
     if (nn.length < 2) return null;
     const keep = omit ? nn.filter((_, i) => !omit[i]) : nn;
     const base = keep.length >= 2 ? keep : nn; // never let the omission empty the record
@@ -19248,6 +19264,7 @@ __exports.GlucoDex = window.GlucoDex;
       nn50 = 0;
     for (let i = 1; i < nn.length; i++) {
       if (cleanMask && !(cleanMask[i - 1] && cleanMask[i])) continue;
+      if (adj && adj[i] === false) continue; // a dropped interval sits between them — not a pair
       const d = nn[i] - nn[i - 1];
       sumSq += d * d;
       cnt++;
@@ -19275,13 +19292,15 @@ __exports.GlucoDex = window.GlucoDex;
     const triIdx = mx ? nn.length / mx : null;
     return { meanRR: Math.round(meanRR), sdnn: r1(sdnn), rmssd: r1(rmssd), pnn50: r1(pnn50), hr: Math.round(hr), lnRMSSD: r2(Math.log(rmssd)), triIdx: triIdx ? r1(triIdx) : null };
   }
-  function poincare(nn, cleanMask) {
+  function poincare(nn, cleanMask, adj) {
     if (nn.length < 3) return null;
     // §4: SD1 (≈ short-term beat-to-beat) from the clean adjacent-pair successive
     // differences; SD2 keeps the whole-record SDNN identity. Mask absent → all pairs.
+    // `adj` as in `timeDomain`: a pair with a dropped interval between it is not a pair.
     const d = [];
     for (let i = 1; i < nn.length; i++) {
       if (cleanMask && !(cleanMask[i - 1] && cleanMask[i])) continue;
+      if (adj && adj[i] === false) continue;
       d.push(nn[i] - nn[i - 1]);
     }
     if (d.length < 2) {
@@ -20593,7 +20612,7 @@ __exports.GlucoDex = window.GlucoDex;
   // ════════════════════════════════════════════════════════════════════════
   //  EPOCHS — 5-min windows over the corrected interval series
   // ════════════════════════════════════════════════════════════════════════
-  function buildEpochs(nn, tt, motion, perfWindow, cleanMask, agreeI) {
+  function buildEpochs(nn, tt, motion, perfWindow, cleanMask, agreeI, adj) {
     const epochs = [];
     if (nn.length < 2) return epochs;
     const epLen = 300; // sec
@@ -20606,7 +20625,9 @@ __exports.GlucoDex = window.GlucoDex;
       if (idx.length < 5) continue;
       const seg = idx.map((i) => nn[i]);
       const segMask = cleanMask ? idx.map((i) => cleanMask[i]) : null; // §4: per-epoch clean adjacency
-      const td = timeDomain(seg, segMask);
+      // `idx` is a contiguous run of `nn` (tt is monotone), so the record-level adjacency slices 1:1
+      const segAdj = adj ? idx.map((i) => adj[i]) : null;
+      const td = timeDomain(seg, segMask, null, segAdj);
       if (!td) continue;
       const ls = lombScargle(
         idx.map((i) => tt[i]),
@@ -20927,34 +20948,52 @@ __exports.GlucoDex = window.GlucoDex;
     // real time passed with no signal, so the foot-to-foot difference across the hole may span one or
     // more absent beats. Excluded here rather than corrected, because there is nothing to correct to.
     // Fires on nothing without an honest gap in the source — every legacy file's grid is contiguous.
-    const spansTime = intervalsSpanningTimeGap(rec.relSec, rec.fs, footSpineOK ? det.feet : det.peaks, nn.length);
+    /* ── TWO FRAMES, and every per-interval property below is born in the INPUT one ──────────────
+       `rr`/`flags`/`sqi`/`bridged`/the foot grid are indexed by the interval HANDED TO `correctRR`
+       (one per adjacent pair of detected beats). `nn`/`tt` are its KEPT SUBSET (punch list #2 drops a
+       rejection instead of filling it). The mask, the gap-straddle and the LED agreement are all
+       computed here in the input frame and then PROJECTED onto `nn` through `corr.keptIdx`. Reading
+       an input-frame array at a kept index — which is what this block did from #2333 until now — is
+       exact up to the first rejection and one-off per rejection after it: on a real night at a 29 %
+       correction rate, most of the record's rMSSD/SD1/LF:HF pairs were being judged by a neighbour's
+       SQI and flag, and the gap-straddle test was run on the first `nn.length` input intervals only. */
+    const nIn = rr.length;
+    const spansTime = intervalsSpanningTimeGap(rec.relSec, rec.fs, footSpineOK ? det.feet : det.peaks, nIn);
     /* §4 — an interval that BRIDGES a beat §3 removed is the same kind of non-measurement, arrived at a
        different way: the beat between its endpoints was deleted, so the difference spans ~2 true
        intervals. It is invisible to `intervalsSpanningTimeGap`, which reads the SOURCE grid — and a
        dropped beat leaves no discontinuity in `relSec`, every sample is still present. (That blindness
        is by design, and is why §4 sat deferred behind `nGapSpanIntervals: 0 -> 0`: the counter watched
        to decide whether §4 fires is the one quantity guaranteed not to respond. §4a.) */
-    const spansGap = new Array(nn.length);
-    for (let i = 0; i < nn.length; i++) spansGap[i] = !!spansTime[i] || !!(bridged && bridged[i]);
-    let nGapSpanIntervals = 0;
-    const cleanMask = new Array(nn.length);
-    for (let i = 0; i < nn.length; i++) {
+    const spansGapIn = new Array(nIn);
+    const cleanIn = new Array(nIn);
+    let nGapSpanIntervals = 0; // over EVERY input interval — a straddle correctRR also rejected still straddled
+    for (let i = 0; i < nIn; i++) {
+      spansGapIn[i] = !!spansTime[i] || !!(bridged && bridged[i]);
+      if (spansGapIn[i]) nGapSpanIntervals++;
       const q0 = sqi[i] != null ? sqi[i] : 1,
         q1 = sqi[i + 1] != null ? sqi[i + 1] : 1;
-      if (spansGap[i]) nGapSpanIntervals++;
-      cleanMask[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGap[i];
+      cleanIn[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGapIn[i];
     }
+    // …projected onto the kept series: cleanMask[j] / spansGap[j] describe nn[j], not input interval j.
+    const kIdx = corr.keptIdx;
+    const spansGap = kIdx.map((i) => spansGapIn[i]);
+    const cleanMask = kIdx.map((i) => cleanIn[i]);
+    /* Pair adjacency in the kept frame: `adj[j]` is false when nn[j-1] and nn[j] were NOT input
+       neighbours, i.e. correctRR dropped ≥1 interval between them. Their successive difference then
+       spans an unaccepted beat — the very pair the pre-#2333 in-place fill excluded through its own
+       flag — and rMSSD/pNN50/SD1 must not count it. adj[0] is vacuous. */
+    const adj = kIdx.map((i, j) => j === 0 || i === kIdx[j - 1] + 1);
     // §5: per-interval mean LED agreement (null when single-channel) for the per-epoch ribbon
-    const agreeI = cons.singleChannel ? null : new Array(nn.length);
-    if (agreeI) {
-      for (let i = 0; i < nn.length; i++) {
-        const a0 = cons.agree[i],
-          a1 = cons.agree[i + 1];
-        agreeI[i] = a0 != null && a1 != null ? (a0 + a1) / 2 : a0 != null ? a0 : a1 != null ? a1 : null;
-      }
-    }
-    const td = /** @type {any} */ (timeDomain(nn, cleanMask, spansGap) || {});
-    const poin = poincare(nn, cleanMask);
+    const agreeI = cons.singleChannel
+      ? null
+      : kIdx.map((i) => {
+          const a0 = cons.agree[i],
+            a1 = cons.agree[i + 1];
+          return a0 != null && a1 != null ? (a0 + a1) / 2 : a0 != null ? a0 : a1 != null ? a1 : null;
+        });
+    const td = /** @type {any} */ (timeDomain(nn, cleanMask, spansGap, adj) || {});
+    const poin = poincare(nn, cleanMask, adj);
     /* ── #2 treatment (1): the frequency domain must not see correctRR's substitutes ──────────────
        A rejected interval is replaced by the local-median reference and pushed into `nn`, so at this
        file's own correction rates a real share of the series is a repeated constant. `timeDomain`
@@ -20988,7 +21027,7 @@ __exports.GlucoDex = window.GlucoDex;
     const perfWindow = () => (dc > 0 ? r2((100 * acAmp) / dc) : null);
 
     P(80, 'Epochs…');
-    const epochs = buildEpochs(nn, corr.tt, motion, perfWindow, cleanMask, agreeI);
+    const epochs = buildEpochs(nn, corr.tt, motion, perfWindow, cleanMask, agreeI, adj);
 
     // quality
     const meanSQI = sqi.length ? r2(mean(sqi)) : 0;
@@ -21355,8 +21394,13 @@ __exports.GlucoDex = window.GlucoDex;
       hrvConfidence,
       nn,
       tt: corr.tt,
-      // Aligned with nn/tt: correctRR returns flags for exactly the series it emitted.
+      // ⚠️ INPUT-aligned, NOT nn/tt-aligned (see correctRR's return note): one entry per interval
+      // handed in, so `ppiFlags.length === nn.length + nDropped`. `ppiKeptIdx[j]` is nn[j]'s index
+      // into it. (This line claimed alignment with nn from #2333 until the mask fix — it was wrong.)
       ppiFlags: corr.flags,
+      ppiKeptIdx: corr.keptIdx,
+      // nn-aligned: interval j is clean (unflagged, both endpoint SQI ≥ 0.5, no gap straddle)
+      ppiClean: cleanMask,
       // Aligned with nn/tt the same way — the fused-hat per-beat weight (see the block above).
       ppiConf,
       ...(_confSpanOK ? {} : { ppiConfReason: 'implausible-span' }), // F10 — see the beatConfidence call

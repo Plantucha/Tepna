@@ -22,7 +22,7 @@ import allan
 import clock_offset
 import writers
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 log = logging.getLogger("tepna-capture")
 
@@ -328,6 +328,16 @@ _MEASUREMENT_HZ = {
 # died at hour one) but is not a healthy night. Coverage is an ESTIMATE (span from file mtimes), so the bar
 # is deliberately generous — it flags a real hole, not normal jitter.
 _DEGRADED_BELOW = 0.5
+
+#: The Polar device epoch, in Unix milliseconds. Device stamps are ns since 2000-01-01
+#: (polar-ble-sdk `TimeSystemExplained.md`; `capture.py:_POLAR_EPOCH` carries the same instant), and
+#: `Phone timestamp` is a Unix instant — so an arrival offset MUST difference them on one epoch.
+#: Anchored in UTC deliberately, and both halves are stated by the producer: the device counter is UTC
+#: (`capture.py:_utcnow` — "Device clocks are set in UTC ... so skew is measured against UTC") while the
+#: host column is naive LOCAL civil time (`writers._phone_ts`, written from `_now()`), so `.timestamp()`
+#: converts the host side and this constant converts the device side. 946 684 800 000 ms is the
+#: 1970→2000 delta, and it is exactly what was being added to every reading before this was subtracted.
+_POLAR_EPOCH_MS = datetime(2000, 1, 1, tzinfo=timezone.utc).timestamp() * 1000.0
 _MIN_SPAN_SEC = 300.0    # too little elapsed capture to judge a rate — report coverage as unknown, not low
 
 
@@ -1230,12 +1240,52 @@ def arrival_quality(night_dir: str) -> list[dict]:
                     # lacking a column the ring path happens to write identically to both.
                     ns = row.get("last_sensor_ns") or row.get("first_sensor_ns") or ""
                     ts = row.get("Phone timestamp") or ""
+                    meas = row.get("meas", "")
                     if not ns or not ts:
                         continue                      # blank is "absent", never a fabricated 0
+                    # 🔴 `0` IS ABSENT TOO, AND THE LINE ABOVE USED TO SAY SO WHILE ACCEPTING IT.
+                    # `row.get(...)` yields the STRING "0", which is truthy, so `if not ns` let it
+                    # through and `host_ms - 0` recorded the whole Unix epoch as an arrival offset.
+                    # It is not a rare shape: the docstring above records every Verity `ppi` stream
+                    # carrying `last_sensor_ns` literally 0 for all 4864 packets, and the ring writes
+                    # zeros too — measured 2026-09-13 on the real 2026-08-11 capture, 132 of its
+                    # 24 289 `OXYLIVE_DURATION_S` rows are `0` (the rest carry a real, INCREMENTING
+                    # duration, so they are not a frozen stamp and this guard is not what catches them).
+                    #
+                    # ⚠️ AND THIS COLUMN CARRIES TWO DIFFERENT KINDS OF NUMBER. For a Polar stream it is
+                    # a device TIMESTAMP (ns since 2000-01-01); for the ring's `OXYLIVE_DURATION_S` rows
+                    # `capture.py:4530` passes a DURATION as both first and last, which has no epoch and
+                    # so no arrival offset. Those rows are NOT excluded by `meas` here, and excluding
+                    # them was tried first: this module's contract is that ring rows are REPORTED and
+                    # merely not floor-judged (see the docstring — `offset` runs "on EVERY device
+                    # including the ring"), so dropping them is LESS honest than the refusal the ring
+                    # already gets. `quantised` publishes `ok: False` WITH a reason; a dropped row
+                    # publishes nothing. Five existing assertions defend that and caught the exclusion.
                     try:
+                        # Folded into the SAME try as the stamp parse rather than given its own: both
+                        # failures mean "this row is unusable", the handler below already explains why
+                        # swallowing that is correct, and a second bare handler would be one more
+                        # unexplained swallow — `test_silent_except` caught exactly that when this was
+                        # two blocks.
+                        dev_ns = int(ns)
+                        if dev_ns <= 0:
+                            continue
                         host_ms = datetime.fromisoformat(ts).timestamp() * 1000.0
-                        per.setdefault((row.get("device", ""), row.get("meas", "")), []).append(
-                            (host_ms, host_ms - int(ns) / 1e6, int(ns)))
+                        # 🔴 SUBTRACT THE DEVICE EPOCH. `host_ms` counts from 1970 and `dev_ns` from
+                        # 2000, so differencing them raw added the 946 684 800 000 ms between the two
+                        # epochs to every reading — and CERTIFIED it, because nothing downstream
+                        # range-checks a number this far out and a constant added to every row leaves
+                        # the slope and every spread-based check untouched.
+                        #
+                        # Measured 2026-09-13 on the real 2026-08-11 H10 capture, 50 192 ECG rows: the
+                        # old path's minimum delay read 946 684 799 461.936 ms, where with the epoch
+                        # subtracted it is -538.064 ms (median -183.623) — a difference of exactly
+                        # 946 684 800 000.0 ms. The corrected median agrees in sign and order with the
+                        # docstring table above, which has carried H10 ecg at -228.7 ms since
+                        # 2026-08-11: the code and its own documentation had disagreed by thirty years.
+                        device_ms = _POLAR_EPOCH_MS + dev_ns / 1e6
+                        per.setdefault((row.get("device", ""), meas), []).append(
+                            (host_ms, host_ms - device_ms, dev_ns))
                     except (ValueError, TypeError):
                         continue      # a torn or half-written row is EXPECTED in a live journal and
                                       # is not evidence about arrival quality; `rows` below reports
@@ -2181,6 +2231,10 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         opt = bool(d.get("optional"))          # a known-but-not-expected backup — its absence is not a fault
         streams: dict[str, int] = {}
         coverage: dict[str, float] = {}
+        #: Per stream: "measured" when its rate was observed off the file, "expected" when the
+        #: configured rate was substituted because none could be measured. The coverage number is
+        #: worth exactly what its rate is worth, and before this the two were indistinguishable.
+        coverage_basis: dict[str, str] = {}
         for s in d.get("streams") or []:
             tags = stream_file_tags(s)
             # Everything is the CURRENT SESSION (the `current` set, unified across midnight) — so a stream
@@ -2206,12 +2260,29 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
             # NOT tautological: `measured_hz` reads a contiguous head of the file (median inter-sample
             # delta over ~4000 rows), while coverage counts EVERY row against the whole session span —
             # so a stream that dies at hour one still reports low coverage at its own correct rate.
-            hz = _measured_hz_of.get((_rate_key(d), s)) or _expected_hz(d, s)
+            # 🔴 THE BASIS IS PUBLISHED, BECAUSE THE NUMBER ALONE CANNOT BE TRUSTED OR DISCARDED.
+            # This read `measured or expected`, so a stream whose rate was never measured borrowed the
+            # EXPECTED one and its coverage was indistinguishable from one computed against an actual
+            # observation — reaching `degraded`, the `ok` verdict and the alerts identically.
+            #
+            # ⚠️ DELETING THE FALLBACK IS THE OBVIOUS FIX AND IT IS THE WRONG ONE. Measured on the
+            # 2026-09-12 night: of 9 rate rows, 4 carry a measured rate and 5 do not. Null-propagating
+            # would therefore have deleted coverage for five of nine streams — and coverage is how a
+            # stream that DIED becomes visible, so that trades a fabricated number for a blind spot.
+            # §∅ requires that an unmeasured quantity not masquerade as a measured one, not that it be
+            # thrown away. So the number stays and `coverage_basis` says where its rate came from.
+            # `or` is still gone — it swallowed a genuine 0.0 — and `measured` wins whenever it exists.
+            hz = _measured_hz_of.get((_rate_key(d), s))
+            basis = "measured"
+            if hz is None:
+                hz, basis = _expected_hz(d, s), "expected"
             if hz and span:
                 cov = round(rows / (hz * span), 2)
                 coverage[s] = cov
+                coverage_basis[s] = basis
                 if cov < _DEGRADED_BELOW:
-                    degraded.append(f"{name}:{s} {int(cov * 100)}%")
+                    degraded.append(f"{name}:{s} {int(cov * 100)}%"
+                                    + ("" if basis == "measured" else " (rate assumed)"))
         # SECONDS SINCE THIS DEVICE LAST WROTE, measured against the night's NEWEST write rather
         # than wall-clock now(). Two reasons: reading an old night back must not report every
         # device as frozen, and the question that matters is always "silent while the others were
@@ -2259,6 +2330,7 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         if dat_path and spo2_path:
             datfit = dat_timefit_summary(dat_path, spo2_path)
         per_device.append({"name": name, "streams": streams, "coverage": coverage,
+                           "coverage_basis": coverage_basis,
                            "silent_sec": silent, "rtc": rtc, "datfit": datfit})
     return {
         "night": os.path.basename(night_dir.rstrip("/")),
