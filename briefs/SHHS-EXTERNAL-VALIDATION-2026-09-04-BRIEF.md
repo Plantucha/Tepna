@@ -179,7 +179,17 @@ owner's own device output. This ruling licenses aggregate DERIVED VALUES, never 
 - [x] `nsrr-stage-validate.mjs` traced to confirm it consumes `stagesToEpochs`/`stageOf` — it did
       **not**: it compared a stage OBJECT against a stage STRING, so REM recall was 0 by construction
       and the selftest passed because it asserted only non-emptiness (fixed #2423)
-- [ ] E3 run (needs no SHHS data or policy decision — do this first)
+- [x] **E3 run — Pan–Tompkins TRANSFERS from 130 Hz to 125 Hz.** 14 H10 records, 7 818 beats:
+      **median |Δ| 0.304 ms** against a ≤4 ms band, **correspondence 100.00 %** against a ≥99 % band.
+      Both pre-stated. `tools/ecg-rate-transfer.mjs`.
+      **The same-rate control is the reason this is believable:** 130→130 resampling is an exact
+      identity (median |Δ| 0 ms, 100 %), so the measured figure is the detector's sensitivity to the
+      sample grid and not the resampler displacing the waveform. Without that control the two causes
+      are indistinguishable and the number means nothing.
+      ⚠️ The displacement is a SYSTEMATIC bias, not jitter: the signed median is negative on **every
+      one of the 14 records** (−0.27 to −0.35 ms). At 125 Hz one sample is 8 ms, so it is sub-sample
+      and harmless — but it is a bias, and reporting only |Δ| would have hidden that it has a
+      direction. So the HRV arm on 125 Hz PSG is unblocked on this axis.
 - [x] **E1 run — the stager does NOT transfer.** Full corpus, all 5136 records:
       **Cohen's kappa 0.0967 +/-0.0031** (n=5134 records, 505 868 epochs), raw agreement 39.2 %,
       per-stage recall Wake 27.7 % · Light 56.5 % · Deep 16.3 % · REM 23.9 %. Pre-stated bands were
