@@ -44,6 +44,9 @@
  *     independent, which for three channels in one housing is a real possibility worth surfacing)
  *
  *   node tools/pat-per-led.mjs --dir <captures root> [--night 2026-08-03] [--site ankle|ring]
+ *   node tools/pat-per-led.mjs --dir <captures root> --phys-lo 250 --phys-hi 700   # shift the rail,
+ *       holding its 450 ms width: the median tracks the midpoint iff the estimator, not physiology,
+ *       is setting the reported lag. See the rail comment below.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -65,8 +68,28 @@ if (!DIR && !argv.includes('--selftest')) {
   console.error('need --dir  (or --selftest)');
   process.exit(1);
 }
-const PHYS_LO = 200,
-  PHYS_HI = 650; // mirrored from pat-align.js
+/* THE ACCEPTANCE RAIL, now a stated parameter rather than a constant — defaults UNCHANGED at the
+   [200, 650] mirrored from `pat-align.js`, so every committed number reproduces exactly.
+
+   It has to be movable to answer a question a single rail cannot: median accepted lag is **426 ms** on
+   both capture trees, and the rail's midpoint is **425**. Those agree to 1 ms, and at one rail the two
+   explanations are indistinguishable — either 426 ms is the true chest→ankle transit (406-498 ms is
+   recorded as plausible for this path in `PAT-SENSOR-PLACEMENT-CORRECTION-2026-08-04`), or the pairer
+   is accepting whichever foot lands inside the rail, so the distribution IS the rail and its median IS
+   the midpoint. `PAT-FORENSICS-WINDOW-REGIMES` §3 already argues the second for 37 % of channel-rows
+   from the WIDTH alone (SD indistinguishable from 450/√12); the midpoint is the untested half.
+
+   Shifting the rail while HOLDING its width separates them in one run: under the estimator account the
+   median tracks the midpoint, under the physiological account it does not move. Width is deliberately
+   NOT exposed — changing it would move 450/√12 and confound the two effects, which is the entire
+   reason for holding it. These flags touch ONLY `patLags`'s accept/reject comparison and nothing
+   upstream, so a shifted rail changes which lags are admitted and never how a foot is detected. */
+const PHYS_LO = Number(arg('--phys-lo', 200)),
+  PHYS_HI = Number(arg('--phys-hi', 650));
+if (!Number.isFinite(PHYS_LO) || !Number.isFinite(PHYS_HI) || PHYS_HI <= PHYS_LO) {
+  console.error(`bad rail: --phys-lo ${PHYS_LO} --phys-hi ${PHYS_HI}`);
+  process.exit(1);
+}
 const MATCH_TOL_MS = 150; // same-beat matching across LEDs; « one RR, » any plausible jitter
 
 const ctx = vm.createContext({

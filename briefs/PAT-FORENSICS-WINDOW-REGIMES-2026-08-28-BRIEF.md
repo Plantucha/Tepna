@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (item 1 EXECUTED 2026-09-14 — the clock-offset hypothesis is TESTED and SETTLED as NO FINDING - 6 cells, 3 verdicts, largest-n refutes both trees; see §8.7, then §8.6, before any number in §8.2. The instrument it needed was already committed. Item 2 remains open and its proposed 200-500 ms rail is the WRONG ANATOMY - read §8.5 before building it.) · **Residue:** 2026-09-14-phys-rail-is-arm-band-on-an-ankle, 2026-09-14-regimes-item1-verdict-not-stable · PROPOSED (parked 2026-09-06 — dependency satisfied since #2029/#2034, but both remaining items need instruments that do not exist yet. Blocker in §-park) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core UNBLOCKED, remainder unexecuted; verified 2026-09-05).** The 09-01 stamp said this brief waits on oracle output that had never been produced. **That dependency is now satisfied**: #2029 and #2034 produced corpus-wide oracle verdicts over 43 box nights (4 SIGNAL RECOVERED / 20 PARTIAL / 5 NO RECOVERY / 0 UNDEFINED), so the regime split is now readable. Nobody has executed it. ⚠️ ORIGINAL 09-01 STAMP, superseded: TRIAGED 2026-09-01 (Osprey): not independently executed this pass. Shares the WINDOW-ORACLE dependency — the regime split is read off oracle output, which had never been produced against a corpus. That is now executable locally; see that brief's corrected stamp.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§12 oracle · §16 gate self-selection · §17 corpus table) · **Interlocks:** `PAT-FORENSICS-FIDUCIAL-JITTER-2026-08-28-BRIEF.md`, `PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey):** re-verified — still gated on WINDOW-ORACLE output, which is exactly what this drain's oracle re-run (post-#2082 fragment pairing) supplies. **Owner: Osprey. Next step:** read the regime split off the new oracle output once that run's results land in the WINDOW-ORACLE brief; do not re-run the oracle for it. · **SWEEP-FOLD 2026-09-03 (Osprey) — the dependency is not merely unrun, its INPUT has moved.** This brief's regime split is read off WINDOW-ORACLE output, and the sweep measured that output's published tables diverging (§6 withdrawn as circular, real result 7 of 9 cells moved; drift table 5 of 8 rows) under my #2114 picker fix. So the split does not merely await a corpus run — **any regime boundary quoted from the pre-#2114 oracle rests on numbers that have since changed.** Unchanged otherwise since the 2026-09-01 triage. Owner: Osprey. **Next step:** unchanged — take the split from a POST-#2114 oracle run, and do not carry forward a boundary derived from the published tables.
+**Status:** DONE — 2026-09-14 · (all five Done-when items met; item 1 EXECUTED 2026-09-14 — the clock-offset hypothesis is TESTED and SETTLED as NO FINDING - 6 cells, 3 verdicts, largest-n refutes both trees; see §8.7, then §8.6, before any number in §8.2. The instrument it needed was already committed. Item 2 ANSWERED 2026-09-14 in §9: NO - a narrowed rail manufactures precision (SD = width/sqrt12, measured 56.5/55.1 against a predicted 57.7) and the median lag tracks the rail midpoint at slope 0.964/0.934. BOTH done-when items are now closed.) · **Residue:** 2026-09-14-phys-rail-is-arm-band-on-an-ankle, 2026-09-14-regimes-item1-verdict-not-stable · PROPOSED (parked 2026-09-06 — dependency satisfied since #2029/#2034, but both remaining items need instruments that do not exist yet. Blocker in §-park) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core UNBLOCKED, remainder unexecuted; verified 2026-09-05).** The 09-01 stamp said this brief waits on oracle output that had never been produced. **That dependency is now satisfied**: #2029 and #2034 produced corpus-wide oracle verdicts over 43 box nights (4 SIGNAL RECOVERED / 20 PARTIAL / 5 NO RECOVERY / 0 UNDEFINED), so the regime split is now readable. Nobody has executed it. ⚠️ ORIGINAL 09-01 STAMP, superseded: TRIAGED 2026-09-01 (Osprey): not independently executed this pass. Shares the WINDOW-ORACLE dependency — the regime split is read off oracle output, which had never been produced against a corpus. That is now executable locally; see that brief's corrected stamp.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§12 oracle · §16 gate self-selection · §17 corpus table) · **Interlocks:** `PAT-FORENSICS-FIDUCIAL-JITTER-2026-08-28-BRIEF.md`, `PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey):** re-verified — still gated on WINDOW-ORACLE output, which is exactly what this drain's oracle re-run (post-#2082 fragment pairing) supplies. **Owner: Osprey. Next step:** read the regime split off the new oracle output once that run's results land in the WINDOW-ORACLE brief; do not re-run the oracle for it. · **SWEEP-FOLD 2026-09-03 (Osprey) — the dependency is not merely unrun, its INPUT has moved.** This brief's regime split is read off WINDOW-ORACLE output, and the sweep measured that output's published tables diverging (§6 withdrawn as circular, real result 7 of 9 cells moved; drift table 5 of 8 rows) under my #2114 picker fix. So the split does not merely await a corpus run — **any regime boundary quoted from the pre-#2114 oracle rests on numbers that have since changed.** Unchanged otherwise since the 2026-09-01 triage. Owner: Osprey. **Next step:** unchanged — take the split from a POST-#2114 oracle run, and do not carry forward a boundary derived from the published tables.
 
 # PAT clears its own bar on 1 night in 42 — and the failure is the acceptance window, not the sensors
 
@@ -378,6 +378,70 @@ zero-divergence night. A corpus with several would test the hypothesis directly,
 more mid-range nights only re-runs this table. Residue `2026-09-14-regimes-item1-verdict-not-stable`
 closes here.
 
+## 9 · ITEM 2 ANSWERED — the reported PAT lag IS the acceptance rail, and narrowing it manufactures precision
+
+§8.5 named the experiment that had to run before any mode-search constraint was built: median accepted
+lag is **426 ms on both trees** and the rail `[PHYS_LO, PHYS_HI] = [200, 650]` has midpoint **425**, so
+at a single rail "true chest→ankle transit" and "the estimator returning its own midpoint" are
+indistinguishable. `tools/pat-per-led.mjs` now takes `--phys-lo` / `--phys-hi` (defaults unchanged;
+`2026-08-01` still returns SD 156.6, §4's published figure) and the experiment ran.
+
+### 9.1 · SHIFT the rail, HOLD its width — the median follows the midpoint
+
+Width fixed at 450 so `450/√12` cannot move; only the midpoint shifts. Rule pre-stated: slope ≥ 0.7 ⇒
+ESTIMATOR-DOMINATED, ≤ 0.3 ⇒ PHYSIOLOGY. Computed on the nights yielding at **all four** rails, so the
+§8.7 selection trap cannot recur — and the yielding set is identical at every rail anyway.
+
+| rail | midpoint | median lag (box) | median lag (smoke) | median PAT SD (box) |
+|---|---|---|---|---|
+| `[150, 600]` | 375 | 374 | 380 | 125.1 |
+| `[200, 650]` | **425** (shipped) | **425** | **425** | 127.6 |
+| `[250, 700]` | 475 | 472 | 472 | 128.6 |
+| `[300, 750]` | 525 | 519 | 520 | 129.7 |
+
+**slope 0.964 (box, n 27) · 0.934 (smoke, n 31) → ESTIMATOR-DOMINATED on both trees.** A 150 ms rail
+shift moves the median 145 ms. **The reported lag is the rail we chose, not a transit time.**
+
+### 9.2 · NARROW the rail, HOLD its midpoint — the SD is the width
+
+Item 2 asks about a *physiologically anchored*, i.e. NARROWED, window — a different manipulation, so it
+got its own pre-stated rule before either run: at `[325, 525]` (width 200, midpoint unchanged), SD
+within ±15 % of `200/√12 = 57.7` ⇒ the estimator is reporting its own width.
+
+```
+             width 450        width 200      predicted 200/√12
+box  (n 27)    127.6      →      56.5             57.7
+smoke (n 31)   124.9      →      55.1             57.7
+```
+
+**So the answer to item 2 is NO, and it is worse than a null result.** Narrowing 450 → 200 moves PAT SD
+from ~126 ms to ~56 ms — **through the 60 ms `DRIFT_MAX_MS` bar, on essentially every night** — and
+buys nothing. It is `width/√12` and no more. A narrowed window does not recover signal above the
+sensor floor; it **manufactures the appearance of having done so**, which is precisely the aggressive
+gating §5 records §19 as forbidding.
+
+⚠️ **This makes §8.5's objection to the proposed 200–500 ms rail the weaker of the two reasons to
+refuse it.** That rail is width 300, so `300/√12 = 86.6`: building it would have moved the headline SD
+from 129.9 to 86.6 and read as a 33 % improvement produced by a constant. The anatomy was wrong; the
+layer was wronger.
+
+### 9.3 · ⚠️ SCOPE — this is the MEDIAN from `pat-per-led`, NOT the oracle's MODE
+
+`PPG-FOOT-PLACEMENT` §4a is explicit that the two must not be substituted, and its own evidence points
+the other way for the mode: under a 6× half-width sweep (w = 50/200/300) `pat-window-oracle`'s mode is
+**invariant** — `2026-07-24` returns 405/405/405 and `2026-07-31` 215/215/215. An invariant mode under
+a changing window is exactly what a real lag looks like. **So this section retires the median as a
+quantity and says nothing against the mode**; a mode-invariance test under a *shifted* rail (rather
+than a resized one) is the honest next question, and is not run here.
+
+§3's window-domination finding is *extended* rather than overturned: it showed the SD is a constant of
+the estimator for 37 % of channel-rows from the width argument; §9.1 shows the central tendency is a
+constant of the estimator for **all** of them.
+
+Residues `2026-09-14-phys-rail-is-arm-band-on-an-ankle` and
+`2026-09-06-mode-search-constraint-is-one-unit-not-two` both close here — the second because the
+constraint the two briefs were each asking for should not be built at all.
+
 ## 7 · Done when
 
 - [x] Full-corpus run, untruncated, all 42 nights, zero-yield rows counted.
@@ -399,8 +463,15 @@ closes here.
       the outcome is at the 450/√12 ceiling on 13 of 22 nights, and that the largest `dPpm` values are
       link artifacts rather than crystal rates. The instrument was already committed
       (`tools/pat-host-offset.mjs`); nothing had to be built.
-- [ ] Oracle: does a physiologically-anchored window recover signal above the sensor floor?
-      ⚠️ **Do not build the 200–500 ms rail §-park proposes without reading §8.5 first** — the pair is
+- [x] **Oracle: does a physiologically-anchored window recover signal above the sensor floor? — §9,
+      ANSWERED 2026-09-14: NO, and worse than a null.** Narrowing the rail 450 → 200 ms moves PAT SD
+      from ~126 to ~56 ms — through the 60 ms `DRIFT_MAX_MS` bar on essentially every night — and the
+      number it lands on is `200/√12 = 57.7`. It recovers no signal; it manufactures the appearance of
+      having done so. Separately (§9.1) the median lag tracks the rail midpoint at **slope 0.964 / 0.934**
+      across two trees, so the shipped 426 ms "chest→ankle PAT" is the midpoint of the rail we chose.
+      ⚠️ Scope: this retires the MEDIAN from `pat-per-led`, **not** the oracle's MODE, which §4a of
+      `PPG-FOOT-PLACEMENT` measured as invariant under a 6× half-width sweep — see §9.3.
+      ⚠️ **Do not build the 200–500 ms rail §-park proposes — see §9.2, not only §8.5** — the pair is
       chest→ankle and 200–500 is an arm/wrist band, so the constraint would encode an anatomical error
       `PAT-SENSOR-PLACEMENT-CORRECTION` already corrected. §8.5 names a cheaper experiment that settles
       the premise first.
