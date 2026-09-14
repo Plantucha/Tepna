@@ -13963,6 +13963,78 @@
       T.eq('§I · every resolving column badges at its registry grade (no floor override)', mismatch.length, 0, 'graded-mismatch: ' + mismatch.join(' · '));
     });
 
+    group('Integrator dedup — a finger and a wrist PPG are TWO recordings (I1)', 'integrator-dsp · dedupe · regression', function (T) {
+      /* Both export under `schema.node === 'PpgDex'`, and the dedupe key was the node alone, so a
+         night carrying the O2Ring's finger pleth AND the Verity armband collapsed to one on the
+         ±30 s rule. Measured over the 41-night trio corpus: **15 of 41 nights lost one of the two**,
+         and WHICH one depended on load order — armband first drops the finger (so every finger path,
+         `fusePulseCrossCheck` included, silently never fires); finger first drops the wrist HRV.
+         That is not a double count being prevented, it is a whole recording discarded, and the
+         node's own `site` field was sitting unread on the record the whole time.
+
+         ⚠️ THE TWO DIRECTIONS MATTER EQUALLY and the second is the one a careless fix breaks: two
+         recordings from the SAME site, seconds apart, must still dedupe — that is the re-load case
+         this function exists for. Both are asserted, in both load orders. */
+      var A = env.adaptEnvelopeNode,
+        DD = env.dedupeRecs;
+      if (typeof A !== 'function' || typeof DD !== 'function') {
+        T.ok('adaptEnvelopeNode + dedupeRecs present', false, 'not loaded');
+        return;
+      }
+      var T0 = Date.UTC(2026, 6, 19, 23, 10, 0);
+      var ppg = function (site, t0, rm) {
+        return A(
+          {
+            schema: { node: 'PpgDex' },
+            recording: { startEpochMs: t0, site: site },
+            hrv: { time: { rmssd: rm, sdnn: 60 } },
+            ganglior_events: [
+              { t: '00:00:05', impulse: 'w', node: 'PpgDex', conf: 0.9 },
+              { t: '00:40:00', impulse: 'w', node: 'PpgDex', conf: 0.9 }
+            ]
+          },
+          'PpgDex',
+          site + '.json'
+        )[0];
+      };
+      // the real shape: the ring and the armband start ~20 s apart, inside the ±30 s window
+      var finger = ppg('finger', T0, 31),
+        wrist = ppg('wrist', T0 + 20000, 45);
+      T.eq('ANTI-VACUITY · the two starts really are inside the ±30 s window', Math.abs(finger.t0Ms - wrist.t0Ms) <= 30000, true);
+      T.ok(
+        'ANTI-VACUITY · …and the adapter really did carry the two sites through',
+        finger.summary.site === 'finger' && wrist.summary.site === 'wrist',
+        JSON.stringify([finger.summary.site, wrist.summary.site])
+      );
+
+      var fw = DD([finger], [wrist]);
+      T.eq('armband loaded after the ring: BOTH survive', fw.kept.length, 1);
+      T.eq('…and nothing is reported as a duplicate', fw.warns.length, 0);
+      var wf = DD([wrist], [finger]);
+      T.eq('ring loaded after the armband: BOTH survive (order-independent)', wf.kept.length, 1);
+      T.eq('…and nothing is reported as a duplicate either way', wf.warns.length, 0);
+
+      /* THE OTHER DIRECTION — the re-load this function exists to catch must still be caught, or the
+         fix has simply disabled deduping. Same site, same clock, different filename. */
+      var again = ppg('finger', T0 + 1000, 31);
+      var same = DD([finger], [again]);
+      T.eq('a RE-LOAD of the same site is still deduped', same.kept.length, 0);
+      T.ok('…and says so', same.warns.length === 1 && /duplicate/i.test(same.warns[0]), JSON.stringify(same.warns));
+
+      /* A site-less export must not become a wedge that defeats deduping — unknown on either side
+         falls back to the old rules, so two stamp-close site-less recordings still collapse. */
+      var bare = function (t0) {
+        return A(
+          { schema: { node: 'HRVDex' }, recording: { startEpochMs: t0 }, hrv: { time: { rmssd: 33, sdnn: 50 } }, ganglior_events: [{ t: '00:00:05', impulse: 'w', node: 'HRVDex', conf: 0.9 }] },
+          'HRVDex',
+          'h.json'
+        )[0];
+      };
+      var b1 = bare(T0),
+        b2 = bare(T0 + 5000);
+      T.eq('two site-less recordings seconds apart still dedupe (unknown site is not a wedge)', DD([b1], [b2]).kept.length, 0);
+    });
+
     /* ════ 10 · INTEGRATOR DEDUP — stampless duplicates (P1) ════ */
     group('Integrator dedup — stampless duplicates (P1)', 'integrator-dsp', function (T) {
       var A = env.adaptEnvelopeNode,

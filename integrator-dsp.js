@@ -1272,6 +1272,29 @@ function normalizeFile(json, filename) {
    The stampless path closes a silent bug: file / file (1) / file (2) copies of a
    DATE-UNKNOWN recording have t0Ms=null every time, slipped the ±30 s guard, and
    were counted N times — inflating node lists, event/burden totals, and exports. */
+/* ── THE SENSOR SITE IS PART OF A RECORDING'S IDENTITY (owner ruling 2026-09-13) ─────────────────
+   A finger PPG and a wrist PPG are two DIFFERENT sensors on two different parts of the body, and
+   both export under `schema.node === 'PpgDex'`. The dedupe key was the node alone, so a night
+   carrying both collapsed to one on the ±30 s rule — measured over the 41-night trio corpus,
+   **15 of 41 nights lost one of the two**, and WHICH one it lost depended on load order: armband
+   first drops the finger (so `fusePulseCrossCheck` and every finger path never fire), finger first
+   drops the wrist HRV. That is not a double count being prevented, it is a whole recording being
+   discarded — the node's own `site` field was sitting right there, unread by this function.
+   Ruled against two alternatives: a first-class `PpgDexFinger` node (a MAJOR export-contract break)
+   and a deviceKey (scrubbed from exports by privacy policy at `dex-export.js:46`, which stays).
+   ⚠️ `summary.site` carries a `|| 'wrist'` default at its adapter, so a site-less export compares as
+   wrist. That is the SAFE direction here: an unknown site never merges with a known 'finger', so the
+   failure mode is keeping two recordings, never silently dropping one. */
+function _recSite(r) {
+  return (r && r.summary && r.summary.site) || null;
+}
+function _sameSite(a, b) {
+  var sa = _recSite(a),
+    sb = _recSite(b);
+  // unknown on either side ⇒ do not let site BLOCK a dedupe that the other rules would make;
+  // only a known-and-different pair is evidence of two distinct sensors.
+  return sa == null || sb == null ? true : sa === sb;
+}
 function _recSig(r) {
   // content fingerprint for a STAMPLESS recording (no clock to dedupe on).
   // Uses RAW events (which survive even when normalized events are dropped for
@@ -1284,7 +1307,9 @@ function _recSig(r) {
   var last = ev.length ? ev[ev.length - 1].t || ev[ev.length - 1].tMs || '' : '';
   var rm = r.summary && r.summary.rmssd != null ? r.summary.rmssd : '';
   var sd = r.summary && r.summary.sdnn != null ? r.summary.sdnn : '';
-  return r.node + '|n' + ev.length + '|' + first + '→' + last + '|' + rm + '/' + sd;
+  // site rides the signature too, so a stampless finger and a stampless wrist cannot collide on
+  // matching event counts — the same identity rule as the dated path, stated in one more place.
+  return r.node + '@' + (_recSite(r) || '?') + '|n' + ev.length + '|' + first + '→' + last + '|' + rm + '/' + sd;
 }
 function dedupeRecs(existing, incoming) {
   var kept = [],
@@ -1293,6 +1318,10 @@ function dedupeRecs(existing, incoming) {
     var nsig = nr.t0Ms == null ? _recSig(nr) : null;
     var dup = existing.concat(kept).find(function (e) {
       if (e.node !== nr.node) return false;
+      // …and the same SITE. Two sensors on different parts of the body are two recordings, however
+      // close their clocks are. Placed before the contentId branch deliberately: a site mismatch is
+      // decisive evidence of distinctness, so nothing below should be able to overrule it.
+      if (!_sameSite(e, nr)) return false;
       // EXPORT-IDENTITY-FOLLOWUPS-II §1: when BOTH carry an identity-free recording.contentId, that
       // content digest is the STRONGEST duplicate signal — same node + same contentId = the same
       // recording regardless of stamp (catches a re-load / cross-stamp dup the ±30 s and stampless-sig
