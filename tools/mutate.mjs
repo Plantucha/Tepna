@@ -171,12 +171,54 @@ const STREAM = !has('--quiet-stream');
    to run no faster. `--jobs 1` also skips worktrees entirely and mutates in place, which is the right
    trade when there is nothing to parallelise over. An explicit `--jobs N` always wins, so a small box
    can still opt in. */
-export function defaultJobs(cores) {
+/* MEMORY IS THE SECOND DIMENSION, and it was the missing one. The core-derived figure above sizes a
+   CPU-bound pool; each worker here is a FULL node test suite, so the pool is memory-bound in practice
+   and the two can disagree badly. Measured 2026-09-14 on the 24-core box (`tepna-nightly-triage`
+   driving this tool at the core-derived 16): the unit's own cgroup reported a MemoryPeak of
+   **16.57 GB** for those 16 workers — **~1.04 GB per job end-to-end**.
+   ⚠️ Derive the per-job figure from the CGROUP PEAK, not from summing child RSS. A `ps` snapshot of
+   the same 16 workers totalled 7.88 GB (mean 504 MB, median 499, p90 749, max 1038) — less than HALF
+   the true peak, because workers spike at different moments and an instantaneous sum never sees the
+   overlap. Sizing from the snapshot would have doubled the pool that already hurt.
+   The consequence on a small machine is the one that matters: 16 workers × ~1 GB is fine on a 59 GB
+   box with nothing else running and fatal on a CI runner or a laptop, and nothing in the core-derived
+   form can tell those apart. */
+const JOB_BYTES = 1024 * 1024 * 1024; // ~1.04 GB measured, rounded down to 1 GiB
+/* Leave headroom rather than spending all of MemAvailable: this tool routinely runs BESIDE other
+   sessions' gates, and the 2026-09-13 incident was a pool sized to 72 % of available memory on a box
+   that was already committed elsewhere. 60 % is deliberately not tuned to a benchmark — it is the
+   share that leaves the rest of the machine usable. */
+const JOB_MEM_SHARE = 0.6;
+/* `availBytes` is OPTIONAL and the one-argument form is unchanged by construction: unknown memory
+   (a non-Linux host, an unreadable /proc) returns exactly what it returned before, so this can only
+   LOWER a job count on a machine that told us it is short, never raise one or change a platform that
+   cannot answer. */
+export function defaultJobs(cores, availBytes) {
   if (!(cores > 0)) return 1; // cpus() can report an empty list in constrained containers
   if (cores <= 2) return 1; // serial: no worktrees, no extra disk, no oversubscription
-  return Math.max(2, Math.round((cores * 2) / 3));
+  const byCores = Math.max(2, Math.round((cores * 2) / 3));
+  if (!(availBytes > 0)) return byCores; // memory unknown → the historical behaviour, unchanged
+  const byMem = Math.floor((availBytes * JOB_MEM_SHARE) / JOB_BYTES);
+  /* Too little memory to run even two workers takes the SERIAL path, for the same reason a 1-2 core
+     box does: a split that cannot fit buys nothing and costs a worktree apiece. Symmetric with the
+     low-core rule directly above rather than a second, differently-shaped floor. */
+  if (byMem < 2) return 1;
+  return Math.min(byCores, byMem);
 }
-const JOBS = Math.max(1, +opt('--jobs', String(defaultJobs(cpus().length))));
+/* MemAvailable, not MemFree — free memory excludes reclaimable page cache and would read a healthy
+   box as empty. This is the same signal `tepna-nightly-triage.sh`'s own pressure guard reads, so the
+   two agree about what "short" means. Returns null off Linux or if anything is unreadable; never
+   throws, because failing to size is not a reason to fail to run. */
+export function memAvailableBytes(readFile) {
+  try {
+    const txt = (readFile || readFileSync)('/proc/meminfo', 'utf8');
+    const m = /^MemAvailable:\s+(\d+)\s*kB/m.exec(txt);
+    return m ? +m[1] * 1024 : null;
+  } catch {
+    return null;
+  }
+}
+const JOBS = Math.max(1, +opt('--jobs', String(defaultJobs(cpus().length, memAvailableBytes()))));
 
 /* ── the operators ───────────────────────────────────────────────────────────────────────────
    Deliberately small and high-signal. Each is a change that a competent test SHOULD catch, and
@@ -1826,6 +1868,35 @@ function selftest() {
   ok('an empty cpus() list → serial, not a crash', defaultJobs(0) === 1 && defaultJobs(undefined) === 1);
   ok('3 cores → 2 workers (parallel begins)', defaultJobs(3) === 2, 'got ' + defaultJobs(3));
   ok('24 cores → 16, the measured optimum on this box', defaultJobs(24) === 16, 'got ' + defaultJobs(24));
+  /* MEMORY DIMENSION (2026-09-14). The one-argument form must be BYTE-IDENTICAL to what it was, or
+     this change silently re-sizes every platform that cannot report memory — so that is asserted
+     first, against the same cases pinned above, rather than assumed from "the parameter is
+     optional". */
+  ok('unknown memory → the core-derived figure, unchanged', defaultJobs(24) === 16 && defaultJobs(24, null) === 16 && defaultJobs(24, undefined) === 16 && defaultJobs(24, 0) === 16);
+  /* A machine with plenty of memory is still CORE-bound: 64 GB available would allow 37 workers at
+     ~1 GiB and 60 %, and the answer must stay 16. The memory rule is a CEILING, never a licence. */
+  ok('memory never RAISES the pool above the core figure', defaultJobs(24, 64 * 1024 ** 3) === 16, 'got ' + defaultJobs(24, 64 * 1024 ** 3));
+  /* …and when memory is the binding constraint it WINS. 8 GB × 0.6 / 1 GiB = 4. This is the CI-runner
+     and laptop case the core-derived form could not see at all. */
+  ok('memory LOWERS the pool when it is the binding constraint', defaultJobs(24, 8 * 1024 ** 3) === 4, 'got ' + defaultJobs(24, 8 * 1024 ** 3));
+  /* The incident's own numbers, as a regression: 23 GB available on the 24-core box gave 16 workers
+     and a 16.57 GB peak. The same inputs must now give fewer. */
+  ok('the 2026-09-13 shape now sizes DOWN (23 GB avail, 24 cores)', defaultJobs(24, 23 * 1024 ** 3) < 16, 'got ' + defaultJobs(24, 23 * 1024 ** 3));
+  /* Too little memory for two workers takes the SERIAL path, symmetric with the 1-2 core rule — not
+     a floor of 2 that would hand a starved box two full worktrees it cannot feed. */
+  ok('memory too tight for two workers → serial', defaultJobs(24, 2 * 1024 ** 3) === 1, 'got ' + defaultJobs(24, 2 * 1024 ** 3));
+  ok('…and the low-core rule still wins regardless of free memory', defaultJobs(2, 999 * 1024 ** 3) === 1);
+  /* memAvailableBytes parses the real format and REFUSES rather than guessing. A reader that returned
+     0 or NaN on a malformed file would be worse than one that returns null, because null restores the
+     historical behaviour while a bogus number silently re-sizes the pool. */
+  ok('memAvailableBytes parses MemAvailable in kB → bytes', memAvailableBytes(() => 'MemTotal:  100 kB\nMemAvailable:   2048 kB\n') === 2 * 1024 * 1024);
+  ok('…returns null when the field is absent', memAvailableBytes(() => 'MemTotal: 100 kB\n') === null);
+  ok(
+    '…returns null instead of throwing when the file is unreadable',
+    memAvailableBytes(() => {
+      throw new Error('ENOENT');
+    }) === null
+  );
   ok(
     'scales monotonically and never exceeds core count',
     [4, 6, 8, 12, 16, 32].every((c, i, a) => defaultJobs(c) <= c && (i === 0 || defaultJobs(c) >= defaultJobs(a[i - 1])))
