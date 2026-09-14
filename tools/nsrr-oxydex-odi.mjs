@@ -63,8 +63,16 @@
  *   node tools/nsrr-oxydex-odi.mjs --dir <psg-dir>            # EDF + XML pairs in one directory
  *   node tools/nsrr-oxydex-odi.mjs --edfs <d> --anns <d>      # the NSRR tree layout, unmodified
  *   node tools/nsrr-oxydex-odi.mjs --edfs <d> --anns <d> --json
+ *   node tools/nsrr-oxydex-odi.mjs --dir <psg-dir> --no-cache   # score every record cold
+ *
+ * INCREMENTAL BY DEFAULT. Per-record scores are cached under `.cache/`, keyed on the record's EDF
+ * size AND a fingerprint of the six sources the scoring realm loads — so a re-run costs nothing for
+ * what it has already scored, and a change to ANY of those sources discards the cache rather than
+ * serving pre-change numbers. Measured on 3 real records: 11.31 s cold, 0.02 s warm, byte-identical
+ * output; after touching `oxydex-dsp.js`, 11.08 s again. `--no-cache` opts out entirely.
  */
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, writeFileSync, mkdirSync, renameSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { dirname, join, basename } from 'node:path';
@@ -126,6 +134,62 @@ export function verdictSlope(slope) {
 /* ── headless realm ───────────────────────────────────────────────────────────────────────────
    `nsrr-adapter.js` needs CpapEdf (the EDF reader, which lives in cpapdex-edf.js and NOT the CPAP
    DSP) and OxyDex's processNight. `clock.js` first: the adapter stamps rows on the floating-ms grid. */
+/* THE REALM'S SOURCE SET, hoisted so `makeRealm` and `codeFingerprint` cannot disagree about what
+   "the scoring code" is. Two copies of this list would be the drift CLAUDE.md warns about for any
+   duplicated threshold, and here it would be worse than drift: a fingerprint computed over a DIFFERENT
+   set than the realm actually loads would certify a cache as current while the code that produced it
+   had moved. ⚠️ ORDER IS LOAD-BEARING for makeRealm (oxydex-util before oxydex-dsp) and irrelevant to
+   the hash, which is why the hash mixes each NAME in beside its bytes rather than relying on order. */
+const REALM_SOURCES = ['clock.js', 'kernel-constants.js', 'cpapdex-edf.js', 'oxydex-util.js', 'oxydex-dsp.js', 'nsrr-adapter.js'];
+
+/* A SCORE CACHE MUST BE KEYED ON THE CODE, NOT ONLY ON THE INPUT — this is the half the residue row
+   did not name, and without it the cache is a liability rather than a saving. The sibling
+   `nsrr-criterion-sweep.mjs --cache` keys on `id` + `srcBytes` alone, and that is CORRECT THERE
+   because it caches EXTRACTED SIGNAL (spo2 rows, expert depths), which is a function of the file. This
+   tool would be caching SCORES, which are a function of the file AND of `processNight` — so on the
+   same key a detector change would silently serve pre-change numbers, with nothing to notice it. That
+   is the fabricated-authority shape §🎫 exists to stop, one layer down.
+   Same projection idea as the suite's own `computeHash`: hash the closure that can reach the result. */
+export function codeFingerprint(read) {
+  const h = createHash('sha256');
+  for (const f of REALM_SOURCES)
+    h.update(f)
+      .update('\0')
+      .update((read || readFileSync)(join(ROOT, f), 'utf8'));
+  return h.digest('hex').slice(0, 12);
+}
+
+/* Atomic like the sibling's: write a sibling .tmp and rename, so an interrupted run leaves either the
+   previous cache or the new one and never a half-written file a later run would trust. */
+const CACHE = join(ROOT, '.cache', 'nsrr-odi-scores.json');
+export function loadScoreCache(path) {
+  const f = path || CACHE;
+  if (!existsSync(f)) return { code: null, records: [] };
+  try {
+    const c = JSON.parse(readFileSync(f, 'utf8'));
+    return c && Array.isArray(c.records) ? c : { code: null, records: [] };
+  } catch {
+    return { code: null, records: [] }; // a corrupt cache is a cold start, never a hard failure
+  }
+}
+function saveScoreCache(code, records, path) {
+  const f = path || CACHE;
+  mkdirSync(dirname(f), { recursive: true });
+  const tmp = f + '.tmp';
+  writeFileSync(tmp, JSON.stringify({ built: new Date().toISOString().slice(0, 10), code, records }));
+  renameSync(tmp, f);
+}
+
+/* REUSABLE iff the record is the same bytes AND the scoring code is the same. `srcBytes` catches a
+   still-arriving or replaced EDF (the sibling's rule, and the reason a size and not an mtime: mtime
+   moves on a re-download of identical content and does not move on some copies). `code` catches the
+   case that key cannot see. A cache written by different code is not partially valid — every row in
+   it was produced by that code — so a fingerprint mismatch discards the WHOLE file rather than
+   trying to salvage rows, which is the honest read of what changed. */
+export function cacheUsable(entry, srcBytes, cacheCode, code) {
+  return !!entry && entry.srcBytes === srcBytes && cacheCode != null && cacheCode === code;
+}
+
 export function makeRealm() {
   const sandbox = {};
   sandbox.window = sandbox;
@@ -191,7 +255,7 @@ export function makeRealm() {
      calls `computeCeilingBaselineArr` from it. Omitted, the realm builds and every record fails at
      run time with "computeCeilingBaselineArr is not defined" — loudly, per record, which is the
      behaviour wanted: a missing co-load must not degrade into a night that simply scores nothing. */
-  for (const f of ['clock.js', 'kernel-constants.js', 'cpapdex-edf.js', 'oxydex-util.js', 'oxydex-dsp.js', 'nsrr-adapter.js']) {
+  for (const f of REALM_SOURCES) {
     const p = join(ROOT, f);
     if (!existsSync(p)) throw new Error('module not found: ' + f);
     vm.runInContext(DexBuild.classicify(readFileSync(p, 'utf8')), ctx, { filename: f });
@@ -537,6 +601,35 @@ function selftest() {
 
   console.log('\n  ⚠️  No agreement figure is produced here by design — every value above is planted, so it');
   console.log('     measures the ARITHMETIC. Only --dir / --edfs over real scored records yields a result.');
+  /* ── SCORE CACHE ─────────────────────────────────────────────────────────────────────────────
+     The property that makes a SCORE cache sound rather than dangerous: the key carries the code. A
+     cache keyed on input alone would serve pre-change numbers after a detector edit, silently. */
+  const _fpA = codeFingerprint(() => 'const a = 1;');
+  const _fpB = codeFingerprint(() => 'const a = 2;');
+  A('codeFingerprint moves when the scoring source moves', _fpA !== _fpB, _fpA + ' vs ' + _fpB);
+  /* Bound to names rather than compared inline: two identical calls read to the linter as a
+     self-comparison, and it is right that they do — the point being asserted is that two SEPARATE
+     evaluations agree, which only a binding makes explicit. */
+  const _fpC1 = codeFingerprint(() => 'x');
+  const _fpC2 = codeFingerprint(() => 'x');
+  A('…and is stable for identical source', _fpC1 === _fpC2, _fpC1 + ' vs ' + _fpC2);
+  A('the real realm fingerprints to 12 hex chars', /^[0-9a-f]{12}$/.test(codeFingerprint()), codeFingerprint());
+  const _e = { id: 'r1', srcBytes: 100, row: { id: 'r1' } };
+  A('cacheUsable: same bytes AND same code → reuse', cacheUsable(_e, 100, 'aaa', 'aaa') === true);
+  A('cacheUsable: DIFFERENT code → refuse, even on identical bytes', cacheUsable(_e, 100, 'aaa', 'bbb') === false);
+  A('cacheUsable: different bytes → refuse (a replaced or still-arriving EDF)', cacheUsable(_e, 101, 'aaa', 'aaa') === false);
+  A('cacheUsable: a cache with NO recorded code is never reused', cacheUsable(_e, 100, null, 'aaa') === false);
+  A('cacheUsable: a missing entry is a miss, not a crash', cacheUsable(undefined, 100, 'aaa', 'aaa') === false);
+  /* A corrupt or absent cache must be a COLD START, never a hard failure — a tool that dies on a
+     half-written cache turns a cheap re-run into a manual cleanup. */
+  A('loadScoreCache: absent file → empty, no throw', loadScoreCache('/nonexistent/x.json').records.length === 0);
+  const _tmp = join(ROOT, '.cache', 'selftest-corrupt.json');
+  mkdirSync(dirname(_tmp), { recursive: true });
+  writeFileSync(_tmp, '{ not json');
+  A('loadScoreCache: corrupt file → empty, no throw', loadScoreCache(_tmp).records.length === 0 && loadScoreCache(_tmp).code === null);
+  writeFileSync(_tmp, JSON.stringify({ code: 'zz', records: [{ id: 'a', srcBytes: 1, row: {} }] }));
+  A('loadScoreCache: a well-formed cache round-trips its code', loadScoreCache(_tmp).code === 'zz' && loadScoreCache(_tmp).records.length === 1);
+
   console.log('\n' + (bad ? '✕ ' + bad + ' failed, ' : '✓ ') + good + ' assertions passed');
   return bad ? 1 : 0;
 }
@@ -544,6 +637,24 @@ function selftest() {
 /* ══ MAIN ═════════════════════════════════════════════════════════════════════════════════════ */
 const C = { r: '\x1b[31m', g: '\x1b[32m', y: '\x1b[33m', b: '\x1b[36m', d: '\x1b[2m', B: '\x1b[1m', x: '\x1b[0m' };
 const paint = (s, c) => (process.stdout.isTTY || process.env.FORCE_COLOR ? c + s + C.x : s);
+
+/* One cache entry per record actually scored or reused in THIS run, carrying the bytes it was scored
+   against. Records that errored are cached too: an error is a result, and re-reading a 36 MB EDF to
+   rediscover the same "no SpO₂ channel" every run is the cost this exists to remove. */
+function _entries(recs, rows, byId) {
+  const out = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = recs[i];
+    let srcBytes = null;
+    try {
+      srcBytes = statSync(r.edf).size;
+    } catch {
+      srcBytes = (byId.get(r.id) || {}).srcBytes ?? null;
+    }
+    if (srcBytes != null) out.push({ id: r.id, srcBytes, row: rows[i] });
+  }
+  return out;
+}
 
 function main(argv) {
   if (argv.includes('--selftest')) return selftest();
@@ -562,15 +673,46 @@ function main(argv) {
   }
 
   const ctx = makeRealm();
+  /* INCREMENTAL BY DEFAULT. `discover()` enumerates once at startup, so a run launched mid-download
+     scores exactly what existed then — measured 2026-09-13, a run launched at 2271 records was still
+     executing when the corpus reached 4084. The fix for that is not to re-enumerate mid-run (which
+     would score a moving population and make the denominator unquotable) but to make RE-RUNNING cheap,
+     so the second run picks up the arrivals and pays nothing for the 2271 it already has.
+     ⚠️ What is cached is the SCORE, and that is only sound because the key carries `codeFingerprint`.
+     Profiled at `nsrr-score-pool.mjs:31`, `processNight` is ~95 % of an `analyzeRecord` call, so
+     caching only the EDF extraction — the shape the sibling uses — would save the I/O and leave the
+     expensive 95 % to be repaid every run. The saving worth having is the one that needs the code key. */
+  const useCache = !argv.includes('--no-cache');
+  const code = codeFingerprint();
+  const prev = useCache ? loadScoreCache() : { code: null, records: [] };
+  const byId = new Map(prev.records.map((r) => [r.id, r]));
   const rows = [];
+  let reused = 0,
+    fresh = 0;
   for (const r of recs) {
+    let srcBytes = null;
     try {
-      rows.push(scoreRecord(ctx, r));
-    } catch (e) {
-      rows.push({ id: r.id, err: String((e && e.message) || e) });
+      srcBytes = statSync(r.edf).size;
+    } catch {
+      srcBytes = null; // unreadable now — fall through and let scoreRecord report the real error
     }
-    if (!json && process.stderr.isTTY) process.stderr.write(`\r  ${rows.length}/${recs.length}`);
+    const hit = useCache && srcBytes != null ? byId.get(r.id) : null;
+    if (cacheUsable(hit, srcBytes, prev.code, code)) {
+      rows.push(hit.row);
+      reused++;
+    } else {
+      try {
+        rows.push(scoreRecord(ctx, r));
+      } catch (e) {
+        rows.push({ id: r.id, err: String((e && e.message) || e) });
+      }
+      fresh++;
+      // progress survives an interruption, exactly as the sibling's build does
+      if (useCache && srcBytes != null && fresh % 25 === 0) saveScoreCache(code, _entries(recs, rows, byId), undefined);
+    }
+    if (!json && process.stderr.isTTY) process.stderr.write(`\r  ${rows.length}/${recs.length}  (+${fresh} scored, ${reused} reused)`);
   }
+  if (useCache) saveScoreCache(code, _entries(recs, rows, byId), undefined);
   if (!json && process.stderr.isTTY) process.stderr.write('\r');
   const sum = summarise(rows);
 
