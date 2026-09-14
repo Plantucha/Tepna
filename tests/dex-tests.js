@@ -20325,6 +20325,58 @@
         // FALLBACK: no ns column -> still parses off the phone stamps (never returns null/empty)
         var noNs = D.parseDeviceACC(build(false, false));
         T.ok('parseDeviceACC without an ns column still parses via the phone stamp', !!(noNs.acc && noNs.acc.length === 40 && noNs.accFs === 25), 'fs=' + noNs.accFs + ' n=' + (noNs.acc || []).length);
+
+        /* ── (2c) A REBASED COUNTER IS NOT ONE CLOCK (E2E E5) ────────────────────────────────────────
+           The rebuild above anchors ONCE and spaces every later sample by the device counter — right,
+           and right only while that counter is continuous. The ECG stream of the same recording gets a
+           full seam walk; its `_ACC` companion got none, so a mid-file rebase shifted every later
+           sample silently. Measured on the real corpus (2026-09-14): 2026-08-26's ACC stream spans
+           **67 091 hours on main, last sample dated 2034-04-22** — an accelerometer ending eight years
+           in the future. That is the H10's 2019-origin firmware default adopting real time mid-file,
+           and the SAME NIGHT's ECG stream handles it correctly.
+
+           ⚠️ A BIG JUMP IS NOT A STEP — across a DROPOUT the counter legitimately advances by the whole
+           gap. The discriminator is the SIBLING COLUMN: device and phone move together across a
+           dropout and disagree only across a rebase. Both are planted below, because a rule keyed on
+           jump size alone passes the second and wrongly convicts the first. */
+        var buildSeam = function (kind) {
+          var rows = HDR;
+          var ns = BigInt(NS0),
+            ms = 500;
+          for (var i = 0; i < 60; i++) {
+            if (i === 30) {
+              // dropout: BOTH advance 120 s · rebase: only the DEVICE jumps (7.65 years)
+              if (kind === 'dropout') {
+                ns += BigInt(120000) * BigInt(1000000);
+                ms += 120000;
+              } else {
+                ns += BigInt(241497468042) * BigInt(1000000);
+                ms += 40;
+              }
+            }
+            var d = new Date(Date.UTC(2026, 5, 13, 20, 44, 0, 0) + ms);
+            rows += d.toISOString().replace('Z', '').slice(0, 23) + ';' + ns.toString() + ';' + (100 + i) + ';86;990\n';
+            ns += BigInt(STEP);
+            ms += 40;
+          }
+          return rows;
+        };
+        var drop = D.parseDeviceACC(buildSeam('dropout')),
+          reb = D.parseDeviceACC(buildSeam('rebase'));
+        T.eq('a DROPOUT is not a step — device and phone advanced together', drop.accClockSteps, 0);
+        T.eq('…so the device axis is still spent', drop.accAxis, 'device');
+        T.ok('…and the 120 s hole is still there, not closed', drop.acc[59].tsMs - drop.acc[0].tsMs > 120000, 'span ' + Math.round(drop.acc[59].tsMs - drop.acc[0].tsMs) + ' ms');
+        T.eq('a REBASE is caught — the device jumped where the phone did not', reb.accClockSteps, 1);
+        T.eq('…the axis falls back to the continuous host stamps', reb.accAxis, 'host');
+        T.ok('…the step size is reported, not absorbed', reb.accMaxStepMs > 2e11, 'maxStepMs=' + reb.accMaxStepMs);
+        /* THE CONSEQUENCE, which is why this matters: without the refusal the record claims to span
+           millennia. 60 samples at 40 ms is ~2.4 s. */
+        T.ok('…so the record spans SECONDS, not years', reb.acc[59].tsMs - reb.acc[0].tsMs < 10000, 'span ' + Math.round(reb.acc[59].tsMs - reb.acc[0].tsMs) + ' ms');
+        /* CONTROL — a clean file must be untouched, or the tripwire has convicted working recordings.
+           Seven of the eight real files measured carry zero steps. */
+        T.eq('CONTROL · a clean file reports no steps', jittered.accClockSteps, 0);
+        T.eq('CONTROL · …and keeps the device axis', jittered.accAxis, 'device');
+        T.eq('CONTROL · …with nothing to report', jittered.accMaxStepMs, null);
       })();
       // (3) source-mirror: the app loaders delegate to the twins; parseRows + Date-parse are GONE
       var app = (env.sources || {})['ecgdex-app.js'];

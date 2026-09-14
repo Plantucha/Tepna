@@ -67,6 +67,15 @@
     _ckZoneMin = DexClock._ckZoneMin,
     _ckDMY = DexClock._ckDMY,
     parseTimestamp = DexClock.parseTimestamp;
+  /* ── ONE SEAM BOUND FOR THE WHOLE NODE ───────────────────────────────────────────────────────────
+     Hoisted from `ecgTimingResolve` (where it lived as a local) so the ECG stream and its `_ACC`
+     COMPANION judge a device-clock seam by the same number. Two constants for one question is how
+     they come to disagree — B5's finding, and the ACC parser had no bound at all rather than a
+     different one. Its rationale is unchanged and lives at the resync branch that consumes it: the
+     device delta and the phone delta track each other across a DROPOUT and disagree only across a
+     STEP, and 60 s leaves orders of headroom over the largest real dropout disagreement measured
+     (29 s) while the one real step in the corpus disagrees by 2.4e11 ms. */
+  var ECG_RESYNC_BOUND_MS = 60000;
   /* `skip` as in `rmssd` — and the DENOMINATOR must shrink with the numerator, or excluding a pair
      silently lowers the percentage instead of leaving it out of the population. */
   const pnn50 = (a, skip) => {
@@ -4583,7 +4592,7 @@
        all the way to the export. When the phone stamps at the seam do not parse, a delta over the
        24 h ceiling still re-anchors — with `phoneDeltaMs: null` and NO gap entry, because a
        duration nothing measured must stay visible as unmeasured (§2.6), never fabricated. */
-    var ECG_RESYNC_BOUND_MS = 60000;
+    // ECG_RESYNC_BOUND_MS is hoisted to module scope — the `_ACC` companion judges a seam by the same bound.
     var ECG_GAP_CEIL_MS = 86400000;
     /* THE RECORDING'S ANCHOR — Clock Contract §4: `t0Ms` is the tMs of the FIRST VALID sample, i.e.
        the first stamp that PARSES. A malformed leading row invalidates that ROW, not the night, so
@@ -5513,7 +5522,43 @@
         break;
       }
     }
-    if (anchor >= 0) {
+    /* ── A COUNTER THAT REBASES IS NOT ONE CLOCK, AND THIS PARSER HAD NO WAY TO NOTICE ──────────────
+       The rebuild below anchors ONCE on a phone stamp and spaces every later sample by the device
+       counter. That is right, and it is right only while the counter is ONE continuous clock. The ECG
+       stream of the same recording gets a full seam walk (`ecgTimingResolve`: candidates, resyncs,
+       offsets, `clockResyncs` carried to the export); its `_ACC` companion got none, so a mid-file
+       rebase shifted every sample after it, silently, by the size of the step.
+
+       ⚠️ A BIG DEVICE JUMP IS NOT A STEP. Across a DROPOUT the counter legitimately advances by the
+       whole gap — the property #2477 relies on — so jump size alone cannot decide. The discriminator
+       is the SIBLING COLUMN: device and phone advance together across a dropout and disagree only
+       across a rebase. Measured over the 8 largest real `_ACC` files (2026-09-14):
+
+           2026-08-25   device 137 507 ms · phone 137 553 ms          → dropout (46 ms apart)
+           2026-09-05   device 172 113 ms · phone 163 555 ms          → dropout
+           2026-08-26   device 241 497 524 545 ms · phone 56 503 ms   → STEP (7.65 years)
+
+       That last is the H10's 2019-origin firmware default adopting real time mid-file. One real step
+       across the sample, and the SAME NIGHT's ECG stream handles it correctly while the ACC did not.
+
+       THIS REFUSES, IT DOES NOT REPAIR. Re-anchoring the ACC axis across a seam is the ECG path's job
+       and a unit of its own; a tripwire that reds the day a stream first carries a step is what
+       FOLLOWUPS-VI §1.1/§1.3 asks of a node that has none. So a stepped counter is treated exactly as
+       the already-handled "absent or sparse" case — keep the per-row PHONE stamps, which jitter but
+       stay continuous — and the step is REPORTED rather than absorbed. */
+    var accClockSteps = 0,
+      accMaxStepMs = 0;
+    for (var s1 = 1; s1 < out.length; s1++) {
+      var pr = out[s1 - 1],
+        cu = out[s1];
+      if (!(isFinite(pr.relNs) && isFinite(cu.relNs) && isFinite(pr.tsMs) && isFinite(cu.tsMs))) continue;
+      var disagree = Math.abs((cu.relNs - pr.relNs) / 1e6 - (cu.tsMs - pr.tsMs));
+      if (disagree > ECG_RESYNC_BOUND_MS) {
+        accClockSteps++;
+        if (disagree > accMaxStepMs) accMaxStepMs = disagree;
+      }
+    }
+    if (anchor >= 0 && accClockSteps === 0) {
       var nNs = 0;
       for (var b = 0; b < out.length; b++) if (isFinite(out[b].relNs)) nNs++;
       if (nNs > out.length * 0.9) {
@@ -5543,7 +5588,11 @@
       /** @type {any} */
       (out)._relBase = true;
     }
-    return { acc: out, accFs: fs };
+    /* `accClockSteps` is the tripwire's whole product: 0 on every clean file, so a consumer that does
+       not read it is unaffected, and non-zero says the device axis was NOT spent — the samples carry
+       host arrival times instead. `accAxis` names which axis the caller is actually holding, because
+       "device" and "host" here are the same numbers to look at and different things to trust. */
+    return { acc: out, accFs: fs, accClockSteps: accClockSteps, accMaxStepMs: accClockSteps ? Math.round(accMaxStepMs) : null, accAxis: accClockSteps ? 'host' : 'device' };
   }
 
   // ════════════════════════════════════════════════════════════════════════
