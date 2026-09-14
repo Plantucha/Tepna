@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-06 — dependency satisfied since #2029/#2034, but both remaining items need instruments that do not exist yet. Blocker in §-park) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core UNBLOCKED, remainder unexecuted; verified 2026-09-05).** The 09-01 stamp said this brief waits on oracle output that had never been produced. **That dependency is now satisfied**: #2029 and #2034 produced corpus-wide oracle verdicts over 43 box nights (4 SIGNAL RECOVERED / 20 PARTIAL / 5 NO RECOVERY / 0 UNDEFINED), so the regime split is now readable. Nobody has executed it. ⚠️ ORIGINAL 09-01 STAMP, superseded: TRIAGED 2026-09-01 (Osprey): not independently executed this pass. Shares the WINDOW-ORACLE dependency — the regime split is read off oracle output, which had never been produced against a corpus. That is now executable locally; see that brief's corrected stamp.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§12 oracle · §16 gate self-selection · §17 corpus table) · **Interlocks:** `PAT-FORENSICS-FIDUCIAL-JITTER-2026-08-28-BRIEF.md`, `PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey):** re-verified — still gated on WINDOW-ORACLE output, which is exactly what this drain's oracle re-run (post-#2082 fragment pairing) supplies. **Owner: Osprey. Next step:** read the regime split off the new oracle output once that run's results land in the WINDOW-ORACLE brief; do not re-run the oracle for it. · **SWEEP-FOLD 2026-09-03 (Osprey) — the dependency is not merely unrun, its INPUT has moved.** This brief's regime split is read off WINDOW-ORACLE output, and the sweep measured that output's published tables diverging (§6 withdrawn as circular, real result 7 of 9 cells moved; drift table 5 of 8 rows) under my #2114 picker fix. So the split does not merely await a corpus run — **any regime boundary quoted from the pre-#2114 oracle rests on numbers that have since changed.** Unchanged otherwise since the 2026-09-01 triage. Owner: Osprey. **Next step:** unchanged — take the split from a POST-#2114 oracle run, and do not carry forward a boundary derived from the published tables.
+**Status:** PROPOSED (item 1 EXECUTED 2026-09-14 — the clock-offset hypothesis is SUPPORTED by its pre-stated rule and the instrument it needed was already committed; see §8. Item 2 remains open and its proposed 200-500 ms rail is the WRONG ANATOMY - read §8.5 before building it.) · **Residue:** 2026-09-14-phys-rail-is-arm-band-on-an-ankle · PROPOSED (parked 2026-09-06 — dependency satisfied since #2029/#2034, but both remaining items need instruments that do not exist yet. Blocker in §-park) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core UNBLOCKED, remainder unexecuted; verified 2026-09-05).** The 09-01 stamp said this brief waits on oracle output that had never been produced. **That dependency is now satisfied**: #2029 and #2034 produced corpus-wide oracle verdicts over 43 box nights (4 SIGNAL RECOVERED / 20 PARTIAL / 5 NO RECOVERY / 0 UNDEFINED), so the regime split is now readable. Nobody has executed it. ⚠️ ORIGINAL 09-01 STAMP, superseded: TRIAGED 2026-09-01 (Osprey): not independently executed this pass. Shares the WINDOW-ORACLE dependency — the regime split is read off oracle output, which had never been produced against a corpus. That is now executable locally; see that brief's corrected stamp.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§12 oracle · §16 gate self-selection · §17 corpus table) · **Interlocks:** `PAT-FORENSICS-FIDUCIAL-JITTER-2026-08-28-BRIEF.md`, `PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey):** re-verified — still gated on WINDOW-ORACLE output, which is exactly what this drain's oracle re-run (post-#2082 fragment pairing) supplies. **Owner: Osprey. Next step:** read the regime split off the new oracle output once that run's results land in the WINDOW-ORACLE brief; do not re-run the oracle for it. · **SWEEP-FOLD 2026-09-03 (Osprey) — the dependency is not merely unrun, its INPUT has moved.** This brief's regime split is read off WINDOW-ORACLE output, and the sweep measured that output's published tables diverging (§6 withdrawn as circular, real result 7 of 9 cells moved; drift table 5 of 8 rows) under my #2114 picker fix. So the split does not merely await a corpus run — **any regime boundary quoted from the pre-#2114 oracle rests on numbers that have since changed.** Unchanged otherwise since the 2026-09-01 triage. Owner: Osprey. **Next step:** unchanged — take the split from a POST-#2114 oracle run, and do not carry forward a boundary derived from the published tables.
 
 # PAT clears its own bar on 1 night in 42 — and the failure is the acceptance window, not the sensors
 
@@ -127,10 +127,143 @@ item 2, whoever adds a mode-search constraint to the oracle — which is also th
 already recorded in the sibling brief, so the two should be built together rather than twice.
 
 ⚠️ **Parked, not blocked-on-data.**
+
+## 8 · EXECUTED 2026-09-14 (Kestrel) — item 1: the clock-offset hypothesis is SUPPORTED, and the instrument it needed was already committed
+
+### 8.0 · The park was wrong about what was missing
+
+§-park says item 1 needs *"whoever computes a `hostAxis`-derived per-night offset on the box subset."*
+**`tools/pat-host-offset.mjs` is committed and is exactly that tool.** Its own header says it "drives
+the SHIPPED `hostAxis` rather than the re-implementation §3e.4 scouted with", enumerates every pair
+and every non-overlapping window rather than selecting one (§3c.4's circularity), and scores a window
+**NOT AT ALL** when `hostAxis` returns `ok:false` or `independent:false`. Nothing had to be built.
+
+This is the ninth item in the current drain where the work existed and the brief did not know. That
+rate is a property of how briefs get parked, not nine coincidences — a park is written by the session
+that is leaving, which is the session least likely to search first.
+
+### 8.1 · Pre-stated rule (written before any predictor output was read)
+
+- **Predictor** — per night, `dPpm = ppmE − ppmP`, the **inter-device** relative rate. Neither
+  device's own ppm is the hypothesised quantity: a common-mode host error cancels in the pairing.
+  `driftMs = |dPpm| × 1e-6 × 7200 s`, the offset excursion across one scoring window.
+- **Outcome** — per-night PAT SD from `tools/pat-per-led.mjs`, the continuous quantity §3's bands cut.
+- **Primary** — Spearman(`driftMs`, PAT SD). SUPPORTED at |ρ| ≥ 0.5 and p < 0.05; REFUTED at |ρ| < 0.3.
+- **Magnitude gate, evaluated first and able to refute alone** — if p90(`driftMs`) < 45 ms the
+  candidate cannot move a lag across a 450 ms window whatever the correlation says.
+- Predictor and outcome measured on **one tree**, never joined across trees.
+
+The predictor never sees a mode, a foot, a lag or a regime, so the circularity §-park names is absent
+by construction.
+
+### 8.2 · Result — primary tree `uploads/vigil-archive/captures`
+
+```
+nights seen 43 · with a PAT SD 28 · zero-yield 15 · predictor accepted 29 · JOINED 22
+magnitude gate  driftMs  min 16.2 · med 93.6 · p90 847.0 · max 17500.7 ms   → passes (not refuted)
+PRIMARY         Spearman(driftMs, PAT SD)  rho 0.644  n 22  permutation p 0.0021   → SUPPORTED
+```
+
+Robust to the tail: dropping the three nights whose `|dPpm|` is not crystal-plausible (2026-09-04 at
+2431 ppm, 09-05 at 322, 09-11 at 118) leaves **ρ 0.607, p 0.0069, n 19**. The verdict is not carried
+by outliers.
+
+Regime medians, descriptive only — §3's groups are far too thin here for an omnibus test:
+
+| regime | n | median `driftMs` | median &#124;dPpm&#124; |
+|---|---|---|---|
+| SUB-BAR | **0** | — | — |
+| INTERMEDIATE | 7 | 70.0 ms | 9.7 |
+| WINDOW-DOMINATED | 13 | 97.4 ms | 13.5 |
+| EDGE-LOADED | 2 | 103.5 ms | 14.4 |
+
+**Replication on the brief's own tree** (`/home/michal/tepna-smoketest/captures`, 49 nights, 32 with a
+PAT SD) reproduces §3's structure closely — SUB-BAR 3.1 % / INTERMEDIATE 40.6 % / WINDOW-DOMINATED
+46.9 % / EDGE-LOADED 9.4 % against §3's published 3.7 / 48.1 / 37.0 / 11.1 — and names the **same**
+SUB-BAR night (2026-07-31, median lag 275 ms). The regimes are a stable property of the corpus, not
+of the tree.
+
+### 8.3 · ⚠️ SUPPORTED IS NOT "MECHANISM ESTABLISHED" — two things this cannot separate
+
+**(a) `driftMs` is entangled with PPG signal quality.** Foot-to-foot SD carries no clock at all, and:
+
+```
+Spearman(driftMs,  foot-foot SD)   rho 0.439  p 0.043      ← predictor and the rival are correlated
+Spearman(foot-foot SD, PAT SD)     rho 0.473  p 0.026      ← the rival also predicts the outcome
+Spearman(driftMs,  PAT SD)         rho 0.644  p 0.0021     ← the hypothesis, stronger but not clean
+```
+
+The clock beats the optics as a predictor and does not eliminate it. At n=22 neither can be partialled
+out of the other. **§4's elimination of "channel/signal quality" was done on medians-per-regime and
+read flat (95–109 ms); a rank correlation over nights does not read flat.** Those are two different
+statistics and the medians test, over groups of 1/13/15/3, is the weaker one. §4's row should be read
+as "not the whole story", not as closed.
+
+**(b) The large `dPpm` values are a LINK figure, not a crystal figure.** CLAUDE.md §🔒 §7 is explicit:
+the O2Ring's crystal measures sub-ppm between dropouts and *"a stalled link can manufacture an
+arbitrarily large apparent rate"*. 2431 ppm is not a crystal. So on those nights `driftMs` is partly a
+name for link quality — and a bad link plausibly degrades the PPG directly. The correlation is real;
+the causal arrow is not settled by it.
+
+**(c) The outcome is at a ceiling on 59 % of the joined nights.** 13 of 22 sit within 5 % of
+129.9 ms = 450/√12 — which §3 already says *is a constant of the estimator*, not a measurement.
+Restricting to nights below the WINDOW-DOMINATED band leaves **n=7, ρ 0.429, p 0.35**: the dynamic
+range where the outcome is still informative is too small to test in this corpus. A predictor
+correlating with a saturated outcome is the weakest form this result could take and it is the form it
+has.
+
+**So: the pre-stated rule returns SUPPORTED and that is reported as the verdict. The mechanism is
+not thereby demonstrated.** Recording both is the point — reinterpreting a pre-stated verdict after
+seeing the confound would be the failure the pre-statement exists to prevent.
+
+### 8.4 · 🔴 The single informative night is MISSING from the join, and nothing said so
+
+**2026-07-31 — the one SUB-BAR night, PAT SD 36.9 ms at a median lag of 275 ms, the only night in this
+corpus where PAT is actually measurable — has no row in the host-offset output and no entry in its
+refusal list.** It is one of **14** nights that `pat-per-led` scored and `pat-host-offset` dropped
+silently; only 6 refusals over 5 nights are recorded, all with reasons.
+
+That is the §∅ failure one level up: a night that was never evaluated is indistinguishable from a
+night that yielded nothing, and the loss landed precisely on the highest-information night. The
+SUB-BAR row in §8.2 reads `n=0` for that reason and for no physical one. **Any future run of this join
+must reconcile the two tools' night sets and account for every difference before reading a
+correlation.** Logged as residue `2026-09-14-host-offset-drops-nights-silently`.
+
+### 8.5 · For item 2 — the proposed 200–500 ms rail is the WRONG ANATOMY
+
+§-park proposes constraining the oracle's mode search to **200–500 ms** per `PPG-FOOT-PLACEMENT` §4a.
+`PAT-SENSOR-PLACEMENT-CORRECTION-2026-08-04-BRIEF.md`, written **24 days earlier**, is titled *"The
+Verity has ALWAYS been on the left ankle. Every 'arm/wrist' plausibility argument in the PAT family is
+against the wrong band."* Confirmed here independently: `pat-per-led` classifies **every** night in
+both trees as site `ankle`, and its `RE.ankle` is the Verity regex. The pair is chest→ankle, the
+longest peripheral path this hardware has.
+
+That brief further records: *"for an ankle site, landing in the arm band is not a check that passes —
+it is one that should raise a question."* Building 200–500 into the oracle would encode into the
+**tool** the anatomical error that brief corrected in **prose** — and would let a 215 ms mode pass as
+physiological on a chest→ankle path.
+
+There is also a cleaner experiment available than the constraint itself. Median lag over all yielding
+nights is **426 ms on both trees**, against a window midpoint of **425**. That is either the true
+chest→ankle PAT (406–498 ms is established as plausible for this path) or the estimator returning its
+own midpoint — and the two are indistinguishable at `[200, 650]`. **Re-run at a rail whose midpoint is
+not 425**: if the reported lag follows the midpoint, the lag is the window; if it stays near 426, it is
+physiology. One run, decisive, and it settles item 2's premise before any constraint is built.
+
 ## 7 · Done when
 
 - [x] Full-corpus run, untruncated, all 42 nights, zero-yield rows counted.
 - [x] Regimes classified against principled bands; shares reported.
 - [x] Four candidate explanations for regime membership eliminated by measurement.
-- [ ] Clock-offset hypothesis tested against regime membership.
+- [x] **Clock-offset hypothesis tested against regime membership — §8, EXECUTED 2026-09-14.**
+      Pre-stated rule returns **SUPPORTED** (Spearman ρ 0.644, n 22, permutation p 0.0021; ρ 0.607 with
+      the three link-artifact nights dropped). ⚠️ Ticked as *tested*, which is what the box asks — **not**
+      as *mechanism established*: §8.3 records that the predictor is entangled with foot-to-foot SD
+      (ρ 0.439), that the outcome is at the 450/√12 ceiling on 13 of 22 nights, and that the largest
+      `dPpm` values are link artifacts rather than crystal rates. The instrument was already committed
+      (`tools/pat-host-offset.mjs`); nothing had to be built.
 - [ ] Oracle: does a physiologically-anchored window recover signal above the sensor floor?
+      ⚠️ **Do not build the 200–500 ms rail §-park proposes without reading §8.5 first** — the pair is
+      chest→ankle and 200–500 is an arm/wrist band, so the constraint would encode an anatomical error
+      `PAT-SENSOR-PLACEMENT-CORRECTION` already corrected. §8.5 names a cheaper experiment that settles
+      the premise first.
