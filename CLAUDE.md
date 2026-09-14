@@ -417,6 +417,29 @@ tool a session would run*. **Read `/proc/<pid>/cgroup`, and walk the ppid chain 
 produces a confident wrong attribution, and `kill-only-owned-pids` cuts both ways: a timer unit is the
 owner's, not yours.
 
+⚠️ **THAT ATTRIBUTION IS INCOMPLETE, AND THE MISSING TERM IS INVISIBLE TO EVERY `ps` YOU WILL RUN.**
+Re-measured 2026-09-14: the timer was ONE term on a box that was **already ~21 GB down before it
+started**. `/tmp` here is a **30 GB tmpfs**, i.e. RAM, and it was sitting at **21 GB used** — held by
+files that NO PROCESS OWNS and that shrink only when something deletes them. It is reported by `free`
+as `shared`, never as any process's RSS, so the whole `ps -eo pid,rss` method both sessions used that
+afternoon could not see it even in principle. A single abandoned test directory
+(`/tmp/snt_edf_test_sAks1r`, 8.1 GB, zero open handles) outweighed everything the two sessions were
+arguing about. **Before blaming a process, run `df -h /tmp /dev/shm` and read `free`'s `shared`
+column** — deleting the orphans returned **9 GB** and took MemAvailable from 23 GB to 32 GB, more than
+bounding the timer did. ⚠️ Deleting is the owner's call, not yours (§👥.2): check `lsof +D <dir>` first,
+because two of those trees were the live cwd of leaked stub servers and one was root-owned firmware
+build output that `rm` could not touch anyway.
+
+⚠️ **"A `MemoryMax` cap does not protect you" is about the VICTIM, not the CAUSE — do not read it as
+"cgroup caps are useless".** Both halves are true and they point opposite ways: a cap on YOUR gate
+cannot save it, because the watchdog reads the box; a cap on the CONSUMER is the only thing that
+bounds the box at all, and it is where the fix belongs. And size it to the right quantity — the
+triage unit's own cgroup reported `memory.swap.current = **0**`. It never swapped; it EVICTED, by
+taking resident memory, and other processes' pages are what landed in swap. So a swap fence on the
+consumer would have fenced a mechanism that was not operating, while `MemoryHigh`/`MemoryMax` on it
+does the work. A first draft of that fix got this backwards and was corrected only by reading the
+cgroup.
+
 ### 5 · LANDING: `main` moves faster than CI, so every extra PR is another lost race
 
 **Re-measured 2026-08-16 — state the WINDOW with any of these numbers, because the value depends on it.**
