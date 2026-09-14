@@ -4369,6 +4369,13 @@
     stampEpochPositions,
     bandpass,
     detectPeaks,
+    /* Additive export for the PAT worker. `detectPeaks` returns INTEGER sample indices; `refinePeaks`
+       is what turns them into the sub-sample R positions the rest of this node uses, and it was
+       unreachable from outside — so every external consumer was silently stuck on whole samples, with
+       no way to tell. Measured 2026-09-14 on a real H10 night (35 305 beats): integer vs sub-sample
+       beat times differ by p50 1.85 ms, p95 6.09 ms, max 7.70 ms — one full sample at 129.99 Hz.
+       Negligible against a heartbeat, not negligible against a 60 ms PAT bar. */
+    refinePeaks,
     /* Additive, same contract rule as the block above. DEEP-SCOUT-HOLLOW-GATES-FOLLOWUPS §EP-rest could
        not reach the composite per-beat SQI weights (0.30·kSQI + 0.28·bSQI + 0.24·rrPlaus + 0.18·ampOK)
        through `analyze`, because `genSynthetic` — even `scenario:'ambulatory'` — emits beats at sqi≈1,
