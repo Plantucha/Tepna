@@ -4889,6 +4889,9 @@
        Refused ⇒ fs keeps the DEVICE crystal, the pre-WEARABLE-HOST-AXIS behaviour: wrong by ~25 ppm,
        where the ungated correction was wrong by up to 24036. The refusal is REPORTED, never silent. */
     var ECG_AXIS_MIN_SPAN_MS = 2400e3; // 40 min — the knee in the table above
+    // A single anchor gap carrying more than this is a host clock STEP, not delivery jitter — see the
+    // refusal arm below for the derivation (§7's 287 ms worst wander; 138.4 ms worst measured here).
+    var ECG_AXIS_MAX_STEP_MS = 1000;
     var ecgHostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? DexClock.hostAxis(ecgAxisAnchors, {}) : { ok: false };
     /* Span from the anchors themselves — they are pushed in row order, so first→last IS the baseline
        the rate was divided by. Computed here rather than added to `DexClock.hostAxis` on purpose:
@@ -4939,6 +4942,42 @@
         (ecgHostAx.spreadMs != null ? ecgHostAx.spreadMs.toFixed(2) : '?') +
         ' ms, within one stamp quantum — the host stamp is the device stamp rounded), fs left on the device clock';
     else if (!isFinite(ecgHostAx.ppm)) ecgAxisRefusal = 'no finite host/device rate, fs left on the device clock';
+    /* ── A STEP IS NOT A RATE, and the span gate below cannot see one ────────────────────────────────
+       `ECG_AXIS_MIN_SPAN_MS` asks whether the baseline is long enough to resolve a crystal. It says
+       nothing about whether the divergence ACCUMULATED like a rate or arrived all at once. A host-side
+       clock step — an NTP correction, a suspend/resume, a stalled writer — lands in ONE anchor gap,
+       and `hostAxis` then divides it by the whole span, turning a jump into a fabricated ppm. Clock
+       Contract §7 already says `maxStepMs` "surfaces a genuine clock STEP smeared across one anchor
+       gap rather than hiding it in a slope" — it is published for exactly this, and nothing read it.
+
+       ⚠️ THE RATIO VERSION OF THIS RULE WAS WRONG, and it is recorded because it looked right and
+       fired correctly on the real offender. The first cut refused when |maxStepMs| exceeded
+       |totalMs| — one gap carrying more than the night's whole divergence. It is unsound: **a step
+       inflates its own denominator.** `totalMs` is the NET end-to-end divergence, so a step ALIGNED
+       with the drift adds to it and the ratio collapses. Caught by a planted control — 3006 ms step,
+       3606 ms total, ratio 0.83, no refusal — and it only worked on 2026-08-26 because there the step
+       (+3000 ms) and the drift oppose and net to −313 ms. A rule that holds by an accident of sign is
+       not a rule.
+
+       So bound the STEP ITSELF, which carries a physical meaning the ratio never had. Host delivery
+       jitter is a tens-to-low-hundreds-of-ms quantity: Clock Contract §7 records host-stamp wander
+       "up to 287 ms observed" on this corpus, and the 8 largest H10 nights measured 2026-09-13 top out
+       at 138.4 ms (16.5 · 17.0 · 19.6 · 27.2 · 33.0 · 42.5 · 138.4). A second-scale jump is not
+       delivery jitter, it is a clock event. 2026-08-26 carries 2999.7 ms.
+
+           ECG_AXIS_MAX_STEP_MS = 1000   — 3.5x above §7's worst recorded wander,
+                                           7.2x above the worst measured here,
+                                           3.0x below the offender.
+
+       Corroborated independently of any threshold: 08-26 quotes -10.02 ppm where the SAME DEVICE reads
+       -19.8 to -23.0 on all seven other nights — one step ate half the crystal. After this gate 08-26
+       is the ONLY one of the eight whose fs moves (-10.02 ppm, back onto the device clock); the other
+       seven are inert to 0.00 ppm.
+       ⚠️ This gates the RATE only. `tMsAt` rides the device counter (#2477) and `correctionAt` is an
+       interpolation whose residual is bounded by what it observed — §7 is explicit that neither takes
+       a span or step gate. Refusing here leaves `fs` on the device clock, which is the honest axis. */ else if (isFinite(ecgHostAx.maxStepMs) && Math.abs(ecgHostAx.maxStepMs) > ECG_AXIS_MAX_STEP_MS)
+      ecgAxisRefusal =
+        'one anchor gap carries a ' + Math.round(ecgHostAx.maxStepMs) + ' ms step (> ' + ECG_AXIS_MAX_STEP_MS + ' ms) — a host clock STEP, not a crystal rate, fs left on the device clock';
     else if (ecgAxisSpanMs < ECG_AXIS_MIN_SPAN_MS)
       ecgAxisRefusal = 'span ' + Math.round(ecgAxisSpanMs / 1000) + ' s < ' + ECG_AXIS_MIN_SPAN_MS / 1000 + ' s — too short to resolve a crystal rate, fs left on the device clock';
     if (ecgHostAx.ok && ecgAxisRefusal == null) {

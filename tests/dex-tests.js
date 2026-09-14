@@ -16327,6 +16327,54 @@
       T.ok('…recovering the planted rate to within a few percent', recLong.hostAxis.ppm > 200 && recLong.hostAxis.ppm < 260, 'ppm=' + recLong.hostAxis.ppm);
       T.ok('…and fs actually MOVES (host faster ⇒ fs below the device rate)', recLong.fs < 20 && recLong.fs > 19.98, 'fs=' + recLong.fs);
       T.ok('…so the two fragments are decided differently by span alone', recShort.hostAxis.applied === false && recLong.hostAxis.applied === true);
+
+      /* ── A STEP IS NOT A RATE (E2E H2) ────────────────────────────────────────────────────────────
+         The span gate above asks whether the baseline is long enough to resolve a crystal. It cannot
+         ask whether the divergence ACCUMULATED like a rate or arrived all at once. A host-side clock
+         step — NTP correction, suspend/resume, a stalled writer — lands in ONE anchor gap, and
+         `hostAxis` divides it by the whole span, turning a jump into a fabricated ppm that is then
+         applied to `fs`. §7 publishes `maxStepMs` for exactly this and nothing read it.
+
+         Measured over the 8 largest H10 nights (2026-09-13), |maxStepMs| / |totalMs| separates
+         completely: seven clean nights at 0.02-0.18, and 2026-08-26 at 9.57 (a 3.0 s step against
+         313 ms of total divergence). The corroboration is independent of the ratio — that night quotes
+         -10.02 ppm where the SAME DEVICE reads -19.8 to -23.0 on all seven others, so one step ate
+         half the crystal. Applied on every one of the eight before this gate.
+
+         The long record above is reused as the CONTROL: same builder, same 2548 s span, same +250 ppm
+         — one with a step planted, one without. That isolates the step as the only difference, which a
+         freshly-built pair would not. */
+      var stepRows = 52000,
+        stepSpanMs = (stepRows - 1) * devStep;
+      var buildStep = function (rows, hostExcessAtEnd, stepMs, stepAtRow) {
+        var L = [HDR];
+        for (var i = 0; i < rows; i++) {
+          var dev = i * devStep;
+          var host = dev + (hostExcessAtEnd * i) / (rows - 1) + (i >= stepAtRow ? stepMs : 0);
+          L.push(iso(host) + ';0;' + dev + ';' + (100 + (i % 50)));
+        }
+        return L.join('\n');
+      };
+      // a 3 s host step halfway through, on a record whose honest total divergence is ~640 ms
+      var recStep = D.parseECG(buildStep(stepRows, stepSpanMs * 250e-6, 3000, Math.floor(stepRows / 2)));
+      T.ok(
+        /* ⚠️ ASSERTED AGAINST THE STEP, NOT A RATIO TO `totalMs` — that ratio is what the first version
+           of this gate used, and this planted control is what killed it: 3006 ms step against a
+           3606 ms total is a ratio of 0.83, no refusal, because A STEP INFLATES ITS OWN DENOMINATOR
+           whenever it is aligned with the drift. */
+        'ANTI-VACUITY · the planted step is second-scale, well past any host jitter',
+        recStep.hostAxis && Math.abs(recStep.hostAxis.maxStepMs) > 1000,
+        'maxStep=' + (recStep.hostAxis || {}).maxStepMs + ' total=' + (recStep.hostAxis || {}).totalMs
+      );
+      T.ok('a host clock STEP does not become a crystal rate — fs stays on the device clock', recStep.fs === 20, 'fs=' + recStep.fs);
+      T.ok('…and the reason names the STEP, not the span (a wrong reason is worse than none)', /step/i.test((recStep.hostAxis && recStep.hostAxis.reason) || ''), (recStep.hostAxis || {}).reason);
+      /* The rate stays REPORTED — refusing to spend it is not the same as hiding it. */
+      T.ok('…while the rate it would have applied remains visible as evidence', recStep.hostAxis.ok === true && isFinite(recStep.hostAxis.ppm), 'ppm=' + (recStep.hostAxis || {}).ppm);
+      /* THE CONTROL, and it is the assertion that stops this gate convicting working recordings: the
+         SAME record without the step must still take its correction. Seven real nights sit at
+         0.02-0.18 on this ratio and none of them may be refused. */
+      T.ok('CONTROL · the same record WITHOUT a step still applies its rate', recLong.hostAxis.applied === true && recLong.fs < 20, 'fs=' + recLong.fs);
+      T.ok('…so the two are decided by the STEP alone, not by span or rate', recStep.fs === 20 && recLong.fs < 20, 'step fs=' + recStep.fs + ' · clean fs=' + recLong.fs);
     });
 
     /* ════ 12b · ECGDex STAMPLESS DETERMINISM — events never carry a fabricated now() ════ */
