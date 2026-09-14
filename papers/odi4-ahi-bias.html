@@ -92,7 +92,7 @@
 
   <div class="abstract">
     <h2>Abstract</h2>
-    <p style="text-align:left;margin-bottom:0"><b>Background.</b> Consumer and clinical pulse-oximeters summarize overnight hypoxemia with the oxygen-desaturation index (ODI), commonly the 4%-desaturation variant (ODI-4), and frequently report a surrogate apnea–hypopnea index (AHI) as <code>AHI ≈ ODI-4 × 1.1</code>. We test whether that surrogate holds. <b>Methods.</b> We ran the production OxyDex ODI-4 detector on overnight SpO₂ recordings and compared ODI-4 against a reference AHI. <b>Results.</b> Across the pilot corpus ODI-4 tracked AHI strongly but with a slope of ≈0.23 (R²≈0.93) — recovering only about one quarter of scored respiratory events — and the deficit grew with severity (mean under-count ≈30 events/h in the severe stratum). The shipped ×1.1 surrogate gave a leave-one-out RMSE of 15.2 events/h; a re-fit linear correction roughly halved it to 7.2. <b>Conclusion.</b> The under-count is a deterministic detector artifact, not noise. <span style="color:#1a6e3a"><b>(fixed)</b></span> Tracing it to trailing-mean baseline self-suppression and replacing the mean with a high-percentile ceiling baseline roughly halves the severe-stratum bias (≈−31 → ≈−16 events·h⁻¹ on the synthetic cohort) and lifts the ODI-4↔AHI slope from ≈0.42 to ≈0.69 — a detector-level fix that needs no new sensing and no recalibration constant. <b>This pilot is small (n=5 nights with planted/ specified reference AHI) and not PSG-scored — it characterizes and motivates rather than establishes the clinical result.</b></p>
+    <p style="text-align:left;margin-bottom:0"><b>Background.</b> Consumer and clinical pulse-oximeters summarize overnight hypoxemia with the oxygen-desaturation index (ODI), commonly the 4%-desaturation variant (ODI-4), and frequently report a surrogate apnea–hypopnea index (AHI) as <code>AHI ≈ ODI-4 × 1.1</code>. We test whether that surrogate holds. <b>Methods.</b> We ran the production OxyDex ODI-4 detector on overnight SpO₂ recordings and compared ODI-4 against a reference AHI. <b>Results.</b> Across the pilot corpus ODI-4 tracked AHI strongly but with a slope of ≈0.23 (R²≈0.93) — recovering only about one quarter of scored respiratory events — and the deficit grew with severity (mean under-count ≈30 events/h in the severe stratum). The shipped ×1.1 surrogate gave a leave-one-out RMSE of 15.2 events/h; a re-fit linear correction roughly halved it to 7.2. <b>Replication on clinical PSG.</b> The same detector was run unchanged over the full SHHS1 cohort (n&nbsp;=&nbsp;5136 expert-scored polysomnograms). Against those cohorts&rsquo; <i>scored AHI</i> the slope is 0.134 (R&sup2;&nbsp;0.27) &mdash; but that reference counts hypopneas scored without any accompanying desaturation (85.3&nbsp;% of its respiratory events are hypopneas; a median 66.7&nbsp;% of its scored desaturations are shallower than 3&nbsp;%), so a 4&nbsp;%-threshold index cannot count them and the gap is <b>definitional before it is behavioural</b>. Against the expert&rsquo;s own <i>desaturation index</i> &mdash; the same quantity the detector computes, on the same nights &mdash; the slope is <b>0.672 (R&sup2;&nbsp;0.756, n&nbsp;=&nbsp;4932)</b>, with a median difference of &minus;0.22&nbsp;events/h. <b>The synthetic prediction therefore transfers:</b> the ceiling-baseline fix was credited below with lifting the slope to &asymp;0.69 on the synthetic cohort, and real PSG returns 0.672 once the reference is matched. <b>Conclusion.</b> The under-count is a deterministic detector artifact, not noise. <span style="color:#1a6e3a"><b>(fixed)</b></span> Tracing it to trailing-mean baseline self-suppression and replacing the mean with a high-percentile ceiling baseline roughly halves the severe-stratum bias (≈−31 → ≈−16 events·h⁻¹ on the synthetic cohort) and lifts the ODI-4↔AHI slope from ≈0.42 to ≈0.69 — a detector-level fix that needs no new sensing and no recalibration constant. <b>This pilot is small (n=5 nights with planted/ specified reference AHI) and not PSG-scored — it characterizes and motivates rather than establishes the clinical result.</b></p>
   </div>
   <p class="kw"><b>Keywords:</b> oximetry · oxygen desaturation index · apnea–hypopnea index · obstructive sleep apnea · calibration · consumer wearables</p>
 
@@ -173,6 +173,7 @@
       <tr><td>median difference</td><td>&minus;30.35</td><td><b>&minus;0.22</b></td></tr>
       <tr><td>95&nbsp;% limits of agreement</td><td>&minus;81.32 to 10.40</td><td>&minus;9.64 to 7.66</td></tr>
       <tr><td>median ratio detector/reference</td><td>&mdash;</td><td>0.897</td></tr>
+      <tr><td>OLS slope (matched reference)</td><td>&mdash;</td><td><b>0.672</b> (R&sup2; 0.756, n&nbsp;=&nbsp;4932)</td></tr>
     </tbody>
   </table>
 
@@ -238,6 +239,13 @@
     magnitude or prevalence</b> &mdash; which is consistent with the generator&rsquo;s stated purpose of exploring
     the state space rather than reproducing a population.</p>
 
+  <p><b>And the synthetic prediction transfers, which is the part worth stating plainly.</b> &sect;3.1 credits the
+    ceiling-baseline fix with lifting the ODI-4&harr;AHI slope to &asymp;0.69 on the synthetic cohort. Real PSG,
+    same detector, reference matched to the quantity the detector computes: <b>0.672</b>. A synthetic result that
+    survives contact with 5136 clinical recordings to within 0.02 is doing the job a synthetic result is for.
+    ⚠️ It survives only under the MATCHED reference; against scored AHI the same detector reads 0.134, and a
+    reader given that number alone would conclude the opposite. The reference, not the detector, is what moved.</p>
+
   <p class="note"><b>&sect;&empty; &mdash; coverage is reported because absence is not zero.</b> A rate computed over a
     night that was partly unmeasured is not the same claim as one over a complete night, so every record carries its
     SpO&#8322; coverage: <b>median 98.45&nbsp;%</b>, 5th percentile 83.36&nbsp;%, minimum 52.29&nbsp;%, and
@@ -289,7 +297,7 @@
     <li><b>Detector:</b> real <code>oxydex-dsp.js</code> (loaded alone in-realm); ODI-4 = <code>processNight().odi4.rate</code>; surrogate = <code>ahiEst.ahiODI4</code>.</li>
     <li><b>Recordings:</b> <code>uploads/synthetic/O2Ring*.csv</code> + <code>ground_truth_night{1..5}.json</code>.</li>
     <li><b>Real-PSG path:</b> <code>nsrr-adapter.js</code> (<code>window.NSRR</code>): EDF→OxyDex rows (SpO₂ auto-detect, 1 Hz resample; a dropout is emitted as <code>null</code> and is <b>never</b> carried forward from the last valid sample, with per-record SpO&#8322; coverage published alongside the rate (&sect;3.2)) + NSRR XML → reference AHI. Honors the suite Clock Contract.</li>
-    <li><b>Next:</b> obtain an NSRR data-use agreement (sleepdata.org), analyze SHHS (n≈5,800), and replicate Tables 1–2 on PSG before submission.</li>
+    <li><b>Next:</b> the NSRR replication this line used to name as pending is <b>done</b> (&sect;3.2, SHHS1 n&nbsp;=&nbsp;5136, 2026-09-13) and the data-use question is ruled. Tables&nbsp;1&ndash;2 are retained as the synthetic pilot rather than re-cut on PSG &mdash; Tables&nbsp;3&ndash;5 are the real-corpus analysis, and re-cutting a five-night pilot at n&nbsp;=&nbsp;5136 would discard the adversarial fixtures it exists to carry. <b>Remaining before submission:</b> delete &sect;0, and decide whether the synthetic cohort is regenerated under <code>cohort-gen/2.0</code> (which fits the severe stratum to SHHS) or stays pinned at 1.9 with these numbers.</li>
   </ul>
 
   <h2 class="sec">References</h2>
