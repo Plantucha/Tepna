@@ -99,9 +99,20 @@ worker() {
       echo "re-fetching incomplete $id.edf" >> "$DEST/shard.log"
       rm -f "$EDFDIR/$id.edf"
     fi
-    if "$NSRR" download "shhs/polysomnography/edfs/shhs1/$id.edf" \
-         --token="$(cat "$TOKEN_FILE")" >/dev/null 2>&1; then got=$((got+1))
-    else fail=$((fail+1)); fi
+    # ⚠️ THE EXIT CODE IS NOT EVIDENCE THE FILE LANDED. Measured on this corpus: every one of 16
+    # workers reported "0 failed" while 12 ids were absent from the tree — `nsrr download` exited 0,
+    # printed "1 file downloaded", and produced nothing. Trusting it left a corpus that reported
+    # ALL WORKERS EXITED / EXIT=0 at 5124 of 5136. All 12 fetched fine on a later retry, so they were
+    # transient no-ops, not missing upstream — which is worse, because the gap looked permanent.
+    # So success is defined by the ARTIFACT, never by the return code.
+    "$NSRR" download "shhs/polysomnography/edfs/shhs1/$id.edf" --token="$(cat "$TOKEN_FILE")" >/dev/null 2>&1 || true
+    if edf_complete "$EDFDIR/$id.edf"; then
+      got=$((got+1))
+    else
+      fail=$((fail+1))
+      rm -f "$EDFDIR/$id.edf"   # leave nothing a later skip-test could mistake for done
+      echo "no-op or short fetch: $id" >> "$DEST/shard.log"
+    fi
     # a tiny pause keeps this from looking like a hammer if a file 404s instantly
     sleep 0.2
   done
@@ -112,5 +123,15 @@ cd "$DEST" || exit 2
 : > "$DEST/shard.log"
 for ((k=0; k<N; k++)); do worker "$k" & done
 wait
-echo "ALL WORKERS EXITED  files=$(count_edf)/${#ALL[@]}" >> "$DEST/shard.log"
-echo "EXIT=0" >> "$DEST/shard.log"
+# ⚠️ THE SENTINEL MUST REPORT THE CORPUS, NOT THE SCRIPT. "ALL WORKERS EXITED / EXIT=0" was true and
+# useless at 5124 of 5136: the workers had indeed exited. A completion marker that cannot distinguish
+# "finished" from "finished short" is the §4b failure — reporting success about something it never
+# examined. EXIT is now keyed on the file count matching the cohort.
+_have=$(count_edf); _want=${#ALL[@]}
+echo "ALL WORKERS EXITED  files=$_have/$_want" >> "$DEST/shard.log"
+if [ "$_have" -eq "$_want" ]; then
+  echo "EXIT=0" >> "$DEST/shard.log"
+else
+  echo "INCOMPLETE: $((_want - _have)) file(s) missing — re-run to retry them" >> "$DEST/shard.log"
+  echo "EXIT=1" >> "$DEST/shard.log"
+fi
