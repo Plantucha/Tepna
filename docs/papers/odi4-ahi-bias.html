@@ -201,13 +201,35 @@
     </tbody>
   </table>
 
-  <p><b>The synthetic cohort is inverted in shape and understates the bias where the claim lives.</b> It spends
-    120 nights on the healthy stratum and 26 on severe; the real cohort is 61 and 3008. At mild the two nearly
-    agree (&minus;7.9 vs &minus;9.8); at severe they differ by 18&nbsp;events/h, with synthesis understating the
-    real bias by roughly 60&nbsp;%. Mean AHI within the severe stratum matches almost exactly (56.0 vs 56.5), so
-    the generator has the <i>magnitude</i> of severity right while having its <i>prevalence</i> and its
-    <i>bias</i> wrong &mdash; the failure mode in which the number a reader would sanity-check agrees and the
-    numbers carrying the conclusion do not.</p>
+  <p><b>Synthesis understates the bias where the claim lives.</b> At mild the two nearly agree
+    (&minus;7.9 vs &minus;9.8); at severe they differ by 18&nbsp;events/h, with synthesis understating the real
+    bias by roughly 60&nbsp;%. Mean AHI within the severe stratum matches almost exactly (56.0 vs 56.5), so the
+    generator has the <i>magnitude</i> of severity right while understating how the bias grows with it.</p>
+
+  <p class="note"><b>&sect;&empty;&mdash;adjacent warning: the stratum COUNTS in Table 4 are not a prevalence
+    comparison, and must not be read as one.</b> An earlier draft of this paragraph called the synthetic cohort
+    &ldquo;inverted relative to the population&rdquo;. That was wrong twice over. SHHS is not a general
+    population &mdash; it recruited from cardiovascular cohorts at age&nbsp;&ge;40 and deliberately oversampled
+    habitual snorers. And severity here is not a property of the recording at all but of the definition applied
+    to it, which the same 5136 nights demonstrate directly:</p>
+
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 5.</b> Severity mix of the <i>same</i> 5136 nights under three references.
+      No recording changes between rows; only the definition does.</caption>
+    <thead><tr><th>reference</th><th>none</th><th>mild</th><th>moderate</th><th>severe</th></tr></thead>
+    <tbody>
+      <tr><td>SHHS scored AHI (no desaturation required)</td><td>1.2&nbsp;%</td><td>11.9&nbsp;%</td><td>28.3&nbsp;%</td><td><b>58.6&nbsp;%</b></td></tr>
+      <tr><td>expert 3&nbsp;% desaturation index</td><td>39.4&nbsp;%</td><td>38.8&nbsp;%</td><td>16.2&nbsp;%</td><td>5.6&nbsp;%</td></tr>
+      <tr><td>expert 4&nbsp;% desaturation index</td><td>62.2&nbsp;%</td><td>27.0&nbsp;%</td><td>7.7&nbsp;%</td><td><b>3.1&nbsp;%</b></td></tr>
+    </tbody>
+  </table>
+
+  <p><b>58.6&nbsp;% severe and 3.1&nbsp;% severe are the same people.</b> Any statement of the form &ldquo;this
+    cohort is mostly severe&rdquo; is therefore a statement about a scoring convention wearing the costume of a
+    clinical fact, and the synthetic cohort&rsquo;s 25.6&nbsp;% severe sits <i>between</i> the two real answers
+    rather than outside them. What Table&nbsp;4 does support is the narrower claim it now makes: the
+    <i>bias within a stratum</i> is understated by synthesis. Prevalence is not comparable across these
+    references and is not compared.</p>
 
   <p><b>And the real relationship is far looser than synthesis suggests.</b> &sect;3.1 reports R&sup2;&nbsp;0.93;
     on 5136 real nights it is <b>0.27</b>. An R&sup2; of 0.93 reads as a nearly deterministic law and invites a
