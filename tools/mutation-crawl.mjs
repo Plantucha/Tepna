@@ -36,7 +36,8 @@
  *   node tools/mutation-crawl.mjs                        # crawl the default DSP fleet
  *   node tools/mutation-crawl.mjs --file hrvdex-dsp.js   # one file (repeatable)
  *   node tools/mutation-crawl.mjs --max-hours 40         # stop starting new work after 40 h
- *   node tools/mutation-crawl.mjs --jobs 12              # worker pool per sweep
+ *   node tools/mutation-crawl.mjs --jobs 12              # pin the worker pool (default: mutate.mjs
+ *                                                        sizes it from cores AND free memory)
  *   node tools/mutation-crawl.mjs --out /tmp/crawl       # results directory
  *   node tools/mutation-crawl.mjs --status               # read the checkpoint, run nothing
  *   node tools/mutation-crawl.mjs --selftest             # known-answer, touches nothing
@@ -53,7 +54,6 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rename
 import { execFileSync, execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
-import { cpus } from 'node:os';
 import { createHash } from 'node:crypto';
 import vm from 'node:vm';
 
@@ -65,7 +65,14 @@ const opt = (f, d) => {
   return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;
 };
 const OUT = opt('--out', join(ROOT, '.mutation-crawl'));
-const JOBS = +opt('--jobs', Math.max(2, Math.round((cpus().length * 2) / 3)));
+/* NO LOCAL DEFAULT, deliberately. This tool does not run the workers — `mutate.mjs` spawns them, and
+   it is the one that knows what a worker costs. Duplicating a sizing rule here produced exactly the
+   drift CLAUDE.md warns about for any two-copy threshold: `mutate.mjs` grew a memory-aware default
+   and this file went on passing a core-derived 16 straight past it, because an explicit `--jobs`
+   always wins. So the flag is forwarded ONLY when a caller actually gave one; otherwise the value is
+   `mutate.mjs`'s to choose. Measured cost of the old behaviour: 16 workers × ~1.04 GB = a 16.57 GB
+   MemoryPeak under `tepna-nightly-triage`. */
+const JOBS = has('--jobs') ? +opt('--jobs', '0') : null;
 const MAX_MS = +opt('--max-hours', 48) * 3600 * 1000;
 const T0 = Date.now();
 
@@ -710,7 +717,10 @@ function sweep(file) {
 
   /* The ceiling is what is LEFT OF THE BUDGET, not a constant unrelated to it. */
   const remaining = MAX_MS - (Date.now() - T0);
-  const args = ['tools/mutate.mjs', '--file', file, '--limit', '9999', '--jobs', String(JOBS), '--bail', '--json'];
+  const args = ['tools/mutate.mjs', '--file', file, '--limit', '9999', '--bail', '--json'];
+  // Forward the pool size only when the caller pinned one; otherwise mutate.mjs sizes it from cores
+  // AND available memory, which this tool cannot do better from here.
+  if (JOBS != null) args.splice(4, 0, '--jobs', String(JOBS));
   if (plan.action === 'resume') args.push('--resume');
   const txt = execFileSync('node', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, timeout: Math.max(60000, remaining) });
   const rec = JSON.parse(txt.trim().split('\n')[0]);
@@ -1267,7 +1277,9 @@ async function main() {
   const TARGETS = files.length ? files : DEFAULT_FLEET;
 
   log('MUTATION CRAWL — measurement only. It never edits source, tests, or git.');
-  log('targets: ' + TARGETS.length + ' file(s) · jobs ' + JOBS + ' · budget ' + (MAX_MS / 3600000).toFixed(1) + ' h · out ' + OUT);
+  log(
+    'targets: ' + TARGETS.length + ' file(s) · jobs ' + (JOBS == null ? 'auto (mutate.mjs sizes from cores + free memory)' : JOBS) + ' · budget ' + (MAX_MS / 3600000).toFixed(1) + ' h · out ' + OUT
+  );
   log('resume: a file with complete:true is skipped. Re-run this exact command to continue.\n');
 
   for (const file of TARGETS) {

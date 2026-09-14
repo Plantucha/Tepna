@@ -246,6 +246,36 @@
     ⚠️ It survives only under the MATCHED reference; against scored AHI the same detector reads 0.134, and a
     reader given that number alone would conclude the opposite. The reference, not the detector, is what moved.</p>
 
+  <p><b>Body position is not a confound of the agreement, though it is a strong determinant of the
+    event rate.</b> A reader may reasonably object that the detector and the scorer could diverge
+    differently by posture. Measured on 300 records carrying the 1&nbsp;Hz <code>POSITION</code>
+    channel, the scored desaturation rate does vary substantially by position code &mdash; 14.6 to
+    20.0&nbsp;events/h, a 37&nbsp;% spread, with the highest-rate code behaving as the expected supine
+    proxy. <b>The agreement does not follow it.</b></p>
+
+  <p>Nights spending &ge;50&nbsp;% in that code show a raw residual of &minus;0.51 against &minus;0.16
+    for the rest &mdash; but those nights are also sicker (expert index 4.03 against 2.96), and the
+    split does not survive conditioning on severity:</p>
+
+  <table class="data">
+    <caption class="tbl-cap"><b>Table 6.</b> ODI-4 &minus; expert residual by time spent in the
+      highest-rate position, <i>within</i> expert-index strata. The raw difference is severity, not
+      posture: once stratified, the direction is not even consistent.</caption>
+    <thead><tr><th>expert index</th><th>n (&ge;50&nbsp;% / &lt;50&nbsp;%)</th><th>residual &ge;50&nbsp;%</th><th>residual &lt;50&nbsp;%</th></tr></thead>
+    <tbody>
+      <tr><td>0&ndash;5</td><td>48 / 135</td><td>+0.27</td><td>0.00</td></tr>
+      <tr><td>5&ndash;15</td><td>22 / 61</td><td>&minus;2.24</td><td>&minus;1.23</td></tr>
+      <tr><td>15&ndash;30</td><td>8 / 17</td><td>&minus;4.78</td><td><b>&minus;6.50</b></td></tr>
+    </tbody>
+  </table>
+
+  <p>Supine-dominant nights are worse in the 5&ndash;15 stratum and <i>better</i> in 15&ndash;30. An
+    effect that reverses sign between adjacent strata is not an effect. <b>So the agreement figures
+    above are not posture-confounded</b> &mdash; which is a limitation closed with data rather than
+    argued away. ⚠️ Stated with its power: n&nbsp;=&nbsp;300 records, and the two highest strata carry
+    8 and 17 nights respectively, so this excludes a LARGE consistent posture effect and would not
+    detect a small one.</p>
+
   <p class="note"><b>&sect;&empty; &mdash; coverage is reported because absence is not zero.</b> A rate computed over a
     night that was partly unmeasured is not the same claim as one over a complete night, so every record carries its
     SpO&#8322; coverage: <b>median 98.45&nbsp;%</b>, 5th percentile 83.36&nbsp;%, minimum 52.29&nbsp;%, and
