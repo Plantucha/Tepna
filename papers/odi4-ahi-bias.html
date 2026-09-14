@@ -199,7 +199,7 @@
     <li><b>Run it:</b> open <code>odi-bias-analysis.html</code> → “Run SubjectA corpus (5 synthetic nights)”. Table 1, Figure 1, and Table 2 populate live; the sample-size panel (Table 3, Figure 2) is analytic with adjustable R²/severity sliders and an optional real-detector bootstrap. Export <code>odi-bias-results.csv</code>, <code>odi-bias-stats.json</code>, <code>odi-bias-figures.png</code>.</li>
     <li><b>Detector:</b> real <code>oxydex-dsp.js</code> (loaded alone in-realm); ODI-4 = <code>processNight().odi4.rate</code>; surrogate = <code>ahiEst.ahiODI4</code>.</li>
     <li><b>Recordings:</b> <code>uploads/synthetic/O2Ring*.csv</code> + <code>ground_truth_night{1..5}.json</code>.</li>
-    <li><b>Real-PSG path:</b> <code>nsrr-adapter.js</code> (<code>window.NSRR</code>): EDF→OxyDex rows (SpO₂ auto-detect, 1 Hz resample, dropout forward-fill) + NSRR XML → reference AHI. Honors the suite Clock Contract.</li>
+    <li><b>Real-PSG path:</b> <code>nsrr-adapter.js</code> (<code>window.NSRR</code>): EDF→OxyDex rows (SpO₂ auto-detect, 1 Hz resample; a dropout is emitted as <code>null</code> and is <b>never</b> carried forward from the last valid sample, with per-record coverage published alongside the rate) + NSRR XML → reference AHI. Honors the suite Clock Contract.</li>
     <li><b>Next:</b> obtain an NSRR data-use agreement (sleepdata.org), analyze SHHS (n≈5,800), and replicate Tables 1–2 on PSG before submission.</li>
   </ul>
 
