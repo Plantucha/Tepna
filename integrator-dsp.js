@@ -6613,7 +6613,21 @@ function _beatSkewCheck(recs, pairs, opts) {
         B = withBeats[j];
       var fit = fitClockDrift(Array.prototype.slice.call(A.beats.tMs), Array.prototype.slice.call(B.beats.tMs), {});
       if (!fit || fit.offsetMs == null) {
-        out.push({ a: A.node, b: B.node, offsetSec: null, confident: false, reason: fit ? fit.reason : 'no fit' });
+        /* SAME KEYS ON THE REFUSAL ARM. A shape that changes with the outcome makes a consumer's
+           `'driftPpm' in pair` mean "a fit happened", not "a rate exists" — so the rate keys are
+           present and null here, exactly as §∅ requires absence to be represented. */
+        out.push({
+          a: A.node,
+          b: B.node,
+          offsetSec: null,
+          driftPpm: null,
+          wrappedDriftPpm: null,
+          wrappedConcentration: null,
+          maxDriftPpm: null,
+          spanMin: null,
+          confident: false,
+          reason: fit ? fit.reason : 'no fit'
+        });
         continue;
       }
       /* The event-derived lag for the SAME pair, if one was estimated, so the two observers can be
@@ -6633,6 +6647,25 @@ function _beatSkewCheck(recs, pairs, opts) {
         chance: fit.chanceCorrespondence,
         confident: fit.confident === true,
         reason: fit.reason,
+        /* THE RATE, AND THE FIELDS THAT SAY WHETHER IT IS ONE. This check reported an OFFSET and
+           nothing else, so a constant inter-node offset and an offset that WALKS were the same value
+           to it at every instant — it could not see the defect it reads as guarding against, and the
+           −137 ppm walk `fitClockDrift` reported `confident:true` passed it untouched. The producer
+           computed all of this and the seam dropped it, which is the same shape as `beatCheck` itself
+           being computed by `detectClockSkew` and dropped by `runFusion` (#2462).
+           ⚠️ A BARE `driftPpm` WOULD BE WORSE THAN NONE, and that is why four fields cross, not one.
+           `fitClockDrift`'s own contract says a ppm from it "is not evidence unless a closure residual
+           is quoted beside it" — it may carry whole-RR sawtooth, since no unwrap is performed. So the
+           phase-aware pair travels with it (`wrappedConcentration` near 1 = every block agrees on the
+           phase; low = undersampled, where the number is not a measurement), `maxDriftPpm` travels so
+           "no drift" is distinguishable from "drift beyond my reach", and `spanMin` travels because
+           §🔒.7 forbids quoting a ppm without its span. A consumer that wants the rate gets the means
+           to judge it; none of these is a verdict this function invented. */
+        driftPpm: fit.driftPpm != null ? +fit.driftPpm.toFixed(1) : null,
+        wrappedDriftPpm: fit.wrappedDriftPpm,
+        wrappedConcentration: fit.wrappedConcentration,
+        maxDriftPpm: fit.maxDriftPpm != null ? +fit.maxDriftPpm.toFixed(1) : null,
+        spanMin: fit.spanMin,
         eventLagSec: ev,
         /* DISAGREEMENT, against the coarse estimator's OWN resolution. The event lag is quoted off a
            30 s grid with a ±60 s match window, so anything inside that is agreement by construction;

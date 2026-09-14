@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-S5xWs61KIOEqryji7NLMb1W3FwFpmk6zIulVu3FLmvg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Nct6lhz/vQKGNxjl6Yxwx9XGRJO0saFDqD/9/lBHQY8=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.11.0</title>
@@ -12599,7 +12599,21 @@ function _beatSkewCheck(recs, pairs, opts) {
         B = withBeats[j];
       var fit = fitClockDrift(Array.prototype.slice.call(A.beats.tMs), Array.prototype.slice.call(B.beats.tMs), {});
       if (!fit || fit.offsetMs == null) {
-        out.push({ a: A.node, b: B.node, offsetSec: null, confident: false, reason: fit ? fit.reason : 'no fit' });
+        /* SAME KEYS ON THE REFUSAL ARM. A shape that changes with the outcome makes a consumer's
+           `'driftPpm' in pair` mean "a fit happened", not "a rate exists" — so the rate keys are
+           present and null here, exactly as §∅ requires absence to be represented. */
+        out.push({
+          a: A.node,
+          b: B.node,
+          offsetSec: null,
+          driftPpm: null,
+          wrappedDriftPpm: null,
+          wrappedConcentration: null,
+          maxDriftPpm: null,
+          spanMin: null,
+          confident: false,
+          reason: fit ? fit.reason : 'no fit'
+        });
         continue;
       }
       /* The event-derived lag for the SAME pair, if one was estimated, so the two observers can be
@@ -12619,6 +12633,25 @@ function _beatSkewCheck(recs, pairs, opts) {
         chance: fit.chanceCorrespondence,
         confident: fit.confident === true,
         reason: fit.reason,
+        /* THE RATE, AND THE FIELDS THAT SAY WHETHER IT IS ONE. This check reported an OFFSET and
+           nothing else, so a constant inter-node offset and an offset that WALKS were the same value
+           to it at every instant — it could not see the defect it reads as guarding against, and the
+           −137 ppm walk `fitClockDrift` reported `confident:true` passed it untouched. The producer
+           computed all of this and the seam dropped it, which is the same shape as `beatCheck` itself
+           being computed by `detectClockSkew` and dropped by `runFusion` (#2462).
+           ⚠️ A BARE `driftPpm` WOULD BE WORSE THAN NONE, and that is why four fields cross, not one.
+           `fitClockDrift`'s own contract says a ppm from it "is not evidence unless a closure residual
+           is quoted beside it" — it may carry whole-RR sawtooth, since no unwrap is performed. So the
+           phase-aware pair travels with it (`wrappedConcentration` near 1 = every block agrees on the
+           phase; low = undersampled, where the number is not a measurement), `maxDriftPpm` travels so
+           "no drift" is distinguishable from "drift beyond my reach", and `spanMin` travels because
+           §🔒.7 forbids quoting a ppm without its span. A consumer that wants the rate gets the means
+           to judge it; none of these is a verdict this function invented. */
+        driftPpm: fit.driftPpm != null ? +fit.driftPpm.toFixed(1) : null,
+        wrappedDriftPpm: fit.wrappedDriftPpm,
+        wrappedConcentration: fit.wrappedConcentration,
+        maxDriftPpm: fit.maxDriftPpm != null ? +fit.maxDriftPpm.toFixed(1) : null,
+        spanMin: fit.spanMin,
         eventLagSec: ev,
         /* DISAGREEMENT, against the coarse estimator's OWN resolution. The event lag is quoted off a
            30 s grid with a ±60 s match window, so anything inside that is agreement by construction;
