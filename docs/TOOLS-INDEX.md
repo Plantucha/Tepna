@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**182 tools** · 180 with a purpose line · **2 without**
+**183 tools** · 181 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -54,6 +54,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`ecg-apnea-correlate.mjs`](../tools/ecg-apnea-correlate.mjs) | Correlates every candidate in ECGDex's `apnea` block against the CPAP's OWN device-scored `residualAHI`, across the nights where both exist. |
 | [`ecg-physionet-differential.mjs`](../tools/ecg-physionet-differential.mjs) | The suite has never had independent ground truth for Pan–Tompkins. |
 | [`ecg-rate-transfer.mjs`](../tools/ecg-rate-transfer.mjs) | Every HRV claim this suite makes on external 125 Hz polysomnography rests on an unstated premise: that the detector tuned and validated at the Polar H10's **130 Hz** finds the same beats… |
+| [`eegdex-selftest.mjs`](../tools/eegdex-selftest.mjs) | ═════════════════════════════════════════════════════════════════════════════ Assertions for `eegdex-dsp.js`, on PLANTED signals rather than the corpus — a staging engine that only… |
 | [`eqc-power.mjs`](../tools/eqc-power.mjs) | how many simultaneous epochs does Extended Quadruple Collocation need before it can say WHICH pair of sources shares error? |
 | [`eqc-run.mjs`](../tools/eqc-run.mjs) | Extended Quadruple Collocation on the real 4-stream corpus. WHAT IT ANSWERS. |
 | [`extreme-mutate.mjs`](../tools/extreme-mutate.mjs) | EXTREME MUTATION (Descartes, Niedermayr et al.; see the STAMP tool and the industrial study in arXiv:2103.08480). |
