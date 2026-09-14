@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1GrXbohtkzRFVggsxtLXO0QbIxenXu06mqtKLv0Xrjs=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-Qkjh+L2Db9H4tCQmpSqF1WqHAnHWa61xqqppBEwS2Zk=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-jGj1fcaUuSJaiwjYEotZzJ+x+pLjoblhgVF0/3JXULg=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-s/xmZUeSytTM2VmD4p01F7UG2UjlwJ6MQCMuNDNev9Y=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1GrXbohtkzRFVggsxtLXO0QbIxenXu06mqtKLv0Xrjs=' 'sha256-4u8SKYISWFbtDKkoNkwKIJhxKABDTzGrHDNOiT9UJEY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-Qkjh+L2Db9H4tCQmpSqF1WqHAnHWa61xqqppBEwS2Zk=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-s/xmZUeSytTM2VmD4p01F7UG2UjlwJ6MQCMuNDNev9Y=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -36139,6 +36139,9 @@ __exports.PpgDex = window.PpgDex;
        Refused ⇒ fs keeps the DEVICE crystal, the pre-WEARABLE-HOST-AXIS behaviour: wrong by ~25 ppm,
        where the ungated correction was wrong by up to 24036. The refusal is REPORTED, never silent. */
     var ECG_AXIS_MIN_SPAN_MS = 2400e3; // 40 min — the knee in the table above
+    // A single anchor gap carrying more than this is a host clock STEP, not delivery jitter — see the
+    // refusal arm below for the derivation (§7's 287 ms worst wander; 138.4 ms worst measured here).
+    var ECG_AXIS_MAX_STEP_MS = 1000;
     var ecgHostAx = typeof DexClock !== 'undefined' && DexClock.hostAxis ? DexClock.hostAxis(ecgAxisAnchors, {}) : { ok: false };
     /* Span from the anchors themselves — they are pushed in row order, so first→last IS the baseline
        the rate was divided by. Computed here rather than added to `DexClock.hostAxis` on purpose:
@@ -36189,6 +36192,42 @@ __exports.PpgDex = window.PpgDex;
         (ecgHostAx.spreadMs != null ? ecgHostAx.spreadMs.toFixed(2) : '?') +
         ' ms, within one stamp quantum — the host stamp is the device stamp rounded), fs left on the device clock';
     else if (!isFinite(ecgHostAx.ppm)) ecgAxisRefusal = 'no finite host/device rate, fs left on the device clock';
+    /* ── A STEP IS NOT A RATE, and the span gate below cannot see one ────────────────────────────────
+       `ECG_AXIS_MIN_SPAN_MS` asks whether the baseline is long enough to resolve a crystal. It says
+       nothing about whether the divergence ACCUMULATED like a rate or arrived all at once. A host-side
+       clock step — an NTP correction, a suspend/resume, a stalled writer — lands in ONE anchor gap,
+       and `hostAxis` then divides it by the whole span, turning a jump into a fabricated ppm. Clock
+       Contract §7 already says `maxStepMs` "surfaces a genuine clock STEP smeared across one anchor
+       gap rather than hiding it in a slope" — it is published for exactly this, and nothing read it.
+
+       ⚠️ THE RATIO VERSION OF THIS RULE WAS WRONG, and it is recorded because it looked right and
+       fired correctly on the real offender. The first cut refused when |maxStepMs| exceeded
+       |totalMs| — one gap carrying more than the night's whole divergence. It is unsound: **a step
+       inflates its own denominator.** `totalMs` is the NET end-to-end divergence, so a step ALIGNED
+       with the drift adds to it and the ratio collapses. Caught by a planted control — 3006 ms step,
+       3606 ms total, ratio 0.83, no refusal — and it only worked on 2026-08-26 because there the step
+       (+3000 ms) and the drift oppose and net to −313 ms. A rule that holds by an accident of sign is
+       not a rule.
+
+       So bound the STEP ITSELF, which carries a physical meaning the ratio never had. Host delivery
+       jitter is a tens-to-low-hundreds-of-ms quantity: Clock Contract §7 records host-stamp wander
+       "up to 287 ms observed" on this corpus, and the 8 largest H10 nights measured 2026-09-13 top out
+       at 138.4 ms (16.5 · 17.0 · 19.6 · 27.2 · 33.0 · 42.5 · 138.4). A second-scale jump is not
+       delivery jitter, it is a clock event. 2026-08-26 carries 2999.7 ms.
+
+           ECG_AXIS_MAX_STEP_MS = 1000   — 3.5x above §7's worst recorded wander,
+                                           7.2x above the worst measured here,
+                                           3.0x below the offender.
+
+       Corroborated independently of any threshold: 08-26 quotes -10.02 ppm where the SAME DEVICE reads
+       -19.8 to -23.0 on all seven other nights — one step ate half the crystal. After this gate 08-26
+       is the ONLY one of the eight whose fs moves (-10.02 ppm, back onto the device clock); the other
+       seven are inert to 0.00 ppm.
+       ⚠️ This gates the RATE only. `tMsAt` rides the device counter (#2477) and `correctionAt` is an
+       interpolation whose residual is bounded by what it observed — §7 is explicit that neither takes
+       a span or step gate. Refusing here leaves `fs` on the device clock, which is the honest axis. */ else if (isFinite(ecgHostAx.maxStepMs) && Math.abs(ecgHostAx.maxStepMs) > ECG_AXIS_MAX_STEP_MS)
+      ecgAxisRefusal =
+        'one anchor gap carries a ' + Math.round(ecgHostAx.maxStepMs) + ' ms step (> ' + ECG_AXIS_MAX_STEP_MS + ' ms) — a host clock STEP, not a crystal rate, fs left on the device clock';
     else if (ecgAxisSpanMs < ECG_AXIS_MIN_SPAN_MS)
       ecgAxisRefusal = 'span ' + Math.round(ecgAxisSpanMs / 1000) + ' s < ' + ECG_AXIS_MIN_SPAN_MS / 1000 + ' s — too short to resolve a crystal rate, fs left on the device clock';
     if (ecgHostAx.ok && ecgAxisRefusal == null) {
