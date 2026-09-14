@@ -8821,10 +8821,35 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
           osc: obj.oscillations ? Object.assign({ windows: [] }, obj.oscillations) : { episodeCount: 0, totalCrossings: 0, meanAmplitude: 0, peakCrossings: 0, windows: [] },
           period: obj.hr_spikes && obj.hr_spikes.periodicity && obj.hr_spikes.periodicity.pattern ? obj.hr_spikes.periodicity : null,
           tIdx: (function () {
+            /* ── READ WHAT WAS EXPORTED. The exporter already publishes the honest answer ───────────
+               `computeTIndex` counts the SAMPLES below each threshold, and at the ring's 1 Hz a sample
+               count IS seconds — `research.tIdx[95].secs`. This path discarded it and recomputed from
+               two quantities on DIFFERENT BASES: `t95pct` is a fraction of SAMPLES, `durationMin` is
+               WALL clock. Their product attributes every dropped second to time-below-95, because the
+               samples that were never recorded are not in the numerator but their wall time is in the
+               multiplier. On a night with 20 % dropout that is a +25 % overstatement of T95 seconds.
+               The right number was in the file the whole time; the wrong one was derived from it. */
+            var ex = obj.research && obj.research.tIdx;
+            if (ex && typeof ex === 'object') {
+              var out = {};
+              for (var k in ex) {
+                if (!Object.prototype.hasOwnProperty.call(ex, k)) continue;
+                var e = ex[k];
+                if (e && (e.secs != null || e.pct != null)) out[k] = { pct: e.pct != null ? e.pct : null, secs: e.secs != null ? e.secs : null };
+              }
+              if (Object.keys(out).length) return out;
+            }
+            /* FALLBACK — a SUMMARY-MODE export that carries no `research` block at all. Seed from the
+               percentages, and use the RECORDED seconds when the export states them rather than the
+               wall span; `durationMin` is the last resort and is the base that made this wrong.
+               ⚠️ `tIdxBasis` says which one was used, so a consumer is never left inferring it from a
+               number that looks the same either way. */
             var idx = {};
-            // Seed T95 and T90 from summary stats — all that's available without raw rows
-            if (s.t95pct != null) idx[95] = { pct: s.t95pct, secs: Math.round((s.t95pct / 100) * (s.durationMin || 0) * 60) };
-            if (s.t90pct != null) idx[90] = { pct: s.t90pct, secs: Math.round((s.t90pct / 100) * (s.durationMin || 0) * 60) };
+            var recSec = s.n != null && isFinite(s.n) ? s.n : null; // rows actually recorded, 1 Hz
+            var basis = recSec != null ? recSec : (s.durationMin || 0) * 60;
+            if (s.t95pct != null) idx[95] = { pct: s.t95pct, secs: Math.round((s.t95pct / 100) * basis) };
+            if (s.t90pct != null) idx[90] = { pct: s.t90pct, secs: Math.round((s.t90pct / 100) * basis) };
+            if (Object.keys(idx).length) idx.tIdxBasis = recSec != null ? 'recorded-samples' : 'wall-duration';
             return idx;
           })(),
           // ── v18–v20 fields: restore from the export's descriptive key names ──

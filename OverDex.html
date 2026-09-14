@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1GrXbohtkzRFVggsxtLXO0QbIxenXu06mqtKLv0Xrjs=' 'sha256-4u8SKYISWFbtDKkoNkwKIJhxKABDTzGrHDNOiT9UJEY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-Qkjh+L2Db9H4tCQmpSqF1WqHAnHWa61xqqppBEwS2Zk=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-s/xmZUeSytTM2VmD4p01F7UG2UjlwJ6MQCMuNDNev9Y=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1GrXbohtkzRFVggsxtLXO0QbIxenXu06mqtKLv0Xrjs=' 'sha256-4u8SKYISWFbtDKkoNkwKIJhxKABDTzGrHDNOiT9UJEY=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LKQUq3WJQkmM7MwVTbQ9nuIGHLMC8bpfcAjFs2i02/0=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-s/xmZUeSytTM2VmD4p01F7UG2UjlwJ6MQCMuNDNev9Y=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -18783,10 +18783,35 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
           osc: obj.oscillations ? Object.assign({ windows: [] }, obj.oscillations) : { episodeCount: 0, totalCrossings: 0, meanAmplitude: 0, peakCrossings: 0, windows: [] },
           period: obj.hr_spikes && obj.hr_spikes.periodicity && obj.hr_spikes.periodicity.pattern ? obj.hr_spikes.periodicity : null,
           tIdx: (function () {
+            /* ── READ WHAT WAS EXPORTED. The exporter already publishes the honest answer ───────────
+               `computeTIndex` counts the SAMPLES below each threshold, and at the ring's 1 Hz a sample
+               count IS seconds — `research.tIdx[95].secs`. This path discarded it and recomputed from
+               two quantities on DIFFERENT BASES: `t95pct` is a fraction of SAMPLES, `durationMin` is
+               WALL clock. Their product attributes every dropped second to time-below-95, because the
+               samples that were never recorded are not in the numerator but their wall time is in the
+               multiplier. On a night with 20 % dropout that is a +25 % overstatement of T95 seconds.
+               The right number was in the file the whole time; the wrong one was derived from it. */
+            var ex = obj.research && obj.research.tIdx;
+            if (ex && typeof ex === 'object') {
+              var out = {};
+              for (var k in ex) {
+                if (!Object.prototype.hasOwnProperty.call(ex, k)) continue;
+                var e = ex[k];
+                if (e && (e.secs != null || e.pct != null)) out[k] = { pct: e.pct != null ? e.pct : null, secs: e.secs != null ? e.secs : null };
+              }
+              if (Object.keys(out).length) return out;
+            }
+            /* FALLBACK — a SUMMARY-MODE export that carries no `research` block at all. Seed from the
+               percentages, and use the RECORDED seconds when the export states them rather than the
+               wall span; `durationMin` is the last resort and is the base that made this wrong.
+               ⚠️ `tIdxBasis` says which one was used, so a consumer is never left inferring it from a
+               number that looks the same either way. */
             var idx = {};
-            // Seed T95 and T90 from summary stats — all that's available without raw rows
-            if (s.t95pct != null) idx[95] = { pct: s.t95pct, secs: Math.round((s.t95pct / 100) * (s.durationMin || 0) * 60) };
-            if (s.t90pct != null) idx[90] = { pct: s.t90pct, secs: Math.round((s.t90pct / 100) * (s.durationMin || 0) * 60) };
+            var recSec = s.n != null && isFinite(s.n) ? s.n : null; // rows actually recorded, 1 Hz
+            var basis = recSec != null ? recSec : (s.durationMin || 0) * 60;
+            if (s.t95pct != null) idx[95] = { pct: s.t95pct, secs: Math.round((s.t95pct / 100) * basis) };
+            if (s.t90pct != null) idx[90] = { pct: s.t90pct, secs: Math.round((s.t90pct / 100) * basis) };
+            if (Object.keys(idx).length) idx.tIdxBasis = recSec != null ? 'recorded-samples' : 'wall-duration';
             return idx;
           })(),
           // ── v18–v20 fields: restore from the export's descriptive key names ──

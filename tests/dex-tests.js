@@ -37720,6 +37720,46 @@
       var resNo = OD.loadOwnExport(envNoP);
       T.ok('oxyLoadOwnExport never re-stamps — no provenance fabricated when the export carries none', !!resNo && !resNo.provenance);
 
+      /* ── §∅ · T95 SECONDS ARE READ, NOT RE-DERIVED ON THE WRONG BASE (E2E O2) ────────────────────
+         `computeTIndex` counts the SAMPLES below each threshold, and at the ring's 1 Hz a sample count
+         IS seconds — published as `research.tIdx[95].secs`. The self-ingest path discarded it and
+         recomputed from two quantities on DIFFERENT BASES: `t95pct` is a fraction of SAMPLES,
+         `durationMin` is WALL clock. Their product hands every dropped second to time-below-95,
+         because the unrecorded samples are absent from the numerator while their wall time stays in
+         the multiplier. The right number was in the file the whole time and the wrong one was derived
+         from it.
+
+         Planted at 20 % dropout, where the two bases are unambiguously distinguishable:
+             3600 s wall · 2880 rows recorded · 720 below 95  ⇒ t95pct = 25 %
+             honest      720 s        wall-based  25 % x 3600 = 900 s   (+25 %) */
+      if (typeof OD.loadOwnExport === 'function') {
+        var envT = {
+          schema: { name: 'ganglior.node-export', node: 'OxyDex' },
+          date: '2026-09-13',
+          stats: { durationMin: 60, n: 2880, t95pct: 25, t90pct: 10, meanSpo2: 95, minSpo2: 88, meanHr: 60 },
+          research: { tIdx: { 95: { secs: 720, pct: 25 }, 90: { secs: 288, pct: 10 } } }
+        };
+        var resT = OD.loadOwnExport(JSON.parse(JSON.stringify(envT)));
+        var nT = resT && resT.nights && resT.nights[0];
+        T.ok('ANTI-VACUITY · the export reloads at all', !!(nT && nT.tIdx), 'ok=' + (resT && resT.ok));
+        if (nT && nT.tIdx) {
+          T.eq('§∅ · T95 seconds come from the exported sample count, not pct x wall duration', nT.tIdx[95] && nT.tIdx[95].secs, 720);
+          T.ok('ANTI-VACUITY · …and the wall-based value is genuinely different, so this can fail', Math.round((25 / 100) * 60 * 60) === 900, 'wall-based would be 900');
+          T.eq('…the same for T90', nT.tIdx[90] && nT.tIdx[90].secs, 288);
+          T.eq('…and the percentage is carried through unchanged', nT.tIdx[95] && nT.tIdx[95].pct, 25);
+        }
+        /* THE FALLBACK — a SUMMARY-MODE export with no `research` block must still produce a number,
+           and must say which base it used rather than leaving a consumer to infer it. */
+        var envS = JSON.parse(JSON.stringify(envT));
+        delete envS.research;
+        var nS = (OD.loadOwnExport(envS) || {}).nights;
+        nS = nS && nS[0];
+        if (nS && nS.tIdx) {
+          T.eq('summary-mode falls back to the RECORDED sample count, not the wall span', nS.tIdx[95] && nS.tIdx[95].secs, 720);
+          T.eq('…and declares the basis it used', nS.tIdx.tIdxBasis, 'recorded-samples');
+        }
+      }
+
       // ── 4 · TIER preserved (no upgrade) — the export's EMBEDDED crossNight evidence is shown verbatim ──
       var envTier = JSON.parse(JSON.stringify(envlp));
       envTier.crossNight = { schema: { name: 'ganglior.crossnight' }, metrics: { nsi: { label: 'NSI', evidence: 'experimental', mean: 42 } } };
