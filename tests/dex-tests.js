@@ -16170,6 +16170,147 @@
       }
     });
 
+    group('PAT worker — both legs EXECUTE at sub-sample positions on the measured axis', 'pat · worker · regression', function (T) {
+      /* PAT-FORENSICS-AXIS-LEG-ASYMMETRY names one leg ❌ and marks the other ✅. Re-measured
+         2026-09-14, BOTH were quantising, and the ✅ was true of the FUNCTION and false of the LEG.
+
+           PPG leg  `rel[idx]` with a FRACTIONAL `cons.feet[i]` — a subscript at a fractional index
+                    misses every time, so the `rel[idx] != null` guard was never satisfied and every
+                    foot fell through to `idx / fs`, discarding the measured axis for a synthesised
+                    constant-rate one. 26 035 / 26 035 feet on a 7.2 h Verity night (the brief
+                    measured 0 / 8948 on 8 fragments). Cost, decomposed:
+                      slow  per-5-min-bin median p50 660 ms, max 955 — and that file has ZERO gaps
+                            with both spans equal at 432.9 min, so it is a mean rate matching the
+                            endpoints while drifting in between: the shape of #2477, other leg;
+                      fast  within-bin residual p50 10.71 ms, p95 41.43 — independently reproducing
+                            the brief's 10.47 ms median-of-medians and 40.4 ms max.
+           ECG leg  `detectPeaks` returns INTEGERS and the worker handed those to `tMsAt`, whose own
+                    comment says sub-sample R positions "must not be rounded before the correction is
+                    applied". `refinePeaks` was not exported, so this read as a choice and was a
+                    limitation. Through the real function: p50 1.87 ms, p95 5.18, max 46.3.
+
+         ⚠️ ASSERTED BEHAVIOURALLY, NOT BY SOURCE SCAN. The sibling group below says a behavioural test
+         "cannot see" this worker because its caller is a Web Worker — true of the CALLER, false of the
+         FUNCTIONS, which are plain functions over the DSP globals (the `PpgDex worker blob EXECUTES`
+         group already establishes the pattern). A source scan is the wrong instrument here
+         specifically: the defect was code that READS correctly and BEHAVES wrongly. */
+      var wsrc = (env.sources && env.sources['pat-feasibility-worker.js']) || '';
+      var E = env.ECGDSP,
+        P = env.PPGDSP;
+      if (!wsrc || !E || !P || typeof E.parseECG !== 'function') {
+        T.ok('worker source + ECGDSP/PPGDSP available', false, 'not loaded in this lane');
+        return;
+      }
+      T.ok('ECGDSP exports refinePeaks (without it the worker cannot reach a sub-sample position)', typeof E.refinePeaks === 'function', 'typeof ' + typeof E.refinePeaks);
+      var legs = null;
+      try {
+        /* The worker's bootstrap is SHIMMED rather than stripped: it sets `self.window = self` and
+           calls `importScripts` to co-load the DSPs, neither of which exists here. Passing a `self`
+           with a no-op `importScripts` lets the REAL file run to completion — the DSPs are already in
+           scope as arguments, so the loader finds them present and the leg builders are defined from
+           the shipped source rather than from an excerpt of it. Only the trailing `onmessage` handler
+           is removed, because it is the one part that needs a live Worker. */
+        var body = wsrc.replace(/self\.onmessage[\s\S]*$/, '');
+        var shim = { postMessage: function () {} };
+        shim.self = shim;
+        legs = new Function(
+          'ECGDSP',
+          'PPGDSP',
+          'self',
+          'importScripts',
+          'XMLHttpRequest',
+          body + '\nreturn { ecg: typeof ecgRpeakTimes === "function" ? ecgRpeakTimes : null, ppg: typeof ppgFootTimes === "function" ? ppgFootTimes : null };'
+        )(
+          E,
+          P,
+          shim,
+          function () {},
+          function () {}
+        );
+      } catch (e) {
+        T.ok('the worker body EVALUATES with the DSPs in scope', false, e.message);
+        return;
+      }
+      T.ok('the worker body EVALUATES and exposes both leg builders', !!(legs && legs.ecg && legs.ppg), legs ? Object.keys(legs).join(',') : 'null');
+      if (!legs || !legs.ecg) return;
+
+      /* ── ECG LEG · the position handed to `tMsAt` must be SUB-SAMPLE ─────────────────────────── */
+      var HDR = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var FS = 130,
+        N = 12000,
+        rows = [HDR];
+      for (var i = 0; i < N; i++) {
+        var ph = (i % 130) / 130;
+        var v = 40 * Math.sin(2 * Math.PI * ph);
+        if (ph > 0.2 && ph < 0.3) v += 900 * Math.exp(-Math.pow((ph - 0.2537) / 0.012, 2)); // apex off-grid
+        rows.push('2026-06-17T01:06:17.723;' + Math.round((i * 1e9) / FS) + ';' + Math.round((i * 1000) / FS) + ';' + Math.round(v));
+      }
+      var ecgTxt = rows.join('\n');
+      var got = legs.ecg(ecgTxt);
+      T.ok('ANTI-VACUITY · the ECG leg finds beats at all', !!(got && got.n > 40), 'n=' + (got && got.n));
+      if (got && got.n > 40) {
+        var recE = E.parseECG(ecgTxt);
+        var bpE = E.bandpass(recE.int16, recE.fs);
+        var pkE = E.detectPeaks(recE.int16, bpE, recE.fs);
+        var diff = [];
+        for (var k = 0; k < Math.min(pkE.length, got.times.length); k++) diff.push(Math.abs(got.times[k] - recE.tMsAt(pkE[k])));
+        var moved = diff.filter(function (d) {
+          return d > 1e-6;
+        }).length;
+        T.ok('the ECG leg does NOT reproduce integer-peak times — refinement reaches tMsAt', moved > diff.length * 0.5, moved + ' of ' + diff.length + ' beats moved');
+        /* …by a PLAUSIBLE amount. Feeding garbage indices would also "not reproduce" the integer
+           times, so the magnitude is bounded too: a refinement is samples, never seconds. */
+        var maxD = Math.max.apply(null, diff);
+        T.ok('…and by a bounded amount — a refinement, not a relocation', maxD < 200, 'max ' + maxD.toFixed(1) + ' ms');
+      }
+
+      /* ── PPG LEG · a fractional foot must resolve through the MEASURED axis ─────────────────────
+         Driven from the COMMITTED fragmented Verity twin (`uploads/synthetic_ppgdex_verity_gapped.txt`,
+         already paired as `env.equiv.ppgdex_gapped`) rather than a synthetic built here. Two reasons,
+         both learned the hard way while writing this: an input built inside a test drifts with the
+         test, and — measured — a hand-rolled 6-column stream is read as an O2RING finger capture, so
+         `relSec` is rebuilt on the ring's fixed 125.000 Hz crystal and the two axes coincide to
+         0.4 ms, leaving nothing to discriminate. The committed twin carries two arm-off holes, so its
+         `relSec` SPANS them while `i / fs` cannot: Δ at the midpoint is 6.0 SECONDS. That is the
+         difference between the measured axis and the synthesised one, and it is unambiguous. */
+      var eqGap = env.equiv && env.equiv.ppgdex_gapped;
+      if (!(eqGap && eqGap.input)) {
+        T.ok('committed fragmented Verity twin present', false, 'uploads/synthetic_ppgdex_verity_gapped.txt is COMMITTED — this must run everywhere including CI');
+      } else if (legs.ppg && typeof P.parsePPG === 'function') {
+        var recP = P.parsePPG(eqGap.input);
+        var MIDP = Math.floor(recP.n / 2);
+        var dMid = recP.relSec[MIDP] - MIDP / recP.fs;
+        T.ok('ANTI-VACUITY · the measured axis really differs from the nominal grid here', Math.abs(dMid) > 1, 'Δ at midpoint ' + dMid.toFixed(3) + ' s');
+        var gotP = null;
+        try {
+          gotP = legs.ppg(eqGap.input);
+        } catch (e) {
+          gotP = null;
+        }
+        T.ok('ANTI-VACUITY · the PPG leg finds feet at all', !!(gotP && gotP.n > 20), 'n=' + (gotP && gotP.n));
+        if (gotP && gotP.n > 20) {
+          /* Every foot time must sit inside the MEASURED span. Under the old fallback the times ride
+             `idx / fs`, which on this record ends 6 s short of where the signal actually ends. */
+          var lo = recP.t0Ms + recP.relSec[0] * 1000,
+            hi = recP.t0Ms + recP.relSec[recP.n - 1] * 1000;
+          var outside = 0;
+          for (var m = 0; m < gotP.n; m++) if (gotP.times[m] < lo - 50 || gotP.times[m] > hi + 50) outside++;
+          T.eq('every foot time lies within the MEASURED span', outside, 0);
+          /* …and POSITIVELY: the leg's own span must match the measured axis, not the synthesised
+             one. The two differ by the holes, so this cannot pass on `idx / fs`. */
+          var legSpan = (gotP.times[gotP.n - 1] - gotP.times[0]) / 1000;
+          var measSpan = recP.relSec[recP.n - 1] - recP.relSec[0];
+          var synthSpan = (recP.n - 1) / recP.fs;
+          T.ok('ANTI-VACUITY · the two candidate spans are far apart', Math.abs(measSpan - synthSpan) > 5, 'measured ' + measSpan.toFixed(2) + ' s vs synthetic ' + synthSpan.toFixed(2) + ' s');
+          T.ok(
+            '…and the leg spans the MEASURED axis, holes included',
+            Math.abs(legSpan - measSpan) < Math.abs(legSpan - synthSpan),
+            'leg ' + legSpan.toFixed(2) + ' s · to measured ' + Math.abs(legSpan - measSpan).toFixed(2) + ' · to synthetic ' + Math.abs(legSpan - synthSpan).toFixed(2)
+          );
+        }
+      }
+    });
+
     group('ECGDex tMsAt counts the wall-clock a dropout consumed (E2E E1 — the PAT leg)', 'ecgdex-dsp · clock · regression', function (T) {
       /* `analyze` has folded gap dead-time into its beat times since DEEP-AUDIT-II §4.2 (#6) — the
          group directly above asserts the consequence. `tMsAt` was written later, for the SAME axis,
