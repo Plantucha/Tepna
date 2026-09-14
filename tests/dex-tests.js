@@ -23355,7 +23355,15 @@
       out = B.computeBreathingIrregularity(null);
       T.eq('B.computeBreathingIrregularity(null) → "true"', JSON.stringify(out === null), 'true');
       out = B.computeCrossSignal(0);
-      T.eq('B.computeCrossSignal(0) → "0"', JSON.stringify(out.autoArousalIdx), '0');
+      /* ⚠️ THIS LINE USED TO ASSERT `autoArousalIdx === 0` — the ONE exception in a block whose every
+         other member pins a null on degenerate input, inside a group named "every guard refuses".
+         A zero-duration recording has no hours to divide by, so an arousal RATE is not small, it is
+         undefined; publishing 0 put an in-range number on a user-visible `heuristic`-tier metric and
+         fed a `HIGH_AROUSAL_IDX` flag that keys off `>= 5`. The assertion pinned the fabrication, so
+         it is REPLACED rather than deleted — a test edited to let a change through stops being a
+         test — and it now pins the refusal its six siblings already require. */
+      T.eq('B.computeCrossSignal(0) → autoArousalIdx null (§∅: no duration, no rate)', JSON.stringify(out.autoArousalIdx), 'null');
+      T.eq('B.computeCrossSignal(0) → …and still returns an object rather than throwing', JSON.stringify(out !== null && typeof out === 'object'), 'true');
       out = B.computeHRAdvanced([]);
       T.eq('B.computeHRAdvanced([]) → "true"', JSON.stringify(out === null), 'true');
       out = B.computeSpO2Autocorr('');
