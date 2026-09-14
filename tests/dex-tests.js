@@ -7005,6 +7005,57 @@
       }
     });
 
+    /* ════ EVERY NIGHT LEAVES A ROW OR A REFUSAL (2026-09-14) ════════════════════════════════════
+       `pat-host-offset.mjs`'s header claims "REFUSALS ARE LOUD". It was true of the four mid-loop
+       guards and FALSE of the three exits around them, which emitted nothing: a file-scan throw, an
+       empty candidate list, and the overlap guard. Measured on `uploads/vigil-archive/captures`, 14
+       of 43 nights produced no row and no refusal — and the overlap exit took **2026-07-31**, the one
+       SUB-BAR night of PAT-FORENSICS-WINDOW-REGIMES §3, the only night in that corpus where PAT is
+       measurable. Its H10 records in ~20-30 min fragments, so no pair spans a 120-min window; at
+       `--window 20` it scores 6 windows, all beating their own null at p<0.05.
+
+       Why this is gated rather than just fixed: fragmentation means reconnections, which is link
+       quality — the variable `ppm` partly measures on a stalled link (CLAUDE.md §7). So a silent
+       exit filters the scored set on something CORRELATED WITH THE PREDICTOR, which is a selection
+       effect on every correlation computed downstream, not a missing row. WINDOW-REGIMES §8.6.
+
+       The night loop is a CLI loop, not an exported surface, so this is a source scan like its
+       drawn-axis sibling above — and it asserts the invariant's SHAPE rather than any one exit, so a
+       silent exit added later is caught by construction: the only way to report is `note()`, and the
+       only `refusals.push` in the file is the one inside it. Verified by mutation, not assumed —
+       deleting the `!nightSaidSomething` block reds assertion 2; re-introducing a bare
+       `refusals.push` at any exit reds assertion 1. */
+    group('pat-host-offset accounts for every night it opens', 'clock · silent-exit · source-scan', function (T) {
+      var src = (env.sources || {})['tools/pat-host-offset.mjs'];
+      if (src == null) {
+        T.skip('pat-host-offset source wired', 'not in env.sources — the scan would read nothing');
+        return;
+      }
+      /* 1 · ONE writer. Every report routes through the helper that sets the invariant, so no exit
+             can report without also marking the night as having spoken. Counting is the assertion:
+             a second bare push is exactly what a future silent exit looks like. */
+      var pushes = src.match(/refusals\.push\(/g) || [];
+      T.eq('refusals.push appears exactly once — inside note()', pushes.length, 1);
+      T.ok('…and that one is the body of note()', /const note = \(msg\) => \{\s*refusals\.push\(msg\);\s*nightSaidSomething = true;/.test(src), 'note() does not set the invariant');
+
+      /* 2 · The per-night check exists and FAILS CLOSED — an unexplained night is named a BUG in the
+             tool rather than reported as a property of the night. That wording is load-bearing: it
+             is the difference between a reader distrusting the instrument and distrusting the data. */
+      T.ok('a per-night check fires when nothing was said', /if \(!nightSaidSomething\) \{/.test(src));
+      T.ok('…and the unexplained branch calls itself a BUG in this tool', /is a BUG in this tool, not a property of the night/.test(src));
+
+      /* 3 · The overlap exit is the one that took the SUB-BAR night, so it owes a number and a fix,
+             not just an acknowledgement. A refusal a reader cannot act on restarts the diagnosis. */
+      T.ok('the overlap refusal reports the best overlap actually seen', /best overlap \$\{mins\.toFixed\(1\)\} min/.test(src));
+      T.ok('…and names the --window value that would score it', /re-run with --window \$\{Math\.max\(5, Math\.floor\(mins \/ 5\) \* 5\)\}/.test(src));
+      T.ok('…and says fragmented capture, NOT absent coupling', /Fragmented capture, not absent coupling/.test(src));
+
+      /* 4 · The two remaining silent exits, each now named. The empty-candidate one must say WHICH
+             stream is missing — "no candidate stream" alone sends the reader to the wrong device. */
+      T.ok('a file-scan throw is reported, not swallowed', /catch \(e\) \{\s*note\(`\$\{night\}: file scan failed/.test(src));
+      T.ok('an empty candidate list names the missing stream', /no candidate stream — missing \$\{missing\.join/.test(src));
+    });
+
     /* ════ mergeEcg carries timing provenance across the merge (H10-2019-ORIGIN, 2026-09-01) ════════
        The ECG twin of mergePpg's F3 fix: `parseECG` now publishes `deviceEpoch` + `hostAxis`. These
        ride the single-fragment path for free (mergeEcg returns the rec itself), but the MULTI-fragment
