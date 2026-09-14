@@ -6593,11 +6593,19 @@
           t0Ms: obj.t0Ms != null ? obj.t0Ms : s.startTs != null ? s.startTs : null,
           fname: obj.file || obj.date,
           stats: {
-            durationMin: s.durationMin || 0,
+            /* §∅ — `|| 0` made a night whose duration was NEVER RECORDED identical to a zero-duration
+               night, and a mean SpO2 of 0 is not merely wrong but impossible, so it cannot even be
+               caught downstream by a plausibility guard. Same reasoning and same shape as `meanPi` and
+               `motionPct` below, which already do this. Note `!= null` and not `||`: a genuine 0 must
+               survive, and that is exactly the value `||` cannot distinguish from absence.
+               Consumers already guard on falsiness (`(n.stats && n.stats.durationMin) || 0`,
+               `if (s0.durationMin)`, `s.durationMin ? … : ''`), so what changes is the RECORD, not the
+               render — it stops asserting a measurement nobody made. */
+            durationMin: s.durationMin != null ? s.durationMin : null,
             start: s.start || '',
             end: s.end || '',
             startTs: s.startTs != null ? s.startTs : null,
-            meanSpo2: s.meanSpo2 || 0,
+            meanSpo2: s.meanSpo2 != null ? s.meanSpo2 : null,
             minSpo2: s.minSpo2 || 0,
             maxSpo2: s.maxSpo2 || 100,
             spo2Std: s.spo2Std || 0,
