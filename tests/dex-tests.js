@@ -6423,6 +6423,58 @@
       var shortRec = Object.assign({}, recB, { beats: { tMs: recB.beats.tMs.subarray(0, 60), n: 60, source: 'ppi' } });
       T.ok('a node with too few beats is not admitted as a leg', /fewer than two/.test(det([recA, shortRec], {}).beatCheck.reason || ''), JSON.stringify(det([recA, shortRec], {}).beatCheck));
       T.ok('…and the threshold is a real boundary, not a rejection of everything', (det([recA, recB], {}).beatCheck.pairs || []).length === 1, 'the full-length pair still fits');
+
+      /* ── THE RATE, WHICH THIS CHECK COULD NOT SEE ────────────────────────────────────────────────
+         Residue `2026-09-13-beatcheck-carries-no-rate`. The check reported an OFFSET and nothing
+         else, so a CONSTANT inter-node offset and one that WALKS were the same value to it at every
+         instant — the two cases below were literally indistinguishable in its output, which is why a
+         -137 ppm walk passed it untouched. `fitClockDrift` computed the rate all along and the seam
+         dropped it: the same shape as `beatCheck` itself being computed by `detectClockSkew` and
+         dropped by `runFusion` (#2462), one seam earlier.
+         The DISCRIMINATOR is that these two fixtures must now differ. Asserting a recovered ppm alone
+         would pass on a check that returned the planted number for every input. */
+      var mkDrift = function (ppm) {
+        var e = mkExport('PpgDex', 'ppi');
+        // B's clock runs fast by `ppm`: every beat instant scaled, so the offset GROWS with elapsed
+        // time rather than sitting still. A constant shift cannot produce this and vice versa.
+        e.timeseries.ppi.tSec = tSec.map(function (v) {
+          return +(v * (1 + ppm * 1e-6)).toFixed(6);
+        });
+        return e;
+      };
+      var constPair = det([recA, recB], {}).beatCheck.pairs[0];
+      var driftPair = det([recA, NF(mkDrift(200), 'drift.json').recs[0]], {}).beatCheck.pairs[0];
+      T.ok('beatCheck now reports a RATE, not only an offset', constPair && 'driftPpm' in constPair, JSON.stringify(constPair && Object.keys(constPair)));
+      T.ok('the constant-offset pair reads ~0 ppm', constPair.driftPpm != null && Math.abs(constPair.driftPpm) < 30, 'driftPpm=' + (constPair && constPair.driftPpm));
+      T.ok('the DRIFTING pair recovers its planted 200 ppm', driftPair.driftPpm != null && Math.abs(driftPair.driftPpm - 200) < 60, 'driftPpm=' + (driftPair && driftPair.driftPpm));
+      /* THE POINT OF THE FIX, stated as its own assertion: before it, these two were one value. */
+      T.ok(
+        'so a walking offset is DISTINGUISHABLE from a constant one — the defect this closes',
+        Math.abs(driftPair.driftPpm - constPair.driftPpm) > 100,
+        'const=' + constPair.driftPpm + ' drift=' + driftPair.driftPpm + '; their OFFSETS are ' + constPair.offsetSec + ' / ' + driftPair.offsetSec
+      );
+      /* A ppm must not travel alone — `fitClockDrift`'s own contract is that its rate "is not
+         evidence unless a closure residual is quoted beside it", and it may carry whole-RR sawtooth.
+         So the fields that let a consumer JUDGE the rate have to cross the seam with it. */
+      ['wrappedConcentration', 'maxDriftPpm', 'spanMin'].forEach(function (k) {
+        T.ok('…and it travels with `' + k + '`, so the rate can be judged rather than trusted', k in driftPair, JSON.stringify(Object.keys(driftPair)));
+      });
+      T.ok('…`spanMin` is the real span, so §🔒.7 (never a ppm without it) is satisfiable', driftPair.spanMin > 0, 'spanMin=' + driftPair.spanMin);
+      /* SHAPE IS OUTCOME-INDEPENDENT: on a refusal the rate keys are present and null, so
+         `'driftPpm' in pair` cannot come to mean "a fit happened". §∅ — absence is null, not absent. */
+      /* ⚠️ Reaching the refusal ARM takes construction, and the first attempt did not: a 1200-beat leg
+         still FITS, so this assertion sat behind an `if` that never fired and tested nothing. The two
+         guards have DIFFERENT thresholds and the gap between them is the only way in — `_beatSkewCheck`
+         admits a leg at `minBeatsForCheck` (500 by default) while `fitClockDrift` needs `minBeats * 2`
+         = 60. So admit at 20 and hand it 40 beats: past the first gate, refused by the second. The
+         refusal is ASSERTED before the shape is, or this goes vacuous again the next time a threshold
+         moves. */
+      var _tiny = function (r, src) {
+        return Object.assign({}, r, { beats: { tMs: r.beats.tMs.subarray(0, 40), n: 40, source: src } });
+      };
+      var refused = det([_tiny(recA, 'rr'), _tiny(recB, 'ppi')], { minBeatsForCheck: 20 }).beatCheck.pairs[0];
+      T.ok('ANTI-VACUITY · the constructed pair really did take the refusal arm', !!refused && refused.offsetSec === null, JSON.stringify(refused));
+      T.ok('a refused pair carries the rate keys as NULL, not missing', !!refused && 'driftPpm' in refused && refused.driftPpm === null, JSON.stringify(refused));
     });
 
     /* CROSS-DEVICE-CLOCK-SKEW §3.1 — a node whose clock is wrong looks exactly like a node that
@@ -52889,7 +52941,17 @@
        every fusion and read by nobody: a beat-level cross-check on a verdict made by a coarse 30 s grid,
        discarded at the seam. Gating the INSTANCE (`beatCheck` is exported) would leave the next field to
        repeat it, so what is asserted is the CLASS — the producer's key set is a subset of the rebuild's.
-       Source scan because no executable entry spans both sides: the consumer's literal is the evidence. */
+       Source scan because no executable entry spans both sides: the consumer's literal is the evidence.
+
+       ⚠️ THIS GATE COVERS ONE SEAM, AND THE FILE HAS MORE. `fitClockDrift` -> `_beatSkewCheck` is the
+       same defect one seam earlier — the rate was computed and dropped there for months while this
+       gate read green, because it only ever looked at `detectClockSkew` -> `runFusion`. It is covered
+       BEHAVIOURALLY instead (the beat-check group plants a 200 ppm walk against a constant offset and
+       requires them to differ), and deliberately NOT by widening this scan: `fitClockDrift` returns
+       `blocks_`, `_halves` and `rrMs` that `_beatSkewCheck` is RIGHT to drop — forwarding a whole
+       block series into a published export is the same mistake as the `src` object in #2462 — so a
+       subset rule there would convict correct behaviour, and a named-set rule would just restate the
+       behavioural test while needing hand maintenance. */
     group('detectClockSkew → runFusion seam — a field-by-field rebuild drops every new key by default', 'integrator-dsp · export-boundary · seam-parity', function (T) {
       var S = String((env.sources || {})['integrator-dsp.js'] || '');
       if (!S) {
