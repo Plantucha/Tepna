@@ -11958,7 +11958,7 @@ const OxyDex = window.OxyDex;
 (function (global) {
   'use strict';
 
-  var VERSION = 'cohort-gen/1.9'; // 1.9: re-fit rsaGainFor for synth-gen v2.1 texture — variance-space form sqrt(t²−7²)/19.15, clamp [0.06, 4.35]. Raised ceiling (was 3.2) so high-HRV targets (61–80 ms) render distinctly instead of stacking on a flat top line; lowered floor const 15.5→7 + min clamp 0.30→0.06 so the low-HRV tail spreads (paired with v2.1's HRV-scaled fast-variability floor) instead of a flat bottom line. 1.8: variance-space rsaGainFor for v2.0 (old linear fit ran +3–4 ms over target); 1.7: soft AHI-ceiling saturation (no vertical pileup at the cap in ODI–AHI calibration); 1.6: realistic CGM adoption; 1.5: saturating rMSSD suppression; 1.4: continuous age; 1.3: jittered rMSSD bounds; 1.2: jittered AHI ceiling; 1.1: jittered CPAP residual
+  var VERSION = 'cohort-gen/2.0'; // 1.9: re-fit rsaGainFor for synth-gen v2.1 texture — variance-space form sqrt(t²−7²)/19.15, clamp [0.06, 4.35]. Raised ceiling (was 3.2) so high-HRV targets (61–80 ms) render distinctly instead of stacking on a flat top line; lowered floor const 15.5→7 + min clamp 0.30→0.06 so the low-HRV tail spreads (paired with v2.1's HRV-scaled fast-variability floor) instead of a flat bottom line. 1.8: variance-space rsaGainFor for v2.0 (old linear fit ran +3–4 ms over target); 1.7: soft AHI-ceiling saturation (no vertical pileup at the cap in ODI–AHI calibration); 1.6: realistic CGM adoption; 1.5: saturating rMSSD suppression; 1.4: continuous age; 1.3: jittered rMSSD bounds; 1.2: jittered AHI ceiling; 1.1: jittered CPAP residual
 
   function mulberry32(seed) {
     var a = seed >>> 0;
@@ -11992,7 +11992,9 @@ const OxyDex = window.OxyDex;
     { key: 'none', ahi: [0, 5], w: 1 },
     { key: 'mild', ahi: [5, 15], w: 1 },
     { key: 'mod', ahi: [15, 30], w: 1 },
-    { key: 'severe', ahi: [30, 80], w: 1 }
+    /* `lognorm` replaces the uniform draw for this stratum ONLY — see `ahiInStratum`. The bound is no
+       longer a ceiling but a refusal guard well above anything observed (real max 286.9). */
+    { key: 'severe', ahi: [30, 300], w: 1, lognorm: { shift: 29, mu: 3.076, sigma: 0.731 } }
   ];
   var GLYC = ['normal', 'preDM', 'T2D'];
   var ARC = ['flat', 'improving', 'worsening', 'intervention'];
@@ -12034,6 +12036,85 @@ const OxyDex = window.OxyDex;
     return 3;
   }
 
+  /* ── within-stratum AHI shape ──────────────────────────────────────────────
+     A uniform draw inside a stratum has no skew and no tail BY CONSTRUCTION, and for the severe band
+     that is not a small inaccuracy — it is the whole difference between the synthetic and real
+     ODI-4/AHI relationship. Measured against SHHS1 (n=3008 severe nights, 2026-09-13):
+
+         severe stratum   p25    MED    p75     p95     max
+         real            39.2   50.7   67.7   101.2   286.9   right-skewed, mean 56.5 > median 50.7
+         uniform[30,80]  42.5   55.0   67.5    77.5    80.0   mean == median by construction
+
+     The quartiles very nearly agree; the TAIL does not, and 13.5 % of real severe nights sat above the
+     old hard ceiling of 80 — unreachable, not merely under-sampled, and exactly where a detector
+     saturates. So the severe band now draws a shifted log-normal fitted to the real median and p95
+     (mu/sigma on AHI-29), and its upper bound becomes a refusal guard rather than a ceiling.
+
+     ⚠️ THE OTHER THREE STRATA ARE DELIBERATELY LEFT UNIFORM. Measured on the same corpus, `mod` is
+     already near-exact (real median 22.7 against a uniform 22.5) and `mild` is close (11.5 vs 10).
+     `none` differs more (4.0 vs 2.5) but rests on 61 nights and reflects SHHS having few healthy
+     participants clustered just under the cut — fitting that would import the cohort's RECRUITMENT,
+     which is a property of who was enrolled and not of physiology.
+
+     ⚠️ AND THE STRATUM MIX IS NOT FITTED EITHER, on purpose. `cohort-gen` is a coverage harness; fit
+     the mix to SHHS and 1.2 % of patients are healthy and the none/mild path stops being exercised.
+     There is also no single target to fit: the SAME 5136 nights are 58.6 % severe under SHHS's scored
+     AHI and 3.1 % severe under a 4 % desaturation index. Fitting the mix would bake one scoring
+     convention invisibly into every future experiment. Use post-stratification weights at analysis
+     time instead (`tools/cohort-fit.mjs` computes them from whatever reference you name).
+
+     ⚠️ EXACTLY ONE `rng()` CALL, like the uniform draw it replaces. This is load-bearing: adding a
+     second would shift every subsequent draw for that patient, so every field after `baseAHI` would
+     change for every seed and no previously generated cohort would reproduce. The normal variate is
+     obtained by inverting the standard normal CDF on the single uniform instead. Non-severe patients
+     are therefore byte-identical to v1.9. */
+  function invNorm(u) {
+    // Acklam's rational approximation, |error| < 1.15e-9 — ample here and dependency-free.
+    if (!(u > 0 && u < 1)) return 0;
+    var a1 = -39.69683028665376,
+      a2 = 220.9460984245205,
+      a3 = -275.9285104469687;
+    var a4 = 138.357751867269,
+      a5 = -30.66479806614716,
+      a6 = 2.506628277459239;
+    var b1 = -54.47609879822406,
+      b2 = 161.5858368580409,
+      b3 = -155.6989798598866;
+    var b4 = 66.80131188771972,
+      b5 = -13.28068155288572;
+    var c1 = -0.007784894002430293,
+      c2 = -0.3223964580411365,
+      c3 = -2.400758277161838;
+    var c4 = -2.549732539343734,
+      c5 = 4.374664141464968,
+      c6 = 2.938163982698783;
+    var d1 = 0.007784695709041462,
+      d2 = 0.3224671290700398,
+      d3 = 2.445134137142996,
+      d4 = 3.754408661907416;
+    var pl = 0.02425,
+      q,
+      r;
+    if (u < pl) {
+      q = Math.sqrt(-2 * Math.log(u));
+      return (((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) / ((((d1 * q + d2) * q + d3) * q + d4) * q + 1);
+    }
+    if (u > 1 - pl) {
+      q = Math.sqrt(-2 * Math.log(1 - u));
+      return -(((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) / ((((d1 * q + d2) * q + d3) * q + d4) * q + 1);
+    }
+    q = u - 0.5;
+    r = q * q;
+    return ((((((a1 * r + a2) * r + a3) * r + a4) * r + a5) * r + a6) * q) / (((((b1 * r + b2) * r + b3) * r + b4) * r + b5) * r + 1);
+  }
+
+  function ahiInStratum(sev, u) {
+    if (!sev.lognorm) return +(sev.ahi[0] + u * (sev.ahi[1] - sev.ahi[0])).toFixed(1);
+    var L = sev.lognorm;
+    var v = L.shift + Math.exp(L.mu + L.sigma * invNorm(u));
+    return +clamp(v, sev.ahi[0], sev.ahi[1]).toFixed(1);
+  }
+
   // arc shaping: per-night AHI multiplier + cpap flag, given the planted arc.
   function arcNightAHI(arc, baseAHI, i, nNights, interventionNight) {
     var t = nNights > 1 ? i / (nNights - 1) : 0;
@@ -12064,7 +12145,7 @@ const OxyDex = window.OxyDex;
     var bmi = +(19 + rng() * 29).toFixed(1); // 19–48
     var sevIdx = sampleSeverity(rng, bmi, sex, age); // BMI + sex (male→worse) prior
     var sev = SEVERITY[sevIdx];
-    var baseAHI = +(sev.ahi[0] + rng() * (sev.ahi[1] - sev.ahi[0])).toFixed(1);
+    var baseAHI = ahiInStratum(sev, rng()); // ONE rng() call, as before — see `ahiInStratum`
     var arc = pick(rng, ARC);
     var nNights = 1 + Math.floor(rng() * 12); // variable 1–12 (longitudinal lane)
     var interventionNight = arc === 'intervention' ? clamp(1 + Math.floor(rng() * (nNights - 1)), 1, Math.max(1, nNights - 1)) : -1;
