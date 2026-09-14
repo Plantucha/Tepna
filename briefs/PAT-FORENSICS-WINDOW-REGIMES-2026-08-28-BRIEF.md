@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (item 1 EXECUTED 2026-09-14 — the clock-offset hypothesis is TESTED and its verdict is NOT STABLE across two 80%-overlapping trees, see §8.6 before quoting §8.2. The instrument it needed was already committed. Item 2 remains open and its proposed 200-500 ms rail is the WRONG ANATOMY - read §8.5 before building it.) · **Residue:** 2026-09-14-phys-rail-is-arm-band-on-an-ankle, 2026-09-14-regimes-item1-verdict-not-stable · PROPOSED (parked 2026-09-06 — dependency satisfied since #2029/#2034, but both remaining items need instruments that do not exist yet. Blocker in §-park) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core UNBLOCKED, remainder unexecuted; verified 2026-09-05).** The 09-01 stamp said this brief waits on oracle output that had never been produced. **That dependency is now satisfied**: #2029 and #2034 produced corpus-wide oracle verdicts over 43 box nights (4 SIGNAL RECOVERED / 20 PARTIAL / 5 NO RECOVERY / 0 UNDEFINED), so the regime split is now readable. Nobody has executed it. ⚠️ ORIGINAL 09-01 STAMP, superseded: TRIAGED 2026-09-01 (Osprey): not independently executed this pass. Shares the WINDOW-ORACLE dependency — the regime split is read off oracle output, which had never been produced against a corpus. That is now executable locally; see that brief's corrected stamp.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§12 oracle · §16 gate self-selection · §17 corpus table) · **Interlocks:** `PAT-FORENSICS-FIDUCIAL-JITTER-2026-08-28-BRIEF.md`, `PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey):** re-verified — still gated on WINDOW-ORACLE output, which is exactly what this drain's oracle re-run (post-#2082 fragment pairing) supplies. **Owner: Osprey. Next step:** read the regime split off the new oracle output once that run's results land in the WINDOW-ORACLE brief; do not re-run the oracle for it. · **SWEEP-FOLD 2026-09-03 (Osprey) — the dependency is not merely unrun, its INPUT has moved.** This brief's regime split is read off WINDOW-ORACLE output, and the sweep measured that output's published tables diverging (§6 withdrawn as circular, real result 7 of 9 cells moved; drift table 5 of 8 rows) under my #2114 picker fix. So the split does not merely await a corpus run — **any regime boundary quoted from the pre-#2114 oracle rests on numbers that have since changed.** Unchanged otherwise since the 2026-09-01 triage. Owner: Osprey. **Next step:** unchanged — take the split from a POST-#2114 oracle run, and do not carry forward a boundary derived from the published tables.
+**Status:** PROPOSED (item 1 EXECUTED 2026-09-14 — the clock-offset hypothesis is TESTED and SETTLED as NO FINDING - 6 cells, 3 verdicts, largest-n refutes both trees; see §8.7, then §8.6, before any number in §8.2. The instrument it needed was already committed. Item 2 remains open and its proposed 200-500 ms rail is the WRONG ANATOMY - read §8.5 before building it.) · **Residue:** 2026-09-14-phys-rail-is-arm-band-on-an-ankle, 2026-09-14-regimes-item1-verdict-not-stable · PROPOSED (parked 2026-09-06 — dependency satisfied since #2029/#2034, but both remaining items need instruments that do not exist yet. Blocker in §-park) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core UNBLOCKED, remainder unexecuted; verified 2026-09-05).** The 09-01 stamp said this brief waits on oracle output that had never been produced. **That dependency is now satisfied**: #2029 and #2034 produced corpus-wide oracle verdicts over 43 box nights (4 SIGNAL RECOVERED / 20 PARTIAL / 5 NO RECOVERY / 0 UNDEFINED), so the regime split is now readable. Nobody has executed it. ⚠️ ORIGINAL 09-01 STAMP, superseded: TRIAGED 2026-09-01 (Osprey): not independently executed this pass. Shares the WINDOW-ORACLE dependency — the regime split is read off oracle output, which had never been produced against a corpus. That is now executable locally; see that brief's corrected stamp.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§12 oracle · §16 gate self-selection · §17 corpus table) · **Interlocks:** `PAT-FORENSICS-FIDUCIAL-JITTER-2026-08-28-BRIEF.md`, `PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey):** re-verified — still gated on WINDOW-ORACLE output, which is exactly what this drain's oracle re-run (post-#2082 fragment pairing) supplies. **Owner: Osprey. Next step:** read the regime split off the new oracle output once that run's results land in the WINDOW-ORACLE brief; do not re-run the oracle for it. · **SWEEP-FOLD 2026-09-03 (Osprey) — the dependency is not merely unrun, its INPUT has moved.** This brief's regime split is read off WINDOW-ORACLE output, and the sweep measured that output's published tables diverging (§6 withdrawn as circular, real result 7 of 9 cells moved; drift table 5 of 8 rows) under my #2114 picker fix. So the split does not merely await a corpus run — **any regime boundary quoted from the pre-#2114 oracle rests on numbers that have since changed.** Unchanged otherwise since the 2026-09-01 triage. Owner: Osprey. **Next step:** unchanged — take the split from a POST-#2114 oracle run, and do not carry forward a boundary derived from the published tables.
 
 # PAT clears its own bar on 1 night in 42 — and the failure is the acceptance window, not the sensors
 
@@ -310,13 +310,86 @@ instrumental artifact, and `2026-09-14-host-offset-drops-nights-silently` shows 
 trustworthy enough to assume the former; or (b) the corpus grows enough that seven nights cannot move
 the verdict. Logged as residue `2026-09-14-regimes-item1-verdict-not-stable`.
 
+## 8.7 · SETTLED (#2495 → this) — NO FINDING, and the bias that produced the first answer is named
+
+§8.6 said the verdict moved when the sample moved and could not say why. **#2495 found why**: the tool
+was silently excluding nights whose capture fragments never spanned one 120-minute window. Re-running
+with that exclusion visible, across a pre-stated grid, settles item 1 in the negative.
+
+### The grid — rule and prediction both written before any cell existed
+
+| tree | @120 min | @60 min | @30 min |
+|---|---|---|---|
+| `uploads/vigil-archive` | **ρ 0.644** SUPPORTED (n 22) | ρ 0.266 REFUTED (n 25) | ρ 0.360 INCONCLUSIVE (n 26) |
+| `tepna-smoketest` (**this brief's tree**) | ρ 0.388 INCONCLUSIVE (n 25) | ρ 0.170 REFUTED (n 28) | **ρ 0.172 REFUTED (n 30)** |
+
+Pre-stated rule: *SUPPORTED only if SUPPORTED in every cell; if the cells disagree in verdict, the
+finding is window- or sample-dependent and is reported as **no finding** — not as the majority.*
+
+**Six cells, three different verdicts. The rule returns NO FINDING**, and the largest-n cell on each
+tree — the ones with the least exclusion — both REFUTE.
+
+### The window arithmetic is not doing this, and that is provable
+
+`driftMs` scales linearly with window length, and Spearman is invariant to a monotone transform of x.
+So on an identical night set the window CANNOT move ρ — and measured, it does not: restricted to the
+22 nights `@120` and `@60` share, both return **ρ 0.644 exactly**, and the per-night `dPpm` changed on
+**0 of 22**. Every bit of movement in the table is the nights the filter admits.
+
+### ⚠️ A prediction was written down and FALSIFIED — recorded because it was
+
+After four cells (n 22/25/25/28 → ρ 0.644/0.388/0.266/0.170, monotone in n) I wrote, before either
+30-minute run produced a byte: *"both 30-min cells return |ρ| ≤ their 60-min counterpart."* **Box came
+back at 0.360 against a predicted ≤ 0.266.** The monotone-in-n story was wrong, and the reason is one
+night.
+
+### `2026-07-31` — the night the tool was hiding is the most informative night in the corpus
+
+It is admitted at 30 min and refused at 60 (best overlap 52.1 min), which §8.1's secondary clause named
+in advance as the single most informative comparison available. It is the **only** difference between
+the box `@60` and `@30` cells — the sets are nested, nothing is lost — so it alone moves ρ 0.266 → 0.360.
+
+```
+2026-07-31   ppmE −24.6   ppmP −24.6   dPpm −0.0   driftMs 0.1   PAT SD 36.9
+             lowest drift of all 26 joined nights · lowest PAT SD of all 26
+```
+
+**The two devices diverge from the capture host identically, so the inter-device rate is exactly
+zero — and this is the one night in the corpus where PAT is genuinely measurable.** That is the single
+strongest observation consistent with §4's hypothesis, and it was invisible for as long as the tool
+was silent.
+
+**So the correction to §8.6's framing: the silently-excluded nights were NOT uniformly
+counterexamples.** `2026-07-25` (drift rank 3/25, SD rank 1 lowest) and `2026-08-18` (rank 5, SD rank 2)
+refute; `2026-07-31` supports maximally. The filter removed the most **influential** nights in *both*
+directions — which is exactly what a filter keyed on fragmentation would do, fragmentation being
+unrelated to the hypothesis's direction. A one-directional bias would have been easier to reason about
+and is not what happened.
+
+### What item 1 now is
+
+**Tested, and NO FINDING.** Not "unsupported pending more data" — the corpus was asked the question six
+ways and gave three answers. §8.3's confounds (entanglement with foot-to-foot SD, the 450/√12 ceiling,
+link-artifact ppm values) all still stand on top of that.
+
+**What would make this answerable is a different experiment, not a larger n**: `2026-07-31` says the
+interesting comparison is *zero* inter-device divergence against *non-zero*, and there is exactly one
+zero-divergence night. A corpus with several would test the hypothesis directly, where a corpus with
+more mid-range nights only re-runs this table. Residue `2026-09-14-regimes-item1-verdict-not-stable`
+closes here.
+
 ## 7 · Done when
 
 - [x] Full-corpus run, untruncated, all 42 nights, zero-yield rows counted.
 - [x] Regimes classified against principled bands; shares reported.
 - [x] Four candidate explanations for regime membership eliminated by measurement.
 - [x] **Clock-offset hypothesis tested against regime membership — §8, EXECUTED 2026-09-14.**
-      Ticked as *tested*, which is what the box asks. 🔴 **The verdict is NOT STABLE — read §8.6 before
+      🔴 **SETTLED IN §8.7: NO FINDING.** Six cells (2 trees × 3 windows) return three different
+      verdicts under one pre-stated rule, and the largest-n cell on each tree REFUTES. The window
+      arithmetic is provably not the cause — on an identical night set ρ is 0.644 at both 120 and 60
+      min — so every bit of movement is which nights `pat-host-offset` admitted, an exclusion that was
+      silent until #2495. Read §8.7 before §8.6, and neither before §8.2.
+      🔴 **The verdict is NOT STABLE — read §8.6 before
       quoting any number from §8.2.** The pre-stated rule returns **SUPPORTED** on
       `uploads/vigil-archive` (ρ 0.644, n 22, p 0.0021) and **INCONCLUSIVE** on the brief's own
       `tepna-smoketest` tree (ρ 0.388, n 25, p 0.0584) — and those are not two samples, they share 20
