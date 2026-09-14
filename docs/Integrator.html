@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Nct6lhz/vQKGNxjl6Yxwx9XGRJO0saFDqD/9/lBHQY8=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-s/xmZUeSytTM2VmD4p01F7UG2UjlwJ6MQCMuNDNev9Y=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.11.0</title>
@@ -7258,6 +7258,29 @@ function normalizeFile(json, filename) {
    The stampless path closes a silent bug: file / file (1) / file (2) copies of a
    DATE-UNKNOWN recording have t0Ms=null every time, slipped the ±30 s guard, and
    were counted N times — inflating node lists, event/burden totals, and exports. */
+/* ── THE SENSOR SITE IS PART OF A RECORDING'S IDENTITY (owner ruling 2026-09-13) ─────────────────
+   A finger PPG and a wrist PPG are two DIFFERENT sensors on two different parts of the body, and
+   both export under `schema.node === 'PpgDex'`. The dedupe key was the node alone, so a night
+   carrying both collapsed to one on the ±30 s rule — measured over the 41-night trio corpus,
+   **15 of 41 nights lost one of the two**, and WHICH one it lost depended on load order: armband
+   first drops the finger (so `fusePulseCrossCheck` and every finger path never fire), finger first
+   drops the wrist HRV. That is not a double count being prevented, it is a whole recording being
+   discarded — the node's own `site` field was sitting right there, unread by this function.
+   Ruled against two alternatives: a first-class `PpgDexFinger` node (a MAJOR export-contract break)
+   and a deviceKey (scrubbed from exports by privacy policy at `dex-export.js:46`, which stays).
+   ⚠️ `summary.site` carries a `|| 'wrist'` default at its adapter, so a site-less export compares as
+   wrist. That is the SAFE direction here: an unknown site never merges with a known 'finger', so the
+   failure mode is keeping two recordings, never silently dropping one. */
+function _recSite(r) {
+  return (r && r.summary && r.summary.site) || null;
+}
+function _sameSite(a, b) {
+  var sa = _recSite(a),
+    sb = _recSite(b);
+  // unknown on either side ⇒ do not let site BLOCK a dedupe that the other rules would make;
+  // only a known-and-different pair is evidence of two distinct sensors.
+  return sa == null || sb == null ? true : sa === sb;
+}
 function _recSig(r) {
   // content fingerprint for a STAMPLESS recording (no clock to dedupe on).
   // Uses RAW events (which survive even when normalized events are dropped for
@@ -7270,7 +7293,9 @@ function _recSig(r) {
   var last = ev.length ? ev[ev.length - 1].t || ev[ev.length - 1].tMs || '' : '';
   var rm = r.summary && r.summary.rmssd != null ? r.summary.rmssd : '';
   var sd = r.summary && r.summary.sdnn != null ? r.summary.sdnn : '';
-  return r.node + '|n' + ev.length + '|' + first + '→' + last + '|' + rm + '/' + sd;
+  // site rides the signature too, so a stampless finger and a stampless wrist cannot collide on
+  // matching event counts — the same identity rule as the dated path, stated in one more place.
+  return r.node + '@' + (_recSite(r) || '?') + '|n' + ev.length + '|' + first + '→' + last + '|' + rm + '/' + sd;
 }
 function dedupeRecs(existing, incoming) {
   var kept = [],
@@ -7279,6 +7304,10 @@ function dedupeRecs(existing, incoming) {
     var nsig = nr.t0Ms == null ? _recSig(nr) : null;
     var dup = existing.concat(kept).find(function (e) {
       if (e.node !== nr.node) return false;
+      // …and the same SITE. Two sensors on different parts of the body are two recordings, however
+      // close their clocks are. Placed before the contentId branch deliberately: a site mismatch is
+      // decisive evidence of distinctness, so nothing below should be able to overrule it.
+      if (!_sameSite(e, nr)) return false;
       // EXPORT-IDENTITY-FOLLOWUPS-II §1: when BOTH carry an identity-free recording.contentId, that
       // content digest is the STRONGEST duplicate signal — same node + same contentId = the same
       // recording regardless of stamp (catches a re-load / cross-stamp dup the ±30 s and stampless-sig
