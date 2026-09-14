@@ -23209,13 +23209,33 @@
       T.eq('meanPi ZERO is preserved as 0, not collapsed to null', z && z.stats.meanPi, 0);
       T.eq('motionPct ZERO is preserved as 0', z && z.stats.motionPct, 0);
 
-      /* …and the contrast that proves the OTHER form is the other form: a plain `|| 0` field is 0
-         whether it is absent or zero, so absent-vs-zero must NOT be distinguishable there. */
+      /* §∅ — `durationMin` and `meanSpo2` JOIN the null form. This block used to assert the opposite
+         ("meanSpo2 ABSENT defaults to 0 (the `|| 0` form)") as a deliberate CONTRAST showing the two
+         forms behaving differently. That assertion documented the fabrication as the contract, which
+         is precisely what §∅ calls the bug: a night whose duration was never recorded became
+         indistinguishable from a zero-duration night, and a mean SpO2 of 0 is impossible, so no
+         downstream plausibility guard can catch it. Changed deliberately, not edited to match code —
+         residue 2026-09-13-oxydex-self-ingest-absence-to-zero. */
       var noMean = JSON.parse(JSON.stringify(REC));
       delete noMean.stats.meanSpo2;
-      T.eq('meanSpo2 ABSENT defaults to 0 (the `|| 0` form)', one(noMean).stats.meanSpo2, 0);
+      delete noMean.stats.durationMin;
+      T.eq('meanSpo2 ABSENT is null — an impossible reading is worse than a missing one', one(noMean).stats.meanSpo2, null);
+      T.eq('durationMin ABSENT is null — a night never timed is not a night of length 0', one(noMean).stats.durationMin, null);
+      /* THE OTHER HALF, and the reason the fix is `!= null` and not a truthiness test: a REAL zero has
+         to survive. `||` cannot tell 0 from absent, which is the whole defect. */
+      var zeroDur = JSON.parse(JSON.stringify(REC));
+      zeroDur.stats.durationMin = 0;
+      zeroDur.stats.meanSpo2 = 0;
+      T.eq('durationMin ZERO is preserved as 0, not collapsed to null', one(zeroDur).stats.durationMin, 0);
+      T.eq('meanSpo2 ZERO is preserved as 0', one(zeroDur).stats.meanSpo2, 0);
+      /* ⚠️ STILL LIVE, AND ASSERTED AS CURRENT BEHAVIOUR RATHER THAN AS CORRECT. `maxSpo2` absent
+         fabricates a PERFECT reading — worse than a 0, because 100 is both in-range and flattering.
+         Left unfixed here on purpose: this PR closes the residue row's verified two-site scope, and
+         the remaining sites in this block (maxSpo2, minSpo2, spo2Std, t95pct, t90pct, meanHr, minHr,
+         maxHr) plus `oxydex-dsp.js:3084` in the PRIMARY builder are filed as their own row rather than
+         swept in silently. When that row is executed this assertion flips too. */
       T.eq(
-        'maxSpo2 ABSENT defaults to 100, not 0',
+        'maxSpo2 ABSENT still fabricates 100 — a live §∅ site, see residue 2026-09-13-oxydex-stats-block-absence-to-number',
         one(
           (function () {
             var r = JSON.parse(JSON.stringify(REC));
