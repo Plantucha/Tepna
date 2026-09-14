@@ -235,7 +235,23 @@ function selftest() {
     }
     A('generator: age is UNIFORM 20–85 (median at the midpoint, 52.5)', Math.abs(quantile(ages, 0.5) - 52.5) < 1.5, 'median ' + quantile(ages, 0.5).toFixed(1));
     A('generator: bmi is UNIFORM 19–48 (median at the midpoint, 33.5)', Math.abs(quantile(bmis, 0.5) - 33.5) < 1.0, 'median ' + quantile(bmis, 0.5).toFixed(1));
-    A('generator: the severe stratum caps at AHI 80', Math.max(...Array.from({ length: 5000 }, (_, i) => cg.sampleProfile(i).baseAHI)) <= 80);
+    /* ⚠️ THIS ASSERTION USED TO READ "the severe stratum caps at AHI 80", and it was RIGHT to fail
+       when that changed. It documented a coverage gap — 13.5 % of real severe nights sat above a hard
+       ceiling, unreachable rather than under-sampled — and `cohort-gen/2.0` closed it by drawing a
+       shifted log-normal fitted to SHHS1 instead of a uniform. The assertion is replaced rather than
+       deleted: a test weakened to let a change through stops being a test, so what it now pins is the
+       property the change was FOR. */
+    const sevAhi = Array.from({ length: 8000 }, (_, i) => cg.sampleProfile(i))
+      .filter((p) => p.osaSeverity === 'severe')
+      .map((p) => p.baseAHI);
+    A('generator: the severe stratum now REACHES past the old 80 ceiling', Math.max(...sevAhi) > 80, 'max ' + Math.max(...sevAhi));
+    A('generator: …but stays inside the refusal guard, so it cannot run away', Math.max(...sevAhi) <= 300);
+    /* the shape, not just the range: a uniform draw puts its median at the midpoint of the band and
+       has mean == median. A right-skewed one does neither, and that skew is the whole point. */
+    const sevMed = quantile(sevAhi, 0.5);
+    const sevMean = sevAhi.reduce((x, y) => x + y, 0) / sevAhi.length;
+    A('generator: severe AHI is right-skewed (mean > median), not uniform', sevMean > sevMed, 'mean ' + sevMean.toFixed(1) + ' vs median ' + sevMed.toFixed(1));
+    A('generator: its median tracks the real cohort (SHHS1 severe median 50.7)', Math.abs(sevMed - 50.7) < 6, 'median ' + sevMed.toFixed(1));
   }
 
   console.log('\n' + (bad ? '✕ ' + bad + ' failed, ' : '✓ ') + good + ' assertions passed');
