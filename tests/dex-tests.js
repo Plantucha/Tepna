@@ -1444,6 +1444,101 @@
       T.ok('candidates is a non-empty array or null, never an empty array', st.candidates === null || (Array.isArray(st.candidates) && st.candidates.length > 0), JSON.stringify(st.candidates));
     });
 
+    group('PpgDex stability survives the REAL path — parse → analyze → export, not a hand-built rec', 'ppgdex-dsp · hostaxis-stability · export-boundary', function (T) {
+      /* The §2.1 group above hands `buildNodeExport` a rec it constructed with `hostAxis` already on
+         it. That tests the EMITTER given a good input, and is blind by construction to whether
+         anything ever SUPPLIES that input — which is exactly how the emission gap survived: `analyze`
+         returned three scalars projected out of the axis and never the object, so `recording.hostAxis`
+         was absent from every real export until #2463 while these assertions passed throughout.
+         ALLAN-STABILITY-GAPS called §2.1 "confirmed fixed" on the strength of `clock.js` forwarding
+         `stability` at four sites — a forwarding site is not the field arriving at the consumer.
+
+         So this group drives TEXT through the shipped entry point. Verified against a real box capture
+         first (2026-08-17 Verity, independent:true, spreadMs 54461): tau0 2.834 · noiseType
+         "white/flicker-phase" · nTau 13. The synthetic reproduces that shape with no corpus.
+
+         ⚠️ FOUR WAYS TO BUILD AN INPUT THAT CANNOT REACH THIS BLOCK, each reporting a plain
+         `stability: null` indistinguishable from a real absence. All four were hit writing this:
+           1 · `buildNodeExport(r, {})` omits the whole block — it lives under `opts.rich`.
+           2 · a UNIFORM device ramp is classified DRAWN, and `ppgdex-dsp.js:1069` suppresses stability
+               on a drawn axis deliberately: σ_y(τ) over a synthesised counter describes capture-host
+               code, not a clock.
+           3 · a deterministic sawtooth jitter (`(i*k)%1000`) still concentrates the deltas — only 1000
+               distinct values — so the drawn test still fires. An LCG is needed.
+           4 · THREE IDENTICAL CHANNELS ⇒ `deriveSiteFromLayout` returns 'finger', and
+               `axisSynthetic = axisDrawn || site === 'finger'` (`:867`) suppresses stability REGARDLESS
+               of the drawn test. That is a second, independent suppressor which the brief's own
+               explanation ("stability is null whenever independent is false, and every committed input
+               is phone-captured") does not mention, and it is why a hand-rolled Verity-shaped file
+               silently behaves like a ring. The three LED channels must DIFFER, as a real Verity's do. */
+      var P2 = env.PPGDSP;
+      if (!(P2 && typeof P2.compute === 'function' && typeof P2.parsePPG === 'function')) {
+        T.ok('PPGDSP.compute + parsePPG available', false, 'not loaded');
+        return;
+      }
+      var sd = 12345;
+      var rr = function () {
+        sd = (sd * 16807) % 2147483647;
+        return sd / 2147483647 - 0.5;
+      };
+      var NROW = 20000,
+        STEP = 1000 / 135;
+      var txt = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient';
+      for (var i = 0; i < NROW; i++) {
+        var dev = i * STEP + rr() * 1.4; // device jitter: real deltas, not a synthesised ramp
+        var host = dev * (1 + 30e-6) + rr() * 80; // a real 30 ppm rate + delivery jitter >> the 2 ms quantum
+        var ph = (i % 135) / 135;
+        var w = 1000 + 260 * Math.exp(-Math.pow((ph - 0.18) / 0.06, 2)) + 70 * Math.exp(-Math.pow((ph - 0.44) / 0.1, 2));
+        txt +=
+          '\n' +
+          new Date(Date.UTC(2026, 6, 1) + Math.round(host)).toISOString().replace('T', ' ').replace('Z', '') +
+          ';' +
+          Math.round(dev * 1e6) +
+          ';' +
+          Math.round(w) +
+          ';' +
+          Math.round(w * 0.83 + 140) +
+          ';' +
+          Math.round(w * 1.21 - 260) +
+          ';' +
+          Math.round(400 + 40 * Math.sin(i / 900));
+      }
+      var recS = P2.parsePPG(txt);
+      var haS = recS.hostAxis || {};
+      /* ANTI-VACUITY, one per precondition, because a failure of ANY of them produces the same
+         `stability: null` and the group would otherwise pass by never reaching the real assertion. */
+      T.eq('ANTI-VACUITY · the synthetic is classified WRIST, not finger', recS.site, 'wrist');
+      T.ok('ANTI-VACUITY · …its device axis is not DRAWN', haS.drawn === false, 'drawn=' + haS.drawn + ' quantizedShare=' + haS.quantizedShare);
+      T.ok('ANTI-VACUITY · …the host column IS a second clock', haS.ok === true && haS.independent === true, 'ok=' + haS.ok + ' independent=' + haS.independent);
+      T.ok('ANTI-VACUITY · …and the spine computed a stability object to forward', !!haS.stability, 'spine stability=' + (haS.stability ? 'object' : String(haS.stability)));
+
+      var exS = P2.compute(txt, { rich: true });
+      var stS = exS && exS.recording && exS.recording.hostAxis && exS.recording.hostAxis.stability;
+      T.ok(
+        'the REAL path carries recording.hostAxis at all (absent on every export before #2463)',
+        !!(exS && exS.recording && exS.recording.hostAxis),
+        'hostAxis=' + (exS && exS.recording ? typeof exS.recording.hostAxis : 'no recording')
+      );
+      T.ok('…and it carries a stability block, not a fabricated null', !!stS, JSON.stringify(stS));
+      if (!stS) return;
+      /* The two keys §2.1 fixed. The defect published both as permanent null, which reads as "this
+         pair had no second clock" — the one thing the null is supposed to mean. */
+      T.ok('tau0 is a positive measured averaging time', typeof stS.tau0 === 'number' && stS.tau0 > 0, 'tau0 = ' + stS.tau0);
+      T.ok('noiseType is a real class string', typeof stS.noiseType === 'string' && stS.noiseType.length > 0, 'noiseType = ' + JSON.stringify(stS.noiseType));
+      T.ok(
+        'never null noiseType AND null candidates — that shape carries no information',
+        !(stS.noiseType === null && stS.candidates === null),
+        'noiseType=' + JSON.stringify(stS.noiseType) + ' candidates=' + JSON.stringify(stS.candidates)
+      );
+      /* `slopeSE` without its n is uninterpretable — clock.js:375's own reason for carrying nTau. */
+      T.ok(
+        'slopeSE ships with the nTau it was computed over',
+        typeof stS.slopeSE === 'number' && isFinite(stS.slopeSE) && typeof stS.nTau === 'number' && stS.nTau >= 3,
+        'slopeSE=' + stS.slopeSE + ' nTau=' + stS.nTau
+      );
+      T.eq('…and nTau is the spine value, not a recomputation that could drift', stS.nTau, haS.stability.nTau);
+    });
+
     group('hostAxis stability — the spine Allan core, and it refuses when there is no second clock', 'clock · hostaxis-stability', function (T) {
       var C = env.DexClock;
       if (!C || typeof C.hostAxis !== 'function' || typeof C.allanFromPhase !== 'function') {
