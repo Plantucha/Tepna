@@ -431,8 +431,43 @@ layer was wronger.
 the other way for the mode: under a 6× half-width sweep (w = 50/200/300) `pat-window-oracle`'s mode is
 **invariant** — `2026-07-24` returns 405/405/405 and `2026-07-31` 215/215/215. An invariant mode under
 a changing window is exactly what a real lag looks like. **So this section retires the median as a
-quantity and says nothing against the mode**; a mode-invariance test under a *shifted* rail (rather
-than a resized one) is the honest next question, and is not run here.
+quantity and says nothing against the mode.**
+
+🔴 **CORRECTION, same day — the "honest next question" this paragraph named was VACUOUS, and the tool
+says so in a comment.** It originally proposed *"a mode-invariance test under a shifted rail (rather
+than a resized one)"*. **That experiment cannot produce a signal**, and one `grep` establishes it —
+which is the lesson: I proposed a corpus run to answer a question the source answers for free.
+
+```js
+export const MODE_SEARCH_MAX = 2000;       // wider than the PHYS window ON PURPOSE — see header
+/* All R→foot lags in [0, MODE_SEARCH_MAX], nearest-forward foot only (NO WINDOW APPLIED). */
+export function rawLags(rTimes, fTimes) { … }
+const mode = lagMode(rawLags(rA, fTimes)); // ← PHYS_LO / PHYS_HI never reach this call
+```
+
+`PHYS_LO`/`PHYS_HI` enter `pat-window-oracle.mjs` only at `full = acceptWithin(lagsB, PHYS_LO,
+PHYS_HI)`, **after** the mode is taken. The mode is computed **upstream of the acceptance rail** and is
+immune to it *by construction, deliberately* — which is precisely why the oracle can return the
+out-of-rail modes §-park lists (25 · 165 · 185 · 815 · 1245 ms). A rail-shift sweep would have
+re-measured the same modes four times and reported "invariant" as though that were evidence. **The
+correct statement is stronger than "not tested": it CANNOT be rail-dependent.**
+
+**The real analogue is `MODE_SEARCH_MAX`, and it has never been varied.** §4a's 6× sweep moves the
+*half-width* — the band drawn around the mode — not the interval the mode is searched in. The question
+with §9.1's shape is whether the mode tracks the **search bound**: histogram `[0, M]` at `BIN_MS = 10`,
+vary `M`, see whether the returned mode moves. A median is pulled toward the midpoint of whatever
+interval it is computed over, which is why §9.1 found what it found; a histogram mode has no such
+attractor, so the prior is that the mode survives.
+
+⚠️ **And this repo has already paid for that question once, in a different tool.**
+`papers/dead-ends.html` records a wide-range offset search whose acceptance threshold *"sits below the
+chance-maximum correlation over 24,001 candidate lags"*, with the disposition: *"Calibrate the search
+before believing its null: run it on a case with a known answer, and check that the acceptance
+threshold exceeds the chance maximum for the window length."* `MODE_SEARCH_MAX = 2000` at `BIN_MS = 10`
+is **200 competing bins**, and no such calibration exists for this search. So the unit is not only
+"does the mode move with M" but "what is the chance maximum of this histogram under a null" — which is
+the already-established form of the question and should not be re-derived from scratch. Logged as
+`2026-09-14-oracle-mode-search-bound-never-varied`.
 
 §3's window-domination finding is *extended* rather than overturned: it showed the SD is a constant of
 the estimator for 37 % of channel-rows from the width argument; §9.1 shows the central tendency is a
