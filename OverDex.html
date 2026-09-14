@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1GrXbohtkzRFVggsxtLXO0QbIxenXu06mqtKLv0Xrjs=' 'sha256-5hl27M9vA3dCx4mLVungaPViF8QHlJUA2QSQE7UIheM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LgMPoj86pXoBerLGluXsuzXckhobzKpVhelvxCw2fqM=' 'sha256-Nct6lhz/vQKGNxjl6Yxwx9XGRJO0saFDqD/9/lBHQY8=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1GrXbohtkzRFVggsxtLXO0QbIxenXu06mqtKLv0Xrjs=' 'sha256-5hl27M9vA3dCx4mLVungaPViF8QHlJUA2QSQE7UIheM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-Nct6lhz/vQKGNxjl6Yxwx9XGRJO0saFDqD/9/lBHQY8=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-jGj1fcaUuSJaiwjYEotZzJ+x+pLjoblhgVF0/3JXULg=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -33704,6 +33704,34 @@ __exports.PpgDex = window.PpgDex;
     const peaksB = detectPeaksB(bp, fs);
     prog(34, 'Sub-sample peak refinement…');
     const { times, refIdx } = refinePeaks(bp, peaks, fs);
+    /* ── THE BEAT CLOCK RIDES THE DEVICE COUNTER WHERE THERE IS ONE ─────────────────────────────────
+       `refinePeaks` returns `idx / fs`: one mean rate spent as a position. The file's own ns counter
+       records where each sample actually sat, and `parseECG` now exposes it as `devMsAt` (see the
+       block at its definition). Measured over the 8 largest H10 nights, the index axis diverges from
+       the counter by 0.56-2.62 s (median ~1.05 s), on gapless nights as much as gappy ones — so it is
+       crystal drift, not dropout accounting, and it is the input that made `fitClockDrift` certify a
+       -137 ppm "inter-device drift" that neither device exhibits.
+
+       ⚠️ AND THE DEAD-TIME FOLD BELOW IS THEN A DOUBLE COUNT. The counter spans a dropout by itself —
+       7042-17875 nominal steps across the five holes of 2026-08-25 — so folding `deadSec` on top adds
+       the night's 398 s twice. The fold is therefore the ELSE branch, not an unconditional step: it
+       exists to make the INDEX axis span a hole, and the counter needs no such help. */
+    const _devMsAt = typeof rec.devMsAt === 'function' ? rec.devMsAt : null;
+    let beatAxis = 'index';
+    if (_devMsAt && _devMsAt(0) != null) {
+      let ok = true;
+      for (let k = 0; k < times.length; k++) {
+        const d = _devMsAt(refIdx[k]);
+        if (d == null || !isFinite(d)) {
+          ok = false;
+          break;
+        }
+        times[k] = d / 1000;
+      }
+      // A partial rewrite would leave half the series on each axis — the worst of both. All or none.
+      if (ok) beatAxis = 'device-counter';
+      else for (let k = 0; k < times.length; k++) times[k] = refIdx[k] / fs;
+    }
     // DEEP-AUDIT-II §4.2 (#6): fold raw-sample gaps (dropped ECG samples, carried on rec.gaps from the
     // parse) into the beat clock. Beat time is sample-index/fs, which silently UNDER-counts wall-clock
     // across a dropout — so a gappy record would read ~100 % coverage with every later beat time-shifted
@@ -33711,7 +33739,7 @@ __exports.PpgDex = window.PpgDex;
     // inter-beat interval span the gap, so the existing gap-aware coverage + NN gate see it. A monotonic
     // single pass (peaks are index-ordered). INERT when rec.gaps is empty — the clean-recording,
     // synthetic, and committed-fixture path is byte-identical.
-    if (rec.gaps && rec.gaps.length) {
+    if (beatAxis === 'index' && rec.gaps && rec.gaps.length) {
       const step = 1000 / fs;
       const g = rec.gaps.slice().sort((a, b) => a.idx - b.idx);
       let gi = 0,
@@ -35794,9 +35822,21 @@ __exports.PpgDex = window.PpgDex;
     var relOffsetMs = 0,
       nsOffsetMs = 0;
     var offsetAt = []; // {idx, relOffsetMs, nsOffsetMs} AFTER the seam at that row — for the anchors
+    /* ⚠️ SEAM ANCHORS FOR THE DEVICE ABSCISSA — a step BETWEEN two anchors is otherwise smeared.
+       `devMsAt` interpolates linearly between anchors sampled every ECG_ANCHOR_EVERY rows. A dropout
+       is a STEP in the counter, and if it falls between two anchors the interpolation spreads it
+       uniformly across that whole stride instead of placing it where it happened. Measured
+       2026-09-13 on `synthetic_ecgdex_h10_gapped.txt`: two 20 s holes at rows 870 and 1741, anchors
+       at stride 500 — the holes vanished from the beat times, every inter-beat delta fell under
+       `GAP_S`, and `recording.durSec` inflated 17.07 → 59.40 s, i.e. the 60 s ENVELOPE reported as
+       recorded time. That is a worse defect than the drift being fixed.
+       So every seam contributes its own two anchors — the last sample before it and the first after —
+       taken from the candidate's OWN ns readings, which is where the step's true size lives. */
+    var seamAnchors = [];
     var msStep = scan.msStep;
     for (var ci = 0; ci < scan.candidates.length; ci++) {
       var c = scan.candidates[ci];
+      var nsOffsetBefore = nsOffsetMs; // the offset governing the sample BEFORE this seam
       var prevAdj = c.prevRawMs + relOffsetMs;
       /* The phone stamps are parsed lazily, only at candidates. `pdc` clamps the known
          non-monotonic host stamps (≤287 ms backward) to zero rather than letting a negative
@@ -35831,6 +35871,14 @@ __exports.PpgDex = window.PpgDex;
            under first-after: a beat landing ON the boundary sample is after the hole and must carry
            the dead time. Pinned by the `gaps[].idx` leg in tests/dex-tests.js. */
         gaps.push({ idx: c.idx, ms: c.d, atRelMs: prevAdj, endRelMs: c.rawMs + relOffsetMs });
+      }
+      /* Both sides of the seam, on the ns axis, with the offset in force on each side — the BEFORE
+         sample predates this seam's re-anchor, so it takes the offset as it stood on entry. Recorded
+         for every candidate, gap or resync alike: a resync is a step too, and the reason the abscissa
+         must not interpolate across it is the same. */
+      if (c.rawNsMs != null && c.prevRawNsMs != null) {
+        seamAnchors.push({ idx: c.idx - 1, ns: c.prevRawNsMs + nsOffsetBefore });
+        seamAnchors.push({ idx: c.idx, ns: c.rawNsMs + nsOffsetMs });
       }
       offsetAt.push({ idx: c.idx, relOffsetMs: relOffsetMs, nsOffsetMs: nsOffsetMs });
     }
@@ -35901,6 +35949,104 @@ __exports.PpgDex = window.PpgDex;
           : null;
       parsedAnchors.push({ idx: a.idx, devMs: devVal, hostMs: aTs.tMs - t0Ms });
     }
+    /* ── THE DEVICE ABSCISSA — where a sample SITS, read from the counter instead of counted ────────
+       `fs` above is ONE mean period for the whole file, and a sample's position was derived from it as
+       `idx / fs` (+ folded gap dead-time). That is a RATE spent as a POSITION, and the crystal does not
+       hold one rate all night. Measured against each file's own ns counter over the 8 largest H10
+       nights (2026-09-13): the shipped axis diverges by **0.56 s to 2.62 s**, median ~1.05 s — and it
+       fires on nights with ZERO dropouts (5 of the 8), so this is crystal drift and not a gap
+       artifact. The 2.4 s the audit recorded reproduces on 2026-08-07, at the upper tail.
+
+       The counter is already in the file, one column over. These anchors carry it per row, so a
+       sample's position is INTERPOLATED between measured stamps instead of extrapolated from a mean.
+
+       ⚠️ THREE THINGS THAT WOULD EACH BE A DIFFERENT BUG:
+       1 · Unlike `parsedAnchors` below, this list is NOT filtered to post-resync and does NOT require a
+           parseable host stamp. Those two filters serve `hostAxis`, which measures host↔device
+           divergence and needs one oscillator state and a host reading. An ABSCISSA needs neither: the
+           seam arithmetic above has already made the counter continuous across a resync, and a row with
+           an unreadable Phone stamp still has a perfectly good device stamp.
+       2 · The counter SPANS A DROPOUT — measured on 2026-08-25, the five holes read 7042, 9490, 9560,
+           7787 and 17875 nominal steps, not one step each. So the dead time is ALREADY in it, and the
+           `deadSec` fold that `analyze` applies to the index axis must be SKIPPED on this one or the
+           night is counted twice (+398 s on that file). Same for `tMsAt`.
+       3 · Flat outside the anchors, never extrapolated along a slope — Clock Contract §7's rule for
+           `correctionAt`, for the same reason: past the last anchor there is no measurement, and
+           continuing a rate there fabricates one. */
+    var devAnchorIdx = null,
+      devAnchorMs = null;
+    if (nsUsable && scan.firstNsMs != null) {
+      var _dIdx = [],
+        _dMs = [];
+      // stride anchors carry the drift; seam anchors carry the steps. Merged and sorted, because a
+      // step between two stride anchors is exactly what a linear interpolation cannot represent.
+      var _cand = [];
+      for (var da = 0; da < scan.anchors.length; da++) {
+        var an = scan.anchors[da];
+        if (an.rawNsMs == null) continue;
+        var dOff = 0;
+        for (var doi = 0; doi < offsetAt.length; doi++) if (offsetAt[doi].idx <= an.idx) dOff = offsetAt[doi].nsOffsetMs;
+        _cand.push({ idx: an.idx, ns: an.rawNsMs + dOff });
+      }
+      for (var sa = 0; sa < seamAnchors.length; sa++) _cand.push(seamAnchors[sa]);
+      _cand.sort(function (x, y) {
+        return x.idx - y.idx;
+      });
+      /* ⚠️ A COUNTER THAT GOES BACKWARDS IS NOT A COUNTER — refuse the whole abscissa, never a
+         truncated one. The seam arithmetic above closes every LEGITIMATE step (resync, dropout), so a
+         remaining backward move means this column is not the quantity we think it is — Clock Contract
+         §7's "the two columns are not the two clocks we think they are", where the sanctioned response
+         is to refuse rather than to correct.
+         Dropping the offending anchors and keeping the rest is the tempting middle and it is the worst
+         option: it leaves an anchor set that covers a PREFIX of the record and then flat-extrapolates
+         the nominal step across everything after it, which is the index axis wearing the counter's
+         name. Measured 2026-09-13 on the suite's tiled long-record synthetic — it repeats a 60 s twin
+         92× advancing only the ms column, so its ns column resets 92 times; the truncated set covered
+         the first 60 s of a 92-minute file and the apnea path stopped being reached at all.
+         Fail closed: no abscissa, and `analyze`/`tMsAt` fall back to the index axis + dead-time fold,
+         which is exactly right for a file whose counter cannot be trusted. */
+      var nonMonotone = false;
+      for (var ca = 0; ca < _cand.length; ca++) {
+        var dv = _cand[ca].ns - scan.firstNsMs;
+        if (_dIdx.length && !(dv > _dMs[_dMs.length - 1] && _cand[ca].idx > _dIdx[_dIdx.length - 1])) {
+          // an anchor at the SAME index is a duplicate (a seam row also sampled by the stride), not a
+          // reversal — skip it silently; anything that moves BACKWARD disqualifies the column.
+          if (_cand[ca].idx === _dIdx[_dIdx.length - 1] && dv >= _dMs[_dMs.length - 1]) continue;
+          nonMonotone = true;
+          break;
+        }
+        _dIdx.push(_cand[ca].idx);
+        _dMs.push(dv);
+      }
+      if (nonMonotone) {
+        _dIdx = [];
+        _dMs = [];
+      }
+      if (_dIdx.length >= 2) {
+        devAnchorIdx = _dIdx;
+        devAnchorMs = _dMs;
+      }
+    }
+    var _devStepMs = 1000 / fs;
+    /* Device-axis position of sample `i`, in ms from the first sample. `i` may be fractional —
+       `refinePeaks` returns sub-sample R positions. Null when there is no counter to read, which is
+       the signal to fall back to the index axis rather than to guess. */
+    function devMsAt(i) {
+      if (!devAnchorIdx) return null;
+      var lo = 0,
+        hi = devAnchorIdx.length - 1;
+      if (i <= devAnchorIdx[0]) return devAnchorMs[0] + (i - devAnchorIdx[0]) * _devStepMs;
+      if (i >= devAnchorIdx[hi]) return devAnchorMs[hi] + (i - devAnchorIdx[hi]) * _devStepMs;
+      while (lo + 1 < hi) {
+        var mid = (lo + hi) >> 1;
+        if (devAnchorIdx[mid] <= i) lo = mid;
+        else hi = mid;
+      }
+      var span = devAnchorIdx[hi] - devAnchorIdx[lo];
+      if (!(span > 0)) return devAnchorMs[lo];
+      return devAnchorMs[lo] + ((i - devAnchorIdx[lo]) / span) * (devAnchorMs[hi] - devAnchorMs[lo]);
+    }
+
     var lastResyncRow = clockResyncs.length ? clockResyncs[clockResyncs.length - 1].idx : null;
     var preResyncAnchorsDropped = 0;
     if (lastResyncRow !== null && parsedAnchors.length) {
@@ -36127,9 +36273,18 @@ __exports.PpgDex = window.PpgDex;
          they must not be rounded before the correction is applied. Consumers that need a TIME use
          this; consumers that need a RATE keep using `fs`. */
       tMsAt: function (i) {
-        var devMs = i * _ecgMsPerSample;
-        return t0Ms + devMs + (_ecgCorrAt ? _ecgCorrAt(devMs) : 0) + _ecgDeadMsBefore(i);
+        /* THE COUNTER FIRST, the index only as a fallback. `devMsAt` reads where the sample actually
+           sat; `i * _ecgMsPerSample` derives it from one mean rate and needs the dead-time fold to
+           reach the same place approximately (#2461). The counter ALREADY spans a dropout — measured
+           7042-17875 nominal steps per hole — so adding `_ecgDeadMsBefore` on top of it would count
+           the night twice. That is why the fold lives in the fallback branch and nowhere else. */
+        var devMs = devMsAt(i);
+        if (devMs == null) devMs = i * _ecgMsPerSample + _ecgDeadMsBefore(i);
+        return t0Ms + devMs + (_ecgCorrAt ? _ecgCorrAt(devMs) : 0);
       },
+      /* Device-axis ms of sample `i` (null when the file carries no usable counter) — exposed so
+         `analyze` can build its beat clock on the same axis instead of re-deriving one. */
+      devMsAt: devMsAt,
       /* Whether `tMsAt` is actually disciplined. Reported so a caller can tell a corrected axis from a
          device-clock one WITHOUT re-deriving the condition — and so `applied:false` on `hostAxis`
          (a REFUSED ppm) is never mistaken for "the time axis is uncorrected too". They are different
@@ -36272,7 +36427,15 @@ __exports.PpgDex = window.PpgDex;
     return {
       int16: arr.slice(0, n),
       fs: t.fs,
+      /* ⚠️ THIS IS A RESHAPE AND IT DROPS WHATEVER IT DOES NOT NAME. `ecgTimingResolve` returns the
+         node's whole timing product; this literal copies a fixed list out of it, so a field added
+         there is INERT until it is added here too — silently, with no error and no failing test.
+         `devMsAt` was added upstream and lost exactly here (2026-09-13), and PpgDex's export block
+         carries the same warning after the same thing happened to `recording.hostAxis` (#2463). The
+         `ecgdex-dsp · timing-reshape` group asserts this list against the resolver's own keys, so the
+         next omission reds instead of vanishing. */
       tMsAt: t.tMsAt,
+      devMsAt: t.devMsAt,
       tMsCorrected: t.tMsCorrected,
       clockResyncs: t.clockResyncs,
       gaps: t.gaps,

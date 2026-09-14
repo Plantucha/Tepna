@@ -15840,6 +15840,146 @@
       T.eq('…and the real-dropout control (no resync) drops nothing — the key is absent', ctrl.hostAxis && ctrl.hostAxis.anchorsDroppedPreResync, undefined);
     });
 
+    group('ECGDex parseECG reshape carries every field the timing resolver publishes', 'ecgdex-dsp · timing-reshape · export-boundary', function (T) {
+      /* `parseECG` does not return `ecgTimingResolve`'s object — it copies a FIXED LIST of keys out of
+         it. A field added to the resolver is therefore INERT until it is named again in that literal,
+         and it fails SILENTLY: no error, no failing test, the field simply absent on the rec while
+         every consumer reads undefined. `devMsAt` was lost exactly this way on 2026-09-13 and only
+         surfaced because a separate test asserted the behaviour it was supposed to enable. PpgDex lost
+         `recording.hostAxis` to the same shape (#2463), where it cost an entire export block that was
+         written, gated, covered by seven assertions, and never once ran.
+
+         This gates the CLASS rather than the instance: whatever the resolver publishes must survive
+         the reshape, so the next omission reds instead of vanishing. */
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.ok('ECGDSP.parseECG exported', false, 'not loaded');
+        return;
+      }
+      var HDR0 = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var rws = [HDR0],
+        stp = 1000 / 130;
+      for (var z = 0; z < 4000; z++) rws.push('2026-06-17T01:06:17.723;' + Math.round(z * stp * 1e6) + ';' + Math.round(z * stp) + ';' + (100 + (z % 50)));
+      var recR = D.parseECG(rws.join('\n'));
+      var expect = ['fs', 'tMsAt', 'devMsAt', 'tMsCorrected', 'clockResyncs', 'gaps', 't0Ms', 'offsetMin', 'endEpochMs', 'firstRelMs', 'lastRelMs', 'deviceEpoch', 'hostAxis'];
+      var missing = expect.filter(function (k) {
+        return !(k in recR);
+      });
+      T.eq('every timing field the resolver publishes survives the reshape', missing.sort(), []);
+      // ANTI-VACUITY: a trivially short list, or one omitting the field that was actually dropped,
+      // would make the assertion above meaningless.
+      T.ok('ANTI-VACUITY · the expected set is non-trivial and names devMsAt', expect.length >= 10 && expect.indexOf('devMsAt') >= 0, expect.length + ' fields required');
+      T.ok('…and devMsAt is CALLABLE, not merely present-and-undefined', typeof recR.devMsAt === 'function', 'typeof ' + typeof recR.devMsAt);
+    });
+
+    group('ECGDex beat times ride the device COUNTER, not one mean rate (E2)', 'ecgdex-dsp · clock · regression', function (T) {
+      /* `refinePeaks` returned `idx / fs` — ONE mean period for the whole file, spent as a POSITION.
+         The crystal does not hold one rate all night. Measured over the 8 largest H10 nights
+         (2026-09-13), the index axis diverges from each file's OWN ns counter by 0.56-2.62 s, median
+         ~1.05 s, and it fires on nights with ZERO dropouts (5 of the 8) — so it is crystal drift, not
+         dropout accounting. That divergence is the input that made `fitClockDrift` certify a -137 ppm
+         "inter-device drift" neither device exhibits. Against the host on real files:
+             2026-08-07 (0 gaps)  2307 ms -> 158 ms      2026-08-03 (0 gaps)  520 ms -> 213 ms
+             2026-08-25 (5 gaps)  1085 ms -> 588 ms      rMSSD and beat COUNT identical on all three.
+
+         The intervals are not supposed to move — this is a position defect — so the assertions below
+         are about WHERE a beat sits, and the invariance of the interval series is asserted too. */
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.ok('ECGDSP.parseECG available', false, 'not loaded');
+        return;
+      }
+      var HDR = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      /* ⚠️ THE RATE MUST CHANGE WITHIN THE FILE, and getting this wrong makes the whole group vacuous.
+         `fs` is itself DERIVED from the ns column (`1000 * nsStepN / nsStepSum`), so a counter running
+         at a CONSTANT offset is absorbed exactly by that mean and the two axes agree to the last
+         decimal — a first version of this test planted a constant 300 ppm and its own anti-vacuity leg
+         reported `counter 461669 vs idx/fs 461669`. E2 is drift, not offset: the real H10 counters
+         re-trim in discrete plateaus, so no single mean describes the night.
+         Planted here as two halves, −400 ppm then +400 ppm. The global mean lands between them, so the
+         counter and the mean-rate axis separate in the MIDDLE and re-converge near the end — which is
+         why the assertion below probes the midpoint, where a mean-rate axis is furthest from truth. */
+      var N = 60000,
+        PPM = 400,
+        nomStep = 1000 / 130;
+      var rows = [HDR],
+        nsAcc = 0;
+      var nsAt = [];
+      for (var i = 0; i < N; i++) {
+        nsAt.push(nsAcc);
+        rows.push('2026-06-17T01:06:17.723;' + Math.round(nsAcc * 1e6) + ';' + Math.round(i * nomStep) + ';' + (100 + (i % 50)));
+        nsAcc += nomStep * (1 + (i < N / 2 ? -PPM : PPM) / 1e6);
+      }
+      var rec = D.parseECG(rows.join('\n'));
+      T.ok('ANTI-VACUITY · the synthetic exposes a device abscissa at all', typeof rec.devMsAt === 'function' && rec.devMsAt(0) != null, 'devMsAt ' + typeof rec.devMsAt);
+      if (typeof rec.devMsAt === 'function' && rec.devMsAt(0) != null) {
+        // The MIDPOINT is where a single mean rate is furthest from a drifting counter (the two halves
+        // cancel by the end), so that is where the two axes must be compared.
+        var MID = Math.floor(N / 2);
+        var wantEnd = nsAt[MID];
+        var naiveEnd = MID * (1000 / rec.fs);
+        T.approx('the device abscissa tracks the COUNTER at the file midpoint', rec.devMsAt(MID), wantEnd, 5);
+        /* THE DISCRIMINATOR: the counter and the mean-rate axis must actually differ here, or the
+           assertion above is satisfied by both and proves nothing. */
+        T.ok('ANTI-VACUITY · …and the mean-rate axis really is somewhere else', Math.abs(wantEnd - naiveEnd) > 20, 'counter ' + wantEnd.toFixed(0) + ' vs idx/fs ' + naiveEnd.toFixed(0) + ' ms');
+        T.approx('…and `tMsAt` rides it rather than the mean rate', rec.tMsAt(MID) - rec.tMsAt(0), wantEnd, 20);
+        // fractional index — refinePeaks returns sub-sample positions and they must not be rounded
+        T.ok('a fractional index interpolates rather than snapping to a sample', Math.abs(rec.devMsAt(1000.5) - (rec.devMsAt(1000) + rec.devMsAt(1001)) / 2) < 0.01, 'midpoint interpolation');
+      }
+
+      /* ── THE DOUBLE-COUNT TRAP. The counter SPANS a dropout by itself (measured 2026-08-25: the five
+         holes read 7042-17875 nominal steps, not one step each), so the `deadSec` fold that exists to
+         make the INDEX axis span a hole must NOT also be applied here. Planted: a 40 s hole in both
+         columns. The beat clock must span it ONCE. */
+      var G_MS = 40000,
+        HOLE_AT = 30000;
+      var r2 = [HDR],
+        ns2 = 0,
+        ms2 = 0;
+      for (var j = 0; j < N; j++) {
+        if (j === HOLE_AT) {
+          ns2 += G_MS;
+          ms2 += G_MS;
+        }
+        r2.push('2026-06-17T01:06:17.723;' + Math.round(ns2 * 1e6) + ';' + Math.round(ms2) + ';' + (100 + (j % 50)));
+        ns2 += nomStep;
+        ms2 += nomStep;
+      }
+      var recG = D.parseECG(r2.join('\n'));
+      T.ok('ANTI-VACUITY · the planted hole is seen as a gap', recG.gaps.length >= 1, 'gaps=' + recG.gaps.length);
+      if (recG.gaps.length && typeof recG.devMsAt === 'function' && recG.devMsAt(0) != null) {
+        var spanOnce = (N - 1) * nomStep + G_MS;
+        var spanTwice = spanOnce + G_MS;
+        var got = recG.tMsAt(N - 1) - recG.tMsAt(0);
+        T.approx('the hole is counted ONCE — the counter already spans it', got, spanOnce, 200);
+        T.ok(
+          '…and emphatically NOT twice (the fold must not stack on the counter)',
+          Math.abs(got - spanTwice) > G_MS / 2,
+          'got ' + Math.round(got) + ' · once ' + Math.round(spanOnce) + ' · twice ' + Math.round(spanTwice)
+        );
+      }
+
+      /* ── THE FALLBACK. A file with NO usable counter must keep the legacy index axis + fold, byte for
+         byte — that is what keeps every committed fixture and every phone-captured file inert. */
+      var r3 = [HDR.replace(';sensor timestamp [ns]', ';sensor timestamp [ns]')],
+        t3 = 0;
+      for (var k = 0; k < 3000; k++) {
+        r3.push('2026-06-17T01:06:17.723;0;' + Math.round(t3) + ';' + (100 + (k % 40)));
+        t3 += k === 1500 ? 5000 : nomStep;
+      }
+      var recN = D.parseECG(r3.join('\n'));
+      T.ok(
+        'a stuck (all-zero) counter yields NO device abscissa — it is not a clock',
+        typeof recN.devMsAt !== 'function' || recN.devMsAt(0) == null,
+        'devMsAt(0)=' + (typeof recN.devMsAt === 'function' ? recN.devMsAt(0) : 'absent')
+      );
+      T.ok(
+        '…and that file still spans its dropout via the index fold (the legacy path is intact)',
+        recN.tMsAt(2999) - recN.tMsAt(0) > 5000,
+        'span ' + Math.round(recN.tMsAt(2999) - recN.tMsAt(0)) + ' ms over a 5 s hole'
+      );
+    });
+
     group('ECGDex §∅ — an interval straddling a dropout is an ABSENCE, not a correctable beat', 'ecgdex-dsp · absence-as-value · regression', function (T) {
       /* `buildNN` repairs beats that were MIS-MEASURED: low SQI, out of physiological range, ectopic.
          A beat separated from its predecessor by a 74-second hole is none of those — it is a true
