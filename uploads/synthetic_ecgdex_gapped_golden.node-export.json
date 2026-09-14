@@ -12,9 +12,9 @@
   },
   "recording": {
     "source": "ecg",
-    "contentId": "b152b5a59ca1",
+    "contentId": "2fb3200d4319",
     "startEpochMs": 1781658377723,
-    "durSec": 17.067675557980316,
+    "durSec": 17.067675412372537,
     "endEpochMs": 1781658437815,
     "offsetMin": null,
     "events": 0,
