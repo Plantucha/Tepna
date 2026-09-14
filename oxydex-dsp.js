@@ -2092,7 +2092,10 @@
     var spikeRate = spikes && spikes.length ? spikes.length / durationHr : 0;
     // postDipHrResponse is mean bpm arousal — normalize to [0-1] on 0-10 bpm scale
     var postDipAct = rolling && rolling.postDipHrResponse !== null ? Math.max(0, Math.min(1, rolling.postDipHrResponse / 10)) : 0;
-    var aaiLoad = cross ? cross.autoArousalIdx / 5 : 0; // normalise AAI 0-5 scale
+    /* ⚠️ `null / 5` is 0 in JS, so a bare `cross ? … : 0` would convert the absence above straight
+       back into a number — the fabrication moved one line down rather than removed. The guard is on
+       the VALUE, not on `cross` being present. */
+    var aaiLoad = cross && cross.autoArousalIdx != null ? cross.autoArousalIdx / 5 : 0; // normalise AAI 0-5 scale
     var ssi = +(spikeRate * 0.4 + postDipAct * 0.4 + aaiLoad * 0.2).toFixed(3);
     var label = ssi < 0.5 ? 'Low' : ssi < 1.5 ? 'Moderate' : 'High';
     return { ssi: ssi, ssiLabel: label };
@@ -2444,7 +2447,8 @@
     // ── Autonomic / HR ──
     if (n.comp) push('nsi', 'NSI', n.comp.nsi, n.comp.nsi < 20 ? 0 : n.comp.nsi < 40 ? 2 : n.comp.nsi < 60 ? 5 : n.comp.nsi < 80 ? 7 : 10, n.comp.nsi);
     if (n.ssi) push('ssi', 'Symp Surge', n.ssi.ssi, n.ssi.ssi < 0.3 ? 0 : n.ssi.ssi < 0.8 ? 2 : n.ssi.ssi < 1.5 ? 5 : 8, n.ssi.ssi);
-    if (n.cross) push('aai', 'AAI', n.cross.autoArousalIdx, n.cross.autoArousalIdx < 1 ? 0 : n.cross.autoArousalIdx < 3 ? 2 : n.cross.autoArousalIdx < 6 ? 5 : 8, n.cross.autoArousalIdx);
+    if (n.cross && n.cross.autoArousalIdx != null)
+      push('aai', 'AAI', n.cross.autoArousalIdx, n.cross.autoArousalIdx < 1 ? 0 : n.cross.autoArousalIdx < 3 ? 2 : n.cross.autoArousalIdx < 6 ? 5 : 8, n.cross.autoArousalIdx);
     if (n.hrnDip)
       push(
         'hrnDip',
@@ -4397,7 +4401,12 @@
     var n = rows.length;
 
     // Autonomic Arousal Index: (HR spikes + ODI-4 events) / durationHr
-    var autoArousalIdx = durationHr > 0 ? +((spikes.length + odi4.count) / durationHr).toFixed(1) : 0;
+    /* §∅ — AN UNKNOWN DURATION IS NOT A QUIET NIGHT. This read `: 0`, so a recording whose duration
+       could not be established published an arousal index of 0 — in range, indistinguishable from a
+       genuinely calm night, and feeding a `HIGH_AROUSAL_IDX` flag that keys off `>= 5` and a
+       user-visible `AAI` metric graded `heuristic`. A rate whose denominator is unknown is not a
+       small rate; it is not a rate. */
+    var autoArousalIdx = durationHr > 0 ? +((spikes.length + odi4.count) / durationHr).toFixed(1) : null;
 
     // Cardiorespiratory Coupling: Pearson r of SpO2 and HR 5-min rolling means
     var WIN5 = 300,
@@ -4641,7 +4650,8 @@
     }).length;
     var t95pct = n > 0 ? (below95 / n) * 100 : 0;
     t95 = Math.min(t95pct / 15, 1);
-    var aai = cross ? Math.min(cross.autoArousalIdx / 5, 1) : 0;
+    /* same trap as `aaiLoad` above: `Math.min(null / 5, 1)` is 0, not absent */
+    var aai = cross && cross.autoArousalIdx != null ? Math.min(cross.autoArousalIdx / 5, 1) : 0;
     var nsi = +(((dip3 + hbR + t95 + aai) / 4) * 100).toFixed(0);
 
     return { couplingScore: couplingScore, sfi: sfi, nsi: nsi };

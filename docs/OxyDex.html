@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-LKQUq3WJQkmM7MwVTbQ9nuIGHLMC8bpfcAjFs2i02/0=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-Mz2sO/ZQDqrFeY74I0xVBj9h1n3YeW6+cmlIhxPK+CQ=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bu/8g+c1sqihz95o6Zb4ahn/8KD9EG3brkl/c8qZWaU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-pmkM4GTQroQlb4GaUI6RBETJs7WVTR03G7v/A4s2QzA=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-Mz2sO/ZQDqrFeY74I0xVBj9h1n3YeW6+cmlIhxPK+CQ=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bu/8g+c1sqihz95o6Zb4ahn/8KD9EG3brkl/c8qZWaU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-pmkM4GTQroQlb4GaUI6RBETJs7WVTR03G7v/A4s2QzA=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-wJAw41Glc3UbG/D/BNHznjghO1c0ARXPgy3A05ATnCE=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.11.0</title>
@@ -14869,7 +14869,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var spikeRate = spikes && spikes.length ? spikes.length / durationHr : 0;
     // postDipHrResponse is mean bpm arousal — normalize to [0-1] on 0-10 bpm scale
     var postDipAct = rolling && rolling.postDipHrResponse !== null ? Math.max(0, Math.min(1, rolling.postDipHrResponse / 10)) : 0;
-    var aaiLoad = cross ? cross.autoArousalIdx / 5 : 0; // normalise AAI 0-5 scale
+    /* ⚠️ `null / 5` is 0 in JS, so a bare `cross ? … : 0` would convert the absence above straight
+       back into a number — the fabrication moved one line down rather than removed. The guard is on
+       the VALUE, not on `cross` being present. */
+    var aaiLoad = cross && cross.autoArousalIdx != null ? cross.autoArousalIdx / 5 : 0; // normalise AAI 0-5 scale
     var ssi = +(spikeRate * 0.4 + postDipAct * 0.4 + aaiLoad * 0.2).toFixed(3);
     var label = ssi < 0.5 ? 'Low' : ssi < 1.5 ? 'Moderate' : 'High';
     return { ssi: ssi, ssiLabel: label };
@@ -15221,7 +15224,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // ── Autonomic / HR ──
     if (n.comp) push('nsi', 'NSI', n.comp.nsi, n.comp.nsi < 20 ? 0 : n.comp.nsi < 40 ? 2 : n.comp.nsi < 60 ? 5 : n.comp.nsi < 80 ? 7 : 10, n.comp.nsi);
     if (n.ssi) push('ssi', 'Symp Surge', n.ssi.ssi, n.ssi.ssi < 0.3 ? 0 : n.ssi.ssi < 0.8 ? 2 : n.ssi.ssi < 1.5 ? 5 : 8, n.ssi.ssi);
-    if (n.cross) push('aai', 'AAI', n.cross.autoArousalIdx, n.cross.autoArousalIdx < 1 ? 0 : n.cross.autoArousalIdx < 3 ? 2 : n.cross.autoArousalIdx < 6 ? 5 : 8, n.cross.autoArousalIdx);
+    if (n.cross && n.cross.autoArousalIdx != null)
+      push('aai', 'AAI', n.cross.autoArousalIdx, n.cross.autoArousalIdx < 1 ? 0 : n.cross.autoArousalIdx < 3 ? 2 : n.cross.autoArousalIdx < 6 ? 5 : 8, n.cross.autoArousalIdx);
     if (n.hrnDip)
       push(
         'hrnDip',
@@ -17174,7 +17178,12 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     var n = rows.length;
 
     // Autonomic Arousal Index: (HR spikes + ODI-4 events) / durationHr
-    var autoArousalIdx = durationHr > 0 ? +((spikes.length + odi4.count) / durationHr).toFixed(1) : 0;
+    /* §∅ — AN UNKNOWN DURATION IS NOT A QUIET NIGHT. This read `: 0`, so a recording whose duration
+       could not be established published an arousal index of 0 — in range, indistinguishable from a
+       genuinely calm night, and feeding a `HIGH_AROUSAL_IDX` flag that keys off `>= 5` and a
+       user-visible `AAI` metric graded `heuristic`. A rate whose denominator is unknown is not a
+       small rate; it is not a rate. */
+    var autoArousalIdx = durationHr > 0 ? +((spikes.length + odi4.count) / durationHr).toFixed(1) : null;
 
     // Cardiorespiratory Coupling: Pearson r of SpO2 and HR 5-min rolling means
     var WIN5 = 300,
@@ -17418,7 +17427,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     }).length;
     var t95pct = n > 0 ? (below95 / n) * 100 : 0;
     t95 = Math.min(t95pct / 15, 1);
-    var aai = cross ? Math.min(cross.autoArousalIdx / 5, 1) : 0;
+    /* same trap as `aaiLoad` above: `Math.min(null / 5, 1)` is 0, not absent */
+    var aai = cross && cross.autoArousalIdx != null ? Math.min(cross.autoArousalIdx / 5, 1) : 0;
     var nsi = +(((dip3 + hbR + t95 + aai) / 4) * 100).toFixed(0);
 
     return { couplingScore: couplingScore, sfi: sfi, nsi: nsi };
