@@ -571,6 +571,10 @@ function readSources() {
     'pulsedex-app.js',
     'pulsedex-render.js',
     'motiondex-render.js',
+    /* EEGDex's staging engine. Added with the file itself: the `no NEW unscannable source layer`
+       ratchet exists precisely so a new runtime source cannot ship invisible to every lane, and it
+       caught this one on its first build. */
+    'eegdex-dsp.js',
     'hrvdex-app.js',
     'oxydex-app.js',
     'oxydex-render.js',

@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-06 — core BUILT and EXECUTED at corpus scale; the one remaining item is a designed experiment, not an execution. Blocker in §-park) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core BUILT AND EXECUTED, remainder owner-/cost-blocked; verified 2026-09-05: the 09-01 stamp below is superseded).** The tool has since been run twice on the real corpus and a defect it exposed is fixed in main: #2029 (±100 ms first corpus run + half-width sweep at w=50/200/300) and #2034 (`oracleNight` split scoped to the OVERLAP interval, not the ECG's own extent). Outcome: `UNDEFINED (n=0)` **6 → 0**, SIGNAL RECOVERED **2 → 4**, modes **215 · 315 · 355 · 405 ms**, and the two originally-invariant nights held exactly (405→405, 215→215) across a 6× width change. What remains is not tooling: the ±100 ms operating point is the only one whose null tracks `2w/√12` (w=300 misses by 11.2 %), and the 5 out-of-window modes (25/165/185/815/1245 ms) are recorded as a REFUSED-artifact candidate for the tool's owner-decision layer. ⚠️ ORIGINAL 09-01 STAMP, now false: TRIAGED 2026-09-01 (Osprey): tool BUILT and selftest-clean (`tools/pat-window-oracle.mjs --selftest` = 8/8) but NEVER RUN on a corpus and its results are referenced in no brief, audit or doc. **CORRECTED 2026-09-01: NOT blocked — the raw corpus IS local.** My first stamp said this machine has zero `_ECG.txt`; that was wrong because I searched only the repo's `uploads/` tree, which holds node-export JSON. The canonical root is **`/srv/data/tepna-corpus/` (125 GB, 1131 raw `_ECG.txt`)** with per-night raw dirs under `smoketest-captures/` (box), `uploads/vigil-archive/captures/` (daily mirror) and `uploads/Ecg nightly/` (phone). Pointed at `uploads/trio` the oracle exits 0 with `TALLY: {}` — a WRONG-ROOT failure, not a negative result, which is what made the absence look real. Now running against the real root.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§11/§13 oracle) · **Interlocks:** `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey) — RE-RUN under #2082 executed; see the RE-RUN section.** Regression band held exactly (07-24 405->405, 08-17 215->215). Corpus is **48 nights, not 87** — the vigil mirror is a strict subset and one of its nights is an incomplete copy. The unscored-nights Done-when box is **CLOSED**. **Still IN-PROGRESS on one box only:** whether the 20-40 ms residual is slow physiology or an instrumental effect — a research question no run of this tool closes. **Owner: Osprey. Next step:** the phone root's flat-layout defect (50 `_ECG.txt` invisible to the oracle) is the one actionable residue. · **Residue:** 2026-09-02-oracle-flat-root-policy, 2026-09-02-pat-table-row-unreproducible · **2026-09-02 (Osprey):** the overlap split #2034 introduced is now RETURNED by `oracleNight` (`lo`/`mid`/`hi`) and consumed by both sibling tools — see PR body. It had been computed but not returned, so `pat-residual-structure.mjs` and `pat-drift-attribution.mjs` each recomputed the pre-fix ECG-extent midpoint and silently diverged from the oracle they read `mode` from. **A fix that lands in one place while its copies survive is this repo's recurring shape** — which is why the repair is the RETURN VALUE, not a third correct copy. · **SWEEP-FOLD 2026-09-03 (Osprey) — this brief's own published tables have DRIFTED, and it is the clearest case in the corpus.** The published-number sweep (`audits/PUBLISHED-NUMBER-DECAY-SWEEP-2026-09-03.md`) re-ran both tables this brief names. **§6's table: its "reproduces" verdict is WITHDRAWN as CIRCULAR** — I rewrote those values from my own re-run in `40474646` (#2111), so a later re-run tests determinism, not survival. Its real result stands and is **R10**: against the values standing *before* I touched it, **7 of 9 cells had moved**, including a sign-flipped shuffled control, with the qualitative verdict intact. **The drift table DIVERGES 5 of 8 rows**, attributable to my own #2114 picker fix — largest movement 07-18 ratio 33.74 → 7.25, on the most-fragmented night (110 ECG / 555 PPG), exactly where a size-sort and an overlap-sort disagree most. ⚠️ **"Predates a correctness fix" is NOT "was wrong"** — every verdict in that table still holds, and the distinction must survive any quotation. **Consequence for this header: do NOT stamp this brief cleared on either table.** Neither records the commit or the corpus that produced it, so neither can be aged, flagged, or re-derived without a hand re-run. Owner: Osprey; the corpus run remains the next step, and it now also owes a provenance line per table.
+**Status:** PROPOSED (⚠️ 2026-09-14: the HALVES diagnostic this tool has always printed was never read — it disagrees on 90 % of scored nights, median 130/120 ms, and on EVERY SIGNAL RECOVERED night; 2026-08-12 crosses the PPG-FOOT-PLACEMENT rail depending on which half you read. See the 🔴 section. The recovered CONCENTRATION is untouched.) · PROPOSED (parked 2026-09-06 — core BUILT and EXECUTED at corpus scale; the one remaining item is a designed experiment, not an execution. Blocker in §-park) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core BUILT AND EXECUTED, remainder owner-/cost-blocked; verified 2026-09-05: the 09-01 stamp below is superseded).** The tool has since been run twice on the real corpus and a defect it exposed is fixed in main: #2029 (±100 ms first corpus run + half-width sweep at w=50/200/300) and #2034 (`oracleNight` split scoped to the OVERLAP interval, not the ECG's own extent). Outcome: `UNDEFINED (n=0)` **6 → 0**, SIGNAL RECOVERED **2 → 4**, modes **215 · 315 · 355 · 405 ms**, and the two originally-invariant nights held exactly (405→405, 215→215) across a 6× width change. What remains is not tooling: the ±100 ms operating point is the only one whose null tracks `2w/√12` (w=300 misses by 11.2 %), and the 5 out-of-window modes (25/165/185/815/1245 ms) are recorded as a REFUSED-artifact candidate for the tool's owner-decision layer. ⚠️ ORIGINAL 09-01 STAMP, now false: TRIAGED 2026-09-01 (Osprey): tool BUILT and selftest-clean (`tools/pat-window-oracle.mjs --selftest` = 8/8) but NEVER RUN on a corpus and its results are referenced in no brief, audit or doc. **CORRECTED 2026-09-01: NOT blocked — the raw corpus IS local.** My first stamp said this machine has zero `_ECG.txt`; that was wrong because I searched only the repo's `uploads/` tree, which holds node-export JSON. The canonical root is **`/srv/data/tepna-corpus/` (125 GB, 1131 raw `_ECG.txt`)** with per-night raw dirs under `smoketest-captures/` (box), `uploads/vigil-archive/captures/` (daily mirror) and `uploads/Ecg nightly/` (phone). Pointed at `uploads/trio` the oracle exits 0 with `TALLY: {}` — a WRONG-ROOT failure, not a negative result, which is what made the absence look real. Now running against the real root.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§11/§13 oracle) · **Interlocks:** `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey) — RE-RUN under #2082 executed; see the RE-RUN section.** Regression band held exactly (07-24 405->405, 08-17 215->215). Corpus is **48 nights, not 87** — the vigil mirror is a strict subset and one of its nights is an incomplete copy. The unscored-nights Done-when box is **CLOSED**. **Still IN-PROGRESS on one box only:** whether the 20-40 ms residual is slow physiology or an instrumental effect — a research question no run of this tool closes. **Owner: Osprey. Next step:** the phone root's flat-layout defect (50 `_ECG.txt` invisible to the oracle) is the one actionable residue. · **Residue:** 2026-09-02-oracle-flat-root-policy, 2026-09-02-pat-table-row-unreproducible, 2026-09-14-oracle-mode-not-stable-across-halves · **2026-09-02 (Osprey):** the overlap split #2034 introduced is now RETURNED by `oracleNight` (`lo`/`mid`/`hi`) and consumed by both sibling tools — see PR body. It had been computed but not returned, so `pat-residual-structure.mjs` and `pat-drift-attribution.mjs` each recomputed the pre-fix ECG-extent midpoint and silently diverged from the oracle they read `mode` from. **A fix that lands in one place while its copies survive is this repo's recurring shape** — which is why the repair is the RETURN VALUE, not a third correct copy. · **SWEEP-FOLD 2026-09-03 (Osprey) — this brief's own published tables have DRIFTED, and it is the clearest case in the corpus.** The published-number sweep (`audits/PUBLISHED-NUMBER-DECAY-SWEEP-2026-09-03.md`) re-ran both tables this brief names. **§6's table: its "reproduces" verdict is WITHDRAWN as CIRCULAR** — I rewrote those values from my own re-run in `40474646` (#2111), so a later re-run tests determinism, not survival. Its real result stands and is **R10**: against the values standing *before* I touched it, **7 of 9 cells had moved**, including a sign-flipped shuffled control, with the qualitative verdict intact. **The drift table DIVERGES 5 of 8 rows**, attributable to my own #2114 picker fix — largest movement 07-18 ratio 33.74 → 7.25, on the most-fragmented night (110 ECG / 555 PPG), exactly where a size-sort and an overlap-sort disagree most. ⚠️ **"Predates a correctness fix" is NOT "was wrong"** — every verdict in that table still holds, and the distinction must survive any quotation. **Consequence for this header: do NOT stamp this brief cleared on either table.** Neither records the commit or the corpus that produced it, so neither can be aged, flagged, or re-derived without a hand re-run. Owner: Osprey; the corpus run remains the next step, and it now also owes a provenance line per table.
 
 # There IS signal under the window — the acceptance window is mis-specified, not merely wide
 
@@ -541,6 +541,71 @@ under a real run: 2 x `missing _ECG.txt`, 2 x `too few beats` with both counts (
 recorded on 2026-09-01: the night's best pair really is disjoint, and the earlier `0.04 h` figure was a
 FILE-span, not a train overlap.
 
+
+## 🔴 THE HALVES DIAGNOSTIC HAS NEVER BEEN READ — and it disagrees on 90 % of nights (2026-09-14, Kestrel)
+
+`pat-window-oracle.mjs` already computes `modeB`, the mode re-estimated on the night's **second** half,
+and its own comment calls it *"the out-of-sample invariance check a consumer can read off the verdict
+line."* The label carries `halves ≡` (|modeB − mode| ≤ `BIN_MS` = 10 ms) or `halves 315→195 ⚠`.
+
+**No brief has ever reported that tally.** Every published outcome here is a tally of BAND labels —
+`4 SIGNAL RECOVERED / 20 PARTIAL / …` — never of halves. The mechanism is wired, printed on every
+line, and unread. Measured now, on both capture trees:
+
+| | scored nights | `halves ≡` | ≤10 ms | 10–50 | 50–150 | >150 | median &#124;Δ&#124; | max |
+|---|---|---|---|---|---|---|---|---|
+| `uploads/vigil-archive` | 30 | **3 (10 %)** | 3 | 4 | 11 | 12 | **130 ms** | 590 |
+| `tepna-smoketest` | 35 | **5 (14 %)** | 5 | 9 | 11 | 10 | **120 ms** | 590 |
+
+Bands were stated before the runs finished: ≤10 invariant · 10–50 plausible physiological drift ·
+50–150 too large for transit · >150 not one quantity. **The median night sits in the third band on both
+trees**, and I predicted ≥ 80 % `≡` — **falsified**, which is recorded here because it was.
+
+### ⚠️ What this does NOT say — the recovered concentration is REAL
+
+The three box `SIGNAL RECOVERED` nights read `narrowSD` **16.5 / 18.0 / 17.6 ms** against `nullSD`
+**57.8 / 57.8 / 57.6**, and 57.7 is exactly `200/√12` — the null is uniform across the narrow band, as
+designed, and the real arm is three times tighter. **That concentration is not an artifact and this
+section does not touch it.** A night can hold a tight cluster near the first-half mode *and* a larger
+cluster elsewhere that wins the second half's global mode; both facts are true together.
+
+### What it does say — the quoted mode is a FIRST-HALF property, not a night property
+
+Every single `SIGNAL RECOVERED` night disagrees — **3 of 3 (box), 5 of 5 (smoke)** — by 80 to 160 ms:
+
+```
+2026-08-12   SIGNAL RECOVERED   mode 315 ms   halves 315 → 195  (Δ120)
+2026-08-17   SIGNAL RECOVERED   mode 215 ms   halves 215 → 315  (Δ100)
+2026-08-29   SIGNAL RECOVERED   mode 225 ms   halves 225 → 385  (Δ160)
+```
+
+`papers/null-calibration.html` states the reading: **"a constant that will not stay constant is a
+missing term."** The mode is quoted throughout this campaign as *the* location statistic precisely
+because it is `w`-invariant; `w`-invariance is not time-invariance, and only the first was ever checked.
+
+🔴 **And it changes a bar outcome, concretely.** `PPG-FOOT-PLACEMENT` §4a's re-stated bar is *SIGNAL
+RECOVERED with the mode inside a **200–500 ms** rail.* **2026-08-12's first half returns 315 ms (inside)
+and its second half 195 ms (OUTSIDE — below `PHYS_LO` itself).** That night passes or fails the bar
+according to which half of it you look at, and nothing in the pipeline surfaces the choice.
+
+### The confound was named in advance, and checked rather than assumed
+
+`ALLAN-DEVIATION-2026-08-12` warns that a halves comparison *"had to be redone because each half was
+quoted at its own centroid."* The concern here is that `mode` is taken from `rawLags(rA, fTimes)` and
+`modeB` from `rawLags(rB, fTimes)` — both against **all** feet, which looks asymmetric. It is not:
+`rawLags` takes the **nearest forward foot** per R, so each R is matched locally and "all feet" is
+inert. The two halves are constructed symmetrically and the comparison is sound.
+
+### The selftest cannot catch this, by construction
+
+The only assertion on `modeB` anywhere in the tree is `pat-window-oracle.mjs:379`, and it runs on a
+night synthesised as `F = R.map(r => r + 700 + rnd()*14)` — **a lag that is constant by construction.**
+`null-calibration.html`'s addendum names exactly this: *"a known-answer planted under the model's own
+assumptions is guaranteed to pass, however wrong the model is"*, prescribing *"plant your known-answer
+under a model you are not assuming."* A drifting-lag plant is owed and is logged as residue
+`2026-09-14-oracle-halves-plant-is-constant-by-construction`.
+
+Logged as `2026-09-14-oracle-mode-not-stable-across-halves`.
 
 ## 7 · Done when
 
