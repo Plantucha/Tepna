@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (item 1 EXECUTED 2026-09-14 — the clock-offset hypothesis is SUPPORTED by its pre-stated rule and the instrument it needed was already committed; see §8. Item 2 remains open and its proposed 200-500 ms rail is the WRONG ANATOMY - read §8.5 before building it.) · **Residue:** 2026-09-14-phys-rail-is-arm-band-on-an-ankle · PROPOSED (parked 2026-09-06 — dependency satisfied since #2029/#2034, but both remaining items need instruments that do not exist yet. Blocker in §-park) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core UNBLOCKED, remainder unexecuted; verified 2026-09-05).** The 09-01 stamp said this brief waits on oracle output that had never been produced. **That dependency is now satisfied**: #2029 and #2034 produced corpus-wide oracle verdicts over 43 box nights (4 SIGNAL RECOVERED / 20 PARTIAL / 5 NO RECOVERY / 0 UNDEFINED), so the regime split is now readable. Nobody has executed it. ⚠️ ORIGINAL 09-01 STAMP, superseded: TRIAGED 2026-09-01 (Osprey): not independently executed this pass. Shares the WINDOW-ORACLE dependency — the regime split is read off oracle output, which had never been produced against a corpus. That is now executable locally; see that brief's corrected stamp.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§12 oracle · §16 gate self-selection · §17 corpus table) · **Interlocks:** `PAT-FORENSICS-FIDUCIAL-JITTER-2026-08-28-BRIEF.md`, `PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey):** re-verified — still gated on WINDOW-ORACLE output, which is exactly what this drain's oracle re-run (post-#2082 fragment pairing) supplies. **Owner: Osprey. Next step:** read the regime split off the new oracle output once that run's results land in the WINDOW-ORACLE brief; do not re-run the oracle for it. · **SWEEP-FOLD 2026-09-03 (Osprey) — the dependency is not merely unrun, its INPUT has moved.** This brief's regime split is read off WINDOW-ORACLE output, and the sweep measured that output's published tables diverging (§6 withdrawn as circular, real result 7 of 9 cells moved; drift table 5 of 8 rows) under my #2114 picker fix. So the split does not merely await a corpus run — **any regime boundary quoted from the pre-#2114 oracle rests on numbers that have since changed.** Unchanged otherwise since the 2026-09-01 triage. Owner: Osprey. **Next step:** unchanged — take the split from a POST-#2114 oracle run, and do not carry forward a boundary derived from the published tables.
+**Status:** PROPOSED (item 1 EXECUTED 2026-09-14 — the clock-offset hypothesis is TESTED and its verdict is NOT STABLE across two 80%-overlapping trees, see §8.6 before quoting §8.2. The instrument it needed was already committed. Item 2 remains open and its proposed 200-500 ms rail is the WRONG ANATOMY - read §8.5 before building it.) · **Residue:** 2026-09-14-phys-rail-is-arm-band-on-an-ankle, 2026-09-14-regimes-item1-verdict-not-stable · PROPOSED (parked 2026-09-06 — dependency satisfied since #2029/#2034, but both remaining items need instruments that do not exist yet. Blocker in §-park) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core UNBLOCKED, remainder unexecuted; verified 2026-09-05).** The 09-01 stamp said this brief waits on oracle output that had never been produced. **That dependency is now satisfied**: #2029 and #2034 produced corpus-wide oracle verdicts over 43 box nights (4 SIGNAL RECOVERED / 20 PARTIAL / 5 NO RECOVERY / 0 UNDEFINED), so the regime split is now readable. Nobody has executed it. ⚠️ ORIGINAL 09-01 STAMP, superseded: TRIAGED 2026-09-01 (Osprey): not independently executed this pass. Shares the WINDOW-ORACLE dependency — the regime split is read off oracle output, which had never been produced against a corpus. That is now executable locally; see that brief's corrected stamp.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§12 oracle · §16 gate self-selection · §17 corpus table) · **Interlocks:** `PAT-FORENSICS-FIDUCIAL-JITTER-2026-08-28-BRIEF.md`, `PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey):** re-verified — still gated on WINDOW-ORACLE output, which is exactly what this drain's oracle re-run (post-#2082 fragment pairing) supplies. **Owner: Osprey. Next step:** read the regime split off the new oracle output once that run's results land in the WINDOW-ORACLE brief; do not re-run the oracle for it. · **SWEEP-FOLD 2026-09-03 (Osprey) — the dependency is not merely unrun, its INPUT has moved.** This brief's regime split is read off WINDOW-ORACLE output, and the sweep measured that output's published tables diverging (§6 withdrawn as circular, real result 7 of 9 cells moved; drift table 5 of 8 rows) under my #2114 picker fix. So the split does not merely await a corpus run — **any regime boundary quoted from the pre-#2114 oracle rests on numbers that have since changed.** Unchanged otherwise since the 2026-09-01 triage. Owner: Osprey. **Next step:** unchanged — take the split from a POST-#2114 oracle run, and do not carry forward a boundary derived from the published tables.
 
 # PAT clears its own bar on 1 night in 42 — and the failure is the acceptance window, not the sensors
 
@@ -250,17 +250,81 @@ own midpoint — and the two are indistinguishable at `[200, 650]`. **Re-run at 
 not 425**: if the reported lag follows the midpoint, the lag is the window; if it stays near 426, it is
 physiology. One run, decisive, and it settles item 2's premise before any constraint is built.
 
+## 8.6 · 🔴 CORRECTION, same day (#2490 → this) — the replication leg landed and the verdict does NOT hold
+
+§8.2 committed in advance that *"a replication that disagrees with the primary is reported as a
+disagreement, not averaged into one verdict."* It disagrees. This section is that report.
+
+The replication leg of §8.1 — `pat-host-offset.mjs` on the **brief's own tree**,
+`/home/michal/tepna-smoketest/captures` — was still running when #2490 was pushed; §8.2 carried only
+its *regime* replication, which did hold. The correlation leg finished afterwards:
+
+| | primary (`uploads/vigil-archive`) | replication (**the brief's own tree**) |
+|---|---|---|
+| n | 22 | 25 |
+| Spearman(`driftMs`, PAT SD) | **ρ 0.644**, p 0.0021 | **ρ 0.388**, p 0.0584 |
+| pre-stated verdict | **SUPPORTED** | **INCONCLUSIVE** |
+
+**And these are not two samples. 20 of the 25 nights are the same recordings.** The trees differ by
+five nights present only in the replication and two only in the primary. Swapping seven nights out of
+twenty-five moves ρ by 0.256 and carries the verdict across its own pre-stated boundary.
+
+**One night does most of it. `2026-07-24`: `driftMs` 1151 ms — the third-largest offset excursion in
+the corpus — at PAT SD 65.9 ms, the LOWEST SD of any joined night.** It is a direct counterexample to
+the mechanism: the hypothesis says a large inter-device offset smears the pairing into the window, and
+this night has a large offset and the tightest PAT distribution measured. Leave-one-out confirms it
+carries the disagreement — dropping it alone lifts ρ from 0.388 to 0.539.
+
+**The predictor ranking also flips between the trees, which is the deeper problem:**
+
+```
+                        primary      replication
+Spearman(driftMs, SD)     0.644  →      0.388
+Spearman(|ppmP|, SD)      0.561  →      0.736     ← the Verity's own host divergence
+Spearman(|ppmE|, SD)      0.144         0.077     ← the H10's: no signal on either tree
+```
+
+On one tree the inter-device rate is the better predictor; on an 80 %-overlapping superset the
+Verity-vs-host rate is, by a wide margin. **Whatever is real here looks like a property of ONE
+device's divergence from the capture host, not of a differential between two devices** — and the
+hypothesis §4 names is specifically the differential. `|ppmE|` predicts nothing on either tree, which
+is the control that makes this readable rather than a coin-flip between two correlated variables.
+
+### What this does to the Done-when box
+
+**Item 1 stays TESTED and its verdict is now NOT STABLE.** That is not a downgrade from SUPPORTED to
+INCONCLUSIVE — it is the statement that this corpus cannot distinguish the two, because a seven-night
+change of sample moves the answer across the boundary. §8.3 already said the mechanism was not
+established; §8.6 says the *correlation itself* is not established.
+
+⚠️ **The primary/replication split was my choice and it decided the verdict.** §8.1's amendment made
+`uploads/vigil-archive` primary for join-exactness. The brief's own tree — the one §2 and §3 were
+measured on, and the larger one — is the tree that returns INCONCLUSIVE. Had I launched in the other
+order, the same work would have reported the same numbers under the opposite headline. **A verdict
+that depends on which of two overlapping trees you happened to start with is a sampling artifact, and
+the pre-stated rule is what made that visible rather than a matter of taste.**
+
+**What would settle it** is not more statistics on these nights. Either (a) `2026-07-24` is explained
+— a 159.9 ppm night with a 65.9 ms PAT SD is either the counterexample it appears to be or an
+instrumental artifact, and `2026-09-14-host-offset-drops-nights-silently` shows this join is not yet
+trustworthy enough to assume the former; or (b) the corpus grows enough that seven nights cannot move
+the verdict. Logged as residue `2026-09-14-regimes-item1-verdict-not-stable`.
+
 ## 7 · Done when
 
 - [x] Full-corpus run, untruncated, all 42 nights, zero-yield rows counted.
 - [x] Regimes classified against principled bands; shares reported.
 - [x] Four candidate explanations for regime membership eliminated by measurement.
 - [x] **Clock-offset hypothesis tested against regime membership — §8, EXECUTED 2026-09-14.**
-      Pre-stated rule returns **SUPPORTED** (Spearman ρ 0.644, n 22, permutation p 0.0021; ρ 0.607 with
-      the three link-artifact nights dropped). ⚠️ Ticked as *tested*, which is what the box asks — **not**
-      as *mechanism established*: §8.3 records that the predictor is entangled with foot-to-foot SD
-      (ρ 0.439), that the outcome is at the 450/√12 ceiling on 13 of 22 nights, and that the largest
-      `dPpm` values are link artifacts rather than crystal rates. The instrument was already committed
+      Ticked as *tested*, which is what the box asks. 🔴 **The verdict is NOT STABLE — read §8.6 before
+      quoting any number from §8.2.** The pre-stated rule returns **SUPPORTED** on
+      `uploads/vigil-archive` (ρ 0.644, n 22, p 0.0021) and **INCONCLUSIVE** on the brief's own
+      `tepna-smoketest` tree (ρ 0.388, n 25, p 0.0584) — and those are not two samples, they share 20
+      of 25 nights. `2026-07-24` alone carries the disagreement: the third-largest offset excursion in
+      the corpus sitting at the *lowest* PAT SD, which is the counterexample the mechanism forbids.
+      §8.3 additionally records that the predictor is entangled with foot-to-foot SD (ρ 0.439), that
+      the outcome is at the 450/√12 ceiling on 13 of 22 nights, and that the largest `dPpm` values are
+      link artifacts rather than crystal rates. The instrument was already committed
       (`tools/pat-host-offset.mjs`); nothing had to be built.
 - [ ] Oracle: does a physiologically-anchored window recover signal above the sensor floor?
       ⚠️ **Do not build the 200–500 ms rail §-park proposes without reading §8.5 first** — the pair is
