@@ -366,6 +366,12 @@
        and would silently diverge the day someone "fixed" one of the two. There is now exactly one ×1.1
        in the suite, in oxydex-dsp, and the end-to-end known-answer leg gates it there. */
     out.ahiOxyEst = night.ahiEst && night.ahiEst.ahiODI4 != null ? night.ahiEst.ahiODI4 : null;
+    /* `computeAHIestimates` produces TWO estimates and this adapter used to surface only one, which
+       is why the other had never been evaluated against a real scored AHI by anything: every NSRR
+       measurement in this repo reads the adapter, and what the adapter drops is invisible to all of
+       them. `ahiKulkas` is the internal linear model `0.8*ODI3 + 0.6*DesSev + 0.15*T95 - 1.2`
+       (oxydex-dsp.js). Additive and null-safe; `ahiOxyEst` is unchanged for every existing caller. */
+    out.ahiKulkas = night.ahiEst && night.ahiEst.ahiKulkas != null ? night.ahiEst.ahiKulkas : null;
     out.minSpo2 = night.stats ? night.stats.minSpo2 : null;
     out.t90 = night.stats ? night.stats.t90pct : null;
     out.durMin = night.stats ? night.stats.durationMin : null;
