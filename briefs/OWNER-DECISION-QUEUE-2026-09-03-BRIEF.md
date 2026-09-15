@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** CHECKPOINT (living — last-verified 2026-09-03) · **Created:** 2026-09-03
+**Status:** CHECKPOINT (living — last-verified **2026-09-15**) · **Created:** 2026-09-03 · **Owner rulings 2026-09-15 (Kestrel, one batch):** **D2 AUTHORIZED** — the named set of four, PLUS a new rail-keyed sidecar rule in `capture-host/writers.py` (floor 5, alongside `rule=stuck` at 200); authorization does NOT generalise to other box touches. **D4 — all three DECLINED**, closed as negatives, not deferrals. **D5 — all three RATIFIED.** **D8 — YES**, build the two-channel dual-wavelength ingest. ⚠️ **D6 WAS ALREADY DECIDED ON 2026-09-07 (option C) and this file still listed it as open** — the queue was `last-verified 2026-09-03` while the ruling landed four days later, so it manufactured a re-ask. **Still open: D3 and D7.**
 
 # The owner decision queue — 8 calls that unblock ~44 briefs
 
@@ -80,6 +80,11 @@ strapped-idle-H10 window.
 
 ### D2 · Vigil deploy/config authorization — **4**
 
+> ✅ **AUTHORIZED 2026-09-15.** The named set below, plus the rail-keyed sidecar rule (floor 5) that
+> `capture-host/writers.py` needs so its sidecars record BLANKING and not only stalls. Measured on 1.79 M
+> real samples: rail-keyed at floor 5 costs **56 rows/night** against today's 3, where lowering the
+> all-value `T_STUCK` to 5 would cost **55,503**. Authorization covers these touches only.
+
 One authorization over a **named set** of box touches. Deploys to `vigil` are owner-authorized only and
 no peer relay changes that boundary, so these cannot be self-served however small each one is.
 
@@ -94,16 +99,27 @@ no peer relay changes that boundary, so these cannot be self-served however smal
 
 ### D4 · Purchases — **3** (a "no" closes them as negatives, which is why they are cheap)
 
+> ⛔ **ALL THREE DECLINED 2026-09-15** — closed as negatives, not deferred. ⚠️ Consequence to carry
+> forward: every O2Ring finding rests on ONE unit, so device-specific and model-specific causes cannot be
+> separated. State that limit; do not re-propose the purchase.
+
 `O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS` (a second O2Ring) · `R5-HR-TRIPLET-REFERENCE` (the owner has
 confirmed no ResMed oximeter module exists — a purchase, not a cable) · `CROSS-DOMAIN-METHODS-FOLLOWUPS`
 
 ### D5 · Programme greenlights — **3**
+
+> ✅ **ALL THREE RATIFIED 2026-09-15.** Ratifying `SPORT-CAPTURE-ANDROID` implies deciding who acquires
+> an Android toolchain — no fleet session owns one.
 
 `QWEN-ENGINEERING-PROGRAM` (awaiting ratification; only the P0 idle-lane DSP review runs without it) ·
 `SPORT-CAPTURE-ANDROID` (no fleet session owns an Android toolchain) · `MEASUREMENT-PROVENANCE-ROADMAP`
 (none of its six done-when items can start before the call)
 
 ### D6 · The box privilege model — A/B/C
+
+> ✅ **DECIDED 2026-09-07 — option (C)**, do not automate root; the *make the drift loud* half already
+> shipped is the delivery. Recorded here 2026-09-15: this queue listed it as open for twelve days after the
+> ruling, which is the whole failure mode a decision queue exists to prevent.
 
 `VIGIL-AUTO-UPDATE-FOLLOWUPS` — nothing else in that brief moves until the pick is recorded, and
 `VIGIL-OFFLOAD-AND-RETENTION` sits downstream of it.
@@ -114,6 +130,9 @@ confirmed no ResMed oximeter module exists — a purchase, not a cable) · `CROS
 (σ 2.87/1.18/0.68, ρ\* 0.576) is with the owner as a planted-sigma check.
 
 ### D8 · Scope/gate calls
+
+> ✅ **YES 2026-09-15** — build the two-channel O2Ring dual-wavelength ingest. The stream is already being
+> captured (79 `PPG2WRUNS.txt` sidecars on the box); only the ingest was missing.
 
 `O2RING-RAW-DUAL-WAVELENGTH` — decide whether a two-channel ingest is wanted **before** anyone builds
 it, which is the cheapest possible moment to ask.

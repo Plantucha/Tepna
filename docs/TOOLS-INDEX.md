@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**189 tools** · 187 with a purpose line · **2 without**
+**190 tools** · 188 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -26,6 +26,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`beat-error-recovery.mjs`](../tools/beat-error-recovery.mjs) | beat-error-recovery — target 6 of KNOWN-CLOCK-ADVERSARIAL-CAPTURE: inject beat-detection errors of KNOWN type and rate into a real beat train, run the shipped HRV path, and measure the… |
 | [`beat-injection-recovery.mjs`](../tools/beat-injection-recovery.mjs) | beat-injection-recovery — the artificial-star test for a beat detector. |
 | [`beat-leg-closure.mjs`](../tools/beat-leg-closure.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ THREE-SOURCE DRIFT CLOSURE for H10 ↔ Verity ↔ capture host (WEARABLE-DRIFT-DIRECT §7.3/§7.4). |
+| [`box-sample.mjs`](../tools/box-sample.mjs) | // // box-sample.mjs — periodic resource sampler for a remote capture host. |
 | [`brief-verified-index.mjs`](../tools/brief-verified-index.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ WHEN WAS EACH OPEN BRIEF LAST *VERIFIED* — not last edited, and not how open it looks. |
 | [`build-analysis.mjs`](../tools/build-analysis.mjs) | Make the science/analysis tools SELF-CONTAINED single-file HTML, so they run when a user downloads ONE.html to disk and opens it over file:// — the way the bundled apps already do. |
 | [`build-docs.mjs`](../tools/build-docs.mjs) | Build the public GitHub-Pages deploy snapshot in../docs (the served root per docs/SITE-DEPLOY-AND-LAYOUT.md §D) from the repo-root source of truth. |
