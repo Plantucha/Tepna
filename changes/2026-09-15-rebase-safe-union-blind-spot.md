@@ -14,10 +14,16 @@ A union driver cannot represent an **edit**. Appends merge cleanly, which is wha
 but editing a line — closing a `briefs/RESIDUE.md` row's state cell — leaves both the old line and the
 new one, and the ledger then contradicts itself about whether the defect is live.
 
-Measured 2026-09-15 with `merge-tree`: merging a one-cell RESIDUE edit into current `main` exits **0 with
-no conflict markers** and yields **160 rows against 158 unique keys**. And a rebase is not the safe
-alternative — it replays the diff through the same driver; `#2506`'s own rebase duplicated a row. So the
-repo's prescribed remedy for a stale branch is, for these paths, the instrument that causes the problem.
+Measured 2026-09-15, and pinned so it stays reproducible after `main` moves: `git merge-tree` of **#2509**
+(head `82a75c11`, a one-cell RESIDUE state-cell edit) against `main` at **`2c1c4055`** exits **0 with no
+conflict markers** and yields **160 rows against 158 unique keys** — the two duplicated keys being
+`2026-09-14-vigil-sh-tests-leak-stub-servers` and `2026-09-14-oracle-mode-search-bound-never-varied`.
+
+⚠️ A rebase is **not** the safe alternative — it replays the diff through the same driver. That half is
+**Kestrel's measurement, not mine**: `#2506`'s own rebase duplicated a row, reproduced independently by
+Osprey at 160 rows / 159 unique. Attributed rather than absorbed, because a relayed figure that loses its
+measurer is how a number becomes unreproducible. So the repo's prescribed remedy for a stale branch is,
+for these paths, the instrument that causes the problem.
 
 `.gitattributes` already records this at the `RESIDUE.md` rule, which is precisely where a reader of
 `rebase-safe.mjs` will not look. The contract is corrected at the point of use, and `checkUnionPaths`
