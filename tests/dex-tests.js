@@ -27720,7 +27720,10 @@
          #2509 → 2, each a merge with exit 0 and no conflict markers. A REBASE is not the safe
          alternative — it replays the diff through the same driver. */
       var dup = env.rebaseDuplicateLedgerKeys;
-      if (typeof dup !== 'function') { T.skip('rebaseDuplicateLedgerKeys not in env'); return; }
+      if (typeof dup !== 'function') {
+        T.skip('rebaseDuplicateLedgerKeys not in env');
+        return;
+      }
 
       /* POSITIVE CONTROL — an EDIT surviving twice, which is what a union driver does to a closed row. */
       var corrupted = [
@@ -27742,7 +27745,7 @@
         '| key | a second mention of the same label |',
         '| 2026-09-14-a-real-row | 2026-09-14 | `x.py` | d | e | OPEN |'
       ].join('\n');
-      T.eq('the file\'s own contract table is NOT mistaken for duplicated rows', dup(contractTable).length, 0);
+      T.eq("the file's own contract table is NOT mistaken for duplicated rows", dup(contractTable).length, 0);
 
       T.eq('an empty or absent file yields no keys rather than throwing', dup('').length + dup(null).length, 0);
     });
