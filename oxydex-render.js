@@ -930,8 +930,10 @@ function renderAll() {
       // Mini-metrics row
       html += '<div class="readiness-scores-grid">';
       if (s0.meanSpo2 != null) {
-        var spo2Cls = s0.meanSpo2 >= 95 - upSpo2Adj() ? 'ok' : s0.meanSpo2 >= 92 - upSpo2Adj() ? 'warn' : 'bad';
-        html += '<div class="readiness-subscore"><div class="rs-val ' + spo2Cls + '">' + evBadge('SpO₂') + s0.meanSpo2 + '%</div><div class="rs-label">SpO₂</div></div>';
+        var spo2Cls = sev(s0.meanSpo2, function (v) {
+          return v >= 95 - upSpo2Adj() ? 'ok' : v >= 92 - upSpo2Adj() ? 'warn' : 'bad';
+        });
+        html += '<div class="readiness-subscore"><div class="rs-val ' + spo2Cls + '">' + evBadge('SpO₂') + nzv(s0.meanSpo2, '%') + '</div><div class="rs-label">SpO₂</div></div>';
       }
       if (last.hrv && last.hrv.hrSdnn != null) {
         var hrvCls = last.hrv.hrSdnn >= 4 ? 'ok' : last.hrv.hrSdnn >= 2.5 ? 'warn' : 'bad';
@@ -940,7 +942,9 @@ function renderAll() {
       if (s0.durationMin) {
         var dh = Math.floor(s0.durationMin / 60),
           dm = Math.round(s0.durationMin % 60);
-        var durCls = s0.durationMin >= 360 ? 'ok' : s0.durationMin >= 300 ? 'warn' : 'bad';
+        var durCls = sev(s0.durationMin, function (v) {
+          return v >= 360 ? 'ok' : v >= 300 ? 'warn' : 'bad';
+        });
         html += '<div class="readiness-subscore"><div class="rs-val ' + durCls + '">' + evBadge('Sleep') + dh + 'h' + (dm < 10 ? '0' : '') + dm + 'm</div><div class="rs-label">Sleep</div></div>';
       }
       if (last.hrv && last.hrv.hrFloor != null) {
@@ -2041,10 +2045,34 @@ function renderSmartSummary(n) {
   html += '<div class="proj-header">' + '<span class="cat-tag cat-ox">O₂</span>' + '<span class="proj-title">Oxygen</span>' + '</div>';
   html += '<div class="ss-kpi-grid">';
   if (st) {
-    html += ssKPI('Mean SpO₂', cv(st.meanSpo2, 93 - upSpo2Adj(), 95 - upSpo2Adj(), '%', true), st.meanSpo2 >= 95 - upSpo2Adj() ? 'good' : st.meanSpo2 >= 93 - upSpo2Adj() ? 'warn' : 'bad');
-    html += ssKPI('Min SpO₂', cv(st.minSpo2, 85 - upSpo2Adj(), 90 - upSpo2Adj(), '%', true), st.minSpo2 >= 90 - upSpo2Adj() ? 'good' : st.minSpo2 >= 85 - upSpo2Adj() ? 'warn' : 'bad');
-    html += ssKPI('T95% Time', cv(st.t95pct, 5, 15, '%'), st.t95pct < 5 ? 'good' : st.t95pct < 15 ? 'warn' : 'bad');
-    html += ssKPI('T90% Time', cv(st.t90pct, 0.5, 2, '%'), st.t90pct < 0.5 ? 'good' : st.t90pct < 2 ? 'warn' : 'bad');
+    html += ssKPI(
+      'Mean SpO₂',
+      cv(st.meanSpo2, 93 - upSpo2Adj(), 95 - upSpo2Adj(), '%', true),
+      sev(st.meanSpo2, function (v) {
+        return v >= 95 - upSpo2Adj() ? 'good' : v >= 93 - upSpo2Adj() ? 'warn' : 'bad';
+      })
+    );
+    html += ssKPI(
+      'Min SpO₂',
+      cv(st.minSpo2, 85 - upSpo2Adj(), 90 - upSpo2Adj(), '%', true),
+      sev(st.minSpo2, function (v) {
+        return v >= 90 - upSpo2Adj() ? 'good' : v >= 85 - upSpo2Adj() ? 'warn' : 'bad';
+      })
+    );
+    html += ssKPI(
+      'T95% Time',
+      cv(st.t95pct, 5, 15, '%'),
+      sev(st.t95pct, function (v) {
+        return v < 5 ? 'good' : v < 15 ? 'warn' : 'bad';
+      })
+    );
+    html += ssKPI(
+      'T90% Time',
+      cv(st.t90pct, 0.5, 2, '%'),
+      sev(st.t90pct, function (v) {
+        return v < 0.5 ? 'good' : v < 2 ? 'warn' : 'bad';
+      })
+    );
   }
   if (n.odi4) html += ssKPI('ODI-4 Rate', cv(n.odi4.rate, 5, 15, '/hr'), n.odi4.rate < 5 ? 'good' : n.odi4.rate < 15 ? 'warn' : 'bad');
   // ODI-3 IS NOT GRADED — there is no published ODI-3 severity band to grade it against
@@ -2071,9 +2099,27 @@ function renderSmartSummary(n) {
   html += '<div class="proj-header">' + '<span class="cat-tag cat-hr">HR</span>' + '<span class="proj-title">Cardio</span>' + '</div>';
   html += '<div class="ss-kpi-grid">';
   if (st) {
-    html += ssKPI('Mean HR', cv(st.meanHr, 60, 70, 'bpm'), st.meanHr < 60 ? 'good' : st.meanHr < 70 ? 'warn' : 'bad');
-    html += ssKPI('Min HR', cv(st.minHr, 35, 40, 'bpm', true), st.minHr >= 40 ? 'good' : st.minHr >= 35 ? 'warn' : 'bad');
-    html += ssKPI('Max HR', cv(st.maxHr, 90, 110, 'bpm'), st.maxHr < 90 ? 'good' : st.maxHr < 110 ? 'warn' : 'bad');
+    html += ssKPI(
+      'Mean HR',
+      cv(st.meanHr, 60, 70, 'bpm'),
+      sev(st.meanHr, function (v) {
+        return v < 60 ? 'good' : v < 70 ? 'warn' : 'bad';
+      })
+    );
+    html += ssKPI(
+      'Min HR',
+      cv(st.minHr, 35, 40, 'bpm', true),
+      sev(st.minHr, function (v) {
+        return v >= 40 ? 'good' : v >= 35 ? 'warn' : 'bad';
+      })
+    );
+    html += ssKPI(
+      'Max HR',
+      cv(st.maxHr, 90, 110, 'bpm'),
+      sev(st.maxHr, function (v) {
+        return v < 90 ? 'good' : v < 110 ? 'warn' : 'bad';
+      })
+    );
     // Perfusion index (OXYDEX-PULSE-RESOURCING §4 Phase 1) — rendered ONLY when the capture carried it
     // (Health-Box OXYFRAME). A ViHealth CSV night has meanPi === null and simply omits the card, rather
     // than showing a fabricated 0 or a "—" on every night that never had a PI sensor reading. The badge
@@ -2772,10 +2818,42 @@ function nightDetail(n, idx) {
        adding bare `mean`/`min` aliases is deliberate: those labels are section-relative and
        `meanHr`/`minHr` have an equal claim on them. It also keeps this render-only, so `computeHash`
        is provably stable and the change is export-inert by construction. */
-    metric('Mean SpO₂', s.meanSpo2 + '%', 'std ' + s.spo2Std, s.meanSpo2 >= 95 ? 'good' : s.meanSpo2 >= 92 ? 'warn' : 'bad', 'primary') +
-    metric('Min SpO₂', s.minSpo2 + '%', 'max ' + s.maxSpo2 + '%', s.minSpo2 >= 90 ? 'good' : s.minSpo2 >= 85 ? 'warn' : 'bad', 'primary') +
-    metric('T95', s.t95pct + '%', 'time <95%', s.t95pct < 5 ? 'good' : s.t95pct < 15 ? 'warn' : 'bad', 'primary') +
-    metric('T90', s.t90pct + '%', 'time <90%', s.t90pct > 1 ? 'bad' : s.t90pct > 0 ? 'warn' : 'good', 'primary') +
+    metric(
+      'Mean SpO₂',
+      nzv(s.meanSpo2, '%'),
+      'std ' + nzv(s.spo2Std),
+      sev(s.meanSpo2, function (v) {
+        return v >= 95 ? 'good' : v >= 92 ? 'warn' : 'bad';
+      }),
+      'primary'
+    ) +
+    metric(
+      'Min SpO₂',
+      nzv(s.minSpo2, '%'),
+      'max ' + nzv(s.maxSpo2, '%'),
+      sev(s.minSpo2, function (v) {
+        return v >= 90 ? 'good' : v >= 85 ? 'warn' : 'bad';
+      }),
+      'primary'
+    ) +
+    metric(
+      'T95',
+      nzv(s.t95pct, '%'),
+      'time <95%',
+      sev(s.t95pct, function (v) {
+        return v < 5 ? 'good' : v < 15 ? 'warn' : 'bad';
+      }),
+      'primary'
+    ) +
+    metric(
+      'T90',
+      nzv(s.t90pct, '%'),
+      'time <90%',
+      sev(s.t90pct, function (v) {
+        return v > 1 ? 'bad' : v > 0 ? 'warn' : 'good';
+      }),
+      'primary'
+    ) +
     '</div>';
   html += '</div>';
 
@@ -3096,8 +3174,15 @@ function nightDetail(n, idx) {
     // ODI-3 ungraded — no published band; see renderSmartSummary for the evidence. This site had shifted
     // ODI-4's ladder one notch; the other borrowed it unchanged. Neither was citable.
     (n.odi3 ? metric('ODI-3', n.odi3.rate, 'evt/hr · ' + n.odi3.count + ' total (ranges not established)', '') : '') +
-    metric('Mean HR', s.meanHr, 'bpm', '') +
-    metric('HR Range', s.minHr + '–' + s.maxHr, 'bpm', s.maxHr > 95 ? 'warn' : '') +
+    metric('Mean HR', nzv(s.meanHr), 'bpm', '') +
+    metric(
+      'HR Range',
+      s.minHr == null || s.maxHr == null ? '—' : s.minHr + '–' + s.maxHr,
+      'bpm',
+      sev(s.maxHr, function (v) {
+        return v > 95 ? 'warn' : '';
+      })
+    ) +
     '</div>';
 
   // HRV proxies — secondary tier (advanced mode)
@@ -3394,6 +3479,22 @@ function renderResearchMetrics(n) {
   );
 }
 
+/* §∅ RENDER HELPERS — absence must reach the eye as absence, never as a verdict.
+   `cv()` already returns "—" for a null VALUE. What it cannot do is stop the CARD being handed a
+   severity class computed separately from the same null, and JS coercion makes that silently wrong in
+   BOTH directions: `null >= 90` is false so Min SpO₂ reads **bad**, while `null < 5` is true so T95,
+   T90, Mean HR and Max HR all read **good** — a night nobody measured, displayed as a healthy one.
+   The flattering direction is the dangerous one and is the same failure as `maxSpo2 || 100`.
+
+   `nzv` guards the VALUE (string concatenation on null yields the literal "null%"), `sev` guards the
+   CLASS. Both are deliberately tiny and take the raw value, so a reader can see at each call site
+   which quantity is being tested for absence. */
+function nzv(v, suffix) {
+  return v == null ? '—' : v + (suffix || '');
+}
+function sev(v, fn) {
+  return v == null ? '' : fn(v); // '' → ssKPI/metric fall back to their neutral class
+}
 function metric(label, value, unit, cls, tier, extraAttr) {
   var tc = tier || 'primary';
   var wc = tc === 'hero' ? 'metric-hero' : tc === 'secondary' ? 'metric-secondary' : tc === 'research' ? 'metric-research' : 'metric-primary';

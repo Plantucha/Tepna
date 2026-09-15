@@ -23675,6 +23675,55 @@
        default whenever the fixture's field is 0 or missing — so a realistic-looking record of mostly
        zeros asserts nothing at all. Every number below is unique, so a mis-wired field lands on the
        wrong key and is caught by value, not just by presence. */
+    /* §∅ AT THE RENDER BOUNDARY — the half that decides what a human actually sees.
+       Making the DSP emit null is only half a fix: JS coercion then made the OLD consumers wrong in
+       BOTH directions, and the flattering direction is the dangerous one. `null >= 90` is false, so
+       Min SpO₂ read **bad**; `null < 5` is true, so T95, T90, Mean HR and Max HR all read **good** —
+       a night nobody measured, rendered as a healthy one. `cv()` already returned "—" for the VALUE,
+       which is exactly why this was easy to miss: the number looked absent while the CARD carried a
+       verdict computed from the same null.
+       Source scan because `oxydex-render.js` is loaded as TEXT in this lane (env.sources) and no
+       executable entry reaches these functions — the same instrument as the seam-parity group. */
+    group('OxyDex §∅ — an ABSENT stat must not render as a verdict', 'oxydex-render · absence-as-value · export-boundary', function (T) {
+      var R = String((env.sources || {})['oxydex-render.js'] || '');
+      if (!R) {
+        T.skip('oxydex-render.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      /* ANTI-VACUITY FIRST. A regex that matches nothing passes every assertion below, and this file
+         is large enough that a rename would silently empty the scan. */
+      T.ok('ANTI-VACUITY · the render source loaded', R.length > 10000, R.length + ' chars');
+      T.ok('ANTI-VACUITY · the severity helper exists to be used', /function sev\(/.test(R) && /function nzv\(/.test(R));
+      var FIELDS = ['meanSpo2', 'minSpo2', 'maxSpo2', 'spo2Std', 't95pct', 't90pct', 'meanHr', 'minHr', 'maxHr', 'durationMin'];
+      var lines = R.split('\n');
+      var unguarded = [];
+      lines.forEach(function (ln, i) {
+        FIELDS.forEach(function (f) {
+          /* A SEVERITY comparison on one of these fields. `sev(` on the same line means the raw value
+             was tested for absence before the comparison ran; an explicit null test does too. */
+          var re = new RegExp('[A-Za-z0-9_]+\\.' + f + '\\s*(>=|<=|>|<)');
+          if (!re.test(ln)) return;
+          if (/sev\(/.test(ln) || /!=\s*null|!==\s*null|==\s*null|\?\?/.test(ln)) return;
+          unguarded.push(i + 1 + ': ' + ln.trim().slice(0, 72));
+        });
+      });
+      T.eq('no severity class is computed from a possibly-ABSENT stat', unguarded, []);
+      /* And the VALUE side: string concatenation on null yields the literal "null%" on screen. */
+      var concat = [];
+      lines.forEach(function (ln, i) {
+        FIELDS.forEach(function (f) {
+          var re = new RegExp('[A-Za-z0-9_]+\\.' + f + "\\s*\\+\\s*'");
+          if (re.test(ln) && !/nzv\(/.test(ln) && !/!=\s*null|!==\s*null|==\s*null|\?\?/.test(ln)) concat.push(i + 1 + ': ' + ln.trim().slice(0, 72));
+        });
+      });
+      T.eq('no stat is concatenated into display text without an absence guard', concat, []);
+      /* THE PLANT THIS GATE EXISTS FOR, asserted as arithmetic rather than described: these are the
+         coercions that made absence look healthy. If JS ever stopped coercing null this way the gate
+         above would be guarding nothing, and this says so out loud. */
+      T.eq('…because null coerces to 0: `null < 5` is TRUE (would read "good")', null < 5, true);
+      T.eq('…and `null >= 90` is FALSE (would read "bad")', null >= 90, false);
+    });
+
     group('OxyDex parseJSONL round-trips every field, and tells ABSENT from ZERO', 'oxydex-dsp · parse · known-answer · mutation-pinned', function (T) {
       var OB = env.OxyDex && env.OxyDex._bare;
       if (!(OB && typeof OB.parseJSONL === 'function')) {
@@ -23830,14 +23879,12 @@
       zeroDur.stats.meanSpo2 = 0;
       T.eq('durationMin ZERO is preserved as 0, not collapsed to null', one(zeroDur).stats.durationMin, 0);
       T.eq('meanSpo2 ZERO is preserved as 0', one(zeroDur).stats.meanSpo2, 0);
-      /* ⚠️ STILL LIVE, AND ASSERTED AS CURRENT BEHAVIOUR RATHER THAN AS CORRECT. `maxSpo2` absent
-         fabricates a PERFECT reading — worse than a 0, because 100 is both in-range and flattering.
-         Left unfixed here on purpose: this PR closes the residue row's verified two-site scope, and
-         the remaining sites in this block (maxSpo2, minSpo2, spo2Std, t95pct, t90pct, meanHr, minHr,
-         maxHr) plus `oxydex-dsp.js:3084` in the PRIMARY builder are filed as their own row rather than
-         swept in silently. When that row is executed this assertion flips too. */
+      /* ✅ FLIPPED 2026-09-15 — the row that this assertion pointed at has been executed. It used to
+         read "maxSpo2 ABSENT still fabricates 100", asserting a live §∅ defect as current behaviour:
+         100 is worse than a 0, being both in-range and FLATTERING, so no downstream plausibility guard
+         could catch it. All eight remaining scalars in the block now take the `!= null` form. */
       T.eq(
-        'maxSpo2 ABSENT still fabricates 100 — a live §∅ site, see residue 2026-09-13-oxydex-stats-block-absence-to-number',
+        'maxSpo2 ABSENT is null — a perfect reading is the most dangerous fabrication of all',
         one(
           (function () {
             var r = JSON.parse(JSON.stringify(REC));
@@ -23845,8 +23892,22 @@
             return r;
           })()
         ).stats.maxSpo2,
-        100
+        null
       );
+      /* THE WHOLE BLOCK, not just the one the old assertion named — a per-field check so a future
+         regression names the field it broke rather than failing on a representative. */
+      ['minSpo2', 'maxSpo2', 'spo2Std', 't95pct', 't90pct', 'meanHr', 'minHr', 'maxHr'].forEach(function (k) {
+        var rec = JSON.parse(JSON.stringify(REC));
+        delete rec.stats[k];
+        T.eq('§∅ · ' + k + ' ABSENT is null, not a number', one(rec).stats[k], null);
+      });
+      /* …and the other half of `!= null`: a REAL zero must survive, including a real 0 for a field
+         whose old default WAS 0 — that is the case `||` cannot distinguish and the reason for the form. */
+      ['minSpo2', 'spo2Std', 't95pct', 't90pct', 'meanHr', 'minHr', 'maxHr'].forEach(function (k) {
+        var rec = JSON.parse(JSON.stringify(REC));
+        rec.stats[k] = 0;
+        T.eq('§∅ · ' + k + ' ZERO is preserved as 0, not collapsed to null', one(rec).stats[k], 0);
+      });
 
       // ── 3 · t0Ms FALLS BACK TO stats.startTs, THEN TO NULL ────────────────────────────────────
       var noT0 = JSON.parse(JSON.stringify(REC));
