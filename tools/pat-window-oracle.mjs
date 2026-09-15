@@ -378,6 +378,39 @@ function selftest() {
   ok(vGood !== null && vGood.refused === false && vGood.label.includes('mode') && vGood.label.includes('halves'), `in-PHYS verdict carries mode + invariance status, got ${vGood?.label}`);
   ok(res.modeB != null && Math.abs(res.modeB - res.mode) <= BIN_MS, `planted night's halves agree within one bin, got ${res.mode}→${res.modeB}`);
 
+  /* ── THE DRIFTING PLANT: the halves check must FIRE, not merely be printed ────────────────────
+     The assertion above is the only test of `modeB` in the tree, and it runs on a lag that is
+     CONSTANT by construction (`r + 700 + rnd()*14`). `papers/null-calibration.html`'s addendum names
+     that exact failure — *"a known-answer planted under the model's own assumptions is guaranteed to
+     pass, however wrong the model is"* — and prescribes *"plant your known-answer under a model you
+     are not assuming."* So a constant plant can tell us the diagnostic AGREES when the lag is fixed;
+     it cannot tell us the diagnostic can SEE the lag move, which is the only thing it is for.
+
+     That distinction stopped being academic on 2026-09-14: measured over both capture trees,
+     `halves ≡` holds on 3/30 and 5/35 nights, median |modeB−mode| 130 / 120 ms, and EVERY
+     SIGNAL RECOVERED night disagrees by 80–160 ms. The corpus says this quantity moves on ~90 % of
+     nights while the one test of the machinery that reports it could not see movement at all.
+
+     The plant drifts 300 → 620 ms over 900 beats — both endpoints inside PHYS, so the night is not
+     refused for an unrelated reason, and the observed corpus magnitude is reproduced rather than an
+     arbitrary one. Because the two half-modes sit near the centroids of their halves (~beat 225 and
+     ~675), the expected separation is roughly half the total drift, ~160 ms. */
+  const Fdrift = R2.map((r, i) => r + 300 + (i * 320) / 900 + rnd() * 14).sort((a, b) => a - b);
+  const resDrift = oracleNight(R2, Fdrift, 100);
+  ok(resDrift != null && !resDrift.refusal, `drifting plant yields a scored night, got ${resDrift?.refusal}`);
+  ok(resDrift?.modeB != null, 'drifting plant yields a second-half mode');
+  const dDrift = resDrift && resDrift.modeB != null ? Math.abs(resDrift.modeB - resDrift.mode) : 0;
+  ok(dDrift > BIN_MS, `a DRIFTING lag must break halves-invariance — got ${resDrift?.mode}→${resDrift?.modeB} (Δ${dDrift})`);
+  /* Magnitude, not merely direction: a check that fired on any 11 ms wobble would pass here by luck
+     and still be blind to the 80–160 ms the corpus actually shows. */
+  ok(dDrift >= 80, `…and by the planted magnitude, not a wobble — expected ~160 ms, got Δ${dDrift}`);
+  /* The verdict LABEL is what a consumer reads, so assert the escalation reaches it. */
+  const vDrift = oracleVerdict(resDrift);
+  ok(vDrift != null && /halves \d+→\d+ ⚠/.test(vDrift.label), `the drift must reach the verdict label, got ${vDrift?.label}`);
+  /* ANTI-VACUITY: the constant plant above must still read ≡, or this pair proves nothing — a
+     `halves` field stuck on ⚠ would satisfy the three assertions above and be just as useless. */
+  ok(oracleVerdict(res)?.label.includes('halves ≡'), 'the CONSTANT plant must still read halves ≡ (else the check is stuck on)');
+
   /* ── NAMED REFUSALS: a refusing night must propagate its NAME, not a generic skip. ──
      The planted refusal is disjoint trains (feet 10^8 ms after the last R): structurally
      unscoreable, and the assertion is on the REASON STRING reaching the verdict layer — the

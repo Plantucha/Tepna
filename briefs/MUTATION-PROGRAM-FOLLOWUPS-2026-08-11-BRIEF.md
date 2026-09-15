@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED — 2026-08-11 · **Created:** 2026-08-11 · **DRAIN 2026-09-02 (Osprey):** verified 3 ticked / **11 open** Done-when boxes — the largest open surface in the family and correctly still PROPOSED. **Owner: Osprey. Next step:** triage the 11 into keep/drop before any execution; a follow-ups brief this wide is a backlog, not a work-unit. · **RE-TRIAGED 2026-09-13 (Osprey): the 09-02 verdict STILL HOLDS — 3 ticked / 11 open, and no landing has touched any of the eleven.** Checked item-by-item against this week's mutation landings: the open items are the 90 % target ratification, coverage-guided selection, the top-30 and the 24 pseudo-tested functions, `functionRange` on arrow consts, the export `date` field, `setHooks` restoration, contract-named survivor re-checks, tool scoping, the production/apparatus kill-rate split and a `_consensusTrust` caveat — none is equivalence-ledger, scratch-reuse or timeout classification, which is all that moved. ⚠️ Two of the eleven are OWNER decisions (the 90 % target; the §6 decline-with-reason), so this brief cannot reach DONE by fleet work alone however many of the other nine land.
+**Status:** PROPOSED — 2026-08-11 · **Created:** 2026-08-11 · **DRAIN 2026-09-02 (Osprey):** verified 3 ticked / **11 open** Done-when boxes — the largest open surface in the family and correctly still PROPOSED. **Owner: Osprey. Next step:** triage the 11 into keep/drop before any execution; a follow-ups brief this wide is a backlog, not a work-unit. · **RE-TRIAGED 2026-09-13 (Osprey): the 09-02 verdict STILL HOLDS — 3 ticked / 11 open, and no landing has touched any of the eleven.** Checked item-by-item against this week's mutation landings: the open items are the 90 % target ratification, coverage-guided selection, the top-30 and the 24 pseudo-tested functions, `functionRange` on arrow consts, the export `date` field, `setHooks` restoration, contract-named survivor re-checks, tool scoping, the production/apparatus kill-rate split and a `_consensusTrust` caveat — none is equivalence-ledger, scratch-reuse or timeout classification, which is all that moved. ⚠️ Two of the eleven are OWNER decisions (the 90 % target; the §6 decline-with-reason), so this brief cannot reach DONE by fleet work alone however many of the other nine land. · 🔴 **RE-VERIFIED 2026-09-15 (Osprey) — the 11 is WRONG and has been since before it was first written. It is 9.** Two boxes were already answered, neither by a landing, which is why two successive triages that asked *"has a landing touched these?"* both returned "no" and both were right about the wrong question. **§2's target ratification** was recorded by the owner on **2026-08-11** — the same day this brief was created, three weeks before the 09-02 drain counted it open — and it RAISED the bar (90 % → 99 % of distinguishable) rather than lowering it. **§6's coverage-guided selection** was built on 2026-08-14: verified in the tree, not from §6-bis's prose, as `tools/per-group-coverage.mjs` plus 7 `--use-coverage-map`/`pgmapFor` references in `tools/mutate.mjs`. ⚠️ That second one is ticked on its `exists` limb ONLY — it exists and is QUARANTINED for fabricating SURVIVED findings, so a reader must not read the tick as permission to enable the flag. ⚠️ And §9.2's own progress counter now LIES: `grep -c '_date:' tests/dex-tests.js` has gone 0 → 1, but the single hit is a COMMENT at `tests/dex-tests.js:44263`, not a test — the box stays open and must not be ticked on that grep. **The lesson for the next triage of this file: ask whether the answer is already in the brief or the tree BEFORE asking whether a PR closed it.** Remaining: 9 open, listed above.
 
 # MUTATION PROGRAM — FOLLOW-UPS
 
@@ -695,11 +695,25 @@ lane is not this brief's subject and the statistic itself is not wrong, only nar
 
 ## Done when
 
-- [ ] The owner has ratified, adjusted, or per-file'd the 90 % target against §2.
-- [ ] Coverage-guided test selection (§6) exists, or is explicitly declined with a reason.
+- [x] **CLOSED — verified 2026-09-15 (Osprey): §2 of THIS BRIEF already records it.** The owner
+      ratified on 2026-08-11 and RAISED the bar rather than lowering it — 90 % → **99 % of
+      distinguishable**. The box outlived its own answer by five weeks because §2 was written and
+      the checklist was not re-read against it.
+- [x] **CLOSED — verified 2026-09-15 (Osprey) IN THE TREE, not from §6-bis's prose:**
+      `tools/per-group-coverage.mjs` exists and `tools/mutate.mjs` carries 7 references to
+      `--use-coverage-map` / `pgmapFor`. The box's `exists` limb is met. ⚠️ It EXISTS AND IS
+      QUARANTINED — §6-bis records it was rejected for fabricating SURVIVED findings, so
+      "exists" must not be read as "use it". A reader who ticks this box and then enables the
+      flag re-introduces the worst failure this programme has, wearing the shape of a 78×
+      speedup.
 - [ ] The top 30 functions from §5 have tests, each with a measured before → after kill count.
 - [ ] `functionRange` resolves arrow consts, or the limitation is recorded in the tool's header.
 - [ ] §9.2 — the export `date` field has a test, or the reason it cannot is recorded.
+      ⚠️ **STILL OPEN, and the obvious check now LIES.** §9.2's own tell was
+      `grep -c '_date:' tests/dex-tests.js` = 0. It returns **1** as of 2026-09-15 — and that one
+      hit is a COMMENT inside an unrelated test (`tests/dex-tests.js:44263`, prose about a
+      `_tMs: 0` → `_date: 1970-01-01` readback), not a test of the field. Anyone re-running the
+      brief's own counter reads 0 → 1 as progress. Do not tick this on the grep.
 - [ ] §9.4 — `setHooks` restoration is resolved before profile-gated branches are attempted.
 - [ ] §10.3 — the fleet's survivor lists are re-checked against contract-named groups, so the
       scope-artifact fraction is known rather than assumed.
