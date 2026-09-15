@@ -1,0 +1,141 @@
+<!--
+  PUBLISHED-NUMBER-PROVENANCE-2026-09-15-BRIEF.md — Tepna
+  Copyright 2026 Michal Planicka
+  SPDX-License-Identifier: Apache-2.0
+-->
+**Status:** IN-PROGRESS — 2026-09-15 (phase 1 BUILT and landed in #2514; phases 2-3 specified, unbuilt) · **Created:** 2026-09-15 · **Follows:** `audits/PUBLISHED-NUMBER-DECAY-SWEEP-2026-09-03.md` (the measurement this answers) · **Interlocks:** the `docs · claude-md · claims` gate, `tools/formula-constant-audit.mjs`
+
+# 98 % of this repo's published numbers are uncheckable — and the fix is a convention, not a cleverer parser
+
+> **In one line:** the decay sweep measured that at most **5 of 259** substantial published tables can
+> be attributed to a producing tool; phase 1 adds `CLAIM <name> = <value> FROM <path>#<pointer>`, a
+> marker that makes a number checkable by naming where it came from — chosen over a prose scanner
+> because the scanner was built, measured, and **refused**.
+
+## 1 · The gap, already measured
+
+`PUBLISHED-NUMBER-DECAY-SWEEP-2026-09-03` established it and this brief does not re-derive it:
+
+    brief files containing a table                          303
+    tables total                                           1009
+    tables with >=4 columns and >=3 numeric rows            259
+    ATTRIBUTABLE to a producing tool, after manual audit       5
+
+Of the four re-run, three diverged — for **three distinct reasons** (the tool changed; the corpus was
+refolded; one was circularly rewritten), and the sweep is careful that none of them is *"wrong when
+published"*. One reproduced exactly, which is its positive control.
+
+The JS side answers the same question and answers it well: GATE-B is `hash(input) + executed-code
+identity → hash(output)`, **36 fixtures, 34 code-gated, 17 carrying `verifiedUnder`** — which only a
+tool that actually re-ran the app may write. Same repo, same question, opposite answer, split along a
+language boundary that has nothing to do with the problem.
+
+## 2 · ⚠️ THE PROSE SCANNER WAS BUILT, MEASURED, AND REFUSED — do not rebuild it
+
+The attractive idea is statcheck's: recompute a reported quantity from the other quantities reported
+beside it, needing neither the corpus nor the producing tool, and so reaching **all 1009 tables**
+rather than the attributable 5. `statcheck` finds inconsistencies in roughly half of published
+psychology papers on exactly this principle.
+
+**Measured here 2026-09-15, over `briefs/ audits/ docs/`:**
+
+| pattern | candidates | flagged | verdict |
+|---|---|---|---|
+| naive ratio↔percentage | 213 | 45 | **every one of 4 sampled was a FALSE POSITIVE** |
+| strict (parenthesised, transitions excluded) | 14 | **0** | precise, and nothing to find |
+
+Four distinct false-positive mechanisms in four samples:
+
+| line | why it is not an inconsistency |
+|---|---|
+| `28 of 28 fail the tool's own 80 % floor` | 80 % is a **threshold**, not this ratio's percentage |
+| `nf = 219/220/221 — a 16 % swing` | a **sequence** of values; the 16 % is unrelated |
+| `61/319 → 118/319 = 36 %` | a **transition**; the percentage belongs to the *second* pair |
+| `15 / 164 \| 8.4 %` | an **adjacent column** is the real denominator (15/179 = 8.4 %) |
+
+**The conclusion is structural, not a tuning failure.** statcheck works because NHST reporting is
+rigidly stereotyped — `t(28) = 2.1, p = .04` has one shape. **Its precision comes from the convention,
+not from the checking.** Tepna's briefs are discursive prose with no such convention, so there is
+nothing for a parser to grip: importing the mechanism leaves behind the thing that makes it work.
+
+That reframes the remedy and is the brief's main result: **a marker is not the cheaper option, it is
+the only one that works, because it CREATES the stereotypy statcheck depends on.**
+
+## 3 · Phase 1 — sourced CLAIMs (BUILT, #2514)
+
+`CLAIM <name> = <value> FROM <path>#<pointer>`, checked by the existing `docs · claude-md · claims`
+gate, now scanning **briefs/** as well as CLAUDE.md (510 files).
+
+The three pre-existing CLAIMs each need a **bespoke resolver hand-written into the gate** — which is
+why there are three and not thirty. A sourced claim carries its own resolver.
+
+- **Refusal is loud.** An unresolvable source REDS, never skips. A claim whose artifact vanished is
+  precisely the stale number this exists to catch.
+- **First claim** is a real published number: CLAUDE.md's trio corpus `20 eligible nights`, resolved
+  against `analysis/tri_device_nights.json#count`. List length 20, count 20, prose 20 — all three
+  agree today, which is what makes it a safe first marker rather than a fix.
+- **Mutation-verified across all three failure modes**: a wrong stated value reds; a dead pointer reds;
+  and the case the sweep actually measured — *the committed artifact moving while the prose does not* —
+  reds. Two anti-vacuity assertions alongside, because a generic checker with nothing to check is not a
+  gate.
+
+## 4 · Phases 2-3 — specified, unbuilt
+
+**Phase 2 — a per-table stamp.** `CLAIM`-per-number is right for prose and too heavy for a 20-number
+table; a table wants one footer naming producer, invocation, input hashes and an output hash — GATE-B's
+triple in a form Markdown carries. Two granularities, which is the granularity-levels point
+`Workflow Run RO-Crate` makes from a different direction. Borrow its vocabulary; do **not** adopt
+JSON-LD.
+
+**Phase 3 — generate rather than mark**, for numbers a tool produces: resolve at build time from a
+committed results JSON, Quarto's answer to prose numbers. Only worth it where phase 2 keeps firing.
+
+**The upstream-DAG idea folds into phase 2's resolver, and it is the one that unblocks the sweep's own
+remedy.** Section 2 of the decay sweep proposes a churn screen and states honestly that it *"can FLAG
+but probably cannot CLEAR"*, because per-table corpus provenance is unknowable after the fact — table 4
+proves it (tool unchanged, corpus refolded, diverged 3 of 3). `showyourwork` hashes *the rule and all
+upstream dependencies* recursively. **If the corpus is an upstream node with a hash, table 4's case
+invalidates automatically and the screen can clear.** The two proposals are not alternatives: one is
+the other's missing input.
+
+## 5 · What was considered and rejected
+
+**noWorkflow** (127★, MIT), proposed 2026-09-14. Rejected on three independent grounds, any one
+sufficient:
+
+1. **Epistemics.** It RECORDS a trial; GATE-B RE-RUNS one. This repo already shipped a pre-fix DSP to
+   real CGM data on the strength of a recorded claim, and the fix was making the claim *computed* —
+   `verifiedUnder` may only be written by something that actually re-ran the app. A tracer that records
+   would re-import the failure mode the repo removed.
+2. **Entry model.** Its unit is `now run script.py`, and **4 of the 5 candidate scripts have no
+   `__main__` at all** — `nightarchive.py`, `allan.py`, `blind_spots.py`, `acq_evidence.py` are
+   libraries. Only `jitterfloor.py` is a CLI.
+3. **Reach.** Its trial DB lives in an isolated venv, outside every gate this repo runs — and an
+   artifact no gate reads is the shape CLAUDE.md §4b keeps finding.
+
+The licensing analysis (MIT into Apache-2.0, permissive dependencies, avoid the `[all]` extra) was
+sound and is not the reason for rejection.
+
+## 6 · What this does NOT do
+
+- **It finds inconsistency, never wrongness.** Two numbers agreeing can both be wrong — the same
+  discipline as the sweep's *"at risk is never a verdict"*.
+- **A marked number is not a verified one.** Phase 1 checks a claim against a committed artifact; it
+  does not re-run the producer. That is phase 2's `verify-published`, and "stamped" must never be
+  displayed as "verified".
+- **It is opt-in and therefore under-covers.** A number nobody marks is simply not gated — chosen
+  deliberately, because a prose gate that reports the *documentation* of a rule as a violation of it is
+  the failure the original CLAIM design already avoided.
+
+## 7 · Done when
+
+- [x] The prose-scanner alternative measured and refused, with its false-positive mechanisms named so
+      it is not rebuilt.
+- [x] `CLAIM … FROM …` parsed over CLAUDE.md + `briefs/`, resolving against a committed artifact.
+- [x] Unresolvable source REDS rather than skipping; anti-vacuity assertions present.
+- [x] Mutation-verified across all three failure modes, including artifact-moved-prose-didn't.
+- [x] One real published number marked.
+- [ ] A second and third marker on numbers that have actually drifted, chosen from the sweep's table 3
+      and table 4 — the markers that would have *caught* something, rather than one that agrees.
+- [ ] Phase 2 per-table stamp, with the upstream-DAG hash that lets the churn screen clear.
+- [ ] Phase 3 generate-rather-than-mark, only where phase 2 keeps firing.

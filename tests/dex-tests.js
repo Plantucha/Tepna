@@ -10996,6 +10996,59 @@
       var claims = C.claims || {};
       T.ok('CLAUDE.md carries at least one CLAIM marker', Object.keys(claims).length > 0, 'found: ' + (Object.keys(claims).join(', ') || 'none — a CLAIM was removed, or the marker syntax drifted'));
 
+      /* ── SOURCED CLAIMS: `CLAIM <name> = <value> FROM <path>#<pointer>` ────────────────────────────
+         The three bespoke claims below each needed a resolver hand-written into this gate, which is
+         why there are three and not thirty. A sourced claim carries its own resolver, so one generic
+         checker covers any number a tool can be made to emit into a committed artifact — and it scans
+         `briefs/` as well as CLAUDE.md, where 259 substantial published tables currently sit with at
+         most 5 attributable to a producing tool (PUBLISHED-NUMBER-DECAY-SWEEP-2026-09-03).
+
+         A PROSE SCANNER WAS TRIED FIRST AND MEASURED, 2026-09-15, so nobody rebuilds it: a
+         statcheck-style ratio-beside-percentage scan over briefs/audits/docs found 213 candidates and
+         flagged 45, of which every one of the four sampled was a FALSE POSITIVE — a threshold, a
+         sequence, a transition whose percentage belonged to the second pair, and an adjacent column
+         supplying a different denominator. Tightened until those die: 14 candidates, ZERO
+         disagreements. statcheck's precision comes from NHST's rigid reporting CONVENTION, not from
+         its checking; a marker that creates the convention is the only version that works here. */
+      T.ok(
+        'the sourced-claim scan examined more than CLAUDE.md alone (else it is vacuous)',
+        (C.claimFilesScanned || 0) > 1,
+        'files scanned: ' + (C.claimFilesScanned || 0) + ' — briefs/ must be in the corpus or a brief claim can never fire'
+      );
+      var srcd = C.sourced || [];
+      T.ok('at least one SOURCED claim exists (a generic checker with nothing to check is not a gate)', srcd.length > 0, 'sourced claims: ' + srcd.length);
+      /* REFUSAL IS LOUD. A vanished artifact or a dead pointer is exactly the stale number this gate
+         exists to catch — falling silent there would report health about something never examined. */
+      var unresolved = srcd.filter(function (r) {
+        return r.reason;
+      });
+      T.ok(
+        'every SOURCED claim resolves (a missing file or dead pointer REDS, never skips)',
+        unresolved.length === 0,
+        unresolved
+          .map(function (r) {
+            return r.where + ' ' + r.name + ' — ' + r.reason;
+          })
+          .join('; ') || srcd.length + ' resolved'
+      );
+      var wrong = srcd.filter(function (r) {
+        return !r.reason && r.actual !== r.stated;
+      });
+      T.ok(
+        'every SOURCED claim matches its committed artifact',
+        wrong.length === 0,
+        wrong
+          .map(function (r) {
+            return r.where + ' CLAIM ' + r.name + ' = ' + r.stated + ' but ' + r.file + '#' + r.pointer + ' says ' + r.actual;
+          })
+          .join('; ') ||
+          srcd
+            .map(function (r) {
+              return r.name + '=' + r.actual;
+            })
+            .join(', ')
+      );
+
       /* A CLAIM must be an INTEGER, and a non-integer must RED rather than vanish. The parser used to
          read `(\d+)`, which on `CLAIM x = 5.5` returned 5 — a silently truncated claim that could then
          pass a check it should fail, in the gate whose whole job is stopping CLAUDE.md from lying.
