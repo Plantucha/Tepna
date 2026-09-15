@@ -60,6 +60,7 @@
  *   node tools/rebase-safe.mjs --no-build      # skip the rebuild (classification + rebase only)
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFileSync } from 'node:child_process';
+import { parseRows as parseLedgerRows } from './residue-ids.mjs';
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -449,9 +450,13 @@ async function reportStampDamage(before) {
  * old line and the new one, so a closed row survives twice and the ledger contradicts itself about
  * whether the defect is live.
  *
- * ⚠️ DATED KEYS ONLY (`YYYY-MM-DD-slug`), which is the documented residue key shape. A looser
- * "first table cell" pattern also matches the file's OWN row-contract table — `| key |`, `| logged |`,
- * `| state |` — and those legitimately recur, so it reported a duplicate on a CLEAN `origin/main`.
+ * ⚠️ THE ROW SHAPE IS `residue-ids.mjs`'s, NOT A SECOND COPY OF IT. `parseRows` is imported rather
+ * than reimplemented, because a row-shape disagreement between the checker and the rebaser would be
+ * this very bug one level up: two tools quietly differing on what counts as a row, with neither able
+ * to see the other's blind spot. It keys on DATED slugs (`YYYY-MM-DD-slug`), the documented residue
+ * key shape. A looser "first table cell" pattern also matches the file's OWN row-contract table —
+ * `| key |`, `| logged |`, `| state |` — and those legitimately recur, so an earlier draft of this
+ * reported a duplicate on a CLEAN `origin/main`.
  * That was caught by running the detector against clean main as a NEGATIVE CONTROL before shipping it:
  * a check that fires on a healthy tree blocks every rebase and gets disabled, which is worse than not
  * having it. The positive control is the real union-merged tree measured 2026-09-15, where it finds
@@ -459,10 +464,7 @@ async function reportStampDamage(before) {
  */
 export function duplicateLedgerKeys(text) {
   const seen = new Map();
-  for (const line of String(text ?? '').split('\n')) {
-    const m = /^\|\s*(\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*)\s*\|/.exec(line);
-    if (m) seen.set(m[1], (seen.get(m[1]) || 0) + 1);
-  }
+  for (const r of parseLedgerRows(text)) seen.set(r.id, (seen.get(r.id) || 0) + 1);
   return [...seen.entries()].filter(([, n]) => n > 1).map(([k]) => k);
 }
 
