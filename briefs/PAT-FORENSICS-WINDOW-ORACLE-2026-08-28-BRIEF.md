@@ -676,6 +676,66 @@ honest state and is why nothing had to be retrofitted.
 
 Closes residue `2026-09-14-oracle-mode-search-bound-never-varied`.
 
+## ✅ THE HALVES SHIFT IS NOT THE CLOCK — right size, wrong pattern (2026-09-15, Kestrel)
+
+The 🔴 section measured the halves disagreement and deliberately did not attribute it. §7's open item
+asks the attribution question in its own words: *"slow physiology (BP/vasomotor/posture/stage) vs an
+instrumental effect invisible to the host axis."* This answers **half** of it.
+
+### The design, and the circularity it exists to avoid
+
+`INTEGRATOR-PAT-VASCULAR` is explicit: *"do NOT fit it out of PAT. That is circular: a linear PAT trend
+is exactly what a slow physiological drift also looks like... The drift must be measured INDEPENDENTLY
+of PAT. That is what `DexClock.hostAxis` exists for — **and it cannot run on this corpus**"* (that
+brief's nights are phone-captured, `independent=false`). Its prescribed next step is *"a corpus change,
+not a code change: re-run on **box captures**, where `independent = true`."*
+
+**Both datasets here are already box captures**, so the prescribed step was runnable with no new
+instrument. The predictor — `dPpm = ppmE − ppmP`, each device's own `sensor ns` against the capture
+host's stamp — never touches a foot, a lag or a mode.
+
+### Result: the clock is the right SIZE and the wrong PATTERN
+
+| tree | n | predicted from clock (median) | observed &#124;modeB−mode&#124; | ρ | p |
+|---|---|---|---|---|---|
+| box | 29 | 165.4 ms | 200.0 ms | 0.261 | 0.171 |
+| box, crystal-plausible only | 24 | 155.2 ms | 160.0 ms | 0.240 | 0.255 |
+| smoke | 33 | 162.2 ms | 130.0 ms | 0.141 | 0.437 |
+| smoke, crystal-plausible only | 29 | 151.4 ms | 120.0 ms | 0.030 | 0.880 |
+
+Pre-stated: CLOCK EXPLAINS needs |ρ| ≥ 0.5 **and** a plausible magnitude; **CLOCK DOES NOT EXPLAIN** at
+|ρ| < 0.3. **All four cells return DOES NOT EXPLAIN**, including after dropping the link-artifact
+nights (`|dPpm| ≥ 50`, which CLAUDE.md §🔒 §7 says are a stalled link rather than a crystal).
+
+⚠️ **And the magnitude gate says the opposite, which is the finding.** Predicted and observed medians
+agree within ~25 %: inter-device drift of ~13 ppm over half a 7 h night is ~165 ms, and the observed
+shift is 120–200 ms. **An analysis that stopped at magnitude would have concluded the clock explains
+it.** It does not — the nights where the clock drifts most are not the nights where the mode moves
+most. **Commensurate magnitude is not evidence of causation**, and this is the cleanest example of that
+in the campaign.
+
+⚠️ **The correlation is INDEPENDENT of the `dt` assumption; the magnitude is not.** `predictedMs =
+|dPpm| × 1e-6 × dt`, and a rank correlation is invariant under multiplication by a positive constant —
+so ρ is exactly `Spearman(|dPpm|, |modeB−mode|)` and does not depend on `dt` at all. The magnitude
+comparison **does**: `dt = 12600 s` (half a 7 h night) is a stated corpus-level figure, not per-night,
+so "within ~25 %" carries the spread of real night lengths and should be read as *commensurate*, never
+as a fit.
+
+### What this does NOT establish
+
+**It eliminates the instrumental effect that is VISIBLE to the host axis, and only that.** §7's item
+names two candidates — slow physiology, and *"an instrumental effect invisible to the host axis"*. This
+test speaks to neither: it removes a third candidate that sat between them. Physiology-versus-
+host-axis-invisible-instrument is untouched, and the sibling brief's warning is exactly why it cannot
+be settled by looking at the PAT trajectory itself.
+
+⚠️ **A falsified prediction, recorded because it was.** I pre-stated **CLOCK ELIMINATED on magnitude,
+~0.13–0.19 ms** — wrong by a factor of 1000, because I dropped the seconds→ms conversion while writing
+the rule: 13 ppm over 12600 s is 0.165 **seconds**. The data did not falsify the prediction; my own
+arithmetic did, and the pre-statement is what made that visible rather than absorbable.
+
+Done-when item 6 is therefore **narrowed, not closed**.
+
 ## 7 · Done when
 
 - [x] Out-of-sample design, circular-shift null, gate-asserted with a noise control.
@@ -683,7 +743,12 @@ Closes residue `2026-09-14-oracle-mode-search-bound-never-varied`.
 - [x] Mode-outside-window nights identified and counted.
 - [x] The 20–40 ms residual's SHAPE: a slow trend on 8/8 nights — not white, not respiratory, no coherent HR dependence.
 - [x] Its SOURCE, partially: the **inter-device clock is ELIMINATED** on 8/8 by sign, magnitude and non-linearity, robust to the effective-ppm assumption.
-- [ ] What remains: slow physiology (BP/vasomotor/posture/stage) vs an instrumental effect invisible to the host axis (warming, contact drift).
+- [ ] What remains: slow physiology (BP/vasomotor/posture/stage) vs an instrumental effect invisible to
+      the host axis (warming, contact drift). **NARROWED 2026-09-15** — inter-device clock drift, the
+      candidate VISIBLE to the host axis, is eliminated as the driver of the halves shift: ρ 0.03–0.26
+      across four cells, all p > 0.17, on both trees. ⚠️ Eliminated on PATTERN, not on magnitude — the
+      clock predicts 151–165 ms against an observed 120–200 ms, so an analysis stopping at magnitude
+      would have concluded the opposite. The two named candidates are untouched.
 - [x] Whether the previously-unscored nights differ systematically from the scored — **ANSWERED
       2026-09-02 under #2082's pairing.** They do not form a systematic class: of 48 box nights only 5
       refuse, each for a named data reason (2 missing `_ECG.txt`, 2 below the 200-beat floor with counts,
