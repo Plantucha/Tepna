@@ -541,6 +541,12 @@ function readSources() {
        future edit that resolves ROOT from the cwd instead would make the refusal unreachable and the
        tool would silently act on whichever tree you happen to stand in. */
     'tools/rebase-safe.mjs',
+    /* The §∅ pin-constant parity gate reads BOTH sides as text.  asks for exactly
+       this — "that constant must be asserted equal to this one by a gate that has been shown to RED
+       on a mismatch" — and a Python constant cannot be imported into the JS lane, so the pairing is
+       necessarily a source scan. */
+    'capture-host/writers.py',
+    'capture-host/nightqc.py',
     'tools/regen-integrator-goldens.mjs',
     /* §4.3 — the §3.1 bootstrap exemption is a CONTRACT BETWEEN TWO FILES: this tool matches the
        §3.1 assertion's label to recognise a first-generation fixture. A rename in dex-tests.js would
