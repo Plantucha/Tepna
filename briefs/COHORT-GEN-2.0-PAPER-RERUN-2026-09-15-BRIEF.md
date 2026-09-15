@@ -68,11 +68,33 @@ The tools are browser pages, and two constraints are inherited from
 - **Poll with `page.evaluate()`, never `waitForFunction`.** The pages ship a CSP that refuses
   `waitForFunction`'s string evaluation outright.
 - `file://` navigation works (`page.goto('file://' + PAGE)`); no server is needed.
-- ⚠️ **These tools expose NO `window.__*` result surface** — unlike the trio page, which publishes
-  `__trioResult`. Results are rendered to the DOM only, and each tool's layout differs, so a driver
-  must scrape per tool. **This is the bulk of the remaining work and the reason the rerun is not a
-  one-liner.** Adding a small result-object surface to each tool is likely cheaper and more durable
-  than six scrapers, and would make the numbers machine-checkable against the table above.
+- ✅ **FIVE OF THE SIX ALREADY PUBLISH A MACHINE-READABLE RESULT OBJECT.** Corrected 2026-09-15,
+  same day, before any work was done on the wrong premise:
+
+  | tool | result global | assigned |
+  |---|---|---|
+  | `nights-icc-analysis.html` | `window.NIGHTS_ICC` | end of `analyze()` |
+  | `cgm-hrv-coupling-analysis.html` | `window.CGM_HRV_COUPLING` | ✓ |
+  | `qrs-equiv-analysis.html` | `window.QRS_EQUIV` | ✓ |
+  | `qrs-yield-analysis.html` | `window.QRS_YIELD` | ✓ |
+  | `treatment-response-analysis.html` | `window.TREATMENT_RESPONSE` | ✓ |
+  | **`hrv-confound-analysis.html`** | **none — the only one that needs a surface added** | — |
+
+  So the driver reads one global per tool; it does not scrape the DOM, and five tools need no source
+  change at all. That makes the numbers machine-checkable against the delta table above by
+  construction.
+
+  ⚠️ **THIS PARAGRAPH PREVIOUSLY ASSERTED THE OPPOSITE — "these tools expose NO `window.__*` result
+  surface … a driver must scrape per tool … this is the bulk of the remaining work" — and it was
+  WRONG in the way this repo keeps being wrong.** The grep behind it was
+  `grep -oE "window\.__[A-Za-z]+"`, which tests a **naming convention** (a leading double
+  underscore, copied from `__trioResult`) and not the **capability**. Every real surface here is
+  `window.SHOUTY_CASE`, so the query could not have found one however many existed, and its empty
+  result was read as absence. Same shape as §4b's *"reported success about something it never
+  examined"*, and as the `clock.js` "every bundle" claim in CLAUDE.md §✅. **When a query returns
+  nothing, check that it could have returned something** — here, one `grep -oE 'window\.[A-Z][A-Z0-9_]{2,}'`
+  would have. Cost of the error: a landed brief that instructed the next session to build six
+  scrapers it does not need.
 
 ## Done when
 
