@@ -22,7 +22,8 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const FIELDS = ['cpu_pct', 'rss_kb', 'elapsed_s', 'hci0_le', 'hci1_le', 'hci2_le', 'load1', 'mem_used_mb', 'disk_pct', 'unit_active'];
+// `hwm_kb` is APPENDED, never inserted: existing TSV column positions must not shift.
+export const FIELDS = ['cpu_pct', 'rss_kb', 'elapsed_s', 'hci0_le', 'hci1_le', 'hci2_le', 'load1', 'mem_used_mb', 'disk_pct', 'unit_active', 'hwm_kb'];
 
 // ── pure core ───────────────────────────────────────────────────────────────
 // Parse `key=value` lines into a row. EVERY field defaults to null: a key the
@@ -81,10 +82,13 @@ export function toTsv(ts, row) {
 
 export function fromTsv(line) {
   const c = line.split('\t');
-  if (c.length !== FIELDS.length + 1) return null;
+  // Tolerate a row written before a field was appended: the missing trailing columns are an
+  // ABSENCE and read back as null. Rejecting them would discard a real series on a schema bump;
+  // filling them with 0 would fabricate a measurement. A row LONGER than FIELDS is still refused.
+  if (c.length < 2 || c.length > FIELDS.length + 1) return null;
   const row = {};
   FIELDS.forEach((f, i) => {
-    const v = c[i + 1];
+    const v = i + 1 < c.length ? c[i + 1] : '';
     row[f] = v === '' ? null : Number(v);
   });
   return { ts: c[0], row };
@@ -96,6 +100,7 @@ p=$(systemctl show -p MainPID --value ${unit} 2>/dev/null)
 if [ -n "$p" ] && [ "$p" != "0" ] && [ -d "/proc/$p" ]; then
   set -- $(ps -o %cpu=,rss=,etime= -p "$p" 2>/dev/null)
   [ -n "$1" ] && echo "cpu_pct=$1"; [ -n "$2" ] && echo "rss_kb=$2"; [ -n "$3" ] && echo "elapsed_s=$3"
+  awk '/^VmHWM:/{print "hwm_kb="$2}' "/proc/$p/status" 2>/dev/null
 fi
 for i in 0 1 2; do
   if [ -d /sys/class/bluetooth/hci$i ]; then
@@ -124,8 +129,9 @@ function selftest() {
   const real = 'unit_active=active\ncpu_pct=6.8\nrss_kb=428232\nelapsed_s=08:56:51\n' + 'hci0_le=2\nhci1_le=0\nhci2_le=0\nload1=0.06\nmem_used_mb=2169\ndisk_pct=32';
   const r = parse(real);
   ok(
-    '1 real blob parses every field',
-    FIELDS.every((f) => r[f] !== null),
+    // `real` deliberately omits hwm_kb — test 16 uses that same blob as its absence plant.
+    '1 real blob parses every field it carries',
+    FIELDS.filter((f) => f !== 'hwm_kb').every((f) => r[f] !== null),
     JSON.stringify(r)
   );
   ok('2 elapsed 08:56:51 -> 32211 s', r.elapsed_s === 32211, String(r.elapsed_s));
@@ -155,6 +161,29 @@ function selftest() {
   ok('7 daemon down: unit 0 measured, cpu/rss null', down.unit_active === 0 && down.cpu_pct === null && down.rss_kb === null);
 
   ok('8 unparseable elapsed -> null', parseElapsed('garbage') === null);
+
+  /* VmHWM is the process high-water mark. A SAMPLER CANNOT MISS A PEAK BETWEEN SAMPLES if it reads
+     this, and that is the whole reason the field exists: measured 2026-09-15, a 60 s sampler's own
+     max was 514.6 MB while VmHWM stood at 759.4 MB — 245 MB of peak invisible to sampling. A memory
+     budget set from sampled RSS would have been sized from the plateau. */
+  const hw = parse(real + '\nhwm_kb=777600');
+  ok('14 hwm parses', hw.hwm_kb === 777600, String(hw.hwm_kb));
+  ok('15 PLANT hwm >= rss (a swapped parse would invert this)', hw.hwm_kb >= hw.rss_kb);
+  // §∅ again: an unreadable /proc entry is an ABSENCE, not a peak of zero, and not a copy of rss.
+  ok('16 PLANT absent hwm is null, not 0 and not rss', r.hwm_kb === null);
+
+  /* ⚠️ VmHWM is MONOTONIC. It gives the CAP and says nothing about SHAPE — oscillation, and whether
+     memory is returned, are invisible to it. Sampling gives the shape and understates the peak.
+     Neither replaces the other; quoting either alone misleads. (Osprey, 2026-09-15.) */
+  const legacy = ['2026-09-15T10:00:00Z', 6.8, 428232, 32211, 2, 0, 0, 0.06, 2169, 32, 1].join('\t');
+  const back = fromTsv(legacy);
+  ok('17 PLANT a pre-hwm row still parses', back !== null && back.row.cpu_pct === 6.8);
+  ok('18 PLANT its absent hwm reads null, not 0', back !== null && back.row.hwm_kb === null);
+  // legacy is FIELDS.length columns (pre-hwm), so ONE extra makes it exactly current-length and is
+  // legitimately accepted; it takes two to be over-long. Getting this wrong is how a bounds test
+  // passes against the wrong bound — it did, here, on the first attempt.
+  ok('19 a current-length row is accepted', fromTsv(legacy + '\t777600') !== null);
+  ok('20 an over-long row is still refused', fromTsv(legacy + '\t777600\t999') === null);
 
   // Summary must not average a column it never measured.
   const s = summarise([dead, dead], 'cpu_pct');
@@ -225,7 +254,7 @@ async function main() {
     if (row.cpu_pct === null) miss++;
     // §2.4/2.5 heartbeat: a real running value, on stdout, survives redirection.
     console.log(
-      `[${ts}] n=${prior + n} cpu=${row.cpu_pct ?? 'null'} rss_mb=${row.rss_kb === null ? 'null' : Math.round(row.rss_kb / 1024)} ` +
+      `[${ts}] n=${prior + n} cpu=${row.cpu_pct ?? 'null'} rss_mb=${row.rss_kb === null ? 'null' : Math.round(row.rss_kb / 1024)} peak_mb=${row.hwm_kb === null ? 'null' : Math.round(row.hwm_kb / 1024)} ` +
         `le=${[row.hci0_le, row.hci1_le, row.hci2_le].map((v) => v ?? 'x').join('/')} load=${row.load1 ?? 'null'} missed=${miss}`
     );
     if (n >= maxN) break;
