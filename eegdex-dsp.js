@@ -215,7 +215,26 @@
       bt = b.rel.beta;
     /* N3: slow-wave dominance — relative delta as the band-power proxy for the AASM criterion. */
     if (d >= p.n3) return 'N3';
-    /* REM: low delta, low EMG tone, eye movement present. The EMG leg is what separates REM from N1,
+    /* ⚠️ EOG CONJUGACY WAS TRIED HERE AND IS DELIBERATELY NOT USED — measured 2026-09-15, recorded so
+       it is not re-derived. In REM the eyes move together, so a left and a right EOG electrode should
+       see the same deflection with opposite sign; SHHS carries both channels at 100 %, so the feature
+       is available. Correlation over 30 s epochs, share below -0.2, 8 records:
+
+           REM 23.7 %  ·  Wake 7.1 %  ·  N1 6.3 %  ·  N2 0.4 %  ·  N3 0.2 %
+
+       The signal is REAL — REM is 30-100x more often anti-correlated than NREM — but it is SPECIFIC
+       and not SENSITIVE: it sees under a quarter of REM. Two wirings were measured on identical
+       records, changing nothing else:
+
+           as a REQUIREMENT (replacing the amplitude arm) .. REM recall 20.2 % -> 6.7 %, kappa -0.010
+           as an ADDITIONAL sufficient path (OR) ........... REM recall 20.2 % -> 20.2 %, kappa -0.0005
+
+       Worse as a gate, and redundant as an OR because the amplitude arm already fires on everything it
+       would catch. So it buys nothing here and costs a second channel dependency, and a recording with
+       one EOG lead would silently lose it. Revisit only if the amplitude arm is tightened — at that
+       point conjugacy's specificity would have something left to add.
+
+       REM: low delta, low EMG tone, eye movement present. The EMG leg is what separates REM from N1,
        which otherwise look alike in this feature space — without it a stager calls everything N1, and
        the untuned version did exactly that (REM recall 3.9 %).
        ⚠️ The `== null` arms make an ABSENT channel permissive rather than disqualifying: a recording
