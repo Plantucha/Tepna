@@ -245,6 +245,34 @@ def test_long_span_quotes_the_rate():
     assert co.estimate(_plant(400.0, 20.0))["skew_quotable"] is True
 
 
+def test_the_disputed_band_is_not_quotable():
+    """THE BOUNDARY NOBODY TESTED. The fixtures above bracket 600 s (False) and 8 h (True); nothing
+    exercised the 2400-3600 s band, which is exactly where the two lanes disagreed — `clock_offset`
+    called a 40-minute rate quotable while `tools/dual-clock-rate.mjs:118` refused the same quantity
+    under 60 min as "not a rate". An untested boundary is how one number came to answer two questions.
+
+    3000 s sits inside that band. It is NOT quotable: §517 answers resolvability under 1 h with `no`.
+    The OFFSET stays usable at that span — that is the point of `skew_quotable` being separate from
+    `ok`, and it is asserted here so a future tightening cannot quietly sink the whole estimate."""
+    r = co.estimate(_plant(400.0, 20.0, n=2000, span=3000.0))
+    assert r["ok"] is True, r
+    assert r["skew_quotable"] is False, r
+    # DERIVED, not copied. The envelope reports the offset at the span CENTROID, so a 20 ppm drift
+    # contributes ppm x (span/2): 400 + 20e-6 x 1500 s x 1000 = 430 ms here, and 406 ms for the 600 s
+    # fixture above. Carrying that fixture's 406.0 over to this one fails by 24 ms — the number is a
+    # function of the span, and the first draft of this test copied it as if it were a constant.
+    assert r["offset_ms"] == pytest.approx(400.0 + 20e-6 * (3000.0 / 2) * 1000.0, abs=5.0)
+
+
+def test_the_floor_is_the_resolvability_one_not_the_correction_one():
+    """Pins WHICH question the constant answers, not just its value. A later reader tempted to
+    re-borrow `ecgdex-dsp.js`'s 2400 (a correction-application threshold, measured net-beneficial
+    where it stands) would pass a value check and fail this one."""
+    assert co.SPAN_MIN_SEC == 3600.0
+    assert co.estimate(_plant(400.0, 20.0, n=2000, span=2400.0))["skew_quotable"] is False
+    assert co.estimate(_plant(400.0, 20.0, n=3000, span=3700.0))["skew_quotable"] is True
+
+
 # ─── the pieces, directly ───────────────────────────────────────────────────────────────────────
 
 def test_the_answer_does_not_depend_on_where_the_caller_starts_t():
