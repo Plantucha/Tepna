@@ -27712,6 +27712,41 @@
       T.ok('…and the git probe suppresses stderr, so a non-checkout cwd leaks no fatal', /--show-toplevel'\],\s*\{[^}]*stdio: \['ignore', 'pipe', 'ignore'\]/.test(src));
     });
 
+    group('Rebase-safe — the union-merge blind spot has a detector, with BOTH controls', 'tools · rebase-safe-union', function (T) {
+      /* `rebase-safe`'s whole model is CONFLICT-driven: it enumerates `--diff-filter=U` and its contract
+         is "conflict in ANY other path → STOP". A `merge=union` path NEVER conflicts — the driver keeps
+         both sides — so it cannot enter that list, the STOP branch cannot fire, and the tool reports
+         success over a corrupted ledger. Measured on live PRs by three sessions: #2506 → 1 duplicate,
+         #2509 → 2, each a merge with exit 0 and no conflict markers. A REBASE is not the safe
+         alternative — it replays the diff through the same driver. */
+      var dup = env.rebaseDuplicateLedgerKeys;
+      if (typeof dup !== 'function') { T.skip('rebaseDuplicateLedgerKeys not in env'); return; }
+
+      /* POSITIVE CONTROL — an EDIT surviving twice, which is what a union driver does to a closed row. */
+      var corrupted = [
+        '| 2026-09-14-a-real-row | 2026-09-14 | `x.py` | d | e | OPEN |',
+        '| 2026-09-14-a-real-row | 2026-09-14 | `x.py` | d | e | fixed #1 |',
+        '| 2026-09-13-another-row | 2026-09-13 | `y.py` | d | e | OPEN |'
+      ].join('\n');
+      T.eq('an edit replayed through the union driver is caught', dup(corrupted).join(','), '2026-09-14-a-real-row');
+
+      /* NEGATIVE CONTROL, and it is the one that earned its place. A looser "first table cell" pattern
+         also matches RESIDUE.md's OWN row-contract table, whose `key`/`logged`/`state` labels recur
+         legitimately — so the first draft reported a duplicate on a CLEAN origin/main. A check that
+         fires on a healthy tree blocks every rebase and gets switched off, which is worse than absent. */
+      var contractTable = [
+        '| column | rule |',
+        '| key | **`YYYY-MM-DD-short-slug`** |',
+        '| logged | `YYYY-MM-DD` the row was written |',
+        '| state | `OPEN` or `fixed #NNNN` |',
+        '| key | a second mention of the same label |',
+        '| 2026-09-14-a-real-row | 2026-09-14 | `x.py` | d | e | OPEN |'
+      ].join('\n');
+      T.eq('the file\'s own contract table is NOT mistaken for duplicated rows', dup(contractTable).length, 0);
+
+      T.eq('an empty or absent file yields no keys rather than throwing', dup('').length + dup(null).length, 0);
+    });
+
     group('Rebase-safe — a discharged stamp is told apart from one already stale', 'tools · rebase-safe-stamps', function (T) {
       var cs = env.rebaseClassifyStamps;
       if (typeof cs !== 'function') {
