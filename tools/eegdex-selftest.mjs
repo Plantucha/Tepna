@@ -108,5 +108,50 @@ A(
 );
 A('analyze: refuses an absent signal rather than returning an empty hypnogram', !!D.analyze({ fs }).err);
 
+/* smoothing — including the failure `ecgdex-dsp.js` measured and warned about */
+A('smooth: an isolated epoch between two of another stage is corrected', JSON.stringify(D.smoothHypnogram(['N2', 'N2', 'W', 'N2', 'N2'])) === JSON.stringify(['N2', 'N2', 'N2', 'N2', 'N2']));
+A('smooth: a real two-epoch bout is NOT erased', JSON.stringify(D.smoothHypnogram(['N2', 'REM', 'REM', 'N2'])) === JSON.stringify(['N2', 'REM', 'REM', 'N2']));
+A(
+  'smooth: endpoints are left alone (no neighbour on one side)',
+  (() => {
+    const o = D.smoothHypnogram(['W', 'N2', 'N2']);
+    return o[0] === 'W';
+  })()
+);
+A(
+  '§∅: a null epoch is never FILLED from its neighbours',
+  (() => {
+    const o = D.smoothHypnogram(['N2', null, 'N2']);
+    return o[1] === null;
+  })()
+);
+A(
+  '§∅: a null neighbour never outvotes a real epoch',
+  (() => {
+    const o = D.smoothHypnogram([null, 'REM', null]);
+    return o[1] === 'REM';
+  })()
+);
+A('smooth: a series shorter than 3 is returned unchanged', JSON.stringify(D.smoothHypnogram(['W', 'N2'])) === JSON.stringify(['W', 'N2']));
+/* the ECGDex eraser control, in miniature: a minority stage embedded in a dominant one must not be
+   wiped out wholesale — only genuine singletons go */
+A(
+  'smooth: CONTROL — a minority stage with any width survives a dominant background',
+  (() => {
+    const seq = ['N2', 'N2', 'N2', 'REM', 'REM', 'REM', 'N2', 'N2'];
+    return D.smoothHypnogram(seq).filter((x) => x === 'REM').length === 3;
+  })()
+);
+A(
+  'analyze: smooth:false recovers the raw hypnogram',
+  (() => {
+    const n2 = new Float64Array(fs * 300);
+    for (let i = 0; i < n2.length; i++) n2[i] = 20 * Math.sin((2 * Math.PI * 2 * i) / fs);
+    const r = D.analyze({ eeg: n2, fs }, { smooth: false }),
+      q = D.analyze({ eeg: n2, fs });
+    return r.hypnogram.length === q.hypnogram.length;
+  })()
+);
+
 console.log('\n' + (bad ? '✕ ' + bad + ' failed, ' : '✓ ') + good + ' assertions passed');
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exit(bad ? 1 : 0);

@@ -231,6 +231,42 @@
     return 'N1';
   }
 
+  /* ── temporal smoothing ────────────────────────────────────────────────────
+     Sleep stages persist; an isolated epoch flanked by two of another stage is far more likely a
+     misclassification than a real one-epoch bout. Applied AFTER staging so the rules stay readable
+     and the raw hypnogram is still available for comparison.
+
+     ⚠️ `ecgdex-dsp.js` carries a hard-won warning about exactly this, and it is worth reading before
+     assuming smoothing is free: an unconditional despiker "is not a denoiser, it is an eraser" — on a
+     series where one class dominates, every isolated MINORITY-stage epoch is overwritten by
+     construction. Measured there: two epochs satisfied the full REM rule and the smoother deleted
+     both, reporting REM = 0 min.
+
+     ⚠️ ITS REMEDY DOES NOT TRANSFER HERE, AND THE REASON IS THE GRID. ECGDex exempts the minority
+     stages because it runs a FIVE-MINUTE epoch, where a single epoch IS a legitimate REM or Deep bout
+     (real bouts run 5-25 min). EEGDex runs 30 s, where a real REM bout is 10-50 epochs — so an
+     isolated 30 s singleton is genuinely more likely noise than bout. The same rule is right there and
+     wrong here, because the unit differs.
+
+     That inversion is an argument, not evidence, so the effect on REM recall specifically is MEASURED
+     rather than assumed — see the commit. A smoother that lifted overall kappa while collapsing REM
+     would be the ECGDex failure wearing a better headline number. */
+  function smoothHypnogram(stages) {
+    if (!stages || stages.length < 3) return stages ? stages.slice() : stages;
+    var out = stages.slice();
+    for (var i = 1; i < stages.length - 1; i++) {
+      var a = stages[i - 1],
+        b = stages[i],
+        c = stages[i + 1];
+      /* §∅ — a null epoch is an ABSENCE and is never smoothed over, in either direction: it must not
+         be filled from its neighbours (that fabricates a stage for an unscorable epoch), and it must
+         not be allowed to outvote a real one. */
+      if (a == null || b == null || c == null) continue;
+      if (a === c && b !== a) out[i] = a;
+    }
+    return out;
+  }
+
   /* ── analyze ───────────────────────────────────────────────────────────────
      `rec` = { eeg:Float|Array, fs, emg?, emgFs?, eog?, eogFs?, t0Ms? }. Samples, not a vendor file:
      see the scope note at the top. */
@@ -259,13 +295,21 @@
       eogMed = median(eogR);
 
     var hypnogram = [],
+      rawStages = [],
       counts = { W: 0, N1: 0, N2: 0, N3: 0, REM: 0 },
       nNull = 0;
     for (i = 0; i < nEp; i++) {
       var st = stageEpoch(bands[i], emgMed > 0 && emgR[i] != null ? emgR[i] / emgMed : null, eogMed > 0 && eogR[i] != null ? eogR[i] / eogMed : null);
-      hypnogram.push({ epoch: i, tMs: rec.t0Ms != null ? rec.t0Ms + i * EPOCH_SEC * 1000 : null, stage: st, conf: st == null ? null : 0.5 });
-      if (st == null) nNull++;
-      else counts[st]++;
+      rawStages.push(st);
+    }
+    /* smoothing is opt-OUT rather than opt-in, because the raw series is the diagnostic and the
+       smoothed one is the product; `opts.smooth === false` recovers the raw hypnogram exactly */
+    var stages = opts.smooth === false ? rawStages : smoothHypnogram(rawStages);
+    for (i = 0; i < nEp; i++) {
+      var st2 = stages[i];
+      hypnogram.push({ epoch: i, tMs: rec.t0Ms != null ? rec.t0Ms + i * EPOCH_SEC * 1000 : null, stage: st2, conf: st2 == null ? null : 0.5 });
+      if (st2 == null) nNull++;
+      else counts[st2]++;
     }
 
     var scored = nEp - nNull;
@@ -302,6 +346,7 @@
     EPOCH_SEC: EPOCH_SEC,
     epochBands: epochBands,
     stageEpoch: stageEpoch,
+    smoothHypnogram: smoothHypnogram,
     TUNED: TUNED,
     rms: rms,
     median: median,
