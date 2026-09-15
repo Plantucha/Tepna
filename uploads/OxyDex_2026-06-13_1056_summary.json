@@ -1052,14 +1052,7 @@
         "basis": "medianOf30minWindows",
         "windowsUsed": 14
       },
-      "respRate": {
-        "respRateBpm": 11,
-        "rsaPeakFreq": 0.1833,
-        "rsaPeakPow": 0.5,
-        "respRateLabel": "Normal (10-20)",
-        "basis": "medianOf30minWindows",
-        "windowsUsed": 14
-      },
+      "respRate": null,
       "hrAsymmetry": {
         "hrAccelAsym": 1.008,
         "meanUpBpm": 1.09,
