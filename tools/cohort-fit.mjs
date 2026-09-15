@@ -65,9 +65,10 @@
  *   node tools/cohort-fit.mjs --real <scored.json> [--n 50000]
  */
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
+import { spawnSync } from 'node:child_process';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -173,6 +174,29 @@ function selftest() {
     }
   };
   console.log('▸ cohort-fit --selftest\n');
+
+  /* The importability of this module cannot be observed from INSIDE it — by the time this runs, the
+     entry-point decision has already been made. A subprocess is the only instrument that can see it,
+     which is why this assertion spawns rather than inspecting a flag. It reds on removing the IS_CLI
+     guard, verified by putting the bare `process.exit(main(...))` back. */
+  try {
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', "import('" + import.meta.url + "').then(m=>{if(typeof m.loadCohortGen!=='function')process.exit(3)})"], {
+      encoding: 'utf8',
+      timeout: 30000
+    });
+    A(
+      'importing this module does NOT run its CLI or exit the importer',
+      r.status === 0,
+      'exit ' +
+        r.status +
+        ' — ' +
+        String(r.stdout || r.stderr)
+          .trim()
+          .slice(0, 80)
+    );
+  } catch (e) {
+    A('importing this module does NOT run its CLI or exit the importer', false, e.message);
+  }
 
   A('bands: the clinical cuts', ahiBand(4.9) === 'none' && ahiBand(5) === 'mild' && ahiBand(14.9) === 'mild' && ahiBand(15) === 'mod' && ahiBand(29.9) === 'mod' && ahiBand(30) === 'severe');
   A('bands: §∅ — an absent AHI is null, not "none"', ahiBand(null) === null && ahiBand(NaN) === null);
@@ -319,5 +343,14 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv.includes('--selftest')) process.exit(selftest());
-else process.exit(main(process.argv.slice(2)));
+/* ── entry point ══════════════════════════════════════════════════════════════════════════════
+   These two lines used to run UNCONDITIONALLY, so `import`ing this module for `loadCohortGen` —
+   the one reusable thing in it — printed the usage banner and called `process.exit`, killing the
+   importer. Measured 2026-09-15: a 1.9-vs-2.0 comparison that imported `loadCohortGen` died with
+   the tool's own usage text and no other sign, which reads as the CALLER being wrong. A library
+   function is not importable if reaching it runs a CLI. */
+const IS_CLI = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+if (IS_CLI) {
+  if (process.argv.includes('--selftest')) process.exit(selftest());
+  else process.exit(main(process.argv.slice(2)));
+}
