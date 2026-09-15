@@ -2868,7 +2868,35 @@
     var spo2Over = computeSpO2Overshoot(rows, desat);
     var spo2Ac1 = computeSpO2Autocorr(rows);
     var hrFreq = computeHRFreqBands(rows);
-    var respRate = computeRespRateProxy(rows);
+    /* ── respRate is NOT PUBLISHED — it does not measure respiration rate ──────────────────────
+       Owner decision 2026-09-15, on measurement. `computeRespRateProxy` infers a breathing rate from
+       spectral content in 1 Hz heart rate. Validated against SHHS1's two independent inductance belts
+       (THOR RES + ABDO RES) over 300 records, 201 of them control-clean — the belts agreeing with each
+       other is what makes the disagreement attributable to the proxy:
+
+         proxy median 9.10 brpm   ·   belt reference median 14.34 brpm   ·   bias -5.32
+         Pearson r = 0.046 (Spearman 0.082)   ·   within 1 brpm of truth on 3.5 % of nights
+
+       r = 0.05 is noise, and a constant cannot repair it: removing the median offset lifts agreement
+       only to 33.8 %, because an estimator that does not track its target has nothing to calibrate.
+       Corroborated on the home corpus independently — 117 trio nights, proxy median 10.9, range
+       8.4-13.8, the same compressed low band against a sleeping-adult expectation of 12-16.
+
+       So the published value is `null`: a number carrying no information is the fabricated zero one
+       layer up (§∅), and the export is the cross-node currency where some future consumer could spend
+       it. ⚠️ Read this null as "not published", NOT as "the device could not measure it" — the
+       distinction is recorded here because nothing in the export can carry it.
+
+       ⚠️ THIS IS OXYDEX'S PROXY ONLY. PulseDex's `respRate` is a DIFFERENT metric from real RR
+       intervals via a Lomb-Scargle HF peak, it is gated by its own assertions, and NOTHING here
+       applies to it. Same name, two nodes.
+
+       `computeRespRateProxy` is deliberately KEPT and still exported: it is the subject of
+       `tools/nsrr-resprate-validate.mjs`, which needs the real kernel to demonstrate the defect
+       rather than a copy of its arithmetic — including that the kernel's 0.13-0.33 Hz scan makes its
+       own `Fast (>20)` label unreachable, since 0.33 Hz is 19.8 brpm.
+       Residue: 2026-09-15-proxy-resprate-uninformative. Instrument: tools/nsrr-resprate-validate.mjs */
+    var respRate = null;
     var hrAsym = computeHRAsymmetry(rows);
     var hrQuart = computeHRQuartileTrend(rows);
     var spo2HRLag = computeSpO2HRLag(rows);
