@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**184 tools** · 182 with a purpose line · **2 without**
+**185 tools** · 183 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -96,6 +96,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`nsrr-criterion-sweep.mjs`](../tools/nsrr-criterion-sweep.mjs) | `tools/nsrr-oxydex-odi.mjs` scores the SHIPPED detector against expert scoring at a fixed criterion. |
 | [`nsrr-effort-typing.mjs`](../tools/nsrr-effort-typing.mjs) | WHY THIS EXISTS our chest accelerometer, central apneas below half baseline.... |
 | [`nsrr-oxydex-odi.mjs`](../tools/nsrr-oxydex-odi.mjs) | The second NSRR arm. `tools/nsrr-stage-validate.mjs` drives the ECG channel into the sleep stager; this one drives the **SaO2** channel into OxyDex and compares its AHI estimate to the AHI… |
+| [`nsrr-resprate-validate.mjs`](../tools/nsrr-resprate-validate.mjs) | `2026-09-03-oxydex-proxy-resprate-unattributed` (OPEN) records that OxyDex computes a proxy respiration rate from heart-rate spectral content, writes it into the node export as… |
 | [`nsrr-score-pool.mjs`](../tools/nsrr-score-pool.mjs) | `nsrr-oxydex-odi.mjs --dir` scores serially: measured 4.15 s/record, so 5136 records is ~5.9 h in one core of twenty-four, with no progress output, no checkpoint, and nothing to show if it… |
 | [`nsrr-stage-validate.mjs`](../tools/nsrr-stage-validate.mjs) | REM-STAGING-FOLLOWUPS §2b: "the shipped conjunction scored against REAL PSG labels; REM recall/precision recorded. |
 | [`o2ring-dat-timefit.mjs`](../tools/o2ring-dat-timefit.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ PIN THE O2RING'S STORED-SESSION CLOCK TO HOST TIME by fitting the onboard.dat against the live… |
