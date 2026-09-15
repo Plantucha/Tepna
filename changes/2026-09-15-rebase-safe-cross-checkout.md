@@ -5,7 +5,7 @@ brief: none
 ---
 
 `tools/rebase-safe.mjs` acts on the checkout it **lives in**, not the one you are standing in — and
-every git call is bound to that checkout: **7 `cwd: ROOT` sites, 0 bound to `process.cwd()`**. `gitQuiet`
+every git call is bound to that checkout: **6 `cwd: ROOT` sites, none bound to `process.cwd()`** — counted BEFORE this fix, which is the state the hazard describes. After it the file reads 7 and 1, because the guard added below needs one of each to detect the mismatch; a reader grepping the shipped file will see those and should not read them as hazard sites. `gitQuiet`
 delegates to `git`, so `gitQuiet('rebase', onto)`, the generated-path auto-resolve
 `gitQuiet('checkout', onto, '--', p)`, the `add`, the `rebase --continue` and the builders all run there
 too.
