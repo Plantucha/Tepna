@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (⚠️ 2026-09-14: the HALVES diagnostic this tool has always printed was never read — it disagrees on 90 % of scored nights, median 130/120 ms, and on EVERY SIGNAL RECOVERED night; 2026-08-12 crosses the PPG-FOOT-PLACEMENT rail depending on which half you read. See the 🔴 section. The recovered CONCENTRATION is untouched.) · PROPOSED (parked 2026-09-06 — core BUILT and EXECUTED at corpus scale; the one remaining item is a designed experiment, not an execution. Blocker in §-park) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core BUILT AND EXECUTED, remainder owner-/cost-blocked; verified 2026-09-05: the 09-01 stamp below is superseded).** The tool has since been run twice on the real corpus and a defect it exposed is fixed in main: #2029 (±100 ms first corpus run + half-width sweep at w=50/200/300) and #2034 (`oracleNight` split scoped to the OVERLAP interval, not the ECG's own extent). Outcome: `UNDEFINED (n=0)` **6 → 0**, SIGNAL RECOVERED **2 → 4**, modes **215 · 315 · 355 · 405 ms**, and the two originally-invariant nights held exactly (405→405, 215→215) across a 6× width change. What remains is not tooling: the ±100 ms operating point is the only one whose null tracks `2w/√12` (w=300 misses by 11.2 %), and the 5 out-of-window modes (25/165/185/815/1245 ms) are recorded as a REFUSED-artifact candidate for the tool's owner-decision layer. ⚠️ ORIGINAL 09-01 STAMP, now false: TRIAGED 2026-09-01 (Osprey): tool BUILT and selftest-clean (`tools/pat-window-oracle.mjs --selftest` = 8/8) but NEVER RUN on a corpus and its results are referenced in no brief, audit or doc. **CORRECTED 2026-09-01: NOT blocked — the raw corpus IS local.** My first stamp said this machine has zero `_ECG.txt`; that was wrong because I searched only the repo's `uploads/` tree, which holds node-export JSON. The canonical root is **`/srv/data/tepna-corpus/` (125 GB, 1131 raw `_ECG.txt`)** with per-night raw dirs under `smoketest-captures/` (box), `uploads/vigil-archive/captures/` (daily mirror) and `uploads/Ecg nightly/` (phone). Pointed at `uploads/trio` the oracle exits 0 with `TALLY: {}` — a WRONG-ROOT failure, not a negative result, which is what made the absence look real. Now running against the real root.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§11/§13 oracle) · **Interlocks:** `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey) — RE-RUN under #2082 executed; see the RE-RUN section.** Regression band held exactly (07-24 405->405, 08-17 215->215). Corpus is **48 nights, not 87** — the vigil mirror is a strict subset and one of its nights is an incomplete copy. The unscored-nights Done-when box is **CLOSED**. **Still IN-PROGRESS on one box only:** whether the 20-40 ms residual is slow physiology or an instrumental effect — a research question no run of this tool closes. **Owner: Osprey. Next step:** the phone root's flat-layout defect (50 `_ECG.txt` invisible to the oracle) is the one actionable residue. · **Residue:** 2026-09-02-oracle-flat-root-policy, 2026-09-02-pat-table-row-unreproducible, 2026-09-14-oracle-mode-not-stable-across-halves · **2026-09-02 (Osprey):** the overlap split #2034 introduced is now RETURNED by `oracleNight` (`lo`/`mid`/`hi`) and consumed by both sibling tools — see PR body. It had been computed but not returned, so `pat-residual-structure.mjs` and `pat-drift-attribution.mjs` each recomputed the pre-fix ECG-extent midpoint and silently diverged from the oracle they read `mode` from. **A fix that lands in one place while its copies survive is this repo's recurring shape** — which is why the repair is the RETURN VALUE, not a third correct copy. · **SWEEP-FOLD 2026-09-03 (Osprey) — this brief's own published tables have DRIFTED, and it is the clearest case in the corpus.** The published-number sweep (`audits/PUBLISHED-NUMBER-DECAY-SWEEP-2026-09-03.md`) re-ran both tables this brief names. **§6's table: its "reproduces" verdict is WITHDRAWN as CIRCULAR** — I rewrote those values from my own re-run in `40474646` (#2111), so a later re-run tests determinism, not survival. Its real result stands and is **R10**: against the values standing *before* I touched it, **7 of 9 cells had moved**, including a sign-flipped shuffled control, with the qualitative verdict intact. **The drift table DIVERGES 5 of 8 rows**, attributable to my own #2114 picker fix — largest movement 07-18 ratio 33.74 → 7.25, on the most-fragmented night (110 ECG / 555 PPG), exactly where a size-sort and an overlap-sort disagree most. ⚠️ **"Predates a correctness fix" is NOT "was wrong"** — every verdict in that table still holds, and the distinction must survive any quotation. **Consequence for this header: do NOT stamp this brief cleared on either table.** Neither records the commit or the corpus that produced it, so neither can be aged, flagged, or re-derived without a hand re-run. Owner: Osprey; the corpus run remains the next step, and it now also owes a provenance line per table.
+**Status:** PROPOSED (⚠️ 2026-09-14: the HALVES diagnostic this tool has always printed was never read — it disagrees on 90 % of scored nights, median 130/120 ms, and on EVERY SIGNAL RECOVERED night; 2026-08-12 crosses the PPG-FOOT-PLACEMENT rail depending on which half you read. See the 🔴 section. The recovered CONCENTRATION is untouched.) · PROPOSED (parked 2026-09-06 — core BUILT and EXECUTED at corpus scale; the one remaining item is a designed experiment, not an execution. Blocker in §-park) · ****RE-STAMPED 2026-09-05 (Papers) — PROPOSED (core BUILT AND EXECUTED, remainder owner-/cost-blocked; verified 2026-09-05: the 09-01 stamp below is superseded).** The tool has since been run twice on the real corpus and a defect it exposed is fixed in main: #2029 (±100 ms first corpus run + half-width sweep at w=50/200/300) and #2034 (`oracleNight` split scoped to the OVERLAP interval, not the ECG's own extent). Outcome: `UNDEFINED (n=0)` **6 → 0**, SIGNAL RECOVERED **2 → 4**, modes **215 · 315 · 355 · 405 ms**, and the two originally-invariant nights held exactly (405→405, 215→215) across a 6× width change. What remains is not tooling: the ±100 ms operating point is the only one whose null tracks `2w/√12` (w=300 misses by 11.2 %), and the 5 out-of-window modes (25/165/185/815/1245 ms) are recorded as a REFUSED-artifact candidate for the tool's owner-decision layer. ⚠️ ORIGINAL 09-01 STAMP, now false: TRIAGED 2026-09-01 (Osprey): tool BUILT and selftest-clean (`tools/pat-window-oracle.mjs --selftest` = 8/8) but NEVER RUN on a corpus and its results are referenced in no brief, audit or doc. **CORRECTED 2026-09-01: NOT blocked — the raw corpus IS local.** My first stamp said this machine has zero `_ECG.txt`; that was wrong because I searched only the repo's `uploads/` tree, which holds node-export JSON. The canonical root is **`/srv/data/tepna-corpus/` (125 GB, 1131 raw `_ECG.txt`)** with per-night raw dirs under `smoketest-captures/` (box), `uploads/vigil-archive/captures/` (daily mirror) and `uploads/Ecg nightly/` (phone). Pointed at `uploads/trio` the oracle exits 0 with `TALLY: {}` — a WRONG-ROOT failure, not a negative result, which is what made the absence look real. Now running against the real root.** · **Created:** 2026-08-28 · **Parent:** `PAT-ROOT-CAUSE-FORENSICS-2026-08-27-BRIEF.md` (§11/§13 oracle) · **Interlocks:** `PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md` · **DRAIN 2026-09-02 (Osprey) — RE-RUN under #2082 executed; see the RE-RUN section.** Regression band held exactly (07-24 405->405, 08-17 215->215). Corpus is **48 nights, not 87** — the vigil mirror is a strict subset and one of its nights is an incomplete copy. The unscored-nights Done-when box is **CLOSED**. **Still IN-PROGRESS on one box only:** whether the 20-40 ms residual is slow physiology or an instrumental effect — a research question no run of this tool closes. **Owner: Osprey. Next step:** the phone root's flat-layout defect (50 `_ECG.txt` invisible to the oracle) is the one actionable residue. · ✅ 2026-09-15: the mode SURVIVES its search bound (95/96 % identical across M=1000/2000/3000, median Δ 0) and the PHYS bar is CALIBRATED (real 70-74 % vs null 39-40 %, Δ 30-35 pts) — the median was the rail, the mode is not. · **Residue:** 2026-09-02-oracle-flat-root-policy, 2026-09-02-pat-table-row-unreproducible, 2026-09-14-oracle-mode-not-stable-across-halves · **2026-09-02 (Osprey):** the overlap split #2034 introduced is now RETURNED by `oracleNight` (`lo`/`mid`/`hi`) and consumed by both sibling tools — see PR body. It had been computed but not returned, so `pat-residual-structure.mjs` and `pat-drift-attribution.mjs` each recomputed the pre-fix ECG-extent midpoint and silently diverged from the oracle they read `mode` from. **A fix that lands in one place while its copies survive is this repo's recurring shape** — which is why the repair is the RETURN VALUE, not a third correct copy. · **SWEEP-FOLD 2026-09-03 (Osprey) — this brief's own published tables have DRIFTED, and it is the clearest case in the corpus.** The published-number sweep (`audits/PUBLISHED-NUMBER-DECAY-SWEEP-2026-09-03.md`) re-ran both tables this brief names. **§6's table: its "reproduces" verdict is WITHDRAWN as CIRCULAR** — I rewrote those values from my own re-run in `40474646` (#2111), so a later re-run tests determinism, not survival. Its real result stands and is **R10**: against the values standing *before* I touched it, **7 of 9 cells had moved**, including a sign-flipped shuffled control, with the qualitative verdict intact. **The drift table DIVERGES 5 of 8 rows**, attributable to my own #2114 picker fix — largest movement 07-18 ratio 33.74 → 7.25, on the most-fragmented night (110 ECG / 555 PPG), exactly where a size-sort and an overlap-sort disagree most. ⚠️ **"Predates a correctness fix" is NOT "was wrong"** — every verdict in that table still holds, and the distinction must survive any quotation. **Consequence for this header: do NOT stamp this brief cleared on either table.** Neither records the commit or the corpus that produced it, so neither can be aged, flagged, or re-derived without a hand re-run. Owner: Osprey; the corpus run remains the next step, and it now also owes a provenance line per table.
 
 # There IS signal under the window — the acceptance window is mis-specified, not merely wide
 
@@ -606,6 +606,75 @@ under a model you are not assuming."* A drifting-lag plant is owed and is logged
 `2026-09-14-oracle-halves-plant-is-constant-by-construction`.
 
 Logged as `2026-09-14-oracle-mode-not-stable-across-halves`.
+
+## ✅ THE SEARCH BOUND VARIED — the mode is ROBUST and the bar is CALIBRATED (2026-09-15, Kestrel)
+
+The 🔴 section above found the *halves* diagnostic disagreeing on ~90 % of nights, and `WINDOW-REGIMES`
+§9 found the sibling statistic — the **median** — to be nothing but the interval it was computed over
+(slope 0.964/0.934 on the rail midpoint). That made one question urgent: **the mode is quoted
+campaign-wide as THE location statistic; does it depend on the interval IT is searched in?**
+
+§4a's invariance evidence sweeps `--half-width`, the band drawn **around** the mode.
+`MODE_SEARCH_MAX` is the interval the mode is **searched in**. They are independent, and only the first
+had ever been varied. `--search-max` and `--json` (#2516) make the question askable; defaults are
+unchanged and the shipped run reproduces `315 / 215 / 225` exactly.
+
+### Q1 — MODE IS ROBUST, on both trees
+
+| tree | n | identical at M = 1000/2000/3000 | median &#124;Δ&#124; | verdict |
+|---|---|---|---|---|
+| `uploads/vigil-archive` | 40 | **38 (95 %)** | 0 ms | MODE IS ROBUST |
+| `tepna-smoketest` | 46 | **44 (96 %)** | 0 ms | MODE IS ROBUST |
+
+Pre-stated: ROBUST at ≥ 90 % identical. **The mode is a real statistic. The median was not.** That
+asymmetry is not luck — a median is pulled toward the midpoint of whatever interval it is computed
+over, and a histogram mode has no such attractor.
+
+### ⚠️ The two nights that MOVE vindicate the shipped default
+
+Both are already `ARTIFACT REFUSAL` at M = 2000, and `2026-08-28` shows the mechanism:
+
+```
+2026-08-16   mode  985 / 1025 / 1025    never in PHYS at any bound
+2026-08-28   mode  545 / 1245 / 1245    IN PHYS at M=1000, OUT at 2000 and 3000
+```
+
+At M = 1000 the true modal peak at 1245 ms lies **outside the search**, so the histogram settles on a
+secondary peak at 545 ms — inside PHYS, and an artifact of truncation. **A narrower bound would
+manufacture a physiological-looking answer.** `MODE_SEARCH_MAX = 2000 // wider than the PHYS window ON
+PURPOSE` does exactly what its comment claims, and this is the measurement behind it.
+
+### Q2 — the bar is CALIBRATED, and the null is more structured than expected
+
+`papers/dead-ends.html` records this repo burned by a search whose acceptance threshold *"sits below
+the chance-maximum correlation over 24,001 candidate lags"*, prescribing **"calibrate the search before
+believing its null."** `MODE_SEARCH_MAX = 2000` at `BIN_MS = 10` picks among 200 bins and had no such
+calibration. Measured against the tool's own circular-shift null:
+
+| tree (M = 2000) | real mode in PHYS | null mode in PHYS | Δ |
+|---|---|---|---|
+| box | 70.0 % | 40.0 % | **30.0 pts** |
+| smoke | 73.9 % | 39.1 % | **34.8 pts** |
+
+Pre-stated: CALIBRATED at Δ ≥ 20 pts. It clears on both trees at every bound.
+
+⚠️ **But the null reaches PHYS 40 % of the time and that rate does not move with the bound** — 40/40/40
+against a uniform-chance baseline of 45/22/15 %. A circularly-shifted foot train is therefore **not**
+emitting random lags; it concentrates, and the concentration is bound-invariant (RR-periodicity
+aliasing — the assumption this tool's own header already flags as load-bearing for the metronome case).
+**So "the mode is in the rail" is meaningful in aggregate and weak on a single night**: roughly two in
+five shifted trains produce a physiological-looking mode. Any per-night claim resting on `modeInPhys`
+alone owes that caveat.
+
+### ⚠️ A circular first pass, kept because it nearly shipped
+
+My first Q2 filtered out refused nights and reported the real arm at **100 %**. That is circular:
+`ARTIFACT REFUSAL` is *defined* as a mode outside PHYS, so excluding refusals guaranteed the result.
+The honest figure over all nights carrying a mode is 70–76 %. The rule and the Q1 prediction were both
+written before any non-default bound ran; Q2 was pre-registered with **no** prediction, which was the
+honest state and is why nothing had to be retrofitted.
+
+Closes residue `2026-09-14-oracle-mode-search-bound-never-varied`.
 
 ## 7 · Done when
 

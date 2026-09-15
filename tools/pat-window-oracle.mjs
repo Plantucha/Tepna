@@ -72,23 +72,23 @@ export function sd(a) {
 }
 
 /* All R→foot lags in [0, MODE_SEARCH_MAX], nearest-forward foot only (no window applied). */
-export function rawLags(rTimes, fTimes) {
+export function rawLags(rTimes, fTimes, maxMs = MODE_SEARCH_MAX) {
   const out = [];
   let j = 0;
   for (const r of rTimes) {
     while (j < fTimes.length && fTimes[j] < r) j++;
     if (j < fTimes.length) {
       const lag = fTimes[j] - r;
-      if (lag >= 0 && lag <= MODE_SEARCH_MAX) out.push(lag);
+      if (lag >= 0 && lag <= maxMs) out.push(lag);
     }
   }
   return out;
 }
 
 /* Histogram mode over BIN_MS bins, smoothed by a 3-bin box so a single spike cannot win. */
-export function lagMode(lags) {
+export function lagMode(lags, maxMs = MODE_SEARCH_MAX) {
   if (lags.length < 30) return null;
-  const nb = Math.ceil(MODE_SEARCH_MAX / BIN_MS);
+  const nb = Math.ceil(maxMs / BIN_MS);
   const h = new Float64Array(nb);
   for (const l of lags) h[Math.min(nb - 1, Math.floor(l / BIN_MS))]++;
   let best = -1;
@@ -166,7 +166,11 @@ export function overlapSplit(rTimes, fTimes) {
   return { lo, mid, hi, rIn, rA, rB };
 }
 
-export function oracleNight(rTimes, fTimes, halfWidth) {
+/* `searchMax` exists to ASK A QUESTION, not to tune anything: does the returned mode depend on the
+   interval it is searched in? `PPG-FOOT-PLACEMENT` §4a's invariance evidence sweeps `--half-width`,
+   the band drawn AROUND the mode — a different parameter, never this one. Defaults to
+   `MODE_SEARCH_MAX`, so every committed number reproduces byte-for-byte. */
+export function oracleNight(rTimes, fTimes, halfWidth, searchMax = MODE_SEARCH_MAX) {
   if (rTimes.length < 200 || fTimes.length < 200) return { refusal: `too few beats (r=${rTimes.length}, f=${fTimes.length}; need 200 each)` };
   /* 🔴 SPLIT ON THE OVERLAP, NOT ON THE ECG'S OWN EXTENT.
      This used to take `mid` from the middle of `rTimes` and score out-of-sample on everything after it.
@@ -185,25 +189,25 @@ export function oracleNight(rTimes, fTimes, halfWidth) {
   if (_split.refusal) return { refusal: _split.refusal };
   const { lo, hi, rIn, mid, rA, rB } = _split;
 
-  const mode = lagMode(rawLags(rA, fTimes)); // FIRST half only — out of sample
+  const mode = lagMode(rawLags(rA, fTimes, searchMax), searchMax); // FIRST half only — out of sample
   if (mode == null) return { refusal: 'no mode — fewer than 30 first-half lags in the search range' };
 
-  const lagsB = rawLags(rB, fTimes);
+  const lagsB = rawLags(rB, fTimes, searchMax);
   const narrow = acceptWithin(lagsB, mode - halfWidth, mode + halfWidth);
   const full = acceptWithin(lagsB, PHYS_LO, PHYS_HI);
 
   /* NULL: same procedure end to end on a rotated foot train — mode re-estimated on its first half
      too, so the null gets exactly the advantages the real arm gets. */
   const shifted = circShift(fTimes, 37000);
-  const modeN = lagMode(rawLags(rA, shifted));
-  const narrowN = modeN == null ? [] : acceptWithin(rawLags(rB, shifted), modeN - halfWidth, modeN + halfWidth);
+  const modeN = lagMode(rawLags(rA, shifted, searchMax), searchMax);
+  const narrowN = modeN == null ? [] : acceptWithin(rawLags(rB, shifted, searchMax), modeN - halfWidth, modeN + halfWidth);
 
   /* SECOND-half mode, diagnostic only (scores nothing): the out-of-sample invariance check a
      consumer can read off the verdict line. The mode itself is w-INVARIANT by construction — it is
      estimated from raw lags before any window is applied — which is exactly why it, and not the
      w-dependent band label, is the quotable location statistic (#2029's consumer hazard: 2026-08-17
      read NO RECOVERY at w=300 while recovering the identical 215 ms). */
-  const modeB = lagMode(lagsB);
+  const modeB = lagMode(lagsB, searchMax);
 
   return {
     /* THE SPLIT TRAVELS WITH THE RESULT (2026-09-02). #2034 moved this split onto the OVERLAP of the
@@ -223,6 +227,8 @@ export function oracleNight(rTimes, fTimes, halfWidth) {
     fullSd: sd(full),
     nullN: narrowN.length,
     nullSd: sd(narrowN),
+    modeN,
+    modeNInPhys: modeN != null && modeN >= PHYS_LO && modeN <= PHYS_HI,
     modeInPhys: mode >= PHYS_LO && mode <= PHYS_HI
   };
 }
@@ -629,6 +635,14 @@ async function main() {
      requires an independent second clock); otherwise the night is ANNOTATED and skipped, never
      scored on a silent zero-correction axis wearing the piecewise label. */
   const AXIS = argv.includes('--ecg-axis') ? argv[argv.indexOf('--ecg-axis') + 1] : 'linear';
+  /* `--search-max` varies the interval the MODE IS SEARCHED IN — not `--half-width`, which is the band
+     drawn AROUND the mode and is what §4a already swept. The two are independent and only the second
+     has ever been varied. `--json` emits the per-night record including `modeN`, the null's own mode,
+     which the human table does not print and which is the only way to ask whether a circularly-shifted
+     train reaches PHYS as readily as a real one. */
+  const SMAX = Number(argv.includes('--search-max') ? argv[argv.indexOf('--search-max') + 1] : MODE_SEARCH_MAX);
+  const JSON_OUT = argv.includes('--json');
+  const jsonRows = [];
   if (!DIR || !existsSync(DIR) || !['foot', 'cfd', 'half'].includes(FID) || !['linear', 'piecewise'].includes(AXIS)) {
     console.error('usage: node tools/pat-window-oracle.mjs --selftest | --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half] [--ecg-axis linear|piecewise]');
     process.exit(2);
@@ -692,13 +706,27 @@ async function main() {
     }
     const train = FID === 'foot' ? P.times : FID === 'cfd' ? P.cfdTimes : P.halfTimes;
     const fTimes = Array.from(train).filter(Number.isFinite);
-    const res = oracleNight(Array.from(E.times), fTimes, HW);
+    const res = oracleNight(Array.from(E.times), fTimes, HW, SMAX);
     const v = oracleVerdict(res);
     if (v.refused && v.tallyKey === 'REFUSED') {
       refuse(n, res.refusal);
       continue;
     }
     tally[v.tallyKey] = (tally[v.tallyKey] || 0) + 1;
+    if (JSON_OUT)
+      jsonRows.push({
+        night: n,
+        searchMax: SMAX,
+        mode: res.mode ?? null,
+        modeB: res.modeB ?? null,
+        modeN: res.modeN ?? null,
+        modeInPhys: res.modeInPhys ?? null,
+        modeNInPhys: res.modeNInPhys ?? null,
+        narrowSd: res.narrowSd ?? null,
+        nullSd: res.nullSd ?? null,
+        verdict: v.tallyKey,
+        refused: v.refused
+      });
     /* maxStepMs beside every piecewise row (frozen condition c): a mid-file step smears across one
        anchor gap under piecewise and can itself move a half-mode — discovered here, not post-hoc. */
     const axisNote = AXIS === 'piecewise' ? `  [maxStep ${E.maxStepMs == null ? 'n/a' : E.maxStepMs.toFixed(0) + ' ms'}]` : '';
@@ -707,6 +735,7 @@ async function main() {
     );
   }
   console.log('\nTALLY:', JSON.stringify(tally));
+  if (JSON_OUT) console.log('JSONROWS ' + JSON.stringify({ searchMax: SMAX, rows: jsonRows }));
 }
 
 if (process.argv[1]?.endsWith('pat-window-oracle.mjs')) await main();
