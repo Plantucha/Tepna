@@ -49,6 +49,61 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/* 🔴 THIS TOOL ACTS ON THE CHECKOUT IT LIVES IN, NOT THE ONE YOU ARE STANDING IN — and every git call
+   below is bound to `ROOT`, including `git rebase --continue` and the builders. So invoking ANOTHER
+   checkout's copy does not merely read the wrong tree, it would REBASE the wrong tree and run
+   `build.mjs --check` inside it.
+
+   Measured 2026-09-15: `node /home/michal/Tepna/tools/rebase-safe.mjs` run from a worktree refused
+   with "working tree is not clean" while that worktree was spotless — it was reporting the SHARED
+   ROOT's cleanliness. That refusal is permanent, because the shared root is essentially never clean,
+   and a permanent refusal looks like a tool bug, so the natural response is to work around it.
+
+   ⚠️ IT FAILS SAFE *BECAUSE* THE SHARED ROOT IS DIRTY, WHICH IS WHAT MAKES IT DANGEROUS. The luck is
+   load-bearing and inverts the moment someone tidies the root: on a CLEAN shared root the guard
+   passes and the tool proceeds to rebase `main` in the checkout five other sessions are standing in.
+   That is CLAUDE.md §👥.2b's hazard reached through a different door — not a hand ref-move, but a tool
+   operating on its own checkout instead of yours.
+
+   THE FIX IS TO REFUSE, NOT TO RETARGET. Deriving `ROOT` from `git rev-parse --show-toplevel` would
+   make `node /other/checkout/tools/rebase-safe.mjs` silently act on the cwd instead — surprising in
+   the opposite direction, and a tool that quietly retargets itself is its own hazard. An ambiguous
+   invocation reports as ambiguous and names both paths, which is the same honest-absence rule §∅
+   applies to a missing measurement. `--show-toplevel` is used to DETECT the mismatch, never to
+   resolve it. */
+{
+  let cwdTop = null;
+  try {
+    /* stderr IGNORED: outside a checkout git writes a multi-line 'fatal: not a git repository'
+       before this catch can run, and a guard that is silent by design must not leak the probe it used
+       to decide it had nothing to say. */
+    cwdTop = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: process.cwd(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    /* not a git checkout at all ⇒ let the normal paths report it; this guard only speaks to the
+       TWO-CHECKOUT case, and inventing a second failure mode here would obscure the first. */
+  }
+  if (cwdTop) {
+    let rootTop = ROOT;
+    try {
+      rootTop = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: ROOT, encoding: 'utf8' }).trim();
+    } catch {
+      /* unreadable ⇒ compare the literal paths below rather than skipping the check entirely */
+    }
+    if (rootTop !== cwdTop) {
+      process.stderr.write(
+        `rebase-safe: REFUSED — you are standing in one checkout and ran another one's copy.\n` +
+          `  your checkout : ${cwdTop}\n` +
+          `  this script's : ${rootTop}\n` +
+          `Every git call in this tool is bound to the script's own checkout, so continuing would\n` +
+          `rebase ${rootTop} and run its builders — not the tree you are in. Run YOUR copy:\n` +
+          `  cd ${cwdTop} && node tools/rebase-safe.mjs\n`
+      );
+      process.exit(4);
+    }
+  }
+}
+
 const require = createRequire(import.meta.url);
 const C = { red: '[31m', grn: '[32m', yel: '[33m', bold: '[1m', off: '[0m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.off : s);

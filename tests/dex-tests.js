@@ -27673,6 +27673,45 @@
        ⚠ THE THREE-WAY SPLIT IS THE CONTENT. Alarming on every stale stamp would fire on any branch with
        a deliberately-unverified fixture, on EVERY rebase — and a warning that cries when nothing is wrong
        is one people scroll past, which leaves the failure exactly where it was plus noise. */
+    /* ════ rebase-safe acts on the checkout it LIVES in, and must refuse across checkouts ═════════
+       Measured 2026-09-15: `node /home/michal/Tepna/tools/rebase-safe.mjs` run from a worktree refused
+       with "working tree is not clean" while that worktree was spotless — it was reporting the SHARED
+       ROOT's cleanliness. Every git call in the tool is bound to `ROOT` (7 sites), none to
+       `process.cwd()`, and `gitQuiet` delegates to `git` — so `gitQuiet('rebase', onto)`, the
+       generated-path auto-resolve `gitQuiet('checkout', onto, '--', p)`, the `add`, the
+       `rebase --continue` and the builders ALL run in the script's own checkout.
+
+       ⚠️ IT FAILS SAFE *BECAUSE* THE SHARED ROOT IS DIRTY, WHICH IS WHAT MAKES IT DANGEROUS. The bug's
+       own symptom — a permanent, tool-bug-looking refusal — is what has protected the repo, and it
+       inverts the moment someone tidies the root: the guard then passes and the tool rebases `main` in
+       a checkout other sessions are standing in. CLAUDE.md §👥.2b's hazard through a different door.
+
+       REFUSE, NEVER RETARGET. Resolving `ROOT` from `git rev-parse --show-toplevel` would make
+       `node /other/checkout/tools/rebase-safe.mjs` silently act on the cwd — the same surprise
+       inverted. `--show-toplevel` DETECTS the mismatch and never resolves it; an ambiguous invocation
+       reports as ambiguous and names both paths. Source scan, because the guard is a process-level
+       exit that cannot be imported. */
+    group("rebase-safe refuses when you stand in one checkout and run another's copy", 'tools · rebase-safe · cross-checkout', function (T) {
+      var src = (env.sources || {})['tools/rebase-safe.mjs'];
+      if (src == null) {
+        T.skip('tools/rebase-safe.mjs wired into env.sources', 'not in env.sources — the scan would read nothing');
+        return;
+      }
+      T.ok("the guard compares the cwd toplevel against the script's own", /rev-parse',\s*'--show-toplevel'[\s\S]{0,400}?cwd: process\.cwd\(\)/.test(src), 'no cwd-vs-ROOT comparison found');
+      T.ok('…and REFUSES on mismatch rather than retargeting', /rootTop !== cwdTop[\s\S]{0,900}?process\.exit\(4\)/.test(src), 'mismatch does not exit non-zero');
+      T.ok('…naming BOTH paths, so the reader can tell which tree is which', /your checkout[\s\S]{0,200}this script's/.test(src));
+      /* The anti-retarget assertion: ROOT must still derive from the script's own location. If a
+         future edit resolves it from the cwd instead, the refusal becomes unreachable and the tool
+         silently acts on wherever you stand — the opposite surprise, and this test would otherwise
+         still pass. */
+      T.ok('ROOT still derives from the SCRIPT, not the cwd (refuse, never retarget)', /const ROOT = join\(dirname\(fileURLToPath\(import\.meta\.url\)\), '\.\.'\)/.test(src));
+      /* Non-vacuity: if nothing were ROOT-bound the guard would be pointless, and the scan above
+         would still be green. */
+      var rootBound = (src.match(/cwd: ROOT/g) || []).length;
+      T.ok('the tool really is ROOT-bound (else the guard guards nothing)', rootBound >= 5, 'cwd: ROOT sites: ' + rootBound);
+      T.ok('…and the git probe suppresses stderr, so a non-checkout cwd leaks no fatal', /--show-toplevel'\],\s*\{[^}]*stdio: \['ignore', 'pipe', 'ignore'\]/.test(src));
+    });
+
     group('Rebase-safe — a discharged stamp is told apart from one already stale', 'tools · rebase-safe-stamps', function (T) {
       var cs = env.rebaseClassifyStamps;
       if (typeof cs !== 'function') {
