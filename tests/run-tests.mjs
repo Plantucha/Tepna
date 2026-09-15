@@ -536,6 +536,11 @@ function readSources() {
        surface, so it is gated as TEXT. Its PAT target is the Wellue finger PPG, the one device whose
        axis is drawn on every stream measured (20/20). */
     'tools/pat-host-offset.mjs',
+    /* The cross-checkout guard is a process-level exit in this tool's preamble — it cannot be
+       imported, so it is gated as TEXT. Every git call in the tool is bound to its own ROOT, so a
+       future edit that resolves ROOT from the cwd instead would make the refusal unreachable and the
+       tool would silently act on whichever tree you happen to stand in. */
+    'tools/rebase-safe.mjs',
     'tools/regen-integrator-goldens.mjs',
     /* §4.3 — the §3.1 bootstrap exemption is a CONTRACT BETWEEN TWO FILES: this tool matches the
        §3.1 assertion's label to recognise a first-generation fixture. A rename in dex-tests.js would
