@@ -8801,14 +8801,24 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
             end: s.end || '',
             startTs: s.startTs != null ? s.startTs : null,
             meanSpo2: s.meanSpo2 != null ? s.meanSpo2 : null,
-            minSpo2: s.minSpo2 || 0,
-            maxSpo2: s.maxSpo2 || 100,
-            spo2Std: s.spo2Std || 0,
-            t95pct: s.t95pct || 0,
-            t90pct: s.t90pct || 0,
-            meanHr: s.meanHr || 0,
-            minHr: s.minHr || 0,
-            maxHr: s.maxHr || 0,
+            /* §∅ — the remaining eight. `maxSpo2 || 100` was the worst of the set: 100 is in-range
+               AND FLATTERING, so unlike a 0 it cannot be caught by a downstream plausibility guard —
+               a night nobody measured reported a perfect one. Same `!= null` form as `meanPi`,
+               `motionPct`, `durationMin` and `meanSpo2` above, and for the same reason: a genuine 0
+               must survive, and 0 is exactly the value `||` cannot tell from absence.
+               ⚠️ The render was fixed in the SAME change, not left to follow. Passing null to the old
+               consumers was silently wrong in BOTH directions — `null >= 90` is false so Min SpO₂ read
+               "bad", while `null < 5` is true so T95, T90, Mean HR and Max HR all read "good". Shipping
+               the producer half alone would have turned an unmeasured night into a healthy-looking
+               one, which is worse than the zero it replaced. */
+            minSpo2: s.minSpo2 != null ? s.minSpo2 : null,
+            maxSpo2: s.maxSpo2 != null ? s.maxSpo2 : null,
+            spo2Std: s.spo2Std != null ? s.spo2Std : null,
+            t95pct: s.t95pct != null ? s.t95pct : null,
+            t90pct: s.t90pct != null ? s.t90pct : null,
+            meanHr: s.meanHr != null ? s.meanHr : null,
+            minHr: s.minHr != null ? s.minHr : null,
+            maxHr: s.maxHr != null ? s.maxHr : null,
             // §4 Phase 1: perfusion index — null (NOT 0) when the input carried no PI, so a consumer
             // reading the export can tell "no PI sensor data" from "zero perfusion".
             meanPi: s.meanPi != null ? s.meanPi : null,
