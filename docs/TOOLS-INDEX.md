@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**185 tools** · 183 with a purpose line · **2 without**
+**186 tools** · 184 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -166,6 +166,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`release-land.mjs`](../tools/release-land.mjs) | THE WHOLE RELEASE, ONE COMMAND, NO OPERATOR MEMORY — stamp → build → gate → PR → merge → tag → GitHub Release → cleanup. |
 | [`release.mjs`](../tools/release.mjs) | CONTROLLED-RELEASES-2026-07-05 — cut a controlled Tepna release. |
 | [`residue-ids.mjs`](../tools/residue-ids.mjs) | the CROSS-TREE half of the residue ledger's id contract. WHY THIS EXISTS. |
+| [`residue-merge.mjs`](../tools/residue-merge.mjs) | residue-merge — a git merge driver for `briefs/RESIDUE.md` that APPENDS like `union` and REFUSES to duplicate a row id. |
 | [`resp-acc-headless.mjs`](../tools/resp-acc-headless.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ Drive `resp-acc-analysis.html` THROUGH ITS OWN UI, headlessly, against a real corpus. |
 | [`resp-cardiac-suppression-e8.mjs`](../tools/resp-cardiac-suppression-e8.mjs) | MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS §8 §8 names cardiac suppression as "the highest-value untried improvement": an adaptive notch at the measured f_HR and 2f_HR on the H10's… |
 | [`rho-overlap-power.mjs`](../tools/rho-overlap-power.mjs) | `INTEGRATOR-TCH-FU-IV-FOLLOWUPS` §4 asks for a minimum aligned-overlap rule and is explicit that it must come "from how rho's stability varies with n on the corpus, not from a round number". |
