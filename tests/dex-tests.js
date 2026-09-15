@@ -16251,6 +16251,84 @@
       );
     });
 
+    /* ════ PpgDex §∅ — a PINNED span is an ABSENCE, and until now nothing subtracted it ══════════
+       `pinnedSpans` has detected in-band blanking since #2317 and the export has REPORTED it as
+       `quality.pinnedCoverage` — but no consumer ever excluded it, so every rMSSD/SD1/LF:HF was
+       computed as though the blanked samples were signal. Detector built, reporting built,
+       CONSUMPTION missing: a number describing absence sitting beside numbers computed as if there
+       were none. Owner ruling (P5, 2026-09-12): a pinned span is an ABSENCE and is excluded LIKE A
+       GAP — hence the same term in the same conjunction as `spansGapIn`, not a new mechanism.
+
+       Corpus, 25 O2Ring fragments: 8 carry pinned intervals, 142 of 9418 kept (1.51 %), per-file
+       0.24-12.40 %. So this is neither cosmetic nor sweeping.
+
+       THE PLANT IS THE POINT. A real file cannot discriminate — every one of them carries blanking
+       AND artefacts, so a clean-vs-blanked comparison on real data confounds the two. The synthetic
+       pair below differs in EXACTLY the blanked run. */
+    group('PpgDex §∅ — a pinned span is an ABSENCE, excluded like a gap', 'ppgdex-dsp · absence-as-value · pinned', function (T) {
+      var P = env.PPGDSP;
+      if (!P || !P.analyze || !P.parsePPG) {
+        T.skip('PPGDSP.analyze/parsePPG available', 'not wired into env');
+        return;
+      }
+      /* Build one clean record and one identical-but-blanked, differing ONLY in a held run. */
+      function mk(blank) {
+        var hz = 55,
+          secs = 240,
+          n = hz * secs,
+          rows = ['Phone timestamp;sensor timestamp [ns];channel 0'];
+        var seed = 7;
+        var rnd = function () {
+          seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+          return seed / 0x7fffffff;
+        };
+        for (var i = 0; i < n; i++) {
+          var t = i / hz;
+          var v = 117 + Math.round(9 * Math.sin(2 * Math.PI * 1.15 * t) + 2 * rnd());
+          /* ⚠️ THE RUN MUST BE APPROACHED, NOT JUMPED INTO. A first version dropped 117 -> 0 -> 117
+             instantaneously and the detector correctly found NOTHING: it separates *held* from
+             *spike* by the histogram around the rail, and an instantaneous transition leaves no
+             approach to measure. Real blanking ramps, and the group above plants exactly that shape
+             (`75 68 62 55 48 41 34 27 21 14 8 3 | 0...0 | 1 7 16 27 36 46 55`). So this ramps down
+             over 12 samples, holds 0 for 40 (0.73 s, inside the real 78-sample worst case), and
+             ramps back — an unphysical plant is not a weaker test, it is a different one. */
+          if (blank) {
+            var b0 = hz * 120;
+            if (i >= b0 - 12 && i < b0) v = Math.round((v * (b0 - i)) / 12);
+            else if (i >= b0 && i < b0 + 40) v = 0;
+            else if (i >= b0 + 40 && i < b0 + 52) v = Math.round((v * (i - (b0 + 40))) / 12);
+          }
+          var ms = Math.round(t * 1000);
+          rows.push('2026-09-15 00:00:' + (ms / 1000).toFixed(3).padStart(6, '0') + ';' + i * Math.round(1e9 / hz) + ';' + v);
+        }
+        return rows.join('\n');
+      }
+      var clean = P.analyze(P.parsePPG(mk(false)), function () {});
+      var blanked = P.analyze(P.parsePPG(mk(true)), function () {});
+      /* ANTI-VACUITY FIRST: if the detector does not see the plant, everything below is trivially
+         satisfied and the group proves nothing. This is the assertion that fails loudest if the
+         synthetic stops being blanked-looking. */
+      T.ok('the CLEAN twin has no pinned intervals (else the plant is not the discriminator)', clean && clean.nPinSpanIntervals === 0, 'clean nPin=' + (clean && clean.nPinSpanIntervals));
+      T.ok('the BLANKED twin HAS pinned intervals (the detector sees the plant)', blanked && blanked.nPinSpanIntervals > 0, 'blanked nPin=' + (blanked && blanked.nPinSpanIntervals));
+      /* The actual §∅ property: the blanked interval must not reach a metric as a measurement. */
+      T.ok('…and the count is PUBLISHED, so an exclusion is visible rather than silent', blanked && typeof blanked.nPinSpanIntervals === 'number');
+      /* ⚠️ THE EXCLUSION MUST REACH BOTH METRIC CHANNELS, and the first version of this change did
+         not. `timeDomain` excludes through TWO arguments: `omit` feeds SDNN/meanRR/HR, `cleanMask`
+         feeds rMSSD/pNN50. Adding the pinned term to `cleanIn` alone moved rMSSD and left SDNN
+         counting the blanked run — a half-fix that looks finished. `spansPin` and `cleanMask` are
+         locals, so this asserts on the metrics themselves, which is what a consumer reads anyway. */
+      T.ok(
+        'rMSSD responds to the plant (the cleanMask channel)',
+        clean && blanked && clean.rmssd != null && blanked.rmssd != null && clean.rmssd !== blanked.rmssd,
+        'clean ' + (clean && clean.rmssd) + ' vs blanked ' + (blanked && blanked.rmssd)
+      );
+      T.ok(
+        'SDNN responds to the plant (the omit channel — the half this change nearly missed)',
+        clean && blanked && clean.sdnn != null && blanked.sdnn != null && clean.sdnn !== blanked.sdnn,
+        'clean ' + (clean && clean.sdnn) + ' vs blanked ' + (blanked && blanked.sdnn)
+      );
+    });
+
     group('ECGDex §∅ — an interval straddling a dropout is an ABSENCE, not a correctable beat', 'ecgdex-dsp · absence-as-value · regression', function (T) {
       /* `buildNN` repairs beats that were MIS-MEASURED: low SQI, out of physiological range, ectopic.
          A beat separated from its predecessor by a 74-second hole is none of those — it is a true
