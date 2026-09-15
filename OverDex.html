@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-1GrXbohtkzRFVggsxtLXO0QbIxenXu06mqtKLv0Xrjs=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-NVMjPCXewLOY4NdGLGRQuFLxxTlhAqqX3M68OJpHTVw=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-s/xmZUeSytTM2VmD4p01F7UG2UjlwJ6MQCMuNDNev9Y=' 'sha256-wJAw41Glc3UbG/D/BNHznjghO1c0ARXPgy3A05ATnCE=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-EMwHupjPDDHFApn4gvtWu6JdRQdfwmyaGjcAdH418lI=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-J71Fb4KIHSyRFw3FT2j8ORZo0hFYFf4TiMAQeN/g23I=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-NVMjPCXewLOY4NdGLGRQuFLxxTlhAqqX3M68OJpHTVw=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-s/xmZUeSytTM2VmD4p01F7UG2UjlwJ6MQCMuNDNev9Y=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -14987,7 +14987,35 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     var spo2Over = computeSpO2Overshoot(rows, desat);
     var spo2Ac1 = computeSpO2Autocorr(rows);
     var hrFreq = computeHRFreqBands(rows);
-    var respRate = computeRespRateProxy(rows);
+    /* ── respRate is NOT PUBLISHED — it does not measure respiration rate ──────────────────────
+       Owner decision 2026-09-15, on measurement. `computeRespRateProxy` infers a breathing rate from
+       spectral content in 1 Hz heart rate. Validated against SHHS1's two independent inductance belts
+       (THOR RES + ABDO RES) over 300 records, 201 of them control-clean — the belts agreeing with each
+       other is what makes the disagreement attributable to the proxy:
+
+         proxy median 9.10 brpm   ·   belt reference median 14.34 brpm   ·   bias -5.32
+         Pearson r = 0.046 (Spearman 0.082)   ·   within 1 brpm of truth on 3.5 % of nights
+
+       r = 0.05 is noise, and a constant cannot repair it: removing the median offset lifts agreement
+       only to 33.8 %, because an estimator that does not track its target has nothing to calibrate.
+       Corroborated on the home corpus independently — 117 trio nights, proxy median 10.9, range
+       8.4-13.8, the same compressed low band against a sleeping-adult expectation of 12-16.
+
+       So the published value is `null`: a number carrying no information is the fabricated zero one
+       layer up (§∅), and the export is the cross-node currency where some future consumer could spend
+       it. ⚠️ Read this null as "not published", NOT as "the device could not measure it" — the
+       distinction is recorded here because nothing in the export can carry it.
+
+       ⚠️ THIS IS OXYDEX'S PROXY ONLY. PulseDex's `respRate` is a DIFFERENT metric from real RR
+       intervals via a Lomb-Scargle HF peak, it is gated by its own assertions, and NOTHING here
+       applies to it. Same name, two nodes.
+
+       `computeRespRateProxy` is deliberately KEPT and still exported: it is the subject of
+       `tools/nsrr-resprate-validate.mjs`, which needs the real kernel to demonstrate the defect
+       rather than a copy of its arithmetic — including that the kernel's 0.13-0.33 Hz scan makes its
+       own `Fast (>20)` label unreachable, since 0.33 Hz is 19.8 brpm.
+       Residue: 2026-09-15-proxy-resprate-uninformative. Instrument: tools/nsrr-resprate-validate.mjs */
+    var respRate = null;
     var hrAsym = computeHRAsymmetry(rows);
     var hrQuart = computeHRQuartileTrend(rows);
     var spo2HRLag = computeSpO2HRLag(rows);
@@ -18735,14 +18763,24 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
             end: s.end || '',
             startTs: s.startTs != null ? s.startTs : null,
             meanSpo2: s.meanSpo2 != null ? s.meanSpo2 : null,
-            minSpo2: s.minSpo2 || 0,
-            maxSpo2: s.maxSpo2 || 100,
-            spo2Std: s.spo2Std || 0,
-            t95pct: s.t95pct || 0,
-            t90pct: s.t90pct || 0,
-            meanHr: s.meanHr || 0,
-            minHr: s.minHr || 0,
-            maxHr: s.maxHr || 0,
+            /* §∅ — the remaining eight. `maxSpo2 || 100` was the worst of the set: 100 is in-range
+               AND FLATTERING, so unlike a 0 it cannot be caught by a downstream plausibility guard —
+               a night nobody measured reported a perfect one. Same `!= null` form as `meanPi`,
+               `motionPct`, `durationMin` and `meanSpo2` above, and for the same reason: a genuine 0
+               must survive, and 0 is exactly the value `||` cannot tell from absence.
+               ⚠️ The render was fixed in the SAME change, not left to follow. Passing null to the old
+               consumers was silently wrong in BOTH directions — `null >= 90` is false so Min SpO₂ read
+               "bad", while `null < 5` is true so T95, T90, Mean HR and Max HR all read "good". Shipping
+               the producer half alone would have turned an unmeasured night into a healthy-looking
+               one, which is worse than the zero it replaced. */
+            minSpo2: s.minSpo2 != null ? s.minSpo2 : null,
+            maxSpo2: s.maxSpo2 != null ? s.maxSpo2 : null,
+            spo2Std: s.spo2Std != null ? s.spo2Std : null,
+            t95pct: s.t95pct != null ? s.t95pct : null,
+            t90pct: s.t90pct != null ? s.t90pct : null,
+            meanHr: s.meanHr != null ? s.meanHr : null,
+            minHr: s.minHr != null ? s.minHr : null,
+            maxHr: s.maxHr != null ? s.maxHr : null,
             // §4 Phase 1: perfusion index — null (NOT 0) when the input carried no PI, so a consumer
             // reading the export can tell "no PI sensor data" from "zero perfusion".
             meanPi: s.meanPi != null ? s.meanPi : null,
@@ -29778,6 +29816,56 @@ __exports.GlucoDex = window.GlucoDex;
        dropped beat leaves no discontinuity in `relSec`, every sample is still present. (That blindness
        is by design, and is why §4 sat deferred behind `nGapSpanIntervals: 0 -> 0`: the counter watched
        to decide whether §4 fires is the one quantity guaranteed not to respond. §4a.) */
+    /* ── §∅: A PINNED SPAN IS AN ABSENCE, SO AN INTERVAL CROSSING ONE IS NOT A MEASUREMENT ───────
+       `pinnedSpans` has detected in-band blanking since #2317 and the export has REPORTED it as
+       `quality.pinnedCoverage` — but nothing ever SUBTRACTED it, so every rMSSD/SD1/LF:HF was
+       computed as though the blanked samples were signal. The detector and the reporting were built;
+       the consumption was not, which is the §∅ failure one layer up: a number that describes absence,
+       sitting beside numbers computed as if there were none.
+
+       Owner ruling (P5, 2026-09-12): a pinned span is an ABSENCE and is excluded LIKE A GAP. So this
+       is deliberately the same term in the same conjunction as `spansGapIn`, not a new mechanism —
+       an interval that crosses blanking is the identical kind of non-measurement as one that crosses
+       a delivery hole, and `BLE-TRANSPORT-REDESIGN` §1.2's Done-when is exactly that a planted
+       blanking run must reach a null-or-coverage-annotated metric and nothing else.
+
+       UNION ACROSS CHANNELS, and that choice is conservative on purpose. The beat train is a
+       consensus over the optical channels, so if ANY contributing channel was blanked across the
+       interval the consensus had nothing to agree about there. Taking the intersection would let a
+       single surviving channel launder a blanked consensus into a measurement — the same shape as a
+       fabricated value, arrived at by voting. The cost is over-exclusion where one channel blanks
+       alone, and the corpus figure for that is in the PR rather than assumed.
+
+       SAMPLE INDICES THROUGHOUT — no time conversion. A span is `{first, n}` over the raw channel
+       array and the fiducials are indices into that same array, so the overlap test is exact; going
+       via `relSec` would introduce a rounding question where there is not one. */
+    const pinFid = footSpineOK ? det.feet : det.peaks;
+    const pinRanges = [];
+    for (const sp of rec.spans || []) {
+      for (const r of (sp && sp.spans) || []) {
+        if (r && r.n > 0) pinRanges.push([r.first, r.first + r.n - 1]);
+      }
+    }
+    pinRanges.sort((a, b) => a[0] - b[0]);
+    const spansPinIn = new Array(nIn);
+    let nPinSpanIntervals = 0;
+    for (let i = 0; i < nIn; i++) {
+      let hit = false;
+      if (pinRanges.length && pinFid && pinFid[i] != null && pinFid[i + 1] != null) {
+        const a = pinFid[i],
+          b = pinFid[i + 1];
+        for (const [lo0, hi0] of pinRanges) {
+          if (lo0 > b) break; // sorted ⇒ nothing later can overlap
+          if (hi0 >= a) {
+            hit = true;
+            break;
+          }
+        }
+      }
+      spansPinIn[i] = hit;
+      if (hit) nPinSpanIntervals++;
+    }
+
     const spansGapIn = new Array(nIn);
     const cleanIn = new Array(nIn);
     let nGapSpanIntervals = 0; // over EVERY input interval — a straddle correctRR also rejected still straddled
@@ -29786,11 +29874,20 @@ __exports.GlucoDex = window.GlucoDex;
       if (spansGapIn[i]) nGapSpanIntervals++;
       const q0 = sqi[i] != null ? sqi[i] : 1,
         q1 = sqi[i + 1] != null ? sqi[i + 1] : 1;
-      cleanIn[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGapIn[i];
+      cleanIn[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGapIn[i] && !spansPinIn[i];
     }
     // …projected onto the kept series: cleanMask[j] / spansGap[j] describe nn[j], not input interval j.
     const kIdx = corr.keptIdx;
     const spansGap = kIdx.map((i) => spansGapIn[i]);
+    const spansPin = kIdx.map((i) => spansPinIn[i]);
+    /* ⚠️ BOTH CONSUMERS, because `timeDomain` excludes through TWO separate channels and they feed
+       different metrics: `omit` filters the base that SDNN/meanRR/HR are computed over, while
+       `cleanMask` gates the successive-difference loop behind rMSSD/pNN50. Adding the pinned term to
+       `cleanIn` alone — which is where this change started — excluded blanking from rMSSD and left it
+       IN SDNN, a half-fix that would have read as done: the planted run would have moved one metric
+       and not the other, and no assertion watched the pair. `spansOmit` is the union, so an absence
+       is absent from both. */
+    const spansOmit = kIdx.map((i) => spansGapIn[i] || spansPinIn[i]);
     const cleanMask = kIdx.map((i) => cleanIn[i]);
     /* Pair adjacency in the kept frame: `adj[j]` is false when nn[j-1] and nn[j] were NOT input
        neighbours, i.e. correctRR dropped ≥1 interval between them. Their successive difference then
@@ -29805,7 +29902,7 @@ __exports.GlucoDex = window.GlucoDex;
             a1 = cons.agree[i + 1];
           return a0 != null && a1 != null ? (a0 + a1) / 2 : a0 != null ? a0 : a1 != null ? a1 : null;
         });
-    const td = /** @type {any} */ (timeDomain(nn, cleanMask, spansGap, adj) || {});
+    const td = /** @type {any} */ (timeDomain(nn, cleanMask, spansOmit, adj) || {});
     const poin = poincare(nn, cleanMask, adj);
     /* ── #2 treatment (1): the frequency domain must not see correctRR's substitutes ──────────────
        A rejected interval is replaced by the local-median reference and pushed into `nn`, so at this
@@ -30316,7 +30413,20 @@ __exports.GlucoDex = window.GlucoDex;
       // Intervals excluded because they STRADDLE a time discontinuity — real time the capture lost, so
       // the foot-to-foot difference may span absent beats (O2RING-PPG-GAP §2). Surfaced rather than
       // silently dropped: a night with many of these had a lossy link, and the reader should know.
+      /* ⚠️ THE DENOMINATOR, published because without it neither counter above is a rate.
+         `nGapSpanIntervals` has shipped since #2333 as a bare count and `nPinSpanIntervals` was
+         about to join it. Both are counted over EVERY INPUT interval while the export's series is
+         the KEPT subset, so dividing by `nn.length` mixes two populations — measured while writing
+         this, it produced a per-file "800 %", which is the only reason the mismatch was caught
+         before it reached a changeset. This is §1.5 of BLE-TRANSPORT-REDESIGN ("instrument the
+         DENOMINATOR, not the failures") applied to the two counters that needed it. */
+      nInputIntervals: nIn,
       nGapSpanIntervals,
+      /* Published beside its gap twin so the exclusion is VISIBLE. A silent exclusion and a silent
+         inclusion are the same defect facing opposite ways: this number is how a reader tells
+         "no blanking" from "blanking nobody subtracted", which is the distinction that did not
+         exist before this change. */
+      nPinSpanIntervals,
       hrvLowConfidence,
       hrvLowConfidenceReason,
       // §2 — WHY the confidence dropped, as a field rather than a substring of the reason. Coverage

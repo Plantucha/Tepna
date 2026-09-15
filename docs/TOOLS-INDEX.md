@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**184 tools** · 182 with a purpose line · **2 without**
+**190 tools** · 188 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -26,6 +26,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`beat-error-recovery.mjs`](../tools/beat-error-recovery.mjs) | beat-error-recovery — target 6 of KNOWN-CLOCK-ADVERSARIAL-CAPTURE: inject beat-detection errors of KNOWN type and rate into a real beat train, run the shipped HRV path, and measure the… |
 | [`beat-injection-recovery.mjs`](../tools/beat-injection-recovery.mjs) | beat-injection-recovery — the artificial-star test for a beat detector. |
 | [`beat-leg-closure.mjs`](../tools/beat-leg-closure.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ THREE-SOURCE DRIFT CLOSURE for H10 ↔ Verity ↔ capture host (WEARABLE-DRIFT-DIRECT §7.3/§7.4). |
+| [`box-sample.mjs`](../tools/box-sample.mjs) | // // box-sample.mjs — periodic resource sampler for a remote capture host. |
 | [`brief-verified-index.mjs`](../tools/brief-verified-index.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ WHEN WAS EACH OPEN BRIEF LAST *VERIFIED* — not last edited, and not how open it looks. |
 | [`build-analysis.mjs`](../tools/build-analysis.mjs) | Make the science/analysis tools SELF-CONTAINED single-file HTML, so they run when a user downloads ONE.html to disk and opens it over file:// — the way the bundled apps already do. |
 | [`build-docs.mjs`](../tools/build-docs.mjs) | Build the public GitHub-Pages deploy snapshot in../docs (the served root per docs/SITE-DEPLOY-AND-LAYOUT.md §D) from the repo-root source of truth. |
@@ -93,9 +94,12 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`mutation-worklist.mjs`](../tools/mutation-worklist.mjs) | The target is 99 % OF DISTINGUISHABLE (owner-ratified 2026-08-11, raised from 90 %). |
 | [`nearest-advocate.mjs`](../tools/nearest-advocate.mjs) | EVENT-BASED time-shift estimation, for the case where cross-correlation is known to fail. |
 | [`nsrr-aai-validate.mjs`](../tools/nsrr-aai-validate.mjs) | `aai` is user-visible and graded `heuristic`, and its own registry citation says why: "internal. |
+| [`nsrr-ahiest-validate.mjs`](../tools/nsrr-ahiest-validate.mjs) | `computeAHIestimates` (oxydex-dsp.js) produces TWO estimates of the same quantity: |
 | [`nsrr-criterion-sweep.mjs`](../tools/nsrr-criterion-sweep.mjs) | `tools/nsrr-oxydex-odi.mjs` scores the SHIPPED detector against expert scoring at a fixed criterion. |
 | [`nsrr-effort-typing.mjs`](../tools/nsrr-effort-typing.mjs) | WHY THIS EXISTS our chest accelerometer, central apneas below half baseline.... |
+| [`nsrr-oxstat-validate.mjs`](../tools/nsrr-oxstat-validate.mjs) | §∅ says a value that was not measured is null, and — for the case where the sentinel is IN BAND — that "a consumer cannot null what it cannot distinguish", so "validity must travel… |
 | [`nsrr-oxydex-odi.mjs`](../tools/nsrr-oxydex-odi.mjs) | The second NSRR arm. `tools/nsrr-stage-validate.mjs` drives the ECG channel into the sleep stager; this one drives the **SaO2** channel into OxyDex and compares its AHI estimate to the AHI… |
+| [`nsrr-resprate-validate.mjs`](../tools/nsrr-resprate-validate.mjs) | `2026-09-03-oxydex-proxy-resprate-unattributed` (OPEN) records that OxyDex computes a proxy respiration rate from heart-rate spectral content, writes it into the node export as… |
 | [`nsrr-score-pool.mjs`](../tools/nsrr-score-pool.mjs) | `nsrr-oxydex-odi.mjs --dir` scores serially: measured 4.15 s/record, so 5136 records is ~5.9 h in one core of twenty-four, with no progress output, no checkpoint, and nothing to show if it… |
 | [`nsrr-stage-validate.mjs`](../tools/nsrr-stage-validate.mjs) | REM-STAGING-FOLLOWUPS §2b: "the shipped conjunction scored against REAL PSG labels; REM recall/precision recorded. |
 | [`o2ring-dat-timefit.mjs`](../tools/o2ring-dat-timefit.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ PIN THE O2RING'S STORED-SESSION CLOCK TO HOST TIME by fitting the onboard.dat against the live… |
@@ -130,6 +134,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`pb-fusion-blast.mjs`](../tools/pb-fusion-blast.mjs) | The parent brief established (§5.2) that OxyDex emits `periodic_breathing` on 36 of 37 nights and that the detector is, to a good approximation, measuring mild hypoxemia burden rather than… |
 | [`pb-operating-point.mjs`](../tools/pb-operating-point.mjs) | what does OxyDex's periodic-breathing detector actually track? |
 | [`per-group-coverage.mjs`](../tools/per-group-coverage.mjs) | Aggregate coverage (`npm run coverage:json`, read by tools/mutation-reach.mjs) answers "does ANY test execute this line". |
+| [`pin-coverage.mjs`](../tools/pin-coverage.mjs) | WHY IT EXISTS. `pinnedSpans` has detected O2Ring in-band blanking since #2317 and the export has REPORTED it as `quality.pinnedCoverage`, but nothing consumed it: every rMSSD/SD1/LF:HF was… |
 | [`ppg-bridge-hrv-validate.mjs`](../tools/ppg-bridge-hrv-validate.mjs) | does O2RING-PPG-GAP §4 move finger HRV toward or away from chest ECG? |
 | [`ppg-foot-consensus-e1.mjs`](../tools/ppg-foot-consensus-e1.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-1 E-1 asks: "does foot-domain consensus (feet on all three channels, de-offset, ±40 ms) recover the 1-of-3 drop rate without admitting false beats? |
 | [`ppg-foot-residual-sweep.mjs`](../tools/ppg-foot-residual-sweep.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ THE RESIDUAL 2.2–13.2 ms — per-night inter-LED foot dispersion against PRE-REGISTERED… |
@@ -165,6 +170,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`release-land.mjs`](../tools/release-land.mjs) | THE WHOLE RELEASE, ONE COMMAND, NO OPERATOR MEMORY — stamp → build → gate → PR → merge → tag → GitHub Release → cleanup. |
 | [`release.mjs`](../tools/release.mjs) | CONTROLLED-RELEASES-2026-07-05 — cut a controlled Tepna release. |
 | [`residue-ids.mjs`](../tools/residue-ids.mjs) | the CROSS-TREE half of the residue ledger's id contract. WHY THIS EXISTS. |
+| [`residue-merge.mjs`](../tools/residue-merge.mjs) | residue-merge — a git merge driver for `briefs/RESIDUE.md` that APPENDS like `union` and REFUSES to duplicate a row id. |
 | [`resp-acc-headless.mjs`](../tools/resp-acc-headless.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ Drive `resp-acc-analysis.html` THROUGH ITS OWN UI, headlessly, against a real corpus. |
 | [`resp-cardiac-suppression-e8.mjs`](../tools/resp-cardiac-suppression-e8.mjs) | MOTIONDEX-RESPIRATORY-RATE-FOLLOWUPS §8 §8 names cardiac suppression as "the highest-value untried improvement": an adaptive notch at the measured f_HR and 2f_HR on the H10's… |
 | [`rho-overlap-power.mjs`](../tools/rho-overlap-power.mjs) | `INTEGRATOR-TCH-FU-IV-FOLLOWUPS` §4 asks for a minimum aligned-overlap rule and is explicit that it must come "from how rho's stability varies with n on the corpus, not from a round number". |

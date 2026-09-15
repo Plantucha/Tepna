@@ -2868,7 +2868,35 @@
     var spo2Over = computeSpO2Overshoot(rows, desat);
     var spo2Ac1 = computeSpO2Autocorr(rows);
     var hrFreq = computeHRFreqBands(rows);
-    var respRate = computeRespRateProxy(rows);
+    /* ── respRate is NOT PUBLISHED — it does not measure respiration rate ──────────────────────
+       Owner decision 2026-09-15, on measurement. `computeRespRateProxy` infers a breathing rate from
+       spectral content in 1 Hz heart rate. Validated against SHHS1's two independent inductance belts
+       (THOR RES + ABDO RES) over 300 records, 201 of them control-clean — the belts agreeing with each
+       other is what makes the disagreement attributable to the proxy:
+
+         proxy median 9.10 brpm   ·   belt reference median 14.34 brpm   ·   bias -5.32
+         Pearson r = 0.046 (Spearman 0.082)   ·   within 1 brpm of truth on 3.5 % of nights
+
+       r = 0.05 is noise, and a constant cannot repair it: removing the median offset lifts agreement
+       only to 33.8 %, because an estimator that does not track its target has nothing to calibrate.
+       Corroborated on the home corpus independently — 117 trio nights, proxy median 10.9, range
+       8.4-13.8, the same compressed low band against a sleeping-adult expectation of 12-16.
+
+       So the published value is `null`: a number carrying no information is the fabricated zero one
+       layer up (§∅), and the export is the cross-node currency where some future consumer could spend
+       it. ⚠️ Read this null as "not published", NOT as "the device could not measure it" — the
+       distinction is recorded here because nothing in the export can carry it.
+
+       ⚠️ THIS IS OXYDEX'S PROXY ONLY. PulseDex's `respRate` is a DIFFERENT metric from real RR
+       intervals via a Lomb-Scargle HF peak, it is gated by its own assertions, and NOTHING here
+       applies to it. Same name, two nodes.
+
+       `computeRespRateProxy` is deliberately KEPT and still exported: it is the subject of
+       `tools/nsrr-resprate-validate.mjs`, which needs the real kernel to demonstrate the defect
+       rather than a copy of its arithmetic — including that the kernel's 0.13-0.33 Hz scan makes its
+       own `Fast (>20)` label unreachable, since 0.33 Hz is 19.8 brpm.
+       Residue: 2026-09-15-proxy-resprate-uninformative. Instrument: tools/nsrr-resprate-validate.mjs */
+    var respRate = null;
     var hrAsym = computeHRAsymmetry(rows);
     var hrQuart = computeHRQuartileTrend(rows);
     var spo2HRLag = computeSpO2HRLag(rows);
@@ -6616,14 +6644,24 @@
             end: s.end || '',
             startTs: s.startTs != null ? s.startTs : null,
             meanSpo2: s.meanSpo2 != null ? s.meanSpo2 : null,
-            minSpo2: s.minSpo2 || 0,
-            maxSpo2: s.maxSpo2 || 100,
-            spo2Std: s.spo2Std || 0,
-            t95pct: s.t95pct || 0,
-            t90pct: s.t90pct || 0,
-            meanHr: s.meanHr || 0,
-            minHr: s.minHr || 0,
-            maxHr: s.maxHr || 0,
+            /* §∅ — the remaining eight. `maxSpo2 || 100` was the worst of the set: 100 is in-range
+               AND FLATTERING, so unlike a 0 it cannot be caught by a downstream plausibility guard —
+               a night nobody measured reported a perfect one. Same `!= null` form as `meanPi`,
+               `motionPct`, `durationMin` and `meanSpo2` above, and for the same reason: a genuine 0
+               must survive, and 0 is exactly the value `||` cannot tell from absence.
+               ⚠️ The render was fixed in the SAME change, not left to follow. Passing null to the old
+               consumers was silently wrong in BOTH directions — `null >= 90` is false so Min SpO₂ read
+               "bad", while `null < 5` is true so T95, T90, Mean HR and Max HR all read "good". Shipping
+               the producer half alone would have turned an unmeasured night into a healthy-looking
+               one, which is worse than the zero it replaced. */
+            minSpo2: s.minSpo2 != null ? s.minSpo2 : null,
+            maxSpo2: s.maxSpo2 != null ? s.maxSpo2 : null,
+            spo2Std: s.spo2Std != null ? s.spo2Std : null,
+            t95pct: s.t95pct != null ? s.t95pct : null,
+            t90pct: s.t90pct != null ? s.t90pct : null,
+            meanHr: s.meanHr != null ? s.meanHr : null,
+            minHr: s.minHr != null ? s.minHr : null,
+            maxHr: s.maxHr != null ? s.maxHr : null,
             // §4 Phase 1: perfusion index — null (NOT 0) when the input carried no PI, so a consumer
             // reading the export can tell "no PI sensor data" from "zero perfusion".
             meanPi: s.meanPi != null ? s.meanPi : null,

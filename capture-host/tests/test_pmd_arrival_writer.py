@@ -469,8 +469,16 @@ def test_arrival_quality_fits_on_seconds_since_this_streams_first_packet(tmp_pat
     t_ref = sum(h - hs[0] for h in hs) / len(hs) / 1000.0
     assert abs(off["t_ref_sec"] - t_ref) < 0.06, f"{off['t_ref_sec']} is not {t_ref} s past packet 1"
     assert abs(off["span_sec"] - (hs[-1] - hs[0]) / 1000.0) < 0.06, off   # the field is rounded to 0.1 s
-    # ~2995 s clears SPAN_MIN_SEC, so the rate is quotable — a mis-scaled axis flips this too
-    assert off["skew_quotable"] is True, off
+    # ⚠️ ~2995 s is now BELOW SPAN_MIN_SEC, so the rate is NOT quotable. This assertion read `is True`
+    # until 2026-09-15, when the floor moved 2400 -> 3600 s: `skew_quotable` answers "is this ppm
+    # RESOLVED", and KNOWN-CLOCK-ADVERSARIAL-CAPTURE §517 answers that `no` under 1 h. The old 2400 was
+    # borrowed from `ecgdex-dsp.js`'s CORRECTION-APPLICATION gate, which answers a different question
+    # and keeps its own value. This fixture's span happens to sit inside the band the two lanes
+    # disagreed over, which is why it moved.
+    # The assertion's PURPOSE is unchanged — it is a canary for a mis-scaled axis, since a wrong axis
+    # gives a wrong span and flips this. It still flips; it flips the other way. The span itself is
+    # asserted directly on the line above, so the canary is belt-and-braces rather than the only check.
+    assert off["skew_quotable"] is False, off
 
 
 def test_arrival_quality_refuses_an_estimate_from_a_single_packet(tmp_path):

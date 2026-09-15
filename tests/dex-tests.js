@@ -16251,6 +16251,160 @@
       );
     });
 
+    /* ════ PpgDex §∅ — a PINNED span is an ABSENCE, and until now nothing subtracted it ══════════
+       `pinnedSpans` has detected in-band blanking since #2317 and the export has REPORTED it as
+       `quality.pinnedCoverage` — but no consumer ever excluded it, so every rMSSD/SD1/LF:HF was
+       computed as though the blanked samples were signal. Detector built, reporting built,
+       CONSUMPTION missing: a number describing absence sitting beside numbers computed as if there
+       were none. Owner ruling (P5, 2026-09-12): a pinned span is an ABSENCE and is excluded LIKE A
+       GAP — hence the same term in the same conjunction as `spansGapIn`, not a new mechanism.
+
+       Corpus, 25 O2Ring fragments: 8 carry pinned intervals, 142 of 9418 kept (1.51 %), per-file
+       0.24-12.40 %. So this is neither cosmetic nor sweeping.
+
+       THE PLANT IS THE POINT. A real file cannot discriminate — every one of them carries blanking
+       AND artefacts, so a clean-vs-blanked comparison on real data confounds the two. The synthetic
+       pair below differs in EXACTLY the blanked run. */
+    /* ════ §∅ PIN CONSTANTS — the parity gate BOTH sides asked for in writing ═══════════════════
+       `capture-host/writers.py:70-73`, above `T_STUCK`: *"This constant is the single source; it ALSO
+       travels in each sidecar's comment line… If a JS side ever recomputes these spans, that constant
+       must be asserted equal to this one by a gate that has been shown to RED on a mismatch."*
+       `ppgdex-dsp.js:374`, from the other side: *"Single-sourcing with the Python writer's defaults
+       (kernel-constants.js + a parity gate reading both) lands with that writer; until it exists there
+       is nothing to pair with."* The writer now exists, so the pairing is owed.
+
+       FOUR PAIRS AGREE and are pinned here so a one-sided edit reds instead of drifting silently.
+
+       🔴 THE FIFTH IS A CATEGORY DIFFERENCE, NOT DRIFT, and pinning it as a disagreement is the point.
+       `PIN_MIN_RUN = 5` asks "is this run a blanking EVENT?"; `T_STUCK = 200` asks "is this stream
+       STUCK?" — a 1.6 s hold at ~126 Hz. `RUN_MIN_BY_STREAM` maps every stream to `T_STUCK`, so the
+       sidecar writer records only runs that clear the STUCK bar.
+
+       Consequence, measured 2026-09-15: of 122 stream-sidecars on disk, 118 carry ZERO span rows and
+       4 carry one — while the JS detector at 5 finds 32 407 affected intervals across 2607 files. The
+       two witnesses do not disagree about the DATA; they answer different questions. And CLAUDE.md §∅'s
+       own measurement of the phenomenon — 149 runs, 105 of them >= 10 samples, the longest 78 (0.62 s)
+       — sits entirely BELOW 200, so the sidecar cannot record the thing it was built for.
+
+       ⚠️ THIS GATE DOES NOT PICK A VALUE. Changing either constant is an owner call with a corpus
+       cost; what a gate can do is make the divergence IMPOSSIBLE TO EDIT SILENTLY and carry the reason
+       next to it. `ppgdex-dsp.js:374` also warns a consumer that "THE FILE WINS for what was observed"
+       — sound in general, and dangerous here: deferring to a sidecar that is empty BY CONSTRUCTION
+       would undo the exclusion landed in #2531. */
+    group('§∅ pin constants agree with capture-host, and the one that does not is pinned as a DISAGREEMENT', 'ppgdex-dsp · pin-constants · parity', function (T) {
+      var S = env.sources || {};
+      var js = S['ppgdex-dsp.js'];
+      var wr = S['capture-host/writers.py'];
+      /* The rail constants live in `nightqc.py`, NOT `writers.py` — a first version of this gate read
+         only the writer and every Python value came back null, which the non-vacuity assertion below
+         caught before the equalities could pass on nothing. `_ANNOTATION_GAP_MAX` is defined in BOTH
+         files, so it is checked against both. */
+      var nq = S['capture-host/nightqc.py'];
+      if (js == null || wr == null || nq == null) {
+        T.skip('ppgdex-dsp.js + capture-host/writers.py in env.sources', 'not wired — the scan would read nothing');
+        return;
+      }
+      var jsNum = function (name) {
+        var m = js.match(new RegExp('const ' + name + ' = (\\d+)'));
+        return m ? Number(m[1]) : null;
+      };
+      var pyNum = function (name, where) {
+        var src = where === 'wr' ? wr : nq;
+        var m = src.match(new RegExp('^' + name + '\\s*=\\s*(\\d+)', 'm'));
+        return m ? Number(m[1]) : null;
+      };
+      /* Non-vacuity first: if the extractors return null the equalities below are trivially
+         satisfiable and this group would pass while reading nothing. */
+      T.ok(
+        'both extractors find a value (else every assertion below is vacuous)',
+        jsNum('PIN_RAIL_SCAN_VALUES') != null && pyNum('_RAIL_SCAN_VALUES') != null,
+        'js=' + jsNum('PIN_RAIL_SCAN_VALUES') + ' py=' + pyNum('_RAIL_SCAN_VALUES')
+      );
+      [
+        ['PIN_RAIL_SCAN_VALUES', '_RAIL_SCAN_VALUES'],
+        ['PIN_RAIL_GAP_MAX', '_RAIL_GAP_MAX'],
+        ['PIN_RAIL_SPIKE_MIN', '_RAIL_SPIKE_MIN'],
+        ['PIN_MERGE', '_ANNOTATION_GAP_MAX']
+      ].forEach(function (pair) {
+        var a = jsNum(pair[0]),
+          b = pyNum(pair[1]);
+        T.eq(pair[0] + ' ≡ ' + pair[1] + ' (a one-sided edit must RED, not drift)', a, b);
+      });
+      /* The disagreement, pinned at its measured values. This reds if EITHER side moves — which is
+         what makes it a decision point rather than an accident nobody notices. */
+      T.eq('PIN_MIN_RUN is still 5 — the blanking-EVENT floor', jsNum('PIN_MIN_RUN'), 5);
+      T.eq('T_STUCK is still 200 — the stream-STUCK floor, a different question', pyNum('T_STUCK', 'wr'), 200);
+      T.ok(
+        '…and the writer still maps every stream to T_STUCK, which is why sidecars are empty',
+        /RUN_MIN_BY_STREAM\s*=\s*\{[\s\S]{0,400}?"ppg1":\s*T_STUCK/.test(wr),
+        'RUN_MIN_BY_STREAM no longer maps ppg1 to T_STUCK — if that is deliberate, the 118-of-122 empty-sidecar finding needs re-measuring'
+      );
+    });
+
+    group('PpgDex §∅ — a pinned span is an ABSENCE, excluded like a gap', 'ppgdex-dsp · absence-as-value · pinned', function (T) {
+      var P = env.PPGDSP;
+      if (!P || !P.analyze || !P.parsePPG) {
+        T.skip('PPGDSP.analyze/parsePPG available', 'not wired into env');
+        return;
+      }
+      /* Build one clean record and one identical-but-blanked, differing ONLY in a held run. */
+      function mk(blank) {
+        var hz = 55,
+          secs = 240,
+          n = hz * secs,
+          rows = ['Phone timestamp;sensor timestamp [ns];channel 0'];
+        var seed = 7;
+        var rnd = function () {
+          seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+          return seed / 0x7fffffff;
+        };
+        for (var i = 0; i < n; i++) {
+          var t = i / hz;
+          var v = 117 + Math.round(9 * Math.sin(2 * Math.PI * 1.15 * t) + 2 * rnd());
+          /* ⚠️ THE RUN MUST BE APPROACHED, NOT JUMPED INTO. A first version dropped 117 -> 0 -> 117
+             instantaneously and the detector correctly found NOTHING: it separates *held* from
+             *spike* by the histogram around the rail, and an instantaneous transition leaves no
+             approach to measure. Real blanking ramps, and the group above plants exactly that shape
+             (`75 68 62 55 48 41 34 27 21 14 8 3 | 0...0 | 1 7 16 27 36 46 55`). So this ramps down
+             over 12 samples, holds 0 for 40 (0.73 s, inside the real 78-sample worst case), and
+             ramps back — an unphysical plant is not a weaker test, it is a different one. */
+          if (blank) {
+            var b0 = hz * 120;
+            if (i >= b0 - 12 && i < b0) v = Math.round((v * (b0 - i)) / 12);
+            else if (i >= b0 && i < b0 + 40) v = 0;
+            else if (i >= b0 + 40 && i < b0 + 52) v = Math.round((v * (i - (b0 + 40))) / 12);
+          }
+          var ms = Math.round(t * 1000);
+          rows.push('2026-09-15 00:00:' + (ms / 1000).toFixed(3).padStart(6, '0') + ';' + i * Math.round(1e9 / hz) + ';' + v);
+        }
+        return rows.join('\n');
+      }
+      var clean = P.analyze(P.parsePPG(mk(false)), function () {});
+      var blanked = P.analyze(P.parsePPG(mk(true)), function () {});
+      /* ANTI-VACUITY FIRST: if the detector does not see the plant, everything below is trivially
+         satisfied and the group proves nothing. This is the assertion that fails loudest if the
+         synthetic stops being blanked-looking. */
+      T.ok('the CLEAN twin has no pinned intervals (else the plant is not the discriminator)', clean && clean.nPinSpanIntervals === 0, 'clean nPin=' + (clean && clean.nPinSpanIntervals));
+      T.ok('the BLANKED twin HAS pinned intervals (the detector sees the plant)', blanked && blanked.nPinSpanIntervals > 0, 'blanked nPin=' + (blanked && blanked.nPinSpanIntervals));
+      /* The actual §∅ property: the blanked interval must not reach a metric as a measurement. */
+      T.ok('…and the count is PUBLISHED, so an exclusion is visible rather than silent', blanked && typeof blanked.nPinSpanIntervals === 'number');
+      /* ⚠️ THE EXCLUSION MUST REACH BOTH METRIC CHANNELS, and the first version of this change did
+         not. `timeDomain` excludes through TWO arguments: `omit` feeds SDNN/meanRR/HR, `cleanMask`
+         feeds rMSSD/pNN50. Adding the pinned term to `cleanIn` alone moved rMSSD and left SDNN
+         counting the blanked run — a half-fix that looks finished. `spansPin` and `cleanMask` are
+         locals, so this asserts on the metrics themselves, which is what a consumer reads anyway. */
+      T.ok(
+        'rMSSD responds to the plant (the cleanMask channel)',
+        clean && blanked && clean.rmssd != null && blanked.rmssd != null && clean.rmssd !== blanked.rmssd,
+        'clean ' + (clean && clean.rmssd) + ' vs blanked ' + (blanked && blanked.rmssd)
+      );
+      T.ok(
+        'SDNN responds to the plant (the omit channel — the half this change nearly missed)',
+        clean && blanked && clean.sdnn != null && blanked.sdnn != null && clean.sdnn !== blanked.sdnn,
+        'clean ' + (clean && clean.sdnn) + ' vs blanked ' + (blanked && blanked.sdnn)
+      );
+    });
+
     group('ECGDex §∅ — an interval straddling a dropout is an ABSENCE, not a correctable beat', 'ecgdex-dsp · absence-as-value · regression', function (T) {
       /* `buildNN` repairs beats that were MIS-MEASURED: low SQI, out of physiological range, ectopic.
          A beat separated from its predecessor by a 74-second hole is none of those — it is a true
@@ -23521,6 +23675,55 @@
        default whenever the fixture's field is 0 or missing — so a realistic-looking record of mostly
        zeros asserts nothing at all. Every number below is unique, so a mis-wired field lands on the
        wrong key and is caught by value, not just by presence. */
+    /* §∅ AT THE RENDER BOUNDARY — the half that decides what a human actually sees.
+       Making the DSP emit null is only half a fix: JS coercion then made the OLD consumers wrong in
+       BOTH directions, and the flattering direction is the dangerous one. `null >= 90` is false, so
+       Min SpO₂ read **bad**; `null < 5` is true, so T95, T90, Mean HR and Max HR all read **good** —
+       a night nobody measured, rendered as a healthy one. `cv()` already returned "—" for the VALUE,
+       which is exactly why this was easy to miss: the number looked absent while the CARD carried a
+       verdict computed from the same null.
+       Source scan because `oxydex-render.js` is loaded as TEXT in this lane (env.sources) and no
+       executable entry reaches these functions — the same instrument as the seam-parity group. */
+    group('OxyDex §∅ — an ABSENT stat must not render as a verdict', 'oxydex-render · absence-as-value · export-boundary', function (T) {
+      var R = String((env.sources || {})['oxydex-render.js'] || '');
+      if (!R) {
+        T.skip('oxydex-render.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      /* ANTI-VACUITY FIRST. A regex that matches nothing passes every assertion below, and this file
+         is large enough that a rename would silently empty the scan. */
+      T.ok('ANTI-VACUITY · the render source loaded', R.length > 10000, R.length + ' chars');
+      T.ok('ANTI-VACUITY · the severity helper exists to be used', /function sev\(/.test(R) && /function nzv\(/.test(R));
+      var FIELDS = ['meanSpo2', 'minSpo2', 'maxSpo2', 'spo2Std', 't95pct', 't90pct', 'meanHr', 'minHr', 'maxHr', 'durationMin'];
+      var lines = R.split('\n');
+      var unguarded = [];
+      lines.forEach(function (ln, i) {
+        FIELDS.forEach(function (f) {
+          /* A SEVERITY comparison on one of these fields. `sev(` on the same line means the raw value
+             was tested for absence before the comparison ran; an explicit null test does too. */
+          var re = new RegExp('[A-Za-z0-9_]+\\.' + f + '\\s*(>=|<=|>|<)');
+          if (!re.test(ln)) return;
+          if (/sev\(/.test(ln) || /!=\s*null|!==\s*null|==\s*null|\?\?/.test(ln)) return;
+          unguarded.push(i + 1 + ': ' + ln.trim().slice(0, 72));
+        });
+      });
+      T.eq('no severity class is computed from a possibly-ABSENT stat', unguarded, []);
+      /* And the VALUE side: string concatenation on null yields the literal "null%" on screen. */
+      var concat = [];
+      lines.forEach(function (ln, i) {
+        FIELDS.forEach(function (f) {
+          var re = new RegExp('[A-Za-z0-9_]+\\.' + f + "\\s*\\+\\s*'");
+          if (re.test(ln) && !/nzv\(/.test(ln) && !/!=\s*null|!==\s*null|==\s*null|\?\?/.test(ln)) concat.push(i + 1 + ': ' + ln.trim().slice(0, 72));
+        });
+      });
+      T.eq('no stat is concatenated into display text without an absence guard', concat, []);
+      /* THE PLANT THIS GATE EXISTS FOR, asserted as arithmetic rather than described: these are the
+         coercions that made absence look healthy. If JS ever stopped coercing null this way the gate
+         above would be guarding nothing, and this says so out loud. */
+      T.eq('…because null coerces to 0: `null < 5` is TRUE (would read "good")', null < 5, true);
+      T.eq('…and `null >= 90` is FALSE (would read "bad")', null >= 90, false);
+    });
+
     group('OxyDex parseJSONL round-trips every field, and tells ABSENT from ZERO', 'oxydex-dsp · parse · known-answer · mutation-pinned', function (T) {
       var OB = env.OxyDex && env.OxyDex._bare;
       if (!(OB && typeof OB.parseJSONL === 'function')) {
@@ -23676,14 +23879,12 @@
       zeroDur.stats.meanSpo2 = 0;
       T.eq('durationMin ZERO is preserved as 0, not collapsed to null', one(zeroDur).stats.durationMin, 0);
       T.eq('meanSpo2 ZERO is preserved as 0', one(zeroDur).stats.meanSpo2, 0);
-      /* ⚠️ STILL LIVE, AND ASSERTED AS CURRENT BEHAVIOUR RATHER THAN AS CORRECT. `maxSpo2` absent
-         fabricates a PERFECT reading — worse than a 0, because 100 is both in-range and flattering.
-         Left unfixed here on purpose: this PR closes the residue row's verified two-site scope, and
-         the remaining sites in this block (maxSpo2, minSpo2, spo2Std, t95pct, t90pct, meanHr, minHr,
-         maxHr) plus `oxydex-dsp.js:3084` in the PRIMARY builder are filed as their own row rather than
-         swept in silently. When that row is executed this assertion flips too. */
+      /* ✅ FLIPPED 2026-09-15 — the row that this assertion pointed at has been executed. It used to
+         read "maxSpo2 ABSENT still fabricates 100", asserting a live §∅ defect as current behaviour:
+         100 is worse than a 0, being both in-range and FLATTERING, so no downstream plausibility guard
+         could catch it. All eight remaining scalars in the block now take the `!= null` form. */
       T.eq(
-        'maxSpo2 ABSENT still fabricates 100 — a live §∅ site, see residue 2026-09-13-oxydex-stats-block-absence-to-number',
+        'maxSpo2 ABSENT is null — a perfect reading is the most dangerous fabrication of all',
         one(
           (function () {
             var r = JSON.parse(JSON.stringify(REC));
@@ -23691,8 +23892,22 @@
             return r;
           })()
         ).stats.maxSpo2,
-        100
+        null
       );
+      /* THE WHOLE BLOCK, not just the one the old assertion named — a per-field check so a future
+         regression names the field it broke rather than failing on a representative. */
+      ['minSpo2', 'maxSpo2', 'spo2Std', 't95pct', 't90pct', 'meanHr', 'minHr', 'maxHr'].forEach(function (k) {
+        var rec = JSON.parse(JSON.stringify(REC));
+        delete rec.stats[k];
+        T.eq('§∅ · ' + k + ' ABSENT is null, not a number', one(rec).stats[k], null);
+      });
+      /* …and the other half of `!= null`: a REAL zero must survive, including a real 0 for a field
+         whose old default WAS 0 — that is the case `||` cannot distinguish and the reason for the form. */
+      ['minSpo2', 'spo2Std', 't95pct', 't90pct', 'meanHr', 'minHr', 'maxHr'].forEach(function (k) {
+        var rec = JSON.parse(JSON.stringify(REC));
+        rec.stats[k] = 0;
+        T.eq('§∅ · ' + k + ' ZERO is preserved as 0, not collapsed to null', one(rec).stats[k], 0);
+      });
 
       // ── 3 · t0Ms FALLS BACK TO stats.startTs, THEN TO NULL ────────────────────────────────────
       var noT0 = JSON.parse(JSON.stringify(REC));
