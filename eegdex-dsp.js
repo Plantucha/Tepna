@@ -234,6 +234,28 @@
        one EOG lead would silently lose it. Revisit only if the amplitude arm is tightened — at that
        point conjugacy's specificity would have something left to add.
 
+    ⚠️ AND EMG ATONIA WAS TRIED AND ALSO REJECTED — 2026-09-15, same method, recorded so it is not
+       re-derived. REM is defined by atonia, so tightening `remEmg` looks obvious. EMG by expert
+       stage, each record normalised to its own median, 8 records:
+
+           Wake 2.285  ·  N1 1.092  ·  N2 0.856  ·  N3 0.554  ·  REM 0.610      (medians)
+
+       Two things fall out. First, REM is NOT the quietest stage — N3 is — so "tighten EMG to find the
+       atonic stage" finds N3. That does not bite here only because the N3 branch runs FIRST and has
+       already consumed those epochs. Second, the shipped 0.95 does admit most of N2 (median 0.856),
+       which is a real imprecision, so tightening to 0.75 — the midpoint of the REM and N2 medians —
+       is a principled choice rather than a fitted one.
+
+       Measured A/B on identical records: REM recall 23.7 % -> 7.5 %, kappa -0.0026. WORSE.
+
+       ⚠️ THE REASON IS THE CONJUNCTION, AND IT IS THE FINDING WORTH KEEPING. REM requires low delta
+       AND low EMG AND eye movement SIMULTANEOUSLY, so each arm's false-negative rate MULTIPLIES:
+       tightening any single arm costs more recall than its own selectivity buys. Two principled
+       single-arm changes have now been measured and both lost — conjugacy above, EMG here. Improving
+       REM needs the rule's SHAPE changed (weighted evidence, where one strong arm can carry a weak
+       one) rather than any threshold or any further feature. Do not spend a third attempt on a
+       single arm.
+
        REM: low delta, low EMG tone, eye movement present. The EMG leg is what separates REM from N1,
        which otherwise look alike in this feature space — without it a stager calls everything N1, and
        the untuned version did exactly that (REM recall 3.9 %).
