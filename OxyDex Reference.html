@@ -1573,7 +1573,7 @@ body.light .ev-measured { border-color:var(--surface); }
 <div class="mc" data-tier="secondary">
   <div class="mh"><div class="mi"><span class="ma">AAI</span><span class="mf">Autonomic Arousal Index (events/hr)</span></div><span class="mt ta">Advanced</span></div>
   <p class="md">Combined rate of HR spikes and ODI-4 events per hour. High AAI with low ODI-4 &#x2192; non-apneic arousal causes (UARS, PLMS, environmental). High AAI tracking closely with ODI-4 &#x2192; arousal driven by obstructive events.</p>
-  <div class="fb"><div class="fl">Formula</div><div class="ft">AAI = (spike_count + ODI-4_count) / recording_hours</div></div>
+  <div class="fb"><div class="fl">Formula</div><div class="ft">AAI = (spike_count + ODI-4_count) / recording_hours</div><div class="fn">&#x26A0; <strong>Not a cortical arousal index &#x2014; do not read it against clinical arousal-index thresholds.</strong> AAI counts autonomic arousals visible in heart rate, which are a <em>subset</em> of the cortical arousals an EEG scorer marks. Measured against expert-scored arousals on 492 SHHS1 PSG records: AAI runs at <strong>0.236&#xD7;</strong> the scored arousal index (median 4.53/hr vs 19.46/hr) and ranks nights only moderately (Spearman r&#x202F;=&#x202F;0.41) &#x2014; directional, not interchangeable.</div></div>
 <span class="ev-corner ev-heuristic" title="Heuristic — 1 Hz adapted; not beat-to-beat equivalent to clinical HRV norms"></span></div>
 </div><!-- /spikes -->
 
