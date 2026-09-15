@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS (audit + smallest change set landed 2026-09-05; the deliberately-NOT-built list in §7 is the remainder, each item gated on a measurement this PR starts collecting) · **Created:** 2026-09-05 · **Residue:** 2026-09-05-retry-sleep-stale-connected, 2026-09-05-fsync-on-loop-unmeasured, 2026-09-05-supervised-restart-resets-state, 2026-09-06-writer-close-list-hand-kept
+**Status:** IN-PROGRESS (audit + smallest change set landed 2026-09-05; §7 is the remainder. **Re-verified 2026-09-15 (Heron) against the tree, because §9 left all three of its met gates reading as outstanding:** §7's *fsync off the loop* is BUILT and its residue is closed `fixed #2382` — `writers.py` carries `_fsync_worker`/`_submit_fsync`/`_drain_fsync` and the queue holds dup'd-fd+health pairs, never rows, which is exactly the narrow remedy §9 argued for; *adapter hotplug/quarantine/flap cap* is NOT built and its residue `2026-09-11-dead-adapter-goes-unnoticed` is still OPEN; *post-recovery verification for a radio* is NOT built — there is **no HCI command round-trip probe anywhere in capture-host** (`0x0c03`/`HCI_RESET`/`hci_send`: zero hits), and `classify_adapter_health` is pure and flag-fed, taking `adapter_up` from `_adapter_is_up(_hci_now)` — a state read on the SINGLE PINNED adapter, with exactly one consumer at `capture.py:5793`. That is precisely the shape §9 says would have called the wedged radio healthy, and it is also blind to a wedge on any of the other three radios vigil was running) · **Created:** 2026-09-05 · **Residue:** 2026-09-05-retry-sleep-stale-connected, 2026-09-05-fsync-on-loop-unmeasured, 2026-09-05-supervised-restart-resets-state, 2026-09-06-writer-close-list-hand-kept
 
 # Capture-host resource orchestration — audit, diagnosis, smallest change set
 
@@ -170,7 +170,7 @@ silent · ✅ loop starvation observable · ✅ background tasks supervised · �
 
 | item | why not now | gated on |
 |---|---|---|
-| move fsync off the loop (thread/queue writer) | changes the P0 write path from direct to queued — new loss class (queue on crash). Not without a number. | `fsync_max_ms` from one real night ≥ 250 ms |
+| ~~move fsync off the loop (thread/queue writer)~~ **BUILT — #2382** | gate met (20 `SLOW fsync`, 252–1702 ms over six nights) and the remedy landed in the narrower shape §9 identified: the **fsync** moved, not the writer, so the feared queue-on-crash loss class never appeared | ~~`fsync_max_ms` ≥ 250 ms~~ — discharged; verified in the tree 2026-09-15 |
 | wire `adapter_pool.py`; adapter hotplug, quarantine, flap cap | multi-adapter nights are not yet the operating mode; `_migrate_to_spare` covers the one real case | a second adapter in the deployed config |
 | admission enum / generations / quiesce coordinator | models contention that the one-task-per-link design does not have | never, unless a shared queue appears |
 | degradation levels 0–5 | needs the S2/L2 numbers to know what to shed first | `loop.stalls` on a real night |
@@ -194,6 +194,27 @@ actionable rather than waiting:
 | move fsync off the loop | `fsync_max_ms` ≥ 250 ms on one real night | ✅ **MET, and the remedy is narrower than the row assumed** |
 | adapter hotplug / quarantine / flap cap | a second adapter in the deployed config | ✅ **MET — vigil ran FOUR adapters** |
 | post-recovery verification ("connected ≠ healthy" for a *radio*) | — (no gate was stated) | ✅ **now has a measured instance** |
+
+> **Re-verified against the tree 2026-09-15 (Heron).** §9 says these three are "actionable rather than
+> waiting", and a reader three days later cannot tell which have since been done — one had. Stated per
+> row so the next pickup does not re-derive it:
+>
+> * **fsync — BUILT, #2382, residue closed.** `writers.py` carries `_fsync_worker` / `_submit_fsync` /
+>   `_drain_fsync`, and its own comment records that the queue carries "(dup'd fd, health) pairs, never
+>   rows". That is the narrow shape argued for above, landed: the **fsync** moved and the writer did not,
+>   so the queue-on-crash loss class that justified the original deferral never appeared. ⚠️ The
+>   disk-pressure confound §9 raised is still NOT excluded — a post-fix latency measurement owes free
+>   space beside it, and none has been taken.
+> * **Adapter hotplug / quarantine / flap cap — NOT built.** Residue
+>   `2026-09-11-dead-adapter-goes-unnoticed` is still `OPEN`.
+> * **Post-recovery verification for a radio — NOT built, and the gap is narrower than "no probe exists".**
+>   There is no HCI command round-trip anywhere in capture-host (`0x0c03` / `HCI_RESET` / `hci_send`:
+>   zero hits outside comments). `classify_adapter_health` is PURE and flag-fed — it takes `adapter_up`
+>   from `_adapter_is_up(_hci_now)`, a *state read* on the **single pinned** adapter, and has exactly one
+>   consumer (`capture.py:5793`). So it is blind twice over: it would have read the wedged radio's
+>   `UP RUNNING` as healthy while `HCI Reset` itself timed out, AND it cannot see a wedge on any of the
+>   other three radios vigil was running, because it only ever looks at the pinned one. A round-trip probe
+>   is the fix for the first blindness; it does not address the second.
 
 **fsync.** Residue `2026-09-10-fsync-band-crossed-and-the-remedy-is-narrower`: 20 `SLOW fsync` events
 across six consecutive nights, 252–1702 ms. The band this brief set is crossed many times over. ⚠️ And
