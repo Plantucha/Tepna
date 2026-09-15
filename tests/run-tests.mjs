@@ -1296,7 +1296,62 @@ function readClaudeMdClaims() {
        collapse to 0, which would read as "the builder owns nothing" and pass a wrong CLAIM. */
   }
 
-  return { claudeMd, claims, claimsMalformed, clockBundles, missingBundles, appBundles: APP_BUNDLES, ownedBundles, orchestrators };
+  /* ── SOURCED CLAIMS: `CLAIM <name> = <value> FROM <path>#<pointer>` ──────────────────────────────
+     The three claims above each need a BESPOKE resolver written into the gate, which is why there are
+     three of them and not thirty. A sourced claim carries its own resolver: the marker names the
+     committed artifact and the key inside it, so one generic checker covers any number any tool can
+     be made to emit.
+
+     WHY THIS SHAPE AND NOT A PROSE SCANNER. Measured 2026-09-15 over `briefs/ audits/ docs/`: a
+     statcheck-style scan for a ratio beside its percentage found 213 candidates and flagged 45, and
+     every one of the four sampled was a FALSE POSITIVE — a threshold (`28 of 28 fail the 80 % floor`),
+     a sequence (`nf = 219/220/221 — a 16 % swing`), a transition (`61/319 -> 118/319 = 36 %`, where the
+     percentage belongs to the second pair), and an adjacent table column supplying a different
+     denominator (15/179 = 8.4 %, not 15/164). Tightening until those die leaves 14 candidates and ZERO
+     disagreements — precise and empty. statcheck works because NHST reporting is rigidly stereotyped;
+     its precision comes from the CONVENTION, not from the checking. Tepna's briefs have no such
+     convention, so a marker that CREATES one is not the cheaper option, it is the only one that works.
+
+     REFUSAL IS LOUD AND IS THE POINT. An unresolvable source reds; it never skips. A claim whose
+     artifact vanished is exactly the stale number this exists to catch, and a checker that fell silent
+     there would report health about something it never examined. */
+  const sourced = [];
+  const CLAIM_FROM = /CLAIM\s+([A-Za-z][A-Za-z0-9_]*)\s*=\s*(-?\d+(?:\.\d+)?)\s+FROM\s+([^\s#`]+)#([A-Za-z0-9_./-]+)/g;
+  const claimFiles = [['CLAUDE.md', claudeMd]];
+  try {
+    const bd = join(ROOT, 'briefs');
+    if (existsSync(bd)) for (const f of readdirSync(bd).filter((x) => x.endsWith('.md'))) claimFiles.push(['briefs/' + f, readFileSync(join(bd, f), 'utf8')]);
+  } catch {
+    /* unreadable briefs/ ⇒ CLAUDE.md alone; the non-vacuity assertion notices if nothing was scanned */
+  }
+  for (const [where, text] of claimFiles) {
+    for (const m of text.matchAll(CLAIM_FROM)) {
+      const [, name, raw, file, pointer] = m;
+      const rec = { name, where, file, pointer, stated: Number(raw), actual: null, reason: null };
+      const abs = join(ROOT, file);
+      if (!existsSync(abs)) rec.reason = 'source file not found: ' + file;
+      else {
+        try {
+          let cur = JSON.parse(readFileSync(abs, 'utf8'));
+          for (const seg of pointer.split('/')) {
+            if (cur == null || typeof cur !== 'object' || !(seg in cur)) {
+              cur = undefined;
+              break;
+            }
+            cur = cur[seg];
+          }
+          if (cur === undefined) rec.reason = 'pointer did not resolve: #' + pointer;
+          else if (typeof cur !== 'number') rec.reason = 'pointer resolved to ' + typeof cur + ', not a number';
+          else rec.actual = cur;
+        } catch (e) {
+          rec.reason = 'unreadable/invalid JSON: ' + String((e && e.message) || e).slice(0, 80);
+        }
+      }
+      sourced.push(rec);
+    }
+  }
+
+  return { claudeMd, claims, claimsMalformed, clockBundles, missingBundles, appBundles: APP_BUNDLES, ownedBundles, orchestrators, sourced, claimFilesScanned: claimFiles.length };
 }
 
 /* N1 (PRIVACY-SECURITY-AUDIT-FINDINGS-2026-07-13): the standalone, unbundled analysis/research pages +

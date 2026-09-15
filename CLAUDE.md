@@ -857,7 +857,7 @@ detectPeaks`) is the honest H10 leg — derive H10 HR from `_ECG.txt`, not `_HR.
 fusion consuming these must derive HR from the raw waveform, not the onboard summary.
 
 **A real tri-device corpus exists** — O2Ring + Polar H10 (device `H10-01`) + Polar Verity Sense
-(device `VERITY-01`), 2026-06-10 → 2026-07-05, **20 eligible nights** (~10 with clean Verity). It is
+(device `VERITY-01`), 2026-06-10 → 2026-07-05, **CLAIM trioEligibleNights = 20 FROM analysis/tri_device_nights.json#count eligible nights** (~10 with clean Verity). It is
 the ground truth behind the reference-free σ work (`sensor-trio-power-analysis.html` /
 `sigma-no-reference-analysis.html`) and unblocks several `PAPERS-ROADMAP` real-validation items.
 
