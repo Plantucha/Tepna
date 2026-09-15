@@ -54,4 +54,24 @@ tests/changes-list.txt      merge=union
 # local conflict before it: the driver is not broken, delete the stale copy. Local merges/rebases only
 # (rebase-safe treats the file as source and now finds no conflict); GitHub's server-side merge and
 # Kodiak's update-branch do not honour this attribute, so a BEHIND PR may still need one local merge.
-briefs/RESIDUE.md           merge=union
+# (2026-09-15: that line also EXPLAINS the platform-vs-local asymmetry two sessions recorded as
+# unexplained — a PR reads DIRTY on GitHub while merging clean locally, because only the local side
+# applies the attribute. The platform's refusal is the SAFE reading; resolving it by merging locally
+# and pushing is how the duplicate shipped.)
+# ── RESOLVED 2026-09-15: a driver that appends like union and REFUSES a duplicated id ────────────
+# The boundary above is real and was measured twice independently. `tools/residue-merge.mjs` merges
+# this file over ROW IDS instead of over bytes, which is the whole trick: a state-cell close and a
+# tail append are DISJOINT as rows and OVERLAPPING as bytes, so no byte-oriented driver — union or
+# plain 3-way — can get both right at once. It keeps the conflict-free append, takes the side that
+# actually edited a row, and CONFLICTS when both sides edited one row differently or when either
+# deleted a row (never legal here).
+#
+# ⚠️ IT IS PER-CLONE, AND THE UNINSTALLED STATE IS THE SAFE ONE — this is why the attribute is safe
+# to ship ahead of everyone installing it (CLAUDE.md §👥.2b-bis). Verified in a synthetic repo:
+#     merge=union,   n/a            → exit 0, 0 markers, id DUPLICATED   ← the old silent failure
+#     merge=residue, NOT installed  → exit 1, conflict markers           ← noisy, correct
+#     merge=residue, installed      → exit 0, correct merge
+# An unconfigured driver name falls back to the built-in 3-way merge, which conflicts on exactly the
+# shape union duplicated. So not installing it is strictly better than today, and installing it is
+# better still.  Install:  node tools/residue-merge.mjs --install
+briefs/RESIDUE.md           merge=residue
