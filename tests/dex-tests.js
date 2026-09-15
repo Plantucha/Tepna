@@ -16265,6 +16265,82 @@
        THE PLANT IS THE POINT. A real file cannot discriminate — every one of them carries blanking
        AND artefacts, so a clean-vs-blanked comparison on real data confounds the two. The synthetic
        pair below differs in EXACTLY the blanked run. */
+    /* ════ §∅ PIN CONSTANTS — the parity gate BOTH sides asked for in writing ═══════════════════
+       `capture-host/writers.py:70-73`, above `T_STUCK`: *"This constant is the single source; it ALSO
+       travels in each sidecar's comment line… If a JS side ever recomputes these spans, that constant
+       must be asserted equal to this one by a gate that has been shown to RED on a mismatch."*
+       `ppgdex-dsp.js:374`, from the other side: *"Single-sourcing with the Python writer's defaults
+       (kernel-constants.js + a parity gate reading both) lands with that writer; until it exists there
+       is nothing to pair with."* The writer now exists, so the pairing is owed.
+
+       FOUR PAIRS AGREE and are pinned here so a one-sided edit reds instead of drifting silently.
+
+       🔴 THE FIFTH IS A CATEGORY DIFFERENCE, NOT DRIFT, and pinning it as a disagreement is the point.
+       `PIN_MIN_RUN = 5` asks "is this run a blanking EVENT?"; `T_STUCK = 200` asks "is this stream
+       STUCK?" — a 1.6 s hold at ~126 Hz. `RUN_MIN_BY_STREAM` maps every stream to `T_STUCK`, so the
+       sidecar writer records only runs that clear the STUCK bar.
+
+       Consequence, measured 2026-09-15: of 122 stream-sidecars on disk, 118 carry ZERO span rows and
+       4 carry one — while the JS detector at 5 finds 32 407 affected intervals across 2607 files. The
+       two witnesses do not disagree about the DATA; they answer different questions. And CLAUDE.md §∅'s
+       own measurement of the phenomenon — 149 runs, 105 of them >= 10 samples, the longest 78 (0.62 s)
+       — sits entirely BELOW 200, so the sidecar cannot record the thing it was built for.
+
+       ⚠️ THIS GATE DOES NOT PICK A VALUE. Changing either constant is an owner call with a corpus
+       cost; what a gate can do is make the divergence IMPOSSIBLE TO EDIT SILENTLY and carry the reason
+       next to it. `ppgdex-dsp.js:374` also warns a consumer that "THE FILE WINS for what was observed"
+       — sound in general, and dangerous here: deferring to a sidecar that is empty BY CONSTRUCTION
+       would undo the exclusion landed in #2531. */
+    group('§∅ pin constants agree with capture-host, and the one that does not is pinned as a DISAGREEMENT', 'ppgdex-dsp · pin-constants · parity', function (T) {
+      var S = env.sources || {};
+      var js = S['ppgdex-dsp.js'];
+      var wr = S['capture-host/writers.py'];
+      /* The rail constants live in `nightqc.py`, NOT `writers.py` — a first version of this gate read
+         only the writer and every Python value came back null, which the non-vacuity assertion below
+         caught before the equalities could pass on nothing. `_ANNOTATION_GAP_MAX` is defined in BOTH
+         files, so it is checked against both. */
+      var nq = S['capture-host/nightqc.py'];
+      if (js == null || wr == null || nq == null) {
+        T.skip('ppgdex-dsp.js + capture-host/writers.py in env.sources', 'not wired — the scan would read nothing');
+        return;
+      }
+      var jsNum = function (name) {
+        var m = js.match(new RegExp('const ' + name + ' = (\\d+)'));
+        return m ? Number(m[1]) : null;
+      };
+      var pyNum = function (name, where) {
+        var src = where === 'wr' ? wr : nq;
+        var m = src.match(new RegExp('^' + name + '\\s*=\\s*(\\d+)', 'm'));
+        return m ? Number(m[1]) : null;
+      };
+      /* Non-vacuity first: if the extractors return null the equalities below are trivially
+         satisfiable and this group would pass while reading nothing. */
+      T.ok(
+        'both extractors find a value (else every assertion below is vacuous)',
+        jsNum('PIN_RAIL_SCAN_VALUES') != null && pyNum('_RAIL_SCAN_VALUES') != null,
+        'js=' + jsNum('PIN_RAIL_SCAN_VALUES') + ' py=' + pyNum('_RAIL_SCAN_VALUES')
+      );
+      [
+        ['PIN_RAIL_SCAN_VALUES', '_RAIL_SCAN_VALUES'],
+        ['PIN_RAIL_GAP_MAX', '_RAIL_GAP_MAX'],
+        ['PIN_RAIL_SPIKE_MIN', '_RAIL_SPIKE_MIN'],
+        ['PIN_MERGE', '_ANNOTATION_GAP_MAX']
+      ].forEach(function (pair) {
+        var a = jsNum(pair[0]),
+          b = pyNum(pair[1]);
+        T.eq(pair[0] + ' ≡ ' + pair[1] + ' (a one-sided edit must RED, not drift)', a, b);
+      });
+      /* The disagreement, pinned at its measured values. This reds if EITHER side moves — which is
+         what makes it a decision point rather than an accident nobody notices. */
+      T.eq('PIN_MIN_RUN is still 5 — the blanking-EVENT floor', jsNum('PIN_MIN_RUN'), 5);
+      T.eq('T_STUCK is still 200 — the stream-STUCK floor, a different question', pyNum('T_STUCK', 'wr'), 200);
+      T.ok(
+        '…and the writer still maps every stream to T_STUCK, which is why sidecars are empty',
+        /RUN_MIN_BY_STREAM\s*=\s*\{[\s\S]{0,400}?"ppg1":\s*T_STUCK/.test(wr),
+        'RUN_MIN_BY_STREAM no longer maps ppg1 to T_STUCK — if that is deliberate, the 118-of-122 empty-sidecar finding needs re-measuring'
+      );
+    });
+
     group('PpgDex §∅ — a pinned span is an ABSENCE, excluded like a gap', 'ppgdex-dsp · absence-as-value · pinned', function (T) {
       var P = env.PPGDSP;
       if (!P || !P.analyze || !P.parsePPG) {
