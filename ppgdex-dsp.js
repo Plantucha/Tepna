@@ -4137,6 +4137,56 @@
        dropped beat leaves no discontinuity in `relSec`, every sample is still present. (That blindness
        is by design, and is why §4 sat deferred behind `nGapSpanIntervals: 0 -> 0`: the counter watched
        to decide whether §4 fires is the one quantity guaranteed not to respond. §4a.) */
+    /* ── §∅: A PINNED SPAN IS AN ABSENCE, SO AN INTERVAL CROSSING ONE IS NOT A MEASUREMENT ───────
+       `pinnedSpans` has detected in-band blanking since #2317 and the export has REPORTED it as
+       `quality.pinnedCoverage` — but nothing ever SUBTRACTED it, so every rMSSD/SD1/LF:HF was
+       computed as though the blanked samples were signal. The detector and the reporting were built;
+       the consumption was not, which is the §∅ failure one layer up: a number that describes absence,
+       sitting beside numbers computed as if there were none.
+
+       Owner ruling (P5, 2026-09-12): a pinned span is an ABSENCE and is excluded LIKE A GAP. So this
+       is deliberately the same term in the same conjunction as `spansGapIn`, not a new mechanism —
+       an interval that crosses blanking is the identical kind of non-measurement as one that crosses
+       a delivery hole, and `BLE-TRANSPORT-REDESIGN` §1.2's Done-when is exactly that a planted
+       blanking run must reach a null-or-coverage-annotated metric and nothing else.
+
+       UNION ACROSS CHANNELS, and that choice is conservative on purpose. The beat train is a
+       consensus over the optical channels, so if ANY contributing channel was blanked across the
+       interval the consensus had nothing to agree about there. Taking the intersection would let a
+       single surviving channel launder a blanked consensus into a measurement — the same shape as a
+       fabricated value, arrived at by voting. The cost is over-exclusion where one channel blanks
+       alone, and the corpus figure for that is in the PR rather than assumed.
+
+       SAMPLE INDICES THROUGHOUT — no time conversion. A span is `{first, n}` over the raw channel
+       array and the fiducials are indices into that same array, so the overlap test is exact; going
+       via `relSec` would introduce a rounding question where there is not one. */
+    const pinFid = footSpineOK ? det.feet : det.peaks;
+    const pinRanges = [];
+    for (const sp of rec.spans || []) {
+      for (const r of (sp && sp.spans) || []) {
+        if (r && r.n > 0) pinRanges.push([r.first, r.first + r.n - 1]);
+      }
+    }
+    pinRanges.sort((a, b) => a[0] - b[0]);
+    const spansPinIn = new Array(nIn);
+    let nPinSpanIntervals = 0;
+    for (let i = 0; i < nIn; i++) {
+      let hit = false;
+      if (pinRanges.length && pinFid && pinFid[i] != null && pinFid[i + 1] != null) {
+        const a = pinFid[i],
+          b = pinFid[i + 1];
+        for (const [lo0, hi0] of pinRanges) {
+          if (lo0 > b) break; // sorted ⇒ nothing later can overlap
+          if (hi0 >= a) {
+            hit = true;
+            break;
+          }
+        }
+      }
+      spansPinIn[i] = hit;
+      if (hit) nPinSpanIntervals++;
+    }
+
     const spansGapIn = new Array(nIn);
     const cleanIn = new Array(nIn);
     let nGapSpanIntervals = 0; // over EVERY input interval — a straddle correctRR also rejected still straddled
@@ -4145,11 +4195,20 @@
       if (spansGapIn[i]) nGapSpanIntervals++;
       const q0 = sqi[i] != null ? sqi[i] : 1,
         q1 = sqi[i + 1] != null ? sqi[i + 1] : 1;
-      cleanIn[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGapIn[i];
+      cleanIn[i] = corr.flags[i] === 0 && q0 >= 0.5 && q1 >= 0.5 && !spansGapIn[i] && !spansPinIn[i];
     }
     // …projected onto the kept series: cleanMask[j] / spansGap[j] describe nn[j], not input interval j.
     const kIdx = corr.keptIdx;
     const spansGap = kIdx.map((i) => spansGapIn[i]);
+    const spansPin = kIdx.map((i) => spansPinIn[i]);
+    /* ⚠️ BOTH CONSUMERS, because `timeDomain` excludes through TWO separate channels and they feed
+       different metrics: `omit` filters the base that SDNN/meanRR/HR are computed over, while
+       `cleanMask` gates the successive-difference loop behind rMSSD/pNN50. Adding the pinned term to
+       `cleanIn` alone — which is where this change started — excluded blanking from rMSSD and left it
+       IN SDNN, a half-fix that would have read as done: the planted run would have moved one metric
+       and not the other, and no assertion watched the pair. `spansOmit` is the union, so an absence
+       is absent from both. */
+    const spansOmit = kIdx.map((i) => spansGapIn[i] || spansPinIn[i]);
     const cleanMask = kIdx.map((i) => cleanIn[i]);
     /* Pair adjacency in the kept frame: `adj[j]` is false when nn[j-1] and nn[j] were NOT input
        neighbours, i.e. correctRR dropped ≥1 interval between them. Their successive difference then
@@ -4164,7 +4223,7 @@
             a1 = cons.agree[i + 1];
           return a0 != null && a1 != null ? (a0 + a1) / 2 : a0 != null ? a0 : a1 != null ? a1 : null;
         });
-    const td = /** @type {any} */ (timeDomain(nn, cleanMask, spansGap, adj) || {});
+    const td = /** @type {any} */ (timeDomain(nn, cleanMask, spansOmit, adj) || {});
     const poin = poincare(nn, cleanMask, adj);
     /* ── #2 treatment (1): the frequency domain must not see correctRR's substitutes ──────────────
        A rejected interval is replaced by the local-median reference and pushed into `nn`, so at this
@@ -4675,7 +4734,20 @@
       // Intervals excluded because they STRADDLE a time discontinuity — real time the capture lost, so
       // the foot-to-foot difference may span absent beats (O2RING-PPG-GAP §2). Surfaced rather than
       // silently dropped: a night with many of these had a lossy link, and the reader should know.
+      /* ⚠️ THE DENOMINATOR, published because without it neither counter above is a rate.
+         `nGapSpanIntervals` has shipped since #2333 as a bare count and `nPinSpanIntervals` was
+         about to join it. Both are counted over EVERY INPUT interval while the export's series is
+         the KEPT subset, so dividing by `nn.length` mixes two populations — measured while writing
+         this, it produced a per-file "800 %", which is the only reason the mismatch was caught
+         before it reached a changeset. This is §1.5 of BLE-TRANSPORT-REDESIGN ("instrument the
+         DENOMINATOR, not the failures") applied to the two counters that needed it. */
+      nInputIntervals: nIn,
       nGapSpanIntervals,
+      /* Published beside its gap twin so the exclusion is VISIBLE. A silent exclusion and a silent
+         inclusion are the same defect facing opposite ways: this number is how a reader tells
+         "no blanking" from "blanking nobody subtracted", which is the distinction that did not
+         exist before this change. */
+      nPinSpanIntervals,
       hrvLowConfidence,
       hrvLowConfidenceReason,
       // §2 — WHY the confidence dropped, as a field rather than a substring of the reason. Coverage
