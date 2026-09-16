@@ -678,3 +678,40 @@ def test_write_pletha_round_trips_through_the_parser(tmp_path):
     assert len(rows) - 1 == len(vals)
     # No device clock on this opcode; a non-zero ns column would be invented.
     assert all(r.split(";")[1] == "0" for r in rows[1:])
+
+
+def test_clock_sidecar_carries_the_session_elevation_only_when_it_was_MEASURED(tmp_path):
+    """The `geo=` header on HostClockLogWriter — a per-session constant, so a comment rather than a
+    column (LinkLogWriter's `# adapter=` pattern), and no line at all when nothing was measured.
+
+    ∅ The absent case is the one that matters. OxyDex lowers the healthy SpO2 threshold ~1.8 %/1000 m
+    and HRVDex/ECGDex scale VO2max by an altitude factor, so a header reading `elevation_m=0` on a
+    night with no fix would be indistinguishable from a night measured at sea level — and 0 m is a
+    legal elevation. Absence must therefore be SILENT, not zero."""
+    import writers
+
+    got = {"elevation_m": 619.7, "fix_quality": 2, "sats": 12, "hdop": 0.62, "source": "gnss"}
+    p = tmp_path / "with_geo_CLOCK.csv"
+    w = writers.HostClockLogWriter(str(p), fsync=False, geo=got)
+    w.close()
+    head = p.read_text().splitlines()
+    assert head[0] == "# elevation_m=619.7 fix=2 sats=12 hdop=0.62 source=gnss"
+    assert head[1].startswith("Phone timestamp;"), "the column header must still follow"
+
+    for absent in (None, {}):
+        q = tmp_path / f"no_geo_{absent!r}_CLOCK.csv".replace("'", "")
+        w2 = writers.HostClockLogWriter(str(q), fsync=False, geo=absent)
+        w2.close()
+        first = q.read_text().splitlines()[0]
+        assert first.startswith("Phone timestamp;"), "no receiver ⇒ NO header line, not a zero"
+        assert "elevation" not in q.read_text()
+
+
+def test_the_geo_header_defaults_to_absent_so_existing_callers_are_unchanged(tmp_path):
+    """The parameter is keyword-with-default and LAST, so every existing construction site keeps its
+    behaviour byte-for-byte — the suite's back-compat rule for an added argument."""
+    import writers
+    p = tmp_path / "legacy_CLOCK.csv"
+    w = writers.HostClockLogWriter(str(p), fsync=False)
+    w.close()
+    assert p.read_text().splitlines()[0].startswith("Phone timestamp;")

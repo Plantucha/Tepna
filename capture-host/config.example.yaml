@@ -420,3 +420,28 @@ as11_detector:
 radio_clock:
   enabled: false
   # adapter: "XX:XX:XX:XX:XX:XX"
+
+# ── Session ELEVATION from a GNSS receiver (OPTIONAL, disabled by default) ─────────────────────────────
+# Almost nobody needs this: if the box never moves, type the elevation into the Dex profile once and
+# ignore this block. It exists for a TRAVELLING capture host, where a profile elevation typed at home
+# is wrong everywhere else — and wrong in the direction that invents findings.
+#
+# WHAT CONSUMES IT. The Dex profile's `elevation` is not decoration: OxyDex lowers the healthy SpO2
+# threshold by ~1.8 %/1000 m (Roach 1998 / AMS guidance), and HRVDex/ECGDex apply an altitude factor to
+# the Uth-Sorensen VO2max. A night recorded at 2500 m against a profile still saying 0 m reads as ~4.5 %
+# of desaturation that never happened.
+#
+# ABSENCE IS NULL. No receiver, no fix, or a poor fix (< 4 sats, HDOP > 5, or quality 6 = dead
+# reckoning) records NOTHING rather than 0 m. Zero is a legal elevation — the sea — so a fabricated
+# zero is indistinguishable from a measured one downstream.
+#
+# Any NMEA receiver works; no configuration is written to it, so one shared with a GPSDO or a radio is
+# safe. Tested against a QUESCAN UBX-M10050 (u-blox M10) on a CP2102 USB-TTL bridge at 38400 baud.
+geo:
+  enabled: false
+  port: /dev/ttyUSB0      # the receiver's serial port. /dev/serial/by-id/... is stabler across re-plug
+  baud: 38400             # u-blox M10 default. Many older receivers are 9600
+  read_sec: 5             # how long to listen at session start. The best (lowest-HDOP) fix in it wins
+  record_position: false  # PRIVACY: false records ELEVATION ONLY. The analysis has no use for
+                          # latitude/longitude, and a medical recording carrying coordinates to metre
+                          # precision is a disclosure nobody asked for. Opt in deliberately or not at all
