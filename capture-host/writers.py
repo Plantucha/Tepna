@@ -1428,10 +1428,23 @@ class HostClockLogWriter:
     TELEMETRY, not physiology: never a `ganglior.node-export` metric, never an evidence badge.
     """
 
-    def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True):
+    def __init__(self, path: str, flush_interval: float = FLUSH_INTERVAL_S, fsync: bool = True,
+                 geo: dict | None = None):
         self.path = path
         self._health = _FlushHealth(path)
         self._fh = open(path, "w", buffering=1 << 16, newline="\n")
+        # ── OPTIONAL session ELEVATION, as a header comment (LinkLogWriter's `# adapter=` pattern) ──
+        # A COMMENT, not a column: elevation is a per-session constant, so a column would repeat one
+        # value down thousands of rows and shift every existing reader's offsets for no gain. It
+        # travels WITH the data, which is why `# adapter=` is a comment too.
+        # ∅ ABSENT MEANS ABSENT — `geo` falsy writes NO LINE AT ALL, never `elevation_m=0`. The
+        # consumers (OxyDex's ~1.8 %/1000 m SpO2 norm shift; HRVDex/ECGDex's VO2max altitude factor)
+        # cannot tell a fabricated sea level from a measured one, and 0 m is a legal elevation.
+        if geo:
+            self._fh.write(
+                "# elevation_m=%s fix=%s sats=%s hdop=%s source=%s\n"
+                % (geo.get("elevation_m"), geo.get("fix_quality"), geo.get("sats"),
+                   geo.get("hdop"), geo.get("source")))
         # chrony_skew_ppm then timebase are APPENDED LAST so a positional reader of the earlier columns is
         # unaffected — the same "never shift an existing column" discipline LinkLogWriter keeps.
         # chrony_skew_ppm = clock-frequency precision (ppm error bound), chrony-only, blank on timesyncd.
