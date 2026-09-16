@@ -117,7 +117,18 @@ export function declaresNearMissSelftest(src) {
    spellings to any call position and discovered four tools the runner had never executed. Cut to 26
    the SAME day by widening the summary parser: 22 of the 48 were reporting counts all along, in
    formats the reader did not know. The ratchet forced that bookkeeping — it exits 1 on a paid debt
-   left in the map, so the parser could not be widened without removing them. */
+   left in the map, so the parser could not be widened without removing them.
+
+   ⚠️ AND THE WIDENING STOPS HERE — measured, not assumed. Of the 26 that remain, only TWO print a
+   number at all (`release-land`, `wt-done`, as `selftest: N/N ok`); the other 24 genuinely end with
+   `all passed` and count nothing. A sixth regex would therefore buy two tools while adding
+   false-positive risk on any tool that prints a ratio in its own output — a reader matching `N/M`
+   anywhere will eventually read a RESULT as an assertion count, which is this file's own defect
+   class pointed at itself.
+
+   So the remaining 26 are REAL debt, not a reader gap, and each is paid per-tool: make the selftest
+   count its assertions and end with `all <N> selftests passed`. Do not re-derive this — the split was
+   measured on 2026-09-16 by running all 26 and testing their last three lines for any numeral. */
 export const UNPARSEABLE_RATCHET = new Set([
   'acc-select-compare.mjs',
   'acc-shared-movement.mjs',
