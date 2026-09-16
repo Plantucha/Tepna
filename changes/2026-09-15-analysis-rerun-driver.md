@@ -37,7 +37,11 @@ established.
 
 ## §2.11 — declared, not implemented
 
-- Figures/PNGs: this captures **numbers** only.
+- Figures/PNGs: **done** for 1:1 canvas→figure tools (`--figures`, staged to `.cache/rerun-figures/`
+  rather than written over published artifacts). **Not** done for a composite — `cgm-hrv-coupling`
+  publishes three canvases as one image, declared `figures: null` rather than approximated, since
+  writing one panel over a composite is silent corruption. Every entry declares the key, so *absence*
+  cannot pass for *declared null* (asserted).
 - Paper text edits and the comparison against published values: the driver produces the left side of
   that comparison; matching it to each paper is the next unit.
 - `hrv-confound-analysis.html` publishes no result global — listed as `resultGlobal: null` and
@@ -82,5 +86,31 @@ the next caller has to remember. It ships a four-line snippet.
   a second invocation shares the first's checkpoint and each sees the other's units as done. Found
   while verifying, stated rather than left to be discovered as data loss.
 
-22 assertions, including both directions of the refusal guard and an inventory check that reads the
-real pages, so a stale table reds.
+## First real result, and it refutes the brief's own prediction
+
+`nights-icc` at paper scale (6,000 subjects, 35 min):
+
+| metric | published (1.9) | measured (2.0) | |
+|---|---|---|---|
+| rMSSD ICC₁ | 0.93 | **0.9295** | matches |
+| CGM-CV ICC₁ | ≈0 | **0** | matches |
+| **ODI-4 ICC₁** | **0.75** | **0.9238** | **moved** |
+| nights to clear ICC≥0.80 | **two** | **one** | **reversed** |
+
+Two checks say the run is configured right: `subjects = 5,394` matches the paper's stated 5,394
+exactly, and two of three metrics reproduce their published values. Two independent 35-minute runs
+gave **byte-identical** ICC values, and all three figures differ from the committed ones.
+
+**The brief predicted "no change — cohort-wide" for this paper and was wrong.** A cohort-wide
+*statistic* can be dominated by the stratum 2.0 changed: ICC is a variance ratio, ODI's
+between-subject variance largely *is* the apnea spread, and that spread lives in the severe tail. The
+paper's own revision note records the same mechanism running the other way from 1.6→1.9 (*"the
+AHI-ceiling revision compressed the between-subject apnea spread, so ODI-4 now needs two nights"*);
+2.0 raised the ceiling 80→300 and restored it. The inventory's `expect` field is corrected to
+`MOVES`.
+
+That the other two metrics match is what separates "a real 2.0 effect" from "a broken rerun" — the
+discriminator the brief asked for.
+
+28 assertions, including both directions of the refusal guard, both directions of the scale-mismatch
+guard, and inventory checks that read the real pages so a stale table reds.

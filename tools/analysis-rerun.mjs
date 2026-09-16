@@ -63,8 +63,12 @@
  *   the checkpoint is not. Not fixed here, and stated so it is not discovered as data loss.
  *
  * ── §2.11 NOT IMPLEMENTED, DECLARED ───────────────────────────────────────────────────────────
- *   · Figure/PNG regeneration. This captures NUMBERS. The papers' figures are rendered to canvas in
- *     the page and re-exporting them is a separate unit.
+ *   · Figure/PNG regeneration is DONE for 1:1 canvas→figure tools (`--figures`, staged to
+ *     `.cache/rerun-figures/` rather than written over published artifacts). NOT done for a
+ *     COMPOSITE figure — `cgm-hrv-coupling.html` publishes three canvases as one image, and panel
+ *     assembly is declared `figures: null` rather than approximated, because writing one panel over
+ *     a composite is silent corruption. Every entry declares the key, so ABSENCE cannot pass for
+ *     'declared null' (asserted).
  *   · Paper text editing. The driver writes a JSON report; updating each paper is a human/agent edit
  *     against that report, deliberately not automated.
  *   · No comparison against the papers' published values — that needs the values parsed out of the
@@ -90,19 +94,40 @@ const CKPT = join(ROOT, '.cache', 'analysis-rerun-checkpoint.json');
 
 /* ── the inventory, READ from the pages (see §2.1) ═══════════════════════════════════════════ */
 export const TOOLS = [
-  { page: 'nights-icc-analysis.html', resultGlobal: 'NIGHTS_ICC', paper: 'nights-icc.html', inputs: { nSubj: 6000 }, pageDefault: { nSubj: 40 }, expect: 'no change — cohort-wide' },
+  {
+    page: 'nights-icc-analysis.html',
+    resultGlobal: 'NIGHTS_ICC',
+    paper: 'nights-icc.html',
+    inputs: { nSubj: 6000 },
+    pageDefault: { nSubj: 40 },
+    /* canvas id → published figure. 1:1 here. */
+    figures: { curves: 'papers/figures/nights-icc-curves.png', iccbars: 'papers/figures/nights-icc-bars.png', repro: 'papers/figures/nights-icc-repro.png' },
+    expect: 'MOVES — ODI ICC is dominated by the apnea spread 2.0 changed (measured 2026-09-15)'
+  },
   {
     page: 'cgm-hrv-coupling-analysis.html',
     resultGlobal: 'CGM_HRV_COUPLING',
     paper: 'cgm-hrv-coupling.html',
     inputs: { nSubj: 6000 },
     pageDefault: { nSubj: 40 },
+    /* ⚠️ NOT 1:1 — three canvases (scatter/driver/hypo) are published as ONE composite figure
+       (`figures/cgm-hrv-coupling.png`). Panel assembly is not implemented and is NOT guessed at:
+       writing a single panel over a composite would be silent corruption of a published artifact. */
+    figures: null,
     expect: 'partial — AHI-burden legs'
   },
-  { page: 'qrs-equiv-analysis.html', resultGlobal: 'QRS_EQUIV', paper: 'rmssd-equivalence.html', inputs: null, pageDefault: { nSubj: 60 }, expect: 'no change — cohort-wide' },
-  { page: 'qrs-yield-analysis.html', resultGlobal: 'QRS_YIELD', paper: 'qrs-yield.html', inputs: null, pageDefault: { nSubj: 60 }, expect: 'no change — cohort-wide' },
-  { page: 'treatment-response-analysis.html', resultGlobal: 'TREATMENT_RESPONSE', paper: 'treatment-response.html', inputs: null, pageDefault: { nSubj: 45 }, expect: 'CHANGE — severity-dependent' },
-  { page: 'hrv-confound-analysis.html', resultGlobal: null, paper: 'hrv-age-confound.html', inputs: { nIn: 20000 }, pageDefault: { nIn: 250 }, expect: 'no change — cohort-wide' }
+  { page: 'qrs-equiv-analysis.html', resultGlobal: 'QRS_EQUIV', paper: 'rmssd-equivalence.html', inputs: null, pageDefault: { nSubj: 60 }, figures: null, expect: 'no change — cohort-wide' },
+  { page: 'qrs-yield-analysis.html', resultGlobal: 'QRS_YIELD', paper: 'qrs-yield.html', inputs: null, pageDefault: { nSubj: 60 }, figures: null, expect: 'no change — cohort-wide' },
+  {
+    page: 'treatment-response-analysis.html',
+    resultGlobal: 'TREATMENT_RESPONSE',
+    paper: 'treatment-response.html',
+    inputs: null,
+    pageDefault: { nSubj: 45 },
+    figures: null,
+    expect: 'CHANGE — severity-dependent'
+  },
+  { page: 'hrv-confound-analysis.html', resultGlobal: null, paper: 'hrv-age-confound.html', inputs: { nIn: 20000 }, pageDefault: { nIn: 250 }, figures: null, expect: 'no change — cohort-wide' }
 ];
 
 /* ⚠️ `inputs: null` means THE PAPER'S COHORT SIZE IS NOT ESTABLISHED, not that the default is right.
@@ -145,9 +170,14 @@ export function progressLine(i, total, name, ms, keys) {
 }
 
 /* Which tools still need running, given a checkpoint. Pure, so it is testable without a browser. */
-export function pending(tools, ck) {
+export function pending(tools, ck, paperScale) {
   const done = (ck && ck.done) || {};
-  return tools.filter((t) => !done[t.page]);
+  return tools.filter((t) => {
+    const d = done[t.page];
+    if (!d) return true;
+    /* a unit scored at a DIFFERENT scale is not done for this run — see the note at the write site */
+    return !!d.paperScale !== !!paperScale;
+  });
 }
 
 async function main(argv) {
@@ -161,6 +191,17 @@ async function main(argv) {
   const OUT = opt('--out', join(ROOT, '.cache', 'analysis-rerun-results.json'));
   const JOBS = poolSize(Number(opt('--jobs', '1')), cpus().length);
   const PAPER_SCALE = flag('--paper-scale');
+  /* ⚠️ SIZED FROM MEASUREMENT, NOT FROM A GUESS. The first paper-scale run used a hardcoded 24 min
+     and nights-icc TIMED OUT at 1441 s while the page's own ETA read ~36 min — the budget was set
+     before the work was measured, which is the §2.6 failure applied to a timeout. Default is now
+     120 min, well above the slowest observed (hrv-confound at 20,000 is unmeasured and may exceed
+     nights-icc's 36). A timeout that fires is reported as an error, never as an empty result. */
+  const WAIT_MIN = Number(opt('--timeout-min', PAPER_SCALE ? '120' : '25'));
+  const FIGURES = flag('--figures');
+  /* figures land in a STAGING directory by default. Writing straight into `papers/figures/` would
+     overwrite published artifacts from a run whose numbers nobody has reviewed yet; the caller
+     copies them across deliberately after checking. */
+  const FIG_DIR = opt('--fig-dir', join(ROOT, '.cache', 'rerun-figures'));
 
   let chromium;
   try {
@@ -176,8 +217,8 @@ async function main(argv) {
   let ck = RESUME ? loadCheckpoint(CKPT) : null;
   if (!ck) ck = { started: null, done: {} };
   let todo = TOOLS.filter((t) => !ONLY || t.page === ONLY);
-  const skipped = RESUME ? todo.length - pending(todo, ck).length : 0;
-  todo = RESUME ? pending(todo, ck) : todo;
+  const skipped = RESUME ? todo.length - pending(todo, ck, PAPER_SCALE).length : 0;
+  todo = RESUME ? pending(todo, ck, PAPER_SCALE) : todo;
   if (skipped) console.log('  resume    ' + skipped + ' tool(s) already in the checkpoint — not re-run');
 
   const browser = await chromium.launch({
@@ -253,19 +294,41 @@ async function main(argv) {
             }
             return st.done;
           },
-          720,
+          Math.ceil((WAIT_MIN * 60) / 2),
           2000,
           true
         );
-        if (!ok) throw new Error('window.' + t.resultGlobal + ' never appeared within 24 min');
+        if (!ok) throw new Error('window.' + t.resultGlobal + ' never appeared within ' + WAIT_MIN + ' min');
         captured = await page.evaluate((g) => JSON.parse(JSON.stringify(window[g])), t.resultGlobal);
       }
     } catch (e) {
       err = String(e && e.message ? e.message : e);
     }
+    /* §2.11 was "figures not done". 1:1 canvas→PNG capture now IS done, for the tools whose figures
+       are 1:1. A composite (`figures: null`) is left alone rather than approximated. */
+    if (FIGURES && captured && t.figures) {
+      for (const [canvasId, rel] of Object.entries(t.figures)) {
+        const dataUrl = await page.evaluate((id) => {
+          const c = document.getElementById(id);
+          return c && c.toDataURL ? c.toDataURL('image/png') : null;
+        }, canvasId);
+        if (!dataUrl) {
+          console.log('      ⚠ canvas #' + canvasId + ' produced no image — figure NOT written');
+          continue;
+        }
+        const dest = join(FIG_DIR, rel.replace(/^papers\/figures\//, ''));
+        mkdirSync(dirname(dest), { recursive: true });
+        writeFileSync(dest, Buffer.from(dataUrl.split(',')[1], 'base64'));
+        console.log('      · figure ' + canvasId + ' → ' + dest);
+      }
+    }
     await page.close();
     const ms = Date.now() - started;
-    ck.done[t.page] = { paper: t.paper, expect: t.expect, ms, err, result: captured };
+    /* ⚠️ RECORD THE SCALE. Without it a `--resume` across a scale change silently serves
+       demo-cohort numbers as the re-cut: the verification run leaves 40-subject results in the
+       checkpoint, and a later `--paper-scale --resume` would skip those tools as "done". That is
+       the very substitution --paper-scale exists to prevent, arriving through the resume path. */
+    ck.done[t.page] = { paper: t.paper, expect: t.expect, ms, err, paperScale: PAPER_SCALE, result: captured };
     saveCheckpoint(CKPT, ck); // §2.2 — written IMMEDIATELY, so a kill loses at most the one in flight
     console.log(progressLine(i, total, t.page, ms, captured ? Object.keys(captured).length : null) + (err ? '  ⚠ ' + err : ''));
   }
@@ -314,6 +377,18 @@ function selftest() {
       .join(',') === 'a.html,c.html'
   );
   A('pending: an all-done checkpoint leaves nothing', pending(T, { done: { 'a.html': {}, 'b.html': {}, 'c.html': {} } }).length === 0);
+  A(
+    'pending: a unit scored at the OTHER scale is NOT treated as done — a resume must not serve demo numbers as the re-cut',
+    pending(T, { done: { 'a.html': { paperScale: false } } }, true)
+      .map((x) => x.page)
+      .join(',') === 'a.html,b.html,c.html'
+  );
+  A(
+    'pending: a unit scored at the SAME scale is skipped',
+    pending(T, { done: { 'a.html': { paperScale: true } } }, true)
+      .map((x) => x.page)
+      .join(',') === 'b.html,c.html'
+  );
 
   /* §2.4 — the line must carry a REAL captured count, and must not claim one when there is none */
   A('progressLine: reports a real key count', /3 top-level key\(s\)/.test(progressLine(1, 6, 'x.html', 1000, 3)));
@@ -360,6 +435,26 @@ function selftest() {
     return Object.keys(t.inputs).some((k) => !src.includes('id="' + k + '"'));
   });
   A('inventory: every paper-scale input id exists on its page', badInput.length === 0, badInput.map((t) => t.page).join(';'));
+
+  /* figures: the inventory must name canvases that EXIST, and must not claim a 1:1 mapping for a
+     tool whose figures are composite — writing one panel over a composite is silent corruption */
+  const badFig = TOOLS.filter((t) => t.figures).filter((t) => {
+    const src = readFileSync(join(ROOT, t.page), 'utf8');
+    return Object.keys(t.figures).some((c) => !src.includes('id="' + c + '"'));
+  });
+  A('figures: every named canvas exists on its page', badFig.length === 0, badFig.map((t) => t.page).join(';'));
+  A(
+    'figures: EVERY tool declares the key — absence must not pass for "declared null"',
+    TOOLS.every((t) => Object.hasOwn(t, 'figures')),
+    TOOLS.filter((t) => !Object.hasOwn(t, 'figures'))
+      .map((t) => t.page)
+      .join(';')
+  );
+  A('figures: a tool whose published figure is composite declares figures:null rather than a partial map', TOOLS.find((t) => t.page === 'cgm-hrv-coupling-analysis.html').figures === null);
+  A(
+    'figures: every mapped destination sits under papers/figures/',
+    TOOLS.filter((t) => t.figures).every((t) => Object.values(t.figures).every((v) => v.startsWith('papers/figures/')))
+  );
 
   console.log('\n' + (bad ? '✗ ' + bad + ' failed' : '✓ all ' + good + ' assertions passed'));
   return bad ? 1 : 0;
