@@ -71,6 +71,16 @@ ALLOW_KEYS = {
                     "producer named; when that brief lands or is retired, this entry goes with it",
     "instance": "same consumer and same pending brief as heartbeat_ms directly above — the identity "
                 "field status_union folds N instances by",
+    "devcaps": "BLE-TRANSPORT-REDESIGN §1.3 per-unit capability record (devcaps.snapshot). The record "
+               "has a real PRODUCER (the hr-flags-bit2 measurement in run_polar writes both arms per "
+               "address) and persists across restarts, and status.json is where an operator reads it. "
+               "⚠️ What it does NOT yet have is a CAPABILITY BRANCH consuming it — §1.3 done-when 1 is "
+               "OPEN, deliberately and not by oversight: the one true per-unit capability in the daemon, "
+               "`_has_contact_bit`, is a SESSION fact ('have we seen the bit this session'), not a "
+               "capability, so seeding it from the record would coerce an unmeasured None into False — "
+               "the exact defect devcaps.get refuses. Converting a branch needs a capability whose "
+               "absence can be PROBED on demand, which `is_polar`-gated clock-sync would be once a "
+               "clock-sync probe exists. Residue 2026-09-16-devcaps-has-no-branch-consumer",
     "ble": "BLE-TRANSPORT-REDESIGN §1.5/§1.6 counters (blestats.snapshot). status.json IS the report "
            "the done-when requires — 'no rate in a report or alert is derived from a log line count' — "
            "and an operator reads it directly, as for `storage`. The MONITOR DRAW is a tracked "
