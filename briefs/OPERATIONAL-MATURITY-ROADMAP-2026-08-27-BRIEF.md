@@ -151,6 +151,49 @@ duty cycle · CPU usage · RAM usage · disk throughput · network activity. Ide
 can interfere with real-time capture. Establish practical budgets only where measurements
 demonstrate that budgets are necessary. Do not optimize hypothetical bottlenecks.
 
+> ### MEASURED 2026-09-15/16 (Kestrel) — `tools/box-sample.mjs`, read-only ssh, 60 s cadence
+>
+> **538 samples across five process lifetimes**, including one uninterrupted 3.5 h night cycle with
+> three devices connected. §13 says to establish budgets ONLY where measurement demonstrates one is
+> necessary; exactly one is.
+>
+> | quantity | measured |
+> |---|---|
+> | **memory PEAK** (`VmHWM`) | **~760–769 MB**, reproducible across cycles · cgroup `memory.peak` 737.5 MB |
+> | memory steady state, 1 device (day) | ~250–320 MB |
+> | memory steady state, 3 devices (night) | ~420–500 MB |
+> | CPU, daemon | 1.3–6.8 % idle/day · 12–15 % under a 3-device night |
+> | BLE LE connections | 0–3 concurrent, `hci0` carrying all of them |
+> | load average | 0.02–0.54 |
+> | disk | 32 % of 233 G, flat across the window |
+>
+> 🔴 **THE ONE BUDGET THE MEASUREMENT DEMANDS: a `MemoryMax` must accommodate ~760 MB, NOT the
+> steady state.** A cap sized from steady-state RSS would sit at roughly a THIRD of the startup
+> transient and OOM the daemon on every start — the failure direction that kills the capture rather
+> than merely wasting headroom. **No cap is set here**; box config is owner-authorized.
+>
+> ⚠️ **SAMPLED RSS UNDERSTATES THE PEAK BY 32 %** — the 60 s series' own maximum was 514.6 MB against
+> a kernel `VmHWM` of 759.4 MB. A sampler cannot see a transient shorter than its cadence, so the two
+> instruments answer different questions and neither replaces the other: **sampling for the SHAPE,
+> `VmHWM`/`memory.peak` for the CAP.** Quoting either alone misleads.
+>
+> ⚠️ **NO LEAK.** The peak SATURATES (increments +580 → +47 → +33 → +2 → +11 → 0 MB) and then holds
+> flat for hours, including across a load increase that raised steady state by ~40 %. RSS itself
+> steps and plateaus and repeatedly comes DOWN — cumulative down exceeded cumulative up — which a
+> leak cannot do. Three earlier framings of this same data were wrong and are withdrawn: a rate
+> ("~39 MB/h"), an endpoint ("87 → 444 MB over 9.1 h"), and "the peak stops moving". Each was one
+> number standing in for a curve; only the dense series with `VmHWM` separated them.
+>
+> ⚠️ **CYCLE LENGTH IS NOT A PROPERTY OF THE DAEMON.** `tepna-update.timer` fired 17:35:43 EDT against
+> an `ActiveEnterTimestamp` of 17:35:48, and 4 stop/starts occurred in 6 h: restarts are
+> **deploy-driven**, so a session landing PRs truncates the very series it is measuring. **A 72 h
+> unattended run therefore requires a DEPLOY FREEZE, not merely a free box** — a constraint on §17.
+>
+> Not established: what allocates the ~580 MB startup transient (no attribution attempted); whether
+> that transient recurs mid-cycle; behaviour beyond ~3.5 h. Residue:
+> `2026-09-15-capture-rss-step-plateau` · `2026-09-15-capture-rss-peak-is-startup` ·
+> `2026-09-15-capture-rss-peak-saturates`.
+
 ### 14. TEST LONG-RUN BEHAVIOR
 
 Add tests for repeated operation, not only single success: 100 reconnects · repeated device
