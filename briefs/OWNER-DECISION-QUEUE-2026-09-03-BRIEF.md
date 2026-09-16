@@ -126,6 +126,20 @@ confirmed no ResMed oximeter module exists — a purchase, not a cable) · `CROS
 
 ### D7 · The trio-hat statistical judgement — **2, and they are one call**
 
+> 📊 **MEASURED 2026-09-16 (Kestrel) — still OPEN, but the call is now a different one than it looked.**
+> The fused-vs-unweighted choice is not a tuning preference: on the same corpus, same epochs, same
+> granularity, **fused produces 12/64 negative-variance nights and unweighted 0/64**. Weighting is the
+> only factor measured that moves it.
+>
+> ⚠️ **Two intuitive explanations were TESTED AND REFUTED** — clock alignment (excluded nights median
+> 206.2 ms vs estimated 213.1 ms, indistinguishable) and epoch artifact (the night with the LEAST
+> inter-node disagreement in the corpus is excluded, while nights at 54–61 % disagreement estimate
+> fine). So a degenerate night is **not a bad night**, and "σ unavailable" says nothing about the
+> recording — which is the part that should inform the ruling.
+>
+> ⚠️ **WHY** the fused weighting conditions worse was not derived, only the association measured.
+> Residue `2026-09-16-tch-degeneracy-is-estimator-not-data`.
+
 `TCH-FUSED-ROBUST-HAT` · `TRIO-POWER-N15-FINDINGS` — the new-generation fused triple
 (σ 2.87/1.18/0.68, ρ\* 0.576) is with the owner as a planted-sigma check.
 
