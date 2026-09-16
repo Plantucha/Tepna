@@ -20,6 +20,7 @@ import oxyii
 import acq_evidence_o2ring
 import blestats
 import bonding
+import devcaps
 import helper_path
 import bluez_wedge
 import link_distress
@@ -3097,8 +3098,19 @@ async def run_polar(dev: dict, root: str):
                         return             # truthy (the `if hr_writer:` gate below), so this never returns.
                     bpm, rr, contact = _parse_hr(bytes(data))
                     hr_writer.write_hr(_now(), 0, bpm, rr)
-                    # Only straps that ADVERTISE contact support get a worn verdict; on one that does not
-                    # (the H10), leaving it None is honest — better an unknown than a fabricated "worn".
+                    # Only straps that ADVERTISE contact support get a worn verdict; on a unit that
+                    # does not, leaving it None is honest — better an unknown than a fabricated "worn".
+                    #
+                    # ⚠️ PER UNIT, NOT PER MODEL. This comment used to say "on one that does not (the
+                    # H10)" — the same model-level claim #2549 corrected in two other places, and false
+                    # for the same reason: the H10 on the capture box DOES report contact.
+                    #
+                    # BLE-TRANSPORT-REDESIGN §1.3: the observation is RECORDED against this unit's
+                    # address, so the answer stops living in a sentence. Both arms are real
+                    # measurements — we read the flags byte either way — so both are written. What is
+                    # never written is a default: a unit we have seen no HR packet from keeps `None`.
+                    devcaps.record(addr, "hr_contact_bit", contact is not None,
+                                   source="hr-flags-bit2")
                     if contact is not None:
                         nonlocal _has_contact_bit
                         _has_contact_bit = True      # a direct measurement outranks the optical inference
@@ -5506,6 +5518,9 @@ async def status_loop(root: str, data_stale_sec: float = 120.0):
         # BLE-TRANSPORT-REDESIGN §1.5: the counters reach a REPORT. Counters nothing reads are the
         # same blindness as logging only failures — the denominator existed and no one could see it.
         STATUS["ble"] = blestats.snapshot()
+        # §1.3: the per-unit capability record reaches a reader. A record nothing consults is the
+        # same as the comment it replaced — an answer nobody has to look at.
+        STATUS["devcaps"] = devcaps.snapshot()
         STATUS["gates"] = gate_state()
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -9783,6 +9798,12 @@ async def main():
                          f"{type(cfg).__name__}) — refusing to start with no devices. Restore it from a "
                          f"backup; a truncated file here means the box would record nothing all night.")
     root = cfg["root"]
+    # BLE-TRANSPORT-REDESIGN §1.3: load the per-unit capability record and write through from here.
+    # Beside status.json by the same convention, because it is the same class of thing — box state
+    # a reader consults. It must survive a restart: the daemon restarts on every deploy (measured
+    # 2026-09-15, 4 stop/starts in 6 h), so an in-memory-only record would re-probe every device
+    # every deploy and never accumulate the history that makes it worth having.
+    devcaps.configure(os.path.join(root, "captures", "devcaps.json"))
     global _CFG
     _CFG = cfg
     # One-time migration: the O2Ring's 125 Hz pleth used to be captured unconditionally, so existing
