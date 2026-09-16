@@ -113,9 +113,21 @@ export const TOOLS = [
     paper: 'cgm-hrv-coupling.html',
     inputs: { nSubj: 6000 },
     pageDefault: { nSubj: 40 },
-    /* ⚠️ NOT 1:1 — three canvases (scatter/driver/hypo) are published as ONE composite figure
-       (`figures/cgm-hrv-coupling.png`). Panel assembly is not implemented and is NOT guessed at:
-       writing a single panel over a composite would be silent corruption of a published artifact. */
+    /* Three canvases (scatter/driver/hypo) are published as ONE composite. They are not stitched —
+       they already sit inside the page's own `.grid`, in the col-7 / col-5 / col-12 arrangement the
+       published figure shows as top-left / top-right / bottom. So the composite is captured by
+       SCREENSHOTTING THE CONTAINER, which reproduces the real layout instead of guessing at panel
+       assembly. Measured: the published PNG is 909×518, which is not the sum of the canvases
+       (640+520 wide, 360+280 tall) — i.e. it always was a scaled screenshot of this element. */
+    /* ⚠️ COMPOSITE — AND AN ELEMENT SCREENSHOT DOES NOT REPRODUCE IT. Tested 2026-09-16 rather than
+       assumed: the three canvases (scatter/driver/hypo) do sit in the page's `.grid`, but that
+       element caps at 1132×1129 (aspect 1.003) at every viewport from 1280 px up, while the
+       published figure is 909×518 (aspect 1.755) — and the published image carries NO card headers,
+       which a page screenshot necessarily includes. So the published composite was assembled
+       externally from the three canvases, and its layout parameters are recorded nowhere. Stitching
+       to a guessed layout would change a published figure's appearance for no reason anyone asked
+       for, so it is NOT done. `figureElement` capture exists (below) and is correct for a page whose
+       published figure IS its rendered layout; this is not one. */
     figures: null,
     expect: 'partial — AHI-burden legs'
   },
@@ -315,8 +327,21 @@ async function main(argv) {
     } catch (e) {
       err = String(e && e.message ? e.message : e);
     }
+    /* A COMPOSITE figure is captured as an element screenshot of the container the page already
+       lays the panels out in — see the inventory note. */
+    if (FIGURES && captured && t.figureElement) {
+      const dest = join(FIG_DIR, t.figureElement.dest.replace(/^papers\/figures\//, ''));
+      mkdirSync(dirname(dest), { recursive: true });
+      const el = page.locator(t.figureElement.selector).first();
+      if ((await el.count()) === 0) {
+        console.log('      ⚠ selector ' + t.figureElement.selector + ' matched nothing — composite NOT written');
+      } else {
+        await el.screenshot({ path: dest });
+        console.log('      · composite ' + t.figureElement.selector + ' → ' + dest);
+      }
+    }
     /* §2.11 was "figures not done". 1:1 canvas→PNG capture now IS done, for the tools whose figures
-       are 1:1. A composite (`figures: null`) is left alone rather than approximated. */
+       are 1:1. */
     if (FIGURES && captured && t.figures) {
       for (const [canvasId, rel] of Object.entries(t.figures)) {
         const dataUrl = await page.evaluate((id) => {
@@ -473,6 +498,18 @@ function selftest() {
   A(
     'figures: every mapped destination sits under papers/figures/',
     TOOLS.filter((t) => t.figures).every((t) => Object.values(t.figures).every((v) => v.startsWith('papers/figures/')))
+  );
+  A(
+    'figureElement: its destination also sits under papers/figures/',
+    TOOLS.filter((t) => t.figureElement).every((t) => t.figureElement.dest.startsWith('papers/figures/'))
+  );
+  A(
+    'figureElement: the composite tool has NONE — an element screenshot was TESTED and does not reproduce its published figure',
+    !TOOLS.find((t) => t.page === 'cgm-hrv-coupling-analysis.html').figureElement
+  );
+  A(
+    'figures: a tool never declares BOTH a 1:1 map and an element capture — they would race to the same dest',
+    TOOLS.every((t) => !(t.figures && t.figureElement))
   );
 
   console.log('\n' + (bad ? '✗ ' + bad + ' failed' : '✓ all ' + good + ' assertions passed'));
