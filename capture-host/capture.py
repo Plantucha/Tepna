@@ -2507,10 +2507,20 @@ def _parse_hr(data: bytes):
     flags bit2 = "contact supported", bit1 = "contact detected". Worth surfacing because it is the one
     thing that distinguishes a strap being WORN from a strap lying on a table — and a strap off the body
     does not go quiet, it streams electrode noise at full rate while its own HR algorithm keeps emitting
-    a plausible number. Measured 2026-07-19 on an H10 (which does NOT report contact): off-chest ECG ran
-    at 24x normal amplitude, p2p 31 mV vs 1.3 mV, while RR came out at 335-833 ms inside three seconds —
-    physiologically impossible, individually believable, and nothing downstream could tell. A Coospo
-    HRM808S does report contact, so for that strap the not-worn state is knowable rather than inferred."""
+    a plausible number. Measured 2026-07-19 on ONE H10 UNIT that did not report contact: off-chest ECG
+    ran at 24x normal amplitude, p2p 31 mV vs 1.3 mV, while RR came out at 335-833 ms inside three
+    seconds — physiologically impossible, individually believable, and nothing downstream could tell.
+    One Coospo HRM808S unit did report it.
+
+    ⚠️ CAPABILITY IS PER UNIT, NOT PER MODEL, AND THIS COMMENT USED TO SAY OTHERWISE — it read
+    "an H10 (which does NOT report contact)", turning one unit measured once into a claim about the
+    model. It is false: the H10 on the capture box DOES report contact (`worn_why = "not worn per
+    hr-contact-bit"`). Residue `2026-09-10-h10-comment-denies-its-contact-bit`;
+    BLE-TRANSPORT-REDESIGN §1.3.
+
+    The CODE was always right — `_has_contact_bit` starts False and is raised from the flags byte at
+    runtime, per device — so the defect lived only in the sentence a reader trusts. Read the flags,
+    never a model name: bit2 says whether THIS unit supports it."""
     flags = data[0]; i = 1
     if flags & 0x01:
         bpm = int.from_bytes(data[1:3], "little"); i = 3
