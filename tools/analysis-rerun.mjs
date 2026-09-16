@@ -87,7 +87,7 @@
  *     it", because a failed grep is not a negative and this tool's own brief was corrected for
  *     exactly that error (#2543). `--paper-scale` REFUSES those three.
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, copyFileSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, copyFileSync, unlinkSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -547,6 +547,11 @@ function selftest() {
   {
     const scratch = join(ROOT, '.cache', 'ab-guard-probe');
     try {
+      /* ⚠️ MUST BE IDEMPOTENT. A first version left the scratch repo with a modified file, so the
+         SECOND run found it already dirty, `git commit` failed with nothing-to-commit, and the probe
+         reported a failure that had nothing to do with the code under test. A selftest that only
+         passes once is worse than none: it goes red in the suite while passing by hand. */
+      rmSync(scratch, { recursive: true, force: true });
       mkdirSync(scratch, { recursive: true });
       execFileSync('git', ['-C', scratch, 'init', '-q'], { stdio: 'ignore' });
       execFileSync('git', ['-C', scratch, 'config', 'user.email', 'p@x'], { stdio: 'ignore' });
