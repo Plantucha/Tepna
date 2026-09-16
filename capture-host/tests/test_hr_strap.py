@@ -7,9 +7,14 @@
 #
 # The contact bit is the valuable part. A chest strap off the body does NOT go quiet — it streams
 # electrode noise at full rate while its own HR algorithm keeps emitting a plausible number. Measured on
-# an H10 (which does not report contact): off-chest ECG ran 24x normal amplitude, p2p 31 mV vs 1.3 mV,
+# ONE H10 UNIT that did not report contact: off-chest ECG ran 24x normal amplitude, p2p 31 mV vs 1.3 mV,
 # while RR came out at 335-833 ms within three seconds — physiologically impossible, individually
 # believable, and undetectable downstream. A strap that reports contact makes that state knowable.
+#
+# ⚠️ PER UNIT, NOT PER MODEL. This header used to read "an H10 (which does not report contact)" — the
+# same wrong sentence as capture.py's parser docstring, copied. The capture box's own H10 DOES report
+# it. Capability is read from the flags byte per device (`_has_contact_bit`), never from a model name.
+# Residue 2026-09-10-h10-comment-denies-its-contact-bit; BLE-TRANSPORT-REDESIGN §1.3.
 
 import capture
 from tests._srcscan import module_source
