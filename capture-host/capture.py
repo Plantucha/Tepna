@@ -25,6 +25,7 @@ import link_distress
 import wifi_uplink
 import link_rssi
 import host_clock
+import geo as _geo   # OPTIONAL GNSS elevation; no-ops entirely when unconfigured
 import offline_lock
 import diskguard
 import sdnotify
@@ -6228,8 +6229,15 @@ async def host_clock_poller(cfg: dict, root: str | None = None):
                         if writer:
                             writer.close()
                         os.makedirs(night, exist_ok=True)
+                        # Read the OPTIONAL receiver once per night, here rather than per poll: the
+                        # box does not move mid-session, and a 5 s serial read on every clock poll
+                        # would be a cost paid forever for a constant. `geo.session_elevation`
+                        # short-circuits on absent/disabled config before touching any device, so a
+                        # host without a receiver — which is nearly all of them — pays nothing.
+                        # None means the header line is simply not written (∅, see the writer).
                         writer = HostClockLogWriter(
-                            os.path.join(night, f"Tepna_{_now():%Y%m%d%H%M%S}_CLOCK.csv"))
+                            os.path.join(night, f"Tepna_{_now():%Y%m%d%H%M%S}_CLOCK.csv"),
+                            geo=_geo.session_elevation(cfg))
                         writer_night = night
                     writer.write(_now(), st)
             except Exception as e:                      # provenance must never take capture down
