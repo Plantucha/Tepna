@@ -36,6 +36,22 @@
 <input id="fileInput" type="file" style="display:none">
 <script>
   var NODE = (new URLSearchParams(location.search).get('node') || '').toLowerCase();
+  // ⚠️ STRIP-ON-LOAD IS NOT AVAILABLE HERE — two mechanisms tested and both are blocked.
+  // These DSPs are dual-form: a classic IIFE assigning window.X, followed by ES re-exports
+  // (`export const PulseDex = window.PulseDex;`). A <script src> parses the file as a CLASSIC
+  // script, so that trailing `export` is a SyntaxError and the WHOLE file fails to execute --
+  // including the IIFE that defines the global. Broken from 2026-07-16 (ESM migration, 7d8d3b6d)
+  // until the tripwire below, three days after this file was last touched.
+  //
+  // The obvious fix -- fetch the text, strip the exports, inject inline (what
+  // `DexBuild.classicify` does at build time) -- CANNOT WORK in this page. Measured 2026-09-16 in
+  // Chrome with --allow-file-access-from-files, on a file:// page:
+  //     fetch('kernel-constants.js')  -> blocked outright for file: URLs
+  //     XMLHttpRequest                -> onerror, status 0
+  //     <script type="module">        -> origin is `null`, so CORS-blocked
+  // Only <script src> can read a sibling file here, which is why the original used it. The real
+  // remedy is BUILD-TIME: give `build-analysis.mjs` ownership of this page so it inlines
+  // classicified sources, the way it already does for every analysis tool. Not done here.
   function loadScript(src) {
     return new Promise(function (res, rej) {
       var s = document.createElement('script');
@@ -45,6 +61,14 @@
   }
   // sequential load keeps function-declaration order deterministic within the realm
   async function loadAll(list) { for (var i = 0; i < list.length; i++) await loadScript(list[i]); }
+
+  // What each node must have defined once its scripts have run. A realm that cannot provide these
+  // is broken, and saying so is strictly better than answering every call with a null score.
+  var REQUIRED_GLOBAL = {
+    oxydex: ['OxyDex'],
+    pulsedex: ['PulseDex'],
+    glucodex: ['GlucoDex']
+  };
 
   var SCRIPTS = {
     oxydex:   ['kernel-constants.js', 'clock.js', 'oxydex-util.js', 'oxydex-profile.js', 'oxydex-dsp.js'],
@@ -170,7 +194,19 @@
 
   (async function () {
     if (!SCRIPTS[NODE]) { parent.postMessage({ type: 'ready', node: NODE, error: 'unknown node' }, '*'); return; }
-    try { await loadAll(SCRIPTS[NODE]); parent.postMessage({ type: 'ready', node: NODE }, '*'); }
+    try {
+      await loadAll(SCRIPTS[NODE]);
+      // ── TRIPWIRE: REFUSE rather than serve nulls ────────────────────────────────────────────
+      // `ready` used to be sent on the strength of loadAll resolving, and loadAll resolved even
+      // when a script THREW during execution -- a <script src> fires `onload` on a successful
+      // fetch, and a SyntaxError inside it surfaces only on window.onerror. So the realm announced
+      // itself ready with the node's global never defined, every scoring call came back without a
+      // score, and the calling page charted nulls and reported 100%. That is how the 2026-07-16
+      // breakage went unnoticed for two months. Assert the thing the realm exists to provide.
+      var missing = (REQUIRED_GLOBAL[NODE] || []).filter(function (g) { return !window[g]; });
+      if (missing.length) throw new Error('node did not initialise — missing global(s): ' + missing.join(', '));
+      parent.postMessage({ type: 'ready', node: NODE }, '*');
+    }
     catch (e) { parent.postMessage({ type: 'ready', node: NODE, error: String(e.message || e) }, '*'); }
   })();
 </script>
