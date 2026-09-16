@@ -1099,8 +1099,45 @@ def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = Non
 _UNCHECKED = object()
 
 
+def usb_rung_probe(usb_path: str, *, devices_dir: str = "/sys/bus/usb/devices",
+                   bt_dir: str = "/sys/class/bluetooth"):
+    """Is the configured recovery bus-port on the bus, and which ports ARE the radios on?
+
+    Returns `(present, ports)`. `present` is None when the read did not happen — unreadable, NOT fine;
+    `defense_warnings` treats None as unmeasured and stays silent rather than implying the rung is
+    armed. Same honest-absence shape as `autosuspend`/`capeff` beside it.
+
+    The roots are injectable so both failure arms are reachable from a test against a tmp tree. Left
+    inline at the call site they were four uncovered lines guarding the exact case that bit — a sysfs
+    that cannot be read — which is the shape of guard that ships untested and then does not work.
+
+    The bus-port is the path segment directly after `usbN/` in the resolved sysfs path
+    (`.../usb1/1-3/1-3:1.0/bluetooth/hci1` → `1-3`). Split rather than regex: `re` is not imported in
+    this module and one lookup does not earn an import.
+    """
+    # NO try/except HERE, deliberately, and it was written with one. `os.path.isdir` swallows OSError
+    # and returns False — settled by experiment 2026-09-16: a missing path, a non-str, and even an
+    # embedded NUL all return False rather than raising. So the handler was untakeable, and an
+    # untakeable guard is a coverage artifact that reads as defence. `present` is therefore always a
+    # real answer from this path; None stays in the contract below for the caller that never probes
+    # at all (an unset `usb_path`), which is a genuine unmeasured state.
+    present = os.path.isdir(os.path.join(devices_dir, usb_path))
+    ports = set()
+    try:
+        for hci in os.listdir(bt_dir):
+            parts = os.path.realpath(os.path.join(bt_dir, hci)).split("/")
+            for i, seg in enumerate(parts[:-1]):
+                if seg.startswith("usb") and seg[3:].isdigit():
+                    ports.add(parts[i + 1])
+                    break
+    except Exception:
+        return present, ()
+    return present, tuple(sorted(ports))
+
+
 def defense_warnings(autosuspend_value: "str | None", capeff_hex: "str | None", *,
                      usb_path=_UNCHECKED, archive_enabled=_UNCHECKED,
+                     usb_path_present: "bool | None" = None, usb_bus_ports=(),
                      archive_dest_ready: "bool | None" = None,
                      helper_warnings=(), trusted_sensors=()) -> list[str]:
     """PURE (testable): given the pinned adapter's USB `power/control` value ('auto' | 'on' | None if
@@ -1150,6 +1187,31 @@ def defense_warnings(autosuspend_value: "str | None", capeff_hex: "str | None", 
                 f"watchdog.usb_path is set to {usb_path} but the last recovery rung CANNOT RUN — {why}. "
                 "The unbind/bind write needs root and this process does not have it, so the ladder will "
                 "report a wedge it cannot clear (VIGIL-OVERNIGHT-FINDINGS §P1.3).")
+    # §P1.4 item (b), THIRD VARIANT — set, capable, and pointing at a device that is not on the bus.
+    # The two checks above cover UNSET and INCAPABLE. Neither looks at whether the configured bus-port
+    # EXISTS, and this is the variant that was live: measured on vigil 2026-09-16, `usb_path: 1-2` with
+    # `/sys/bus/usb/devices/1-2` absent, while the four Bluetooth radios sat at 1-3, 1-4, 1-5 and 1-9.
+    # So the last rung was armed against nothing and could not have fired for ANY of them — which is the
+    # unresolved half of residue `2026-09-11-dead-adapter-goes-unnoticed`, where a radio wedged for 15
+    # minutes and no reset was attempted.
+    #
+    # It is the same defect the check above was added for, one cause further along: that comment already
+    # says "a configured-but-inoperable rung is worse than a disabled one: it reads as armed", and a
+    # stale bus-port reads as armed exactly the same way. The id is host-specific and MOVES when a dongle
+    # is replugged into another port, so this cannot be a one-time setup mistake to be assumed away.
+    #
+    # Names the ports that ARE present, because "wrong" without "here is the right value" is a warning an
+    # operator cannot act on at 3 a.m. Absence of that list is not silence: `usb_path_present is None`
+    # means the probe did not run, and says so rather than implying the path is fine.
+    if usb_path is not _UNCHECKED and usb_path and usb_path_present is False:
+        have = ", ".join(sorted(str(b) for b in usb_bus_ports if b))
+        out.append(
+            f"watchdog.usb_path is set to {usb_path} but NO SUCH USB DEVICE is on the bus, so the last "
+            "recovery rung is armed against nothing and cannot fire for any radio. "
+            + (f"The Bluetooth radios on this box are at: {have}. " if have else
+               "No Bluetooth radio bus-port could be read either, so the correct value is unknown here. ")
+            + "A bus-port changes when a dongle is moved to another socket "
+            "(VIGIL-OVERNIGHT-FINDINGS §P1.3).")
     # §P1.4 item (c) — the archive destination. A box that never offloads holds the ONLY copy of every
     # night, and that failure is silent by construction: capture keeps working perfectly.
     if archive_enabled is _UNCHECKED:
@@ -1319,6 +1381,8 @@ async def startup_defense_check(hci: "str | None", cfg: "dict | None" = None) ->
         wcfg = (cfg.get("watchdog") or {})
         acfg = (cfg.get("archive") or {})
         kw["usb_path"] = wcfg.get("usb_path")
+        if kw["usb_path"]:
+            kw["usb_path_present"], kw["usb_bus_ports"] = usb_rung_probe(str(kw["usb_path"]))
         kw["archive_enabled"] = bool(acfg.get("enabled")) and bool(acfg.get("dest") or acfg.get("target"))
         dest = acfg.get("dest")
         if kw["archive_enabled"] and dest:
