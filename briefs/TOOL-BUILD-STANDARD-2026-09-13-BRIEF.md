@@ -70,6 +70,29 @@ invisibly — the checkpoint advanced after it was believed dead. **Identify the
 reading `/proc/<pid>/cmdline`, never by a `pgrep -f` pattern**, which both self-matches and matches
 other sessions.
 
+⚠️ **AND READING `/proc/<pid>/cmdline` IS NOT ENOUGH ON ITS OWN — KEY ON `argv[0]`.** Amended
+2026-09-15, after this very advice was followed and still produced a self-match. A substring test over
+the WHOLE command line matches any shell whose own command line merely *contains* the tool name: the
+scanner function, the `kill` loop, a `grep`. Measured that afternoon: a `/proc` scan reported two
+survivors after a successful `SIGKILL`, and both were its own subshells — they had vanished a second
+later, which is precisely what a false positive looks like and precisely what reads as *"the kill
+leaked workers"*. The same session had already lost a shell **twice** to `pgrep -f` self-match
+(exit 144) before switching to `/proc`, so all three forms of the trap fired in one day.
+
+The discriminating test is the **executable, not the text**: accept a pid only when `argv[0]` is the
+interpreter you launched (`*/node`) **and** `argv[1]` names your script. A shell that merely mentions
+the script has `argv[0]` of `/bin/bash` and is excluded by construction — no bracket trick for the
+next caller to remember.
+
+```sh
+for d in /proc/[0-9]*; do
+  a0=$(tr '\0' '\n' < "$d/cmdline" 2>/dev/null | head -1)
+  a1=$(tr '\0' '\n' < "$d/cmdline" 2>/dev/null | sed -n 2p)
+  case "$a0" in */node|node) ;; *) continue;; esac
+  case "$a1" in *your-tool.mjs) echo "${d#/proc/}";; esac
+done
+```
+
 ### 2.4 · Continuously observable
 
 Progress must be legible *while the tool runs*: units completed, rate, ETA, and **the running answer
