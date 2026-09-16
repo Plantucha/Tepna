@@ -155,6 +155,21 @@ preemption.
 
 ## §2 Not architecture, but it has now cost twice: the doubles
 
+> ✅ **ALREADY REMEDIATED — verified against the tree 2026-09-16 (Kestrel), no work owed.** This
+> section reads as open and is not. `_FakeBleak.disconnect()` in `capture-host/tests/test_cpap_stream.py`
+> sets `self._backend.services = None`, mirroring bleak's `_cleanup_all`, and its class docstring carries
+> the 🔴 *"do not simplify it away"* warning with the 98-of-98 incident written out. The `_FakeBackend`
+> above it models the republish (`services is None` → `_publish()`), which is the state machine §2 asks
+> for rather than a call recorder.
+>
+> The contract is also GATE-BACKED, not just commented: `test_the_snapshot_and_link_state_are_read_BEFORE_the_leak_guard_closes_the_link` pins the #2365 defect and states it *"REDS against the old
+> ordering rather than passing on a stub that kept its state"*.
+>
+> ⚠️ **Recorded because the section invites the rebuild it warns about.** A session reading §2 cold
+> finds a vivid description of a defect and no indication it was fixed, and the natural next step is to
+> go build the state machine that already exists — which is what this note prevents, and what nearly
+> happened on 2026-09-16.
+
 **Test doubles must model the STATE the library keeps, not the CALLS it receives.** Both failures were
 in the same file:
 
