@@ -87,7 +87,8 @@
  *     it", because a failed grep is not a negative and this tool's own brief was corrected for
  *     exactly that error (#2543). `--paper-scale` REFUSES those three.
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, copyFileSync, unlinkSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { cpus } from 'node:os';
@@ -203,6 +204,29 @@ export function pending(tools, ck, paperScale) {
   });
 }
 
+/* ── A/B against an OLD generator ══════════════════════════════════════════════════════════════
+   A re-cut that reports "under cohort-gen 2.0" silently credits the generator with every change the
+   TOOL has undergone since the paper was published. Measured on `qrs-yield` 2026-09-16: recall and
+   beat counts reproduce to 0.02 %, while precision moves 88.8 -> 98.8 %, SQI apnea 0.78 -> 0.977 and
+   the rMSSD bias FLIPS SIGN — movement no cohort-shape refit can produce
+   (`2026-09-16-recut-conflates-generator-and-tool-drift`).
+
+   The control is to run the SAME tool against the OLD generator. Then:
+       old-vs-published  = tool drift since publication
+       new-vs-old        = the generator, and only the generator
+
+   The analysis tools INLINE `cohort-gen.js`, into their blob workers as well as the page, so
+   overriding a global at runtime does not reach the code that generates the cohort. The swap has to
+   happen on disk followed by a rebuild — which is why this REFUSES on a dirty tree: a crash mid-run
+   would otherwise leave a foreign generator in place, and `git status` is what makes that visible. */
+export function gitIsClean(root) {
+  try {
+    return execFileSync('git', ['-C', root, 'status', '--porcelain'], { encoding: 'utf8' }).trim() === '';
+  } catch {
+    return false;
+  }
+}
+
 async function main(argv) {
   const opt = (n, d) => {
     const i = argv.indexOf(n);
@@ -214,6 +238,9 @@ async function main(argv) {
   const OUT = opt('--out', join(ROOT, '.cache', 'analysis-rerun-results.json'));
   const JOBS = poolSize(Number(opt('--jobs', '1')), cpus().length);
   const PAPER_SCALE = flag('--paper-scale');
+  /* `--cohort-gen <file>` swaps that file over cohort-gen.js, rebuilds the target tool, runs, and
+     restores. Pair a normal run with one of these to separate generator from tool drift. */
+  const ALT_GEN = opt('--cohort-gen', null);
   /* ⚠️ SIZED FROM MEASUREMENT, NOT FROM A GUESS. The first paper-scale run used a hardcoded 24 min
      and nights-icc TIMED OUT at 1441 s while the page's own ETA read ~36 min — the budget was set
      before the work was measured, which is the §2.6 failure applied to a timeout. Default is now
@@ -236,6 +263,49 @@ async function main(argv) {
     return 2;
   }
   console.log('  tier      browser (playwright)   jobs ' + JOBS + '  — each page runs its own worker pool (§2.8)');
+
+  /* swap the generator BEFORE anything runs, and guarantee the restore */
+  const GEN = join(ROOT, 'cohort-gen.js');
+  const BACKUP = GEN + '.ab-backup';
+  let swapped = false;
+  const restoreGen = () => {
+    if (!swapped) return;
+    copyFileSync(BACKUP, GEN);
+    unlinkSync(BACKUP);
+    swapped = false;
+    console.log('  restored  cohort-gen.js');
+  };
+  if (ALT_GEN) {
+    if (!existsSync(ALT_GEN)) {
+      console.error('--cohort-gen: no such file: ' + ALT_GEN);
+      return 2;
+    }
+    if (!gitIsClean(ROOT)) {
+      console.error('--cohort-gen REFUSES on a dirty tree: the swap is on-disk and a crash would leave a');
+      console.error('foreign generator behind. `git status` is what makes that visible, so it must start clean.');
+      return 2;
+    }
+    if (!ONLY) {
+      console.error('--cohort-gen requires --only <tool>: the rebuild is per-tool.');
+      return 2;
+    }
+    copyFileSync(GEN, BACKUP);
+    copyFileSync(ALT_GEN, GEN);
+    swapped = true;
+    /* restore even on SIGINT/SIGTERM, not only on the normal path */
+    process.on('SIGINT', () => {
+      restoreGen();
+      process.exit(130);
+    });
+    process.on('SIGTERM', () => {
+      restoreGen();
+      process.exit(143);
+    });
+    const ver = (readFileSync(GEN, 'utf8').match(/VERSION\s*=\s*'([^']+)'/) || [])[1] || '(unknown)';
+    console.log('  generator SWAPPED to ' + ver + ' from ' + ALT_GEN);
+    execFileSync(process.execPath, [join(ROOT, 'tools', 'build-analysis.mjs'), '--only', ONLY], { cwd: ROOT, stdio: 'ignore' });
+    console.log('  rebuilt   ' + ONLY + ' against ' + ver);
+  }
 
   let ck = RESUME ? loadCheckpoint(CKPT) : null;
   if (!ck) ck = { started: null, done: {} };
@@ -370,6 +440,14 @@ async function main(argv) {
   }
   await browser.close();
 
+  restoreGen();
+  if (ALT_GEN) {
+    /* the rebuild wrote the ALT generator into the tool; put the tool back too, or the next run
+       silently scores under a generator nobody asked for */
+    execFileSync(process.execPath, [join(ROOT, 'tools', 'build-analysis.mjs'), '--only', ONLY], { cwd: ROOT, stdio: 'ignore' });
+    console.log('  rebuilt   ' + ONLY + ' back against the repo generator');
+    if (!gitIsClean(ROOT)) console.log('  ⚠ tree is NOT clean after restore — inspect `git status` before trusting the next run');
+  }
   writeFileSync(OUT, JSON.stringify({ generated: null, tools: ck.done }, null, 1));
   console.log('');
   console.log('  results   ' + OUT);
@@ -464,6 +542,27 @@ function selftest() {
   A('paperScaleReady: true when a paper cohort size is established', paperScaleReady({ inputs: { nSubj: 6000 } }) === true);
   A('paperScaleReady: FALSE when it is not — the tool refuses rather than using the demo default', paperScaleReady({ inputs: null }) === false);
   A('paperScaleReady: an empty inputs object is not "established"', paperScaleReady({ inputs: {} }) === false);
+  /* the A/B guard must REFUSE on a dirty tree: the swap is on-disk, and a crash would otherwise
+     leave a foreign generator in place. Both directions, on a scratch repo. */
+  {
+    const scratch = join(ROOT, '.cache', 'ab-guard-probe');
+    try {
+      mkdirSync(scratch, { recursive: true });
+      execFileSync('git', ['-C', scratch, 'init', '-q'], { stdio: 'ignore' });
+      execFileSync('git', ['-C', scratch, 'config', 'user.email', 'p@x'], { stdio: 'ignore' });
+      execFileSync('git', ['-C', scratch, 'config', 'user.name', 'p'], { stdio: 'ignore' });
+      writeFileSync(join(scratch, 'a.txt'), 'x');
+      execFileSync('git', ['-C', scratch, 'add', 'a.txt'], { stdio: 'ignore' });
+      execFileSync('git', ['-C', scratch, 'commit', '-qm', 'i'], { stdio: 'ignore' });
+      A('gitIsClean: true on a committed tree', gitIsClean(scratch) === true);
+      writeFileSync(join(scratch, 'a.txt'), 'y');
+      A('gitIsClean: FALSE once a tracked file is modified — what makes the on-disk swap recoverable', gitIsClean(scratch) === false);
+      A('gitIsClean: false rather than a throw on a non-repo path', gitIsClean(join(ROOT, '.cache', 'ab-not-a-repo')) === false);
+    } catch (e) {
+      A('gitIsClean: probe ran', false, e.message);
+    }
+  }
+
   A(
     'inventory: ALL SIX tools now carry a paper cohort size — none is refused',
     TOOLS.filter(paperScaleReady).length === 6,
