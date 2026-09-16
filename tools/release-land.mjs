@@ -561,7 +561,12 @@ if (process.argv.includes('--selftest')) {
     STEPS.every((s) => typeof RUN[s] === 'function'),
     'every declared step has a runner'
   );
-  console.log(`selftest: ${ran}/${ran} ok`);
+  // CANONICAL SUMMARY (TOOL-BUILD-STANDARD). The count was already honest — `ran` is incremented
+  // per assertion — but `selftest: N/N ok` is a spelling `selftest-all`'s reader does not know, so
+  // these assertions were reported as UNCOUNTABLE. Conforming here rather than widening the reader
+  // again was the deliberate trade: a reader matching `N/M` anywhere eventually reads a RESULT as an
+  // assertion count (see the note on UNPARSEABLE_RATCHET).
+  console.log(`all ${ran} selftests passed`);
   process.exit(0);
 }
 

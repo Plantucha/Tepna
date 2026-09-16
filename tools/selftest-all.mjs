@@ -119,9 +119,11 @@ export function declaresNearMissSelftest(src) {
    formats the reader did not know. The ratchet forced that bookkeeping — it exits 1 on a paid debt
    left in the map, so the parser could not be widened without removing them.
 
-   ⚠️ AND THE WIDENING STOPS HERE — measured, not assumed. Of the 26 that remain, only TWO print a
-   number at all (`release-land`, `wt-done`, as `selftest: N/N ok`); the other 24 genuinely end with
-   `all passed` and count nothing. A sixth regex would therefore buy two tools while adding
+   ⚠️ AND THE WIDENING STOPS HERE — measured, not assumed. When 26 remained, only TWO printed a
+   number at all (`release-land`, `wt-done`, as `selftest: N/N ok`). Both were CONVERTED to the
+   canonical summary rather than chased with a sixth regex — the consistent half of that trade, and it
+   paid 44 more assertions (29 + 15) into the visible total. Every one of the 24 that remain ends with
+   `all passed` and counts nothing, so there is no reader change left to make here. A sixth regex would therefore buy two tools while adding
    false-positive risk on any tool that prints a ratio in its own output — a reader matching `N/M`
    anywhere will eventually read a RESULT as an assertion count, which is this file's own defect
    class pointed at itself.
@@ -151,11 +153,9 @@ export const UNPARSEABLE_RATCHET = new Set([
   'pb-operating-point.mjs',
   'ppg-foot-residual-sweep.mjs',
   'qwen-agent.mjs',
-  'release-land.mjs',
   'synth-desat-kinetics.mjs',
   'tools-index.mjs',
-  'verify-fixtures.mjs',
-  'wt-done.mjs'
+  'verify-fixtures.mjs'
 ]);
 
 const files = readdirSync(TOOLS)
