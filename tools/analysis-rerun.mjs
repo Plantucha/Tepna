@@ -136,7 +136,7 @@ export const TOOLS = [
     paper: 'hrv-age-confound.html',
     inputs: { nIn: 20000 },
     pageDefault: { nIn: 250 },
-    figures: null,
+    figures: { vsAge: 'papers/figures/hrv-vs-age.png', vsAhi: 'papers/figures/hrv-vs-ahi.png', roc: 'papers/figures/hrv-roc.png' },
     expect: 'hypothesis: cohort-wide — but nights-icc refuted the same prediction, so TEST it'
   }
 ];
