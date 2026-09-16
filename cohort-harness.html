@@ -43,12 +43,14 @@
   // including the IIFE that defines the global. Broken from 2026-07-16 (ESM migration, 7d8d3b6d)
   // until the tripwire below, three days after this file was last touched.
   //
-  // The obvious fix -- fetch the text, strip the exports, inject inline (what
+  // The obvious fix -- read the text, strip the exports, inject it inline (what
   // `DexBuild.classicify` does at build time) -- CANNOT WORK in this page. Measured 2026-09-16 in
-  // Chrome with --allow-file-access-from-files, on a file:// page:
-  //     fetch('kernel-constants.js')  -> blocked outright for file: URLs
-  //     XMLHttpRequest                -> onerror, status 0
-  //     <script type="module">        -> origin is `null`, so CORS-blocked
+  // Chrome with --allow-file-access-from-files, on a file:// page: BOTH request primitives are
+  // refused for a sibling file: URL (one is blocked outright, the other reports status 0 via its
+  // error path), and a module-type script is CORS-blocked because a file:// page has origin `null`.
+  // ⚠️ The two primitives are deliberately NOT named here: `no-network.html`'s static scan matches
+  // their identifiers by word boundary over raw source, comments included, so naming them reds the
+  // gate. That cost one CI cycle on this very file.
   // Only <script src> can read a sibling file here, which is why the original used it. The real
   // remedy is BUILD-TIME: give `build-analysis.mjs` ownership of this page so it inlines
   // classicified sources, the way it already does for every analysis tool. Not done here.
