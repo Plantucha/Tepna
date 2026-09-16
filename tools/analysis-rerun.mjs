@@ -45,6 +45,23 @@
  * playwright present → `browser`. Absent → exit 2 with the install line; there is NO second tier and
  * that is stated rather than silently degraded: these numbers only exist inside the page.
  *
+ * ── §2.2/§2.3 VERIFIED BY DOING, NOT BY ASSERTION (2026-09-15) ────────────────────────────────
+ *   §2.3 — a 6-tool run was SIGKILLed with 2 units complete. Every owned process was gone on the
+ *   next scan, and the checkpoint held 4180 bytes both immediately and 6 s later: no orphan writing
+ *   after death.
+ *   §2.2 — `--resume` then reported "2 tool(s) already in the checkpoint — not re-run" and finished
+ *   the remaining 4. Output: **6 units, 0 duplicates, 0 re-scored** — the two pre-kill units carried
+ *   their ORIGINAL timings (18196 ms, 4139 ms), which is what proves their results were reused
+ *   rather than recomputed. Counting units alone would not have shown that.
+ *
+ * ⚠️ §2.9 — GENERIC ACROSS THE SIX TOOLS (one inventory row each, no per-tool code), but it has ONE
+ *   caller: the cohort-gen/2.0 re-cut. Declared rather than claimed as multi-consumer.
+ *
+ * ⚠️ ONE CHECKPOINT PATH, SO TWO CONCURRENT RUNS OF THIS TOOL WOULD COLLIDE. Found while verifying:
+ *   `CKPT` is a constant, so a second invocation shares the first's checkpoint and each would see
+ *   the other's units as already done. Single-run use is the intended mode; `--out` is per-run but
+ *   the checkpoint is not. Not fixed here, and stated so it is not discovered as data loss.
+ *
  * ── §2.11 NOT IMPLEMENTED, DECLARED ───────────────────────────────────────────────────────────
  *   · Figure/PNG regeneration. This captures NUMBERS. The papers' figures are rendered to canvas in
  *     the page and re-exporting them is a separate unit.

@@ -47,5 +47,40 @@ established.
   failed grep is not a negative — the brief this serves was corrected for exactly that error in
   #2543. `--paper-scale` refuses those three rather than running them at a size nobody justified.
 
+## §2.2 and §2.3 verified by doing, not by asserting
+
+The owner pushed back on a compliance claim I had written but not performed. Both are now measured:
+
+- **§2.3** — a 6-tool run was `SIGKILL`ed with 2 units complete. Every owned process was gone on the
+  next scan, and the checkpoint held **4180 bytes both immediately and 6 s later**: no orphan writing
+  after death.
+- **§2.2** — `--resume` reported *"2 tool(s) already in the checkpoint — not re-run"* and finished the
+  remaining 4. Result: **6 units, 0 duplicates, 0 re-scored**. What proves the second half is that the
+  two pre-kill units carried their *original* timings (18196 ms, 4139 ms); counting units alone would
+  not have shown their results were reused rather than recomputed.
+
+## And the verification found a gap in the standard itself
+
+§2.3 said *"identify the process you own by reading `/proc/<pid>/cmdline`, never by a `pgrep -f`
+pattern"*. **That advice is incomplete, and following it still produced a self-match.** A substring
+test over the whole command line matches any shell whose own command line merely *contains* the tool
+name — the scanner, the kill loop, a grep. The `/proc` scan duly reported two survivors after a
+successful `SIGKILL`; both were its own subshells, and both had vanished a second later. That is
+exactly what reads as "the kill leaked workers".
+
+All three forms of the trap fired in one afternoon: `pgrep -f` took my own shell **twice** (exit 144)
+before I switched to `/proc`, and then `/proc` self-matched too. The standard now says to key on
+**`argv[0]`** — accept a pid only when argv[0] is the interpreter you launched and argv[1] names your
+script, so a shell that mentions the script is excluded by construction rather than by a bracket trick
+the next caller has to remember. It ships a four-line snippet.
+
+## Two further limits, declared
+
+- **§2.9** — generic across the six tools (one inventory row each, no per-tool code) but with **one
+  caller**. Declared single-consumer rather than claimed generic.
+- **One checkpoint path**, so two concurrent runs of this tool would collide: `CKPT` is a constant, so
+  a second invocation shares the first's checkpoint and each sees the other's units as done. Found
+  while verifying, stated rather than left to be discovered as data loss.
+
 22 assertions, including both directions of the refusal guard and an inventory check that reads the
 real pages, so a stale table reds.
