@@ -531,6 +531,15 @@
       falseOldN: falseOld.length
     };
 
+    /* Publish the result object the other five analysis tools already publish. It was BUILT here
+       all along and simply never reached a global, so nothing outside the page could read it — which
+       is why `tools/analysis-rerun.mjs` listed this tool as uncapturable and why the cohort-gen 2.0
+       re-cut could not include this paper. Same idiom and same try/catch as
+       `nights-icc-analysis.js`'s `window.NIGHTS_ICC`. */
+    try {
+      window.HRV_CONFOUND = RESULT;
+    } catch (e) {}
+
     drawVsAge(ref);
     drawVsAhi();
     drawRoc(rRaw, rAdj);

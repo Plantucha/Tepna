@@ -73,8 +73,11 @@
  *     against that report, deliberately not automated.
  *   · No comparison against the papers' published values — that needs the values parsed out of the
  *     papers, which is the next unit. This tool produces the LEFT side of that comparison only.
- *   · `hrv-confound-analysis.html` has no result global. It is listed with `resultGlobal: null` and
- *     is REPORTED AS UNCAPTURABLE rather than skipped silently.
+ *   · (RESOLVED 2026-09-16) `hrv-confound-analysis.html` had no result global. Its `RESULT` object
+ *     was built and never assigned, so nothing outside the page could read it; publishing it as
+ *     `window.HRV_CONFOUND` was a one-line source change. ⚠️ The edit belongs in
+ *     `hrv-confound-analysis.js`, NOT the bundled `.html` — `build-analysis.mjs` re-inlines the
+ *     source over any in-place edit, which silently reverted a first attempt.
  *   · THE PAPER COHORT SIZE IS ESTABLISHED FOR ONLY THREE OF SIX. Every page defaults to a DEMO
  *     cohort — 40, 45, 60, 250 subjects — while the papers report thousands (nights-icc 6,000;
  *     hrv-age-confound 20,000; cgm-hrv-coupling 6,000). Re-cutting at a page default would move
@@ -127,7 +130,15 @@ export const TOOLS = [
     figures: null,
     expect: 'CHANGE — severity-dependent'
   },
-  { page: 'hrv-confound-analysis.html', resultGlobal: null, paper: 'hrv-age-confound.html', inputs: { nIn: 20000 }, pageDefault: { nIn: 250 }, figures: null, expect: 'no change — cohort-wide' }
+  {
+    page: 'hrv-confound-analysis.html',
+    resultGlobal: 'HRV_CONFOUND',
+    paper: 'hrv-age-confound.html',
+    inputs: { nIn: 20000 },
+    pageDefault: { nIn: 250 },
+    figures: null,
+    expect: 'hypothesis: cohort-wide — but nights-icc refuted the same prediction, so TEST it'
+  }
 ];
 
 /* ⚠️ `inputs: null` means THE PAPER'S COHORT SIZE IS NOT ESTABLISHED, not that the default is right.
@@ -412,7 +423,15 @@ function selftest() {
   }
   A('inventory: every listed page exists, has #run, and publishes the global it claims', mismatch.length === 0, mismatch.join('; '));
   A('inventory: covers all six papers of the rerun brief', new Set(TOOLS.map((t) => t.paper)).size === 6);
-  A('inventory: exactly one tool is declared uncapturable', TOOLS.filter((t) => t.resultGlobal == null).length === 1);
+  /* every tool now publishes a result global — hrv-confound's was added in this change. If a future
+     tool arrives without one, this reds rather than letting it be skipped silently. */
+  A(
+    'inventory: every tool publishes a result global',
+    TOOLS.filter((t) => t.resultGlobal == null).length === 0,
+    TOOLS.filter((t) => t.resultGlobal == null)
+      .map((t) => t.page)
+      .join(';')
+  );
 
   /* §2.11 — the refusal must be REAL: a tool with no established paper size must not run at the
      page default, and one WITH a size must not be refused. Both directions, or the guard is
