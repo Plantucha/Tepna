@@ -82,6 +82,20 @@ export function declaresSelftest(src) {
    So the near-miss is now REPORTED rather than skipped. This predicate deliberately looks for the
    selftest MACHINERY (an exported/decl `selfTest`, or the hyphenated flag) in a file that
    `declaresSelftest` rejected — presence of a test with no way to reach it. */
+/* ── THE SUMMARY THE FLEET ACTUALLY WRITES, not the one this script preferred ───────────────────────
+   This was ONE regex — `all <N> selftests passed` — plus a bare `all green`. Every other spelling read
+   as "prints no count", which is the SAME defect `declaresSelftest` had one function above: a reader
+   enumerating the single form its author used, so a tool doing the right thing in different words is
+   indistinguishable from one doing nothing at all.
+
+   Measured 2026-09-16 over the 48 ratcheted tools: 22 of them DO report a count and were miscounted as
+   silent — `N assertions passed` (9), `PASS (n/m)` (7), `N passed, M failed` (6). Only 26 genuinely
+   print nothing. The tools were not wrong; the reader was.
+
+   ORDER MATTERS: the canonical form is tried first so a tool printing both is read the intended way.
+   `all green` stays LAST and captures no digits — readable, but no count, which is the honest result. */
+export const SUMMARY_FORMATS = [/all (\d+) selftests passed/, /(\d+) assertions passed/, /\bPASS \((\d+)\/\d+\)/, /(\d+) passed,\s*\d+ failed/, /all green/];
+
 export function declaresNearMissSelftest(src) {
   const s = String(src || '');
   if (declaresSelftest(s)) return false;
@@ -100,53 +114,34 @@ export function declaresNearMissSelftest(src) {
    capture-host's `test_silent_except.RATCHET` is kept rather than deleted.
 
    Seeded at 48 of 104 on 2026-09-16, the day `declaresSelftest` widened from three hard-coded call
-   spellings to any call position and discovered four tools the runner had never executed. */
+   spellings to any call position and discovered four tools the runner had never executed. Cut to 26
+   the SAME day by widening the summary parser: 22 of the 48 were reporting counts all along, in
+   formats the reader did not know. The ratchet forced that bookkeeping — it exits 1 on a paid debt
+   left in the map, so the parser could not be widened without removing them. */
 export const UNPARSEABLE_RATCHET = new Set([
   'acc-select-compare.mjs',
   'acc-shared-movement.mjs',
-  'analysis-rerun.mjs',
   'aperiodic-method-compare.mjs',
-  'beat-comb-analysis.mjs',
   'beat-correspondence.mjs',
-  'beat-leg-closure.mjs',
-  'cohort-fit.mjs',
-  'cpap-sa2-agreement.mjs',
   'deep-desat-falsifier.mjs',
   'deep-vlf-probe.mjs',
   'device-stability.mjs',
   'ecg-apnea-correlate.mjs',
-  'ecg-physionet-differential.mjs',
-  'ecg-rate-transfer.mjs',
   'find-copied-bodies.mjs',
   'find-unwired-js.mjs',
   'gate-subject.mjs',
-  'mutation-adoption-delta.mjs',
   'nearest-advocate.mjs',
-  'nsrr-aai-validate.mjs',
-  'nsrr-criterion-sweep.mjs',
-  'nsrr-effort-typing.mjs',
-  'nsrr-oxydex-odi.mjs',
-  'nsrr-score-pool.mjs',
   'nsrr-stage-validate.mjs',
   'oxydex-export-staleness.mjs',
-  'pat-axis-leg-audit.mjs',
-  'pat-drift-attribution.mjs',
   'pat-ecg-axis-residual.mjs',
-  'pat-fiducial.mjs',
   'pat-fiducial-compare.mjs',
-  'pat-fiducial-jitter.mjs',
-  'pat-per-led.mjs',
-  'pat-residual-structure.mjs',
-  'pat-window-oracle.mjs',
+  'pat-fiducial.mjs',
   'pb-agreement.mjs',
   'pb-operating-point.mjs',
-  'pin-coverage.mjs',
   'ppg-foot-residual-sweep.mjs',
   'qwen-agent.mjs',
-  'qwen-mypy-fix.mjs',
   'release-land.mjs',
   'synth-desat-kinetics.mjs',
-  'tch-pooled-hat.mjs',
   'tools-index.mjs',
   'verify-fixtures.mjs',
   'wt-done.mjs'
@@ -264,7 +259,7 @@ const run = (f) =>
     execFile(process.execPath, [join(TOOLS, f), '--selftest'], { cwd: ROOT, timeout: TOOL_TIMEOUT_MS, maxBuffer: 1 << 24 }, (err, stdout, stderr) => {
       const ms = Date.now() - t0;
       const out = String(stdout || '') + String(stderr || '');
-      const m = out.match(/all (\d+) selftests passed/) || out.match(/all green/);
+      const m = SUMMARY_FORMATS.map((re) => out.match(re)).find(Boolean);
       /* Load is sampled AT THE KILL, not at the end: by the time the sweep finishes the spike that
          killed the tool is gone, and an average taken then would describe a different machine. */
       res({ f, ms, load: err ? os.loadavg()[0] : null, ok: !err, n: m && m[1] ? Number(m[1]) : null, readable: !!m, out, why: whyFailed(err, TOOL_TIMEOUT_MS) });
