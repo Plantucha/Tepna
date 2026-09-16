@@ -150,3 +150,57 @@ def test_the_corroboration_floor_is_two_and_not_configurable():
     """Pinned so a future knob has to move a test that names why: lowering it to 1 re-creates the
     single-global-pin category mismatch as configuration."""
     assert D.ADAPTER_CORROBORATION == 2
+
+
+# ── BLE-TRANSPORT-REDESIGN §1.7 — an adapter reservation is a LEASE ────────────────────────────────
+# "A reservation the code can override by writing a sentence is not a reservation." The brief's two
+# honest options are REFUSE or PREEMPT-AND-RECORD; "override and log" is neither. Preemption is the
+# option taken (refusing is a data-loss trade), so behaviour is unchanged and only the evidence moves.
+
+def _ev(**kw):
+    base = dict(device="H10", from_mac="AA:AA", to_mac="BB:BB", verdict={}, cause="wedged")
+    base.update(kw)
+    return D.switch_event(**base)
+
+
+def test_LEASE_taking_a_reserved_adapter_is_recorded_as_a_decision():
+    """Before this, commandeering the CPAP's dedicated radio left only a log line — measured 60/67/65
+    times per night on 2026-09-05/06/07, invisible to anything that survives the night."""
+    ev = _ev(to_mac="CC:CC", reserved=("CC:CC",),
+             preemption={"adapter_mac": "CC:CC", "holder": "cpap.ble_stream",
+                         "reason": "no unreserved adapter was available"})
+    assert ev["preemption"]["holder"] == "cpap.ble_stream"
+    assert ev["preemption"]["adapter_mac"] == "CC:CC"
+    assert ev["reserved_adapters"] == ["CC:CC"]
+
+
+def test_LEASE_a_respected_lease_is_DISTINGUISHABLE_from_no_lease_at_all():
+    """The reason `reserved_adapters` rides along. Without it, `preemption: null` conflates two
+    different facts — "a lease existed and was honoured" and "there was no lease" — and only one of
+    those is evidence that the reservation mechanism did anything."""
+    respected = _ev(to_mac="DD:DD", reserved=("CC:CC",))          # a lease existed, spare is not it
+    none_configured = _ev(to_mac="DD:DD")                          # no lease at all
+
+    assert respected["preemption"] is None and none_configured["preemption"] is None
+    assert respected["reserved_adapters"] == ["CC:CC"]
+    assert none_configured["reserved_adapters"] == []
+    # PLANT: the two must NOT be the same record — that conflation is the defect this field fixes.
+    assert respected != none_configured
+
+
+def test_LEASE_the_absence_is_null_never_an_empty_dict_or_False():
+    """§∅. `preemption` is an ABSENCE when nothing was preempted; a falsy stand-in ({} or False) reads
+    as 'a preemption that was empty' to anything doing a key lookup."""
+    ev = _ev()
+    assert ev["preemption"] is None
+    assert ev["preemption"] != {} and ev["preemption"] is not False
+
+
+def test_LEASE_the_event_still_carries_the_signal_that_fired():
+    """The §1.7 fields are ADDITIVE — the existing contract (which signal fired, and its value) must
+    survive, or this trades one half-silent record for another."""
+    ev = _ev(verdict={"observed": 61.0, "band": "red", "median": 1.0, "nights": 7},
+             reserved=("CC:CC",), preemption={"adapter_mac": "CC:CC", "holder": "cpap.ble_stream",
+                                              "reason": "none available"})
+    assert ev["observed_per_h"] == 61.0 and ev["band_per_h"] == "red"
+    assert ev["baseline_median_per_h"] == 1.0 and ev["event"] == "radio-failover"

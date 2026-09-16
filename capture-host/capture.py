@@ -1633,7 +1633,16 @@ async def _migrate_to_spare(cfg, prev_mac, spare, *, cause, verdict, device_labe
     mechanics, which must be identical however the decision was reached."""
     # SAY IT WHEN A DEDICATED RADIO IS COMMANDEERED. This is the branch that used to
     # happen by accident; taking it deliberately is defensible, taking it quietly is not.
-    if spare.upper() in {str(r).upper() for r in _failover_reserved(cfg)}:
+    reserved = _failover_reserved(cfg)
+    preemption = None
+    if spare.upper() in {str(r).upper() for r in reserved}:
+        # BLE-TRANSPORT-REDESIGN §1.7: PREEMPT EXPLICITLY, and record the decision as a decision.
+        # The brief's two honest options are refuse or preempt-and-record; "override and log" is
+        # neither. Preemption is chosen here because refusing is a DATA-LOSS trade — the wearables
+        # would stop capturing — and that trade is not this unit's to make. So behaviour is
+        # deliberately unchanged and only the evidence improves.
+        preemption = {"adapter_mac": spare, "holder": "cpap.ble_stream",
+                      "reason": "no unreserved adapter was available"}
         log.critical("watchdog: the spare taken is the CPAP's RESERVED radio (%s) — no "
                      "other adapter was available. Wearables and CPAP now share one "
                      "radio; expect 2.4 GHz contention until a spare returns.", spare)
@@ -1655,7 +1664,8 @@ async def _migrate_to_spare(cfg, prev_mac, spare, *, cause, verdict, device_labe
     # only a log line, so radio churn was invisible to anything that survives the
     # night — the silent-healing shape this suite keeps rediscovering.
     _radio_switch_event(link_distress.switch_event(
-        device=device_label, from_mac=prev_mac, to_mac=spare, cause=cause, verdict=verdict))
+        device=device_label, from_mac=prev_mac, to_mac=spare, cause=cause, verdict=verdict,
+        reserved=reserved, preemption=preemption))
 
 
 # ── DUAL-RADIO FAILOVER (VIGIL-OVERNIGHT-FINDINGS P1.5) ──────────────────────────────────────────────
