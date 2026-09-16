@@ -18,6 +18,7 @@ import polar_pmd as pmd
 import viatom
 import oxyii
 import acq_evidence_o2ring
+import blestats
 import bonding
 import helper_path
 import bluez_wedge
@@ -1829,14 +1830,21 @@ async def _connect(addr: str):
     # rest of the night. Nothing crashes, so systemd's Restart never fires. A timeout turns that
     # unrecoverable class into an ordinary retry on the next loop iteration.
     async with _CONNECT_LOCK:
+        # BLE-TRANSPORT-REDESIGN §1.5: the attempt is counted BEFORE the operation can fail. Counting
+        # it after would shrink the denominator by exactly the failures it exists to measure, which is
+        # the "zero failures over an unknown number of attempts" that made #2170 unanswerable.
+        blestats.attempt("connect", addr)
         try:
             await asyncio.wait_for(client.connect(), _BLE_CONNECT_TIMEOUT_S)
         except asyncio.TimeoutError:
+            blestats.fail("connect", addr, "timeout")
             await _safe_disconnect(client)
             raise _connect_timeout(addr) from None
-        except BaseException:
+        except BaseException as exc:
+            blestats.fail("connect", addr, type(exc).__name__)   # the CLASS, never the message
             await _safe_disconnect(client)      # never leak a half-open link past a timeout/cancel
             raise
+        blestats.ok("connect", addr)
     try:
         yield client
     finally:
@@ -2190,6 +2198,10 @@ async def _retry_sleep(name: str, delay: float, why: str, attempt: int) -> float
     # `connected=False` unconditionally at its top before every connect attempt — so the True→False
     # edge happens either way and exactly one False→True edge follows. Measured both ways: epoch 2.
     # Moving the False earlier changes WHEN it lands, not WHETHER a generation is spent.
+    # BLE-TRANSPORT-REDESIGN §1.6: publishing the wait makes ONE retry visible to an operator reading
+    # STATUS; it does not make the RATE visible. #2365's retry absorbed 97 of 98 failures behind a
+    # warning nobody had to read. A rising retry rate is itself the alert, and that needs a counter.
+    blestats.retried(name, why)
     _set(name, connected=False,
          retry={"attempt": attempt, "why": why, "wait_s": round(wait, 1),
                 "next_at_ms": int(_time.time() * 1000 + wait * 1000)})
@@ -5470,6 +5482,9 @@ async def status_loop(root: str, data_stale_sec: float = 120.0):
         STATUS["recording"] = publish_recording(_time.monotonic(), data_stale_sec)
         if _NOTIFIER is not None:
             STATUS["alerts"] = _NOTIFIER.stats()
+        # BLE-TRANSPORT-REDESIGN §1.5: the counters reach a REPORT. Counters nothing reads are the
+        # same blindness as logging only failures — the denominator existed and no one could see it.
+        STATUS["ble"] = blestats.snapshot()
         STATUS["gates"] = gate_state()
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)

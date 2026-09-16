@@ -71,6 +71,12 @@ ALLOW_KEYS = {
                     "producer named; when that brief lands or is retired, this entry goes with it",
     "instance": "same consumer and same pending brief as heartbeat_ms directly above — the identity "
                 "field status_union folds N instances by",
+    "ble": "BLE-TRANSPORT-REDESIGN §1.5/§1.6 counters (blestats.snapshot). status.json IS the report "
+           "the done-when requires — 'no rate in a report or alert is derived from a log line count' — "
+           "and an operator reads it directly, as for `storage`. The MONITOR DRAW is a tracked "
+           "follow-up (residue 2026-09-16-ble-counters-not-drawn): a rising retry rate is only an "
+           "alert once something renders the series, and until then this entry is the honest state "
+           "rather than a claim that §1.6 is finished",
     "cpap_wedge": "the DURABLE record is the on-disk WEDGEFIRE journal (_wedge_fire_record), written "
                   "at the same site — this STATUS copy is the live snapshot for a monitor draw that "
                   "is a tracked follow-up (bluez_wedge.py's own comment names the journal as the "
