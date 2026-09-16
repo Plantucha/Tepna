@@ -46,15 +46,21 @@ provenance) and `dead-ends.html` / `robustness-benchmark.html` mention it narrat
 their own generative tool, each **confirmed to call `CohortGen` at runtime** rather than merely to
 cite it:
 
-| paper | analysis tool | `CohortGen.` call sites | severity-dependent? |
-|---|---|---|---|
-| `nights-icc.html` | `nights-icc-analysis.html` | 4 | cohort-wide — expect NO change |
-| `hrv-age-confound.html` | `hrv-confound-analysis.html` | 3 | cohort-wide — expect NO change |
-| `rmssd-equivalence.html` | `qrs-equiv-analysis.html` | 1 | cohort-wide — expect NO change |
-| `qrs-yield.html` | `qrs-yield-analysis.html` | 1 | cohort-wide — expect NO change |
-| `cgm-hrv-coupling.html` | `cgm-hrv-coupling-analysis.html` | 4 | partly — AHI-burden legs |
-| `treatment-response.html` | `treatment-response-analysis.html` | 4 | **yes** |
-| *(also)* `odi4-ahi-bias.html` | `odi-bias-analysis.html` | 2 | **yes** — §3.2 is real-PSG and unaffected; Tables 1–2 are the synthetic pilot |
+| paper | analysis tool | state (2026-09-17) |
+|---|---|---|
+| `nights-icc.html` | `nights-icc-analysis.html` | **RE-CUT** #2557, **attribution corrected** #2578 — the 0.75→0.92 reversal is TOOL DRIFT; generator's share 0.0010 |
+| `hrv-age-confound.html` | `hrv-confound-analysis.html` | **RE-CUT** #2562 — every headline quantity unchanged; no causal claim, so no A/B owed |
+| `cgm-hrv-coupling.html` | `cgm-hrv-coupling-analysis.html` | **RE-CUT** #2563 — unchanged but for glucose↔AHI +0.42→+0.427; Figure 1 deliberately NOT regenerated (composite, layout unrecorded) |
+| `qrs-yield.html` | `qrs-yield-analysis.html` | **NOT re-cut** — A/B shows its divergence is tool drift (#2575, #2577). Re-cutting would blame the generator for a sign flip it did not cause |
+| `rmssd-equivalence.html` | `qrs-equiv-analysis.html` | **BLOCKED** — needs `cohort-harness.html` fixed; it throws on every node since the 2026-07-16 ESM migration (#2570), now at least REFUSING rather than serving nulls (#2572) |
+| `treatment-response.html` | `treatment-response-analysis.html` | **BLOCKED** — the paper's stated ~900/arm yields 269/317 against its published 912/918, a 3.4× gap; configuration not determined by its own text |
+
+⚠️ **The `expect` column this table used to carry is gone, and deliberately.** It predicted
+"no change — cohort-wide" for `nights-icc` and was refuted on the first test; the split it encoded
+(cohort-wide vs severity-dependent) is not the one that governs. What governs is the KIND OF
+STATISTIC: a variance ratio moves with the severe tail, full-cohort slopes, correlations and rates do
+not. And even that only predicts the GENERATOR's share — tool drift is a separate term and is
+frequently the larger one, which is what §⛔ above exists to separate.
 
 Expectations are stated **before** the runs, so a surprise is a finding rather than a rationalisation.
 
@@ -96,8 +102,46 @@ The tools are browser pages, and two constraints are inherited from
   would have. Cost of the error: a landed brief that instructed the next session to build six
   scrapers it does not need.
 
+## ⛔ REQUIRED BEFORE ANY DELTA IS ATTRIBUTED TO THE GENERATOR — run the 1.9 A/B
+
+**A re-cut that reports a change "under cohort-gen 2.0" credits the generator with everything the
+TOOL has changed since the paper was published.** That is not hypothetical; it has now happened twice,
+and once in this brief's own output.
+
+```sh
+node tools/analysis-rerun.mjs --paper-scale --only <tool> --cohort-gen <1.9 copy> --out old.json
+node tools/analysis-rerun.mjs --paper-scale --only <tool>                          --out new.json
+#   old-vs-published = tool drift since publication
+#   new-vs-old       = the generator, and only the generator
+```
+
+`git show 5c36ff59^:cohort-gen.js` recovers 1.9 (the commit that introduced 2.0). The swap is on-disk
+plus a rebuild — the tools inline the generator into their blob workers, so a runtime override cannot
+reach cohort generation — and it refuses on a dirty tree.
+
+**What the A/B has established so far:**
+
+| tool | published | @1.9 | @2.0 | generator's share |
+|---|---|---|---|---|
+| `qrs-yield` precision | 88.8 % | 98.79 % | 98.80 % | **0.01 pp of a 10 pp move** |
+| `qrs-yield` rMSSD bias | +83.0 % | −10.4 % | −10.4 % | **none — the sign flip is pre-generator** |
+| `nights-icc` ODI-4 ICC₁ | 0.75 | 0.9228 | 0.9238 | **0.0010 of a 0.17 move** |
+
+⚠️ **`nights-icc` was re-cut (#2557) attributing its reversal to 2.0's AHI ceiling, and that was
+WRONG** — corrected in #2578. The reasoning had a mechanism, a citation in the paper's own revision
+note, and passing controls (rMSSD and CGM-CV did not move, exactly as predicted). It was false anyway.
+**Confirming evidence that is real does not make the inference sound**; only running the old generator
+separates the two causes, and it costs one run.
+
+⚠️ A positive control comes free and must be read: at 1.9 the structural counts should reproduce the
+paper's. They do — `qrs-yield` trueBeats 189,179 exactly, `nights-icc` subjects 5,394 exactly. If they
+do not, the swap or the configuration is wrong and nothing downstream is interpretable.
+
 ## Done when
 
+0. **For any paper whose numbers MOVED: the 1.9 A/B above has been run, and the text attributes only
+   the 1.9→2.0 difference to the generator.** A paper reporting unchanged values carries no causal
+   claim and does not need it.
 1. Each of the six tools has been run under 2.0 and its output captured.
 2. Every number and figure in each paper is re-cut from that run, or **confirmed identical**.
 3. Each paper's `generator` line reads `cohort-gen 2.0`, and `papers.html`'s provenance rows match.
