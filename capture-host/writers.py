@@ -123,7 +123,18 @@ ANNOTATIONS_BY_STREAM = {
 }
 
 HELD_WARMUP_RUNS = 64          # runs observed before the class is decided
-HELD_TOP2_SHARE = 0.95         # share on two adjacent lengths that makes it a hold
+# A HOLD REPEATS VALUES, so its runs are LONG. Both constants below exist because the share test
+# alone is INVERTED: it measures run-length CONCENTRATION, and a stream where no sample ever repeats
+# has every run of length 1 — perfectly concentrated, share 1.000. Measured on the 2026-09-15 night,
+# that scored the Verity PPG (mean_run 1.00) `held` and the O2Ring accraw (mean_run 7.03, which the
+# design brief says "repeats each sample 6-7x BY DESIGN") `variable`. Exactly backwards.
+HELD_MIN_RUN = 2               # the dominant run length must be an actual REPETITION, never 1
+# 0.95 rejected the one true hold in the corpus: accraw measured 0.891/0.891/0.906 — its 6,7 structure
+# was found correctly and then failed the threshold by 0.044, because a real hold's ratio jitters.
+# ⚠️ SET FROM POSITIVES ONLY. This corpus contains no true NEGATIVE with a dominant run length >= 2,
+# so nothing bounds this from above; it is chosen to clear the measured hold with margin, and a
+# counter-example should tighten it rather than be explained away.
+HELD_TOP2_SHARE = 0.85         # share on two adjacent lengths that makes it a hold
 
 _log = logging.getLogger("tepna-capture")
 
@@ -798,7 +809,13 @@ class _RunSidecar:
             sh = (hist.get(ln, 0) + hist.get(ln + 1, 0)) / tot
             if sh > share:
                 best, share = ln, sh
-        self.klass[channel] = "held" if share >= HELD_TOP2_SHARE else "variable"
+        # `best >= HELD_MIN_RUN` is the load-bearing half and is a LOGICAL guard, not a tuned one: a run
+        # of length 1 is a single sample, so it is not a repetition, so the stream is not a hold — no
+        # matter how concentrated its run lengths are. Without it the most variable possible signal
+        # scores share=1.000 and classifies `held`, which suppresses exactly the spans the sidecar exists
+        # to record.
+        self.klass[channel] = ("held" if (best >= HELD_MIN_RUN and share >= HELD_TOP2_SHARE)
+                               else "variable")
         mean = sum(k * v for k, v in hist.items()) / tot
         fh.write(f"# stream={self.stream} channel={channel} class={self.klass[channel]} "
                  f"ratio={mean:.1f} top2={best},{best + 1} share={share:.3f} "

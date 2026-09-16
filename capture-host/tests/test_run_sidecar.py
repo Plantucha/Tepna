@@ -653,3 +653,59 @@ def test_each_channel_reports_what_IT_examined(tmp_path):
     w.close()
     body = open(_sidecar(p)).read()
     assert body.count("examined=12 ") == 3, body
+
+
+# ── the classifier was INVERTED; these are built from the 2026-09-15 night, not from an ideal ──────
+# The pre-existing hold test above feeds a PERFECTLY alternating 6/7 stream, so its share is 1.000 and
+# it passes under both the broken and the fixed criterion. That is why the inversion survived: the
+# fixture expressed an idealised hold, while the real one jitters. Every number below is measured.
+
+def test_INVERSION_a_never_repeating_stream_is_NOT_held(tmp_path):
+    """Verity PPG, 2026-09-15 night: `mean_run=1.00 top2=1,2 share=1.000 class=held` over 1,286,760
+    samples per channel — the classifier called the MOST VARIABLE POSSIBLE signal a hold.
+
+    A run of length 1 is one sample, so it is not a repetition, so the stream cannot be a hold however
+    concentrated its run lengths are. `held` would suppress the warm-up spans the sidecar exists for."""
+    sc = _RunSidecar(str(tmp_path / "V_PPG.txt"), "ppg", T_STUCK)
+    for r in range(HELD_WARMUP_RUNS + 5):
+        sc.feed("channel 0", r, _phone(r, hz=55.0))       # every value differs => every run length 1
+    sc.close()
+
+    body = open(sc.path).read()
+    assert sc.klass["channel 0"] == "variable", "a stream that never repeats is not a hold"
+    # ANTI-VACUITY: the share test alone still SAYS hold — proving the new guard is what rejects it,
+    # not some incidental difference in the feed.
+    assert "share=1.000" in body, "the concentration test still scores this a perfect 1.000"
+
+
+def test_INVERSION_a_real_jittering_hold_IS_held(tmp_path):
+    """O2Ring accraw, same night: `top2=6,7 share=0.906 class=variable` — the 6-7x hold the design
+    brief documents ("repeats each sample 6-7x BY DESIGN") was found correctly and then REJECTED,
+    missing the old 0.95 threshold by 0.044 because a real hold's ratio jitters."""
+    sc = _RunSidecar(str(tmp_path / "A_ACCRAW.txt"), "accraw", T_STUCK)
+    n = HELD_WARMUP_RUNS + 5
+    for r in range(n):
+        ln = (6 + (r % 2)) if (r % 16) else (5 + 3 * (r % 2))   # ~88% on {6,7}, rest on {5,8}
+        for k in range(ln):
+            sc.feed("X [raw]", r, _phone(r * 8 + k, hz=10.0))
+    sc.close()
+
+    body = open(sc.path).read()
+    assert sc.klass["X [raw]"] == "held", "a 6-7x zero-order hold is exactly what `held` is for"
+    assert "top2=6,7" in body
+    # The measured share must sit in the band that the OLD threshold rejected — otherwise this test
+    # would pass against the unfixed code and prove nothing.
+    share = float(body.split("share=")[1].split()[0])
+    assert 0.85 <= share < 0.95, f"share {share} must be in the band 0.95 rejected and 0.85 accepts"
+
+
+def test_INVERSION_a_mostly_non_repeating_stream_is_NOT_held(tmp_path):
+    """H10 ACC, same night: `mean_run=1.24 top2=1,2 share=0.969 class=held`. Its dominant run length
+    is 1, so it fails the repetition guard even though its share clears both thresholds."""
+    sc = _RunSidecar(str(tmp_path / "H_ACC.txt"), "acc", T_STUCK)
+    for r in range(HELD_WARMUP_RUNS + 5):
+        for k in range(1 + (1 if r % 4 == 0 else 0)):     # mostly 1, occasionally 2 => mean ~1.25
+            sc.feed("X [mg]", r, _phone(r * 2 + k, hz=200.0))
+    sc.close()
+
+    assert sc.klass["X [mg]"] == "variable", "mean run 1.25 is not a zero-order hold"
