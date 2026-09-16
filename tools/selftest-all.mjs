@@ -52,7 +52,16 @@ const argv = process.argv.slice(2);
    Checking for the flag string alone would enrol every file whose header documents it. */
 export function declaresSelftest(src) {
   const s = String(src || '');
-  return /has\(['"]--selftest['"]\)|includes\(['"]--selftest['"]\)|argv\.indexOf\(['"]--selftest['"]\)/.test(s);
+  /* KEYED ON CALL POSITION, NOT ON THE CALLER'S NAME. This enumerated three spellings the author had
+     met — `has(…)`, `includes(…)`, `argv.indexOf(…)` — so a FOURTH read identical to a tool with no
+     selftest at all. Measured 2026-09-15: `tools/pin-coverage.mjs` reads the flag as
+     `flag('--selftest')` and was absent from the run entirely; widening to any single-argument call
+     recovers it and three more (`beat-comb-analysis`, `cpap-sa2-agreement`, `trio-batch`) with ZERO
+     tools lost — 100 -> 104, verified per-file before the change.
+
+     The literal must sit inside a call, which is what keeps a header comment that merely MENTIONS the
+     flag out: `* node tools/x.mjs --selftest` in a usage block has no parentheses around it. */
+  return /\(\s*['"]--selftest['"]\s*\)/.test(s);
 }
 
 /* ✅ CLOSED 2026-08-18, RE-VERIFIED 2026-08-27 — the incident below is HISTORY, not an open hazard.
@@ -78,6 +87,70 @@ export function declaresNearMissSelftest(src) {
   if (declaresSelftest(s)) return false;
   return /--self-test/.test(s) || /function\s+selfTest\b/.test(s);
 }
+
+/* ── RATCHET: tools whose selftest prints NO PARSEABLE ASSERTION COUNT ──────────────────────────────
+   DEBT, NOT APPROVAL, and it may only go DOWN. The count is this script's entire added value over the
+   CI loop — CI reads PASS either way, so a suite silently shrinking from 30 assertions to 3 is visible
+   ONLY here, and only for a tool that reports one. A tool in this map is a tool that gate cannot watch.
+
+   ⚠️ A NEW TOOL MAY NOT JOIN IT. An unlisted tool with an unreadable summary FAILS, which is how
+   TOOL-BUILD-STANDARD stops being a checklist nobody is held to. To pass, end the selftest with a line
+   the parser reads — `all <N> selftests passed` — as `box-sample.mjs` and `assertion-strength.mjs` do.
+   Adding an entry here is a deliberate act of owing the debt rather than paying it, exactly as
+   capture-host's `test_silent_except.RATCHET` is kept rather than deleted.
+
+   Seeded at 48 of 104 on 2026-09-16, the day `declaresSelftest` widened from three hard-coded call
+   spellings to any call position and discovered four tools the runner had never executed. */
+export const UNPARSEABLE_RATCHET = new Set([
+  'acc-select-compare.mjs',
+  'acc-shared-movement.mjs',
+  'analysis-rerun.mjs',
+  'aperiodic-method-compare.mjs',
+  'beat-comb-analysis.mjs',
+  'beat-correspondence.mjs',
+  'beat-leg-closure.mjs',
+  'cohort-fit.mjs',
+  'cpap-sa2-agreement.mjs',
+  'deep-desat-falsifier.mjs',
+  'deep-vlf-probe.mjs',
+  'device-stability.mjs',
+  'ecg-apnea-correlate.mjs',
+  'ecg-physionet-differential.mjs',
+  'ecg-rate-transfer.mjs',
+  'find-copied-bodies.mjs',
+  'find-unwired-js.mjs',
+  'gate-subject.mjs',
+  'mutation-adoption-delta.mjs',
+  'nearest-advocate.mjs',
+  'nsrr-aai-validate.mjs',
+  'nsrr-criterion-sweep.mjs',
+  'nsrr-effort-typing.mjs',
+  'nsrr-oxydex-odi.mjs',
+  'nsrr-score-pool.mjs',
+  'nsrr-stage-validate.mjs',
+  'oxydex-export-staleness.mjs',
+  'pat-axis-leg-audit.mjs',
+  'pat-drift-attribution.mjs',
+  'pat-ecg-axis-residual.mjs',
+  'pat-fiducial.mjs',
+  'pat-fiducial-compare.mjs',
+  'pat-fiducial-jitter.mjs',
+  'pat-per-led.mjs',
+  'pat-residual-structure.mjs',
+  'pat-window-oracle.mjs',
+  'pb-agreement.mjs',
+  'pb-operating-point.mjs',
+  'pin-coverage.mjs',
+  'ppg-foot-residual-sweep.mjs',
+  'qwen-agent.mjs',
+  'qwen-mypy-fix.mjs',
+  'release-land.mjs',
+  'synth-desat-kinetics.mjs',
+  'tch-pooled-hat.mjs',
+  'tools-index.mjs',
+  'verify-fixtures.mjs',
+  'wt-done.mjs'
+]);
 
 const files = readdirSync(TOOLS)
   .filter((f) => f.endsWith('.mjs') && f !== 'selftest-all.mjs')
@@ -198,6 +271,7 @@ const run = (f) =>
     });
   });
 
+const unratcheted = [];
 const nearMiss = readdirSync(TOOLS)
   .filter((f) => f.endsWith('.mjs') && f !== 'selftest-all.mjs')
   .filter((f) => {
@@ -272,16 +346,33 @@ for (const r of results) {
        off, and then the real failures it would have caught go with it — the same argument that kept a
        coverage threshold out of #1163. */
     warned++;
-    console.log(`  ⚠ tools/${r.f}  green (exit 0), but no parseable summary — cannot report an assertion count${slow(r)}`);
+    if (UNPARSEABLE_RATCHET.has(r.f)) {
+      console.log(`  ⚠ tools/${r.f}  green (exit 0), but no parseable summary — cannot report an assertion count${slow(r)}`);
+    } else {
+      /* NOT grandfathered. The warn-don't-fail argument above is about the 48 tools that predate the
+         rule; it is not a licence for the next one. A tool nobody can count assertions for is a tool
+         whose suite can shrink to nothing unnoticed, and that is the only thing this script adds. */
+      unratcheted.push(r.f);
+      console.log(`  ✗ tools/${r.f}  green, but prints NO PARSEABLE ASSERTION COUNT and is not in UNPARSEABLE_RATCHET${slow(r)}`);
+    }
   } else {
     total += r.n || 0;
     console.log(`  ✓ tools/${r.f}${r.n ? '  ' + r.n + ' assertions' : '  green'}${slow(r)}`);
   }
 }
 for (const f of nearMiss) {
-  console.log(`  ✗ tools/${f}  HAS a selftest that discovery cannot reach — rename the flag to \`--selftest\` and match it with \`.includes()\``);
+  console.log(`  ✗ tools/${f}  HAS a selftest that discovery cannot reach — spell the flag \`--selftest\` and read it from a CALL, e.g. \`flag('--selftest')\` or \`argv.includes('--selftest')\``);
+}
+/* A tool that has PAID its debt must leave the map, or the ratchet stops being one: a stale entry is
+   a standing permission nobody re-earned, and the count would drift up again behind it. */
+const paid = [...UNPARSEABLE_RATCHET].filter((f) => results.some((r) => r.f === f && r.readable));
+for (const f of paid) {
+  console.log(`  ✗ tools/${f}  now reports a count — REMOVE it from UNPARSEABLE_RATCHET (the ratchet may only go down)`);
+}
+for (const f of unratcheted) {
+  console.log(`  → tools/${f}: end its selftest with \`all <N> selftests passed\` (see box-sample.mjs)`);
 }
 console.log(
   `\n${failed || nearMiss.length ? `✗ ${failed} tool selftest(s) FAILED${nearMiss.length ? `, ${nearMiss.length} unreachable` : ''}` : `✓ ${results.length} tools, ${total}+ assertions — all green`}${warned ? `  (${warned} green but unparseable)` : ''}`
 );
-process.exit(failed || nearMiss.length ? 1 : 0);
+process.exit(failed || nearMiss.length || unratcheted.length || paid.length ? 1 : 0);
