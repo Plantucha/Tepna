@@ -131,13 +131,13 @@ export const TOOLS = [
     figures: null,
     expect: 'partial — AHI-burden legs'
   },
-  { page: 'qrs-equiv-analysis.html', resultGlobal: 'QRS_EQUIV', paper: 'rmssd-equivalence.html', inputs: null, pageDefault: { nSubj: 60 }, figures: null, expect: 'no change — cohort-wide' },
-  { page: 'qrs-yield-analysis.html', resultGlobal: 'QRS_YIELD', paper: 'qrs-yield.html', inputs: null, pageDefault: { nSubj: 60 }, figures: null, expect: 'no change — cohort-wide' },
+  { page: 'qrs-equiv-analysis.html', resultGlobal: 'QRS_EQUIV', paper: 'rmssd-equivalence.html', inputs: { nSubj: 240 }, pageDefault: { nSubj: 60 }, figures: null, expect: 'no change — cohort-wide' },
+  { page: 'qrs-yield-analysis.html', resultGlobal: 'QRS_YIELD', paper: 'qrs-yield.html', inputs: { nSubj: 400 }, pageDefault: { nSubj: 60 }, figures: null, expect: 'no change — cohort-wide' },
   {
     page: 'treatment-response-analysis.html',
     resultGlobal: 'TREATMENT_RESPONSE',
     paper: 'treatment-response.html',
-    inputs: null,
+    inputs: { nSubj: 900 },
     pageDefault: { nSubj: 45 },
     figures: null,
     expect: 'CHANGE — severity-dependent'
@@ -464,7 +464,13 @@ function selftest() {
   A('paperScaleReady: true when a paper cohort size is established', paperScaleReady({ inputs: { nSubj: 6000 } }) === true);
   A('paperScaleReady: FALSE when it is not — the tool refuses rather than using the demo default', paperScaleReady({ inputs: null }) === false);
   A('paperScaleReady: an empty inputs object is not "established"', paperScaleReady({ inputs: {} }) === false);
-  A('inventory: three tools carry a paper cohort size, three are refused', TOOLS.filter(paperScaleReady).length === 3);
+  A(
+    'inventory: ALL SIX tools now carry a paper cohort size — none is refused',
+    TOOLS.filter(paperScaleReady).length === 6,
+    TOOLS.filter((t) => !paperScaleReady(t))
+      .map((t) => t.page)
+      .join(';')
+  );
   A(
     'inventory: every page default is SMALLER than the paper size it stands in for (the trap this guards)',
     TOOLS.filter(paperScaleReady).every((t) => {
