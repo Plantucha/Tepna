@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-09-10
+**Status:** PROPOSED (**§1.5 + §1.6 counters EXECUTED 2026-09-16** — `capture-host/blestats.py`, wired at the two chokepoints `_connect` and `_retry_sleep`, published as `status.json` `ble`. §1.5's done-when is MET; **§1.6's is NOT** — *"the retry rate is a reported series"* needs something to draw the series, and nothing does yet, so that half is tracked as residue rather than claimed) · **Residue:** 2026-09-16-ble-counters-not-drawn · **Created:** 2026-09-10
 
 # The BLE transport, designed from what we now know
 
