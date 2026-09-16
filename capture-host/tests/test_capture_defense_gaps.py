@@ -239,3 +239,94 @@ def test_startup_defense_check_survives_a_trusted_flags_failure(tmp_path, monkey
         asyncio.run(capture.startup_defense_check(
             "hci0", {"adapter": "X", "devices": [{"address": "AA:AA:AA:AA:AA:AA"}]}))
     assert not any("Trusted" in r.getMessage() for r in caplog.records)
+
+
+def test_usb_path_set_but_ABSENT_from_the_bus_is_reported():
+    """THE THIRD WAY THE LAST RUNG CAN BE INOPERABLE, and the one that was live.
+
+    The two existing checks cover UNSET and INCAPABLE. Neither asks whether the configured bus-port
+    EXISTS. Measured on vigil 2026-09-16: `usb_path: 1-2` with `/sys/bus/usb/devices/1-2` absent, while
+    the four Bluetooth radios sat at 1-3, 1-4, 1-5 and 1-9 — so the rung was armed against nothing and
+    could not have fired for ANY of them. That is the unresolved half of residue
+    `2026-09-11-dead-adapter-goes-unnoticed`, where a radio wedged for fifteen minutes with zero reset
+    attempts logged.
+
+    The file's own comment on the neighbouring check states the principle: "a configured-but-inoperable
+    rung is worse than a disabled one: it reads as armed". A stale bus-port reads as armed identically.
+    """
+    w = capture.defense_warnings(None, None, usb_path="1-2", usb_path_present=False,
+                                 usb_bus_ports=("1-3", "1-4", "1-5", "1-9"))
+    hits = [x for x in w if "NO SUCH USB DEVICE" in x]
+    assert len(hits) == 1, w
+    # The ports that ARE present must be named: "wrong" without "here is the right value" is a warning
+    # nobody can act on at 3 a.m.
+    assert "1-3, 1-4, 1-5, 1-9" in hits[0], hits[0]
+
+
+def test_a_usb_path_that_IS_present_says_nothing():
+    """The negative control. A check that fires on a healthy box gets switched off."""
+    w = capture.defense_warnings(None, None, usb_path="1-3", usb_path_present=True,
+                                 usb_bus_ports=("1-3",))
+    assert not any("NO SUCH USB DEVICE" in x for x in w), w
+
+
+def test_an_UNPROBED_usb_path_is_not_treated_as_present():
+    """`usb_path_present is None` means the sysfs read did not happen — unreadable, not fine. It must
+    neither warn (we did not measure absence) nor be silently counted as present. Same honest-absence
+    shape as `autosuspend`/`capeff` in this function's neighbours."""
+    w = capture.defense_warnings(None, None, usb_path="1-2", usb_path_present=None)
+    assert not any("NO SUCH USB DEVICE" in x for x in w), w
+
+
+def test_absent_path_with_NO_readable_radios_still_warns_and_says_so():
+    """If the bus-port list could not be read either, the warning must still fire — the rung is still
+    dead — but must not imply a correct value it does not have."""
+    w = capture.defense_warnings(None, None, usb_path="1-2", usb_path_present=False, usb_bus_ports=())
+    hits = [x for x in w if "NO SUCH USB DEVICE" in x]
+    assert len(hits) == 1 and "correct value is unknown here" in hits[0], w
+
+
+def test_usb_rung_probe_reads_a_real_sysfs_shape(tmp_path):
+    """Against a tmp tree shaped like sysfs: the configured port present, and the radios' ports read
+    off the realpath's `usbN/<bus-port>/...` segment."""
+    dev = tmp_path / "devices"; (dev / "1-3").mkdir(parents=True)
+    bt = tmp_path / "bluetooth"; bt.mkdir()
+    for hci, port in (("hci0", "1-3"), ("hci1", "1-9")):
+        real = tmp_path / "sys" / "usb1" / port / f"{port}:1.0" / "bluetooth" / hci
+        real.mkdir(parents=True)
+        (bt / hci).symlink_to(real)
+    present, ports = capture.usb_rung_probe("1-3", devices_dir=str(dev), bt_dir=str(bt))
+    assert present is True and ports == ("1-3", "1-9"), (present, ports)
+
+
+def test_usb_rung_probe_reports_an_ABSENT_port_while_still_listing_the_radios(tmp_path):
+    """The live vigil shape: the configured port is not on the bus, but the radios are readable — which
+    is what makes the warning actionable rather than merely alarming."""
+    dev = tmp_path / "devices"; (dev / "1-9").mkdir(parents=True)
+    bt = tmp_path / "bluetooth"; bt.mkdir()
+    real = tmp_path / "sys" / "usb1" / "1-9" / "1-9:1.0" / "bluetooth" / "hci0"
+    real.mkdir(parents=True)
+    (bt / "hci0").symlink_to(real)
+    present, ports = capture.usb_rung_probe("1-2", devices_dir=str(dev), bt_dir=str(bt))
+    assert present is False and ports == ("1-9",), (present, ports)
+
+
+def test_usb_rung_probe_returns_no_ports_when_the_bluetooth_dir_is_unreadable(tmp_path):
+    """An unreadable `/sys/class/bluetooth` must not take the probe down, and must not invent ports.
+    `present` is still whatever the devices dir said — the two reads fail independently."""
+    dev = tmp_path / "devices"; (dev / "1-3").mkdir(parents=True)
+    present, ports = capture.usb_rung_probe("1-3", devices_dir=str(dev),
+                                            bt_dir=str(tmp_path / "does-not-exist"))
+    assert present is True and ports == (), (present, ports)
+
+
+def test_usb_rung_probe_ignores_a_radio_with_no_usb_segment(tmp_path):
+    """A built-in (non-USB) controller has no `usbN/` segment in its realpath. It contributes no port
+    rather than an arbitrary path component — the inner loop must fall through, not guess."""
+    dev = tmp_path / "devices"; dev.mkdir()
+    bt = tmp_path / "bluetooth"; bt.mkdir()
+    real = tmp_path / "sys" / "platform" / "soc" / "bluetooth" / "hci0"
+    real.mkdir(parents=True)
+    (bt / "hci0").symlink_to(real)
+    present, ports = capture.usb_rung_probe("1-2", devices_dir=str(dev), bt_dir=str(bt))
+    assert present is False and ports == (), (present, ports)
