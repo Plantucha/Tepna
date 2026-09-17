@@ -80,10 +80,21 @@ strapped-idle-H10 window.
 
 ### D2 · Vigil deploy/config authorization — **4**
 
-> ✅ **AUTHORIZED 2026-09-15.** The named set below, plus the rail-keyed sidecar rule (floor 5) that
-> `capture-host/writers.py` needs so its sidecars record BLANKING and not only stalls. Measured on 1.79 M
-> real samples: rail-keyed at floor 5 costs **56 rows/night** against today's 3, where lowering the
-> all-value `T_STUCK` to 5 would cost **55,503**. Authorization covers these touches only.
+> ✅ **AUTHORIZED 2026-09-15** — the named set below. Authorization covers these touches only.
+>
+> ⚠️ **THE SECOND HALF OF THIS AUTHORIZATION WAS ASKED FOR ON A WRONG FRAMING AND IS WITHDRAWN
+> (2026-09-17).** It read *"plus a new rail-keyed sidecar rule in `capture-host/writers.py` (floor 5)
+> so its sidecars record BLANKING and not only stalls"*. The measurement behind it was sound — the live
+> sidecar writes ~3 rows/night at floor 200 while ~56 rail-pinned runs of ≥5 exist — but the conclusion
+> was not: `PPG-ABSENCE-AS-VALUE` §3 assigns the `pinned` rule to the **end-of-night back-check**,
+> *"which has the whole recording, no deadline and no P0 exposure"*, and **it is already built there**
+> (`nightqc.py` `rail_value`/`clip_regions`/`class_b_runs` at `_CLIP_MIN_RUN = 5`, wired, and publishing
+> `class_b` into `QC-SUMMARY.json` — it caught a 141-sample ECG clip on the 2026-09-16 night).
+>
+> The two layers are complementary, not redundant: `T_STUCK = 200` is CORRECT for the live question
+> *"is this stream stuck right now"* under a constraint that forbids windows on the notification path.
+> **Nothing was built against the withdrawn half, so the cost was the authorization itself.** Residue
+> `2026-09-17-sidecar-floor-row-was-mis-framed`.
 
 One authorization over a **named set** of box touches. Deploys to `vigil` are owner-authorized only and
 no peer relay changes that boundary, so these cannot be self-served however small each one is.
