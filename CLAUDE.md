@@ -766,6 +766,26 @@ to face:
 - **An output computed over absent input reports the absence.** A metric over a window that contained
   blanking carries its coverage (`n`, the excluded span) or is itself `null`. A number that is computable
   from fabricated input and carries no information is the zero one layer up.
+  🔴 **WHICH of those two — owner ruling 2026-09-17, and it is now a RULE rather than a choice:**
+  **a DISCONTINUITY refuses; reduced COVERAGE annotates.**
+  - **Discontinuous or absent input → `null` + a named reason.** A clock seam, a blanking run, an
+    absent span: the window does not describe one stretch of signal, so no number over it means
+    anything. Name the real state — `clock-seam`, not a borrowed reason that happens to fire.
+  - **Merely reduced coverage → the value, with `n` / the covered span beside it.** Dropouts and short
+    windows leave the signal *sparse*, not *discontinuous*, and refusing them would null a large share
+    of real nights (the Verity alone recorded 24 dropout segments in one corpus night).
+  - **The line is whether the window still describes ONE continuous stretch of signal**, not how much
+    of it is missing — a 120 s dropout keeps a metric, a 0.6 s clock seam does not.
+  ⚠️ This codifies what already shipped rather than changing it: PpgDex refuses a seam with
+  `clock-seam` (#2600) and F10 refused before it. The measured argument for the refusal half is that
+  the annotate-everything alternative was *tried by accident* — with the seam removed from the axis but
+  no seam-keyed guard, `ppiConf` came back `[1,1,1,…]` across an 86-second clock discontinuity: a
+  number computable from broken input, carrying no information, reporting no problem. That is this
+  section's own failure one layer up.
+  ⚠️ **It is a data-loss trade, taken deliberately and ONLY for the discontinuous case.**
+  `BLE-TRANSPORT-REDESIGN` §1.7 declined the same trade for adapter leases and was right to: there the
+  alternative was losing a night's CAPTURE, here it is declining to publish a meaningless number.
+  Do not generalise this ruling into "refuse when in doubt".
 - **Ask "the device emitted it" vs "our path manufactured it" BEFORE proposing the remedy.** They are
   different fixes with different blast radii. For the O2Ring this is CUT (Wren, 2026-09-06): **the ring
   emits the zeros** — `oxyii.py:838` returns `payload[26:26+n]` untransformed and `capture.py:4293` writes
