@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** CHECKPOINT (living — last-verified **2026-09-15**) · **Created:** 2026-09-03 · **Owner rulings 2026-09-15 (Kestrel, one batch):** **D2 AUTHORIZED** — the named set of four, PLUS a new rail-keyed sidecar rule in `capture-host/writers.py` (floor 5, alongside `rule=stuck` at 200); authorization does NOT generalise to other box touches. **D4 — all three DECLINED**, closed as negatives, not deferrals. **D5 — all three RATIFIED.** **D8 — YES**, build the two-channel dual-wavelength ingest. ⚠️ **D6 WAS ALREADY DECIDED ON 2026-09-07 (option C) and this file still listed it as open** — the queue was `last-verified 2026-09-03` while the ruling landed four days later, so it manufactured a re-ask. **Still open: D3 and D7.**
+**Status:** CHECKPOINT (living — last-verified **2026-09-17**) · **Created:** 2026-09-03 · **Owner rulings 2026-09-15 (Kestrel, one batch):** **D2 AUTHORIZED** — the named set of four, PLUS a new rail-keyed sidecar rule in `capture-host/writers.py` (floor 5, alongside `rule=stuck` at 200); authorization does NOT generalise to other box touches. **D4 — all three DECLINED**, closed as negatives, not deferrals. **D5 — all three RATIFIED.** **D8 — YES**, build the two-channel dual-wavelength ingest. ⚠️ **D6 WAS ALREADY DECIDED ON 2026-09-07 (option C) and this file still listed it as open** — the queue was `last-verified 2026-09-03` while the ruling landed four days later, so it manufactured a re-ask. **Still open: D3 and D7.** ⚠️ **AND D3 IS NOT FOUR BRIEFS — RE-VERIFIED 2026-09-17 (Kestrel), brief by brief: two of its four were ANSWERED on 2026-09-06, nine days before the 2026-09-15 restamp, which did not re-read them.** `PPGDEX-ALGORITHM-DEEP-DIVE` was answered directly (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and is an engineering programme now, not a decision; `AUDIT-FOLLOWUPS` §4.4 was ratified the same day and its header reads **`Owner: none`**. What is actually left is **ONE genuinely parked call** — `R5-HR-TRIPLET-FOLLOWUPS` §3's `hrStatMixed` semantics — plus `DEEP-AUDIT-V-FOLLOWUPS` §1's three tiering POLICY calls, which that brief itself marks **no longer urgent** because `no-fabricated-tier` now runs at `KNOWN_UNREGISTERED = 0` (the 94-label backlog was discharged 2026-08-16 with 65 tiers owner-ratified). **This is the SECOND time this file has listed an answered question as open** — D6 was the first, and is recorded above. The cause is the same both times and is worth naming: this queue's per-item state is DERIVED from brief headers, so a restamp that re-reads only the queue re-verifies nothing. A restamp must re-read the briefs.
 
 # The owner decision queue — 8 calls that unblock ~44 briefs
 
@@ -102,11 +102,16 @@ no peer relay changes that boundary, so these cannot be self-served however smal
 `CAPTURE-HOST-FOLLOWUPS-II` (`deploy/enable-clock-control.sh`) · `DEVICE-RATE-TRUTH` ·
 `RADIO-FAILOVER-DISTRESS-SIGNAL` (the config key) · `OXYII-ACQUISITION-CHARTER`
 
-### D3 · Metric-identity / evidence-tier rulings — **4**
+### D3 · Metric-identity / evidence-tier rulings — ~~**4**~~ **1 parked + 1 non-urgent** (re-verified 2026-09-17)
 
-`R5-HR-TRIPLET-FOLLOWUPS` (`median`→`mean` moves a **published field**; needs a ruling on
-`hrStatMixed` semantics) · `PPGDEX-ALGORITHM-DEEP-DIVE` (its eight open items are **one** question) ·
-`DEEP-AUDIT-V-FOLLOWUPS` · `AUDIT-FOLLOWUPS`
+| brief | re-verified 2026-09-17 |
+|---|---|
+| `R5-HR-TRIPLET-FOLLOWUPS` | 🔴 **GENUINELY PARKED — this is the whole of D3.** §3's `median`→`mean` moves a **published field** and needs a ruling on `hrStatMixed` semantics. ⚠️ Its header flags the read as *per Heron's, not independently re-verified* — so the ruling should be asked with that caveat, not presented as settled analysis. |
+| `PPGDEX-ALGORITHM-DEEP-DIVE` | ✅ **ANSWERED 2026-09-06** — *"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved to land in the sequenced order."* The eight items were one question and it was put and answered; the brief is now an engineering programme (every PPG fixture moves, `regen-ppgdex-goldens.mjs` + a `verify-fixtures` lap per landing). **Not a decision. Do not re-ask.** |
+| `DEEP-AUDIT-V-FOLLOWUPS` | 🟡 **OPEN but NOT URGENT, by its own measurement.** §1's three evidence-tiering POLICY calls remain, but the debt they governed is gone: `no-fabricated-tier` runs at `KNOWN_UNREGISTERED = 0` (tests/dex-tests.js), the 94-label backlog having been discharged 2026-08-16 — 24 captions re-scoped to per-series, 5 denied as non-measurements, **65 tiers owner-ratified**. F8's NSRR DUA is data access, not a tiering judgement, and belongs with D1-class asks. |
+| `AUDIT-FOLLOWUPS` | ✅ **RATIFIED 2026-09-06** — all ten fusion `FINDING_EVIDENCE` grades accepted as they stand; header reads **`Owner: none`**. What remains there is data/tooling-gated or cosmetic-by-design, not an owner call. **Do not re-ask.** |
+
+**So the ask to put to the owner is ONE question, not four**, and bundling it with three resolved briefs is what makes a queue read as expensive when it is cheap.
 
 ### D4 · Purchases — **3** (a "no" closes them as negatives, which is why they are cheap)
 
