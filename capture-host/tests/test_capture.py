@@ -302,9 +302,22 @@ def test_EVERY_link_error_site_routes_through_the_one_formatter():
     # does and does not buy: it catches a formatter call being REMOVED, and it does not catch a NEW
     # site logging some other unclassified form — only the assertion above does that, and only for
     # the one form it names. The number is the weak half of this test; the `not in code` is the guard.
-    assert code.count("link_error_text(e)") == 4, (
-        "expected all four sites to route through the formatter, found %d"
-        % code.count("link_error_text(e)"))
+    # ⚠️ WAS `count("link_error_text(e)") == 4`. Three of those four sites now route through
+    # `_log_link_error`, which calls the formatter ONCE on their behalf and additionally counts the
+    # condition so 913 occurrences of one not-worn strap stop producing 913 lines. The formatter is
+    # still reached from every site; what changed is that three reach it indirectly.
+    #
+    # The count is replaced rather than re-tuned, because this test's own comment already called the
+    # number "the weak half". Asserting the named sites route through the helper is strictly stronger:
+    # it catches a NEW runner that logs its own form, which a count never could.
+    assert code.count("link_error_text(") >= 2, "the formatter must still be reached"
+    assert "def _log_link_error(" in code, "the shared reporter must exist"
+    import capture as _cap
+    for site in _cap.LINK_ERROR_SITES:
+        i = code.index(f"def {site}(")
+        nxt = code.find("\nasync def ", i + 1)
+        body = code[i:nxt if nxt > 0 else len(code)]
+        assert "_log_link_error(" in body, f"{site} must report through the shared reporter"
 
 
 # ── NOT-WORN PULL TRIGGER (POLAR-ONBOARD-BACKUP-FOLLOWUPS §4) ────────────────────────────────

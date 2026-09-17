@@ -2093,6 +2093,38 @@ _CEILING_SIGNS = ("connection-profile-unavailable", "too many", "no resources", 
                   "max connections", "host is down")
 
 
+# The three sites that report a failed connect, NAMED rather than counted. `link_error_text`'s own
+# docstring already warns that "a grep that stopped at the first two sites" would miss one; this makes
+# that a gate rather than a caution.
+LINK_ERROR_SITES = ("run_polar", "run_viatom", "run_oxyii")
+
+
+def _log_link_error(name: str, addr: str, exc: BaseException) -> None:
+    """Report a failed connect by CONDITION, not by occurrence — and COUNT it either way.
+
+    Measured on vigil over a 72 h unattended window: 2426 WARNINGs from `tepna-capture`, of which
+    **1992 (82 %) were four "device not present" conditions** — an H10 that is not being worn, a ring
+    that is not advertising. That is NORMAL for a box whose devices are worn only at night, and logging
+    it every reconnect cycle for three days buries the lines that are not normal: 37 `event loop
+    stalled` and 32 `wpa_cli` failures sat underneath it.
+
+    ⚠️ NOT SILENCED, and the distinction matters here more than anywhere. A device that stops coming
+    back IS the failure this suite keeps rediscovering, so the FIRST occurrence still logs in full, the
+    line returns on a decade as the streak grows, and the total is in `status.json` `ble` where a rate
+    can be read off it. The `alert:` path that fires on a device offline for N minutes is untouched —
+    that one is a verdict, not a cycle report.
+
+    The count precedes the decision, so a quieter log can never cost the rate."""
+    cls = type(exc).__name__
+    blestats.fail("link", addr, cls)
+    n = blestats.failures("link", addr).get(cls, 1)
+    text = link_error_text(exc)
+    if n == 1:
+        log.warning("%s %s", name, text)
+    elif n < 10 or (n < 100 and n % 25 == 0) or n % 100 == 0:
+        log.warning("%s %s (occurrence %d of this condition this run)", name, text, n)
+
+
 def link_error_text(exc: BaseException) -> str:
     """The operator-facing description of a failed connect — ONE formatter for every link-error site.
 
@@ -3657,7 +3689,7 @@ async def run_polar(dev: dict, root: str):
                 continue
             _OPT_QUIET.discard(addr)
             _set(name, connected=False, last_error=repr(e))
-            log.warning("%s %s", name, link_error_text(e))
+            _log_link_error(name, addr, e)
             # A ONE-SIDED BOND. is_bonded() reads the HOST's view, so a device-side factory reset (Polar
             # Flow offers one) leaves BlueZ reporting `Bonded: yes` while the sensor has forgotten us.
             # ensure_bonded() then short-circuits forever and the strap drops service discovery on every
@@ -3914,7 +3946,7 @@ async def run_viatom(dev: dict, root: str):
                         break
         except Exception as e:
             _set(name, connected=False, last_error=repr(e))
-            log.warning("%s %s", name, link_error_text(e))
+            _log_link_error(name, addr, e)
         finally:
             if wr:
                 # Discard header-only files, as run_polar does — INCLUDING its `resumed` guard. `rows`
@@ -5093,7 +5125,7 @@ async def run_oxyii(dev: dict, root: str):
                     log.info("%s: ring powered off — idle timer (expected until re-wear or charger; "
                              "its stored session was already pulled)", name)
             else:
-                log.warning("%s %s", name, link_error_text(e))
+                _log_link_error(name, addr, e)
         finally:
             # The REASON string is deliberately unchanged. "session ended" is the transition vocabulary
             # every existing reader and count keys on, and a failed connect is still a session ending —
