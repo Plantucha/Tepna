@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED · **Created:** 2026-09-16
+**Status:** DONE — 2026-09-17 (**the Done-when is met for PpgDex, and the §4 questions are still NOT decided — read that distinction before reusing this brief.** What landed is the NODE-SIDE obligation Clock Contract §7 already required of every node — *"a node that detects no steps has not shown its stream has none, only that it has not looked"* — not the transport-edge stamp this brief's TITLE proposes. The edge stamp remains blocked on §4's four questions, two of which are the owner's (whether consumers are FORCED to refuse, and the corpus re-verification cost); a follow-up owns it. Executed: `ppgdex-dsp.js` re-anchors at a seam in **both** its parse sites — `parsePPG` and its own `parseSensorXYZ`, which was an unfixed twin of the function MotionDex had already split — and drops the pre-seam host-axis anchors per §7's ONE DEVICE CLOCK PER AXIS. Verified by planting: relSec span **2.4159e8 s → 249.0 s**, seam recorded, `anchorsDroppedPreResync: 5`, `fs` unmoved. A real 120 s DROPOUT is deliberately left alone. **Export-inert on the committed corpus** — PpgDex `manifestHash` dc05497316ad → ba3df6e74e06 with **zero `outputHash` changes** across all 6 fixtures.) · **Created:** 2026-09-16 · **Residue:** 2026-09-17-ble-timebase-edge-stamp-undecided
 
 # Establish the timebase at the transport edge, once
 
@@ -37,6 +37,42 @@ same night's `_ACC.txt` carries the F1 step.
 
 A planted counter step produces a **seam event**, not a silently spanned `relSec`; a node consuming
 the stream cannot construct a duration across a seam without seeing it.
+
+### ✅ MET for PpgDex — 2026-09-17, measured by planting
+
+| plant | before | after | seam |
+|---|---|---|---|
+| clean, no step | 15.992 s | 15.992 s | none — **byte-unchanged** |
+| device step, F1 magnitude | **2.4159e8 s** (7.66 y) | **249.0 s** | recorded, `phoneDeltaMs` 86008 |
+| device step, +24 h | 86,415.992 s | 15.992 s | recorded |
+| blind seam (stamp unparseable) | 2.4159e8 s | 248.9 s | recorded, `phoneDeltaMs: null` |
+| **real 120 s dropout** | 135.992 s | 135.992 s | **none — counter is RIGHT, left alone** |
+
+- **Both parse sites fixed.** `parsePPG`, and PpgDex's own `parseSensorXYZ` — which was an UNFIXED
+  TWIN of the identically-named function MotionDex had already split. Same function name, two copies,
+  one repaired: the duplication-drift shape this repo keeps finding.
+- **§7's other half is included, and the existing suite is what caught its absence.** Re-anchoring the
+  axis removes `hostAxis`'s refusal TRIGGER, so the first draft turned the pre-existing
+  `THE GUARD THAT WORKS · hostAxis REFUSES a stepped counter` leg to `ok:true` — meaning a 484.7-ppm
+  rate could then reach `fs`, the exact path ECGDex measured (fs 129.968 → 129.903). Pre-seam anchors
+  are now dropped and COUNTED (`anchorsDroppedPreResync`, ECGDex's key name), `anchors: 40, dropped: 5`,
+  `fs` unmoved.
+- **The refusal was load-bearing in a way nobody had stated:** it was standing in for the anchor split.
+  Fixing the axis without the split would have *removed a guard*, which is why that leg is re-aimed
+  rather than deleted.
+- **Cost:** the host stamp is parsed only when a candidate step fires (0–3 rows in a real file), so
+  EFFICIENCY-AUDIT §P1's removal of the per-row `parseTimestamp` stands — `prevPhoneRaw` carries the
+  previous row's stamp as an unparsed string reference.
+- **Census preserved:** 0 of 3674 corpus `_PPG.txt` files carry a resync (84 real dropouts). This is a
+  TRIPWIRE for a latent class, not the repair of an active bug, and the group says so in a leg so a
+  reader cannot conclude PPG resyncs were happening.
+
+### ⚠️ STILL NOT DONE — the transport-edge stamp this brief is TITLED after
+
+§4's four questions are untouched and the two owner-level ones are unanswered. What landed is the
+per-node obligation §7 already imposed; it does not foreclose the edge stamp, and when the edge lands
+these detectors become the tripwire §7 asks for rather than dead code. Residue:
+`2026-09-17-ble-timebase-edge-stamp-undecided`.
 
 ## 4 · ⚠️ What this brief deliberately does NOT decide
 
