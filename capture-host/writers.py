@@ -628,6 +628,145 @@ def _phone_ts(when: _dt.datetime) -> str:
     return when.strftime("%Y-%m-%dT%H:%M:%S.") + f"{when.microsecond // 1000:03d}"
 
 
+# ── BLE-TIMEBASE-AT-THE-EDGE §1.4 · clock seams, emitted where the clocks arrive ──────────────────
+# PARITY WITH `ecgdex-dsp.js` ECG_RESYNC_BOUND_MS. Its justification is measured and is the reason
+# this is a bound rather than a tuned threshold: device delta and phone delta TRACK each other across
+# a dropout and disagree only across a STEP — the largest real dropout disagreement in the corpus is
+# 29 s, while the one real step disagrees by 2.4e11 ms. 60 s sits in a gap of many orders of
+# magnitude, so nothing in between has ever been observed to decide.
+#
+# ⚠️ If this and the ECGDex constant ever diverge, the detector and the emitter disagree about what a
+# seam IS, and the node's cross-check (which reads this file) becomes a false alarm generator.
+SEAM_BOUND_MS = 60000
+
+# THE ENTRY POINTS THAT CARRY A DEVICE CLOCK, named rather than counted. A count would encode "seven"
+# as the invariant; the question a reader actually has is WHICH, and the gate asserts this set feeds
+# the seam sidecar so a new device-clocked writer cannot be added silently unfed.
+#
+# ⚠️ DELIBERATELY ABSENT, both measured 2026-09-16, neither an oversight:
+#   · `feed()` (the run-sidecar/ACC path) takes only `phone` — there is no device clock to disagree
+#     with, so a seam is not expressible there, not merely unmeasured.
+#   · CPAP/AS11 carry NO device counter at all (`sensor_ns` appears nowhere in cpap_live.py or
+#     cpap_job.py), so a CPAP seam is a different object and this file does not pretend to cover it.
+SEAM_FED_WRITERS = ("write_ecg", "write_pletha", "write_ppg", "write_ppg2w",
+                    "write_gyro", "write_mag", "write_ppi", "write_hr")
+
+
+class _SeamSidecar:
+    """Device-clock DISCONTINUITIES for one stream, written BESIDE it, never into it.
+
+    BLE-TIMEBASE-AT-THE-EDGE §1.4. Today each node reconstructs time from whatever survived to it and
+    is separately expected to notice a step — a job Clock Contract §7 says most of them have not shown
+    they can do: *"a node that detects no steps has not shown its stream has none, only that it has not
+    looked."* ECGDex looks (`_clockResyncs`); PpgDex does not, and the same night's `_ACC.txt` carries
+    the F1 step.
+
+    The cost of not looking is measured and is not subtle: with the true F1 magnitude planted into a
+    `_PPG.txt`, `hostAxis` REFUSES at ±50,000 ppm exactly as designed **and `relSec` still spans
+    2.416e8 s** — a 7.66-year night through every duration, epoch grid and export window downstream,
+    while the rate guard reads green. A refusal about one quantity was read as protection of another.
+
+    ⚠️ EMITTED, NOT ENFORCED (owner decision 2026-09-16). The seam is recorded and visible; nothing
+    refuses, and no node consumes it yet. A refusal that stops a night is the data-loss trade §1.7
+    explicitly declined, and consumption is a separate unit precisely so the emission can be proven on
+    real nights before any `computeHash` moves.
+
+    O(1) PER SAMPLE, and that is a hard constraint, not a preference: this runs on the BLE
+    notification path, where the same argument that keeps medians out of `_RunSidecar` applies —
+    describing the stream better is not worth dropping the notifications that ARE the stream.
+    """
+
+    def __init__(self, path: str, stream: str, resumed: bool = False) -> None:
+        # `<base>.txt` -> `<base>SEAMS.txt`, by the same rule `_RunSidecar` uses for `RUNS`.
+        base = path[:-4] if path.endswith(".txt") else path
+        self.path = base + "SEAMS.txt"
+        self.stream = stream
+        self.seams = 0
+        self.examined = 0
+        self._prev_ns: int | None = None
+        self._prev_phone_ms: float | None = None
+        self._first_ns: int | None = None
+        self._resumed = resumed
+        self._opened = False
+        self._fh = None
+
+    @property
+    def opened(self) -> bool:
+        """Whether a file was actually created. `paths` keys on this, so a stream that never carried a
+        device clock reports no sidecar rather than a name that is not on disk."""
+        return self._fh is not None or (self._opened and os.path.exists(self.path))
+
+    def _ensure(self) -> bool:
+        """Open on the FIRST sample that actually carries a device clock.
+
+        Eager creation wrote a file for every stream, including ones where a seam is not expressible:
+        CPAP carries no device counter at all, and a DISCARDED header-only session left a stray
+        `…SEAMS.txt` behind (caught by `test_discarding_a_single_file_writer_is_unchanged`). A file
+        that cannot ever hold a row is not an honest empty — it is noise that looks like evidence."""
+        if self._fh is not None:
+            return True
+        if self._opened:
+            return False       # tried once and failed; do not retry per sample on the notify path
+        self._opened = True
+        try:
+            self._fh = open(self.path, "a" if self._resumed else "w", buffering=1 << 16, newline="\n")
+            if not self._resumed:
+
+                # The file reproduces itself: a consumer reads the bound that PRODUCED these rows
+                # rather than whatever the default has moved to since.
+                self._fh.write(f"# stream={self.stream} rule=clock-seam bound_ms={SEAM_BOUND_MS} "
+                               f"unit=ms basis=device-minus-host\n")
+                self._fh.write("phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;"
+                               "host_offset_ms;at_rel_ms\n")
+        except OSError:            # a sidecar that cannot open must not stop the recording it annotates
+            self._fh = None
+        return self._fh is not None
+
+    def feed(self, phone, sensor_ns: int | None) -> None:
+        """One sample's two clocks. A seam is where they DISAGREE — not where either jumps alone.
+
+        Keying on the residual is what separates a step from a dropout: across a dropout both deltas
+        grow together and the residual stays small; across a step only the device delta moves."""
+        if sensor_ns is None:
+            return             # no device clock on THIS sample: nothing can disagree, so nothing to open
+        if not self._ensure():
+            return
+        try:
+            phone_ms = phone.timestamp() * 1000.0
+            if self._first_ns is None:
+                self._first_ns = sensor_ns
+            if self._prev_ns is not None and self._prev_phone_ms is not None:
+                self.examined += 1
+                dev_step = (sensor_ns - self._prev_ns) / 1e6
+                host_step = phone_ms - self._prev_phone_ms
+                residual = dev_step - host_step
+                if abs(residual) > SEAM_BOUND_MS:
+                    self.seams += 1
+                    at_rel = (sensor_ns - self._first_ns) / 1e6
+                    host_off = phone_ms - (sensor_ns / 1e6)
+                    self._fh.write(
+                        f"{_phone_ts(phone)};{self.examined};{dev_step:.3f};{host_step:.3f};"
+                        f"{residual:.3f};{host_off:.3f};{at_rel:.3f}\n")
+            self._prev_ns = sensor_ns
+            self._prev_phone_ms = phone_ms
+        except Exception:          # noqa: BLE001 - an annotation must never end a recording; the
+            pass                   # stream row was already written by the caller either way
+
+    def close(self) -> None:
+        # A stream that never carried a device clock has NO FILE, deliberately — see `_ensure`. Only a
+        # sidecar that opened gets a final line, and then it says it looked.
+        if self._fh is None:
+            return
+        try:
+            self._fh.write(f"# final stream={self.stream} seams={self.seams} "
+                           f"examined={self.examined}\n")
+            self._fh.close()
+        except Exception:          # noqa: BLE001 - closing an annotation cannot fail a night
+            pass
+        finally:
+            self._fh = None
+
+
 class _RunSidecar:
     """Constant-run spans for one optical stream, written BESIDE the stream, never into it.
 
@@ -1036,6 +1175,10 @@ class StreamWriter:
         if stream in RUN_MIN_BY_STREAM:
             self._runs = _RunSidecar(path, stream, RUN_MIN_BY_STREAM[stream], resumed=self.resumed,
                                      annotations=ANNOTATIONS_BY_STREAM.get(stream, frozenset()))
+        # §1.4: seams are emitted where the clocks ARRIVE. Every device-clocked writer already
+        # receives `phone` and `sensor_ns` taken at the notification, so recording here costs no
+        # timing quality — the stamps are passed in, not re-taken.
+        self._seams = _SeamSidecar(path, stream, resumed=self.resumed)
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
@@ -1061,6 +1204,7 @@ class StreamWriter:
     # `sensor_ns` via `_rel_ms` so it exactly matches PSL's relative/fractional semantics.
 
     def write_ecg(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, uv: int) -> None:
+        self._seams.feed(phone, sensor_ns)
         self._row(f"{_phone_ts(phone)};{sensor_ns};{self._rel_ms(sensor_ns)};{uv}\n")
 
     def write_acc(self, phone: _dt.datetime, sensor_ns: int | None, t_ms: float,
@@ -1082,6 +1226,7 @@ class StreamWriter:
         Its own method rather than a branch in `write_ppg2w` for the reason that one is separate from
         `write_ppg`: the column set IS the contract a reader resolves the layout from, and a
         two-column-plus-flag row is neither of the others."""
+        self._seams.feed(phone, sensor_ns)
         self._row(f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{sample};{beat}\n")
 
     def write_ppg2w(self, phone: _dt.datetime, sensor_ns: int | None, ch0: int, ch1: int,
@@ -1092,12 +1237,14 @@ class StreamWriter:
         layout by COUNTING optical columns — one means the ring's single reflectance path, three means
         the Verity. A two-wavelength row is neither, and squeezing it through the count would make the
         header and the row shape drift apart, which is the exact failure `ppg1` exists to prevent."""
+        self._seams.feed(phone, sensor_ns)
         self._row(f"{_phone_ts(phone)};{_ns_col(sensor_ns)};{ch0};{ch1};{motion}\n")
         if self._runs is not None:          # both optical channels; `motion` is not an optical wave
             self._runs.feed("channel 0", ch0, phone)
             self._runs.feed("channel 1", ch1, phone)
 
     def write_ppg(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, ch: Iterable[int], ambient: int) -> None:
+        self._seams.feed(phone, sensor_ns)
         # ONE optical column stays ONE column (PPGDEX-O2RING-FINGER-SITE §3/§7). The O2Ring streams a
         # single reflectance path; this used to be fanned across ppg0/1/2 so it could ride the 3-LED
         # Polar layout, which made PpgDex's consensus vote report a structurally-guaranteed
@@ -1125,9 +1272,11 @@ class StreamWriter:
     # full significance of a 16-bit sample (gyro 0.061 dps/LSB, mag 0.0015 G/LSB) without printing the
     # binary-fraction tail of the multiply.
     def write_gyro(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: float, y: float, z: float) -> None:
+        self._seams.feed(phone, sensor_ns)
         self._row(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n")
 
     def write_mag(self, phone: _dt.datetime, sensor_ns: int, t_ms: float, x: float, y: float, z: float) -> None:
+        self._seams.feed(phone, sensor_ns)
         self._row(f"{_phone_ts(phone)};{sensor_ns};{x:.6g};{y:.6g};{z:.6g}\n")
 
     def write_ppi(self, phone: _dt.datetime, sensor_ns: int, hr: int, pp_ms: int, err_ms: int, flags: int) -> None:
@@ -1135,10 +1284,15 @@ class StreamWriter:
         # `sensor_ns` is accepted for call-site compatibility and deliberately not emitted — PPI frames
         # carry no usable device clock (every row the box has written has sensor_ns == 0), which is what
         # nightqc.file_span_sec already assumes when it says "HR/RR/PPI carry no device clock".
+        self._seams.feed(phone, sensor_ns)
         self._row(f"{_phone_ts(phone)};{pp_ms};{err_ms};"
                        f"{flags & 1};{(flags >> 1) & 1};{(flags >> 2) & 1};{hr}\n")
 
     def write_hr(self, phone: _dt.datetime, sensor_ns: int, bpm: int, rr_ms: Iterable[int]) -> None:
+        # FED EVEN THOUGH THE ROW DROPS sensor_ns. PSL's _HR/_RR carry only the phone timestamp, but
+        # the device clock still ARRIVES here, so a seam is detectable even where it is not written.
+        # Skipping it because the column is absent would confuse 'not recorded' with 'not observed'.
+        self._seams.feed(phone, sensor_ns)
         # PSL layout: ONE HR row per notification in _HR.txt (HR only; HRV/Breathing left empty), and one
         # row per RR interval in the sibling _RR.txt (real intervals only — no blank rows). `sensor_ns` is
         # accepted for call-site compatibility but PSL's _HR/_RR carry only the phone timestamp.
@@ -1216,7 +1370,12 @@ class StreamWriter:
         # orphan describing a recording that no longer exists — §C8's failure with a new filename.
         return ([self.path]
                 + ([self._rr_path] if self._rr_path else [])
-                + ([self._runs.path] if self._runs is not None else []))
+                + ([self._runs.path] if self._runs is not None else [])
+                # The writer owns its seam sidecar, so `discard()` unlinks it with everything else —
+                # but ONLY IF IT EXISTS. It opens lazily, on the first sample carrying a device clock,
+                # so a header-only session and every CPAP stream have no such file and must not report
+                # one (test_discarding_a_single_file_writer_is_unchanged).
+                + ([self._seams.path] if self._seams.opened else []))
 
     def discard(self) -> None:
         """Close and unlink everything this writer owns. The teardown path for a session that produced
@@ -1240,6 +1399,9 @@ class StreamWriter:
         try:
             if self._runs is not None:      # OUTSIDE the block above: a failed sample-file close must
                 self._runs.close()          # still flush the open runs, and vice versa
+            # Same reasoning one line down: the seam sidecar must say it LOOKED even when it found
+            # nothing, because an honest-empty file and one that never ran are the same bytes.
+            self._seams.close()
         except Exception as _e:
             # Not swallowed: `_RunSidecar.close` handles its own IO errors, so reaching here means an
             # unexpected failure in the sidecar itself. The recording is already safe at this point —
