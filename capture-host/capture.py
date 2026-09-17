@@ -5494,11 +5494,30 @@ async def polar_offline_op(address: str, op, timeout: float | None = None,
                     return await op()
             return await asyncio.wait_for(_locked(), timeout=timeout)
         except asyncio.TimeoutError:
-            # Loud, because the alternative is a silently dead box. Re-raised so the caller (a clock sync
-            # or a monitor-driven pull) reports failure rather than believing it succeeded.
-            log.error("Polar %s: offline op exceeded %.0fs and was abandoned — resuming live capture. "
-                      "The device was most likely out of range or the adapter is wedged; the capture "
-                      "loops are now free to reconnect.", address, timeout)
+            # COUNTED FIRST, so the frequency can never be hidden however this is logged. The rate rides
+            # in `status.json` as `ble` and is the thing an operator should actually watch.
+            blestats.fail("offline_op", address, "timeout")
+            n = blestats.failures("offline_op", address).get("timeout", 1)
+            # Loud, because the alternative is a silently dead box — that reasoning is right and is kept.
+            # But measured over a 72 h unattended window on vigil: 240 ERROR-level events, of which 239
+            # were THIS line and exactly 1 was a distinct condition (bluez blind to the CPAP). At 1:239,
+            # "loud" stopped being loud — it became the noise the one actionable event was buried in.
+            #
+            # So the FIRST occurrence per device still shouts, and after that the line carries its own
+            # count at WARNING and repeats only on a decade (10th, 100th, 1000th). The event is never
+            # suppressed and the total is never lost; what changes is that a reader who greps for errors
+            # sees conditions rather than occurrences. §1.6's rule, applied in the direction it is usually
+            # needed in reverse: a recovery that SHOUTS its frequency buries the signal as surely as one
+            # that hides it.
+            _decade = n < 10 or (n < 100 and n % 10 == 0) or n % 100 == 0
+            if n == 1:
+                log.error("Polar %s: offline op exceeded %.0fs and was abandoned — resuming live capture. "
+                          "The device was most likely out of range or the adapter is wedged; the capture "
+                          "loops are now free to reconnect.", address, timeout)
+            elif _decade:
+                log.warning("Polar %s: offline op exceeded %.0fs and was abandoned (occurrence %d for this "
+                            "device this session) — out of range or a wedged adapter; the rate is in "
+                            "status.json `ble`.", address, timeout, n)
             raise
         finally:
             _POLAR_PAUSED.discard(address)

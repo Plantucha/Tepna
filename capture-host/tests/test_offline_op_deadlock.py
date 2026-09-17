@@ -18,6 +18,7 @@
 #   * the pause is invisible: STATUS keeps reporting the last-known-good device state.
 # So the bound has to live at the point that holds the locks.
 
+import logging
 import asyncio as _aio
 
 import pytest
@@ -101,3 +102,35 @@ def test_the_timeout_is_per_call_not_global(monkeypatch):
     with pytest.raises(_aio.TimeoutError):
         _run_async(capture.polar_offline_op("AA:BB", hangs, timeout=0.05))
     assert capture._POLAR_PAUSED == set()
+
+
+def test_a_REPEATING_hung_op_logs_ONE_error_and_then_counts(monkeypatch, caplog):
+    """Drives the REAL site repeatedly, not a reproduction of its decision.
+
+    Measured on vigil over a 72 h unattended window: 240 ERROR-level events from `tepna-capture`, of
+    which **239 were this one line** and exactly **1** was a distinct condition. At 1:239 an operator
+    greps for errors and finds occurrences rather than conditions.
+
+    The first occurrence still shouts — *"Loud, because the alternative is a silently dead box"* is the
+    right reasoning and is kept. After that the count carries the line. The COUNT is incremented before
+    any logging decision, so a quieter log can never cost the rate."""
+    import blestats
+    blestats.reset()
+    _clear_pause(monkeypatch)
+    monkeypatch.setattr(capture, "_OFFLINE_OP_TIMEOUT_S", 0.01)
+
+    async def hangs_forever():
+        await _aio.sleep(3600)
+
+    with caplog.at_level(logging.WARNING, logger="capture"):
+        for _ in range(12):
+            with pytest.raises(_aio.TimeoutError):
+                _run_async(capture.polar_offline_op("AA:BB", hangs_forever))
+
+    errors = [r for r in caplog.records if r.levelno >= logging.ERROR and "offline op exceeded" in r.getMessage()]
+    warns = [r for r in caplog.records if r.levelno == logging.WARNING and "offline op exceeded" in r.getMessage()]
+    assert len(errors) == 1, f"one condition, one ERROR — got {len(errors)}"
+    assert len(errors) + len(warns) < 12, "and fewer lines than occurrences"
+    # THE COUNT IS NEVER LOST, which is what makes the quieter log safe.
+    assert blestats.failures("offline_op", "AA:BB")["timeout"] == 12
+    blestats.reset()
