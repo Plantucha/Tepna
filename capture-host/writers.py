@@ -688,7 +688,10 @@ class _SeamSidecar:
         self._first_ns: int | None = None
         self._resumed = resumed
         self._opened = False
-        self._fh = None
+        # Annotated, not inferred: a bare `= None` types the attribute as `None`, so every later
+        # assignment of a real handle is a mypy [assignment] error — and that count may only go DOWN.
+        # `_RunSidecar` carries the same annotation for the same reason.
+        self._fh: TextIO | None = None
 
     @property
     def opened(self) -> bool:
@@ -731,7 +734,9 @@ class _SeamSidecar:
             return             # no device clock on THIS sample: nothing can disagree, so nothing to open
         if not self._ensure():
             return
-        try:
+        fh = self._fh
+        assert fh is not None    # only reachable when `_ensure` opened it — same narrowing as
+        try:                     # `_RunSidecar.feed`, which is reachable only from an open writer
             phone_ms = phone.timestamp() * 1000.0
             if self._first_ns is None:
                 self._first_ns = sensor_ns
@@ -744,7 +749,7 @@ class _SeamSidecar:
                     self.seams += 1
                     at_rel = (sensor_ns - self._first_ns) / 1e6
                     host_off = phone_ms - (sensor_ns / 1e6)
-                    self._fh.write(
+                    fh.write(
                         f"{_phone_ts(phone)};{self.examined};{dev_step:.3f};{host_step:.3f};"
                         f"{residual:.3f};{host_off:.3f};{at_rel:.3f}\n")
             self._prev_ns = sensor_ns
