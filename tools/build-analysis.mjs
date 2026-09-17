@@ -53,6 +53,10 @@ const ONE = (() => {
 // The tool set (every *-analysis.html served surface). Kept explicit so a stray HTML never
 // gets silently rewritten.
 const TOOLS = [
+  /* not an analysis tool — a shared realm page. It is here because it loads node DSPs, and those
+     carry ES re-exports a classic <script src> cannot parse; inlining through `readJs` classicifies
+     them. See the comment block in the file. */
+  'cohort-harness.html',
   'cgm-hrv-coupling-analysis.html',
   'hrv-confound-analysis.html',
   'nights-icc-analysis.html',
