@@ -25,9 +25,29 @@
  * ── WHAT STAGING FROM ONE EEG CHANNEL CAN AND CANNOT DO ──────────────────────────────────────
  * ⚠️ This is a BAND-POWER stager, and that is a deliberate ceiling rather than a first draft to be
  * improved later by tuning. Published single-channel rule-based staging reaches roughly kappa
- * 0.4–0.6 against expert PSG; modern learned models reach 0.7–0.8 on far more input. A rule engine
- * that scored 0.8 here would be evidence of a leak, not of quality — most likely the reference
- * having entered the features. The number this produces is a FLOOR for the node and a reference
+ * 0.4–0.6 against expert PSG; modern learned models reach 0.7–0.8 on far more input.
+ * ⚠️ THOSE TWO KAPPA RANGES ARE UNCITED and are retained as orientation, not as authority — §📚 is
+ * explicit that a number without a checkable citation keeps the suite's own tier and never earns
+ * `validated`. What follows IS cited, and it is what the argument below actually rests on.
+ *
+ * THE HUMAN CEILING IS THE POINT, and it is measurable rather than rhetorical. Arnal et al. (2020),
+ * "The Dreem Headband compared to polysomnography…", SLEEP 43(11) zsaa097,
+ * doi:10.1093/sleep/zsaa097 — 25 subjects scored simultaneously by a headband and by PSG: the device
+ * reached 83.5 ± 6.4 % accuracy (F1 83.8 ± 6.3) while FIVE HUMAN EXPERTS scoring the same records
+ * averaged 86.4 ± 8.0 % (F1 86.3 ± 7.4). Experts agree with each other to about 86 %; that is the
+ * band any stager is competing inside.
+ * ⚠️ Arnal reports ACCURACY and F1, NOT kappa — do not read its 83.5 % against the 0.4–0.6 above as
+ * if they shared a scale. They are different statistics over the same task, and quoting one for the
+ * other is the unit error this file would otherwise be inviting.
+ * The programme that makes "expert agreement" a defined quantity rather than an impression is the
+ * AASM Inter-scorer Reliability programme — Rosenberg & Van Hout (2013), "The American Academy of
+ * Sleep Medicine Inter-scorer Reliability Program: Sleep Stage Scoring", J Clin Sleep Med 9(1),
+ * doi:10.5664/jcsm.2350. Cited for the benchmark's IDENTITY only: its agreement figures are not
+ * quoted here because they were not verifiable at author time, and a number nobody checked is
+ * exactly what the paragraph above refuses.
+ *
+ * A rule engine that scored 0.8 here would be evidence of a leak, not of quality — most likely the
+ * reference having entered the features. The number this produces is a FLOOR for the node and a reference
  * point for `REM-STAGING-FOLLOWUPS` §2b, whose whole ask is a real recall figure that has never
  * existed.
  *
