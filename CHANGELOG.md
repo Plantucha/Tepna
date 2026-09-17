@@ -30,6 +30,120 @@ changesets.)
 
 ---
 
+## [2.12.0] — 2026-09-17
+
+### Added
+- `tools/cohort-fit.mjs` — compares `cohort-gen.js`'s synthetic patients against a real scored cohort (`COHORT-VALIDATION-BRIEF.md`)
+- `tools/ecg-rate-transfer.mjs` — experiment E3: does Pan–Tompkins transfer from the H10's 130 Hz to (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- `tools/nsrr-fetch.sh` — fetch an NSRR signal set in N parallel streams. Resumable, idempotent, safe to (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- `tools/nsrr-score-pool.mjs` — parallel, resumable, observable corpus scoring, with a sequential
+- `docs/SHHS-COHORT-REFERENCE.md` — what the SHHS1 cohort contains, measured over all 5136 scored (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- `briefs/TOOL-BUILD-STANDARD-2026-09-13-BRIEF.md` — a standing reference for what any long-running (`TOOL-BUILD-STANDARD-2026-09-13-BRIEF.md`)
+- `eegdex-dsp.js` — EEGDex's staging engine: band powers, a 30 s hypnogram, sleep architecture. (`EEGDEX-BUILD-BRIEF.md`)
+- `tools/nsrr-effort-typing.mjs` — measures, on SHHS1 RIP belts, the figure `integrator-dsp.js` and
+- `tools/pat-per-led.mjs` takes `--phys-lo` / `--phys-hi`. **Defaults are unchanged** at the `[200, 650]` (`PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md`)
+- `tools/nsrr-aai-validate.mjs` — a POOL SCORER (not a standalone tool) that validates OxyDex's
+- The second AHI estimate had never been measured, because the adapter didn't surface it.
+- `tools/analysis-rerun.mjs` drives the synthetic analysis tools headlessly and captures the result (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- Optional GNSS session elevation — the one profile field a travelling box cannot guess, recorded as a
+- `pat-window-oracle.mjs` gains `--search-max` and `--json`. The first varies the interval the mode is (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- `pat-window-oracle.mjs`'s halves-invariance diagnostic — `modeB`, the lag mode re-estimated on a (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- SHHS1 ships the out-of-band validity signal §∅ asks for, and nothing in this repo reads it.
+- **The parity gate both sides asked for in writing.** `capture-host/writers.py:70-73`, above `T_STUCK`: (`PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md`)
+- OxyDex publishes a respiration rate that does not measure respiration rate.
+- `CLAIM <name> = <value> FROM <path>#<pointer>` — a published number that names the committed artifact
+- `analysis-rerun --cohort-gen` runs a tool against an old generator, which settles what the generator (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- capture-host: taking a reserved adapter during failover is now recorded as a decision on the (`BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md`)
+- `analysis-rerun` captures figures, records run scale, and returns the first paper-scale result. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- capture-host: BLE operation counters — attempts, successes, failure classes and retries-by-cause — (`BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md`)
+- capture-host: clock seams are now emitted where the clocks arrive. Every device-clocked writer feeds (`BLE-TIMEBASE-AT-THE-EDGE-2026-09-16-BRIEF.md`)
+- `cohort-harness.html` has been throwing on every node it supports for two months, and the pages that (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- capture-host: per-unit device capability records (`devcaps.py`), keyed by BLE address and persisted (`BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md`)
+- `hrv-confound-analysis` built a complete result object and never published it, so the sixth paper (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- A re-cut that looked ready was hiding two of its three headline comparisons, and a fabricated zero. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- The re-cut assumes the generator is the only thing that changed since each paper was published. For (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- The claim that the node DSPs collide — which decides whether the harness remedy is one page or three — (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- The `treatment-response` count gap is **not** a cohort-gen artifact. One whole branch of the search is (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- Three artifacts claim three different cohort sizes for `treatment-response`, and no two agree. The (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+
+### Changed
+- Three confirmed findings from the 2026-09-13 capture-to-Integrator signal audit recorded in
+- `cohort-gen/2.0` — the severe stratum draws a shifted log-normal fitted to SHHS1 (μ=3.076, σ=0.731 on
+- The SHHS desaturation-scoring convention is re-measured at cohort scale, correcting a figure taken (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- E1 executed against the full SHHS1 corpus: the ECG-only stager does **not** transfer to clinical PSG. (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- The SpO₂ cache builder is incremental and truncation-aware, so extraction can run against a corpus (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- The Node fold path streams `_ECG.txt` in bounded chunks instead of reading the whole file and (`VIGIL-SELF-SUSTAINED-FOLDING-2026-09-01-BRIEF.md`)
+- `papers/odi4-ahi-bias.html` §3.2: the ODI-4/AHI bias is replicated on the full SHHS1 cohort (5136 (`PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md`)
+- §2b's revisit condition has fired and §2b has been run. The brief's NSRR cancellation named its own (`REM-STAGING-FOLLOWUPS-2026-08-02-BRIEF.md`)
+- `papers/odi4-ahi-bias.html` §3.2 Table 6: body position is **not** a confound of the ODI-4 agreement,
+- `eegdex-dsp.js`: records a second measured negative on REM detection, and the structural reason both (`EEGDEX-BUILD-BRIEF.md`)
+- `eegdex-dsp.js`: temporal smoothing of the hypnogram — an isolated epoch flanked by two of another (`EEGDEX-BUILD-BRIEF.md`)
+- `eegdex-dsp.js`: records that EOG conjugacy was tried as a REM feature and is deliberately not used. (`EEGDEX-BUILD-BRIEF.md`)
+- `cgm-hrv-coupling.html` is re-cut under `cohort-gen 2.0`. Every conclusion holds; one correlation moved. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- `eegdex-dsp.js` justified its staging ceiling — and its leak heuristic, that scoring 0.8 would be (`LITERATURE-USE-POLICY-2026-07-11-BRIEF.md`)
+- `hrv-age-confound.html` is re-cut under `cohort-gen 2.0`, and **every headline quantity is unchanged**. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- `nights-icc.html` is re-cut under `cohort-gen 2.0`, and its central conclusion reverses. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- The drift is dated, the last configuration question is settled, and `qrs-yield` is re-cut. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- capture-host: the offline-op timeout is now counted and logged by CONDITION rather than by (`BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md`)
+- The re-cut brief now **requires** the 1.9 A/B before any delta may be attributed to the generator, and (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- `rmssd-equivalence.html` is re-cut. Its electrical equivalence claim reproduces; its optical figures (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+
+### Fixed
+- The absent-device-stamp refusal logged one journal line per frame, on the stated basis that it was rare —
+- The Integrator's cross-node beat check reported an OFFSET and never a RATE, so a constant inter-node (`RESIDUE.md`)
+- `clock_watchdog` re-synced Polar device clocks on **delivery latency**, not on drift. (`VIGIL-BLE-ROBUSTNESS-2026-07-19-BRIEF.md`)
+- A DOCS-INDEX row states its status twice, and only one of them was checked. (`DOCS-LEDGER-HEADER-REFS-2026-08-27-BRIEF.md`)
+- Build ECGDex beat times from the device's own ns counter instead of `sample index ÷ one global fs` — measured over the 8 largest H10 nights the mean-rate axis drifts 0.56–2.62 s from the counter, on gapless nights as much as gappy ones, and that divergence is what made the Integrator certify a −137 ppm "inter-device drift" neither device exhibits.
+- Stop median-filling an ECGDex interval that straddles a dropout — a 74-second absence was being written into the NN series as a plausible ~1 s heartbeat (5 of 5 on a real H10 night) and flagged `corrected` as though the beat had merely been mis-measured; the honest elapsed time now survives, marked `spansGap` and excluded from rMSSD, pNN50, meanRR and SDNN.
+- Refuse to spend a host clock STEP as a crystal rate — `hostAxis` divides a single multi-second jump by the whole span and hands back a fabricated ppm that was applied to `fs`; on 2026-08-26 one 3.0 s step quoted −10.02 ppm where the same device reads −19.8 to −23.0 on every other night.
+- Make `ECGDSP.parseECG`'s `tMsAt` count the wall-clock a dropout consumed, as `analyze`'s beat clock has since DEEP-AUDIT-II §4.2 — the two describe the same axis and diverged by the accumulated dead time (−2522.8 s at the end of a 33-hole night), putting the two PAT legs on different axes from the first hole onwards.
+- `tools/nsrr-fetch.sh` skipped on existence, not completeness — so a truncated file was skipped forever. (`SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md`)
+- `jitterfloor._folded_base` picked the wrong base interval on a stream with dropped frames, because its (`ZEPHYR-INSTRUMENT-2026-08-23-BRIEF.md`)
+- Three Integrator defects from the end-to-end signal audit. The inverse-variance reconciled RMSSD (`DEEP-AUDIT-V-FOLLOWUPS-2026-08-05-BRIEF.md`)
+- Include the sensor `site` in the Integrator's de-duplication key — a finger PPG and a wrist PPG both export as `PpgDex`, so a night carrying both collapsed to one on the ±30 s rule and 15 of 41 trio nights silently lost a whole recording, with load order deciding which.
+- `jitterfloor`'s drawn-axis guard missed the O2Ring — the device whose axis is the canonical drawn one. (`ZEPHYR-INSTRUMENT-2026-08-23-BRIEF.md`)
+- `nightqc.arrival_quality` spent the device column as if it were already epoch-milliseconds. It is a
+- `papers/odi4-ahi-bias.html`: the abstract reported only synthetic figures (slope ≈0.23, R² 0.93) while (`PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md`)
+- `papers/odi4-ahi-bias.html` described its real-PSG path as using "dropout forward-fill". The adapter (`PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md`)
+- Stop `_oxyEnsureRows` re-fabricating the absent-motion zero `parseCSV` deliberately writes as null — `motion: r.motion || 0` reintroduced "the body never moved" (motionPct 1.8→0, sleepEff 98.2→100, stability 22→35) for every row reaching OxyDex as a SignalFrame, a rows array or a self-ingested export, and the same line silently dropped `pi` so `meanPi` could never see a perfusion reading on that path.
+- OxyDex's self-ingest path coerced two absent scalars to 0, so a night whose duration was never (`RESIDUE.md`)
+- Index PpgDex's clean-interval mask by the kept NN series, not by the intervals handed to `correctRR` — since the rejection became a drop, the SQI and gap-straddle tests were read one index off per rejection, so rMSSD/SD1/LF:HF pairs were judged by a neighbour's quality (real night: rMSSD 36.6 → 34.8, SD1 25.9 → 24.6).
+- Forward `rec.hostAxis` out of PpgDex's `analyze` so the `recording.hostAxis` export block can actually run — it was written, gated and field-checked but never once emitted, because only three scalars were projected out of the axis and the object itself was dropped, taking `ppm`, `anchors`, `spreadMs`, `independent` and `inertReason` with it.
+- Leave the four Polar device-telemetry columns EMPTY in PpgDex's self-PPI interop export instead of writing a literal `0;0;1;1` — read back through `parseDevicePPI` that asserted zero uncertainty, nothing blocked and skin contact confirmed, beat by beat, about quantities an optically-derived PPI never measured.
+- 🔴 **The updater could restart the daemon in the middle of a ring `.dat` transfer.** (`OXYII-G1-TRANSACTIONAL-SYNC-FOLLOWUPS-2026-08-23-BRIEF.md`)
+- §∅: `oxydex-dsp.js`'s Autonomic Arousal Index published **0** when the recording duration could not be
+- Refuse the device counter in the `_ACC` companion parser when it rebases mid-file — on 2026-08-26 the H10's 2019-origin default adopted real time partway through and the accelerometer stream came out spanning 67,091 hours with its last sample dated 2034-04-22, while the same night's ECG stream handled the seam correctly.
+- `pat-host-offset.mjs`'s header says **"REFUSALS ARE LOUD"**. That was true of the four mid-loop guards (`PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md`)
+- `mutate.mjs` sized its worker pool from core count alone, but each worker is a full node test suite, (`RESIDUE.md`)
+- `nsrr-oxydex-odi.mjs` enumerated the corpus once at startup and rescored every record from scratch on (`RESIDUE.md`)
+- Read T95/T90 seconds from the exported `research.tIdx` on self-ingest instead of re-deriving them as `pct × durationMin × 60` — a sample-fraction times a wall-clock span, which hands every dropped second to time-below-95 (+25 % on a 20 %-dropout night).
+- Resolve both PAT legs at sub-sample positions on the measured axis — the PPG leg's `rel[idx]` lookup missed on every fractional foot and silently fell back to a synthesised `idx / fs` (660 ms median divergence, 955 ms max), and the ECG leg handed `tMsAt` integer `detectPeaks` output because `refinePeaks` was never exported. (`PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md`)
+- `tools/residue-ids.mjs` reported **`ok — 0 row(s) added, none colliding, none mutated`** against a
+- `test_vigil_sh.py`'s `_kill` teardown attempted **no kill at all** when the pidfile was absent or
+- The SHHS1 saturation finding from #2524 does not transfer to the corpus OxyDex actually serves, and the
+- The AAI card invited a reading its own numbers do not support, and nobody had ever measured the gap.
+- `tools/cohort-fit.mjs` ran its CLI on **import**, so the one reusable thing in it was unreachable. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- The `DesSev` card claimed a validation that belongs to the published metric, not to OxyDex's
+- `odi4-ahi-bias.html` listed two items as "Remaining before submission" that are now both ruled, and a (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- The remaining eight OxyDex self-ingest scalars coerced absence to a number, `maxSpo2 || 100` worst (`RESIDUE.md`)
+- **A pinned span was detected, reported, and never subtracted.** `pinnedSpans` has found O2Ring in-band (`BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md`)
+- `tools/rebase-safe.mjs` acts on the checkout it **lives in**, not the one you are standing in — and
+- `rebase-safe`'s contract says *"conflict in a GENERATED path → auto-resolve; conflict in ANY other path
+- The rerun brief told the next session to build six DOM scrapers for a capability five of the six tools (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- `briefs/RESIDUE.md` was merged with `merge=union`, which appends correctly and cannot represent an (`RESIDUE.md`)
+- OxyDex no longer publishes a respiration rate, because the number was not one.
+- `clock_offset.SPAN_MIN_SEC` decided whether a ppm rate is publishable using a threshold borrowed from (`RESIDUE.md`)
+- `cohort-harness.html` now **refuses** when a node fails to initialise, instead of serving nulls for (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- All six analysis tools now carry their paper's cohort size — and one paper's stated size does not (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- capture-host: the run-sidecar hold classifier was inverted. It keyed on run-length concentration, (`PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md`)
+- tools: `selftest-all` discovered selftests by matching three hard-coded call spellings, so a fourth (`TOOL-BUILD-STANDARD-2026-09-13-BRIEF.md`)
+- tools: `selftest-all`'s summary parser recognised one output format, so 22 tools that report an (`TOOL-BUILD-STANDARD-2026-09-13-BRIEF.md`)
+- The last rung of the adapter recovery ladder was armed against a USB device that is not on the bus, and
+- `cohort-harness.html` scores again. It was broken **twice over**, and the second break is the one that (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- `nights-icc.html` blamed cohort-gen 2.0 for a reversal the generator did not cause. Corrected on (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+
+---
+
 ## [2.11.0] — 2026-09-13
 
 ### Added
@@ -2241,7 +2355,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.11.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.12.0...HEAD
+[2.12.0]: https://github.com/Plantucha/Tepna/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/Plantucha/Tepna/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/Plantucha/Tepna/compare/v2.9.0...v2.10.0
 [2.9.0]: https://github.com/Plantucha/Tepna/compare/v2.8.0...v2.9.0
