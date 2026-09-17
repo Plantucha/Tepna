@@ -126,6 +126,8 @@ confirmed no ResMed oximeter module exists — a purchase, not a cable) · `CROS
 
 > ✅ **ALL THREE RATIFIED 2026-09-15.** Ratifying `SPORT-CAPTURE-ANDROID` implies deciding who acquires
 > an Android toolchain — no fleet session owns one.
+>
+> ⚠️ **AND THE RATIFICATION DID NOT REACH THE BRIEFS — stamped into `MEASUREMENT-PROVENANCE-ROADMAP` on 2026-09-17 (Kestrel), two days late.** That file carried ZERO mentions of D5 while its own header read *"the owner has not scheduled it"*, so a greenlit programme read as owner-blocked to every session, including during an architecture review that was looking for exactly this work. **This is the THIRD instance in this file** — D6 (twelve days), D3 (nine days), D5 (two days) — and the three together are the evidence for a mechanism: a decision this queue marks RULED must be back-referenced by every brief it names, which is the same bidirectional resolution `docs-ledger` check 8 already enforces for residue keys. Ratifying a programme is not delivering the ruling; the brief is where the reader is.
 
 `QWEN-ENGINEERING-PROGRAM` (awaiting ratification; only the P0 idle-lane DSP review runs without it) ·
 `SPORT-CAPTURE-ANDROID` (no fleet session owns an Android toolchain) · `MEASUREMENT-PROVENANCE-ROADMAP`
