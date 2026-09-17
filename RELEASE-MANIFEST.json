@@ -1241,6 +1241,47 @@
         "STRATEGIC-PRIORITIES-2026-08-26-BRIEF.md"
       ],
       "notes": ""
+    },
+    {
+      "version": "2.12.0",
+      "date": "2026-09-17",
+      "bump": "minor",
+      "name": "",
+      "manifestHashes": {
+        "ECGDex": "bb57ff83c2b6",
+        "OxyDex": "9a64c53b85c4",
+        "PulseDex": "22f5b27c04de",
+        "GlucoDex": "958f8087e117",
+        "PpgDex": "dc05497316ad",
+        "HRVDex": "6951cfedcbb9",
+        "CPAPDex": "b91242c4af2e",
+        "Integrator": "6b1972c487bd",
+        "MotionDex": "41e72c00259f"
+      },
+      "briefs": [
+        "RESIDUE.md",
+        "VIGIL-BLE-ROBUSTNESS-2026-07-19-BRIEF.md",
+        "COHORT-VALIDATION-BRIEF.md",
+        "SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md",
+        "DOCS-LEDGER-HEADER-REFS-2026-08-27-BRIEF.md",
+        "ZEPHYR-INSTRUMENT-2026-08-23-BRIEF.md",
+        "DEEP-AUDIT-V-FOLLOWUPS-2026-08-05-BRIEF.md",
+        "VIGIL-SELF-SUSTAINED-FOLDING-2026-09-01-BRIEF.md",
+        "PAPER-ODI4-REPRODUCIBILITY-2026-07-31-BRIEF.md",
+        "REM-STAGING-FOLLOWUPS-2026-08-02-BRIEF.md",
+        "OXYII-G1-TRANSACTIONAL-SYNC-FOLLOWUPS-2026-08-23-BRIEF.md",
+        "TOOL-BUILD-STANDARD-2026-09-13-BRIEF.md",
+        "EEGDEX-BUILD-BRIEF.md",
+        "PAT-FORENSICS-WINDOW-REGIMES-2026-08-28-BRIEF.md",
+        "PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md",
+        "COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md",
+        "PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md",
+        "PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md",
+        "BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md",
+        "BLE-TIMEBASE-AT-THE-EDGE-2026-09-16-BRIEF.md",
+        "LITERATURE-USE-POLICY-2026-07-11-BRIEF.md"
+      ],
+      "notes": ""
     }
   ]
 }
