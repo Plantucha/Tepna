@@ -136,7 +136,12 @@ def test_write_hr_on_a_non_hr_writer_writes_no_orphan_rr_file(tmp_path):
     w = writers.StreamWriter(str(p), "ppi", fsync=False)
     w.write_hr(dt.datetime(2026, 7, 25, 22, 30, 0), 0, 55, [800, 810])
     w.close()
-    assert w.paths == [str(p)], "no RR sibling is owned, so none may be reported"
+    # Narrowed from `== [str(p)]` to the RR-specific claim this test is actually about. A writer may
+    # legitimately own OTHER siblings — `ppi` is device-clocked, so a clock-seam sidecar opens when a
+    # device clock arrives — and an exact-list assertion fails on those for a reason unrelated to the
+    # orphan it guards. The guarantee is unchanged: no RR sibling is owned or reported.
+    assert str(p) in w.paths
+    assert not any(q.endswith("_RR.txt") for q in w.paths), "no RR sibling is owned, so none may be reported"
     assert not any(f.endswith("_RR.txt") for f in os.listdir(tmp_path))
 
 
