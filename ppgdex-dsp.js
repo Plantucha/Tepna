@@ -543,6 +543,13 @@
   // Host-anchor spacing, in accepted rows. 500 ≈ 2.8 s at 176 Hz, giving ~2400 anchors on a 190 min
   // file — the geometry the running-median window was tuned against (clock.js CK_AXIS_WIN).
   const PPG_AXIS_EVERY = 500;
+  /* Bounds for the mid-file device-counter resync discriminator in parsePPG / parseSensorXYZ below.
+     The SAME numbers ECGDex uses (`ECG_RESYNC_BOUND_MS` / `ECG_GAP_CEIL_MS`) and MotionDex mirrors
+     (`MOTION_RESYNC_BOUND_MS` / `MOTION_GAP_CEIL_MS`), because all three nodes are reading the same
+     step in the same device's several files and a second constant would eventually disagree with the
+     first. Gate-asserted equal to ECGDex's in the `ppgdex-clock-seam` group. */
+  const PPG_RESYNC_BOUND_MS = 60000;
+  const PPG_GAP_CEIL_MS = 86400000;
   /* opts.timebase (O2RING-ADAPTIVE-TIMEBASE Stage 2):
        undefined / 'host-disciplined'  the device ns axis disciplined to the capture host (today's path,
                                         and the default — behaviour is byte-identical when unset).
@@ -579,6 +586,17 @@
     let ns0 = null,
       t0Ms = null,
       firstTs = null; // lastTs is resolved lazily in the fs fallback (§P1)
+    /* MID-FILE RESYNC state (BLE-TIMEBASE-AT-THE-EDGE §2). `ns0` alone anchors the WHOLE file, so a
+       counter step mid-file is spanned rather than seen. The current clock SEGMENT re-anchors at a
+       seam; `prevPhoneRaw` holds the previous row's raw host stamp UNPARSED so the discriminator can
+       be evaluated without reintroducing the per-row parseTimestamp §P1 removed. */
+    let prevNsB = null,
+      prevPhoneRaw = null,
+      segNs0 = null,
+      segBaseNs = 0,
+      prevRelNs = NaN,
+      preResyncAnchorsDropped = 0;
+    const resyncs = [];
     let pcols = null;
     // Minimum data-row field count. 6 for the Verity layout; a single-optical-column file
     // (`phone;ns;ch0`) has only 3, so the floor drops once a 1-channel header resolves. Until
@@ -661,10 +679,75 @@
       try {
         const b = BigInt(p[pcols && pcols.ns >= 0 ? pcols.ns : 1].trim());
         if (ns0 === null) ns0 = b;
-        relNs = Number(b - ns0);
+        /* ── MID-FILE CLOCK RESYNC on the DEVICE counter (BLE-TIMEBASE-AT-THE-EDGE-2026-09-16) ──────
+           `Number(b - ns0)` anchors every sample to the FIRST row of the file, so when the counter
+           steps mid-file the step lands in `relNs`, then in `relSec`, then in every duration, epoch
+           grid and export window downstream. Measured with the true F1 magnitude planted into a
+           `_PPG.txt`: a 16-second recording published a `relSec` span of **2.4159e8 s — 7.66 years**,
+           and `hostAxis` refused at ±50,000 ppm exactly as designed while doing so. That is Clock
+           Contract §7's rule in the negative: **a refusal guards the RATE, not the AXIS.** ECGDex
+           (`_clockResyncs`) and MotionDex (`parseSensorXYZ`) already split on this; PpgDex did not,
+           and the same night's files carry the step.
+
+           THE DISCRIMINATOR IS PHYSICAL, and it is the reason this cannot key on step size alone:
+           through a real BLE dropout BOTH clocks keep ticking, so the device delta ≈ the host delta;
+           only a clock step makes them disagree. MotionDex's census over 1278 ACC files found 137
+           whose worst step is a genuine dropout — the counter is RIGHT about those and re-anchoring
+           them would corrupt working recordings — against exactly 3 real resyncs. Identical
+           discriminator here, deliberately.
+
+           COST: the host stamp is parsed only when a CANDIDATE step fires (`devDeltaMs` over the
+           bound), which is 0–3 rows in a real file, so EFFICIENCY-AUDIT §P1's removal of the per-row
+           parseTimestamp stands — `prevPhoneRaw` carries the previous row's stamp as an unparsed
+           string reference (O(1), no parse on the hot path). */
+        if (prevNsB !== null) {
+          const devDeltaMs = Number(b - prevNsB) / 1e6;
+          if (devDeltaMs > PPG_RESYNC_BOUND_MS) {
+            const curTs = parseTimestamp(p[0]);
+            const prvTs = prevPhoneRaw != null ? parseTimestamp(prevPhoneRaw) : null;
+            const phoneDeltaMs = curTs && curTs.tMs != null && prvTs && prvTs.tMs != null ? Math.max(0, curTs.tMs - prvTs.tMs) : null;
+            if (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > PPG_RESYNC_BOUND_MS : devDeltaMs > PPG_GAP_CEIL_MS) {
+              /* RE-ANCHOR ON THE HOST, NOT BY SUBTRACTING THE STEP — ONE DEVICE CLOCK PER AXIS
+                 (Clock Contract §7). The counter before the sync is a different oscillator state,
+                 not merely a shifted one, so imposing the host delta alone would carry the pre-seam
+                 segment's error forward as a constant for the whole night.
+                 BLIND SEAM: when the seam row's own stamp does not parse there is no host offset to
+                 anchor on, and falling back to `Number(b - ns0)` would re-admit the very step being
+                 removed. The honest anchor is then the PREVIOUS row's position — an unmeasured gap
+                 contributes nothing rather than a fabricated duration (§∅ / Clock Contract §2.6) —
+                 and the seam is recorded with `phoneDeltaMs: null` so the absence stays visible. */
+              segBaseNs = t0Ms != null && curTs && curTs.tMs != null ? (curTs.tMs - t0Ms) * 1e6 : isFinite(prevRelNs) ? prevRelNs : Number(b - ns0);
+              segNs0 = b;
+              /* ONE DEVICE CLOCK PER AXIS (Clock Contract §7). Re-anchoring `relNs` makes the axis
+                 CONTINUOUS; it does not make the pre-seam samples the same CLOCK. `hostAxis` measures
+                 every divergence relative to its FIRST anchor, so leaving pre-seam anchors in the set
+                 measures against a different oscillator state — and because the step is now gone from
+                 the axis, hostAxis no longer REFUSES, so that bad rate would reach `fs` instead of
+                 being rejected. ECGDex measured this exact path: anchor 0 inside the pre-seam segment,
+                 484.7 ppm quoted, the span gate let it through, fs 129.968 → 129.903 — 500 ppm off the
+                 same H10's sibling file. The pre-seam anchors are therefore DROPPED and COUNTED, never
+                 silently discarded.
+                 ⚠️ This half was NOT in the first draft of this fix, and the pre-existing
+                 `THE GUARD THAT WORKS · hostAxis REFUSES a stepped counter` leg is what caught it: the
+                 moment the axis was bounded, that refusal turned into `ok:true` — the refusal had been
+                 doing this work all along. */
+              preResyncAnchorsDropped += axisAnchors.length;
+              axisAnchors.length = 0;
+              resyncs.push({
+                idx: nsArr.length,
+                deviceStepMs: Math.round(devDeltaMs),
+                phoneDeltaMs: phoneDeltaMs == null ? null : Math.round(phoneDeltaMs)
+              });
+            }
+          }
+        }
+        prevNsB = b;
+        relNs = segNs0 === null ? Number(b - ns0) : segBaseNs + Number(b - segNs0);
+        prevRelNs = relNs;
       } catch (e) {
         relNs = NaN;
       }
+      prevPhoneRaw = p[0];
       nsArr.push(relNs);
       // Clock Contract: the FIRST stamp is load-bearing (t0Ms + offsetMin). The LAST stamp is
       // read ONLY by the degenerate `deltas.length<=20` fs fallback below, which a real capture (190k
@@ -936,6 +1019,13 @@
       fs,
       timebase,
       n,
+      /* PRESENT ONLY WHEN IT HAPPENED, so every clean stream keeps today's bytes and no clean fixture
+         moves (the `anchorsDroppedPreResync` discipline ECGDex uses, and MotionDex's `_clockResyncs`).
+         Each entry: { idx, deviceStepMs, phoneDeltaMs } — `phoneDeltaMs` null when the seam row's own
+         stamp did not parse, so an unmeasured gap reads as unmeasured rather than as zero. A consumer
+         that wants to refuse a duration spanning a seam has the seam; one that ignores the field gets
+         an axis that no longer silently spans it, which is the half that cannot be opted out of. */
+      clockResyncs: resyncs.length ? resyncs : undefined,
       t0Ms: t0Ms != null ? t0Ms : null,
       offsetMin: firstTs ? firstTs.offsetMin : null,
       /* NODE-EXPORT-DURATION-SEMANTICS §3 — the CLOCK position of the last sample, READ from the file,
@@ -1034,6 +1124,10 @@
             maxStepMs: hostAx.maxStepMs,
             drawn: axisSynthetic,
             quantizedShare,
+            /* Present ONLY when a seam dropped anchors, so a clean stream's export stays byte-identical
+               (ECGDex's discipline, and deliberately ECGDex's key NAME — a consumer should not have to
+               learn two spellings of one fact). */
+            anchorsDroppedPreResync: preResyncAnchorsDropped > 0 ? preResyncAnchorsDropped : undefined,
             /* ⚠️ APPLIED IS OWNED BY THE DSP THAT APPLIES THE AXIS, and this one does — see the
                `relSec[i] = (devMs + hostAx.correctionAt(devMs))` line above. Emitting it is not
                cosmetic: `pat-drift-attribution.mjs effectivePpm` reads
@@ -2758,6 +2852,19 @@
     const out = [];
     let ns0 = null;
     let cols = null;
+    /* Same mid-file resync split as parsePPG above and as MotionDex's function OF THE SAME NAME.
+       ⚠️ This is a node-local copy, not shared code — nodes never import each other (ARCHITECTURE
+       -PRINCIPLES §2) and PpgDex does not inline motiondex-dsp.js. It is deliberately NOT held
+       byte-equal to MotionDex's by an assertion: a parity assertion over two copies read as evidence
+       of redundancy once before and cost a whole PR (#1232). The shared CONSTANTS are asserted equal
+       instead, which is the part that would actually drift into disagreement. */
+    let prevNsB = null,
+      prevRowTMs = null,
+      firstRowTMs = null,
+      segNs0 = null,
+      segBaseNs = 0,
+      prevRelNs = NaN;
+    const resyncs = [];
     for (const line of lines) {
       const t = line.trim();
       if (!t) continue;
@@ -2772,14 +2879,36 @@
       const x = parseFloat(p[c.x]);
       if (!isFinite(x)) continue;
       let relNs = NaN;
+      const ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
       try {
         const b = BigInt(p[c.ns >= 0 ? c.ns : 1].trim());
         if (ns0 === null) ns0 = b;
-        relNs = Number(b - ns0);
+        if (prevNsB !== null) {
+          const devDeltaMs = Number(b - prevNsB) / 1e6;
+          if (devDeltaMs > PPG_RESYNC_BOUND_MS) {
+            const phoneDeltaMs = ts && ts.tMs != null && prevRowTMs != null ? Math.max(0, ts.tMs - prevRowTMs) : null;
+            if (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > PPG_RESYNC_BOUND_MS : devDeltaMs > PPG_GAP_CEIL_MS) {
+              segBaseNs = firstRowTMs != null && ts && ts.tMs != null ? (ts.tMs - firstRowTMs) * 1e6 : isFinite(prevRelNs) ? prevRelNs : Number(b - ns0);
+              segNs0 = b;
+              resyncs.push({
+                idx: out.length,
+                deviceStepMs: Math.round(devDeltaMs),
+                phoneDeltaMs: phoneDeltaMs == null ? null : Math.round(phoneDeltaMs)
+              });
+            }
+          }
+        }
+        prevNsB = b;
+        relNs = segNs0 === null ? Number(b - ns0) : segBaseNs + Number(b - segNs0);
+        prevRelNs = relNs;
       } catch (e) {}
-      const ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
+      if (ts && ts.tMs != null) {
+        if (firstRowTMs === null) firstRowTMs = ts.tMs;
+        prevRowTMs = ts.tMs;
+      }
       out.push({ relNs, tMs: ts ? ts.tMs : null, x, y: parseFloat(p[c.y]), z: parseFloat(p[c.z]) });
     }
+    if (resyncs.length) /** @type {any} */ (out)._clockResyncs = resyncs;
     return out;
   }
   /* DISCRETE MOVEMENT ONSETS from a motion grid — the fiducial an apnea's terminating arousal leaves
@@ -4080,8 +4209,20 @@
        killed the whole night's export. Refuse the span here rather than inside the mirror (which is
        genuinely count-bounded on ECG): ppiConf becomes null, which the export site already tolerates
        (`conf: … : null`), and the rest of the record survives. */
+    /* ⚠️ THE SEAM MUST STILL REFUSE, AND THIS IS WHY — BLE-TIMEBASE-AT-THE-EDGE, 2026-09-17.
+       F10's guard above keyed on the SPAN, and a clock rebase was detectable only BECAUSE it made the
+       span implausible. Re-anchoring the axis at the seam removes that symptom — so keying on span
+       alone would have SILENTLY REMOVED this guard: measured on F10's own plant, `ppiConf` came back
+       `[1,1,1,…]` (perfect confidence) and `cvhrIndex` `0` across a recording with an 86-second clock
+       discontinuity in it. A metric computed across a seam and reporting no problem is the §∅ failure
+       one layer up: a number that is computable from discontinuous input and carries no information.
+       So the refusal now keys on the SEAM ITSELF, which is what the Done-when actually asks for — "a
+       node consuming the stream cannot construct a duration across a seam without seeing it" — and the
+       reason NAMES the real state. `implausible-span` would be a fabricated explanation for a 249 s
+       span; the span is fine, the CLOCK is not. */
+    const _clockSeam = !!(rec.clockResyncs && rec.clockResyncs.length);
     const _confSpanS = _confSpine.length > 1 ? _confSpine[_confSpine.length - 1] - _confSpine[0] : 0;
-    const _confSpanOK = isFinite(_confSpanS) && _confSpanS <= PPG_MAX_SPAN_S;
+    const _confSpanOK = isFinite(_confSpanS) && _confSpanS <= PPG_MAX_SPAN_S && !_clockSeam;
     const _pConfMap = _confSpanOK
       ? beatConfidence(
           _confSpine.map((s) => Math.round(s * rec.fs)),
@@ -4111,7 +4252,10 @@
       const _d = corr.tt[k] - corr.tt[k - 1];
       if (_d > 0 && _d <= PPG_CVHR_GAP_S) _cvhrActiveSec += _d;
     }
-    const _cvhr = cvhrFromNN(corr.nn, corr.tt, _cvhrActiveSec);
+    /* Same seam refusal as F10's above. `cvhrFromNN` takes no record, so it cannot see the seam and
+       the gate belongs at the caller — it counts apnea-band events per hour of observed recording, and
+       an hour that spans a clock discontinuity is not an hour it observed. */
+    const _cvhr = _clockSeam ? { events: [], index: null, reason: 'clock-seam' } : cvhrFromNN(corr.nn, corr.tt, _cvhrActiveSec);
     // §4: per-interval CLEAN-adjacency mask — interval i (between beat i & i+1) is clean when it
     // was NOT correction-flagged AND both endpoint beats cleared SQI≥0.5 (SQI folds the 3-LED
     // agreement, §5). rMSSD/pNN50/SD1 are computed over clean adjacent pairs so sub-ectopy optical
@@ -4634,7 +4778,7 @@
       ppiClean: cleanMask,
       // Aligned with nn/tt the same way — the fused-hat per-beat weight (see the block above).
       ppiConf,
-      ...(_confSpanOK ? {} : { ppiConfReason: 'implausible-span' }), // F10 — see the beatConfidence call
+      ...(_confSpanOK ? {} : { ppiConfReason: _clockSeam ? 'clock-seam' : 'implausible-span' }), // F10 + seam — see the beatConfidence call
       poincareNN: nn,
       sd1: poin ? poin.sd1 : null,
       sd2: poin ? poin.sd2 : null,

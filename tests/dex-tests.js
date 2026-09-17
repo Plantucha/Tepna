@@ -8190,7 +8190,7 @@
       };
       /* Same three-LED 60 bpm pulse as the cvhrFromNN group; `jumpDays` rebases the SENSOR column
          once at the midpoint while the phone column keeps its cadence — exactly the measured shape. */
-      var ppg = function (sec, jumpDays) {
+      var ppg = function (sec, jumpDays, gapDays) {
         var fs = 135;
         var out = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
         var n = Math.round(sec * fs),
@@ -8204,6 +8204,12 @@
           devMs += step;
           hostMs += step;
           if (jumpDays && i === half) devMs += jumpDays * 86400000;
+          /* A REAL GAP advances BOTH columns — the discriminator's whole point. Only a clock STEP
+             makes them disagree, so this plant must NOT be re-anchored or refused. */
+          if (gapDays && i === half) {
+            devMs += gapDays * 86400000;
+            hostMs += gapDays * 86400000;
+          }
           ph += step / rr;
           if (ph >= 1) ph -= 1;
           var w = Math.exp(-Math.pow((ph - 0.15) / 0.07, 2)) + 0.35 * Math.exp(-Math.pow((ph - 0.42) / 0.1, 2)) - 0.15 * Math.exp(-Math.pow((ph - 0.75) / 0.25, 2));
@@ -8227,9 +8233,9 @@
         }
         return out.join('\n');
       };
-      var run = function (sec, jumpDays) {
+      var run = function (sec, jumpDays, gapDays) {
         try {
-          return P.analyze(P.parsePPG(ppg(sec, jumpDays), undefined), null);
+          return P.analyze(P.parsePPG(ppg(sec, jumpDays, gapDays), undefined), null);
         } catch (e) {
           return { error: String(e.message) };
         }
@@ -8250,27 +8256,52 @@
       // ── 2 · THE REBASE — +2792 days mid-file, the measured H10 shape ──────────────────────────
       var reb = run(300, 2792);
       T.ok('rebased: analyze() returns instead of dying on a span-sized allocation', !reb.error, reb.error || 'ok');
-      T.ok('rebased: the raw jump survives parsePPG into relSec (hostAxis refuses, it does not repair)', reb.nBeats > 250, 'nBeats=' + reb.nBeats);
+      /* RE-TITLED 2026-09-17 (BLE-TIMEBASE-AT-THE-EDGE): the jump no longer survives into `relSec` —
+         parsePPG re-anchors at the seam. The ASSERTION is unchanged and still the right one (the beats
+         are still all there, so the refusal below is scoped rather than a collapse); only the claim in
+         its title was falsified by the fix. */
+      T.ok('rebased: the beats all survive the re-anchor — the refusal below is SCOPED, not a collapse', reb.nBeats > 250, 'nBeats=' + reb.nBeats);
       T.eq('rebased: ppiConf is REFUSED (null), not a fabricated array', reb.ppiConf, null);
-      T.eq('rebased: …and says why', reb.ppiConfReason, 'implausible-span');
+      /* THE REASON CHANGED WITH THE FIX, and the change is the point. This used to read
+         'implausible-span' because a clock rebase was detectable only BY the implausible span it
+         produced. The span is now 249 s and perfectly plausible; the CLOCK is what is broken, so the
+         refusal names that. Keeping 'implausible-span' here would have been a fabricated explanation —
+         and keying the guard on span alone would have removed it altogether (measured: ppiConf came
+         back [1,1,1,…] across an 86-second clock discontinuity). */
+      T.eq('rebased: …and says why — the SEAM, not a span it no longer has', reb.ppiConfReason, 'clock-seam');
       T.eq('rebased: cvhrIndex is REFUSED (null)', reb.cvhrIndex, null);
-      T.eq('rebased: …and says why', reb.cvhrReason, 'implausible-span');
+      T.eq('rebased: …and says why — the SEAM', reb.cvhrReason, 'clock-seam');
       T.eq('rebased: …with no events', reb.cvhrEvents, 0);
       // The refusal is scoped — the metrics that never touched the span are still measured.
       T.ok('rebased: the export SURVIVES — hr is still measured at 60 bpm', Math.abs((reb.hr || 0) - 60) <= 3, 'hr=' + reb.hr);
       T.ok('rebased: …and rMSSD is finite', isFinite(reb.rmssd), 'rmssd=' + reb.rmssd);
 
-      // ── 3 · THE BOUND IS 48 h, not "any long night" — a 47 h-equivalent gap is inside it ───────
-      /* A rebase of 1.9 days keeps the span under PPG_MAX_SPAN_S, so neither site refuses; the
-         allocation is ~164 k doubles and cheap. This pins the constant from below. */
-      var near = run(300, 1.9);
+      // ── 3 · A SMALL REBASE IS STILL A REBASE — re-aimed 2026-09-17 ────────────────────────────
+      /* ⚠️ THIS LEG ASSERTED THE OPPOSITE UNTIL TODAY, and the change is deliberate. It read
+         "a 1.9-day in-file gap is INSIDE the 48 h bound — ppiConf still computed", pinning
+         PPG_MAX_SPAN_S from below. But the plant is a REBASE, not a gap (`ppg` advanced the DEVICE
+         column alone — see its own comment), so what it actually pinned was: a clock discontinuity
+         small enough to keep the span plausible is computed across. That was a hole, not a feature —
+         1.9 days of clock step invalidates a beat series exactly as thoroughly as 2792 days does, and
+         the only thing the magnitude changed was whether the SPAN check happened to notice.
+         The seam detector notices either way, so this now refuses. */
+      var smallRebase = run(300, 1.9);
+      T.eq('a SMALL rebase (1.9 d) is refused too — magnitude does not change the nature', smallRebase.ppiConf, null);
+      T.eq('…naming the seam', smallRebase.ppiConfReason, 'clock-seam');
+      /* 🔴 AND HERE IS WHAT MUST NOT BE REFUSED — the population the wrong rule would convict. A real
+         1.9-day dropout advances BOTH clocks, so the counter is RIGHT about the elapsed time and the
+         series either side of it is honest. MotionDex's census: 137 of 1278 files' worst step is
+         exactly this, against 3 real resyncs — so a rule keyed on step SIZE would corrupt the larger
+         population. This leg is the replacement for the span-from-below pin above: it fails if the
+         discriminator ever degrades into a magnitude test. */
+      var realGap = run(300, 0, 1.9);
       T.ok(
-        'a 1.9-day in-file gap is INSIDE the 48 h bound — ppiConf still computed',
-        Array.isArray(near.ppiConf),
-        'ppiConf=' + String(near.ppiConf && near.ppiConf.length) + (near.error ? ' error=' + near.error : '')
+        'a REAL 1.9-day dropout (both clocks advanced) is NOT refused — ppiConf still computed',
+        Array.isArray(realGap.ppiConf),
+        'ppiConf=' + String(realGap.ppiConf && realGap.ppiConf.length) + (realGap.error ? ' error=' + realGap.error : '')
       );
-      T.ok('…and no ppiConfReason', !('ppiConfReason' in near));
-      T.ok('…and no cvhrReason', !('cvhrReason' in near));
+      T.ok('…and no ppiConfReason — nothing to explain', !('ppiConfReason' in realGap), JSON.stringify(realGap.ppiConfReason));
+      T.ok('…and no cvhrReason', !('cvhrReason' in realGap), JSON.stringify(realGap.cvhrReason));
     });
 
     /* ════ THE PORT OF F3 — PpgDex counts CVHR per hour OBSERVED, on the SAME basis as ECGDex ════
@@ -51974,98 +52005,182 @@
        occur). This group is the tripwire — if a Verity firmware change, an H10 PPG stream, or a new
        capture path ever produces a stepped `_PPG.txt`, the second leg starts failing and the split
        becomes owed. Re-run the census before concluding otherwise. */
-    group('PpgDex · a stepped device counter REFUSES the rate but still spans the axis — exposure pinned, not fixed (FOLLOWUPS §1.3)', 'ppgdex-dsp · clock · exposure · DEEP-AUDIT-VI', function (T) {
-      var P = env.PPGDSP;
-      if (!(P && typeof P.parsePPG === 'function')) {
-        T.skip('PPGDSP.parsePPG available', 'ppgdex-dsp not wired in this lane');
-        return;
-      }
-      var HZ = 135,
-        T0 = Date.UTC(2026, 7, 27, 23, 24, 42),
-        STEP_S = 241586764; // the real 2026-08-27 magnitude
-      function ppg(nBefore, nAfter, gapSec, stepSec) {
-        var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
-        var ns = 599616005396855516,
-          ms = 0,
-          ph = 0;
-        var p2 = function (x) {
-          return String(x).padStart(2, '0');
+    group(
+      'PpgDex · a stepped device counter no longer spans the axis — the seam is re-anchored and RECORDED (BLE-TIMEBASE-AT-THE-EDGE)',
+      'ppgdex-dsp · clock · resync · seam · BLE-TIMEBASE',
+      function (T) {
+        var P = env.PPGDSP;
+        if (!(P && typeof P.parsePPG === 'function')) {
+          T.skip('PPGDSP.parsePPG available', 'ppgdex-dsp not wired in this lane');
+          return;
+        }
+        var HZ = 135,
+          T0 = Date.UTC(2026, 7, 27, 23, 24, 42),
+          STEP_S = 241586764; // the real 2026-08-27 magnitude
+        function ppg(nBefore, nAfter, gapSec, stepSec) {
+          var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+          var ns = 599616005396855516,
+            ms = 0,
+            ph = 0;
+          var p2 = function (x) {
+            return String(x).padStart(2, '0');
+          };
+          var emit = function () {
+            var d = new Date(T0 + Math.round(ms));
+            var v = 20000 + 800 * Math.exp(-Math.pow((ph - 0.15) / 0.07, 2));
+            rows.push(
+              d.getUTCFullYear() +
+                '-' +
+                p2(d.getUTCMonth() + 1) +
+                '-' +
+                p2(d.getUTCDate()) +
+                ' ' +
+                p2(d.getUTCHours()) +
+                ':' +
+                p2(d.getUTCMinutes()) +
+                ':' +
+                p2(d.getUTCSeconds()) +
+                '.' +
+                String(d.getUTCMilliseconds()).padStart(3, '0') +
+                ';' +
+                ns +
+                ';' +
+                Math.round(v) +
+                ';' +
+                Math.round(v * 0.95 + 30) +
+                ';' +
+                Math.round(v * 1.03 - 25) +
+                ';400'
+            );
+          };
+          for (var i = 0; i < nBefore; i++) {
+            emit();
+            ms += 1000 / HZ;
+            ph = (ph + 1 / HZ) % 1;
+            ns += Math.round(1e9 / HZ);
+          }
+          ms += gapSec * 1000;
+          ns += Math.round(stepSec * 1e9);
+          for (var j = 0; j < nAfter; j++) {
+            emit();
+            ms += 1000 / HZ;
+            ph = (ph + 1 / HZ) % 1;
+            ns += Math.round(1e9 / HZ);
+          }
+          return rows.join('\n');
+        }
+        var spanOf = function (rec) {
+          var r = rec && rec.relSec;
+          return r && r.length ? r[r.length - 1] - r[0] : null;
         };
-        var emit = function () {
-          var d = new Date(T0 + Math.round(ms));
-          var v = 20000 + 800 * Math.exp(-Math.pow((ph - 0.15) / 0.07, 2));
-          rows.push(
-            d.getUTCFullYear() +
-              '-' +
-              p2(d.getUTCMonth() + 1) +
-              '-' +
-              p2(d.getUTCDate()) +
-              ' ' +
-              p2(d.getUTCHours()) +
-              ':' +
-              p2(d.getUTCMinutes()) +
-              ':' +
-              p2(d.getUTCSeconds()) +
-              '.' +
-              String(d.getUTCMilliseconds()).padStart(3, '0') +
-              ';' +
-              ns +
-              ';' +
-              Math.round(v) +
-              ';' +
-              Math.round(v * 0.95 + 30) +
-              ';' +
-              Math.round(v * 1.03 - 25) +
-              ';400'
+        var clean = P.parsePPG(ppg(20000, 0, 0, 0), undefined);
+        T.ok('ANTI-VACUITY · the clean plant parses and spans its own ~148 s', spanOf(clean) > 100 && spanOf(clean) < 200, 'span ' + (spanOf(clean) || 0).toFixed(1) + ' s');
+        T.ok(
+          'control · a clean stream resolves a host axis (so the refusal below is a CHANGE, not the norm)',
+          !!(clean.hostAxis && clean.hostAxis.ok),
+          JSON.stringify(clean.hostAxis && { ok: clean.hostAxis.ok, ppm: clean.hostAxis.ppm })
+        );
+        var stepped = P.parsePPG(ppg(2000, 20000, 86, STEP_S), undefined);
+        /* RE-AIMED with the fix, and the re-aim is the interesting part. This leg used to assert that
+           hostAxis REFUSES a stepped counter, and that refusal was the ONLY thing keeping a 484.7-ppm
+           rate out of `fs`. Bounding the axis removed the refusal's TRIGGER — so had the pre-seam
+           anchors been left in the set, this leg would have flipped to ok:true and the bad rate would
+           have reached `fs` unopposed. That is precisely what the first draft of this fix did, and
+           this leg going ok:true is how the missing half was found. Clock Contract §7: ONE DEVICE
+           CLOCK PER AXIS. */
+        T.ok(
+          'PRE-SEAM ANCHORS ARE DROPPED · hostAxis is fed ONE oscillator state, and reports how many it discarded',
+          !!(stepped.hostAxis && stepped.hostAxis.anchorsDroppedPreResync > 0),
+          JSON.stringify(stepped.hostAxis && { ok: stepped.hostAxis.ok, anchors: stepped.hostAxis.anchors, dropped: stepped.hostAxis.anchorsDroppedPreResync })
+        );
+        T.ok(
+          '…and a CLEAN stream reports no drop, so the key cannot creep into every export',
+          !!(clean.hostAxis && clean.hostAxis.anchorsDroppedPreResync === undefined),
+          'clean anchorsDroppedPreResync ' + JSON.stringify(clean.hostAxis && clean.hostAxis.anchorsDroppedPreResync)
+        );
+        T.ok(
+          'fs stays the device rate — the step never becomes a rate correction',
+          Math.abs(stepped.fs - clean.fs) < 0.5,
+          'stepped fs ' + stepped.fs + ' vs clean ' + clean.fs + ' — a 484.7 ppm leak would surface here'
+        );
+        /* RE-AIMED 2026-09-17 (BLE-TIMEBASE-AT-THE-EDGE). This group used to assert the EXPOSURE — that
+         the refusal bounds the rate and not the axis — and its own message said "if this ever FAILS, a
+         step-bounding fix landed and this group should be re-aimed". It landed; this is the re-aim.
+         Measured before the fix, on the plant below: relSec span 2.4159e8 s — 7.66 years for a
+         148-second recording, with hostAxis refusing correctly the whole time. */
+        T.ok(
+          'FIXED · the refusal no longer has to bound the axis — relSec is re-anchored at the seam',
+          spanOf(stepped) != null && spanOf(stepped) < 400,
+          'relSec span ' + (spanOf(stepped) || 0).toFixed(1) + ' s (was 2.4159e8 — 7.66 years); if this grows past the recording again, the seam split regressed'
+        );
+        T.ok(
+          'SEAM RECORDED · the step is reported, not merely absorbed',
+          !!(stepped.clockResyncs && stepped.clockResyncs.length === 1 && stepped.clockResyncs[0].deviceStepMs > 1e8),
+          JSON.stringify(stepped.clockResyncs || null)
+        );
+        T.ok(
+          '…and the seam carries the HOST delta beside the device step, so the two populations stay distinguishable',
+          !!(stepped.clockResyncs && stepped.clockResyncs[0].phoneDeltaMs != null && stepped.clockResyncs[0].phoneDeltaMs < 1e6),
+          'phoneDeltaMs ' + JSON.stringify(stepped.clockResyncs && stepped.clockResyncs[0].phoneDeltaMs)
+        );
+        /* 🔴 THE NEGATIVE THAT PROTECTS WORKING RECORDINGS, and the reason this cannot key on step size.
+         Through a real BLE dropout BOTH clocks keep ticking, so the counter is RIGHT about the elapsed
+         time and re-anchoring would DESTROY a correct duration. MotionDex's census over 1278 ACC files
+         found 137 whose worst step is exactly this against 3 real resyncs, so the wrong rule here
+         convicts the larger population. Same discriminator, same numbers. */
+        var dropout = P.parsePPG(ppg(2000, 20000, 120, 120), undefined);
+        T.ok(
+          'REAL DROPOUT · both clocks ticked, so NO seam is declared and the duration is preserved',
+          !dropout.clockResyncs && spanOf(dropout) > 250 && spanOf(dropout) < 400,
+          'span ' + (spanOf(dropout) || 0).toFixed(1) + ' s (≈148 s of signal + a 120 s hole), clockResyncs ' + JSON.stringify(dropout.clockResyncs || null)
+        );
+        T.ok(
+          'CLEAN STREAM IS BYTE-UNCHANGED · no seam field appears where nothing happened',
+          clean.clockResyncs === undefined,
+          'clockResyncs ' + JSON.stringify(clean.clockResyncs || null) + ' — present-only-when-it-happened keeps every clean fixture still'
+        );
+        /* THE BLIND SEAM (§∅). When the seam row's own stamp does not parse there is no host offset to
+         anchor on, and falling back to `Number(b - ns0)` re-admits the very step being removed — the
+         failure MotionDex measured as a published 241,586,834 s span. The honest anchor is the previous
+         row's position: an unmeasured gap contributes NOTHING rather than a fabricated duration. */
+        var blind = P.parsePPG(
+          ppg(2000, 20000, 86, STEP_S).replace(/\n[^\n;]*;(\d{18})/, function (m, ns) {
+            return '\nnot-a-timestamp;' + ns;
+          }),
+          undefined
+        );
+        T.ok(
+          'BLIND SEAM · an unparseable stamp still re-anchors, and says so with phoneDeltaMs null',
+          spanOf(blind) != null && spanOf(blind) < 400,
+          'span ' + (spanOf(blind) || 0).toFixed(1) + ' s, resyncs ' + JSON.stringify(blind.clockResyncs || null)
+        );
+        /* WHY THIS IS A TRIPWIRE AND NOT THE REPAIR OF AN ACTIVE BUG — the census is preserved verbatim
+         from the exposure version of this group, because without it a reader concludes PPG resyncs
+         were happening in the corpus. They were not. Clock Contract §7: a node that detects no steps
+         "has not shown its stream has none, only that it has not looked." This is the looking. */
+        T.ok(
+          'CENSUS PRESERVED · 0 of 3674 corpus _PPG.txt files carry a resync — this guards a latent class',
+          true,
+          'census 2026-09-02 — 84 real dropouts, 0 resyncs; the H10 firmware step cannot reach a Verity PPG stream. Fixed anyway because §7 requires the detection, and the fix is byte-inert on all 3674'
+        );
+        /* ONE CONSTANT, THREE NODES. All three read the same step in the same device's several files, so
+         a second constant would eventually disagree with the first. Asserted on the CONSTANTS, never by
+         holding the three implementations byte-equal — a parity assertion over two copies read as
+         evidence of redundancy once before and cost a whole PR (#1232). */
+        if (!env.ppgdexDspSource || !env.ecgdexDspSource) {
+          T.skip('both DSP sources readable', 'Node-lane only (fs-read) — the browser lane carries no source strings');
+        } else {
+          var _pb = /PPG_RESYNC_BOUND_MS\s*=\s*(\d+)/.exec(String(env.ppgdexDspSource));
+          var _eb = /ECG_RESYNC_BOUND_MS\s*=\s*(\d+)/.exec(String(env.ecgdexDspSource));
+          T.ok(
+            'ANTI-VACUITY · both bound constants were actually FOUND in the sources',
+            !!(_pb && _eb),
+            'ppg ' + (_pb && _pb[1]) + ' / ecg ' + (_eb && _eb[1]) + ' — a regex that matches nothing would make the equality below vacuous'
           );
-        };
-        for (var i = 0; i < nBefore; i++) {
-          emit();
-          ms += 1000 / HZ;
-          ph = (ph + 1 / HZ) % 1;
-          ns += Math.round(1e9 / HZ);
+          T.eq("PpgDex's resync bound IS ECGDex's — one step, one constant", _pb && _pb[1], _eb && _eb[1]);
         }
-        ms += gapSec * 1000;
-        ns += Math.round(stepSec * 1e9);
-        for (var j = 0; j < nAfter; j++) {
-          emit();
-          ms += 1000 / HZ;
-          ph = (ph + 1 / HZ) % 1;
-          ns += Math.round(1e9 / HZ);
-        }
-        return rows.join('\n');
       }
-      var spanOf = function (rec) {
-        var r = rec && rec.relSec;
-        return r && r.length ? r[r.length - 1] - r[0] : null;
-      };
-      var clean = P.parsePPG(ppg(20000, 0, 0, 0), undefined);
-      T.ok('ANTI-VACUITY · the clean plant parses and spans its own ~148 s', spanOf(clean) > 100 && spanOf(clean) < 200, 'span ' + (spanOf(clean) || 0).toFixed(1) + ' s');
-      T.ok(
-        'control · a clean stream resolves a host axis (so the refusal below is a CHANGE, not the norm)',
-        !!(clean.hostAxis && clean.hostAxis.ok),
-        JSON.stringify(clean.hostAxis && { ok: clean.hostAxis.ok, ppm: clean.hostAxis.ppm })
-      );
-      var stepped = P.parsePPG(ppg(2000, 20000, 86, STEP_S), undefined);
-      T.ok(
-        'THE GUARD THAT WORKS · hostAxis REFUSES a stepped counter — fs is never corrected by a fabricated rate',
-        !!(stepped.hostAxis && stepped.hostAxis.ok === false && /implausible/i.test(String(stepped.hostAxis.reason || ''))),
-        JSON.stringify(stepped.hostAxis && { ok: stepped.hostAxis.ok, reason: String(stepped.hostAxis.reason || '').slice(0, 70) })
-      );
-      T.eq('…and fs stays the device rate rather than a corrected one', stepped.fs, clean.fs);
-      /* THE EXPOSURE, ASSERTED AS IT IS. Not a bug being introduced — a limit being recorded, so the
-         day the input class arrives this leg says so instead of a brief sentence nobody re-reads. */
-      T.ok(
-        'EXPOSURE · the refusal does NOT bound the AXIS — relSec still spans the step',
-        spanOf(stepped) > 1e8,
-        'relSec span ' + (spanOf(stepped) || 0).toExponential(3) + ' s — if this ever FAILS, a step-bounding fix landed and this group should be re-aimed'
-      );
-      T.ok(
-        '…which is why §1.3 records it rather than fixing it: 0 of 3674 corpus _PPG.txt files carry a resync',
-        true,
-        'census 2026-09-02 — 84 real dropouts, 0 resyncs; the H10 firmware step cannot reach a Verity PPG stream'
-      );
-    });
+    );
     group('MotionDex re-anchors a mid-file device-clock resync instead of publishing a 7.66-year night (FOLLOWUPS §1.1)', 'motiondex-dsp · clock · resync · DEEP-AUDIT-VI', function (T) {
       var MD = env.MOTIONDSP || env.MotionDex;
       if (!(MD && typeof MD.parseSensorXYZ === 'function' && typeof MD.compute === 'function')) {
