@@ -80,8 +80,12 @@ def test_the_rate_is_per_DEVICE_not_pooled():
 def test_the_site_counts_before_it_decides():
     """Pins the ORDER, which is the load-bearing part: if the count came after the logging branch, a
     change to the branch could silently stop counting and the rate would read as improvement."""
-    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                            "capture.py")).read()
+    # ROUTED, not raw. A raw read makes mutmut report the module as "failed to collect stats", so it
+    # is silently never measured (tests/test_mutation_hygiene.py). This read SLIPPED PAST that gate
+    # because `open(` and `"capture.py"` sat on different lines and the check is per-line — filed as
+    # residue rather than left as a quiet pass.
+    from tests._srcscan import module_source
+    src = module_source("capture.py")
     # Compare POSITIONS, not a fixed window. The first version searched 1200 characters back and the
     # count sat 1239 behind — a passing invariant failing on the size of the comment between them,
     # which is the shape of assertion that has to be re-tuned every time the file is edited.
