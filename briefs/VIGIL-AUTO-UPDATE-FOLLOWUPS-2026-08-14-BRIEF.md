@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-02 — §2a's design is delivered and option (C)'s *make the drift loud* half is SHIPPED (`nightqc.system_file_drift`, `monitor.html:2301-2313`, `tests/test_system_file_drift.py`). What is missing is the **owner's A/B/C pick on the box's privilege model** — no decision is recorded anywhere, and nothing else in this brief can move until it is. §4's restart-at-next-idle is likewise an owner call; the 68.6 % number it needed is already measured. ✅ **§5's consecutive-failure counter is BUILT (2026-09-03, Heron)** — `tepna-update.sh` `FAIL_MARK` + `_streak_finish`, keyed on the exit status rather than on `die` so it also counts the "cannot establish whether the box is recording" path, which is the one that can run all night; 9 tests, each watched failing against a mutated implementation. That was this brief's only unblocked item, so what remains is **entirely owner decisions**: the A/B/C privilege-model pick (§2a, nothing else in this brief moves until it is recorded) and §4's restart-at-next-idle, whose 68.6 % number is already measured. **Owner:** owner (privilege model + §4) · **Next step:** the A/B/C pick — no session can advance this brief further without it) · **Created:** 2026-08-14 · **Owner ruling 2026-09-07:** §2a — option **(C)**: do not automate root; the *make the drift loud* half already shipped is the delivery. §4 — BUILD restart-at-next-idle, assigned **Heron**. This supersedes the *Next step* above: the A/B/C pick is MADE, so §4's build is the only open item and it now has an owner.
+**Status:** DONE — 2026-09-17 (**every item is delivered, and this closing pass verified it IN THE FILES rather than reading it off the brief.** §2a — the owner's 2026-09-07 ruling picked **(C)**, which makes the helper-install gap *explicitly accepted*; that is exactly what §6's first box asks for, and the *make the drift loud* half was already shipped. §3 verified 2026-09-02. §4 — `tepna-update.sh --pending-only` is present, with `tepna-update-pending.timer` at `OnUnitActiveSec=2min` / `OnBootSec=3min`. §5 — `FAIL_MARK` + `_streak_finish` are present. `capture-host/tests/test_vigil_update.py` **78 passed** (2026-09-17). ⚠️ **AND THIS HEADER READ `PROPOSED` FOR THE TEN DAYS AFTER THE RULING THAT UNBLOCKED IT.** The ruling was *appended* to this line while the verdict and the *"no session can advance this brief further without it"* next-step were left standing, so one line asserted both at once — and a reader who stopped at the status saw an owner-blocked brief with nothing to do. **An appended ruling is not a status flip** (§📌 *TRIAGE STAMPS THE BRIEF*). The identical shape was corrected in `DELIVERY-PROCESS-OVERHAUL-2026-08-18-BRIEF.md` on 2026-09-16 (#2595), from the same 2026-09-07 ruling session; a sweep of every open brief on 2026-09-17 for a status line that claims blocked-on-owner *and* records a ruling found these two and no third. It is deliberately NOT gated — a brief that legitimately says "§2 ruled, §4 still needs the owner" matches the same two phrases, so the rule would convict working briefs. HISTORY FOLLOWS. — parked 2026-09-02: §2a's design is delivered and option (C)'s *make the drift loud* half is SHIPPED (`nightqc.system_file_drift`, `monitor.html:2301-2313`, `tests/test_system_file_drift.py`). What is missing is the **owner's A/B/C pick on the box's privilege model** — no decision is recorded anywhere, and nothing else in this brief can move until it is. §4's restart-at-next-idle is likewise an owner call; the 68.6 % number it needed is already measured. ✅ **§5's consecutive-failure counter is BUILT (2026-09-03, Heron)** — `tepna-update.sh` `FAIL_MARK` + `_streak_finish`, keyed on the exit status rather than on `die` so it also counts the "cannot establish whether the box is recording" path, which is the one that can run all night; 9 tests, each watched failing against a mutated implementation. That was this brief's only unblocked item, so what remains is **entirely owner decisions**: the A/B/C privilege-model pick (§2a, nothing else in this brief moves until it is recorded) and §4's restart-at-next-idle, whose 68.6 % number is already measured. **Owner:** owner (privilege model + §4) · **Next step:** the A/B/C pick — no session can advance this brief further without it) · **Created:** 2026-08-14 · **Owner ruling 2026-09-07:** §2a — option **(C)**: do not automate root; the *make the drift loud* half already shipped is the delivery. §4 — BUILD restart-at-next-idle, assigned **Heron**. This supersedes the *Next step* above: the A/B/C pick is MADE, so §4's build is the only open item and it now has an owner.
 
 > Spawned by closing `VIGIL-AUTO-UPDATE-2026-08-04-BRIEF.md` (DONE 2026-08-14, §6 met with 41 observed
 > unattended restarts). Everything here was found by *running* the machinery that brief built, mostly on
@@ -98,6 +98,11 @@ path, `/etc` untouched, sudoers stays a human act — and it attacks the actual 
 **observability, not privilege**. Three of three staleness events were noticed late, not blocked.
 It is also the same trade this session made under a live incident: *detection you can perform beats
 remediation you cannot.* A watcher with no write permission is still a real safety layer.
+
+> 🟢 **RULED 2026-09-07 — the owner picked (C).** Do not automate the privileged step. The *make the drift loud*
+> half already shipped (`nightqc.system_file_drift`, `monitor.html:2301-2313`, `tests/test_system_file_drift.py`)
+> **IS** the delivery — there is no second half owed. This also closes §6's first box: the helper-install gap is
+> **explicitly accepted**, not open. Do not re-open the A/B/C question without a new ruling.
 
 **What I have NOT done:** nothing is applied to the box, no sudoers file is written, no unit is edited.
 This is a design for sign-off, as directed.
@@ -320,7 +325,11 @@ look identical in `systemctl status`.
 
 ## 6 · Done when
 
-- [ ] The helper-install gap is either closed by §2's design **or** explicitly accepted by the owner and
-      recorded here, so it stops being rediscovered.
+- [x] The helper-install gap is either closed by §2's design **or** explicitly accepted by the owner and
+      recorded here, so it stops being rediscovered. **Met by ACCEPTANCE, not by closure — owner ruling 2026-09-07:
+      option (C), do not automate root. Recorded in §2a at the option itself, so a reader of the option meets the
+      ruling rather than having to reach the header.**
 - [x] §3's audit is run and its answer written down. **Stale-unchecked — §3's own two boxes are both closed with the per-helper writes table; verified 2026-09-02.**
-- [ ] §4 and §5 are decided, not merely noted.
+- [x] §4 and §5 are decided, not merely noted. **Both DECIDED *and* BUILT — §5 on 2026-09-03, §4 on 2026-09-07
+      (Heron, both boxes). Verified present 2026-09-17 by the identifiers, not the prose; `test_vigil_update.py`
+      78 passed.**
