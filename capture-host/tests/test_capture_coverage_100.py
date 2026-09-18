@@ -257,6 +257,103 @@ def test_adapter_is_up_reads_the_radio_state_and_says_unknown_when_it_cannot(mon
     assert _run(capture._adapter_is_up("hci0")) is None, "an absent hciconfig is UNKNOWN, not 'down'"
 
 
+_VERSION_OK = (b"hci0:\tType: Primary  Bus: USB\n\tBD Address: 00:01:95:CC:53:02\n"
+               b"\tHCI Version: 4.0 (0x6)  Revision: 0x2031\n"
+               b"\tManufacturer: Cambridge Silicon Radio (10)\n")
+
+
+def test_adapter_responds_round_trips_and_a_HANG_is_False_while_everything_else_is_None(monkeypatch):
+    """`_adapter_is_up` reads the KERNEL'S CACHED FLAGS; this asks the CONTROLLER. The distinction is the
+    whole point and it is measured, not argued: on vigil 2026-09-18 `hciconfig hci0 version` incremented
+    that adapter's TX `commands:` counter by 1 and a plain `hciconfig hci0` incremented it by 0.
+
+    Four answers, and the ordering of the last two is what matters. A HANG is False — a wedged controller
+    does not reply, so mapping a timeout to 'undeterminable' would discard the one signal this probe was
+    built for. Everything else is None, so a probe that cannot RUN can never convict a healthy radio."""
+    async def ok(*cmd, **kw):
+        assert cmd[:3] == ("hciconfig", "hci0", "version"), "must be the round-trip form, not a state read"
+        return _Proc(0, _VERSION_OK)
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", ok)
+    assert _run(capture._adapter_responds("hci0")) is True
+
+    async def rc_fail(*cmd, **kw):
+        return _Proc(1, b"Can't init device: Connection timed out (110)\n")
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", rc_fail)
+    assert _run(capture._adapter_responds("hci0")) is False, "ran against a named adapter and failed"
+
+    async def no_marker(*cmd, **kw):
+        return _Proc(0, b"hci0:\tType: Primary  Bus: USB\n")
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", no_marker)
+    assert _run(capture._adapter_responds("hci0")) is None, \
+        "rc=0 carrying no controller-sourced field is UNKNOWN — do not convict on a changed tool"
+
+    async def boom(*cmd, **kw):
+        raise FileNotFoundError("hciconfig: not installed")
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", boom)
+    assert _run(capture._adapter_responds("hci0")) is None, "an absent hciconfig is UNKNOWN, never 'wedged'"
+
+
+def test_adapter_responds_maps_a_TIMEOUT_to_False_because_that_IS_the_wedge(monkeypatch):
+    """Split out because it is the load-bearing branch and it must not be reachable by accident: the
+    wedged controller's signature is that the command never comes back."""
+    async def spawn(*cmd, **kw):
+        return _Proc(0, b"")
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", spawn)
+
+    async def hang(_proc, _timeout, _stdin=None):
+        raise asyncio.TimeoutError()
+    monkeypatch.setattr(capture.proc_util, "communicate", hang)
+    assert _run(capture._adapter_responds("hci0")) is False
+
+
+def test_a_radio_that_does_not_ANSWER_is_wedged_even_while_its_flags_read_UP():
+    """THE 2026-09-11 INCIDENT, ENCODED. The radio wedged at 19:23:12 and the first wedge sign was logged
+    at 19:42:06 — ~19 minutes — because the InProgress inference is SUPPRESSED while `adapter_up is True`,
+    and the kernel flag stayed True until the radio finally went DOWN. With a round-trip verdict the
+    suppression can no longer be bought with a flag a wedged controller still passes."""
+    devs = [{"name": "H10", "address": "A", "connected": False,
+             "last_error": "BleakDBusError('org.bluez.Error.InProgress', ...)"}]
+
+    # PRE-CHANGE BEHAVIOUR, still exactly reproducible: the flag says UP, so InProgress is suppressed and
+    # the watchdog sees nothing. This is the bug, and it must stay reachable or the test below proves
+    # nothing about what changed.
+    blind = capture.classify_adapter_health(devs, adapter_up=True)
+    assert blind["wedged"] is False
+
+    # Same inputs, plus the round trip failing. Two independent things now fire: the suppression is gone,
+    # and the non-answering radio is wedge evidence on its own.
+    seeing = capture.classify_adapter_health(devs, adapter_up=True, adapter_responds=False)
+    assert seeing["wedged"] is True
+    assert "pinned adapter does not answer HCI" in seeing["reasons"]
+    assert any("InProgress" in r for r in seeing["reasons"]), "the suppression must be lifted, not merely outvoted"
+
+
+def test_a_round_trip_that_SUCCEEDS_still_suppresses_the_churn_it_always_did():
+    """The 2026-07-20 lesson is not repealed: a needless power-cycle is worse than the problem. A radio
+    that ANSWERS is positive proof, so lone InProgress churn stays suppressed — and it is now suppressed
+    on stronger evidence than before, since True here means the controller replied."""
+    devs = [{"name": "Ring", "address": "B", "connected": False,
+             "last_error": "BleakDBusError('org.bluez.Error.InProgress', ...)"}]
+    assert capture.classify_adapter_health(devs, adapter_up=True, adapter_responds=True)["wedged"] is False
+
+    # AND THE ASYMMETRY: a successful round trip must NOT buy suppression the flag did not already grant.
+    # A radio can answer HCI and still carry no link — deaf but alive — so if True licensed suppression on
+    # its own, this change would trade one blindness for another. It stays flagged, exactly as today.
+    assert capture.classify_adapter_health(devs, adapter_up=None, adapter_responds=True)["wedged"] is True
+    assert capture.classify_adapter_health(devs, adapter_up=None)["wedged"] is True, "…and unchanged from before"
+
+
+def test_adapter_responds_None_changes_NOTHING_for_every_pre_existing_caller():
+    """Back-compat is the contract (CLAUDE.md §🧪: new params LAST and optional). None must reproduce the
+    pre-2026-09-18 verdict for both settings of the flag, or landing this would silently re-tier every
+    caller that does not probe."""
+    devs = [{"name": "H10", "address": "A", "connected": False,
+             "last_error": "BleakDBusError('org.bluez.Error.InProgress', ...)"}]
+    for flag in (True, False, None):
+        assert (capture.classify_adapter_health(devs, adapter_up=flag)
+                == capture.classify_adapter_health(devs, adapter_up=flag, adapter_responds=None))
+
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 # adapter_watchdog — the escalation ladder's upper rungs
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
