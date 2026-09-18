@@ -9877,7 +9877,26 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
         # Costs one set-comprehension on the ~95 % path; only a miss sleeps. BOTH UUIDs, not just the
         # notify one: `GATT_TX` is consumed by `write` AFTER this function returns — i.e. OUTSIDE the
         # leak guard, where the identical missing-object failure has no retry at all.
-        settle = await _settle_gatt_chars(client, (_L.GATT_RX, _L.GATT_TX))
+        # THE ORACLE (GATT-HANDLE-MAP-2026-09-17 §2b③). The two named UUIDs are what this connect
+        # NEEDS; the recorded table is what this unit LOOKS LIKE. Waiting on the union means a tree
+        # that happens to carry both named characteristics while the rest is still in flight is seen
+        # as partial — which the two-UUID wait cannot do, and which is the measured failure (#2372:
+        # the Generic Attribute service ALONE, six byte-identical snapshots).
+        #
+        # ⚠️ SAFE BY CONSTRUCTION ON A DEVICE WITH NO RECORD: `wait_hint` returns None, the union is
+        # the same two UUIDs, and the behaviour is byte-for-byte today's. The oracle arms ITSELF as
+        # `_gatt_record_table` below accumulates tables; nothing here needs a migration or a flag.
+        #
+        # ⚠️ AND IT IS A HINT, NOT AN ASSERTION — see `gattmap.wait_hint`. The hash cannot gate this
+        # wait (reading the hash needs the tree we are waiting for), so a table that went stale across
+        # a firmware change could name characteristics that no longer exist. The cost is bounded to one
+        # settle window because `_settle_gatt_chars` already gives up and hands the verdict to
+        # `start_notify`; it is never allowed to decide anything on its own.
+        _want = (_L.GATT_RX, _L.GATT_TX)
+        _hint = gattmap.wait_hint(ble_addr)
+        if _hint:
+            _want = tuple(sorted({u.lower() for u in _want} | _hint))
+        settle = await _settle_gatt_chars(client, _want)
         if settle:
             # ~98 lines a night is the POINT: this is the measurement that says whether rebuilding the
             # snapshot closed #2170, and it is stated so it can be wrong. The prediction — these lines
