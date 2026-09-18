@@ -3703,7 +3703,11 @@ function fuseHRVConsensus(recs, dtMs) {
       var _hrStatSet = _hrStats.filter(function (v, i) {
         return v != null && _hrStats.indexOf(v) === i;
       });
-      var _hrStatMixed = _hrStatSet.length > 1 || _hrStats.indexOf(null) >= 0;
+      /* The decision is a pure, exported function — `hrStatMixed` at script scope. It is out there
+         rather than inline because this flag only publishes when the three-cornered hat resolves
+         (three nodes with epoch data), which made the inline version effectively untestable while
+         being the one part worth testing. */
+      var _hrStatMixed = hrStatMixed(_hrStats);
       var hrReconciled = null;
       if (tchHR && tchHR.ok && tchHR.levels) {
         // inverse-variance reconciled HR (weight ∝ 1/σ²)
@@ -7321,8 +7325,49 @@ function gradeFor(node, id) {
   return GRADE_MIRROR[id] || 'experimental';
 }
 
+/* ── hrStatMixed(stats) — COMPARABILITY CLASSES, NOT NAME EQUALITY ───────────────────────────────
+   Owner ruling 2026-09-17 (D3). Pure and EXPORTED on purpose: the flag it computes only publishes
+   when the three-cornered hat resolves, which needs three nodes with epoch data, so the inline
+   version it replaced was effectively untestable while being the one part worth testing. Same
+   reasoning `capture-host/tools/mutate_diff.py` gives for keeping decision logic out of an IO layer —
+   if it can give a WRONG ANSWER rather than failing loudly, it belongs where a test reaches it.
+
+   It read `distinct(names).length > 1`, which was right for as long as the NAMES tracked the VALUES:
+   OxyDex published `median-rate`, biased -0.244 bpm (5.7 sigma) against ECGDex's `rate-of-mean` over
+   726 paired epochs, so a name difference WAS a real difference. D3 switched OxyDex to `mean-rate`
+   (+0.013 bpm, 0.3 sigma) and left the names still different — so a name-keyed flag would fire on
+   EVERY night while the bias it warns about is gone. A warning that always fires carries no information.
+
+   MEMBERSHIP IS A MEASUREMENT, NOT A TAXONOMY. `mean-rate` sits with `rate-of-mean` because the two
+   were MEASURED to agree to 0.3 sigma; `median-rate` is alone because it was measured NOT to. **Never
+   add a name here because it "should" agree** — a new statistic is its own class until somebody pairs
+   it against another on real epochs. That is why this is a named set and not a rule.
+
+   FAILS CLOSED, TWICE. An UNRECOGNISED name becomes its own class, so it reads MIXED rather than being
+   folded in with whatever it resembles; and a `null` or `undefined` is still mixed, because an absent
+   statistic name is not evidence that the legs agree. */
+var HR_STAT_CLASS = { 'rate-of-mean': 'mean-of-rr', 'mean-rate': 'mean-of-rr', 'median-rate': 'median-of-rate' };
+function hrStatMixed(stats) {
+  var list = stats || [];
+  if (list.indexOf(null) >= 0 || list.indexOf(undefined) >= 0) return true;
+  var named = list.filter(function (v, i) {
+    return v != null && list.indexOf(v) === i;
+  });
+  var classes = named.map(function (v, i) {
+    return HR_STAT_CLASS[v] || 'unrecognised:' + i;
+  });
+  return (
+    classes.filter(function (v, i) {
+      return classes.indexOf(v) === i;
+    }).length > 1
+  );
+}
+
 /* expose to other page scripts (plain global scope, but be explicit) */
 window.IntegratorDSP = {
+  /* D3 — exported so the comparability decision is testable without a full three-node fusion. */
+  hrStatMixed: hrStatMixed,
+  HR_STAT_CLASS: HR_STAT_CLASS,
   /* §timingSource vocabulary — exported so the gate can assert that every value ANY emitter
      produces has an explicit `timed` decision here. Without the export the table would be a
      private convention and the next value could be added without anyone deciding. */

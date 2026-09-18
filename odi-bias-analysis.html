@@ -9483,12 +9483,33 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       .forEach(function (k) {
         var b = bins[k];
         if (b.hr.length < 60) return; // ≥1 min HR coverage in the 5-min window
-        var mh = _median(b.hr),
+        /* MEAN, NOT MEDIAN — owner ruling 2026-09-17 (D3), measured in R5-HR-TRIPLET-FOLLOWUPS §3.
+           OxyDex has no intervals: `parseCSV` yields a 1 Hz RATE column and nothing else, so
+           `60000/mean(RR)` — the statistic ECGDex and PpgDex publish — is not computable here. The
+           question was which aggregation of a rate series best estimates it, and it was answered over
+           726 paired epochs against ECGDex:
+
+               median(rate)  −0.244 bpm   5.7σ   spread SD 1.16   ← shipped until today
+               trimmed 20 %  −0.201       4.8σ             1.14
+               trimmed 10 %  −0.156       3.6σ             1.17
+               trimmed  5 %  −0.113       2.5σ             1.20
+               mean(rate)    +0.013 bpm   0.3σ             1.23   ← this
+
+           Monotonic and one-sided: the robustness the median bought cost 0.26 bpm of bias and saved
+           6 % of spread. The bias this brief family opened to remove is essentially gone.
+
+           ⚠️ THE THEORETICALLY-CORRECT ESTIMATOR LOSES, AND THE REASON IS MEASURED — do not "fix"
+           this to the harmonic mean on theory. For instantaneous rates the harmonic mean equals
+           `60000/mean(RR)` exactly, so it should win; it does not (−0.083, 1.9σ). The ring's `pr` is
+           ALREADY SMOOTHED — same overall SD as beat-to-beat ECG (4.09 vs 4.19) but 5.1× less
+           consecutive-sample jitter (0.256 vs 1.298 bpm) — and applying a convexity correction to a
+           series that has already absorbed one over-corrects. */
+        var mh = _mean(b.hr),
           mm = _mean(b.mo);
         /* `hrStat` — R5-HR-TRIPLET-FOLLOWUPS. This leg is the ODD ONE on statistic: ECGDex and
            PpgDex both publish 60000/mean(RR), this publishes the median of 1 Hz rates, and the two
            differ by 0.299 bpm on real RR — the size of the bias R5 attributed to the O2Ring itself. */
-        out.push({ tMin: k * 5, hr: mh != null ? +mh.toFixed(1) : null, hrStat: 'median-rate', motionIndex: mm != null ? +mm.toFixed(3) : null });
+        out.push({ tMin: k * 5, hr: mh != null ? +mh.toFixed(1) : null, hrStat: 'mean-rate', motionIndex: mm != null ? +mm.toFixed(3) : null });
       });
     return out;
   }
