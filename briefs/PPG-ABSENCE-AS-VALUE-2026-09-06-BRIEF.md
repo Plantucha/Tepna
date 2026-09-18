@@ -105,6 +105,31 @@ exactly what `nightqc.clip_regions` computes, and **zero** of its 79 PPG rail sp
 to the live writer at `min_run=200`. Reading `_PPGRUNS.txt` alone for pinned coverage would find
 nothing and report it as absence of absence.
 
+### Prevalence — measured 2026-09-18, and the denominator is the finding
+
+The owner's item 3 asks how many of the trio nights move. **It cannot be answered from existing
+artifacts, and that is worth knowing before anyone sizes the work.**
+
+| | count |
+|---|---|
+| nights on the box with a `QC-SUMMARY.json` | 56 |
+| …whose `class_b` key is **ABSENT** — the detector never ran | **44** |
+| …present, zero spans (a real zero) | 1 (2026-09-14) |
+| …present, ≥1 rail span | **11** |
+
+**So prevalence is 11 of 12 MEASURED nights — 92 % — not 11 of 56 (20 %).** The 56 denominator counts
+44 nights the instrument never examined, which is this repo's most-repeated defect wearing a new
+costume: a floor that cannot distinguish *measured zero* from *not measured*. Every night the
+back-check actually ran on, bar one, carries rail spans.
+
+Magnitude on those 11: **96–576 spans per night, 2,827–18,241 samples**, on `ecg` and `ppg`.
+
+⚠️ **AND OF 119 LOCAL TRIO NIGHTS, EXACTLY 3 ARE ASSESSABLE** — 2026-09-10, 2026-09-15, 2026-09-17 —
+because the rest predate the detector. **All three carry rail spans** (372 / 250 / 96). The remaining
+116 need `nightqc` re-run over their stored raw captures, so item 3 is a RE-RUN over a corpus whose
+raw data may be partly aged out, not a lookup over summaries. That is the honest size of the task, and
+it is larger than the ruling could have known when it was written.
+
 ⚠️ **ONE NIGHT ESTABLISHES THE STRUCTURE, NOT THE PREVALENCE.** What is settled is the SHAPE of the
 disagreement (different predicates, not a threshold gap), which is what the precedence question
 needed. How many of the 41 trio nights carry rail spans, and how much coverage they remove, is the
