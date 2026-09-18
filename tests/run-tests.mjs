@@ -1170,6 +1170,17 @@ function readEquiv() {
     }
   }
 
+  // D3 — the hrStat comparability twins. Fixture-only: the gate rebuilds both nights in-code.
+  {
+    const fxH = join(ROOT, 'uploads', 'integrator_hrstat_class_twins.node-export.json');
+    if (existsSync(fxH)) {
+      try {
+        out.integrator_hrstat_class_twins = { fixture: JSON.parse(readFileSync(fxH, 'utf8')), fixtureFile: 'integrator_hrstat_class_twins.node-export.json' };
+      } catch {
+        /* gate self-skips */
+      }
+    }
+  }
   // §4.3 — the apnea chance-null twins. Fixture-only: the gate rebuilds all four nights in-code.
   {
     const fxA = join(ROOT, 'uploads', 'integrator_apnea_null_twins.node-export.json');
@@ -2403,6 +2414,14 @@ async function main() {
     fusionNightTwins: (() => {
       try {
         return require(join(ROOT, 'tests', 'fusion-night-twins.js')).fusionNightTwins;
+      } catch {
+        return null;
+      }
+    })(),
+    hrStatClassTwins: (() => {
+      try {
+        globalThis.tchGoldenInputs = require(join(ROOT, 'tests', 'tch-golden-inputs.js')).tchGoldenInputs;
+        return require(join(ROOT, 'tests', 'hrstat-class-twins.js')).hrStatClassTwins;
       } catch {
         return null;
       }
