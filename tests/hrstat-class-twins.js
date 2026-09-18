@@ -64,7 +64,10 @@
     });
   }
 
+  /* ⚠️ ONLY the builder's own name goes on the global. The twin builders SHARE one `window` in the
+     browser lane, so a second global here is a name collision waiting for whoever adds the next
+     builder — and `require` structurally hides that, which is why a gate watches it. `LABELS` stays
+     module-internal and rides module.exports, which is not a global. */
   root.hrStatClassTwins = hrStatClassTwins;
-  root.HRSTAT_TWIN_LABELS = LABELS;
   if (typeof module !== 'undefined' && module.exports) module.exports = { hrStatClassTwins: hrStatClassTwins, HRSTAT_TWIN_LABELS: LABELS };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

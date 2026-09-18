@@ -41031,6 +41031,83 @@
           );
         }
 
+        /* ── D3's TWINS — the dynamic leg (GATE C). A `manifestHash` claim with nothing reproducing
+           it is decoration, which is precisely what CI told me when I minted this fixture without a
+           leg. Same shape as the apnea twins below. ─────────────────────────────────────────────── */
+        var hFix = EQ.integrator_hrstat_class_twins && EQ.integrator_hrstat_class_twins.fixture;
+        var _hTwins = env.hrStatClassTwins || (typeof hrStatClassTwins !== 'undefined' && hrStatClassTwins) || null;
+        var FHc = env.fuseHRVConsensus || (typeof fuseHRVConsensus !== 'undefined' && fuseHRVConsensus) || null;
+        /* PRESENCE IS ASSERTED, NOT SKIPPED — `uploads/*` is gitignored and this file reaches a fresh
+           clone only through an explicit `!` negation. A T.skip here would report GREEN for a gate
+           that examined nothing. I shipped this fixture WITHOUT that negation on the first push, so
+           the failure mode is not hypothetical. */
+        T.ok(
+          'hrStat-class twins: committed fixture present (the .gitignore negation still holds)',
+          !!hFix,
+          hFix ? 'uploads/integrator_hrstat_class_twins.node-export.json reached this lane' : 'ABSENT — check the `!uploads/integrator_hrstat_class_twins.node-export.json` negation'
+        );
+        T.ok(
+          'hrStat-class twins: builder + fuseHRVConsensus wired in this lane',
+          typeof _hTwins === 'function' && typeof FHc === 'function',
+          typeof _hTwins === 'function' && typeof FHc === 'function' ? 'both present' : 'tests/hrstat-class-twins.js or fuseHRVConsensus missing from env'
+        );
+        if (hFix && typeof _hTwins === 'function' && typeof FHc === 'function') {
+          var hBuilt = {
+            schema: {
+              name: 'ganglior.integrator-hrstat-class-twins',
+              version: '1.0',
+              doc: "Committed synthetic twins for D3's comparability-keyed hrStatMixed. Inputs rebuilt in-code by tests/hrstat-class-twins.js on top of tests/tch-golden-inputs.js — the same night the equivalence gate uses, with only the per-epoch hrStat label differing between the two twins."
+            },
+            twins: {}
+          };
+          for (var _hi = 0; _hi < 2; _hi++) {
+            var _hk = ['comparable', 'incomparable'][_hi];
+            var _hrecs = _hTwins(_hk).map(function (x) {
+              return Ag(x.json, x.node, x.node)[0];
+            });
+            var _hf = FHc(_hrecs, 1000);
+            hBuilt.twins[_hk] =
+              _hf && Array.isArray(_hf.blocks)
+                ? _hf.blocks.map(function (b) {
+                    return { hrStats: b.hrStats || null, hrStatMixed: typeof b.hrStatMixed === 'boolean' ? b.hrStatMixed : null };
+                  })
+                : null;
+          }
+          var hd = [];
+          diff(JSON.parse(JSON.stringify(hBuilt)), hFix, '', hd);
+          T.ok('Integrator hrStat-class twins ≡ committed fixture', hd.length === 0, hd.length ? hd.slice(0, 8).join(' · ') : 'byte-identical');
+          /* BOTH DIRECTIONS, because one can only half-fail — the apnea twins' own reasoning. */
+          T.eq('comparable twin: rate-of-mean + mean-rate are NOT mixed (D3)', hBuilt.twins.comparable[0].hrStatMixed, false);
+          T.eq('incomparable twin: median-rate IS mixed', hBuilt.twins.incomparable[0].hrStatMixed, true);
+          /* ⚠️ THE CONTROL THAT MAKES THE PAIR MEAN ANYTHING. My first mint read the flag off the
+             wrong level, both twins serialised `null`, and the fixture was BYTE-IDENTICAL between
+             them — it minted cleanly and would have passed every gate while discriminating nothing.
+             This leg fires on exactly that. */
+          T.ok(
+            'the two twins DIFFER — a fixture identical across them discriminates nothing',
+            JSON.stringify(hBuilt.twins.comparable) !== JSON.stringify(hBuilt.twins.incomparable),
+            'comparable=' + JSON.stringify(hBuilt.twins.comparable) + ' incomparable=' + JSON.stringify(hBuilt.twins.incomparable)
+          );
+          /* …and that the ONLY thing differing is the label, so a byte difference cannot be noise. */
+          T.eq(
+            'only the hrStat label differs — the HR numbers are the same night',
+            JSON.stringify(
+              _hTwins('comparable').map(function (x) {
+                return x.json.timeseries.epochs.map(function (e) {
+                  return e.hr;
+                });
+              })
+            ),
+            JSON.stringify(
+              _hTwins('incomparable').map(function (x) {
+                return x.json.timeseries.epochs.map(function (e) {
+                  return e.hr;
+                });
+              })
+            )
+          );
+        }
+
         var aFix = EQ.integrator_apnea_null_twins && EQ.integrator_apnea_null_twins.fixture;
         var _twins = env.apneaNullTwins || (typeof apneaNullTwins !== 'undefined' && apneaNullTwins) || null;
         var FAg = env.fuseApneaEvents || (typeof fuseApneaEvents !== 'undefined' && fuseApneaEvents) || null;

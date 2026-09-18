@@ -179,9 +179,7 @@ const buildHrStatTwins = () => {
     /* PER BLOCK, not top-level — `fuseHRVConsensus` publishes the flag inside `blocks[]`, and reading
        `fused.hrStatMixed` yields undefined, which serialises to null and makes BOTH twins identical.
        Caught by checking the minted bytes discriminated rather than trusting that they would. */
-    out.twins[k] = fused && Array.isArray(fused.blocks)
-      ? fused.blocks.map((b) => ({ hrStats: b.hrStats || null, hrStatMixed: typeof b.hrStatMixed === 'boolean' ? b.hrStatMixed : null }))
-      : null;
+    out.twins[k] = fused && Array.isArray(fused.blocks) ? fused.blocks.map((b) => ({ hrStats: b.hrStats || null, hrStatMixed: typeof b.hrStatMixed === 'boolean' ? b.hrStatMixed : null })) : null;
   }
   return out;
 };
