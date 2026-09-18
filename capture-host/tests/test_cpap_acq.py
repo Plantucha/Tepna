@@ -208,3 +208,71 @@ def test_default_wall_clock_is_utc_iso():
     inject a fixed one). Exercised so the default branch is covered."""
     s = cpap_acq._default_wall()
     assert s.endswith("+00:00") and "T" in s
+
+
+# ── INV11 · one acquisition owner per device ─────────────────────────────────────────────────────────
+
+def test_a_second_acquisition_of_one_device_is_REFUSED_with_a_named_reason():
+    """🔴 THE DEFECT THIS CLOSES. Two acquisitions of one device could start concurrently, and the
+    failure presented as INTERLEAVED FRAMES rather than as an error — the worst shape, because nothing
+    reports it.
+
+    Refused, not queued: a queued second acquisition looks like it worked and arrives late, while a
+    refusal is legible at the moment it happens. Same discipline as `InvalidTransition`, which carries
+    both states rather than raising a generic 'bad state'."""
+    owners = cpap_acq.AcquisitionOwners()
+    owners.acquire("as11-1", "session-A", monotonic=10.0)
+    with pytest.raises(cpap_acq.AcquisitionOwned) as e:
+        owners.acquire("as11-1", "session-B", monotonic=11.0)
+    # the refusal must NAME the holder — a generic conflict cannot be acted on
+    assert e.value.device_id == "as11-1" and e.value.held_by == "session-A"
+    assert e.value.since_monotonic == 10.0
+    assert "session-A" in str(e.value) and "refusing" in str(e.value)
+
+
+def test_a_DIFFERENT_device_is_not_blocked_by_a_held_one():
+    """The bound on the rule: the token is per-DEVICE. Per-adapter would collide with the
+    one-instance-per-adapter decision (2026-08-26), and a lock that over-refuses is its own outage."""
+    owners = cpap_acq.AcquisitionOwners()
+    owners.acquire("as11-1", "session-A", monotonic=1.0)
+    tok = owners.acquire("as11-2", "session-B", monotonic=2.0)
+    assert tok.device_id == "as11-2" and tok.session_id == "session-B"
+
+
+def test_re_acquiring_within_ONE_session_is_not_a_conflict():
+    """A retry inside one session is not a second owner. Raising here would make the guard fire on the
+    recovery path it exists to protect — the same token comes back."""
+    owners = cpap_acq.AcquisitionOwners()
+    first = owners.acquire("as11-1", "session-A", monotonic=1.0)
+    again = owners.acquire("as11-1", "session-A", monotonic=9.0)
+    assert again == first, "a re-acquire must not mint a second token or move the acquired-at stamp"
+
+
+def test_release_frees_the_device_for_the_next_session():
+    owners = cpap_acq.AcquisitionOwners()
+    tok = owners.acquire("as11-1", "session-A", monotonic=1.0)
+    assert owners.release(tok) is True
+    assert owners.holder_in_this_process("as11-1") is None
+    owners.acquire("as11-1", "session-B", monotonic=2.0)      # must not raise
+
+
+def test_a_LATE_release_from_a_superseded_session_does_not_evict_the_new_owner():
+    """The release path's sharp edge. A stale token arriving after the device was legitimately taken
+    over must be a no-op, not an eviction — otherwise the crash-recovery path can steal a device from
+    the session that replaced it, and the return value is how a caller tells the two apart."""
+    owners = cpap_acq.AcquisitionOwners()
+    stale = owners.acquire("as11-1", "session-A", monotonic=1.0)
+    owners.release(stale)
+    owners.acquire("as11-1", "session-B", monotonic=2.0)
+    assert owners.release(stale) is False, "a superseded token must not release session-B's claim"
+    assert owners.holder_in_this_process("as11-1") == "session-B"
+
+
+def test_holder_in_this_process_is_named_so_None_cannot_be_read_as_no_holder():
+    """`None` means "no holder THIS REGISTRY can see" — another instance may own the device, since the
+    lock is process-lifetime. The method name carries that; a bare `holder()` would invite a caller to
+    read an unknown as an absence, which is the `or 0` shape from W2 in different clothing."""
+    owners = cpap_acq.AcquisitionOwners()
+    assert owners.holder_in_this_process("never-seen") is None
+    assert not hasattr(owners, "holder"), (
+        "an unqualified `holder` would read as authoritative across processes, which it cannot be")
