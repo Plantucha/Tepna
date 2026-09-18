@@ -144,6 +144,50 @@ has demonstrated. Today's backpressure lives in bleak's own notification buffer,
 A producer/consumer rewrite of the **P0 capture path**, with cancellation and shutdown-ordering
 consequences, is not authorised on a hypothesis. Measure first.
 
+#### W2(b)'s gate — ANSWERED 2026-09-18 (Heron). The loop DOES stall; the cause is NOT attributable
+
+The question was *"does a slow sink ever stall the read loop on the real rails, and if so how often?"*, with
+the instruction to separate two negatives: the record could show a stall and shows none, versus the record
+could not show one either way. **The true answer is a third reading: the record can see the PHENOMENON but
+not the CAUSE, and its view of the phenomenon is censored in a known way.**
+
+**There is already an instrument.** `capture.py`'s loop-lag task sleeps and measures how late it woke —
+*"that lateness IS the time some other callback held the loop"*. So this needed no new instrumentation to
+answer, only reading.
+
+**The loop does stall, by seconds.** Over the 14 days to 2026-09-18 on vigil, 151 logged stalls:
+min 1002 ms, **median 1502 ms**, p90 2683 ms, **max 4822 ms**, at 10–35 per day.
+
+**And they cluster hard on streaming.** Pairing `CPAP auto-start: stream started` with the closing
+`CPAP stream gap accounting` gives 15 windows totalling **89.6 h** inside a 309.2 h span:
+
+| | stalls | rate |
+|---|---|---|
+| inside a CPAP stream | **121** | **1.35 / h** |
+| outside | 30 | 0.14 / h |
+
+Roughly **10×**. Wearables stream in both periods (858 `connected` events), so this is not simply "at
+night".
+
+⚠️ **THREE LIMITS, and the first two make the 10× a LOWER BOUND rather than an estimate.**
+1. `_LOOP_LAG_WARN_MS = 1000` — stalls between the 100 ms *counting* threshold and 1 s are **never
+   logged**, so the journal cannot see them at all.
+2. `_LOOP_LAG_WARN_EVERY_S = 300` — logging is throttled to one line per five minutes, so a burst
+   collapses to one entry. Throttling bites hardest exactly when stalls are most frequent, which
+   censors the busy periods more than the quiet ones.
+3. **The detector measures the EVENT LOOP, which every task shares. It cannot say what held it.** A
+   stall during a CPAP stream may be the EDF write, the bus push, a wearable writer, or something else
+   entirely.
+
+**So: the premise of a bounded queue is real — a consumer CAN lag by seconds — but "a slow sink" is not
+established as the cause and cannot be from this record.** Closing W2(b) as unnecessary would be wrong;
+building the producer/consumer split on this evidence would also be wrong, because it would be built for
+a cause that has not been identified.
+
+**The next step is attribution, not the rewrite** — the loop-lag task would have to name the holder
+(which callback ran long), which is a code change to the P0 path and is its own unit with its own risk.
+Not folded in here, per the instruction accompanying this gate.
+
 ⚠️ **For whoever takes W2(b):** wiring `BoundedIngestQueue` will trip `find_unwired`'s spent-suppression
 scan, because its `ALLOW_FUNCS` entry is written as pending that wiring. That is the gate working, not a
 regression — the same thing happened to W1's `classify_frame` (#2626). Noted here so it is not
