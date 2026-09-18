@@ -16526,7 +16526,22 @@
       var sc = { comparable: true, minRun: 200, emitted: 1, rows: [{ first: 1000, n: 500 }] };
       var v = P.crossCheckPinned(sc, [[1000, 1499]]);
 
-      /* 🔴 THE LOAD-BEARING ASSERTIONS: the agreement vocabulary must not come back in any form. */
+      /* 🔴 THE LOAD-BEARING ASSERTIONS: the agreement vocabulary must not come back.
+
+         ⚠️ GATING A WORD IS NORMALLY THE WRONG INSTRUMENT, AND THIS IS A NARROW EXCEPTION. A
+         "zero occurrences of <identifier>" assertion tests SPELLING, not capability, and this repo
+         has been bitten by that shape before. It is justified here only because the harm lives in
+         the READING rather than in the computation: a consumer who sees `agreed` will compare two
+         populations that no rule makes comparable, and no behavioural assertion can catch a future
+         author restoring an inviting word.
+
+         KNOW WHAT IT DOES NOT BUY, because a reader who over-trusts it is the next defect:
+           · a SYNONYM slips straight through — `consistent`, `concordant`, `aligned` all invite the
+             same invalid inference and none of them is gated;
+           · it does not stop the comparison being COMPUTED under another name — someone can
+             subtract the two populations and publish the difference without ever writing `agreed`.
+         So this buys "this specific known-bad term cannot return", which is worth having. It does
+         NOT buy "an invalid comparison cannot be expressed", and must not be read as though it did. */
       T.eq('NO `agreed` field — the rules differ, so agreement is not expressible', v.agreed, undefined);
       T.eq('NO `disagreed` field — a rule difference is not a disagreement', v.disagreed, undefined);
       T.eq('the two rules are NAMED, so a reader cannot assume they match', v.fileRule + '|' + v.derivedRule, 'stuck-any-value|rail-pinned');

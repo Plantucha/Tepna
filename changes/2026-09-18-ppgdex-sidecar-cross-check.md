@@ -31,8 +31,9 @@ stands.
 an in-range value can be a sentinel too — and that 47-second mid-range freeze is the sentinel,
 already in the corpus. Widening `pinnedSpans` is a separate unit, deliberately not folded in here.
 
-Also measured, and it kills a reading this PR's first draft asserted: within the rail population the
-run-length distribution is CONTINUOUS, not bimodal — 4,392 spans >= 2 over 80.9 M samples, with the
+Also measured, and it kills a reading this PR's first draft asserted AND that the assigning session
+ratified before it was tested: within the rail population the run-length distribution is CONTINUOUS,
+not bimodal — 4,392 spans >= 2 over 80.9 M samples, with the
 79-199 discriminator band populated at 185. The apparent bimodality was never about length; it was
 two rules.
 
