@@ -1,7 +1,7 @@
 <!-- Copyright 2026 Michal Planicka -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS — 2026-09-18 · **Created:** 2026-09-18 · **Residue:** 2026-09-18-ecg-saturation-unflagged
+**Status:** IN-PROGRESS (§5.2 REFUTED 2026-09-18 — corrected in place; the cause and the rule it produced are in §5.2a) · **Created:** 2026-09-18 · **Residue:** 2026-09-18-ecg-saturation-unflagged
 
 # A "pinned span" is three phenomena, and our detector sees one and a half
 
@@ -72,6 +72,12 @@ than being approximately right.
 **The rail-keyed detector structurally cannot see the longest pins in the corpus.** 27,478 samples is
 ~3.7 minutes of frozen signal at 125 Hz; the longest run the current detector can see is 179. This is
 a statement about maxima, so §1 makes it immune to the denominator problem.
+
+⚠️ **BUT IT IS A RING CLAIM ABOUT ONE VALUE — see §5.2b.** The box census states it per device, and
+the **H10 is a counter-example**: its rail max is 1,665 against a mid max of 1,514. "Rails are short,
+freezes are long" is true of the O2Ring at value 100 and does NOT generalise. The DETECTOR-GAP half
+still stands everywhere — a rail-keyed rule cannot see a non-rail run of any length — but the
+magnitude argument is device-specific and was written here as though it were not.
 
 ## 3 · The bulk is QUANTISATION, not freeze — which is why a low threshold is unusable
 
@@ -156,34 +162,62 @@ freezes — the exact opposite of the truth. `ppgdex-dsp.js` already documents t
 (*"THE RAIL IS NOT ALWAYS THE OBSERVED EXTREME"*); the lesson is that a rail figure is a per-file
 quantity and must not be relayed as a corpus constant.
 
-## 5.2 · The three phenomena are not three flavours of one thing — two are ENDEMIC, one is EPISODIC
+## 5.2 · 🔴 REFUTED — "episodic" was a DETECTOR BLIND SPOT reported as a device property
 
-Joined against the box's per-file value histograms (3,012 rows, 1:1 on `(night, file)`), verified
-independently on this side:
+**This section originally claimed** that the two rails are endemic (54/54 nights) while the mid-range
+value 100 is episodic (3/54 nights, 4 files of 1,220), and drew from it that a detector tuned on
+pooled statistics would be tuned on a population "96 % device behaviour and 4 % the thing it is
+hunting". **All of that is wrong. The corrected figures invert it.**
 
-| population | O2Ring nights carrying it | reading |
-|---|---|---|
-| zero rail (`0`) | **54 / 54** | endemic — a DEVICE property |
-| top rail (`199`) | **54 / 54** | endemic — a DEVICE property |
-| mid-range (`100`) | **3 / 54**, in 4 files of 1,220 | **episodic — a property of some SESSIONS** |
+**THE CAUSE.** The joined histogram counted values *inside* `class_b_quality` regions — i.e. through
+the production detector. `class_b_runs` has **no mid-range rule**, and `rail_value` returns `None` on a
+single-valued file. So a run at 100 in a file with normal 0/199 rails produced **no region and was
+invisible to the scan**. The "3 nights" were the 3 files with min 99 / max 100, where 100 was picked as
+the hi rail by accident of range.
 
-The value-100 population is concentrated in three nights (2026-08-03 51.6 %, 08-29 25.3 %,
-08-30 23.1 %) and absent from the other 51. So the mid-range freeze is not a rarer flavour of railing:
-**the rails are what the device does every night, and the freeze is what happened on a few sessions.**
-That matters for any detector, because a rule tuned on pooled corpus statistics would be tuned on a
-population that is 96 % device behaviour and 4 % the thing it is looking for.
+Corrected, from a census counting every constant run regardless of rail:
 
-⚠️ **TWO PROPERTIES OF THAT EXPORT THAT WOULD PRODUCE WRONG NUMBERS IF MISSED**, both recorded because
-they are the same shapes this brief keeps meeting: the histogram is **region-scoped**, counting pinned
-samples INSIDE detected regions rather than the file's whole value distribution — so a share computed
-against total file samples compares two different denominators; and values are **string keys**, so
-`"199"` and `199` do not match and the top rail silently vanishes (the same failure as the
-newline-suffixed path keys in §8).
+| population | samples | nights | max run |
+|---|---|---|---|
+| value 100 | **≥ 1,050,674** (a FLOOR) | **50 / 54** | 27,712 |
+| rail 0 | 282,092 | 54 / 54 | 185 |
+| rail 199 | 216,049 | 54 / 54 | 258 |
 
-**The join was asserted against a control before being trusted.** The producing session's own O2Ring
-totals — 1,220 files, 560,651 pinned samples, `0: 285,117` · `199: 252,313` · `100: 22,659` — were
-reproduced exactly on this side before any figure above was read. A join that does not reproduce them
-is a broken join, not new data.
+**Three ENDEMIC populations, and the hunted one is the LARGEST** — roughly 2× either rail. The 96/4
+line is deleted, not softened: it was directionally backwards.
+
+### 5.2a · 🔴 THE PART WORTH MORE THAN THE CORRECTION — my "independent confirmation" was not independent
+
+This brief stated that §5.2 was *"confirmed independently on this side rather than relayed"*, and the
+join **did** reproduce the producing session's O2Ring totals exactly, blind, before any figure was
+read — 1,220 files, 560,651 samples, `0: 285,117` · `199: 252,313` · `100: 22,659`.
+
+**That control was worthless, and worse than worthless, because it felt like corroboration.** The
+numbers were reproduced **from that session's export**, which was region-scoped — so the blind spot
+came with them. **Two sessions agreeing THROUGH A SHARED INSTRUMENT is one measurement, not two.**
+
+> **Reproducing someone's numbers confirms the JOIN. It never confirms the INSTRUMENT.**
+
+That is a distinct failure from the six in §8, and it is the most dangerous of the set: the others
+produced answers that contradicted something; this one produced an answer that *agreed*, exactly, to
+six significant figures, and the agreement is what made it credible. §8's rule — hold one
+hand-verified case outside the pipeline — does not cover it, because the held case was inside the
+same pipeline one hop upstream. **The control must be independent of the INSTRUMENT, not merely of
+the arithmetic.**
+
+### 5.2b · And the structural claim is a RING claim about ONE VALUE, not a general one
+
+§2's "rail runs are short, mid-range runs are long" must be stated per device. The census:
+
+| device | rail max | mid max | holds? |
+|---|---|---|---|
+| O2Ring | 185 / 258 | 27,712 | yes — but it is **one value (100)**, not "mid-range" |
+| **H10** | **1,665 / 367** | 1,514 | **NO** — its 6 "mid" runs sit within ~1 K of that file's rail (rail-at-a-second-gain) |
+| Verity | — | — | no mid population at all |
+
+So §2 as written **overclaims**. Corrected: *on the O2Ring, constant runs at the value 100 reach
+27,712 samples while runs at either rail stop at 258* — and the H10 is a counter-example to the
+general form, not a confirmation of it.
 
 ## 6 · The 112 ECG saturations are their own finding, not a false-positive figure
 
@@ -234,6 +268,14 @@ dangerous bug above produced a *plausible* number — 26.846 %, exactly 1.000 pe
 guard is general: **an instrument must prove it saw its input before its output means anything** —
 here, asserting all 62 hit-files resolve to a path before any verdict is read. That is the
 anti-vacuity leg applied to an analysis script rather than to a test.
+
+🔴 **A SEVENTH BUG, AND THE ONLY ONE THAT PRODUCED AGREEMENT — see §5.2a.** Every bug above was
+caught because a number contradicted something. This one reproduced a peer's totals **exactly, blind,
+to six significant figures**, and was wrong, because both sides read the same region-scoped export and
+inherited the same detector blind spot. **Two sessions agreeing through a shared instrument is one
+measurement.** The rule below does not cover it: the hand-verified case was held inside the same
+pipeline one hop upstream. **A control must be independent of the INSTRUMENT, not merely of the
+arithmetic** — and "I reproduced their numbers" establishes the join, never the instrument.
 
 **A FIFTH RULE, and it catches a different class: when handed a DEFINITION, check it against the one
 the code already uses.** §5.1's file-extreme rule came down as an instruction and was applied by two
