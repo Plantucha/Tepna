@@ -163,6 +163,40 @@ confirmed no ResMed oximeter module exists — a purchase, not a cable) · `CROS
 > ⚠️ **WHY** the fused weighting conditions worse was not derived, only the association measured.
 > Residue `2026-09-16-tch-degeneracy-is-estimator-not-data`.
 >
+> 🔬 **DERIVED 2026-09-18 (Kestrel) — THE MECHANISM IS A MEASURE MISMATCH, AND IT IS STRUCTURAL.**
+> The fused variant feeds three variances computed under THREE DIFFERENT PROBABILITY MEASURES into an
+> identity that requires ONE. `analysis-stats.js tchSigmasFused` builds a separate weight vector per
+> pair — `wHV = t·h·v`, `wHO = t·h·o`, `wVO = t·v·o` — and hands each to `_wvar`, which is a weighted
+> variance (`mu = Σwd/Σw`, then `s/Σw`), i.e. a variance under ITS OWN measure. Those three go straight
+> into `threeCorneredHat(vAB, vAC, vBC) = ½(vAB + vAC − vBC)`, whose derivation is
+> `Var(x_i − x_j) = σ²_i + σ²_j` — an identity that holds for variances over ONE COMMON measure. Under
+> three measures its premise is simply absent, so `a` can go negative **from the weighting alone, with
+> nothing wrong in the data**.
+>
+> With all `c = 1` the three weights collapse to the same vector `t`, the premise is restored, and
+> negativity-from-weighting cannot arise. **That is why unweighted scores 0 — structurally, not by
+> luck** — which is the part an association could never tell you, and which makes 0/64 (now 0/68) the
+> EXPECTED value rather than a fortunate one.
+>
+> It also accounts for both refuted candidates without needing them: neither clock alignment nor an
+> epoch artifact touches a measure mismatch, so neither could have predicted the degeneracy. And it
+> explains the finding that a degenerate night is NOT a bad night — degeneracy tracks how far the
+> per-corner confidences DIVERGE, a property of the estimator's inputs rather than of the recording.
+>
+> ⚠️ **FALSIFIABLE AND NOT YET TESTED:** degeneracy should track the DISPERSION of `(cH, cV, cO)`
+> within a night, and should NOT track any data-quality measure. If a corpus run finds degenerate
+> nights whose per-corner confidences agree closely, this derivation is wrong.
+> `tools/tch-degeneracy-stats.mjs` is where to test it.
+>
+> ⚠️ **A HYPOTHESIS I HELD AND THE CODE REFUTED**, recorded so nobody re-derives it: I first supposed a
+> feedback loop — weights from `inverseVarianceWeights(sigma2)` re-entering the solve. They do not.
+> That call sits AFTER the solve and its result is only returned, for the reconciled value. The
+> neighbouring comment is still worth reading: it records that sampling noise at short records
+> (~48–96 epochs) can drive one σ²→0, and floors it for the FUSION weights while the hat's own solve
+> stays unfloored. The 2026-09-17 night sits in exactly that range — n=74, σ[OxyDex] 0.07 against a
+> corpus median of 1.01 — so short-record noise is plausibly a SECOND, independent route to the
+> boundary, distinct from the measure mismatch and NOT established here.
+>
 > 🟢 **RULED 2026-09-17 — DERIVE THE MECHANISM BEFORE RULING.** The owner declined to pick an
 > estimator on the association alone. So D7 is no longer a decision awaiting an answer, it is an
 > ANALYSIS UNIT awaiting an owner: derive why the fused weighting conditions worse, then the choice
