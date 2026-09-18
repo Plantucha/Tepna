@@ -186,6 +186,33 @@ def missing(addr, db_hash, observed) -> list | None:
     return sorted(u for u in table if u not in seen)
 
 
+def wait_hint(addr) -> set | None:
+    """The UUIDs last recorded for this unit UNDER ANY HASH — or `None` when nothing was recorded.
+
+    ⚠️ A HINT FOR HOW LONG TO WAIT, NEVER AN ASSERTION ABOUT CORRECTNESS, and the distinction is the
+    whole reason this is a separate function from `expected()`.
+
+    The circularity that forces it: looking a table up by Database Hash needs the hash, reading the
+    hash needs the attribute tree to be published, and the tree being published is exactly what the
+    caller is waiting for. So the hash cannot gate the wait. This answers the only question that is
+    answerable at that moment — *what did this unit last look like?* — and deliberately ignores the
+    hash.
+
+    That makes a STALE hint possible: a peripheral whose table shrank across a firmware change would
+    be waited on for characteristics that no longer exist. The harm is bounded by construction because
+    the only consumer, `_settle_gatt_chars`, is itself bounded — it waits, rebuilds, gives up and hands
+    the verdict to `start_notify`. So a stale hint costs at most one settle window and then behaves
+    exactly as today. It must never reach a code path where being wrong is silent.
+
+    `expected()` remains the hash-keyed accessor and the only one fit to decide anything."""
+    with _LOCK:
+        rec = _MAPS.get(_norm(addr))
+        if not isinstance(rec, dict):
+            return None
+        chars = rec.get("chars")
+        return set(chars) if isinstance(chars, dict) and chars else None
+
+
 def snapshot() -> dict:
     """A reportable view, read through `expected` so its rules live in one place."""
     with _LOCK:

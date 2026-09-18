@@ -326,3 +326,33 @@ def test_recorder_reports_nothing_when_the_map_REFUSES_the_write(monkeypatch):
     import capture
     monkeypatch.setattr(capture.gattmap, "record", lambda *_a, **_k: False)
     assert _run(capture._gatt_record_table(_Client([_Char("abcd", 1)]), ADDR)) == ""
+
+
+# ── THE WAIT HINT — a hint, never an assertion ──────────────────────────────────────────────────────
+def test_wait_hint_is_None_when_nothing_was_recorded():
+    """`None` is what makes the oracle safe to land dormant: the caller's union is unchanged, so a
+    device nobody has recorded behaves exactly as it did before this existed."""
+    assert gattmap.wait_hint(ADDR) is None
+
+
+def test_wait_hint_IGNORES_the_hash_on_purpose():
+    """The circularity it exists for: looking up by hash needs the hash, reading the hash needs the
+    tree, and the tree is what the caller is waiting for. `expected()` stays hash-keyed; this does not."""
+    gattmap.record(ADDR, H, TABLE, source="probe")
+    assert gattmap.wait_hint(ADDR) == {k.lower() for k in TABLE}
+    assert gattmap.expected(ADDR, "deadbeef") is None      # the hash-keyed accessor still refuses
+    assert gattmap.wait_hint(ADDR) == {k.lower() for k in TABLE}   # the hint does not
+
+
+def test_wait_hint_never_returns_an_empty_set(tmp_path):
+    """Same rule as `expected`: an empty hint would mean "wait for nothing", which is indistinguishable
+    from having no record and would hide the difference."""
+    p = tmp_path / "g.json"
+    p.write_text(json.dumps({ADDR: {"db_hash": H, "chars": {}}}), encoding="utf-8")
+    gattmap.configure(str(p))
+    assert gattmap.wait_hint(ADDR) is None
+
+
+def test_wait_hint_for_an_unknown_address_is_None():
+    gattmap.record(ADDR, H, TABLE, source="probe")
+    assert gattmap.wait_hint("11:22:33:44:55:66") is None
