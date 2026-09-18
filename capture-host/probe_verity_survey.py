@@ -44,6 +44,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import argparse
 import asyncio
 import datetime as _dt
@@ -426,7 +428,9 @@ def find_rec_frames(b: bytes, anchor: _dt.datetime | None) -> list:
         return []
     lo = int((anchor - POLAR_EPOCH).total_seconds() * 1e9) - int(60e9)
     hi = lo + int(24 * 3600 * 1e9)
-    best = []
+    # Annotated at the declaration: the only assignment that gives it an element type is the
+    # reassignment inside the loop, which mypy cannot infer backwards from.
+    best: list[dict[str, Any]] = []
     for meas in sorted(pmd.MEAS_NAME):
         frames, prev = [], None
         for i in range(0, max(0, len(b) - 10)):
