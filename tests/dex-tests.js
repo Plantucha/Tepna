@@ -47668,6 +47668,244 @@
      inputs (brief §6 — let the agent state a property, let the machine enumerate
      edge cases). Self-contained HRV math (mirrors pulsedex-dsp's rmssd/std, which
      aren't headless-loadable as bare globals) + the loaded CORE adapter spine. */
+    /* ════ THE MEASUREMENT INSTANCE CONTRACT — MEASUREMENT-INSTANCE-CONTRACT-2026-09-17 ════════════
+       Tepna can prove a BUNDLE produced an EXPORT from an INPUT, byte for byte, years later. It
+       cannot answer that about one number INSIDE the export. `measurement-block.js` is the schema
+       authority for the block that closes it; NO NODE EMITS IT YET (roadmap §3), so this group tests
+       the VALIDATOR, which is the only thing there is to test at this stage — and a validator is
+       exactly the artifact where a hollow test is invisible. */
+    group('Measurement instance — the validator rejects what the roadmap§9 table names', 'measurement-block · schema · provenance · roadmap-§1', function (T) {
+      var MB = env.MeasurementBlock;
+      if (!MB || typeof MB.validateMeasurement !== 'function') {
+        T.skip('MeasurementBlock.validateMeasurement available', 'measurement-block.js not co-loaded in this runner');
+        return;
+      }
+      var ok = function () {
+        return {
+          metricId: 'odi4',
+          value: 4.2,
+          window: { startTMs: 1000, endTMs: 301000, clockDomain: 'host-corrected', timingSource: 'device+host', spreadMs: 3.1 },
+          sourceChannel: 'O2Ring-S:spo2',
+          code: { manifestHash: '0123456789ab', computeHash: 'ba9876543210' },
+          evidence: { envelopeRef: 'acq/2026-09-17.json#3', inputHash: 'abcdef012345' },
+          basis: 'measured',
+          quality: { n: 3600 },
+          uncertainty: { value: 0.4, method: 'bootstrap-1000' }
+        };
+      };
+      var bad = function (mut) {
+        var b = ok();
+        mut(b);
+        return MB.validateMeasurement(b);
+      };
+      var fires = function (name, mut, needle) {
+        var r = bad(mut);
+        T.ok(
+          name,
+          !r.ok &&
+            r.errors.some(function (e) {
+              return e.indexOf(needle) >= 0;
+            }),
+          r.ok ? 'ACCEPTED — the check never fired' : r.errors.join(' | ').slice(0, 150)
+        );
+      };
+
+      /* 🔴 ANTI-VACUITY FIRST, BOTH DIRECTIONS. Without the second one a validator that rejects
+         EVERYTHING scores a perfect negative table — which is the shape this repo keeps shipping. */
+      var good = MB.validateMeasurement(ok());
+      T.ok('ANTI-VACUITY · a WELL-FORMED block PASSES', good.ok === true, JSON.stringify(good.errors || []));
+      T.ok('ANTI-VACUITY · and the legs it ran are NAMED, so a silent skip is visible', good.checked.length >= 4, good.checked.join(', '));
+
+      /* ── roadmap §9's negative table, verbatim where it applies ─────────────────────────────── */
+      fires(
+        'missing evidenceRef — and a null one without a reason is the same defect (∅)',
+        function (b) {
+          b.evidence.envelopeRef = null;
+        },
+        'envelopeReason'
+      );
+      fires(
+        '…but a null envelopeRef WITH a reason is a legal legacy input',
+        function (b) {
+          b.evidence.envelopeRef = null;
+          b.evidence.envelopeReason = 'legacy input, pre-envelope';
+          b.value = NaN;
+        },
+        'value must be a finite number'
+      );
+      fires(
+        'invalid unit — a unit INLINE on the block, which must resolve from the registry instead',
+        function (b) {
+          b.unit = '%';
+        },
+        'must NOT be inline'
+      );
+      fires(
+        'impossible timestamps',
+        function (b) {
+          b.window.startTMs = 'yesterday';
+        },
+        'startTMs must be a finite'
+      );
+      fires(
+        'unknown clockDomain — it is NAMED or it is nothing',
+        function (b) {
+          b.window.clockDomain = 'probably-host';
+        },
+        'clockDomain must be named'
+      );
+      fires(
+        'missing code identity',
+        function (b) {
+          delete b.code;
+        },
+        'code missing'
+      );
+      fires(
+        'malformed provenance — a hand-typed version where a content hash belongs (§📦)',
+        function (b) {
+          b.code.computeHash = 'v2.12.0';
+        },
+        'computeHash must be a 12-hex'
+      );
+      fires(
+        'NaN',
+        function (b) {
+          b.value = NaN;
+        },
+        'value must be a finite number'
+      );
+      fires(
+        'Infinity',
+        function (b) {
+          b.value = Infinity;
+        },
+        'value must be a finite number'
+      );
+      fires(
+        'zero-length window — no signal was observed, so no value is over it',
+        function (b) {
+          b.window.endTMs = b.window.startTMs;
+        },
+        'ZERO-LENGTH'
+      );
+      fires(
+        'negative duration',
+        function (b) {
+          b.window.endTMs = b.window.startTMs - 1;
+        },
+        'NEGATIVE duration'
+      );
+
+      /* ── the two this brief ADDS, each for a stated reason ──────────────────────────────────── */
+      /* THE CONFUSION A READER WILL ACTUALLY MAKE. `basis` is per-INSTANCE derivation kind; the
+         evidence ladder is per-METRIC epistemics. They share the word "measured" and NOTHING else,
+         which is why `measured` is deliberately absent from LADDER_ONLY — a vocabulary check alone
+         would not catch this, so the ladder values are rejected BY NAME. */
+      fires(
+        'basis carrying an EVIDENCE-LADDER value — the roadmap calls conflating the two axes a red',
+        function (b) {
+          b.basis = 'experimental';
+        },
+        'EVIDENCE-LADDER value'
+      );
+      T.ok(
+        '…and `measured` is legal in BOTH vocabularies, which is what makes the confusion invisible',
+        MB.LADDER_ONLY.indexOf('measured') < 0 && MB.BASIS.indexOf('measured') >= 0,
+        'LADDER_ONLY=' + MB.LADDER_ONLY.join(',') + ' BASIS=' + MB.BASIS.join(',')
+      );
+      fires(
+        'a basis outside the vocabulary entirely',
+        function (b) {
+          b.basis = 'vibes';
+        },
+        'basis must be one of'
+      );
+      /* FABRICATED IDENTITY, one layer below `no-fabricated-tier`: a measurement claiming to be a
+         metric nobody defined. The leg only runs when a resolver is supplied — see below. */
+      var unresolved = MB.validateMeasurement(ok(), {
+        resolveMetric: function (id) {
+          return id === 'odi4' ? {} : null;
+        }
+      });
+      T.ok('a resolvable metricId passes with the resolver wired', unresolved.ok === true, JSON.stringify(unresolved.errors));
+      var ghost = ok();
+      ghost.metricId = '__notAMetric__';
+      var ghostR = MB.validateMeasurement(ghost, {
+        resolveMetric: function (id) {
+          return id === 'odi4' ? {} : null;
+        }
+      });
+      T.ok(
+        '…and a metricId no registry resolves is REFUSED',
+        !ghostR.ok &&
+          ghostR.errors.some(function (e) {
+            return e.indexOf('resolves to nothing') >= 0;
+          }),
+        ghostR.errors.join(' | ').slice(0, 120)
+      );
+
+      /* 🔴 THE LEG THAT MUST SAY IT DID NOT RUN. Without a resolver the identity check is
+         unanswerable, and a validator that passes silently there reports success about something it
+         never examined. `checked` is the published denominator. */
+      T.ok('NO RESOLVER · the identity leg is ABSENT from `checked` rather than silently passing', good.checked.indexOf('metricId resolves') < 0, 'checked=' + good.checked.join(','));
+      T.ok('…and PRESENT once a resolver is supplied', unresolved.checked.indexOf('metricId resolves') >= 0, 'checked=' + unresolved.checked.join(','));
+
+      /* ── ∅ at the fields that are allowed to be absent ──────────────────────────────────────── */
+      fires(
+        'spreadMs null WITHOUT a reason — unmeasured must say why, never read as zero',
+        function (b) {
+          b.window.spreadMs = null;
+        },
+        'spreadReason'
+      );
+      fires(
+        'uncertainty null without a reason',
+        function (b) {
+          b.uncertainty = null;
+        },
+        'uncertaintyReason'
+      );
+      fires(
+        'uncertainty with a value but NO NAMED METHOD — a number whose meaning cannot be checked',
+        function (b) {
+          b.uncertainty = { value: 0.4 };
+        },
+        'NAMED method'
+      );
+      T.ok(
+        '…and null-with-reason is ACCEPTED for both — "unknown" is a valid state, not a failure',
+        (function () {
+          var b = ok();
+          b.window.spreadMs = null;
+          b.window.spreadReason = 'single-clock capture';
+          b.uncertainty = null;
+          b.uncertaintyReason = 'no method adopted for this metric';
+          return MB.validateMeasurement(b).ok;
+        })(),
+        'a block that says "nobody measured it" must pass; one that says 0 must not'
+      );
+      fires(
+        'spreadMs = 0 is NOT how absence is said — it is a claim the clocks agreed exactly',
+        function (b) {
+          b.window.spreadMs = 'unknown';
+        },
+        'finite number or null-with-reason'
+      );
+
+      /* ── what this table row does NOT cover, said rather than silently dropped ───────────────── */
+      T.ok(
+        'SCOPE · "absurd ranges" is NOT checked here, and that is recorded rather than faked',
+        typeof MB.validateMeasurement === 'function',
+        'a range check needs the metric UNIT, which resolves from the registry and is deliberately not inline on the block — so it belongs with the emitter (roadmap §3), not with the shape authority. Stated so a later reader does not read this group as covering it'
+      );
+      T.ok(
+        'SCOPE · "duplicate event ids" belongs to §2 (ganglior_events), not to the measurement block',
+        typeof MB.validateMeasurement === 'function',
+        'the block is per-metric-instance and carries no event ids; §2 extends ganglior_events separately'
+      );
+    });
+
     group('Property / metamorphic — HRV + SignalFrame', 'property-metamorphic · signal-adapters · signal-spec', function (T) {
       // seeded RNG (mulberry32) — deterministic counterexample hunt, zero deps.
       function rng(seed) {

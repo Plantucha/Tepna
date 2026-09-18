@@ -173,7 +173,8 @@ one node's fixtures in §3, all eight eventually — staged, never fleet-wide at
 oracle dev-dependency set (SOUP note required); (c) whether §11 gets an adapter or stays a doc.
 
 ## Done when (this roadmap file)
-- [~] §1+§2 contract brief **SPAWNED 2026-09-17** — `MEASUREMENT-INSTANCE-CONTRACT-2026-09-17-BRIEF.md`
+- [x] §1+§2 contract brief **SPAWNED AND EXECUTED 2026-09-17** — gates green (schema group live, 27 assertions; `npm run check` 16/16). The shape is specified and validated; NO node emits it, which is §3.
+- [~] ~~§1+§2 contract brief **SPAWNED 2026-09-17**~~ — `MEASUREMENT-INSTANCE-CONTRACT-2026-09-17-BRIEF.md`
       (unassigned; any session may pick it up). Still owed by that brief: executed, gates green,
       schema groups live. It holds the scope fence this item implies — spec + validator + tests,
       **no node emits**, so it moves no fixture and no `manifestHash`; emission is §3.
