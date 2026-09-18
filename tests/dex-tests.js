@@ -29223,7 +29223,18 @@
             var m = line.match(/^\|\s*(\d{4}-\d{2}-\d{2}-[a-z0-9-]+)\s*\|/);
             if (!m) return; // prose, not a row — see the note above
             var body = line.slice(m[0].length);
-            var stale = body.match(/\bR\d+\b/g) || [];
+            /* ⚠️ NOT `\bR\d+\b` — that has a FALSE POSITIVE on brief FILENAMES, found 2026-09-17 by the
+               first row whose source was `R5-HR-TRIPLET-FOLLOWUPS-…`. A hyphen is a word boundary, so
+               `R5` inside that name matched, and the consequence was worse than a noisy gate: the only
+               way to make the row pass was to name a DIFFERENT brief in the source cell, which is
+               exactly the failure §📌 warns about ("naming a plausible brief to fill the cell PASSES
+               check 8 — which verifies existence and the back-reference, not responsibility"). So a
+               brief legitimately starting with `R<digit>` could never be cited as an origin.
+               The retired scheme was always a STANDALONE id — `R5`, never `R5-SOMETHING` — so
+               requiring the next character not to be a hyphen separates the two populations exactly. */
+            var stale = (body.match(/\bR\d+\b(?!-)/g) || []).filter(function (t) {
+              return body.indexOf(t + '-') < 0 || new RegExp('\\b' + t + '\\b(?!-)').test(body);
+            });
             stale.forEach(function (s) {
               bad.push(m[1] + ' → ' + s + ' (retired id scheme — keys are date-slugs since 2026-09-02)');
             });
@@ -51559,6 +51570,39 @@
        the two nodes use different estimators, the measured gap is the size of the reported "device
        bias", and no per-device bias may be read off cross-node epoch HR until they agree on one
        statistic. Reproduce the number with `DEX_UPLOADS=<corpus> node tools/oxy-hr-bias.mjs` (LEG 3). */
+    /* ════ D3 — hrStatMixed keys on COMPARABILITY, not on name equality (owner ruling 2026-09-17) ══ */
+    group('hrStatMixed — a warning that always fires carries no information (D3)', 'integrator-dsp · hrstat · comparability · D3', function (T) {
+      var I = env.IntegratorDSP;
+      if (!I || typeof I.hrStatMixed !== 'function') {
+        T.skip('IntegratorDSP.hrStatMixed available', 'integrator-dsp not co-loaded in this runner');
+        return;
+      }
+      var m = I.hrStatMixed;
+      /* THE CASE THE RULING EXISTS FOR. Before D3 this pair read MIXED because the NAMES differ, and
+         after OxyDex switched to `mean-rate` that would have fired on every night while the bias it
+         warns about (−0.244 bpm, 5.7σ) was gone. Measured agreement: +0.013 bpm, 0.3σ, 726 epochs. */
+      T.eq('a COMPARABLE pair is not mixed — rate-of-mean vs mean-rate, measured to 0.3σ', m(['rate-of-mean', 'mean-rate']), false);
+      /* AND THE FLAG STILL WORKS, which is the other half — if it never fires it is not a guard. */
+      T.eq('a genuinely INCOMPARABLE pair still fires — median-rate was measured NOT to agree', m(['rate-of-mean', 'median-rate']), true);
+      T.eq('one statistic is never mixed', m(['mean-rate']), false);
+      T.eq('the same statistic twice is never mixed', m(['median-rate', 'median-rate']), false);
+      /* ⚠️ FAILS CLOSED, and both halves matter. */
+      T.eq('an UNRECOGNISED statistic is its own class — never folded in with what it resembles', m(['rate-of-mean', 'brand-new-stat']), true);
+      T.eq('…and two unrecognised names are two classes, not one bucket', m(['alpha-stat', 'beta-stat']), true);
+      T.eq('a null is still mixed — an ABSENT name is not evidence the legs agree', m(['rate-of-mean', null]), true);
+      T.eq('undefined too', m(['rate-of-mean', undefined]), true);
+      T.eq('no statistics at all is not a disagreement', m([]), false);
+      T.eq('a missing list is not a disagreement either', m(null), false);
+      /* MEMBERSHIP IS A MEASUREMENT, NOT A TAXONOMY — pinned as a NAMED SET so that adding a name is
+         a deliberate act with a measurement behind it rather than a tidy-up. */
+      T.ok(
+        'the class map is a NAMED SET: the two mean-of-RR estimators share a class, median-rate is alone',
+        I.HR_STAT_CLASS['rate-of-mean'] === I.HR_STAT_CLASS['mean-rate'] && I.HR_STAT_CLASS['median-rate'] !== I.HR_STAT_CLASS['rate-of-mean'],
+        JSON.stringify(I.HR_STAT_CLASS)
+      );
+      T.eq('…and it holds exactly the three statistics anyone has paired on real epochs', Object.keys(I.HR_STAT_CLASS).sort().join(','), 'mean-rate,median-rate,rate-of-mean');
+    });
+
     group('cross-node epoch HR uses TWO different estimators — the confound behind R5 §5', 'hr · estimator · cross-node', function (T) {
       var E = env.sources && env.sources['ecgdex-dsp.js'];
       var O = env.sources && env.sources['oxydex-dsp.js'];
@@ -51576,11 +51620,24 @@
       T.ok("ECGDex's epoch hr is the rate of the MEAN interval (60000 / mean(RR))", /hr:\s*\+\(60000\s*\/\s*m\)/.test(ec), 'expected `hr: +(60000 / m)` where m = mean(seg)');
       // Anchored on the EPOCH HR ASSIGNMENT, not on `_median(` anywhere — the helper is called all
       // over oxydex-dsp.js, so a loose match would stay green while the estimator itself changed.
-      T.ok("OxyDex's epoch hr is a MEDIAN of rates, not the same statistic", /var mh = _median\(b\.hr\)/.test(oc), 'expected `var mh = _median(b.hr)` in oxyBuildEpochSeries');
+      /* 🔴 RE-AIMED 2026-09-17 — THE CONFOUND THIS GROUP PINNED HAS BEEN REMOVED BY OWNER RULING.
+         These two legs asserted that OxyDex uses a MEDIAN and that the two nodes are therefore not
+         comparable. That was the R5 confound, correctly pinned while it stood. D3 ended it: OxyDex
+         now publishes `mean-rate`, measured at +0.013 bpm / 0.3σ against ECGDex over 726 paired
+         epochs, where the median sat at −0.244 / 5.7σ.
+         The group is re-aimed rather than deleted, because the thing worth guarding did not go away —
+         it inverted. What must now hold is that the two estimators stay COMPARABLE, and that the
+         inevitable next reader does not "restore symmetry" by moving one of them back. */
+      T.ok("OxyDex's epoch hr is now a MEAN of rates — the D3 switch, pinned at the assignment", /var mh = _mean\(b\.hr\)/.test(oc), 'expected `var mh = _mean(b.hr)` in oxyBuildEpochSeries');
       T.ok(
-        'the two are therefore NOT comparable without agreeing on one — the R5 confound, pinned',
-        /hr:\s*\+\(60000\s*\/\s*m\)/.test(ec) !== /_median\(/.test(ec),
-        'if ECGDex ever adopts a median too this leg should be revisited, not deleted'
+        '…and NOT a median — the estimator it carried until 2026-09-17 must not come back silently',
+        !/var mh = _median\(b\.hr\)/.test(oc),
+        'anchored on the EPOCH HR ASSIGNMENT, not on `_median(` anywhere: that helper is called all over oxydex-dsp.js, so a loose match would stay green while the estimator changed'
+      );
+      T.ok(
+        'the two are COMPARABLE now — mean-of-rate vs rate-of-mean, measured to 0.3σ, not identical and not a confound',
+        /hr:\s*\+\(60000\s*\/\s*m\)/.test(ec) && /var mh = _mean\(b\.hr\)/.test(oc),
+        'they remain DIFFERENT statistics — OxyDex has no intervals, so 60000/mean(RR) is not computable there. Comparable is the claim; identical is not, and asserting identity here would be the fabrication'
       );
 
       /* ── AND A SECOND MISMATCH IN THE SAME THREE CORNERS: PRECISION ────────────────────────────
@@ -53984,8 +54041,16 @@
         T.eq('two full epochs survive', eps.length, 2);
         T.eq('tMin is node-relative MINUTES — epoch 1 is 5, not 1', eps[1].tMin, 5);
         T.eq('tMin is node-relative minutes (epoch 0 ⇒ 0)', eps[0].tMin, 0);
-        T.eq('hr is the MEDIAN 1 Hz rate (60), not the mean (69)', eps[0].hr, 60);
-        T.eq('the statistic is labelled, so a consumer cannot mistake it', eps[0].hrStat, 'median-rate');
+        /* FLIPPED BY THE D3 RULING, 2026-09-17 — and this fixture was BUILT to discriminate, which is
+           why it is the one that moves: 59 samples at 60 plus one at 600 gives median 60 and mean 69,
+           so the two estimators cannot both pass. It read `median (60), not the mean (69)` until today.
+           The owner ruled mean after R5-HR-TRIPLET-FOLLOWUPS §3 measured the median carrying a
+           −0.244 bpm (5.7σ) bias against ECGDex over 726 paired epochs, against +0.013 (0.3σ) for the
+           mean — for 6 % more spread. The outlier this fixture plants is exactly what the median was
+           protecting against, so the trade is visible right here: mean 69 is further from the quiet
+           rate, and closer to what a beat-interval node publishes for the same minute. */
+        T.eq('hr is the MEAN 1 Hz rate (69), not the median (60) — D3, owner-ruled 2026-09-17', eps[0].hr, 69);
+        T.eq('the statistic is labelled, so a consumer cannot mistake it', eps[0].hrStat, 'mean-rate');
         T.eq('motionIndex is the MEAN motion count (10/60 = 0.167), not the median (0)', eps[0].motionIndex, 0.167);
         T.eq('no rows ⇒ [] (never a fabricated epoch)', bes([], t0).length, 0);
         T.eq('no anchor ⇒ [] — an epoch grid needs a t0', bes(rows, null).length, 0);
