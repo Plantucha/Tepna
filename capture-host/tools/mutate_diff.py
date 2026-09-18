@@ -67,6 +67,7 @@ import json
 import re
 import sys
 import subprocess
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
@@ -256,9 +257,23 @@ def main(argv=None) -> int:
         # One mutmut invocation per function keeps a single slow function from hiding the others.
         for g in globs:
             _attempted += 1
+            # ── PROGRESS, AND WHY IT IS PRINTED BEFORE THE WORK RATHER THAN AFTER ───────────────
+            # A clean function used to print NOTHING: only survivors were reported, from inside the
+            # results parse. So a function that killed everything in 8 s and a function that hung for
+            # two hours produced identical output — none — and the run's own log could not tell them
+            # apart. Measured on run 35367452829 (#2624): last output at 16:36:08 "Generating
+            # mutants", then 2 h 05 m of silence, then exit 143. Nobody could say where the time went,
+            # which is why a granularity change was being considered against an interval no one had
+            # observed.
+            # The line goes BEFORE `run_one` deliberately. Printed after, a hang is still anonymous —
+            # the whole point is that the log NAMES the function currently being mutated, so a kill
+            # mid-run is attributable to one glob instead of to the job.
+            _t0 = time.monotonic()
+            print(f"    ▸ {g}: mutating…", flush=True)
             r = mut.run_one(module, only=g)
+            _secs = time.monotonic() - _t0
             if r.get("error"):
-                print(f"    ! {g}: {r['error']}")
+                print(f"    ! {g}: {r['error']}  [{_secs:.0f}s]", flush=True)
                 continue
             _ran += 1
             work = Path(r["work"])
@@ -267,14 +282,15 @@ def main(argv=None) -> int:
             # meta and hands back a clean-looking run with no survivors. Count the DECIDED mutants for this
             # glob; zero means it dropped out while listed as covered — record it and refuse below, exactly
             # as the preflight does, rather than banking an empty survivor list as a pass.
-            if mmeta.tested_count(work, module, g) == 0:
+            _tested = mmeta.tested_count(work, module, g)
+            if _tested == 0:
                 # ⚠️ 0-tested has TWO causes and only one is a failure. A function with no mutable
                 # operator generates nothing, and mutmut signals that by crashing rather than saying
                 # so — refusing on it reds a rename or a docstring edit. Ask the mutants file which
                 # case this is before deciding. (Measured: oxy_inventory.identity, 138 mutants in the
                 # file, 0 under its glob, whole run refused.)
                 if mmeta.generated_count(work, module, g) == 0:
-                    print(f"    · {g}: no mutable operator in this function — nothing to test")
+                    print(f"    · {g}: no mutable operator in this function — nothing to test  [{_secs:.0f}s]", flush=True)
                     # `_ran` was incremented on the way in; nothing actually ran, so give it back.
                     # Without this the run reports "every mutant on the changed functions was killed"
                     # over ZERO mutants — a claim of coverage that does not exist, which is the exact
@@ -284,10 +300,18 @@ def main(argv=None) -> int:
                     _nothing_to_mutate.append(g)
                     continue
                 print(f"    ! {g}: mutants were generated but 0 tested — a crash after generation, not "
-                      f"a clean run (the meta's exit codes are all null under this glob)")
+                      f"a clean run (the meta's exit codes are all null under this glob)  [{_secs:.0f}s]", flush=True)
                 _ran -= 1
                 _crashed.append(g)
                 continue
+            # THE SUCCESS PATH, which printed nothing whatsoever before this. A function whose
+            # mutants were all killed is the COMMON case, so the common case was the silent one — and
+            # silence is what made a slow run indistinguishable from a healthy one. The count and the
+            # elapsed are both here because either alone is ambiguous: 2 mutants in 600 s and 900
+            # mutants in 600 s are different findings, and only the pair separates a wide sweep from a
+            # slow one. That distinction is exactly what the granularity question needs and could not
+            # get from the old log.
+            print(f"    ✓ {g}: {_tested} mutant(s) decided  [{_secs:.0f}s]", flush=True)
             # ── the GENERATED set, for REFUTED detection ────────────────────────────────────────
             # `mutmut results` lists survivors and not-checked ONLY — a KILLED mutant is absent from
             # it entirely, so an earlier draft's `": killed" in line` matched nothing and REFUTED could
