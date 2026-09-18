@@ -52,6 +52,7 @@ import json
 import os
 import tempfile
 import threading
+import time
 
 _LOCK = threading.RLock()
 # ADDR -> {"db_hash": str|None, "chars": {uuid: handle}, "source": str}
@@ -130,28 +131,53 @@ def _flush() -> None:
         pass
 
 
-def record(addr, db_hash, chars, *, source: str) -> bool:
-    """Store the table OBSERVED on this unit. Returns whether it was stored.
+def record(addr, db_hash, chars, *, source: str, now=None) -> str:
+    """Store the table OBSERVED on this unit. Returns WHAT HAPPENED, not merely whether it worked:
 
-    REFUSES an empty table (see the module note — it would make every snapshot look complete), and says
-    so by returning False rather than raising, because this runs beside a live link."""
+        "new"       first table for this unit
+        "changed"   the table or its Database Hash moved — the event the oracle cares about
+        "same"      byte-identical to what is already stored; nothing written
+        ""          refused (an empty or unusable table)
+
+    ⚠️ THE CALLER MUST DISTINGUISH "same" FROM THE OTHER TWO, and the reason is measured. This is
+    invoked on EVERY connect, not on change: Wren counted **~112 records in one hour** on vigil
+    (2026-09-17 21:06→22:09), one per ~34 s CPAP poll, every one byte-identical — same 14
+    characteristics, same hash. Idempotent, so the map was never harmed, but it was >100 INFO lines an
+    hour carrying no information, and re-flushing an 834-byte file every 34 s forever. A log that
+    repeats a constant is how a real event gets buried, which is the thing the night report exists to
+    prevent.
+
+    So an unchanged table now writes NOTHING and says "same"; only a first sighting or a real change
+    touches the disk. `record()` used to return a bool, which could not express that distinction — the
+    caller could not tell a fresh table from the hundredth confirmation of an old one."""
     try:
         table = {_norm_uuid(u): h for u, h in dict(chars or {}).items()}
     except (TypeError, ValueError):
-        return False
+        return ""
     if not table:
-        return False
+        return ""
+    h = _norm_hash(db_hash)
     try:
         with _LOCK:
+            prev = _MAPS.get(_norm(addr))
+            if isinstance(prev, dict) and prev.get("db_hash") == h and prev.get("chars") == table:
+                return "same"          # nothing written — see the docstring
+            outcome = "changed" if isinstance(prev, dict) else "new"
             _MAPS[_norm(addr)] = {
-                "db_hash": _norm_hash(db_hash),
+                "db_hash": h,
                 "chars": table,
                 "source": str(source),
+                # WHEN THIS TABLE WAS RECORDED — first sighting or last CHANGE, and deliberately NOT
+                # "last confirmed". A confirmation timestamp would need a write on every connect,
+                # which is precisely the cost this function just removed. It is not a loss: the
+                # Database Hash IS the staleness signal by design, so a matching hash already means
+                # the table is current. This adds provenance, not staleness detection.
+                "recorded_at": int(now if now is not None else time.time()),
             }
             _flush()
-        return True
+        return outcome
     except Exception:          # noqa: BLE001 - a map note must never end a recording
-        return False
+        return ""
 
 
 def expected(addr, db_hash) -> dict | None:

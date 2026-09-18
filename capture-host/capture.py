@@ -9714,9 +9714,14 @@ async def _gatt_record_table(client, addr) -> str:
             db_hash = bytes(await _bounded_setup(client.read_gatt_char(GATT_DB_HASH_UUID)))
         except BaseException:  # noqa: BLE001 - an unread hash is `None`, never a fabricated key
             db_hash = None
-    if not gattmap.record(addr, db_hash, table, source="connect-snapshot"):
+    outcome = gattmap.record(addr, db_hash, table, source="connect-snapshot")
+    if outcome in ("", "same"):
+        # "" = refused; "same" = byte-identical to what is stored, so nothing was written and there is
+        # nothing to say. MEASURED 2026-09-17 on vigil (Wren): this fires on every connect, and an
+        # hour of CPAP polling produced ~112 byte-identical records at one per ~34 s. Logging those
+        # was >100 INFO lines an hour carrying no information — which is how a real event gets buried.
         return ""
-    return "%d char(s), db_hash %s" % (len(table), db_hash.hex() if db_hash else "absent")
+    return "%s — %d char(s), db_hash %s" % (outcome, len(table), db_hash.hex() if db_hash else "absent")
 
 
 async def _gatt_rebuild(client) -> bool:

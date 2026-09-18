@@ -40,14 +40,14 @@ def test_PLANT_an_unrecorded_table_is_None_never_empty():
 
 def test_PLANT_recording_an_EMPTY_table_is_REFUSED():
     """The same claim, arriving by the front door. It must not be storable at all."""
-    assert gattmap.record(ADDR, H, {}, source="probe") is False
-    assert gattmap.record(ADDR, H, None, source="probe") is False
+    assert gattmap.record(ADDR, H, {}, source="probe") == ""
+    assert gattmap.record(ADDR, H, None, source="probe") == ""
     assert gattmap.expected(ADDR, H) is None
 
 
 def test_record_that_is_not_a_mapping_is_refused_not_raised():
     """It runs beside a live link, so a bad argument returns False rather than ending the night."""
-    assert gattmap.record(ADDR, H, 7, source="probe") is False
+    assert gattmap.record(ADDR, H, 7, source="probe") == ""
 
 
 # ── THE ORACLE ──────────────────────────────────────────────────────────────────────────────────────
@@ -185,7 +185,7 @@ def test_an_unwritable_path_does_not_break_capture(tmp_path):
     (tmp_path / "ro").mkdir()
     (tmp_path / "ro").chmod(0o500)
     try:
-        assert gattmap.record(ADDR, H, TABLE, source="probe") is True
+        assert gattmap.record(ADDR, H, TABLE, source="probe") in ("new", "changed")
         assert gattmap.missing(ADDR, H, list(TABLE)) == []
     finally:
         (tmp_path / "ro").chmod(0o700)
@@ -210,7 +210,7 @@ def test_recording_never_raises_into_the_capture_path(monkeypatch, tmp_path):
         raise RuntimeError("disk gone")
     gattmap.configure(str(tmp_path / "g.json"))
     monkeypatch.setattr(gattmap, "_flush", boom)
-    assert gattmap.record(ADDR, H, TABLE, source="probe") is False
+    assert gattmap.record(ADDR, H, TABLE, source="probe") == ""
     assert gattmap.missing(ADDR, H, list(TABLE)) == []      # in-memory table survived the write failure
 
 
@@ -222,7 +222,7 @@ def test_PLANT_a_failed_write_leaves_no_half_written_map_and_no_tmp_litter(monke
     p = tmp_path / "g.json"
     gattmap.configure(str(p))
     monkeypatch.setattr(gattmap.json, "dump", boom)
-    assert gattmap.record(ADDR, H, TABLE, source="probe") is True   # in-memory write succeeded
+    assert gattmap.record(ADDR, H, TABLE, source="probe") in ("new", "changed")   # in-memory write succeeded
     assert not p.exists()                                           # no half-written map
     assert [f for f in os.listdir(tmp_path) if f.startswith(".gattmap-")] == []
 
@@ -237,7 +237,7 @@ def test_even_a_failed_CLEANUP_does_not_reach_the_capture_path(monkeypatch, tmp_
     gattmap.configure(str(tmp_path / "g.json"))
     monkeypatch.setattr(gattmap.json, "dump", bad_dump)
     monkeypatch.setattr(gattmap.os, "unlink", bad_unlink)
-    assert gattmap.record(ADDR, H, TABLE, source="probe") is True
+    assert gattmap.record(ADDR, H, TABLE, source="probe") in ("new", "changed")
     assert gattmap.missing(ADDR, H, list(TABLE)) == []
 
 
@@ -322,9 +322,23 @@ def test_recorder_an_unread_hash_is_None_never_a_fabricated_key():
     assert gattmap.expected(ADDR, None) is not None
 
 
+def test_recorder_is_SILENT_on_an_unchanged_table(monkeypatch):
+    """The noise path, at the caller: `same` must produce no phrase, so no INFO line is logged."""
+    import capture
+    monkeypatch.setattr(capture.gattmap, "record", lambda *_a, **_k: "same")
+    assert _run(capture._gatt_record_table(_Client([_Char("abcd", 1)]), ADDR)) == ""
+
+
+def test_recorder_ANNOUNCES_a_new_or_changed_table(monkeypatch):
+    import capture
+    monkeypatch.setattr(capture.gattmap, "record", lambda *_a, **_k: "new")
+    out = _run(capture._gatt_record_table(_Client([_Char("abcd", 1)]), ADDR))
+    assert out.startswith("new — ") and "1 char(s)" in out
+
+
 def test_recorder_reports_nothing_when_the_map_REFUSES_the_write(monkeypatch):
     import capture
-    monkeypatch.setattr(capture.gattmap, "record", lambda *_a, **_k: False)
+    monkeypatch.setattr(capture.gattmap, "record", lambda *_a, **_k: "")
     assert _run(capture._gatt_record_table(_Client([_Char("abcd", 1)]), ADDR)) == ""
 
 
@@ -356,3 +370,57 @@ def test_wait_hint_never_returns_an_empty_set(tmp_path):
 def test_wait_hint_for_an_unknown_address_is_None():
     gattmap.record(ADDR, H, TABLE, source="probe")
     assert gattmap.wait_hint("11:22:33:44:55:66") is None
+
+
+# ── THE NOISE DEFECT — measured on vigil, 2026-09-17 (Wren) ─────────────────────────────────────────
+def test_PLANT_an_UNCHANGED_table_writes_nothing_and_says_so(tmp_path):
+    """~112 byte-identical records in one hour, one per ~34 s CPAP poll, every one the same 14
+    characteristics and the same hash. Idempotent, so the map was never harmed — and >100 INFO lines
+    an hour carrying no information, which is how a real event gets buried. An unchanged table must
+    now write NOTHING and report `same`."""
+    p = tmp_path / "g.json"
+    gattmap.configure(str(p))
+    assert gattmap.record(ADDR, H, TABLE, source="probe") == "new"
+    before = p.read_bytes()
+    mtime = p.stat().st_mtime_ns
+    for _ in range(5):
+        assert gattmap.record(ADDR, H, TABLE, source="probe") == "same"
+    assert p.read_bytes() == before
+    assert p.stat().st_mtime_ns == mtime      # not merely identical CONTENT — not rewritten at all
+
+
+def test_a_CHANGED_table_is_the_event_the_oracle_cares_about(tmp_path):
+    gattmap.configure(str(tmp_path / "g.json"))
+    assert gattmap.record(ADDR, H, TABLE, source="probe") == "new"
+    assert gattmap.record(ADDR, "deadbeef", TABLE, source="probe") == "changed"   # hash moved
+    assert gattmap.record(ADDR, "deadbeef", {"abcd": 1}, source="probe") == "changed"  # table moved
+    assert gattmap.record(ADDR, "deadbeef", {"abcd": 1}, source="probe") == "same"
+
+
+def test_the_outcome_distinguishes_a_FIRST_sighting_from_the_hundredth_confirmation():
+    """The bool it returned before could not express this: the caller could not tell a fresh table
+    from the hundredth confirmation of an old one, which is exactly what produced the noise."""
+    assert gattmap.record(ADDR, H, TABLE, source="probe") == "new"
+    assert gattmap.record(ADDR, H, TABLE, source="probe") == "same"
+
+
+def test_recorded_at_is_stamped_and_is_NOT_a_last_confirmed_field(tmp_path):
+    """The Database Hash IS the staleness signal by design, so a matching hash already means current.
+    A last-confirmed stamp would need a write on every connect — the cost just removed. This records
+    when the table was FIRST seen or last CHANGED, and the test pins that it does not drift on a
+    confirmation."""
+    gattmap.configure(str(tmp_path / "g.json"))
+    gattmap.record(ADDR, H, TABLE, source="probe", now=1000)
+    gattmap.record(ADDR, H, TABLE, source="probe", now=9999)   # a confirmation
+    raw = json.loads((tmp_path / "g.json").read_text(encoding="utf-8"))
+    assert raw[ADDR]["recorded_at"] == 1000
+    gattmap.record(ADDR, "deadbeef", TABLE, source="probe", now=9999)  # a real change
+    raw = json.loads((tmp_path / "g.json").read_text(encoding="utf-8"))
+    assert raw[ADDR]["recorded_at"] == 9999
+
+
+def test_recorded_at_defaults_to_the_clock_when_not_supplied(tmp_path):
+    gattmap.configure(str(tmp_path / "g.json"))
+    gattmap.record(ADDR, H, TABLE, source="probe")
+    raw = json.loads((tmp_path / "g.json").read_text(encoding="utf-8"))
+    assert raw[ADDR]["recorded_at"] > 1_700_000_000
