@@ -11018,6 +11018,63 @@
        A claim nobody marks is simply not gated — under-coverage, never a false red.
 
        Node-lane only (env.claudeMdClaims is fs-read); the browser lane SKIPs, mirroring docs-ledger. */
+    /* ════ TABLE PROVENANCE — PUBLISHED-NUMBER-PROVENANCE §4, phase 2 ═══════════════════════════════
+       `CLAIM` is right for a number in a sentence and far too heavy for a 20-number table. A table
+       gets ONE footer carrying GATE-B's triple in a form Markdown holds, and the OUTPUT hash is over
+       the table TEXT — so hand-editing a cell without re-running the producer reds. That is the decay
+       sweep's measured failure (prose drifting from the artifact) made mechanical, and it needs no
+       corpus, so it runs in CI.
+       ⚠️ DO NOT grow this into a prose scanner. §2 built one, measured it — 45 flags, all 4 sampled
+       false positives from four DISTINCT mechanisms — and refused it: statcheck's precision comes from
+       NHST's rigid convention, not from the checking. The marker CREATES the stereotypy instead. */
+    group('Published tables name the run that produced them (TABLE-PROVENANCE)', 'docs · table-provenance · published-numbers', function (T) {
+      var TP = env.tableProvenance;
+      if (!TP) {
+        T.skip('env.tableProvenance provided to the runner', 'Node-lane only (fs-read) — the browser lane cannot list the tree');
+        return;
+      }
+      /* ANTI-VACUITY. A resolver with nothing to resolve passes trivially, which is the shape this
+         whole brief exists to refuse. */
+      T.ok(
+        'at least one table carries a TABLE-PROVENANCE stamp',
+        TP.stamps.length > 0,
+        TP.stamps.length +
+          ' stamp(s): ' +
+          TP.stamps
+            .map(function (x) {
+              return x.file;
+            })
+            .join(', ')
+      );
+      T.eq('no stamp is malformed (a marker that parsed to nothing is not a stamp)', TP.malformed.join(' · '), '');
+
+      TP.stamps.forEach(function (st) {
+        var where = st.file + ':' + st.line;
+        /* A DEAD PRODUCER REDS, NEVER SKIPS — phase 1's rule. A stamp naming a tool that no longer
+           exists is precisely the stale attribution this is built to catch. */
+        T.ok(where + ' · producer exists in the tree', !!st.producer && env.treeHas(st.producer), 'producer=' + st.producer);
+        /* THE LOAD-BEARING LEG. */
+        T.eq(where + ' · the table still hashes to its recorded output', st.actualOutput, st.output);
+        /* RESOLVABLE vs RECORDED-ONLY inputs, and they must not be conflated: only the first can ever
+           CLEAR a churn flag. §2 of the decay sweep says its screen "can FLAG but probably cannot
+           CLEAR"; a committed upstream artifact is what changes that, so the distinction is the
+           remedy, not bookkeeping. */
+        var resolvable = st.inputs && st.inputs.indexOf('/') >= 0;
+        T.ok(
+          where + ' · inputs is either a RESOLVABLE committed path or a recorded 12-hex digest',
+          !!st.inputs && (resolvable ? env.treeHas(st.inputs) : /^[0-9a-f]{12}$/.test(st.inputs)),
+          'inputs=' + st.inputs + (resolvable ? ' (resolvable — this stamp CAN be cleared)' : ' (recorded only — can be FLAGGED, never cleared)')
+        );
+      });
+
+      /* PLANTED CONTROLS — the resolver must FIRE, or every leg above is decoration. */
+      var probe = TP.stamps[0];
+      if (probe) {
+        T.ok('CONTROL · an edited table no longer matches its stamp', TP.sha12(probe.table + ' ') !== probe.output, 'one appended space must change the hash');
+        T.ok('CONTROL · the hash is over the TABLE, not the whole file', TP.sha12(probe.table) === probe.output, 'recomputed from the captured block alone');
+      }
+    });
+
     group('CLAUDE.md claims match the tree (CLAIM markers)', 'docs · claude-md · claims', function (T) {
       var C = env.claudeMdClaims;
       if (!C) {

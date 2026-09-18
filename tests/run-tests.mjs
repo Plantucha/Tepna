@@ -1258,6 +1258,61 @@ function readNodeSurfaces() {
    this reads the tree for the same number. Prose stays prose; only the number is load-bearing, so the
    gate cannot drift into policing wording. Node-lane only (fs reads) — the browser lane has no readdir,
    so `env.claudeMdClaims` is undefined there and the group SKIPs, mirroring docs-ledger/release-ledger. */
+/* TABLE PROVENANCE — PUBLISHED-NUMBER-PROVENANCE-2026-09-15 §4, phase 2.
+   `CLAIM` is right for a number in a sentence and far too heavy for a 20-number table. A table wants
+   ONE footer carrying GATE-B's triple — producer, inputs, output — in a form Markdown already holds:
+
+     <!-- TABLE-PROVENANCE producer=<path> invocation="<argv>" inputs=<path|12hex> output=<12hex> generated=<YYYY-MM-DD> -->
+
+   THE OUTPUT HASH IS OVER THE TABLE TEXT ITSELF, and that is the load-bearing part. It makes the
+   exact failure the decay sweep measured — prose drifting from the artifact it reports — mechanically
+   visible, because hand-editing a cell without re-running the producer changes the text and breaks
+   the hash. Nothing else here needs the corpus, so it works in CI.
+
+   ⚠️ DO NOT extend this into a prose scanner. §2 of that brief BUILT one, measured it (45 flags, and
+   every one of 4 sampled a false positive, from four DISTINCT mechanisms), and refused it: statcheck's
+   precision comes from NHST's rigid convention, not from the checking, and discursive prose has
+   nothing for a parser to grip. The marker is not the cheaper option — it is the only one that works,
+   because it CREATES the stereotypy the method depends on. */
+function readTableProvenance() {
+  const crypto = require('node:crypto');
+  const sha12 = (t) => crypto.createHash('sha256').update(t, 'utf8').digest('hex').slice(0, 12);
+  const RE = /<!--\s*TABLE-PROVENANCE\s+([^>]*?)-->/g;
+  const out = { stamps: [], malformed: [], sha12 };
+  const roots = ['briefs', 'audits', 'docs'];
+  const files = [];
+  for (const r of roots) {
+    const d = join(ROOT, r);
+    if (!existsSync(d)) continue;
+    for (const f of readdirSync(d)) if (f.endsWith('.md')) files.push(join(r, f));
+  }
+  if (existsSync(join(ROOT, 'CLAUDE.md'))) files.push('CLAUDE.md');
+  for (const rel of files) {
+    const text = readFileSync(join(ROOT, rel), 'utf8');
+    const lines = text.split('\n');
+    RE.lastIndex = 0;
+    let m;
+    while ((m = RE.exec(text))) {
+      const attrs = {};
+      for (const a of m[1].matchAll(/(\w[\w-]*)=("([^"]*)"|\S+)/g)) attrs[a[1]] = a[3] !== undefined ? a[3] : a[2];
+      const lineNo = text.slice(0, m.index).split('\n').length;
+      /* The TABLE IS THE CONTIGUOUS `|` BLOCK IMMEDIATELY ABOVE the marker. Walking up from the
+         marker rather than down from a heading is what makes one file able to carry several. */
+      let i = lineNo - 2;
+      while (i >= 0 && !lines[i].trim().startsWith('|')) i--;
+      const end = i;
+      while (i >= 0 && lines[i].trim().startsWith('|')) i--;
+      const table = end >= 0 ? lines.slice(i + 1, end + 1).join('\n') : null;
+      if (!attrs.producer || !attrs.output || !table) {
+        out.malformed.push(`${rel}:${lineNo} — ${!table ? 'no table immediately above the marker' : 'missing producer= or output='}`);
+        continue;
+      }
+      out.stamps.push({ file: rel, line: lineNo, ...attrs, table, actualOutput: sha12(table) });
+    }
+  }
+  return out;
+}
+
 function readClaudeMdClaims() {
   const cm = join(ROOT, 'CLAUDE.md');
   if (!existsSync(cm)) return undefined;
@@ -2495,6 +2550,17 @@ async function main() {
     nonBundleCsp: readNonBundleCsp(),
     captureFilenameScan: readCaptureFilenameScan(),
     claudeMdClaims: readClaudeMdClaims(),
+    tableProvenance: readTableProvenance(),
+    /* Does this repo-relative path exist in the tree? Used by the TABLE-PROVENANCE gate to red on a
+       dead producer or an unresolvable committed input, rather than skipping — a stamp naming a tool
+       that no longer exists is the stale attribution the gate is for. */
+    treeHas: (rel) => {
+      try {
+        return typeof rel === 'string' && rel.length > 0 && existsSync(join(ROOT, rel));
+      } catch {
+        return false;
+      }
+    },
     onGroup: PROGRESS ? progressReporter() : undefined,
     /* XMT GROUND TRUTH (analysis/xmt-fixture.js) — loaded through the SAME `loadInto` path the DSPs
        use, so c8 attributes per-function coverage to it exactly as it does for a DSP. That matters:
