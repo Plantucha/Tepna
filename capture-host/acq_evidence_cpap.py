@@ -48,7 +48,20 @@ def _counter(summary: dict | None, *keys: str) -> int | str:
     accounting is UNKNOWN, never a fabricated 0 — 0 means "counted, and none happened")."""
     if not summary:
         return ae.UNKNOWN
-    return sum(int(summary.get(k) or 0) for k in keys)
+    # ⚠️ A KEY PRESENT-BUT-None IS UNMEASURED, AND `or 0` ERASED THAT. This read
+    # `int(summary.get(k) or 0)`, so a category with no detector contributed 0 — and by this function's
+    # OWN contract above, 0 means "counted, and none happened". `transport_gaps` is
+    # `overflow + post_drop_tail`, and with `post_drop_tail` unmeasured the surface published a forensic
+    # category as though transport loss had been looked for and found to be zero. That is the §∅ failure
+    # at the evidence layer: an absence wearing the shape of a measurement, and worse than a missing
+    # field because a missing field is visible.
+    #
+    # One unmeasured term makes the SUM unmeasured — a partial total published as a total is the same
+    # lie in smaller print.
+    vals = [summary.get(k) for k in keys]
+    if any(v is None for v in vals):
+        return ae.UNKNOWN
+    return sum(int(v or 0) for v in vals)
 
 
 def assemble_live(
@@ -93,7 +106,11 @@ def assemble_live(
     # ── gap accounting (§8): forensic CATEGORIES, so a reader can tell WHY it is incomplete. Transport
     # loss is the queue overflow plus the post-drop tail; decode loss is the malformed frames. A FOREIGN
     # frame is deliberately NEITHER — it was never ours (GapCounters.total_lost draws the same line). The
-    # untruncated summary rides in `provenance`, so nothing is lost to this projection. ──
+    # untruncated summary rides in `provenance`, so nothing is lost to this projection.
+    #
+    # ⚠️ `transport_gaps` reports UNKNOWN while `post_drop_tail` has no detector, and that is the point:
+    # it was structurally 0 here — both of its terms were dead — and a reader took that as "no transport
+    # loss occurred". UNKNOWN says the category was not measured, which is the true statement. ──
     transport_gaps = _counter(counters, "overflow", "post_drop_tail")
     decode_gaps = _counter(counters, "malformed")
 
