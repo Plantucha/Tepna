@@ -424,3 +424,88 @@ def test_recorded_at_defaults_to_the_clock_when_not_supplied(tmp_path):
     gattmap.record(ADDR, H, TABLE, source="probe")
     raw = json.loads((tmp_path / "g.json").read_text(encoding="utf-8"))
     assert raw[ADDR]["recorded_at"] > 1_700_000_000
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# REACHABILITY FROM THE WEARABLE RAILS (GATT-HANDLE-MAP §2b③, the defect Wren measured 2026-09-18)
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+def test_every_wearable_RAIL_reaches_the_recorder():
+    """THE DEFECT THIS NEGATES, measured on vigil 2026-09-18 (Wren): `_gatt_record_table` had EXACTLY
+    ONE caller, inside `_cpap_ble_connect`, and the wearable connect paths held ZERO gattmap references.
+    So the map's silence on H10 / Verity / O2Ring was a fact about the WIRING, not about the devices —
+    and a night of wearing them would have produced exactly the same silence. The live proof was a
+    Verity worn twice that day with `gattmap.json` unchanged and no record line either time.
+
+    The bar is the negation of that measurement: every rail that opens a wearable link must CALL the
+    recorder. Asserted over the AST rather than by grepping the file, so it is a statement about each
+    function's body and cannot be satisfied by the identifier appearing in a comment or in a sibling
+    rail. A rail added later with no record call fails here, which is the point — this is the check
+    that would have caught the original omission."""
+    import ast as _ast
+    import pathlib as _pl
+
+    src = _pl.Path(__file__).resolve().parent.parent / "capture.py"
+    tree = _ast.parse(src.read_text())
+    bodies = {n.name: n for n in _ast.walk(tree)
+              if isinstance(n, (_ast.FunctionDef, _ast.AsyncFunctionDef))}
+
+    # value = the recorder entry point that rail must reach. The wearables go through the
+    # `_gatt_record_rail` wrapper; CPAP calls the table recorder directly and is kept here so a
+    # regression on the rail that ALREADY worked also reds.
+    RAILS = {
+        "run_polar": ("_gatt_record_rail", "Polar H10 + Verity Sense (PMD + the SIG Heart Rate char)"),
+        "run_viatom": ("_gatt_record_rail", "Wellue/Viatom O2Ring (legacy Viatom protocol)"),
+        "run_oxyii": ("_gatt_record_rail", "Wellue O2Ring-S / T8520 (OxyII protocol)"),
+        "_cpap_ble_connect": ("_gatt_record_table", "CPAP AS11 — the rail that already had it"),
+    }
+    missing = []
+    for rail, (entry, why) in RAILS.items():
+        fn = bodies.get(rail)
+        assert fn is not None, f"{rail} no longer exists — update this test deliberately, not reflexively"
+        calls = {c.func.id for c in _ast.walk(fn)
+                 if isinstance(c, _ast.Call) and isinstance(c.func, _ast.Name)}
+        if entry not in calls:
+            missing.append(f"{rail} ({why}) — no call to {entry}")
+    assert not missing, "rails that open a link and never record their GATT table: " + "; ".join(missing)
+
+
+def test_the_recorder_is_a_NO_OP_on_a_second_call_in_one_connect():
+    """Why calling the recorder from several streams of one connect is safe, which is what lets each rail
+    record from whichever stream subscribes first without tracking which one did. `client.services` is a
+    snapshot frozen at connect, so the second call sees identical bytes: `record` answers "same" and
+    `_gatt_record_table` returns "" — no write, and nothing logged. Without this property the four call
+    sites would risk a false "changed" on a device that never changed."""
+    import capture
+    chars = [_Char(capture.GATT_DB_HASH_UUID, 0x0003), _Char("00002a37-0000-1000-8000-00805f9b34fb", 0x0011)]
+    client = _Client(chars, read=b"\x11\x22\x33\x44\x55\x66\x77\x88\x99\xaa\xbb\xcc\xdd\xee\xff\x00")
+
+    first = _run(capture._gatt_record_table(client, ADDR))
+    assert first and "new" in first, f"the first call must RECORD, got {first!r}"
+    assert _run(capture._gatt_record_table(client, ADDR)) == "", \
+        "a second call in the same connect must be silent — not a write, not a 'changed'"
+
+
+def test_the_rail_wrapper_logs_ONLY_when_something_was_written(monkeypatch, caplog):
+    """Both directions of the wrapper's one branch, because the quiet direction is the load-bearing one.
+    `_gatt_record_table` returns "" for a refused table AND for a byte-identical one — and the CPAP path
+    measured ~112 identical records an hour at one per ~34 s, so logging those was >100 INFO lines an
+    hour carrying no information. Four rails makes that worse, not better."""
+    import logging
+    import capture
+
+    async def _wrote(_client, _addr):
+        return "new — 14 char(s), db_hash 4bcd397d"
+
+    monkeypatch.setattr(capture, "_gatt_record_table", _wrote)
+    with caplog.at_level(logging.INFO, logger=capture.log.name):
+        _run(capture._gatt_record_rail(object(), ADDR, "Polar H10"))
+    assert any("GATT table recorded" in r.message for r in caplog.records)
+
+    async def _silent(_client, _addr):
+        return ""
+
+    caplog.clear()
+    monkeypatch.setattr(capture, "_gatt_record_table", _silent)
+    with caplog.at_level(logging.INFO, logger=capture.log.name):
+        _run(capture._gatt_record_rail(object(), ADDR, "Polar H10"))
+    assert not caplog.records, "a refused or byte-identical table must log NOTHING"
