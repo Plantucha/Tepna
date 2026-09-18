@@ -458,3 +458,48 @@ def test_stream_without_counters_is_unchanged():
     batches = _run(_collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["SpO2"],
                                      start_id=_START_ID, max_batches=1)))
     assert len(batches) == 1 and batches[0]["channels"] == {"SpO2": [98.0]}
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# CPAP-ACQ-P3 W1 — ONE classifier. These pin the two ways the dead twin DISAGREED with the live code.
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+def test_a_frame_the_inline_classifier_would_have_CRASHED_on_is_merely_counted():
+    """Before W1 this loop did `msg.get(...)` then `msg["params"]` then iterated `p.get("data", [])`
+    directly, so a non-dict frame, a missing/non-dict `params`, or a non-list `data` raised
+    AttributeError / KeyError / TypeError out of the generator and ENDED THE STREAM. `classify_frame`
+    calls each of them MALFORMED. This is the half of W1 that is a pure robustness gain."""
+    from cpap_ingest import GapCounters
+    c = GapCounters()
+    dev = FakeAS11([
+        _ack([("PatientFlow", True)]),
+        _enc(["not", "a", "dict"]),                                              # non-dict frame
+        _enc({"jsonrpc": "2.0", "method": "StreamData", "params": "not-a-dict"}),  # params not a dict
+        _enc({"jsonrpc": "2.0", "method": "StreamData",
+              "params": {"data": "not-a-list", "streamId": 1}}),                  # data not a list
+        _stream_data({"PatientFlow": [1.0, 2.0]}),                                # OK — 2 samples
+    ])
+    batches = _run(_collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["PatientFlow"],
+                                     start_id=_START_ID, max_batches=1, counters=c)))
+    assert len(batches) == 1 and batches[0]["channels"] == {"PatientFlow": [1.0, 2.0]}
+    assert c.malformed == 3, "all three crash shapes must be COUNTED, not raised"
+    assert c.frames_ok == 1 and c.samples_ok == 2
+
+
+def test_a_StreamData_carrying_NO_data_is_MALFORMED_not_an_empty_batch():
+    """THE ONE BEHAVIOUR CHANGE W1 MAKES, pinned so it is a decision and not a drift. Before W1 an empty
+    `data: []` yielded a batch of ZERO samples — presence-shaped absence (§∅): it reaches the bus and the
+    EDF sink looking like data while carrying none. `classify_frame`'s spec is "OK only when ... carrying
+    a non-empty `data` list", so it is now counted and dropped. Whether AS11 emits such frames is not
+    established; if it does, they surface as `malformed` rather than as silent empty batches."""
+    from cpap_ingest import GapCounters
+    c = GapCounters()
+    dev = FakeAS11([
+        _ack([("PatientFlow", True)]),
+        _stream_data({}),                                    # data: [] — the divergent case
+        _stream_data({"PatientFlow": [9.0]}),                # OK — 1 sample
+    ])
+    batches = _run(_collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["PatientFlow"],
+                                     start_id=_START_ID, max_batches=1, counters=c)))
+    assert len(batches) == 1, "the empty frame must NOT have been yielded as a batch"
+    assert batches[0]["channels"] == {"PatientFlow": [9.0]}
+    assert c.malformed == 1 and c.frames_ok == 1

@@ -29,6 +29,7 @@ class As11Error(RuntimeError):
 
 # P3 gap-accounting taxonomy — used ONLY to COUNT frames at the stream boundary (see stream()).
 from cpap_ingest import FrameKind as _FrameKind
+from cpap_ingest import classify_frame
 
 async def _read_json(recv_frame, unseal=None):
     """Read one FIG frame; decrypt if it is an encrypted-channel frame; decode JSON."""
@@ -150,19 +151,27 @@ async def stream(write, recv_frame, seal, unseal, data_ids, *,
     count = 0
     while max_batches is None or count < max_batches:
         msg = await _read_json(recv_frame, unseal)
-        if msg.get("method") != "StreamData":
-            # P3 gap accounting at the frame boundary — count where the frame is SEEN, before the filter
-            # eats it (INV7). COUNTING ONLY: what is dropped is unchanged, it is just no longer silent.
+        # P3 gap accounting at the frame boundary — count where the frame is SEEN, before the filter eats
+        # it (INV7). ONE CLASSIFIER: `classify_frame` is the tested spec of this decision, and until
+        # CPAP-ACQ-P3 W1 it was a DEAD TWIN — the decision was ALSO made inline here, so the copy under
+        # test and the copy that ran could not be made to disagree by any test. They did disagree:
+        #
+        #   • a non-dict frame, a missing/non-dict `params`, or a non-list `data` RAISED here (AttributeError
+        #     / KeyError / TypeError) and killed the stream generator. classify_frame returns MALFORMED.
+        #   • a StreamData carrying `data: []` yielded a batch of ZERO samples. classify_frame calls it
+        #     MALFORMED, which is the behaviour change this wiring makes, deliberately: a zero-sample batch
+        #     is presence-shaped absence (§∅) — it reaches the bus and the EDF sink looking like data and
+        #     carries none, where a counted MALFORMED is visible. No test exercised that path either way,
+        #     and whether AS11 emits such frames is NOT established here; if it turns out to emit them
+        #     routinely they will show up as `malformed`, which is the loud failure rather than the quiet one.
+        kind = classify_frame(msg, stream_id)
+        if kind is not _FrameKind.OK:
             if counters is not None:
-                counters.note_frame(_FrameKind.MALFORMED)
-            continue  # a HeartBeat or other out-of-band notification — keep reading
+                counters.note_frame(kind)
+            continue  # a HeartBeat, a foreign stream, or a frame with nothing in it — keep reading
         p = msg["params"]
-        if p.get("streamId") != stream_id:
-            if counters is not None:
-                counters.note_frame(_FrameKind.FOREIGN)
-            continue  # data from a different stream (defensive) — not ours
         channels: dict[str, list] = {}
-        for entry in p.get("data", []):
+        for entry in p["data"]:
             channels.update(entry)
         if counters is not None:
             counters.note_frame(_FrameKind.OK,
