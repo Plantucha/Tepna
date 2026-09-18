@@ -4,28 +4,37 @@ type: added
 brief: PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md
 ---
 
-PpgDex reads the `_PPGRUNS.txt` sidecar as a second witness and cross-checks it against the in-JS
-derivation — P5 clause 2, which #2531 deferred by name after landing clause 1.
+PpgDex reads the `_PPGRUNS.txt` sidecar and reports it as a SECOND POPULATION — not as a second
+opinion. P5 clause 2, which #2531 deferred by name after landing clause 1.
 
-The finding is the headline: the capture-side writer gates emission at `min_run=200` while
-`ppgdex-dsp.js` recomputes at `PIN_MIN_RUN = 5`, and §∅ records the O2Ring blanking as 149 runs,
-105 of them >= 10 samples, longest 78. 78 < 200, so the sidecar is gated ABOVE the phenomenon P5
-exists to exclude. Measured over all 186 sidecars in the corpus: 39 carry any row, 61 rows total,
-against 105,612,378 runs detected over 131,338,962 samples examined. One file states it outright —
-229k samples examined, 122k runs found, 0 emitted.
+The two producers apply different rules: the sidecar is `rule=stuck` (a constant run at ANY value),
+`pinnedSpans` is rail-keyed (a constant run at an observed extreme). Measured on the corpus: of the
+61 emitted rows, 8 sit at a rail and 53 are MID-RANGE — 87 % structurally invisible to the rail
+rule. The defining case is a 5919-sample (47 second) run at value 100, dead mid-range of an observed
+lo=0/hi=200.
 
-That reshapes precedence. "The file wins" is correct and is scoped to what the file COULD SEE: at or
-above its own `min_run` the sidecar is authoritative; below it the sidecar is SILENT, not empty, so
-the recompute stands. Reading a threshold-gated non-observation as an observation of absence would
-delete a real exclusion on 147 of 186 files — §∅ at the precedence layer.
+So an `agreed`/`disagreed` axis would differ on 53 of 61 rows BY CONSTRUCTION and report a rule
+difference as a finding. Those fields are REMOVED rather than renamed; the export now names each
+population with its rule, states `rulesComparable:false` outright, and reports overlap as
+`coincidentSpans` — geometric only, carrying no claim that one detector confirmed the other.
 
-The verdict publishes THREE states plus uncomparable: `agreed`, `disagreed` (both could see it and
-differ — the owner's finding), and `sidecarBlind` (below the file's own threshold; not a
-disagreement and not an agreement). A file with no rule line has UNKNOWN parameters and is not
-cross-checked at all rather than defaulted — 1 of 186 is that case.
+`sidecarBlind` survives the rework because the threshold question is real and independent: the
+writer gates at `min_run=200` while this file recomputes at 5, so a shorter run is one the writer
+never examined whatever rule it applied. A file with no rule line has UNKNOWN parameters and is not
+interpreted at all.
 
-Export-inert without a sidecar, computed not claimed: `outputHash` moved on zero fixtures and the
-equiv gate passes 201 assertions. `manifestHash` moved because the edit is in the compute closure.
-Corpus blast radius: 2 of 119 trio nights carry a sidecar at all.
+Precedence is unchanged and still correct: a stuck span IS an absence under §∅ regardless of value,
+so the file's spans are taken where the file could see, and below its threshold the recompute
+stands.
 
-`min_run=200` is a live capture-side parameter and is reported, not changed.
+⚠️ THE GAP IS OURS, NOT THE SIDECAR'S. §∅ says key on RUN LENGTH, never on value membership, because
+an in-range value can be a sentinel too — and that 47-second mid-range freeze is the sentinel,
+already in the corpus. Widening `pinnedSpans` is a separate unit, deliberately not folded in here.
+
+Also measured, and it kills a reading this PR's first draft asserted: within the rail population the
+run-length distribution is CONTINUOUS, not bimodal — 4,392 spans >= 2 over 80.9 M samples, with the
+79-199 discriminator band populated at 185. The apparent bimodality was never about length; it was
+two rules.
+
+Export-inert without a sidecar, computed not claimed: zero `outputHash` moved, equiv passes.
+`min_run=200` is a live capture-side parameter — reported, not changed, no value proposed.

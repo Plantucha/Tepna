@@ -474,79 +474,84 @@
     return out;
   }
 
-  /* ── §∅ P5 clause 2: the CROSS-CHECK, and it publishes THREE states, not two ───────────────────
-     `agreed` / `disagreed` alone cannot describe this corpus. A third of the population is neither:
-     the sidecar's threshold is above the run, so it never examined it. Collapsing that into
-     `disagreed` would make 147 of 186 files report a conflict that does not exist and would drown
-     the real ones; collapsing it into `agreed` would assert the sidecar CONFIRMED something it never
-     looked at — a fabricated corroboration, which is the §∅ failure wearing agreement's clothes.
-     So it is its own value:
+  /* ── §∅ P5 clause 2: TWO POPULATIONS, AND THEY ARE NOT COMPARABLE ─────────────────────────────
+     🔴 THIS FUNCTION USED TO REPORT `agreed`/`disagreed`. THAT WAS WRONG AND THE CORPUS SAYS SO.
+     The two producers do not apply the same rule:
 
-       agreed          both could see it and say the same thing
-       disagreed       both COULD see it and differ        <- the owner's finding; must surface
-       sidecarBlind    run shorter than the file's own `min_run`; the sidecar is SILENT, not empty
+       `_PPGRUNS.txt`   rule=stuck   — a constant run at ANY value
+       `pinnedSpans`                 — a constant run at an observed RAIL (an extreme)
 
-     `comparable:false` is a FOURTH and different thing again — the file carries no rule line, so its
-     parameters are unknown and no comparison of any kind is claimed. An unknown parameter must never
-     be defaulted into a comparison; that is how a threshold gets asserted that nobody recorded. */
+     Measured on `…_20260910210517_PPG.txt`, observed range lo=0 hi=200: the sidecar's 5919-sample
+     (47 s) run sits at **value 100 — mid-range**, and the samples there read
+     `100,100,100,100,100,100,100,100,100,100`. `pinnedSpans` cannot see it and is not
+     malfunctioning; it is doing what it says. Across the 61 emitted rows in the corpus, **8 are at a
+     rail and 53 are mid-range** — 87 % structurally invisible to the rail rule.
+
+     So an `agreed`/`disagreed` axis would differ on 53 of 61 rows BY CONSTRUCTION and report a RULE
+     difference as a finding. That is one name over two populations, which is the error this file
+     keeps meeting; it does not become correct by being softened, so the words are gone rather than
+     renamed. A reader who sees "agreed" will compare, and the comparison has no meaning here.
+
+     ⚠️ AND THE GAP IS OURS, NOT THE SIDECAR'S. §∅: *"Key on RUN LENGTH, never on value
+     membership"*, because *"a hardcoded != 0 fixes zero and misses the next sentinel — an in-range
+     value can do the same thing."* `pinnedSpans` keys on being at an extreme, which IS value
+     membership, and a 47-second frozen mid-range reading is the next sentinel, already in the
+     corpus. On this evidence the sidecar's rule is the more §∅-conformant of the two. Widening the
+     in-JS detector is a SEPARATE unit — a PR that both narrows a claim and widens a detector is two
+     units wearing one number.
+
+     What this therefore publishes: each population under its own name with its rule stated, one
+     geometric overlap count that carries no epistemic claim, and the threshold question kept
+     separate because it is real and independent. */
   function crossCheckPinned(sidecar, derivedAtFileParams) {
-    const v = {
-      comparable: false,
+    const v = /** @type {any} */ ({
+      /* NOT "comparable" — the rules differ, so the populations are never comparable in the sense
+         that word invites. This says only whether the file declared parameters we could read. */
+      sidecarReadable: false,
       reason: /** @type {string | null} */ (null),
+      fileRule: 'stuck-any-value',
+      derivedRule: 'rail-pinned',
+      rulesComparable: false, // permanently false, and stated rather than implied
       fileMinRun: null,
-      emitted: 0,
-      agreed: 0,
-      disagreed: 0,
-      sidecarBlind: 0,
-      onlyFile: 0,
-      onlyDerived: 0
-    };
+      fileSpans: 0,
+      derivedSpans: 0,
+      /* Spans the two rules happened to cover the same samples for. GEOMETRIC ONLY — it says the
+         intervals overlap, never that two detectors agreed about a measurement. Named so it cannot
+         be read as corroboration. */
+      coincidentSpans: 0,
+      /* The threshold question, which IS real and independent of the rule difference: a derived span
+         shorter than the file's own `min_run` is one the writer never examined. Not a conflict. */
+      sidecarBlind: 0
+    });
     if (!sidecar) {
       v.reason = 'no-sidecar';
       return v;
     }
     if (!sidecar.comparable) {
-      /* Header absent or unparseable — 1 of 186 in the corpus, so this is a real branch and not a
-         defensive one. We know nothing about what the writer was looking for, so we assert nothing. */
+      /* Header absent or unparseable — 1 of 186 in the corpus, so this is a real branch. We know
+         nothing about what the writer was looking for, so we assert nothing. */
       v.reason = 'sidecar-parameters-unknown';
-      v.emitted = sidecar.emitted;
+      v.fileSpans = sidecar.emitted;
       return v;
     }
-    v.comparable = true;
+    v.sidecarReadable = true;
     v.fileMinRun = sidecar.minRun;
-    v.emitted = sidecar.emitted;
+    v.fileSpans = sidecar.emitted;
     const fileRanges = sidecar.rows.map((r) => [r.first, r.first + r.n - 1]);
     const derived = derivedAtFileParams || [];
+    v.derivedSpans = derived.length;
     const overlaps = (a, b) => a[0] <= b[1] && b[0] <= a[1];
-    /* Derived spans are partitioned by whether the FILE could have seen them at all. Only the ones it
-       could see are eligible to agree or disagree; the rest are `sidecarBlind` and the in-JS
-       derivation stands there unopposed. */
-    const seen = new Array(fileRanges.length).fill(false);
     for (const d of derived) {
       const n = d[1] - d[0] + 1;
       if (n < sidecar.minRun) {
         v.sidecarBlind++;
         continue;
       }
-      let hit = -1;
       for (let i = 0; i < fileRanges.length; i++) {
         if (overlaps(d, fileRanges[i])) {
-          hit = i;
+          v.coincidentSpans++;
           break;
         }
-      }
-      if (hit >= 0) {
-        seen[hit] = true;
-        v.agreed++;
-      } else {
-        v.onlyDerived++;
-        v.disagreed++;
-      }
-    }
-    for (let i = 0; i < fileRanges.length; i++) {
-      if (!seen[i]) {
-        v.onlyFile++;
-        v.disagreed++;
       }
     }
     return v;
