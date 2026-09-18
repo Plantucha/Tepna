@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BEPKCj3mywXVcjArhU4pCaCXN6Cky+ovL+IufHTftog=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-Ekx3X2vnLVbqbCiEiJYQXP26xeydbLEbFQnMljCecms=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-NVMjPCXewLOY4NdGLGRQuFLxxTlhAqqX3M68OJpHTVw=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-a4Uys3KCB5xfX+Q4tRQxCzBCHc2+M7SsxwKFQyGiScI=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BEPKCj3mywXVcjArhU4pCaCXN6Cky+ovL+IufHTftog=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-NVMjPCXewLOY4NdGLGRQuFLxxTlhAqqX3M68OJpHTVw=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-TcDlQxb7KCWwRc/7fLJch8MW0ga35sx71H3P3dkgtpo=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-a4Uys3KCB5xfX+Q4tRQxCzBCHc2+M7SsxwKFQyGiScI=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -26122,6 +26122,181 @@ __exports.GlucoDex = window.GlucoDex;
      writer's defaults (kernel-constants.js + a parity gate reading both) lands with that writer;
      until it exists there is nothing to pair with, and moving a constant into the spine churns all
      8 bundles' manifestHash for no reader. */
+  /* ── §∅ P5 clause 2: READ `_PPGRUNS.txt`, AND CROSS-CHECK IT — never one witness ──────────────
+     Owner ruling (P5, 2026-09-12): read the sidecar AND cross-check it against the in-JS derivation,
+     because "the writer saw the live stream; the samples are a second witness", and **a DISAGREEMENT
+     IS ITSELF A FINDING** about one of the two that must surface rather than be silently resolved.
+     Clause 1 (exclude a pinned span like a gap) landed in #2531; this is the second witness that PR
+     was explicitly deferred from.
+
+     🔴 "THE FILE WINS" IS SCOPED TO WHAT THE FILE COULD SEE, AND THE SCOPING IS LOAD-BEARING.
+     `PIN_MIN_RUN`'s note above records that the sidecar's comment line carries the parameters that
+     produced its rows and that THE FILE WINS for what was observed — correct, and it stops a later
+     default change rewriting history. Applied without a scope it does the opposite of its purpose.
+     Measured over all 186 `_PPGRUNS.txt` in the corpus: the writer gates emission at `min_run=200`
+     (185 of 186 headers) while this file's recompute default is `PIN_MIN_RUN = 5`, and §∅ records the
+     O2Ring blanking as 149 runs, 105 of them >= 10 samples, longest 78. 78 < 200, so the sidecar
+     CANNOT observe the blanking P5 exists to exclude. One real file states it outright:
+     `total_runs=122003 mean_run=1.88 examined=228954` with `runs=0` — 229k samples examined, 122k
+     runs found, nothing emitted. Corpus-wide: 105,612,378 runs detected, 61 rows emitted.
+
+     So a bare "the file wins" would read that emptiness as "no blanking" and delete the exclusion on
+     147 of 186 files. A threshold-gated NON-OBSERVATION is not an observation of absence — §∅ one
+     layer up, at the precedence rule instead of at the value. The scoping:
+
+       - run length >= the FILE's own `min_run` -> the sidecar is authoritative (it looked, and what
+         it recorded is what the live writer actually saw);
+       - below the file's `min_run`             -> the sidecar is SILENT, not empty, so the in-JS
+         derivation stands there;
+       - header absent/unparseable              -> parameters UNKNOWN, so no cross-check is possible
+         and none is claimed, never a default.
+
+     ⚠️ THE CROSS-CHECK IS LIKE-FOR-LIKE OR IT IS NOISE. The in-JS side is re-derived at the FILE's
+     parameters, never at ours; comparing a min_run=5 derivation against a min_run=200 sidecar would
+     report a parameter difference as a disagreement on every file in the corpus — the
+     same-name-two-populations error with a threshold in place of a denominator. */
+  function parsePinnedRuns(text) {
+    if (typeof text !== 'string' || !text) return null;
+    const out = /** @type {any} */ ({
+      params: null,
+      minRun: null,
+      mergeGapMax: null,
+      rows: [],
+      byChannel: Object.create(null),
+      malformed: false,
+      emitted: 0,
+      runsDetected: null,
+      examined: null,
+      sawHeader: false,
+      comparable: false
+    });
+    const lines = text.split(/\r?\n/);
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        /* The RULE line. `min_run` is the only field precedence depends on, so it is the only one
+           whose absence makes the file uncomparable; the rest are carried for the report. */
+        if (!out.params && /\bstream=/.test(line) && /\bmin_run=/.test(line)) {
+          out.params = line.replace(/^#\s*/, '');
+          const mr = /\bmin_run=(\d+)/.exec(line);
+          const mg = /\bmerge_gap_max=(\d+)/.exec(line);
+          if (mr) out.minRun = +mr[1];
+          if (mg) out.mergeGapMax = +mg[1];
+        }
+        const fin = /\btotal_runs=(\d+)/.exec(line);
+        if (fin) out.runsDetected = (out.runsDetected || 0) + +fin[1];
+        const ex = /\bexamined=(\d+)/.exec(line);
+        if (ex) out.examined = (out.examined || 0) + +ex[1];
+        continue;
+      }
+      if (/^Phone timestamp;/.test(line)) {
+        out.sawHeader = true;
+        continue;
+      }
+      const c = line.split(';');
+      if (c.length < 8) {
+        out.malformed = true;
+        continue;
+      }
+      const first = +c[3];
+      const n = +c[4];
+      if (!isFinite(first) || !isFinite(n) || n <= 0) {
+        out.malformed = true;
+        continue;
+      }
+      const ch = (c[1] || '').trim();
+      const row = { stream: ch, value: +c[2], first: first, n: n };
+      out.rows.push(row);
+      if (!out.byChannel[ch]) out.byChannel[ch] = [];
+      out.byChannel[ch].push(row);
+      out.emitted++;
+    }
+    /* A sidecar with no rule line cannot be compared against anything; an EMPTY one that DOES carry
+       its rule is a real observation at that rule — the writer looked and emitted nothing. Those are
+       different facts and the flag keeps them apart. */
+    out.comparable = out.minRun != null;
+    return out;
+  }
+
+  /* ── §∅ P5 clause 2: the CROSS-CHECK, and it publishes THREE states, not two ───────────────────
+     `agreed` / `disagreed` alone cannot describe this corpus. A third of the population is neither:
+     the sidecar's threshold is above the run, so it never examined it. Collapsing that into
+     `disagreed` would make 147 of 186 files report a conflict that does not exist and would drown
+     the real ones; collapsing it into `agreed` would assert the sidecar CONFIRMED something it never
+     looked at — a fabricated corroboration, which is the §∅ failure wearing agreement's clothes.
+     So it is its own value:
+
+       agreed          both could see it and say the same thing
+       disagreed       both COULD see it and differ        <- the owner's finding; must surface
+       sidecarBlind    run shorter than the file's own `min_run`; the sidecar is SILENT, not empty
+
+     `comparable:false` is a FOURTH and different thing again — the file carries no rule line, so its
+     parameters are unknown and no comparison of any kind is claimed. An unknown parameter must never
+     be defaulted into a comparison; that is how a threshold gets asserted that nobody recorded. */
+  function crossCheckPinned(sidecar, derivedAtFileParams) {
+    const v = {
+      comparable: false,
+      reason: /** @type {string | null} */ (null),
+      fileMinRun: null,
+      emitted: 0,
+      agreed: 0,
+      disagreed: 0,
+      sidecarBlind: 0,
+      onlyFile: 0,
+      onlyDerived: 0
+    };
+    if (!sidecar) {
+      v.reason = 'no-sidecar';
+      return v;
+    }
+    if (!sidecar.comparable) {
+      /* Header absent or unparseable — 1 of 186 in the corpus, so this is a real branch and not a
+         defensive one. We know nothing about what the writer was looking for, so we assert nothing. */
+      v.reason = 'sidecar-parameters-unknown';
+      v.emitted = sidecar.emitted;
+      return v;
+    }
+    v.comparable = true;
+    v.fileMinRun = sidecar.minRun;
+    v.emitted = sidecar.emitted;
+    const fileRanges = sidecar.rows.map((r) => [r.first, r.first + r.n - 1]);
+    const derived = derivedAtFileParams || [];
+    const overlaps = (a, b) => a[0] <= b[1] && b[0] <= a[1];
+    /* Derived spans are partitioned by whether the FILE could have seen them at all. Only the ones it
+       could see are eligible to agree or disagree; the rest are `sidecarBlind` and the in-JS
+       derivation stands there unopposed. */
+    const seen = new Array(fileRanges.length).fill(false);
+    for (const d of derived) {
+      const n = d[1] - d[0] + 1;
+      if (n < sidecar.minRun) {
+        v.sidecarBlind++;
+        continue;
+      }
+      let hit = -1;
+      for (let i = 0; i < fileRanges.length; i++) {
+        if (overlaps(d, fileRanges[i])) {
+          hit = i;
+          break;
+        }
+      }
+      if (hit >= 0) {
+        seen[hit] = true;
+        v.agreed++;
+      } else {
+        v.onlyDerived++;
+        v.disagreed++;
+      }
+    }
+    for (let i = 0; i < fileRanges.length; i++) {
+      if (!seen[i]) {
+        v.onlyFile++;
+        v.disagreed++;
+      }
+    }
+    return v;
+  }
+
   function pinnedSpans(x, opts) {
     const o = opts || {};
     const n = x.length;
@@ -26640,6 +26815,14 @@ __exports.GlucoDex = window.GlucoDex;
       for (let i = 0; i < n; i++) relSec[i] = i / fs;
     }
     const chArr = nCh === 1 ? [Float32Array.from(ch0)] : nCh === 2 ? [Float32Array.from(ch0), Float32Array.from(ch1)] : [Float32Array.from(ch0), Float32Array.from(ch1), Float32Array.from(ch2)];
+    /* §∅ P5 clause 2 — the `_PPGRUNS.txt` companion, when the ingest attached one. Parsed ONCE
+       here rather than per channel, and keyed by the writer's own channel LABEL (`channel 0`),
+       which is the same label `_PPG.txt`'s header uses — so the two sides are joined on a name
+       both files actually carry, not on an index one of them merely implies. */
+    const _runs = parsePinnedRuns(opts && opts.runsText);
+    const _chanKey = function (ci) {
+      return 'channel ' + ci;
+    };
     // SITE is a layout fact, not a guess — but COLUMN COUNT ALONE IS NOT THE LAYOUT. The O2Ring emits
     // BOTH a 1-column pleth and a 3-column file whose three columns are the SAME reading replicated
     // (`124;124;124;0`), and column-count-only classification therefore called the ring a Verity on
@@ -26805,9 +26988,69 @@ __exports.GlucoDex = window.GlucoDex;
          and turn an absence of VALUE into an absence of TIME, shifting every index after it. One
          entry per optical channel, in channel order; `null` when the stream carries no qualifying
          rail, which is the honest answer for a clean recording. */
-      spans: chArr.map(function (c) {
-        return pinnedSpans(c);
+      spans: chArr.map(function (c, ci) {
+        /* §∅ P5 clause 2 — the sidecar is the FIRST witness where it could see, the recompute is
+           the second everywhere. `_runs` is null unless a `_PPGRUNS.txt` companion was ingested, so
+           the no-sidecar path is byte-identical to #2531's and needs no fixture to move. */
+        const derived = pinnedSpans(c);
+        if (!_runs || !_runs.comparable || _runs.minRun == null) return derived;
+        const _fileMinRun = _runs.minRun;
+        const fileSpans = (_runs.byChannel[_chanKey(ci)] || []).map(function (r) {
+          return { first: r.first, n: r.n };
+        });
+        /* THE FILE WINS WHERE THE FILE COULD SEE. Its rows replace the recompute's for runs at or
+           above its own `min_run`; below that threshold it never looked, so the recompute's shorter
+           spans are KEPT rather than deleted. Dropping them would read a threshold-gated
+           NON-observation as an observation of absence — §∅ at the precedence layer. */
+        const kept = /** @type {any[]} */ (derived.spans || []).filter(function (sp) {
+          return sp.n < _fileMinRun;
+        });
+        return { spans: fileSpans.concat(kept), lo: derived.lo, hi: derived.hi };
       }),
+      /* §∅ P5 clause 2 — the cross-check VERDICT, published so a consumer sees which witness said
+         what instead of inferring it from a span count. Three states plus `comparable:false`;
+         `sidecarBlind` is NOT a disagreement and must never be folded into one — see
+         `crossCheckPinned`. The in-JS side is re-derived at the FILE's own `min_run`/`merge`, never
+         at `PIN_MIN_RUN`, so a parameter difference cannot masquerade as a finding. */
+      pinnedCrossCheck: (function () {
+        if (!_runs) return null;
+        const perCh = [];
+        for (let ci = 0; ci < chArr.length; ci++) {
+          const at = _runs.comparable ? pinnedSpans(chArr[ci], { minRun: _runs.minRun, merge: _runs.mergeGapMax }) : { spans: [] };
+          const ranges = (at.spans || []).map(function (sp) {
+            return [sp.first, sp.first + sp.n - 1];
+          });
+          perCh.push(
+            crossCheckPinned(
+              {
+                comparable: _runs.comparable,
+                minRun: _runs.minRun,
+                emitted: (_runs.byChannel[_chanKey(ci)] || []).length,
+                rows: _runs.byChannel[_chanKey(ci)] || []
+              },
+              ranges
+            )
+          );
+        }
+        /* Sidecar channels the stream has no column for. Reported, never dropped: a label the two
+           files disagree on is a finding about the pair, not a reason to ignore rows. */
+        const known = {};
+        for (let ci = 0; ci < chArr.length; ci++) known[_chanKey(ci)] = 1;
+        const unmatched = Object.keys(_runs.byChannel).filter(function (k) {
+          return !known[k];
+        });
+        return {
+          params: _runs.params,
+          fileMinRun: _runs.minRun,
+          comparable: _runs.comparable,
+          malformedRows: _runs.malformed,
+          emitted: _runs.emitted,
+          runsDetected: _runs.runsDetected,
+          examined: _runs.examined,
+          unmatchedChannels: unmatched,
+          perChannel: perCh
+        };
+      })(),
       sentinelRejected: sent ? sent.rejected : 0,
       sentinelKept: sent ? sent.kept : 0,
       /* The firmware's own beat fiducials, as TIMES on the published axis. Positions, not a count —
@@ -30972,6 +31215,8 @@ __exports.GlucoDex = window.GlucoDex;
     markO2BeatMarkers,
     // §∅ absence-as-value: span detection + the DERIVED settling widening (never a constant).
     pinnedSpans,
+    parsePinnedRuns,
+    crossCheckPinned,
     settlingWidenSec,
     markO2Sentinels: markO2BeatMarkers, // back-compat alias — the old name asserted the wrong semantics
     refineFeet,
@@ -31521,7 +31766,10 @@ __exports.GlucoDex = window.GlucoDex;
       var text =
         typeof input === 'string' ? input : input && typeof input.text === 'string' ? input.text : input && input.samples && typeof input.samples.text === 'string' ? input.samples.text : null;
       if (text == null) throw new Error('PpgDex.compute: need a Polar Sense *_PPG.txt string, {text}, a parsed rec {ch:[…]}, or a ppg SignalFrame {samples:{ch:[…]}}.');
-      rec = parsePPG(text, { timebase: opts.timebase });
+      /* §∅ P5 clause 2 — `runsText` is the `_PPGRUNS.txt` companion's bytes when the caller
+         attached one. Added LAST and OPTIONAL: every existing caller keeps its exact behaviour and
+         `parsePinnedRuns(undefined)` returns null, so the no-sidecar path is unchanged. */
+      rec = parsePPG(text, { timebase: opts.timebase, runsText: opts.runsText });
     }
     if (opts.source) rec.source = opts.source;
     if (opts.fname && !rec.fname) rec.fname = opts.fname;

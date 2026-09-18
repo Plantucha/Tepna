@@ -16493,6 +16493,65 @@
       );
     });
 
+    /* ── §∅ P5 clause 2 — the SECOND WITNESS, and its three states ────────────────────────────────
+       Owner ruling (P5, 2026-09-12): read `_PPGRUNS.txt` AND cross-check it, because a disagreement
+       between the live writer and the recompute is itself a finding about one of the two.
+       #2531 built clause 1 (exclude like a gap) and deferred this half by name.
+
+       🔴 THE ASSERTION THAT MATTERS MOST IS `sidecarBlind !== disagreed`. The corpus writer gates at
+       `min_run=200` while §∅'s O2Ring blanking tops out at 78 samples, so on 147 of 186 real files
+       the sidecar emitted nothing — not because it agreed, and not because it conflicted, but
+       because it never examined a run that short. Folding that into `disagreed` would bury the real
+       conflicts under a corpus-wide phantom; folding it into `agreed` would assert the sidecar
+       CONFIRMED something it never looked at. Either collapse re-creates §∅ at the verdict layer. */
+    group('PpgDex §∅ P5 — the _PPGRUNS sidecar is a second witness, and "could not see" is its own verdict', 'ppgdex-dsp · absence-as-value · pinned · sidecar', function (T) {
+      var P = env.PPGDSP;
+      if (!P || typeof P.parsePinnedRuns !== 'function') {
+        T.skip('PPGDSP.parsePinnedRuns unavailable');
+        return;
+      }
+      var HDR = 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule';
+      var RULE = '# stream=ppg1 rule=stuck min_run=200 t_stuck=200 merge_gap_max=8 annotations=156';
+      var ROW = '2026-09-11T04:19:36.253;channel 0;100;3273442;5919;47362.2;0;stuck';
+
+      /* POSITIVE CONTROL FIRST — the parser reads a real corpus row, so every verdict below is
+         measured against an instrument known to work rather than a hopeful one. */
+      var r = P.parsePinnedRuns([RULE, HDR, ROW].join('\n'));
+      T.ok('control · a real sidecar parses: one row, channel 0, n=5919', !!r && r.emitted === 1 && r.rows[0].n === 5919 && r.rows[0].first === 3273442);
+      T.eq('control · the FILE’s own min_run is read, not assumed', r && r.minRun, 200);
+      T.ok('control · rows key on the writer’s channel LABEL, the same one _PPG.txt’s header carries', !!(r && r.byChannel['channel 0'] && r.byChannel['channel 0'].length === 1));
+
+      /* §∅ — an unknown parameter is never defaulted into a comparison. 1 of 186 corpus files has
+         no rule line, so this is a real branch. */
+      var noRule = P.parsePinnedRuns(HDR + '\n');
+      T.eq('a sidecar with NO rule line is not comparable', noRule && noRule.comparable, false);
+      T.eq('…and its min_run stays NULL rather than falling back to a default', noRule && noRule.minRun, null);
+      T.eq('…and the cross-check says WHY instead of returning a verdict', P.crossCheckPinned({ comparable: false, emitted: 0, rows: [] }, [[50, 99]]).reason, 'sidecar-parameters-unknown');
+
+      /* An EMPTY sidecar that DOES carry its rule is a real observation at that rule. */
+      var empty = P.parsePinnedRuns([RULE, HDR].join('\n'));
+      T.ok('an EMPTY sidecar carrying its rule IS comparable — the writer looked and emitted nothing', !!empty && empty.comparable === true && empty.emitted === 0);
+
+      var sc = { comparable: true, minRun: 200, emitted: 1, rows: [{ first: 1000, n: 500 }] };
+      T.eq('AGREED — both could see it and concur', P.crossCheckPinned(sc, [[1000, 1499]]).agreed, 1);
+      T.eq('…and agreement reports no conflict', P.crossCheckPinned(sc, [[1000, 1499]]).disagreed, 0);
+
+      var dis = P.crossCheckPinned(sc, [[9000, 9499]]);
+      T.eq('DISAGREED — both COULD see it and differ: the recompute has one the file lacks', dis.onlyDerived, 1);
+      T.eq('…and the file has one the recompute lacks', dis.onlyFile, 1);
+      T.eq('…so the conflict surfaces as 2, never silently resolved', dis.disagreed, 2);
+
+      /* THE LOAD-BEARING ONE. */
+      var blind = P.crossCheckPinned({ comparable: true, minRun: 200, emitted: 0, rows: [] }, [[50, 99]]);
+      T.eq('SIDECAR-BLIND — a 50-sample run is below the file’s own min_run=200', blind.sidecarBlind, 1);
+      T.eq('…and it is NOT a disagreement (folding it in would make 147 of 186 corpus files conflict)', blind.disagreed, 0);
+      T.eq('…and NOT an agreement either (the file never examined it)', blind.agreed, 0);
+
+      /* §∅ at the precedence layer: a threshold-gated non-observation must not delete a real span. */
+      var kept = P.pinnedSpans && typeof P.pinnedSpans === 'function';
+      T.ok('pinnedSpans is still exported for the like-for-like re-derivation', kept);
+    });
+
     group('ECGDex §∅ — an interval straddling a dropout is an ABSENCE, not a correctable beat', 'ecgdex-dsp · absence-as-value · regression', function (T) {
       /* `buildNN` repairs beats that were MIS-MEASURED: low SQI, out of physiological range, ectopic.
          A beat separated from its predecessor by a 74-second hole is none of those — it is a true
