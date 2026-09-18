@@ -1,7 +1,7 @@
 <!-- CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md — Tepna Copyright 2026 Michal Planicka -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED (W3 DONE 2026-09-18 — `cpap_continuity.py`, four states; W1/W2/W4 as below) · **Created:** 2026-09-18
+**Status:** IN-PROGRESS (W1–W4 ALL LANDED 2026-09-18 — W1 #2626 `classify_frame` single-sourced · W2(a) #2627 unmeasured terms are `None` · W3 #2634 `cpap_continuity.py`, four states · W4 #2633 per-device owner lock. **Only W2(b) remains**, and it is GATED rather than unassigned: the bounded queue is deferred until someone measures whether a slow sink ever stalls the read loop on the real rails — #2622 found the dominant source of sink slowness no longer blocks it, so backpressure would be risk spent on a stall shape nobody has demonstrated. ⚠️ W2's ORIGINAL done-when — "a test drives a real overflow through `stream_to_bus`" — was UNSATISFIABLE and is withdrawn: producer and consumer are the same coroutine there, so a bounded queue can never hold more than one item and the test could only pass by forcing the condition from inside. A done-when can be unsatisfiable without being wrong about the defect) · **Created:** 2026-09-18
 
 # CPAP-ACQ P3 — gap accounting, backpressure, continuity and acquisition ownership
 
