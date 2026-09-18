@@ -343,6 +343,30 @@ def test_a_round_trip_that_SUCCEEDS_still_suppresses_the_churn_it_always_did():
     assert capture.classify_adapter_health(devs, adapter_up=None)["wedged"] is True, "…and unchanged from before"
 
 
+def test_a_LIVE_STREAM_outranks_a_failed_round_trip():
+    """THE GUARD THE PROBE'S OWN SIGNAL IS WRAPPED IN, and it had no test until a planted mutant showed
+    that: deleting `not any_streaming` from the `adapter_responds is False` branch left the whole suite
+    green. The guard is not decoration — it is what makes the probe SUPPRESSION-ONLY in the dangerous
+    direction. A radio carrying a live stream is demonstrably working whatever a round trip says, so a
+    probe misread must never be able to power-cycle it; that is the 2026-07-20 lesson ("a needless
+    power-cycle is worse than the problem") applied to a new signal, and the sibling `adapter_up is
+    False` branch states the same rule for itself.
+
+    `device_is_streaming` is the predicate: connected AND not charging AND not known-unworn — a sensor on
+    its charger reports connected=True while producing nothing, so `connected` alone would not do."""
+    streaming = {"name": "H10", "address": "A", "connected": True, "charging": False, "worn": True}
+    assert capture.device_is_streaming(streaming) is True, "the fixture must really stream, or this is vacuous"
+
+    # The radio does not answer HCI — and a device is streaming through it anyway. Not wedged.
+    assert capture.classify_adapter_health([streaming], adapter_responds=False)["wedged"] is False
+
+    # Same probe verdict, nothing streaming: now it IS wedged. Without this half the assertion above
+    # would also pass if the signal never fired at all.
+    idle = dict(streaming, connected=False)
+    h = capture.classify_adapter_health([idle], adapter_responds=False)
+    assert h["wedged"] is True and "pinned adapter does not answer HCI" in h["reasons"]
+
+
 def test_adapter_responds_None_changes_NOTHING_for_every_pre_existing_caller():
     """Back-compat is the contract (CLAUDE.md §🧪: new params LAST and optional). None must reproduce the
     pre-2026-09-18 verdict for both settings of the flag, or landing this would silently re-tier every
