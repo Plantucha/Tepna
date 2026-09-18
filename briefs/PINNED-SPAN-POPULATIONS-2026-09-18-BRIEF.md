@@ -288,4 +288,30 @@ from the data instead of applying the rule they were sent.
 assert against that — **and the fact does not have to be yours.** Two of the four above were caught by
 a figure a peer supplied.
 
+### 8.1 · These are DETECTION rules, and §5.2a is a CONSTRUCTION rule — do not collapse them
+
+Every rule above fires when something is **already wrong and visible**: a ratio that cannot be 1.000,
+a run that must exist, a file that cannot repeat, an all-zero result. They are detection rules, and
+they all key on **a contradiction surfacing**.
+
+§5.2a's failure surfaced no contradiction. It reproduced a peer's totals **exactly, blind, to six
+significant figures**, and was wrong — because both sides read the same region-scoped export. No
+detection rule here could have fired, because nothing disagreed with anything.
+
+| kind | fires when | example |
+|---|---|---|
+| **detection** (§8) | a contradiction is visible | a file printed three times |
+| **construction** (§5.2a) | — it changes how the check is BUILT so the error cannot be invisible | the control must use a different INSTRUMENT, not merely different arithmetic |
+
+**So the strongest method written down here would not have caught the most credible error made here.**
+That is not a reason to distrust §8; it is the reason §5.2a has to sit beside it. A day's worth of
+instances produced six detection rules and exactly one construction rule, and the construction rule is
+the one that covers the case the others structurally cannot.
+
+⚠️ **AND IT SCALES THE WRONG WAY.** Agreement through a shared instrument is the failure mode that
+**grows with parallelism**: a fleet running one instrument fast is more exposed than a slower one
+running two. Every additional session reading the same export multiplies apparent corroboration
+without adding a single independent observation. That is a consequence for how the fleet is RUN, not
+for how one measurement is taken.
+
 **Fleet-Session:** Magpie
