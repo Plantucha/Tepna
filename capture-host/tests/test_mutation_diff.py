@@ -433,3 +433,44 @@ def test_selftest_reds_on_a_lying_annotation_classifier(monkeypatch):
     monkeypatch.setattr(M, "annotation_only",
                         lambda a, b: (True, "stripped ASTs identical"))
     assert M.selftest() == 1
+
+
+# ── UNDECIDED attribution: which FUNCTION, not just how many ────────────────────────────────────────
+# The refusal reported a total and six sample names. That cannot separate "all 116 in one pathological
+# function" from "spread across five" — two findings needing opposite responses, and the data was in
+# every mutant name already. These pin both real name shapes; the METHOD form is the one a column-0
+# assumption keeps missing (see mmeta.generated_under_glob).
+
+def test_function_of_mutant_reads_a_module_level_function():
+    assert M.function_of_mutant("x__floor_by_t__mutmut_12") == "_floor_by_t"
+
+
+def test_function_of_mutant_reads_a_METHOD_including_its_class():
+    assert M.function_of_mutant("xǁCounterǁscaled__mutmut_2") == "Counter.scaled"
+    assert M.function_of_mutant("xǁGapCountersǁtotal_lost__mutmut_3") == "GapCounters.total_lost"
+
+
+def test_function_of_mutant_declines_rather_than_guesses():
+    """A wrong attribution sends a reader to the wrong function — worse than naming none."""
+    assert M.function_of_mutant("not_a_mutant") == ""     # no __mutmut_N suffix
+    assert M.function_of_mutant("") == ""
+    assert M.function_of_mutant("x__mutmut_1") == ""      # suffix, but no name left after `x_`
+    assert M.function_of_mutant("ǁǁ__mutmut_1") == ""     # separators, no parts
+
+
+def test_undecided_by_function_counts_and_orders_commonest_first():
+    items = [{"mutant": f"x__floor_by_t__mutmut_{i}"} for i in range(5)]
+    items += [{"mutant": "xǁCǁs__mutmut_1"}, {"mutant": "xǁCǁs__mutmut_2"}]
+    assert M.undecided_by_function(items) == [("_floor_by_t", 5), ("C.s", 2)]
+
+
+def test_undecided_by_function_groups_the_unattributable_rather_than_dropping_it():
+    """A summary that silently omits what it could not parse under-reports its own total."""
+    out = M.undecided_by_function([{"mutant": "junk"}, {"mutant": "x__a__mutmut_1"}, {}])
+    assert dict(out)["?"] == 2
+    assert sum(n for _, n in out) == 3
+
+
+def test_undecided_by_function_is_empty_safe():
+    assert M.undecided_by_function([]) == []
+    assert M.undecided_by_function(None) == []

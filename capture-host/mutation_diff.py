@@ -36,6 +36,7 @@ next reader does not treat a screen as a verdict.
 from __future__ import annotations
 
 import ast
+import re
 
 __all__ = ["EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key",
            "annotation_only", "classify", "refusal_reason", "selftest", "string_only_verdict", "scan_is_reliable",
@@ -581,6 +582,48 @@ def classify_results_line(line: str):
     if status == "killed":
         return (name, KILLED, status)
     return (name, SURVIVED if status == "survived" else UNDECIDED, status)
+
+
+def function_of_mutant(name: str) -> str:
+    """The FUNCTION a mutant belongs to, from its mutmut name — `""` when it cannot be read.
+
+    ⚠️ WHY THIS EXISTS: the UNDECIDED refusal reports a TOTAL and samples six names. With 116
+    undecided you learn six mutants and "and 110 more", which cannot distinguish the two cases that
+    need opposite responses — ALL of them in one pathological function (look at that function), versus
+    spread across several (look at the runner). That is the measurement that decides whether the
+    remedy is scheduling or something in the mutants themselves, and the data was already present in
+    every name; only the summary was missing.
+
+    Two shapes, and both are real — the method form is the one a column-0 assumption keeps missing:
+        x__floor_by_t__mutmut_12        → `_floor_by_t`     (module-level function)
+        xǁCounterǁscaled__mutmut_2      → `Counter.scaled`  (method, U+0281 separators)
+
+    Returns "" rather than guessing on anything else. A wrong attribution here would send a reader to
+    the wrong function, which is worse than declining to name one.
+    """
+    if not name:
+        return ""
+    stem = re.sub(r"__mutmut_\d+$", "", name.strip())
+    if stem == name.strip():
+        return ""                      # no mutmut suffix ⇒ not a mutant name
+    if "ǁ" in stem:
+        parts = [p for p in stem.split("ǁ") if p and p != "x"]
+        return ".".join(parts) if parts else ""
+    return stem[2:] if stem.startswith("x_") and len(stem) > 2 else ""
+
+
+def undecided_by_function(items: list[dict]) -> list[tuple[str, int]]:
+    """`[(function, count)]` for an UNDECIDED list, commonest first, then alphabetical.
+
+    Unattributable mutants are grouped under `?` rather than dropped: a summary that silently omits
+    what it could not parse under-reports the total it is summarising, which is the shape this file
+    keeps finding elsewhere.
+    """
+    counts: dict[str, int] = {}
+    for it in items or []:
+        fn = function_of_mutant(str(it.get("mutant", ""))) or "?"
+        counts[fn] = counts.get(fn, 0) + 1
+    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
 
 
 def split_results(results_text: str):
