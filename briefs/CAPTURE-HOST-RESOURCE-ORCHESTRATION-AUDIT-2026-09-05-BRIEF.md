@@ -334,6 +334,82 @@ before; it is now.**
 touched — box ops is owner-authorized — and recorded here only so it is not discovered twice.
 
 
+## 11 · 2026-09-18 — the adapter ladder DID fire on 2026-09-11; the residue row's headline is wrong (Kestrel)
+
+§7's second remaining item is *adapter hotplug / quarantine / flap cap*, whose residue row
+`2026-09-11-dead-adapter-goes-unnoticed` opens with: *"A BLE adapter that stops answering HCI is not
+detected, reset, or reported by anything on the box"*, and records *"`journalctl` logged **0** reset
+attempts across the whole window."* The row also names its own first task — *"whether it exists, is wired,
+or simply has no trigger for this state is UNRESOLVED and is the first thing a picker-up should establish
+rather than assume."* Established, from the box's own journal, which still reaches back to 2026-08-04.
+
+### The ladder exists, is wired, and fired
+
+```
+19:42:06  WARNING watchdog: wedge sign 1/2 — pinned adapter DOWN/not-found; Wellue O2Ring-S: InProgress; Polar H10 02849638: InProgress
+19:43:06  WARNING watchdog: wedge sign 2/2 — pinned adapter DOWN/not-found; …
+19:43:06  WARNING watchdog: power-cycling adapter 99:67:24:2E:CD:98 (attempt 1/3)
+19:43:15  INFO    watchdog: recovery: hciconfig hci0 reset exited 1
+19:44:17  WARNING watchdog: wedge sign 1/2 — pinned adapter DOWN/not-found; Polar H10 02849638: InProgress
+```
+
+Detected, escalated through `grace_checks`, power-cycle attempted, `hciconfig reset` **exited 1**. The
+row's own manual attempt — *"`hciconfig reset` returned `Can't init device: Connection timed out (110)`"* —
+is the same failure by hand, which is the corroboration that the rung ran and could not work.
+
+### Why the row measured zero, and why both reasons matter more than the row
+
+Two independent causes, either sufficient:
+
+1. **The window closed before the event.** The row's check was `journalctl --since -12min` taken around
+   19:38. The first wedge sign is **19:42:06**. The evidence had not happened yet.
+2. **It searched for vocabulary the code does not emit.** The row grepped `btreset` / `reset-adapter` /
+   `resetting-hci`. The daemon logs `watchdog: power-cycling adapter …` and `recovery: hciconfig … reset`.
+   Zero matches, zero of them meaningful.
+
+⚠️ **And the same shape produced the row's other zero.** *"No btreset systemd unit exists on the box"* is
+TRUE and is not evidence: the ladder is not a unit. It is `adapter_watchdog`'s L1/L2 rungs inside
+`capture.py`, with `tepna-btreset.sh` reachable as `daemon_control._VERBS["rebind"]`. Re-verified
+2026-09-18 — there is still no btreset unit, unit file, or script at the searched paths, and the ladder
+still fired. **Searching for the wrong artifact type returns zero exactly as convincingly as absence
+does.**
+
+### What is ACTUALLY open, restated from the evidence
+
+| the row claims | measured 2026-09-18 |
+|---|---|
+| not detected | **detected** — wedge sign 1/2 at 19:42:06 |
+| not reset | **reset attempted** — power-cycle + `hciconfig reset`, 19:43:06/19:43:15 |
+| not reported | **reported** — four WARNING lines |
+| 0 reset attempts | **1 attempt, which FAILED (exit 1)** |
+
+So the defect is real but is **neither of the two things the row names**. What remains:
+
+- **Detection latency ≈ 19 minutes.** Wedge onset 19:23:12 (the row's own timestamp) → first wedge sign
+  19:42:06. On a capture box that is most of a lost episode. Why it took that long is NOT established
+  here and should not be guessed: `grace_checks`, the `healthy_run` hysteresis, the `_POLAR_PAUSED` skip
+  and the pinned-adapter read are all candidates, and §9's *"blind on any of the other three radios"*
+  finding is independent of all of them.
+- **The rungs cannot fix this wedge class.** `hciconfig reset` exited 1 from the daemon and timed out by
+  hand; the row's USB de/re-authorize left the device enumerated with no HCI device created. A ladder
+  that detects correctly and has no effective rung is a different defect from a missing detector, and it
+  is the one the fix should target.
+
+### One hypothesis measured and REFUTED, recorded so it is not re-derived
+
+`capture.py:5394` warns that *"adapter_watchdog, clock_watchdog and rssi_poller all skip while
+`_POLAR_PAUSED` is non-empty, so the one mechanism built to unwedge a stuck radio is disabled by exactly
+the condition that wedges it"*, and the window carries **77 pause/resume pairs in 29 minutes** — a clock
+auto-sync retry storm (64 `org.bluez.Error.InProgress` retries). That is an attractive explanation for a
+silent watchdog and it does **not** hold: the union of the paused intervals is **359 s of a 1733 s span =
+20.7 %**, which can starve roughly 6 of ~29 polls, not all of them. The starvation is real and bounded;
+it is not why detection took 19 minutes.
+
+⚠️ Note also that `_OFFLINE_OP_TIMEOUT_S = 300` bounds a SINGLE op and says nothing about duty cycle —
+77 short ops are not one long one. That gap is worth keeping in mind for the latency question above, but
+20.7 % does not carry it on its own.
+
+
 ## 8 · Verification
 
 `capture-host/check.sh` (ruff · shellcheck · pytest `--cov --cov-branch --cov-fail-under=100` ·
