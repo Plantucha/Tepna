@@ -3283,6 +3283,10 @@ async def run_polar(dev: dict, root: str):
                     # BOUNDED like every other post-connect GATT await — see the block comment on
                     # _read_batt below for the 4h25m freeze a bare one cost.
                     await _bounded_setup(client.start_notify(HR_UUID, on_hr))
+                    # RECORD-ONLY (GATT-HANDLE-MAP-2026-09-17 §2b③) — see `_gatt_record_rail` for WHY it sits
+                    # after `start_notify` rather than at connect, and why calling it from several streams of
+                    # one connect is a deliberate no-op.
+                    await _gatt_record_rail(client, addr, name)
 
                 # Battery level via the standard Battery Service (0x2A19). Polar H10 + Verity both expose
                 # it; read once now and refresh every ~2 min. Silent no-op if a firmware lacks the char.
@@ -3409,6 +3413,10 @@ async def run_polar(dev: dict, root: str):
                         return b""
 
                     await _bounded_setup(client.start_notify(pmd.PMD_DATA, on_pmd))
+                    # RECORD-ONLY (GATT-HANDLE-MAP-2026-09-17 §2b③) — see `_gatt_record_rail` for WHY it sits
+                    # after `start_notify` rather than at connect, and why calling it from several streams of
+                    # one connect is a deliberate no-op.
+                    await _gatt_record_rail(client, addr, name)
                     # ── CHARGING RETRY RUNS ON THE LINK WE ALREADY HOLD ─────────────────────────
                     # A Polar on its dock refuses PMD START with 0x0D in_charger, and we re-attempt on a
                     # cadence so capture resumes within a minute of it coming off. That retry used to end
@@ -3956,6 +3964,10 @@ async def run_viatom(dev: dict, root: str):
                         _set(name, worn=pkt["worn"], last_error=None if pkt["worn"] else "not on finger")
 
                 await _bounded_setup(client.start_notify(notify_char, on_data))
+                # RECORD-ONLY (GATT-HANDLE-MAP-2026-09-17 §2b③) — see `_gatt_record_rail` for WHY it sits
+                # after `start_notify` rather than at connect, and why calling it from several streams of
+                # one connect is a deliberate no-op.
+                await _gatt_record_rail(client, addr, name)
                 if write_char is not None:
                     try:
                         await asyncio.wait_for(
@@ -4906,6 +4918,10 @@ async def run_oxyii(dev: dict, root: str):
                     BUS.register("o2ppg2w", "Raw 2-wavelength (O2Ring)", "raw", 0, chans=2,
                                  labels=("ch0", "ch1"))
                 await _bounded_setup(client.start_notify(nch, on_data))
+                # RECORD-ONLY (GATT-HANDLE-MAP-2026-09-17 §2b③) — see `_gatt_record_rail` for WHY it sits
+                # after `start_notify` rather than at connect, and why calling it from several streams of
+                # one connect is a deliberate no-op.
+                await _gatt_record_rail(client, addr, name)
                 await _bounded_setup(client.write_gatt_char(wch, oxyii.auth_frame(), response=False))  # 0xFF
                 await asyncio.sleep(0.6)     # the reply's settle window — it arrives on `nch`, not here
                 # ── THE ENCRYPTION DECISION, PRIMARY (SomnoTrace-class item (c)) ──────────────────
@@ -9814,6 +9830,43 @@ async def _gatt_record_table(client, addr) -> str:
         # was >100 INFO lines an hour carrying no information — which is how a real event gets buried.
         return ""
     return "%s — %d char(s), db_hash %s" % (outcome, len(table), db_hash.hex() if db_hash else "absent")
+
+
+
+async def _gatt_record_rail(client, addr: str, name: str) -> None:
+    """Record a WEARABLE rail's GATT table, and log only when something was actually written.
+
+    THE DEFECT THIS EXISTS FOR, measured on vigil 2026-09-18 (Wren): `_gatt_record_table` had exactly ONE
+    caller — inside `_cpap_ble_connect` — so the wearable connect paths held zero gattmap references. The
+    map's silence on H10 / Verity / O2Ring was therefore a fact about the WIRING, not about the devices,
+    and a night of wearing them would have produced exactly the same silence. Proven live that day: a
+    Verity worn twice, `gattmap.json` unchanged, no record line either time.
+
+    CALLED AFTER A SUCCESSFUL `start_notify`, NOT AT CONNECT. That is the point the characteristic tree is
+    proven usable, and it is where the CPAP path records too (after its settle). Measured over a six-week
+    journal, `BleakCharacteristicNotFoundError` by device: CPAP 1092 · H10 3 · Verity 0 — so the
+    partial-snapshot race the CPAP path fights is ~365x rarer on these rails. Recording at connect would
+    write a short table roughly once a month per Polar, which is WORSE than no entry: `gattmap.record`
+    would then report "changed" on a device that never changed.
+
+    ⚠️ The O2Ring's 237 `CharacteristicNotFound` in the same window are NOT that race — every one is
+    `2a26` (Firmware Revision), a real absence in a stable table. A recorded O2Ring table correctly
+    carries no `2a26`; do not let those warnings argue for a settle step on the ring.
+
+    CALLING IT FROM SEVERAL STREAMS OF ONE CONNECT IS SAFE AND DELIBERATE. `client.services` is a snapshot
+    frozen at connect, so a second call sees identical bytes, `record` answers "same", and
+    `_gatt_record_table` returns "" — no write, no log. That is what lets each rail record from whichever
+    of its streams subscribes first without tracking which one did.
+
+    THE VERITY CHARGER QUESTION IS LEFT TO THE DATA. `source` is deliberately NOT keyed on the contact bit
+    (it lies — `verity-contact-bit-lies`). If a charger-state table ever differs structurally from a worn
+    one, `record` reports "changed" carrying both hashes and never overwrites silently. Absence of that
+    line across the charger↔worn transitions the corpus already makes daily is the answer, measured —
+    cheaper and more honest than a rule written from a prior.
+    """
+    recorded = await _gatt_record_table(client, addr)
+    if recorded:
+        log.info("%s: GATT table recorded — %s", name, recorded)
 
 
 async def _gatt_rebuild(client) -> bool:

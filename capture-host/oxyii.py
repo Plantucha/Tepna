@@ -15,7 +15,7 @@
 from __future__ import annotations
 import hashlib, struct, time
 from enum import Enum
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 OXYII_SERVICE = "e8fb0001-a14b-98f9-831b-4e2941d01248"
 OXYII_WRITE   = "e8fb0002-a14b-98f9-831b-4e2941d01248"   # write-without-response
@@ -1121,7 +1121,9 @@ def parse_battery(payload: bytes) -> dict | None:
 # only the full-struct diff can judge the effect. Value ranges: BRIGHTNESS is documented (0/1/2);
 # every other range is UNDOCUMENTED upstream — a byte is accepted and the mandatory read-back is the
 # real validator (upstream's own advice: discover ranges empirically via GET_CONFIG before/after).
-SET_CONFIG_FIELDS = {
+# Annotated: each row mixes ints with a nullable `readback` string, which mypy joins to `object` —
+# so `spec["max"]` read as indexing an object rather than a record lookup. Three errors, one table.
+SET_CONFIG_FIELDS: dict[str, dict[str, Any]] = {
     "spo2_switch":  {"index": 1, "max": 255, "readback": None},
     "spo2_low":     {"index": 2, "max": 255, "readback": "spo2_low"},
     "hr_switch":    {"index": 3, "max": 255, "readback": None},

@@ -421,7 +421,11 @@ import os as _os
 import writers as _w
 
 
-ALL_WRITERS = [
+# Renamed from ALL_WRITERS, which the table at the top of this file already owns. That one is
+# (class, write-action); this one is (class, constructor kwargs) — a different table with a
+# different shape, and it silently shadowed the first for every use below this line. mypy
+# reported it as six incompatible rows, which is the collision seen from the type side.
+WRITER_CTOR_KWARGS: list[tuple[type, dict[str, str]]] = [
     (_w.StreamWriter, {"stream": "ecg"}),
     (OxyFrameLogWriter, {}),
     (HostClockLogWriter, {}),
@@ -430,7 +434,7 @@ ALL_WRITERS = [
 ]
 
 
-@pytest.mark.parametrize("cls,kw", ALL_WRITERS, ids=lambda v: getattr(v, "__name__", ""))
+@pytest.mark.parametrize("cls,kw", WRITER_CTOR_KWARGS, ids=lambda v: getattr(v, "__name__", ""))
 def test_every_writer_fsyncs_by_default(tmp_path, monkeypatch, cls, kw):
     """The `fsync=True` default in all five writers, plus `self._fsync` being stored at all.
 
@@ -514,7 +518,7 @@ def test_the_link_header_records_which_radio_captured_the_night(tmp_path):
     assert _lines(str(r))[0].startswith("Phone timestamp;")
 
 
-@pytest.mark.parametrize("cls,kw", ALL_WRITERS, ids=lambda v: getattr(v, "__name__", ""))
+@pytest.mark.parametrize("cls,kw", WRITER_CTOR_KWARGS, ids=lambda v: getattr(v, "__name__", ""))
 def test_a_writer_remembers_the_path_it_opened(tmp_path, cls, kw):
     """`self.path = None` survived in every writer. `nightqc`, the archiver and the monitor all ask a
     live writer where it is writing; None there is a night that cannot be found while it is being
