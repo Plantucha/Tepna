@@ -1412,6 +1412,12 @@ def test_a_sink_write_failure_is_counted_and_the_stream_survives(caplog):
     assert len(bus.pushed) == 4                     # the bus STILL got every push (failure didn't block it)
     assert "'sink_errors': 2" in caplog.text         # the gap-accounting summary carries the count
     assert "sink_errors=1" in caplog.text            # each failure logged loudly as it happened
+    # ⚠️ A FAILING SINK IS STILL TIMED. The timing sits in a `finally`, so a write that raises is
+    # counted up to the failure rather than vanishing from the record — otherwise the slowest
+    # writes, the ones that time out and then raise, would be exactly the ones never measured.
+    assert "'sink_max_ms'" in caplog.text
+    assert "'sink_max_ms': None" not in caplog.text, (
+        "a sink that raised was still entered and left — it must be timed, not unmeasured")
 
 
 def test_controller_hands_both_sinks_to_the_pump_raw_record_first():

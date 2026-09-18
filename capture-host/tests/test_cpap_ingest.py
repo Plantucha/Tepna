@@ -4,7 +4,7 @@
 # P3 of CPAP-ACQUISITION-HARDENING-AUDIT — the bounded ingest queue + gap-accounting counters + frame
 # classifier. Pure logic, 100% branch.
 import pytest
-from cpap_ingest import BoundedIngestQueue, FrameKind, GapCounters, classify_frame
+from cpap_ingest import SINK_SLOW_MS, BoundedIngestQueue, FrameKind, GapCounters, classify_frame
 
 
 def _sd(stream_id, data):
@@ -83,12 +83,13 @@ def test_summary_is_a_flat_stable_dict():
     assert s == {
         "frames_ok": 5, "samples_ok": 200, "foreign_stream": 1, "malformed": 2,
         "overflow": 1, "stalls": 1, "post_drop_tail": 1, "sink_errors": 3, "total_lost": 3,
+        "sink_max_ms": None, "sink_slow": None,
         "lost_coverage_missing": [],
     }
     # key order is stable so two nights diff cleanly
     assert list(s.keys()) == ["frames_ok", "samples_ok", "foreign_stream", "malformed",
-                              "overflow", "stalls", "post_drop_tail", "sink_errors", "total_lost",
-                              "lost_coverage_missing"]
+                              "overflow", "stalls", "post_drop_tail", "sink_errors",
+                              "sink_max_ms", "sink_slow", "total_lost", "lost_coverage_missing"]
 
 
 def test_the_DEFAULT_record_publishes_its_unmeasured_categories_as_None():
@@ -154,3 +155,43 @@ def test_queue_and_counters_share_the_overflow_record():
     q.offer("y")                            # dropped
     c.note_frame(FrameKind.OK, n_samples=40)
     assert c.overflow == 1 and c.frames_ok == 1 and c.total_lost == 1
+
+
+# ── sink timing: what makes a loop stall attributable ────────────────────────────────────────────────
+
+def test_an_UNTIMED_sink_reports_None_not_a_measured_zero():
+    """⚠️ The `or 0` defect this module already carries a fix for, in its newest field. A stream with no
+    `extra_sinks` times nothing, and `sink_max_ms: 0.0` would say "timed, and it was fast" — a
+    measurement nobody made. None says no write was timed."""
+    c = GapCounters()
+    assert c.sink_max_ms is None and c.sink_slow is None
+    assert c.summary()["sink_max_ms"] is None and c.summary()["sink_slow"] is None
+
+
+def test_a_FAST_sink_reports_a_real_zero_count_not_None():
+    """The mirror control. Once a write IS timed, `sink_slow` is a measured 0 — "counted, and none were
+    slow" — which is a different statement from None and must not collapse into it."""
+    c = GapCounters()
+    c.note_sink_write(0.4)
+    assert c.sink_max_ms == 0.4
+    assert c.sink_slow == 0, "a timed-and-fast sink is a measured zero, not an absence"
+
+
+def test_the_max_tracks_the_slowest_write_and_does_not_regress():
+    c = GapCounters()
+    for ms in (5.0, 120.0, 12.0):
+        c.note_sink_write(ms)
+    assert c.sink_max_ms == 120.0, "a later fast write must not lower the high-water mark"
+
+
+def test_sink_slow_counts_the_writes_that_could_HAVE_STALLED_the_loop():
+    """`SINK_SLOW_MS` is anchored to `capture.py`'s `_LOOP_LAG_WARN_MS`, not chosen: it is the size at
+    which a held loop is logged as a stall. A max alone tells you the worst write on the worst night;
+    the count is what distinguishes a mechanism from an outlier — the gate asks whether a sink EVER
+    holds the loop for ~1.5 s, which is the measured stall median."""
+    c = GapCounters()
+    c.note_sink_write(SINK_SLOW_MS - 0.001)   # just under — not slow
+    c.note_sink_write(SINK_SLOW_MS)           # exactly at the bound — slow
+    c.note_sink_write(1502.0)                             # the measured stall median
+    assert c.sink_slow == 2, "the bound is inclusive: a write AT the threshold could produce a stall"
+    assert c.sink_max_ms == 1502.0
