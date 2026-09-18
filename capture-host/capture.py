@@ -995,7 +995,7 @@ def cpap_escalation_gate(cfg: dict, cpap_mac: "str | None", status_devices: dict
     `{"escalate": bool, "reason": str, "blockers": [...]}` and touches no hardware.
 
     Residue `2026-09-04-cpap-wedge-failover-masks-escalation`: the per-device ladder ends at
-    `_restart_radio()` under a 2/day budget, while the rungs that actually fix an RTL8761B-class wedge
+    `_restart_radio()` under a 2/day budget, while the rungs that actually fix a btusb-class wedge
     (power-cycle -> `hciconfig reset` -> `_usb_rebind`) hang off `adapter_watchdog`, which arms only
     when a scan returns ZERO devices. A radio deaf to ONE device still sees everything else, so
     `consecutive` resets every round and those rungs are unreachable. Measured 2026-09-04: hci0 found
@@ -1005,7 +1005,22 @@ def cpap_escalation_gate(cfg: dict, cpap_mac: "str | None", status_devices: dict
     and re-enumerate a radio, so it may run ONLY when no other device on that adapter is live. On the
     box today nothing else is declared on the CPAP's adapter, so the gate is satisfied by
     CONFIGURATION — it exists for the day that stops being true, which is exactly when a global
-    predicate would take the wearables down with it."""
+    predicate would take the wearables down with it.
+
+    ⚠️ THE RUNGS ABOVE ARE btusb-SHAPED, AND THAT IS THIS LADDER'S WHOLE REACH. Soft power off/on,
+    `hciconfig reset`, `_usb_rebind` and a VBUS cut all act on a USB Bluetooth device bound to btusb.
+    A Zephyr board on cdc_acm is not one: it carries HCI over a tty, so `hciconfig <hci> reset`
+    answering `Can't init device: Connection timed out (110)` there is a HUNG TRANSPORT, not a rung
+    that merely failed. Such a board is recovered by its own systemd unit, not from here — the daemon
+    does not carry hardware-class knowledge, and a cdc_acm branch here would only defer that.
+    Measured on vigil 2026-09-11: the pinned adapter resolved to hci0, hci0 was a Zephyr board, and
+    760 `0x200c tx timeout` followed — so the reset logged at 19:43 could not have worked. The earlier
+    "RTL8761B-class" wording named the UB500 unplugged 2026-09-07 20:08:27 (`usb 1-2` disconnect; zero
+    `RTL:` lines Sep 8 -> Sep 18, journal boot -1) and is corrected above.
+
+    A VBUS power-cycle (`uhubctl`) is a HARDWARE PRECONDITION here, not pending work: all four radios
+    hang off the xHCI ROOT hub, root hubs generally expose no per-port power switching, and uhubctl is
+    not installed. That rung cannot exist on this topology without a PPPS-capable external hub."""
     blockers = []
     if not cpap_mac:
         blockers.append("no cpap.ble_stream.adapter pinned — nothing to escalate on")
@@ -6147,8 +6162,8 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                         # wedged night must not read as healthy because our bookkeeping ran out.
                         log.error("watchdog: bluez appears BLIND TO THE CPAP (%s) but %s", why, budget_why)
                         # ── HAND OFF TO THE ADAPTER LADDER (residue 2026-09-04-cpap-wedge-failover-
-                        #    masks-escalation). Budget spent USED TO BE THE END: the rungs that fix an
-                        #    RTL8761B-class wedge live in `adapter_watchdog`, which arms only when a scan
+                        #    masks-escalation). Budget spent USED TO BE THE END: the rungs that fix a
+                        #    btusb-class wedge live in `adapter_watchdog`, which arms only when a scan
                         #    returns ZERO devices — and a radio deaf to ONE device still sees everything
                         #    else, so they were unreachable. Measured 2026-09-04: the CPAP was found 0
                         #    times in 137 rounds while 107 then 81 other devices enumerated fine, and a
