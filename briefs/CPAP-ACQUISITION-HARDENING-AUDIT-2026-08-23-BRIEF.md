@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-02 — the living CHARTER for the P1–P5 programme; it outlives its phases and cannot be closed by them. P1 (#1679-era `cpap_record.py`) and P2 (`cpap_acq.py`) are DONE, P4 is one hardware capture from done. Two things hold the master checklist open: **P3 has no brief at all** (`briefs/CPAP-ACQ-P3-*` does not exist) while §8 records INV7 as *module built, held* and INV8 as *pending P3 brief*; and **INV8 and INV11 have no artifact** — there is no `continuity_status` field anywhere in `capture-host/`, and no owner/lock for INV11's one-acquisition-owner-at-a-time rule, which §8 itself marks *pending wiring*. Ten of twelve invariants are code-backed and cited. **Owner:** lead (spawn P3) · **Next step:** the P3 executable brief — INV8 and INV11 both hang off it) · **Created:** 2026-08-23
+**Status:** PROPOSED (parked 2026-09-02 — the living CHARTER for the P1–P5 programme; it outlives its phases and cannot be closed by them. P1 (#1679-era `cpap_record.py`) and P2 (`cpap_acq.py`) are DONE, P4 is one hardware capture from done. Two things hold the master checklist open: **P3 now HAS its brief** — `CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`, created 2026-09-18, which re-measured §8 and found the INV7 row stale: the gap-accounting module is NOT "held" but partly wired, with a dead classifier twin and three counters that no code can increment; and **INV8 and INV11 have no artifact** — there is no `continuity_status` field anywhere in `capture-host/`, and no owner/lock for INV11's one-acquisition-owner-at-a-time rule, which §8 itself marks *pending wiring*. Ten of twelve invariants are code-backed and cited. **Owner:** lead · **Next step:** execute `CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md` W1–W4 — INV7's remainder, INV8 and INV11 all hang off it) · **Created:** 2026-08-23
 
 # CPAP acquisition hardening — PHASE 0 audit (the tree is not greenfield)
 
@@ -259,11 +259,11 @@ the phase that establishes each and its status:
 | INV4 | Device timestamps are never silently replaced by host timestamps. | P1 record + Clock Contract | core already honors (`as11_pull.stream` yields device time verbatim) |
 | INV5 | Observed sample interval is preferred over requested interval. | P1/P3 (record device-reported interval; prefer observed) | pending P1 |
 | INV6 | Partial spool rounds cannot advance the committed cursor. | P4 (brief §3 cursor-commit rule) | **DESIGNED** (P4 §3) |
-| INV7 | A transport gap is represented explicitly. | P3 (gap accounting) | **MODULE BUILT** (P3, held) |
-| INV8 | Recovery does not imply continuity until continuity is verified. | P3/P5 (continuity-status field) | pending P3 brief |
+| INV7 | A transport gap is represented explicitly. | P3 (gap accounting) | **PARTLY LIVE — re-measured 2026-09-18** (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md` §0). NOT "held": `GapCounters`/`FrameKind` are wired (`cpap_stream.py:157` → `as11_pull.py:157/162/168` → logged `:210` → `acq_evidence_cpap.py`), so OK/FOREIGN/MALFORMED frames are counted. But `classify_frame` is a DEAD TWIN of that live logic, and `overflow`/`post_drop_tail`/`stalls` have **no writer** — so `total_lost` ≡ `malformed` and `transport_gaps` is structurally 0. Transport loss is still unrepresented |
+| INV8 | Recovery does not imply continuity until continuity is verified. | P3/P5 (continuity-status field) | **SPAWNED** — `CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md` §1 W3. Still no artifact: zero `continuity_status` occurrences in `capture-host/`; the anchor is `cpap_supervisor.py:225` |
 | INV9 | The live bus is not the sole authoritative copy. | P1 (raw sidecar beside the bus — the centerpiece) | pending P1 |
 | INV10 | Unknown state remains unknown. | P2 + Clock Contract (null never fabricated) | **SHIPPED #1679** (no fabricated state; illegal transition raises) |
-| INV11 | One CPAP acquisition owner exists at a time. | P2 wiring (feature-arm controller §7 race fix, then serialized wiring) | pending wiring |
+| INV11 | One CPAP acquisition owner exists at a time. | P2 wiring (feature-arm controller §7 race fix, then serialized wiring) | **SPAWNED** — `CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md` §1 W4. Nothing to wire: zero owner/lock constructs in `capture-host/` (re-measured 2026-09-18) |
 | INV12 | A successful shutdown is distinguishable from an abrupt failure. | P2 (SHUTTING_DOWN→DISCONNECTED vs ERROR) | **SHIPPED #1679** |
 
 **Guiding principle (owner, §1/§11):** *the bus must be a VIEW of the acquisition, not the
