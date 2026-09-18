@@ -126,7 +126,7 @@ class TherapyEndSink:
 async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
                         channels=None, extra_sinks=None, sample_interval_ms=40,
                         cipher_factory=as11_cipher.make_cipher, max_batches=None, should_stop=None,
-                        acq_evidence_out=None, clock_offset_provider=None):
+                        acq_evidence_out=None, clock_offset_provider=None, continuity=None):
     """Establish the encrypted session, then fan each AS11 StreamData batch out to `bus` AND to any
     `extra_sinks`. Returns the number of batches delivered.
 
@@ -170,6 +170,14 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
             # — never silently resample or ride the nominal. The bus push (and the EDF sink, which reads the
             # same batch) consume the observed rate.
             iv = batch.get("interval_ms")
+            # INV8 — continuity is VERIFIED on the device's own clock. Every batch advances the sample the
+            # next one is owed; the FIRST batch after a drop is compared against what the previous
+            # session was owed. Fed BEFORE the interval checks below so a session that dies on its first
+            # malformed interval still leaves a verdict for the session after it (cpap_continuity).
+            if continuity is not None:
+                continuity.note_frame(batch.get("start_time"),
+                                      max((len(v) for v in (batch.get("channels") or {}).values()
+                                           if isinstance(v, list)), default=0), iv)
             if isinstance(iv, (int, float)) and iv > 0:
                 if observed_ms is None:
                     observed_ms = iv
@@ -207,6 +215,13 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
         for s in sinks:
             s.close()
         _summary = counters.summary()
+        if continuity is not None:
+            # The verdict for THIS session was fixed on its first frame; snapshot it before `note_end`
+            # arms the next. It rides the gap-accounting line because that line is the only acquisition
+            # surface live on a box with `raw_record_dir` unset — which is the production box today
+            # (measured 2026-09-18: raw_record_factory None ⇒ acq_evidence_out None ⇒ no envelope).
+            _summary = {**_summary, **continuity.snapshot()}
+            continuity.note_end(clean=clean)
         if counters.total_lost or counters.sink_errors or counters.foreign_stream:
             _log.warning("CPAP stream gap accounting: %s", _summary)
         else:
@@ -218,11 +233,12 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
         # acquisition evidence matters, and the drain above means those batches are already durable.
         if acq_evidence_out is not None:
             _emit_acq_evidence(acq_evidence_out, sinks, counters, observed_ms, clean,
-                               clock_offset_provider)
+                               clock_offset_provider, continuity=continuity)
     return delivered
 
 
-def _emit_acq_evidence(out, sinks, counters, observed_ms, stopped_cleanly, clock_offset_provider=None):
+def _emit_acq_evidence(out, sinks, counters, observed_ms, stopped_cleanly, clock_offset_provider=None,
+                       continuity=None):
     """Assemble the live envelope from the closed sinks and hand it to `out`. Never raises into the
     pump: evidence is a REPORT ABOUT the acquisition, so failing to write it must not also destroy the
     acquisition's return value. A sink with no `acq_facts` (the EDF writer) is not the raw record."""
@@ -250,6 +266,9 @@ def _emit_acq_evidence(out, sinks, counters, observed_ms, stopped_cleanly, clock
         out(acq_evidence_cpap.assemble_live(
             raw,
             counters=counters.summary(),
+            # INV8: absent (None) when no tracker was wired — the envelope must not default a
+            # continuity verdict any more than the tracker may (§∅).
+            continuity=continuity.snapshot() if continuity is not None else None,
             edf_path=edf,
             observed_interval_ms=observed_ms,
             stopped_cleanly=stopped_cleanly,
@@ -271,7 +290,7 @@ class LiveStreamController:
     def __init__(self, bus, connect, load_creds, devices, *, channels=None, pump=stream_to_bus,
                  edf_sink_factory=None, raw_record_factory=None, coexistence_gate=False,
                  acq_evidence_out=None, therapy_end_factory=None,
-                 clock_offset_provider=None):
+                 clock_offset_provider=None, continuity=None):
         self._bus = bus
         self._connect = connect
         self._load_creds = load_creds
@@ -297,6 +316,18 @@ class LiveStreamController:
         # (should_stop_event) -> a fresh TherapyEndSink for this session, or None for NO acting. Default
         # None keeps every existing controller and test bus-only and non-acting.
         self._therapy_end_factory = therapy_end_factory
+        # INV8 — ONE tracker per controller, living ACROSS sessions, because the session after a drop
+        # needs the clock the session before it left behind. Injected for tests; a real daemon gets
+        # the default. `continuity_resume_hint` is set ONCE by the builder when the autostart record
+        # says a therapy was in progress at daemon start: the tracker is brand-new then and would
+        # default to `continuous` for a session that is really a resume across a process it did not
+        # survive. The hint is consumed by the first start.
+        # None ⇒ INV8 off, prior behaviour byte-for-byte (the documented additive pattern below). The
+        # daemon's builder ALWAYS passes one — gate-asserted, because a tracker nobody constructs is
+        # the half-wired shape this brief keeps finding (`raw_record_dir` is off on the production box
+        # for exactly that reason, and the acq-evidence surface with it).
+        self._continuity = continuity
+        self.continuity_resume_hint = False
         # The LAST session's SINKS, kept ACROSS the stop — the eager-start retention decision runs
         # after the stream has ended and must be able to name the fragment it is discarding.
         #
@@ -418,6 +449,12 @@ class LiveStreamController:
         self._disconnect = disconnect
         self._stop = asyncio.Event()
         kw = {"channels": self._channels, "should_stop": self._stop}
+        # INV8: the session's opening continuity state is resolved HERE, before the pump sees a frame.
+        # After a drop it is `resumed-unverified` until the first frame's device clock says otherwise.
+        if self._continuity is not None:
+            self._continuity.note_start(resume_hint=self.continuity_resume_hint)
+            self.continuity_resume_hint = False
+            kw["continuity"] = self._continuity
         # Fresh sinks per session — the durable raw record leads (authoritative copy), then the EDF.
         # Only passed when a factory is configured, so a bus-only pump (and the injected test pumps) never
         # see the kwarg. The pump writes every sink BEFORE the bus push (INV9), so order here is only the
@@ -448,7 +485,10 @@ class LiveStreamController:
             kw["clock_offset_provider"] = self._clock_offset_provider
         self._task = asyncio.create_task(self._pump(
             self._bus, write, recv_frame, bytes.fromhex(creds["masterPairKey"]), creds["clientId"], **kw))
-        return {"ok": True, "streaming": True, "channels": self._keys()}
+        out = {"ok": True, "streaming": True, "channels": self._keys()}
+        if self._continuity is not None:
+            out.update(self._continuity.snapshot())   # INV8: the state this session OPENED in
+        return out
 
     async def _stop_op(self):
         task, stop, disconnect = self._task, self._stop, self._disconnect
