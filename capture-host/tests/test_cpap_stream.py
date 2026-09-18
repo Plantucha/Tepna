@@ -1730,3 +1730,83 @@ def test_last_sink_paths_is_resolved_when_asked_not_snapshotted_at_start(tmp_pat
     before, after = _run(go())
     assert before == [], "no name yet ⇒ nothing to discard"
     assert after == [str(tmp_path / "20260902_230000_BRP.edf")], "a later name must be seen"
+
+
+def test_a_connect_that_records_NO_gatt_table_logs_nothing_about_it(monkeypatch, caplog):
+    """GATT-HANDLE-MAP-2026-09-17, the quiet half. `_gatt_record_table` is best-effort and returns ""
+    when there was nothing to record — an unreadable or empty snapshot, or a map that refused the
+    write. That path must be SILENT, not log an empty phrase: this runs on every CPAP connect, and a
+    line that says nothing on a healthy box is the noise §14's night report exists to avoid.
+
+    It is also the branch no other test reaches — every fake client here publishes a non-empty tree,
+    so without this the `if recorded:` false arm is never taken and coverage reports a partial."""
+    import capture
+    import bleak
+    _FakeBleak.instances.clear()
+    monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)
+
+    async def _nothing(_client, _addr):
+        return ""
+    monkeypatch.setattr(capture, "_gatt_record_table", _nothing)
+
+    async def go():
+        with caplog.at_level(logging.INFO, logger="capture"):
+            _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+        assert not [r for r in caplog.records if "GATT table recorded" in r.getMessage()]
+        await disconnect()
+    _run(go())
+
+
+# ── THE ORACLE — GATT-HANDLE-MAP-2026-09-17 §2b③ ───────────────────────────────────────────────────
+def _settle_args(monkeypatch, capture_mod):
+    """Capture what `_settle_gatt_chars` is asked to wait for, without running it."""
+    seen = {}
+
+    async def _spy(_client, uuids):
+        seen["uuids"] = tuple(uuids)
+        return ""
+    monkeypatch.setattr(capture_mod, "_settle_gatt_chars", _spy)
+    return seen
+
+
+def test_ORACLE_a_device_with_NO_record_waits_on_exactly_todays_two_uuids(monkeypatch):
+    """THE SAFETY PROPERTY that lets this land dormant. `wait_hint` returns None, the union collapses
+    to the two named UUIDs, and the behaviour is byte-for-byte what it was before the oracle existed.
+    If this ever fails, the oracle stopped being opt-in and started changing every connect."""
+    import capture
+    import bleak
+    import gattmap
+    gattmap.reset()
+    _FakeBleak.instances.clear()
+    monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)
+    seen = _settle_args(monkeypatch, capture)
+
+    async def go():
+        _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+        await disconnect()
+    _run(go())
+    assert seen["uuids"] == (_GATT_RX_UUID, _GATT_TX_UUID)
+
+
+def test_ORACLE_a_recorded_device_waits_on_the_WHOLE_table(monkeypatch):
+    """The point of the unit. A tree carrying both named characteristics while the rest is still in
+    flight reads as SETTLED to the two-UUID wait — that is the 2026-09-09 failure shape. With a table
+    recorded, the settle waits for all of it."""
+    import capture
+    import bleak
+    import gattmap
+    gattmap.reset()
+    extra = "0000fd56-0000-1000-8000-00805f9b34fb"
+    gattmap.record("04:CD:15:3A:0B:BD", "abcd",
+                   {_GATT_RX_UUID: 0x11, _GATT_TX_UUID: 0x13, extra: 0x20}, source="test")
+    _FakeBleak.instances.clear()
+    monkeypatch.setattr(bleak, "BleakClient", _FakeBleak)
+    seen = _settle_args(monkeypatch, capture)
+
+    async def go():
+        _w, _r, disconnect = await capture._cpap_ble_connect("04:CD:15:3A:0B:BD", "hci2")
+        await disconnect()
+    _run(go())
+    gattmap.reset()
+    assert extra in seen["uuids"]
+    assert set(seen["uuids"]) >= {_GATT_RX_UUID, _GATT_TX_UUID, extra}

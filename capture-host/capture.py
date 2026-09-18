@@ -21,6 +21,7 @@ import acq_evidence_o2ring
 import blestats
 import bonding
 import devcaps
+import gattmap
 import helper_path
 import bluez_wedge
 import link_distress
@@ -9665,6 +9666,44 @@ def _gatt_missing(client, uuids) -> tuple | None:
     return tuple(u for u in uuids if u.lower() not in have)
 
 
+GATT_DB_HASH_UUID = "00002b2a-0000-1000-8000-00805f9b34fb"
+
+
+async def _gatt_record_table(client, addr) -> str:
+    """RECORD-ONLY. Persist the attribute table bleak currently holds for `addr`, keyed on the
+    peripheral's Database Hash. Returns "" when nothing was recorded, else a short phrase.
+
+    GATT-HANDLE-MAP-2026-09-17 §2b③, and it is deliberately the HALF that changes no behaviour. Nothing
+    reads this map yet: the oracle that will refuse an incomplete snapshot is a separate landing, after
+    real tables have accumulated. Landing the writer first is what the brief's §5 asks for — behind the
+    existing path, not in place of it — and it is also the only instrument that can answer the check
+    the journal could not: 14 days of logs held exactly one characteristic handle, because that logging
+    fires only on FAILURE snapshots, which are near-empty by construction. An instrument that observes
+    only broken trees cannot report what a healthy one contains.
+
+    ⚠️ THE HASH IS READ ONLY IF THE WALKED TREE ALREADY SHOWS IT — never blind. A device that does not
+    publish `0x2B2A` records under a `None` hash, which the map treats as checkable against itself and
+    against nothing else. That is not a failure; it is a device this oracle cannot key.
+
+    Best-effort by construction, like `_settle_gatt_chars` beside it: every failure path returns a
+    string and none raises, because this runs inside the leak guard with the link already open."""
+    try:
+        table = {c.uuid.lower(): c.handle for svc in client.services for c in svc.characteristics}
+    except Exception:          # noqa: BLE001 - unreadable snapshot is not an empty one (∅)
+        return "snapshot unreadable"
+    if not table:
+        return ""              # an empty table is the claim gattmap refuses; do not offer it one
+    db_hash = None
+    if GATT_DB_HASH_UUID in table:
+        try:
+            db_hash = bytes(await _bounded_setup(client.read_gatt_char(GATT_DB_HASH_UUID)))
+        except BaseException:  # noqa: BLE001 - an unread hash is `None`, never a fabricated key
+            db_hash = None
+    if not gattmap.record(addr, db_hash, table, source="connect-snapshot"):
+        return ""
+    return "%d char(s), db_hash %s" % (len(table), db_hash.hex() if db_hash else "absent")
+
+
 async def _gatt_rebuild(client) -> bool:
     """Drop bleak's cached service snapshot and build a NEW one from BlueZ's CURRENT objects.
 
@@ -9838,7 +9877,26 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
         # Costs one set-comprehension on the ~95 % path; only a miss sleeps. BOTH UUIDs, not just the
         # notify one: `GATT_TX` is consumed by `write` AFTER this function returns — i.e. OUTSIDE the
         # leak guard, where the identical missing-object failure has no retry at all.
-        settle = await _settle_gatt_chars(client, (_L.GATT_RX, _L.GATT_TX))
+        # THE ORACLE (GATT-HANDLE-MAP-2026-09-17 §2b③). The two named UUIDs are what this connect
+        # NEEDS; the recorded table is what this unit LOOKS LIKE. Waiting on the union means a tree
+        # that happens to carry both named characteristics while the rest is still in flight is seen
+        # as partial — which the two-UUID wait cannot do, and which is the measured failure (#2372:
+        # the Generic Attribute service ALONE, six byte-identical snapshots).
+        #
+        # ⚠️ SAFE BY CONSTRUCTION ON A DEVICE WITH NO RECORD: `wait_hint` returns None, the union is
+        # the same two UUIDs, and the behaviour is byte-for-byte today's. The oracle arms ITSELF as
+        # `_gatt_record_table` below accumulates tables; nothing here needs a migration or a flag.
+        #
+        # ⚠️ AND IT IS A HINT, NOT AN ASSERTION — see `gattmap.wait_hint`. The hash cannot gate this
+        # wait (reading the hash needs the tree we are waiting for), so a table that went stale across
+        # a firmware change could name characteristics that no longer exist. The cost is bounded to one
+        # settle window because `_settle_gatt_chars` already gives up and hands the verdict to
+        # `start_notify`; it is never allowed to decide anything on its own.
+        _want = (_L.GATT_RX, _L.GATT_TX)
+        _hint = gattmap.wait_hint(ble_addr)
+        if _hint:
+            _want = tuple(sorted({u.lower() for u in _want} | _hint))
+        settle = await _settle_gatt_chars(client, _want)
         if settle:
             # ~98 lines a night is the POINT: this is the measurement that says whether rebuilding the
             # snapshot closed #2170, and it is stated so it can be wrong. The prediction — these lines
@@ -9848,6 +9906,10 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
             # that is a different finding, not this fix working.
             log.info("CPAP %s on %s: BlueZ had not published %s/%s when bleak snapshotted (#2170) — %s",
                      ble_addr, hci or "default adapter", _L.GATT_TX, _L.GATT_RX, settle)
+        # RECORD-ONLY (GATT-HANDLE-MAP-2026-09-17). Nothing consumes this yet — see the docstring.
+        recorded = await _gatt_record_table(client, ble_addr)
+        if recorded:
+            log.info("CPAP %s: GATT table recorded — %s", ble_addr, recorded)
         await client.start_notify(_L.GATT_RX, _on_notify)
     except BaseException as exc:
         # 🔴 READ THE EVIDENCE BEFORE DESTROYING IT — these two lines MUST precede the disconnect.
@@ -9919,6 +9981,7 @@ async def main():
     # 2026-09-15, 4 stop/starts in 6 h), so an in-memory-only record would re-probe every device
     # every deploy and never accumulate the history that makes it worth having.
     devcaps.configure(os.path.join(root, "captures", "devcaps.json"))
+    gattmap.configure(os.path.join(root, "captures", "gattmap.json"))
     global _CFG
     _CFG = cfg
     # One-time migration: the O2Ring's 125 Hz pleth used to be captured unconditionally, so existing
