@@ -1,6 +1,6 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED · **Created:** 2026-09-17 · **Executes:** `BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md` §1.1, **ruled BUILD by the owner 2026-09-17** (that brief's §5 path (a)) · **Owner:** unassigned — needs a **box session**; deploys to vigil are owner-authorized only · **Relates:** `capture-host/devcaps.py` (the persistence precedent), #2373 (`_settle_gatt_chars`, the mitigation this replaces the need for)
+**Status:** PROPOSED · **Created:** 2026-09-17 · **Executes:** `BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md` §1.1, **ruled BUILD by the owner 2026-09-17** (that brief's §5 path (a)) · **Residue:** 2026-09-18-as11-implements-robust-caching · **Owner:** unassigned — needs a **box session**; deploys to vigil are owner-authorized only · **Relates:** `capture-host/devcaps.py` (the persistence precedent), #2373 (`_settle_gatt_chars`, the mitigation this replaces the need for)
 
 > **Do not remove `_settle_gatt_chars` as part of this.** It is a settle-and-retry standing in for this
 > remedy, it is measured working, and removing it in the same unit that introduces a new addressing
@@ -117,9 +117,36 @@ Each is cheap, and each could change the shape of the unit. `trace-to-the-consum
 
 ---
 
+## 3b · 🟢 BOX SESSION RESULT — 2026-09-18 (Wren, read-only on vigil)
+
+**§3's check 1 is ANSWERED for the rail that had the measured failure.** No deploy was needed: the
+owner-sanctioned `tepna-update.timer` had already pulled and restarted at 04:21:02, and three shas
+agree — `/api/version` = `HEAD` = `origin/main` = `d5a9adaf`, with a fresh unit `ActiveEnterTimestamp`.
+
+**AS11 `04:CD:15:3A:0B:BD` — 14 characteristics, db_hash `4bcd397d247ef57c824749823578b2b7`**, 9 SIG +
+5 vendor, `0x0005` = `2B2A` DATABASE HASH. So the oracle's staleness signal **can** cover this rail.
+Cross-checked twice: the 2026-09-08 btmon put the notify CCCD at `0x0023` (consistent with the value at
+`0x0021`), and `ZEPHYR-INSTRUMENT`'s *"5 services / 14 characteristics"* from the unbonded open matches
+n=14 exactly. Three vendor UUIDs (`3d5085ac`, `1681c44f`, `e5e33ba4`) appear nowhere else in the repo.
+
+**Map survival is PROVEN rather than argued.** First record 21:06:10; two daemon restarts followed
+(21:50:53, 04:21:01); after each the daemon re-recorded the identical table. That closes *"a device's
+handle map survives a disconnect"* with evidence.
+
+⚠️ **H10 · Verity · O2Ring are NOT OBSERVED, which is a different word from absent** — nothing has been
+worn since the restart, so the map has no entry. That is silence from the instrument, not a fact about
+the devices, and the reporter declined to manufacture a session to fill it.
+
+🔴 **And a ceiling finding the narrow question would have missed** — `0x2B29` CLIENT SUPPORTED FEATURES
+sits beside `0x2B2A`: the Bluetooth 5.1 **Robust Caching** pair. The AS11 implements the whole
+change-aware protocol, in which a client that sets the bit is TOLD when the table moves rather than
+discovering it by mismatch. This unit polls; the device offers push. Residue
+`2026-09-18-as11-implements-robust-caching`. It surfaced only because the run sheet was widened to
+report the WHOLE table rather than a verdict about one characteristic.
+
 ## 4 · Done when (verbatim from §1.1, plus what execution owes)
 
-- [ ] A device's handle map **survives a disconnect**.
+- [x] A device's handle map **survives a disconnect** — proven 2026-09-18 across TWO daemon restarts, identical table re-recorded after each (§3b).
 - [ ] A **forced Database-Hash change re-discovers** — planted, not waited for.
 - [ ] A **planted mid-publish object tree cannot produce a wrong handle — it produces a refusal.**
       This is the load-bearing one: a wrong handle is silent, and silence is the failure mode.
