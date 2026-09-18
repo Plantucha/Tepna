@@ -177,6 +177,63 @@ reads `:679`, finds unrelated code and stops has been handed a false refutation 
 This is how a **true** row gets closed by mistake, and it mirrors section 1: there a wrong inference
 survived because nobody checked; here a right claim is at risk because the pointer rotted.
 
+🔴 **CORRECTION — this is NOT a new finding, and the author committing the error is the point.** The
+defect is already a row: `2026-09-06-brief-header-file-line-citations-rot`, logged **twelve days
+earlier**, whose stated fix is already *"a convention plus a check — cite a greppable IDENTIFIER"*. The
+check half was then designed, measured and **refuted** in `BRIEF-CODE-ANCHOR-CHECK-2026-09-11-BRIEF.md`
+(DONE, *"BOTH SHAPES TESTED ARE REFUTED — build neither"*), whose §3.1 states the constraint verbatim:
+**`file:line` may be DISPLAYED; only the identifier may be ASSERTED.**
+
+So this brief documented "the ledger contains its own corrections and nobody reads across rows" in
+section 2, and then committed exactly that failure two sections later. One doc-search would have found
+it; it was the top hit on the first query when finally run. **The section-2 pattern is not a property of
+other sessions.**
+
+### 4.1 · The rot rate, measured — and why it REFUTES a gate rather than justifying one
+
+Measured at `origin/main` over every `file:line` citation in the ledger, with the denominator published:
+
+| bucket | n |
+|---|---|
+| citations found, across 77 of 195 rows | **237** |
+| path no longer exists | 2 |
+| line past EOF | 1 |
+| ambiguous bare `:NNN` (no file bindable) | 4 |
+| **UNVERIFIABLE — no quotable anchor in reach** | **104 (44 %)** |
+| checkable | **126** |
+| — anchor present at the cited line | 21 |
+| — flagged as drifted | 105 |
+
+A deterministic 12-sample of the 105 was hand-classified: **~7 real rot · ~4 false positive · 1
+ambiguous**. ⚠️ **Quote that as n=12 with its interval — true-positive rate among flagged ≈ 55-60 %,
+interval roughly 30-85 %** — not as a point estimate. The derived "~48 % of the checkable subset" is a
+projection off twelve hand-checks and will not support more weight than that.
+
+Two confirmed drifts are four figures: `computeRespRateProxy` cited at `oxydex-dsp.js:2867` lives at
+`:4982` (**2,115 lines**); `correctRR`'s call site cited at `ppgdex-dsp.js:3338` is now `series,`.
+
+**Three independent reasons not to gate, each sufficient:**
+
+1. **Magnitude.** A gate reddening on ~60 existing citations is switched off inside a week —
+   `mutate_diff.py`'s own header carries this argument.
+2. **Regeneration.** Fix-then-gate does not rescue it: two hand-checked citations drifted four figures
+   in under three weeks, so the ledger is red again days after any cleanup.
+3. **The instrument's own false-positive rate** (~40 %) would convict correct rows — the
+   invariant-convicts-working-code failure.
+
+And **44 % of citations are structurally uncheckable**, so even a perfect checker is silent on nearly
+half the population while its green reads as *"citations fine"*.
+
+⚠️ **This refutation is NOT a duplicate of `BRIEF-CODE-ANCHOR-CHECK`'s.** That one failed over *briefs*,
+where absent identifiers are structural because a brief describes work not yet done (§7.1: 15 of 15
+false positives), and it was **blind to its own defining case** (§7.2). Rows are a different population
+— a row records a defect whose code existed at logging time — and this instrument **does** flag its
+defining case (`ppgdex-dsp.js:679`, now `try {`). It is refuted for different reasons, and both results
+should stand.
+
+**The remedy that survives is a CONVENTION — cite a greppable identifier, let `file:line` be
+decoration.** That is an owner call, not this brief's, and it is where this stops.
+
 ---
 
 ## 5 · FINDING — "gate-tracked" is a third state, beside *wrong* and *stale*
@@ -243,7 +300,8 @@ surfaces. Recorded here; not acted on.
 - [ ] The 3 unverified rows — needs a browser run and two seam checks
 - [ ] New row for 1.2's narrower live-capture claim; old row closes pointing at it
 - [ ] Section 5's gate-tracked state — **owner**, vocabulary change not ours
-- [ ] Section 4's citation rot — worth its own row
+- [x] Section 4's citation rot — measured (4.1); gate DECLINED on three independent grounds; already a row (`2026-09-06-brief-header-file-line-citations-rot`), so no new row is owed
+- [ ] The citation CONVENTION (identifier over line) — **owner**, out of scope here
 
 **No row's non-state cell was edited by this sweep, and no row was closed.** Rows are append-and-close;
 the artifact of a wrong row is a brief section carrying the evidence, per #2623.
