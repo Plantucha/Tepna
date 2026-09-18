@@ -1,0 +1,29 @@
+{
+  "schema": {
+    "name": "ganglior.integrator-hrstat-class-twins",
+    "version": "1.0",
+    "doc": "Committed synthetic twins for D3's comparability-keyed hrStatMixed. Inputs rebuilt in-code by tests/hrstat-class-twins.js on top of tests/tch-golden-inputs.js — the same night the equivalence gate uses, with only the per-epoch hrStat label differing between the two twins."
+  },
+  "twins": {
+    "comparable": [
+      {
+        "hrStats": [
+          "rate-of-mean",
+          "rate-of-mean",
+          "mean-rate"
+        ],
+        "hrStatMixed": false
+      }
+    ],
+    "incomparable": [
+      {
+        "hrStats": [
+          "rate-of-mean",
+          "rate-of-mean",
+          "median-rate"
+        ],
+        "hrStatMixed": true
+      }
+    ]
+  }
+}

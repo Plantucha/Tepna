@@ -50,6 +50,8 @@ const { tchGoldenInputs } = require(path.join(REPO, 'tests', 'tch-golden-inputs.
 const { apneaNullTwins } = require(path.join(REPO, 'tests', 'apnea-null-twins.js'));
 const { respirationFusionTwins } = require(path.join(REPO, 'tests', 'respiration-fusion-twins.js'));
 const { fusionNightTwins } = require(path.join(REPO, 'tests', 'fusion-night-twins.js'));
+globalThis.tchGoldenInputs = tchGoldenInputs; // hrstat-class-twins builds ON the TCH night, so it needs the builder in scope
+const { hrStatClassTwins } = require(path.join(REPO, 'tests', 'hrstat-class-twins.js'));
 
 /* Integrator.src.html script order (headless subset — no render/app/DOM shell). */
 function realm() {
@@ -153,6 +155,37 @@ const buildTch = () => {
        cluster 12 s apart so they compete for one surge; elsewhere an exclusive and a non-exclusive
        scorer agree, so the central claim of §4.2b was unwitnessed.
    ONE fixture, four twins: any byte of any twin moving reds the ledger. */
+/* D3's twins (owner ruling 2026-09-17). Before these, NOTHING COMMITTED COULD EXPRESS THE RULING:
+   neither OxyDex GATE-B fixture carries `tchEpochs` or `hrStat` at all, and these Integrator goldens'
+   inputs are exports still labelled `median-rate`, so `hrStatMixed` read mixed before and after the
+   change. Both regen tools reported "0 moved" — silence by construction, exactly as the apnea twins
+   below were minted to close.
+   TWO nights because one direction can only half-fail: `comparable` catches a REVERT to name-equality
+   keying (three distinct names, legs agreeing to 0.3 sigma, flag must stay false); `incomparable`
+   catches a flag hard-wired to false, which would sail through the first twin with the guard gone. */
+const buildHrStatTwins = () => {
+  if (typeof adaptEnvelopeNode !== 'function' || typeof fuseHRVConsensus !== 'function') return null;
+  const out = {
+    schema: {
+      name: 'ganglior.integrator-hrstat-class-twins',
+      version: '1.0',
+      doc: "Committed synthetic twins for D3's comparability-keyed hrStatMixed. Inputs rebuilt in-code by tests/hrstat-class-twins.js on top of tests/tch-golden-inputs.js — the same night the equivalence gate uses, with only the per-epoch hrStat label differing between the two twins."
+    },
+    twins: {}
+  };
+  for (const k of ['comparable', 'incomparable']) {
+    const recs = hrStatClassTwins(k).map((x) => adaptEnvelopeNode(x.json, x.node, x.node)[0]);
+    const fused = fuseHRVConsensus(recs, 1000);
+    /* PER BLOCK, not top-level — `fuseHRVConsensus` publishes the flag inside `blocks[]`, and reading
+       `fused.hrStatMixed` yields undefined, which serialises to null and makes BOTH twins identical.
+       Caught by checking the minted bytes discriminated rather than trusting that they would. */
+    out.twins[k] = fused && Array.isArray(fused.blocks)
+      ? fused.blocks.map((b) => ({ hrStats: b.hrStats || null, hrStatMixed: typeof b.hrStatMixed === 'boolean' ? b.hrStatMixed : null }))
+      : null;
+  }
+  return out;
+};
+
 const buildApneaTwins = () => {
   if (typeof adaptEnvelopeNode !== 'function' || typeof fuseApneaEvents !== 'function') return null;
   const T = apneaNullTwins();
@@ -273,6 +306,16 @@ const FIXTURES = [
       added: '2026-09-03',
       inputs: [],
       note: 'ADDED 2026-09-03 (residue 2026-09-02-respiration-fusion-no-fixture). The respiration-fusion path had NO committed fixture, so a value going missing from it was undetectable — not "nothing reflected the defect" but NOTHING COULD. That is why PpgDex\'s exported respiration reached no fusion for a month with every gate green. Four twins isolate the two guards fuseRespirationRate names: temporal overlap, and one-observer-per-node before the n>=2 floor.'
+    }
+  },
+  {
+    name: 'integrator_hrstat_class_twins.node-export.json',
+    real: false,
+    build: buildHrStatTwins,
+    newRecord: {
+      added: '2026-09-18',
+      inputs: [],
+      note: "ADDED 2026-09-18 (D3, owner ruling 2026-09-17; residue 2026-09-17-no-fixture-expresses-epoch-hrstat). OxyDex's epoch HR moved median->mean and the Integrator's mixed-statistic flag moved from NAME EQUALITY to measured COMPARABILITY — and both regen tools reported \"0 fixtures moved\", because NO committed artifact could express either half: neither OxyDex GATE-B fixture carries tchEpochs or hrStat at all, and these goldens' inputs are exports still labelled median-rate, so hrStatMixed read mixed before and after. Silence by construction, the same failure integrator_apnea_null_twins was minted to close. TWO twins because one direction can only half-fail: `comparable` (ECGDex+PpgDex rate-of-mean, OxyDex mean-rate) must read hrStatMixed FALSE and is what catches a revert to name-equality keying; `incomparable` (OxyDex median-rate) must read TRUE and is what catches a flag hard-wired false, which would pass the first twin with the guard gone. Inputs rebuilt in-code from tests/tch-golden-inputs.js — the same night the equivalence gate consumes — with ONLY the per-epoch hrStat label differing, so a byte difference between the twins can only be the label. Generated by re-running the real modules; never hand-edited."
     }
   },
   {
