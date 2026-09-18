@@ -94,14 +94,19 @@ async def _delayed_script(lines: list[tuple[float, str]]) -> str:
                 break
             chunks.append(b)
     reader = asyncio.create_task(drain())
+    # `proc.stdin` is `StreamWriter | None` in the stubs; it is non-None here because the process was
+    # created with `stdin=PIPE`. Bound once rather than narrowed at each of the three uses — one name
+    # to keep true, and the assertion states the precondition where it is established.
+    assert proc.stdin is not None
+    stdin = proc.stdin
     try:
         for delay, cmd in lines:
             if delay:
                 await asyncio.sleep(delay)
-            proc.stdin.write((cmd + "\n").encode())
-            await proc.stdin.drain()
+            stdin.write((cmd + "\n").encode())
+            await stdin.drain()
         await asyncio.sleep(0.5)
-        proc.stdin.close()
+        stdin.close()
         await asyncio.wait_for(proc.wait(), timeout=5)
     except (asyncio.TimeoutError, ProcessLookupError):
         proc.kill()

@@ -79,6 +79,7 @@ def assemble_live(
     artifact_valid: bool | None = None,
     stopped_cleanly: bool | None = None,
     clock_offset: ae.ClockOffset | None = None,
+    continuity: dict | None = None,
 ) -> ae.AcquisitionEvidence:
     """Normalize one LIVE CPAP BLE streaming session into an `AcquisitionEvidence`.
 
@@ -176,6 +177,11 @@ def assemble_live(
             "records": facts.get("records"),
             "observed_interval_ms": observed_interval_ms,
             "stopped_cleanly": stopped_cleanly,
+            # INV8 (cpap_continuity): `{continuity_status, continuity_gap_ms}` for the session this
+            # envelope describes, or None when no tracker was wired. Beside `stopped_cleanly` because
+            # they answer adjacent questions — HOW this session ended, and whether the one that
+            # followed a drop was verified to have lost nothing. Never defaulted (§∅).
+            "continuity": continuity,
         },
     )
 
