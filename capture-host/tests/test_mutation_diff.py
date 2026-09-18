@@ -474,3 +474,64 @@ def test_undecided_by_function_groups_the_unattributable_rather_than_dropping_it
 def test_undecided_by_function_is_empty_safe():
     assert M.undecided_by_function([]) == []
     assert M.undecided_by_function(None) == []
+
+
+# ── @property: a function this tool CANNOT examine is not a function with nothing to examine ────────
+# mutmut generates no mutants for a property whatever its body holds — measured 2026-09-18 on
+# `return self.a + self.b`. Reporting that as "no mutable operator" states a property of the CODE for
+# what is a limitation of the TOOL. Measured the same day: 45 properties in capture-host, all
+# unmutatable, 15 with genuinely mutatable bodies, and all 15 changed this quarter.
+
+_PROP_SRC = (
+    "import functools\n"
+    "class C:\n"
+    "    @property\n"
+    "    def total(self):\n        return self.a + self.b\n"
+    "    @functools.cached_property\n"
+    "    def cached(self):\n        return 1\n"
+    "    def plain(self):\n        return 2\n"
+    # DECORATED BUT NOT A PROPERTY — the case `plain` cannot cover, because it has no decorators at
+    # all. Without this the inner decorator loop never completes un-matched, and the "has decorators,
+    # none of them property" path goes untaken. Caught by the branch-coverage floor, not by reading.
+    "    @staticmethod\n    def helper():\n        return 3\n"
+)
+
+
+def test_is_property_sees_both_decorator_forms():
+    assert M.is_property(_PROP_SRC, "total") is True
+    assert M.is_property(_PROP_SRC, "cached") is True
+
+
+def test_is_property_is_false_for_a_plain_method_and_an_absent_name():
+    assert M.is_property(_PROP_SRC, "plain") is False
+    assert M.is_property(_PROP_SRC, "nope") is False
+
+
+def test_is_property_is_false_for_a_function_decorated_with_something_ELSE():
+    """A decorated non-property. `plain` has NO decorators, so it cannot exercise the path where the
+    decorator loop runs and matches nothing — a different branch, and the one a real codebase hits."""
+    assert M.is_property(_PROP_SRC, "helper") is False
+
+
+def test_is_property_returns_false_rather_than_raising_on_unparseable_source():
+    """False is the safe direction: a false True invents a blind-spot warning nobody can act on."""
+    assert M.is_property("def (", "a") is False
+    assert M.is_property("", "a") is False
+
+
+def test_source_function_of_glob_reads_the_bare_def_name():
+    assert M.source_function_of_glob("cpap_ingest.xǁGapCountersǁtotal_lost__mutmut_*") == "total_lost"
+    assert M.source_function_of_glob("m.x_helper__mutmut_*") == "helper"
+
+
+def test_source_function_of_glob_declines_rather_than_guessing():
+    assert M.source_function_of_glob("m.x__mutmut_*") == ""
+    assert M.source_function_of_glob("nonsense") == ""
+    assert M.source_function_of_glob("") == ""
+
+
+def test_the_two_name_helpers_answer_DIFFERENT_questions():
+    """`function_of_mutant` reports a QUALIFIED name; `source_function_of_glob` returns the bare `def`
+    name an AST lookup matches on. One helper serving both would hand the wrong string to one caller."""
+    assert M.function_of_mutant("xǁGapCountersǁtotal_lost__mutmut_3") == "GapCounters.total_lost"
+    assert M.source_function_of_glob("m.xǁGapCountersǁtotal_lost__mutmut_*") == "total_lost"
