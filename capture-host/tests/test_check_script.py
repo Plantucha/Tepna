@@ -24,6 +24,8 @@ import stat
 import subprocess
 import sys
 
+import pytest
+
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHECK = os.path.join(HERE, "check.sh")
 
@@ -221,8 +223,21 @@ def test_A_COUNT_AT_THE_BASELINE_SAYS_SO_WITHOUT_ALARM(tmp_path):
 
 def test_AN_IMPROVEMENT_SAYS_TO_BANK_IT(tmp_path):
     """A count below the baseline is progress that can be silently spent again unless the baseline
-    moves with it — the banked-progress half of any ratchet."""
-    out = _mypy_run(tmp_path, 90)
+    moves with it — the banked-progress half of any ratchet.
+
+    ⚠️ DERIVED FROM THE BASELINE, like the two tests above, and it was a HARDCODED 90. That is below
+    99 and above 68, so the moment someone did the thing this test exists to encourage — bank the
+    progress — the literal landed on the wrong side and the test exercised the RISEN path while still
+    asserting BELOW. A test that reds when you follow its own advice is worse than no test: it makes
+    banking look like a regression. Measured 2026-09-17 when the baseline moved 99 -> 68.
+
+    At a baseline of 0 there is no "below" to report — and 0 is where the gate stops being advisory
+    and becomes blocking, so that is a real endpoint rather than an awkward edge.
+    """
+    base = _baseline()
+    if base == 0:
+        pytest.skip("baseline is 0 — the gate is blocking and there is no improvement path to report")
+    out = _mypy_run(tmp_path, base - 1)
     assert "BELOW" in out and "bank it" in out
 
 

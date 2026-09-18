@@ -106,8 +106,8 @@ MYPY_OUT=".mypy-latest.txt"
 #
 # Still ADVISORY: this reports the direction, it does not fail the run. §P3 is what flips mypy
 # blocking, and it flips at 0 — moving that decision here would pre-empt it.
-MYPY_BASELINE=99
-MYPY_BASELINE_DATE="2026-09-13"
+MYPY_BASELINE=68
+MYPY_BASELINE_DATE="2026-09-17"
 mypy_advisory() {
   "$PY" -m mypy --ignore-missing-imports --explicit-package-bases . > "$MYPY_OUT" 2>&1
   local rc=$?
