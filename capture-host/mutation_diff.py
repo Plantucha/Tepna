@@ -57,6 +57,59 @@ UNDECIDABLE = "undecidable"     # the literal scan is outside its competence —
 EXCUSING = frozenset({"no-distinguishing-input", "untestable-by-design"})
 
 
+def source_function_of_glob(glob: str) -> str:
+    """The SOURCE function name a mutmut glob targets — `""` when it cannot be read.
+
+    A glob is `<module>.<mangled>__mutmut_*`, and the mangled part carries mutmut's own encoding:
+        cpap_ingest.x_helper__mutmut_*            → `helper`          (module-level)
+        cpap_ingest.xǁGapCountersǁtotal_lost__mutmut_*  → `total_lost` (method / property)
+
+    Distinct from `function_of_mutant`, which answers a different question and returns the QUALIFIED
+    name (`GapCounters.total_lost`) for reporting. This one returns the bare `def` name, because that
+    is what an AST lookup matches on. Two callers, two needs — one helper serving both would return
+    the wrong string to one of them, which is the kind of quiet mismatch this file exists to avoid.
+    """
+    stem = (glob or "").rstrip("*").rstrip("_")
+    if "__mutmut" not in stem:
+        return ""
+    mangled = stem.split(".", 1)[1] if "." in stem else stem
+    mangled = mangled.split("__mutmut", 1)[0]
+    if "ǁ" in mangled:
+        parts = [p for p in mangled.split("ǁ") if p and p != "x"]
+        return parts[-1] if parts else ""
+    return mangled[2:] if mangled.startswith("x_") and len(mangled) > 2 else ""
+
+
+def is_property(source: str, func: str) -> bool:
+    """Is `func` in `source` decorated `@property` / `@cached_property`?
+
+    ⚠️ WHY A GATE NEEDS TO KNOW: mutmut generates NO mutants for a property — measured 2026-09-18 on a
+    body of `return self.a + self.b`, a perfectly mutatable `+`. So `generated_count == 0` is CORRECT
+    for a property and the old message, "no mutable operator in this function", was a WRONG DIAGNOSIS
+    OF A RIGHT NUMBER: it names a property of the CODE when the cause is a property of the TOOL.
+
+    Measured over `capture-host/` the same day: 45 properties, all generating zero mutants, of which
+    **15 have bodies that DO contain a mutatable operator** — and all 15 had their bodies changed this
+    quarter. The diff-scoped gate exists to answer "if you changed this line, can a test see it"; for
+    those 15 it has never been able to look, while reporting them as nothing to test.
+
+    Returns False on anything it cannot parse. A false True would silently downgrade a real
+    "nothing to mutate" into a blind spot, which is the wrong direction to be wrong in: it would
+    manufacture a warning nobody can act on, and eventually teach readers to ignore the warning.
+    """
+    try:
+        tree = ast.parse(source or "")
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == func:
+            for d in node.decorator_list:
+                name = d.id if isinstance(d, ast.Name) else getattr(d, "attr", "")
+                if name in ("property", "cached_property"):
+                    return True
+    return False
+
+
 def functions_covering(source: str, lines: set[int]) -> set[str]:
     """mutmut mutant-name stems for the functions containing `lines`.
 
