@@ -77,6 +77,45 @@ blanking at 0 is clipping at the bottom), which passed all four pre-stated crite
    triplet — the failure, not the cadence. A run ≥ `T_STUCK` is now written **unconditionally**,
    ahead of every class check.
 
+## 4b · WU-6/7 — the two witnesses DISAGREE BY PREDICATE, not by threshold (measured 2026-09-18)
+
+The owner's 2026-09-13 ruling on P5 said to read `_PPGRUNS.txt` **and** cross-check the in-JS
+derivation, because a disagreement is itself a finding — and to decide the precedence rule **when the
+data shows what disagreement actually looks like**, rather than guessing it up front. Here is what it
+looks like, measured on 2026-09-17.
+
+| | live writer (`*RUNS.txt`) | end-of-night back-check (`nightqc`) |
+|---|---|---|
+| predicate | `stuck` — a constant value ANYWHERE | `clip` — a value AT A RAIL |
+| minimum run | **200** | **5** (`_CLIP_MIN_RUN`) |
+| ECG that night | **no `_ECGRUNS.txt` is written at all** | 16 spans, 6–570 samples (median 13), rails −18200 / 18197 — only **1** would clear 200 |
+| PPG that night | 4 spans, `value=100`, `rule=stuck` | **79 spans** at rails **0 / 199**, 5–85 samples (median 22) — **none** would clear 200 |
+| PPG2W | 0 | 0 |
+
+**THE PRECEDENCE QUESTION AS POSED DOES NOT ARISE, and that is the result.** These are not two
+measurements of one quantity that can be ranked; they answer different questions. One keys on
+CONSTANCY, the other on RAIL MEMBERSHIP. Tonight's live spans sit at value 100 — constant but not
+railed, so the back-check correctly does not flag them; the back-check's 79 PPG spans sit at 0 and 199
+— railed but short, so the live writer correctly does not flag them. Neither is wrong and neither
+supersedes the other. A precedence rule between them would be a category error.
+
+**For `pinned` specifically the back-check is the witness that matters**, and by a wide margin: the
+rule this brief names — *"at either range extreme; blanking at 0 is clipping at the bottom"* — is
+exactly what `nightqc.clip_regions` computes, and **zero** of its 79 PPG rail spans would be visible
+to the live writer at `min_run=200`. Reading `_PPGRUNS.txt` alone for pinned coverage would find
+nothing and report it as absence of absence.
+
+⚠️ **ONE NIGHT ESTABLISHES THE STRUCTURE, NOT THE PREVALENCE.** What is settled is the SHAPE of the
+disagreement (different predicates, not a threshold gap), which is what the precedence question
+needed. How many of the 41 trio nights carry rail spans, and how much coverage they remove, is the
+owner's item 3 and is still owed — it is the measurement that sizes the change, and it must be taken
+as part of shipping rather than assumed.
+
+⚠️ And it interacts with `SAMPLE-VALIDITY-ENVELOPE` §3.1, answered the same day: a validity view built
+from the LIVE sidecar can only claim *"valid unless a long blanking run was detected"*. These 79 spans
+are precisely the blanking that claim excludes, so an envelope fed only by the live writer would call
+all 79 valid.
+
 ## 5 · Comment-line grammar (pinned; the file reproduces itself)
 
 ```
