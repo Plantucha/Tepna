@@ -74,7 +74,11 @@ def harvest(mutants_file: str, funcs: list[str]) -> dict[str, list[tuple[str, st
     return harvested
 
 
-def load_cases(test_files: list[str]) -> list[tuple[str, Callable[[], Any]]]:
+# Returns `(cases, skipped)`. ⚠️ The return type said `list[...]` when this returns a TUPLE of two
+# lists — my own annotation from the previous batch, wrong on the first read and caught by mypy
+# rather than by review. It then errored the caller's unpack as well: a wrong signature does not
+# stay local, it convicts every correct call site downstream.
+def load_cases(test_files: list[str]) -> tuple[list[tuple[str, Callable[[], Any]]], list[str]]:
     """Every zero-fixture `test_*` in the given files, with `@pytest.mark.parametrize` expanded.
 
     Deliberately NOT pytest.main(): re-collecting per mutant costs more than the tests themselves and

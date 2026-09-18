@@ -43,6 +43,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import hashlib
 import json
 import os
@@ -234,8 +236,12 @@ async def sync_spool(pull_round, root: str, *, device: str, session: str,
     seen = {_row_key(r) for r in rows}
     round_seq = rows[-1]["round_seq"] + 1 if rows else 0
     cursor = rows[-1]["committed_cursor"] if rows else epoch_start
-    summary = {"rounds_committed": 0, "bytes": 0, "cursor": cursor,
-               "stopped": None, "failure": None}
+    # Heterogeneous by design — two counters, a cursor, and two nullable outcome slots. Without the
+    # annotation mypy joins the literal's value types to `object | None`, so `summary["bytes"] += len(...)`
+    # read as `None + int` AND `str + int` on the same line: four errors from one un-annotated literal,
+    # none of them a real defect.
+    summary: dict[str, Any] = {"rounds_committed": 0, "bytes": 0, "cursor": cursor,
+                               "stopped": None, "failure": None}
     if on_transition is not None:
         on_transition("SYNCING", f"spool sync from {cursor}")
     for _ in range(max_rounds):

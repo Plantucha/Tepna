@@ -68,7 +68,11 @@ run_gate "unwired"    "$PY" tools/find_unwired.py --check
 # ── ADVISORY GATES (PYTHON-TYPES-AND-FORMAT-2026-08-27) ─────────────────────────────────────────
 # These RUN and REPORT but cannot fail the run yet. Advisory here is not the ignorable kind: the
 # counts print in the summary, and the flip conditions are pre-stated in the brief, not per-PR —
-# mypy flips BLOCKING at 0 errors (baseline 99, 2026-09-13; the number may only go DOWN); the
+# mypy flips BLOCKING at 0 errors (see MYPY_BASELINE below for the live figure and its date; the
+# number may only go DOWN). ⚠️ THIS LINE USED TO CARRY THE NUMBER ITSELF and drifted the moment
+# the ratchet was banked: it still read "baseline 99, 2026-09-13" after MYPY_BASELINE moved to
+# 68, and that stale prose was handed between sessions as if it were a reading. A number written
+# twice has one copy that nobody updates; the constant is the only place it may live. The
 # changed-files format check flips after one fleet-notice cycle. A big-bang reformat is FORBIDDEN
 # by the brief: mutation canaries/journals/equivalence are keyed on line text+numbers, and a
 # 263-file wave orphans that known-answer record at once — format lands file-by-file as files
@@ -106,8 +110,8 @@ MYPY_OUT=".mypy-latest.txt"
 #
 # Still ADVISORY: this reports the direction, it does not fail the run. §P3 is what flips mypy
 # blocking, and it flips at 0 — moving that decision here would pre-empt it.
-MYPY_BASELINE=68
-MYPY_BASELINE_DATE="2026-09-17"
+MYPY_BASELINE=58
+MYPY_BASELINE_DATE="2026-09-18"
 mypy_advisory() {
   "$PY" -m mypy --ignore-missing-imports --explicit-package-bases . > "$MYPY_OUT" 2>&1
   local rc=$?

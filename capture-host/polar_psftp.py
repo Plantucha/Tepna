@@ -399,6 +399,7 @@ class PolarPsFtp:
             # MORE -> continue
 
     async def get(self, path: str, timeout: float = 60.0) -> bytes:
+        assert self._client is not None   # only reachable inside the `async with`, which connects first
         for pkt in _build_request_packets(_encode_operation(GET, path), self._frame_mtu):
             await self._client.write_gatt_char(MTU_CHAR, pkt, response=False)
         return await self._read_response(timeout)
@@ -415,6 +416,7 @@ class PolarPsFtp:
     async def query(self, query_id: int, params: bytes = b"", timeout: float = 20.0) -> bytes:
         """Send a PS-FTP QUERY. Restricted to the time ids (see _ALLOWED_QUERIES) — this is the ONLY
         write this module performs; everything else is strictly read-only."""
+        assert self._client is not None   # only reachable inside the `async with`, which connects first
         for pkt in _build_query_packets(query_id, params, self._frame_mtu):
             await self._client.write_gatt_char(MTU_CHAR, pkt, response=False)
         return await self._read_response(timeout)
