@@ -16493,6 +16493,81 @@
       );
     });
 
+    /* ── §∅ P5 clause 2 — TWO POPULATIONS, NOT TWO OPINIONS ───────────────────────────────────────
+       An earlier draft of this group asserted `agreed`/`disagreed`. The corpus refuted it: the two
+       producers apply DIFFERENT RULES — `_PPGRUNS.txt` is `rule=stuck` (constant at ANY value),
+       `pinnedSpans` is rail-keyed (constant at an observed extreme). Of the 61 emitted rows in the
+       corpus, 8 sit at a rail and 53 are MID-RANGE, so an agreement axis would differ on 53 of them
+       BY CONSTRUCTION and report a rule difference as a finding. The words are gone rather than
+       softened: a reader who sees "agreed" will compare, and the comparison has no meaning.
+
+       ⚠️ THE GAP IS OURS. §∅ says key on RUN LENGTH, never on value membership, because an in-range
+       value can be a sentinel too — and the 5919-sample (47 s) run at value 100, mid-range of
+       lo=0/hi=200, is that sentinel sitting in the corpus today. Widening `pinnedSpans` is a
+       separate unit. What this group pins is that the two populations are reported SEPARATELY and
+       that nothing here can be read as one confirming the other. */
+    group('PpgDex §∅ P5 — the _PPGRUNS sidecar is a second population, and it is not comparable with ours', 'ppgdex-dsp · absence-as-value · pinned · sidecar', function (T) {
+      var P = env.PPGDSP;
+      if (!P || typeof P.parsePinnedRuns !== 'function') {
+        T.skip('PPGDSP.parsePinnedRuns unavailable');
+        return;
+      }
+      var HDR = 'Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule';
+      var RULE = '# stream=ppg1 rule=stuck min_run=200 t_stuck=200 merge_gap_max=8 annotations=156';
+      var ROW = '2026-09-11T04:19:36.253;channel 0;100;3273442;5919;47362.2;0;stuck';
+
+      /* POSITIVE CONTROL FIRST — a real corpus row, so every verdict below is measured against an
+         instrument known to work rather than a hopeful one. */
+      var r = P.parsePinnedRuns([RULE, HDR, ROW].join('\n'));
+      T.ok('control · a real sidecar row parses: channel 0, first 3273442, n 5919', !!r && r.emitted === 1 && r.rows[0].n === 5919 && r.rows[0].first === 3273442);
+      T.eq('control · the FILE’s own min_run is read, not assumed', r && r.minRun, 200);
+      T.ok('control · rows key on the writer’s channel LABEL, the one _PPG.txt’s header also carries', !!(r && r.byChannel['channel 0'] && r.byChannel['channel 0'].length === 1));
+
+      var sc = { comparable: true, minRun: 200, emitted: 1, rows: [{ first: 1000, n: 500 }] };
+      var v = P.crossCheckPinned(sc, [[1000, 1499]]);
+
+      /* 🔴 THE LOAD-BEARING ASSERTIONS: the agreement vocabulary must not come back.
+
+         ⚠️ GATING A WORD IS NORMALLY THE WRONG INSTRUMENT, AND THIS IS A NARROW EXCEPTION. A
+         "zero occurrences of <identifier>" assertion tests SPELLING, not capability, and this repo
+         has been bitten by that shape before. It is justified here only because the harm lives in
+         the READING rather than in the computation: a consumer who sees `agreed` will compare two
+         populations that no rule makes comparable, and no behavioural assertion can catch a future
+         author restoring an inviting word.
+
+         KNOW WHAT IT DOES NOT BUY, because a reader who over-trusts it is the next defect:
+           · a SYNONYM slips straight through — `consistent`, `concordant`, `aligned` all invite the
+             same invalid inference and none of them is gated;
+           · it does not stop the comparison being COMPUTED under another name — someone can
+             subtract the two populations and publish the difference without ever writing `agreed`.
+         So this buys "this specific known-bad term cannot return", which is worth having. It does
+         NOT buy "an invalid comparison cannot be expressed", and must not be read as though it did. */
+      T.eq('NO `agreed` field — the rules differ, so agreement is not expressible', v.agreed, undefined);
+      T.eq('NO `disagreed` field — a rule difference is not a disagreement', v.disagreed, undefined);
+      T.eq('the two rules are NAMED, so a reader cannot assume they match', v.fileRule + '|' + v.derivedRule, 'stuck-any-value|rail-pinned');
+      T.eq('…and non-comparability is STATED rather than implied', v.rulesComparable, false);
+
+      T.eq('each population is counted under its own name — the file’s', v.fileSpans, 1);
+      T.eq('…and ours', v.derivedSpans, 1);
+      T.eq('overlap is GEOMETRIC only and carries no epistemic claim', v.coincidentSpans, 1);
+
+      /* The threshold question survives the rework: it is real and independent of the rule
+         difference, because a run shorter than the file’s own min_run is one the writer never
+         examined whatever rule it was applying. */
+      var blind = P.crossCheckPinned({ comparable: true, minRun: 200, emitted: 0, rows: [] }, [[50, 99]]);
+      T.eq('SIDECAR-BLIND — a 50-sample run is below the file’s own min_run=200', blind.sidecarBlind, 1);
+      T.eq('…and being unexamined is not an overlap', blind.coincidentSpans, 0);
+
+      /* §∅ — an unknown parameter is never defaulted into anything. 1 of 186 corpus files. */
+      var noRule = P.parsePinnedRuns(HDR + '\n');
+      T.eq('a sidecar with NO rule line is not readable as parameters', noRule && noRule.comparable, false);
+      T.eq('…and its min_run stays NULL rather than falling back to a default', noRule && noRule.minRun, null);
+      T.eq('…and the verdict says WHY', P.crossCheckPinned({ comparable: false, emitted: 0, rows: [] }, [[50, 99]]).reason, 'sidecar-parameters-unknown');
+
+      var empty = P.parsePinnedRuns([RULE, HDR].join('\n'));
+      T.ok('an EMPTY sidecar carrying its rule IS readable — the writer looked and emitted nothing', !!empty && empty.comparable === true && empty.emitted === 0);
+    });
+
     group('ECGDex §∅ — an interval straddling a dropout is an ABSENCE, not a correctable beat', 'ecgdex-dsp · absence-as-value · regression', function (T) {
       /* `buildNN` repairs beats that were MIS-MEASURED: low SQI, out of physiological range, ectopic.
          A beat separated from its predecessor by a 74-second hole is none of those — it is a true
