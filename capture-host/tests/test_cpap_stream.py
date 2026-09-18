@@ -1810,3 +1810,114 @@ def test_ORACLE_a_recorded_device_waits_on_the_WHOLE_table(monkeypatch):
     gattmap.reset()
     assert extra in seen["uuids"]
     assert set(seen["uuids"]) >= {_GATT_RX_UUID, _GATT_TX_UUID, extra}
+
+
+class _RawStub:
+    """The least a sink needs to count as THE raw record for `_emit_acq_evidence`: `acq_facts()`."""
+    def open(self, channels, fs): pass
+    def on_batch(self, batch): pass
+    def close(self): pass
+    def acq_facts(self):
+        return {"session_id": "s", "device_id": "d", "path": None, "size": None, "records": 0,
+                "first_device_start": None, "closed_cleanly": True}
+
+
+# ── INV8 · continuity_status rides the pump end to end ─────────────────────────────────────────
+def _data_at(stamp, n=10, stream_id=1):
+    """`_data` with a chosen device `startTime` — the continuity verification reads that field."""
+    return _enc({"jsonrpc": "2.0", "method": "StreamData", "params": {
+        "data": [{"PatientFlow": [0.1] * n}, {"MaskPressure": [5.0] * n}],
+        "intervalMs": 40, "startTime": stamp, "streamId": stream_id}})
+
+
+def test_continuity_verdict_reaches_the_envelope_AND_the_gap_accounting_log(caplog):
+    """End to end through the real pump and the real handshake: session 1 streams two frames and the
+    link DROPS (the deque runs dry); session 2's first frame lands 5.4 s after the sample session 1
+    was owed. The verdict must reach BOTH surfaces — the evidence envelope, and the gap-accounting
+    log line, which is the only acquisition surface live on a box with `raw_record_dir` unset (the
+    production box, measured 2026-09-18)."""
+    import logging
+    import cpap_continuity
+
+    tracker = cpap_continuity.ContinuityTracker()
+    envelopes = []
+    T0 = "2026-08-23T01:30:28.730Z"
+
+    async def session(frames, *, expect_drop):
+        dev = FakeDev(_handshake() + [_ack()] + frames)
+        tracker.note_start()
+        if expect_drop:
+            with pytest.raises(IndexError):
+                await CS.stream_to_bus(FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                       cipher_factory=_identity_factory, extra_sinks=[_RawStub()],
+                                       acq_evidence_out=envelopes.append, continuity=tracker)
+        else:
+            await CS.stream_to_bus(FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                   cipher_factory=_identity_factory, max_batches=1, extra_sinks=[_RawStub()],
+                                   acq_evidence_out=envelopes.append, continuity=tracker)
+
+    with caplog.at_level(logging.INFO, logger="tepna.cpap"):
+        # session 1: T0 and T0+400 ms, then the link drops → the next sample was owed at T0+800
+        _run(session([_data_at(T0), _data_at("2026-08-23T01:30:29.130Z")], expect_drop=True))
+        assert tracker.status is cpap_continuity.Continuity.CONTINUOUS, "session 1's own verdict"
+        assert envelopes[-1].provenance["continuity"] == {"continuity_status": "continuous",
+                                                          "continuity_gap_ms": None}
+        # session 2: first frame at T0+800+5400 → a MEASURED 5.4 s gap
+        _run(session([_data_at("2026-08-23T01:30:34.930Z")], expect_drop=False))
+
+    assert tracker.status is cpap_continuity.Continuity.VERIFIED_GAP and tracker.gap_ms == 5400
+    assert envelopes[-1].provenance["continuity"] == {"continuity_status": "verified-gap",
+                                                      "continuity_gap_ms": 5400}
+    # the log line — the surface that is live on vigil — carries the same verdict
+    lines = [r.getMessage() for r in caplog.records if "gap accounting" in r.getMessage()]
+    assert any("'continuity_status': 'verified-gap'" in ln and "'continuity_gap_ms': 5400" in ln for ln in lines), lines
+
+
+def test_the_pump_without_a_tracker_is_byte_identical_to_before(caplog):
+    """The additive contract: no `continuity=` ⇒ no field in the log line and None in the envelope."""
+    import logging
+    envelopes = []
+    dev = FakeDev(_handshake() + [_ack(), _data([0.1], [5.0])])
+    with caplog.at_level(logging.INFO, logger="tepna.cpap"):
+        _run(CS.stream_to_bus(FakeBus(), dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                              cipher_factory=_identity_factory, max_batches=1, extra_sinks=[_RawStub()],
+                              acq_evidence_out=envelopes.append))
+    assert envelopes[-1].provenance["continuity"] is None
+    assert not any("continuity_status" in r.getMessage() for r in caplog.records)
+
+
+def test_the_controller_opens_each_session_in_the_tracker_and_forwards_it_to_the_pump():
+    """The controller-level half of INV8, the part the pump tests cannot see: `_start` resolves the
+    session's OPENING continuity state, forwards the tracker to the pump under `continuity=`, and
+    surfaces the state in `op("start")`'s result — the one place a caller (the auto-start loop, the
+    monitor button) sees it without the evidence surface, which is off on the production box.
+    The resume hint is consumed on the first start and must not leak into the second."""
+    import cpap_continuity
+    seen = {}
+
+    async def pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None, continuity=None):
+        seen["continuity"] = continuity
+        while should_stop is None or not should_stop.is_set():
+            await asyncio.sleep(0.005)
+        return 0
+
+    async def go():
+        tracker = cpap_continuity.ContinuityTracker()
+        connect, _events = _connector()
+        c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=pump, continuity=tracker)
+        c.continuity_resume_hint = True                      # "the daemon came up mid-therapy"
+
+        started = await c.op("start")
+        await asyncio.sleep(0.02)                            # let the pump task actually run
+        assert seen["continuity"] is tracker, "the tracker must reach the pump under continuity="
+        assert started["continuity_status"] == "resumed-unverified", "a hinted first start is a RESUME"
+        assert started["continuity_gap_ms"] is None
+        assert c.continuity_resume_hint is False, "the hint is one-shot"
+        await c.op("stop")
+
+        # a deliberate stop clears the slate: the next start is a fresh acquisition
+        tracker.note_end(clean=True)
+        again = await c.op("start")
+        assert again["continuity_status"] == "continuous"
+        await c.op("stop")
+    _run(go())

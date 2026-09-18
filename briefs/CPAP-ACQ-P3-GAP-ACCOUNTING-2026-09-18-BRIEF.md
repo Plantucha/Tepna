@@ -1,7 +1,7 @@
 <!-- CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md — Tepna Copyright 2026 Michal Planicka -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED · **Created:** 2026-09-18
+**Status:** PROPOSED (W3 DONE 2026-09-18 — `cpap_continuity.py`, four states; W1/W2/W4 as below) · **Created:** 2026-09-18
 
 # CPAP-ACQ P3 — gap accounting, backpressure, continuity and acquisition ownership
 
@@ -161,6 +161,18 @@ continuous from one that was resumed.
 *continuous* from *resumed-but-unverified* from *verified-continuous*. Per §∅, the unverified case is its
 own value — never the continuous one by default, and never a bare boolean whose `false` doubles as "not
 checked".
+
+**W3 · DONE 2026-09-18 (Wren) — `cpap_continuity.py`, wired by `_build_cpap_controller`, verdict on three
+surfaces.** Two departures from the text above, both deliberate: (1) **FOUR states, not three** — `verified-gap`
+joins the named three, because the verification compares device `startTime` across the drop and can therefore
+MEASURE a gap; folding a measured gap into `resumed-unverified` asserts ignorance where there is knowledge, the
+mirror of the fabrication §∅ forbids (accepted by the coordinator in review). (2) **Not on `AcqLifecycle`** — it
+is instantiated nowhere outside its own module, so a field there would be set by no real recovery; the tracker
+lives on `LiveStreamController`, which is where a drop actually ends a session and where `startTime` flows.
+Measured while building: the raw-record sink and the acq-evidence envelope are BOTH OFF on the production box
+(`raw_record_dir` unset ⇒ `raw_record_factory` None ⇒ `acq_evidence_out` None; zero `cpap-raw-*.jsonl`), so
+INV9's centrepiece is not in effect there and the verdict is ALSO published on the controller's `op("start")`
+result and the gap-accounting log line. That finding is the owner's (config), routed by Kestrel.
 
 ### W4 · INV11 — one acquisition owner at a time, with no owner and no lock
 

@@ -30,6 +30,7 @@ import link_distress
 import wifi_uplink
 import link_rssi
 import host_clock
+import cpap_continuity
 import geo as _geo   # OPTIONAL GNSS elevation; no-ops entirely when unconfigured
 import offline_lock
 import diskguard
@@ -8644,7 +8645,7 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
     log.info("CPAP live stream wired: creds %s · edf_dir %s · raw_record_dir %s",
              creds_path, edf_dir or "(off — bus-only)", raw_dir or "(off — no raw record)")
 
-    return cpap_stream.LiveStreamController(
+    ctl = cpap_stream.LiveStreamController(
         bus, connect, lambda: _load_as11_creds(creds_path), lambda: STATUS.get("devices", {}),
         edf_sink_factory=edf_sink_factory, raw_record_factory=raw_record_factory,
         acq_evidence_out=acq_evidence_out,
@@ -8654,7 +8655,18 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
         clock_offset_provider=((lambda: _as11_clock_offset(cfg["root"]))
                                if acq_evidence_out and cfg.get("root") else None),
         therapy_end_factory=_therapy_end_factory(cbs),
-        coexistence_gate=bool(cbs.get("coexistence_gate", False)))
+        coexistence_gate=bool(cbs.get("coexistence_gate", False)),
+        # INV8 — ALWAYS wired, not behind a config key. `raw_record_dir` is a config key and it is off
+        # on the production box, which is why INV9 is not in effect there; continuity must not join it.
+        continuity=cpap_continuity.ContinuityTracker())
+    # A daemon that starts mid-therapy has a tracker with no memory of the drop it is recovering from.
+    # The auto-start record survives the restart and says whether a session was open; if it was, the
+    # first start is a RESUME and must open `resumed-unverified`, not the `continuous` a fresh tracker
+    # defaults to (§∅). Read once, here; the controller consumes the hint on its first start.
+    if cfg.get("root"):
+        ctl.continuity_resume_hint = cpap_continuity.resume_hint_from_autostart(
+            _cpap_autostart_record(cfg["root"]))
+    return ctl
 
 
 def _as11_clock_offset(root):
