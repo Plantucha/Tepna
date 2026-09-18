@@ -58,10 +58,39 @@ From the parent, and from the 2026-09-06 all-hands:
 
 ## 3 · The work, in the order that stops it being the wrong work
 
-1. **Reconcile the three granularities** (§1's ⚠️). Read `signal-frame.js`, the #2317 sidecar writer,
-   and one real consumer end to end. Produce a one-page answer to: *can a per-span sidecar present a
-   per-sample validity view without allocating per sample?* A negative answer is a fine result and
-   changes the unit; publish it either way.
+1. ~~**Reconcile the three granularities**~~ ✅ **ANSWERED 2026-09-18 — YES, and cheaply. Measured on
+   a real night (2026-09-17, all six sidecars), not reasoned about.**
+
+   | stream | spans RECORDED | runs detected | samples examined |
+   |---|---|---|---|
+   | H10 `_ACC` | 0 | 3,751,708 | 4,485,636 |
+   | Verity `_ACC` | 0 | 973,354 | 1,119,120 |
+   | Verity `_PPG` | 0 | 1,225,602 | 1,225,940 |
+   | O2Ring `ACCRAW` | 0 | 31,828 | 221,225 |
+   | O2Ring `PPG2W` | 0 | 4,413,253 | 4,416,362 |
+   | O2Ring `_PPG` | **4** | 1,462,153 | 2,787,279 |
+
+   **k = 4 spans across the whole night and all six streams.** So a per-sample validity view is
+   `is index i inside any recorded span?` — O(log k) with O(k) memory, and with k=4 the allocation
+   question the step was framed around simply does not arise. The middle granularity serves the other
+   two, and the composition §1 hypothesised holds.
+
+   ⚠️ **The millions of "runs" are NOT absence events** and it would be easy to read them as such:
+   `mean_run=1.91`, `class=variable` — that is the natural run-length structure of a varying signal.
+   Only runs ≥ `min_run=200` are RECORDED, which is the §∅ rule keying on run length rather than on
+   value membership.
+
+   ⚠️ **THE REAL LIMIT, and it is what the validity view may and may not claim.** Because the writer
+   records only runs ≥ 200 samples, a view derived from the sidecar says *"valid unless a LONG
+   blanking run was detected"* — NOT *"valid"*. Blanking shorter than the threshold is not in the
+   file and a consumer will read those samples as good. That is a deliberate trade (a threshold keyed
+   to run length is what separates blanking from a beat marker), but the envelope must state it
+   rather than let `validity: true` imply more than the sidecar can support.
+
+   **The four spans are also a working demonstration**, which is why this is a measurement and not a
+   formality: one 1992 ms run at `first_index=0` (ring warmup) and three at 04:18–04:23, all
+   `closed=0`, i.e. still open when recording stopped — the doff at the end of the night. The detector
+   caught exactly what it was built for, and tonight was otherwise clean.
 2. **Enumerate the consumers, do not guess them.** *"No consumer can reach a sample value"* is a claim
    over a set nobody has listed. `trace-to-the-consumer`: a mechanism's consumers are the deliverable,
    not the site you wrote. Every `frame.samples` / `rec.ch` / `relSec` read is a candidate.
@@ -101,8 +130,7 @@ a value — at a third granularity; whoever picks up the second should read the 
 
 ## Done when
 
-- [ ] §3.1's reconciliation is written and checkable, with the negative answer published if that is
-      the answer.
+- [x] §3.1's reconciliation is written and checkable — **answered YES 2026-09-18** with k=4 measured on a real night, and the real limit (records only runs ≥ 200 samples) stated in §3.1.
 - [ ] The consumer set is ENUMERATED, not asserted.
 - [ ] A planted blanking run reaches a `null` or coverage-annotated metric and nothing else.
 - [ ] No consumer can reach a sample value without its validity — demonstrated by a test that fails
