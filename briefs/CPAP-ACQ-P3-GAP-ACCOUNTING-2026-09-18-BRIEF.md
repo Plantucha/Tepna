@@ -130,6 +130,13 @@ fire, and such a test cannot be written honestly. The only way to pass it would 
 from inside, which is the isolated property `tests/test_cpap_ingest.py:124` already asserts. Wiring the
 queue into the loop as it stands would be decorative — the half-wired shape this brief exists to remove.
 
+⚠️ **STATE CHANGE 2026-09-18: W2(b) is now gated on ONE NIGHT'S DATA, not on an open question.** The
+sink write is timed (`sink_max_ms` / `sink_slow`, `SINK_SLOW_MS` anchored to `_LOOP_LAG_WARN_MS`),
+so the next night's gap-accounting line says whether a sink ever held the loop long enough to
+produce one of the measured stalls. That is the difference between an item waiting on a DECISION
+and one waiting on a CLOCK — and it resolves on the ordinary `tepna-update.timer` pull plus a
+streaming night, which needs nothing from us.
+
 **W2(b) is therefore the producer/consumer split, and it is GATED ON AN EMPIRICAL QUESTION that must be
 answered BEFORE the rewrite, not after:** *does a slow sink ever stall the read loop on the real rails,
 and if so, how often?*
