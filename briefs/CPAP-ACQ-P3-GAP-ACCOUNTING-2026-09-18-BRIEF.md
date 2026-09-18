@@ -112,6 +112,43 @@ to the wired path); and no published aggregate sums a term that nothing can incr
 that consume it say so. Do not close this item by deleting the fields and leaving the aggregates' names
 promising a coverage they no longer have.
 
+#### W2(a) — DONE 2026-09-18 (#2627). W2(b) — the queue — SPLIT OUT, and gated on a measurement
+
+**W2(a), the counter honesty, is done.** `stalls` and `post_drop_tail` are `None`; `total_lost` sums only
+terms that can move and `lost_coverage` names what it does not cover; `transport_gaps` reports UNKNOWN
+rather than a structural 0. The sharpest defect was not in the list above: **`acq_evidence_cpap._counter`
+already carried the rule in its docstring — *"absent accounting is UNKNOWN, never a fabricated 0 — 0 means
+'counted, and none happened'"* — and defeated it in the body with `int(summary.get(k) or 0)`**, one line
+below. Not a missing rule; a rule contradicted by its own implementation. Worth carrying as a search
+shape: a module that states the principle is not thereby obeying it.
+
+⚠️ **THIS ITEM'S ORIGINAL DONE-WHEN NAMED A CAPABILITY THE ARCHITECTURE DOES NOT ADMIT, and that is
+recorded rather than quietly dropped.** It required *"a test drives a real overflow through
+`stream_to_bus`"*. `stream_to_bus` is a single sequential `async for` — **producer and consumer are the
+same coroutine** — so a bounded queue between them can never hold more than one item, `overflow` can never
+fire, and such a test cannot be written honestly. The only way to pass it would be to force the condition
+from inside, which is the isolated property `tests/test_cpap_ingest.py:124` already asserts. Wiring the
+queue into the loop as it stands would be decorative — the half-wired shape this brief exists to remove.
+
+**W2(b) is therefore the producer/consumer split, and it is GATED ON AN EMPIRICAL QUESTION that must be
+answered BEFORE the rewrite, not after:** *does a slow sink ever stall the read loop on the real rails,
+and if so, how often?*
+
+The evidence so far says the case is weaker than §17 assumed when it was written. Measured on vigil
+2026-09-18 (#2622): after #2382 moved the fsync barrier off the loop, **slow fsyncs no longer stall
+capture** — the latency distribution barely moved (median 326 → 376 ms, max FELL 1702 → 1334) while the
+share of files seeing a slow barrier went 1.7 % → 20.5 %. So the dominant source of sink slowness on this
+box already does not block the read loop, and backpressure would be introduced for a stall shape nobody
+has demonstrated. Today's backpressure lives in bleak's own notification buffer, not in ours.
+
+A producer/consumer rewrite of the **P0 capture path**, with cancellation and shutdown-ordering
+consequences, is not authorised on a hypothesis. Measure first.
+
+⚠️ **For whoever takes W2(b):** wiring `BoundedIngestQueue` will trip `find_unwired`'s spent-suppression
+scan, because its `ALLOW_FUNCS` entry is written as pending that wiring. That is the gate working, not a
+regression — the same thing happened to W1's `classify_frame` (#2626). Noted here so it is not
+rediscovered.
+
 ### W3 · INV8 — recovery does not imply continuity, and nothing can say so
 
 There is **no `continuity_status` field anywhere in `capture-host/`** (measured: zero occurrences outside

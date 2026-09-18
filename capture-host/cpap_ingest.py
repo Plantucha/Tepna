@@ -67,8 +67,12 @@ class GapCounters:
     foreign_stream: int = 0     # frames for another streamId (G4 — was silently dropped)
     malformed: int = 0          # non-StreamData / empty / non-dict frames past the read loop
     overflow: int = 0           # frames dropped because the bounded queue was full (G5)
-    stalls: int = 0             # detected no-frame-for-timeout stalls (spec §30 STREAM_STALL)
-    post_drop_tail: int = 0     # frames arriving AFTER a logical link drop (audit §7.3 — the ~230ms tail)
+    # ⚠️ None, NOT 0 — these two have NO DETECTOR, and `0` is a measurement they have not made (§∅).
+    # Measured 2026-09-18: nothing anywhere increments either one. A reader of `0` concludes no stall and
+    # no post-drop tail occurred; the truth is that neither is looked for. A missing field is visible and
+    # a zero is not, which is why the fields stay and the VALUE carries the absence.
+    stalls: "int | None" = None            # no-frame-for-timeout stalls (spec §30 STREAM_STALL) — UNMEASURED
+    post_drop_tail: "int | None" = None    # frames after a logical link drop (audit §7.3, the ~230 ms tail) — UNMEASURED
     sink_errors: int = 0        # durable-record write failures (INV9): the batch reached the bus but a
     #                             sink write raised. A DISTINCT class — its consumer is restart
     #                             reconciliation, not stream-loss accounting — so it is NOT in total_lost.
@@ -85,10 +89,25 @@ class GapCounters:
 
     @property
     def total_lost(self) -> int:
-        """Frames that did not become samples for a reason worth surfacing — the honest 'how much did we
-        miss' number. Foreign frames are NOT loss (they were never ours); overflow + malformed +
-        post-drop-tail are."""
-        return self.overflow + self.malformed + self.post_drop_tail
+        """Frames that did not become samples for a reason worth surfacing. Foreign frames are NOT loss
+        (they were never ours).
+
+        ⚠️ SUMS ONLY TERMS THAT CAN MOVE, and `lost_coverage` says which. This read
+        `overflow + malformed + post_drop_tail` while two of the three had no writer, so it was
+        identically `malformed` — a decode-loss number documented as "the honest 'how much did we miss'
+        number" and therefore read as covering transport loss too. Summing an unmeasured term does not
+        make the total more complete; it makes the total a lie with more addends.
+        """
+        return self.overflow + self.malformed
+
+    @property
+    def lost_coverage(self) -> "list[str]":
+        """The loss categories `total_lost` does NOT cover, because nothing measures them yet.
+
+        Published beside the total so a reader can tell an honest partial from a complete one. Empty
+        means the total is complete — which is the state this field exists to let us reach, and to make
+        the reaching of it visible."""
+        return [n for n in ("stalls", "post_drop_tail") if getattr(self, n) is None]
 
     def summary(self) -> dict:
         """A flat dict for a sidecar row / status line. Stable key order so a reader diffs two nights."""
@@ -102,6 +121,8 @@ class GapCounters:
             "post_drop_tail": self.post_drop_tail,
             "sink_errors": self.sink_errors,
             "total_lost": self.total_lost,
+            # What the total does NOT cover. A consumer that ignores this reads a partial as complete.
+            "lost_coverage_missing": self.lost_coverage,
         }
 
 
