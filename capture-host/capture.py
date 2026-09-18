@@ -1029,7 +1029,8 @@ def cpap_escalation_gate(cfg: dict, cpap_mac: "str | None", status_devices: dict
                                         f"USB {usb_id} derived from the adapter itself", "blockers": []}
 
 
-def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = None) -> dict:
+def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = None,
+                            adapter_responds: "bool | None" = None) -> dict:
     """PURE (testable): from each configured device's {name, connected, last_error, bluez_connected} plus
     the PINNED ADAPTER's own up/down state, decide whether the BLE ADAPTER looks WEDGED vs merely idle
     because the devices AREN'T WORN — the distinction the whole watchdog turns on. Returns
@@ -1042,6 +1043,19 @@ def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = Non
         DOWN radio read as "just not worn" and the watchdog logged "adapter healthy again" 25×+ over a
         dead adapter on 2026-07-23, repeatedly resetting its own escalation counter. None preserves the
         pre-2026-07-24 behaviour for callers that don't probe it.
+
+      • `adapter_responds` (added 2026-09-18) is STRICTLY STRONGER than `adapter_up`, and exists because
+        `adapter_up` is a KERNEL FLAG READ: a controller that has stopped answering still reads UP RUNNING.
+        Measured on vigil 2026-09-11 — the radio wedged at 19:23:12 and the first wedge sign was logged at
+        19:42:06, ~19 min later, because the InProgress suppression below turns on `adapter_up is True` and
+        the flag stayed True until the radio finally went DOWN. `_adapter_responds` round-trips a real HCI
+        command, so it goes False while the flag is still True. Two effects, both additive: (a) when it is
+        False it BREAKS the `adapter_up is True` suppression below — a flag alone can no longer silence
+        the InProgress inference; and (b) False is wedge evidence on its OWN, like a phantom link, since
+        a radio that cannot answer HCI is wedged whatever the devices report. A TRUE verdict grants no
+        new suppression on purpose: a radio can answer HCI and still be unable to carry a link, so
+        trading this blindness for that one would be no gain.
+        **None changes nothing** — every pre-2026-09-18 caller keeps its exact behaviour.
 
       • `InProgress` in last_error → connection contention — BUT ADAPTER-LEVEL ONLY WHEN THE RADIO IS
         SERVING NOBODY. A single device's InProgress while OTHERS are connected is DEVICE churn, not an
@@ -1084,9 +1098,28 @@ def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = Non
     # to stand alone.
     if adapter_up is False and not any_streaming:
         reasons.append("pinned adapter DOWN/not-found")
+    # THE SAME SIGNAL ONE LAYER DEEPER: the radio is UP by the kernel's flags and does not ANSWER. That
+    # is a wedge on its own — it needs no device to be misbehaving, which is the point, because the
+    # device heuristics are exactly what a radio silently failing every connect defeats. Guarded by `not
+    # any_streaming` for the same reason as the line above: a live stream outranks any probe, so a
+    # misread can never power-cycle a demonstrably-working adapter. None (undeterminable) adds nothing.
+    if adapter_responds is False and not any_streaming:
+        reasons.append("pinned adapter does not answer HCI")
     for d in devices:
         err = d.get("last_error") or ""
-        if "InProgress" in err and not any_streaming and adapter_up is not True:
+        # `proven_ok` is the "radio is demonstrably working" test that SILENCES this inference. It was
+        # `adapter_up is True` alone — a kernel flag a wedged controller still passes, which is how the
+        # 2026-09-11 radio suppressed its own detection for ~19 minutes. A failed round trip now BREAKS
+        # that suppression.
+        #
+        # ⚠️ NOTE THE ASYMMETRY, IT IS DELIBERATE: a False round trip REMOVES suppression, and a True one
+        # NEVER ADDS IT. Letting `adapter_responds is True` license suppression on its own would convict
+        # nobody but would EXCUSE a radio that answers HCI while being unable to carry a link — deaf but
+        # alive — and that is a new blindness traded for the one being fixed. So this can only ever make
+        # the watchdog see MORE, never less, which is the same discipline the pinned-adapter signal above
+        # states for itself. None reproduces the old expression exactly.
+        proven_ok = (adapter_up is True) and (adapter_responds is not False)
+        if "InProgress" in err and not any_streaming and not proven_ok:
             # No device is connected AND a connect is stuck in-progress → INFER the radio is wedged... but
             # ONLY when the adapter is not CONFIRMED up. If _adapter_is_up() says the pinned adapter is
             # UP RUNNING (adapter_up is True), the radio is demonstrably working and this InProgress is
@@ -5811,6 +5844,49 @@ async def _adapter_is_up(hci: str) -> "bool | None":
         return None
 
 
+async def _adapter_responds(hci: str, timeout: float = 6.0) -> "bool | None":
+    """True if the adapter ANSWERED an HCI command, False if it did not, None when undeterminable.
+
+    THE COMPANION TO `_adapter_is_up`, AND THE ANSWER TO A BLINDNESS IT CANNOT SEE PAST.
+    `_adapter_is_up` shells `hciconfig <hci>`, which reads the KERNEL'S CACHED FLAGS and asks the
+    controller nothing — so a controller that has stopped answering still reads `UP RUNNING`. That is not
+    hypothetical: on 2026-09-11 the pinned radio wedged at 19:23:12 and the watchdog logged its first wedge
+    sign at **19:42:06**, ~19 minutes later, because `classify_adapter_health` SUPPRESSES the InProgress
+    inference while `adapter_up is True` (see its own docstring) and the flag stayed True until the radio
+    finally went DOWN.
+
+    `hciconfig <hci> version` issues HCI_Read_Local_Version_Information (0x1001) and waits for the reply,
+    so it is a genuine round trip rather than a state read. MEASURED on vigil 2026-09-18, which is why
+    this command and not another: running `version` incremented that adapter's TX `commands:` counter by
+    **1**, and a plain `hciconfig <hci>` incremented it by **0**. Unprivileged (the daemon holds
+    CAP_NET_ADMIN alone) it returns rc=0 on all four of the box's radios and prints `Manufacturer:`, a
+    field the cached read never carries.
+
+    ⚠️ **A TIMEOUT IS `False`, NOT `None` — deliberately, and it is the case this probe exists for.** A
+    wedged controller does not answer, so the command hangs; mapping that to "undeterminable" would throw
+    away the signal. Every OTHER failure is `None` (§∅: absence is never a number, and here it is never a
+    verdict either) — `hciconfig` missing, an unparseable output, any unexpected error. `None` leaves the
+    caller's pre-existing behaviour exactly as it was, so a probe that cannot run can never itself convict
+    a healthy radio. Hysteresis upstream (`grace_checks`, then `max_adapter_cycles`) is what keeps a single
+    slow poll on a loaded box from escalating.
+    """
+    try:
+        p = await asyncio.create_subprocess_exec(
+            "hciconfig", hci, "version",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        out, _ = await proc_util.communicate(p, timeout)
+    except asyncio.TimeoutError:
+        return False                  # the controller did not answer in time — the wedge signature
+    except Exception:
+        return None                   # hciconfig absent / unspawnable — unknown, never a verdict
+    if p.returncode != 0:
+        return False                  # the command ran against a named adapter and failed
+    text = out.decode("utf-8", "replace")
+    if "Manufacturer:" not in text:
+        return None                   # answered 0 but carried no controller-sourced field — do not convict
+    return True
+
+
 async def _run_helper(*args, timeout=45):
     """Run a helper and return (rc, combined output). Mirrors clockcfg._run — proc_util.communicate
     already carries the timeout/kill discipline every subprocess on this box is required to use, so an
@@ -5967,7 +6043,11 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
         # the device heuristics stand. This is what stops the watchdog declaring health over a dead radio.
         _hci_now = await adapter_hci()
         adapter_up = (await _adapter_is_up(_hci_now)) if _hci_now else False
-        h = classify_adapter_health(devs, adapter_up=adapter_up)
+        # The round trip runs every poll, not only when something already looks wrong: its TRUE verdict is
+        # what licenses the InProgress suppression, so probing only on suspicion would leave the suppression
+        # resting on the flag it was introduced to replace. One bounded subprocess per `interval_sec`.
+        adapter_responds = (await _adapter_responds(_hci_now)) if _hci_now else None
+        h = classify_adapter_health(devs, adapter_up=adapter_up, adapter_responds=adapter_responds)
         if not h["wedged"]:
             # ── IS THE RADIO DEAF? ───────────────────────────────────────────────────────────
             # Everything above says "not wedged", and on 2026-07-30 that verdict was CORRECT by its own
