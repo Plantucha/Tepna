@@ -16,6 +16,8 @@ import asyncio
 import logging
 
 import acq_evidence_cpap
+import time as _time
+
 import cpap_edf_writer
 import as11_cipher
 import as11_pull
@@ -194,10 +196,19 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
             # NON-FATAL but LOUD: count it (sink_errors) and keep streaming — the stream survives a
             # subscriber failure, and the failure is first-class gap-accounting data, never a silent drop.
             for s in sinks:
+                # TIMED BECAUSE THE CONSUMER IS THE PRODUCER. This loop is a single sequential
+                # `async for`, so a slow sink stops the loop pulling frames — and the loop-lag detector
+                # measures the SHARED event loop and cannot name what held it. One `monotonic()` pair
+                # per sink write costs 97 ns (measured), which is 1.8 ms per HOUR at the 5.2 frames/s a
+                # real session delivers. The timing is taken around the write ONLY, so a sink that
+                # raises is still timed up to the failure rather than silently uncounted.
+                _t0 = _time.monotonic()
                 try:
                     s.on_batch(batch)
                 except Exception:  # noqa: BLE001 — ANY sink failure must not kill the stream (INV9)
                     counters.sink_errors += 1
+                finally:
+                    counters.note_sink_write((_time.monotonic() - _t0) * 1000.0)
                     _log.exception("CPAP durable sink failed — counted (sink_errors=%d), stream continues",
                                    counters.sink_errors)
             for did, (key, _label, _unit) in channels.items():
