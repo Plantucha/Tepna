@@ -58,11 +58,22 @@ def test_note_frame_folds_each_kind_into_the_right_counter():
     assert c.foreign_stream == 1 and c.malformed == 1
 
 
-def test_total_lost_counts_overflow_malformed_and_tail_but_not_foreign():
-    """Foreign frames were never ours, so they are NOT loss. Overflow, malformed, and the post-drop tail
-    ARE the honest 'how much did we miss' — audit §16."""
-    c = GapCounters(overflow=3, malformed=2, post_drop_tail=1, foreign_stream=10, sink_errors=5)
-    assert c.total_lost == 6                # 3 + 2 + 1; foreign AND sink_errors excluded (different axes)
+def test_total_lost_sums_only_terms_that_can_move_and_names_the_rest():
+    """Foreign frames were never ours, so they are NOT loss. Overflow and malformed are.
+
+    ⚠️ `post_drop_tail` was in this sum and HAS NO DETECTOR, so `total_lost` was identically `malformed`
+    while documented as the honest "how much did we miss" number. Summing an unmeasured term does not
+    make a total more complete — it makes it a lie with more addends. The uncovered categories are named
+    in `lost_coverage` instead, so a reader can tell an honest partial from a complete one.
+    """
+    c = GapCounters(overflow=3, malformed=2, foreign_stream=10, sink_errors=5)
+    assert c.total_lost == 5                # 3 + 2; foreign AND sink_errors excluded (different axes)
+    assert c.lost_coverage == ["stalls", "post_drop_tail"]
+
+    # Supplying a measurement moves it out of the uncovered list — this is what "done" will look like.
+    c2 = GapCounters(overflow=3, malformed=2, post_drop_tail=1, stalls=0)
+    assert c2.lost_coverage == [] and c2.total_lost == 5, (
+        "total_lost still sums only the live terms; wiring a detector is what changes coverage")
 
 
 def test_summary_is_a_flat_stable_dict():
@@ -71,11 +82,25 @@ def test_summary_is_a_flat_stable_dict():
     s = c.summary()
     assert s == {
         "frames_ok": 5, "samples_ok": 200, "foreign_stream": 1, "malformed": 2,
-        "overflow": 1, "stalls": 1, "post_drop_tail": 1, "sink_errors": 3, "total_lost": 4,
+        "overflow": 1, "stalls": 1, "post_drop_tail": 1, "sink_errors": 3, "total_lost": 3,
+        "lost_coverage_missing": [],
     }
     # key order is stable so two nights diff cleanly
     assert list(s.keys()) == ["frames_ok", "samples_ok", "foreign_stream", "malformed",
-                              "overflow", "stalls", "post_drop_tail", "sink_errors", "total_lost"]
+                              "overflow", "stalls", "post_drop_tail", "sink_errors", "total_lost",
+                              "lost_coverage_missing"]
+
+
+def test_the_DEFAULT_record_publishes_its_unmeasured_categories_as_None():
+    """The shape a real night produces today: nothing writes `stalls` or `post_drop_tail`, so both are
+    None rather than 0, and the summary says which categories the total does not cover.
+
+    A zero here would read as "counted, and none happened" — the same sentence `_counter` in
+    `acq_evidence_cpap` uses — when nothing looked."""
+    s = GapCounters().summary()
+    assert s["stalls"] is None and s["post_drop_tail"] is None
+    assert s["lost_coverage_missing"] == ["stalls", "post_drop_tail"]
+    assert s["total_lost"] == 0, "no loss measured is still a real 0 for the categories that ARE counted"
 
 
 # ── the bounded queue (spec §17 — backpressure, overflow recorded not silent) ──────────────────────

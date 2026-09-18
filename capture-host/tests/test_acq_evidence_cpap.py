@@ -908,3 +908,32 @@ def test_no_raw_sink_returns_CLEANLY_rather_than_raising_into_the_handler(caplog
     assert not [r for r in caplog.records if "acquisition-evidence emit failed" in r.message], (
         "a missing raw sink is an expected shape, not a failure to log — it must return, not raise"
     )
+
+
+def test_an_UNMEASURED_gap_category_makes_its_aggregate_UNKNOWN_not_zero():
+    """🔴 THE DEFECT THIS CLOSES. `transport_gaps` is `overflow + post_drop_tail`, and NOTHING increments
+    `post_drop_tail` — measured 2026-09-18, no writer anywhere. `_counter` summed it with `or 0`, so the
+    acquisition evidence surface published a forensic category as `0`, which by this module's own words
+    means "counted, and none happened". A reader concluded no transport loss occurred; the truth is that
+    transport loss was never looked for.
+
+    That is §∅ at the evidence layer — an absence wearing the shape of a measurement, and worse than a
+    missing field because a missing field is visible and a zero is not.
+
+    One unmeasured term makes the SUM unmeasured: a partial total published as a total is the same lie
+    in smaller print.
+    """
+    ev = cpap.assemble_live(_facts(), counters=_counters(post_drop_tail=None))
+    assert ev.transport_gaps == ae.UNKNOWN, "an unmeasured term must not be summed as zero"
+    assert ev.transport_gaps != 0
+    # decode_gaps does NOT depend on the unmeasured term, so it stays a real measurement — the absence
+    # must propagate exactly as far as it reaches and no further.
+    assert ev.decode_gaps == 0
+
+
+def test_a_measured_category_beside_an_unmeasured_one_still_reports(): 
+    """The bound on the rule above. `overflow` being live must not be erased by `post_drop_tail` being
+    absent anywhere the two are not summed together — otherwise the fix would trade one blind spot for
+    a wider one."""
+    ev = cpap.assemble_live(_facts(), counters=_counters(malformed=7, post_drop_tail=None))
+    assert ev.decode_gaps == 7 and ev.transport_gaps == ae.UNKNOWN
