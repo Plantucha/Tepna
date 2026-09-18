@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (**the AS11 TRANSPORT is BUILT; this brief wires DECODE and consumers on top of it — verified 2026-09-11 (Osprey) in the tree, not from the prose.** Present: `as11_pull.py`, `as11_link.py`, `as11_cipher.py`, `as11_pair.py`, `as11_clock.py`, `cpap_spool.py`, `cpap_edf_dict.py`. Absent and therefore genuinely WU1 work: `cpap_spool_decode.py`. So no unit here should be sized as "bring up AS11 over BLE" — pairing, cipher, link, clock and the spool round-transaction all already exist and ship green; what is owed is decoding the committed Summary rounds rig-side and the consumers above it (WU2 CPAPDex-loadable, WU10 the monitor stream-rate selector, WU7 the one bundle/provenance touch). Owner: Kestrel (coordination); units go to the rig coders.) · **Created:** 2026-09-07 · **Owner:** Kestrel (coordination) — units go to the rig coders · **Scope:** out-of-suite `capture-host/` + one CPAPDex vocabulary unit; no bundle/provenance impact except WU7
+**Status:** PROPOSED (**the AS11 TRANSPORT is BUILT; this brief wires DECODE and consumers on top of it — verified 2026-09-11 (Osprey) in the tree, not from the prose.** Present: `as11_pull.py`, `as11_link.py`, `as11_cipher.py`, `as11_pair.py`, `as11_clock.py`, `cpap_spool.py`, `cpap_edf_dict.py`. Absent and therefore genuinely WU1 work: `cpap_spool_decode.py`. So no unit here should be sized as "bring up AS11 over BLE" — pairing, cipher, link, clock and the spool round-transaction all already exist and ship green; what is owed is decoding the committed Summary rounds rig-side and the consumers above it (WU2 CPAPDex-loadable, WU10 the monitor stream-rate selector, WU7 the one bundle/provenance touch). Owner: Kestrel (coordination); units go to the rig coders.) · **Created:** 2026-09-07 · **Owner:** Kestrel (coordination) — units go to the rig coders · **Scope:** out-of-suite `capture-host/` + one CPAPDex vocabulary unit; no bundle/provenance impact except WU7 · **Residue:** 2026-09-17-cpap-spool-cursor-advanced-past-uncommitted
 
 # CPAP AS11 over BLE — WIRE NOW (stock firmware · BLE only · read-only RPCs)
 
@@ -52,6 +52,40 @@ Every unit below is one PR, one changeset (`capture-host` behavioural), `./check
 pre-stated done-when. File anchors were verified 2026-09-07 against `origin/main` `9a362c63`.
 
 ### WU1 — decode the committed Summary rounds rig-side; explain the six-day silence
+
+> 🔴 **THE FIRST CHECK IS DONE (Osprey, 2026-09-17), AND IT REFUTES THIS SECTION'S OWN HYPOTHESIS.**
+> WU1 says *"wearables streaming through the 10:00–12:00 window is the obvious candidate; `_cpap_spool_loop`
+> deliberately does not consume the day when blocked."* **There is no blockage.** Read-only on the box,
+> `journalctl -u tepna-capture --since 2026-08-25`, every spool-pull outcome line:
+>
+> | outcome | count |
+> |---|---|
+> | `CPAP spool pull: 0 round(s), cursor now 2026-09-01T16:00:00.000Z, stopped=no-new-data` | **22** |
+> | `CPAP spool pull: 2 round(s), cursor now 2026-08-16T16:00:00.000Z, stopped=no-more-data` | 1 (Sep 01 10:00:45) |
+> | lines matching `pull_blocked` or `blocked`, the hypothesised cause | **0** |
+>
+> The loop is healthy: it arms on schedule, connects, asks, and the device answers. Quoted line, as the
+> done-when requires — `Sep 17 11:03:49 vigil python[4143865]: CPAP spool pull: 0 round(s), cursor now
+> 2026-09-01T16:00:00.000Z, stopped=no-new-data`. **Named cause: the device reports no Summary records
+> past its cursor, on all 22 attempts since the single successful pull.** The silence is not six days,
+> it is sixteen, and it is upstream of Tepna rather than a capture defect.
+>
+> ⚠️ **WHAT THIS DOES NOT ESTABLISH, and the distinction decides whether anything is owed here.**
+> `no-new-data` is *the device's answer to our query*, not proof the device HAS no data. A wrong cursor,
+> a malformed range or a device that has stopped retaining Summary records all produce the identical
+> answer. The two hypotheses are not separated by any evidence above, and a reading that stops at "the
+> device has nothing" is fitting a story to one branch. **They ARE separated by WU1's existing
+> done-when** — matching decoded usage hours against the SD `STR.edf` for the same dates — because the
+> SD card is ground truth independent of the BLE query. So this check does not add work; it renames
+> what the STR comparison is FOR: it is no longer only a decode correctness check, it is the control
+> that tells a quiet device from a query that cannot see it.
+>
+> ⚠️ Second observation, NOT diagnosed: the cursor sits at **2026-09-01T16:00** while the ledger's
+> `committed_cursor` and the successful pull both read **2026-08-16T16:00**. So it advanced ~16 days
+> with zero rounds committed. That may be by design (not re-asking a range the device declared empty)
+> or it may skip records that arrive late for an earlier range. Flagged rather than resolved — I have
+> not read `_cpap_spool_loop`'s cursor rule, and guessing at it is how a second wrong hypothesis gets
+> written into this brief.
 The two `.bin` rounds under `captures/cpap-spool/committed/` are pulled and hashed and READ BY NOTHING.
 Add `cpap_spool_decode.py`: protobuf-wrapper walk → the documented Summary record fields (per-session
 usage, AHI components, leak percentiles, pressure percentiles) → one JSON per record, `null` for any field
