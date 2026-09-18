@@ -18079,6 +18079,98 @@
       T.eq('…and eight is enough', unitOf(8, 1000), 'mg');
     });
 
+    /* The `beatConfidence` mirror claim was PROSE with nothing checking it. Measured 2026-09-17: the
+       two copies ARE code-identical, so the claim is true and the gate is earned — it was not before
+       the measurement, which is why #2600 gated the constants and explicitly not the bodies. */
+    group('beatConfidence mirror — ECGDex and PpgDex copies stay code-identical', 'ecgdex-dsp · ppgdex-dsp · parity', function (T) {
+      var S = env.sources || {};
+      var a = S['ecgdex-dsp.js'],
+        b = S['ppgdex-dsp.js'];
+      if (!a || !b) {
+        T.skip('both DSP sources wired into env.sources', 'not in env.sources — the scan would read nothing');
+        return;
+      }
+      var body = function (src) {
+        var i = src.indexOf('function beatConfidence(');
+        if (i < 0) return null;
+        var d = 0,
+          j = src.indexOf('{', i);
+        for (var k = j; k < src.length; k++) {
+          if (src[k] === '{') d++;
+          else if (src[k] === '}') {
+            d--;
+            if (d === 0) return src.slice(i, k + 1);
+          }
+        }
+        return null;
+      };
+      var strip = function (t) {
+        return t
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/\/\/[^\n]*/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
+      var ea = body(a),
+        pb = body(b);
+      T.ok('both copies found', !!ea && !!pb);
+      if (!ea || !pb) return;
+      /* POSITIVE CONTROL — a comparison of two empty strings would pass and prove nothing. */
+      T.ok('control: the extracted bodies are non-trivial', strip(ea).length > 500, 'len=' + strip(ea).length);
+      T.eq(
+        /* THIS IS NOT EVIDENCE OF REDUNDANCY — DELETING EITHER COPY IS THE #1232 FAILURE.
+           Nodes never import each other (ARCHITECTURE-PRINCIPLES §2) and PpgDex does not inline
+           ecgdex-dsp.js, so the duplication is deliberate and load-bearing. #1232 was closed after a
+           byte-parity assertion was read as proof one copy was surplus; the PpgDex render rig went
+           1458 ms → 16945 ms. This gate exists to catch SILENT DIVERGENCE, not to license deletion.
+           ⚠️ The two are also correctly divergent in their GUARDS: ECGDex feeds this function sample
+           indices and needs none; PpgDex feeds it time-derived indices and guards with `clock-seam`
+           (residue 2026-09-17-seam-exposure-is-input-provenance). Identical bodies, different callers. */
+        'the two beatConfidence bodies are code-identical (comments stripped) — NOT a redundancy signal, see comment',
+        strip(ea),
+        strip(pb)
+      );
+    });
+
+    /* §∅ REFUSE-VS-ANNOTATE (CLAUDE.md §∅, owner ruling 2026-09-17) — `immobileFrac` is a DURATION
+       over a TIME-DERIVED epoch index, so a clock seam must refuse it. `movementIndex` is a magnitude
+       and must SURVIVE; the coverage half must be untouched. Both directions are asserted, because a
+       guard that only ever refuses is indistinguishable from one that always refuses. */
+    group('MotionDex §∅ — a clock seam REFUSES immobileFrac; the magnitude and the coverage survive', 'motiondex-dsp · absence · clock-seam', function (T) {
+      var M = env.MOTIONDSP || (env.MotionDex && env.MotionDex._bare);
+      if (!M || typeof M.actigraphy !== 'function') {
+        T.skip('MOTIONDSP available', 'MotionDex not co-loaded in this runner');
+        return;
+      }
+      var rows = function () {
+        var r = [];
+        for (var i = 0; i < 1200; i++) {
+          var mov = i % 120 < 30 ? 0.08 : 0.001; // alternating active / still epochs
+          r.push({ tMs: i * 1000, x: 0, y: 0, z: 1 + (i % 2 ? mov : -mov) });
+        }
+        return r;
+      };
+      var clean = rows();
+      var seamed = rows();
+      seamed._clockResyncs = [{ idx: 600, deviceStepMs: 86000, phoneDeltaMs: 8 }];
+
+      var a = M.actigraphy(clean, 0, 1200, 'g');
+      var b = M.actigraphy(seamed, 0, 1200, 'g');
+
+      /* POSITIVE CONTROL FIRST — if the clean run does not produce a number, the refusal below is
+         vacuous and would pass against a function that returns null unconditionally. */
+      T.ok('control: a seamless recording publishes immobileFrac', a.hasData && a.immobileFrac != null, 'immobileFrac=' + String(a.immobileFrac));
+      T.ok('control: …and carries no refusal reason', !('immobileFracReason' in a));
+
+      T.eq('seam: immobileFrac is REFUSED (null), not a fraction across a discontinuity', b.immobileFrac, null);
+      T.eq('seam: …and NAMES the seam, verbatim as PpgDex spells it', b.immobileFracReason, 'clock-seam');
+
+      /* the refusal is SCOPED — §∅ refuses the span, not the magnitude, and not coverage */
+      T.ok('seam: movementIndex SURVIVES — a magnitude is not a span', b.movementIndex != null, 'movementIndex=' + String(b.movementIndex));
+      T.eq('seam: coverage annotation is untouched', b.coveredEpochs, a.coveredEpochs);
+      T.ok('seam: epochs still carry tri-state moving', Array.isArray(b.epochs) && b.epochs.length === a.epochs.length);
+    });
+
     group(
       'MotionDex helper floor — 8 + 2 drafts adopted: every entry guard refuses junk, and admits a legal minimum (mutation-derived)',
       'motiondex-dsp · known-answer · mutation-pinned',
