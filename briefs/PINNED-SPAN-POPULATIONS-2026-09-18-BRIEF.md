@@ -1,7 +1,7 @@
 <!-- Copyright 2026 Michal Planicka -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS — 2026-09-18 · **Created:** 2026-09-18
+**Status:** IN-PROGRESS — 2026-09-18 · **Created:** 2026-09-18 · **Residue:** 2026-09-18-ecg-saturation-unflagged
 
 # A "pinned span" is three phenomena, and our detector sees one and a half
 
@@ -155,6 +155,35 @@ each at its own per-file rail. Testing against a global constant would have repo
 freezes — the exact opposite of the truth. `ppgdex-dsp.js` already documents this
 (*"THE RAIL IS NOT ALWAYS THE OBSERVED EXTREME"*); the lesson is that a rail figure is a per-file
 quantity and must not be relayed as a corpus constant.
+
+## 5.2 · The three phenomena are not three flavours of one thing — two are ENDEMIC, one is EPISODIC
+
+Joined against the box's per-file value histograms (3,012 rows, 1:1 on `(night, file)`), verified
+independently on this side:
+
+| population | O2Ring nights carrying it | reading |
+|---|---|---|
+| zero rail (`0`) | **54 / 54** | endemic — a DEVICE property |
+| top rail (`199`) | **54 / 54** | endemic — a DEVICE property |
+| mid-range (`100`) | **3 / 54**, in 4 files of 1,220 | **episodic — a property of some SESSIONS** |
+
+The value-100 population is concentrated in three nights (2026-08-03 51.6 %, 08-29 25.3 %,
+08-30 23.1 %) and absent from the other 51. So the mid-range freeze is not a rarer flavour of railing:
+**the rails are what the device does every night, and the freeze is what happened on a few sessions.**
+That matters for any detector, because a rule tuned on pooled corpus statistics would be tuned on a
+population that is 96 % device behaviour and 4 % the thing it is looking for.
+
+⚠️ **TWO PROPERTIES OF THAT EXPORT THAT WOULD PRODUCE WRONG NUMBERS IF MISSED**, both recorded because
+they are the same shapes this brief keeps meeting: the histogram is **region-scoped**, counting pinned
+samples INSIDE detected regions rather than the file's whole value distribution — so a share computed
+against total file samples compares two different denominators; and values are **string keys**, so
+`"199"` and `199` do not match and the top rail silently vanishes (the same failure as the
+newline-suffixed path keys in §8).
+
+**The join was asserted against a control before being trusted.** The producing session's own O2Ring
+totals — 1,220 files, 560,651 pinned samples, `0: 285,117` · `199: 252,313` · `100: 22,659` — were
+reproduced exactly on this side before any figure above was read. A join that does not reproduce them
+is a broken join, not new data.
 
 ## 6 · The 112 ECG saturations are their own finding, not a false-positive figure
 
