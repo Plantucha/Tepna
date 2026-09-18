@@ -1,7 +1,7 @@
 <!-- CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md — Tepna Copyright 2026 Michal Planicka -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED (W3 DONE 2026-09-18 — `cpap_continuity.py`, four states; W1/W2/W4 as below) · **Created:** 2026-09-18
+**Status:** IN-PROGRESS (W1–W4 ALL LANDED 2026-09-18 — W1 #2626 `classify_frame` single-sourced · W2(a) #2627 unmeasured terms are `None` · W3 #2634 `cpap_continuity.py`, four states · W4 #2633 per-device owner lock. **Only W2(b) remains**, and it is GATED rather than unassigned: the bounded queue is deferred until someone measures whether a slow sink ever stalls the read loop on the real rails — #2622 found the dominant source of sink slowness no longer blocks it, so backpressure would be risk spent on a stall shape nobody has demonstrated. ⚠️ W2's ORIGINAL done-when — "a test drives a real overflow through `stream_to_bus`" — was UNSATISFIABLE and is withdrawn: producer and consumer are the same coroutine there, so a bounded queue can never hold more than one item and the test could only pass by forcing the condition from inside. A done-when can be unsatisfiable without being wrong about the defect) · **Created:** 2026-09-18
 
 # CPAP-ACQ P3 — gap accounting, backpressure, continuity and acquisition ownership
 
@@ -130,6 +130,13 @@ fire, and such a test cannot be written honestly. The only way to pass it would 
 from inside, which is the isolated property `tests/test_cpap_ingest.py:124` already asserts. Wiring the
 queue into the loop as it stands would be decorative — the half-wired shape this brief exists to remove.
 
+⚠️ **STATE CHANGE 2026-09-18: W2(b) is now gated on ONE NIGHT'S DATA, not on an open question.** The
+sink write is timed (`sink_max_ms` / `sink_slow`, `SINK_SLOW_MS` anchored to `_LOOP_LAG_WARN_MS`),
+so the next night's gap-accounting line says whether a sink ever held the loop long enough to
+produce one of the measured stalls. That is the difference between an item waiting on a DECISION
+and one waiting on a CLOCK — and it resolves on the ordinary `tepna-update.timer` pull plus a
+streaming night, which needs nothing from us.
+
 **W2(b) is therefore the producer/consumer split, and it is GATED ON AN EMPIRICAL QUESTION that must be
 answered BEFORE the rewrite, not after:** *does a slow sink ever stall the read loop on the real rails,
 and if so, how often?*
@@ -143,6 +150,50 @@ has demonstrated. Today's backpressure lives in bleak's own notification buffer,
 
 A producer/consumer rewrite of the **P0 capture path**, with cancellation and shutdown-ordering
 consequences, is not authorised on a hypothesis. Measure first.
+
+#### W2(b)'s gate — ANSWERED 2026-09-18 (Heron). The loop DOES stall; the cause is NOT attributable
+
+The question was *"does a slow sink ever stall the read loop on the real rails, and if so how often?"*, with
+the instruction to separate two negatives: the record could show a stall and shows none, versus the record
+could not show one either way. **The true answer is a third reading: the record can see the PHENOMENON but
+not the CAUSE, and its view of the phenomenon is censored in a known way.**
+
+**There is already an instrument.** `capture.py`'s loop-lag task sleeps and measures how late it woke —
+*"that lateness IS the time some other callback held the loop"*. So this needed no new instrumentation to
+answer, only reading.
+
+**The loop does stall, by seconds.** Over the 14 days to 2026-09-18 on vigil, 151 logged stalls:
+min 1002 ms, **median 1502 ms**, p90 2683 ms, **max 4822 ms**, at 10–35 per day.
+
+**And they cluster hard on streaming.** Pairing `CPAP auto-start: stream started` with the closing
+`CPAP stream gap accounting` gives 15 windows totalling **89.6 h** inside a 309.2 h span:
+
+| | stalls | rate |
+|---|---|---|
+| inside a CPAP stream | **121** | **1.35 / h** |
+| outside | 30 | 0.14 / h |
+
+Roughly **10×**. Wearables stream in both periods (858 `connected` events), so this is not simply "at
+night".
+
+⚠️ **THREE LIMITS, and the first two make the 10× a LOWER BOUND rather than an estimate.**
+1. `_LOOP_LAG_WARN_MS = 1000` — stalls between the 100 ms *counting* threshold and 1 s are **never
+   logged**, so the journal cannot see them at all.
+2. `_LOOP_LAG_WARN_EVERY_S = 300` — logging is throttled to one line per five minutes, so a burst
+   collapses to one entry. Throttling bites hardest exactly when stalls are most frequent, which
+   censors the busy periods more than the quiet ones.
+3. **The detector measures the EVENT LOOP, which every task shares. It cannot say what held it.** A
+   stall during a CPAP stream may be the EDF write, the bus push, a wearable writer, or something else
+   entirely.
+
+**So: the premise of a bounded queue is real — a consumer CAN lag by seconds — but "a slow sink" is not
+established as the cause and cannot be from this record.** Closing W2(b) as unnecessary would be wrong;
+building the producer/consumer split on this evidence would also be wrong, because it would be built for
+a cause that has not been identified.
+
+**The next step is attribution, not the rewrite** — the loop-lag task would have to name the holder
+(which callback ran long), which is a code change to the P0 path and is its own unit with its own risk.
+Not folded in here, per the instruction accompanying this gate.
 
 ⚠️ **For whoever takes W2(b):** wiring `BoundedIngestQueue` will trip `find_unwired`'s spent-suppression
 scan, because its `ALLOW_FUNCS` entry is written as pending that wiring. That is the gate working, not a

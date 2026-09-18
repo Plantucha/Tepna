@@ -55,6 +55,13 @@ def classify_frame(msg, expected_stream_id) -> FrameKind:
     return FrameKind.OK
 
 
+# A sink write at or over this many ms is counted as slow. Anchored to `capture.py`'s
+# `_LOOP_LAG_WARN_MS`, NOT picked: that is the size at which a held loop is logged as a stall, so a
+# sink write crossing it is one that could have produced one of the 151 stalls measured on 2026-09-18.
+# A different number here would measure a different question than the one the gate asks.
+SINK_SLOW_MS = 1000.0
+
+
 @dataclass
 class GapCounters:
     """The gap-accounting record (spec §16). Every counter is a category of thing that can go wrong
@@ -73,6 +80,19 @@ class GapCounters:
     # a zero is not, which is why the fields stay and the VALUE carries the absence.
     stalls: "int | None" = None            # no-frame-for-timeout stalls (spec §30 STREAM_STALL) — UNMEASURED
     post_drop_tail: "int | None" = None    # frames after a logical link drop (audit §7.3, the ~230 ms tail) — UNMEASURED
+    # HOW LONG A SINK WRITE HELD THE LOOP. `stream_to_bus` is a single sequential `async for` — producer
+    # and consumer are the same coroutine — so a slow sink stops the loop pulling frames. Measured
+    # 2026-09-18: the loop stalls 10-35x/day, median 1502 ms, and 121 of 151 logged stalls fall inside a
+    # CPAP stream (1.35/h against 0.14/h outside). That says the streaming path is involved; it does NOT
+    # say a sink is the holder, because the loop-lag detector measures the SHARED event loop and cannot
+    # name what held it. These two fields are what makes that attributable.
+    #
+    # ⚠️ None, NOT 0 — an unwired timer must not report a measured zero. A `sink_max_ms` of 0.0 means
+    # "timed, and it was fast"; None means no sink write was timed at all (no `extra_sinks` on this
+    # stream). That distinction is the `int(summary.get(k) or 0)` defect this module already carries a
+    # fix for, and it would be trivially reintroduced by defaulting these to 0.
+    sink_max_ms: "float | None" = None    # slowest single sink write, ms — None until one is timed
+    sink_slow: "int | None" = None        # sink writes at or over SINK_SLOW_MS — None until one is timed
     sink_errors: int = 0        # durable-record write failures (INV9): the batch reached the bus but a
     #                             sink write raised. A DISTINCT class — its consumer is restart
     #                             reconciliation, not stream-loss accounting — so it is NOT in total_lost.
@@ -86,6 +106,18 @@ class GapCounters:
             self.foreign_stream += 1
         else:
             self.malformed += 1
+
+    def note_sink_write(self, ms: float) -> None:
+        """Fold one sink write's duration in. Call it for EVERY write, not only slow ones — a maximum
+        over an unknown denominator cannot be read.
+
+        `sink_slow` counts writes at or over `SINK_SLOW_MS`, because the maximum alone answers the
+        wrong question. The gate asks whether a sink ever holds the loop for ~1.5 s, which is the
+        measured stall median; a max tells you the worst write on the worst night, while a max plus a
+        count tells you whether it is a mechanism or an outlier."""
+        if self.sink_max_ms is None or ms > self.sink_max_ms:
+            self.sink_max_ms = ms
+        self.sink_slow = (self.sink_slow or 0) + (1 if ms >= SINK_SLOW_MS else 0)
 
     @property
     def total_lost(self) -> int:
@@ -120,6 +152,8 @@ class GapCounters:
             "stalls": self.stalls,
             "post_drop_tail": self.post_drop_tail,
             "sink_errors": self.sink_errors,
+            "sink_max_ms": self.sink_max_ms,
+            "sink_slow": self.sink_slow,
             "total_lost": self.total_lost,
             # What the total does NOT cover. A consumer that ignores this reads a partial as complete.
             "lost_coverage_missing": self.lost_coverage,
