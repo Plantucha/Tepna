@@ -29,14 +29,70 @@ property**. That is why the unbonded adapter raced while the bonded one never di
 ## 2 · What to build
 
 Discover the attribute table **once per device**; persist our own `{uuid → handle}` map keyed on the
-peripheral's **Database Hash**; thereafter address characteristics **by handle**. No snapshot, no
-lookup into a foreign mirror, no window. The Database Hash is exactly the staleness signal this needs,
+peripheral's **Database Hash**; ~~thereafter address characteristics **by handle**. No snapshot, no
+lookup into a foreign mirror, no window.~~ ⚠️ **STRUCK — see §2b②: bleak resolves a handle through the
+same snapshot, and the parent's §3 refuses the raw-ATT alternative.** Use the map as the COMPLETENESS
+ORACLE instead (§2b③): the snapshot is usable when it matches the map for that Database Hash, and
+anything else refuses. The Database Hash is exactly the staleness signal this needs,
 and it is the mechanism BlueZ itself uses on the bonded path that has never failed here.
 
 **Mirror `devcaps.py`, do not invent a second shape.** It already solves the same problem one level
 over: a per-unit runtime fact, keyed by BLE address, persisted across restarts, write-through, and —
 the part that matters — **an unmeasured entry reads `null`, never a default**. A handle map with a
 fabricated entry is worse than no map.
+
+---
+
+## 2b · 🔴 RECONNAISSANCE RESULTS — 2026-09-17, and one of them REFUTES §2 as written
+
+§3's checks were run before designing. Read this before §2; §2's mechanism does not survive check 2.
+
+**① THE RACE IS LIVE — it never stopped, it stopped FAILING.** Measured on vigil's journal, 14 days:
+
+| signal | count | when |
+|---|---|---|
+| `no service snapshot (BleakError)` — the hard failure | **109** | **all on Sep 09**, none since |
+| `BlueZ had not published …` — the settle FIRING and absorbing it | **466** | Sep 10→17, **every single day**: 10 · 138 · 102 · 39 · 41 · 40 · 79 · 17 |
+
+So `_settle_gatt_chars` is doing real work **40–140 times a day, continuously**. The mitigation did not
+make the race go away; it made it survivable. That is the measured case for this unit, and it is a
+stronger one than the brief was written with.
+
+**② 🔴 BLEAK CANNOT ADDRESS BY HANDLE INDEPENDENTLY OF THE SNAPSHOT — §2's mechanism is refuted as
+stated.** `read_gatt_char(char_specifier: Union[BleakGATTCharacteristic, int, str, UUID])` accepts an
+`int`, so a handle is *accepted* — but its first line is
+`characteristic = _resolve_characteristic(char_specifier, self.services)`, and `_resolve_characteristic`
+does `services.get_characteristic(char_specifier)`. `self.services` is the backend's collection, which
+**is the D-Bus snapshot**, and it raises `BleakError("Service Discovery has not been performed yet")`
+when it is empty — which is exactly the `no service snapshot (BleakError)` line counted above.
+So *"thereafter address characteristics by handle"* routes through the same mirror the whole unit
+exists to stop trusting. `start_notify` resolves identically.
+⚠️ **And the escape hatch is closed by the parent:** §3 of `BLE-TRANSPORT-REDESIGN` REFUSES a raw ATT
+path — *"`HCI_CHANNEL_USER` stays disqualified, no rewrite"*. So bypassing bleak is not available
+either. `c.handle` being readable at `capture.py:9613` proved handles are EXPOSED; it never proved they
+were ADDRESSABLE, and that distinction is the whole of this finding.
+
+**③ THE GOAL SURVIVES — as an ORACLE, not an addressing path.** §1.1's done-when never asked for
+handle addressing; it asked that *"a planted mid-publish object tree cannot produce a wrong handle — it
+produces a refusal"*. That is a **completeness** property, and the persisted map delivers it directly:
+today `_settle_gatt_chars` waits for **two hardcoded UUIDs** (`GATT_RX`, `GATT_TX`) and calls the tree
+settled when they appear — a heuristic that cannot see a tree missing anything else. A map keyed on the
+Database Hash states the FULL expected attribute table for that peripheral, turning that heuristic into
+a deterministic check: *the snapshot is complete when it matches the map, and anything else is a
+refusal.* Same done-when, a mechanism that exists.
+
+**④ CHECK 1 IS UNANSWERED, and my instrument cannot answer it.** Is `0x2B2A` readable per device class?
+The only characteristic handle in 14 days of journal is `00002a05@0x0002` (Service Changed) — because
+this logging fires **only on failure snapshots**, which are near-empty by construction. An instrument
+that observes only broken trees cannot report what a healthy one contains, so the absence of `0x2B2A`
+here is **not** evidence the devices lack it. Answer it from a successful-tree dump or from the two
+external references already indexed (`ext:SomnoTrace/main/as11_ble.c` captures AS11 handles;
+`ext:polar-ble-sdk` enumerates the Polar tables) — **not** by connecting to a device mid-capture.
+
+**Consequence for this brief:** §2's *"address by handle"* is struck; the unit becomes *discover once,
+persist keyed on the Database Hash, and use the map as the completeness oracle that `_settle_gatt_chars`
+currently approximates*. The blast radius drops sharply — nothing changes about how characteristics are
+addressed, so the §5 warning about the highest-blast-radius unit no longer applies in that form.
 
 ---
 
