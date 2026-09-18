@@ -78,6 +78,31 @@ for CVHR-derived surges; see `INTEGRATOR-FUSION-AUDIT.md`). **Dropped 2026-06-29
 removed from `integrator-dsp.js`'s surge `gather()` (the accept-set membership was inert — no producer). A future
 CVHR surge emits the canonical `autonomic_surge`; re-add a distinct accept-type only alongside a real emitter.
 
+## 4b. Per-event provenance fields — roadmap §2 (SPECIFIED, not yet emitted)
+
+`MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26` §2 extends `ganglior_events[]` **additively**, finishing
+what Clock Contract §6 started. All optional, so **`t`-only legacy consumers keep working** — that
+tolerance is the contract, not a courtesy:
+
+| field | what it is |
+|---|---|
+| `tMs` | absolute floating ms. Clock Contract §6 already says emitters *SHOULD* write it — §2 makes it real rather than aspirational |
+| `endTMs` | for DURATIVE events, so a duration is read rather than inferred from the next event |
+| `clockDomain` | `device \| host \| host-corrected` — named, never implied, same vocabulary as the measurement block's window |
+| `evidenceRef` | the join to the acquisition-evidence envelope |
+| `detector: {manifestHash}` | which code decided this event was here |
+
+**`impulse` is untouched.** It is the type vocabulary and **this file owns it** — §1–§4 above are that
+vocabulary. Extend it here; never fork it in a node.
+
+⚠️ **Deliberately NOT in this phase:** no event-bus changes, no new event KINDS. The goal is narrow and
+worth stating so it is not widened — *a desaturation event can name the night and the code that
+produced it.* Nothing more.
+
+⚠️ **Nothing emits these yet.** Like the measurement block, the shape is specified and validated before
+any node writes it; emission is staged per node (roadmap §3, OxyDex first) because each stage
+re-records that node's fixtures. A missing `evidenceRef` on today's events is not a defect.
+
 ## 5. What this pass changed (and what it deliberately did not)
 
 - **Migrated (this pass, Integrator-only, low-risk — no committed fixture moves):** the Integrator's
