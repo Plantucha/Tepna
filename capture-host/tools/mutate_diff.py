@@ -75,6 +75,7 @@ VENV_PY = HERE / ".venv" / "bin" / "python"
 sys.path.insert(0, str(HERE))
 from mutation_diff import (  # noqa: E402
     EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, classify, diff_key,
+    undecided_by_function,
     functions_covering, refusal_reason, selftest, split_results, string_only_verdict,
 )
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -489,8 +490,27 @@ def main(argv=None) -> int:
                 print(f"    ── {u['module']}  {u['mutant']}")
             if len(items) > 6:
                 print(f"    … and {len(items) - 6} more")
-        print("\n  A timeout is UNMEASURED, never killed — a tighter bound cannot manufacture a pass.\n"
-              "  Re-run under less load, or raise `timeout_multiplier`, before reading the verdict.")
+        # WHICH FUNCTIONS, not just how many. A total plus six samples cannot separate the two cases
+        # that need opposite responses: all of them in ONE function points at that function's mutants,
+        # spread across SEVERAL points at the runner. Measured 2026-09-18 across three PRs the gate
+        # refused (116, 553 and a 145-min kill), nobody could tell which shape any of them was.
+        _dist = undecided_by_function(undecided)
+        print("\n  by function:")
+        for _fn, _n in _dist[:8]:
+            print(f"    {_n:>5}  {_fn}")
+        if len(_dist) > 8:
+            print(f"    … and {len(_dist) - 8} more function(s)")
+        # ⚠️ `timeout_multiplier` DELIBERATELY NOT RECOMMENDED HERE, and this line used to recommend it.
+        # An UNDECIDED mutant was never observed by a test; raising the bound until it fits converts
+        # "not measured" into "passed" without anyone learning which mutants moved — the fabricated-pass
+        # shape this whole refusal exists to prevent, arrived at through the tool's own advice.
+        # And it does not even fit the evidence: the three refusals above ran 145 min, 2m53s and ~1 min,
+        # so a bound is not what separates them.
+        print("\n  An UNDECIDED mutant was never seen by a test — it is UNMEASURED, not killed, and no\n"
+              "  bound can turn one into the other. Re-run under less load. If the same functions keep\n"
+              "  appearing above, the cause is in those mutants; if it moves around, look at the runner.\n"
+              "  Do NOT raise `timeout_multiplier` to clear this: it would report a pass for mutants\n"
+              "  nobody measured, which is precisely what this refusal is here to stop.")
         if not a.report_only:
             return 2
 
