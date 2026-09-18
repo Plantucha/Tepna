@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-09-15 (phase 1 BUILT and landed in #2514; phases 2-3 specified, unbuilt) · **Created:** 2026-09-15 · **Follows:** `audits/PUBLISHED-NUMBER-DECAY-SWEEP-2026-09-03.md` (the measurement this answers) · **Interlocks:** the `docs · claude-md · claims` gate, `tools/formula-constant-audit.mjs`
+**Status:** IN-PROGRESS — 2026-09-18 (phase 1 BUILT #2514; **PHASE 2 BUILT 2026-09-18** — `TABLE-PROVENANCE` stamps, gate `docs · table-provenance · published-numbers`, first marked table in §4b. The output hash is over the TABLE TEXT, so a hand-edited cell reds: planted σ 0.07→0.99 and the gate moved `0f30dca78aa2`→`35750bcdda57`, which is the decay sweep's measured failure made mechanical, and it needs no corpus so it runs in CI. The marker distinguishes a RESOLVABLE committed `inputs` path from a recorded-only digest, because only the first can ever CLEAR a churn flag — §2 of the sweep says its screen "can FLAG but probably cannot CLEAR", and a committed upstream node is precisely what changes that. Phase 3 (generate rather than mark) remains unbuilt and is only worth it where phase 2 keeps firing — so it waits on evidence from phase 2 rather than on effort) · **Created:** 2026-09-15 · **Follows:** `audits/PUBLISHED-NUMBER-DECAY-SWEEP-2026-09-03.md` (the measurement this answers) · **Interlocks:** the `docs · claude-md · claims` gate, `tools/formula-constant-audit.mjs`
 
 # 98 % of this repo's published numbers are uncheckable — and the fix is a convention, not a cleverer parser
 
@@ -97,6 +97,33 @@ proves it (tool unchanged, corpus refolded, diverged 3 of 3). `showyourwork` has
 upstream dependencies* recursively. **If the corpus is an upstream node with a hash, table 4's case
 invalidates automatically and the screen can clear.** The two proposals are not alternatives: one is
 the other's missing input.
+
+## 4b · First application — a marked table (phase 2)
+
+The mechanism §4 specifies, applied to a number that will decay. These are tonight's three-cornered-hat
+figures for the 2026-09-17 trio, and they are exactly the shape the decay sweep counted: a small table
+of derived values, published in prose, with nothing today tying it to the run that produced it.
+
+| night | n epochs | σ ECGDex | σ PpgDex | σ OxyDex | culprit | method |
+|---|---|---|---|---|---|---|
+| 2026-09-17 | 74 | 0.67 | 0.93 | 0.07 | PpgDex | classic→classic |
+<!-- TABLE-PROVENANCE producer=tools/tch-multinight.mjs invocation="--dir uploads/trio" inputs=a6b6cb313cf5 output=0f30dca78aa2 generated=2026-09-18 -->
+
+**What the marker buys, precisely.** `output` is a hash of the table TEXT, so hand-editing a cell
+without re-running the producer reds — which is the failure the sweep measured, made mechanical. It
+needs no corpus, so it works in CI.
+
+⚠️ **`inputs` here is a RECORDED hash, not a resolvable path, and the gate must tell those apart.**
+The trio corpus is gitignored, so nothing in CI can recompute it — this stamp can therefore be
+FLAGGED when the corpus moves but can never be CLEARED, which is exactly the limit §2 of the decay
+sweep states about its churn screen. A stamp whose `inputs` names a COMMITTED artifact can be cleared,
+and that is the upstream-node case §4 identifies as the screen's missing input. Both forms are legal;
+conflating them would let an unclearable stamp read as a cleared one.
+
+⚠️ And read σ[OxyDex] = 0.07 as a flagged value rather than a measurement: the corpus median is 1.01,
+so this night sits 14× below it and near the non-negativity boundary that excluded 9 of 68 nights from
+the same run. That is D7's open question, and the marker's job here is only to tie the number to the
+run — not to defend it.
 
 ## 5 · What was considered and rejected
 
