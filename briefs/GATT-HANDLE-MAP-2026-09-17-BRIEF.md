@@ -129,7 +129,7 @@ Each is cheap, and each could change the shape of the unit. `trace-to-the-consum
       evidence-backed change.
 - [ ] `capture-host/check.sh` green (ruff · shellcheck · `pytest --cov --cov-branch
       --cov-fail-under=100`) — the script, not a hand-built pytest line.
-- [ ] The new module joins the mutation `DEFAULT_FLEET`.
+- [x] ~~The new module joins the mutation `DEFAULT_FLEET`.~~ **CORRECTED 2026-09-17 — that was the wrong fleet.** `DEFAULT_FLEET` lives in `tools/mutation-crawl.mjs` and is the **JS** fleet; it takes `.js` files only. The Python gate is `capture-host/tools/mutate_diff.py`, which is **DIFF-SCOPED with no list at all**, so a new `capture-host/*.py` module is in scope automatically and there is nothing to join. Written from the JS habit without checking which gate applies — the same enumeration reflex this brief warns about two sections up.
 - [ ] A box session validates it on the real four devices, owner-authorized.
 
 ## 5 · Sequencing and risk
