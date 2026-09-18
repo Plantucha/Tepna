@@ -183,10 +183,35 @@ confirmed no ResMed oximeter module exists — a purchase, not a cable) · `CROS
 > explains the finding that a degenerate night is NOT a bad night — degeneracy tracks how far the
 > per-corner confidences DIVERGE, a property of the estimator's inputs rather than of the recording.
 >
-> ⚠️ **FALSIFIABLE AND NOT YET TESTED:** degeneracy should track the DISPERSION of `(cH, cV, cO)`
-> within a night, and should NOT track any data-quality measure. If a corpus run finds degenerate
-> nights whose per-corner confidences agree closely, this derivation is wrong.
-> `tools/tch-degeneracy-stats.mjs` is where to test it.
+> 📊 **PREDICTION TESTED 2026-09-18 — PARTIALLY CONFIRMED, AND THE SHORTFALL IS THE USEFUL PART.**
+> Measured over the 65 nights carrying all three exports (9 degenerate, 56 clean), with the direction
+> pre-stated before the run:
+>
+> | | result |
+> |---|---|
+> | median confidence-spread, degenerate vs clean | 0.0459 vs 0.0340, difference **+0.0119**, permutation **p = 0.029** one-sided |
+> | degenerate spread range | 0.0171–0.0857 — **entirely contained within** clean's 0.0087–0.1357 |
+> | degenerate nights below the CLEAN median | **3 of 9** |
+> | corners carrying a `conf` array | **exactly 2 of 3 on every night in the corpus** |
+>
+> **The structural half STANDS and was never statistical.** Unweighted collapses the three weights to
+> one vector, restoring the identity's premise, so its 0/68 is algebraic. Nothing above bears on it.
+>
+> **The magnitude half is SUPPORTED BUT INSUFFICIENT, and that is a result rather than a shortfall in
+> the test.** The direction holds at p = 0.029, yet spread does not SEPARATE the populations: the
+> highest-spread night in the corpus is clean, and a third of degenerate nights sit below the clean
+> median. So the mismatch explains why negativity is POSSIBLE at all — it does not predict WHICH
+> nights go over.
+>
+> ⚠️ **And the presence measure is flat, which kills the cleanest version of the test:** every night
+> has exactly TWO corners with a `conf` array and one without, so the third corner's `c` is 1
+> throughout and the measure mismatch is UNIVERSAL in this corpus. Mismatch-vs-no-mismatch therefore
+> cannot be compared here at all; only its magnitude can, and magnitude is what came back weak.
+>
+> **Reading: degeneracy needs the mismatch AND something else.** The obvious candidate is the second
+> route already flagged below — sampling noise at short records — which would predict an interaction
+> with epoch count rather than a main effect of spread. Not tested; it is the next cheap step, and it
+> is a different question from the one the owner ruled on.
 >
 > ⚠️ **A HYPOTHESIS I HELD AND THE CODE REFUTED**, recorded so nobody re-derives it: I first supposed a
 > feedback loop — weights from `inverseVarianceWeights(sigma2)` re-entering the solve. They do not.
