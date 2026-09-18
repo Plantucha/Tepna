@@ -75,7 +75,7 @@ VENV_PY = HERE / ".venv" / "bin" / "python"
 sys.path.insert(0, str(HERE))
 from mutation_diff import (  # noqa: E402
     EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, classify, diff_key,
-    undecided_by_function,
+    is_property, source_function_of_glob, undecided_by_function,
     functions_covering, refusal_reason, selftest, split_results, string_only_verdict,
 )
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -245,9 +245,13 @@ def main(argv=None) -> int:
     _attempted = _ran = 0
     _crashed: list = []          # §3 — globs that returned no error yet tested zero mutants (silent drop-out)
     _nothing_to_mutate: list = []  # §3b — globs with NO generated mutants: benign, not a failure
+    # NOT the same thing, and conflating them is the defect: a property generates no mutants because
+    # THIS TOOL CANNOT MUTATE ONE, so it was never examined. Counted apart so the summary can say so.
+    _unexaminable: list = []
     verdict: dict = {"base": a.base, "modules": {}, "survivors": []}
     for module, lines in sorted(changed.items()):
-        stems = functions_covering(_read_source(HERE / module), lines)
+        _msrc = _read_source(HERE / module)   # read ONCE per module; the loop below reuses it
+        stems = functions_covering(_msrc, lines)
         if not stems:
             print(f"  {module}: {len(lines)} changed line(s), none inside a function — skipped")
             continue
@@ -304,11 +308,27 @@ def main(argv=None) -> int:
                     # above this line and is EXPECTED: mutmut asserts on a filter matching nothing,
                     # `run_one` uses Popen so it reaches the log, and this tool reads the count and
                     # continues. Handled, not a crash.
+                    # ⚠️ TWO CAUSES, ONE COUNT, AND ONLY ONE OF THEM IS "NOTHING TO TEST".
+                    # mutmut emits no mutants for an `@property` at all — measured on a body of
+                    # `return self.a + self.b`. So a zero here means either the function genuinely has
+                    # no mutable operator (benign, examined, clean) or this tool cannot examine it.
+                    # Saying "no mutable operator" for the second is a wrong diagnosis of a right
+                    # number: it reports a limitation of the TOOL as a property of the CODE, and a
+                    # reader takes it as coverage. Measured 2026-09-18: 45 properties in capture-host,
+                    # all generating zero, 15 with genuinely mutatable bodies, and all 15 changed this
+                    # quarter — so this is an active blind spot, not a theoretical one.
+                    if is_property(_msrc, source_function_of_glob(g)):
+                        print(f"    ⊘ {g}: NOT EXAMINED — this tool cannot mutate an @property"
+                              f"  [{_secs:.0f}s]"
+                              f"\n      (mutmut generates no mutants for a property, whatever its body"
+                              f" contains. This is a blind spot, not a clean result.)", flush=True)
+                        _ran -= 1
+                        _unexaminable.append(g)
+                        continue
                     print(f"    · {g}: mutmut generated 0 mutants under this glob — nothing to test"
                           f"  [{_secs:.0f}s]"
-                          f"\n      (cause NOT established: no mutable operator, or an @property, which"
-                          f" this tool cannot mutate at all. The AssertionError above is expected.)",
-                          flush=True)
+                          f"\n      (cause NOT established beyond 'not an @property'. The AssertionError"
+                          f" above is expected.)", flush=True)
                     # `_ran` was incremented on the way in; nothing actually ran, so give it back.
                     # Without this the run reports "every mutant on the changed functions was killed"
                     # over ZERO mutants — a claim of coverage that does not exist, which is the exact
@@ -406,6 +426,21 @@ def main(argv=None) -> int:
     # was tested, so nothing was shown. This is the layer the import check cannot cover.
     # A glob with nothing to mutate is counted in `_attempted` but is not a failure, so it must not
     # feed the all-or-nothing refusal either: otherwise a diff touching only unmutable functions reds.
+    # ⚠️ THE BLIND SPOT IS NAMED IN THE SUMMARY, NOT ONLY PER FUNCTION. A run whose only output was a
+    # per-glob line scrolls past; the count is what a reader carries away, and "0 survivors" over
+    # functions this tool never opened is a coverage claim it has not earned. Measured 2026-09-18:
+    # 45 properties in capture-host, all unmutatable by this tool, 15 with genuinely mutatable bodies,
+    # and all 15 changed this quarter — so this line will fire on real diffs, not hypothetical ones.
+    if _unexaminable:
+        print(f"\n  ⊘ {len(_unexaminable)} changed function(s) were NOT EXAMINED — this tool cannot "
+              f"mutate an @property:")
+        for _g in _unexaminable[:8]:
+            print(f"      {_g}")
+        if len(_unexaminable) > 8:
+            print(f"      … and {len(_unexaminable) - 8} more")
+        print("    Their mutants were never generated, so nothing below speaks to them. This is a\n"
+              "    limitation of the TOOL, not a finding about the code.")
+
     if _nothing_to_mutate and not _ran and not _crashed and len(_nothing_to_mutate) == _attempted:
         print(f"\nmutate-diff: {len(_nothing_to_mutate)} changed function(s) had no mutable operator — "
               "nothing to test, and nothing to conclude. Not a failure.")
