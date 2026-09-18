@@ -77,11 +77,15 @@ From the parent, and from the 2026-09-06 all-hands:
 
 - **Whether the wire format changes.** §1's resolution says it should not; that resolution is a
   hypothesis until step 1 checks it.
-- **Whether a consumer REFUSES or annotates.** A refusal that stops a night is the data-loss trade
-  §1.7 declined to make, and the same question is open in
-  `BLE-TIMEBASE-AT-THE-EDGE` §4 for seams. **These two should be answered together or the fleet gets
-  two different answers to one question** — that is the strongest argument for sequencing this after,
-  or with, that residue.
+- ~~**Whether a consumer REFUSES or annotates.**~~ 🟢 **ANSWERED — owner ruling 2026-09-17, recorded in
+  `CLAUDE.md` §∅ because it is fleet doctrine and not this brief's to own: a DISCONTINUITY refuses
+  (`null` + a named reason); reduced COVERAGE annotates (the value, with `n` / the covered span).** The
+  line is whether the window still describes ONE continuous stretch of signal, not how much is missing.
+  So this brief no longer has to hold that question open, and **it is now an INPUT to §3 rather than an
+  output**: a blanking run is discontinuity, therefore a planted run must reach a `null`, and the
+  "or a coverage-annotated one" half of §3.4 applies to sparse windows, not to blanked ones.
+  ⚠️ It does not generalise. §1.7's refusal for adapter leases stays declined — there the loss is a
+  night's CAPTURE, here it is declining to publish a meaningless number.
 - **Migration cost.** A change at the DSP read boundary moves `computeHash` on every node that adopts
   it, so every fixture re-verifies. Stage per node; OxyDex first, as the roadmap does.
 
