@@ -114,6 +114,49 @@ def test_a_function_with_no_mutable_operator_generates_zero():
     assert mmeta.generated_under_glob(_MUTSRC, "m.x_identity__mutmut_*") == 0
 
 
+# ⚠️ EVERY FIXTURE ABOVE IS AT COLUMN 0, AND THAT IS WHY THE BUG BELOW SURVIVED FOR WEEKS.
+# `generated_under_glob` was anchored `^def`, which only matches a module-level function. mutmut emits
+# a METHOD's mutants INDENTED inside the class body, so the count came back 0 for every class method
+# whose mutants really existed. Measured 2026-09-18 against real `mutate_file_contents` output:
+#
+#     Counter.scaled  (method)    2 mutants, indent 4   →  `^def` counted 0
+#     module_level    (function)  3 mutants, indent 0   →  `^def` counted 3
+#
+# The consequence was worse than a miscount. The caller only consults this when `tested_count == 0`,
+# to split "nothing to mutate" (benign, give `_ran` back, pass) from "generated but not tested" (a
+# crash, refuse). At a constant 0 for methods, a genuine crash took the BENIGN arm — the guard built
+# to prevent "a claim of coverage that does not exist" manufactured exactly that, for every method.
+#
+# The 2026-08-24 validating case, `oxy_inventory.identity`, is module-level: the one shape that passes.
+# These fixtures are INDENTED on purpose. Do not "tidy" them to column 0 — that is the bug's blind spot.
+_MUTSRC_METHOD = (
+    "class C:\n"
+    "    def xǁCǁscaled__mutmut_1(self):\n        pass\n"
+    "    def xǁCǁscaled__mutmut_2(self):\n        pass\n"
+    "    def xǁCǁother__mutmut_1(self):\n        pass\n"
+)
+
+
+def test_generated_counts_an_INDENTED_methods_mutants():
+    """THE REGRESSION. Returned 0 under `^def` while two mutants sat in the file."""
+    assert mmeta.generated_under_glob(_MUTSRC_METHOD, "m.xǁCǁscaled__mutmut_*") == 2
+
+
+def test_generated_does_not_bleed_across_methods_of_one_class():
+    assert mmeta.generated_under_glob(_MUTSRC_METHOD, "m.xǁCǁother__mutmut_*") == 1
+
+
+def test_a_method_with_no_mutants_still_reads_zero():
+    """The benign arm must survive the fix — widening the anchor must not invent mutants."""
+    assert mmeta.generated_under_glob(_MUTSRC_METHOD, "m.xǁCǁabsent__mutmut_*") == 0
+
+
+def test_module_level_counting_is_unchanged_by_the_wider_anchor():
+    """Guards the fix itself: `^\\s*def` must not alter the shape that already worked."""
+    assert mmeta.generated_under_glob(_MUTSRC, "m.x_a__mutmut_*") == 2
+    assert mmeta.generated_under_glob(_MUTSRC, "m.x_b__mutmut_*") == 1
+
+
 def test_a_missing_or_empty_mutants_file_generates_zero():
     assert mmeta.generated_under_glob("", "m.x_a__mutmut_*") == 0
     assert mmeta.generated_under_glob(None, "m.x_a__mutmut_*") == 0

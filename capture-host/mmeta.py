@@ -83,10 +83,26 @@ def generated_under_glob(mutants_src: str, glob: str) -> int:
         generated 0, decided 0  → nothing to mutate. Report it and pass; there is nothing to conclude.
         generated >0, decided 0 → the §3 crash. Refuse — an empty survivor list is "not checked".
         generated >0, decided >0 → covered.
+
+    ⚠️ ANCHORED `^\\s*def`, NOT `^def`, AND THE DIFFERENCE INVERTS THE GUARD. mutmut emits a METHOD's
+    mutants INDENTED inside the class body; only a module-level function's land at column 0. Measured
+    2026-09-18 against real `mutate_file_contents` output:
+
+        Counter.scaled   (method)     2 mutants, indent 4   →  `^def` counted 0
+        module_level     (function)   3 mutants, indent 0   →  `^def` counted 3
+
+    With `^def`, `generated_under_glob` returned 0 for EVERY class method, so the three-way split above
+    collapsed for methods: a genuine CRASH (generated >0, decided 0) took the BENIGN arm, `_ran` was
+    given back, and the run passed. The guard written to stop "a claim of coverage that does not exist"
+    produced exactly that, one branch over, for every method in the tree.
+
+    ⚠️ And the validating measurement could not have caught it: `oxy_inventory.identity` is
+    module-level, at column 0 — the single shape where `^def` works. The function was checked only
+    against the case that passes.
     """
     stem = glob.rstrip("*")
     fn = stem.split(".", 1)[1] if "." in stem else stem
-    return len(re.findall(r"^def " + re.escape(fn) + r"\d+\(", mutants_src or "", re.M))
+    return len(re.findall(r"^\s*def " + re.escape(fn) + r"\d+\(", mutants_src or "", re.M))
 
 
 def generated_count(work: Path, module: str, glob: str) -> int:

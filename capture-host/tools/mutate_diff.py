@@ -290,7 +290,24 @@ def main(argv=None) -> int:
                 # case this is before deciding. (Measured: oxy_inventory.identity, 138 mutants in the
                 # file, 0 under its glob, whole run refused.)
                 if mmeta.generated_count(work, module, g) == 0:
-                    print(f"    · {g}: no mutable operator in this function — nothing to test  [{_secs:.0f}s]", flush=True)
+                    # ⚠️ THE MESSAGE STATES WHAT IS KNOWN, NOT AN INFERRED CAUSE. mutmut generated
+                    # nothing under this glob; WHY is not established here, and the two known causes
+                    # are different findings. A function with no mutable operator is genuinely nothing
+                    # to test. An `@property` is not — measured 2026-09-18, mutmut emits ZERO mutants
+                    # for a property whose body is `return self.a + self.b`, a perfectly mutatable `+`.
+                    # So for properties this is a limitation of the TOOL reported as a property of the
+                    # CODE, and every `@property` body in the tree is consequently unmutated. Saying
+                    # "no mutable operator" would assert a cause nobody checked — the same shape as
+                    # the guard above, which asserted a benign outcome it could not distinguish.
+                    # ⚠️ An `AssertionError: Filtered for specific mutants, but nothing matches` appears
+                    # above this line and is EXPECTED: mutmut asserts on a filter matching nothing,
+                    # `run_one` uses Popen so it reaches the log, and this tool reads the count and
+                    # continues. Handled, not a crash.
+                    print(f"    · {g}: mutmut generated 0 mutants under this glob — nothing to test"
+                          f"  [{_secs:.0f}s]"
+                          f"\n      (cause NOT established: no mutable operator, or an @property, which"
+                          f" this tool cannot mutate at all. The AssertionError above is expected.)",
+                          flush=True)
                     # `_ran` was incremented on the way in; nothing actually ran, so give it back.
                     # Without this the run reports "every mutant on the changed functions was killed"
                     # over ZERO mutants — a claim of coverage that does not exist, which is the exact
