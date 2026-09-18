@@ -208,10 +208,34 @@ confirmed no ResMed oximeter module exists — a purchase, not a cable) · `CROS
 > throughout and the measure mismatch is UNIVERSAL in this corpus. Mismatch-vs-no-mismatch therefore
 > cannot be compared here at all; only its magnitude can, and magnitude is what came back weak.
 >
-> **Reading: degeneracy needs the mismatch AND something else.** The obvious candidate is the second
-> route already flagged below — sampling noise at short records — which would predict an interaction
-> with epoch count rather than a main effect of spread. Not tested; it is the next cheap step, and it
-> is a different question from the one the owner ruled on.
+> **Reading: degeneracy needs the mismatch AND something else** — and as of 2026-09-18 **TWO
+> candidates for that something else are REFUTED**, so what explains INCIDENCE is now an open question
+> with three dead ends rather than an untested guess.
+>
+> | candidate for incidence | degenerate | clean | p (one-sided) | verdict |
+> |---|---|---|---|---|
+> | confidence spread (pre-stated) | 0.0459 | 0.0340 | 0.029 | supported, **does not separate** |
+> | short records — median min-epochs (pre-stated) | 85 | 83 | **0.737** | **REFUTED**, wrong direction |
+> | corner-length imbalance `nMax/nMin` (⚠️ POST-HOC) | 1.022 | 1.044 | **0.757** | **REFUTED**, wrong direction |
+>
+> **The short-record route is dead and it was the leading candidate.** Degenerate nights are if
+> anything slightly LONGER, and they are LESS likely to sit in the 48–96 band the code comment names
+> (5/9 against 42/56). So the comment's short-record hazard is real for the FUSION weights and is not
+> what drives the hat to the boundary.
+>
+> ⚠️ **The third row is POST-HOC and is labelled so because it would otherwise read as a finding.** I
+> chose `nMax/nMin` after noticing two degenerate nights with very unequal corner lengths (14/93 and
+> 36/76). Tested rather than narrated, it fails: those two outliers do not carry the population and
+> **6 of 9 degenerate nights sit BELOW the clean median**. Picking a measure after seeing the data is
+> how a finding gets manufactured; the discipline is to test it and report the failure, not to tell
+> the story the two nights suggested.
+>
+> **So: the mechanism explains POSSIBILITY and nothing yet explains INCIDENCE.** The structural claim
+> is untouched by all of this — it is algebraic, not statistical. What remains unexplained is narrow
+> and well-posed: given that the mismatch is universal in this corpus, which nights it tips over is
+> still unknown, and the obvious remaining reading is simple boundary proximity (a true σ-triple close
+> enough to the non-negativity boundary that any perturbation crosses it), which is close to tautology
+> and would need a different instrument to test.
 >
 > ⚠️ **A HYPOTHESIS I HELD AND THE CODE REFUTED**, recorded so nobody re-derives it: I first supposed a
 > feedback loop — weights from `inverseVarianceWeights(sigma2)` re-entering the solve. They do not.
