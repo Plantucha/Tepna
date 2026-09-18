@@ -203,8 +203,9 @@ actionable rather than waiting:
 >   `_drain_fsync`, and its own comment records that the queue carries "(dup'd fd, health) pairs, never
 >   rows". That is the narrow shape argued for above, landed: the **fsync** moved and the writer did not,
 >   so the queue-on-crash loss class that justified the original deferral never appeared. ⚠️ The
->   disk-pressure confound §9 raised is still NOT excluded — a post-fix latency measurement owes free
->   space beside it, and none has been taken.
+>   disk-pressure confound §9 raised **is now EXCLUDED — measured 2026-09-18, §10 below.** Free space was
+>   never low (zero `storage: LOW` lines in a six-week journal, 148 GB free), and the latency distribution
+>   barely moved. What DID move is the incidence, 12× per file — §10 says what that is and is not.
 > * **Adapter hotplug / quarantine / flap cap — NOT built.** Residue
 >   `2026-09-11-dead-adapter-goes-unnoticed` is still `OPEN`.
 > * **Post-recovery verification for a radio — NOT built, and the gap is narrower than "no probe exists".**
@@ -268,6 +269,70 @@ contention this design does not have — and `find_unwired` would correctly call
 decorative, exactly as it did for `adapter_pool` (5 public functions, allowlisted as ASPIRATIONAL,
 waiting on per-device pinning nobody has asked for). **Build the three gated items; do not build the
 framework around them.**
+
+## 10 · 2026-09-18 — the owed post-fix measurement, taken on vigil (Kestrel)
+
+§9 left one thing owed in as many words: *"a post-fix latency measurement owes free space beside it, and
+none has been taken."* Taken now, read-only on the box, from `journalctl -u tepna-capture` (journal spans
+2026-08-04 → 2026-09-18) plus `df`.
+
+**The population splits on the log string itself.** `writers.py:323` tags the post-fix line
+`(off-loop worker)`; the pre-fix line does not. 185 `SLOW fsync` events total, **20 pre / 165 post** — and
+the 20 matches §9's *"20 `SLOW fsync` events"* exactly, which is the corroboration that the split is real
+and not a grep artifact.
+
+### The confound is excluded
+
+- **Zero** `storage: LOW` or `storage: recovered` lines in the entire six-week journal — so free space
+  never crossed `min_free_gb` at any point on either side of the fix.
+- `df` at measurement time: **148 GB free of 233 GB (34 % used)**.
+
+Disk pressure does not explain the post-fix latency. That is the question §9 asked, and the answer is no.
+
+### The latency barely moved — the INCIDENCE moved
+
+| | n | min | median | p90 | max | mean |
+|---|---|---|---|---|---|---|
+| pre-fix (on-loop) | 20 | 252 | 326 | 414 | **1702** | 398 |
+| post-fix (off-loop) | 165 | 255 | 376 | 619 | **1334** | 422 |
+
+Median +50 ms, mean +24 ms, and the **maximum FELL** (1702 → 1334 ms). The disk is not taking materially
+longer to confirm a write. What changed is how many files see a slow barrier at all:
+
+| window | events | files in the night dirs | share of files |
+|---|---|---|---|
+| pre 09-05 → 09-09 | 17 | 1003 | **1.7 %** |
+| post 09-10 → 09-18 | 165 | 803 | **20.5 %** |
+
+**12.1× per file** — and note the denominator moved the *other* way: file volume FELL 1003 → 803, so the
+rise is not a volume artifact. Per day it is 5.4×; per file, 12.1×.
+
+### What that is, and what it is not
+
+`_slow_said` fires **once per file**, so these counts are files-with-≥1-slow-barrier, never a count of slow
+barriers. Read with the distribution above, the most economical reading is that the fix did what it was
+built to do and this is its cost side: barriers now queue behind one another in the worker instead of
+blocking the loop, so more of them cross 250 ms while none of them stalls capture — which is exactly what
+the log line's own text asserts (*"capture was not stalled by it"*). **The trade was never quantified
+before; it is now.**
+
+⚠️ **Three limits, stated rather than smoothed over:**
+
+- **The transition is 2026-09-10 — five days BEFORE #2382 merged (2026-09-15).** The split by log string is
+  sound regardless, but *why* the box carried the off-loop code before the merge is not established here,
+  and it should not be explained away. Anyone reasoning from these windows should settle that first.
+- **There is no baseline before 2026-09-05.** The journal starts 08-04 and carries zero `SLOW fsync` lines
+  until 09-05 — that is the instrument arriving, not a fast disk. A "nothing before September" reading
+  would be `§4b`'s examined-nothing shape.
+- **"Files" is every file in the night directory**, not every file behind an fsync'd writer, so the share
+  is an under-estimate of the per-writer rate. The imperfection is identical on both sides, so the ratio
+  survives it; the absolute 1.7 %/20.5 % do not.
+
+### Unrelated, found while measuring
+
+`tepna-sniff.service` (*"Tepna — nightly BLE air capture + audit"*) is in **failed** state on vigil. Not
+touched — box ops is owner-authorized — and recorded here only so it is not discovered twice.
+
 
 ## 8 · Verification
 
