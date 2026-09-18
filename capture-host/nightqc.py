@@ -297,7 +297,10 @@ def _midnight_of(night_dir: str):
 # rates in webmon's _BPS_BY_MODEL (the second tuple element); duplicated rather than imported because
 # nightqc is a pure, dependency-light reporter. A device config's own `rates` override wins over this (the
 # Verity ACC is configured at 52 Hz, not its 200 Hz nominal), so this is only the fallback default.
-_NOMINAL_HZ = {
+# Annotated because the literals mix int and float ("hr": 1 beside "ppg": 125.738), which mypy
+# joins to `object` — so `_NOMINAL_HZ[model].get(stream)` read as a call on `object`. The values
+# are all rates; float is the honest common type.
+_NOMINAL_HZ: dict[str, dict[str, float]] = {
     "H10":    {"ecg": 130, "acc": 200, "hr": 1},
     "Verity": {"ppg": 55, "acc": 52, "gyro": 52, "mag": 50, "ppi": 1},
     # O2Ring ppg is the observed ROW rate (~125.7), NOT the 125.000 ADC clock: the file counts one row per
@@ -1121,7 +1124,13 @@ def connection_lattice(delays: list[float], *, device_axis_is_clock: bool = True
     step = max(1, len(x) // CK_LATTICE_MAX_POINTS)
     xs = x[::step]
     n = len(xs)
-    best_r, best_s = 0.0, None
+    # `best_s` starts at a REAL candidate rather than None. Every `r` is an `abs()`, so it is >= 0 and
+    # never exceeds the initial 0.0 when the vector sum cancels exactly — with None that left the refine
+    # loop below multiplying None, and mypy was right to flag it. Seeding `lo` removes the crash without
+    # adding a branch nobody can reach to test: a scan that finds nothing returns `R: 0.0`, which is
+    # already this function's signal for "no periodicity", rather than a fabricated peak.
+    best_r: float = 0.0
+    best_s: float = lo
     grid = 1600
     for i in range(grid):
         s = lo * (hi / lo) ** (i / (grid - 1))
@@ -1227,7 +1236,11 @@ def arrival_quality(night_dir: str) -> list[dict]:
         return out
     for name in names:
         path = os.path.join(night_dir, name)
-        per: dict[tuple[str, str], list[float]] = {}
+        # (host_ms, host_ms - device_ms, device_ns) per packet — a TRIPLE, not a float. The
+        # annotation said `list[float]` while every append has been a 3-tuple, so mypy reported
+        # the append AND everything downstream that unpacks it ("float is not iterable", "not
+        # indexable") — six errors from one wrong declaration, none of them a real defect.
+        per: dict[tuple[str, str], list[tuple[float, float, int]]] = {}
         try:
             with open(path, newline="", encoding="utf-8", errors="replace") as fh:
                 for row in _csv.DictReader(fh, delimiter=";"):

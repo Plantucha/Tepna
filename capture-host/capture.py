@@ -13,6 +13,8 @@ import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, r
 from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
                      HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, capture_filename, missing_identity,
                      night_dir, open_sample_writers)
+from typing import Any
+
 import proc_util
 import polar_pmd as pmd
 import viatom
@@ -191,7 +193,7 @@ def _utcoffset(when: _dt.datetime) -> _dt.timedelta:
     return when.astimezone().utcoffset() or _dt.timedelta(0)
 
 
-def _reanchor(shift: float = 0.0) -> None:
+def _reanchor(shift: float = 0.0) -> _dt.datetime:
     """Re-pin the monotonic clock to civil time. `shift` CARRIES FORWARD any DST relabelling already
     absorbed, so a genuine NTP correction landing on a night that has crossed a transition re-anchors
     within the session's original offset frame instead of dropping back to civil time — which would
@@ -202,6 +204,7 @@ def _reanchor(shift: float = 0.0) -> None:
     _anchor_mono = _time.monotonic()
     _anchor_utcoff = _utcoffset(now)
     _civil_shift = shift
+    return _anchor_wall
 
 
 def reset_clock_anchor(reason: str = "") -> None:
@@ -248,9 +251,16 @@ def heartbeat_ms() -> int:
 
 def _now() -> _dt.datetime:
     global _civil_shift
-    if _anchor_wall is None:
-        _reanchor()
-    predicted = _anchor_wall + _dt.timedelta(seconds=_time.monotonic() - _anchor_mono)
+    # Bind a LOCAL rather than re-reading the global. `_anchor_wall` is `datetime | None`, and mypy
+    # cannot narrow a global across the `_reanchor()` call that sets it — so the add below read as
+    # `None + timedelta` and every `return predicted` as `datetime | timedelta`, five errors from one
+    # unnarrowable name. `_reanchor` now hands back the anchor it just set, which narrows by
+    # construction and costs the fast path nothing: this is one local read where it was a global read
+    # plus a None test, and `_now()` runs per sample (ECG is 130 Hz).
+    anchor = _anchor_wall
+    if anchor is None:
+        anchor = _reanchor()
+    predicted = anchor + _dt.timedelta(seconds=_time.monotonic() - _anchor_mono)
     actual = _dt.datetime.now()
     drift = (actual - predicted).total_seconds()   # wall-vs-monotonic divergence == a clock step
     # Fast path, and the steady state after a transition has been absorbed. Deliberately avoids the
@@ -9086,7 +9096,12 @@ async def _cpap_autostart_loop(*, root, op, is_running, retain_s, hold_s, max_at
         _CPAP_AUTOSTART["watch"] = watch
 
 
-_CPAP_AUTOSTART = {"watch": None, "root": None}
+# Annotated because the literal initialises both slots to None, which fixes the value type as
+# `None` — so every later `["watch"] = <StartWatch>` read as assigning to None, and the read at
+# `observe_start` as passing None. Three errors, one un-annotated literal. `object` rather than a
+# union: the two slots hold different things (a StartWatch and a path string) and narrowing is
+# done at each use, which is what the code already does.
+_CPAP_AUTOSTART: dict[str, Any] = {"watch": None, "root": None}
 
 
 def _cpap_autostart_wrap_op(op, root):

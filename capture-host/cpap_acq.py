@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import time as _time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -192,8 +193,8 @@ class AcqLifecycle:
     session_id: str | None = None
     state: AcqState = AcqState.DISCONNECTED
     history: list = field(default_factory=list)
-    mono: "callable" = _time.monotonic
-    wall: "callable" = _default_wall
+    mono: "Callable[[], float]" = _time.monotonic
+    wall: "Callable[[], str]" = _default_wall
 
     def can(self, to: AcqState) -> bool:
         """True iff moving to `to` from the current state is a legal transition."""
