@@ -2118,7 +2118,12 @@
 
   // ════════════════════════════════════════════════════════════════════════
   //  PER-SECOND ARTIFACT CONFIDENCE  (TCH-FUSED-ROBUST-HAT-2026-07-14)
-  //  Byte-for-byte MIRROR of ECGDSP.beatConfidence — signal-agnostic (feet/beats + per-beat SQI →
+  //  CODE-IDENTICAL MIRROR of ECGDSP.beatConfidence — identical once comments are stripped (2135
+  //  chars each, measured 2026-09-17), NOT byte-for-byte: the comment blocks differ, so the raw
+  //  bodies are 2708 here against 3122 there. The old wording said "byte-for-byte", which a reader
+  //  can check and find false. Gated by `beatConfidence mirror` in tests/dex-tests.js.
+  //  ⚠️ THE TWO COPIES ARE DELIBERATE AND NEITHER IS REDUNDANT — see that gate's message.
+  //  signal-agnostic (feet/beats + per-beat SQI →
   //  per-second trust c = density_trust × quality_trust, AND-ed via min for AF-safety). For the
   //  Verity corner it catches any residual PPG over-detection (e.g. diastolic-notch doubling the
   //  optical-refractory fix leaves) exactly as it catches the ECG spurious-QRS burst: a window that
