@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS (live writer BUILT — `stuck` + hold classification; `pinned` back-check is WU-6/WU-7, not this unit) · **Created:** 2026-09-06 · **Residue:** 2026-09-06-warmup-verdict-goes-stale, 2026-09-06-t-stuck-validated-on-ring-only
+**Status:** IN-PROGRESS (live writer BUILT — `stuck` + hold classification; `pinned` back-check is WU-6/WU-7, not this unit · **D1 (owner ruling 2026-09-19, BUILT the same day, Wren):** the sidecar names two SPAN KINDS — `absence` (the O2Ring reads exactly 100 with no finger: finger-off capture 2026-09-19, six independent stretches, 100.0 %; `docs/O2RING-FINGER-OFF-2026-09-19.md`) and `in-wear-rail` (0 / 199 occur ONLY while worn — zero is NOT idle; a statement about observation, not mechanism). Ninth column `kind` + a `kinds=` header token (`writers.RUN_KIND_BY_STREAM`, per stream, `unknown` wherever unmeasured — the Verity rail, the ring's 99/124). Emission is UNCHANGED: kind labels rows the run-length rule already chose, so `min_run` remains a rails-only question. NOT done here, deliberately: no refold, no consumer reads the kind yet (`ppgdex-dsp.js` parses the 9-column row and ignores it — asserted), and the sidecars on vigil keep their 8-column shape until the next deploy writes new ones) · **Created:** 2026-09-06 · **Residue:** 2026-09-06-warmup-verdict-goes-stale, 2026-09-06-t-stuck-validated-on-ring-only
 
 # PPG ABSENCE-AS-VALUE — recording the spans where the wave stopped being a measurement
 
@@ -144,7 +144,7 @@ all 79 valid.
 ## 5 · Comment-line grammar (pinned; the file reproduces itself)
 
 ```
-# stream=<s> rule=stuck min_run=<n> t_stuck=<n> held_warmup=<n> held_top2_share=<f> unit=unknown
+# stream=<s> rule=stuck min_run=<n> t_stuck=<n> held_warmup=<n> held_top2_share=<f> unit=unknown kinds=<absence=100,in-wear-rail=0|199 | unknown>
 # stream=<s> channel=<c> class=held|variable ratio=<f> top2=<a>,<b> share=<f> decided_at=<n>runs
 # stream=<s> channel=<c> class=undecided decided_at=<n>runs reason=too-few-runs
 # final channel=<c> total_runs=<n> mean_run=<f> class=<k>
