@@ -102,11 +102,22 @@ async def dbus_hci() -> dict[str, str]:
 
 
 def sysfs_hci(base: str = "/sys/class/bluetooth") -> dict[str, str]:
-    """Map controller BD_ADDR → hciN from sysfs — {BD_ADDR_upper: hciN}. Each
-    /sys/class/bluetooth/hciN/address holds that controller's MAC. This is the DEPENDENCY-FREE resolver
-    that works on any BlueZ box including the Pi 5 target, where `hcitool` is NOT installed by default and
-    resolve_hci silently fell back to the BlueZ default radio — the 2026-07-18 deaf-onboard mis-pin
-    (VIGIL-DEEP-ANALYSIS §1.3). {} if sysfs is unreadable (then resolve_hci falls back to hcitool)."""
+    """Map controller BD_ADDR → hciN from sysfs — {BD_ADDR_upper: hciN}, from
+    /sys/class/bluetooth/hciN/address.
+
+    🔴 THIS RETURNS {} ON A CURRENT KERNEL — THE ATTRIBUTE IS GONE. Measured 2026-09-18 on kernel
+    7.0.0-31 on BOTH boxes: every `hci*` node carries exactly `device power reset rfkill0 subsystem
+    uevent` and no `address`, and `uevent` holds only `DEVTYPE=host`. Nothing under the node carries the
+    BD_ADDR, so this is a REMOVAL, not a relocation — there is no other sysfs path to point at, which is
+    why the fix was to widen `resolve_hci`'s overlay rather than to re-target this read.
+
+    It is KEPT, not deleted: on an older kernel that still publishes the attribute it works and remains
+    the cheapest source, and deleting it would trade a working fast path for nothing. But it must no
+    longer be described as THE dependency-free resolver — that was this docstring's claim, and on the
+    Pi 5 target it had quietly become false, which is the half of the defect a reader could not see.
+
+    Written for the 2026-07-18 deaf-onboard mis-pin, where `resolve_hci` silently fell back to the BlueZ
+    default radio (VIGIL-DEEP-ANALYSIS §1.3). {} if sysfs is unreadable OR carries no address."""
     out: dict[str, str] = {}
     try:
         names = sorted(n for n in os.listdir(base) if re.fullmatch(r"hci\d+", n))
@@ -148,14 +159,29 @@ async def resolve_hci(adapter_mac: str | None, refresh: bool = False) -> str | N
     key = (adapter_mac or "").upper()
     if not refresh and key in _HCI_CACHE:
         return _HCI_CACHE[key]
-    # sysfs FIRST (dependency-free, present on the Pi 5 where hcitool is absent); hcitool only as a
-    # fallback (VIGIL-DEEP-ANALYSIS §1.3). Both yield {BD_ADDR_upper: hciN}.
+    # sysfs first, then hcitool (VIGIL-DEEP-ANALYSIS §1.3). Both yield {BD_ADDR_upper: hciN}.
+    # ⚠️ sysfs NO LONGER ANSWERS ON A CURRENT KERNEL — see `sysfs_hci`. It is kept for older kernels and
+    # is now a no-op here, so on a box without `hcitool` this line yields {} and the D-Bus overlay below
+    # is the ONLY remaining source.
     devs = sysfs_hci() or parse_hci_dev(await _run(["hcitool", "dev"]) or "")
     # OVERLAY BlueZ's own view. sysfs/hcitool report the PUBLIC address, so a controller that has only
     # a static-random identity is invisible to them — it shows up as 00:00:00:00:00:00 and cannot be
-    # pinned. D-Bus is asked only when the cheap sources did not already answer for this key, so the
-    # common case still costs one subprocess and the mapping stays authoritative where it exists.
-    if key and key not in devs:
+    # pinned. D-Bus is asked only when the cheap sources did not already answer, so the common case
+    # still costs one subprocess and the mapping stays authoritative where it exists.
+    #
+    # `not devs` IS LOAD-BEARING AND WAS THE WHOLE DEFECT (residue 2026-09-12-sysfs-hci-address-attr-gone).
+    # The condition used to be `key and key not in devs` alone, which asks the overlay only on behalf of a
+    # PINNED adapter. With sysfs dead, a box that also lacks `hcitool` — the Pi 5 target, i.e. exactly the
+    # deployment `sysfs_hci` was written for — reaches here with `devs == {}`; and with no `adapter:`
+    # pinned, `key` is "", so the guard is False, D-Bus is never asked, and `resolve_hci` returns None
+    # with NO ERROR. RSSI then reads as simply unavailable. That is the 2026-07-18 deaf-onboard mis-pin's
+    # own failure shape — a source that fails silently and looks like a radio reporting nothing.
+    #
+    # Widening it is strictly information-ADDING: the overlay is now consulted only in cases that
+    # previously produced None or a missing key, so wherever the cheap sources answer at all the call
+    # count and the result are unchanged (measured on vigil: `hcitool dev` lists 4 controllers and an
+    # adapter IS pinned, so this branch does not fire there either before or after).
+    if not devs or (key and key not in devs):
         devs = {**devs, **(await dbus_hci())}
     if not devs:
         return None
