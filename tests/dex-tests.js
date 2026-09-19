@@ -9612,6 +9612,46 @@
        the price of that: identical output on identical input, asserted, so a divergence reds the suite
        instead of the two nodes quietly disagreeing about when the subject moved. Same discipline as
        `registry-defs-parity`. */
+    /* ONE CUT, TWO NODES — and until now the only thing holding them equal was a COMMENT.
+       `ecgdex-dsp.js` declares `GAP_S = 10` ("any inter-beat interval longer than this is a coverage
+       gap, not a missed beat") and `ppgdex-dsp.js` declares `PPG_CVHR_GAP_S = 10` with the comment
+       "ECGDex `GAP_S` — one cut, so the two nodes' indices stay comparable". That sentence is the
+       invariant, and prose is not a mechanism.
+       ⚠️ THE IDENTIFIERS DIFFER, which is what makes the drift silent: `grep GAP_S ppgdex-dsp.js`
+       returns exactly one hit — the comment — so nothing in the tree tells a reader the other
+       constant exists, let alone that it must match. Whoever moves one will not be shown the other.
+       ⚠️ THIS ASSERTS EQUALITY, NEVER THE VALUE 10. The cut is a live decision — saturation-induced
+       absences of 3-10 s slip under it — so pinning 10 would red on a legitimate retune and convict
+       working code. What must not change silently is that the two nodes share whatever cut is chosen;
+       moving both together is exactly the operation this permits. */
+    group('One coverage-gap cut, two nodes — ECGDex GAP_S and PpgDex PPG_CVHR_GAP_S', 'ecgdex-dsp · ppgdex-dsp · gap-cut-parity', function (T) {
+      var S = env.sources || {};
+      var e = S['ecgdex-dsp.js'],
+        p = S['ppgdex-dsp.js'];
+      if (e == null || p == null) {
+        T.skip('ecgdex-dsp.js + ppgdex-dsp.js in env.sources', 'not wired — the scan would read nothing');
+        return;
+      }
+      /* Read from SOURCE, never a copy. A hardcoded expectation here would be a THIRD place to keep
+         in sync and the gate would become the defect it is written to prevent. */
+      var constNum = function (src, name) {
+        var m = src.match(new RegExp('const ' + name + '\\s*=\\s*(\\d+(?:\\.\\d+)?)\\s*;'));
+        return m ? Number(m[1]) : null;
+      };
+      var ecg = constNum(e, 'GAP_S'),
+        ppg = constNum(p, 'PPG_CVHR_GAP_S');
+      /* NON-VACUITY FIRST. Two nulls compare equal, so a rename that broke both extractors would make
+         every assertion below pass while reading nothing — the failure this repo keeps finding, and
+         the one the §∅ pin-constants group records catching in its own first draft. */
+      T.ok('ANTI-VACUITY · both constants were actually found in source', ecg != null && ppg != null, 'ecgdex GAP_S=' + ecg + '  ppgdex PPG_CVHR_GAP_S=' + ppg);
+      if (ecg == null || ppg == null) return;
+      T.eq('the two nodes share ONE coverage-gap cut, whatever its value', ecg, ppg);
+      /* A sanity bound, deliberately wide, on the shared value rather than on a specific number: a cut
+         of 0 or a negative would mean "every interval is a gap" and is a typo, not a retune. Stated as
+         a range so a real retune passes and a mistake does not. */
+      T.ok('…and that cut is a positive number of seconds', ecg > 0 && ecg < 600, String(ecg));
+    });
+
     group('Movement onsets: one detector, two nodes, gated identical', 'ecgdex-dsp · ppgdex-dsp · movement-onset-parity', function (T) {
       var P = env.PPGDSP,
         E = env.ECGDSP;
