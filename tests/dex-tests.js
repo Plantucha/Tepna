@@ -16568,6 +16568,63 @@
       T.ok('an EMPTY sidecar carrying its rule IS readable — the writer looked and emitted nothing', !!empty && empty.comparable === true && empty.emitted === 0);
     });
 
+    /* ── §∅ SATURATION IS ITS OWN STATE (owner ruling 2026-09-18) ─────────────────────────────────
+       P5's "a pinned span is an ABSENCE" is now SCOPED TO THE ZERO RAIL. A top-rail run is a
+       measurement AT ITS BOUND — the true value was at-or-above the rail — which is strictly more
+       than "not measured". `pinnedSpans` has always stamped `end: 'lo' | 'hi'`, and the export pooled
+       both into one `samplesUnmeasured`: detected, reported, then collapsed at the point a consumer
+       reads it, which is the §∅ shape #2531 fixed for absence and left standing here.
+
+       🔴 THIS GROUP DRIVES `compute()`, NOT A LOCAL RE-IMPLEMENTATION. An earlier draft asserted a
+       split it computed itself from `pinnedSpans` output — so pooling the rails back together inside
+       the export left it fully GREEN. A test that recomputes the thing under test measures its own
+       arithmetic. The decoy (drop `end`, add everything to `absent`) now reds this group.
+
+       ⚠️ WHAT IT DOES NOT ASSERT: the exclusion set is UNCHANGED — both rails are still omitted from
+       the same statistics. Whether saturation should be excluded from a NARROWER set is a SECOND
+       decision, open with the owner, and nothing here presumes either answer. */
+    group('PpgDex §∅ — a SATURATED span is labelled distinctly from an ABSENT one', 'ppgdex-dsp · absence-as-value · pinned · saturation', function (T) {
+      var P = env.PPGDSP;
+      if (!P || typeof P.compute !== 'function') {
+        T.skip('PPGDSP.compute unavailable');
+        return;
+      }
+      /* A rail must be HELD and must OUT-COUNT its nearest occupied neighbour, so the carrier is
+         spread thin across the range and each rail run is long enough to qualify. */
+      var hz = 55,
+        n = hz * 400,
+        rows = ['Phone timestamp;sensor timestamp [ns];channel 0'],
+        seed = 7,
+        t0 = Date.UTC(2026, 8, 18, 1, 0, 0);
+      var rnd = function () {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
+      };
+      for (var i = 0; i < n; i++) {
+        var v = Math.round(20 + 160 * rnd());
+        if (i >= 2000 && i < 2600) v = 0; // FLOOR run — 600 samples
+        if (i >= 8000 && i < 8620) v = 200; // CEILING run — 620 samples
+        rows.push(new Date(t0 + Math.round((i * 1000) / hz)).toISOString().replace('Z', '') + ';' + Math.round((i * 1e9) / hz) + ';' + v);
+      }
+      var ex = P.compute({ text: rows.join('\n') }, { rich: true });
+      var pc = ex && ex.quality && ex.quality.pinnedCoverage;
+      var c0 = pc && pc[0];
+
+      /* POSITIVE CONTROL — both rails must have QUALIFIED, or every split below is vacuous. */
+      T.ok('control · the export reports a pinnedCoverage entry', !!c0);
+      T.ok('control · BOTH rails qualified on this stream', !!(c0 && c0.rail && c0.rail.lo === 0 && c0.rail.hi === 200));
+      T.ok('control · and both planted runs were detected', !!(c0 && c0.spans >= 2));
+
+      T.eq('ABSENT counts the FLOOR run', c0 && c0.samplesAbsent, 600);
+      T.eq('SATURATED counts the CEILING run', c0 && c0.samplesSaturated, 620);
+      T.eq('…and the two partition the total — nothing double-counted, nothing dropped', c0 && c0.samplesAbsent + c0.samplesSaturated, c0 && c0.samplesUnmeasured);
+      T.eq('samplesUnmeasured still means the TOTAL, so an existing reader sees no change', c0 && c0.samplesUnmeasured, 1220);
+
+      /* 🔴 THE REGRESSION THIS EXISTS FOR: pooling the rails back into one. The total still adds up,
+         which is why a total-only assertion cannot see it — only the split can. */
+      T.ok('a SATURATED span is NOT counted as ABSENT', !!(c0 && c0.samplesSaturated > 0 && c0.samplesAbsent > 0 && c0.samplesSaturated !== c0.samplesUnmeasured));
+    });
+
     group('ECGDex §∅ — an interval straddling a dropout is an ABSENCE, not a correctable beat', 'ecgdex-dsp · absence-as-value · regression', function (T) {
       /* `buildNN` repairs beats that were MIS-MEASURED: low SQI, out of physiological range, ectopic.
          A beat separated from its predecessor by a 74-second hole is none of those — it is a true

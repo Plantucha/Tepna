@@ -54,7 +54,9 @@
         "channel": 0,
         "rail": null,
         "spans": 0,
-        "samplesUnmeasured": 0
+        "samplesUnmeasured": 0,
+        "samplesAbsent": 0,
+        "samplesSaturated": 0
       }
     ],
     "timingSource": "host",
