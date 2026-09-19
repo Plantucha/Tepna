@@ -36,6 +36,7 @@ next reader does not treat a screen as a verdict.
 from __future__ import annotations
 
 import ast
+import fnmatch
 import re
 
 __all__ = ["EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key",
@@ -679,6 +680,18 @@ def function_of_mutant(name: str) -> str:
     stem = re.sub(r"__mutmut_\d+$", "", name.strip())
     if stem == name.strip():
         return ""                      # no mutmut suffix ⇒ not a mutant name
+    # 🔴 STRIP THE MODULE QUALIFIER, and this line is why the whole function was inert in production.
+    # `mutmut results` prints names MODULE-QUALIFIED — `gattmap.x__norm__mutmut_1` — and the caller
+    # (`mutate_diff.py`) passes them through verbatim from `split_results`. Both documented shapes
+    # below are BARE, the tests were written from those examples, and nothing ever fed this the form
+    # it actually receives. So `x_`/`ǁ` never matched, every mutant grouped under `?`, and the
+    # `by function` summary has reported nothing since it shipped — while its own test stayed green.
+    # Measured 2026-09-19 on a real refusal: 166 undecided, `by function: 166 ?`, zero attributed.
+    #
+    # `rsplit` on the LAST dot is the conservative read: a dotted prefix can only be a module path
+    # (`pkg.mod.x_f`), because the METHOD form separates with `ǁ` and not with `.` — the dots in
+    # `Counter.scaled` are produced by the join BELOW, never present in the input.
+    stem = stem.rsplit(".", 1)[-1]
     if "ǁ" in stem:
         parts = [p for p in stem.split("ǁ") if p and p != "x"]
         return ".".join(parts) if parts else ""
@@ -697,6 +710,27 @@ def undecided_by_function(items: list[dict]) -> list[tuple[str, int]]:
         fn = function_of_mutant(str(it.get("mutant", ""))) or "?"
         counts[fn] = counts.get(fn, 0) + 1
     return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+
+
+def in_glob_scope(mutant: str, glob: str) -> bool:
+    """True when `mutant` is one of the mutants `glob` selects.
+
+    WHY THIS EXISTS. The gate scopes what it RUNS to the functions the diff touched — one
+    `--only '<module>.x_<func>__mutmut_*'` per changed function (`mutate_diff.py`, `functions_covering`
+    over the changed lines). It then harvested UNDECIDED from `mutmut results`, which takes **no glob**
+    (`tools/mutate.py`) and enumerates the WHOLE workspace. So every mutant generated for a function
+    the diff never touched came back `not checked` and BLOCKED the run.
+
+    Measured 2026-09-19 across four refusals: 553, 338, 166 and 116 undecided, **100 % `not checked`
+    and 0 % `timeout`** — they were never run, so nothing could time out. On #2651 the changed hunks
+    were in `dbus_hci`/`resolve_hci` and the undecided set contained `parse_rssi`, which appears in
+    zero changed hunks. The counts track MODULE size, not diff size, which is why a one-import PR
+    produced 166 and why "re-run under less load" could never help: load was never the variable.
+
+    Deliberately `fnmatchcase`: mutant names are generated identifiers, and a case-insensitive match
+    would let `x_Parse__mutmut_1` answer for `x_parse__mutmut_*` on a case-preserving filesystem.
+    """
+    return fnmatch.fnmatchcase(str(mutant), str(glob))
 
 
 def split_results(results_text: str):

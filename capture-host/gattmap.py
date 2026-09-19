@@ -53,6 +53,7 @@ import os
 import tempfile
 import threading
 import time
+from typing import Any
 
 _LOCK = threading.RLock()
 # ADDR -> {"db_hash": str|None, "chars": {uuid: handle}, "source": str}
@@ -100,7 +101,12 @@ def configure(path: str | None) -> None:
                     chars = rec.get("chars")
                     if not isinstance(chars, dict) or not chars:
                         continue          # an empty table on disk is the claim this module refuses
-                    loaded_rec = {
+                    # `dict[str, Any]` EXPLICITLY, because the literal below infers
+                    # `dict[str, dict | str | None]` from its three seed values and the `recorded_at`
+                    # assignment eleven lines down is an `int`. The ratchet caught that as a real
+                    # regression (41 -> 42); the value type is genuinely heterogeneous, so the
+                    # annotation states the fact rather than silencing the check.
+                    loaded_rec: dict[str, Any] = {
                         "db_hash": _norm_hash(rec.get("db_hash")),
                         "chars": {_norm_uuid(u): h for u, h in chars.items()},
                         "source": str(rec.get("source") or "loaded"),

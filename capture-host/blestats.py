@@ -116,7 +116,29 @@ def snapshot() -> dict:
     """A reportable view. Rates are `None` where undetermined; counts are always integers, because a
     count of 0 IS a measurement while a rate over 0 is not."""
     with _LOCK:
-        keys = set(_ATTEMPTS) | set(_SUCCESSES)
+        # ⚠️ `_FAILURES` IS IN THIS UNION AND ITS ABSENCE WAS A SILENT DROP (2026-09-19).
+        # The key set used to be `_ATTEMPTS | _SUCCESSES` alone. `attempt()` has exactly ONE call site
+        # and it is `"connect"`, so the two ops that only ever call `fail()` — `link` (capture.py's
+        # link-error site) and `offline_op` (the offline-pull timeout) — appeared in NEITHER dict and
+        # were therefore UNPUBLISHABLE BY CONSTRUCTION. Their counts incremented and stopped there.
+        #
+        # That is this module's own stated defect wearing the opposite face. Both call sites assert the
+        # publication in their comments — "the total is in `status.json` `ble` where a rate can be read
+        # off it", "the rate rides in `status.json` as `ble` and is the thing an operator should
+        # actually watch", "the total is never lost" — and BOTH USED THAT ASSERTION TO JUSTIFY
+        # QUIETENING THEIR LOGS to first-occurrence-plus-decades. So the frequency was hidden in the
+        # log on the strength of a report it never reached, which is precisely the "recovery that hides
+        # its own frequency" this module was written to end.
+        #
+        # Measured on vigil before the fix: `ble.ops` carried three `connect/…` keys and NO `link/` or
+        # `offline_op/` key, against 445 link-error occurrence lines and 887 offline_op lines in the
+        # same 72 h of journal.
+        #
+        # §∅ is honoured rather than bent by this: a failures-only op now publishes its COUNTS (a count
+        # of 0 is a measurement) with `rate: None`, because it has no denominator and inventing one
+        # would be the fabrication the rule forbids. `None` here reads "nobody counted the attempts",
+        # which is the true statement.
+        keys = set(_ATTEMPTS) | set(_SUCCESSES) | {(op, dev) for op, dev, _cls in _FAILURES}
         ops = {}
         for op, dev in sorted(keys):
             ops[f"{op}/{dev}"] = {

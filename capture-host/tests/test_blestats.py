@@ -120,3 +120,46 @@ def test_non_string_keys_do_not_explode():
     """Addresses arrive from config and from BlueZ; neither is guaranteed to be a str."""
     blestats.attempt("connect", 12345)
     assert blestats.attempts("connect", "12345") == 1
+
+
+# ── A FAILURES-ONLY OP MUST REACH THE REPORT (residue 2026-09-19-ble-rate-cannot-see-absence) ────────
+
+
+def test_an_op_that_only_ever_FAILS_still_appears_in_the_snapshot():
+    """THE SILENT DROP. `attempt()` has exactly ONE call site in capture.py and it is `"connect"`, so
+    `link` and `offline_op` only ever call `fail()`. While `snapshot()` keyed on
+    `_ATTEMPTS | _SUCCESSES`, neither op could appear in `status.json` AT ALL — the counts incremented
+    and stopped there.
+
+    That inverts this module's own purpose. Both call sites justify quietening their logs on the
+    promise that the total is published — *"the total is in status.json ble where a rate can be read
+    off it"*, *"the total is never lost"* — so the frequency was hidden in the LOG on the strength of a
+    report it never reached. Measured on vigil before the fix: `ble.ops` carried three `connect/…` keys
+    and none for `link`/`offline_op`, against 445 link-error and 887 offline_op journal lines in the
+    same 72 h."""
+    blestats.fail("link", "AA:BB", "BleakDBusError")
+    ops = blestats.snapshot()["ops"]
+    assert "link/AA:BB" in ops, "a failures-only op is unpublishable — the counts increment and vanish"
+    assert ops["link/AA:BB"]["failures"] == {"BleakDBusError": 1}
+
+
+def test_a_failures_only_op_reports_rate_None_NOT_zero():
+    """§∅ at the point it is most tempting to bend. The op has no denominator — nobody counted its
+    attempts — so the honest rate is `None`, meaning "nobody measured", not `0.0`, which would claim a
+    measured total failure. Publishing the counts does not licence inventing the ratio."""
+    blestats.fail("offline_op", "CC:DD", "timeout")
+    row = blestats.snapshot()["ops"]["offline_op/CC:DD"]
+    assert row["rate"] is None, "0.0 here would be a fabricated denominator"
+    assert row["attempts"] == 0 and row["successes"] == 0  # measured zeros, which counts may be
+    assert row["failures"] == {"timeout": 1}
+
+
+def test_publishing_failures_does_not_disturb_an_op_that_has_a_real_denominator():
+    """The control: `connect` counts attempts and successes, so its rate is unchanged by the widened
+    key set. A fix to the failures-only case must not move the case that already worked."""
+    blestats.attempt("connect", "EE:FF")
+    blestats.ok("connect", "EE:FF")
+    blestats.attempt("connect", "EE:FF")
+    blestats.fail("connect", "EE:FF", "timeout")
+    row = blestats.snapshot()["ops"]["connect/EE:FF"]
+    assert row == {"attempts": 2, "successes": 1, "rate": 0.5, "failures": {"timeout": 1}}
