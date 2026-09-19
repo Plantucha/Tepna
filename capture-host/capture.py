@@ -2479,7 +2479,35 @@ def clock_skew_estimate(samples, now_mono, window_s=CLOCK_SKEW_WINDOW_S, min_n=C
     return {"skew": max(fresh), "n": len(fresh)}
 
 
-def clock_sync_due(is_polar, enabled, charging, first_attempt) -> bool:
+# The PS-FTP MTU characteristic. Its PRESENCE in a unit's attribute table is what makes a clock write
+# possible at all — `run_polar`'s own note records the alternative: on a device without it the sync
+# "fails on a missing characteristic", at the cost of an 18-second global capture pause. Duplicated as a
+# literal rather than imported because `polar_psftp` pulls bleak and `import capture` is kept
+# stdlib-clean for CI; `test_psftp_mtu_char_literal_matches_polar_psftp` pins the two together, so the
+# copy cannot drift silently.
+PSFTP_MTU_CHAR = "fb005c51-02e7-f387-1cad-8acd2d8df0c8"
+
+
+def clock_sync_capable(psftp, is_polar) -> bool:
+    """PURE: may this unit's clock be written at all? MEASURED capability first, config label second.
+
+    BLE-TRANSPORT-REDESIGN §1.3, residue `2026-09-16-devcaps-has-no-branch-consumer`. `is_polar` is a
+    VENDOR STRING SOMEBODY TYPED; `psftp` is `devcaps.get(addr, "psftp")` — whether this unit was
+    OBSERVED to expose `PSFTP_MTU_CHAR`. A capability branch must key on a measured property, never on a
+    configured label, so the measurement wins wherever one exists.
+
+    ⚠️ `None` IS NOT `False` (§∅), and that asymmetry is the whole safety argument. Unmeasured falls back
+    to the vendor string, i.e. to exactly today's behaviour — so the only units whose behaviour can
+    change are ones we have data for. The change cannot surprise us on a device we know nothing about.
+    Writing `bool(psftp)` here would coerce unmeasured to "incapable" and silently stop syncing the
+    clock on every device not yet in the map, which is the defect `devcaps.get` exists to refuse.
+
+    Presence is NECESSARY, not sufficient: a docked unit still refuses the write, which is
+    `clock_sync_due`'s business, not this one's."""
+    return bool(is_polar) if psftp is None else bool(psftp)
+
+
+def clock_sync_due(capable, enabled, charging, first_attempt) -> bool:
     """PURE: should we (re-)write this device's clock before the next connection attempt?
 
     RE-SYNC ON EVERY RECONNECT, not once per task. The sync used to run exactly once, ahead of the
@@ -2497,8 +2525,12 @@ def clock_sync_due(is_polar, enabled, charging, first_attempt) -> bool:
     right after it went on the dock). Skipping is not deferring the fix: coming OFF the dock produces a
     reconnect, which is exactly when this returns True.
 
-    `first_attempt` is True for the pre-loop sync that already runs, so this governs only the RE-syncs."""
-    return bool(is_polar and enabled and not charging and not first_attempt)
+    `first_attempt` is True for the pre-loop sync that already runs, so this governs only the RE-syncs.
+
+    `capable` was named `is_polar` until the §1.3 conversion; it is now `clock_sync_capable`'s verdict —
+    a measured capability where one exists, the vendor string only while unmeasured. Positional callers
+    are unaffected."""
+    return bool(capable and enabled and not charging and not first_attempt)
 
 
 def rebond_due(needs_pmd, bonded, iteration, attempts, every, limit) -> bool:
@@ -2788,6 +2820,25 @@ async def _exit_sdk_mode(ctrl, name: str) -> bool | None:
 # survived reconnects. Only the clock did not, which is why the asymmetry was invisible: half the rule
 # persisted and half of it reset.
 _BATT_FLAT_SINCE: dict[str, float] = {}
+# name -> which branch last decided its clock-sync gate ("measured:True" / "vendor-string" / …).
+# §1.3's conversion is a ROLLING behaviour change: as `gattmap` fills, each newly-recorded unit moves
+# from vendor-string logic to measured logic with nothing marking the transition — a behaviour change
+# distributed over time and invisible at every individual step, which is the hardest kind to attribute
+# afterwards. So log it, and log it on CHANGE ONLY: the gate is evaluated on every reconnect (~70 s),
+# and a line per evaluation is how a real event gets buried (the same reasoning `_gatt_record_table`
+# records for its "same" outcome).
+_CLOCK_CAP_BASIS: dict[str, str] = {}
+
+
+def _clock_gate(name: str, addr: str, is_polar: bool) -> bool:
+    """`clock_sync_capable` plus the rollout log. Returns the gate; logs only when the BASIS changes."""
+    psftp = devcaps.get(addr, "psftp")
+    gate = clock_sync_capable(psftp, is_polar)
+    basis = "vendor-string" if psftp is None else ("devcaps.psftp=%s" % psftp)
+    if _CLOCK_CAP_BASIS.get(name) != basis:
+        _CLOCK_CAP_BASIS[name] = basis
+        log.info("%s: clock-sync gate now decided by %s (gate=%s, vendor_is_polar=%s)", name, basis, gate, is_polar)
+    return gate
 
 
 async def run_polar(dev: dict, root: str):
@@ -2831,7 +2882,7 @@ async def run_polar(dev: dict, root: str):
     # PS-FTP is POLAR-SPECIFIC. On anything else the sync cannot succeed — it fails on a missing
     # characteristic — and it costs a global capture pause to find that out, every task start.
     # This is the FIRST sync; `clock_sync_due` repeats it on every later reconnect (see the loop below).
-    if is_polar and (_CFG.get("time") or {}).get("auto_sync_devices", True):
+    if _clock_gate(name, addr, is_polar) and (_CFG.get("time") or {}).get("auto_sync_devices", True):
         await auto_sync_clock(name, addr, root)
     first_attempt = True
     iteration = 0
@@ -2848,7 +2899,8 @@ async def run_polar(dev: dict, root: str):
         # device's single BLE link (see the first-sync comment above). Skipped while the device is on
         # its charger: a docked Polar cannot take the write, so trying only burns the watchdog's
         # give-up budget. Coming off the dock IS a reconnect, so the sync lands then.
-        if clock_sync_due(is_polar, (_CFG.get("time") or {}).get("auto_sync_devices", True),
+        if clock_sync_due(_clock_gate(name, addr, is_polar),
+                          (_CFG.get("time") or {}).get("auto_sync_devices", True),
                           STATUS["devices"].get(name, {}).get("charging"), first_attempt):
             await auto_sync_clock(name, addr, root)
         first_attempt = False
@@ -9842,6 +9894,23 @@ async def _gatt_record_table(client, addr) -> str:
         except BaseException:  # noqa: BLE001 - an unread hash is `None`, never a fabricated key
             db_hash = None
     outcome = gattmap.record(addr, db_hash, table, source="connect-snapshot")
+    if outcome:
+        # DERIVE THE CAPABILITY HERE, WHERE THE TABLE IS VALID — §1.3's branch reads it somewhere the
+        # table is NOT readable, and that mismatch is what dictates this split rather than a direct read.
+        # `gattmap`'s only hash-free accessor is `wait_hint()`, whose docstring forbids exactly that use
+        # ("never an assertion about correctness … must never reach a code path where being wrong is
+        # silent"), and skipping a clock sync on a stale hint IS a silent-wrong path: the clock stays
+        # uncorrected and nothing says so. So: WRITE where the hash is valid, READ where no hash is
+        # needed. That difference in validity requirements is also the real reason `devcaps` exists
+        # separately from `gattmap`, which residue 2026-09-16 asserted without giving one.
+        #
+        # Written on EVERY accepted outcome including "same", deliberately: "same" means the TABLE was
+        # already stored, not that the capability was. A device recorded before this landed has a table
+        # and no capability, and gating on ("new", "changed") would leave it unmeasured until its
+        # firmware changed. An unchanged table re-deriving an identical value is idempotent in `devcaps`
+        # and writes no log line, so the cost is nil. `""` is a REFUSAL and derives nothing — a capability
+        # from a table the map rejected would be a fact with no evidence behind it.
+        devcaps.record(addr, "psftp", PSFTP_MTU_CHAR in table, source="gatt-mtu-char")
     if outcome in ("", "same"):
         # "" = refused; "same" = byte-identical to what is stored, so nothing was written and there is
         # nothing to say. MEASURED 2026-09-17 on vigil (Wren): this fires on every connect, and an
