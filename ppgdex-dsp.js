@@ -5719,13 +5719,61 @@
            with zero spans. Errs low — a consumer can filter `n` upward but can never recover a span
            that was never emitted. */
         pinnedCoverage: (r.pinnedSpanSets || []).map(function (sp, ci) {
-          var lost = 0;
-          for (var k = 0; k < sp.spans.length; k++) lost += sp.spans[k].n;
+          /* ── §∅ SATURATION IS ITS OWN STATE (owner ruling 2026-09-18) ──────────────────────────
+             P5 ruled that a pinned span is an ABSENCE excluded like a gap. That ruling is now SCOPED
+             TO THE ZERO RAIL. A run at the TOP rail is a measurement AT ITS BOUND: the true value was
+             at-or-above the rail, which is strictly more than "not measured". Excluding it as absence
+             discards that; publishing it as data fabricates precision. So it is excluded exactly as
+             before AND labelled distinctly.
+
+             The detector has always known which rail — `pinnedSpans` stamps `end: 'lo' | 'hi'` per
+             span at its emit site — and this projection threw it away, pooling both into one
+             `samplesUnmeasured`. That is the §∅ shape one layer up, and the same one #2531 fixed for
+             absence while leaving it standing here: detected, reported, then collapsed at the point a
+             consumer would read it.
+
+             ⚠️ `samplesUnmeasured` IS KEPT AND STILL MEANS THE TOTAL. An existing consumer sees no
+             change, and the two new fields are additive. The name is now imprecise for the saturated
+             half — a saturated sample WAS measured — and it is deliberately NOT renamed, because
+             renaming a shipped field to improve a word breaks every reader of it.
+
+             🔴 THE LABEL IS DELIBERATELY INERT, AND THAT IS THE OWNER'S CALL, NOT AN OVERSIGHT.
+             Whether saturation should be excluded from a NARROWER set of statistics than absence was
+             put to the owner and DEFERRED (2026-09-18) until a controlled finger-off capture, so that
+             all three populations — floor, ceiling, and the non-rail run — are classified in ONE pass
+             rather than two. So `spansOmit` still excludes both rails identically to before, NOTHING
+             reads this label yet, and no computed statistic moves.
+
+             What the unit buys is that the decision becomes IMPLEMENTABLE. Today the exclusion set
+             cannot be narrowed for saturation at all: by the time `spansOmit` exists the rail is
+             already gone. After this, narrowing is a change at one site the moment the owner decides.
+
+             ⚠️ DO NOT "FINISH" THIS BY WIRING THE LABEL TO A DIFFERENT EXCLUSION. That is the deferred
+             decision, and taking it because the label now exists would be inferring an answer from the
+             shape of the enabling step.
+
+             NO THRESHOLD IS CHOSEN either: this re-labels what the shipped `PIN_MIN_RUN = 5` rail
+             detector already finds. The value-agnostic run-length rule needs a threshold, that
+             threshold is deferred to the same capture, and it is a separate unit. */
+          var lost = 0,
+            absent = 0,
+            saturated = 0;
+          for (var k = 0; k < sp.spans.length; k++) {
+            var sn = sp.spans[k].n;
+            lost += sn;
+            if (sp.spans[k].end === 'hi') saturated += sn;
+            else absent += sn;
+          }
           return {
             channel: ci,
             rail: sp.railLo != null || sp.railHi != null ? { lo: sp.railLo, hi: sp.railHi } : null,
             spans: sp.spans.length,
-            samplesUnmeasured: lost
+            samplesUnmeasured: lost,
+            /* ABSENT — pinned at the FLOOR. Nothing was measured; §∅'s original case. */
+            samplesAbsent: absent,
+            /* SATURATED — pinned at the CEILING. A measurement at its bound: the true value was
+               at-or-above `rail.hi`, so a consumer needing a lower bound has one. */
+            samplesSaturated: saturated
           };
         }),
         /* ── TIMING PROVENANCE (WEARABLE-HOST-AXIS-FOLLOWUPS §F1) — additive, contract-safe ──
