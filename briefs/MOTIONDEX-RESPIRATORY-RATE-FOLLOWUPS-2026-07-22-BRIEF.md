@@ -27,7 +27,7 @@ the window is already right — measured over 3 box nights, and REPLICATED on th
 nights, whose clock drifts the opposite way. The remaining ceiling — the 5 s drift-consistency gate —
 was then MEASURED and is LOAD-BEARING: loosening it buys 5.7x the epochs but costs MAE 0.84 -> ~1.0,
 so n here is a precision trade, not a cap that can be lifted.** **NOT done:** §2's proposed shared `nativeHz`
-spine helper — deliberately deferred, see §2a. §1 and §6–§9 are untouched.) · **Created:** 2026-07-22
+spine helper — deliberately deferred, see §2a. §1 and §6–§9 are untouched.) ⚠️ **DRAIN R2 2026-09-19 — 43 landings, surface 16 files.** Surface taken from the files this brief NAMES (`*-dsp.js`, `*-analysis.js`, `papers/acc-respiratory-rate.html`, `papers/papers.html`, `pat-gate.js`, `provenance-ledger.js`, `pulsedex-app.js`, `tools/build-docs.mjs`), globs resolved. ⚠️ A first pass derived the surface from the brief's SUBJECT instead — 2 files, 2 landings. **Landings recorded, NOT assessed.** · **Created:** 2026-07-22
 
 # Respiratory-rate follow-ups — what executing the estimator brief surfaced
 
