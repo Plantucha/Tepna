@@ -121,6 +121,18 @@ is the one that discriminates.**
       consumer outside `capture-host/mmeta.py`, so no such guard exists. The fix was a necessary
       precondition (a generation count that was silently 0 for every class method could not have
       supported a three-way split) and it is not the guard.
+      ✅ **AND THE BOX IS BUILDABLE TODAY — no new plumbing needed, which is the useful half.** Verified
+      by a RECURSIVE search (my first pass used a non-recursive `capture-host/*.py` glob, which is the
+      same narrow-pattern error as an anchored grep): the only references outside `mmeta.py` are a
+      COMMENT at `mutation_diff.py:617` and `tests/test_mmeta.py`. That comment names the route —
+      `mutmut results` walks `exit_code_by_key` itself, and the gate already parses its listing.
+      ⚠️ **Build it from the listing with that comment's warning in hand, not around it:** it records
+      that filtering the listing to `": survived"` produced TWO false verdicts, because
+      `status_by_exit_code` also emits `timeout · suspicious · skipped · no tests · not checked ·
+      caught by type check · check was interrupted`, and DEFAULTS to `suspicious` for any unseen exit
+      code — so a mutant that timed out under load vanished and the gate reported every mutant killed
+      about one no test ever saw. A zero-mutant guard that keys on status strings inherits exactly
+      that. Key on ENTRY PRESENCE under the glob prefix, which is what the box already says.
 - [ ] **`before` is stored `.slice(0, 120)`** — would corrupt a replay on a longer line. **0 of 165
       records reach the cap**, so it is theoretical; recorded so it is not rediscovered as a surprise.
 
