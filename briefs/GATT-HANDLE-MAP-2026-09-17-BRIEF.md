@@ -36,6 +36,23 @@ ORACLE instead (§2b③): the snapshot is usable when it matches the map for tha
 anything else refuses. The Database Hash is exactly the staleness signal this needs,
 and it is the mechanism BlueZ itself uses on the bonded path that has never failed here.
 
+⚠️ **THIS ORACLE IS NOT A POOR MAN'S PUSH — do not let a reader size it as one** (residue
+`2026-09-18-robust-caching-is-not-a-reachable-ceiling`, #2649). The AS11 does expose `0x2B29` CLIENT
+SUPPORTED FEATURES beside `0x2B2A`, so it is tempting to read a hash comparison as settling for the
+weaker half of Robust Caching while push was available. It is not, and the reason generalises past this
+device: **Service Changed and Database Out Of Sync fire when the server's DATABASE CHANGES.** §1's
+measured defect is not a change — nothing changed. bleak snapshotted the D-Bus tree **while it was
+still being populated**, so our *view* was incomplete on that connect. A change-notification, even
+settable and delivered perfectly, says nothing about that and leaves the race exactly where it was.
+
+So the oracle **is not a weaker substitute for push; it is an independent completeness check on a
+mirror we do not own** — a different job, and the only one available at this layer. Two supporting
+facts, both measured: no application-layer client here can set the bit at all (pinned bleak carries
+`0x2B29` only as a label in `uuids.py`, and its BlueZ backend never writes it), and with BlueZ's cache
+disabled by the `device_is_paired()` gate there is no cached table to invalidate, so the push half has
+nothing to act on. The remedy for the unbonded path was already found and is bonding
+(`2026-09-10-cpap-unbonded-reason-was-wrong`), not a client feature bit.
+
 **Mirror `devcaps.py`, do not invent a second shape.** It already solves the same problem one level
 over: a per-unit runtime fact, keyed by BLE address, persisted across restarts, write-through, and —
 the part that matters — **an unmeasured entry reads `null`, never a default**. A handle map with a
