@@ -100,11 +100,23 @@ def configure(path: str | None) -> None:
                     chars = rec.get("chars")
                     if not isinstance(chars, dict) or not chars:
                         continue          # an empty table on disk is the claim this module refuses
-                    _MAPS[_norm(a)] = {
+                    loaded_rec = {
                         "db_hash": _norm_hash(rec.get("db_hash")),
                         "chars": {_norm_uuid(u): h for u, h in chars.items()},
                         "source": str(rec.get("source") or "loaded"),
                     }
+                    # `recorded_at` RIDES THROUGH A RELOAD. This loader rebuilt each record from three
+                    # named keys, so the stamp `record()` writes was dropped on every restart, and the
+                    # next `_flush` for ANY unit wrote the stripped map back. Measured on vigil
+                    # 2026-09-19 00:22: the ring's first sighting flushed the map and the Verity's
+                    # 16:35 stamp became `None` — with its table byte-identical. The daemon restarts
+                    # on every deploy, so the stamp lived only until the next deploy plus one new
+                    # unit. A record written before the stamp existed has none, and stays that way:
+                    # an absent stamp is absent, never fabricated from the reload time (§∅).
+                    stamp = rec.get("recorded_at")
+                    if isinstance(stamp, int) and not isinstance(stamp, bool):
+                        loaded_rec["recorded_at"] = stamp
+                    _MAPS[_norm(a)] = loaded_rec
         except Exception:      # noqa: BLE001 - a corrupt record must not stop a night's capture
             _MAPS.clear()
 
