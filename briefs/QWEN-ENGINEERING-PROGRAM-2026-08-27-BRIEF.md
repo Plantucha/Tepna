@@ -319,6 +319,48 @@ instead of reading them, and was then relayed onward as established. **A cheap s
 the read it exists to trigger fails silently and upstream of every later check** — it decides what a
 human ever looks at. Adoption counts: batch 1 nine, batch 2 fifteen, **24 of 376**.
 
+### 7-ter.2 · MEASURED OVER THE WHOLE PILE 2026-09-19, and the guarantee is mostly UNCHECKABLE
+
+§7-ter reported 2 of 15 from a hand pass. `tools/verify-draft-kills.mjs` (new, this PR) now does it
+mechanically — plant the mutant into the real source, run the drafted call **as written**, compare the
+drafted projection — over all 376 drafts:
+
+    KILLED 68 · SURVIVED 6 · UNPLANTABLE 188 · UNPAIRED 114
+
+**Only 74 of 376 (20 %) can be checked at all**, and that is the larger finding. The pipeline records a
+mutant's identity as a **line number plus a 100-character truncation of the source line**, and a line
+number rots: **135** drafts point at a line that no longer carries the probed text, and **114** cannot
+be paired to a unique journal record. So for four fifths of the pile the headline guarantee is not
+false — it is **unfalsifiable**, which is worse, because nothing can ever red.
+
+🔴 **AND 5 OF THE 6 FAILURES ARE ONE DEFECT IN FIVE NODES, not scattered noise:**
+
+    CPAPCross · ECGCross · OXYCross · PPGCross · PulseCross
+      crossNight([])  ·  `n < 2` → `n <= 2`  ·  out.slopePerRecording  ·  both sides null
+
+Every crossnight module shares the same `if (n < 2) return {…}` early guard, so the probe proposed the
+same non-discriminating draft five times — with n = 0, `0 < 2` and `0 <= 2` are the same branch. A
+sixth is distinct: `HRVDex._bare.persistHRVRows("",null)` → `out.ok`, `bool || → &&`, both `true`.
+
+**WHY THE GUARD DID NOT CATCH THEM, which is the root cause and is NOT a bug in the guard.**
+`projectionDiscriminates` is correct: re-run today on `crossNight([])`'s real outputs it returns
+*"projection does NOT discriminate — both sides give null"*, on a file with **zero commits** since the
+probe. It is invoked on `(projection, c.orig, c.mutant)` recorded during PROBING, and never on the
+assertion that is rendered. **The artifact and the verified object are different things** — the same
+shape as `verifiedUnder` before §🔒 made export-inertness computed rather than asserted.
+
+**So the guarantee is worth providing and the code owes it** (the alternative — weakening the header to
+match — would be editing the assertion to fit the defect). The remedy is to verify the RENDERED draft,
+which is what this tool does; wiring it into `--draft` so a non-discriminating draft is never written
+is the remaining work, and is NOT done here.
+
+⚠️ **The tool fails CLOSED and its own limits are counted, not hidden.** UNPLANTABLE and UNPAIRED are
+reported separately and are neither passes nor failures. It checks that the probed line still carries
+the probed text before mutating — added after the known-answer test caught the tool reporting a **false
+SURVIVED** for `parseDeviceHR(0)`, where the stale line number landed the plant on a different,
+mutatable line. That is the defect the tool exists to find, committed by the tool, and caught only
+because it was run against a hand-measured answer first.
+
 ## 7 · Done when
 
 - [ ] Owner ratifies the priority map (or amends ranks in place).
