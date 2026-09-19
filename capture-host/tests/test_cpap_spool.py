@@ -228,6 +228,39 @@ def test_repolling_a_no_more_cursor_is_a_noop_not_a_leak(tmp_path):
     assert len(sp.read_ledger(root)) == 1            # deduped by (cursor, sha)
 
 
+def test_a_reserved_round_carrying_more_advances_instead_of_stalling(tmp_path):
+    """THE FIELD DEFECT: a NO_MORE row commits its OWN input as committed_cursor, so every later
+    pass re-asks that address. Once the spool grows the device re-serves those identical bytes AND
+    raises MORE with a new nextSpoolAddress. Firing the dedupe test first dropped that pointer and
+    parked a live box for 17 days, reporting "no-new-data" on 22 consecutive pulls."""
+    root = str(tmp_path)
+    tail = b"tail-round"
+    sync(root, scripted([(tail, False, None)]))  # pass 1: committed_cursor == T0 (its own input)
+    assert sp.last_committed_cursor(root) == T0
+    pull = scripted([(tail, True, T2), (b"grown", False, None)])
+    s2 = sync(root, pull)
+    assert [c[1] for c in pull.calls] == [T0, T2]  # it FOLLOWED the pointer, not stopped at T0
+    assert s2["rounds_committed"] == 1 and s2["stopped"] == "no-more-data"
+    assert sp.last_committed_cursor(root) == T2
+    rows = sp.read_ledger(root)
+    assert len(rows) == 2  # the re-served round added no second line
+    assert rows[1]["round"]["from"] == T2
+    assert len(committed_files(root)) == 2  # nor a second copy of its bytes
+
+
+def test_a_skip_leaves_the_committed_cursor_untouched_so_a_crash_mid_skip_only_reskips(tmp_path):
+    """The safety property that makes advancing on a re-serve sound: only the IN-LOOP cursor moves.
+    The committed cursor advances solely via append_ledger, so it never crosses a span that was not
+    actually retrieved — a pass that dies after skipping resumes from the unchanged ledger cursor."""
+    root = str(tmp_path)
+    tail = b"tail-round"
+    sync(root, scripted([(tail, False, None)]))
+    s2 = sync(root, scripted([(tail, True, T2), (TimeoutError("link lost"), None, None)]))
+    assert s2["stopped"] == "transport"
+    assert sp.last_committed_cursor(root) == T0  # NOT T2 — nothing was retrieved there
+    assert len(sp.read_ledger(root)) == 1 and len(committed_files(root)) == 1
+
+
 def test_new_data_at_the_same_cursor_commits_as_a_new_round(tmp_path):
     root = str(tmp_path)
     sync(root, scripted([(b"old-tail", False, None)]))
