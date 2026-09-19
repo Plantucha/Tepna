@@ -9027,7 +9027,11 @@ async def _cpap_spool_loop(*, at_hour, window_h, root, creds, connect_factory, e
             log.warning("CPAP spool pull failed: %s: %s", type(e).__name__, e)
             st(state="error", detail=f"{type(e).__name__}: {e}")
             continue
-        log.info("CPAP spool pull: %d round(s), cursor now %s%s",
+        # "in-pass cursor", NOT "cursor now": summary["cursor"] is the address the loop last ASKED
+        # for, and the restart authority is the ledger's committed_cursor, which only a committed
+        # round advances. Reading this field as persisted state is what made a 17-day spool stall
+        # look like 22 successful pulls (residue 2026-09-17-cpap-spool-cursor-advanced-past-uncommitted).
+        log.info("CPAP spool pull: %d round(s), in-pass cursor %s%s",
                  summary.get("rounds_committed", 0), summary.get("cursor"),
                  f", stopped={summary['stopped']}" if summary.get("stopped") else "")
         st(state="idle", detail=None, last_run=t.isoformat(timespec="seconds"))
