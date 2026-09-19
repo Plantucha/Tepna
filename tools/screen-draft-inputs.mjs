@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
 /* screen-draft-inputs.mjs — ADVISORY screen over drafted assertion INPUTS.
  *
  * WHY THIS EXISTS. Every other check on a draft inspects its VALUE: does the projection reproduce
