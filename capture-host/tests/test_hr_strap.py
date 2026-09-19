@@ -123,11 +123,22 @@ def test_bonding_is_gated_on_actually_needing_pmd():
     assert head.index("needs_pmd") < head.index("ensure_bonded"), "the gate must precede the bond"
 
 
-def test_the_clock_sync_is_gated_on_the_device_being_polar():
+def test_the_clock_sync_gate_keys_on_the_MEASURED_capability_not_the_vendor_label():
     """PS-FTP is Polar-specific. On a Coospo it fails on a missing characteristic — and costs an
-    18-second GLOBAL capture pause to discover that, on every task start."""
+    18-second GLOBAL capture pause to discover that, on every task start. So the gate must EXIST, and
+    that half of this test is unchanged.
+
+    What changed is WHAT IT KEYS ON. Since §1.3 (residue `2026-09-16-devcaps-has-no-branch-consumer`)
+    the gate reads the MEASURED capability — `is_polar` is a vendor string somebody typed into config,
+    `devcaps.get(addr, "psftp")` is what the unit was OBSERVED to expose. This assertion previously
+    pinned the vendor-string spelling verbatim, so it encoded the assumption the conversion removes.
+
+    It now pins the capability-keyed call AND asserts the bare vendor-string form has not come back, so
+    a revert reds here rather than passing quietly. The resolver's own behaviour — tri-state, both
+    directions, `None` never coerced — is covered in `test_gattmap.py` and mutation-verified there."""
     src = module_source("capture.py")
-    assert 'if is_polar and (_CFG.get("time") or {}).get("auto_sync_devices", True):' in src
+    assert 'if _clock_gate(name, addr, is_polar) and (_CFG.get("time") or {}).get("auto_sync_devices", True):' in src
+    assert 'if is_polar and (_CFG.get("time") or {}).get("auto_sync_devices", True):' not in src
 
 
 def test_pmd_stream_set_covers_every_pmd_stream_and_excludes_hr():
