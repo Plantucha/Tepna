@@ -3,7 +3,7 @@
 bump: minor
 type: added
 nodes: [capture-host]
-brief: PPG-ABSENCE-AS-VALUE-2026-09-06
+brief: PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md
 ---
 The constant-run sidecar names what a span IS — two measured kinds, `unknown` everywhere else
 (owner ruling D1, 2026-09-19).
