@@ -18517,6 +18517,147 @@
       T.eq('FlowLim.2s declares fs 0.5 Hz — its own ".2s" name is the period', String(set.PLD.signals['FlowLim.2s'].fs), '0.5');
     });
 
+    /* ADOPTED DRAFTS, BATCH 2 — `ecgdex-dsp.js` (8 of 8) and `ecgdex-cross.js` (7 of 9).
+       Both files verified DIVERGENT 0 in the suite realm (`run-tests.mjs --verify-drafts`), three
+       independent runs returning the same per-file split. Every PROPERTY line was read before
+       adoption, which is the step the draft header demands and the only one a machine cannot do.
+
+       🔴 TWO DRAFTS WERE REJECTED, and the reason generalises — it is not about these two.
+       `ecgdex-cross` drafts 5 and 6 both call `mannKendall("mannKendall([1,2,1])")`, passing a
+       21-character STRING where the function takes an array. It "works" only because `mannKendall`
+       reads `y.length` and then subtracts characters — `d` is NaN, so every comparison is false, S
+       stays 0, and tau/p come back 0 and 1. The drafting model fed its own prompt text in as the
+       argument. Adopting those would pin the accidental duck-typing of a string as an array, so a
+       future `Array.isArray` guard — a strict improvement — would red the suite. That is exactly the
+       "a projection can discriminate and still pin a bug in place" case the draft header warns about.
+       Draft 5's PROPERTY also alleges a defect outright ("the calculation is incorrect due to
+       improper handling of tied values"), which is on its own disqualifying.
+
+       ⚠️ My own earlier screen recorded `ecgdex-cross` as "0 of 9 alleging a defect". That screen was
+       wrong — it pattern-matched the property lines instead of reading them. Recorded because the
+       screen is the thing that decides what a human ever looks at.
+
+       🔴 KILL-VERIFIED, AND THE HEADER'S GUARANTEE DOES NOT HOLD FOR ALL OF THEM. Each adopted draft
+       had its mutant planted into the real source and re-run in this same realm: 13 of 15 KILL it.
+       TWO DO NOT, and both are non-discriminating by construction, not by luck — so no re-recording
+       or better projection would fix them:
+
+         · detectCVHR(0,0) vs `tEnd > CVHR_MAX_SPAN_S` → `>=`. The guard is
+           `!isFinite(tEnd) || tEnd > CVHR_MAX_SPAN_S`, and for this input tEnd is non-finite, so the
+           FIRST disjunct fires and the mutated one is never evaluated. Proven by disabling the first
+           disjunct alone: the guard then does not fire at all (reason `undefined`).
+         · crossNight([]) vs `n < 2` → `<=`. n is 0, and `0 < 2` and `0 <= 2` are both true. The two
+           programs take the identical branch; this is arithmetic, not a measurement.
+
+       The drafts header asserts "every PROJECTION below was machine-verified to discriminate the real
+       code from its mutant". For these two that is FALSE, so the guarantee is not one adoption can
+       lean on — a kill check belongs in the adoption bar, not just a realm check. Both assertions are
+       KEPT because they pin genuine §∅ behaviour on their own merit, and both are labelled
+       VALUE-PINNED ONLY below so nothing downstream reads them as mutation-backed.
+
+       ⚠️ Method note, because it nearly produced a wrong finding here: `accExtras` first reported as
+       SURVIVED. The plant had matched `deviceACC.length < fs * 30`, which occurs FOUR times, and a
+       first-occurrence replace mutated a different function 2000 lines away. Confirming the pattern
+       was FOUND is not confirming it was found in the RIGHT PLACE; re-planted by line number it
+       kills. Residue: 2026-09-18-draft-discriminates-claim-false. */
+    group('ECGDex DSP — absence comes back as an empty or nulled shape, never fabricated (adopted drafts, batch 2)', 'ecgdex-dsp · adopted-drafts · mutation-pinned', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      var need = ['accExtras', 'detectPeaksB', 'detectCVHR', 'parseDeviceHR', 'parseDeviceRR', 'planCompanionGraft'];
+      var missing = E
+        ? need.filter(function (k) {
+            return typeof E[k] !== 'function';
+          })
+        : need;
+      /* ANTI-VACUITY: every assertion below reads a projection off a call. If the surface is absent
+         the calls throw and the group reports nothing rather than passing on an empty subject. */
+      T.ok('ANTI-VACUITY · the six drafted entry points are on the bare surface', missing.length === 0, missing.join(',') || 'all present');
+      if (missing.length) return;
+
+      /* §∅ — an empty ACC stream yields a populated shape with empty arrays and explicit nulls,
+         NOT a bare null. A null here would force every caller into its own absent-branch. */
+      T.eq(
+        'accExtras([],[]) returns the full shape with empty arrays and explicit nulls, not null',
+        JSON.stringify(E.accExtras([], [])),
+        '{"rracc":[],"rraccSummary":null,"agreement":null,"consensus":null,"gait":{"totalSteps":0,"walking":false,"reason":"lowfs","accFs":[],"bouts":[],"cadEpochs":[],"zonePct":[]},"off":0,"accFs":[],"motionByTMin":null,"movementOnsets":[],"durMin":null}'
+      );
+
+      /* The drafted projection is `out[0]`; the PROPERTY claims "an empty array". Those differ —
+         `[undefined]` satisfies the first and not the second — so both are asserted. */
+      var pkA = E.detectPeaksB([1, 2, 3]);
+      T.eq('detectPeaksB([1,2,3]) — no sample clears the threshold, so index 0 is absent', JSON.stringify(pkA[0]), '@undef');
+      T.eq('detectPeaksB([1,2,3]) — and the array is genuinely EMPTY, not [undefined]', String(pkA.length), '0');
+      var pkB = E.detectPeaksB([1, 2, 3], null);
+      T.eq('detectPeaksB([1,2,3],null) — an explicit null second arg takes the same path', JSON.stringify(pkB[0]), '@undef');
+      T.eq('detectPeaksB([1,2,3],null) — and that array is empty too', String(pkB.length), '0');
+
+      /* Pins the SPELLING of the reason string, which no other assertion does: a typo here is
+         invisible to every consumer that only tests truthiness of `reason`. */
+      /* VALUE-PINNED ONLY — see the kill-verification note above: this input cannot discriminate the
+         mutant it was drafted from. Kept for the spelling pin, which nothing else covers. */
+      T.eq('detectCVHR(0,0) refuses an implausible span and spells the reason correctly [VALUE-PINNED ONLY]', JSON.stringify(E.detectCVHR(0, 0).reason), '"implausible-span"');
+
+      T.eq('parseDeviceHR(0) — nothing parseable yields a length-0 array, not a fabricated sample', String(E.parseDeviceHR(0).length), '0');
+      T.eq('parseDeviceRR(0) — nothing parseable yields a length-0 array, not a fabricated sample', String(E.parseDeviceRR(0).length), '0');
+
+      /* §∅ at the key level: `remaining` carries the keys EXPLICITLY as null. An absent key and a
+         null key read the same through `?.`, and differ the moment anything enumerates. */
+      var graft = E.planCompanionGraft(null);
+      T.eq('planCompanionGraft(null).remaining.deviceHR is present and null, not absent', JSON.stringify(graft.remaining.deviceHR), 'null');
+      T.eq('planCompanionGraft(null).remaining.deviceACC is present and null, not absent', JSON.stringify(graft.remaining.deviceACC), 'null');
+      T.ok(
+        'planCompanionGraft(null).remaining OWNS both keys — absence would be indistinguishable through ?.',
+        Object.prototype.hasOwnProperty.call(graft.remaining, 'deviceHR') && Object.prototype.hasOwnProperty.call(graft.remaining, 'deviceACC'),
+        Object.keys(graft.remaining).join(',')
+      );
+    });
+
+    group('ECGDex crossnight — trend and bootstrap statistics refuse under-powered input (adopted drafts, batch 2)', 'ecgdex-cross · adopted-drafts · mutation-pinned', function (T) {
+      var C = env.ECGCross;
+      var need = ['crossNight', 'mannKendall', 'ols', 'bootstrapDeltaCI'];
+      var missing = C
+        ? need.filter(function (k) {
+            return typeof C[k] !== 'function';
+          })
+        : need;
+      T.ok('ANTI-VACUITY · the four drafted entry points are on the bare surface', missing.length === 0, missing.join(',') || 'all present');
+      if (missing.length) return;
+
+      /* VALUE-PINNED ONLY — n is 0, so `n < 2` and `n <= 2` agree; see the note above. */
+      T.eq('crossNight([]) — no points, so slopePerRecording is null rather than 0 [VALUE-PINNED ONLY]', JSON.stringify(C.crossNight([]).slopePerRecording), 'null');
+      /* §∅ — a null-valued point is EXCLUDED from n, not counted as a zero. */
+      T.eq('crossNight([{v:null}]) — a null value is excluded from n, never counted as 0', JSON.stringify(C.crossNight([{ v: null, t: 1609459200000 }], null).n), '0');
+
+      T.eq('mannKendall([1,2,3]) — a strictly increasing run is tau 1', JSON.stringify(C.mannKendall([1, 2, 3]).tau), '1');
+
+      /* r2 is checked against the closed form as well as the recorded value, so the assertion does
+         not rest on "the code currently returns this". For x=[1,2,1], y=[3,4,1]:
+         Sxy=4/3, Sxx=2/3, Syy=14/3 → Sxy^2/(Sxx*Syy) = (16/9)/(28/9) = 4/7 = 0.571428…  */
+      var r2out = C.ols([1, 2, 1], [3, 4, 1]);
+      T.eq('ols([1,2,1],[3,4,1]).r2 is 4/7 — the mutant collapses it to 1', JSON.stringify(r2out.r2), '0.5714285714285714');
+      T.ok('…and that value equals the independently-derived closed form 4/7', Math.abs(r2out.r2 - 4 / 7) < 1e-12, String(r2out.r2));
+
+      T.eq('ols([1,2],[3,4],w) — two points give slope 1 with weights supplied', JSON.stringify(C.ols([1, 2], [3, 4], [5, 6]).slope), '1');
+
+      /* bootstrapDeltaCI is deterministic BY CONSTRUCTION, not by luck: it seeds a local LCG at
+         12345 (`ecgdex-cross.js`, the `seed = 12345` / Math.imul line). Pinning a CI bound would be
+         illegitimate against Math.random; against a fixed seed it is a known answer. */
+      T.eq(
+        'bootstrapDeltaCI(1..20, null).ci[0] — fixed-seed LCG, so the bound is a known answer',
+        JSON.stringify(C.bootstrapDeltaCI([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], null).ci[0]),
+        '7.3'
+      );
+      T.eq(
+        'bootstrapDeltaCI(1..30).ci[0] — same seed, larger sample, still reproducible',
+        JSON.stringify(C.bootstrapDeltaCI([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]).ci[0]),
+        '11.86'
+      );
+      T.ok(
+        '…and it reproduces on a second call in the same realm (the seed is re-initialised per call)',
+        C.bootstrapDeltaCI([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20], null).ci[0] === 7.3,
+        'stable'
+      );
+    });
+
     group('CPAPDex STR.edf daily summary — device mode/RERA/CSR/prescription, refuses to fabricate', 'cpapdex-dsp · cpapdex-registry · str-summary', function (T) {
       var C = env.CpapDsp;
       if (!C || typeof C.parseStrSummary !== 'function') {
