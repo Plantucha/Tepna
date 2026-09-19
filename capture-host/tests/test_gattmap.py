@@ -140,6 +140,44 @@ def test_the_map_survives_a_restart(tmp_path):
     assert gattmap.missing(ADDR, H, list(TABLE)) == []
 
 
+def test_recorded_at_SURVIVES_a_restart_and_a_later_flush_for_another_unit(tmp_path):
+    """MEASURED on vigil 2026-09-19 00:22: the loader rebuilt each record from three named keys and
+    dropped `recorded_at`; the ring's first sighting then flushed the whole map and the Verity's
+    16:35 stamp read `None` with its table unchanged. The daemon restarts on every deploy, so the
+    stamp #2611 added lived only until the next deploy plus one new unit. The sequence here is the
+    one that lost it — restart, then a `new` for a DIFFERENT address — not a restart alone, which
+    never flushes."""
+    p = tmp_path / "gattmap.json"
+    gattmap.configure(str(p))
+    gattmap.record(ADDR, H, TABLE, source="probe", now=1000)
+    gattmap.reset()
+    gattmap.configure(str(p))                                   # the deploy restart
+    gattmap.record("00:11:22:33:44:55", None, {"2a00": 2}, source="probe", now=2000)   # new unit → flush
+    raw = json.loads(p.read_text(encoding="utf-8"))
+    assert raw[ADDR]["recorded_at"] == 1000
+    assert raw["00:11:22:33:44:55"]["recorded_at"] == 2000
+
+
+def test_a_record_written_before_the_stamp_existed_reloads_WITHOUT_one(tmp_path):
+    """∅: a pre-#2611 record carries no stamp, and a reload must not invent one from its own clock —
+    a bool or a string in that slot is equally not a time and is dropped rather than coerced."""
+    p = tmp_path / "gattmap.json"
+    p.write_text(json.dumps({
+        ADDR: {"db_hash": None, "chars": TABLE, "source": "connect-snapshot"},
+        "00:11:22:33:44:55": {"db_hash": None, "chars": TABLE, "source": "x", "recorded_at": True},
+        "00:11:22:33:44:66": {"db_hash": None, "chars": TABLE, "source": "x", "recorded_at": "1000"},
+    }), encoding="utf-8")
+    gattmap.configure(str(p))
+    # `snapshot()` does not carry the stamp, so the only witness is the file after a real flush:
+    # a new unit rewrites the whole map, and the three loaded records must come back stamp-less.
+    gattmap.record("00:11:22:33:44:77", None, {"2a00": 2}, source="probe", now=3000)
+    raw = json.loads(p.read_text(encoding="utf-8"))
+    assert "recorded_at" not in raw[ADDR]
+    assert "recorded_at" not in raw["00:11:22:33:44:55"]
+    assert "recorded_at" not in raw["00:11:22:33:44:66"]
+    assert raw["00:11:22:33:44:77"]["recorded_at"] == 3000
+
+
 def test_configure_with_no_path_or_missing_file_is_a_clean_empty_map(tmp_path):
     gattmap.configure(None)
     assert gattmap.expected(ADDR, H) is None
