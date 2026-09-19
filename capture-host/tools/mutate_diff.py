@@ -75,7 +75,7 @@ VENV_PY = HERE / ".venv" / "bin" / "python"
 sys.path.insert(0, str(HERE))
 from mutation_diff import (  # noqa: E402
     EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, classify, diff_key,
-    source_function_of_glob, undecided_by_function, unmutatable_decorator,
+    in_glob_scope, source_function_of_glob, undecided_by_function, unmutatable_decorator,
     functions_covering, refusal_reason, selftest, split_results, string_only_verdict,
 )
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -248,6 +248,7 @@ def main(argv=None) -> int:
     # NOT the same thing, and conflating them is the defect: a property generates no mutants because
     # THIS TOOL CANNOT MUTATE ONE, so it was never examined. Counted apart so the summary can say so.
     _unexaminable: list = []
+    _out_of_scope: int = 0   # undecided mutants belonging to functions the diff never touched
     verdict: dict = {"base": a.base, "modules": {}, "survivors": []}
     for module, lines in sorted(changed.items()):
         _msrc = _read_source(HERE / module)   # read ONCE per module; the loop below reuses it
@@ -380,7 +381,16 @@ def main(argv=None) -> int:
             # `split_results` inverts that: survivors are blocking, everything else is UNDECIDED, and
             # UNDECIDED is never killed and never refutes an equivalence entry.
             _split = split_results(r.get("results") or "")
+            # 🔴 SCOPE THE HARVEST TO THE GLOB THAT WAS ACTUALLY RUN. `mutmut results` takes no glob
+            # and enumerates the WHOLE workspace, so without this every mutant generated for a
+            # function the diff never touched came back `not checked` and BLOCKED the run. Measured
+            # over four refusals: 553/338/166/116 undecided, 100% `not checked` and 0% `timeout` —
+            # never run, so nothing could time out. Counted, never silently dropped: a filter that
+            # does not publish what it removed is the shape this gate exists to refuse.
             for _nm, _status in _split[UNDECIDED]:
+                if not in_glob_scope(_nm, g):
+                    _out_of_scope += 1
+                    continue
                 undecided.append({"mutant": _nm, "module": module, "status": _status})
             for name in _split[SURVIVED]:
                 show = subprocess.run([str(VENV_PY), "-m", "mutmut", "show", name],
@@ -532,6 +542,15 @@ def main(argv=None) -> int:
     # killed" is not a claim this run is entitled to make. Reported as its own class rather than
     # folded into survivors: a survivor means "a test COULD see this and none does", an undecided
     # means "nobody knows", and they want different responses.
+    # REPORTED UNCONDITIONALLY, AND THAT PLACEMENT IS THE POINT. Inside the undecided branch this
+    # line
+    # would go silent in the one case that matters most — every undecided mutant out of scope, so the
+    # run PASSES and nobody is told a filter ran at all. A filter that publishes its count only when
+    # something survives it is not publishing a denominator.
+    if _out_of_scope:
+        print(f"\n  note: {_out_of_scope} undecided mutant(s) excluded as OUT OF SCOPE — `mutmut "
+              "results` takes no glob and lists the whole workspace, including functions this diff\n"
+              "  never touched. They were never run, so they are not evidence either way.")
     if undecided:
         by_status: dict[str, list[dict]] = {}
         for u in undecided:
@@ -560,10 +579,24 @@ def main(argv=None) -> int:
         # shape this whole refusal exists to prevent, arrived at through the tool's own advice.
         # And it does not even fit the evidence: the three refusals above ran 145 min, 2m53s and ~1 min,
         # so a bound is not what separates them.
+        # ⚠️ THE REMEDY IS CONDITIONED ON THE STATUSES ACTUALLY PRESENT, and it used to be
+        # unconditional. "Re-run under less load" is LOAD advice, and it was printed on refusals that
+        # were 100% `not checked` and 0% `timeout` — measured over four runs (553/338/166/116). Load
+        # was never the variable there, and this is the first line anyone reads and acts on, so the
+        # gate refused honestly and then misdirected the fix. `by_status` is three lines above; not
+        # consulting it was the same defect as a diagnostic that names a cause the code did not check.
+        _load_shaped = sorted({"timeout", "suspicious"} & set(by_status))
         print("\n  An UNDECIDED mutant was never seen by a test — it is UNMEASURED, not killed, and no\n"
-              "  bound can turn one into the other. Re-run under less load. If the same functions keep\n"
-              "  appearing above, the cause is in those mutants; if it moves around, look at the runner.\n"
-              "  Do NOT raise `timeout_multiplier` to clear this: it would report a pass for mutants\n"
+              "  bound can turn one into the other.")
+        if _load_shaped:
+            print(f"  {', '.join(_load_shaped)} present ⇒ load or the runner is in play. Re-run under less\n"
+                  "  load. If the same functions keep appearing above, the cause is in those mutants;\n"
+                  "  if it moves around, look at the runner.")
+        else:
+            print(f"  No load-shaped status here ({', '.join(sorted(by_status))} only) — re-running under\n"
+                  "  less load will NOT change this. These mutants were never executed at all, so look at\n"
+                  "  what selected them, not at how long they were given.")
+        print("  Do NOT raise `timeout_multiplier` to clear this: it would report a pass for mutants\n"
               "  nobody measured, which is precisely what this refusal is here to stop.")
         if not a.report_only:
             return 2

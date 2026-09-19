@@ -582,3 +582,54 @@ def test_the_two_name_helpers_answer_DIFFERENT_questions():
     name an AST lookup matches on. One helper serving both would hand the wrong string to one caller."""
     assert M.function_of_mutant("xǁGapCountersǁtotal_lost__mutmut_3") == "GapCounters.total_lost"
     assert M.source_function_of_glob("m.xǁGapCountersǁtotal_lost__mutmut_*") == "total_lost"
+
+
+# ── in_glob_scope — the harvest must be scoped to the glob that was RUN ──────────────────────────
+# The gate runs one `--only '<mod>.x_<func>__mutmut_*'` per CHANGED function but harvested UNDECIDED
+# from `mutmut results`, which takes no glob. Every mutant of an untouched function came back
+# `not checked` and blocked the run: 553/338/166/116 across four refusals, 100% `not checked`,
+# 0% `timeout`. These pin the predicate that scopes it.
+def test_in_glob_scope_accepts_a_mutant_the_glob_selects():
+    assert M.in_glob_scope("link_rssi.x_resolve_hci__mutmut_7", "link_rssi.x_resolve_hci__mutmut_*")
+
+
+def test_in_glob_scope_rejects_a_sibling_function_in_the_same_module():
+    """The real #2651 case: the diff touched `resolve_hci`, `parse_rssi` was never run."""
+    assert not M.in_glob_scope("link_rssi.x_parse_rssi__mutmut_1", "link_rssi.x_resolve_hci__mutmut_*")
+
+
+def test_in_glob_scope_rejects_the_same_function_in_a_different_module():
+    assert not M.in_glob_scope("other.x_resolve_hci__mutmut_1", "link_rssi.x_resolve_hci__mutmut_*")
+
+
+def test_in_glob_scope_is_case_sensitive():
+    """`fnmatchcase`, deliberately: a case-folding match would let a differently-cased generated
+    identifier answer for one the gate never ran."""
+    assert not M.in_glob_scope("link_rssi.x_Resolve_hci__mutmut_1", "link_rssi.x_resolve_hci__mutmut_*")
+
+
+def test_in_glob_scope_does_not_match_a_longer_function_name_by_prefix():
+    """`x_resolve_hci_extra` must not be selected by `x_resolve_hci__mutmut_*`."""
+    assert not M.in_glob_scope("link_rssi.x_resolve_hci_extra__mutmut_1", "link_rssi.x_resolve_hci__mutmut_*")
+
+
+def test_in_glob_scope_coerces_non_string_inputs_rather_than_raising():
+    assert not M.in_glob_scope(None, "link_rssi.x_a__mutmut_*")
+
+
+def test_in_glob_scope_cannot_see_status_by_construction():
+    """🔴 THE DISTINGUISHING CASE: an IN-SCOPE mutant that is `not checked` must still BLOCK.
+
+    Filtering the undecided set by STATUS instead of by SCOPE converts a refusal into a pass for
+    mutants nobody measured — the same fabrication `Do NOT raise timeout_multiplier` exists to
+    prevent, through a different door, and indistinguishable from the correct fix in the output.
+    This pins it structurally rather than by example: the predicate takes (mutant, glob) and has no
+    status parameter, so keying on status is impossible without changing the signature — which this
+    test would then fail. After the scoping fix the in-scope-and-unchecked case becomes rare, so it
+    is exactly the case that would otherwise rot untested.
+    """
+    import inspect
+
+    assert list(inspect.signature(M.in_glob_scope).parameters) == ["mutant", "glob"]
+    # and an in-scope mutant is selected regardless of any status it might carry
+    assert M.in_glob_scope("link_rssi.x_resolve_hci__mutmut_1", "link_rssi.x_resolve_hci__mutmut_*")

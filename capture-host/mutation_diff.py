@@ -36,6 +36,7 @@ next reader does not treat a screen as a verdict.
 from __future__ import annotations
 
 import ast
+import fnmatch
 import re
 
 __all__ = ["EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key",
@@ -709,6 +710,27 @@ def undecided_by_function(items: list[dict]) -> list[tuple[str, int]]:
         fn = function_of_mutant(str(it.get("mutant", ""))) or "?"
         counts[fn] = counts.get(fn, 0) + 1
     return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+
+
+def in_glob_scope(mutant: str, glob: str) -> bool:
+    """True when `mutant` is one of the mutants `glob` selects.
+
+    WHY THIS EXISTS. The gate scopes what it RUNS to the functions the diff touched — one
+    `--only '<module>.x_<func>__mutmut_*'` per changed function (`mutate_diff.py`, `functions_covering`
+    over the changed lines). It then harvested UNDECIDED from `mutmut results`, which takes **no glob**
+    (`tools/mutate.py`) and enumerates the WHOLE workspace. So every mutant generated for a function
+    the diff never touched came back `not checked` and BLOCKED the run.
+
+    Measured 2026-09-19 across four refusals: 553, 338, 166 and 116 undecided, **100 % `not checked`
+    and 0 % `timeout`** — they were never run, so nothing could time out. On #2651 the changed hunks
+    were in `dbus_hci`/`resolve_hci` and the undecided set contained `parse_rssi`, which appears in
+    zero changed hunks. The counts track MODULE size, not diff size, which is why a one-import PR
+    produced 166 and why "re-run under less load" could never help: load was never the variable.
+
+    Deliberately `fnmatchcase`: mutant names are generated identifiers, and a case-insensitive match
+    would let `x_Parse__mutmut_1` answer for `x_parse__mutmut_*` on a case-preserving filesystem.
+    """
+    return fnmatch.fnmatchcase(str(mutant), str(glob))
 
 
 def split_results(results_text: str):

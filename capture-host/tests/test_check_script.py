@@ -17,6 +17,7 @@ The real gates take ~11 minutes, so they are stubbed on PATH. That is the point 
 shortcut: what is being tested is check.sh's own control flow, not pytest's.
 """
 
+import pathlib
 import re
 import os
 import shutil
@@ -255,3 +256,120 @@ def test_THE_ADVISORY_STILL_DOES_NOT_FAIL_THE_RUN(tmp_path):
     env, _log = _sandbox(tmp_path, mypy_found=999)
     p = subprocess.run([CHECK], env=env, capture_output=True, text=True, timeout=120)
     assert p.returncode == 0, "a risen mypy count must report, not fail the gate"
+
+
+# ── THE VERDICT IS A STATUS, NOT AN ADJECTIVE ───────────────────────────────────────────────────────
+# A reader keying on the prose has NO correct option, measured 2026-09-19. Anchored to the sentence
+# (`^\s*mypy: .*RISEN`) it breaks on any reflow that keeps the word but moves it — a false GREEN.
+# Loosened to `grep -c RISEN` it matches `test_A_RISEN_COUNT_IS_NAMED_AS_RISEN`, which pytest prints in
+# its short summary whenever that test FAILS — so the test about the token, failing, reports as the
+# condition the token names. A false ALARM, self-referentially.
+
+
+def _state_of(out, leg):
+    """Read a leg's state off the machine-readable line, the way a downstream reader should."""
+    m = re.search(r"^\s*advisory-state: (.+)$", out, re.M)
+    assert m, f"no advisory-state line in output:\n{out[-800:]}"
+    return dict(kv.split("=", 1) for kv in m.group(1).split())[leg]
+
+
+def test_the_mypy_VERDICT_is_emitted_as_a_status_in_every_direction(tmp_path):
+    """Both directions and the improvement, because a status that only appears when alarmed is the
+    prose problem again: a reader cannot distinguish "not risen" from "the line moved"."""
+    base = _baseline()
+    # a fresh dir per run: `_sandbox` mkdirs `bin/`, so three runs cannot share one tmp_path
+    for delta, want in ((+1, "RISEN"), (0, "AT_BASELINE"), (-1, "BELOW")):
+        d = tmp_path / f"run{delta}"
+        d.mkdir()
+        assert _state_of(_mypy_run(d, base + delta), "mypy") == want
+
+
+def test_the_at_baseline_state_does_NOT_contain_the_word_RISEN(tmp_path):
+    """The collision this token had to dodge. `test_A_COUNT_AT_THE_BASELINE_SAYS_SO_WITHOUT_ALARM`
+    asserts "RISEN" is absent from the WHOLE run, so a token like `NOT_RISEN` would have reded it —
+    the negative assertion is the valuable half of that test and the status must not collide with it."""
+    out = _mypy_run(tmp_path, _baseline())
+    assert "RISEN" not in out
+
+
+def test_the_status_token_is_UNFORGEABLE_BY_A_TEST_NAME(tmp_path):
+    """Why `key=value` rather than a bare word, and it is structural rather than stylistic: `=` cannot
+    occur in a Python identifier, so `mypy=RISEN` cannot appear in a test name however that test is
+    worded. The false-alarm mode above is excluded by construction, not by care."""
+    import keyword
+
+    assert not any(c == "=" for c in "mypy_RISEN")  # an identifier can carry the WORD...
+    assert "=" in "mypy=RISEN"  # ...but never the TOKEN
+    assert not keyword.iskeyword("mypy")  # (sanity: the leg name is a plain name)
+    out = _mypy_run(tmp_path, _baseline())
+    assert "mypy=RISEN" not in out, "a non-risen run must not carry the risen token anywhere"
+
+
+def test_EVERY_advisory_leg_gets_a_state_not_just_mypy(tmp_path):
+    """The sibling requirement, at the level the sandbox can actually reach: both legs are named and
+    neither falls through. In this harness `format` takes its EMPTY_SCOPE branch — which is itself one
+    of the two MANUALLY-appended legs, so this also pins that they append a state and cannot desynchronise
+    the parallel arrays."""
+    m = re.search(r"^\s*advisory-state: (.+)$", _mypy_run(tmp_path, _baseline()), re.M)
+    states = dict(kv.split("=", 1) for kv in m.group(1).split())
+    assert set(states) == {"mypy", "format"}, f"a leg is missing a state: {states}"
+    assert states["format"] == "EMPTY_SCOPE"
+    assert "UNSPECIFIED" not in states.values(), f"a leg fell through to UNSPECIFIED: {states}"
+
+
+def _run_advisory_state(rc, leg_body=""):
+    """Exercise `run_advisory`'s DEFAULT directly, because the sandbox cannot: `format` reaches its
+    EMPTY_SCOPE branch there and never calls the function, so a test that only inspects the sandbox's
+    state line is VACUOUS for the rc-derived default — proven by mutation, it survived removal of the
+    default entirely.
+
+    The leg is a shell FUNCTION, and that is the mechanism rather than a convenience: `run_advisory`
+    clears `ADVISORY_STATE` on entry, so only a callee running in the SAME shell can set it. That is
+    exactly why `mypy_advisory` is a function while the `format` leg is `"$PY" -m ruff ...` — an external
+    process cannot reach the variable, so it takes the rc-derived default. My first harness set the
+    variable before the call and it was wiped: the failure caught my model of the seam, not the seam."""
+    src = pathlib.Path(CHECK).read_text()
+    body = src[src.index("run_advisory() {") :]
+    body = body[: body.index("\n}\n") + 3]
+    script = (
+        "adv_names=(); adv_codes=(); adv_notes=(); adv_states=()\n"
+        + body
+        + f"leg() {{ {leg_body}return {rc}; }}\n"
+        + "run_advisory lbl note leg >/dev/null 2>&1\n"
+        + 'printf "%s" "${adv_states[0]}"\n'
+    )
+    return subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30).stdout.strip()
+
+
+def test_a_leg_that_sets_no_state_still_gets_one_from_its_exit_code():
+    """So a future advisory is covered without knowing the seam exists. `ADVISORY_STATE` is the override,
+    exactly as `ADVISORY_NOTE` already is; absent it, the exit code decides."""
+    assert _run_advisory_state(0) == "OK"
+    assert _run_advisory_state(3) == "ISSUES"
+
+
+def test_a_leg_that_KNOWS_its_direction_overrides_the_exit_code():
+    """mypy's whole point: its exit code is 1 in BOTH the risen and the at-baseline case, so the derived
+    default would be `ISSUES` either way and carry no direction at all. The override is what lets a leg
+    that reports a DIRECTION say which one, rather than only pass/fail."""
+    assert _run_advisory_state(1, "ADVISORY_STATE=AT_BASELINE; ") == "AT_BASELINE"
+    assert _run_advisory_state(1, "ADVISORY_STATE=RISEN; ") == "RISEN"
+
+
+def test_the_PROSE_ANCHOR_a_downstream_reader_keys_on_is_byte_STABLE(tmp_path):
+    """⚠️ THE HAZARD THIS UNIT COULD HAVE INTRODUCED, pinned so it cannot.
+
+    A peer's handoff predicate is `^\\s*mypy: .*RISEN` — anchored to the sentence's exact prefix and
+    leading whitespace. Folding a status INTO that line, or reflowing it to make room for one, would
+    have kept the word, passed `test_A_RISEN_COUNT_IS_NAMED_AS_RISEN` (which only needs it SOMEWHERE),
+    and silently returned 0 for that reader: a false GREEN, introduced by the fix for the very problem.
+
+    So the status went on its own line and this asserts the old anchor still resolves. Both directions —
+    a predicate verified only on the alarmed case proves it fires, not that it discriminates."""
+    base = _baseline()
+    anchor = r"^\s*mypy: .*RISEN"
+    for sub, count, delta in (("risen", 1, +1), ("clean", 0, 0)):
+        d = tmp_path / sub
+        d.mkdir()
+        out = _mypy_run(d, base + delta)
+        assert len(re.findall(anchor, out, re.M)) == count, f"{sub}: the anchor moved"
