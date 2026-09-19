@@ -295,6 +295,23 @@ is what everything else is for.
 argument whose text appears in the prompt, or whose type contradicts the parameter's use, is
 disqualifying regardless of how well the assertion verifies.
 
+✅ **That rail now EXISTS as an advisory screen — `tools/screen-draft-inputs.mjs`, shipped with this
+section.** It flags candidates for a human read and does not decide (exit 0 even when flagging;
+`--strict` is opt-in), because a screen that decides is a second oracle with the same failure modes —
+and the screen that failed tonight is the cautionary case. **On the real pile it flags 17 of 376
+(4.5 %), and the prompt-text defect is in THREE nodes, not one:**
+
+    SELF-REFERENTIAL   ECGCross.mannKendall("mannKendall([1,2,1])")
+    SELF-REFERENTIAL   PulseCross.mannKendall("mannKendall([1,1,1])")
+    SELF-REFERENTIAL   CpapEdf.sampleTMs("sampleTMs",1000,5,2,44100)
+
+Two of those three are in files nobody has read, and would have been adopted blind in a later batch.
+The other 14 flags are TYPE-DISAGREEMENT — a string at an argument position the same callee is drafted
+with an array or number elsewhere, so one of the two drafts is wrong and both are worth reading. The
+tool's false-negative surface is stated in its header AND asserted in its selftest (a singly-drafted
+plain-string argument is pinned as a documented NON-flag), so the caveat cannot rot into a claim the
+code does not honour.
+
 ⚠️ **And the screen that was supposed to catch this did not.** My own earlier pass recorded
 `ecgdex-cross` as "0 of 9 alleging a defect"; draft 5's property alleges one outright (*"the calculation
 is incorrect due to improper handling of tied values"*). The screen pattern-matched the property lines
