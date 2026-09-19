@@ -16665,6 +16665,124 @@
       T.ok('a SATURATED span is NOT counted as ABSENT', !!(c0 && c0.samplesSaturated > 0 && c0.samplesAbsent > 0 && c0.samplesSaturated !== c0.samplesUnmeasured));
     });
 
+    /* ── §∅ THE ECG RAIL IS A PER-FILE QUANTITY, NOT A CONSTANT ───────────────────────────────────
+       `computeSQI`'s rail leg keyed on `|int16| > 31000` and fired on **0 of 112** real saturation
+       runs across 597 deduplicated files, because the H10 saturates at ~18,100-19,500 at a rail that
+       differs PER FILE (29 distinct values / 62 files). A global constant is the wrong SHAPE, not
+       merely the wrong number. Rewired to `nightqc.rail_value`'s rule — the histogram spike nearest
+       the edge, not the edge — the leg finds rail samples in **62 of 62** of those files.
+
+       ⚠️ WHAT THIS DOES NOT REACH, asserted nowhere below because it is untouched: the leg is still
+       PEAK-CONDITIONAL, examining only ±130 ms around a DETECTED peak, and saturation is what
+       suppresses detection (55 runs examined, 57 not). Repairing the constant does not repair the
+       coverage hole. */
+    group('ECGDex §∅ — the rail is a PER-FILE quantity, and an unqualified rail is ABSENT not clean', 'ecgdex-dsp · absence-as-value · rail', function (T) {
+      var E = env.ECGDSP;
+      if (!E || typeof E.ecgRails !== 'function') {
+        T.skip('ECGDSP.ecgRails unavailable');
+        return;
+      }
+      /* POSITIVE CONTROL — a synthetic carrying a rail well BELOW the retired 31000 constant. If the
+         rule cannot find this, every assertion after it is vacuous. */
+      var n = 20000,
+        x = new Int16Array(n),
+        seed = 11;
+      var rnd = function () {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return seed / 0x7fffffff;
+      };
+      for (var i = 0; i < n; i++) x[i] = Math.round(-18000 + 36000 * rnd());
+      for (var a = 4000; a < 4600; a++) x[a] = 19000; // ceiling rail — 600 samples, far below 31000
+      for (var b = 9000; b < 9600; b++) x[b] = -19000; // floor rail
+      var r = E.ecgRails(x);
+      T.eq('control · the CEILING rail is found at the planted value', r.railHi, 19000);
+      T.eq('control · and the FLOOR rail', r.railLo, -19000);
+      T.eq('control · so the record is not reported as rail-absent', r.absent, false);
+
+      /* 🔴 THE RETIRED CONSTANT WOULD HAVE MISSED BOTH. This is the defect, stated as an assertion
+         so it cannot silently return: 19000 < 31000. */
+      var wouldFireOld = 0;
+      for (var k = 0; k < n; k++) if (Math.abs(x[k]) > 31000) wouldFireOld++;
+      T.eq('the retired |int16| > 31000 rule fires on NONE of these rail samples', wouldFireOld, 0);
+
+      /* §∅ — AN UNQUALIFIED RAIL IS ABSENT, NEVER A FALLBACK TO THE EXTREME. A smooth signal has no
+         pin: its extremes are turning points it genuinely lingers at, and calling those a rail would
+         invent saturation on every clean record. */
+      var m = 8000,
+        y = new Int16Array(m);
+      for (var j = 0; j < m; j++) y[j] = Math.round(15000 * Math.sin(j / 40));
+      var r2 = E.ecgRails(y);
+      T.eq('a clean sine has NO qualifying ceiling rail — a turning point is not a pin', r2.railHi, null);
+      T.eq('…nor a floor rail', r2.railLo, null);
+      T.eq('…and that record is reported ABSENT, which is not the same as "no saturation"', r2.absent, true);
+
+      /* A single-valued record cannot have a rail located at all. */
+      var flat = new Int16Array(500);
+      T.eq('a single-valued record is rail-ABSENT rather than railed at its own value', E.ecgRails(flat).absent, true);
+
+      /* 🔴 A VALUE HOLDING MOST OF THE RECORD IS THE BASELINE, NOT A RAIL. Without this guard the
+         rule convicts a silent baseline — an idealised beat train on an exact-zero floor makes 0 both
+         the edge value and 93.4 % of the record, it qualifies, and then EVERY beat window contains
+         baseline samples so every beat trips `flatBad`. That is how this change first reddened the
+         composite-SQI weight group, which is a gate on working behaviour.
+         ⚠️ The discriminator is SHARE, not identity: "the rail must not be the modal value" was tried
+         and loses 19 of 62 REAL files, because a heavily-saturated record legitimately has its rail as
+         the mode. Real global-mode share is 0.78-11.53 %; the synthetic baseline is 93.4 %. */
+      var PER = 130,
+        BN = 20,
+        base = new Int16Array(BN * PER + PER);
+      for (var bk = 0; bk < BN; bk++) {
+        var bi = PER / 2 + bk * PER;
+        for (var bd = -4; bd <= 4; bd++) base[bi + bd] = Math.round(1000 * (1 - Math.abs(bd) / 5));
+      }
+      var rb = E.ecgRails(base);
+      T.eq('a silent BASELINE is not a rail — it holds 93 % of the record', rb.railLo, null);
+      T.eq('…so such a record is rail-ABSENT', rb.absent, true);
+
+      /* 🔴 THE WIRING ASSERTION — and it is the one that matters. Everything above tests `ecgRails`
+         in ISOLATION, and an earlier draft of this group stopped there: reverting `computeSQI`'s leg
+         to the retired `|int16| > 31000` constant left it fully GREEN, because nothing asserted that
+         the SQI path USES the new rail. Testing a helper is not testing the fix.
+
+         The rail leg is isolated from the flat leg by planting only TEN rail samples in one beat
+         window: the flat leg needs `maxFlat > 0.2·fs` (26 at 130 Hz) so it cannot fire, while the
+         rail leg needs `railHit > 3` so it must. The rail is QUALIFIED in a peak-free tail region,
+         because scattering the qualifying samples across the record degrades every beat and erases
+         the very contrast being measured — which is how the first attempt at this read as a null. */
+      if (typeof E.computeSQI === 'function') {
+        var mk = function (withRail) {
+          var HZ = 130,
+            N = HZ * 90,
+            v = new Int16Array(N),
+            sd = 5;
+          var rr2 = function () {
+            sd = (sd * 1103515245 + 12345) & 0x7fffffff;
+            return sd / 0x7fffffff;
+          };
+          for (var q = 0; q < N; q++) v[q] = Math.round(-18000 + 36000 * rr2());
+          for (var w = 0; w < 800; w++) v[HZ * 70 + w] = 19000; // qualifies the rail, PEAK-FREE region
+          var pk = [];
+          for (var t = 200; t < HZ * 60; t += HZ) pk.push(t);
+          if (withRail) for (var z = 0; z < 10; z++) v[pk[10] + z] = 19000;
+          return {
+            v: v,
+            HZ: HZ,
+            pk: pk,
+            tm: pk.map(function (pp) {
+              return pp / HZ;
+            })
+          };
+        };
+        var A = mk(false),
+          B = mk(true);
+        var sA = E.computeSQI(A.v, A.HZ, A.pk, A.tm, A.pk).sqi,
+          sB = E.computeSQI(B.v, B.HZ, B.pk, B.tm, B.pk).sqi;
+        T.ok('control · the railed beat is otherwise clean without the plant', sA[10] > 0.4);
+        T.ok('computeSQI USES the per-file rail — the railed beat is penalised (×0.15 flatBad)', sB[10] < sA[10] * 0.5);
+        T.ok('…and only that beat: its neighbours are untouched', sA[9] === sB[9] && sA[11] === sB[11]);
+      }
+    });
+
     group('ECGDex §∅ — an interval straddling a dropout is an ABSENCE, not a correctable beat', 'ecgdex-dsp · absence-as-value · regression', function (T) {
       /* `buildNN` repairs beats that were MIS-MEASURED: low SQI, out of physiological range, ectopic.
          A beat separated from its predecessor by a 74-second hole is none of those — it is a true
