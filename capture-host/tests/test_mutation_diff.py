@@ -497,26 +497,38 @@ _PROP_SRC = (
 )
 
 
-def test_is_property_sees_both_decorator_forms():
-    assert M.is_property(_PROP_SRC, "total") is True
-    assert M.is_property(_PROP_SRC, "cached") is True
+def test_unmutatable_names_the_decorator_for_both_property_forms():
+    assert M.unmutatable_decorator(_PROP_SRC, "total") == "property"
+    assert M.unmutatable_decorator(_PROP_SRC, "cached") == "cached_property"
 
 
-def test_is_property_is_false_for_a_plain_method_and_an_absent_name():
-    assert M.is_property(_PROP_SRC, "plain") is False
-    assert M.is_property(_PROP_SRC, "nope") is False
+def test_an_undecorated_method_and_an_absent_name_are_mutatable():
+    assert M.unmutatable_decorator(_PROP_SRC, "plain") == ""
+    assert M.unmutatable_decorator(_PROP_SRC, "nope") == ""
 
 
-def test_is_property_is_false_for_a_function_decorated_with_something_ELSE():
-    """A decorated non-property. `plain` has NO decorators, so it cannot exercise the path where the
-    decorator loop runs and matches nothing — a different branch, and the one a real codebase hits."""
-    assert M.is_property(_PROP_SRC, "helper") is False
+def test_a_lone_staticmethod_is_mutmuts_OWN_exemption_and_stays_mutatable():
+    """mutmut allows exactly one @staticmethod/@classmethod because trampolines are easy for those.
+    Mirroring its rule rather than inventing one is why this returns "" and not "staticmethod"."""
+    assert M.unmutatable_decorator(_PROP_SRC, "helper") == ""
 
 
-def test_is_property_returns_false_rather_than_raising_on_unparseable_source():
-    """False is the safe direction: a false True invents a blind-spot warning nobody can act on."""
-    assert M.is_property("def (", "a") is False
-    assert M.is_property("", "a") is False
+def test_the_blind_spot_is_WIDER_than_properties():
+    """45 properties, but also 4 @asynccontextmanager and 1 @middleware in capture-host — 50 total.
+    Reporting only properties left the other five saying "cause not established" for a known cause."""
+    src = ("import contextlib, functools\n"
+           "@contextlib.asynccontextmanager\n"
+           "async def scope():\n    yield 1\n"
+           "@functools.lru_cache()\n"
+           "def cached_fn():\n    return 2\n")
+    assert M.unmutatable_decorator(src, "scope") == "asynccontextmanager"
+    assert M.unmutatable_decorator(src, "cached_fn") == "lru_cache"   # the @foo() CALL form counts
+
+
+def test_unparseable_source_yields_no_claim_rather_than_raising():
+    """Empty is the safe direction: a false positive invents a warning nobody can act on."""
+    assert M.unmutatable_decorator("def (", "a") == ""
+    assert M.unmutatable_decorator("", "a") == ""
 
 
 def test_source_function_of_glob_reads_the_bare_def_name():

@@ -80,34 +80,54 @@ def source_function_of_glob(glob: str) -> str:
     return mangled[2:] if mangled.startswith("x_") and len(mangled) > 2 else ""
 
 
-def is_property(source: str, func: str) -> bool:
-    """Is `func` in `source` decorated `@property` / `@cached_property`?
+def unmutatable_decorator(source: str, func: str) -> str:
+    """The decorator that makes mutmut SKIP `func` entirely — `""` if it would be mutated.
 
-    ⚠️ WHY A GATE NEEDS TO KNOW: mutmut generates NO mutants for a property — measured 2026-09-18 on a
-    body of `return self.a + self.b`, a perfectly mutatable `+`. So `generated_count == 0` is CORRECT
-    for a property and the old message, "no mutable operator in this function", was a WRONG DIAGNOSIS
-    OF A RIGHT NUMBER: it names a property of the CODE when the cause is a property of the TOOL.
+    ⚠️ THIS MIRRORS MUTMUT'S OWN RULE, read from its source rather than inferred from behaviour
+    (`mutmut/mutation/file_mutation.py`, `_skip_node_and_children`). Its comment states the reason:
 
-    Measured over `capture-host/` the same day: 45 properties, all generating zero mutants, of which
-    **15 have bodies that DO contain a mutatable operator** — and all 15 had their bodies changed this
-    quarter. The diff-scoped gate exists to answer "if you changed this line, can a test see it"; for
-    those 15 it has never been able to look, while reporting them as nothing to test.
+        # ignore decorated functions, because
+        # 1) copying them for the trampoline setup can cause side effects
+        # 2) decorators are executed when the function is defined …
+        # 3) @property decorators break the trampoline signature assignment
+        # Exception: @staticmethod and @classmethod are allowed
 
-    Returns False on anything it cannot parse. A false True would silently downgrade a real
-    "nothing to mutate" into a blind spot, which is the wrong direction to be wrong in: it would
-    manufacture a warning nobody can act on, and eventually teach readers to ignore the warning.
+    So the exclusion is ARCHITECTURAL, not an oversight: mutmut mutates by replacing a function with a
+    trampoline that dispatches to `f__mutmut_N`, and a descriptor like `@property` cannot be rebound
+    that way. The rule it applies is EXACTLY ONE decorator that is `staticmethod` or `classmethod`;
+    everything else is skipped, generating zero mutants whatever the body contains.
+
+    ⚠️ AND THE BLIND SPOT IS WIDER THAN PROPERTIES, which is why this replaced an `is_property` check.
+    Measured over `capture-host/` 2026-09-18: **50** functions are skipped by this rule — 45
+    `@property`, 4 `@asynccontextmanager`, 1 `@middleware`. Reporting only the properties left the
+    other five telling a reader "cause not established" when the cause is known and is the same one.
+
+    Returns the decorator NAME so the message can say which one, and "" on unparseable source — a
+    false positive here invents a blind-spot warning nobody can act on.
     """
     try:
         tree = ast.parse(source or "")
     except SyntaxError:
-        return False
+        return ""
     for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == func:
-            for d in node.decorator_list:
-                name = d.id if isinstance(d, ast.Name) else getattr(d, "attr", "")
-                if name in ("property", "cached_property"):
-                    return True
-    return False
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) or node.name != func:
+            continue
+        names = [_decorator_name(d) for d in node.decorator_list]
+        if not names:
+            return ""
+        if len(names) == 1 and names[0] in ("staticmethod", "classmethod"):
+            return ""          # mutmut's own exemption: trampolines are easy for these
+        return names[0]
+    return ""
+
+
+def _decorator_name(node: ast.expr) -> str:
+    """`@foo` / `@a.foo` / `@foo(...)` → `foo`. The call form matters: `@lru_cache()` is decorated."""
+    if isinstance(node, ast.Call):
+        node = node.func
+    if isinstance(node, ast.Name):
+        return node.id
+    return getattr(node, "attr", "")
 
 
 def functions_covering(source: str, lines: set[int]) -> set[str]:
