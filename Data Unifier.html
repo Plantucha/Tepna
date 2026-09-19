@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-NVMjPCXewLOY4NdGLGRQuFLxxTlhAqqX3M68OJpHTVw=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-a4Uys3KCB5xfX+Q4tRQxCzBCHc2+M7SsxwKFQyGiScI=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ=' 'sha256-z6C6L9nPiI7OGcH1gvI+LYcEnVvdfyEOrDm6fn4aizM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-NVMjPCXewLOY4NdGLGRQuFLxxTlhAqqX3M68OJpHTVw=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-a4Uys3KCB5xfX+Q4tRQxCzBCHc2+M7SsxwKFQyGiScI=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-ndtbymiFV7y/RXwGWqFgSTIVzi6sTjnw6Nt8nUchStc=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -22702,13 +22702,61 @@ __exports.GlucoDex = window.GlucoDex;
            with zero spans. Errs low — a consumer can filter `n` upward but can never recover a span
            that was never emitted. */
         pinnedCoverage: (r.pinnedSpanSets || []).map(function (sp, ci) {
-          var lost = 0;
-          for (var k = 0; k < sp.spans.length; k++) lost += sp.spans[k].n;
+          /* ── §∅ SATURATION IS ITS OWN STATE (owner ruling 2026-09-18) ──────────────────────────
+             P5 ruled that a pinned span is an ABSENCE excluded like a gap. That ruling is now SCOPED
+             TO THE ZERO RAIL. A run at the TOP rail is a measurement AT ITS BOUND: the true value was
+             at-or-above the rail, which is strictly more than "not measured". Excluding it as absence
+             discards that; publishing it as data fabricates precision. So it is excluded exactly as
+             before AND labelled distinctly.
+
+             The detector has always known which rail — `pinnedSpans` stamps `end: 'lo' | 'hi'` per
+             span at its emit site — and this projection threw it away, pooling both into one
+             `samplesUnmeasured`. That is the §∅ shape one layer up, and the same one #2531 fixed for
+             absence while leaving it standing here: detected, reported, then collapsed at the point a
+             consumer would read it.
+
+             ⚠️ `samplesUnmeasured` IS KEPT AND STILL MEANS THE TOTAL. An existing consumer sees no
+             change, and the two new fields are additive. The name is now imprecise for the saturated
+             half — a saturated sample WAS measured — and it is deliberately NOT renamed, because
+             renaming a shipped field to improve a word breaks every reader of it.
+
+             🔴 THE LABEL IS DELIBERATELY INERT, AND THAT IS THE OWNER'S CALL, NOT AN OVERSIGHT.
+             Whether saturation should be excluded from a NARROWER set of statistics than absence was
+             put to the owner and DEFERRED (2026-09-18) until a controlled finger-off capture, so that
+             all three populations — floor, ceiling, and the non-rail run — are classified in ONE pass
+             rather than two. So `spansOmit` still excludes both rails identically to before, NOTHING
+             reads this label yet, and no computed statistic moves.
+
+             What the unit buys is that the decision becomes IMPLEMENTABLE. Today the exclusion set
+             cannot be narrowed for saturation at all: by the time `spansOmit` exists the rail is
+             already gone. After this, narrowing is a change at one site the moment the owner decides.
+
+             ⚠️ DO NOT "FINISH" THIS BY WIRING THE LABEL TO A DIFFERENT EXCLUSION. That is the deferred
+             decision, and taking it because the label now exists would be inferring an answer from the
+             shape of the enabling step.
+
+             NO THRESHOLD IS CHOSEN either: this re-labels what the shipped `PIN_MIN_RUN = 5` rail
+             detector already finds. The value-agnostic run-length rule needs a threshold, that
+             threshold is deferred to the same capture, and it is a separate unit. */
+          var lost = 0,
+            absent = 0,
+            saturated = 0;
+          for (var k = 0; k < sp.spans.length; k++) {
+            var sn = sp.spans[k].n;
+            lost += sn;
+            if (sp.spans[k].end === 'hi') saturated += sn;
+            else absent += sn;
+          }
           return {
             channel: ci,
             rail: sp.railLo != null || sp.railHi != null ? { lo: sp.railLo, hi: sp.railHi } : null,
             spans: sp.spans.length,
-            samplesUnmeasured: lost
+            samplesUnmeasured: lost,
+            /* ABSENT — pinned at the FLOOR. Nothing was measured; §∅'s original case. */
+            samplesAbsent: absent,
+            /* SATURATED — pinned at the CEILING. A measurement at its bound: the true value was
+               at-or-above `rail.hi`, so a consumer needing a lower bound has one. */
+            samplesSaturated: saturated
           };
         }),
         /* ── TIMING PROVENANCE (WEARABLE-HOST-AXIS-FOLLOWUPS §F1) — additive, contract-safe ──
