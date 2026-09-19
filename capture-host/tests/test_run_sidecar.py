@@ -215,7 +215,9 @@ def test_emit_run_is_the_ONE_seam_and_names_the_rule_that_found_the_span(tmp_pat
 
     rows = _rows(sc.path)
     assert len(rows) == 1
-    assert rows[0][1:] == ["channel 0", "199", "40", "900", "7200.0", "1", "clip"]
+    # The ninth field is the KIND (D1, 2026-09-19), and it rides the seam too: a back-check row at the
+    # ring's 199 rail is `in-wear-rail` by the same table the live rule uses — one shape, one vocabulary.
+    assert rows[0][1:] == ["channel 0", "199", "40", "900", "7200.0", "1", "clip", "in-wear-rail"]
 
 
 def test_clip_and_collapse_are_NOT_computed_live(tmp_path):
@@ -709,3 +711,97 @@ def test_INVERSION_a_mostly_non_repeating_stream_is_NOT_held(tmp_path):
     sc.close()
 
     assert sc.klass["X [mg]"] == "variable", "mean run 1.25 is not a zero-order hold"
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# SPAN KINDS — owner ruling D1, 2026-09-19, on the finger-off capture (FINGER-OFF-RESULT-2026-09-19.md)
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+def test_kind_names_ONLY_what_the_finger_off_capture_measured():
+    """100 with no finger = absence (six stretches, 100.0 %); 0 and 199 only while worn = in-wear-rail.
+    Everything else on the ring is `unknown` — 99 and 124 were seen in the corpus and never controlled —
+    and a stream with no table is `unknown` at every value, including the Verity's own rail."""
+    assert writers.run_kind("ppg1", 100) == "absence"
+    assert writers.run_kind("ppg1", 0) == "in-wear-rail"
+    assert writers.run_kind("ppg1", 199) == "in-wear-rail"
+    assert writers.run_kind("ppg1", 99) == "unknown"
+    assert writers.run_kind("ppg1", 124) == "unknown"
+    assert writers.run_kind("ppg", 2096921) == "unknown"          # Verity rail: measured as a rail, never as a kind
+    assert writers.run_kind("ppg2w", 100) == "unknown"            # 100 is only named for the stream it was measured on
+    assert writers.run_kind("acc", 0) == "unknown"
+    assert writers.run_kind("nonesuch", 100) == "unknown"
+
+
+def test_kind_never_raises_and_never_coerces_a_non_value():
+    """A label on a diagnostic row must not end a recording (§C8 isolation), and it must not guess:
+    a bool, a string, None and a float that would round INTO a named value all read `unknown`."""
+    assert writers.run_kind("ppg1", True) == "unknown"
+    assert writers.run_kind("ppg1", None) == "unknown"
+    assert writers.run_kind("ppg1", "abc") == "unknown"
+    assert writers.run_kind("ppg1", "100") == "absence"           # the writer formats ints; a digit string is one
+    assert writers.run_kind("ppg1", 100.0) == "absence"
+
+
+def test_the_kind_rides_as_a_NINTH_column_and_the_header_states_the_table(tmp_path):
+    """Appended, never inserted — `ppgdex-dsp.js parsePinnedRuns` accepts >= 8 fields and reads 1-4 by
+    index, and every test above indexes `rule` at [7]. The comment line carries the table the rows were
+    classified with, so an EMPTY sidecar still says which values would have been named."""
+    sc = writers._RunSidecar(str(tmp_path / "x_PPG.txt"), "ppg1", 5)
+    t0 = _dt.datetime(2026, 9, 19, 10, 39, 35)
+    for i in range(6):
+        sc.feed("channel 0", 100, t0 + _dt.timedelta(milliseconds=8 * i))
+    for i in range(6):
+        sc.feed("channel 0", 199, t0 + _dt.timedelta(milliseconds=8 * (6 + i)))
+    for i in range(6):
+        sc.feed("channel 0", 124, t0 + _dt.timedelta(milliseconds=8 * (12 + i)))
+    sc.feed("channel 0", 57, t0 + _dt.timedelta(milliseconds=8 * 18))
+    sc.close()
+    body = open(sc.path, encoding="utf-8").read()
+    assert "kinds=absence=100,in-wear-rail=0|199" in body.splitlines()[0]
+    assert "unit=unknown" in body.splitlines()[0]                  # `unit` is the VALUE's physical unit, untouched
+    assert body.splitlines()[1] == writers._RunSidecar.HEADER
+    assert writers._RunSidecar.HEADER.endswith(";rule;kind")
+    rows = [r for r in _rows(sc.path) if r[7] == "stuck"]
+    assert [(r[2], r[8]) for r in rows] == [("100", "absence"), ("199", "in-wear-rail"), ("124", "unknown")]
+    assert all(len(r) == 9 for r in rows)
+
+
+def test_a_stream_with_no_table_writes_kinds_unknown_and_unknown_rows(tmp_path):
+    sc = writers._RunSidecar(str(tmp_path / "v_PPG.txt"), "ppg", 5)
+    t0 = _dt.datetime(2026, 9, 19, 10, 0, 0)
+    for i in range(6):
+        sc.feed("channel 0", 2096921, t0 + _dt.timedelta(milliseconds=8 * i))
+    sc.feed("channel 0", 5, t0 + _dt.timedelta(milliseconds=48))
+    sc.close()
+    body = open(sc.path, encoding="utf-8").read()
+    assert "kinds=unknown" in body.splitlines()[0]
+    rows = [r for r in _rows(sc.path) if r[7] == "stuck"]
+    assert [(r[2], r[8]) for r in rows] == [("2096921", "unknown")]
+
+
+def test_PLANT_the_kind_changes_NOTHING_about_which_runs_are_emitted(tmp_path):
+    """100 is IN-BAND: a worn pleth sits on it in short plateaus (ON1: 23 runs >= 5, longest 41). The kind
+    is a label on rows the run-length rule already chose; it must not pull a short 100-plateau into the
+    file under `min_run` as "absence". Same stream, same feed, table present vs table absent: the emitted
+    (value, n) set must be identical — only the ninth column differs."""
+    def run(table):
+        saved = writers.RUN_KIND_BY_STREAM.get("ppg1")
+        if table is None:
+            writers.RUN_KIND_BY_STREAM.pop("ppg1", None)
+        try:
+            sc = writers._RunSidecar(str(tmp_path / f"p{int(table is not None)}_PPG.txt"), "ppg1", 200)
+            t0 = _dt.datetime(2026, 9, 19, 10, 33, 52)
+            seq = [100] * 41 + [95, 97] + [100] * 250 + [80] + [0] * 199 + [3] + [199] * 260 + [7]
+            for i, v in enumerate(seq):
+                sc.feed("channel 0", v, t0 + _dt.timedelta(milliseconds=8 * i))
+            sc.close()
+            return [(r[2], r[4], r[8]) for r in _rows(sc.path) if r[7] == "stuck"]
+        finally:
+            if saved is not None:
+                writers.RUN_KIND_BY_STREAM["ppg1"] = saved
+    with_table = run(True)
+    without = run(None)
+    assert [(v, n) for v, n, _k in with_table] == [(v, n) for v, n, _k in without] == [("100", "250"), ("199", "260")]
+    assert [k for _v, _n, k in with_table] == ["absence", "in-wear-rail"]
+    assert [k for _v, _n, k in without] == ["unknown", "unknown"]
+
