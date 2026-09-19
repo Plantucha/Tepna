@@ -207,10 +207,18 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
                     s.on_batch(batch)
                 except Exception:  # noqa: BLE001 — ANY sink failure must not kill the stream (INV9)
                     counters.sink_errors += 1
-                finally:
-                    counters.note_sink_write((_time.monotonic() - _t0) * 1000.0)
+                    # ⚠️ THIS LINE BELONGS TO THE `except`, NOT THE `finally` BELOW. #2641 inserted the
+                    # timing `finally` between the two and the log slid into it, so it fired on EVERY
+                    # successful write — measured on vigil 2026-09-19: 12,772 ERROR lines in 48 min
+                    # (~5/s, one per batch per sink), each reading `sink_errors=0` and each carrying
+                    # `NoneType: None` because there was no exception to attach. A loud failure path
+                    # that also fires on success is a silent one: the real error, when it comes, is
+                    # one line in fifteen thousand. The plant is a test that a clean batch logs
+                    # NOTHING at ERROR.
                     _log.exception("CPAP durable sink failed — counted (sink_errors=%d), stream continues",
                                    counters.sink_errors)
+                finally:
+                    counters.note_sink_write((_time.monotonic() - _t0) * 1000.0)
             for did, (key, _label, _unit) in channels.items():
                 samples = batch["channels"].get(did)
                 if samples:
