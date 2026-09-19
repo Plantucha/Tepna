@@ -75,7 +75,7 @@ VENV_PY = HERE / ".venv" / "bin" / "python"
 sys.path.insert(0, str(HERE))
 from mutation_diff import (  # noqa: E402
     EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, classify, diff_key,
-    is_property, source_function_of_glob, undecided_by_function,
+    source_function_of_glob, undecided_by_function, unmutatable_decorator,
     functions_covering, refusal_reason, selftest, split_results, string_only_verdict,
 )
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -317,11 +317,13 @@ def main(argv=None) -> int:
                     # reader takes it as coverage. Measured 2026-09-18: 45 properties in capture-host,
                     # all generating zero, 15 with genuinely mutatable bodies, and all 15 changed this
                     # quarter — so this is an active blind spot, not a theoretical one.
-                    if is_property(_msrc, source_function_of_glob(g)):
-                        print(f"    ⊘ {g}: NOT EXAMINED — this tool cannot mutate an @property"
+                    _dec = unmutatable_decorator(_msrc, source_function_of_glob(g))
+                    if _dec:
+                        print(f"    ⊘ {g}: NOT EXAMINED — mutmut skips @{_dec}"
                               f"  [{_secs:.0f}s]"
-                              f"\n      (mutmut generates no mutants for a property, whatever its body"
-                              f" contains. This is a blind spot, not a clean result.)", flush=True)
+                              f"\n      (it mutates by replacing a function with a trampoline, which a"
+                              f" decorated function cannot be rebound to. Zero mutants whatever the body"
+                              f"\n       contains — a blind spot, not a clean result.)", flush=True)
                         _ran -= 1
                         _unexaminable.append(g)
                         continue
@@ -432,8 +434,8 @@ def main(argv=None) -> int:
     # 45 properties in capture-host, all unmutatable by this tool, 15 with genuinely mutatable bodies,
     # and all 15 changed this quarter — so this line will fire on real diffs, not hypothetical ones.
     if _unexaminable:
-        print(f"\n  ⊘ {len(_unexaminable)} changed function(s) were NOT EXAMINED — this tool cannot "
-              f"mutate an @property:")
+        print(f"\n  ⊘ {len(_unexaminable)} changed function(s) were NOT EXAMINED — mutmut skips "
+              f"decorated functions (except a lone @staticmethod/@classmethod):")
         for _g in _unexaminable[:8]:
             print(f"      {_g}")
         if len(_unexaminable) > 8:
