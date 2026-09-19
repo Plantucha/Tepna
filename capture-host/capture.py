@@ -5635,6 +5635,16 @@ async def polar_offline_op(address: str, op, timeout: float | None = None,
     # is mid-download, instead of letting two pulls fight over the single radio.
     async with offline_lock.slot(name or address):
         _POLAR_PAUSED.add(address)
+        # THE DENOMINATOR, and its PLACEMENT is the whole of its meaning (residue
+        # 2026-09-19-ble-rate-cannot-see-absence). It sits AFTER the `_device_on_air` guard above and
+        # after the slot is acquired, so it counts ops we actually ran against a device that WAS on
+        # air. Counting earlier would put "the device never advertised" and "the op failed" into one
+        # denominator — the absent-vs-failing collapse that row is about — and counting before the
+        # slot would count an `OfflineBusy` bounce as an attempt at an op that never started.
+        # So a not-advertising skip is EXCLUDED from the denominator rather than scored as a failure,
+        # which is the out-of-band validity §∅ asks for: the guard decides presence, the counter
+        # measures only what presence admitted.
+        blestats.attempt("offline_op", address)
         try:
             for _ in range(120):                      # wait up to ~12 s for run_polar to drop its link
                 if not (name and STATUS["devices"].get(name, {}).get("connected")):
@@ -5652,7 +5662,9 @@ async def polar_offline_op(address: str, op, timeout: float | None = None,
             async def _locked():
                 async with _CONNECT_LOCK:
                     return await op()
-            return await asyncio.wait_for(_locked(), timeout=timeout)
+            _result = await asyncio.wait_for(_locked(), timeout=timeout)
+            blestats.ok("offline_op", address)
+            return _result
         except asyncio.TimeoutError:
             # COUNTED FIRST, so the frequency can never be hidden however this is logged. The rate rides
             # in `status.json` as `ble` and is the thing an operator should actually watch.

@@ -4800,6 +4800,49 @@ def _aio_val(v):
     return _c()
 
 
+def test_a_device_that_never_advertised_is_EXCLUDED_from_the_denominator(monkeypatch):
+    """THE ABSENT-vs-FAILING COLLAPSE, answered by WHERE the counter sits (residue
+    2026-09-19-ble-rate-cannot-see-absence).
+
+    `blestats.attempt("offline_op", …)` is placed AFTER the `_device_on_air` guard, so a device that
+    never advertised contributes NOTHING — not an attempt, not a failure. Counting it would put "the
+    device was not there" and "the op failed" into one denominator, and the resulting rate would fall
+    every night the hardware sat in its dock: an alert that fires on absence is the one that gets muted.
+
+    This is §∅'s out-of-band validity in its cheapest possible form — the guard decides presence, and
+    the counter measures only what presence admitted. No sentinel inside the value's range."""
+    import blestats
+
+    blestats.reset()
+    _offline_env(monkeypatch, on_air=False)
+
+    async def op():
+        return "never"
+
+    async def go():
+        return await capture.polar_offline_op("AA:BB", op, presence_check_s=1.0)
+
+    with pytest.raises(capture.DeviceNotAdvertising):
+        _run(go())
+    assert blestats.snapshot()["ops"] == {}, "an absent device must not appear in the counters at all"
+    blestats.reset()
+
+
+def test_an_offline_op_that_RUNS_is_counted_as_an_attempt_and_a_success(monkeypatch):
+    """The other half: once presence admitted it, the op carries a real denominator, so its rate means
+    "of the ops we actually ran against a device that was there, this many worked"."""
+    import blestats
+
+    blestats.reset()
+    _offline_env(monkeypatch, on_air=True)
+
+    async def op():
+        return "done"
+
+    assert _run(capture.polar_offline_op("AA:BB", op, presence_check_s=1.0)) == "done"
+    row = blestats.snapshot()["ops"]["offline_op/AA:BB"]
+    assert row["attempts"] == 1 and row["successes"] == 1 and row["rate"] == 1.0
+    blestats.reset()
 def test_an_absent_device_never_takes_the_connect_lock(monkeypatch):
     """THE FIX. The op must not run and the global lock must not be touched — the whole cost is a scan."""
     _offline_env(monkeypatch, on_air=False)
