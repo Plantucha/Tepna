@@ -142,7 +142,7 @@ def test_EVERY_WRITER_REPORTS_ITS_OWN_FAILURES_NOT_JUST_THE_ONE_I_TESTED(cls, tm
     assert w.flush_failures >= 2, f"{cls}.close swallowed its own failure"
 
 
-def test_every_StreamWriter_a_runner_opens_is_also_closed():
+def test_every_writer_a_runner_opens_is_also_closed():
     """A writer opened and never closed loses the same tail a swallowed flush does — and this file
     already exists because that loss is invisible.
 
@@ -159,57 +159,161 @@ def test_every_StreamWriter_a_runner_opens_is_also_closed():
     AST, not a regex over the source. `find_unwired.py`'s header records two regex drafts that
     produced "confident nonsense", and `test_deploy_sync_apps.py` states the preference outright — a
     text scan for `for _w in (...)` also breaks the day someone closes through a list or a `finally`.
-    Scoped to EVERY function that constructs a StreamWriter, not one runner, so the next runner to
-    grow a writer is covered without anyone remembering this test exists.
-    """
+
+    🔴 THIS GATE SAW 4 OF 13 WRITERS UNTIL 2026-09-18, and its own scoping sentence was the reason
+    nobody noticed: it read "scoped to EVERY function that constructs a StreamWriter … so the next
+    runner to grow a writer is covered without anyone remembering this test exists". True of
+    `StreamWriter` and false of the intent, three independent ways — each measured, none live (every
+    writer WAS closed; the blind spot was latent, which is exactly how it survived):
+
+      1 · ONE CLASS, HARDCODED. `writers` exports **8** writer classes and this recognised one. The
+          other 7 have 9 construction sites in `capture.py`. Note the asymmetry it created: the WRITE
+          side (`_FlushHealth.put`) discovers classes with `dir(writers)` precisely "so a ninth cannot
+          dodge the gate", while the CLOSE side named one. Same module, same risk, opposite methods.
+      2 · A FACTORY. `run_polar` builds `hr_writer = w("hr")` through a local helper that returns a
+          `StreamWriter`, so the binding is a call to `w`, not to a class.
+      3 · A NON-LITERAL SWEEP. `run_polar` closes via
+          `for wr in list(writers.values()) + ([hr_writer] if hr_writer else [])` — a BinOp over a
+          dict's values. Only a literal tuple/list was recognised, so this whole runner's close
+          discipline was invisible.
+
+    2 and 3 CANCELLED, which is why nothing ever reddened: `run_polar`'s writers were invisibly opened
+    AND invisibly closed. That cancellation is luck, not design — visible-open plus invisible-close is
+    a false POSITIVE, and invisible-open plus never-closed is the false NEGATIVE this gate exists to
+    prevent. So the three fixes had to land together: resolving the factory alone would have made
+    `hr_writer` visible as opened while its sweep-close stayed invisible, reddening correct code.
+
+    The class list is now DERIVED from the `writers` module, so a ninth class cannot dodge this gate
+    either, and the assertion publishes its population rather than asserting a floor — `checked > 0`
+    cannot notice coverage falling from 13 to 4."""
     import ast
+    import inspect
+
+    import writers as _writers_mod
 
     from tests._srcscan import module_source
+
     tree = ast.parse(module_source("capture.py"))
 
-    def _writer_names(node):
-        """Names bound to a StreamWriter(...) — plain, or gated as `x = (SW(...) if cond else None)`."""
+    # DERIVED, never hardcoded — the write side's own rule (`dir(writers)`), applied to the close side.
+    WRITER_CLASSES = {n for n, o in vars(_writers_mod).items() if inspect.isclass(o) and n.endswith("Writer")}
+    assert len(WRITER_CLASSES) >= 8, f"writer-class discovery collapsed: {sorted(WRITER_CLASSES)}"
+
+    def _is_writer_call(v, factories):
+        return (
+            isinstance(v, ast.Call)
+            and isinstance(v.func, ast.Name)
+            and (v.func.id in WRITER_CLASSES or v.func.id in factories)
+        )
+
+    def _factories(node):
+        """Local helpers that RETURN a writer — `def w(stream): return StreamWriter(...)`. Without this
+        a runner can open every writer through one helper and be scored as opening none."""
         out = set()
         for n in ast.walk(node):
-            if not isinstance(n, ast.Assign):
+            if not isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            vals = [n.value]
-            if isinstance(n.value, ast.IfExp):
-                vals = [n.value.body, n.value.orelse]
-            for v in vals:
-                if (isinstance(v, ast.Call) and isinstance(v.func, ast.Name)
-                        and v.func.id == "StreamWriter"):
-                    out.update(t.id for t in n.targets if isinstance(t, ast.Name))
+            for r in ast.walk(n):
+                if (
+                    isinstance(r, ast.Return)
+                    and isinstance(r.value, ast.Call)
+                    and isinstance(r.value.func, ast.Name)
+                    and r.value.func.id in WRITER_CLASSES
+                ):
+                    out.add(n.name)
+        return out
+
+    def _values(assign):
+        return [assign.value.body, assign.value.orelse] if isinstance(assign.value, ast.IfExp) else [assign.value]
+
+    def _opened(node, factories):
+        """Names bound to a writer — plain, gated as `x = (W(...) if cond else None)`, or via a factory."""
+        out = set()
+        for n in ast.walk(node):
+            if isinstance(n, ast.Assign):
+                for v in _values(n):
+                    if _is_writer_call(v, factories):
+                        out.update(t.id for t in n.targets if isinstance(t, ast.Name))
+        return out
+
+    def _registered(node, factories):
+        """container name -> writers put INTO it: `c[k] = W(...)` or `c.append(W(...))`. A sweep over the
+        container then accounts for all of them, which is how `run_polar`'s dict of writers is closed."""
+        out: dict[str, set] = {}
+        for n in ast.walk(node):
+            if isinstance(n, ast.Assign):
+                for v in _values(n):
+                    if not _is_writer_call(v, factories):
+                        continue
+                    for t in n.targets:
+                        if isinstance(t, ast.Subscript) and isinstance(t.value, ast.Name):
+                            out.setdefault(t.value.id, set()).add(ast.unparse(t))
+            if (
+                isinstance(n, ast.Call)
+                and isinstance(n.func, ast.Attribute)
+                and n.func.attr == "append"
+                and isinstance(n.func.value, ast.Name)
+                and n.args
+                and _is_writer_call(n.args[0], factories)
+            ):
+                out.setdefault(n.func.value.id, set()).add(ast.unparse(n.args[0]))
         return out
 
     def _closed_names(node):
-        """Names this function closes: `x.close()` directly, or membership in a tuple/list iterated by
-        a loop whose body closes the loop variable."""
+        """Names this function closes: `x.close()` directly, or membership in ANY iterable swept by a
+        loop whose body closes the loop variable. A literal tuple/list contributes its own elements; a
+        computed iterable (`list(d.values()) + [x]`) contributes every Name mentioned in it, so both the
+        container and a conditionally-appended writer are credited."""
         out = set()
         for n in ast.walk(node):
-            if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-                    and n.func.attr == "close" and isinstance(n.func.value, ast.Name)):
+            if (
+                isinstance(n, ast.Call)
+                and isinstance(n.func, ast.Attribute)
+                and n.func.attr == "close"
+                and isinstance(n.func.value, ast.Name)
+            ):
                 out.add(n.func.value.id)
             if isinstance(n, ast.For) and isinstance(n.target, ast.Name):
                 closes_var = any(
-                    isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)
-                    and c.func.attr == "close" and isinstance(c.func.value, ast.Name)
+                    isinstance(c, ast.Call)
+                    and isinstance(c.func, ast.Attribute)
+                    and c.func.attr == "close"
+                    and isinstance(c.func.value, ast.Name)
                     and c.func.value.id == n.target.id
-                    for c in ast.walk(n))
-                if closes_var and isinstance(n.iter, (ast.Tuple, ast.List)):
+                    for c in ast.walk(n)
+                )
+                if not closes_var:
+                    continue
+                if isinstance(n.iter, (ast.Tuple, ast.List)):
                     out.update(e.id for e in n.iter.elts if isinstance(e, ast.Name))
+                else:
+                    out.update(x.id for x in ast.walk(n.iter) if isinstance(x, ast.Name))
         return out
 
-    checked = 0
+    checked, per_class = 0, {}
     for fn in ast.walk(tree):
         if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
-        opened = _writer_names(fn)
+        factories = _factories(fn)
+        opened = _opened(fn, factories)
         if not opened:
             continue
-        checked += 1
-        missing = sorted(opened - _closed_names(fn))
+        closed = _closed_names(fn)
+        # A writer registered into a container that IS swept is closed through it.
+        for container, members in _registered(fn, factories).items():
+            if container in closed:
+                closed |= {m for m in members}
+        checked += len(opened)
+        per_class[fn.name] = len(opened)
+        missing = sorted(opened - closed)
         assert not missing, (
             f"{fn.name}() opens {missing} but never closes them — every session would lose its "
-            f"unflushed tail and leave empty files behind, silently")
-    assert checked, "no function in capture.py constructs a StreamWriter — the scan has drifted"
+            f"unflushed tail and leave empty files behind, silently"
+        )
+    # PUBLISH THE POPULATION, do not assert a floor. `checked > 0` passed while coverage was 4 of 13,
+    # so a floor is precisely the shape that could not see this gate go blind.
+    assert checked >= 13, (
+        f"writer-close coverage FELL to {checked} (was 13 across {len(per_class)} functions on "
+        f"2026-09-18) — a drop means the scan stopped seeing writers, not that writers stopped "
+        f"existing. Per function: {per_class}"
+    )
