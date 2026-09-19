@@ -1416,6 +1416,35 @@ def test_a_sink_write_failure_is_counted_and_the_stream_survives(caplog):
     # counted up to the failure rather than vanishing from the record — otherwise the slowest
     # writes, the ones that time out and then raise, would be exactly the ones never measured.
     assert "'sink_max_ms'" in caplog.text
+
+
+class _QuietSink:
+    def __init__(self): self.batches = 0
+    def open(self, channels, fs): pass
+    def on_batch(self, batch): self.batches += 1
+    def close(self): pass
+
+
+def test_a_CLEAN_sink_write_logs_NOTHING_at_error_level(caplog):
+    """THE PLANT for #2641's regression: the timing `finally` was inserted between the `except` and
+    its `_log.exception`, which moved the log INTO the finally — so every successful write logged
+    "CPAP durable sink failed … (sink_errors=0)" with `NoneType: None` for a traceback. Measured on
+    vigil 2026-09-19: 12,772 ERROR lines in 48 min. The loud-failure contract is only a contract if
+    success is quiet; this pins that a clean batch produces zero ERROR records and `sink_errors` 0,
+    while the write is still timed."""
+    sink = _QuietSink()
+    dev = FakeDev(_handshake() + [_ack(), _data([0.1], [5.0]), _data([0.2], [5.1])])
+    bus = FakeBus()
+    with caplog.at_level(logging.INFO):
+        delivered = _run(CS.stream_to_bus(bus, dev.write, dev.recv_frame, PAIR_KEY, "cid",
+                                          cipher_factory=_identity_factory, max_batches=2,
+                                          extra_sinks=[sink]))
+    assert delivered == 2 and sink.batches == 2
+    errors = [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert errors == [], [r.getMessage() for r in errors]
+    assert "durable sink failed" not in caplog.text
+    assert "'sink_errors': 0" in caplog.text
+    assert "'sink_max_ms'" in caplog.text            # timing still taken on the success path
     assert "'sink_max_ms': None" not in caplog.text, (
         "a sink that raised was still entered and left — it must be timed, not unmeasured")
 
