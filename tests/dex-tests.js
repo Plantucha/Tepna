@@ -18478,6 +18478,45 @@
        Hand-derived, and `_sd` is the SAMPLE deviation (n − 1), which is what makes these exact:
          [10, 10, 20, 20] ⇒ mean 15, sd = √(100/3) = 5.7735, CV = 38.49 ⇒ 38.5
          a constant series ⇒ sd 0 ⇒ CV 0.0, neither null nor NaN */
+    /* ADOPTED DRAFTS — the first batch from the qwen mutation pipeline (QWEN-ENGINEERING-PROGRAM P0,
+       "adopt the 57 existing drafts … the first metric datum"). Drafted by `mutation-suite.mjs --draft`
+       from probe-found distinguishing inputs, then RE-VERIFIED in this realm by
+       `node tests/run-tests.mjs --verify-drafts` — `cpapdex-dsp.js` came back 49 VERIFIED / 0
+       DIVERGENT / 0 UNEXECUTABLE.
+
+       ⚠️ VERIFIED IS NOT ENDORSED, and the drafts file says so itself: "a projection can discriminate
+       and still pin a bug in place. Read each PROPERTY line before adopting it." VERIFIED means the
+       projection reproduces the recorded value in the realm that will run it — it is SILENT on whether
+       that value is correct. So the bound on this batch is how many property lines were read, not how
+       many passed.
+
+       WHY THESE EIGHT AND NOT THE OTHER 41: each asserts a sampling rate that is corroborated
+       INDEPENDENTLY OF THE RECORDED VALUE, three ways — the source declares 0.5 in `_mkSig`, the
+       signal's own name ends `.2s` and a 2-second period IS 0.5 Hz, and the two agree. A draft whose
+       only support is "the code currently returns this" was not adopted, however green: that is the
+       shape that pins a bug as intended behaviour. */
+    group('CPAPDex synthetic EDF — the .2s signals declare the rate their names promise (adopted drafts, batch 1)', 'cpapdex-dsp · adopted-drafts · mutation-pinned', function (T) {
+      var C = env.CpapDsp;
+      if (!C || typeof C._synthEdfSet !== 'function') {
+        T.skip('CpapDsp._synthEdfSet exposed', 'not on the bare surface — the scan would read nothing');
+        return;
+      }
+      var set = C._synthEdfSet(null);
+      /* ANTI-VACUITY FIRST: `_synthEdfSet(null)` returning a shape without PLD.signals would make
+         every assertion below throw or compare undefined, and a group that cannot reach its subject
+         must say so rather than appear to pass. */
+      T.ok('ANTI-VACUITY · the synthetic set exposes a PLD signal map', !!(set && set.PLD && set.PLD.signals), set && set.PLD ? Object.keys(set.PLD.signals || {}).length + ' signal(s)' : 'no PLD');
+      if (!(set && set.PLD && set.PLD.signals)) return;
+      T.eq('Press.2s declares fs 0.5 Hz — its own ".2s" name is the period', String(set.PLD.signals['Press.2s'].fs), '0.5');
+      T.eq('Leak.2s declares fs 0.5 Hz — its own ".2s" name is the period', String(set.PLD.signals['Leak.2s'].fs), '0.5');
+      T.eq('EprPress.2s declares fs 0.5 Hz — its own ".2s" name is the period', String(set.PLD.signals['EprPress.2s'].fs), '0.5');
+      T.eq('RespRate.2s declares fs 0.5 Hz — its own ".2s" name is the period', String(set.PLD.signals['RespRate.2s'].fs), '0.5');
+      T.eq('MinVent.2s declares fs 0.5 Hz — its own ".2s" name is the period', String(set.PLD.signals['MinVent.2s'].fs), '0.5');
+      T.eq('TidVol.2s declares fs 0.5 Hz — its own ".2s" name is the period', String(set.PLD.signals['TidVol.2s'].fs), '0.5');
+      T.eq('Snore.2s declares fs 0.5 Hz — its own ".2s" name is the period', String(set.PLD.signals['Snore.2s'].fs), '0.5');
+      T.eq('FlowLim.2s declares fs 0.5 Hz — its own ".2s" name is the period', String(set.PLD.signals['FlowLim.2s'].fs), '0.5');
+    });
+
     group('CPAPDex STR.edf daily summary — device mode/RERA/CSR/prescription, refuses to fabricate', 'cpapdex-dsp · cpapdex-registry · str-summary', function (T) {
       var C = env.CpapDsp;
       if (!C || typeof C.parseStrSummary !== 'function') {
