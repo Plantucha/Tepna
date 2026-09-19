@@ -15,6 +15,7 @@ import sys
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import devcaps  # noqa: E402
 import gattmap  # noqa: E402
 
 ADDR = "AA:BB:CC:DD:EE:FF"
@@ -24,9 +25,13 @@ TABLE = {"0000FD56-0000-1000-8000-00805F9B34FB": 0x0010, "0000fd57-0000-1000-800
 
 @pytest.fixture(autouse=True)
 def _clean():
+    # `_gatt_record_table` now DERIVES a devcaps capability from the table it records (§1.3), so this
+    # file's subject writes both records and leaking either between tests would make them order-dependent.
     gattmap.reset()
+    devcaps.reset()
     yield
     gattmap.reset()
+    devcaps.reset()
 
 
 # ── THE RULE ────────────────────────────────────────────────────────────────────────────────────────
@@ -509,3 +514,92 @@ def test_the_rail_wrapper_logs_ONLY_when_something_was_written(monkeypatch, capl
     with caplog.at_level(logging.INFO, logger=capture.log.name):
         _run(capture._gatt_record_rail(object(), ADDR, "Polar H10"))
     assert not caplog.records, "a refused or byte-identical table must log NOTHING"
+
+
+# ── §1.3 · THE CAPABILITY BRANCH — residue 2026-09-16-devcaps-has-no-branch-consumer ────────────────
+
+
+def test_psftp_mtu_char_literal_matches_polar_psftp():
+    """The literal in `capture` is a COPY (polar_psftp pulls bleak; `import capture` stays stdlib-clean),
+    so it needs a guard or it drifts silently and the capability starts measuring nothing."""
+    import capture
+    import polar_psftp
+
+    assert capture.PSFTP_MTU_CHAR == polar_psftp.MTU_CHAR
+
+
+def test_clock_gate_UNMEASURED_falls_back_to_the_vendor_string_and_does_NOT_stop_syncing():
+    """∅ AT THE BRANCH, and the load-bearing arm. `bool(None)` is False, so coercing here would silently
+    stop writing the clock on every device not yet in the map. Unmeasured MUST behave as today."""
+    import capture
+
+    assert capture.clock_sync_capable(None, True) is True
+    assert capture.clock_sync_capable(None, False) is False
+
+
+def test_clock_gate_a_MEASURED_capability_OUTRANKS_the_configured_label_both_ways():
+    """The point of the conversion: a vendor string someone typed loses to what the unit was observed to
+    expose. Both directions, because only one of them is the convenient one."""
+    import capture
+
+    assert capture.clock_sync_capable(True, False) is True  # mislabelled unit now gets its clock
+    assert capture.clock_sync_capable(False, True) is False  # labelled polar, but has no PS-FTP
+
+
+def test_recorder_DERIVES_the_psftp_capability_from_the_recorded_table():
+    import capture
+
+    chars = [_Char(capture.PSFTP_MTU_CHAR, 0x001E), _Char("0000fd56-0000-1000-8000-00805f9b34fb", 0x0010)]
+    _run(capture._gatt_record_table(_Client(chars), ADDR))
+    assert devcaps.get(ADDR, "psftp") is True
+    assert devcaps.source(ADDR, "psftp") == "gatt-mtu-char"
+
+
+def test_recorder_records_a_MEASURED_False_when_the_table_lacks_it_not_a_None():
+    """A recorded table WITHOUT the characteristic is a measurement, not an absence of one — that is the
+    whole difference between this and `_has_contact_bit`, which is a session fact."""
+    import capture
+
+    _run(capture._gatt_record_table(_Client([_Char("0000fd56-0000-1000-8000-00805f9b34fb", 0x0010)]), ADDR))
+    assert devcaps.get(ADDR, "psftp") is False
+
+
+def test_recorder_BACKFILLS_the_capability_on_an_UNCHANGED_table():
+    """ "same" means the TABLE was already stored, NOT that the capability was. A unit recorded before this
+    landed has a table and no capability; gating the derive on ("new","changed") would leave it unmeasured
+    until its firmware happened to change."""
+    import capture
+
+    chars = [_Char(capture.PSFTP_MTU_CHAR, 0x001E)]
+    _run(capture._gatt_record_table(_Client(chars), ADDR))
+    devcaps.reset()  # the pre-landing state: table stored, no capability
+    assert devcaps.get(ADDR, "psftp") is None
+    assert _run(capture._gatt_record_table(_Client(chars), ADDR)) == ""  # "same" — nothing logged
+    assert devcaps.get(ADDR, "psftp") is True  # ...but the capability landed
+
+
+def test_recorder_derives_NOTHING_from_a_REFUSED_table():
+    """`""` is a refusal. A capability derived from a table the map rejected would be a fact with no
+    evidence behind it — the shape §∅ forbids one layer up."""
+    import capture
+
+    assert _run(capture._gatt_record_table(_Client([]), ADDR)) == ""
+    assert devcaps.get(ADDR, "psftp") is None
+
+
+def test_the_rolling_change_is_LOGGED_on_basis_change_and_not_once_per_reconnect(caplog):
+    """The conversion is a behaviour change distributed over time: as the map fills, each unit moves from
+    vendor-string to measured logic with nothing marking it. Log the transition — but the gate runs every
+    ~70 s reconnect, so a line per evaluation buries the event instead of surfacing it."""
+    import capture
+
+    capture._CLOCK_CAP_BASIS.pop("dev", None)
+    with caplog.at_level("INFO"):
+        assert capture._clock_gate("dev", ADDR, True) is True  # unmeasured → vendor string
+        for _ in range(4):
+            capture._clock_gate("dev", ADDR, True)  # same basis: silent
+        assert sum("clock-sync gate" in r.message for r in caplog.records) == 1
+        devcaps.record(ADDR, "psftp", False, source="gatt-mtu-char")  # the map fills in
+        assert capture._clock_gate("dev", ADDR, True) is False  # measurement outranks the label
+        assert sum("clock-sync gate" in r.message for r in caplog.records) == 2
+    capture._CLOCK_CAP_BASIS.pop("dev", None)
