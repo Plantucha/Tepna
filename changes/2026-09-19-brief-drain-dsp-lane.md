@@ -37,6 +37,19 @@ landed in the surface checked", not "the header is re-verified". PPGDEX-ALGORITH
 same caveat for the opposite reason — a deep-dive brief is mostly behavioural claims, which a
 commit-existence check cannot adjudicate in either direction.
 
+STALE-SINCE vs FALSE-WHEN-WRITTEN is labelled explicitly on EEGDEX-BUILD, because the two earn different
+responses. `git ls-tree` at BOTH the 2026-08-03 and 2026-09-02 commits shows `eegdex-dsp.js` absent, so each
+verification was correct when taken and the world moved afterwards. A false-when-written header indicts the
+checker; a stale-since header indicts only the clock. A first reading here showed the file present since the
+initial commit, which would have made the stamp an accusation about whoever verified it — two commands
+separated those.
+
+The manifest/shipped-code contradiction is a SEPARATE defect and is logged as residue
+`2026-09-19-eegdex-manifest-says-planned` rather than carried in a header note: the brief's claim went stale
+with time, while the manifest is a live inconsistency between two artifacts in the same tree. ⚠️ That row
+states as UNASSESSED whether the manifest status is load-bearing for any consumer — the trace that decides
+live-vs-latent is the first step for whoever takes it, not an assumption baked into the row.
+
 ⚠️ LANDINGS ARE RECORDED, NOT ASSESSED. No done-when is ticked anywhere in this batch. Whether a PR
 satisfies a brief's acceptance item is the owner's reading of coverage; deciding it from a commit
 title is sizing from a summary instead of the code.
