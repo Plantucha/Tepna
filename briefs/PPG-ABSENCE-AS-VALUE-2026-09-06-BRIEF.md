@@ -141,6 +141,41 @@ from the LIVE sidecar can only claim *"valid unless a long blanking run was dete
 are precisely the blanking that claim excludes, so an envelope fed only by the live writer would call
 all 79 valid.
 
+## 4c · Run-length BASELINE for the three un-named streams — measured 2026-09-19, the tripwire's reference
+
+§∅ requires the run-length signature to run on every device and stand as a tripwire. It had run on the ring's
+`ppg1` only. This table is the baseline for the other three (`ppg2w` was settled separately: zero constant runs
+≥ 5 at any threshold over 56 nights, values in the ~10⁶ range never repeat). It is a RECORD, deliberately not a
+tool plus a gate plus an artifact (owner's 2026-09-19 filter, question 5): a first run ≥ `T_STUCK` (200) on any of
+these channels is new information against these numbers, and if anyone later wants that enforced, this is what
+they enforce against.
+
+**Population:** 7 nights, 2026-09-10 → 09-17 (a SUBSET of the 56-night corpus — pure-Python RLE on the capture box
+makes the full set a multi-hour job), every run on every channel, no rail assumed, values kept for runs ≥ 50.
+Read-only over `/srv/tepna/captures`. Measured by Wren.
+
+| stream / channel | files | samples per ch | mean run | top-2 lengths (share) | sample-weighted p99 / p99.9 | MAX | runs ≥ 50 |
+|---|---|---|---|---|---|---|---|
+| `acc` H10 · X / Y / Z | 16 | 45,767,016 | 1.22 / 1.20 / 1.14 | 1, 2 (0.96 / 0.97 / 0.98) | 6/11 · 4/7 · 4/5 | 40 · 18 · 12 | 0 · 0 · 0 |
+| `acc` Verity · X / Y / Z | 13 | 10,451,254 | 1.15 / 1.14 / 1.14 | 1, 2 (0.98) | 4/5 · 3/5 · 3/5 | 9 · 11 · 10 | 0 · 0 · 0 |
+| `ppg` Verity · ch 0 / 1 / 2 | 13 | 11,449,786 | 1.00 / 1.00 / 1.00 | 1, 2 (1.000) | 1/2 · 1/2 · 1/2 | 41 · 41 · 42 | 0 · 0 · 0 |
+| `accraw` O2Ring · X / Y / Z | 20 | 2,055,985 | 6.92 / 6.96 / 6.98 | 6, 7 (0.92) | 19/26 · 19/26 · 19/26 | 39 · 39 · 45 | 0 · 0 · 0 |
+
+**Reading, keyed on run length against each stream's own distribution — no kinds proposed, because there is
+nothing to name:**
+- `acc` (both Polars): variable to the last decimal; an axis resting at 0 mG does not appear as a run population.
+- `ppg` (Verity): essentially never repeats; the 41–42 maxima are the ADC-ceiling rail (the 56-night census placed
+  every Verity pinned sample at 2,096,921, max run 72) — an observation about the top of the range, not a mechanism,
+  and at 41–72 samples it never reaches `T_STUCK`. Saturation is not absence.
+- `accraw` (O2Ring): the zero-order hold exactly as the classifier models it — 92 % of runs are 6 or 7 (the
+  1.5625 Hz sample written at 10 Hz), the next mode is 13 (two held frames), the max of 45 is a small multiple of
+  that cadence. Fully explicable by design; `held` is the right class and a value-keyed rule would have convicted
+  the whole stream.
+
+So on these three the sidecar is inert **by data, not by construction** — they can carry a long run and have not —
+which is what makes a future one a finding. `RUN_KIND_BY_STREAM` stays `ppg1`-only; `unknown` on the other four is
+evidenced, not defaulted.
+
 ## 5 · Comment-line grammar (pinned; the file reproduces itself)
 
 ```
