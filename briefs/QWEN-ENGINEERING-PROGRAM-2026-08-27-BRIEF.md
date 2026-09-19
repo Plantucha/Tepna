@@ -136,8 +136,8 @@ Jobs 6–10 are additional lenses/modes on C1+C2 once precision data exists — 
 | P0 | C1 findings ledger + precision metrics | per-finding | coordinator triage writes status | L1 |
 | P0 | C2 lens runner conversion | nightly + per-push | per-lens, per §2.5 bands | L1 |
 | P0 | draft-pipeline fixes (projection charset, recompute-fallback) | with each crawl | by construction | L1→L2 |
-| P0 | suite-realm re-verification of drafts before adoption (amendment §2.1 — 2/48 realm-divergent, 4/48 non-round-tripping) | per adoption batch | re-execution in the consuming realm | L1 |
-| P0 | adopt the 57 existing drafts (realizes the pipeline's value; the first metric datum) | once | `npm run check` + mutation re-run | normal PR |
+| P0 | suite-realm re-verification of drafts before adoption (amendment §2.1 — **RE-MEASURED 2026-09-18: 9/371 realm-divergent ≈ 2.4 %**, against the 2/48 recorded here; see §7-bis) | per adoption batch | re-execution in the consuming realm | L1 |
+| P0 | adopt the **376** existing drafts (**not 57 — re-counted 2026-09-18, see §7-bis**; realizes the pipeline's value; the first metric datum) | batches | `npm run check` + mutation re-run | normal PR |
 | P1 | state-machine adversary (job 3) | nightly rotation | read-one-function check → pytest case | L1 |
 | P1 | test-gap detector (job 4) | per-push | gap is binary-checkable | L1→L2 |
 | P1 | nightly report (C3, §19) | nightly | it IS the triage surface | L1 |
@@ -173,11 +173,79 @@ with the 4 exclusions and one surviving planted mutant recorded there); mutants 
 state-machine findings; regressions caught. Explicitly NOT success metrics, per charter: token
 counts, agent counts, finding counts. Kill criteria per §2.5.
 
+## 7-bis · RE-MEASURED 2026-09-18 (Osprey) — the pile, the divergence rate, and a figure I got wrong
+
+Measured in the authoritative realm, `node tests/run-tests.mjs --verify-drafts` — not the tool-local
+one, whose own banner reads "APPROXIMATE — not adoption-grade" and records an imitation realm
+certifying drafts the suite failed.
+
+    TOTAL  verified 321 · divergent 50 · unexecutable 5     across 29 drafts files
+
+**1 · The pile is 376, not 57** — a 6.6× sizing error. The crawl kept running after this brief was
+written. That is the difference between "a batch" and a programme of batches, and the rows above are
+corrected in place rather than appended.
+
+**2 · 🔴 A FIGURE THAT CIRCULATED AND IS SUPERSEDED — recorded rather than quietly replaced.** On
+2026-09-18 I reported, and it was relayed to the owner, that *"divergence moved 4 % → 13.3 %, the
+hazard did not stay put."* **That is wrong.** The two figures count different populations:
+
+    gross          50 / 371   (13.3 %)
+    of which       41         `out.schema.generated` — a wall-clock stamp
+    real realm      9 / 371   (≈ 2.4 %)   against the original 4 %
+
+**The hazard did not grow; it may have shrunk.** I compared two aggregates whose composition had
+changed underneath one name — and did it in the message correcting someone else's numbers. What
+survives, narrowly: a measured divergence rate has a shelf life **because its composition drifts**, so
+re-verify per batch rather than reusing a figure. The reason is composition, not a growing hazard.
+
+**3 · The cause is ONE KEY in THREE MODULES — not four environments, and not a general realm effect.**
+41 of 50 divergences are the single projection `out.schema.generated`: a timestamp recording the instant
+the draft was made, which cannot reproduce in any realm, ever. It diverges by construction. Those 41 sit
+in exactly three files and in no others:
+
+    cpapdex-fusion   21 of its 21 divergences are schema.generated
+    ppgdex-dsp       14 of 16
+    hrvdex-dsp        6 of 7
+
+⚠️ **A second claim of mine, measured and withdrawn HERE rather than quietly dropped.** Drafting this
+section I wrote *"files emitting no `schema.generated` have zero divergences."* **That is false.**
+`cpapdex-cross`, `motiondex-dsp`, `oxydex-cross` and `oxydex-dsp` each diverge without ever emitting the
+key. It is the same shape as §2 one level down — the count of 41 was measured, the inference about the
+other 9 never was — and it is left visible because a brief that shows only the surviving claims teaches
+nothing about how the wrong one got in.
+
+    the residual 9, per file and per key — a bounded list, not a rate:
+      oxydex-dsp     3   out.mos · out.autoArousalIdx · out
+      ppgdex-dsp     2   out.nn[0] · out.nn[2]
+      oxydex-cross   1   out.nights[0].date
+      cpapdex-cross  1   out          hrvdex-dsp  1  out          motiondex-dsp  1  out
+
+⚠️ **Determinism control — this is what makes the above a cause rather than a plausible story.** Three
+independent verifications, two hours apart and then a third, returned **321 / 50 / 5 each time**, with
+the same per-file split. Divergence that reproduces to the unit is consistent with a structural artifact
+and inconsistent with a flaky realm; a flaky realm would not land on the same integers three times.
+
+**Actionable consequence.** Stripping one volatile key at drafting time clears **41 of the 50** blockers
+pile-wide and moves `cpapdex-fusion` from 11/32 adoptable to 32/32. The residual 9 are genuine per-draft
+divergences needing individual re-recording; they are enumerated above so nobody re-derives them.
+
+**4 · The repo already holds the remedy, and the drafting pipeline is the one place not applying it.**
+
+    tests/dex-tests.js:40627   EXCL = { file, provenance, kernel, generated, … }
+    tests/dex-tests.js:41248   _VOL = { generated: 1 }
+    tests/dex-tests.js:41223   "stripped at EVERY depth … top-level AND under `schema`"
+
+The equivalence gate solved this; a grep for any strip/volatile/exclude of `generated` on the drafting
+side returns nothing. **Consequence for C1–C3: if divergence is structural, the remedy belongs at
+DRAFTING time.** Adoption-side re-verification catches it without stopping it being generated, and a
+programme that only filters at adoption pays that cost forever. ⚠️ Reported, NOT fixed — the drafting
+harness is programme work and the programme is owner-gated pending ratification of this map.
+
 ## 7 · Done when
 
 - [ ] Owner ratifies the priority map (or amends ranks in place).
 - [ ] C1 + C2 + C3 built and the first nightly report produced.
-- [ ] The 57-draft adoption PR lands (value realized, metric unblocked).
+- [ ] The draft adoption lands (value realized, metric unblocked). ⚠️ **376 drafts, not 57** — a batch programme, not one PR; first batch landed #2652. See §7-bis.
 - [ ] First precision numbers exist for ≥2 lenses; §2.5 bands applied once.
 - [ ] Follow-up brief records what the first month of precision data says about which
       charter sections earned expansion.
