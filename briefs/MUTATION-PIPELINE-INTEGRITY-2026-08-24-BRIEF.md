@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — **DRAIN 2026-09-19 (Kestrel): the box count below predates FIVE landings in this brief's own `Affects:` surface, so do not size from it.** `b56e63a1` · `0fcb0fda` · `85fc7094` · `d2cb597d` · `89155a63` all touched `tools/mutate_diff.py` / `mmeta.py` after the 2026-09-11 count was taken, four of them on 09-18. ⚠️ I am recording the landings, NOT re-ticking boxes — that is the brief owner's call and needs their reading of what each PR actually covers. **The box most likely advanced is line 186, *"No diagnostic in this pipeline names a cause the code did not check"*:** `d2cb597d` and `89155a63` removed exactly such a diagnostic — `generated_count == 0` reported *"no mutable operator in this function"* when it meant *"this tool cannot examine this function"*, a wrong diagnosis of a right number, widened from `@property` to every decorator (50 of 1665 measured). That is ONE instance removed, not the universal the box asserts, which is why it stays unticked here. Line 114's zero-mutant-module guard may also have moved — `^def` anchoring was blinding `generated_count` to every class method (`0fcb0fda`), so a crash read as benign. Both want the owner's assessment, not mine. — 2026-09-11 (**UPDATE 2026-09-11 (Osprey): the scratch-verdict-cache box is OVERTAKEN by #2358 — see the `[~]` item. The staleness it guards was real and measured, but the fix is a sibling REFRESH on reuse, not a re-keyed cache: the mutants are a pure function of the mutated module, so folding a test or sibling revision into the key would discard a byte-identical 100 MB mutant file and the warm `.pyc`, i.e. the 22 min → 18 s reuse the cache exists for. Boxes now 1 ticked · 1 overtaken · 6 open. Recorded here because the 2026-09-02 drain line below says "1 of 8 … 7 open" and a reader would otherwise re-derive a box that a landing has already answered — the exact loss §📌 records seven times in one day.) · (originally 2026-08-28: **two of §6's five items shipped and were never stamped here** — their closure is recorded in a *sibling* brief. Audited item-by-item against the code and the on-disk corpus 2026-08-28; the three that remain now carry numbers instead of adjectives. See §6a.) · **Created:** 2026-08-24 · **Follows:** `MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md` (§3e) · **Affects:** `tools/mutation-ai-probe.mjs`, `tools/mutation-crawl.mjs`, `tools/mutate_diff.py`, `tools/ai-probe-overnight.sh` · **DRAIN 2026-09-02 (Osprey):** verified 1 of 8 Done-when boxes ticked, 7 open — the least-advanced brief in this family. **Owner: Osprey. Next step:** re-scope before executing; 7 open boxes is more than one work-unit and the brief should be split or trimmed rather than picked up whole.
+**Status:** IN-PROGRESS — **DRAIN 2026-09-19 (Kestrel): the box count below predates FIVE landings in this brief's own surface (`tools/mutation-ai-probe.mjs`, `tools/mutation-crawl.mjs`, `capture-host/tools/mutate_diff.py`, `capture-host/mmeta.py`) — ⚠️ this sentence said "its own `Affects:` surface" and **this brief has no `Affects:` field**, so it sent readers to a header line that does not exist; 65 of 514 briefs carry one and this is not among them, so do not size from it.** `b56e63a1` · `0fcb0fda` · `85fc7094` · `d2cb597d` · `89155a63` all touched `tools/mutate_diff.py` / `mmeta.py` after the 2026-09-11 count was taken, four of them on 09-18. ⚠️ I am recording the landings, NOT re-ticking boxes — that is the brief owner's call and needs their reading of what each PR actually covers. **The box most likely advanced is line 186, *"No diagnostic in this pipeline names a cause the code did not check"*:** `d2cb597d` and `89155a63` removed exactly such a diagnostic — `generated_count == 0` reported *"no mutable operator in this function"* when it meant *"this tool cannot examine this function"*, a wrong diagnosis of a right number, widened from `@property` to every decorator (50 of 1665 measured). That is ONE instance removed, not the universal the box asserts, which is why it stays unticked here. Line 114's zero-mutant-module guard may also have moved — `^def` anchoring was blinding `generated_count` to every class method (`0fcb0fda`), so a crash read as benign. Both want the owner's assessment, not mine. — 2026-09-11 (**UPDATE 2026-09-11 (Osprey): the scratch-verdict-cache box is OVERTAKEN by #2358 — see the `[~]` item. The staleness it guards was real and measured, but the fix is a sibling REFRESH on reuse, not a re-keyed cache: the mutants are a pure function of the mutated module, so folding a test or sibling revision into the key would discard a byte-identical 100 MB mutant file and the warm `.pyc`, i.e. the 22 min → 18 s reuse the cache exists for. Boxes now 1 ticked · 1 overtaken · 6 open. Recorded here because the 2026-09-02 drain line below says "1 of 8 … 7 open" and a reader would otherwise re-derive a box that a landing has already answered — the exact loss §📌 records seven times in one day.) · (originally 2026-08-28: **two of §6's five items shipped and were never stamped here** — their closure is recorded in a *sibling* brief. Audited item-by-item against the code and the on-disk corpus 2026-08-28; the three that remain now carry numbers instead of adjectives. See §6a.) · **Created:** 2026-08-24 · **Follows:** `MUTATION-SUITE-FOLLOWUPS-2026-08-17-BRIEF.md` (§3e) · **Affects:** `tools/mutation-ai-probe.mjs`, `tools/mutation-crawl.mjs`, `tools/mutate_diff.py`, `tools/ai-probe-overnight.sh` · **DRAIN 2026-09-02 (Osprey):** verified 1 of 8 Done-when boxes ticked, 7 open — the least-advanced brief in this family. **Owner: Osprey. Next step:** re-scope before executing; 7 open boxes is more than one work-unit and the brief should be split or trimmed rather than picked up whole.
 
 # The mutation pipeline reported converged for three days while discarding its own results
 
@@ -113,6 +113,26 @@ is the one that discriminates.**
       tree still lingers in a reused scratch — copy-only, `--no-reuse` is the hatch.
 - [ ] **Zero-mutant-module guard** keyed on `exit_code_by_key` entries under the glob prefix. The
       `_ran` counter cannot express it: a crashed invocation increments it.
+      ⚠️ **ASSESSED 2026-09-19 (Osprey) — STAYS UNTICKED. #2644's `^def` → `^\s*def` fix is ADJACENT,
+      not this.** That fix repaired `generated_under_glob`, which counts mutants from the mutants
+      SOURCE; this box asks for a guard keyed on `exit_code_by_key`, which records EXECUTION. Different
+      quantities — which is the box's whole point, since it exists because a counter that can be
+      incremented by a crash cannot express "zero mutants ran". `exit_code_by_key` currently has no
+      consumer outside `capture-host/mmeta.py`, so no such guard exists. The fix was a necessary
+      precondition (a generation count that was silently 0 for every class method could not have
+      supported a three-way split) and it is not the guard.
+      ✅ **AND THE BOX IS BUILDABLE TODAY — no new plumbing needed, which is the useful half.** Verified
+      by a RECURSIVE search (my first pass used a non-recursive `capture-host/*.py` glob, which is the
+      same narrow-pattern error as an anchored grep): the only references outside `mmeta.py` are a
+      COMMENT at `mutation_diff.py:617` and `tests/test_mmeta.py`. That comment names the route —
+      `mutmut results` walks `exit_code_by_key` itself, and the gate already parses its listing.
+      ⚠️ **Build it from the listing with that comment's warning in hand, not around it:** it records
+      that filtering the listing to `": survived"` produced TWO false verdicts, because
+      `status_by_exit_code` also emits `timeout · suspicious · skipped · no tests · not checked ·
+      caught by type check · check was interrupted`, and DEFAULTS to `suspicious` for any unseen exit
+      code — so a mutant that timed out under load vanished and the gate reported every mutant killed
+      about one no test ever saw. A zero-mutant guard that keys on status strings inherits exactly
+      that. Key on ENTRY PRESENCE under the glob prefix, which is what the box already says.
 - [ ] **`before` is stored `.slice(0, 120)`** — would corrupt a replay on a longer line. **0 of 165
       records reach the cap**, so it is theoretical; recorded so it is not rediscovered as a surprise.
 
@@ -184,3 +204,10 @@ honest outcome, not a gap in the audit.
 - [ ] 6.1 built with a control that fails first, once corpus turnover makes refusal safe (re-measure
       the 6.7 % before starting).
 - [ ] No diagnostic in this pipeline names a cause the code did not check.
+      ⚠️ **ASSESSED 2026-09-19 (Osprey) — STAYS UNTICKED, and now with a named counter-example rather
+      than an absence of evidence.** #2632/#2651 removed ONE such diagnostic (the `timeout_multiplier`
+      advice), which is an instance and not the universal this box asserts. Enumerating the pipeline's
+      advisory strings finds a survivor: `capture-host/tools/mutate_diff.py:513` prints *"no generated
+      mutant matches … — the line moved, or the entry is malformed"*, naming **two** causes and
+      checking **neither**. The box cannot tick while that stands, and the tick — when it comes — needs
+      an enumeration, not another single removal.
