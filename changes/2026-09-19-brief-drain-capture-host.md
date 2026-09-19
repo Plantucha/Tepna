@@ -15,9 +15,22 @@ guessed at.
 **BLE-SNIFFER-DUTY-CYCLE — wrong when written, and the remaining box is far smaller than stated.** Its
 header said `tepna-sniff.service`/`.timer` are *"NOT in the tree — confirmed absent"*, dated 2026-09-11.
 Both landed **2026-09-06 in #2273** at `capture-host/systemd/` — five days *earlier*. Likely a check at
-the flat `capture-host/` path. They are also **installed on vigil**, with the timer `disabled` and
-`inactive`. The box stays open for a different reason: the action is an **enable**, not a
-write-and-install — still owner-authorized, but minutes rather than a build.
+the flat `capture-host/` path. They are also **installed on vigil** (2026-09-12 14:37, no `timers.target.wants` link).
+
+⚠️ **My first remedy was wrong and is corrected in this PR.** I read that as *"installed but disabled,
+so the action is an enable — minutes, not a build"*. **There is no sniffer radio.** Both dongles now
+report `Zephyr HCI UART anchor np`; the RADIO-CLOCK-SIDECAR flash of 09-07 took them, and the newest
+capture is `nightly-20260909-0701.pcap`, **2026-09-09 03:11**. Enabling the timer would schedule a unit
+against no hardware — worse than leaving it disabled, because it would run, produce nothing, and read as
+a working capability.
+
+So the open item is an **owner decision, not a task**: re-flash one dongle to sniffer firmware (losing
+an anchor), or retire the capability. Owner-authorized either way.
+
+**The tree said *installed*; only the box said *and inert*.** Wren reached the hardware fact
+independently from the box while I had it from the repo, and the second surface **inverted the remedy**
+rather than confirming it. Checking one of two independent surfaces is how a plausible wrong fix gets
+into a durable artifact.
 
 **PYTHON-TYPES-AND-FORMAT — a count 61 above the truth for sixteen days.** `Live count: 102` (measured
 2026-09-03) against `MYPY_BASELINE=41` today, confirmed by three independent gate runs. Moved by #2244,
