@@ -3,7 +3,7 @@
 bump: patch
 type: fixed
 nodes: [docs]
-brief: AS11-AUTO-SESSION-DETECTION-2026-08-24
+brief: AS11-AUTO-SESSION-DETECTION-2026-08-24-BRIEF.md
 ---
 Correction to #2679: the AS11 detector did NOT report last night's therapy as quiet — the claim was a
 window error, and the detector is in fact the trigger.
