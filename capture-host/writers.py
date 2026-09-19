@@ -84,6 +84,73 @@ RUN_MIN_BY_STREAM = {
     "accraw": T_STUCK,   # O2Ring ACC — a zero-order hold; the classifier catches it
 }
 
+# ── SPAN KINDS — what a constant run MEANS, named only where it was MEASURED ─────────────────────
+# Owner ruling D1, 2026-09-19, on the finger-off capture of that morning (three removals, six independent
+# off-finger stretches, `docs/O2RING-FINGER-OFF-2026-09-19.md`): the O2Ring raw pleth reads
+# EXACTLY 100 with no finger in the ring — 100.0 % of 14,982 / 5,757 / 15,023 / 2,690 / 14,961 samples,
+# one unbroken run each — and ZERO is NOT idle: zeros occurred only while WORN (111 / 37 / 360 per ON
+# segment, plus the removal moment) and never in a settled off-finger stretch; the 199 rail likewise
+# only while worn. So the three populations the 2026-09-18 census found are TWO kinds:
+#
+#     absence        the ring is not on a finger — exclude like a gap (§∅)
+#     in-wear-rail   a rail event WHILE WORN — a worn-ring event needing its own handling
+#
+# ⚠️ `in-wear-rail` is a statement about OBSERVATION, not mechanism. The capture says what 0 and 199 are
+# NOT (they are not absence); it does not say what they ARE — LED off, ADC underflow, a deliberate
+# sentinel. Fit no story to them here (§∅).
+#
+# ⚠️ NAMED ONLY WHERE MEASURED. The table is per STREAM and carries only the values a controlled capture
+# established. A stream with no entry, and a value a stream's entry does not name, is `unknown` — never
+# defaulted to either kind. The Verity's optical rail (2,096,921) has had no finger-off capture; the
+# ring's other frozen values (99, 124, …) were seen in the corpus and never controlled. `unknown` is the
+# honest answer for both, and it is the answer a row carries until someone measures.
+#
+# ⚠️ THIS DOES NOT CHANGE WHAT IS EMITTED. Kind is a label on rows the existing rule already selects;
+# `min_run` / `T_STUCK` gate exactly as before. 100 is IN-BAND — the worn pleth crosses it every beat and
+# sits on it in short plateaus (ON1: 23 runs >= 5 at 100, longest 41; one 2,492-sample plateau in ON3) —
+# so a value-keyed emission of "absence" at a short threshold would name ordinary signal. Run length
+# stays the gate; the value names the kind of a run the gate already chose. The deferred `min_run`
+# decision (owner, 2026-09-18) is therefore about the rails alone: the idle state is one run of thousands
+# of samples and is caught at any threshold.
+RUN_KIND_BY_STREAM: dict[str, dict[str, frozenset]] = {
+    "ppg1": {"absence": frozenset({100}), "in-wear-rail": frozenset({0, 199})},   # O2Ring cmd 0x03, measured 2026-09-19
+}
+KIND_UNKNOWN = "unknown"
+
+
+def run_kind(stream: str, value) -> str:
+    """The KIND of a constant run at `value` on `stream`, from the measured table only — `unknown` otherwise.
+
+    Pure. Never guesses: a stream without a table, or a value its table does not name, is `unknown`.
+    A value that is not an int (a malformed row, a float that slipped through) is `unknown` too rather
+    than raising — a label on a diagnostic row must not end a recording."""
+    table = RUN_KIND_BY_STREAM.get(stream)
+    if not table:
+        return KIND_UNKNOWN
+    if isinstance(value, bool):
+        return KIND_UNKNOWN
+    try:
+        v = int(value)
+    except (TypeError, ValueError):
+        return KIND_UNKNOWN
+    for kind, values in table.items():
+        if v in values:
+            return kind
+    return KIND_UNKNOWN
+
+
+def _kinds_header(stream: str) -> str:
+    """The header token that states the table this file classified with — `kinds=unknown` when none.
+
+    An empty sidecar must still say what was looked for, and a row's `kind` must be reproducible from
+    the header alone: a reader that sees `absence=100` knows exactly which values were named, and one
+    that sees `unknown` knows nothing was."""
+    table = RUN_KIND_BY_STREAM.get(stream)
+    if not table:
+        return "kinds=unknown"
+    return "kinds=" + ",".join(f"{k}={'|'.join(str(v) for v in sorted(vs))}" for k, vs in table.items())
+
+
 # ── ZERO-ORDER-HOLD DETECTION — computed, never a name-based exclusion ────────────────────────
 # The O2Ring's ACC is sampled at 1.5625 Hz and written at 10 Hz, so ~99.8 % of its runs are length
 # 6 or 7 and a constant-run rule would flag the entire stream. The fix is NOT to exclude "acc" by
@@ -793,7 +860,10 @@ class _RunSidecar:
     The captured bytes are untouched — this class only ever opens its own file.
     """
 
-    HEADER = "Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule"
+    # `kind` is APPENDED, never inserted: `ppgdex-dsp.js parsePinnedRuns` reads columns 1-4 by index and
+    # accepts any row of >= 8 fields, and every Python test indexes `rule` at [7]. A ninth column costs no
+    # reader anything; a reordering would have cost all of them.
+    HEADER = "Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule;kind"
 
     def __init__(self, path: str, stream: str, min_run: int, resumed: bool = False,
                  annotations: frozenset = frozenset()):
@@ -831,7 +901,8 @@ class _RunSidecar:
                                f"t_stuck={T_STUCK} merge_gap_max={_ANNOTATION_GAP_MAX} "
                                f"annotations={','.join(str(a) for a in sorted(annotations)) or 'none'} "
                                f"held_warmup={HELD_WARMUP_RUNS} "
-                               f"held_top2_share={HELD_TOP2_SHARE} unit=unknown\n")
+                               f"held_top2_share={HELD_TOP2_SHARE} unit=unknown "
+                               f"{_kinds_header(stream)}\n")
                 self._fh.write(self.HEADER + "\n")
         except OSError:
             self._fh = None                  # a sidecar that cannot open must never stop the capture
@@ -927,7 +998,7 @@ class _RunSidecar:
         if self._fh is None:
             return
         line = (f"{_phone_ts(stamp) if stamp is not None else ''};{stream};{value};{first_index};{n};"
-                f"{dur_ms:.1f};{closed};{rule}\n")
+                f"{dur_ms:.1f};{closed};{rule};{run_kind(self.stream, value)}\n")
         k = self.klass.get(stream)
         if n >= T_STUCK:
             # A `held` channel can still get STUCK, and the hold class must never hide that. The ring's
