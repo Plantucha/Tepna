@@ -5,7 +5,7 @@
   "accentColor": "var(--red)",
   "accentHex": "#FF6B7A",
   "version": "1.0.0",
-  "status": "planned",
+  "status": "alpha",
   "description": "Beat-to-beat HRV analysis from ECG-derived RR intervals — time-domain, frequency-domain, nonlinear, and clinical risk stratification metrics with true inter-beat resolution.",
   "warning": "Requires clean R-peak detection. Ectopic beats and arrhythmias must be filtered before HRV computation. Consumer-grade ECG (single-lead) may have higher artifact rates than clinical 12-lead.",
 
