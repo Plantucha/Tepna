@@ -241,6 +241,67 @@ DRAFTING time.** Adoption-side re-verification catches it without stopping it be
 programme that only filters at adoption pays that cost forever. ⚠️ Reported, NOT fixed — the drafting
 harness is programme work and the programme is owner-gated pending ratification of this map.
 
+## 7-ter · THE DRAFTS' OWN GUARANTEE IS NOT TRUE, measured 2026-09-18 (Osprey, #2656)
+
+§7-bis corrected what the pile IS. This corrects what a draft CLAIMS. Every drafted assertion is
+stamped, by `tools/mutation-suite.mjs`, with:
+
+> *"Every PROJECTION below was machine-verified to discriminate the real code from its mutant."*
+
+**Kill-verified on the 15 drafts adopted in batch 2 — each mutant planted into the real source and
+re-run in the suite realm — 13 kill it and TWO DO NOT.** Neither is fixable by re-recording, because
+neither fails by accident:
+
+    detectCVHR(0,0)   `tEnd > MAX` → `>=`   guard is `!isFinite(tEnd) || tEnd > MAX`; tEnd is
+                                            non-finite, the FIRST disjunct fires, and the mutated
+                                            one is never evaluated
+    crossNight([])    `n < 2` → `<=`        n is 0; `0 < 2` and `0 <= 2` are both true.
+                                            Identical branch — arithmetic, not a measurement
+
+⚠️ The first was proven rather than inferred: disabling the *first* disjunct alone makes the guard stop
+firing entirely. That separates **"never evaluated"** from **"evaluated and equal"** — two explanations
+for one SURVIVED that need opposite responses.
+
+**THE STRUCTURAL POINT, which generalises past drafts.** `verify-drafts` answers *"does this projection
+reproduce its recorded value in the realm that will run it"*. That is **silent** about whether the value
+can tell the code from its mutant. **Realm-divergence and discrimination are different properties, and
+only the first has been gated.** A draft can pass every realm check and pin nothing at all — so a green
+`DIVERGENT 0` is necessary and not sufficient.
+
+**Bar change (Kestrel, 2026-09-18 — a discipline change, not programme work): no batch is adopted on a
+realm check alone. Each draft's mutant is planted and must be shown to kill.** Drafts that survive are
+either dropped or kept and labelled **VALUE-PINNED ONLY**, never left reading as mutation-backed. Both
+survivors above were kept — they pin genuine §∅ behaviour on their own merit.
+
+### 7-ter.1 · A drafted test that would PUNISH a correctness fix
+
+Two `ecgdex-cross` drafts were rejected, and the reason is worth more than the rejection. Both call:
+
+    ECGCross.mannKendall("mannKendall([1,2,1])")
+
+That argument is a 21-character **string** where an array belongs — **the drafting model fed its own
+prompt text in as the input**. It "works" only because `mannKendall` reads `y.length` and then
+subtracts characters: `d` is NaN, every comparison is false, S stays 0, and tau/p come back 0 and 1.
+The values are real, reproduce in every realm, and discriminate the mutant.
+
+**Adopting it would pin the accidental duck-typing of a string as an array.** Anyone later adding an
+`Array.isArray` guard — a strict improvement — would red the suite and reasonably conclude they were
+wrong. That is the draft header's own warning (*"a projection can discriminate and still pin a bug in
+place"*) arriving in its most expensive form: **not a test that fails to catch a defect, but a test that
+actively defends one.** It is the §🔒 "oracle" position — the layer nothing checks, because checking it
+is what everything else is for.
+
+**Consequence for C1–C3:** a rail on drafted INPUTS is owed alongside the rail on drafted values — an
+argument whose text appears in the prompt, or whose type contradicts the parameter's use, is
+disqualifying regardless of how well the assertion verifies.
+
+⚠️ **And the screen that was supposed to catch this did not.** My own earlier pass recorded
+`ecgdex-cross` as "0 of 9 alleging a defect"; draft 5's property alleges one outright (*"the calculation
+is incorrect due to improper handling of tied values"*). The screen pattern-matched the property lines
+instead of reading them, and was then relayed onward as established. **A cheap screen standing in for
+the read it exists to trigger fails silently and upstream of every later check** — it decides what a
+human ever looks at. Adoption counts: batch 1 nine, batch 2 fifteen, **24 of 376**.
+
 ## 7 · Done when
 
 - [ ] Owner ratifies the priority map (or amends ranks in place).
