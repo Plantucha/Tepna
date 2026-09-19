@@ -445,6 +445,24 @@ def test_function_of_mutant_reads_a_module_level_function():
     assert M.function_of_mutant("x__floor_by_t__mutmut_12") == "_floor_by_t"
 
 
+def test_function_of_mutant_reads_the_MODULE_QUALIFIED_form_production_actually_sends():
+    """🔴 THE FORM THIS FUNCTION IS ACTUALLY CALLED WITH, and it could not read it until 2026-09-19.
+
+    `mutmut results` prints names module-qualified and `mutate_diff.py` passes them through verbatim
+    from `split_results`. Every example in the docstring is BARE, these tests were written from those
+    examples, and nothing ever fed it the production form — so `by function` grouped 100 % of mutants
+    under `?` from the day it shipped, with this file green throughout.
+
+    Measured on a real refusal: 166 undecided, `by function: 166 ?`, zero attributed. The feature
+    exists to separate "all in one pathological function" from "spread across several" — the
+    measurement that decides whether the remedy is scheduling or the mutants — and it has never once
+    produced that answer."""
+    assert M.function_of_mutant("gattmap.x__norm__mutmut_1") == "_norm"
+    assert M.function_of_mutant("gattmap.x_configure__mutmut_3") == "configure"
+    assert M.function_of_mutant("gattmap.xǁCounterǁscaled__mutmut_2") == "Counter.scaled"
+    assert M.function_of_mutant("pkg.mod.x_f__mutmut_9") == "f", "a dotted package path is still a prefix"
+
+
 def test_function_of_mutant_reads_a_METHOD_including_its_class():
     assert M.function_of_mutant("xǁCounterǁscaled__mutmut_2") == "Counter.scaled"
     assert M.function_of_mutant("xǁGapCountersǁtotal_lost__mutmut_3") == "GapCounters.total_lost"
@@ -456,12 +474,29 @@ def test_function_of_mutant_declines_rather_than_guesses():
     assert M.function_of_mutant("") == ""
     assert M.function_of_mutant("x__mutmut_1") == ""      # suffix, but no name left after `x_`
     assert M.function_of_mutant("ǁǁ__mutmut_1") == ""     # separators, no parts
+    # ...and stripping the module qualifier must not turn a decline into a GUESS: a qualified name
+    # whose remainder is still unreadable stays unattributed rather than naming the module.
+    assert M.function_of_mutant("gattmap.not_a_mutant") == ""
+    assert M.function_of_mutant("gattmap.junk__mutmut_1") == ""
+    assert M.function_of_mutant("gattmap.x__mutmut_1") == ""
 
 
 def test_undecided_by_function_counts_and_orders_commonest_first():
     items = [{"mutant": f"x__floor_by_t__mutmut_{i}"} for i in range(5)]
     items += [{"mutant": "xǁCǁs__mutmut_1"}, {"mutant": "xǁCǁs__mutmut_2"}]
     assert M.undecided_by_function(items) == [("_floor_by_t", 5), ("C.s", 2)]
+
+
+def test_undecided_by_function_attributes_the_QUALIFIED_names_the_refusal_carries():
+    """The end-to-end shape of the 2026-09-19 refusal, in the form `mutate_diff.py` builds: every item
+    is `{"mutant": <qualified>, "module": …}`. Before the fix this returned `[("?", 7)]` — a summary
+    reporting nothing about the set it was summarising."""
+    items = [{"mutant": f"gattmap.x__norm__mutmut_{i}", "module": "gattmap.py"} for i in range(5)]
+    items += [
+        {"mutant": "gattmap.x_configure__mutmut_1", "module": "gattmap.py"},
+        {"mutant": "gattmap.x_configure__mutmut_2", "module": "gattmap.py"},
+    ]
+    assert M.undecided_by_function(items) == [("_norm", 5), ("configure", 2)]
 
 
 def test_undecided_by_function_groups_the_unattributable_rather_than_dropping_it():

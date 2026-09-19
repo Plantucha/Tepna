@@ -680,6 +680,18 @@ def function_of_mutant(name: str) -> str:
     stem = re.sub(r"__mutmut_\d+$", "", name.strip())
     if stem == name.strip():
         return ""                      # no mutmut suffix ⇒ not a mutant name
+    # 🔴 STRIP THE MODULE QUALIFIER, and this line is why the whole function was inert in production.
+    # `mutmut results` prints names MODULE-QUALIFIED — `gattmap.x__norm__mutmut_1` — and the caller
+    # (`mutate_diff.py`) passes them through verbatim from `split_results`. Both documented shapes
+    # below are BARE, the tests were written from those examples, and nothing ever fed this the form
+    # it actually receives. So `x_`/`ǁ` never matched, every mutant grouped under `?`, and the
+    # `by function` summary has reported nothing since it shipped — while its own test stayed green.
+    # Measured 2026-09-19 on a real refusal: 166 undecided, `by function: 166 ?`, zero attributed.
+    #
+    # `rsplit` on the LAST dot is the conservative read: a dotted prefix can only be a module path
+    # (`pkg.mod.x_f`), because the METHOD form separates with `ǁ` and not with `.` — the dots in
+    # `Counter.scaled` are produced by the join BELOW, never present in the input.
+    stem = stem.rsplit(".", 1)[-1]
     if "ǁ" in stem:
         parts = [p for p in stem.split("ǁ") if p and p != "x"]
         return ".".join(parts) if parts else ""
