@@ -306,14 +306,40 @@ def test_the_status_token_is_UNFORGEABLE_BY_A_TEST_NAME(tmp_path):
 
 
 def test_EVERY_advisory_leg_gets_a_state_not_just_mypy(tmp_path):
-    """The sibling requirement, at the level the sandbox can actually reach: both legs are named and
-    neither falls through. In this harness `format` takes its EMPTY_SCOPE branch — which is itself one
-    of the two MANUALLY-appended legs, so this also pins that they append a state and cannot desynchronise
-    the parallel arrays."""
+    """Every leg is NAMED and carries a non-empty state token.
+
+    🔴 THIS ASSERTED `format == "EMPTY_SCOPE"` UNTIL 2026-09-19, WHICH MADE IT A TEST OF THE BRANCH
+    RATHER THAN OF THE CODE. The `format` leg is diff-scoped — `git diff --name-only origin/main...HEAD
+    -- '*.py'` — so its scope is empty only when the branch has no Python commits. I wrote it on a
+    docs-shaped branch, saw `EMPTY_SCOPE` and pinned it; the next person to touch a `.py` file gets `OK`
+    and a red test. Found by Wren; reproduced here — same tree, same code, one Python commit flips it.
+    The sharpest case was a worktree byte-identical to `main` that still failed, because the leg keys on
+    the DIFF and not on the content. CI merged through it green, so the check that failed locally was
+    not failing in the lane that gates.
+
+    ⚠️ AND THE OBVIOUS FIX IS VACUOUS — measured, not assumed. "Assert the value is in the declared
+    vocabulary" cannot work here, because the only declaration IS the emission sites. I built exactly
+    that (derive the set from `check.sh`, then check membership), mutated `AT_BASELINE` to `WOBBLE`, and
+    the test still passed: `WOBBLE` became "declared" the moment it was emitted. A vocabulary check
+    needs a declaration SEPARATE from the emitter, which this script does not have and which would be a
+    hand-maintained duplicate if bolted on.
+
+    So this asserts what the name promises and nothing it cannot back: both legs appear, and each value
+    is a non-empty uppercase token. Falsifiable — dropping a leg or emitting an empty state both red it
+    — and independent of the branch's shape, which is the property that was missing. A fallthrough to
+    `UNSPECIFIED` stays visible as a value rather than silently absent."""
     m = re.search(r"^\s*advisory-state: (.+)$", _mypy_run(tmp_path, _baseline()), re.M)
+    assert m, "no advisory-state line at all"
     states = dict(kv.split("=", 1) for kv in m.group(1).split())
     assert set(states) == {"mypy", "format"}, f"a leg is missing a state: {states}"
-    assert states["format"] == "EMPTY_SCOPE"
+    for leg, st in states.items():
+        assert re.fullmatch(r"[A-Z][A-Z_]*", st), f"{leg}={st!r} is not a state token"
+    # ⚠️ KEPT FROM THE ORIGINAL, and I deleted it once while rewriting this test — restored after a
+    # mutation caught it. `UNSPECIFIED` is the printf fallthrough for a leg whose `adv_states` entry is
+    # missing, and it is UPPERCASE, so the token-shape check above accepts it happily. Dropping a leg's
+    # state desynchronises the parallel arrays and surfaces HERE and nowhere else: not as an absent key
+    # (the loop iterates `adv_names`), not as a bad shape. This is the assertion that makes the test's
+    # own name true.
     assert "UNSPECIFIED" not in states.values(), f"a leg fell through to UNSPECIFIED: {states}"
 
 
