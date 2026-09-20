@@ -29650,7 +29650,7 @@
          cell does to a `|`-split table: it silently blinds the row (DOCS-INDEX check3b, 2026-09-02). */
       var RESIDUE_NAME = 'RESIDUE.md';
       function residueRows(text) {
-        var out = { rows: [], malformed: [] };
+        var out = { rows: [], malformed: [], seen: {} };
         /* ⚠️ SPLIT ON UNESCAPED PIPES ONLY. A bare `line.split('|')` is escape-BLIND, so a row
            quoting a regex, a shell alternation, or any prose with a `\|` in it reads as an extra
            cell and is rejected as malformed however correctly it was escaped. Measured 2026-09-03:
@@ -29689,6 +29689,14 @@
           .split('\n')
           .forEach(function (line) {
             if (!/^\|\s*\d{4}-\d{2}-\d{2}-[a-z0-9-]+\s*\|/.test(line)) return;
+            /* EXISTENCE IS NOT VALIDITY. A row that fails the checks below is pushed to `malformed`
+               and RETURNS, so it never reaches out.rows — and check8h/check8i resolve key references
+               against out.rows alone. A reference to a malformed row therefore reported "no such row"
+               for a row sitting visibly in the ledger, sending a reader to look for a missing row that
+               is not missing. A secondary error naming the WRONG object is worse than a primary one
+               naming nothing: check8b already reports the malformation precisely. So record the key
+               here, before either exit, and let the reference checks ask only "does this row exist". */
+            out.seen[line.match(/^\|\s*(\d{4}-\d{2}-\d{2}-[a-z0-9-]+)\s*\|/)[1]] = { id: line.match(/^\|\s*(\d{4}-\d{2}-\d{2}-[a-z0-9-]+)\s*\|/)[1], defect: '' };
             var cells = splitLedgerCells(line);
             // leading '' + 6 cells + trailing '' — anything else means a pipe inside a cell or a missing column
             if (cells.length !== 8 || cells[0].trim() !== '' || cells[7].trim() !== '') {
@@ -29698,6 +29706,7 @@
             var c = cells.slice(1, 7).map(function (s) {
               return s.trim();
             });
+            if (out.seen[c[0]]) out.seen[c[0]].defect = c[3];
             var srcBrief = c[2].match(/^`([A-Za-z0-9._-]+-BRIEF\.md)`$/);
             var srcPath = !srcBrief && c[2].match(/^`([A-Za-z0-9._\/-]+\.[A-Za-z0-9]+)`$/);
             var srcPr = !srcBrief && !srcPath && c[2].match(/^`(#\d+)`$/);
@@ -29752,6 +29761,27 @@
         RR.malformed.length === 0,
         RR.malformed.length ? RR.malformed.slice(0, 6).join('; ') : RR.rows.length + ' row(s) parsed'
       );
+      /* self-test · A MALFORMED ROW STILL EXISTS. Observed 2026-09-20: a row whose state read
+         `withdrawn by measurement` (outside the vocabulary) was rejected by check8b — correct — and
+         check8h/check8i then reported the row it was referenced by as pointing at "no such row",
+         for a row physically present in the ledger. Two of the three findings named the wrong
+         object. The plant plays exactly that ledger: one malformed row, one valid row referencing
+         it. check8b must still see the malformation; the key must still resolve. */
+      (function () {
+        var planted =
+          '| 2026-09-20-zz-broken | 2026-09-20 | `signal-spec.js` | d | e | not-a-state |\n' + '| 2026-09-20-zz-ref | 2026-09-20 | `signal-spec.js` | WITHDRAWS `2026-09-20-zz-broken` | e | OPEN |\n';
+        var P = residueRows(planted);
+        T.eq('self-test · the malformed row is REPORTED by check8b (teeth intact)', P.malformed.length, 1);
+        T.ok(
+          'self-test · …and is absent from the parsed rows',
+          !P.rows.some(function (r) {
+            return r.id === '2026-09-20-zz-broken';
+          })
+        );
+        T.ok('self-test · …but EXISTS, so a reference to it resolves (no misdirected "no such row")', !!P.seen['2026-09-20-zz-broken']);
+        T.eq('self-test · a valid row still carries its defect cell into seen', P.seen['2026-09-20-zz-ref'].defect.indexOf('WITHDRAWS') === 0, true);
+        T.ok('self-test · a key that is genuinely absent is still absent', !P.seen['2026-09-20-zz-nonexistent']);
+      })();
       /* ── check8i · A WITHDRAWAL MUST BE CORROBORATED BY THE ROW IT NAMES ──────────────────────
          The fourth state exists so a row whose defect turned out not to exist can close honestly. The
          danger the owner was asked about is the mirror image: a GENUINE defect closed by asserting it
@@ -29768,7 +29798,7 @@
       var badWithdraw = [];
       RR.rows.forEach(function (r) {
         if (!r.withdrawnBy) return;
-        var w = byKey[r.withdrawnBy];
+        var w = byKey[r.withdrawnBy] || RR.seen[r.withdrawnBy];
         if (!w) {
           badWithdraw.push(r.id + ' → ' + r.withdrawnBy + ' (no such row)');
           return;
@@ -29927,7 +29957,7 @@
             });
             var refs = body.match(/\b\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\b/g) || [];
             refs.forEach(function (k) {
-              if (!ids[k]) bad.push(m[1] + ' → ' + k + ' (no such row)');
+              if (!ids[k] && !RR.seen[k]) bad.push(m[1] + ' → ' + k + ' (no such row)');
             });
           });
         return bad;
