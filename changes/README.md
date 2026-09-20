@@ -27,6 +27,36 @@ Clamp per-epoch HR to a physiologic range before averaging — fixes runaway on 
 
 The first line of the body becomes the changelog bullet; keep it one imperative sentence.
 
+## Do not hand-type `brief:` — and verify in 4 seconds, not in CI
+
+```sh
+node tools/new-changeset.mjs --slug=spool-cursor --bump=patch --type=fixed \
+     --brief=CPAP-ACQ-P4 --body="Follow the device's pointer instead of stopping."
+```
+
+`--brief` takes a **fragment** and resolves it against the real `briefs/` set: one match is written in
+full, several refuse and list them, none refuses and shows the nearest. **There is no spelling for a
+brief that does not exist.** Omit `--brief` and you get `brief: none`, which is the default on purpose —
+see below.
+
+**Then check it, locally:**
+
+```sh
+node tests/run-tests.mjs --group=release-ledger      # ~4 s, and `check5` resolves every brief
+```
+
+⚠️ **This is why that line is here.** `check5` has always caught a non-resolving `brief:`, and it has
+always been fast — but nothing pointed an author at it, so the first thing that said "wrong" was a
+**~6-minute CI lap**. Measured 2026-09-19: three sessions learned it that way in one night. The check
+was never missing; the 4 seconds were never on offer.
+
+## `brief: none` is a real answer, not a fallback
+
+Use it whenever the work-unit executed no brief. **Naming a plausible-but-wrong brief passes `check5`**
+— it resolves, so the gate is satisfied — **while sending the next reader somewhere the defect never
+was.** That is the residue ledger's source-cell trap one artifact over. If you are unsure which brief a
+change belongs to, `none` is correct and a guess is not.
+
 ## What the bump levels mean (SemVer for Tepna)
 
 - **major** — a breaking change to a *published contract*: the `ganglior.node-export` schema, the
