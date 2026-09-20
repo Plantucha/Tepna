@@ -65,6 +65,17 @@ const opt = (n, d) => {
   return i >= 0 && argv[i + 1] ? argv[i + 1] : d;
 };
 const SRC = opt('--src', '/run/media/michal/647A504F7A50205A');
+/* AN ABSENT INPUT PATH IS NOT A MEASUREMENT. The default below points at a removable volume that
+   is not always mounted (and is no longer where the primary checkout lives), so the common failure
+   is that the directory simply is not there. Without this, this run reported "no O2Ring files found" and exited 0 — a caller reading the exit
+   code sees success, and the output reads as a finding about the data rather than about the path.
+   Refuse with exit 2, the convention `tools/hostaxis-estimator-bakeoff.mjs` already uses. This is
+   §∅ one layer out: absence must stay visible, never be reported as a value. */
+if (!existsSync(SRC)) {
+  console.error(`✗ input path does not exist: ${SRC}\n  Pass --src <dir>, or mount the volume.`);
+  process.exit(2);
+}
+
 /* Fraction of an epoch's 300 s that must carry a vendor sample for the epoch to be paired. Deliberately
    not tuned: it is "at least half the window actually observed". `--min-cov` re-runs it, and the
    sensitivity is reported in the brief rather than assumed away. */
