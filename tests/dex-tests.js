@@ -18776,6 +18776,82 @@
       );
     });
 
+    /* §∅ AT PER-CELL GRANULARITY — the coupling grid says which cells were MEASURED.
+       `_interpGrid` used to return a bare Float64Array, so a cell drawn across a dropout was
+       indistinguishable from one backed by beats, and `cardiorespCoupling` published seven metrics
+       with `nGrid` (the denominator) and no count of what was drawn. That is SomnoTrace's short-gap
+       hold, one layer in. The contract here is GlucoDex's, not a new one. */
+    group('ECGDex coupling grid — a cell drawn across a gap is counted, and a clean night counts zero', 'ecgdex-dsp · absence-is-null · gap-coverage', function (T) {
+      var E = env.ECGDSP || env.EcgDsp;
+      if (!E || typeof E.cardiorespCoupling !== 'function') {
+        T.skip('ECGDSP.cardiorespCoupling exposed', 'not on the bare surface');
+        return;
+      }
+      /* One synthetic night, twice: identical except for a single 120-second hole. */
+      var mk = function (gapAt) {
+        var fs = 130,
+          nb = 400,
+          tt = [],
+          nn = [],
+          refIdx = [],
+          t = 0,
+          i;
+        for (i = 0; i < nb; i++) {
+          var rr = 1 + 0.05 * Math.sin(i / 5);
+          if (gapAt && i === gapAt) rr = 120;
+          t += rr;
+          tt.push(t);
+          nn.push(rr * 1000);
+          refIdx.push(Math.round(t * fs));
+        }
+        var N = Math.round(t * fs) + 10,
+          int16 = new Int16Array(N);
+        for (i = 0; i < N; i++) int16[i] = Math.round(200 * Math.sin((2 * Math.PI * i) / fs / 4));
+        for (i = 0; i < refIdx.length; i++) if (refIdx[i] < N) int16[refIdx[i]] = 1500;
+        return { nn: nn, tt: tt, int16: int16, refIdx: refIdx, fs: fs };
+      };
+      var run = function (a) {
+        return E.cardiorespCoupling(a.nn, a.tt, a.int16, a.refIdx, a.fs, null, null);
+      };
+      var clean = run(mk(0)),
+        gapped = run(mk(200));
+      /* ANTI-VACUITY: both must actually compute, or the comparison below is two nulls agreeing. */
+      T.ok('ANTI-VACUITY · both synthetic nights produce a coupling result', !!(clean && gapped), String(!!clean) + '/' + String(!!gapped));
+      if (!(clean && gapped)) return;
+
+      T.eq('a clean night reports ZERO drawn cells — the flag does not fire on ordinary beat spacing', String(clean.nGridGap), '0');
+      T.eq('…and its gap fraction is 0, not null', String(clean.gridGapFrac), '0');
+      /* 🔴 THE PLANT, AND ITS ANSWER IS ARITHMETIC RATHER THAN A RECORDED VALUE: one 120-second hole
+         on a 4 Hz grid is exactly 480 drawn cells. A recorded-value assertion would pass just as well
+         against a flag that counted something else entirely. */
+      T.eq('one planted 120 s gap is counted as exactly 120 s x 4 Hz = 480 drawn cells', String(gapped.nGridGap), '480');
+      T.ok('…and the fraction is that count over nGrid', Math.abs(gapped.gridGapFrac - 480 / gapped.nGrid) < 1e-4, String(gapped.gridGapFrac));
+      T.ok('the gapped night is NOT silently identical to the clean one', gapped.nGridGap > clean.nGridGap, gapped.nGridGap + ' vs ' + clean.nGridGap);
+    });
+
+    /* The two nodes cannot share a constant (no common spine), so the mirror is gated instead — the
+       same shape as `gap-cut-parity` for GAP_S / PPG_CVHR_GAP_S. */
+    group('One grid-flag vocabulary, two nodes — ECGDex GRID_FLAG mirrors GlucoDex FLAG', 'ecgdex-dsp · glucodex-dsp · grid-flag-parity', function (T) {
+      var S = env.sources || {};
+      var e = S['ecgdex-dsp.js'],
+        g = S['glucodex-dsp.js'];
+      if (e == null || g == null) {
+        T.skip('ecgdex-dsp.js + glucodex-dsp.js in env.sources', 'not wired — the scan would read nothing');
+        return;
+      }
+      var num = function (src, re) {
+        var m = src.match(re);
+        return m ? Number(m[1]) : null;
+      };
+      var eOk = num(e, /GRID_FLAG\s*=\s*\{[^}]*\bOK:\s*(\d+)/);
+      var eLong = num(e, /GRID_FLAG\s*=\s*\{[^}]*\bGAP_LONG:\s*(\d+)/);
+      var gOk = num(g, /FLAG\s*=\s*\{[^}]*\bOK:\s*(\d+)/);
+      var gLong = num(g, /FLAG\s*=\s*\{[^}]*\bGAP_LONG:\s*(\d+)/);
+      T.ok('ANTI-VACUITY · all four flag values were actually parsed', eOk !== null && eLong !== null && gOk !== null && gLong !== null, [eOk, eLong, gOk, gLong].join(','));
+      T.eq('OK has the same value in both nodes', String(eOk), String(gOk));
+      T.eq('GAP_LONG has the same value in both nodes', String(eLong), String(gLong));
+    });
+
     group('CPAPDex STR.edf daily summary — device mode/RERA/CSR/prescription, refuses to fabricate', 'cpapdex-dsp · cpapdex-registry · str-summary', function (T) {
       var C = env.CpapDsp;
       if (!C || typeof C.parseStrSummary !== 'function') {
