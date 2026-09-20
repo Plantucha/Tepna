@@ -3,13 +3,25 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (core BUILT — verified 2026-09-05: `capture-host/oxy_power.py` is the engine, wired into
+**Status:** PROPOSED · **Residue:** 2026-09-20-o2ring-passive-scan-needs-or-patterns · (core BUILT — verified 2026-09-05: `capture-host/oxy_power.py` is the engine, wired into
 `capture.py` at the link-axis emit, the two automatic pull pollers, `pull_oxyii_session`, the presence scan
 loop and the restart-storm hold; 55 assertions in `tests/test_oxy_power.py` (30 adversarial state-machine
 cases, §23) + 18 wiring cases in `tests/test_oxy_power_wire.py`; `check.sh` green. Remainder is §22/§24 —
 the power budget and the 15-item acceptance run need the ring on the owner's bench, and the passive-scan
 mode (§3) is untested against vigil's BlueZ. **Owner:** owner (box) for §22/§24 · **Next step:** one
-attended night with `webmon /state` `"power"` sampled hourly) · **Created:** 2026-09-05
+attended night with `webmon /state` `"power"` sampled hourly. **DRAIN 2026-09-20 (Wren, measured on the box,
+15 unattended nights 09-05 → 09-19 of `OXYLIFE.csv` `axis=power` rows, 37–259 per night):** (a) §24
+`illegal_skipped == 0` — 0 illegal rows on 15/15 nights and the live counter reads 0; (b) harvests happen
+unattended — `pw_harvesting` entered 1–5× per night on 13/15 nights, `pw_error_backoff` 0–4× (typed
+`transport_failure`, 60 s strike-1), no connect-fail loop; (c) **§3's passive scan HAS NEVER RUN on vigil
+and cannot on this stack as written** — the journal carries the downgrade 174 times since 09-05: *"passive
+BLE scan unsupported here (passive scanning mode requires bluez or_patterns) — using active scan"*, so the
+50 %-duty concern §7 replaced is being addressed by the policy windows only, not by passive radio, and the
+`btmon` measurement §4 asks for is not reachable (bleak refuses before the controller is asked) → residue
+`2026-09-20-o2ring-passive-scan-needs-or-patterns`; (d) the live counters are PER-PROCESS (reset at every
+daemon restart — 07:06 today reads `scan_windows 0`), so §22's per-night budget must be read from the journal
+rows, not sampled from `/state`; (e) battery-at-doff across nights and the other §24 bench items remain
+unmeasured. The engine is in production; what is unproven is the passive half.) · **Created:** 2026-09-05
 
 # O2Ring — a power-aware BLE lifecycle for the acquisition system
 
