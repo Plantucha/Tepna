@@ -6,6 +6,24 @@ O2Ring's single finger pleth across `ppg0/1/2`, so `ledAgreementPct` reported a 
 the honest `nCh < 2` path at one distinct channel. Both directions mutation-verified; the real-corpus
 PpgDex equiv fixture reproduced byte-identical, so genuine Verity captures are provably untouched.
 **Phases 1, 2 and 4 — ambient subtraction, linear combining, per-channel reporting — remain unexecuted**,
+
+> **DISPOSITION OF THE AMBIENT COLUMN — RETAINED, 2026-09-20.** Residue
+> `2026-09-02-ppgdex-ambient-collected-unused` left two honest options: withdraw the column or
+> state why it is retained. Re-measured on `origin/main`: `.amb` has **8** reads and every one is
+> plumbing — two column-index guards, three pass-throughs into a sample object, three test
+> assertions that the column is the *right* column. Controls in the same sweep: `.green` 42,
+> `.red` 36, `.motion` 87, so the instrument finds real consumption where it exists. The ambient
+> values never enter an arithmetic expression anywhere.
+>
+> **It is retained, and the promise that would have consumed it is refuted, not pending.** §2's
+> ambient subtraction was scored against 20 nights of paired chest-ECG ground truth and costs
+> ~0.5 % SNR, because ambient's within-minute std is a hardware constant (34.66–35.16 counts
+> across all 53 non-daylight sessions). So there is no consumer to build. Removal is declined on
+> cost, not on doubt: `ppgdex-dsp.js` is in the compute closure, so deleting a parsed column moves
+> `computeHash`, owes fixture re-verification across PpgDex's six fixtures, and touches two
+> adapters and three test assertions — all to change **no output**. A collected-and-unused column
+> that is documented as such is cheaper than a compute-path change that buys nothing.
+
 and §0's line refs still need re-locating against PR #218's `parsePPG` rewrite. One residue surfaced while
 executing: see §4's *middle-case residue* note.) ⚠️ **DRAIN 2026-09-19 — 17 landings in `ppgdex-dsp.js` since the 2026-09-02 re-triage**, including #2645 #2636 #2600 #2531 #2465 #2463 #2456. The header's two substantive claims are unaffected by count: ambient is still collected-and-discarded (re-verified 2026-09-18 during the pinned-span work — `amb` is parsed, stored and forwarded, and appears in no arithmetic), and the fusion refutation rests on a 20-night null rather than on the code. **Landings recorded, NOT assessed.** · **Created:** 2026-07-18
 

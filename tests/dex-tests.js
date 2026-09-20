@@ -11441,6 +11441,50 @@
        regenerates codegen/generated/, so the committed guide and the manifest are two copies of the
        load-bearing claim with nothing comparing them. That is exactly how `status` drifted.
        Node-lane only (env.codegenManifests is fs-read); the browser lane SKIPs, mirroring docs-ledger. */
+    /* ════ SERVED MARKDOWN TWINS — a copy no builder maintains ═══════════════════════════════════
+       `build-docs.mjs` writes a docs/ file only where a root twin exists AND the extension survives
+       its asset filter — and that filter drops Markdown. So `docs/papers/*.md` is a SERVED COPY that
+       no builder rewrites, sitting beside `docs/papers/*.html` that one does. The two look identical
+       to a contributor and behave oppositely, and `verify:docs` reports "docs/ current" either way.
+
+       Measured 2026-09-20: BOTH twins were stale. `docs/papers/RERUN-RESULTS.md` was 162 lines short
+       — missing two CORRECTION sections, a CONVERGED result and a full corpus re-run — while the
+       served copy still carried the sections those corrections correct. The site published claims
+       and withheld their retractions, which is the defect #2699 fixed one layer over.
+
+       The population is pinned as an EQUALITY, not a floor: a floor passes when the set GROWS, and a
+       third twin appearing is exactly the case nobody would notice. Widening builder ownership over
+       `docs/` is deliberately NOT the fix — `rebase-safe` once treated the whole prefix as generated
+       and silently reverted an authored spec, which is why the split exists (tools/build-docs.mjs:74).
+       Node-lane only (env.docsMdTwins is fs-read); the browser lane SKIPs, mirroring docs-ledger. */
+    group('served markdown twins are byte-identical to their root originals', 'docs · build-docs · served-copy', function (T) {
+      var DT = env.docsMdTwins;
+      if (!DT) {
+        T.skip('env.docsMdTwins provided to the runner', 'Node-lane only — wire env.docsMdTwins (run-tests.mjs)');
+        return;
+      }
+      /* Anti-vacuity: an empty walk would make "no twin differs" vacuously true. */
+      T.ok('the docs markdown population was actually walked', DT.total >= 30, DT.total + ' docs/**.md');
+
+      var names = DT.twins
+        .map(function (t) {
+          return t.rel;
+        })
+        .sort();
+      /* EQUALITY on the set. Update this list deliberately when a twin is added or removed — that
+         edit is the review the silent case never got. */
+      T.eq('the served-markdown twin set is exactly the two known members', names.join(', '), 'papers/PAPERS-AUDIT.md, papers/RERUN-RESULTS.md');
+
+      var stale = DT.twins
+        .filter(function (t) {
+          return !t.equal;
+        })
+        .map(function (t) {
+          return t.rel;
+        });
+      T.eq('every served markdown twin matches its root original', stale.join(', '), '');
+    });
+
     group('codegen manifest — the retired status enum stays retired', 'codegen · manifest · provenance', function (T) {
       var CM = env.codegenManifests;
       if (!CM) {
@@ -53661,7 +53705,7 @@
     /* ════ MotionDex spectral respiratory rate — known answers, honest bias, honest abstention ════
      MOTIONDEX-RESPIRATORY-RATE-2026-07-21. The zero-crossing rate scored MAE 3.59 br/min against a real
      CPAP-flow reference over 26 nights — WORSE than predicting a constant (1.50). `respiratoryRate` replaces
-     it with spectral ridge tracking (MAE 1.01). Three properties are contract, not incidental:
+     it with spectral ridge tracking (MAE 1.10, restated 2026-09-07). Three properties are contract, not incidental:
        (1) KNOWN ANSWER — a clean synthetic breath at a known rate must come back at that rate. This is the
            assertion that caught the original bias constant: it was fitted to real breathing measured against
            `60/median(period)`, so applying it by default made a 15 br/min sinusoid read 15.7.

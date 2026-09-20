@@ -1487,6 +1487,32 @@ function readNonBundleCsp() {
    as well as parsed, because the `status` retirement is asserted on the presence of the KEY: a
    re-added `"status": null` would parse to a falsy value and slip a value-based check, which is the
    same shape as the field it replaced — a claim nothing examines. */
+/* SERVED MARKDOWN TWINS — every `docs/**.md` that also exists at the repo root. build-docs.mjs
+   writes a docs/ file only where a root twin exists AND the extension survives its asset filter,
+   which drops Markdown entirely — so an `.md` twin is a SERVED COPY that no builder maintains,
+   sitting beside an `.html` twin that one does. Report the whole population, not just the twins,
+   so the gate can pin the set as an equality rather than trusting a floor. */
+function readDocsMdTwins() {
+  const dir = join(ROOT, 'docs');
+  if (!existsSync(dir)) return null;
+  const out = [];
+  let total = 0;
+  const walkMd = (d) => {
+    for (const name of readdirSync(d).sort()) {
+      const abs = join(d, name);
+      if (statSync(abs).isDirectory()) walkMd(abs);
+      else if (name.endsWith('.md')) {
+        total++;
+        const rel = abs.slice(join(ROOT, 'docs').length + 1);
+        const rootTwin = join(ROOT, rel);
+        if (existsSync(rootTwin)) out.push({ rel, equal: readFileSync(abs, 'utf8') === readFileSync(rootTwin, 'utf8') });
+      }
+    }
+  };
+  walkMd(dir);
+  return { total, twins: out };
+}
+
 function readCodegenManifests() {
   const dir = join(ROOT, 'codegen/manifests');
   if (!existsSync(dir)) return null;
@@ -2572,6 +2598,7 @@ async function main() {
     nonBundleCsp: readNonBundleCsp(),
     captureFilenameScan: readCaptureFilenameScan(),
     codegenManifests: readCodegenManifests(),
+    docsMdTwins: readDocsMdTwins(),
     claudeMdClaims: readClaudeMdClaims(),
     tableProvenance: readTableProvenance(),
     /* Does this repo-relative path exist in the tree? Used by the TABLE-PROVENANCE gate to red on a
