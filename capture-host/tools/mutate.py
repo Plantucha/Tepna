@@ -87,7 +87,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
-from mutation_diff import refresh_scratch  # noqa: E402  (after the sys.path fix above)
+from mutation_diff import refresh_scratch, root_reads, stage_root_reads  # noqa: E402  (after the sys.path fix above)
 from mutation_sweep import (  # noqa: E402
     BUDGET_OK, budget_verdict, deselect_args, deselect_notes, select_tests,
 )
@@ -355,6 +355,9 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         # own bookkeeping; `--no-reuse` is the escape hatch until it is measured to matter.
         plan["refreshed_siblings"] = refresh_scratch(HERE, work, extras)
         plan["reused_scratch"] = str(scratch)
+        # A reused scratch refreshes the root reads too — the same drift class as the siblings.
+        plan["root_reads"] = root_reads(HERE)
+        plan["root_reads_staged"] = stage_root_reads(HERE, work, plan["root_reads"])
     else:
         scratch = reusable if reuse else Path(tempfile.mkdtemp(prefix=f"mut-{module[:-3]}-"))
         work = scratch / "work"
@@ -367,6 +370,13 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
         _beat("copying scratch tree  (mutmut not started)")
         shutil.copytree(HERE, work, ignore=shutil.ignore_patterns(
             ".venv", "mutants", "__pycache__", "*.pyc", ".coverage*", "htmlcov"))
+        # THE COPY STOPS AT capture-host/, AND ONE TEST READS ABOVE IT. `tests/test_seam_sidecar.py`
+        # opens `../ecgdex-dsp.js` (seam-bound parity with ECGDex); absent from the scratch, the baseline
+        # fails and every mutant of the module reports "0 tested" (measured 2026-09-19, #2675 — and the
+        # same line sits in #2581's log, hidden then by the refusal not yet existing). The set is DERIVED
+        # from the tests each run, never listed by hand (`mutation_diff.root_reads`).
+        plan["root_reads"] = root_reads(HERE)
+        plan["root_reads_staged"] = stage_root_reads(HERE, work, plan["root_reads"])
     # `--deselect <nodeid>` rides in the same pytest arg list as the file selection. It is appended
     # HERE rather than inside `tests_for` because that function's result is also counted as "test
     # file(s)" by `--list`, where CLI flags would corrupt the count.

@@ -199,6 +199,17 @@ poller's verdicts; drive nothing. This is the mechanism that answers the detecto
 Standby-during-therapy defect, because it is edge-triggered where `FGState` polling is level-sampled.
 **Done when:** over ≥ 3 nights every TherapyStart/Stop event has a poller transition within one poll
 interval, or the discrepancy is listed per night; acting-mode promotion remains a separate owner decision.
+**Status (verified 2026-09-19, Wren): core BUILT, ships COLD — the ≥ 3-night done-when is OWNER-blocked
+(arming).** `as11_link.subscribe_event` · `as11_pull.stream(subscribe=, on_event=, on_subscribed=)`
+(sent BEFORE `StartStream`, 10 s bounded, non-fatal) · `cpap_ingest.FrameKind.EVENT` · `cpap_events.py`
+(verbatim host-stamped JSONL sidecar + `_ZLE` edges + trigger marks + signed deltas, None over a missing
+edge) · `LiveStreamController(events_factory=)` · `cpap.ble_stream.events.enabled: false`. Subscribed
+set differs from the text above by owner ruling: `UsageEvents-TherapyStatusEvents` + **`_ZLE`** (the
+device's own "data begins/ends", a different subsystem from therapy state — SomnoTrace, credit only);
+`TherapyEvents-RespiratoryEvents` is NOT subscribed until a consumer is named (the per-id rule of the
+same ruling). The comparison the done-when asks for is what the recorder emits per session
+(`witness_start_delta_s` / `witness_stop_delta_s` on the gap line and in `provenance.events`); it needs
+the key enabled on the box, which is a live BLE change and the owner's.
 
 ### WU5 — widen the detector's `Get` poll
 `cpap_shadow_runner.POLL_ITEMS` += `Leak`, `FlowLimitation`, `SnoreIndex` (all `GetItems`-readable on
