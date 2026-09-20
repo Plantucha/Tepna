@@ -1,14 +1,13 @@
 {
-  "_doc": "EEGDex manifest — NEW node (Muse EEG), per SIGNAL-ADAPTER brief Phase 3 (manifest-as-single-source). Carries the Phase-3 additions `evidence` (5-level ladder) + `goodDirection` per metric so codegen/dex-registry-gen.js projects eegdex-registry.js from ONE source. EEG is a genuinely new signal type — the adapter layer standardizes its INGEST; this manifest is the metric/grade source, not the DSP. Status: planned scaffold, not a shipped node.",
+  "_doc": "EEGDex manifest — NEW node (Muse EEG), per SIGNAL-ADAPTER brief Phase 3 (manifest-as-single-source). Carries the Phase-3 additions `evidence` (5-level ladder) + `goodDirection` per metric so codegen/dex-registry-gen.js projects eegdex-registry.js from ONE source. EEG is a genuinely new signal type — the adapter layer standardizes its INGEST; this manifest is the metric/grade source, not the DSP. Maturity is stated as dated prose in `warning` (rendered), never as a status enum \u2014 the `status` field was retired 2026-09-20.",
   "node": "EEGDex",
   "modality": "Electroencephalography (EEG)",
   "icon": "🧠",
   "accentColor": "var(--purple)",
   "accentHex": "#B98AFF",
   "version": "0.1.0",
-  "status": "planned",
   "description": "Band-power and sleep-architecture analysis from consumer EEG (Muse). Direct spectral readouts, EEG-staged hypnogram, and derived micro-architecture markers.",
-  "warning": "Consumer dry-electrode EEG (4-channel Muse) has higher artifact rates and lower spatial resolution than clinical PSG. Contact quality gates every downstream metric.",
+  "warning": "EEGDex is a scaffold, not a shipped node \u2014 as of 2026-09-20 a DSP module and its selftest exist, but no EEGDex app, bundle or hand-authored registry is built, and the adapter layer routes EEG files to an EEGDSP that resolves to undefined in every shipped bundle. This guide documents the manifest's intended metrics, not measured behaviour. Consumer dry-electrode EEG (4-channel Muse) has higher artifact rates and lower spatial resolution than clinical PSG. Contact quality gates every downstream metric.",
 
   "dataModel": {
     "fields": {
