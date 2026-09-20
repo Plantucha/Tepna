@@ -80,6 +80,7 @@ def assemble_live(
     stopped_cleanly: bool | None = None,
     clock_offset: ae.ClockOffset | None = None,
     continuity: dict | None = None,
+    events: dict | None = None,
 ) -> ae.AcquisitionEvidence:
     """Normalize one LIVE CPAP BLE streaming session into an `AcquisitionEvidence`.
 
@@ -182,6 +183,9 @@ def assemble_live(
             # they answer adjacent questions — HOW this session ended, and whether the one that
             # followed a drop was verified to have lost nothing. Never defaulted (§∅).
             "continuity": continuity,
+            # cpap_events: the device's own session-boundary witness (`_ZLE` edges, TherapyStart/Stop)
+            # beside the trigger's marks and their deltas, or None when no recorder was wired (§∅).
+            "events": events,
         },
     )
 

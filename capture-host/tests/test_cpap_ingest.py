@@ -77,17 +77,17 @@ def test_total_lost_sums_only_terms_that_can_move_and_names_the_rest():
 
 
 def test_summary_is_a_flat_stable_dict():
-    c = GapCounters(frames_ok=5, samples_ok=200, foreign_stream=1, malformed=2,
+    c = GapCounters(frames_ok=5, samples_ok=200, foreign_stream=1, malformed=2, events=4,
                     overflow=1, stalls=1, post_drop_tail=1, sink_errors=3)
     s = c.summary()
     assert s == {
-        "frames_ok": 5, "samples_ok": 200, "foreign_stream": 1, "malformed": 2,
+        "frames_ok": 5, "samples_ok": 200, "foreign_stream": 1, "malformed": 2, "events": 4,
         "overflow": 1, "stalls": 1, "post_drop_tail": 1, "sink_errors": 3, "total_lost": 3,
         "sink_max_ms": None, "sink_slow": None,
         "lost_coverage_missing": [],
     }
     # key order is stable so two nights diff cleanly
-    assert list(s.keys()) == ["frames_ok", "samples_ok", "foreign_stream", "malformed",
+    assert list(s.keys()) == ["frames_ok", "samples_ok", "foreign_stream", "malformed", "events",
                               "overflow", "stalls", "post_drop_tail", "sink_errors",
                               "sink_max_ms", "sink_slow", "total_lost", "lost_coverage_missing"]
 
