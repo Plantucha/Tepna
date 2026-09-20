@@ -215,9 +215,9 @@ def test_emit_run_is_the_ONE_seam_and_names_the_rule_that_found_the_span(tmp_pat
 
     rows = _rows(sc.path)
     assert len(rows) == 1
-    # The ninth field is the KIND (D1, 2026-09-19), and it rides the seam too: a back-check row at the
-    # ring's 199 rail is `in-wear-rail` by the same table the live rule uses — one shape, one vocabulary.
-    assert rows[0][1:] == ["channel 0", "199", "40", "900", "7200.0", "1", "clip", "in-wear-rail"]
+    # The ninth field is the BRACKET (D5, 2026-09-19). A back-check row arrives with no live neighbourhood,
+    # so both sides are `unavailable` — not examined — never a guessed class.
+    assert rows[0][1:] == ["channel 0", "199", "40", "900", "7200.0", "1", "clip", "unavailable/unavailable", "none"]
 
 
 def test_clip_and_collapse_are_NOT_computed_live(tmp_path):
@@ -610,14 +610,17 @@ def test_a_failure_DURING_feed_is_isolated_from_the_live_write_path(tmp_path):
 
     w._runs._fh = _Boom()
     before = w._runs.errors
-    _push(w, 3, 1, start=i)                  # closes the short run -> emits the span -> raises in feed
+    # Closes the short run -> the span is emitted into `_pending` -> BRACKET_WINDOW samples later its
+    # after-side is known and the row is WRITTEN, still from inside feed() -> raises there. (D5 moved the
+    # write from run-close to window-complete; the isolation property is about the same code path.)
+    _push(w, 3, writers.BRACKET_WINDOW + 1, start=i)
     assert w._runs.errors > before, "feed's own guard never ran"
 
     for k in range(10):                      # and the stream keeps recording afterwards
         w.write_ppg(_phone(500 + k), 0, 0.0, (9,), 0)
     w.close()
 
-    assert w.rows == T_STUCK + 2 + 5 + 1 + 10
+    assert w.rows == T_STUCK + 2 + 5 + writers.BRACKET_WINDOW + 1 + 10
     assert len(open(p).read().splitlines()) == w.rows + 1     # header + every sample row
 
 
@@ -714,94 +717,280 @@ def test_INVERSION_a_mostly_non_repeating_stream_is_NOT_held(tmp_path):
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
-# SPAN KINDS — owner ruling D1, 2026-09-19, on the finger-off capture (FINGER-OFF-RESULT-2026-09-19.md)
+# BRACKETING — owner ruling D5, 2026-09-19: emit the measurement, name nothing (LIVE-TESTS-2026-09-19-PM-RESULT)
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 
-def test_kind_names_ONLY_what_the_finger_off_capture_measured():
-    """100 with no finger = absence (six stretches, 100.0 %); 0 and 199 only while worn = in-wear-rail.
-    Everything else on the ring is `unknown` — 99 and 124 were seen in the corpus and never controlled —
-    and a stream with no table is `unknown` at every value, including the Verity's own rail."""
-    assert writers.run_kind("ppg1", 100) == "absence"
-    assert writers.run_kind("ppg1", 0) == "in-wear-rail"
-    assert writers.run_kind("ppg1", 199) == "in-wear-rail"
-    assert writers.run_kind("ppg1", 99) == "unknown"
-    assert writers.run_kind("ppg1", 124) == "unknown"
-    assert writers.run_kind("ppg", 2096921) == "unknown"          # Verity rail: measured as a rail, never as a kind
-    assert writers.run_kind("ppg2w", 100) == "unknown"            # 100 is only named for the stream it was measured on
-    assert writers.run_kind("acc", 0) == "unknown"
-    assert writers.run_kind("nonesuch", 100) == "unknown"
+def _pleth(n, seed=7):
+    """A varied signal: n samples cycling through >= 20 distinct values (a synthetic pleth)."""
+    return [80 + ((seed * k * 7) % 40) for k in range(n)]
 
 
-def test_kind_never_raises_and_never_coerces_a_non_value():
-    """A label on a diagnostic row must not end a recording (§C8 isolation), and it must not guess:
-    a bool, a string, None and a float that would round INTO a named value all read `unknown`."""
-    assert writers.run_kind("ppg1", True) == "unknown"
-    assert writers.run_kind("ppg1", None) == "unknown"
-    assert writers.run_kind("ppg1", "abc") == "unknown"
-    assert writers.run_kind("ppg1", "100") == "absence"           # the writer formats ints; a digit string is one
-    assert writers.run_kind("ppg1", 100.0) == "absence"
+def _feed_seq(sc, seq, channel="channel 0", t0=None):
+    t0 = t0 or _dt.datetime(2026, 9, 19, 18, 40, 49)
+    for k, v in enumerate(seq):
+        sc.feed(channel, v, t0 + _dt.timedelta(milliseconds=8 * k))
 
 
-def test_the_kind_rides_as_a_NINTH_column_and_the_header_states_the_table(tmp_path):
-    """Appended, never inserted — `ppgdex-dsp.js parsePinnedRuns` accepts >= 8 fields and reads 1-4 by
-    index, and every test above indexes `rule` at [7]. The comment line carries the table the rows were
-    classified with, so an EMPTY sidecar still says which values would have been named."""
-    sc = writers._RunSidecar(str(tmp_path / "x_PPG.txt"), "ppg1", 5)
-    t0 = _dt.datetime(2026, 9, 19, 10, 39, 35)
-    for i in range(6):
-        sc.feed("channel 0", 100, t0 + _dt.timedelta(milliseconds=8 * i))
-    for i in range(6):
-        sc.feed("channel 0", 199, t0 + _dt.timedelta(milliseconds=8 * (6 + i)))
-    for i in range(6):
-        sc.feed("channel 0", 124, t0 + _dt.timedelta(milliseconds=8 * (12 + i)))
-    sc.feed("channel 0", 57, t0 + _dt.timedelta(milliseconds=8 * 18))
+def test_bracket_side_is_pure_and_distinguishes_UNAVAILABLE_from_FLAT():
+    """`unavailable` = no complete window to examine; `flat` = examined and quiet. Different facts,
+    different values — §∅ at the class level. A window one sample short is unavailable, not flat."""
+    W = writers.BRACKET_WINDOW
+    assert writers.bracket_side(None) == "unavailable"
+    assert writers.bracket_side([]) == "unavailable"
+    assert writers.bracket_side([100] * (W - 1)) == "unavailable"
+    assert writers.bracket_side([100] * W) == "flat"
+    assert writers.bracket_side(_pleth(W)) == "varied"
+    assert writers.bracket_side(list(range(19)) * (W // 19 + 1))[:0] == ""      # sanity: callable
+    assert writers.bracket_side([k % 19 for k in range(W)]) == "flat"           # 19 distinct < 20
+    assert writers.bracket_side([k % 20 for k in range(W)]) == "varied"         # 20 distinct = varied
+
+
+def test_a_span_with_pulsatile_signal_on_BOTH_sides_is_varied_varied(tmp_path):
+    """The evening capture's flashlight/occlusion shape: worn → flat 100 for >= T_STUCK → worn. Both
+    sides examined and varied; the row says so and asserts nothing about fingers."""
+    W = writers.BRACKET_WINDOW
+    sc = writers._RunSidecar(str(tmp_path / "x_PPG.txt"), "ppg1", T_STUCK)
+    _feed_seq(sc, _pleth(W + 50) + [100] * (T_STUCK + 10) + _pleth(W + 50, seed=11))
     sc.close()
-    body = open(sc.path, encoding="utf-8").read()
-    assert "kinds=absence=100,in-wear-rail=0|199" in body.splitlines()[0]
-    assert "unit=unknown" in body.splitlines()[0]                  # `unit` is the VALUE's physical unit, untouched
-    assert body.splitlines()[1] == writers._RunSidecar.HEADER
-    assert writers._RunSidecar.HEADER.endswith(";rule;kind")
     rows = [r for r in _rows(sc.path) if r[7] == "stuck"]
-    assert [(r[2], r[8]) for r in rows] == [("100", "absence"), ("199", "in-wear-rail"), ("124", "unknown")]
-    assert all(len(r) == 9 for r in rows)
+    assert [(r[2], r[4], r[8]) for r in rows] == [("100", str(T_STUCK + 10), "varied/varied")]
 
 
-def test_a_stream_with_no_table_writes_kinds_unknown_and_unknown_rows(tmp_path):
-    sc = writers._RunSidecar(str(tmp_path / "v_PPG.txt"), "ppg", 5)
-    t0 = _dt.datetime(2026, 9, 19, 10, 0, 0)
-    for i in range(6):
-        sc.feed("channel 0", 2096921, t0 + _dt.timedelta(milliseconds=8 * i))
-    sc.feed("channel 0", 5, t0 + _dt.timedelta(milliseconds=48))
+def test_a_span_at_FILE_START_is_unavailable_before(tmp_path):
+    """The ring streams 100 from connect until a finger registers (30 of 164 corpus runs). No window
+    before it existed, so `before` is unavailable — not flat, not varied."""
+    W = writers.BRACKET_WINDOW
+    sc = writers._RunSidecar(str(tmp_path / "x_PPG.txt"), "ppg1", T_STUCK)
+    _feed_seq(sc, [100] * (T_STUCK + 5) + _pleth(W + 50))
     sc.close()
-    body = open(sc.path, encoding="utf-8").read()
-    assert "kinds=unknown" in body.splitlines()[0]
     rows = [r for r in _rows(sc.path) if r[7] == "stuck"]
-    assert [(r[2], r[8]) for r in rows] == [("2096921", "unknown")]
+    assert [(r[2], r[8]) for r in rows] == [("100", "unavailable/varied")]
 
 
-def test_PLANT_the_kind_changes_NOTHING_about_which_runs_are_emitted(tmp_path):
-    """100 is IN-BAND: a worn pleth sits on it in short plateaus (ON1: 23 runs >= 5, longest 41). The kind
-    is a label on rows the run-length rule already chose; it must not pull a short 100-plateau into the
-    file under `min_run` as "absence". Same stream, same feed, table present vs table absent: the emitted
-    (value, n) set must be identical — only the ninth column differs."""
-    def run(table):
-        saved = writers.RUN_KIND_BY_STREAM.get("ppg1")
-        if table is None:
-            writers.RUN_KIND_BY_STREAM.pop("ppg1", None)
-        try:
-            sc = writers._RunSidecar(str(tmp_path / f"p{int(table is not None)}_PPG.txt"), "ppg1", 200)
-            t0 = _dt.datetime(2026, 9, 19, 10, 33, 52)
-            seq = [100] * 41 + [95, 97] + [100] * 250 + [80] + [0] * 199 + [3] + [199] * 260 + [7]
-            for i, v in enumerate(seq):
-                sc.feed("channel 0", v, t0 + _dt.timedelta(milliseconds=8 * i))
-            sc.close()
-            return [(r[2], r[4], r[8]) for r in _rows(sc.path) if r[7] == "stuck"]
-        finally:
-            if saved is not None:
-                writers.RUN_KIND_BY_STREAM["ppg1"] = saved
-    with_table = run(True)
-    without = run(None)
-    assert [(v, n) for v, n, _k in with_table] == [(v, n) for v, n, _k in without] == [("100", "250"), ("199", "260")]
-    assert [k for _v, _n, k in with_table] == ["absence", "in-wear-rail"]
-    assert [k for _v, _n, k in without] == ["unknown", "unknown"]
+def test_a_span_that_runs_to_the_END_is_unavailable_after_NOT_flat(tmp_path):
+    """The load-bearing distinction. A span still open at close() has no after-side — the recording
+    ended first. It must read `unavailable`, and a span whose after-side WAS examined and quiet must
+    read `flat`; the two can never share a value."""
+    W = writers.BRACKET_WINDOW
+    sc = writers._RunSidecar(str(tmp_path / "eof_PPG.txt"), "ppg1", T_STUCK)
+    _feed_seq(sc, _pleth(W + 50) + [100] * (T_STUCK + 10))
+    sc.close()
+    rows = [r for r in _rows(sc.path) if r[7] == "stuck"]
+    assert [(r[2], r[6], r[8]) for r in rows] == [("100", "0", "varied/unavailable")]
+
+    sc2 = writers._RunSidecar(str(tmp_path / "quiet_PPG.txt"), "ppg1", T_STUCK)
+    # after the span: a DIFFERENT quiet level (99) for a full window — examined, and flat
+    _feed_seq(sc2, _pleth(W + 50) + [100] * (T_STUCK + 10) + [99] * (W + 5))
+    sc2.close()
+    rows2 = [r for r in _rows(sc2.path) if r[7] == "stuck"]
+    # The 99-run is itself a reportable span (>= T_STUCK) that ran to EOF, so its own row follows. Its
+    # BEFORE window (375 samples) is the 210-sample 100-span plus 165 pleth samples → `varied`, by the
+    # definition and not by intent — the window is what it is; its AFTER is EOF → `unavailable`.
+    assert [(r[2], r[4], r[8]) for r in rows2] == [("100", str(T_STUCK + 10), "varied/flat"),
+                                                   ("99", str(W + 5), "varied/unavailable")]
+
+
+def test_the_row_is_HELD_until_its_after_window_arrives_then_written_from_feed(tmp_path):
+    """Live, the after-side is unknown at run close. The row must not be written early with a guessed
+    class: it appears only once BRACKET_WINDOW further samples have been fed, and then with the class
+    those samples earned."""
+    W = writers.BRACKET_WINDOW
+    sc = writers._RunSidecar(str(tmp_path / "x_PPG.txt"), "ppg1", T_STUCK)
+    _feed_seq(sc, _pleth(W + 50) + [100] * (T_STUCK + 10))
+    tail = _pleth(W, seed=3)
+    t0 = _dt.datetime(2026, 9, 19, 19, 0, 0)
+    for k, v in enumerate(tail[:-1]):
+        sc.feed("channel 0", v, t0 + _dt.timedelta(milliseconds=8 * k))
+    sc._fh.flush()
+    assert [r for r in _rows(sc.path) if r[7] == "stuck"] == []            # one sample short: still held
+    sc.feed("channel 0", tail[-1], t0 + _dt.timedelta(seconds=3))
+    sc._fh.flush()
+    rows = [r for r in _rows(sc.path) if r[7] == "stuck"]
+    assert [(r[2], r[8]) for r in rows] == [("100", "varied/varied")]
+    sc.close()
+
+
+def test_annotation_markers_are_NOT_counted_in_either_window(tmp_path):
+    """The ring's 156 beat marker is an annotation, not a sample. A quiet window peppered with markers
+    is still flat; the merged span across a marker still gets its before-class."""
+    W = writers.BRACKET_WINDOW
+    sc = writers._RunSidecar(str(tmp_path / "x_PPG.txt"), "ppg1", T_STUCK, annotations=frozenset({156}))
+    # "quiet" = fewer than 20 distinct values but NOT a constant run (a constant 414 would itself be a
+    # reportable span, which a first draft of this fixture accidentally created): 19 values cycling,
+    # with a marker every 50 samples.
+    quiet = []
+    for k in range(W + 40):
+        quiet.append(156 if k % 50 == 0 else 60 + (k % 19))
+    # span split by ONE marker: 150 + marker + 150 = merged 301 >= T_STUCK, reportable only by merging
+    _feed_seq(sc, quiet + [100] * 150 + [156] + [100] * 150 + _pleth(W + 50))
+    sc.close()
+    rows = [r for r in _rows(sc.path) if r[7] == "stuck"]
+    assert len(rows) == 1
+    assert rows[0][2] == "100" and int(rows[0][4]) >= T_STUCK
+    assert rows[0][8] == "flat/varied"
+
+
+def test_the_rule_line_states_the_window_and_its_threshold(tmp_path):
+    """A reader must be able to reproduce the class from the samples: the window and the distinct-value
+    threshold ride the rule line, beside the other parameters. And no kind vocabulary survives."""
+    sc = writers._RunSidecar(str(tmp_path / "x_PPG.txt"), "ppg1", T_STUCK)
+    sc.close()
+    head = open(sc.path, encoding="utf-8").read().splitlines()
+    assert f"bracket_window={writers.BRACKET_WINDOW}" in head[0]
+    assert f"bracket_varied_min={writers.BRACKET_VARIED_MIN}" in head[0]
+    assert "kinds=" not in head[0] and "unit=unknown" in head[0]
+    assert head[1] == writers._RunSidecar.HEADER and head[1].endswith(";rule;bracket;contact")
+    assert "contact_source=none" in head[0] and "contact_tol_s=2" in head[0] and "contact_rule=majority" in head[0]
+    assert not hasattr(writers, "run_kind") and not hasattr(writers, "RUN_KIND_BY_STREAM")
+
+
+def test_PLANT_bracketing_changes_NOTHING_about_which_runs_are_emitted(tmp_path):
+    """The run-length gate is untouched: the same feed emits the same (value, n) rows as before D5 —
+    only the ninth column carries the neighbourhood. In particular a 41-sample worn plateau at 100
+    (ON1's longest) is still below min_run and never becomes a row."""
+    W = writers.BRACKET_WINDOW
+    sc = writers._RunSidecar(str(tmp_path / "x_PPG.txt"), "ppg1", 200)
+    seq = _pleth(W) + [100] * 41 + [95, 97] + [100] * 250 + [80] + [0] * 199 + [3] + [199] * 260 + _pleth(W, seed=5)
+    _feed_seq(sc, seq)
+    sc.close()
+    rows = [(r[2], r[4], r[8]) for r in _rows(sc.path) if r[7] == "stuck"]
+    assert [(v, n) for v, n, _b in rows] == [("100", "250"), ("199", "260")]
+    assert all("/" in b and b.split("/")[0] in ("varied", "flat", "unavailable") for _v, _n, b in rows)
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+# THE DEVICE'S OWN WORD — `contact`, the second witness (owner "fix it", 2026-09-19)
+# ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+T0 = _dt.datetime(2026, 9, 19, 18, 40, 49)
+
+
+def _span_times(before_len, span_len, t0=T0):
+    """Host times (start, end) a flat span will occupy when fed at 8 ms/sample after `before_len` samples."""
+    return (t0 + _dt.timedelta(milliseconds=8 * before_len),
+            t0 + _dt.timedelta(milliseconds=8 * (before_len + span_len - 1)))
+
+
+def _span(sc, before_seq, span_len, after_seq, t0=T0):
+    """Feed before + a flat-100 span + after at 8 ms/sample. NOTE the frames into the ledger BEFORE
+    calling this: the span's row is written the moment its after-window completes, i.e. during the feed."""
+    seq = before_seq + [100] * span_len + after_seq
+    for k, v in enumerate(seq):
+        sc.feed("channel 0", v, t0 + _dt.timedelta(milliseconds=8 * k))
+    return _span_times(len(before_seq), span_len, t0)
+
+
+def test_ledger_majority_none_vs_zero_are_DIFFERENT_facts():
+    """`none` = no frame overlapped the span; `0` = the device declared lead-off. The two must never
+    share a value — the same trap as unavailable/flat, one witness over."""
+    L = writers.ContactLedger()
+    a = T0; b = T0 + _dt.timedelta(seconds=3)
+    assert L.majority(a, b) == "none"
+    L.note(T0 + _dt.timedelta(seconds=1), 0)
+    assert L.majority(a, b) == "0"
+    assert L.majority(a, b) != "none"
+
+
+def test_ledger_carries_2_and_3_VERBATIM_never_collapsed_to_worn():
+    L = writers.ContactLedger()
+    for k, v in enumerate((2, 2, 3)):
+        L.note(T0 + _dt.timedelta(seconds=k), v)
+    assert L.majority(T0, T0 + _dt.timedelta(seconds=2)) == "2"
+    L2 = writers.ContactLedger(); L2.note(T0, 3)
+    assert L2.majority(T0, T0) == "3"
+    L3 = writers.ContactLedger(); L3.note(T0, None)                  # a frame with no byte declares nothing
+    assert L3.majority(T0, T0) == "none"
+
+
+def test_ledger_join_window_is_PLUS_MINUS_2s_and_majority_ties_go_to_the_smaller_value():
+    L = writers.ContactLedger()
+    L.note(T0 - _dt.timedelta(seconds=2.5), 0)     # outside: 2.5 s before the span
+    L.note(T0 - _dt.timedelta(seconds=1.9), 1)     # inside
+    L.note(T0 + _dt.timedelta(seconds=4.9), 0)     # inside (span ends at +3 s, +2 s tolerance)
+    L.note(T0 + _dt.timedelta(seconds=5.1), 1)     # outside
+    assert L.majority(T0, T0 + _dt.timedelta(seconds=3)) == "0"    # 1 vs 1 → tie → smaller value (lead-off)
+    L.note(T0 + _dt.timedelta(seconds=1), 1)
+    assert L.majority(T0, T0 + _dt.timedelta(seconds=3)) == "1"    # 2 vs 1
+
+
+def test_a_row_carries_BOTH_witnesses_and_they_can_disagree(tmp_path):
+    """The evening's occlusion shape: the waveform is flat 100 between pulsatile stretches (bracket says
+    varied/varied) while the device says contact=1 the whole time. Both on the row; neither hides the
+    other. And the flashlight shape: same bracket, device says 0."""
+    W = writers.BRACKET_WINDOW
+    L = writers.ContactLedger()
+    sc = writers._RunSidecar(str(tmp_path / "occ_PPG.txt"), "ppg1", T_STUCK, contact=L)
+    a, b = _span_times(W + 50, T_STUCK + 10)
+    for k in range(-3, 8):
+        L.note(a + _dt.timedelta(seconds=k), 1)
+    _span(sc, _pleth(W + 50), T_STUCK + 10, _pleth(W + 50, seed=11))
+    sc.close()
+    rows = [r for r in _rows(sc.path) if r[7] == "stuck"]
+    assert [(r[2], r[8], r[9]) for r in rows] == [("100", "varied/varied", "1")]
+
+    L2 = writers.ContactLedger()
+    sc2 = writers._RunSidecar(str(tmp_path / "lamp_PPG.txt"), "ppg1", T_STUCK, contact=L2)
+    a, b = _span_times(W + 50, T_STUCK + 10)
+    L2.note(a - _dt.timedelta(seconds=1), 1)
+    for k in range(0, 4):
+        L2.note(a + _dt.timedelta(seconds=k), 0)
+    _span(sc2, _pleth(W + 50), T_STUCK + 10, _pleth(W + 50, seed=11))
+    sc2.close()
+    rows2 = [r for r in _rows(sc2.path) if r[7] == "stuck"]
+    assert [(r[2], r[8], r[9]) for r in rows2] == [("100", "varied/varied", "0")]
+    assert "contact_source=oxyframe" in open(sc2.path, encoding="utf-8").readline()
+
+
+def test_a_span_with_NO_overlapping_frame_reads_none_even_with_a_ledger(tmp_path):
+    """Frames exist for the session but none within ±2 s of this span (a frame gap): `none`, not 0."""
+    W = writers.BRACKET_WINDOW
+    L = writers.ContactLedger()
+    sc = writers._RunSidecar(str(tmp_path / "gap_PPG.txt"), "ppg1", T_STUCK, contact=L)
+    a, b = _span_times(W + 50, T_STUCK + 10)
+    L.note(a - _dt.timedelta(seconds=30), 0)
+    L.note(b + _dt.timedelta(seconds=30), 0)
+    _span(sc, _pleth(W + 50), T_STUCK + 10, _pleth(W + 50, seed=11))
+    sc.close()
+    rows = [r for r in _rows(sc.path) if r[7] == "stuck"]
+    assert [(r[2], r[9]) for r in rows] == [("100", "none")]
+
+
+def test_streams_without_the_byte_read_none_and_say_so_on_the_rule_line(tmp_path):
+    """The Verity and the ACC streams have no contact byte: no ledger by construction, every row `none`,
+    `contact_source=none` on the comment line so a reader is not left to infer it. Bracketing is their
+    only witness."""
+    w = StreamWriter(str(tmp_path / "V_PPG.txt"), "ppg", fsync=False)
+    assert w._runs is not None and w._runs._contact is None
+    w._runs._fh.flush()
+    assert "contact_source=none" in open(w._runs.path, encoding="utf-8").readline()
+    w.close()
+
+
+def test_the_ring_writer_forwards_the_ledger_to_its_sidecar(tmp_path):
+    L = writers.ContactLedger()
+    w = StreamWriter(str(tmp_path / "R_PPG.txt"), "ppg1", fsync=False, contact=L)
+    assert w._runs is not None and w._runs._contact is L
+    w._runs._fh.flush()
+    assert "contact_source=oxyframe" in open(w._runs.path, encoding="utf-8").readline()
+    w.close()
+
+
+def test_a_row_whose_after_window_completes_BEFORE_the_warm_up_verdict_waits_in_the_buffer(tmp_path):
+    """Two hold points, in the right order. A qualifying span early in a file is held for its after-
+    window (D5); if that window completes while the channel's hold-class is still undecided, the row
+    goes into the warm-up buffer and is released — or dropped as `held` — when the verdict lands.
+    Here the verdict is `variable`, so the row is released with the bracket it earned."""
+    sc = writers._RunSidecar(str(tmp_path / "x_PPG.txt"), "ppg1", 30)     # min_run 30: the span qualifies, the 25-runs do not
+    seq = _pleth(20) + [100] * 30                                          # 20 runs of 1, then the span
+    seq += [v for v in range(200, 215) for _ in range(25)]                 # 15 runs of 25 → after-window done at ~run 36
+    seq += _pleth(40, seed=13)                                             # 40 more length-1 runs → verdict at run 64
+    _feed_seq(sc, seq)
+    sc._fh.flush()
+    body = open(sc.path, encoding="utf-8").read()
+    assert "class=variable" in body                                        # the verdict landed
+    rows = [r for r in _rows(sc.path) if r[7] == "stuck"]
+    assert [(r[2], r[4], r[8]) for r in rows] == [("100", "30", "unavailable/flat")]
+    # released AFTER the verdict line, not before it
+    assert body.index("class=variable") < body.index(";100;20;30;")
+    sc.close()
 
