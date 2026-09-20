@@ -34,6 +34,7 @@ CONTRACT
 - This module DOES NOT replace `auto_start` / `auto_stop`. It adds the second witness. Acting on it is
   a later, separate decision.
 """
+
 from __future__ import annotations
 
 import json
@@ -69,13 +70,15 @@ def parse_event_notification(params, host_epoch: float) -> list[dict]:
         name = ev.get("event")
         value = ev.get("value")
         rt = ev.get("reportTime")
-        rows.append({
-            "host_epoch": host_epoch,
-            "data_id": data_id,
-            "event": name if isinstance(name, str) else None,
-            "value": value if isinstance(value, (int, float)) and not isinstance(value, bool) else None,
-            "report_time": rt if isinstance(rt, str) else None,
-        })
+        rows.append(
+            {
+                "host_epoch": host_epoch,
+                "data_id": data_id,
+                "event": name if isinstance(name, str) else None,
+                "value": value if isinstance(value, (int, float)) and not isinstance(value, bool) else None,
+                "report_time": rt if isinstance(rt, str) else None,
+            }
+        )
     return rows
 
 
@@ -91,10 +94,10 @@ class EventRecorder:
         self.data_ids = tuple(data_ids)
         self.rows: list[dict] = []
         self.notifications = 0
-        self.subscribe_status: str = "not-requested"    # set by the pump: ok / failed:<why> / off
-        self.zle_value: int | None = None               # last _ZLE value seen; None until one arrives
-        self.zle_rising_host: float | None = None       # FIRST rising edge (data begins)
-        self.zle_falling_host: float | None = None      # LAST falling edge (data ends)
+        self.subscribe_status: str = "not-requested"  # set by the pump: ok / failed:<why> / off
+        self.zle_value: int | None = None  # last _ZLE value seen; None until one arrives
+        self.zle_rising_host: float | None = None  # FIRST rising edge (data begins)
+        self.zle_falling_host: float | None = None  # LAST falling edge (data ends)
         self.zle_rising_report: str | None = None
         self.zle_falling_report: str | None = None
         self.zle_edges = 0

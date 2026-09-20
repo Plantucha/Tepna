@@ -129,7 +129,7 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
                         channels=None, extra_sinks=None, sample_interval_ms=40,
                         cipher_factory=as11_cipher.make_cipher, max_batches=None, should_stop=None,
                         acq_evidence_out=None, clock_offset_provider=None, continuity=None,
-                        events=None):
+                        events=None, extra_ids=()):
     """Establish the encrypted session, then fan each AS11 StreamData batch out to `bus` AND to any
     `extra_sinks`. Returns the number of batches delivered.
 
@@ -151,6 +151,17 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
     EDF sink writes is only whole once closed, so this is what makes an interrupted night's EDF readable.
     """
     channels = channels or BRP_CHANNELS
+    # UNPUBLISHED ids (Unit 2, 2026-09-19). Requested from the device in the SAME stream — one stream, no
+    # StopStream — but registered on no bus and pushed to no card: a channel whose physical unit is not
+    # yet pinned (`_LKF`, Leak — L/s or L/min, the PatientFlow quarantine one channel over) must not be
+    # published as if it were. They reach the raw record VERBATIM (RawRecordSink keeps every channel of
+    # a batch) and the byte counters, which is the whole purpose: the marginal cost of an id is
+    # `bytes_json / frames_ok` with it on vs off, and the values are on disk for the pinning.
+    extra_ids = [d for d in extra_ids if d not in channels]
+    request_ids = list(channels) + extra_ids
+    if extra_ids:
+        _log.info("CPAP stream: requesting %s UNPUBLISHED — raw record only, no bus channel (unit unpinned)",
+                  extra_ids)
     requested_ms = sample_interval_ms          # §2 — retained for the observed-vs-requested comparison
     fs = 1000.0 / requested_ms                 # the requested rate; the card shows it until the device speaks
     session_key = await as11_pull.establish(pair_key, client_id, write, recv_frame)
@@ -171,7 +182,7 @@ async def stream_to_bus(bus, write, recv_frame, pair_key, client_id, *,
             events.mark_trigger("start")
             _ev_kw = {"subscribe": list(events.data_ids), "on_event": events.note,
                       "on_subscribed": events.note_subscribed}
-        async for batch in as11_pull.stream(write, recv_frame, seal, unseal, list(channels),
+        async for batch in as11_pull.stream(write, recv_frame, seal, unseal, request_ids,
                                             sample_interval_ms=sample_interval_ms, max_batches=max_batches,
                                             counters=counters, **_ev_kw):
             # §2 OBSERVED INTERVAL IS AUTHORITATIVE. The device reports its actual sample interval on every
@@ -324,7 +335,7 @@ class LiveStreamController:
     def __init__(self, bus, connect, load_creds, devices, *, channels=None, pump=stream_to_bus,
                  edf_sink_factory=None, raw_record_factory=None, coexistence_gate=False,
                  acq_evidence_out=None, therapy_end_factory=None,
-                 clock_offset_provider=None, continuity=None, events_factory=None):
+                 clock_offset_provider=None, continuity=None, events_factory=None, extra_ids=()):
         self._bus = bus
         self._connect = connect
         self._load_creds = load_creds
@@ -367,6 +378,9 @@ class LiveStreamController:
         # existing controller and injected test pump byte-identical; the daemon wires one only when
         # `cpap.ble_stream.events.enabled` is true (ships cold — a live BLE change is the owner's).
         self._events_factory = events_factory
+        # dataIds requested beyond `channels` and PUBLISHED NOWHERE (see stream_to_bus). Empty by
+        # default; the daemon fills it from `cpap.ble_stream.extra_data_ids`, only with a raw record.
+        self._extra_ids = tuple(extra_ids)
         # The LAST session's SINKS, kept ACROSS the stop — the eager-start retention decision runs
         # after the stream has ended and must be able to name the fragment it is discarding.
         #
@@ -525,6 +539,8 @@ class LiveStreamController:
         # Same additive rule: a recorder only when a factory was configured.
         if self._events_factory is not None:
             kw["events"] = self._events_factory()
+        if self._extra_ids:
+            kw["extra_ids"] = self._extra_ids
         self._task = asyncio.create_task(self._pump(
             self._bus, write, recv_frame, bytes.fromhex(creds["masterPairKey"]), creds["clientId"], **kw))
         out = {"ok": True, "streaming": True, "channels": self._keys()}
