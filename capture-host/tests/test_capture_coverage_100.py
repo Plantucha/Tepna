@@ -829,7 +829,7 @@ def test_an_unparseable_schedule_falls_back_to_after_settle(tmp_path, monkeypatc
     monkeypatch.setattr(capture, "_archive_transfer", fake_transfer)
     _stop_after(monkeypatch, 1)
     cfg = {"archive": {"enabled": True, "poll_sec": 1, "schedule": {"mode": "whenever"},
-                       "target": {"kind": "transfer", "protocol": "rsync", "host": "nas"}}}
+                       "target": {"protocol": "rsync", "host": "nas", "share": "/tank/tepna"}}}
     with caplog.at_level("WARNING"):
         _run(capture.archive_poller(cfg, str(tmp_path)))
     assert any("bad schedule" in r.getMessage() for r in caplog.records)
@@ -847,7 +847,7 @@ def test_the_offload_waits_for_its_daily_window(tmp_path, monkeypatch):
     monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 7, 25, 3, 0, 0))   # 03:00
     _stop_after(monkeypatch, 1)
     cfg = {"archive": {"enabled": True, "poll_sec": 1, "schedule": {"mode": "daily", "at": "11:00"},
-                       "target": {"kind": "transfer", "protocol": "rsync", "host": "nas"}}}
+                       "target": {"protocol": "rsync", "host": "nas", "share": "/tank/tepna"}}}
     _run(capture.archive_poller(cfg, str(tmp_path)))
     assert ran == [], "03:00 is not inside the 11:00 window"
 

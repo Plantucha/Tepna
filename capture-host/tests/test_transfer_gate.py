@@ -8,6 +8,7 @@ unread; (2) `rsync_argv` sent a night's CONTENTS into `share/` itself, so every 
 flattened into one directory; (3) `include_subtrees` was honoured by the mount form and ignored by the
 transfer form. Every gate here FAILS SAFE: unreachable means protect everything, never assume archived."""
 import datetime as _dt
+import logging
 import os
 
 import capture
@@ -223,6 +224,52 @@ def test_archive_poller_hands_the_subtrees_to_the_transfer(tmp_path, monkeypatch
     async def no_sleep(_s):
         pass
     monkeypatch.setattr(capture.asyncio, "sleep", no_sleep)
-    cfg = {"archive": {"enabled": True, "target": {**RSYNC, "kind": "transfer"}, "include_subtrees": ["stored"]}}
+    cfg = {"archive": {"enabled": True, "target": dict(RSYNC), "include_subtrees": ["stored"]}}   # config-authored: no `kind`
     _run(capture.archive_poller(cfg, str(tmp_path)))
     assert got["subtrees"] == ["stored"]
+
+
+# ── the poller ARMS from a config-authored target, and says so ──────────────────────────────────
+def _poller_once(monkeypatch, cfg, caplog, tmp_path):
+    """Run archive_poller until its first transfer call (or its immediate return), capturing the
+    target it hands to `_archive_transfer` and what it logged."""
+    got = {}
+
+    async def fake_transfer(captures, target, settle, schedule, subtrees=()):
+        got["target"] = target
+        capture._STOP.set()
+    monkeypatch.setattr(capture, "_archive_transfer", fake_transfer)
+    async def no_sleep(_s):
+        pass
+    monkeypatch.setattr(capture.asyncio, "sleep", no_sleep)
+    with caplog.at_level(logging.INFO, logger=capture.log.name):
+        _run(capture.archive_poller(cfg, str(tmp_path)))
+    return got, [r.getMessage() for r in caplog.records if r.getMessage().startswith("archive:")]
+
+
+def test_a_CONFIG_authored_rsync_target_arms_the_poller_and_is_handed_over_validated(tmp_path, monkeypatch, caplog):
+    """The defect: `kind` is derived by validate(), never written by a person, so a config.yaml target
+    has none and the raw `target.get("kind") == "transfer"` read False — the poller returned, silently,
+    with `enabled: true` and a target the test endpoint had just called reachable."""
+    got, lines = _poller_once(monkeypatch, {"archive": {"enabled": True, "target": dict(RSYNC)}}, caplog, tmp_path)
+    assert got["target"]["kind"] == "transfer" and got["target"]["port"] == 22 and got["target"]["verify"] is True
+    assert any(ln.startswith("archive: ARMED — rsync://truenas_admin@192.168.0.142:") for ln in lines), lines
+
+
+def test_a_REFUSED_target_logs_the_reason_and_the_poller_stays_off(tmp_path, monkeypatch, caplog):
+    bad = {"archive": {"enabled": True, "target": {**RSYNC, "password": "hunter2"}}}
+    got, lines = _poller_once(monkeypatch, bad, caplog, tmp_path)
+    assert "target" not in got, "a refused target must not be pushed to"
+    assert any("archive: target REFUSED" in ln for ln in lines) and any("archive: OFF" in ln for ln in lines), lines
+    got, lines = _poller_once(monkeypatch, {"archive": {"enabled": True, "target": "nas"}}, caplog, tmp_path)
+    assert "target" not in got and any("must be a mapping" in ln for ln in lines), lines
+
+
+def test_archive_disabled_is_SAID_not_silent(tmp_path, monkeypatch, caplog):
+    got, lines = _poller_once(monkeypatch, {"archive": {"enabled": False, "target": dict(RSYNC)}}, caplog, tmp_path)
+    assert "target" not in got and lines == ["archive: OFF — archive.enabled is false"]
+
+
+def test_archive_enabled_with_nowhere_to_go_is_SAID_not_silent(tmp_path, monkeypatch, caplog):
+    got, lines = _poller_once(monkeypatch, {"archive": {"enabled": True}}, caplog, tmp_path)
+    assert "target" not in got and lines == ["archive: OFF — no dest and no transfer target configured"]
