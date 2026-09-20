@@ -37,7 +37,7 @@
 #   parseDeviceACC, whose worst 175 ms slip never crosses its 30 s epoch boundary.
 
 from __future__ import annotations
-import atexit as _atexit, errno as _errno, logging, os, queue as _queue, re as _re, threading as _threading, datetime as _dt, time as _time
+import atexit as _atexit, collections as _collections, errno as _errno, logging, os, queue as _queue, re as _re, threading as _threading, datetime as _dt, time as _time
 from typing import Iterable, TextIO
 
 # The annotation values a device INSERTS into a stream live with the device, not here — the merge
@@ -84,71 +84,125 @@ RUN_MIN_BY_STREAM = {
     "accraw": T_STUCK,   # O2Ring ACC — a zero-order hold; the classifier catches it
 }
 
-# ── SPAN KINDS — what a constant run MEANS, named only where it was MEASURED ─────────────────────
-# Owner ruling D1, 2026-09-19, on the finger-off capture of that morning (three removals, six independent
-# off-finger stretches, `docs/O2RING-FINGER-OFF-2026-09-19.md`): the O2Ring raw pleth reads
-# EXACTLY 100 with no finger in the ring — 100.0 % of 14,982 / 5,757 / 15,023 / 2,690 / 14,961 samples,
-# one unbroken run each — and ZERO is NOT idle: zeros occurred only while WORN (111 / 37 / 360 per ON
-# segment, plus the removal moment) and never in a settled off-finger stretch; the 199 rail likewise
-# only while worn. So the three populations the 2026-09-18 census found are TWO kinds:
+# ── BRACKETING — the sidecar EMITS THE MEASUREMENT and names nothing (owner ruling D5, 2026-09-19) ────
+# What shipped for one afternoon (#2675) named two kinds from the morning's finger-off capture: `absence`
+# (value 100 ⇒ no finger) and `in-wear-rail` (0 / 199). The evening's pre-registered capture on a WORN
+# finger falsified both in one consistent way: worn + disturbed AC signal (occlusion, strong light,
+# handling) ⇒ flat 100 for up to 672 samples, and 0 / 199 never held as a steady rail under any stimulus —
+# they arrive TOGETHER as short full-scale excursions in the same episodes. Off-finger ⇒ 100 was measured;
+# 100 ⇒ off-finger was written; the counter-example (a 2,492-sample plateau at 100 while worn, ON3) sat in
+# the same file the first was measured from. A converse error, in code.
 #
-#     absence        the ring is not on a finger — exclude like a gap (§∅)
-#     in-wear-rail   a rail event WHILE WORN — a worn-ring event needing its own handling
+# The corpus says how much the value can carry: of the 164 ring 100-runs ≥ T_STUCK over 55 census nights,
+# 139 are resolved by FILE POSITION (80 end-of-file — the ≤ 120 s reconnect-to-off-finger tail; 29 whole
+# files; 30 at file start), 22 are one-sided (ambiguous), and 3 are bracketed by pulsatile signal on both
+# sides — demonstrably worn. The value 100 is necessary and nowhere near sufficient; position and
+# neighbourhood are the discriminator, and those are exactly what a row did not record.
 #
-# ⚠️ `in-wear-rail` is a statement about OBSERVATION, not mechanism. The capture says what 0 and 199 are
-# NOT (they are not absence); it does not say what they ARE — LED off, ADC underflow, a deliberate
-# sentinel. Fit no story to them here (§∅).
+# So the row now states WHAT WAS OBSERVED around the span and asserts nothing about what it means:
 #
-# ⚠️ NAMED ONLY WHERE MEASURED. The table is per STREAM and carries only the values a controlled capture
-# established. A stream with no entry, and a value a stream's entry does not name, is `unknown` — never
-# defaulted to either kind. The Verity's optical rail (2,096,921) has had no finger-off capture; the
-# ring's other frozen values (99, 124, …) were seen in the corpus and never controlled. `unknown` is the
-# honest answer for both, and it is the answer a row carries until someone measures.
+#     bracket = <before>/<after>     each one of   varied · flat · unavailable
 #
-# ⚠️ THIS DOES NOT CHANGE WHAT IS EMITTED. Kind is a label on rows the existing rule already selects;
-# `min_run` / `T_STUCK` gate exactly as before. 100 is IN-BAND — the worn pleth crosses it every beat and
-# sits on it in short plateaus (ON1: 23 runs >= 5 at 100, longest 41; one 2,492-sample plateau in ON3) —
-# so a value-keyed emission of "absence" at a short threshold would name ordinary signal. Run length
-# stays the gate; the value names the kind of a run the gate already chose. The deferred `min_run`
-# decision (owner, 2026-09-18) is therefore about the rails alone: the idle state is one run of thousands
-# of samples and is caught at any threshold.
-RUN_KIND_BY_STREAM: dict[str, dict[str, frozenset]] = {
-    "ppg1": {"absence": frozenset({100}), "in-wear-rail": frozenset({0, 199})},   # O2Ring cmd 0x03, measured 2026-09-19
-}
-KIND_UNKNOWN = "unknown"
+#   varied       the window held >= BRACKET_VARIED_MIN distinct values (a pulsatile or otherwise live signal)
+#   flat         the window was examined and held fewer — quiet, not necessarily the same value as the span
+#   unavailable  there was no complete window to examine: the span began within BRACKET_WINDOW samples of
+#                the stream start, or the stream closed before BRACKET_WINDOW samples followed it
+#
+# ⚠️ `unavailable` and `flat` are DIFFERENT VALUES ON PURPOSE. Live, the after-side is only known once it
+# arrives, so a span closed by the recording ending has no after-side — that is "not examined", and it
+# must never share a value with "examined and quiet" (§∅ at the class level). A row is therefore held
+# until its after-window has arrived, and flushed with after=unavailable at close().
+#
+# The window is sized from the beat interval, not a round number: 375 samples = 3 s at the ring's 125 Hz,
+# which holds >= 2 beats at any resting rate >= 40 bpm — the same window the 2026-09-19 bracketing pass
+# used to split the 164. The threshold of 20 distinct values is what a worn pleth exceeds in every 3 s
+# window of that pass and a flat-100 tail never does; both are stated on the rule line so a reader can
+# reproduce the class from the samples.
+#
+# Naming is the CONSUMER's, and it has more to work with than the old kind gave it: the value, the
+# length, the bracketing class, and the file boundaries it can already see. A producer that never
+# asserts absence cannot assert it wrongly.
+BRACKET_WINDOW = 375
+BRACKET_VARIED_MIN = 20
+BRACKET_UNAVAILABLE = "unavailable"
 
 
-def run_kind(stream: str, value) -> str:
-    """The KIND of a constant run at `value` on `stream`, from the measured table only — `unknown` otherwise.
+def bracket_side(window, *, full: int = BRACKET_WINDOW, varied_min: int = BRACKET_VARIED_MIN) -> str:
+    """Classify ONE side of a span from the samples beside it. Pure.
 
-    Pure. Never guesses: a stream without a table, or a value its table does not name, is `unknown`.
-    A value that is not an int (a malformed row, a float that slipped through) is `unknown` too rather
-    than raising — a label on a diagnostic row must not end a recording."""
-    table = RUN_KIND_BY_STREAM.get(stream)
-    if not table:
-        return KIND_UNKNOWN
-    if isinstance(value, bool):
-        return KIND_UNKNOWN
-    try:
-        v = int(value)
-    except (TypeError, ValueError):
-        return KIND_UNKNOWN
-    for kind, values in table.items():
-        if v in values:
-            return kind
-    return KIND_UNKNOWN
+    Fewer than `full` samples ⇒ `unavailable` — the window was not there to examine, which is a
+    different fact from a quiet one. Otherwise `varied` when the window holds >= `varied_min` distinct
+    values, else `flat`."""
+    if window is None or len(window) < full:
+        return BRACKET_UNAVAILABLE
+    return "varied" if len(set(window)) >= varied_min else "flat"
 
 
-def _kinds_header(stream: str) -> str:
-    """The header token that states the table this file classified with — `kinds=unknown` when none.
+# ── THE DEVICE'S OWN WORD — the SECOND witness on every ppg1 row (owner: "fix it", 2026-09-19) ─────────
+# The O2Ring declares contact OUT-OF-BAND, every second, in the 1 Hz vitals frame (cmd 0x04, RtParam
+# byte 5 `sensorState`: 0 lead-off · 1 normal · 2 probe unplugged · 3 sensor fault — the enum fixed
+# 2026-09-06). `oxyii.parse_live` carries it as `contact`, `OxyFrameLogWriter` persists it in
+# `_OXYFRAME.txt`, and the daemon's not-worn verdict IS that byte. What never saw it was this sidecar.
+#
+# MEASURED against the only labelled data there is (the 2026-09-19 captures, host-time join, ±2 s):
+#     morning, settled off-finger (5 stretches, 423 frames):  contact 0 × 423 · 1 × 0
+#     morning, worn ON segments (1,143 frames):               contact 1 × 1,123 · 0 × 20 — and those 20 s ARE the
+#                                                             2,492-sample plateau at 100 (ON3): the device called it
+#     removal transition (34 frames):                         0 × 29 · 1 × 5 — a ~5 s device-side debounce
+#     evening, worn under occlusion / handling / shake:       contact 1 on every frame (it WAS worn)
+#     evening, worn under a flashlight:                       0 on 8 frames, exactly where the 672-sample flat-100 sits
+#     `run_status` (byte 4): 1/2/3 mixed on BOTH sides — does NOT discriminate. `alarm_raw & 3`: 0 everywhere.
+#     corpus, the 25 ambiguous 100-runs ≥ T_STUCK: the device calls 16 lead-off, 9 worn (all ≤ 419 samples).
+# So the device says "no valid contact" for the flat-100 episodes in BOTH captures — true absence and an
+# optically blinded worn finger alike — and does NOT tell those apart. Nothing does; for a consumer both
+# are "no measurement". That is exactly why the byte is safe to carry: it declares what it can support.
+#
+# The row therefore carries TWO witnesses, side by side, never one silently standing in for the other:
+#   bracket   what this writer observed in the waveform beside the span
+#   contact   what the device declared in the frames overlapping the span — the MAJORITY value of the
+#             frames whose host stamp falls in [span start − 2 s, span end + 2 s], carried VERBATIM
+#             (0 · 1 · 2 · 3; a 2 or a 3 is the device's value, not collapsed to worn/not-worn), or
+#             `none` when NO frame overlapped — a distinct value from 0, because "no frame was there"
+#             and "the device said lead-off" are different facts (§∅ at the class level, again).
+# The join is by HOST time: the 0x04 frames and the 0x03 waveform are different packets on one session
+# clock, both stamped at arrival; ±2 s brackets the frame cadence and its jitter. Sample-level
+# correspondence is not assumed. Both the tolerance and the rule ride the comment line.
+#
+# Only the ring has such a byte. For the Verity (`ppg`) and the Polar/ring ACC streams the ledger is
+# absent by construction and every row reads `contact=none`; bracketing is their only witness, and the
+# comment line says `contact_source=none` so a reader is not left to infer it.
+CONTACT_TOL_S = 2.0
+CONTACT_NONE = "none"
 
-    An empty sidecar must still say what was looked for, and a row's `kind` must be reproducible from
-    the header alone: a reader that sees `absence=100` knows exactly which values were named, and one
-    that sees `unknown` knows nothing was."""
-    table = RUN_KIND_BY_STREAM.get(stream)
-    if not table:
-        return "kinds=unknown"
-    return "kinds=" + ",".join(f"{k}={'|'.join(str(v) for v in sorted(vs))}" for k, vs in table.items())
+
+class ContactLedger:
+    """The device's per-frame contact declarations, kept long enough for a sidecar row to be joined to
+    them by host time. Fed by whoever writes the frame (`(when, contact)`), read by `_RunSidecar` when
+    it writes a row. Bounded: a row is written within seconds of its span ending (its after-window),
+    so an hour of 1 Hz frames is ample. Pure data; no interpretation."""
+
+    def __init__(self, maxlen: int = 3600):
+        self._q: _collections.deque = _collections.deque(maxlen=maxlen)
+
+    def note(self, when: _dt.datetime, contact) -> None:
+        if contact is None:
+            return                                   # a frame that carried no byte declares nothing
+        self._q.append((when, int(contact)))
+
+    def majority(self, start: _dt.datetime, end: _dt.datetime, tol_s: float = CONTACT_TOL_S) -> str:
+        """The majority contact value among frames stamped in [start − tol, end + tol], as a string
+        token; `none` when no frame overlapped. Ties break toward the SMALLER value (0 before 1) so a
+        tie between lead-off and normal is reported as lead-off — the conservative reading for a
+        consumer deciding whether a measurement exists."""
+        a = start - _dt.timedelta(seconds=tol_s); b = end + _dt.timedelta(seconds=tol_s)
+        c: dict[int, int] = {}
+        for when, v in self._q:
+            if a <= when <= b:
+                c[v] = c.get(v, 0) + 1
+        if not c:
+            return CONTACT_NONE
+        best = max(c.values())
+        return str(min(v for v, n in c.items() if n == best))
 
 
 # ── ZERO-ORDER-HOLD DETECTION — computed, never a name-based exclusion ────────────────────────
@@ -860,13 +914,14 @@ class _RunSidecar:
     The captured bytes are untouched — this class only ever opens its own file.
     """
 
-    # `kind` is APPENDED, never inserted: `ppgdex-dsp.js parsePinnedRuns` reads columns 1-4 by index and
-    # accepts any row of >= 8 fields, and every Python test indexes `rule` at [7]. A ninth column costs no
-    # reader anything; a reordering would have cost all of them.
-    HEADER = "Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule;kind"
+    # `bracket` is APPENDED, never inserted: `ppgdex-dsp.js parsePinnedRuns` reads columns 1-4 by index
+    # and accepts any row of >= 8 fields, and every Python test indexes `rule` at [7]. A ninth column costs
+    # no reader anything; a reordering would have cost all of them. (It replaced `kind`, which lived for
+    # one afternoon — see the BRACKETING block above.)
+    HEADER = "Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule;bracket;contact"
 
     def __init__(self, path: str, stream: str, min_run: int, resumed: bool = False,
-                 annotations: frozenset = frozenset()):
+                 annotations: frozenset = frozenset(), contact: "ContactLedger | None" = None):
         # `<base>.txt` -> `<base>RUNS.txt`, so `…_PPG.txt` gets `…_PPGRUNS.txt` and `…_PPG2W.txt`
         # gets `…_PPG2WRUNS.txt` — derived by rule rather than by a per-stream table that could
         # drift away from the stream names it claims to cover.
@@ -875,6 +930,7 @@ class _RunSidecar:
         self.stream = stream
         self.min_run = min_run
         self.annotations = annotations
+        self._contact = contact                     # the device's own word, or None (bracketing only)
         self.runs = 0
         self.errors = 0                      # swallowed exceptions — isolation must not be silence
         self._open: dict[str, list] = {}     # channel -> [value, first_index, n, first_phone, last_phone]
@@ -890,6 +946,14 @@ class _RunSidecar:
         self._hist: dict[str, dict[int, int]] = {}   # channel -> {run length: count}, whole stream
         self._warm: dict[str, int] = {}      # channel -> runs seen in its warm-up window
         self._buf: dict[str, list[str]] = {}  # channel -> warm-up rows, held until its verdict
+        # BRACKETING (D5). `_recent` is the last samples of each channel, annotations excluded — long
+        # enough that when a run reaches `min_run` (or a merge carries a span past it) the samples BEFORE
+        # the span are still there to classify. `_pending` holds emitted-but-unwritten rows until
+        # BRACKET_WINDOW further samples have arrived on that channel, so the after-side is an
+        # observation rather than a guess; close() flushes them as after=unavailable.
+        self._recent: dict[str, _collections.deque] = {}
+        self._recent_len = BRACKET_WINDOW + 2 * max(self.min_run, T_STUCK)
+        self._pending: dict[str, list[list]] = {}   # channel -> [[row_args, before, after_samples], …]
         self._fh: TextIO | None = None
         try:
             self._fh = open(self.path, "a" if resumed else "w", buffering=1 << 16, newline="\n")
@@ -902,7 +966,9 @@ class _RunSidecar:
                                f"annotations={','.join(str(a) for a in sorted(annotations)) or 'none'} "
                                f"held_warmup={HELD_WARMUP_RUNS} "
                                f"held_top2_share={HELD_TOP2_SHARE} unit=unknown "
-                               f"{_kinds_header(stream)}\n")
+                               f"bracket_window={BRACKET_WINDOW} bracket_varied_min={BRACKET_VARIED_MIN} "
+                               f"contact_source={'oxyframe' if contact is not None else 'none'} "
+                               f"contact_tol_s={CONTACT_TOL_S:g} contact_rule=majority\n")
                 self._fh.write(self.HEADER + "\n")
         except OSError:
             self._fh = None                  # a sidecar that cannot open must never stop the capture
@@ -919,15 +985,63 @@ class _RunSidecar:
             if cur is not None and cur[0] == value:
                 cur[2] += 1
                 cur[4] = phone
+                if cur[2] == self.min_run and cur[6] is None:
+                    # The run just became reportable; the samples BEFORE it are still in the deque —
+                    # everything but the run's own `min_run` values (the run has no annotation inside it,
+                    # or it would have closed). Classified NOW, because by the time the run closes the
+                    # deque holds only the run.
+                    cur[6] = self._before_from_recent(channel, cur[2] - 1)
+                self._note_sample(channel, value)
                 return
             if cur is not None:
                 self._close_run(channel, cur)
-            self._open[channel] = [value, i, 1, phone, phone, False]
+            self._open[channel] = [value, i, 1, phone, phone, False, None]
+            self._note_sample(channel, value)
         except Exception:
             # DIAGNOSTIC PATH, ISOLATED FROM P0. The sample stream is the recording; this file is a
             # note about it. An exception here is counted and dropped, never propagated into the
             # writer — but it IS counted, because a silent isolation reads exactly like a clean run.
             self.errors += 1
+
+    def _note_sample(self, channel: str, value) -> None:
+        """Every non-annotation sample: extend the channel's recent window and every row still waiting
+        for its after-window; a row whose window is complete is written with its class."""
+        if value in self.annotations:
+            return
+        dq = self._recent.get(channel)
+        if dq is None:
+            dq = self._recent[channel] = _collections.deque(maxlen=self._recent_len)
+        dq.append(value)
+        pend = self._pending.get(channel)
+        if pend:
+            done = []
+            for row in pend:
+                row[2].append(value)
+                if len(row[2]) >= BRACKET_WINDOW:
+                    done.append(row)
+            for row in done:
+                pend.remove(row)
+                self._write_bracketed(row, bracket_side(row[2]))
+            if not pend:
+                self._pending.pop(channel, None)
+
+    def _before_from_recent(self, channel: str, own: int) -> str:
+        """The class of the BRACKET_WINDOW samples preceding a span whose last `own` samples are the
+        newest entries of the deque. Fewer than a full window before it ⇒ unavailable."""
+        dq = self._recent[channel]                  # exists: the run's own samples were noted first
+        avail = len(dq) - own
+        if avail < BRACKET_WINDOW:
+            return BRACKET_UNAVAILABLE
+        seq = list(dq)
+        return bracket_side(seq[avail - BRACKET_WINDOW:avail])
+
+    def _write_bracketed(self, row: list, after: str) -> None:
+        args, before, _after_samples = row
+        # args = (channel, value, first_index, n, dur_ms, closed, rule, first_phone)
+        contact = CONTACT_NONE
+        if self._contact is not None:          # rows reach here from _emit only, always stamped
+            contact = self._contact.majority(args[7], args[7] + _dt.timedelta(milliseconds=args[4]))
+        self.emit_run(*args, bracket=f"{before}/{after}", contact=contact)
 
     def _close_run(self, channel: str, run: list) -> None:
         """A run just ended. Decide whether it EXTENDS a held span across a short interruption.
@@ -950,9 +1064,15 @@ class _RunSidecar:
             # span INCLUDING the interrupting samples, because the span is what was not measured,
             # not a tally of samples at one value.
             gap = self._gap.pop(channel)
+            own_before = held[2] + run[2]             # the merged span's own NON-annotation samples in the deque
             held[2] += gap[2] + run[2]
             held[4] = run[4]
             held[5] = run[5]                          # the span inherits the last component's fate
+            if held[6] is None and held[2] >= self.min_run:
+                # Reportable only by merging — neither component reached min_run on its own, so `before`
+                # was never captured. The deque still ends with both components' samples (the gap's
+                # annotation values were never appended), so the samples before the span are at hand.
+                held[6] = self._before_from_recent(channel, own_before)
             self._merges[channel] = self._merges.get(channel, 0) + 1
             return
         if (held is not None and channel not in self._gap
@@ -963,7 +1083,10 @@ class _RunSidecar:
             self._gap[channel] = run
             return
         if held is not None:
-            self._emit(channel, held, closed=1)
+            # `run` is the run that followed the held span (an annotation run between them, if any, sat
+            # in `_gap` and is excluded from windows) — so its values ARE the span's after-samples.
+            seed = [] if run[0] in self.annotations else [run[0]] * min(run[2], BRACKET_WINDOW)
+            self._emit(channel, held, closed=1, after_seed=seed)
             stale = self._gap.pop(channel, None)
             if stale is not None:
                 # The held value did NOT resume, so that short run was ordinary signal, not a gap.
@@ -971,11 +1094,11 @@ class _RunSidecar:
                 # run-length histogram and the warm-up counter both under-count. Measured: holding
                 # it back instead left a zero-order-hold stream permanently `undecided`, because on
                 # such a stream every run is short and half of them never arrived.
-                self._emit(channel, stale, closed=1)
+                self._emit(channel, stale, closed=1, after_seed=seed)
         self._held[channel] = run
 
-    def _emit(self, channel: str, run: list, closed: int) -> None:
-        value, first_index, n, first_phone, last_phone, _eof = run
+    def _emit(self, channel: str, run: list, closed: int, after_seed=None) -> None:
+        value, first_index, n, first_phone, last_phone, _eof, before = run
         h = self._hist.setdefault(channel, {})
         h[n] = h.get(n, 0) + 1                       # EVERY run, threshold or not — the shape needs all
         if channel not in self.klass:
@@ -987,10 +1110,24 @@ class _RunSidecar:
         # dur_ms rides the HOST stamps the rows already carry (Clock Contract §7): the span is
         # measured on the recording's own axis, not against a wall clock read at write time.
         dur_ms = (last_phone - first_phone).total_seconds() * 1000.0
-        self.emit_run(channel, value, first_index, n, dur_ms, closed, "stuck", first_phone)
+        # THE AFTER SIDE. A span is emitted from `_close_run` one run LATE — the merge pipeline holds it
+        # until the run after it closes — so by now the samples following the span are exactly that
+        # closing run's values (`after_seed`); annotation runs never reach here. If they already fill the
+        # window the class is decided on the spot; otherwise the row is held with what is known and
+        # `_note_sample` completes it. A span emitted from close() has no seed and no future: it is
+        # flushed there as after=unavailable. Never written early with a guessed class.
+        args = (channel, value, first_index, n, dur_ms, closed, "stuck", first_phone)
+        seed = list(after_seed or [])
+        row = [args, before or BRACKET_UNAVAILABLE, seed[:BRACKET_WINDOW]]
+        if len(row[2]) >= BRACKET_WINDOW:
+            self._write_bracketed(row, bracket_side(row[2]))
+        else:
+            self._pending.setdefault(channel, []).append(row)
 
     def emit_run(self, stream: str, value, first_index: int, n: int, dur_ms: float,
-                 closed: int, rule: str, stamp: _dt.datetime | None = None) -> None:
+                 closed: int, rule: str, stamp: _dt.datetime | None = None, *,
+                 bracket: str = f"{BRACKET_UNAVAILABLE}/{BRACKET_UNAVAILABLE}",
+                 contact: str = CONTACT_NONE) -> None:
         """THE seam. Any detector that finds a span writes it through here — `constant-run` from this
         accumulator, `rail-run`/`held` from a back-check — so every span in the corpus lands in one
         file shape with the rule that found it named in its own column. A second writer would be a
@@ -998,7 +1135,7 @@ class _RunSidecar:
         if self._fh is None:
             return
         line = (f"{_phone_ts(stamp) if stamp is not None else ''};{stream};{value};{first_index};{n};"
-                f"{dur_ms:.1f};{closed};{rule};{run_kind(self.stream, value)}\n")
+                f"{dur_ms:.1f};{closed};{rule};{bracket};{contact}\n")
         k = self.klass.get(stream)
         if n >= T_STUCK:
             # A `held` channel can still get STUCK, and the hold class must never hide that. The ring's
@@ -1068,6 +1205,12 @@ class _RunSidecar:
                 self._emit(channel, held, closed=0 if held[5] else 1)
             self._held.clear()
             self._gap.clear()
+            # Rows still waiting for their after-window: the recording ended first, so that side was
+            # NOT examined — `unavailable`, never `flat`.
+            for channel, pend in list(self._pending.items()):
+                for row in pend:
+                    self._write_bracketed(row, BRACKET_UNAVAILABLE)
+            self._pending.clear()
             for channel in list(self._buf) + [c for c in self._hist if c not in self.klass]:
                 if channel in self.klass:
                     continue
@@ -1169,7 +1312,8 @@ class StreamWriter:
     }
 
     def __init__(self, path: str, stream: str, flush_interval: float = FLUSH_INTERVAL_S,
-                 fsync: bool = True, timebase: str | None = None):
+                 fsync: bool = True, timebase: str | None = None,
+                 contact: "ContactLedger | None" = None):
         self.path = path
         self._health = _FlushHealth(path)
         self.stream = stream
@@ -1250,7 +1394,8 @@ class StreamWriter:
         self._runs: _RunSidecar | None = None
         if stream in RUN_MIN_BY_STREAM:
             self._runs = _RunSidecar(path, stream, RUN_MIN_BY_STREAM[stream], resumed=self.resumed,
-                                     annotations=ANNOTATIONS_BY_STREAM.get(stream, frozenset()))
+                                     annotations=ANNOTATIONS_BY_STREAM.get(stream, frozenset()),
+                                     contact=contact)
         # §1.4: seams are emitted where the clocks ARRIVE. Every device-clocked writer already
         # receives `phone` and `sensor_ns` taken at the notification, so recording here costs no
         # timing quality — the stamps are passed in, not re-taken.

@@ -16563,20 +16563,23 @@
       T.eq('control · the FILE’s own min_run is read, not assumed', r && r.minRun, 200);
       T.ok('control · rows key on the writer’s channel LABEL, the one _PPG.txt’s header also carries', !!(r && r.byChannel['channel 0'] && r.byChannel['channel 0'].length === 1));
 
-      /* D1 (2026-09-19): the writer now APPENDS a ninth column, `kind` (`absence` · `in-wear-rail` ·
-         `unknown`), and a `kinds=` token on the rule line. This reader accepts >= 8 fields and reads
-         1-4 by index, so the new shape must parse IDENTICALLY to the old — asserted here so a later
-         "tighten to exactly 8" edit trips on the shape the box actually writes. The kind is not
-         consumed yet; consuming it is the semantics unit the owner has not assigned. */
-      var HDR9 = HDR + ';kind';
-      var RULE9 = RULE + ' held_warmup=64 held_top2_share=0.85 unit=unknown kinds=absence=100,in-wear-rail=0|199';
-      var ROW9 = ROW + ';absence';
+      /* D5 (2026-09-19): the writer APPENDS two columns — `bracket` (`<before>/<after>`, each
+         `varied` · `flat` · `unavailable`: what was OBSERVED in the waveform beside the span) and
+         `contact` (the ring's own byte-5 declaration, majority within ±2 s: `0`·`1`·`2`·`3`, or
+         `none` when no frame overlapped — never what either means) — plus their parameters on the
+         rule line. This reader accepts >= 8 fields and reads 1-4 by index, so the new shape must
+         parse IDENTICALLY to the old — asserted here so a later "tighten to exactly 8" edit trips on
+         the shape the box actually writes. Neither column is consumed yet; naming absence from them
+         is the consumer's unit. */
+      var HDR9 = HDR + ';bracket;contact';
+      var RULE9 = RULE + ' held_warmup=64 held_top2_share=0.85 unit=unknown bracket_window=375 bracket_varied_min=20 contact_source=oxyframe contact_tol_s=2 contact_rule=majority';
+      var ROW9 = ROW + ';varied/unavailable;0';
       var r9 = P.parsePinnedRuns([RULE9, HDR9, ROW9].join('\n'));
       T.ok(
         'D1 · a NINE-column row (…;rule;kind) parses exactly like an eight-column one',
         !!r9 && !r9.malformed && r9.emitted === 1 && r9.rows[0].n === 5919 && r9.rows[0].first === 3273442 && r9.rows[0].value === 100
       );
-      T.eq('D1 · the rule line with a kinds= token still yields the FILE’s min_run', r9 && r9.minRun, 200);
+      T.eq('D5 · the rule line with bracket_/contact_ tokens still yields the FILE’s min_run', r9 && r9.minRun, 200);
 
       var sc = { comparable: true, minRun: 200, emitted: 1, rows: [{ first: 1000, n: 500 }] };
       var v = P.crossCheckPinned(sc, [[1000, 1499]]);
