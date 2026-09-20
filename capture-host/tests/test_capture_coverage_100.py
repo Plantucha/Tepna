@@ -621,8 +621,16 @@ def test_the_watchdog_power_cycles_the_adapter_by_its_BLUEZ_address(monkeypatch)
 def test_the_last_power_cycle_escalates_to_hci_reset_and_a_usb_rebind(monkeypatch):
     """A soft power off/on does not clear an RTL8761B firmware hang — the radio comes back "powered but
     deaf" (VIGIL-DEEP-ANALYSIS §2D). So the LAST cycle before give-up escalates: HCI-reset the
-    controller, then re-enumerate the dongle on its configured bus-port."""
+    controller, then re-enumerate the dongle.
+
+    ⚠️ THIS TEST USED TO ASSERT THE CONFIGURED BUS-PORT, AND THAT WAS THE DEFECT WRITTEN DOWN AS THE
+    CONTRACT. `watchdog.usb_path` is one static value for the whole box; on vigil 2026-09-06 it named
+    the UB500 while this watchdog watched the Sena, so re-enumerating it would have yanked a radio
+    that was neither wedged nor monitored. The rung now derives its target from the watched adapter,
+    which is what `adapter_usb_id` has said all along, so the fixture derives a DIFFERENT port from
+    the configured one and the assertion is that the derived one wins."""
     _wedge_rig(monkeypatch, adapter_up=False)
+    monkeypatch.setattr(capture, "adapter_usb_id", lambda h, **k: "3-2")
     ran = []
 
     async def fake_cmd(cmd):
@@ -645,7 +653,8 @@ def test_the_last_power_cycle_escalates_to_hci_reset_and_a_usb_rebind(monkeypatc
                         "hci_reset": True, "usb_path": "1-1.2", "exit_on_giveup": True}}
     _run(capture.adapter_watchdog("AA:BB:CC:DD:EE:FF", cfg))
     assert ("cmd", ("hciconfig", "hci0", "reset")) in ran
-    assert ("rebind", "1-1.2") in ran
+    assert ("rebind", "3-2") in ran, "the rung did not follow the adapter it is watching"
+    assert ("rebind", "1-1.2") not in ran, "it reached for the static watchdog.usb_path"
     # ...and having exhausted the ladder it exits NON-ZERO so systemd re-execs with a fresh bleak/D-Bus
     # stack, rather than looping forever over a radio it cannot fix (§2C).
     assert capture._EXIT_CODE[0] == 1 and capture._STOP.is_set()
