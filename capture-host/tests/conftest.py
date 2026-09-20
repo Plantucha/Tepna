@@ -326,3 +326,31 @@ def _no_fsync_barrier_spans_tests():
     yield
     import writers
     writers._drain_fsync(timeout=5.0)
+
+
+@_pytest.fixture(autouse=True)
+def _capture_clock_anchor_is_not_leaked():
+    """Restore `capture._now()`'s anchor after every test. Same family as the two resets above: a
+    PROCESS-GLOBAL side effect written by the CODE, not by the test, so `monkeypatch` never sees it.
+
+    🔴 THE FAILURE THIS CLOSES, measured in the mutation lane of #2715 (2026-09-20). `_now()` predicts
+    wall time from an anchor — `_anchor_wall + (monotonic − _anchor_mono)` — and `_reanchor()` writes
+    those globals from inside the code. `test_capture_clock*.py` monkeypatch `capture._time` to a fake
+    monotonic counter and drive `_now()`; the patch on `_time` is restored, the anchor the code wrote
+    under it is not. Every later `_now()` in that process then predicts from a real wall anchor with a
+    FAKE monotonic origin — measured four hours off (a file stamped 18:23 UTC in a run at 14:3x UTC).
+    Downstream, `test_THE_RING_RESUMES_ITS_FILE_SET…` failed with the resume having HAPPENED (by
+    filename collision on the stale stamp) and the "resuming file-set" line never emitted, because
+    `resumable_set` judges its window against the leaked `now`. Under xdist the clock tests mostly
+    sit on another worker; mutmut's clean baseline is one sequential process, so it saw it every time.
+
+    ⚠️ FOUR NAMES, NOT THE POPULATION. These are the globals `_reanchor()` writes; `capture.py` holds
+    other module-level state that tests have been seen to leak the same way (`STATUS`, `ADAPTER`,
+    `_RADIO_EVENTS` — `test_failover_planted_wedge` 3/19 under one full run, 19/19 alone). That
+    population is not enumerated here; this fixture closes the clock leak it was written for.
+    Snapshot before, restore after — never `_reanchor()` here, which would itself write globals."""
+    import capture
+    keep = {k: getattr(capture, k) for k in ("_anchor_wall", "_anchor_mono", "_anchor_utcoff", "_civil_shift")}
+    yield
+    for k, v in keep.items():
+        setattr(capture, k, v)
