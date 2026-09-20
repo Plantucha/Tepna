@@ -7566,12 +7566,34 @@ async def archive_poller(cfg: dict, root: str):
     archive.enabled + archive.dest are set."""
     acfg = cfg.get("archive") or {}
     target = acfg.get("target") or None
-    # A TRANSFER target (rsync) has no local dest — the night is pushed straight off the box. A MOUNT
-    # target is its mountpoint, which is what `dest` already meant, so the mirror path below is unchanged.
-    transfer = bool(target) and target.get("kind") == "transfer"
+    # VALIDATE THE CONFIG TARGET HERE, the way the web-UI save path already does. `kind` is not a field
+    # anyone writes — `storage_targets.validate()` DERIVES it from the protocol — so a target authored
+    # in config.yaml has none, and until 2026-09-20 this read `target.get("kind") == "transfer"` off the
+    # RAW dict: a config-authored rsync target never started this poller, and the return below was
+    # silent. Measured on vigil the day the NAS push was wired: `archive.enabled: true`, a valid rsync
+    # target, `/api/storage/test` green, and 23 minutes with no `archive:` line in the journal. The
+    # UI-saved target passed because the UI stores validate()'s output. Whatever the outcome, it is
+    # SAID: an offload that is off must be distinguishable from one that is broken.
+    if isinstance(target, dict):
+        try:
+            target = storage_targets.validate(target)
+        except storage_targets.StorageError as e:
+            log.warning("archive: target REFUSED (%s) — offload is OFF until config.yaml is fixed", e)
+            target = None
+    elif target is not None:
+        log.warning("archive: target must be a mapping, got %s — offload is OFF", type(target).__name__)
+        target = None
+    # `xfer` is the validated transfer target or None — one name mypy can narrow on, so the transfer
+    # branch below is typed as taking a dict, never a maybe-dict.
+    xfer: dict | None = target if isinstance(target, dict) and target.get("kind") == "transfer" else None
+    transfer = xfer is not None
     if not acfg.get("enabled") or not (acfg.get("dest") or transfer):
+        log.info("archive: OFF — %s", "archive.enabled is false" if not acfg.get("enabled")
+                 else "no dest and no transfer target configured")
         return
     dest = acfg.get("dest")
+    log.info("archive: ARMED — %s", f"{xfer['protocol']}://{xfer.get('user', '')}@{xfer['host']}:{xfer['share']}"
+             if xfer is not None else f"mirror to {dest}")
     # Non-night trees to mirror (audit F2). Defaults ON for the two that exist — the exposure they left
     # is real and they cost 0.4 % of a night — and `nightarchive` refuses `incoming/` and any night dir
     # regardless of what lands here. A non-list config value is ignored rather than crashing the poller.
@@ -7596,8 +7618,8 @@ async def archive_poller(cfg: dict, root: str):
             # link is not also carrying three live BLE streams.
             if not storage_targets.due(schedule, _now(), last_run):
                 continue
-            if transfer:
-                await _archive_transfer(captures, target, settle, schedule, subtrees)
+            if xfer is not None:
+                await _archive_transfer(captures, xfer, settle, schedule, subtrees)
                 last_run = _now()
                 continue
             # Mirror only nights that have gone QUIET (no writes for `settle`), never the one still being
