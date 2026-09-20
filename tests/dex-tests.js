@@ -11441,6 +11441,50 @@
        regenerates codegen/generated/, so the committed guide and the manifest are two copies of the
        load-bearing claim with nothing comparing them. That is exactly how `status` drifted.
        Node-lane only (env.codegenManifests is fs-read); the browser lane SKIPs, mirroring docs-ledger. */
+    /* ════ SERVED MARKDOWN TWINS — a copy no builder maintains ═══════════════════════════════════
+       `build-docs.mjs` writes a docs/ file only where a root twin exists AND the extension survives
+       its asset filter — and that filter drops Markdown. So `docs/papers/*.md` is a SERVED COPY that
+       no builder rewrites, sitting beside `docs/papers/*.html` that one does. The two look identical
+       to a contributor and behave oppositely, and `verify:docs` reports "docs/ current" either way.
+
+       Measured 2026-09-20: BOTH twins were stale. `docs/papers/RERUN-RESULTS.md` was 162 lines short
+       — missing two CORRECTION sections, a CONVERGED result and a full corpus re-run — while the
+       served copy still carried the sections those corrections correct. The site published claims
+       and withheld their retractions, which is the defect #2699 fixed one layer over.
+
+       The population is pinned as an EQUALITY, not a floor: a floor passes when the set GROWS, and a
+       third twin appearing is exactly the case nobody would notice. Widening builder ownership over
+       `docs/` is deliberately NOT the fix — `rebase-safe` once treated the whole prefix as generated
+       and silently reverted an authored spec, which is why the split exists (tools/build-docs.mjs:74).
+       Node-lane only (env.docsMdTwins is fs-read); the browser lane SKIPs, mirroring docs-ledger. */
+    group('served markdown twins are byte-identical to their root originals', 'docs · build-docs · served-copy', function (T) {
+      var DT = env.docsMdTwins;
+      if (!DT) {
+        T.skip('env.docsMdTwins provided to the runner', 'Node-lane only — wire env.docsMdTwins (run-tests.mjs)');
+        return;
+      }
+      /* Anti-vacuity: an empty walk would make "no twin differs" vacuously true. */
+      T.ok('the docs markdown population was actually walked', DT.total >= 30, DT.total + ' docs/**.md');
+
+      var names = DT.twins
+        .map(function (t) {
+          return t.rel;
+        })
+        .sort();
+      /* EQUALITY on the set. Update this list deliberately when a twin is added or removed — that
+         edit is the review the silent case never got. */
+      T.eq('the served-markdown twin set is exactly the two known members', names.join(', '), 'papers/PAPERS-AUDIT.md, papers/RERUN-RESULTS.md');
+
+      var stale = DT.twins
+        .filter(function (t) {
+          return !t.equal;
+        })
+        .map(function (t) {
+          return t.rel;
+        });
+      T.eq('every served markdown twin matches its root original', stale.join(', '), '');
+    });
+
     group('codegen manifest — the retired status enum stays retired', 'codegen · manifest · provenance', function (T) {
       var CM = env.codegenManifests;
       if (!CM) {
