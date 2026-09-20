@@ -815,7 +815,7 @@ def test_an_unparseable_schedule_falls_back_to_after_settle(tmp_path, monkeypatc
     only a config comment to explain why."""
     ran = []
 
-    async def fake_transfer(captures, target, settle, schedule):
+    async def fake_transfer(captures, target, settle, schedule, subtrees=()):
         ran.append(schedule)
     monkeypatch.setattr(capture, "_archive_transfer", fake_transfer)
     _stop_after(monkeypatch, 1)
@@ -832,7 +832,7 @@ def test_the_offload_waits_for_its_daily_window(tmp_path, monkeypatch):
     also carrying three live BLE streams. Outside the window the poller must do nothing at all."""
     ran = []
 
-    async def fake_transfer(captures, target, settle, schedule):
+    async def fake_transfer(captures, target, settle, schedule, subtrees=()):
         ran.append(1)
     monkeypatch.setattr(capture, "_archive_transfer", fake_transfer)
     monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 7, 25, 3, 0, 0))   # 03:00
