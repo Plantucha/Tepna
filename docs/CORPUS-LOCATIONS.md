@@ -73,7 +73,7 @@ exists."*
 | store | address | mount | holds | measured |
 |---|---|---|---|---|
 | **Synology** | `192.168.0.35:/volume1/MEDIA` | `/mnt/synology` (NFSv3, fstab) | **`nsrr-shhs1/` — 189 GB** | 11 TB vol, 7.1 TB free |
-| **TrueNAS** | `192.168.0.142:/mnt/Storage10TB/{tepna-corpus,vigil-archive,nsrr}` | `/mnt/nas/<dataset>` (NFSv4.2) | backup target, filling | **7.5 TB free** |
+| **TrueNAS** | `192.168.0.142:/mnt/Storage10TB/{tepna-corpus,vigil-archive,nsrr}` | `/mnt/nas/<dataset>` (NFSv4.2, fstab) | **VERIFIED FULL COPY of the canonical corpus, 2026-09-20** — 60,380 files, path+size parity both directions, 0 missing | **7.5 TB free** |
 
 ⚠️ **`nsrr-shhs1` is not incidental media — it is a consumed corpus.** Five tools read it
 (`tools/nsrr-score-pool.mjs`, `nsrr-stage-validate.mjs`, `nsrr-effort-typing.mjs`,
@@ -86,6 +86,15 @@ instruction; before that the host answered ping and SMB but **111 and 2049 were 
 why an earlier probe concluded "no NAS" — a service-level negative that reads like a host-level one.
 ⚠️ `truenas.local` does **not** resolve (no mDNS); the host is `192.168.0.142` on the LAN and also
 `truenas` → `100.83.91.77` on the tailnet. Probing the wrong name returns a clean, wrong negative.
+
+**The NAS copy was verified 2026-09-20 by path AND size, both directions, over 60,380 files** — 0 on
+the source missing from the NAS; 2 extras on the NAS (a 0-byte probe and a parked 93 MB git bundle).
+Method: `find -printf '%P\t%s'` on both roots, `comm` on the sorted pairs. **Not** by `df` — zstd
+makes `df` read ~40 % low and produced a "27 % done" progress report when the copy was ~80 % done.
+Apparent size is **173.8 GB**, not the 162 GB `du` reports in blocks. ⚠️ **This is a BACKUP, not the
+primary.** Every tool still resolves to `/srv/data/tepna-corpus/` through the 391 symlinks; repointing
+to NFS is an architecture decision (latency on a 60k-file tree), and until it is made, deleting the
+local copy would break every reader. `/srv/data` sits at 96 %, ~8 days of headroom at 0.6 GB/12 h.
 
 **Capacity is no longer the constraint; the local disk is.** The corpus grew **22.5 GB in the last
 30 days** (`find -mtime -30`), so 7.5 TB is ~27 years before zstd (3.75× on this data), while
