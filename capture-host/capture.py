@@ -1867,7 +1867,7 @@ def parse_hciconfig(text: str) -> list[dict]:
     return out
 
 
-def failover_target(pinned_mac: str | None, adapters: list[dict], reserved=()) -> str | None:
+def failover_target(pinned_mac: str | None, adapters: list[dict], reserved=(), exclude=()) -> "str | None":
     """A healthy adapter to fail over to — UP, addressable, and NOT the pinned (wedged) one — or None.
     PURE. A down spare is no spare; without a MAC the reconnect cannot be pinned to it (adapter_kw needs
     the MAC); and never the pinned adapter itself, which is the one that just wedged.
@@ -1889,33 +1889,29 @@ def failover_target(pinned_mac: str | None, adapters: list[dict], reserved=()) -
 
     Matching is on MAC **or** hci name because `cpap.ble_stream.adapter` may legitimately be either —
     a bare `hciN` or a MAC — and a reservation that only understood one form would silently protect
-    nothing on the other."""
-    ranked = failover_candidates(pinned_mac, adapters, reserved)
-    return ranked[0]["mac"] if ranked else None
+    nothing on the other.
 
-
-def failover_candidates(pinned_mac: str | None, adapters: list[dict], reserved=()) -> list[dict]:
-    """`failover_target`'s whole ranking, not just its winner — unreserved first, then reserved. PURE.
-
-    THE REASON THIS IS SEPARATE FROM `failover_target`: the winner is chosen on `up`, which is
-    `parse_hciconfig`'s reading of the kernel's CACHED flag, and that flag is known to lie about
-    exactly the failure a failover exists to escape. Measured on vigil 2026-09-11: the wedged radio
-    reported `UP RUNNING` while `HCI Reset` (`0x0c03`) timed out at `-110`. A caller that wants to
-    round-trip a candidate before migrating onto it (`_pick_live_spare`) needs the RUNNERS-UP to fall
-    through to, and a function that returns one MAC cannot offer them.
-
-    Records are returned as given, with `mac` upper-cased, so a caller keeps `hci` — the name the
-    round-trip probe needs — alongside the MAC that identifies the radio."""
+    ⚠️ `exclude` HOLDS RADIOS A CALLER HAS ALREADY RULED OUT, and it is how `_pick_live_spare` walks
+    past a spare that reads `up` and answers nothing. It is deliberately NOT a second notion of
+    health inside this function: the ranking stays a pure statement about `up` + reservation, and
+    who is provably deaf stays the probing caller's knowledge. Optional and last, so every existing
+    caller is unaffected."""
     pin = (pinned_mac or "").upper()
     held = {str(r).upper() for r in (reserved or ()) if r}
+    skip = {str(x).upper() for x in (exclude or ()) if x}
 
     def _held(a):
         return (a.get("mac") or "").upper() in held or (a.get("hci") or "").upper() in held
 
-    candidates = [{**a, "mac": (a.get("mac") or "").upper()} for a in adapters
-                  if (a.get("mac") or "").upper() and (a.get("mac") or "").upper() != pin and a.get("up")]
-    # Unreserved first — the whole point; then a reserved one rather than giving up entirely.
-    return [a for a in candidates if not _held(a)] + [a for a in candidates if _held(a)]
+    candidates = [a for a in adapters
+                  if (a.get("mac") or "").upper() and (a.get("mac") or "").upper() != pin
+                  and a.get("up") and (a.get("mac") or "").upper() not in skip]
+    for a in candidates:                      # unreserved first — the whole point
+        if not _held(a):
+            return (a.get("mac") or "").upper()
+    for a in candidates:                      # ...then a reserved one rather than giving up entirely
+        return (a.get("mac") or "").upper()
+    return None
 
 
 async def list_adapters() -> list[dict]:
@@ -6112,30 +6108,32 @@ async def _pick_live_spare(pinned_mac, adapters, reserved=(), *, cooldown_sec=90
     probe = probe or _adapter_responds
     clock = now or _time.monotonic
     t = clock()
-    ranked = failover_candidates(pinned_mac, adapters, reserved)
-    held_off = []
-    for a in ranked:
-        mac = a["mac"]
-        until = _SPARE_QUARANTINE.get(mac)
-        if until is not None:
-            if until > t:
-                held_off.append(mac)
-                continue
-            del _SPARE_QUARANTINE[mac]        # cooldown served — the probe decides again, not the memory
-        hci = a.get("hci")
+    by_mac = {(a.get("mac") or "").upper(): a for a in adapters}
+    # A radio still inside its cooldown is ruled out without being asked again; one whose cooldown has
+    # been served is dropped from the memory so the PROBE decides, never the memory.
+    for mac in [m for m, until in _SPARE_QUARANTINE.items() if until <= t]:
+        del _SPARE_QUARANTINE[mac]
+    ruled_out = set(_SPARE_QUARANTINE)
+    asked_any = False
+    while True:
+        mac = failover_target(pinned_mac, adapters, reserved, exclude=ruled_out)
+        if mac is None:
+            break
+        hci = (by_mac.get(mac) or {}).get("hci")
         verdict = (await probe(hci)) if hci else None
-        if verdict is False:
-            _SPARE_QUARANTINE[mac] = t + cooldown_sec
-            log.warning("watchdog: spare %s (%s) reads UP but did not answer an HCI round trip — "
-                        "not failing over onto it; quarantined for %.0f s", mac, hci, cooldown_sec)
-            continue
-        return mac
-    if ranked:
-        # Say it: a failover that does not happen because every spare is deaf is a different state from
-        # having no spare at all, and the caller's log cannot tell them apart.
-        log.critical("watchdog: NO LIVE SPARE — %d candidate radio(s), %d still quarantined; every one "
-                     "we could probe failed to answer. Staying put rather than migrating onto a dead "
-                     "radio", len(ranked), len(held_off))
+        asked_any = asked_any or hci is not None
+        if verdict is not False:
+            return mac
+        _SPARE_QUARANTINE[mac] = t + cooldown_sec
+        ruled_out.add(mac)
+        log.warning("watchdog: spare %s (%s) reads UP but did not answer an HCI round trip — not "
+                    "failing over onto it; quarantined for %.0f s", mac, hci, cooldown_sec)
+    if failover_target(pinned_mac, adapters, reserved) is not None:
+        # Say it. A failover that does not happen because every spare is deaf is a different state
+        # from having no spare at all, and the caller's log cannot tell those apart.
+        log.critical("watchdog: NO LIVE SPARE — every candidate radio is deaf or inside its "
+                     "quarantine (%d held off%s). Staying put rather than migrating onto a dead radio",
+                     len(_SPARE_QUARANTINE), "" if asked_any else ", none probed this pass")
     return None
 
 

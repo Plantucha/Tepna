@@ -1,6 +1,6 @@
 # tepna-capture — tests/test_spare_round_trip.py
 # Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0
-"""ASK THE SPARE BEFORE YOU MOVE ONTO IT — `failover_candidates` + `_pick_live_spare`.
+"""ASK THE SPARE BEFORE YOU MOVE ONTO IT — `failover_target(exclude=…)` + `_pick_live_spare`.
 
 `failover_target` ranks spares on `up`, which is the kernel's CACHED flag. On vigil 2026-09-11 the
 wedged radio reported `UP RUNNING` while `HCI Reset` timed out at `-110`, so that flag is wrong about
@@ -50,27 +50,29 @@ def _answers(table):
     return probe, asked
 
 
-# ── the pure ranking ────────────────────────────────────────────────────────────────────────────
-def test_candidates_rank_unreserved_first_and_agree_with_failover_target():
-    """The ranking must be the SAME decision `failover_target` already made, only with the
-    runners-up still attached — otherwise this refactor quietly changed which radio is preferred."""
+# ── the pure ranking, and the exclude that walks past a deaf radio ──────────────────────────────
+def test_exclude_skips_a_radio_and_the_ranking_is_otherwise_UNCHANGED():
+    """`exclude` is how a probing caller walks past a spare that reads `up` and answers nothing. It
+    must not become a second notion of health inside the pure function — with nothing excluded the
+    decision has to be exactly what it always was."""
     ads = [_ad("hci0", A), _ad("hci2", B)]
-    ranked = capture.failover_candidates(PIN, ads, reserved=[A])
-    assert [c["mac"] for c in ranked] == [B, A], "a reserved radio was not pushed to the back"
-    assert capture.failover_target(PIN, ads, reserved=[A]) == ranked[0]["mac"]
+    assert capture.failover_target(PIN, ads) == A
+    assert capture.failover_target(PIN, ads, exclude=[A]) == B
+    assert capture.failover_target(PIN, ads, exclude=[A, B]) is None
 
 
-def test_candidates_exclude_the_pinned_radio_and_anything_down():
-    ranked = capture.failover_candidates(PIN, [_ad("hci1", PIN), _ad("hci0", A, up=False),
-                                               _ad("hci2", B)])
-    assert [c["mac"] for c in ranked] == [B]
+def test_exclude_matches_case_insensitively_like_every_other_mac_here():
+    ads = [_ad("hci0", A)]
+    assert capture.failover_target(PIN, ads, exclude=[A.lower()]) is None
+    assert capture.failover_target(PIN, ads, exclude=[None, ""]) == A, "empties must not exclude"
 
 
-def test_candidates_carry_the_hci_name_the_probe_needs():
-    """MAC identifies the radio; `hci` is what `hciconfig` is addressed by. Dropping either makes
-    the round trip impossible to ask."""
-    (c,) = capture.failover_candidates(PIN, [{"hci": "hci2", "mac": B.lower(), "up": True}])
-    assert (c["hci"], c["mac"]) == ("hci2", B), "mac must come back upper-cased, hci untouched"
+def test_a_reserved_radio_is_still_the_LAST_resort_not_an_excluded_one():
+    """Reservation and exclusion are different things: a reserved radio is a worse choice, a deaf one
+    is not a choice at all. Collapsing them would strand a box whose only live radio is the CPAP's."""
+    ads = [_ad("hci0", A), _ad("hci2", B)]
+    assert capture.failover_target(PIN, ads, reserved=[A]) == B
+    assert capture.failover_target(PIN, ads, reserved=[A], exclude=[B]) == A
 
 
 # ── only False convicts ─────────────────────────────────────────────────────────────────────────
