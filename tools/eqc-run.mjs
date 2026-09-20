@@ -44,6 +44,17 @@ const arg = (k, d) => {
 };
 const TRIO = arg('--trio', 'uploads/trio');
 const CPAP = arg('--cpap', '/run/media/michal/647A504F7A50205A/Ecg nightly/CPAP');
+/* AN ABSENT INPUT PATH IS NOT A MEASUREMENT. The default below points at a removable volume that
+   is not always mounted (and is no longer where the primary checkout lives), so the common failure
+   is that the directory simply is not there. Without this, this run printed "⊘ INSUFFICIENT: 0 pooled epoch-pairs" and exited 0 — a caller reading the exit
+   code sees success, and the output reads as a finding about the data rather than about the path.
+   Refuse with exit 2, the convention `tools/hostaxis-estimator-bakeoff.mjs` already uses. This is
+   §∅ one layer out: absence must stay visible, never be reported as a value. */
+if (!fs.existsSync(CPAP)) {
+  console.error(`✗ input path does not exist: ${CPAP}\n  Pass --cpap <dir>, or mount the volume.`);
+  process.exit(2);
+}
+
 const MAXLAG = Number(arg('--maxlag', '4')); // in 5-min epochs => +/- 20 min
 
 /* ── minimal EDF reader. Only what is needed: one named signal, physical units.
