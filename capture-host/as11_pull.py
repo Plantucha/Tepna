@@ -33,14 +33,22 @@ class As11Error(RuntimeError):
 from cpap_ingest import FrameKind as _FrameKind
 from cpap_ingest import classify_frame
 
-async def _read_json(recv_frame, unseal=None):
-    """Read one FIG frame; decrypt if it is an encrypted-channel frame; decode JSON."""
+async def _read_frame(recv_frame, unseal=None):
+    """Read one FIG frame; decrypt if it is an encrypted-channel frame; decode JSON.
+    Returns `(msg, wire_bytes, json_bytes)` — the payload size as received and as decrypted — so the
+    stream loop can account for what the link carried (cpap_ingest.GapCounters, the cost axis)."""
     vcid, payload = await recv_frame()
+    wire = len(payload)
     if vcid == L.VCID_ENC_RX:
         if unseal is None:
             raise As11Error("encrypted frame received without a cipher")
         payload = unseal(payload)
-    return json.loads(payload.decode("utf-8"))
+    return json.loads(payload.decode("utf-8")), wire, len(payload)
+
+
+async def _read_json(recv_frame, unseal=None):
+    """`_read_frame` for the callers that only want the message."""
+    return (await _read_frame(recv_frame, unseal))[0]
 
 
 async def _await_result(recv_frame, rpc_id, unseal=None):
@@ -168,7 +176,7 @@ async def stream(write, recv_frame, seal, unseal, data_ids, *,
         raise As11Error(f"StartStream: device rejected dataId(s): {rejected}")
     count = 0
     while max_batches is None or count < max_batches:
-        msg = await _read_json(recv_frame, unseal)
+        msg, _wire, _json = await _read_frame(recv_frame, unseal)
         # P3 gap accounting at the frame boundary — count where the frame is SEEN, before the filter eats
         # it (INV7). ONE CLASSIFIER: `classify_frame` is the tested spec of this decision, and until
         # CPAP-ACQ-P3 W1 it was a DEAD TWIN — the decision was ALSO made inline here, so the copy under
@@ -185,7 +193,7 @@ async def stream(write, recv_frame, seal, unseal, data_ids, *,
         kind = classify_frame(msg, stream_id)
         if kind is not _FrameKind.OK:
             if counters is not None:
-                counters.note_frame(kind)
+                counters.note_frame(kind, wire_bytes=_wire, json_bytes=_json)
             if kind is _FrameKind.EVENT and on_event is not None:
                 # The device's own witness. Handed to the recorder, which validates and persists it;
                 # a recorder failure is its own to count, never this loop's to propagate.
@@ -193,14 +201,15 @@ async def stream(write, recv_frame, seal, unseal, data_ids, *,
                     on_event(msg.get("params"))
                 except Exception:  # noqa: BLE001
                     pass
-            continue  # a HeartBeat, a foreign stream, an event, or a frame with nothing in it — keep reading
+            continue  # a HeartBeat (NOTIFICATION), a foreign stream, an event, or a frame with nothing in it
         p = msg["params"]
         channels: dict[str, list] = {}
         for entry in p["data"]:
             channels.update(entry)
         if counters is not None:
             counters.note_frame(_FrameKind.OK,
-                                n_samples=sum(len(v) for v in channels.values() if isinstance(v, list)))
+                                n_samples=sum(len(v) for v in channels.values() if isinstance(v, list)),
+                                wire_bytes=_wire, json_bytes=_json)
         yield {"stream_id": stream_id, "start_time": p.get("startTime"),
                "interval_ms": p.get("intervalMs"), "channels": channels}
         count += 1

@@ -9,6 +9,7 @@ EventNotification is counted as its own frame kind and handed to the recorder, n
 then the pump and the controller forward the recorder additively; then the daemon's factory is
 config-gated and OFF by default. Every absent measurement is None — a delta over a missing edge is not
 0 s of agreement (§∅)."""
+
 import asyncio
 import collections
 import json
@@ -61,9 +62,15 @@ class FakeAS11:
 
 
 def _ack(rpc_id=_START_ID, stream_id=1):
-    return _enc({"id": rpc_id, "result": {
-        "dataIds": [{"dataId": "PatientFlow", "valid": True}, {"dataId": "MaskPressure", "valid": True}],
-        "streamId": stream_id}})
+    return _enc(
+        {
+            "id": rpc_id,
+            "result": {
+                "dataIds": [{"dataId": "PatientFlow", "valid": True}, {"dataId": "MaskPressure", "valid": True}],
+                "streamId": stream_id,
+            },
+        }
+    )
 
 
 def _sub_ack(rpc_id=_START_ID + 1):
@@ -71,14 +78,22 @@ def _sub_ack(rpc_id=_START_ID + 1):
 
 
 def _stream_data(flow=(0.1, 0.2), pressure=(5.0, 5.1), stream_id=1):
-    return _enc({"jsonrpc": "2.0", "method": "StreamData", "params": {
-        "data": [{"PatientFlow": list(flow)}, {"MaskPressure": list(pressure)}],
-        "intervalMs": 40, "startTime": "2026-08-23T01:30:28.730Z", "streamId": stream_id}})
+    return _enc(
+        {
+            "jsonrpc": "2.0",
+            "method": "StreamData",
+            "params": {
+                "data": [{"PatientFlow": list(flow)}, {"MaskPressure": list(pressure)}],
+                "intervalMs": 40,
+                "startTime": "2026-08-23T01:30:28.730Z",
+                "streamId": stream_id,
+            },
+        }
+    )
 
 
 def _event(data_id, events):
-    return _enc({"jsonrpc": "2.0", "method": "EventNotification",
-                 "params": {"dataId": data_id, "events": events}})
+    return _enc({"jsonrpc": "2.0", "method": "EventNotification", "params": {"dataId": data_id, "events": events}})
 
 
 def _zle(value, rt="2026-09-19T22:01:02.000Z"):
@@ -115,7 +130,7 @@ def test_subscribe_event_refuses_an_unusable_id_list(bad):
 def test_an_event_notification_is_its_OWN_kind_and_is_counted_apart_from_malformed():
     msg = {"jsonrpc": "2.0", "method": "EventNotification", "params": {"dataId": "_ZLE", "events": []}}
     assert classify_frame(msg, 1) is FrameKind.EVENT
-    assert classify_frame({"method": "HeartBeat"}, 1) is FrameKind.MALFORMED, "unchanged"
+    assert classify_frame({"method": "HeartBeat"}, 1) is FrameKind.NOTIFICATION, "not ours, not a loss"
     c = GapCounters()
     c.note_frame(FrameKind.EVENT)
     c.note_frame(FrameKind.EVENT)
@@ -130,32 +145,60 @@ def test_an_event_notification_is_its_OWN_kind_and_is_counted_apart_from_malform
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 def test_parse_yields_one_row_per_event_with_BOTH_slots_and_both_stamps():
     rows = E.parse_event_notification(
-        {"dataId": "UsageEvents-TherapyStatusEvents",
-         "events": [{"event": "TherapyStart", "reportTime": "2026-09-19T22:00:00.000Z"},
-                    {"event": "MaskOn", "reportTime": "2026-09-19T22:00:01.000Z"}]}, 1000.5)
+        {
+            "dataId": "UsageEvents-TherapyStatusEvents",
+            "events": [
+                {"event": "TherapyStart", "reportTime": "2026-09-19T22:00:00.000Z"},
+                {"event": "MaskOn", "reportTime": "2026-09-19T22:00:01.000Z"},
+            ],
+        },
+        1000.5,
+    )
     assert rows == [
-        {"host_epoch": 1000.5, "data_id": "UsageEvents-TherapyStatusEvents", "event": "TherapyStart",
-         "value": None, "report_time": "2026-09-19T22:00:00.000Z"},
-        {"host_epoch": 1000.5, "data_id": "UsageEvents-TherapyStatusEvents", "event": "MaskOn",
-         "value": None, "report_time": "2026-09-19T22:00:01.000Z"},
+        {
+            "host_epoch": 1000.5,
+            "data_id": "UsageEvents-TherapyStatusEvents",
+            "event": "TherapyStart",
+            "value": None,
+            "report_time": "2026-09-19T22:00:00.000Z",
+        },
+        {
+            "host_epoch": 1000.5,
+            "data_id": "UsageEvents-TherapyStatusEvents",
+            "event": "MaskOn",
+            "value": None,
+            "report_time": "2026-09-19T22:00:01.000Z",
+        },
     ]
     zle = E.parse_event_notification({"dataId": "_ZLE", "events": [_zle(1)]}, 7.0)
-    assert zle == [{"host_epoch": 7.0, "data_id": "_ZLE", "event": None, "value": 1,
-                    "report_time": "2026-09-19T22:01:02.000Z"}]
+    assert zle == [
+        {"host_epoch": 7.0, "data_id": "_ZLE", "event": None, "value": 1, "report_time": "2026-09-19T22:01:02.000Z"}
+    ]
 
 
-@pytest.mark.parametrize("params", [
-    None, "x", [], {}, {"dataId": "_ZLE"}, {"events": []}, {"dataId": 3, "events": []},
-    {"dataId": "_ZLE", "events": "nope"}, {"dataId": "_ZLE", "events": [1, "a", None]},
-])
+@pytest.mark.parametrize(
+    "params",
+    [
+        None,
+        "x",
+        [],
+        {},
+        {"dataId": "_ZLE"},
+        {"events": []},
+        {"dataId": 3, "events": []},
+        {"dataId": "_ZLE", "events": "nope"},
+        {"dataId": "_ZLE", "events": [1, "a", None]},
+    ],
+)
 def test_parse_of_anything_not_of_the_wire_shape_yields_NO_rows_and_never_raises(params):
     assert E.parse_event_notification(params, 1.0) == []
 
 
 def test_parse_keeps_a_bool_or_string_value_OUT_of_the_numeric_slot():
     """`True` is an int in Python; a device that ever sent one must not read as `_ZLE=1`."""
-    rows = E.parse_event_notification({"dataId": "_ZLE", "events": [{"value": True}, {"value": "1"},
-                                                                     {"value": 0, "reportTime": 5}]}, 1.0)
+    rows = E.parse_event_notification(
+        {"dataId": "_ZLE", "events": [{"value": True}, {"value": "1"}, {"value": 0, "reportTime": 5}]}, 1.0
+    )
     assert [r["value"] for r in rows] == [None, None, 0]
     assert rows[2]["report_time"] is None, "a non-string reportTime is absent, not coerced"
 
@@ -169,18 +212,18 @@ def test_the_first_zle_value_is_a_LEVEL_not_an_edge():
     r = E.EventRecorder()
     r.note({"dataId": "_ZLE", "events": [_zle(1)]}, host_epoch=100.0)
     assert r.zle_value == 1 and r.zle_edges == 0 and r.zle_rising_host is None
-    r.note({"dataId": "_ZLE", "events": [_zle(1)]}, host_epoch=101.0)        # same level, still no edge
+    r.note({"dataId": "_ZLE", "events": [_zle(1)]}, host_epoch=101.0)  # same level, still no edge
     assert r.zle_edges == 0
 
 
 def test_rising_is_the_FIRST_edge_and_falling_the_LAST_and_deltas_are_signed_seconds():
     r = E.EventRecorder()
     r.mark_trigger("start", host_epoch=100.0)
-    r.note({"dataId": "_ZLE", "events": [_zle(0, "a")]}, host_epoch=100.5)   # level
+    r.note({"dataId": "_ZLE", "events": [_zle(0, "a")]}, host_epoch=100.5)  # level
     r.note({"dataId": "_ZLE", "events": [_zle(1, "b")]}, host_epoch=103.25)  # ↑ first rising
-    r.note({"dataId": "_ZLE", "events": [_zle(0, "c")]}, host_epoch=110.0)   # ↓ a mask-fit blip
-    r.note({"dataId": "_ZLE", "events": [_zle(1, "d")]}, host_epoch=111.0)   # ↑ second rising — NOT recorded
-    r.note({"dataId": "_ZLE", "events": [_zle(0, "e")]}, host_epoch=500.0)   # ↓ last falling
+    r.note({"dataId": "_ZLE", "events": [_zle(0, "c")]}, host_epoch=110.0)  # ↓ a mask-fit blip
+    r.note({"dataId": "_ZLE", "events": [_zle(1, "d")]}, host_epoch=111.0)  # ↑ second rising — NOT recorded
+    r.note({"dataId": "_ZLE", "events": [_zle(0, "e")]}, host_epoch=500.0)  # ↓ last falling
     r.mark_trigger("stop", host_epoch=620.0)
     s = r.snapshot()
     assert (s["zle_edges"], s["zle_rising_host"], s["zle_rising_report"]) == (4, 103.25, "b")
@@ -215,21 +258,23 @@ def test_the_sidecar_is_VERBATIM_JSONL_with_the_host_stamp_and_survives_a_malfor
     path = str(tmp_path / "ev" / "cpap-events-x.jsonl")
     r = E.EventRecorder(path)
     r.note({"dataId": "_ZLE", "events": [_zle(1)]}, host_epoch=10.0)
-    r.note("garbage-the-device-sent", host_epoch=11.0)                       # recorded too — evidence
+    r.note("garbage-the-device-sent", host_epoch=11.0)  # recorded too — evidence
     r.note_subscribed("ok")
     r.close()
     lines = [json.loads(ln) for ln in open(path, encoding="utf-8")]
-    assert lines == [{"host_epoch": 10.0, "params": {"dataId": "_ZLE", "events": [_zle(1)]}},
-                     {"host_epoch": 11.0, "params": "garbage-the-device-sent"}]
+    assert lines == [
+        {"host_epoch": 10.0, "params": {"dataId": "_ZLE", "events": [_zle(1)]}},
+        {"host_epoch": 11.0, "params": "garbage-the-device-sent"},
+    ]
     assert r.notifications == 2 and len(r.rows) == 1
     assert r.snapshot()["events_subscribe"] == "ok"
-    r.close()                                                                  # idempotent
+    r.close()  # idempotent
 
 
 def test_a_sidecar_write_failure_is_RECORDED_and_does_not_end_the_night(tmp_path):
     path = str(tmp_path / "cpap-events-y.jsonl")
     r = E.EventRecorder(path)
-    r._fh.close()                                          # the disk went away under us
+    r._fh.close()  # the disk went away under us
     rows = r.note({"dataId": "_ZLE", "events": [_zle(1)]}, host_epoch=1.0)
     assert rows and r.zle_value == 1, "the in-memory witness is intact"
     assert r.subscribe_status.startswith("record-error:ValueError")
@@ -253,15 +298,27 @@ def _collect(agen):
         async for b in agen:
             out.append(b)
         return out
+
     return _run(go())
 
 
 def test_SubscribeEvent_goes_out_BEFORE_StartStream_and_its_ack_is_consumed_first():
     rec = E.EventRecorder()
     dev = FakeAS11([_sub_ack(), _ack(), _stream_data()])
-    batches = _collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["PatientFlow", "MaskPressure"],
-                                start_id=_START_ID, max_batches=1,
-                                subscribe=["_ZLE"], on_event=rec.note, on_subscribed=rec.note_subscribed))
+    batches = _collect(
+        P.stream(
+            dev.write,
+            dev.recv_frame,
+            _seal,
+            _unseal,
+            ["PatientFlow", "MaskPressure"],
+            start_id=_START_ID,
+            max_batches=1,
+            subscribe=["_ZLE"],
+            on_event=rec.note,
+            on_subscribed=rec.note_subscribed,
+        )
+    )
     assert len(batches) == 1
     sent = _sent(dev)
     assert [m["method"] for m in sent] == ["SubscribeEvent", "StartStream"]
@@ -272,11 +329,23 @@ def test_SubscribeEvent_goes_out_BEFORE_StartStream_and_its_ack_is_consumed_firs
 
 def test_a_subscribe_ERROR_from_the_device_is_recorded_and_the_stream_still_runs():
     rec = E.EventRecorder()
-    dev = FakeAS11([_enc({"id": _START_ID + 1, "error": {"code": -32601, "message": "no such method"}}),
-                    _ack(), _stream_data()])
-    batches = _collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["PatientFlow", "MaskPressure"],
-                                start_id=_START_ID, max_batches=1,
-                                subscribe=["_ZLE"], on_event=rec.note, on_subscribed=rec.note_subscribed))
+    dev = FakeAS11(
+        [_enc({"id": _START_ID + 1, "error": {"code": -32601, "message": "no such method"}}), _ack(), _stream_data()]
+    )
+    batches = _collect(
+        P.stream(
+            dev.write,
+            dev.recv_frame,
+            _seal,
+            _unseal,
+            ["PatientFlow", "MaskPressure"],
+            start_id=_START_ID,
+            max_batches=1,
+            subscribe=["_ZLE"],
+            on_event=rec.note,
+            on_subscribed=rec.note_subscribed,
+        )
+    )
     assert len(batches) == 1, "the night is not lost to a declined witness"
     assert rec.subscribe_status.startswith("failed:"), rec.subscribe_status
     assert "As11Error" in rec.subscribe_status
@@ -292,12 +361,24 @@ def test_a_subscribe_TIMEOUT_is_recorded_as_such_and_the_stream_still_runs():
     async def recv_frame():
         if hung["once"]:
             hung["once"] = False
-            await asyncio.sleep(10)          # far past the 0.05 s budget below
+            await asyncio.sleep(10)  # far past the 0.05 s budget below
         return await inner.recv_frame()
 
-    batches = _collect(P.stream(inner.write, recv_frame, _seal, _unseal, ["PatientFlow", "MaskPressure"],
-                                start_id=_START_ID, max_batches=1, subscribe_timeout_s=0.05,
-                                subscribe=["_ZLE"], on_event=rec.note, on_subscribed=rec.note_subscribed))
+    batches = _collect(
+        P.stream(
+            inner.write,
+            recv_frame,
+            _seal,
+            _unseal,
+            ["PatientFlow", "MaskPressure"],
+            start_id=_START_ID,
+            max_batches=1,
+            subscribe_timeout_s=0.05,
+            subscribe=["_ZLE"],
+            on_event=rec.note,
+            on_subscribed=rec.note_subscribed,
+        )
+    )
     assert len(batches) == 1
     assert rec.subscribe_status == "failed:TimeoutError"
 
@@ -305,16 +386,32 @@ def test_a_subscribe_TIMEOUT_is_recorded_as_such_and_the_stream_still_runs():
 def test_an_EventNotification_is_ROUTED_to_the_recorder_counted_as_an_event_and_never_yielded():
     rec = E.EventRecorder()
     c = GapCounters()
-    dev = FakeAS11([_sub_ack(), _ack(),
-                    _event("_ZLE", [_zle(0)]),
-                    _event("UsageEvents-TherapyStatusEvents", [{"event": "TherapyStart", "reportTime": "t"}]),
-                    _stream_data(),
-                    _event("_ZLE", [_zle(1, "rise")]),
-                    _stream_data()])
-    batches = _collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["PatientFlow", "MaskPressure"],
-                                start_id=_START_ID, max_batches=2, counters=c,
-                                subscribe=["UsageEvents-TherapyStatusEvents", "_ZLE"],
-                                on_event=rec.note, on_subscribed=rec.note_subscribed))
+    dev = FakeAS11(
+        [
+            _sub_ack(),
+            _ack(),
+            _event("_ZLE", [_zle(0)]),
+            _event("UsageEvents-TherapyStatusEvents", [{"event": "TherapyStart", "reportTime": "t"}]),
+            _stream_data(),
+            _event("_ZLE", [_zle(1, "rise")]),
+            _stream_data(),
+        ]
+    )
+    batches = _collect(
+        P.stream(
+            dev.write,
+            dev.recv_frame,
+            _seal,
+            _unseal,
+            ["PatientFlow", "MaskPressure"],
+            start_id=_START_ID,
+            max_batches=2,
+            counters=c,
+            subscribe=["UsageEvents-TherapyStatusEvents", "_ZLE"],
+            on_event=rec.note,
+            on_subscribed=rec.note_subscribed,
+        )
+    )
     assert len(batches) == 2, "events never become batches"
     assert (c.events, c.malformed, c.frames_ok) == (3, 0, 2)
     assert rec.notifications == 3 and [r["event"] for r in rec.rows] == [None, "TherapyStart", None]
@@ -324,10 +421,23 @@ def test_an_EventNotification_is_ROUTED_to_the_recorder_counted_as_an_event_and_
 def test_a_recorder_that_raises_does_not_end_the_stream():
     def bad(params):
         raise RuntimeError("recorder bug")
+
     c = GapCounters()
     dev = FakeAS11([_sub_ack(), _ack(), _event("_ZLE", [_zle(1)]), _stream_data()])
-    batches = _collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["PatientFlow", "MaskPressure"],
-                                start_id=_START_ID, max_batches=1, counters=c, subscribe=["_ZLE"], on_event=bad))
+    batches = _collect(
+        P.stream(
+            dev.write,
+            dev.recv_frame,
+            _seal,
+            _unseal,
+            ["PatientFlow", "MaskPressure"],
+            start_id=_START_ID,
+            max_batches=1,
+            counters=c,
+            subscribe=["_ZLE"],
+            on_event=bad,
+        )
+    )
     assert len(batches) == 1 and c.events == 1
 
 
@@ -337,8 +447,18 @@ def test_without_subscribe_the_loop_sends_only_StartStream_and_an_unsolicited_ev
     with no on_event it goes nowhere — silently, which is the pre-existing behaviour for extra frames."""
     c = GapCounters()
     dev = FakeAS11([_ack(), _event("_ZLE", [_zle(1)]), _stream_data()])
-    batches = _collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal, ["PatientFlow", "MaskPressure"],
-                                start_id=_START_ID, max_batches=1, counters=c))
+    batches = _collect(
+        P.stream(
+            dev.write,
+            dev.recv_frame,
+            _seal,
+            _unseal,
+            ["PatientFlow", "MaskPressure"],
+            start_id=_START_ID,
+            max_batches=1,
+            counters=c,
+        )
+    )
     assert len(batches) == 1 and [m["method"] for m in _sent(dev)] == ["StartStream"]
     assert c.events == 1 and c.malformed == 0
 
@@ -352,8 +472,10 @@ def _identity_factory(session_key):
 
 
 def _handshake():
-    return [_plain({"id": 10, "result": {"challenge": b"chal-16-bytes!!!".hex(), "nonce": NONCE.hex()}}),
-            _plain({"id": 11, "result": {"confirmation": True}})]
+    return [
+        _plain({"id": 10, "result": {"challenge": b"chal-16-bytes!!!".hex(), "nonce": NONCE.hex()}}),
+        _plain({"id": 11, "result": {"confirmation": True}}),
+    ]
 
 
 class _Bus:
@@ -368,23 +490,48 @@ class _Bus:
 
 
 class _RawStub:
-    def open(self, channels, fs): pass
-    def on_batch(self, batch): pass
-    def close(self): pass
+    def open(self, channels, fs):
+        pass
+
+    def on_batch(self, batch):
+        pass
+
+    def close(self):
+        pass
+
     def acq_facts(self):
-        return {"session_id": "s", "device_id": "d", "path": None, "size": None, "records": 0,
-                "first_device_start": None, "closed_cleanly": True}
+        return {
+            "session_id": "s",
+            "device_id": "d",
+            "path": None,
+            "size": None,
+            "records": 0,
+            "first_device_start": None,
+            "closed_cleanly": True,
+        }
 
 
 def test_the_pump_marks_the_trigger_merges_the_witness_into_the_gap_line_and_the_envelope(caplog, tmp_path):
     rec = E.EventRecorder(str(tmp_path / "cpap-events-z.jsonl"))
     envelopes = []
-    dev = FakeAS11(_handshake() + [_sub_ack(), _ack(), _event("_ZLE", [_zle(0)]), _event("_ZLE", [_zle(1, "up")]),
-                                   _stream_data()])
+    dev = FakeAS11(
+        _handshake() + [_sub_ack(), _ack(), _event("_ZLE", [_zle(0)]), _event("_ZLE", [_zle(1, "up")]), _stream_data()]
+    )
     with caplog.at_level(logging.INFO, logger="tepna.cpap"):
-        _run(CS.stream_to_bus(_Bus(), dev.write, dev.recv_frame, PAIR_KEY, "cid", cipher_factory=_identity_factory,
-                              max_batches=1, extra_sinks=[_RawStub()], acq_evidence_out=envelopes.append,
-                              events=rec))
+        _run(
+            CS.stream_to_bus(
+                _Bus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=1,
+                extra_sinks=[_RawStub()],
+                acq_evidence_out=envelopes.append,
+                events=rec,
+            )
+        )
     assert [m["method"] for m in _sent(dev, skip=2)] == ["SubscribeEvent", "StartStream"]
     assert rec.trigger_start_host is not None and rec.trigger_stop_host is not None
     assert rec.trigger_start_host <= rec.zle_rising_host <= rec.trigger_stop_host
@@ -401,8 +548,19 @@ def test_the_pump_without_a_recorder_is_byte_identical_to_before(caplog):
     envelopes = []
     dev = FakeAS11(_handshake() + [_ack(), _stream_data()])
     with caplog.at_level(logging.INFO, logger="tepna.cpap"):
-        _run(CS.stream_to_bus(_Bus(), dev.write, dev.recv_frame, PAIR_KEY, "cid", cipher_factory=_identity_factory,
-                              max_batches=1, extra_sinks=[_RawStub()], acq_evidence_out=envelopes.append))
+        _run(
+            CS.stream_to_bus(
+                _Bus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                max_batches=1,
+                extra_sinks=[_RawStub()],
+                acq_evidence_out=envelopes.append,
+            )
+        )
     assert [m["method"] for m in _sent(dev, skip=2)] == ["StartStream"]
     assert envelopes[-1].provenance["events"] is None
     assert not any("events_subscribe" in r.getMessage() for r in caplog.records)
@@ -410,10 +568,20 @@ def test_the_pump_without_a_recorder_is_byte_identical_to_before(caplog):
 
 def test_the_stop_mark_lands_even_when_the_link_drops():
     rec = E.EventRecorder()
-    dev = FakeAS11(_handshake() + [_sub_ack(), _ack(), _stream_data()])       # deque runs dry → IndexError
+    dev = FakeAS11(_handshake() + [_sub_ack(), _ack(), _stream_data()])  # deque runs dry → IndexError
     with pytest.raises(IndexError):
-        _run(CS.stream_to_bus(_Bus(), dev.write, dev.recv_frame, PAIR_KEY, "cid", cipher_factory=_identity_factory,
-                              extra_sinks=[_RawStub()], events=rec))
+        _run(
+            CS.stream_to_bus(
+                _Bus(),
+                dev.write,
+                dev.recv_frame,
+                PAIR_KEY,
+                "cid",
+                cipher_factory=_identity_factory,
+                extra_sinks=[_RawStub()],
+                events=rec,
+            )
+        )
     assert rec.trigger_stop_host is not None and rec._fh is None
 
 
@@ -422,6 +590,7 @@ def test_the_stop_mark_lands_even_when_the_link_drops():
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 def test_the_controller_builds_ONE_recorder_per_session_and_forwards_it_under_events():
     from test_cpap_stream import _ControllerBus, _connector, _creds, _idle_devices
+
     seen = []
     built = []
 
@@ -439,14 +608,20 @@ def test_the_controller_builds_ONE_recorder_per_session_and_forwards_it_under_ev
     async def go():
         connect, _ = _connector()
         c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=pump, events_factory=factory)
-        await c.op("start"); await asyncio.sleep(0.02); await c.op("stop")
-        await c.op("start"); await asyncio.sleep(0.02); await c.op("stop")
+        await c.op("start")
+        await asyncio.sleep(0.02)
+        await c.op("stop")
+        await c.op("start")
+        await asyncio.sleep(0.02)
+        await c.op("stop")
+
     _run(go())
     assert len(built) == 2 and seen == built and built[0] is not built[1]
 
 
 def test_the_controller_without_a_factory_never_passes_events():
     from test_cpap_stream import _ControllerBus, _connector, _creds, _idle_devices
+
     seen = []
 
     async def pump(bus, write, recv_frame, pk, cid, *, channels=None, should_stop=None, **kw):
@@ -458,13 +633,17 @@ def test_the_controller_without_a_factory_never_passes_events():
     async def go():
         connect, _ = _connector()
         c = CS.LiveStreamController(_ControllerBus(), connect, _creds, _idle_devices, pump=pump)
-        await c.op("start"); await asyncio.sleep(0.02); await c.op("stop")
+        await c.op("start")
+        await asyncio.sleep(0.02)
+        await c.op("stop")
+
     _run(go())
     assert seen and "events" not in seen[0]
 
 
 def test_the_daemon_factory_is_OFF_by_default_and_says_so(caplog):
     import capture
+
     with caplog.at_level(logging.INFO, logger=capture.log.name):
         assert capture._cpap_events_factory({}, None) is None
         assert capture._cpap_events_factory({"events": {"enabled": False}}, "/x") is None
@@ -473,6 +652,7 @@ def test_the_daemon_factory_is_OFF_by_default_and_says_so(caplog):
 
 def test_the_daemon_factory_when_ARMED_writes_a_host_stamped_jsonl_beside_the_raw_record(tmp_path, caplog):
     import capture
+
     with caplog.at_level(logging.INFO, logger=capture.log.name):
         f = capture._cpap_events_factory({"events": {"enabled": True}}, str(tmp_path))
     assert any("event subscription ARMED" in r.getMessage() for r in caplog.records)
@@ -490,10 +670,12 @@ def test_the_daemon_factory_when_ARMED_writes_a_host_stamped_jsonl_beside_the_ra
 
 def test_the_builder_wires_the_factory_only_when_configured(tmp_path):
     import capture
+
     off = capture._build_cpap_controller(object(), {"cpap": {}}, str(tmp_path / "config.yaml"))
     assert off._events_factory is None
-    on = capture._build_cpap_controller(object(), {"cpap": {"ble_stream": {"events": {"enabled": True}}}},
-                                        str(tmp_path / "config.yaml"))
+    on = capture._build_cpap_controller(
+        object(), {"cpap": {"ble_stream": {"events": {"enabled": True}}}}, str(tmp_path / "config.yaml")
+    )
     assert callable(on._events_factory)
     assert on._events_factory().path is None, "no raw_record_dir / edf_dir ⇒ in-memory"
 
@@ -502,5 +684,5 @@ def test_config_example_documents_the_key_OFF():
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     text = open(os.path.join(here, "config.example.yaml"), encoding="utf-8").read()
     i = text.index("# events:")
-    block = text[i:i + 200]
+    block = text[i : i + 200]
     assert "enabled: false" in block and "_ZLE" in block

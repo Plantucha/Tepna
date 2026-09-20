@@ -433,23 +433,32 @@ def test_stream_runs_until_the_caller_stops_when_max_batches_is_none():
 
 
 # ── P3 gap-accounting at the frame boundary (counters=) ─────────────────────────────────────────────
-def test_stream_counts_ok_foreign_and_malformed_where_frames_are_seen():
-    """INV7 at the frame boundary: a non-StreamData and a foreign-streamId frame are COUNTED, not
-    silently eaten. Filtering is unchanged — only the OK frame yields."""
+def test_stream_counts_ok_foreign_notification_and_malformed_where_frames_are_seen():
+    """INV7 at the frame boundary: a HeartBeat, a foreign-streamId frame and a methodless frame are
+    COUNTED, each as what it is, not silently eaten. Filtering is unchanged — only the OK frame yields.
+    And the BYTES of every frame are summed — wire (as received) and json (as decrypted) — so a night's
+    gap line carries what the link carried, whatever the frame kind."""
     from cpap_ingest import GapCounters
     c = GapCounters()
-    dev = FakeAS11([
-        _ack([("PatientFlow", True), ("MaskPressure", True)]),
-        _enc({"jsonrpc": "2.0", "method": "HeartBeat", "params": {}}),          # MALFORMED (not StreamData)
+    hb = {"jsonrpc": "2.0", "method": "HeartBeat", "params": {}}
+    bad = {"jsonrpc": "2.0", "params": {}}
+    frames = [
+        _enc(hb),                                                                # NOTIFICATION (HeartBeat)
         _stream_data({"PatientFlow": [0.01, 0.02]}, stream_id=99),               # FOREIGN (wrong streamId)
+        _enc(bad),                                                               # MALFORMED (no method)
         _stream_data({"PatientFlow": [0.03, 0.04], "MaskPressure": [0.3, 0.4]}),  # OK — 4 samples
-    ])
+    ]
+    dev = FakeAS11([_ack([("PatientFlow", True), ("MaskPressure", True)])] + frames)
     batches = _run(_collect(P.stream(dev.write, dev.recv_frame, _seal, _unseal,
                                      ["PatientFlow", "MaskPressure"], start_id=_START_ID,
                                      max_batches=1, counters=c)))
     assert len(batches) == 1                                     # filtering unchanged — only OK yielded
     assert c.frames_ok == 1 and c.samples_ok == 4
-    assert c.malformed == 1 and c.foreign_stream == 1
+    assert (c.notifications, c.foreign_stream, c.malformed) == (1, 1, 1)
+    assert c.total_lost == 1, "the HeartBeat is not a loss; the methodless frame still is"
+    # identity cipher: wire == json; the sum is over ALL four frames, not just the OK one
+    expect = sum(len(f[1]) for f in frames)
+    assert c.bytes_wire == expect == c.bytes_json and expect > 0
 
 
 def test_stream_without_counters_is_unchanged():
