@@ -6111,8 +6111,8 @@ async def _pick_live_spare(pinned_mac, adapters, reserved=(), *, cooldown_sec=90
     by_mac = {(a.get("mac") or "").upper(): a for a in adapters}
     # A radio still inside its cooldown is ruled out without being asked again; one whose cooldown has
     # been served is dropped from the memory so the PROBE decides, never the memory.
-    for mac in [m for m, until in _SPARE_QUARANTINE.items() if until <= t]:
-        del _SPARE_QUARANTINE[mac]
+    for served in [m for m, until in _SPARE_QUARANTINE.items() if until <= t]:
+        del _SPARE_QUARANTINE[served]
     ruled_out = set(_SPARE_QUARANTINE)
     asked_any = False
     while True:
