@@ -13,7 +13,7 @@ import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, r
 from writers import (ContactLedger, StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
                      HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, capture_filename, missing_identity,
                      night_dir, open_sample_writers)
-from typing import Any
+from typing import Any, Iterable
 
 import proc_util
 import polar_pmd as pmd
@@ -6789,8 +6789,16 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
     # Retention only defers to the mirror when there IS one. With archiving off, age is the whole policy
     # and pruning behaves exactly as before — no silent new way for the disk to fill.
     acfg = cfg.get("archive") or {}
-    archive_enabled = bool(acfg.get("enabled")) and bool(acfg.get("dest"))
-    archive_dest = acfg.get("dest") or "(no dest configured)"
+    # A TRANSFER target (rsync over ssh) is an archive too. Until 2026-09-20 this line read
+    # `enabled and dest`, so a box archiving by rsync had NO retention gate at all — `keep_nights > 0`
+    # pruned by age while the verified-push markers went unread. The transfer form has no path to stat,
+    # so its gate asks the remote (`storage_targets.confirm_nights`, below) and fails safe.
+    _target = acfg.get("target") if isinstance(acfg.get("target"), dict) else None
+    archive_target = _target if _target and _target.get("protocol") == "rsync" else None
+    archive_enabled = bool(acfg.get("enabled")) and bool(acfg.get("dest") or archive_target)
+    archive_dest = acfg.get("dest") or (
+        f"rsync://{archive_target.get('user', '')}@{archive_target.get('host', '')}:{archive_target.get('share', '')}"
+        if archive_target else "(no dest configured)")
     # Mirrors archive_poller's own default so the "uncovered" report subtracts what is actually being
     # mirrored — a reporter that keeps naming handled subtrees stops being read (audit F2).
     _sub = acfg.get("include_subtrees", ["stored", "cpap"])
@@ -6821,10 +6829,20 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
             # into the low-disk alert text so the reason arrives with the symptom. (This module's own
             # rule: a disk warning is recoverable, deleted recordings are not.)
             blocked: set[str] = set()
-            if archive_enabled and keep_nights > 0:
+            if archive_enabled and keep_nights > 0 and acfg.get("dest"):
                 # `archive_dest` is passed so the gate CONFIRMS the mirror rather than trusting the
                 # `.archived` marker — the marker records that a copy was made, not that it survives.
                 blocked = await asyncio.to_thread(nightarchive.unarchived_nights, captures, archive_dest)
+                protect |= blocked
+            elif archive_enabled and keep_nights > 0:
+                # TRANSFER TARGET. Two gates, both fail-safe: a night with no marker was never pushed
+                # (no ssh needed); a MARKED night is asked of the remote — and only the nights retention
+                # would actually take, so a 58-night box costs at most a few dry-runs per poll, not 58.
+                unmarked = await asyncio.to_thread(nightarchive.unarchived_nights, captures, None)
+                candidates = [n for n in diskguard.plan_prune(diskguard.list_nights(captures), keep_nights,
+                                                              protect | unmarked)]
+                assert archive_target is not None      # archive_enabled without dest ⇒ a target
+                blocked = unmarked | await storage_targets.confirm_nights(captures, candidates, archive_target)
                 protect |= blocked
             # rmtree of a whole night — ~1500 files, ~2 GB — is filesystem work, not arithmetic.
             # disk_report() stays inline (a single statvfs); only the delete is off-loaded.
@@ -7384,7 +7402,8 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             log.warning("qc poll failed: %r", e)
 
 
-async def _archive_transfer(captures: str, target: dict, settle: float, schedule: dict) -> None:
+async def _archive_transfer(captures: str, target: dict, settle: float, schedule: dict,
+                            subtrees: "Iterable[str]" = ()) -> None:
     """Push every settled, not-yet-confirmed night to a TRANSFER target (rsync over SSH).
 
     The `.archived` marker is written only on a VERIFIED push — a copy that a follow-up `--dry-run`
@@ -7406,7 +7425,24 @@ async def _archive_transfer(captures: str, target: dict, settle: float, schedule
         else:
             log.warning("archive: %s NOT confirmed on %s — %s (night stays held)",
                         night, target.get("host"), res["detail"])
-            break          # a failing link will fail for every night; stop rather than hammer it
+            return         # a failing link will fail for every night; stop rather than hammer it
+    # THE SUBTREES, the same way the mount form mirrors them (`nightarchive.mirror_subtree`): until
+    # 2026-09-20 `include_subtrees` was honoured only by the mount form, so a box archiving by rsync
+    # had exactly ONE copy of `stored/` (the onboard-flash pulls — the backup that exists BECAUSE the
+    # live link is lossy) and `cpap/`. No marker — these trees grow and rsync is incremental anyway.
+    # `nightarchive.uncovered_subtrees` reports whatever is under captures/ and in neither list.
+    for name in subtrees:
+        if name in nightarchive._INELIGIBLE_SUBTREES:
+            continue                                   # `incoming/` — a mirrored partial looks like data
+        src = os.path.join(captures, name)
+        if not os.path.isdir(src):
+            continue
+        res = await storage_targets.push_night(src, target)
+        STATUS.setdefault("archive", {}).setdefault("subtrees", {})[name] = {
+            "ok": res["ok"], "verified": res["verified"], "detail": res["detail"]}
+        if not res["ok"]:
+            log.warning("archive: subtree %s NOT pushed to %s — %s", name, target.get("host"), res["detail"])
+            return
 
 
 async def archive_poller(cfg: dict, root: str):
@@ -7447,7 +7483,7 @@ async def archive_poller(cfg: dict, root: str):
             if not storage_targets.due(schedule, _now(), last_run):
                 continue
             if transfer:
-                await _archive_transfer(captures, target, settle, schedule)
+                await _archive_transfer(captures, target, settle, schedule, subtrees)
                 last_run = _now()
                 continue
             # Mirror only nights that have gone QUIET (no writes for `settle`), never the one still being

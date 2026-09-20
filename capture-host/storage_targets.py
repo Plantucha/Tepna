@@ -406,7 +406,11 @@ def mount_unit(target: dict) -> dict:
 def rsync_argv(src: str, target: dict, *, dry_run: bool = False) -> list[str]:
     """ARGV for one night's push. No shell anywhere — `--` before the operands so a path can never be
     read as an option, and the host/user were pattern-validated for the same reason."""
-    remote = f"{target['share'].rstrip('/')}/"
+    # UNDER ITS OWN NAME. `src/` (trailing slash = the directory's CONTENTS) into `share/<name>/`, so a
+    # night lands as `share/2026-09-15/`, the shape the mount form and every reader of a captures tree
+    # expect. Until 2026-09-20 this sent the contents into `share/` itself, so every night would have
+    # flattened into one directory — unnoticed because no night had ever been pushed by this path.
+    remote = f"{target['share'].rstrip('/')}/{os.path.basename(src.rstrip('/'))}/"
     dest = f"{target['user']}@{target['host']}:{remote}" if target.get("user") else \
            f"{target['host']}:{remote}"
     ssh = ["ssh", "-p", str(target.get("port", 22)),
@@ -451,12 +455,62 @@ async def push_night(src: str, target: dict, timeout: float = 1800.0) -> dict:
     if not target.get("verify", True):
         return {"ok": True, "verified": False, "detail": "copied (verification disabled)"}
     rc2, out2 = await _run(rsync_argv(src, target, dry_run=True), min(timeout, 300.0))
-    pending = [ln for ln in out2.splitlines() if ln.strip() and not ln.startswith(("sending", "sent ",
-               "total size", "cannot delete", "created directory"))]
+    pending = _pending_items(out2)
     if rc2 == 0 and not pending:
         return {"ok": True, "verified": True, "detail": "copied and verified byte-for-byte"}
     return {"ok": True, "verified": False,
             "detail": f"copied, but re-check still lists {len(pending)} item(s) — not confirmed"}
+
+
+def _pending_items(dry_run_out: str) -> list[str]:
+    """The itemized lines of an rsync `--dry-run --itemize-changes` that name something still to
+    transfer — rsync's own summary chatter stripped. Empty ⇒ the remote matches the source."""
+    return [ln for ln in dry_run_out.splitlines() if ln.strip() and not ln.startswith((
+        "sending", "sent ", "total size", "cannot delete", "created directory"))]
+
+
+# rsync exit codes that mean THE LINK, not this tree: 255 = ssh failed, plus our own 124 (timeout) and
+# 127 (rsync not installed). Any of these while confirming one night says nothing can be confirmed
+# about the rest this cycle — stop asking, hold everything.
+_LINK_FAILURE_RCS = frozenset({255, 124, 127})
+
+
+async def confirm_night(src: str, target: dict, timeout: float = 300.0) -> tuple[bool, bool]:
+    """Does the remote HOLD this tree right now? `(confirmed, reachable)`.
+
+    THE RETENTION GATE FOR A TRANSFER TARGET. The mount form confirms a mirror per file against a path
+    it can stat (`nightarchive._mirror_matches`); an rsync target has no path to stat, so until
+    2026-09-20 the pruner either skipped the gate entirely for it or fell back to the `.archived`
+    marker — which records that a copy was once MADE, not that it survives, the exact mode that lost
+    data on 2026-07-25 (6 of 10 nights marked against a volume that was gone). This asks the remote:
+    a `--dry-run --itemize-changes` that lists NOTHING means every source file exists there at the
+    same size and mtime. FAILS SAFE: any non-zero exit, timeout, missing rsync, or pending item is
+    `confirmed=False`; a link-class failure is also `reachable=False` so the caller can stop asking."""
+    if target.get("protocol") != "rsync":
+        return False, False
+    rc, out = await _run(rsync_argv(src, target, dry_run=True), timeout)
+    if rc in _LINK_FAILURE_RCS:
+        return False, False
+    return (rc == 0 and not _pending_items(out)), True
+
+
+async def confirm_nights(captures: str, nights, target: dict, timeout: float = 300.0) -> set[str]:
+    """The subset of `nights` whose remote copy could NOT be confirmed — the set retention must protect.
+    Sequential and bounded: the first link-class failure marks every remaining night unconfirmed
+    without asking again (a dead link fails for all of them; hammering it buys nothing). A night whose
+    local directory is missing is not this function's question and is left out — there is nothing to
+    protect. An empty `nights` costs no ssh session at all."""
+    out: set[str] = set()
+    pending = [n for n in nights if os.path.isdir(os.path.join(captures, n))]
+    while pending:
+        n = pending.pop(0)
+        confirmed, reachable = await confirm_night(os.path.join(captures, n), target, timeout)
+        if not confirmed:
+            out.add(n)
+        if not reachable:
+            out.update(pending)
+            break
+    return out
 
 
 async def test_target(target: dict, timeout: float = 25.0) -> dict:
