@@ -10,6 +10,7 @@ module carries no non-stdlib crypto dependency.
 import hashlib
 import hmac
 import json
+import struct
 
 import as11_link as L
 import pytest
@@ -196,3 +197,91 @@ def test_start_stream_report_interval_may_not_exceed_five_times_the_sample():
     assert json.loads(L.start_stream(["PatientFlow"], 40, 200))["params"]["reportIntervalMs"] == 200
     with pytest.raises(ValueError, match="reportIntervalMs"):
         L.start_stream(["PatientFlow"], 40, 0)     # must be ≥ 1
+
+
+# ── FIG CRC verification (2026-09-19) ─────────────────────────────────────────
+# `fig_frame` has ALWAYS written both CRCs — the payload CRC32 inside the header struct and a CRC32
+# over that header — and `fig_unframe` verified NEITHER: the payload CRC went into a discard name and
+# the header CRC at bytes 12-16 was never read. The payload cipher is AES-256-CBC with no MAC, so a
+# flipped bit surfaced only if it happened to break the pad or the JSON.
+
+
+def _corrupt(frame: bytes, index: int) -> bytes:
+    b = bytearray(frame)
+    b[index] ^= 0xFF
+    return bytes(b)
+
+
+def test_a_clean_frame_still_roundtrips_and_reports_NOTHING():
+    """The positive control. A verifier that rejects everything would pass the tests below."""
+    seen = []
+    frame = L.fig_frame(L.VCID_PLAIN_TX, b"hello")
+    vcid, payload, rest = L.fig_unframe(frame, on_bad_crc=seen.append)
+    assert (vcid, payload, rest) == (L.VCID_PLAIN_TX, b"hello", b"")
+    assert seen == [], "a good frame must not report a CRC failure"
+
+
+def test_a_corrupt_PAYLOAD_is_detected_and_named():
+    """The half nothing else covers: the header verifies, so the frame LOOKS well-formed, and only the
+    payload CRC separates it from a real one."""
+    seen = []
+    frame = L.fig_frame(L.VCID_PLAIN_TX, b"hello")
+    assert L.fig_unframe(_corrupt(frame, len(frame) - 1), on_bad_crc=seen.append) is None
+    assert seen == ["payload"]
+
+
+def test_a_corrupt_HEADER_is_detected_and_named():
+    seen = []
+    frame = L.fig_frame(L.VCID_PLAIN_TX, b"hello")
+    assert L.fig_unframe(_corrupt(frame, 5), on_bad_crc=seen.append) is None
+    assert seen == ["header"]
+
+
+def test_a_CORRUPT_FRAME_DOES_NOT_WEDGE_THE_STREAM():
+    """🔴 THE REASON A BAD CRC RESYNCS INSTEAD OF RETURNING None, and it is a property of OUR caller.
+
+    `capture.py`'s notify handler is `while True: r = fig_unframe(bytes(rx)); if not r: break`, and it
+    trims `rx` ONLY on success. A corrupt frame that merely returned None would sit at the head of the
+    buffer forever — every later notification re-parsing the same bad bytes and breaking again, with
+    the link permanently deaf and no error anywhere. So the corrupt frame must be skipped WITHIN the
+    call and the next good one delivered, which is what lets the caller advance."""
+    good = L.fig_frame(L.VCID_PLAIN_TX, b"hello")
+    for label, bad in (("header", _corrupt(good, 5)), ("payload", _corrupt(good, len(good) - 1))):
+        seen = []
+        r = L.fig_unframe(bad + good, on_bad_crc=seen.append)
+        assert r is not None, f"{label}: a corrupt frame must not hide the good frame behind it"
+        assert r[1] == b"hello" and seen == [label]
+        assert r[2] == b"", "the remainder must exclude everything skipped, so the caller can trim"
+
+
+def test_a_payload_failure_skips_THE_WHOLE_FRAME_not_four_bytes():
+    """The header verified, so `length` is trustworthy and the frame boundary is KNOWN. Rescanning from
+    +4 would hunt a sync word inside payload bytes — and a payload that happens to contain the sync
+    word would then be re-parsed as a frame. One report, not several."""
+    good = L.fig_frame(L.VCID_PLAIN_TX, struct.pack("<I", L.FIG_SYNC) * 3)
+    seen = []
+    r = L.fig_unframe(_corrupt(good, len(good) - 1) + good, on_bad_crc=seen.append)
+    assert seen == ["payload"], f"expected one report, got {seen}"
+    assert r is not None and r[1] == struct.pack("<I", L.FIG_SYNC) * 3
+
+
+def test_the_callback_is_OPTIONAL_and_verification_still_happens_without_it():
+    """Back-compat: every existing caller passes no callback. Verification is not conditional on
+    someone asking to be told — an unverified frame must not be deliverable either way."""
+    frame = L.fig_frame(L.VCID_PLAIN_TX, b"hello")
+    # BOTH kinds, because the claim is about verification and not about one CRC: the no-callback path
+    # is a separate branch per CRC, and testing only the payload left the header one untaken — caught
+    # by the 100 % branch floor, which is exactly what it is for.
+    assert L.fig_unframe(_corrupt(frame, len(frame) - 1)) is None, "payload, no callback"
+    assert L.fig_unframe(_corrupt(frame, 5)) is None, "header, no callback"
+
+
+def test_the_PRODUCTION_caller_wires_the_counter_to_a_consumer():
+    """A count that reaches nobody is the #2670 defect one layer up — `link`/`offline_op` incremented
+    into a dict `snapshot()` could not enumerate, so real failures never reached published status. The
+    callback exists to be wired; this asserts the one production call site wires it."""
+    from tests._srcscan import module_source
+
+    src = module_source("capture.py")
+    assert "_L.fig_unframe(bytes(rx), on_bad_crc=" in src, "the notify handler dropped the counter"
+    assert 'blestats.fail("fig_crc"' in src, "CRC failures must reach blestats, not just a log"

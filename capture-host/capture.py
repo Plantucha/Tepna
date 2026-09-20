@@ -10124,7 +10124,11 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
     def _on_notify(_h, data):
         rx.extend(bytes(data))
         while True:
-            r = _L.fig_unframe(bytes(rx))
+            # THE COUNT MUST REACH A CONSUMER, not a log line. `blestats` publishes into
+            # `status.json` `ble`, which an operator reads directly — the same surface #2670 had to
+            # repair after `link`/`offline_op` counted failures into a dict `snapshot()` could not
+            # enumerate. A CRC that fails silently is a filter that discards data and tells nobody.
+            r = _L.fig_unframe(bytes(rx), on_bad_crc=lambda kind: blestats.fail("fig_crc", ble_addr, kind))
             if not r:
                 break
             vcid, payload, rest = r
