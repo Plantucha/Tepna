@@ -2018,6 +2018,21 @@ async def _connect(addr: str):
 _O2_PASSIVE_SCAN = True          # flipped off for good by the first refusal from this BlueZ stack
 
 
+def _passive_scan_kw(akw: dict) -> dict:
+    """bleak kwargs for one PASSIVE scan on BlueZ: `scanning_mode="passive"` plus the `or_patterns`
+    filter merged INTO the adapter pin's `bluez` dict (both live under the same key — a second
+    `bluez=` would replace the pin, and losing the pin is how a scan lands on the onboard radio that
+    cannot hear the ring). The filter itself is `oxy_presence.passive_or_pattern_spec()`."""
+    import oxy_presence
+    from bleak.args.bluez import OrPattern
+    from bleak.assigned_numbers import AdvertisementDataType
+    pats = [OrPattern(off, AdvertisementDataType(adt), prefix)
+            for off, adt, prefix in oxy_presence.passive_or_pattern_spec()]
+    bluez = dict(akw.get("bluez") or {})
+    bluez["or_patterns"] = pats
+    return {**akw, "scanning_mode": "passive", "bluez": bluez}
+
+
 @contextlib.asynccontextmanager
 async def _connect_scan(addr: str, timeout: float = 15.0):
     global _O2_PASSIVE_SCAN
@@ -2041,16 +2056,18 @@ async def _connect_scan(addr: str, timeout: float = 15.0):
     if _O2_PASSIVE_SCAN:
         try:
             async with _CONNECT_LOCK:
-                device = await _BS.find_device_by_filter(
-                    _match, timeout=timeout, scanning_mode="passive", **akw)
+                device = await _BS.find_device_by_filter(_match, timeout=timeout, **_passive_scan_kw(akw))
         except _BErr as exc:
             # Only a "this stack can't do passive" refusal downgrades. A real scan failure (adapter wedged,
             # D-Bus gone) must stay an error the caller retries + the watchdogs can see, not be masked by a
-            # second scan on the same broken radio.
-            if "passive" not in repr(exc).lower():
+            # second scan on the same broken radio. The refusal CLASS is logged so the box names the
+            # knob that is missing: `or_patterns` is code (fixed), `experimental` is the bluetoothd
+            # drop-in (the owner's). One line per process — the flag is per-process by design.
+            why = oxy_presence.passive_refusal(exc)
+            if why is None:
                 raise
             _O2_PASSIVE_SCAN = False
-            log.info("passive BLE scan unsupported here (%s) — using active scan for the O2Ring", exc)
+            log.info("passive BLE scan unsupported here [%s] (%s) — using active scan for the O2Ring", why, exc)
     if device is None and not _O2_PASSIVE_SCAN:
         async with _CONNECT_LOCK:
             device = await _BS.find_device_by_filter(_match, timeout=timeout, **akw)
@@ -9793,12 +9810,14 @@ def _maybe_start_presence_scan(cfg, tasks, *, create_task=None, scan_factory=Non
             # process to the active scan for good. An observer that runs is worth more than air-time.
             try:
                 devs = await BleakScanner.discover(
-                    timeout=window, **({"scanning_mode": "passive"} if _O2_PASSIVE_SCAN else {}), **akw)
+                    timeout=window, **(_passive_scan_kw(akw) if _O2_PASSIVE_SCAN else akw))
             except BleakError as exc:
-                if not (_O2_PASSIVE_SCAN and "passive" in repr(exc).lower()):
+                why = oxy_presence.passive_refusal(exc) if _O2_PASSIVE_SCAN else None
+                if why is None:
                     raise
                 _O2_PASSIVE_SCAN = False
-                log.info("passive BLE scan unsupported here (%s) — presence observer using active scan", exc)
+                log.info("passive BLE scan unsupported here [%s] (%s) — presence observer using active scan",
+                         why, exc)
                 devs = await BleakScanner.discover(timeout=window, **akw)
             for d in devs:
                 # §5 identity via `oxy_presence.is_expected_ring`, NOT an inline comparison. The
