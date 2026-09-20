@@ -211,7 +211,10 @@ class _FakeRing:
         self.notify = None
         self.notify_char = None
         self.write_chars = []
+        self.write_modes = []
         self.stopped = False
+        self.sleeps = []
+        self.connect_kwargs = None
         self.services = [_FakeService()]
         self.mtu_size = 247
 
@@ -233,6 +236,10 @@ class _FakeRing:
 
     async def write_gatt_char(self, _c, frame, response=False):
         self.write_chars.append(_c)
+        # OBSERVED, not merely accepted. `response=False` is a write-without-response, the only mode
+        # the ring answers on this characteristic; a fake that takes the argument and drops it lets
+        # `response=False` -> `True` pass every test while changing what goes on the wire.
+        self.write_modes.append(response)
         op = frame[1]
         if op == probe.OP_SAMPLES_A:
             reply = oxyii.encode(probe.OP_SAMPLES_A, _payload(self.vals))
@@ -255,9 +262,19 @@ def _install(monkeypatch, ring, device=None, step=0.5):
     async def find(*a, **k):
         return device
     monkeypatch.setattr(probe.BleakScanner, "find_device_by_filter", find)
-    monkeypatch.setattr(probe, "BleakClient", lambda dev, **kw: ring)
+    # `**kw` used to SWALLOW the connection arguments, so `BleakClient(timeout=30)` -> `timeout=31`
+    # was invisible to every test. Record them on the ring instead; the fixture now observes what the
+    # probe asked the link for.
+    def _client(dev, **kw):
+        ring.connect_kwargs = dict(kw)
+        return ring
+    monkeypatch.setattr(probe, "BleakClient", _client)
 
+    # The no-op sleep DISCARDED its duration, which is why every `sleep(0.4)` -> `sleep(1.4)` mutant
+    # survived. Still a no-op — the point is not to wait — but the durations are now recorded, so a
+    # settle time is a value a test can assert rather than a number nothing reads.
     async def no_sleep(_s):
+        ring.sleeps.append(_s)
         return None
     monkeypatch.setattr(probe.asyncio, "sleep", no_sleep)
     # A monotonic clock advancing a fixed step per READ, so the poll loop terminates on a count of
@@ -467,3 +484,45 @@ def test_a_reply_declaring_zero_records_reads_no_body_at_all(monkeypatch):
     res = _run(probe.run("D1:98:62:7C:92:B3", 6.0, 5.0, None))
     assert res["summary"]["markers_total"] == 0, "a zero-record reply has no body to find markers in"
     assert all(s["body_hex"] == "" for s in res["samples"] if s["count"] == 0)
+
+
+def test_the_probe_asks_the_link_for_what_it_needs_and_the_fixture_can_see_it(monkeypatch):
+    """The LINK ARGUMENTS are observed, not merely accepted.
+
+    Residue `2026-09-06-probe-mutation-survivors-are-fixture-limited` recorded 446 surviving mutants on
+    this probe and argued they were FIXTURE-limited rather than equivalent — distinguishable in
+    principle, invisible in practice. Measured 2026-09-20 on three of its named examples, each planted
+    into the real source with the suite green at 37 passed:
+
+        asyncio.sleep(0.4)      -> sleep(1.4)    SURVIVED
+        BleakClient(timeout=30) -> timeout=31    SURVIVED
+        response=False          -> True (x4)     SURVIVED
+
+    The cause was in this file, not in the probe: `_install` bound `BleakClient` to
+    `lambda dev, **kw: ring`, so the connection arguments were SWALLOWED, and its `no_sleep` discarded
+    the duration it was handed. A fake that takes an argument and drops it is indistinguishable from
+    one that checks it, until a mutant changes the value.
+
+    ⚠️ This pins three VALUES, and it does not claim the other 443. Those need the same treatment
+    where they are fixture-limited and an honest `no-distinguishing-input` entry where they are not —
+    and the row is explicit that filing these as equivalent would be a false claim.
+    """
+    ring = _FakeRing()
+    _install(monkeypatch, ring, device=_FakeDevice())
+    _run(probe.run("D1:98:62:7C:92:B3", 6.0, 5.0, None))
+
+    # ANTI-VACUITY: a run that wrote nothing would satisfy every "all(...)" below by emptiness.
+    assert ring.write_modes, "the probe must have written to the ring at all"
+    assert ring.sleeps, "the settle sleeps must have been taken"
+
+    assert all(m is False for m in ring.write_modes), (
+        "every frame goes out write-WITHOUT-response; the ring answers on notify, and a "
+        f"write-with-response would change what reaches the wire — saw {set(ring.write_modes)}"
+    )
+    assert ring.connect_kwargs is not None, "the connection arguments must reach the fixture"
+    assert ring.connect_kwargs.get("timeout") == 30, (
+        f"the probe asks for a 30 s connect timeout — saw {ring.connect_kwargs}"
+    )
+    assert 0.4 in ring.sleeps, (
+        f"the post-auth and post-setup settles are 0.4 s each — saw {sorted(set(ring.sleeps))}"
+    )
