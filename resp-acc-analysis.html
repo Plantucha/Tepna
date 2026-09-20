@@ -8912,12 +8912,19 @@ window.IntegratorDSP = {
   /* ════════════════════════════════════════════════════════════════════════
      RESPIRATORY RATE — spectral ridge tracking (MOTIONDEX-RESPIRATORY-RATE-2026-07-21)
      ────────────────────────────────────────────────────────────────────────
-     Validated on 26 nights / 172 h / 19,193 epochs of Polar H10 chest ACC against
+     Validated on 49 ACC/CPAP-paired nights / 8,057 epochs of Polar H10 chest ACC against
      ResMed CPAP `Flow.40ms` breath-by-breath reference:
-        MAE 1.01 brpm (95% CI 0.91-1.12), 91.6% within 2 brpm, at 100% coverage;
-        MAE 0.56 / 97.8% at 70% coverage, i.e. AT the reference's own 0.70 brpm floor.
-     The predecessor zero-crossing estimator (still below, still exported) scored
-     MAE 3.59 on the same epochs — worse than predicting a constant (1.50).
+        MAE 1.10 brpm (95% CI 0.96-1.27), 90.8% within 2 brpm, at 100% coverage;
+        MAE 0.63 / 97.2% at 70% coverage, i.e. AT the reference's own 0.74 brpm floor.
+     The null baseline (predicting the corpus median) scores MAE 1.64 on the same epochs.
+
+     ⚠ RESTATED 2026-09-07, and note WHAT IS NOT RESTATED. The previous figures — 26 nights /
+     172 h / 19,193 epochs, MAE 1.01, 91.6% — predate the cross-device alignment fix of #1042,
+     whose own commit message records nine of sixteen nights scored against noise; they were
+     never reproducible from committed code. The predecessor zero-crossing comparison (MAE 3.59)
+     is WITHDRAWN rather than updated: the analysis tool no longer emits that configuration, so
+     it could not be reproduced, and carrying a number forward under corrected figures is the
+     precise thing the correction refuses to do.
 
      Design notes, each measured rather than assumed:
        · 3 band-passed acceleration axes. A tilt-ANGLE channel is NOT built: for a

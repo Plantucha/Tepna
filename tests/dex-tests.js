@@ -53661,7 +53661,7 @@
     /* ════ MotionDex spectral respiratory rate — known answers, honest bias, honest abstention ════
      MOTIONDEX-RESPIRATORY-RATE-2026-07-21. The zero-crossing rate scored MAE 3.59 br/min against a real
      CPAP-flow reference over 26 nights — WORSE than predicting a constant (1.50). `respiratoryRate` replaces
-     it with spectral ridge tracking (MAE 1.01). Three properties are contract, not incidental:
+     it with spectral ridge tracking (MAE 1.10, restated 2026-09-07). Three properties are contract, not incidental:
        (1) KNOWN ANSWER — a clean synthetic breath at a known rate must come back at that rate. This is the
            assertion that caught the original bias constant: it was fitted to real breathing measured against
            `60/median(period)`, so applying it by default made a 15 br/min sinusoid read 15.7.
