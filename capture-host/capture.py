@@ -6111,8 +6111,8 @@ async def _pick_live_spare(pinned_mac, adapters, reserved=(), *, cooldown_sec=90
     by_mac = {(a.get("mac") or "").upper(): a for a in adapters}
     # A radio still inside its cooldown is ruled out without being asked again; one whose cooldown has
     # been served is dropped from the memory so the PROBE decides, never the memory.
-    for mac in [m for m, until in _SPARE_QUARANTINE.items() if until <= t]:
-        del _SPARE_QUARANTINE[mac]
+    for served in [m for m, until in _SPARE_QUARANTINE.items() if until <= t]:
+        del _SPARE_QUARANTINE[served]
     ruled_out = set(_SPARE_QUARANTINE)
     asked_any = False
     while True:
@@ -6539,9 +6539,24 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                 _hci = await adapter_hci()
                 if _hci and wcfg.get("hci_reset", True):
                     await _adapter_cmd(["hciconfig", _hci, "reset"]); await asyncio.sleep(2)
-                _usb = wcfg.get("usb_path")
-                if _usb and cycles >= max_cycles:
-                    await _usb_rebind(str(_usb)); await asyncio.sleep(2)
+                # ⚠️ DERIVE the target from the radio we are WATCHING. `watchdog.usb_path` ARMS this
+                # rung but must never name its target: it is one static value for the whole box, and on
+                # vigil 2026-09-06 it was `1-2` (the UB500) while this watchdog watched the Sena (USB
+                # 1-5) — so the last rung would have re-enumerated a radio that was neither wedged nor
+                # monitored. `adapter_usb_id` is the only sanctioned source; failing to derive REFUSES
+                # the rung rather than reaching for the static path (see its docstring).
+                if wcfg.get("usb_path") and cycles >= max_cycles:
+                    _usb = adapter_usb_id(_hci) if _hci else None
+                    if not _usb:
+                        log.error("watchdog: REFUSING the L3 USB rebind — no bus-port derivable for the "
+                                  "watched adapter (%s). watchdog.usb_path is NOT a fallback: it would "
+                                  "re-enumerate whichever radio it names, which need not be this one", _hci)
+                    else:
+                        if str(_usb) != str(wcfg.get("usb_path")):
+                            log.warning("watchdog: L3 rebind targets %s, derived from the watched adapter "
+                                        "(%s) — watchdog.usb_path says %s, which is a DIFFERENT radio and "
+                                        "is not used as a target", _usb, _hci, wcfg.get("usb_path"))
+                        await _usb_rebind(str(_usb)); await asyncio.sleep(2)
             finally:
                 _RECOVER.clear()                      # device tasks resume + reconnect on the fresh radio
 
