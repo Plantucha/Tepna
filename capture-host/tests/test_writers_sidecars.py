@@ -711,6 +711,43 @@ def test_oxylife_writer_header_and_rows(tmp_path):
     assert w.rows == 2
 
 
+def test_oxylife_writer_APPENDS_across_daemon_restarts_instead_of_wiping_the_night(tmp_path):
+    """Until 2026-09-20 this writer opened `OXYLIFE.csv` with "w". The file is one fixed name per night
+    and the daemon restarts ~11–15 times a day, so each restart erased every earlier process's rows —
+    the 2026-09-10 file held 21 connect attempts against ~250 in the journal. A second open on a
+    non-empty file must CONTINUE it: one preamble, one header, every row from both processes, and the
+    writer says which case it is in (`resumed`)."""
+    import writers
+    p = tmp_path / "OXYLIFE.csv"
+    w1 = writers.OxyLifeLogWriter(str(p), device="O2R-01")
+    assert w1.resumed is False
+    w1.write(_FakeTransition("W;1.0;not_seen;connecting;scan;O2R-01;s1;"))
+    w1.write(_FakeTransition("W;2.0;connecting;disconnected;session ended;O2R-01;s1;device_unavailable"))
+    w1.close()
+    w2 = writers.OxyLifeLogWriter(str(p), device="O2R-01")             # the daemon restarted
+    assert w2.resumed is True
+    w2.write(_FakeTransition("W;3.0;not_seen;connecting;scan;O2R-01;s2;"))
+    w2.close()
+    lines = p.read_text().splitlines()
+    assert lines[0] == "# device=O2R-01" and lines[1].startswith("host_wall;")
+    assert sum(ln.startswith("# device=") for ln in lines) == 1 and sum(ln.startswith("host_wall;") for ln in lines) == 1
+    assert [ln.split(";")[1] for ln in lines[2:]] == ["1.0", "2.0", "3.0"], "all three rows, in order, nothing wiped"
+    assert w2.rows == 1, "the counter is per process; the FILE is per night"
+
+
+def test_oxylife_writer_treats_an_EMPTY_existing_file_as_fresh(tmp_path):
+    """A zero-byte file (a crash between open and header) gets the preamble + header, not a headerless
+    append — the same rule as `SessionSidecar`'s `fresh` test."""
+    import writers
+    p = tmp_path / "OXYLIFE.csv"
+    p.write_text("")
+    w = writers.OxyLifeLogWriter(str(p), device="O2R-01")
+    assert w.resumed is False
+    w.write(_FakeTransition("W;1.0;a;b;r;;;"))
+    w.close()
+    assert p.read_text().splitlines()[:2] == ["# device=O2R-01", "host_wall;host_monotonic;prev;new;reason;device;session;failure;axis"]
+
+
 def test_oxylife_writer_omits_the_device_comment_when_absent(tmp_path):
     import writers
     p = tmp_path / "OXYLIFE.csv"
