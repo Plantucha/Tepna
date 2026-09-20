@@ -40,6 +40,17 @@ const DexBuild = createRequire(import.meta.url)('./build-core.js');
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 /* DATA, not code — overridable, and defaulted to where the corpus actually lives on this deployment. */
 const EN = process.env.DEX_ECG_NIGHTLY || '/run/media/michal/647A504F7A50205A/Ecg nightly';
+/* AN ABSENT INPUT PATH IS NOT A MEASUREMENT. The default below points at a removable volume that
+   is not always mounted (and is no longer where the primary checkout lives), so the common failure
+   is that the directory simply is not there. Without this, this run printed "no data" and exited 0 — a caller reading the exit
+   code sees success, and the output reads as a finding about the data rather than about the path.
+   Refuse with exit 2, the convention `tools/hostaxis-estimator-bakeoff.mjs` already uses. This is
+   §∅ one layer out: absence must stay visible, never be reported as a value. */
+if (!fs.existsSync(EN)) {
+  console.error(`✗ input path does not exist: ${EN}\n  Set DEX_ECG_NIGHTLY=<dir>, or mount the volume.`);
+  process.exit(2);
+}
+
 const CLIP_MIN = +(process.env.CLIP_MIN || 30); // minutes of each raw signal to analyse
 const EPOCH_MIN = 5;
 

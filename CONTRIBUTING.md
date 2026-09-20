@@ -397,9 +397,18 @@ night pairing, byte-weighted parallel ETA) live in the brief.
 
 ### 6.1 Branch creation on the mounted working volume (environment friction, not a code defect)
 
-The primary checkout lives under `/run/media/michal/647A504F7A50205A` — a **`ntfs3`** mount, not the exFAT
-that `DEEP-AUDIT-III-FOLLOWUPS §3` names (verified 2026-07-28 via `findmnt`; the brief's label is wrong,
-the symptoms it records are real). Git's ref/config writes are occasionally unhappy there:
+⚠️ **Re-verified 2026-09-20 on rig-x870: the primary checkout has MOVED and this friction no longer
+applies to it.** `/home/michal/Tepna` is on **ext4**, `/run/media/michal/647A504F7A50205A` is not mounted
+at all, and the volume behind that UUID is NTFS (`nvme0n1p3`) — not the exFAT that
+`DEEP-AUDIT-III-FOLLOWUPS §3` names. `ntfs` and `ntfs3` are both correct and name different layers:
+measured on the one NTFS volume currently mounted, `findmnt` reports **`ntfs3`** (the kernel driver,
+which is what the 2026-07-28 reading used) while `lsblk` reports **`ntfs`** (the on-disk format), and
+`/proc/filesystems` registers both. Only the exFAT label is wrong. A second checkout does still sit on an NTFS mount
+(`/run/media/michal/data/Tepna`), but its last commit is **2026-07-22**, so it is abandoned rather than
+primary. The section is kept because the symptoms are real for anyone whose checkout IS on such a mount
+— it is now a conditional warning, not a description of this repo's main working copy.
+
+On a checkout under an NTFS/exFAT mount, git's ref/config writes are occasionally unhappy:
 `git worktree add` fails intermittently with *"unable to write upstream branch configuration"* and has
 once left a **locked, empty worktree entry** that needed `git worktree remove -f -f`; `git checkout -b`
 has hung ~2 minutes on a stale ref lock. Three workarounds carried the whole #449–#464 run
