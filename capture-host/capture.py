@@ -3888,20 +3888,56 @@ async def run_polar(dev: dict, root: str):
                 backoff = min(backoff * 2, _RECONNECT_BACKOFF_CAP_S)   # exponential backoff, capped
 
 
+def _wrote_something(path: str) -> bool:
+    """True when `path` exists with at least one byte — the only evidence a child recorder produced data."""
+    try:
+        return os.path.getsize(path) > 0
+    except OSError:
+        return False
+
+
+# One child process per night. Both tools default to a DEMO length (`muselsl record_direct` 60 s,
+# `OpenMuse record` 30 s — argparse defaults read at upstream HEAD 2026-09-20), so a spawn without an
+# explicit duration would have produced ~100 half-minute files a night with 5 s holes between them and
+# read as a working capture. 24 h means the child runs until the daemon stops it or the link dies.
+MUSE_RECORD_DURATION_S = 24 * 3600
+
+
 async def run_muse(dev: dict, root: str):
-    """Muse EEG is captured by a child tool (muselsl / OpenMuse), not bleak. Supervise + restart it."""
+    """Muse EEG is captured by a child tool (muselsl / OpenMuse), not bleak. Supervise + restart it.
+
+    THE `muse_tool` SPLIT IS A PROCESS-MODEL SPLIT, NOT A "WHICH TOOL SUPPORTS THE ATHENA" SPLIT — and
+    that distinction is what residue `2026-09-19-capture-muse-tool-switch-encodes-stale-assumption` got
+    backwards. This supervisor runs ONE child that connects by `--address` and writes ONE file. Read at
+    upstream HEAD on 2026-09-20 (a snapshot — re-check before relying on it; no gate here can):
+      • muse-lsl (BSD-3, v2.5.3 2026-09-08): Athena support is REAL since `74fcb916` (2026-06-30) — but
+        it lives in `stream` (`devices.create_device`, GATT probe → Athena | legacy). `record` is an LSL
+        CONSUMER: it takes NO `--address` (the argv this function used to spawn exited 2 on argparse,
+        every 5 s, and could never have recorded), needs a running `stream`, and RETURNS 0 when it finds
+        none. The one-process, by-address path is `record_direct`, which builds the LEGACY `Muse` class
+        — Gen 1–2 only, no Athena — and writes its CSV ONLY AFTER its loop ends (`recording.to_csv`):
+        SIGTERM kills it with nothing on disk; SIGINT takes the `KeyboardInterrupt` branch and saves.
+      • OpenMuse (DominiqueMakowski, no license file, last push 2026-01-28, open issues on optics/PPG
+        flatlining #27 and channel mapping #24): Athena-ONLY by design, and its `record` IS the shape
+        this supervisor needs — `--address`, `--outfile`, appends raw packets as they arrive.
+    So: `muselsl` = Gen 1–2 via `record_direct`; `openmuse` = Athena, one process. An Athena through
+    muse-lsl needs `stream` + `record` as two children on LSL, which this function does NOT run — that
+    is a build, not a flag, and it is not built. `how-to-collect/muse-eeg.md` (#2687) describes the
+    operator running `stream`/`record` by hand and is right for that; this is the daemon's path.
+    ⚠️ UNEXERCISED ON THE BOX: no Muse is configured and neither tool is installed (2026-09-20), so
+    every claim above is from upstream source, not from a capture. The exit-0-with-no-file check below
+    is what turns a wrong guess here into a red card instead of a green respawn loop."""
     name, addr = dev["name"], dev["address"]
     tool = dev.get("muse_tool", "muselsl")
     while not _STOP.is_set():
         started = _now()
         ndir = night_dir(root, started)
         out = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "eeg", "csv"))
-        # NOTE: verify the exact CLI for YOUR tool/version. Defaults below are the common forms:
-        #   muselsl : needs a `stream` running, then `record`; or use a wrapper. OpenMuse: one-shot `record`.
+        dur = str(MUSE_RECORD_DURATION_S)
         if tool == "openmuse":
-            cmd = ["OpenMuse", "record", "--address", addr, "--outfile", out]
+            cmd = ["OpenMuse", "record", "--address", addr, "--duration", dur, "--outfile", out]
         else:
-            cmd = ["muselsl", "record", "--address", addr, "--filename", out]
+            cmd = ["muselsl", "record_direct", "--address", addr, "--filename", out, "--duration", dur]
         try:
             log.info("%s: %s", name, " ".join(cmd))
             # `connected` is set AFTER the child exists, not before. Setting it first meant a tool that
@@ -3924,9 +3960,17 @@ async def run_muse(dev: dict, root: str):
                 # finally runs on cancellation too, and we wait for the child so it can flush its CSV
                 # tail rather than being orphaned mid-write.
                 if proc.returncode is None:
-                    proc.terminate()
+                    # SIGINT FIRST, not SIGTERM. `muselsl record_direct` writes its CSV only after its
+                    # loop, and only the KeyboardInterrupt branch reaches that line — a SIGTERM there is
+                    # a night recorded and never saved. OpenMuse appends as it goes and loses at most a
+                    # buffered tail either way, so SIGINT is no worse for it. Escalate as before.
                     with contextlib.suppress(Exception):
+                        proc.send_signal(signal.SIGINT)
                         await asyncio.wait_for(proc.wait(), timeout=5)
+                    if proc.returncode is None:
+                        proc.terminate()
+                        with contextlib.suppress(Exception):
+                            await asyncio.wait_for(proc.wait(), timeout=5)
                     if proc.returncode is None:      # ignored SIGTERM — do not leave it holding the radio
                         with contextlib.suppress(Exception):
                             proc.kill()
@@ -3937,6 +3981,14 @@ async def run_muse(dev: dict, root: str):
                 _set(name, connected=False,
                      last_error=f"{tool} exited with code {proc.returncode} — retrying")
                 log.warning("%s: %s exited with code %s — retrying in 5s", name, tool, proc.returncode)
+            elif not _wrote_something(out):
+                # EXIT 0 IS NOT A CAPTURE. Both tools return 0 on "could not find / connect to the Muse"
+                # (`record_direct` prints and returns; `record` returns when no LSL stream answers), so a
+                # code-0 exit with no bytes on disk is the same silent green respawn the `connected`
+                # ordering above fixed, one layer down. The file is the evidence; the exit code is not.
+                _set(name, connected=False,
+                     last_error=f"{tool} exited 0 but wrote nothing to {os.path.basename(out)} — retrying")
+                log.warning("%s: %s exited 0 but wrote nothing to %s — retrying in 5s", name, tool, out)
             else:
                 _set(name, connected=False)
         except FileNotFoundError:

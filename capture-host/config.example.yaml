@@ -103,14 +103,23 @@ devices:
       # pedestal leaving, not a regression.
       acc: 26
 
-  # Muse S — raw EEG. Captured via a child tool, NOT bleak directly. Pick by firmware:
+  # Muse S — raw EEG. Captured via a child tool, NOT bleak directly. The switch is a PROCESS-MODEL
+  # split (one child, connects by address, writes one file — see capture.run_muse), verified against
+  # both upstreams at HEAD on 2026-09-20 (a dated snapshot, re-check before relying on it):
+  #   muselsl  → `muselsl record_direct` — Muse 2 / S gen 1-2 (the legacy GATT protocol). muse-lsl
+  #              v2.5.x DOES support the Athena, but only through `stream` (+ `record` over LSL), which
+  #              the daemon does not run; `record_direct` is legacy-only at HEAD.
+  #   openmuse → `OpenMuse record` — Muse S Athena ONLY (OpenMuse decodes nothing else). Unmaintained
+  #              since 2026-01-28 and carries open optics/PPG issues (#24, #27): EEG is the use here.
+  # Both are spawned with an explicit 24 h --duration (their defaults are 60 s / 30 s demos).
+  # ⚠️ Unexercised on the production box (no Muse configured, neither tool installed, 2026-09-20).
   - name: Muse S
     vendor: Muse
     model: S
     device_id: DDDDDDDD
     address: "ZZ:ZZ:ZZ:ZZ:ZZ:ZZ"
     streams: [eeg]
-    muse_tool: muselsl           # "muselsl" (Muse 2 / S gen 1-2) | "openmuse" (Muse S Athena)
+    muse_tool: muselsl           # "muselsl" (Muse 2 / S gen 1-2, record_direct) | "openmuse" (Muse S Athena)
 
   # Wellue O2Ring-S / T8520 (advertises as "S8-AW …") — LIVE SpO2 + pulse via the OxyII protocol
   # (run_oxyii; no bond, no vendor-app round-trip). Older O2Rings on the legacy Viatom protocol:
