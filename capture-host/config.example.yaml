@@ -38,6 +38,13 @@ watchdog:                               # auto-recover a WEDGED BLE controller (
   #                                     #     `ls /sys/bus/usb/devices/`. OFF by default.
   # exit_on_giveup: true                #   after exhausting cycles, exit non-zero so systemd re-execs with
   #                                     #     a fresh bleak/D-Bus stack instead of looping deaf all night.
+  spare_quarantine_sec: 900             #   before failing over onto a spare radio we ask it an HCI
+  #                                     #     round trip, because `UP RUNNING` is a CACHED kernel flag and
+  #                                     #     on 2026-09-11 a wedged radio reported it while HCI Reset
+  #                                     #     timed out. A spare that does not answer is skipped for this
+  #                                     #     long, then probed again — a cooldown, never a permanent
+  #                                     #     verdict. If EVERY spare is deaf the failover is refused
+  #                                     #     rather than spending the flap cap on a dead radio.
 
 link:                                   # weak-signal warning. Stream-rate health (packet rate vs nominal)
   rssi_enabled: true                    #   is always on & needs no privilege. RSSI dBm enrichment needs a
