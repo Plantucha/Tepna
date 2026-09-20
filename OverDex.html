@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BEPKCj3mywXVcjArhU4pCaCXN6Cky+ovL+IufHTftog=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-QweM6W9mJW/C9nZR9AN4E13AnEeZOge0G6B6+cKVqaA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-a4Uys3KCB5xfX+Q4tRQxCzBCHc2+M7SsxwKFQyGiScI=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-ndtbymiFV7y/RXwGWqFgSTIVzi6sTjnw6Nt8nUchStc=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-BEPKCj3mywXVcjArhU4pCaCXN6Cky+ovL+IufHTftog=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-a4Uys3KCB5xfX+Q4tRQxCzBCHc2+M7SsxwKFQyGiScI=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-ndtbymiFV7y/RXwGWqFgSTIVzi6sTjnw6Nt8nUchStc=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-w6cTxgHqaqk9+vToFBRXCKpf0MJvKDL+J7G5uSKI9vw=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -33034,7 +33034,7 @@ __exports.PpgDex = window.PpgDex;
 
        The cut is buildNN's own `GAP_S`, hoisted so the interval this excludes and the interval that
        lands in `gapSec` can never disagree — two constants for one question eventually diverge. */
-    const GAP_S = 10; // any inter-beat interval longer than this is a coverage gap, not a missed beat
+    // GAP_S is module-scope (declared beside CVHR_MAX_SPAN_S) — ONE cut for the whole file.
     const spansGap = new Uint8Array(n);
     for (let k = 1; k < n; k++) if (times[k] - times[k - 1] > GAP_S) spansGap[k] = 1;
     for (let k = 0; k < n; k++) {
@@ -33711,10 +33711,26 @@ __exports.PpgDex = window.PpgDex;
     }
     return o;
   }
+  /* Resample onto a uniform grid AND SAY WHICH CELLS WERE MEASURED.
+     Returns `{ v, flag }` — `flag[i]` is `GRID_FLAG.OK` when the cell sits inside a real inter-beat
+     interval, `GRID_FLAG.GAP_LONG` when it was drawn across an absence and never measured.
+
+     🔴 WHY IT GREW A SECOND RETURN. This used to return a bare `Float64Array`, so an interpolated
+     cell was INDISTINGUISHABLE from a measured one — §∅ fabrication at per-sample granularity, and
+     the same defect SomnoTrace's `session_writer.c` carries in its short-gap hold. Two ways it bit:
+     `tt` is the gap-ACCUMULATED beat-time axis (see `cardiorespCoupling`'s span guard), so a
+     multi-minute dropout was interpolated straight through; and `Math.max(0, Math.min(1, f))` CLAMPS
+     outside the data range, which is a literal HOLD of the endpoint value. Both fed four series into
+     seven published coupling metrics whose return carried `nGrid` — the denominator — and no count
+     of what was drawn. GlucoDex already solved this with a per-cell flag; this is that contract,
+     applied to the node that lacked it. */
   function _interpGrid(xs, ys, grid) {
     const N = xs.length,
       M = grid.length,
-      o = new Float64Array(M);
+      o = new Float64Array(M),
+      fl = new Int8Array(M);
+    const lo = xs[0],
+      hi = xs[N - 1];
     let j = 0;
     for (let i = 0; i < M; i++) {
       const g = grid[i];
@@ -33725,8 +33741,12 @@ __exports.PpgDex = window.PpgDex;
         y1 = ys[j + 1];
       const f = x1 > x0 ? (g - x0) / (x1 - x0) : 0;
       o[i] = y0 + (y1 - y0) * Math.max(0, Math.min(1, f));
+      /* OUTSIDE the data range the clamp holds an endpoint — never a measurement. INSIDE, the cell is
+         measured only if its bracketing interval is within the coverage cut; `GAP_S` is that cut and
+         is the file's single one, shared with `buildNN`. */
+      fl[i] = g < lo || g > hi || !(x1 - x0 <= GAP_S) ? GRID_FLAG.GAP_LONG : GRID_FLAG.OK;
     }
-    return o;
+    return { v: o, flag: fl };
   }
   function _maHalf(x, half) {
     const N = x.length,
@@ -33801,7 +33821,8 @@ __exports.PpgDex = window.PpgDex;
     if (M < 16) return null;
     const grid = new Float64Array(M);
     for (let i = 0; i < M; i++) grid[i] = t0 + i / FS;
-    const edrU = _interpGrid(tt, edr, grid);
+    const _edrG = _interpGrid(tt, edr, grid);
+    const edrU = _edrG.v;
     /* CPC needs the UNDETRENDED series. `edr`/`hrR` above are `_detrendMov(x, 40)` — a 40-BEAT moving
        high-pass, ~48 s at a 50 bpm sleep rate — and `edrB`/`hrB` below are `_bandResp`, which by its
        own comment drops everything under ~0.1 Hz. Measured retention through those filters:
@@ -33815,9 +33836,9 @@ __exports.PpgDex = window.PpgDex;
        negative result. That is the same failure as `lfhf` being structurally blind to the VLF band
        (DEEP-STAGE-DESAT-CONFOUND §8.3), caught before shipping this time rather than after.
        `hrAbsU` is already the raw HR on this grid; the raw R-amplitude needs its own interpolation. */
-    const edrRawU = _interpGrid(tt, amp, grid);
-    const hrU = _interpGrid(tt, hrR, grid);
-    const hrAbsU = _interpGrid(tt, hrAbs, grid);
+    const edrRawU = _interpGrid(tt, amp, grid).v;
+    const hrU = _interpGrid(tt, hrR, grid).v;
+    const hrAbsU = _interpGrid(tt, hrAbs, grid).v;
     const edrB = _bandResp(edrU, FS),
       hrB = _bandResp(hrU, FS);
     // 3) respiration rate measured DIRECTLY from the EDR band (dominant period via
@@ -33924,10 +33945,19 @@ __exports.PpgDex = window.PpgDex;
     }
     // CPC on the RAW grids (see the edrRawU note) — never on edrB/hrB, which retain 0-22 % of LFC.
     const cpc = _cpc(hrAbsU, edrRawU, FS);
+    /* COVERAGE — §∅: "an output computed over absent input reports the absence". Every metric below
+       is computed over the uniform grid, and some of that grid was DRAWN rather than measured. All
+       four series share one `grid` and one `tt`, so one flag array describes them all. `nGrid` alone
+       was the denominator with no numerator, which is exactly what made its silence a defect. */
+    let _gapCells = 0;
+    for (let i = 0; i < M; i++) if (_edrG.flag[i] === GRID_FLAG.GAP_LONG) _gapCells++;
+    const gridGapFrac = M ? +(_gapCells / M).toFixed(4) : null;
     return {
       cpc,
       respFromEDR,
       respFromEDRReason,
+      nGridGap: _gapCells,
+      gridGapFrac,
       rsaEfficiencyRatio: +rsaRatio.toFixed(2),
       rsaAmplitudeBpm: +rsaAmp.toFixed(1),
       crcPLV: +plv.toFixed(3),
@@ -33950,6 +33980,19 @@ __exports.PpgDex = window.PpgDex;
   // grid — TWO consumers: `detectCVHR` (the #1800 refusal below) and `cardiorespCoupling` (the
   // sibling guard added after 2026-08-23's +2792-day sensor rebase OOM-killed the fold there).
   // 48 h — over twice any real recording, so a gappy night still fits.
+  const GAP_S = 10; // any inter-beat interval longer than this is a coverage gap, not a missed beat
+  /* HOISTED TO MODULE SCOPE 2026-09-19. It was `buildNN`-local, and `cardiorespCoupling` needed the
+     same cut to say which interpolated grid cells were drawn across an absence. Copying the literal
+     would have been the second constant for one question that this cut's own comment warns about —
+     and `gap-cut-parity` already gates it against PpgDex's `PPG_CVHR_GAP_S`. One declaration, two
+     readers. */
+  /* GRID FLAGS — a MIRROR of `glucodex-dsp.js`'s `FLAG`, names and numbering identical, deliberately
+     not a second vocabulary. GlucoDex already solved "which resampled cells were measured": OK is a
+     cell backed by real samples, GAP_LONG is one drawn across an absence and never measured. ECGDex
+     needs no middle `GAP` tier because `GAP_S` is already the cut between a missed beat (sound to
+     interpolate) and a coverage gap — inventing a third tier here would be coining. The two files
+     cannot share a constant (no common spine), so `grid-flag-parity` gates them equal instead. */
+  const GRID_FLAG = { OK: 0, GAP_LONG: 4 };
   const CVHR_MAX_SPAN_S = 48 * 3600;
   // `activeSec` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) is the beat-COVERED time
   // the caller measured (nnRes.activeSec — inter-beat deltas ≤ GAP_S summed); when it is > 0 it is
@@ -37851,6 +37894,14 @@ __exports.PpgDex = window.PpgDex;
              golden's equiv leg caught exactly that), so the key is present iff the rate is refused.
              `respFromEDR: null` alone already marks the refusal; this is its diagnostic. */
           ...(r.crc && r.crc.respFromEDRReason ? { respFromEDRReason: r.crc.respFromEDRReason } : {}),
+          /* COVERAGE REACHES THE EXPORT, so the flag is consumed rather than merely computed. Emitted
+             ONLY when some of the coupling grid was drawn rather than measured — a `0` on every clean
+             night is noise, and the same argument the neighbouring reason field already makes.
+             ⚠️ It REPORTS and does not yet REFUSE: nulling the coupling metrics above some coverage
+             would need the corpus distribution of `gridGapFrac`, which nobody has measured. Inventing
+             that cut here would be a planted density, so the number is published and the judgement is
+             left to a consumer that can see it. */
+          ...(r.crc && r.crc.nGridGap ? { couplingGridGapCells: r.crc.nGridGap, couplingGridGapFrac: r.crc.gridGapFrac } : {}),
           respFromEDRMethod: 'EDR (R-peak amplitude modulation)'
         }
       };
