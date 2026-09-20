@@ -26,16 +26,24 @@ SPARE = "F0:D5:BF:1E:79:21"  # Intel — up, addressable, not pinned
 def _isolate():
     capture._STOP.clear()
     capture._RADIO_EVENTS.clear()
+    capture._SPARE_QUARANTINE.clear()   # a refusal is module state; it must not leak between tests
     capture.STATUS.pop("radio_switches", None)
     before = capture.ADAPTER
     yield
     capture.ADAPTER = before
     capture._STOP.clear()
     capture._RADIO_EVENTS.clear()
+    capture._SPARE_QUARANTINE.clear()
 
 
-def _wedge(monkeypatch, *, spares=((SPARE, True),), bond_ok=True):
-    """Pin a radio, hold it DOWN, and offer `spares` to `list_adapters`."""
+def _wedge(monkeypatch, *, spares=((SPARE, True),), bond_ok=True, spare_responds=True):
+    """Pin a radio, hold it DOWN, and offer `spares` to `list_adapters`.
+
+    `spare_responds` is the SPARE's answer to the HCI round trip `_pick_live_spare` asks before
+    migrating onto it. True is the healthy case these tests were written for; False plants the
+    2026-09-11 failure — a radio that reads `UP RUNNING` and answers nothing. The PINNED radio's
+    verdict stays `None` (undeterminable), which is what the real probe returns wherever `hciconfig`
+    is absent, so the wedge these tests plant still comes from `_adapter_is_up` alone."""
     bonded = []
 
     async def hci():
@@ -45,7 +53,11 @@ def _wedge(monkeypatch, *, spares=((SPARE, True),), bond_ok=True):
         return False  # the wedge: the pinned adapter is DOWN, every poll
 
     async def adapters():
-        return [{"mac": PINNED, "up": False}] + [{"mac": m, "up": u} for m, u in spares]
+        return [{"hci": "hci1", "mac": PINNED, "up": False}] + [
+            {"hci": f"hci{i + 2}", "mac": m, "up": u} for i, (m, u) in enumerate(spares)]
+
+    async def responds(h):
+        return None if h == "hci1" else spare_responds
 
     async def btctl(_script, timeout=6):
         return ""
@@ -59,6 +71,7 @@ def _wedge(monkeypatch, *, spares=((SPARE, True),), bond_ok=True):
 
     monkeypatch.setattr(capture, "adapter_hci", hci)
     monkeypatch.setattr(capture, "_adapter_is_up", is_up)
+    monkeypatch.setattr(capture, "_adapter_responds", responds)
     monkeypatch.setattr(capture, "list_adapters", adapters)
     monkeypatch.setattr(capture.bonding, "_btctl", btctl)
     monkeypatch.setattr(capture.bonding, "ensure_bonded", ensure_bonded)
@@ -98,6 +111,21 @@ def test_a_planted_wedge_MIGRATES_the_pin_to_a_healthy_spare(monkeypatch):
     _run_watchdog(monkeypatch, _cfg())
     assert capture.ADAPTER == SPARE, "the ladder escalated but the pin never moved"
     assert bonded and bonded[0][1] == SPARE, "the sensors were not re-bonded on the spare"
+
+
+def test_a_DEAF_spare_is_REFUSED_and_the_pin_stays_put(monkeypatch):
+    """The 2026-09-11 radio, planted: `UP RUNNING` to the kernel, silent to an HCI round trip.
+
+    Before the round trip the ladder migrated on the cached flag alone, so this box would have
+    disconnected every wearable, re-bonded them and cut a hole in the recording to reach a radio that
+    answers nothing — and then reset its own reset budget as though it had recovered. Staying on a
+    wedged radio is not a good outcome; it is the LESS bad one, and it leaves the flap cap unspent."""
+    bonded = _wedge(monkeypatch, spare_responds=False)
+    capture.ADAPTER = PINNED
+    _run_watchdog(monkeypatch, _cfg())
+    assert capture.ADAPTER == PINNED, "migrated onto a radio that answered no HCI command"
+    assert not any(mac == SPARE for _addr, mac in bonded), "re-bonded sensors onto a deaf radio"
+    assert SPARE in capture._SPARE_QUARANTINE, "the deaf spare was not quarantined"
 
 
 def test_the_switch_leaves_an_EVENT_carrying_its_cause(monkeypatch):
