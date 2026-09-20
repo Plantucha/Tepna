@@ -2187,13 +2187,31 @@ class OxyLifeLogWriter:
                  device: str | None = None):
         self.path = path
         self._health = _FlushHealth(path)
-        self._fh = open(path, "w", buffering=1 << 16, newline="\n")
-        if device is not None:
-            self._fh.write(f"# device={device}\n")
-        # `axis` appended 2026-08-24 (append-never-insert): blank = the LINK axis (every historical row),
-        # "rec" = the RECORDING axis (oxy_lifecycle.OxyRecEngine). No committed reader keys on column
-        # count (checked at append time: timeline/webmon/tools carry no OXYLIFE reader); read by header.
-        self._fh.write("host_wall;host_monotonic;prev;new;reason;device;session;failure;axis\n")
+        # APPEND, NEVER TRUNCATE — the SessionSidecar / ClockSidecar discipline, arriving here late.
+        # `OXYLIFE.csv` is ONE fixed name per night directory, opened once per daemon process, and the
+        # daemon restarts ~11–15 times a day (every deploy). Opened with "w" (as it was until
+        # 2026-09-20), each restart WIPED every row the previous processes had written, so a night's
+        # file held only its LAST process's transitions: measured on vigil, the 2026-09-10 file carried
+        # 21 connect attempts against ~250 in the journal for the same day, and the 2026-09-19 file
+        # begins at 05:55 — the night before it was gone. Every yield computed from these files
+        # (residue rows 2026-09-06 / 2026-09-10 on ring connect attempts, and the round-3 drain stamp
+        # on the power brief) was over that surviving fraction, not the night. `resumed` is the
+        # non-empty-file test the sibling writers use; a fresh or empty file gets the preamble + header,
+        # an existing one is continued after its last row.
+        self.resumed = False
+        try:
+            self.resumed = os.path.getsize(path) > 0
+        except OSError:
+            self.resumed = False
+        self._fh = open(path, "a" if self.resumed else "w", buffering=1 << 16, newline="\n")
+        if not self.resumed:
+            if device is not None:
+                self._fh.write(f"# device={device}\n")
+            # `axis` appended 2026-08-24 (append-never-insert): blank = the LINK axis (every historical
+            # row), "rec" = the RECORDING axis (oxy_lifecycle.OxyRecEngine). No committed reader keys on
+            # column count (checked at append time: timeline/webmon/tools carry no OXYLIFE reader); read
+            # by header.
+            self._fh.write("host_wall;host_monotonic;prev;new;reason;device;session;failure;axis\n")
         self.rows = 0
         self._flush_interval = flush_interval
         self._fsync = fsync
