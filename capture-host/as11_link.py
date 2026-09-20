@@ -212,6 +212,19 @@ def pull_spool_fragments(spool_id: int, max_fragment_size: int = 3000, max_notif
 _STREAM_REPORT_FACTOR = 5
 
 
+def subscribe_event(data_ids, rpc_id: int = 17) -> bytes:
+    """SubscribeEvent — ask the device to PUSH EventNotifications for these data ids. READ-ONLY: it
+    changes what the device tells us, not what it does. 1–30 non-empty strings, like StartStream; the
+    device answers a result echoing the id. Sent over the encrypted channel, BEFORE StartStream, so
+    awaiting its ack never consumes a waveform batch (cpap_events)."""
+    ids = list(data_ids)
+    if not ids or not all(isinstance(d, str) and d for d in ids):
+        raise ValueError("SubscribeEvent takes 1–30 non-empty dataId strings")
+    if len(ids) > 30:
+        raise ValueError("SubscribeEvent takes at most 30 dataIds")
+    return rpc("SubscribeEvent", {"dataIds": ids}, rpc_id, "1.0")
+
+
 def start_stream(data_ids, sample_interval_ms: int = 40, report_interval_ms: int | None = None, rpc_id: int = 16) -> bytes:
     """StartStream (cmd 0x13) — open a LIVE waveform read over the encrypted channel. READ-ONLY.
 

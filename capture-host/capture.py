@@ -8759,6 +8759,7 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
         clock_offset_provider=((lambda: _as11_clock_offset(cfg["root"]))
                                if acq_evidence_out and cfg.get("root") else None),
         therapy_end_factory=_therapy_end_factory(cbs),
+        events_factory=_cpap_events_factory(cbs, raw_dir or edf_dir),
         coexistence_gate=bool(cbs.get("coexistence_gate", False)),
         # INV8 — ALWAYS wired, not behind a config key. `raw_record_dir` is a config key and it is off
         # on the production box, which is why INV9 is not in effect there; continuity must not join it.
@@ -8821,6 +8822,37 @@ def _therapy_end_factory(cbs):
     hold = float(ac.get("hold_sec", 120.0))
     log.info("CPAP auto-stop ARMED — stream ends after |flow| <= %.2f L/s for %.0f s", eps, hold)
     return lambda stop_ev: cpap_stream.TherapyEndSink(stop_ev, flow_eps=eps, hold_s=hold)
+
+
+def _cpap_events_factory(cbs, sidecar_dir):
+    """The SECOND WITNESS: `() -> cpap_events.EventRecorder`, or None when `cpap.ble_stream.events` is off.
+
+    Config-gated because SubscribeEvent is a live BLE request to the device — read-only, but a change
+    in what the radio carries, and therefore armed by the owner's edit, never by shipping the code
+    (the `scan_coexistence_verified` / `auto_start` shape). The recorder writes one host-stamped JSONL
+    per session beside the raw record (or the EDF, whichever root is configured); with neither root
+    it records in memory only and the gap line still carries the witness summary. Logged either way,
+    so an OFF path is distinguishable from a broken one."""
+    import cpap_events  # function-local, like every other CPAP import in this module
+    ev = cbs.get("events") or {}
+    if not ev.get("enabled"):
+        log.info("CPAP event subscription: OFF (set cpap.ble_stream.events.enabled: true to request "
+                 "the device's own TherapyStart/_ZLE witness)")
+        return None
+    ids = tuple(ev.get("data_ids") or cpap_events.EVENT_DATA_IDS_DEFAULT)
+    if not ids or not all(isinstance(d, str) and d for d in ids):
+        raise ValueError("cpap.ble_stream.events.data_ids must be a non-empty list of dataId strings")
+    log.info("CPAP event subscription ARMED — dataIds %s · sidecar root %s", list(ids),
+             sidecar_dir or "(none — in-memory only, summary on the gap line)")
+
+    def factory():
+        path = None
+        if sidecar_dir:
+            stamp = _time.strftime("%Y%m%d_%H%M%S", _time.gmtime())
+            path = os.path.join(sidecar_dir, f"cpap-events-{stamp}.jsonl")
+        return cpap_events.EventRecorder(path, data_ids=ids)
+
+    return factory
 
 
 def _cpap_acq_evidence_writer():
