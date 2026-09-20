@@ -10,6 +10,7 @@
 import asyncio
 import contextlib
 import logging
+import os
 
 import pytest
 
@@ -84,28 +85,77 @@ class _FakeProc:
     def __init__(self, rc=0): self.returncode = rc
     async def wait(self): return self.returncode
     def terminate(self): pass
+    def send_signal(self, sig): pass
 
 
-def test_run_muse_spawns_the_record_tool(tmp_path, monkeypatch):
-    spawned = {}
+def _exec_writing(spawned, rc=0, nbytes=1):
+    """A fake tool that, like a real one, leaves `nbytes` on disk at the path it was told to write."""
     async def fake_exec(*cmd, **k):
         spawned["cmd"] = cmd
-        return _FakeProc(rc=0)
-    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
+        out = cmd[cmd.index("--filename") + 1] if "--filename" in cmd else cmd[cmd.index("--outfile") + 1]
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        with open(out, "wb") as fh:
+            fh.write(b"x" * nbytes)
+        return _FakeProc(rc=rc)
+    return fake_exec
+
+
+def test_run_muse_spawns_muselsl_record_direct_by_address_with_a_night_long_duration(tmp_path, monkeypatch):
+    """`muselsl record` takes no `--address` (argparse exit 2, read at upstream HEAD 2026-09-20) and is
+    an LSL consumer that needs a running `stream`; the one-process by-address path is `record_direct`,
+    whose default duration is a 60 s demo. The argv must be the one that can record a night."""
+    spawned = {}
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", _exec_writing(spawned))
     _stop_after(monkeypatch, 1)
     _run(capture.run_muse(_dev(vendor="Muse", model="S", streams=["eeg"], muse_tool="muselsl"),
                           str(tmp_path)))
-    assert "muselsl" in spawned["cmd"] and "record" in spawned["cmd"]
+    cmd = list(spawned["cmd"])
+    assert cmd[:2] == ["muselsl", "record_direct"]
+    assert cmd[cmd.index("--address") + 1] == "24:AC:AC:02:84:96"
+    assert "--filename" in cmd and cmd[cmd.index("--duration") + 1] == str(capture.MUSE_RECORD_DURATION_S)
+    assert capture.MUSE_RECORD_DURATION_S == 24 * 3600
+    assert "record" not in cmd[2:], "the LSL-consumer subcommand must not reappear"
 
 
-def test_run_muse_openmuse_variant(tmp_path, monkeypatch):
+def test_run_muse_spawns_OpenMuse_record_with_an_explicit_duration(tmp_path, monkeypatch):
+    """OpenMuse's `record` defaults to a 30 s demo; without `--duration` the loop would have produced
+    ~100 half-minute files a night. `--address` / `--outfile` are its real flags (README + cli.py)."""
     spawned = {}
-    async def fake_exec(*cmd, **k):
-        spawned["cmd"] = cmd; return _FakeProc(0)
-    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", _exec_writing(spawned))
     _stop_after(monkeypatch, 1)
     _run(capture.run_muse(_dev(vendor="Muse", model="S", muse_tool="openmuse"), str(tmp_path)))
-    assert "OpenMuse" in spawned["cmd"]
+    cmd = list(spawned["cmd"])
+    assert cmd[:2] == ["OpenMuse", "record"]
+    assert "--address" in cmd and "--outfile" in cmd
+    assert cmd[cmd.index("--duration") + 1] == str(capture.MUSE_RECORD_DURATION_S)
+
+
+def test_run_muse_reports_an_exit_0_that_wrote_NOTHING(tmp_path, monkeypatch):
+    """Both tools return 0 on "could not find / connect to the Muse" — `record_direct` prints and
+    returns, `record` returns when no LSL stream answers — so exit 0 with no bytes on disk was a green
+    respawn loop forever. The file is the evidence, not the code."""
+    spawned = {}
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", _exec_writing(spawned, rc=0, nbytes=0))
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_muse(_dev(name="Muse", vendor="Muse", model="S", muse_tool="muselsl"), str(tmp_path)))
+    st = capture.STATUS["devices"]["Muse"]
+    assert st["connected"] is False and "exited 0 but wrote nothing" in st["last_error"]
+    # ...and a file that was never created at all reads the same way
+    async def fake_exec(*cmd, **k): return _FakeProc(rc=0)
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
+    capture._STOP.clear()                               # the first run tripped it; this is a second loop
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_muse(_dev(name="Muse2", vendor="Muse", model="S", device_id="87654321", muse_tool="openmuse"), str(tmp_path)))
+    assert "exited 0 but wrote nothing" in capture.STATUS["devices"]["Muse2"]["last_error"]
+
+
+def test_run_muse_exit_0_WITH_a_file_is_a_clean_end(tmp_path, monkeypatch):
+    spawned = {}
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", _exec_writing(spawned, rc=0, nbytes=4096))
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_muse(_dev(name="Muse", vendor="Muse", model="S", muse_tool="muselsl"), str(tmp_path)))
+    st = capture.STATUS["devices"]["Muse"]
+    assert st["connected"] is False and not st.get("last_error")
 
 
 def test_run_muse_reports_a_missing_tool(tmp_path, monkeypatch):
@@ -3668,13 +3718,16 @@ def test_run_muse_kills_a_child_that_ignores_terminate(tmp_path, monkeypatch):
     """On shutdown the child MUST be reaped. CancelledError is a BaseException, so the old `except`
     clauses never ran and terminate() was skipped entirely — leaving muselsl alive holding the Muse's
     BLE link, so the NEXT daemon start could not connect. A child that also ignores SIGTERM gets killed
-    rather than left owning the radio."""
+    rather than left owning the radio. SIGINT comes FIRST: `muselsl record_direct` saves its CSV only
+    on the KeyboardInterrupt branch, so SIGTERM-first was a night recorded and never written."""
+    import signal as _signal
     events = []
     class _Stubborn:
         def __init__(self): self.returncode = None
         async def wait(self):
             await asyncio.sleep(0)
             return None                                  # never exits on its own
+        def send_signal(self, sig): events.append("SIGINT" if sig == _signal.SIGINT else str(sig))
         def terminate(self): events.append("terminate")  # ...and ignores SIGTERM
         def kill(self): events.append("kill"); self.returncode = -9
     async def fake_exec(*cmd, **k): return _Stubborn()
@@ -3685,7 +3738,35 @@ def test_run_muse_kills_a_child_that_ignores_terminate(tmp_path, monkeypatch):
     monkeypatch.setattr(capture.asyncio, "wait_for", fast_wait_for)
     _stop_after(monkeypatch, 1)
     _run(capture.run_muse(_dev(vendor="Muse", model="S", muse_tool="muselsl"), str(tmp_path)))
-    assert events == ["terminate", "kill"], events
+    assert events == ["SIGINT", "terminate", "kill"], events
+
+
+def test_run_muse_a_child_that_saves_on_SIGINT_is_never_terminated(tmp_path, monkeypatch):
+    """The `record_direct` shape: ignores nothing, exits 0 on SIGINT after writing its file. The
+    escalation must stop at the first signal — a terminate here would be the data-loss path."""
+    import signal as _signal
+    events = []
+    class _Polite:
+        def __init__(self, out): self.returncode = None; self.out = out
+        async def wait(self):
+            await asyncio.sleep(0)
+            return self.returncode
+        def send_signal(self, sig):
+            events.append("SIGINT" if sig == _signal.SIGINT else str(sig))
+            with open(self.out, "wb") as fh:
+                fh.write(b"csv")
+            self.returncode = 0
+        def terminate(self): events.append("terminate")
+        def kill(self): events.append("kill")
+    async def fake_exec(*cmd, **k):
+        out = cmd[cmd.index("--filename") + 1]
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        return _Polite(out)
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", fake_exec)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_muse(_dev(name="Muse", vendor="Muse", model="S", muse_tool="muselsl"), str(tmp_path)))
+    assert events == ["SIGINT"], events
+    assert not capture.STATUS["devices"]["Muse"].get("last_error")
 
 
 def test_run_muse_reports_a_child_that_exits_with_an_error(tmp_path, monkeypatch):
