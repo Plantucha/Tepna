@@ -1890,20 +1890,32 @@ def failover_target(pinned_mac: str | None, adapters: list[dict], reserved=()) -
     Matching is on MAC **or** hci name because `cpap.ble_stream.adapter` may legitimately be either —
     a bare `hciN` or a MAC — and a reservation that only understood one form would silently protect
     nothing on the other."""
+    ranked = failover_candidates(pinned_mac, adapters, reserved)
+    return ranked[0]["mac"] if ranked else None
+
+
+def failover_candidates(pinned_mac: str | None, adapters: list[dict], reserved=()) -> list[dict]:
+    """`failover_target`'s whole ranking, not just its winner — unreserved first, then reserved. PURE.
+
+    THE REASON THIS IS SEPARATE FROM `failover_target`: the winner is chosen on `up`, which is
+    `parse_hciconfig`'s reading of the kernel's CACHED flag, and that flag is known to lie about
+    exactly the failure a failover exists to escape. Measured on vigil 2026-09-11: the wedged radio
+    reported `UP RUNNING` while `HCI Reset` (`0x0c03`) timed out at `-110`. A caller that wants to
+    round-trip a candidate before migrating onto it (`_pick_live_spare`) needs the RUNNERS-UP to fall
+    through to, and a function that returns one MAC cannot offer them.
+
+    Records are returned as given, with `mac` upper-cased, so a caller keeps `hci` — the name the
+    round-trip probe needs — alongside the MAC that identifies the radio."""
     pin = (pinned_mac or "").upper()
     held = {str(r).upper() for r in (reserved or ()) if r}
 
     def _held(a):
         return (a.get("mac") or "").upper() in held or (a.get("hci") or "").upper() in held
 
-    candidates = [a for a in adapters
+    candidates = [{**a, "mac": (a.get("mac") or "").upper()} for a in adapters
                   if (a.get("mac") or "").upper() and (a.get("mac") or "").upper() != pin and a.get("up")]
-    for a in candidates:                      # unreserved first — the whole point
-        if not _held(a):
-            return (a.get("mac") or "").upper()
-    for a in candidates:                      # ...then a reserved one rather than giving up entirely
-        return (a.get("mac") or "").upper()
-    return None
+    # Unreserved first — the whole point; then a reserved one rather than giving up entirely.
+    return [a for a in candidates if not _held(a)] + [a for a in candidates if _held(a)]
 
 
 async def list_adapters() -> list[dict]:
@@ -6061,6 +6073,72 @@ async def _adapter_responds(hci: str, timeout: float = 6.0) -> "bool | None":
     return True
 
 
+# Radios that FAILED the round trip, `mac -> monotonic deadline`. Keyed by MAC and never by `hciN`,
+# because `hciN` is an enumeration slot the kernel reassigns on replug — the fleet's standing rule is
+# that BLE identity is the address alone. Module-level so a refusal survives the poll that found it.
+_SPARE_QUARANTINE: "dict[str, float]" = {}
+
+
+async def _pick_live_spare(pinned_mac, adapters, reserved=(), *, cooldown_sec=900.0,
+                           probe=None, now=None) -> "str | None":
+    """`failover_target` with the winner ROUND-TRIPPED before we migrate onto it. None = do not fail over.
+
+    🔴 THE DEFECT THIS CLOSES. `failover_target` ranks spares on `up`, which `parse_hciconfig` reads from
+    the kernel's CACHED flag. That flag is not merely imprecise here — it is wrong about *precisely* the
+    failure a failover exists to escape. Measured on vigil 2026-09-11: the wedged radio reported
+    `UP RUNNING` while `HCI Reset` (`0x0c03`) itself timed out at `-110`, and vigil was running FOUR
+    radios that night. So the ladder could spend one of its `max_failovers` disconnecting every wearable,
+    re-bonding them and cutting a hole in the recording — onto a radio that answers nothing — and then
+    reset the reset budget (`cycles = consecutive = 0`) as though it had recovered.
+
+    ⚠️ **ONLY `False` CONVICTS.** `_adapter_responds` returns `None` for undeterminable (no `hciconfig`,
+    unparseable output) and that must leave the pre-existing behaviour exactly as it was: an absent
+    measurement is not evidence against a radio (§∅). A candidate with no `hci` name to probe is
+    likewise taken, not refused. This probe can only ever REMOVE a spare we can prove deaf; it can
+    never invent one.
+
+    ⚠️ **REFUSING IS A REAL OUTCOME, and it is why this returns None rather than falling back to the
+    old first-match.** If every spare is proven deaf, migrating onto one is not a partial win — it
+    costs the links we still have and burns the flap cap (`max_failovers`, default 3) that exists to
+    stop ping-pong between two flaky radios. Both callers already handle `None`: the ladder proceeds to
+    `exit_on_giveup` / stops auto-recovery, which is the correct end for a box with no working radio.
+
+    The quarantine is a COOLDOWN, not a verdict that sticks. A radio that fails is skipped for
+    `cooldown_sec` and then probed again, because the alternative — remembering a failure forever — is
+    the "failover that silently became permanent" the per-device-pinning brief warns about. Cost is
+    bounded by the radio count: we stop at the first acceptable candidate, so the all-deaf worst case is
+    one 6 s probe per radio, against a migration that is far more expensive and a poll that is about to
+    give up anyway."""
+    probe = probe or _adapter_responds
+    clock = now or _time.monotonic
+    t = clock()
+    ranked = failover_candidates(pinned_mac, adapters, reserved)
+    held_off = []
+    for a in ranked:
+        mac = a["mac"]
+        until = _SPARE_QUARANTINE.get(mac)
+        if until is not None:
+            if until > t:
+                held_off.append(mac)
+                continue
+            del _SPARE_QUARANTINE[mac]        # cooldown served — the probe decides again, not the memory
+        hci = a.get("hci")
+        verdict = (await probe(hci)) if hci else None
+        if verdict is False:
+            _SPARE_QUARANTINE[mac] = t + cooldown_sec
+            log.warning("watchdog: spare %s (%s) reads UP but did not answer an HCI round trip — "
+                        "not failing over onto it; quarantined for %.0f s", mac, hci, cooldown_sec)
+            continue
+        return mac
+    if ranked:
+        # Say it: a failover that does not happen because every spare is deaf is a different state from
+        # having no spare at all, and the caller's log cannot tell them apart.
+        log.critical("watchdog: NO LIVE SPARE — %d candidate radio(s), %d still quarantined; every one "
+                     "we could probe failed to answer. Staying put rather than migrating onto a dead "
+                     "radio", len(ranked), len(held_off))
+    return None
+
+
 async def _run_helper(*args, timeout=45):
     """Run a helper and return (rc, combined output). Mirrors clockcfg._run — proc_util.communicate
     already carries the timeout/kill discipline every subprocess on this box is required to use, so an
@@ -6178,6 +6256,9 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
     wedge_restarts, wedge_day = 0, None      # per-device wedge budget, reset each day
     cpap_handoffs = 0                        # adapter-ladder handoffs after that budget is SPENT (1/day)
     max_failovers = int(wcfg.get("max_failovers", 3))   # P1.5: cap ping-pong between two flaky radios
+    # How long a spare that failed its HCI round trip is skipped before being probed again. A cooldown,
+    # never a permanent verdict — see `_pick_live_spare`.
+    spare_cooldown = float(wcfg.get("spare_quarantine_sec", 900))
     # The BlueZ address, not the configured one: a Zephyr dongle is known to bluetoothctl by the
     # static-random identity BlueZ gave it, and `select <kernel address>` falls through to the DEFAULT
     # controller — a power-cycle aimed at the wedged radio would cycle a healthy one (bonding.bluez_address).
@@ -6369,8 +6450,9 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                             " (distress_failover OFF — report-only; arming is the owner's, "
                             "per the brief's pre-stated criterion)")
                     if wcfg.get("distress_failover") and failovers < max_failovers:
-                        spare = failover_target(adapter_mac, await list_adapters(),
-                                                reserved=_failover_reserved(cfg))
+                        spare = await _pick_live_spare(adapter_mac, await list_adapters(),
+                                                       reserved=_failover_reserved(cfg),
+                                                       cooldown_sec=spare_cooldown)
                         if spare:
                             failovers += 1
                             prev_mac = adapter_mac
@@ -6416,7 +6498,9 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                 # hci1 sat idle for 110 min the night this brief was written; use it.
                 # RESERVE THE CPAP'S DEDICATED FREE RADIO (see _failover_reserved / _migrate_to_spare —
                 # the dance is shared with the distress-verdict cause and must not drift from it).
-                spare = failover_target(adapter_mac, await list_adapters(), reserved=_failover_reserved(cfg)) \
+                spare = await _pick_live_spare(adapter_mac, await list_adapters(),
+                                               reserved=_failover_reserved(cfg),
+                                               cooldown_sec=spare_cooldown) \
                     if wcfg.get("failover", True) and failovers < max_failovers else None
                 if spare:
                     failovers += 1
