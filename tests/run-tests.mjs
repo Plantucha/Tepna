@@ -1483,6 +1483,28 @@ function readNonBundleCsp() {
    `tools/`, `capture-host/` + its `tools/`), never curated: a curated list is how `trio-batch.mjs` sat
    outside `env.sources` for its first months. Tests are out — they name a wrong form on purpose.
    Node-lane only; the browser lane SKIPs (mirrors docs-ledger / release-ledger). */
+/* CODEGEN MANIFESTS — the authored manifests the three generators project from. Read as RAW TEXT
+   as well as parsed, because the `status` retirement is asserted on the presence of the KEY: a
+   re-added `"status": null` would parse to a falsy value and slip a value-based check, which is the
+   same shape as the field it replaced — a claim nothing examines. */
+function readCodegenManifests() {
+  const dir = join(ROOT, 'codegen/manifests');
+  if (!existsSync(dir)) return null;
+  const files = readdirSync(dir)
+    .filter((f) => f.endsWith('.manifest.json'))
+    .map((f) => {
+      const text = readFileSync(join(dir, f), 'utf8');
+      let json = null;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        /* a malformed manifest is a different gate's finding — report the raw text either way */
+      }
+      return { name: f, warning: (json && json.warning) || null, hasStatusKey: /"status"\s*:/.test(text) };
+    });
+  return { dir: 'codegen/manifests', files };
+}
+
 function readCaptureFilenameScan() {
   const pick = (dir, re) => {
     const d = join(ROOT, dir);
@@ -2549,6 +2571,7 @@ async function main() {
     nodeSurfaces: readNodeSurfaces(),
     nonBundleCsp: readNonBundleCsp(),
     captureFilenameScan: readCaptureFilenameScan(),
+    codegenManifests: readCodegenManifests(),
     claudeMdClaims: readClaudeMdClaims(),
     tableProvenance: readTableProvenance(),
     /* Does this repo-relative path exist in the tree? Used by the TABLE-PROVENANCE gate to red on a

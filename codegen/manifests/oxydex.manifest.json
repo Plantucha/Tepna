@@ -5,7 +5,6 @@
   "accentColor": "var(--teal)",
   "accentHex": "#3DE0D0",
   "version": "1.0.0",
-  "status": "alpha",
   "description": "Integrated analysis of nocturnal pulse oximetry — oxygen saturation dynamics, heart rate variability proxies, desaturation profiling, sleep architecture proxies, and cross-signal intelligence from 1 Hz reflectance oximetry.",
   "warning": "All values are derived from consumer-grade 1 Hz reflectance oximetry. They are not equivalent to clinical polysomnography and do not constitute a medical diagnosis. HR-derived metrics labelled 'proxy' cannot be compared against published HRV clinical norms based on beat-to-beat RR intervals.",
 

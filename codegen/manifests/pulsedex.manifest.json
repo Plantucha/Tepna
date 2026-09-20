@@ -5,7 +5,6 @@
   "accentColor": "var(--orange)",
   "accentHex": "#fb923c",
   "version": "1.0.0",
-  "status": "alpha",
   "description": "HRV analysis from RR-interval series derived from any pulse source (PPG, chest strap, or pulse watch). Focuses on metrics that are robust across different sensor types and sampling qualities.",
   "warning": "RR intervals derived from pulse sensors (PPG-based) have lower temporal precision than ECG-derived NN intervals. PPG-derived 'HRV' reflects a mix of cardiac autonomic activity and peripheral vascular dynamics. Cross-device comparison requires caution.",
 

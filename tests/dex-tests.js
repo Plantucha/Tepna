@@ -11421,6 +11421,72 @@
 
        Node-lane only — env.nodeSurfaces is fs-read; the browser lane can't readdir, so it SKIPs
        (mirrors docs-ledger / release-ledger / analysis-tools). */
+    /* ════ CODEGEN MANIFEST MATURITY — a retired enum stays retired ══════════════════════════════
+       `status` was a ONE-WORD maturity claim ("planned" | "alpha") on each codegen manifest:
+       hand-maintained, ungated, and read by exactly ONE consumer — a footer string in dex-gen.js.
+       It went wrong on FOUR SHIPPED nodes (#2676) and nobody noticed for months. The reason is the
+       DESIGN, not the diligence: six of the seven nodes have hand-authored guides, so their
+       generated page is never produced and the field reached NO READER AT ALL. A claim nobody reads
+       is a claim nothing corrects — and correcting its values only restarts the clock.
+
+       Retired 2026-09-20, replaced by two facts of DIFFERENT KINDS, which is the whole point:
+         · the footer states PROVENANCE ("generated from <manifest>") — permanently true, no half-life
+         · maturity, which really does decay, moved to DATED prose in `warning`, where readers look
+       One word could not carry it in any case: EEGDex ships a DSP and a selftest, no app and no
+       bundle, and `signal-spec.js` routes EEG files to an `EEGDSP` that resolves to undefined in
+       every shipped bundle. "planned" cannot say "routed but unreachable".
+
+       (1) keeps the enum from returning by the back door; (2) proves the footer carries the
+       non-decaying form and none of the retired vocabulary; (3) is the FROZEN-COPY guard — nothing
+       regenerates codegen/generated/, so the committed guide and the manifest are two copies of the
+       load-bearing claim with nothing comparing them. That is exactly how `status` drifted.
+       Node-lane only (env.codegenManifests is fs-read); the browser lane SKIPs, mirroring docs-ledger. */
+    group('codegen manifest — the retired status enum stays retired', 'codegen · manifest · provenance', function (T) {
+      var CM = env.codegenManifests;
+      if (!CM) {
+        T.skip('env.codegenManifests provided to the runner', 'Node-lane only — wire env.codegenManifests (run-tests.mjs)');
+        return;
+      }
+      /* Anti-vacuity FIRST: an empty file list makes "no manifest carries status" vacuously true —
+         a gate reporting success about a set it never examined. */
+      T.ok('the manifest set was actually read', CM.files.length >= 7, CM.files.length + ' manifests in ' + CM.dir);
+
+      /* (1) asserted on the raw KEY, so a re-added `"status": null` still reds. */
+      var withStatus = CM.files
+        .filter(function (f) {
+          return f.hasStatusKey;
+        })
+        .map(function (f) {
+          return f.name;
+        });
+      T.eq('no codegen manifest carries a `status` key', withStatus.join(', '), '');
+
+      var guide = env.docs && env.docs['EEGDex Reference.html'];
+      if (!guide) {
+        T.skip('generated EEGDex guide available', 'codegen/generated/eegdex-reference.html not in env.docs');
+        return;
+      }
+
+      /* (2) the footer states what the page IS, not how mature its node is. */
+      T.ok('generated guide footer states its provenance', /generated from eegdex\.manifest\.json/.test(guide));
+      var stale = /·\s*(planned|alpha|beta|stable|superseded)\s*<br>/i.exec(guide);
+      T.eq('generated guide footer carries no maturity enum', stale ? stale[1] : '', '');
+
+      /* (3) frozen-copy guard, on the one claim that is load-bearing. Compared over the longest
+         prefix `esc()` cannot alter, DERIVED from the manifest rather than hardcoded here — a
+         literal copy in the test would be a third copy of the same drifting claim. */
+      var eeg = CM.files.filter(function (f) {
+        return f.name === 'eegdex.manifest.json';
+      })[0];
+      T.ok('eegdex manifest carries a warning', !!(eeg && eeg.warning));
+      if (eeg && eeg.warning) {
+        var plain = eeg.warning.split(/[&<>"]/)[0];
+        T.ok('the comparison prefix is substantial', plain.length > 40, plain.length + ' chars');
+        T.ok('the committed guide carries the manifest warning (page/manifest drift guard)', guide.indexOf(plain) !== -1);
+        T.ok('the rendered maturity statement is DATED', /as of 20\d\d-\d\d-\d\d/.test(eeg.warning));
+      }
+    });
+
     /* ── A LAYER NOTHING READS IS A LAYER NOTHING CHECKS ─────────────────────────────────────────
        Every text-reading assertion in this suite can only see files that reached `env.sources` (Node)
        or `SOURCE_FILES` (browser). Whatever is in neither is unscannable BY CONSTRUCTION — not
