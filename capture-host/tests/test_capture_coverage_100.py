@@ -2271,10 +2271,20 @@ def test_list_adapters_is_empty_when_hciconfig_is_missing(monkeypatch):
     assert _run(capture.list_adapters()) == []
 
 
-def _failover_rig(monkeypatch, spare_list):
-    """A wedged pinned radio, quiet deafness probe, stubbed power-cycle, and `list_adapters` → spare_list."""
+def _failover_rig(monkeypatch, spare_list, *, spare_responds=True):
+    """A wedged pinned radio, quiet deafness probe, stubbed power-cycle, and `list_adapters` → spare_list.
+
+    `spare_responds` is the spare's answer to the HCI round trip `_pick_live_spare` asks before
+    migrating onto it. It MUST be stubbed: an unstubbed probe shells `hciconfig` at whatever `hci`
+    name the fixture invented, so the rig would be asking the developer's own hardware whether a
+    made-up radio is alive — and a spare these tests call healthy would be refused on some machines
+    and taken on others."""
     _wedge_rig(monkeypatch, adapter_up=False)
     _quiet_deafness_probe(monkeypatch)
+
+    async def responds(_hci):
+        return spare_responds
+    monkeypatch.setattr(capture, "_adapter_responds", responds)
 
     async def fake_cmd(cmd):
         return True
