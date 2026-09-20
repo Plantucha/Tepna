@@ -17,6 +17,8 @@
 # Protocol: RESMED-AS11-PROTOCOL-REFERENCE-2026-08-21-BRIEF.
 from __future__ import annotations
 
+import asyncio
+
 import base64
 import json
 
@@ -125,7 +127,7 @@ async def pull_spool_round(write, recv_frame, seal, unseal, spool_type, from_dt,
 
 async def stream(write, recv_frame, seal, unseal, data_ids, *,
                  sample_interval_ms=40, report_interval_ms=None, start_id=16, max_batches=None,
-                 counters=None):
+                 counters=None, subscribe=None, on_event=None, on_subscribed=None, subscribe_timeout_s=10.0):
     """Async generator over a LIVE AS11 waveform stream (StartStream → StreamData). READ-ONLY.
 
     Sends StartStream, verifies the device marked EVERY requested dataId valid (a partial accept raises
@@ -140,6 +142,22 @@ async def stream(write, recv_frame, seal, unseal, data_ids, *,
 
     Stops after `max_batches` batches, or — when that is None — runs until the caller stops iterating.
     There is no StopStream RPC: ending iteration and dropping the BLE link is what stops the device."""
+    # EVENT SUBSCRIPTION FIRST (cpap_events). Requested before StartStream so that awaiting its ack can
+    # never consume a waveform batch — there are none yet. Non-fatal by design: a night must not be lost
+    # because an optional witness declined, so a timeout or an error is RECORDED on the recorder and the
+    # stream proceeds without events. `subscribe` is the id list; `on_event` receives each notification's
+    # params; `on_subscribed` receives the outcome string. All None ⇒ this block is byte-for-byte the old
+    # behaviour.
+    if subscribe:
+        sub_id = start_id + 1
+        try:
+            await _send_enc(write, seal, L.subscribe_event(subscribe, rpc_id=sub_id))
+            await asyncio.wait_for(_await_result(recv_frame, sub_id, unseal), timeout=subscribe_timeout_s)
+            status = "ok"
+        except Exception as exc:  # noqa: BLE001 — recorded, never fatal to the stream
+            status = f"failed:{type(exc).__name__}"
+        if on_subscribed is not None:
+            on_subscribed(status)
     await _send_enc(write, seal, L.start_stream(data_ids, sample_interval_ms, report_interval_ms, rpc_id=start_id))
     ack = await _await_result(recv_frame, start_id, unseal)
     stream_id = ack.get("streamId")
@@ -168,7 +186,14 @@ async def stream(write, recv_frame, seal, unseal, data_ids, *,
         if kind is not _FrameKind.OK:
             if counters is not None:
                 counters.note_frame(kind)
-            continue  # a HeartBeat, a foreign stream, or a frame with nothing in it — keep reading
+            if kind is _FrameKind.EVENT and on_event is not None:
+                # The device's own witness. Handed to the recorder, which validates and persists it;
+                # a recorder failure is its own to count, never this loop's to propagate.
+                try:
+                    on_event(msg.get("params"))
+                except Exception:  # noqa: BLE001
+                    pass
+            continue  # a HeartBeat, a foreign stream, an event, or a frame with nothing in it — keep reading
         p = msg["params"]
         channels: dict[str, list] = {}
         for entry in p["data"]:
