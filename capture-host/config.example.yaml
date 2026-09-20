@@ -343,6 +343,16 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
     #   enabled: false
     #   data_ids: ["UsageEvents-TherapyStatusEvents", "_ZLE"]   # add an id only with its consumer named
 
+    # EXTRA STREAM IDS — requested in the SAME StartStream as PatientFlow/MaskPressure but PUBLISHED
+    # NOWHERE: no bus channel, no EDF channel. They land VERBATIM in the raw record (raw_record_dir is
+    # therefore REQUIRED — the daemon refuses this key without it) and in the gap line's byte counters,
+    # so the marginal cost of an id is measured (`bytes_json / frames_ok` with it on vs off) before any
+    # consumer is built on it, and its physical unit can be pinned from the recorded values first.
+    # First candidate: `_LKF` (Leak — the quantity `_ZLE` gates; the device holds each 2 s value across
+    # the 40 ms reports, so it costs the same as a third waveform channel until decimated).
+    # 🔴 DEFAULT OFF — it changes what the radio carries; armed by an explicit edit, never by code.
+    # extra_data_ids: ["_LKF"]
+
     # AUTO-START — the mirror of auto_stop: the live stream starts itself when therapy starts, instead
     # of waiting for someone to press a button. Ordered by the owner 2026-08-29 after two nights that
     # cost real data and reported nothing: 08-26, a full session with the stream never started (nobody

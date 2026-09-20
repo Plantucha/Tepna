@@ -8760,6 +8760,7 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
                                if acq_evidence_out and cfg.get("root") else None),
         therapy_end_factory=_therapy_end_factory(cbs),
         events_factory=_cpap_events_factory(cbs, raw_dir or edf_dir),
+        extra_ids=_cpap_extra_ids(cbs, raw_dir),
         coexistence_gate=bool(cbs.get("coexistence_gate", False)),
         # INV8 — ALWAYS wired, not behind a config key. `raw_record_dir` is a config key and it is off
         # on the production box, which is why INV9 is not in effect there; continuity must not join it.
@@ -8822,6 +8823,26 @@ def _therapy_end_factory(cbs):
     hold = float(ac.get("hold_sec", 120.0))
     log.info("CPAP auto-stop ARMED — stream ends after |flow| <= %.2f L/s for %.0f s", eps, hold)
     return lambda stop_ev: cpap_stream.TherapyEndSink(stop_ev, flow_eps=eps, hold_s=hold)
+
+
+def _cpap_extra_ids(cbs, raw_dir):
+    """`cpap.ble_stream.extra_data_ids` → the tuple of UNPUBLISHED stream ids, or `()`.
+
+    REFUSES (ValueError) when ids are set with no `raw_record_dir`: an unpublished id lands ONLY in
+    the raw record, so without one the device would be asked for samples the box then drops — a
+    request that carries airtime and records nothing, which is the shape §∅ exists to forbid. A
+    config that cannot mean anything is a config error, not a warning. Default OFF: it changes what
+    the radio carries, so it is an explicit edit (the `events` shape)."""
+    ids = cbs.get("extra_data_ids") or []
+    if not ids:
+        return ()
+    if not isinstance(ids, (list, tuple)) or not all(isinstance(d, str) and d for d in ids):
+        raise ValueError("cpap.ble_stream.extra_data_ids must be a list of non-empty dataId strings")
+    if not raw_dir:
+        raise ValueError("cpap.ble_stream.extra_data_ids needs cpap.ble_stream.raw_record_dir — an "
+                         "unpublished id is recorded ONLY there; without it the samples would be dropped")
+    log.info("CPAP stream extra dataIds ARMED (unpublished, raw record only): %s", list(ids))
+    return tuple(ids)
 
 
 def _cpap_events_factory(cbs, sidecar_dir):
@@ -10221,6 +10242,17 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
         if recorded:
             log.info("CPAP %s: GATT table recorded — %s", ble_addr, recorded)
         await client.start_notify(_L.GATT_RX, _on_notify)
+        # THE REAL ATT MTU, acquired the way pull_session does for the ring. On BlueZ bleak reports a
+        # placeholder 23 until a characteristic is acquired, so this link's `mtu_size` read below was
+        # the placeholder on every night — and the MTU is the one number that turns the byte counters
+        # (`GapCounters.bytes_wire`) into radio cost: notifications per frame = ceil(bytes / (MTU-3)).
+        # Best-effort, reporting first: a failure leaves the placeholder and the write step at 20.
+        _be = getattr(client, "_backend", None)
+        if _be is not None and hasattr(_be, "_acquire_mtu"):
+            try:
+                await _be._acquire_mtu()
+            except Exception:  # noqa: BLE001 — a diagnostic must not cost the link
+                pass
     except BaseException as exc:
         # 🔴 READ THE EVIDENCE BEFORE DESTROYING IT — these two lines MUST precede the disconnect.
         # `client.disconnect()` nulls bleak's service collection (it ends with
@@ -10246,6 +10278,7 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
         raise
     mtu = getattr(client, "mtu_size", 23) or 23
     step = max(20, mtu - 3)
+    log.info("CPAP %s: link MTU=%s (write step %d)", ble_addr, mtu, step)
 
     async def write(frame):
         for i in range(0, len(frame), step):

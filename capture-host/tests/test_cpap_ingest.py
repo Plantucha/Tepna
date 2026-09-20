@@ -21,8 +21,20 @@ def test_a_foreign_streamid_is_foreign_not_ok():
     assert classify_frame(_sd(9, [{"PatientFlow": [1]}]), 7) is FrameKind.FOREIGN
 
 
-def test_a_non_streamdata_is_malformed():
-    assert classify_frame({"method": "HeartBeat", "params": {}}, 7) is FrameKind.MALFORMED
+def test_a_HeartBeat_is_a_NOTIFICATION_not_a_loss_and_a_methodless_frame_stays_malformed():
+    """Until 2026-09-19 the first line read `is FrameKind.MALFORMED`, and on every one of the 15 live
+    sessions the box had logged, `malformed` was frames_ok/150.0 — one HeartBeat per 30 s at 5 frames/s —
+    summed into `total_lost` as 689–1023 "lost" frames on nights that lost none. A notification the loop
+    does not decode is counted as what it is; a frame with no method at all is still MALFORMED."""
+    assert classify_frame({"method": "HeartBeat", "params": {}}, 7) is FrameKind.NOTIFICATION
+    assert classify_frame({"method": "SomethingNew"}, 7) is FrameKind.NOTIFICATION
+    assert classify_frame({"id": 16, "result": {}}, 7) is FrameKind.MALFORMED
+    assert classify_frame({"method": 5, "params": {}}, 7) is FrameKind.MALFORMED
+    c = GapCounters()
+    c.note_frame(FrameKind.NOTIFICATION, wire_bytes=48, json_bytes=31)
+    c.note_frame(FrameKind.MALFORMED, wire_bytes=16, json_bytes=2)
+    assert (c.notifications, c.malformed, c.total_lost) == (1, 1, 1)
+    assert (c.bytes_wire, c.bytes_json) == (64, 33), "bytes count for every kind — a HeartBeat costs airtime too"
 
 
 def test_a_streamdata_with_empty_data_is_malformed():
@@ -77,17 +89,19 @@ def test_total_lost_sums_only_terms_that_can_move_and_names_the_rest():
 
 
 def test_summary_is_a_flat_stable_dict():
-    c = GapCounters(frames_ok=5, samples_ok=200, foreign_stream=1, malformed=2, events=4,
-                    overflow=1, stalls=1, post_drop_tail=1, sink_errors=3)
+    c = GapCounters(frames_ok=5, samples_ok=200, foreign_stream=1, malformed=2, events=4, notifications=6,
+                    bytes_wire=7000, bytes_json=6500, overflow=1, stalls=1, post_drop_tail=1, sink_errors=3)
     s = c.summary()
     assert s == {
         "frames_ok": 5, "samples_ok": 200, "foreign_stream": 1, "malformed": 2, "events": 4,
+        "notifications": 6, "bytes_wire": 7000, "bytes_json": 6500,
         "overflow": 1, "stalls": 1, "post_drop_tail": 1, "sink_errors": 3, "total_lost": 3,
         "sink_max_ms": None, "sink_slow": None,
         "lost_coverage_missing": [],
     }
     # key order is stable so two nights diff cleanly
     assert list(s.keys()) == ["frames_ok", "samples_ok", "foreign_stream", "malformed", "events",
+                              "notifications", "bytes_wire", "bytes_json",
                               "overflow", "stalls", "post_drop_tail", "sink_errors",
                               "sink_max_ms", "sink_slow", "total_lost", "lost_coverage_missing"]
 
