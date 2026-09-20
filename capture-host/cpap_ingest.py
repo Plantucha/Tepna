@@ -31,6 +31,7 @@ class FrameKind(Enum):
     OK = "ok"                # a StreamData for our streamId with usable channels
     FOREIGN = "foreign"      # a StreamData whose streamId is not ours (defensive; counted, not silent)
     MALFORMED = "malformed"  # not a StreamData, or missing the fields a batch needs
+    EVENT = "event"          # an EventNotification (SubscribeEvent push) — routed to the recorder, counted here
 
 
 def classify_frame(msg, expected_stream_id) -> FrameKind:
@@ -42,6 +43,11 @@ def classify_frame(msg, expected_stream_id) -> FrameKind:
     JSON dict; a non-dict or a missing method is MALFORMED, never an exception."""
     if not isinstance(msg, dict):
         return FrameKind.MALFORMED
+    if msg.get("method") == "EventNotification":
+        # A device PUSH the box asked for (cpap_events). It is neither a batch nor a defect; it is
+        # counted as its own kind so an event-heavy night is visible in the gap line and never
+        # mistaken for a malformed stream. Its params are validated by the recorder, not here.
+        return FrameKind.EVENT
     if msg.get("method") != "StreamData":
         return FrameKind.MALFORMED
     params = msg.get("params")
@@ -73,6 +79,7 @@ class GapCounters:
     samples_ok: int = 0         # total samples pushed from OK frames
     foreign_stream: int = 0     # frames for another streamId (G4 — was silently dropped)
     malformed: int = 0          # non-StreamData / empty / non-dict frames past the read loop
+    events: int = 0             # EventNotification frames (SubscribeEvent pushes) — routed, not lost
     overflow: int = 0           # frames dropped because the bounded queue was full (G5)
     # ⚠️ None, NOT 0 — these two have NO DETECTOR, and `0` is a measurement they have not made (§∅).
     # Measured 2026-09-18: nothing anywhere increments either one. A reader of `0` concludes no stall and
@@ -104,6 +111,8 @@ class GapCounters:
             self.samples_ok += n_samples
         elif kind is FrameKind.FOREIGN:
             self.foreign_stream += 1
+        elif kind is FrameKind.EVENT:
+            self.events += 1
         else:
             self.malformed += 1
 
@@ -148,6 +157,7 @@ class GapCounters:
             "samples_ok": self.samples_ok,
             "foreign_stream": self.foreign_stream,
             "malformed": self.malformed,
+            "events": self.events,
             "overflow": self.overflow,
             "stalls": self.stalls,
             "post_drop_tail": self.post_drop_tail,

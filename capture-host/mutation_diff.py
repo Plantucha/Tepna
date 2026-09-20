@@ -614,6 +614,61 @@ def refresh_scratch(tree, work, extras) -> int:
     return n
 
 
+def root_reads(tree) -> list[str]:
+    """The REPO-ROOT files the test suite names — the reads the scratch copy cannot satisfy on its own.
+
+    `tools/mutate.py` copies `capture-host/` ("copy EVERYTHING a test reads from disk") and nothing above
+    it. A test that reads a sibling of `capture-host/` — `tests/test_seam_sidecar.py` opens
+    `../ecgdex-dsp.js` for the seam-bound parity check — therefore fails inside the scratch with
+    FileNotFoundError, the baseline reports "1 failed", and every mutant of that module comes back
+    "0 tested". Measured 2026-09-19 on #2675: the four `writers.py` globs refused, and the SAME failure
+    sits in #2581's log (the PR that added the test) — it passed only because the 0-tested refusal did
+    not exist yet. Every writers.py PR since 09-16 has carried it.
+
+    Keyed on WHAT is read, not on how the path is spelled (`test_mutation_hygiene.py` records why a
+    path-idiom anchor is a losing game): a test file that contains, as a string literal, the NAME of a
+    regular file in the repo root is taken to read it. Over-flags by design — a literal that merely
+    mentions the name costs one spurious copy of a small file; a miss costs a module's whole
+    measurement. Derived from the tree every run, so a new root read needs no list edited.
+    """
+    from pathlib import Path
+
+    tree = Path(tree)
+    root = tree.resolve().parent
+    # Dotfiles are never reads: in a git WORKTREE `.git` is a regular FILE (a gitdir pointer), and a
+    # test that mentions ".git" would otherwise stage it into the scratch.
+    names = {p.name for p in root.iterdir() if p.is_file() and not p.name.startswith(".")}
+    found: set[str] = set()
+    for t in sorted((tree / "tests").glob("*.py")):
+        for lit in re.findall(r"""["']([^"'\n]+)["']""", t.read_text(encoding="utf-8", errors="replace")):
+            if lit in names:
+                found.add(lit)
+    return sorted(found)
+
+
+def stage_root_reads(tree, work, names) -> int:
+    """Copy each root file in `names` to BOTH places a `tests/../..`-shaped read resolves from: `work/`
+    (the mutants run executes `work/mutants/tests/`, whose grandparent's parent is `work/`) and
+    `work/..` (the clean baseline executes `work/tests/`). Returns copies made. A name that is not a
+    regular file in the root is skipped, never fabricated — the read will then fail exactly as it
+    would in the tree, which is the honest outcome."""
+    import shutil
+    from pathlib import Path
+
+    tree = Path(tree); work = Path(work)
+    root = tree.resolve().parent
+    n = 0
+    for name in names:
+        src = root / name
+        if not src.is_file():
+            continue
+        for dest in (work, work.parent):
+            dest.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest / name)
+            n += 1
+    return n
+
+
 # Every line `mutmut results` prints is a mutant that was NOT killed — that is mutmut's own contract,
 # not an enumeration of ours: `results()` walks `exit_code_by_key` and does
 # `if status == "killed" and not all: continue`. So the listing is exactly the non-killed set.

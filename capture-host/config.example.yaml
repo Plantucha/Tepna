@@ -324,6 +324,25 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
     #   flow_eps_lpm: 0.5           # |flow| at or below this counts as "not breathing" (idle measured -0.01)
     #   hold_sec: 120.0             # continuous quiet REQUIRED, timed in samples (a dead link cannot age it)
 
+    # EVENT SUBSCRIPTION — the device's OWN session-boundary witness, recorded beside the stream. With
+    # auto_start the box had ONE witness for "therapy started" (the trigger fires on the shadow
+    # detector's own sighting, so detector and trigger cannot disagree). `SubscribeEvent` asks the AS11
+    # to push EventNotifications; two data ids are subscribed by default, each for a stated consumer:
+    #   UsageEvents-TherapyStatusEvents  TherapyStart/TherapyStop/MaskOn/MaskOff — the device's account
+    #   _ZLE                             Zero Leak Estimate 0/1 — rising = it accepts flow (data begins),
+    #                                    falling = end; a different subsystem from the therapy state.
+    # Every notification is written VERBATIM (host arrival stamp beside the device reportTime) to
+    # cpap-events-<UTC stamp>.jsonl under raw_record_dir (or edf_dir), and the gap line / acquisition
+    # envelope carry the `_ZLE` edges, the trigger's own start/stop, and the deltas between them —
+    # None when either side is absent, never 0. It does NOT replace auto_start/auto_stop; it records
+    # when they and the device disagree. READ-ONLY on the device (nothing is set), non-fatal (a
+    # declined subscription is recorded and the stream proceeds).
+    # 🔴 DEFAULT OFF. It changes what the radio carries beside a sleeping body, so it is armed by an
+    # explicit edit, never by shipping the code. The daemon logs its arming state either way.
+    # events:
+    #   enabled: false
+    #   data_ids: ["UsageEvents-TherapyStatusEvents", "_ZLE"]   # add an id only with its consumer named
+
     # AUTO-START — the mirror of auto_stop: the live stream starts itself when therapy starts, instead
     # of waiting for someone to press a button. Ordered by the owner 2026-08-29 after two nights that
     # cost real data and reported nothing: 08-26, a full session with the stream never started (nobody

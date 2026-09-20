@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
-from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
+from writers import (ContactLedger, StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
                      HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, capture_filename, missing_identity,
                      night_dir, open_sample_writers)
 from typing import Any
@@ -4480,7 +4480,14 @@ async def run_oxyii(dev: dict, root: str):
                 # host-disciplined when the host earned it). Read from the poller's latest verdict; absent
                 # (poller hasn't run yet, or no clock) ⇒ no comment ⇒ PpgDex defaults to the crystal floor.
                 _tb = STATUS.get("host_clock", {}).get("timebase")
-                ppgwr = (StreamWriter(ppg_path, "ppg1", timebase=_tb)
+                # THE DEVICE'S CONTACT BYTE REACHES THE PPG SIDECAR. One ledger per session: fed with
+                # every 1 Hz frame's `contact` below (beside the OXYFRAME write), read by the ppg1 run
+                # sidecar when it writes a span row, joined by host time (writers.ContactLedger). The
+                # byte was always captured and acted on (the not-worn verdict IS it); the sidecar —
+                # the one component trying hardest to say "no measurement" — was the only reader
+                # that could not see it (2026-09-19).
+                contact_ledger = ContactLedger()
+                ppgwr = (StreamWriter(ppg_path, "ppg1", timebase=_tb, contact=contact_ledger)
                          if "ppg" in (dev.get("streams") or ["spo2", "ppg"]) else None)
                 # RAW DUAL-WAVELENGTH (cmd 0x05). OPT-IN — absent from the default stream list, so a box
                 # that has not asked for it is untouched. It is a SECOND poll on the ring's single BLE
@@ -4851,7 +4858,9 @@ async def run_oxyii(dev: dict, root: str):
                         # the time the poll loop runs. Kept as a guard because the three writers are
                         # torn down together and a future gate on this one would land here.
                         if oxyflagwr:   # pragma: no branch
-                            oxyflagwr.write(_now(), live, _ppgrow)   # PI + what the vendor CSV cannot carry
+                            _fnow = _now()
+                            oxyflagwr.write(_fnow, live, _ppgrow)    # PI + what the vendor CSV cannot carry
+                            contact_ledger.note(_fnow, live.get("contact"))
                         # [0:4] is the ring's SESSION DURATION, not a frame counter — the old
                         # frame_gap() accounting on it reported phantom loss (9 warnings in one
                         # evening, one claiming 111 frames, which was a session starting). What the
@@ -8750,6 +8759,7 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
         clock_offset_provider=((lambda: _as11_clock_offset(cfg["root"]))
                                if acq_evidence_out and cfg.get("root") else None),
         therapy_end_factory=_therapy_end_factory(cbs),
+        events_factory=_cpap_events_factory(cbs, raw_dir or edf_dir),
         coexistence_gate=bool(cbs.get("coexistence_gate", False)),
         # INV8 — ALWAYS wired, not behind a config key. `raw_record_dir` is a config key and it is off
         # on the production box, which is why INV9 is not in effect there; continuity must not join it.
@@ -8812,6 +8822,37 @@ def _therapy_end_factory(cbs):
     hold = float(ac.get("hold_sec", 120.0))
     log.info("CPAP auto-stop ARMED — stream ends after |flow| <= %.2f L/s for %.0f s", eps, hold)
     return lambda stop_ev: cpap_stream.TherapyEndSink(stop_ev, flow_eps=eps, hold_s=hold)
+
+
+def _cpap_events_factory(cbs, sidecar_dir):
+    """The SECOND WITNESS: `() -> cpap_events.EventRecorder`, or None when `cpap.ble_stream.events` is off.
+
+    Config-gated because SubscribeEvent is a live BLE request to the device — read-only, but a change
+    in what the radio carries, and therefore armed by the owner's edit, never by shipping the code
+    (the `scan_coexistence_verified` / `auto_start` shape). The recorder writes one host-stamped JSONL
+    per session beside the raw record (or the EDF, whichever root is configured); with neither root
+    it records in memory only and the gap line still carries the witness summary. Logged either way,
+    so an OFF path is distinguishable from a broken one."""
+    import cpap_events  # function-local, like every other CPAP import in this module
+    ev = cbs.get("events") or {}
+    if not ev.get("enabled"):
+        log.info("CPAP event subscription: OFF (set cpap.ble_stream.events.enabled: true to request "
+                 "the device's own TherapyStart/_ZLE witness)")
+        return None
+    ids = tuple(ev.get("data_ids") or cpap_events.EVENT_DATA_IDS_DEFAULT)
+    if not ids or not all(isinstance(d, str) and d for d in ids):
+        raise ValueError("cpap.ble_stream.events.data_ids must be a non-empty list of dataId strings")
+    log.info("CPAP event subscription ARMED — dataIds %s · sidecar root %s", list(ids),
+             sidecar_dir or "(none — in-memory only, summary on the gap line)")
+
+    def factory():
+        path = None
+        if sidecar_dir:
+            stamp = _time.strftime("%Y%m%d_%H%M%S", _time.gmtime())
+            path = os.path.join(sidecar_dir, f"cpap-events-{stamp}.jsonl")
+        return cpap_events.EventRecorder(path, data_ids=ids)
+
+    return factory
 
 
 def _cpap_acq_evidence_writer():
@@ -10115,7 +10156,11 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
     def _on_notify(_h, data):
         rx.extend(bytes(data))
         while True:
-            r = _L.fig_unframe(bytes(rx))
+            # THE COUNT MUST REACH A CONSUMER, not a log line. `blestats` publishes into
+            # `status.json` `ble`, which an operator reads directly — the same surface #2670 had to
+            # repair after `link`/`offline_op` counted failures into a dict `snapshot()` could not
+            # enumerate. A CRC that fails silently is a filter that discards data and tells nobody.
+            r = _L.fig_unframe(bytes(rx), on_bad_crc=lambda kind: blestats.fail("fig_crc", ble_addr, kind))
             if not r:
                 break
             vcid, payload, rest = r
