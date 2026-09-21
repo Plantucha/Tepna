@@ -77,6 +77,7 @@ from mutation_diff import (  # noqa: E402
     EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, classify, diff_key,
     in_glob_scope, source_function_of_glob, undecided_by_function, unmutatable_decorator,
     functions_covering, refusal_reason, selftest, split_results, string_only_verdict,
+    GATE_BUDGET_SEC, budget_refusal,
 )
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
@@ -250,6 +251,9 @@ def main(argv=None) -> int:
     _unexaminable: list = []
     _out_of_scope: int = 0   # undecided mutants belonging to functions the diff never touched
     verdict: dict = {"base": a.base, "modules": {}, "survivors": []}
+    # ── THE RUN BUDGET (mutation_diff.GATE_BUDGET_SEC) — a refusal is a verdict, a SIGTERM is not ──
+    _gate_t0 = time.monotonic()
+    _refused_budget: list[str] = []
     for module, lines in sorted(changed.items()):
         _msrc = _read_source(HERE / module)   # read ONCE per module; the loop below reuses it
         stems = functions_covering(_msrc, lines)
@@ -260,6 +264,16 @@ def main(argv=None) -> int:
         globs = [f"{stem_mod}.{s}__mutmut_*" for s in sorted(stems)]
         print(f"  {module}: {len(lines)} changed line(s) in {len(stems)} function(s) → "
               f"{', '.join(sorted(stems))}", flush=True)
+        # The clean run is timed ONCE per module and handed to every glob's run_one. Re-timing it per
+        # glob was the 2026-09-17 "hang" (capture.py: 936.7 s × 5 globs before any mutant, measured).
+        _tests = mut.tests_for(module)
+        _clean = mut.clean_run_seconds(_tests) if _tests else (0.0, False)
+        _left = GATE_BUDGET_SEC - (time.monotonic() - _gate_t0)
+        _why_budget = budget_refusal(module, _clean[0], len(globs), _left)
+        if _why_budget:
+            print(f"  ⊘ {_why_budget}", flush=True)
+            _refused_budget.append(_why_budget)
+            continue
         # One mutmut invocation per function keeps a single slow function from hiding the others.
         for g in globs:
             _attempted += 1
@@ -275,11 +289,26 @@ def main(argv=None) -> int:
             # the whole point is that the log NAMES the function currently being mutated, so a kill
             # mid-run is attributable to one glob instead of to the job.
             _t0 = time.monotonic()
-            print(f"    ▸ {g}: mutating…", flush=True)
-            r = mut.run_one(module, only=g)
+            _left = int(GATE_BUDGET_SEC - (time.monotonic() - _gate_t0))
+            if _left <= 0:
+                _refused_budget.append(f"{g}: the {GATE_BUDGET_SEC}s gate budget was exhausted before this "
+                                       f"function could be mutated — not attempted, not a verdict")
+                print(f"    ⊘ {_refused_budget[-1]}", flush=True)
+                _attempted -= 1
+                continue
+            print(f"    ▸ {g}: mutating…  [{_left}s of the gate budget left]", flush=True)
+            # WALL BOUND: what is left of the gate budget is this invocation's cap. A cap that is hit
+            # comes back with partial counts behind `timed_out`, and the gate refuses on it below.
+            r = mut.run_one(module, only=g, clean=_clean, timeout=max(1, _left))
             _secs = time.monotonic() - _t0
             if r.get("error"):
                 print(f"    ! {g}: {r['error']}  [{_secs:.0f}s]", flush=True)
+                continue
+            if r.get("timed_out"):
+                _refused_budget.append(f"{g}: hit the gate budget after {_secs:.0f}s — partial counts only "
+                                       f"({r.get('tail', '')[-120:].strip() or 'no output'}). A mutant that never ran "
+                                       f"is not a survivor and not a kill.")
+                print(f"    ⊘ {_refused_budget[-1]}", flush=True)
                 continue
             _ran += 1
             work = Path(r["work"])
@@ -453,7 +482,7 @@ def main(argv=None) -> int:
         print("    Their mutants were never generated, so nothing below speaks to them. This is a\n"
               "    limitation of the TOOL, not a finding about the code.")
 
-    if _nothing_to_mutate and not _ran and not _crashed and len(_nothing_to_mutate) == _attempted:
+    if _nothing_to_mutate and not _ran and not _crashed and len(_nothing_to_mutate) == _attempted and not _refused_budget:
         print(f"\nmutate-diff: {len(_nothing_to_mutate)} changed function(s) had no mutable operator — "
               "nothing to test, and nothing to conclude. Not a failure.")
         if a.json:
@@ -598,6 +627,25 @@ def main(argv=None) -> int:
                   "  what selected them, not at how long they were given.")
         print("  Do NOT raise `timeout_multiplier` to clear this: it would report a pass for mutants\n"
               "  nobody measured, which is precisely what this refusal is here to stop.")
+        if not a.report_only:
+            return 2
+
+    # ── the budget refusal — after the survivor report has been recorded, before the verdict ─────
+    # Whatever DID run is reported above and in the JSON; what did NOT run is named here. A refused
+    # module or glob was never examined, so this run cannot say its mutants were killed — the same
+    # honesty as UNDECIDED, one level up: not "too slow", but "not measured, and here is why".
+    if _refused_budget:
+        verdict["refused_budget"] = _refused_budget
+        if a.json:
+            Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
+        print(f"\nmutate-diff: REFUSING — {len(_refused_budget)} module(s)/function(s) were NOT mutated "
+              f"inside the {GATE_BUDGET_SEC}s gate budget:")
+        for w in _refused_budget:
+            print(f"  ⊘ {w}")
+        print("  A refusal is a verdict with a reason; the run that used to die here with exit 143 was not.\n"
+              "  Nothing above about the functions that DID run is withdrawn — only the refused ones are\n"
+              "  unmeasured. Do NOT raise GATE_BUDGET_SEC to clear this: measure the selection's clean run\n"
+              "  and the trace factor it multiplies, then change the number that was wrong.")
         if not a.report_only:
             return 2
 

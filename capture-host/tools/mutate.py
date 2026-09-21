@@ -240,7 +240,7 @@ def clean_run_seconds(tests: list[str]) -> tuple[float, bool]:
 
 def run_one(module: str, only: str | None = None, tests_override: list[str] | None = None,
             timeout: int | None = None, budget: int = 0, estimate_only: bool = False,
-            reuse: bool = True) -> dict:
+            reuse: bool = True, clean: tuple[float, bool] | None = None) -> dict:
     """`only` is a mutant-name glob, `tests_override` a hand-picked selection.
 
     Both exist for capture.py, where the name-substring heuristic in `tests_for` is useless — "capture"
@@ -273,23 +273,35 @@ def run_one(module: str, only: str | None = None, tests_override: list[str] | No
     tests = tests_override or tests_for(module)
     if not tests:
         return {"module": module, "error": "no test file names this module"}
-    _beat("timing the clean baseline suite  (mutmut not started)")
-    clean, clean_ok = clean_run_seconds(tests)
+    # `clean` = a clean run the CALLER already timed for this module. mutate_diff invokes run_one once
+    # per FUNCTION glob and this used to re-time the whole selection on every call — for capture.py
+    # (76 of 78 test files, 936.7 s per clean run, measured 2026-09-21) five globs meant 78 minutes of
+    # re-timing before a single mutant existed. That, not the functions' size, was the 98-minute
+    # "Generating mutants" of #2590. Timed once by the caller, passed here; `None` keeps the old path.
+    clean_sec: float
+    clean_ok: bool
+    if clean is None:
+        _beat("timing the clean baseline suite  (mutmut not started)")
+        clean_sec, clean_ok = clean_run_seconds(tests)
+    else:
+        clean_sec, clean_ok = clean
+    cap: int
     if timeout is not None:
         cap = timeout
     else:
-        bverdict, cap, bdetail = budget_verdict(clean, clean_ok)
-        if bverdict != BUDGET_OK:
+        bverdict, _cap, bdetail = budget_verdict(clean_sec, clean_ok)
+        if bverdict != BUDGET_OK or _cap is None:
             # REFUSE rather than fall back to the floor. Taking the floor here is precisely how a
             # module gets an under-sized budget from a measurement that never happened, and then
             # reports timeouts that read as an honest result.
             return {"module": module, "error": f"no budget: {bdetail}"}
-    plan = {"module": module, "tests": tests, "clean_run_sec": round(clean, 2),
+        cap = _cap
+    plan = {"module": module, "tests": tests, "clean_run_sec": round(clean_sec, 2),
             "timeout_sec": cap, "derived": timeout is None}
-    if budget and clean > budget:
+    if budget and clean_sec > budget:
         # LOUD, with the numbers and the way out — the mjs sibling's --budget, same reasoning: a module
         # silently skipped is indistinguishable from one that passed.
-        return {**plan, "skipped": f"clean run {clean:.1f}s exceeds --budget {budget}s",
+        return {**plan, "skipped": f"clean run {clean_sec:.1f}s exceeds --budget {budget}s",
                 "advice": f"narrow it: --tests '{tests[0]},...' (currently {len(tests)} files), "
                           f"or scope it: --only '{module[:-3]}.x_<func>__mutmut_*'"}
     if estimate_only:
