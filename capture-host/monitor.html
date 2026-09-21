@@ -1327,7 +1327,10 @@ function nightFilesFor(n, node){
   // the hat's three corners: H10 HR (in ECGDex's files), Verity PPG/PPI (PPGDex's), and the O2Ring's pulse from its
   // _SPO2.csv — which is OxyDex's file, not PPGDex's; without it the tool indexes every night as ineligible
   if(node==='3 corner hat') return [...(n.ECGDex?n.ECGDex.files:[]), ...(n.PPGDex?n.PPGDex.files:[]), ...(n.OxyDex?n.OxyDex.files:[])];
-  if(node==='PAT') return [...(n.ECGDex?n.ECGDex.files.filter(f=>f.endsWith('_ECG.txt')):[]), ...(n.PPGDex?n.PPGDex.files.filter(f=>/VeritySense.*_PPG\.txt$/.test(f)):[])];
+  // PAT's roles are ecg · ppg · ecgacc · ppgacc: both devices' ACC are its cross-device drift anchor and the input
+  // of its ACC-corrected verdict, which the click withheld until 2026-09-21 (the ACCs sit under MotionDex, not PPGDex)
+  if(node==='PAT') return [...(n.ECGDex?n.ECGDex.files.filter(f=>f.endsWith('_ECG.txt')):[]), ...(n.PPGDex?n.PPGDex.files.filter(f=>/VeritySense.*_PPG\.txt$/.test(f)):[]),
+    ...(n.MotionDex?n.MotionDex.files.filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)):[])];
   return n[node] ? n[node].files : [];
 }
 async function openNight(night, node){
