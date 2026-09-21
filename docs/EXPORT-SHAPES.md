@@ -61,7 +61,12 @@ recording's `contentId`; `evidence.envelopeRef` is the attached acquisition enve
 `null` + reason on a CSV. Desat events carry `inputHash` + `evidenceRef` (§2). Walk-through + tool:
 `docs/MEASUREMENT-WALKTHROUGH-OXYDEX-2026-09-21.md`, `tools/measurement-walk.mjs`. Emission is still
 staged per node — the other seven do not emit it yet, and a missing block on THEIR exports is not a
-defect.
+defect. **The Integrator consumes it (roadmap §8, 2026-09-21):** `adaptOxyDex` turns each block into a
+REF on the rec (`measurements.blocks.<id>` = metricId · value · basis · window · code · evidence join ·
+`provenance: resolved | unresolved` + reason) and the fusion export's `nodes[].measurements` carries
+those refs forward — never the payload. Absence adds no key (a legacy export fuses byte-identically);
+a block whose refs do not resolve (inputHash ≠ the element's contentId, missing code identity, value ≠
+the element scalar, non-positive window) is marked `unresolved` loudly and never silently accepted.
 
 **Back-compat:** additive, so **consumers tolerating its absence is the contract**, gated the same way
 the `t`-only event tolerance already is. The `schema.version` MINOR bump lands with the FIRST EMITTER,

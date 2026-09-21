@@ -6331,6 +6331,130 @@
       }
     });
 
+    /* ═══ MEASUREMENT-PROVENANCE-ROADMAP §8 — the Integrator CONSUMES the measurement block ═══
+       Interface only, no fusion-engine work. Gated: (1) a REAL OxyDex export (compute() on the committed
+       synthetic input, with a bundle identity) adapts to a rec whose `measurements` are all RESOLVED and whose
+       summary scalars equal the blocks' values; (2) the refs ride forward on the fusion export's node card —
+       value + identity + join + verdict, never the payload (no quality/uncertainty/reasons); (3) a LEGACY
+       export (no block) adapts to a rec with NO `measurements` key and a node card with none — the tolerance
+       that keeps every committed fixture byte-identical; (4) FAIL CLOSED, each plant naming its reason: an
+       inputHash that names a different input than the element's contentId · a missing code identity · a
+       value that disagrees with the element scalar · a zero-length window — each reads `unresolved`, LOUDLY,
+       while the scalar every existing consumer reads is untouched. */
+    group('Integrator consumes canonical measurement blocks — roadmap §8 (fail-closed, plant-backed)', 'integrator-dsp · measurement-block · provenance · roadmap-§8 · plant', function (T) {
+      var OD = env.OxyDex;
+      var NF = env.normalizeFile;
+      var RF = env.runFusion;
+      var BE = env.buildFusionExport;
+      var CM = env.IntegratorDSP && env.IntegratorDSP.consumeMeasurements;
+      var eq = env.equiv || {};
+      var input = (eq.oxydex_synth && eq.oxydex_synth.input) || (eq.oxydex && eq.oxydex.input) || null;
+      if (!OD || typeof OD.compute !== 'function' || typeof NF !== 'function' || typeof RF !== 'function' || typeof BE !== 'function' || typeof CM !== 'function') {
+        T.skip('OxyDex + Integrator (normalizeFile/runFusion/buildFusionExport/consumeMeasurements) co-loaded', 'not available in this runner');
+        return;
+      }
+      if (!input) {
+        T.skip('a committed O2Ring input is reachable (env.equiv.oxydex_synth)', 'uploads/synthetic_oxydex_o2ring.csv not reachable in this lane');
+        return;
+      }
+      var CODE = { manifestHash: '0123456789ab', computeHash: 'ba9876543210' };
+      var exp = OD.compute({ text: input }, { code: CODE });
+      var r = NF(JSON.parse(JSON.stringify(exp)), 'oxy.json');
+      var rec = r && r.recs && r.recs[0];
+      T.ok('a real OxyDex 2.1 export adapts to a rec', !!rec, r && r.warnings ? r.warnings.join('|') : 'no rec');
+      if (!rec) return;
+      var M = rec.measurements;
+      T.ok('rec.measurements present', !!M && !!M.blocks, M ? Object.keys(M.blocks || {}).join(',') : 'absent');
+      if (!M) return;
+      T.eq('four blocks consumed, all RESOLVED, none unresolved', M.resolved + '/' + M.unresolved, '4/0');
+      ['odi4', 'meanSpo2', 't90', 'hypoxicBurden'].forEach(function (id) {
+        T.eq(id + ' · provenance resolved', M.blocks[id] && M.blocks[id].provenance, 'resolved');
+      });
+      T.eq('summary.odi4 ≡ the odi4 block value (the scalar walks back)', rec.summary.odi4, M.blocks.odi4.value);
+      T.eq('summary.meanSpo2 ≡ the meanSpo2 block value', rec.summary.meanSpo2, M.blocks.meanSpo2.value);
+      T.eq('summary.hypoxicBurden ≡ the hypoxicBurden block value', rec.summary.hypoxicBurden, M.blocks.hypoxicBurden.value);
+      T.eq('the ref carries the code identity', JSON.stringify(M.blocks.odi4.code), JSON.stringify(CODE));
+      T.eq('the ref carries the input join (= contentId)', M.blocks.odi4.evidence.inputHash, rec.contentId);
+      T.ok(
+        'the ref is a REF, not a copy — no quality/uncertainty/reason payload',
+        !('quality' in M.blocks.odi4) && !('uncertainty' in M.blocks.odi4) && !('uncertaintyReason' in M.blocks.odi4) && !('spreadReason' in (M.blocks.odi4.window || {})),
+        Object.keys(M.blocks.odi4).join(',')
+      );
+      // forward on the fusion export
+      var fus = RF(r.recs, {});
+      var out = BE(r.recs, fus);
+      var card = out && out.nodes && out.nodes[0];
+      T.ok(
+        'fusion export node card carries the consumed refs',
+        !!card && !!card.measurements && card.measurements.resolved === 4,
+        card ? JSON.stringify(card.measurements && { resolved: card.measurements.resolved, unresolved: card.measurements.unresolved }) : 'no card'
+      );
+      // legacy tolerance
+      var legacy = JSON.parse(JSON.stringify(exp));
+      delete legacy.nights[0].measurement;
+      var rl = NF(legacy, 'oxy-legacy.json');
+      var recL = rl && rl.recs && rl.recs[0];
+      T.ok('LEGACY export (no block) → rec has NO measurements key', !!recL && !('measurements' in recL), recL ? Object.keys(recL).join(',') : 'no rec');
+      var cardL = BE(rl.recs, RF(rl.recs, {})).nodes[0];
+      T.ok('…and its node card has NO measurements key (byte-identical tolerance)', !!cardL && !('measurements' in cardL));
+      T.eq('…while the summary scalar is the same number either way', recL && recL.summary.odi4, rec.summary.odi4);
+      T.eq('an empty measurement map is treated as absent (null), not as zero blocks', CM({ measurement: {} }, null), null);
+      // PLANTS — fail closed, each naming its reason
+      var night = exp.nights[0];
+      var plant = function (mut, scalars) {
+        var n = JSON.parse(JSON.stringify(night));
+        mut(n);
+        return CM(n, scalars || { odi4: n.odi4.rate });
+      };
+      var p1 = plant(function (n) {
+        n.measurement.odi4.evidence.inputHash = 'deadbeef0000';
+      });
+      T.ok(
+        'PLANT · inputHash ≠ contentId → odi4 unresolved, reason names the contentId',
+        p1.blocks.odi4.provenance === 'unresolved' && /different input/.test(p1.blocks.odi4.unresolvedReason) && p1.unresolved === 1 && p1.resolved === 3,
+        p1.blocks.odi4.unresolvedReason
+      );
+      var p2 = plant(function (n) {
+        n.measurement.odi4.code = null;
+        n.measurement.odi4.codeReason = 'headless';
+      });
+      T.ok(
+        'PLANT · missing code identity → unresolved, the block’s own reason quoted',
+        p2.blocks.odi4.provenance === 'unresolved' && /code identity/.test(p2.blocks.odi4.unresolvedReason) && /headless/.test(p2.blocks.odi4.unresolvedReason),
+        p2.blocks.odi4.unresolvedReason
+      );
+      var p3 = plant(
+        function (n) {
+          n.measurement.odi4.value = n.odi4.rate + 1;
+        },
+        { odi4: night.odi4.rate }
+      );
+      T.ok(
+        'PLANT · block value ≠ element scalar → unresolved (lineage, not a second number)',
+        p3.blocks.odi4.provenance === 'unresolved' && /disagrees/.test(p3.blocks.odi4.unresolvedReason),
+        p3.blocks.odi4.unresolvedReason
+      );
+      var p4 = plant(function (n) {
+        n.measurement.odi4.window.endTMs = n.measurement.odi4.window.startTMs;
+      });
+      T.ok('PLANT · zero-length window → unresolved', p4.blocks.odi4.provenance === 'unresolved' && /window/.test(p4.blocks.odi4.unresolvedReason), p4.blocks.odi4.unresolvedReason);
+      var p5 = plant(function (n) {
+        n.measurement.odi4.value = NaN;
+      });
+      T.ok('PLANT · NaN value → unresolved, never accepted as a scalar', p5.blocks.odi4.provenance === 'unresolved' && /finite/.test(p5.blocks.odi4.unresolvedReason), p5.blocks.odi4.unresolvedReason);
+      // and an unresolved block reaches the export LOUDLY, with the scalar untouched
+      var bad = JSON.parse(JSON.stringify(exp));
+      bad.nights[0].measurement.odi4.evidence.inputHash = 'deadbeef0000';
+      var rb = NF(bad, 'oxy-bad.json');
+      var cardB = BE(rb.recs, RF(rb.recs, {})).nodes[0];
+      T.ok(
+        'an unresolved block is carried forward LOUDLY (never dropped, never silently accepted)',
+        !!cardB.measurements && cardB.measurements.blocks.odi4.provenance === 'unresolved' && typeof cardB.measurements.blocks.odi4.unresolvedReason === 'string',
+        JSON.stringify(cardB.measurements && cardB.measurements.blocks.odi4)
+      );
+      T.eq('…and the summary scalar every consumer reads is untouched by it', rb.recs[0].summary.odi4, rec.summary.odi4);
+    });
+
     /* ════ INTEGRATOR-OXYDEX-ADAPTER-GAP-FOLLOWUPS §4 — the dead fallback is GATED, not deleted ════
        `normalizeFile` intercepts every real OxyDex shape (`nights || desatProfile || hr_spikes ||
        Array.isArray`) and routes it to adaptOxyDex, so the `node === 'OxyDex'` branch of
