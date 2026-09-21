@@ -1087,13 +1087,23 @@ def test_the_probe_is_asked_about_the_RESOLVED_index_and_its_error_reaches_the_v
     assert "the socket said no" in why, "the probe's own error reaches the operator's line"
 
 
-def test_the_config_path_DEFAULTS_when_no_argument_is_given(tmp_path, caplog):
+def test_the_config_path_DEFAULTS_when_no_argument_is_given(tmp_path, caplog, monkeypatch):
     """The unit passes --config explicitly, so a broken default is invisible there and only bites the
-    operator running it by hand in the capture-host directory."""
+    operator running it by hand in the capture-host directory.
+
+    ⚠️ Run from an EMPTY directory (residue 2026-09-15-radioclock-test-reads-operator-config). The
+    default is relative to the CWD, and pytest's CWD is `capture-host/`, which on a box or a dev machine
+    carries a real, gitignored `config.yaml`. With `radio_clock.enabled: false` there, `main` returned
+    before ever naming the path and this failed — while CI, whose fresh clone has no such file, stayed
+    green. A test whose verdict depends on an operator file the repo does not track is not a test of
+    the code. From an empty directory the default resolves to nothing, `main` says which file it could
+    not read, and the assertion means the same thing on every machine."""
+    monkeypatch.chdir(tmp_path)
+    assert not (tmp_path / "config.yaml").exists()
     sysfs = _sysfs(tmp_path, {"hci1": "28:0C:50:0C:18:FD"})
     with caplog.at_level("INFO"):
         assert rc.main([], sysfs) == 0
-    assert "config.yaml" in caplog.text, "the default names the file it looked for"
+    assert "cannot read config.yaml" in caplog.text, "the default names the file it looked for"
 
 
 def test_a_RECONNECT_on_the_same_handle_starts_the_anchor_counter_afresh():
