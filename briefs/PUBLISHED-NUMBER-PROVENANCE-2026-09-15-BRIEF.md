@@ -164,7 +164,7 @@ sound and is not the reason for rejection.
 - [x] One real published number marked.
 - [x] A second and third marker on numbers that have actually drifted, chosen from the sweep's table 3
       and table 4 — the markers that would have *caught* something, rather than one that agrees.
-      **DONE 2026-09-21 (Magpie, #PRNUM).** Both tables re-run and re-cut under a dated correction block
+      **DONE 2026-09-21 (Magpie, #2787).** Both tables re-run and re-cut under a dated correction block
       beside the original: table 3 (`PAT-UNDER-PERBLOCK-ALIGNMENT` §3a, 18 `CLAIM`s — beats, legacy ratio,
       strict ratio × 6 nights) and table 4 (`SENSOR-TRIO-NIGHTS-PAPER` §11, 8 `CLAIM`s — both sides of the
       identity × 3 corners, nights, pooled seconds), each resolving against a committed record under
