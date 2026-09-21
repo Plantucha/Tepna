@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-02 — 5 of 6 done-when boxes are closed and dated, which the previous bare `PROPOSED` header hid. The single open item is §6, and its blocker is PROCUREMENT, not engineering: every number in the parent brief derives from ONE physical unit (`S8AW2100`) — the 126:1 lock, 126.037 frames/device-second, −3446 ppm, the ±1 s quantization and the +11 ms re-anchor residual — and none of them can be shown to be a property of the MODEL rather than of that individual until a second ring exists. Repo-wide there is exactly one serial. No code closes this. **Owner:** owner (buy or borrow a second O2Ring) · **Next step:** an owner decision on whether a second unit is worth it; if not, record that the constants are single-unit and stop carrying §6) · **Created:** 2026-08-03
+**Status:** DONE — 2026-09-21 — six of six boxes closed; §6 closed as a NEGATIVE by the owner's 2026-09-15 D4 ruling, consequence carried in the box (Heron). Formerly PROPOSED (parked 2026-09-02 — 5 of 6 done-when boxes are closed and dated, which the previous bare `PROPOSED` header hid. The single open item is §6, and its blocker is PROCUREMENT, not engineering: every number in the parent brief derives from ONE physical unit (`S8AW2100`) — the 126:1 lock, 126.037 frames/device-second, −3446 ppm, the ±1 s quantization and the +11 ms re-anchor residual — and none of them can be shown to be a property of the MODEL rather than of that individual until a second ring exists. Repo-wide there is exactly one serial. No code closes this. **Owner:** owner (buy or borrow a second O2Ring) · **Next step:** an owner decision on whether a second unit is worth it; if not, record that the constants are single-unit and stop carrying §6) · **Created:** 2026-08-03
 
 # What executing the 126:1 lock left open
 
@@ -313,4 +313,4 @@ the lock and the counter quantization.
       (ring idle/disconnected) — every step 0, imbalance a degenerate −1.0. My first run left them in
       and reported a confident **r = −0.213 over "164 sessions"**, of which 109 were flat lines. A
       session counts only if a majority of its steps are +1.
-- [ ] §6 — a second ring.
+- [x] §6 — a second ring. **CLOSED AS A NEGATIVE by owner ruling 2026-09-15 (D4: "no second O2Ring" — a decided outcome, not a deferral; the brief stops counting as blocked). Stamped 2026-09-21 (Heron).** The consequence is carried, not hidden: every number in the parent brief — the 126:1 lock, 126.037 frames/device-second, −3446 ppm, the ±1 s quantization, the +11 ms re-anchor residual — rests on ONE unit (`S8AW2100`) and cannot be shown to be a property of the MODEL rather than of that individual. That is now a standing caveat on every O2Ring finding, to be said wherever one is quoted, rather than an open item waiting on procurement.
