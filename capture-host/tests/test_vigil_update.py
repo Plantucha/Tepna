@@ -1166,6 +1166,97 @@ def test_RECORDING_still_outranks_a_pull_state(box):
     assert "a device is recording" in _run(box).stdout
 
 
+# ── what the daemon is ON comes from the daemon, not from the deploy marker ────────────────────────
+# Residue 2026-09-05-content-gate-diffs-from-a-stale-marker and 2026-09-06-update-log-prints-marker-
+# as-daemon. The marker records what the UPDATER last deployed; a restart by anyone else leaves it
+# behind, and the content gate then diffs code the daemon already has and fires a redundant,
+# content-justified restart at the first doff of the night.
+def _hand_restarted_box(box):
+    """Deploy HEAD1 through the updater (marker = HEAD1), then land HEAD2 with a capture.py change and
+    fast-forward the checkout BY HAND — the shape of an operator restart the updater never saw. The
+    marker still says HEAD1; the truth is HEAD2."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": False})
+    _run(box)
+    head1 = _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
+    assert box["mark"].read_text().strip() == head1
+    box["called"].unlink()
+    _advance(box)                                              # capture-host code moved upstream
+    _git(box["repo"], "fetch", "-q", "origin", "main")
+    _git(box["repo"], "merge", "-q", "--ff-only", "origin/main")
+    head2 = _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
+    assert head1 != head2 and box["mark"].read_text().strip() == head1
+    return head1, head2
+
+
+def _version(sha):
+    return "echo '{\"git\": \"%s\", \"dirty\": false, \"started\": 1.0}'" % sha
+
+
+def test_a_daemon_already_on_HEAD_is_not_restarted_because_the_marker_is_stale(box):
+    """THE PLANT. Marker HEAD1, daemon HEAD2 (hand-restarted), disk HEAD2. The old gate diffed
+    HEAD1..HEAD2 -- capture-host/, found the change the daemon already runs, and restarted into
+    identical code — at the first moment recording went false."""
+    head1, head2 = _hand_restarted_box(box)
+    r = _run(box, TEPNA_VERSION_FETCH=_version(head2))
+    assert r.returncode == 0, r.stderr
+    assert not box["called"].exists(), "restarted into code the daemon was already running"
+    assert "restart still OWED" not in r.stdout
+    assert "using the deploy marker" not in r.stdout
+
+
+def test_the_same_box_with_the_daemon_silent_falls_back_to_the_marker_AND_SAYS_SO(box):
+    """The fallback is the old behaviour — one redundant restart — and the difference is that it is now
+    labelled: a daemon that stops answering is never mistaken for one that agreed."""
+    head1, head2 = _hand_restarted_box(box)
+    r = _run(box, TEPNA_VERSION_FETCH="false")
+    assert r.returncode == 0, r.stderr
+    assert "daemon not answering" in r.stdout and "using the deploy marker " + head1[:12] in r.stdout
+    assert "stale after any restart it did not perform" in r.stdout
+    assert "the deploy marker says " + head1[:12] in r.stdout      # never "the daemon is on"
+    assert "the daemon is on" not in r.stdout
+    assert box["called"].exists()
+
+
+def test_a_daemon_reporting_an_OLDER_sha_is_the_owed_case_and_is_labelled_as_the_daemon(box):
+    """Disk HEAD2, daemon genuinely on HEAD1: restart owed, and the line says where the number came
+    from."""
+    head1, head2 = _hand_restarted_box(box)
+    r = _run(box, TEPNA_VERSION_FETCH=_version(head1))
+    assert "restart still OWED" in r.stdout and "the daemon is on " + head1[:12] in r.stdout
+    assert box["called"].exists()
+
+
+@pytest.mark.parametrize("fetch", [
+    "echo '{\"git\": \"unknown\"}'",          # a tarball deploy: build_id could not tell
+    "echo 'not json'",
+    "echo '{\"git\": 7}'",
+    "echo ''",
+])
+def test_an_unusable_version_report_is_absence_never_a_sha(box, fetch):
+    """§∅: an answer the updater cannot use is treated exactly like no answer — the marker path, with
+    its label — never as a sha to diff from."""
+    head1, head2 = _hand_restarted_box(box)
+    r = _run(box, TEPNA_VERSION_FETCH=fetch)
+    assert "using the deploy marker " + head1[:12] in r.stdout
+    assert "the deploy marker says" in r.stdout
+
+
+def test_the_docs_only_advance_names_the_source_and_never_claims_identity(box):
+    """After a docs-only deploy the marker advances to HEAD while the process keeps its start sha. The
+    line used to read as if the daemon were ON the new sha; it now says whose number it is."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": False})
+    _run(box)
+    head1 = _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
+    box["called"].unlink()
+    _advance(box, path="README")
+    r = _run(box, TEPNA_VERSION_FETCH=_version(head1))
+    assert "capture-host CODE is current (the daemon is on " + head1[:12] in r.stdout
+    assert "marker advanced to" in r.stdout
+    assert not box["called"].exists()
+
+
 # ---------------------------------------------------------------- steps 3 + 4 run for a 0644 script
 
 
@@ -1205,3 +1296,38 @@ def test_system_file_drift_is_reported_even_though_the_checker_is_committed_0644
     _upstream_deploy_script(box, "check-system-files.sh", '#!/usr/bin/env bash\necho "tepna-clock.sh STALE"\nexit 1\n')
     r = _run(box)
     assert r.returncode == 1 and "a HUMAN must run" in r.stderr, r.stderr
+
+
+# ---------------------------------------------------------------- step 3 is keyed on the SERVED TREE
+
+
+def _upstream_sync_stub(box, marker, check_exit):
+    """A sync-apps.sh whose `--check` reports the served tree's state and whose bare run records a sync."""
+    _upstream_deploy_script(box, "sync-apps.sh",
+        f'#!/usr/bin/env bash\nif [ "${{1:-}}" = "--check" ]; then exit {check_exit}; fi\necho ran > "{marker}"\n')
+
+
+def test_a_stale_served_tree_is_synced_even_when_THIS_tick_moved_nothing(box, tmp_path):
+    """Two units fast-forward the checkout (this one and tepna-sync-main). Measured 2026-09-21 10:01/10:02
+    on vigil: sync-main moved the ref one minute before the hourly tick, the tick read "up to date —
+    nothing to do", and 30 of 35 served bundles stayed stale under an already-fixed guard, because the
+    serve step lived inside the "this run moved the ref" branch. The step is keyed on the served tree's
+    STATE now: `--check` says stale ⇒ sync, on every tick."""
+    marker = tmp_path / "synced"
+    _upstream_sync_stub(box, marker, check_exit=1)
+    _run(box)                      # acquire the stub (this run moves the ref)
+    marker.unlink()
+    r = _run(box)                  # up to date — nothing to fast-forward
+    assert "nothing to do" in r.stderr or "nothing to do" in r.stdout, r.stderr
+    assert marker.exists(), f"served tree stale, ref unmoved, and step 3 did not sync\n{r.stderr}"
+
+
+def test_a_current_served_tree_is_not_re_synced(box, tmp_path):
+    """`--check` clean ⇒ no copy: the step is a state check, not an hourly rewrite of /srv/tepna/app."""
+    marker = tmp_path / "synced"
+    _upstream_sync_stub(box, marker, check_exit=0)
+    _run(box)
+    assert not marker.exists()
+    _advance(box)
+    _run(box)                      # even a fast-forward does not sync a tree that already matches
+    assert not marker.exists()

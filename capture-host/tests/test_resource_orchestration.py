@@ -113,6 +113,7 @@ def test_A_ROW_THE_DISK_REFUSES_IS_COUNTED_AS_LOST_AND_NEVER_RAISES_INTO_THE_CAL
     lost_then = w.rows_lost
     write()
     assert w.rows == before + 1 and w.rows_lost == lost_then, "after recovery, rows land and are counted"
+    w.close()                                       # a sample writer left open leaks the process-global counter
 
 
 def test_A_LATE_ROW_ON_A_CLOSED_HANDLE_IS_A_LOST_ROW_NOT_A_CRASH(tmp_path, caplog):
@@ -141,6 +142,7 @@ def test_THE_RR_SIDECAR_LOSS_IS_COUNTED_TOO(tmp_path):
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 # §S2 — the fsync is MEASURED, a slow one names itself once, and it is OFF THE EVENT LOOP
 # ══════════════════════════════════════════════════════════════════════════════════════════════
+    w.close()                                       # a sample writer left open leaks the process-global counter
 
 
 def _inline_fsync(monkeypatch):

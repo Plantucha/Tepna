@@ -824,7 +824,12 @@ def scan(root: "str | None" = None) -> dict:
 
     # every .py including probes, plus the shell helpers and tools — a function called only by a probe
     # or a helper script is wired, just not from the daemon.
-    everything = ""
+    # PER FILE, not one string — so a spent allowlist entry can NAME the file whose bare-name match
+    # un-orphaned its subject (residue 2026-09-06-find-unwired-prose-unorphans: an English word in a
+    # new shell log line un-orphaned an unrelated Python function and the report named nothing the
+    # author had touched). The decision below still reads the concatenation; only the diagnostic
+    # reads the parts.
+    corpus: dict[str, str] = {}
     for dirpath, _dirs, names in os.walk(root):
         if os.sep + "tests" in dirpath or "node_modules" in dirpath or os.sep + ".venv" in dirpath:
             continue
@@ -838,7 +843,9 @@ def scan(root: "str | None" = None) -> dict:
             if os.path.abspath(os.path.join(dirpath, n)) == os.path.abspath(__file__):
                 continue
             if n.endswith((".py", ".sh")):
-                everything += _code_only(os.path.join(dirpath, n))
+                p = os.path.join(dirpath, n)
+                corpus[os.path.relpath(p, root)] = _code_only(p)
+    everything = "".join(corpus.values())
 
     # ── SCAN 3 · FORWARDED BUT NEVER DRAWN ──────────────────────────────────────────────────────────
     # The next link in the same chain. Scan 1 asks whether a published key reaches a consumer, and
@@ -975,7 +982,13 @@ def scan(root: "str | None" = None) -> dict:
                    # a provenance entry applies only to a consumer scan 7 actually saw with 2+ callers
                    "ALLOW_PROVENANCE": {r["consumer"] for r in divergent} | set(ALLOW_PROVENANCE) & defined}[label]
         for name in sorted((set(allow) & applies) - reported):
-            stale.append({"list": label, "name": name, "allowed": None,
+            # WHERE the un-orphaning match lives, for ALLOW_FUNCS: every corpus file whose code carries
+            # the bare name without defining it. A stale entry then costs one look instead of a bisect,
+            # and a match in a .sh string or an unrelated module reads as what it is.
+            where = sorted(f for f, t in corpus.items()
+                           if re.search(r"\b%s\b" % re.escape(name), t)
+                           and not re.search(r"def\s+%s\b" % re.escape(name), t)) if label == "ALLOW_FUNCS" else []
+            stale.append({"list": label, "name": name, "allowed": None, "where": where,
                           "reason": allow[name]})
 
     return {"orphan_status_keys": orphan_keys, "orphan_functions": orphan_funcs,
@@ -1055,6 +1068,8 @@ def main(argv: list[str]) -> int:
     print("\n== allowlist entries that excuse nothing (the suppression is spent) ==")
     for r in res["stale_allowlist"]:
         print("   %s[%r] — %s" % (r["list"], r["name"], r["reason"][:90]))
+        if r.get("where"):
+            print("      un-orphaned by a bare-name match in: %s" % ", ".join(r["where"]))
     print("   %d stale" % len(res["stale_allowlist"]))
     # ── ADVISORY BY DEFAULT, ENFORCEABLE ON REQUEST ────────────────────────────────────────────────
     #

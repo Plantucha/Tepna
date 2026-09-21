@@ -271,6 +271,33 @@ def _capture_events_are_not_leaked(request):
 
 
 @_pytest.fixture(autouse=True)
+def _sample_writer_count_is_not_leaked(request):
+    """`writers._open_sample_writers` is a PROCESS-GLOBAL counter (residue
+    2026-09-20-open-writer-counter-leaks-across-tests). A test that opens a StreamWriter and never closes
+    it leaves it > 0 for every later test in the process — and with it > 0, `capture._now()` takes its
+    ABSORB branch on a clock divergence instead of re-anchoring, so a fake-monotonic anchor leaked by an
+    earlier test becomes a permanent hours-off `_now()`. That was the second half of the #2715
+    mutation-lane failure; the first half (the anchor) is reset by the fixture above this one's sibling.
+
+    Same shape as `_capture_events_are_not_leaked`: reset before, tripwire after, marker to declare a
+    deliberate leftover. The reset is what fixes the contamination; the tripwire is what stops the
+    next leak from being invisible until a mutation run orders the tests differently."""
+    import writers as _w
+    _w._open_sample_writers = 0
+    yield
+    left = _w._open_sample_writers
+    _w._open_sample_writers = 0
+    if left and not request.node.get_closest_marker("leaves_writers_open"):
+        raise AssertionError(
+            f"{request.node.nodeid} left writers._open_sample_writers = {left}. It opened a sample writer "
+            f"and never closed it, which would make every later test's capture._now() absorb clock steps "
+            f"instead of re-anchoring. Close what you open (or use the writer as a context manager); a "
+            f"test whose SCENARIO ends with a file open declares that with "
+            f"`@pytest.mark.leaves_writers_open`."
+        )
+
+
+@_pytest.fixture(autouse=True)
 def _bonding_select_is_the_configured_address(request):
     """`bonding.bluez_address` (2026-09-12) resolves the configured adapter to the address BlueZ lists,
     through `link_rssi.dbus_hci` (a `/sys/class/bluetooth` glob + busctl) and `resolve_hci` (`hcitool dev`).

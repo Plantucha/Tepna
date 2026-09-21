@@ -48,6 +48,7 @@ def test_A_FAILING_FLUSH_IS_COUNTED_AND_NAMED_BY_SYMBOLIC_ERRNO(tmp_path, caplog
     assert w.flush_failures == 1
     assert "ENOSPC" in caplog.text
     assert "may NOT be on disk" in caplog.text
+    w.close()                                       # a sample writer left open leaks the process-global counter
 
 
 def test_IT_LOGS_ON_THE_TRANSITION_NOT_ON_EVERY_FAILURE(tmp_path, caplog):
@@ -60,6 +61,7 @@ def test_IT_LOGS_ON_THE_TRANSITION_NOT_ON_EVERY_FAILURE(tmp_path, caplog):
             w.flush()
     assert w.flush_failures == 500, "every failure must still be COUNTED"
     assert caplog.text.count("WRITE FAILED") == 1, "only the onset should be logged"
+    w.close()                                       # a sample writer left open leaks the process-global counter
 
 
 def test_RECOVERY_IS_REPORTED_ONCE_WITH_THE_DAMAGE_COUNT(tmp_path, caplog):
@@ -72,6 +74,7 @@ def test_RECOVERY_IS_REPORTED_ONCE_WITH_THE_DAMAGE_COUNT(tmp_path, caplog):
         w.flush()
     assert caplog.text.count("writing again") == 1
     assert "after 7 failed flush(es)" in caplog.text
+    w.close()                                       # a sample writer left open leaks the process-global counter
 
 
 def test_CLOSE_MUST_NOT_CLAIM_RECOVERY_ITS_OWN_FLUSH_DID_NOT_EARN(tmp_path, caplog):
