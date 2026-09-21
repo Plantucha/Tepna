@@ -45,7 +45,15 @@
   "quality": {
     "analyzablePct": 100,
     "cleanBeatPct": 100,
-    "coveragePct": 100
+    "coveragePct": 100,
+    "ecgRail": {
+      "lo": null,
+      "hi": null,
+      "mirrorLo": null,
+      "mirrorHi": null,
+      "absent": true,
+      "samples": null
+    }
   },
   "hrv": {
     "time": {

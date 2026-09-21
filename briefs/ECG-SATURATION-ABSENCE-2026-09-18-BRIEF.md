@@ -180,3 +180,17 @@ change (moves ECGDex's `computeHash`) and is not taken here. Denominator: this i
 carries no corpus denominator — §7's 602-vs-598 question is Heron's census's, not this table's.
 
 **Fleet-Session:** Magpie
+
+**7.5 · The matcher keyed on magnitude (owner ruling D9.3, built #PRNUM, 2026-09-21).** Measured before writing:
+the H10's positive pin sits **2–3 µV under |railLo|** on 5 of 5 files checked (−18033↔18031, −18133↔18131,
+−18733↔18731, −18233↔18231, −18600↔18597), and on the three §7.2/§7.4 files a few stray OPENING samples above the
+real pin (18 at 18064, 2 at 18597, 8 at 18731 — each at what looks like a previous session's rail) are the
+outermost value, so the edge scan stops at the first value gap and returns the spike (09-16) or null (09-12,
+09-15). `ecgRails` now mirrors each qualified rail through the same spike qualification and `computeSQI` keys on
+the set; `quality.ecgRail.samples` counts rail samples over the WHOLE record, beat or no beat. Census over all
+602 files (546 with samples): **exactly the three named files gain a mirror value** (4 runs ≥200, 4052 samples),
+66 of 67 edge-found `railHi` agree with the mirror, 0 mirrors elsewhere. The three runs now join the *caught*
+population (58 → 61); the median-filled 28 are unchanged, because the interval-level exclusion needs the
+run-length cut PINNED-SPAN §7 leaves unchosen and is not built here.
+
+**Fleet-Session:** Magpie
