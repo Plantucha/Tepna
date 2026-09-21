@@ -113,20 +113,26 @@ engineering constraint — is [`docs/WHY-THIS-EXISTS.md`](docs/WHY-THIS-EXISTS.m
 > refuses rather than guesses: an O2Ring axis that turned out to be **drawn** — synthesized from a
 > sample index, not a clock — is now detected and declared as such instead of being silently trusted.
 >
-> **In `2.10.0` (2026-08-30 → 2026-09-07, 354 commits, 160 changesets).** The mutation program now
-> covers all **nine DSP modules — 9,388 mutants, 50 % killed**, published per file in
-> [`docs/MUTATION-INVENTORY.md`](docs/MUTATION-INVENTORY.md) rather than as one headline. The capture
-> lane got a **power-aware BLE lifecycle** for the O2Ring (an explicit 12-state machine; presence
-> scanning drops from a 50 % duty to 8–17 % when nothing is near) and a **restart-storm hold** after a
-> night in which the ring was reset **520 times** (quiet nights: 1–2). The ring's lossless `0x03`
-> pleth stream is decoded and measured at **125.058 Hz** (the 125 Hz ADC to 0.05 % — the earlier 112.9 Hz
-> figure did not reproduce), and PpgDex now reads the ring's raw dual-wavelength `_PPG2W.txt`. BLE
-> identity is **address-only** throughout; a nightly sniffer audit of the box's own air is in service
-> (and honest about its ≈50 % window coverage). The clock work found a harder case than drift — a device
-> counter **stepping 7.66 years mid-night** across a resync, now handled as *one device clock per axis*.
-> Two metrics were **re-tiered down** on measurement (ACC-derived respiration, EDR) and the open-defect
-> ledger moved to one row per verified defect in [`briefs/RESIDUE.md`](briefs/RESIDUE.md).
-> Full history in the **[changelog](CHANGELOG.md)**.
+> **In `2.13.0` (2026-09-17 → 2026-09-21, 181 commits, 143 changesets — four days).** The theme is
+> **absence as a value, at every layer.** OxyDex's primary stats builder had counted a dropout as a
+> reading (`null < 90` is true in JavaScript, so every absent second scored as desaturated); it now
+> rates over measured seconds only, and the NSRR adapter reads SHHS1's own `OX stat` validity channel
+> instead of discarding it. On the wearables, PpgDex reads the capture host's constant-run sidecar as a
+> **second population** rather than a second sentinel, a *saturated* span is labelled distinctly from
+> an *absent* one (owner ruling), and ECGDex's rail check — which had keyed on a global constant and
+> **fired on nothing** across 112 real saturation runs — now finds each file's own rail. Measurements
+> now travel with their provenance: OxyDex emits per-instance **measurement blocks** (value, window,
+> channel, code identity, input lineage; schema 2.1) and the Integrator consumes them behind a
+> fail-closed adapter; a published table can carry a `TABLE-PROVENANCE` stamp whose output hash reds
+> a hand-edited cell; and two withheld corrections are out — a shipped bundle had carried retracted
+> validation figures for **thirteen days**, the published site its uncorrected claims for **over a
+> month**. ECGDex's Pan–Tompkins was scored against the strap's firmware detector on **52 real nights**
+> with bands stated in advance: **98.7 %** of beats paired, RR |Δ| **0.45 ms**. The capture box asks a spare radio for an HCI round trip before
+> failing over onto it, sends the passive-scan filter BlueZ actually requires, resolves the DST
+> fall-back hour on its naive stamps, and keeps the **30 most recent nights** local while the rest are
+> tiered to the NAS after a byte-for-byte check. capture-host's mypy count fell **100 → 41** with the
+> ratchet banked at each step, and a five-round brief drain re-stamped dozens of status headers
+> against the tree rather than against memory. Full history in the **[changelog](CHANGELOG.md)**.
 
 ### Node status
 
