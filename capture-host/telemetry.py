@@ -553,6 +553,13 @@ class StreamMeta:
     fs: float           # nominal sample rate (Hz); 0 for irregular / per-event (ppi, rr, spo2)
     chans: int = 1      # channels per sample (ppg=4, acc/gyro/mag=3) — UI draws one trace per channel
     labels: tuple = ()  # per-channel labels, e.g. ("LED1","LED2","LED3","ambient") | ("X","Y","Z")
+    # The CONFIGURED device name that owns this stream, recorded where the stream is declared. None only
+    # for a registration that predates the field. This is the join key consumers must use to put a
+    # stream under a device: the bus KEY namespace (`acc_vs`, `o2ppg`, bare `ecg`) and the config's
+    # stream NAMES (`acc`, `ppg`, `ecg`) are different namespaces, and joining them by string equality
+    # matched 2 of 10 streams on the live box — by accident (residue
+    # 2026-09-05-capture-status-joins-two-key-namespaces).
+    device: "str | None" = None
 
 
 # Device-unique base streams. Anything that can come from >1 device (ACC/GYRO/MAG/PPI/PPG) is registered
@@ -650,6 +657,9 @@ class TelemetryBus:
                    # WIRE KEY UNCHANGED — `capture_status.py` and `monitor.html` read "active".
                    # It means "ever pushed in this process", not "live now"; `health` is liveness.
                    "active": m.key in self._ever_pushed,
+                   # Additive: which configured device owns the key. Consumers join on THIS, never on the
+                   # key's spelling. None when the registration did not say.
+                   "device": m.device,
                    # null, not 0, when the window holds no interval — the JSON contract mirrors
                    # `_stream_rate`'s refusal rather than flattening it into a measured zero.
                    "effFs": None if eff is None else round(eff, 3),
@@ -668,10 +678,21 @@ class TelemetryBus:
         return dict(self._shape_err)
 
     def register(self, key: str, label: str, unit: str, fs: float,
-                 chans: int = 1, labels=()) -> None:
+                 chans: int = 1, labels=(), device: "str | None" = None) -> None:
         """Declare a stream so the UI shows it (with per-channel labels) even before the first frame.
-        Idempotent; call once per device stream when its capture opens."""
-        self._meta[key] = StreamMeta(key, label, unit, fs, chans, tuple(labels))
+        Idempotent; call once per device stream when its capture opens. `device` is the configured
+        device name that owns the stream — last and optional so every existing caller is unchanged, and
+        the ONLY sanctioned way for a consumer to learn which device a bus key belongs to."""
+        self._meta[key] = StreamMeta(key, label, unit, fs, chans, tuple(labels), device)
+
+    def claim(self, key: str, device: str) -> None:
+        """Name the configured device that owns an ALREADY-declared stream. For the `DEFAULT_META` keys
+        (`ecg`, `spo2`, `pr`): they are declared at import time, before any config is read, so the owner
+        can only be attached when that device's task opens. A no-op for a key that was never declared —
+        claiming does not declare, so a typo cannot conjure a stream."""
+        m = self._meta.get(key)
+        if m is not None:
+            self._meta[key] = StreamMeta(m.key, m.label, m.unit, m.fs, m.chans, m.labels, device)
 
     def unregister(self, key: str) -> None:
         """Drop a stream (e.g. its START was rejected) so it stops showing as an idle card."""
