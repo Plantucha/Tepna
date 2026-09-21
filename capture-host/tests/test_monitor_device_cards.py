@@ -22,6 +22,7 @@ import subprocess
 import tempfile
 
 import pytest
+from _monitor_chips import stub_prelude  # noqa: E402
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MON = os.path.join(HERE, "monitor.html")
@@ -131,11 +132,11 @@ def _render(settings_devs, state_devs=STATE_DEVS):
         "const $ = () => __el;\n"
         "const esc = s => String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"
         "'\"':'&quot;',\"'\":'&#39;'}[c]));\n"
-        "const chargeChip=()=>'' , wornChip=()=>'', rateChip=()=>'', battChip=()=>'',\n"
-        "      deviceHealth=()=>({health:'',title:''}), rssiChip=()=>'', clkChip=()=>'',\n"
-        "      presenceChip=()=>'', witnessChip=()=>'', oxyLifeChip=()=>'', oxyRecChip=()=>'',\n"
-        "      oxyStormChip=()=>'',\n"
-        "      lastSampleText=()=>'',\n"
+        # Every chip renderRemembered reaches, stubbed from the SAME derivation the scope test uses —
+        # a chip added to the template is stubbed here without anyone editing this file
+        # (residue 2026-09-05-monitor-chip-registries).
+        + stub_prelude() +
+        "const lastSampleText=()=>'',\n"
         "      recPanelId=a=>'rec-'+a, defaultRate=(d,k,o)=>o[0], rateAdvice=()=>null,\n"
         "      STREAM_LABEL={}, PREF_RATE={}, renderRingRtc=()=>'', ringConfigRow=()=>'',\n"
         "      fmtSecs=s=>String(s), ringKnob=()=>'', renderRingIdentity=()=>'';\n"
