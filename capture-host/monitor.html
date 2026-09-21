@@ -3620,30 +3620,71 @@ const RPRE_MS=280, RPOST_MS=470;
 function corr(a,b){ const n=a.length; let sa=0,sb=0; for(let i=0;i<n;i++){sa+=a[i];sb+=b[i];} sa/=n;sb/=n;
   let num=0,da=0,db=0; for(let i=0;i<n;i++){const x=a[i]-sa,y=b[i]-sb; num+=x*y; da+=x*x; db+=y*y;}
   return (da&&db)? num/Math.sqrt(da*db):0; }
+// 5–15 Hz IIR bandpass: one RBJ constant-peak-gain biquad (f0 = √(5·15) ≈ 8.7 Hz, Q = f0/10) run TWICE in
+// cascade (4th order), causally, over a copy with the median removed first so the start-up transient is a
+// fraction of one beat, not a DC step. The QRS lives in this band; baseline wander (< 1 Hz) and T-waves
+// (< 5 Hz) do not — one biquad leaves ~2.7 % of a 0.2 Hz wander (4 mV → ~100 µV, comparable to a filtered
+// R), the cascade ~0.07 %. Below 4·hi the band would sit against Nyquist, so the signal passes through
+// unfiltered (returns s itself). VIGIL-DEEP-ANALYSIS §1.2 / residue 2026-09-02-box-detector-lacks-bandpass.
+function bandpassIIR(s,fs,lo=5,hi=15){
+  const n=s.length; if(n<3 || !(fs>=4*hi)) return s;
+  const srt=s.slice().sort((a,b)=>a-b), med = n%2 ? srt[(n-1)>>1] : (srt[n/2-1]+srt[n/2])/2;
+  const f0=Math.sqrt(lo*hi), q=f0/(hi-lo), w0=2*Math.PI*f0/fs, al=Math.sin(w0)/(2*q), cw=Math.cos(w0);
+  const a0=1+al, b0=al/a0, b2=-al/a0, a1=-2*cw/a0, a2=(1-al)/a0;
+  let x=Float64Array.from(s, v=>v-med);
+  for(let pass=0;pass<2;pass++){
+    const y=new Float64Array(n); let x1=0,x2=0,y1=0,y2=0;
+    for(let i=0;i<n;i++){ const xi=x[i], v=b0*xi+b2*x2-a1*y1-a2*y2; y[i]=v; x2=x1; x1=xi; y2=y1; y1=v; }
+    x=y;
+  }
+  return x;
+}
 function detectRs(s,fs){
   // Robust R-peak detection (VIGIL-DEEP-ANALYSIS §2B). The old detector keyed the threshold on the WINDOW
   // MAXIMUM (`thr = 0.55*max|s-mean|`), so ONE motion/electrode spike inflated `amax` and pushed the
   // threshold above every real R — HR read "—" for the whole 5-7 s window until the spike scrolled out
   // (proven live: one 12x spike → 0 beats). Median centre + MAD (median absolute deviation) scale is
   // robust: a spike is a single outlier that moves NEITHER the median nor the MAD. Validated live on real
-  // H10 ECG — clean / 1-spike / 5-spike all track ~54 bpm; a pathological baseline wander returns NO beats
-  // (an honest dash, not the old detector's fabricated ~205 bpm). Pure array math, no deps.
+  // H10 ECG — clean / 1-spike / 5-spike all track ~54 bpm. Detection runs on the 5–15 Hz BANDPASSED copy
+  // (residue 2026-09-02-box-detector-lacks-bandpass): on the raw buffer a baseline wander of a few R
+  // amplitudes over the window put every sample beyond 5·MAD of the median and the detector returned NO
+  // beats — an honest dash, but a dash for a signal that carried every beat. A bandpassed R is BIPHASIC,
+  // so a window-wide polarity vote can lock onto its trailing lobe: detection is on the RECTIFIED filtered
+  // signal and polarity is decided per beat on the raw window instead. The band also lowers the noise floor
+  // the 5·MAD threshold is cut from, so two guards the raw detector never needed: the first 0.25 s is
+  // skipped (filter settling) and a candidate under 35 % of the MEDIAN candidate amplitude is dropped (a
+  // T-wave's residual is ~15 % of R). The median, not a high percentile: spikes are a minority of the
+  // candidates, so they cannot move it — measured with five 12× spikes, a 75th percentile became a spike
+  // and dropped every R — and if T residuals ever outnumber R's the guard merely stops rejecting rather
+  // than rejecting beats. Each kept R is then
+  // refined to the raw extremum in [−120 ms, +50 ms] (the causal filter only ever LAGS) so the indices
+  // still point at the raw buffer the morphology windows are cut from. Pure array math, no deps.
   const n=s.length; if(n<20) return [];
-  const srt=s.slice().sort((a,b)=>a-b);
+  const f=bandpassIIR(s,fs);
+  const srt=f.slice().sort((a,b)=>a-b);
   const med = n%2 ? srt[(n-1)>>1] : (srt[n/2-1]+srt[n/2])/2;      // robust centre (a spike can't drag it)
-  const dev=new Array(n); for(let i=0;i<n;i++) dev[i]=s[i]-med;
-  const adev=dev.map(Math.abs).sort((a,b)=>a-b);
+  const dev=new Array(n); for(let i=0;i<n;i++) dev[i]=Math.abs(f[i]-med);
+  const adev=dev.slice().sort((a,b)=>a-b);
   const mad = n%2 ? adev[(n-1)>>1] : (adev[n/2-1]+adev[n/2])/2;   // robust scale (noise floor, not the peak)
   if(mad<1) return [];                                            // flat / near-DC → no beats (presence gate)
-  let sp=0,sn=0; for(let i=0;i<n;i++){ if(dev[i]>6*mad) sp++; else if(dev[i]<-6*mad) sn++; }
-  const pol=sp>=sn?1:-1, thr=5*mad, refr=Math.round(0.3*fs), half=Math.round(0.05*fs);
-  const peaks=[]; let last=-refr;
-  for(let i=1;i<n-1;i++){
-    if(dev[i]*pol>thr && i-last>refr){
-      let j=i,ext=dev[i]*pol;
-      for(let k=Math.max(0,i-half);k<Math.min(n,i+half);k++){ const e=dev[k]*pol; if(e>ext){ext=e;j=k;} }
-      peaks.push(j); last=j;
+  const thr=5*mad, refr=Math.round(0.3*fs), half=Math.round(0.05*fs), back=Math.round(0.12*fs);
+  const cand=[]; let last=-refr;
+  for(let i=Math.max(1,Math.round(0.25*fs));i<n-1;i++){
+    if(dev[i]>thr && i-last>refr){
+      let j=i,ext=dev[i];
+      for(let k=Math.max(0,i-half);k<Math.min(n,i+half);k++){ if(dev[k]>ext){ext=dev[k];j=k;} }
+      cand.push([j,ext]); last=j;
     }
+  }
+  if(!cand.length) return [];
+  const amps=cand.map(c=>c[1]).sort((a,b)=>a-b), aref=amps[amps.length>>1];
+  const peaks=[];
+  for(const [i,a] of cand){
+    if(a<0.35*aref) continue;
+    const lo=Math.max(0,i-back), hi=Math.min(n,i+half);
+    const w=s.slice(lo,hi).sort((a,b)=>a-b), lmed=w[w.length>>1];   // local raw baseline (wander-tolerant)
+    let j=i,ext=-1; for(let k=lo;k<hi;k++){ const e=Math.abs(s[k]-lmed); if(e>ext){ext=e;j=k;} }
+    peaks.push(j);
   }
   return peaks;
 }

@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**197 tools** · 195 with a purpose line · **2 without**
+**199 tools** · 197 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -111,6 +111,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`o2ring-finger-validate-batch.mjs`](../tools/o2ring-finger-validate-batch.mjs) | // Batch real-data validation of the O2Ring finger-site round-trip (PPGDEX-O2RING-FINGER-SITE §6). |
 | [`o2ring-frame-cadence.mjs`](../tools/o2ring-frame-cadence.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ IS THE O2RING'S ~1 Hz CADENCE A FIRMWARE CLOCK OR HOST BLE FRAMING? |
 | [`o2ring-step-imbalance.mjs`](../tools/o2ring-step-imbalance.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS §2 — does the step imbalance track the POLL INTERVAL? |
+| [`oracle-ecg-firmware-rr.mjs`](../tools/oracle-ecg-firmware-rr.mjs) | Runs MEASUREMENT-PROVENANCE-ROADMAP §5's first target over the real corpus: every H10 night that carries both `_ECG.txt` and `_RR.txt` is scored as ECGDex's own R-peak train… |
 | [`oxy-hr-bias.mjs`](../tools/oxy-hr-bias.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ R5-HR-TRIPLET-REFERENCE §5 — "Investigate OxyDex's −0.36 bpm bias." |
 | [`oxydex-export-staleness.mjs`](../tools/oxydex-export-staleness.mjs) | re-run OxyDex on each export's OWN named source file and report which exports no longer reproduce. |
 | [`pat-axis-leg-audit.mjs`](../tools/pat-axis-leg-audit.mjs) | PAT-ROOT-CAUSE-FORENSICS §2/§3/§5: do the two legs of a PAT measurement ride the SAME time axis? |
@@ -139,6 +140,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`pb-operating-point.mjs`](../tools/pb-operating-point.mjs) | what does OxyDex's periodic-breathing detector actually track? |
 | [`per-group-coverage.mjs`](../tools/per-group-coverage.mjs) | Aggregate coverage (`npm run coverage:json`, read by tools/mutation-reach.mjs) answers "does ANY test execute this line". |
 | [`pin-coverage.mjs`](../tools/pin-coverage.mjs) | WHY IT EXISTS. `pinnedSpans` has detected O2Ring in-band blanking since #2317 and the export has REPORTED it as `quality.pinnedCoverage`, but nothing consumed it: every rMSSD/SD1/LF:HF was… |
+| [`pletha-marker-oracle.mjs`](../tools/pletha-marker-oracle.mjs) | `pinnedSpans` (ppgdex-dsp.js) steps over an ISOLATED `156` when merging spans — it treats a lone 156 as the O2Ring's inserted beat-marker row and a RUN of 156s as signal that happens to… |
 | [`ppg-bridge-hrv-validate.mjs`](../tools/ppg-bridge-hrv-validate.mjs) | does O2RING-PPG-GAP §4 move finger HRV toward or away from chest ECG? |
 | [`ppg-foot-consensus-e1.mjs`](../tools/ppg-foot-consensus-e1.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-1 E-1 asks: "does foot-domain consensus (feet on all three channels, de-offset, ±40 ms) recover the 1-of-3 drop rate without admitting false beats? |
 | [`ppg-foot-residual-sweep.mjs`](../tools/ppg-foot-residual-sweep.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ THE RESIDUAL 2.2–13.2 ms — per-night inter-LED foot dispersion against PRE-REGISTERED… |
