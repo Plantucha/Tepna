@@ -838,7 +838,7 @@ tr.ndrawer td{background:var(--surface2)!important;padding:0!important;}
       <div class="section-title">Nights on disk</div>
       <div class="card">
         <div class="nights-wrap"><table class="nights" id="ledgerTable"></table></div>
-        <div class="hint">Each figure is that analyzer's input on disk for the night — size / hours covered by its primary stream. Click it to open the analyzer with those files loaded and processed. Amber size = the stream covered under 60 % of the night's longest. ✓ opens the fused tool with the night's ECG + PPG (+ ring) loaded; ✗ = an input is missing; — = nothing captured (no CGM, no Muse on this box). Integrator figures are the raw input a fold would take — folds run on rig, not in the browser.</div>
+        <div class="hint">Each figure is that analyzer's input on disk for the night — size / hours covered by its primary stream. Click it to open the analyzer with those files loaded and processed. Amber size = the stream covered under 60 % of the night's longest. ✓ = every input the fused tool needs is on disk (it opens with them once the tool reads capture-host filenames); ✗ = an input is missing; — = nothing captured (no CGM, no Muse on this box). Integrator figures are the raw input a fold would take — folds run on rig, not in the browser; HRVDex figures are the raw Polar input that reaches it through an ECGDex export.</div>
       </div>
     </section>
 
@@ -1246,9 +1246,17 @@ const NIGHT_APP = {ECGDex:"ECGDex.html", OxyDex:"OxyDex.html", PPGDex:"PpgDex.ht
   MotionDex:"MotionDex.html", GlucoDex:"GlucoDex.html", HRVDex:"HRVDex.html", EEGDex:"EEGDex.html", Integrator:"Integrator.html",
   "3 corner hat":"sensor-trio-power-analysis.html", PAT:"PAT Feasibility.html"};
 // Which file input in each app takes which files. ECGDex splits its inputs by stream; every other app
-// takes everything through one `multiple` input. A missing entry = the first file input on the page.
+// takes everything through one `multiple` input.
+// Every loadable node names the input its night goes to. A node without a route REFUSES rather than
+// guessing: the first `input[type=file]` in a document is not the recording input — OxyDex's is its
+// ECG-export sidecar loader (#ecgJsonInput), and the first deployed click sent four SpO₂ CSVs there,
+// where they were silently dropped (measured 2026-09-20). test_webmon_nights checks each selector
+// against the app's own source, so an app renaming its input reds the gate instead of the click.
 const NIGHT_INPUT = {ECGDex:[["_ECG.txt","#ecgInput"],["_ACC.txt","#accInput"],["_RR.txt","#rrInput"],["_HR.txt","#hrInput"]],
-  PulseDex:"#rawInput", MotionDex:"#mxInput"};
+  OxyDex:"#fileInput", PPGDex:"#fileInput", PulseDex:"#rawInput", CPAPDex:"#fileInput", MotionDex:"#mxInput"};
+// Figure-only columns: the raw input on disk that reaches the app through another node, never a click.
+const NIGHT_WHY_NOT = {Integrator:"raw input of a fold — folds run on rig (tools/trio-batch.mjs), not in the browser",
+  HRVDex:"HRVDex reads Welltory CSV or an ECGDex export — this raw Polar input reaches it through ECGDex"};
 const NIGHT_GROUP = {ECGDex:"polar",HRVDex:"polar",PulseDex:"polar",PPGDex:"polar",MotionDex:"polar",OxyDex:"wellue",CPAPDex:"resmed",GlucoDex:"fused",EEGDex:"fused",Integrator:"fused"};
 let NIGHTS = null;
 const nMB = b => b>=1e9 ? (b/1e9).toFixed(2)+' GB' : b>=1e6 ? Math.round(b/1e6)+' MB' : (b/1e3).toFixed(0)+' kB';
@@ -1261,12 +1269,17 @@ function nFig(n, c, ver){
   const v=n[c]; if(v===undefined||v===null) return '<span class="nnone">—</span>';
   const s=nSpan(n); const part = v.hours!=null && s>=1 && v.hours < 0.6*s;
   const cls = 'nfig'+(part?' partial':'')+(v.loadable?'':' static');
-  const attrs = v.loadable ? ` data-night="${n.night}" data-node="${c}" title="open ${c} with this night loaded"` : ' title="raw input of a fold — folds run on rig (tools/trio-batch.mjs), not in the browser"';
+  const attrs = v.loadable ? ` data-night="${n.night}" data-node="${c}" title="open ${c} with this night loaded"` : ` title="${NIGHT_WHY_NOT[c]||'shown, not offered'}"`;
   if(ver==='ledger') return `<button type="button" class="${cls}"${attrs}><span class="mb">${nMB(v.bytes)}</span><span class="h">/ ${nHrs(v.hours)}</span></button>`;
   const pct = v.hours==null ? 0 : Math.round(100*Math.min(1, v.hours/s));
   return `<button type="button" class="${cls}"${attrs}><span class="ncov ${NIGHT_GROUP[c]}"><span><span class="mb">${nMB(v.bytes)}</span> <span class="h">${nHrs(v.hours)}</span></span><span class="bar"><i class="${part?'short':''}" style="width:${pct}%"></i></span></span></button>`;
 }
-function nDerived(n, k){ return n[k] ? `<span class="pill pill-green click" data-night="${n.night}" data-node="${k}" title="open ${k} with this night's inputs loaded">✓ open</span>` : '<span class="pill pill-gray" title="an input this tool needs is missing tonight">✗</span>'; }
+// ✓ = every input the tool needs is on disk tonight. NOT a click yet: both tools classify files by the
+// phone-app names (Polar_H10_<id>_YYYYMMDD_HHMMSS_HR.txt · Polar_Sense_… · O2Ring…_<14 digits>.csv) and
+// index 0 nights from the box's (Polar_H10_<id>_YYYYMMDDHHMMSS_… · Polar_VeritySense_… ·
+// Wellue_O2Ring-S_…_SPO2.csv) — measured 2026-09-20, 0 of 134 files matched. Offering the click would
+// open a tool that reports nothing; the classifiers are the fix (RESIDUE 2026-09-20-tool-classifiers-phone-names).
+function nDerived(n, k){ return n[k] ? `<span class="pill pill-green" title="every input ${k} needs is on disk tonight — the tool does not yet read capture-host filenames, so open it and drop the files once it does">✓</span>` : '<span class="pill pill-gray" title="an input this tool needs is missing tonight">✗</span>'; }
 function nStrip(rows){
   const tot=rows.reduce((a,n)=>a+NIGHT_COLS.reduce((b,c)=>b+(n[c]?n[c].bytes:0),0),0);
   const trio=rows.filter(n=>n['3 corner hat']).length;
@@ -1292,8 +1305,9 @@ function renderNights(ver){
     h+=`<tr><td class="date"><button type="button" class="nfig" data-drawer="${n.night}" title="every file this night holds">${n.night}</button><small>${wd} · longest ${nHrs(nSpan(n))}</small></td>`+NIGHT_CAPTURE_ORDER.map(c=>`<td>${nFig(n,c,'capture')}</td>`).join('')+NIGHT_DERIVED.map(k=>`<td>${nDerived(n,k)}</td>`).join('')+'</tr>';
     h+=`<tr class="ndrawer" id="ndr-${n.night}" hidden><td colspan="${NIGHT_CAPTURE_ORDER.length+3}"><div class="ndrawer-in">`+[...NIGHT_CAPTURE_ORDER,...NIGHT_DERIVED].map(c=>{
       const v=n[c]; const isTool=NIGHT_DERIVED.includes(c); const ok = isTool ? v===true : !!(v && v.loadable);
-      const files = v&&v.files ? v.files.map(nBase).join('<br>') : (isTool ? (v?'uses this night\'s ECG + PPG (+ ring)':'an input is missing this night') : 'nothing captured');
-      return `<div class="nan${ok?'':' off'}"><h4>${c}${ok?`<button type="button" class="open" data-night="${n.night}" data-node="${c}">Open ▸</button>`:''}</h4><div class="files">${files}</div></div>`; }).join('')+'</div></td></tr>';
+      const files = v&&v.files ? v.files.map(nBase).join('<br>') : (isTool ? (v?'every input it needs is on disk — the tool does not yet read capture-host filenames':'an input is missing this night') : 'nothing captured');
+      const open = ok && !isTool ? `<button type="button" class="open" data-night="${n.night}" data-node="${c}">Open ▸</button>` : '';
+      return `<div class="nan${ok?'':' off'}"><h4>${c}${open}</h4><div class="files">${files}</div></div>`; }).join('')+'</div></td></tr>';
   }
   h+='</tbody>'; $('#captureTable').innerHTML=h;
 }
@@ -1332,12 +1346,13 @@ async function openNight(night, node){
   let doc; try{ doc = w.document; if(!doc.querySelector('input[type=file]')) doc=null; }catch(_){ doc=null; }
   if(!doc){ nToast(node+' opened, but this page cannot reach it (different origin) — open the monitor at http://vigil.local/monitor, or drop the files yourself', true); return; }
   const route = NIGHT_INPUT[node];
+  if(!route){ nToast(node+' opened, but the monitor has no input route for it — drop the files yourself', true); return; }
   const groups = new Map();   // input element -> File[]
   for(const f of files){
-    let sel = null;
+    let sel = route;
     if(Array.isArray(route)){ const hit=route.find(([suffix])=>f.name.endsWith(suffix)); sel = hit ? hit[1] : route[0][1]; }
-    else sel = route || 'input[type=file]:not([webkitdirectory])';
-    const el = doc.querySelector(sel) || doc.querySelector('input[type=file]:not([webkitdirectory])') || doc.querySelector('input[type=file]');
+    const el = doc.querySelector(sel);
+    if(!el){ nToast(node+' opened, but its '+sel+' input is missing — the app changed; drop the files yourself', true); return; }
     if(!groups.has(el)) groups.set(el, []); groups.get(el).push(f);
   }
   for(const [el, list] of groups){

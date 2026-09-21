@@ -22,7 +22,15 @@ import re
 
 # analyzer -> (input globs relative to the night dir — `{ymd}` for the CPAP trees keyed by date —, the
 # primary glob whose first→last stamp is the covered span). The list order is the ingest order.
-NODES: dict[str, tuple[tuple[str, ...], str | None]] = {
+# A pattern is one glob, or a tuple of ALTERNATIVE globs: the first alternative with files wins and the
+# others are ignored for that night. The CPAP night exists twice on the box — `cpap/` is the SD-card set
+# (BRP + PLD + SA2 + EVE + CSL) and `cpap-ble/` the BLE pull of the same session's BRP — and handing both
+# to CPAPDex doubled the night (measured 2026-09-19: "14.3 h therapy · 2 sessions" for a 7.2 h night).
+# One tree per night; the SD set when it is there, the BLE pull otherwise.
+Pattern = str | tuple[str, ...]
+CPAP_EDF: tuple[str, ...] = ("cpap/DATALOG/{ymd}/*.edf", "cpap-ble/DATALOG/{ymd}/*.edf")
+CPAP_BRP: tuple[str, ...] = ("cpap/DATALOG/{ymd}/*_BRP.edf", "cpap-ble/DATALOG/{ymd}/*_BRP.edf")
+NODES: dict[str, tuple[tuple[Pattern, ...], Pattern | None]] = {
     "ECGDex":     (("Polar_H10_*_ECG.txt", "Polar_H10_*_ACC.txt", "Polar_H10_*_HR.txt", "Polar_H10_*_RR.txt"),
                    "Polar_H10_*_ECG.txt"),
     "OxyDex":     (("Wellue_O2Ring-S_*_SPO2.csv",), "Wellue_O2Ring-S_*_SPO2.csv"),
@@ -30,19 +38,22 @@ NODES: dict[str, tuple[tuple[str, ...], str | None]] = {
                     "Wellue_O2Ring-S_*_PPG.txt", "Wellue_O2Ring-S_*_PPG2W.txt"),
                    "Polar_VeritySense_*_PPG.txt"),
     "PulseDex":   (("Polar_VeritySense_*_PPI.txt", "Polar_H10_*_RR.txt"), "Polar_VeritySense_*_PPI.txt"),
-    "CPAPDex":    (("cpap-ble/DATALOG/{ymd}/*.edf", "cpap/DATALOG/{ymd}/*.edf"), "cpap-ble/DATALOG/{ymd}/*_BRP.edf"),
+    "CPAPDex":    ((CPAP_EDF,), CPAP_BRP),
     "MotionDex":  (("Polar_H10_*_ACC.txt", "Polar_VeritySense_*_ACC.txt", "Wellue_O2Ring-S_*_ACCRAW.txt"),
                    "Polar_VeritySense_*_ACC.txt"),
     "GlucoDex":   ((), None),                       # no CGM on the box — always absent, never a fabricated 0
+    # HRVDex ingests Welltory CSV or an ECGDex EXPORT — never a raw Polar file (a raw RR.txt handed to
+    # it is dropped without a word, measured 2026-09-20). The box holds neither, so like the
+    # Integrator its cell is the raw input that reaches it through ECGDex, and it is not offered as a click.
     "HRVDex":     (("Polar_H10_*_HR.txt", "Polar_H10_*_RR.txt", "Polar_VeritySense_*_PPI.txt"), "Polar_H10_*_RR.txt"),
     "EEGDex":     ((), None),                       # no Muse on the box
     # The Integrator ingests NODE EXPORTS (ganglior.node-export JSON), which the box does not hold —
     # folds run on rig (tools/trio-batch.mjs). Its cell is the raw input it WOULD fold, marked
     # `loadable: False` so the monitor shows the figure and does not offer a click.
     "Integrator": (("Polar_H10_*_ECG.txt", "Polar_VeritySense_*_PPG.txt", "Wellue_O2Ring-S_*_SPO2.csv",
-                    "Polar_*_ACC.txt", "cpap-ble/DATALOG/{ymd}/*.edf"), "Polar_VeritySense_*_PPG.txt"),
+                    "Polar_*_ACC.txt", CPAP_EDF), "Polar_VeritySense_*_PPG.txt"),
 }
-NOT_LOADABLE = frozenset({"Integrator"})
+NOT_LOADABLE = frozenset({"Integrator", "HRVDex"})
 # derived tools: eligible when every required input exists; they open with those inputs loaded
 DERIVED: dict[str, tuple[str, ...]] = {
     "3 corner hat": ("Polar_H10_*_ECG.txt", "Polar_VeritySense_*_PPG.txt", "Wellue_O2Ring-S_*_PPG.txt"),
@@ -120,19 +131,36 @@ def _expand(root: str, night_dir: str, pattern: str) -> list[str]:
     return sorted(p for p in glob.glob(os.path.join(base, pattern.format(ymd=ymd))) if os.path.isfile(p))
 
 
+def _expand_alt(root: str, night_dir: str, pat: Pattern, pick: int | None = None) -> tuple[list[str], int | None]:
+    """A plain glob expands as is (index None). Alternatives expand to the FIRST one with files and its
+    index — or, with `pick`, to exactly that alternative, so a primary reads from the tree the files came from."""
+    if isinstance(pat, str):
+        return _expand(root, night_dir, pat), None
+    if pick is not None:
+        return _expand(root, night_dir, pat[pick]), pick
+    for i, p in enumerate(pat):
+        got = _expand(root, night_dir, p)
+        if got:
+            return got, i
+    return [], None
+
+
 def night_entry(root: str, night_dir: str) -> dict:
     """One night, every column. A node with no input is `None`; a derived tool is True/False."""
     out: dict = {"night": os.path.basename(night_dir)}
     for node, (patterns, primary) in NODES.items():
         files: list[str] = []
+        tree: int | None = None
         for p in patterns:
-            files += _expand(root, night_dir, p)
+            got, i = _expand_alt(root, night_dir, p)
+            files += got
+            tree = i if tree is None else tree
         files = sorted(set(files))
         if not files:
             out[node] = None
             continue
         hours = None
-        prims = _expand(root, night_dir, primary) if primary else []
+        prims = _expand_alt(root, night_dir, primary, tree)[0] if primary else []
         if prims:
             f = max(prims, key=os.path.getsize)
             hours = edf_hours(f) if f.lower().endswith(".edf") else span_hours(f)

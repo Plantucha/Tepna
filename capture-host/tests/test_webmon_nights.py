@@ -74,3 +74,136 @@ def test_the_monitor_carries_the_ledger_and_capture_pages_and_the_load_hook():
     import nights_index as ni
     for col in ni.COLUMNS:
         assert f'{col if " " in col else col}:' in html or f'"{col}":' in html, f"no app mapped for {col}"
+
+
+def _monitor_js_table(html, name):
+    """The `const NAME = {...};` literal from the monitor, as a Python dict (the values are JSON)."""
+    import json
+    import re
+
+    m = re.search(r"const " + name + r" = (\{.*?\});\n", html, re.S)
+    assert m, name
+    # bare identifiers as keys → quoted; everything else in these tables is already JSON
+    return json.loads(re.sub(r"(?<=[{,\s])([A-Za-z_]\w*)(?=:)", r'"\1"', m.group(1)))
+
+
+def test_every_clickable_night_routes_to_an_input_the_app_actually_has():
+    """The first deployed click (2026-09-20) sent OxyDex's four SpO₂ CSVs to `#ecgJsonInput` — the
+    document's FIRST file input, which is its ECG-export sidecar loader — because OxyDex had no route
+    and the monitor fell back to a positional guess; the files were silently dropped. Now every node a
+    click can reach names its input, and each selector is checked against the app's OWN source so a
+    renamed input reds here rather than at the click. The population is derived from the index and pinned
+    as an EQUALITY: every NODES entry with a glob (a night can hold it) that is loadable — and nothing
+    else, so a route for a figure-only column (HRVDex) cannot quietly come back."""
+    import re
+
+    import nights_index as ni
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    routes = _monitor_js_table(html, "NIGHT_INPUT")
+    apps = _monitor_js_table(html, "NIGHT_APP")
+    clickable = [c for c, (globs, _p) in ni.NODES.items() if globs and c not in ni.NOT_LOADABLE]
+    assert set(routes) == set(clickable), (sorted(set(clickable) - set(routes)), sorted(set(routes) - set(clickable)))
+    # the derived tools are ✓/✗ on disk, not a click, until their classifiers read box filenames
+    # (test_the_tool_classifiers_still_reject_box_filenames is the tripwire that says when)
+    assert 'data-node="${k}"' not in html.split("function nDerived")[1].split("\n")[0]
+    # the positional fallback is gone: a missing route or selector refuses instead of guessing
+    assert "doc.querySelector('input[type=file]:not([webkitdirectory])')" not in html
+    assert "has no input route for it" in html and "input is missing" in html
+    root = os.path.dirname(here)
+    for node, route in routes.items():
+        page = apps[node]
+        src = os.path.join(root, page[:-5] + ".src.html")
+        if not os.path.exists(src):
+            src = os.path.join(root, page)  # analysis tools are authored in place
+        assert os.path.exists(src), (node, src)
+        text = open(src, encoding="utf-8").read()
+        tags = re.findall(r'<input\b[^>]*\btype="file"[^>]*>', text)
+        ids = {m.group(1) for tag in tags for m in [re.search(r'\bid="([^"]+)"', tag)] if m}
+        sels = [s for _suffix, s in route] if isinstance(route, list) else [route]
+        for sel in sels:
+            assert sel.startswith("#") and sel[1:] in ids, (node, sel, sorted(ids))
+
+
+def test_a_cpap_night_present_in_both_trees_is_handed_over_once(tmp_path):
+    """Both `cpap/` (SD card) and `cpap-ble/` (BLE pull) hold the same session; handing CPAPDex both
+    doubled the night (14.3 h therapy for 7.2 h). The SD set wins when present, the BLE pull otherwise,
+    and the hours figure reads from the tree the files came from."""
+    import nights_index as ni
+
+    root = tmp_path / "captures"
+    (root / "2026-09-19").mkdir(parents=True)
+
+    def edf(rel, records):
+        p = root / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        hdr = bytearray(b" " * 256)
+        hdr[236:244] = f"{records:<8d}".encode()
+        hdr[244:252] = b"1       "
+        p.write_bytes(bytes(hdr))
+
+    edf("cpap-ble/DATALOG/20260919/20260919_230717_BRP.edf", 7200)
+    only_ble = ni.night_entry(str(root), str(root / "2026-09-19"))["CPAPDex"]
+    assert [f.split("/")[0] for f in only_ble["files"]] == ["cpap-ble"] and only_ble["hours"] == 2.0
+    for kind, records in (("BRP", 3600), ("PLD", 3600), ("SA2", 3600)):
+        edf(f"cpap/DATALOG/20260919/20260919_230652_{kind}.edf", records)
+    both = ni.night_entry(str(root), str(root / "2026-09-19"))["CPAPDex"]
+    assert {f.split("/")[0] for f in both["files"]} == {"cpap"} and len(both["files"]) == 3
+    assert both["hours"] == 1.0, both  # the SD tree's BRP, not the BLE pull's
+    assert both["bytes"] == 3 * 256
+    # the Integrator's figure follows the same rule — it lists the raw input a fold would take, once
+    integ = ni.night_entry(str(root), str(root / "2026-09-19"))["Integrator"]
+    assert {f.split("/")[0] for f in integ["files"]} == {"cpap"}
+
+
+def test_hrvdex_is_a_figure_never_a_click(tmp_path):
+    """HRVDex ingests Welltory CSV or an ECGDex export; a raw Polar RR file handed to it is dropped
+    silently (measured 2026-09-20). Its cell keeps the raw-input figure and `loadable: False`."""
+    import nights_index as ni
+
+    d = _night(tmp_path)
+    (d / "Polar_H10_02849638_20260919220000_RR.txt").write_text(ROWS)
+    e = ni.night_entry(str(tmp_path / "captures"), str(d))
+    assert e["HRVDex"]["loadable"] is False and e["HRVDex"]["hours"] == 1.0
+    assert e["ECGDex"]["loadable"] is True
+
+
+BOX_NAMES = (
+    "Polar_H10_02849638_20260919183658_ECG.txt",
+    "Polar_H10_02849638_20260919183658_HR.txt",
+    "Polar_VeritySense_0C301E3F_20260919183724_PPG.txt",
+    "Wellue_O2Ring-S_S8AW2100_20260919002219_SPO2.csv",
+)
+
+
+def _classifier_regexes(path):
+    """Every STAMP-capturing regex literal inside the tool's `function classify(...)` body — the ones
+    that classify a file (they capture the YYYYMMDD stamp); a bare device test like /Polar_H10/ only
+    picks a role after the match. Compiled by Python `re` (the literals there share syntax)."""
+    import re
+
+    text = open(path, encoding="utf-8").read()
+    start = text.index("function classify(")
+    body = text[start:text.index("\n  }\n", start)]
+    out = []
+    for m in re.finditer(r"/((?:\\/|[^/\n])+)/([a-z]*)", body):
+        if "(" not in m.group(1):
+            continue
+        try:
+            out.append(re.compile(m.group(1), re.I if "i" in m.group(2) else 0))
+        except re.error:
+            continue  # a JS-only construct Python cannot compile is not a classifier we can test; the assert below requires ≥1 survivor
+    assert out, path
+    return out
+
+
+def test_the_tool_classifiers_still_reject_box_filenames():
+    """TRIPWIRE, and it is meant to red. Measured 2026-09-20: 0 of the 134 files in the box's 09-19 night
+    match either tool's classifier — both were written for the phone-app names. The Ledger therefore
+    shows the tools' ✓ as on-disk eligibility and offers no click. The day a classifier accepts a box
+    name this fails, and the fix is to offer the click again (NIGHT_INPUT + nDerived), not to edit here."""
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    for tool in ("sensor-trio-power-analysis.js", "pat-feasibility.js"):
+        hits = [(n, r.pattern) for r in _classifier_regexes(os.path.join(root, tool)) for n in BOX_NAMES if r.search(n)]
+        assert not hits, f"{tool} now reads capture-host filenames {hits} — offer the ✓ click in monitor.html"
