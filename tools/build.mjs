@@ -84,7 +84,8 @@ function buildOne(bundleFile) {
   // suite.manifest.json; a release bumps it, and the byte-compare in --check reds any bundle still
   // carrying the old string until it is rebuilt.
   const suiteVersion = JSON.parse(readT('suite.manifest.json')).version;
-  return DexBuild.build({ srcHtml, assets, suiteVersion }); // { html, manifestHash, assetNames }
+  // roadmap §3: the compute-closure predicate comes from manifest-gate.js, never restated here.
+  return DexBuild.build({ srcHtml, assets, suiteVersion, isComputeAsset: ManifestGate.isComputeAsset }); // { html, manifestHash, computeHash, assetNames }
 }
 
 // Re-stamp a bundle's manifestHash into its per-app provenance/ fragment (P3 — the two monolith
