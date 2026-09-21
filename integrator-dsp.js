@@ -958,6 +958,67 @@ function _ecgPostureSeries(json, t0Ms) {
    top-level events) fall through to per-night SYNTHESIS of desat_event (from desatProfile.events)
    + autonomic_arousal (from hr_spikes). The tolerant reader accepts BOTH Array.isArray(json) (legacy)
    and json.nights[] (envelope), normalizing to nights[] internally — old fixtures keep ingesting. */
+/* ═══ MEASUREMENT-PROVENANCE-ROADMAP §8 — CONSUME the per-instance measurement block, don't rewrite it ═══
+   A node export may carry `measurement.<metricId>` blocks (roadmap §1; OxyDex emits them since §3,
+   2026-09-21). The Integrator READS them where present, tolerates their absence (a legacy export produces a
+   rec with no `measurements` key, so every existing fixture stays byte-identical), and carries the consumed
+   REFS forward in its own export — never a copy of the payload (§4: "references, never payloads").
+
+   FAIL CLOSED (§4): a block whose refs do not resolve is marked `provenance:'unresolved'` with the reason
+   named, LOUDLY — never silently accepted as a scalar, never silently dropped. "Resolve" here means what the
+   Integrator can check without the node's registry or the raw file: the code identity is a 12-hex pair,
+   the input hash is 12-hex AND equals the night's own contentId when the night carries one (a block that
+   names a different input than the element it sits in is the fabricated-lineage case), the window is
+   finite and positive, the value is finite, and the metricId names the key it sits under.
+
+   The summary scalars every existing consumer reads (`summary.odi4`, `.meanSpo2`, `.hypoxicBurden`) stay
+   sourced from the element — and a RESOLVED block whose value disagrees with that scalar is a defect the
+   block reports on itself (`unresolved: value disagrees…`), because the roadmap's §3 invariant is that the
+   block adds lineage and never a second number. A matching block is what lets a reader walk the scalar
+   back (docs/MEASUREMENT-WALKTHROUGH-OXYDEX-2026-09-21.md). No fusion-engine work here — interface only. */
+var _HEX12 = /^[0-9a-f]{12}$/;
+function consumeMeasurements(n, scalars) {
+  var m = n && n.measurement;
+  if (!m || typeof m !== 'object' || Array.isArray(m)) return null;
+  var ids = Object.keys(m);
+  if (!ids.length) return null;
+  var out = { blocks: {}, resolved: 0, unresolved: 0 };
+  ids.forEach(function (id) {
+    var b = m[id];
+    var why = [];
+    if (!b || typeof b !== 'object') why.push('block is not an object');
+    else {
+      if (b.metricId !== id) why.push('metricId ' + b.metricId + ' does not name the key it sits under (' + id + ')');
+      if (typeof b.value !== 'number' || !isFinite(b.value)) why.push('value is not a finite number');
+      var c = b.code;
+      if (!c || !_HEX12.test(String(c.manifestHash || '')) || !_HEX12.test(String(c.computeHash || '')))
+        why.push('code identity missing or not a 12-hex pair' + (b.codeReason ? ' (' + b.codeReason + ')' : ''));
+      var ev = b.evidence || {};
+      if (ev.inputHash == null) why.push('evidence.inputHash absent' + (ev.inputReason ? ' (' + ev.inputReason + ')' : ''));
+      else if (!_HEX12.test(String(ev.inputHash))) why.push('evidence.inputHash is not a 12-hex content address');
+      else if (n.contentId != null && ev.inputHash !== n.contentId) why.push('evidence.inputHash ' + ev.inputHash + ' names a different input than the element\u2019s contentId ' + n.contentId);
+      var w = b.window || {};
+      if (!(typeof w.startTMs === 'number' && isFinite(w.startTMs) && typeof w.endTMs === 'number' && isFinite(w.endTMs) && w.endTMs > w.startTMs)) why.push('window is not a finite positive span');
+      if (scalars && Object.prototype.hasOwnProperty.call(scalars, id) && scalars[id] != null && b.value !== scalars[id])
+        why.push('value ' + b.value + ' disagrees with the element scalar ' + scalars[id] + ' — the block must add lineage, not a second number');
+    }
+    var ref = {
+      metricId: id,
+      value: b && typeof b.value === 'number' ? b.value : null,
+      basis: b && b.basis != null ? b.basis : null,
+      window: b && b.window ? { startTMs: b.window.startTMs, endTMs: b.window.endTMs, clockDomain: b.window.clockDomain != null ? b.window.clockDomain : null } : null,
+      code: b && b.code ? { manifestHash: b.code.manifestHash != null ? b.code.manifestHash : null, computeHash: b.code.computeHash != null ? b.code.computeHash : null } : null,
+      evidence: b && b.evidence ? { inputHash: b.evidence.inputHash != null ? b.evidence.inputHash : null, envelopeRef: b.evidence.envelopeRef != null ? b.evidence.envelopeRef : null } : null,
+      provenance: why.length ? 'unresolved' : 'resolved'
+    };
+    if (why.length) ref.unresolvedReason = why.join('; ');
+    out.blocks[id] = ref;
+    if (why.length) out.unresolved++;
+    else out.resolved++;
+  });
+  return out;
+}
+
 function adaptOxyDex(json, filename) {
   var _topKernel = json && !Array.isArray(json) && json.kernel ? json.kernel : null;
   var nights = Array.isArray(json) ? json : Array.isArray(json.nights) ? json.nights : [json];
@@ -1122,6 +1183,8 @@ function adaptOxyDex(json, filename) {
     } else if (_remImplausible) {
       summary.stagingSuppressed = _sp.plausibilityNote || 'oximetry REM proxy implausible (' + _sp.remProxyPct + '% of the recording)';
     }
+    // §8 — consume the per-instance lineage where the night carries it; a legacy night adds no key.
+    var _meas = consumeMeasurements(n, { odi4: summary.odi4, meanSpo2: summary.meanSpo2, hypoxicBurden: summary.hypoxicBurden, t90: stats.t90pct != null ? stats.t90pct : null });
     recs.push({
       uid: 'OxyDex@' + (t0Ms || 'n' + ni),
       node: 'OxyDex',
@@ -1141,6 +1204,7 @@ function adaptOxyDex(json, filename) {
       raw: n,
       _src: filename
     });
+    if (_meas) recs[recs.length - 1].measurements = _meas; // conditional — absent on a legacy export, so nothing downstream moves
   });
   return recs;
 }
@@ -7165,7 +7229,11 @@ function runFusion(recs, opts) {
     findings: findings,
     unmatched: apnea ? apnea.unmatched : { desat: [], surge: [] },
     nodes: recs.map(function (r) {
-      return { node: r.node, label: r.label, date: r.dateStr, window: recWindow(r), nEvents: r.nEvents, dateUnknown: r.dateUnknown };
+      var card = { node: r.node, label: r.label, date: r.dateStr, window: recWindow(r), nEvents: r.nEvents, dateUnknown: r.dateUnknown };
+      /* §8/§4 — the consumed measurements' REFS ride forward on the node card (value + identity + join +
+         provenance verdict), never the block's payload. Conditional: a node that emitted no blocks adds no key. */
+      if (r.measurements) card.measurements = r.measurements;
+      return card;
     })
   };
 }
@@ -7387,6 +7455,7 @@ window.IntegratorDSP = {
   nodeColor,
   NODE_COLORS,
   normalizeFile,
+  consumeMeasurements,
   dedupeRecs,
   recWindow,
   overlapInterval,
