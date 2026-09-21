@@ -173,6 +173,12 @@ ntfy line is untouched. **Owned by the night-report unit — do not build a seco
   twice with different PAT options and `deepEqual` the two `recording.hostAxis` blocks; (ii) a source
   scan that `pat-gate.js` and `pat-*.js` never assign into `hostAxis`, `stability`, `independent` or
   `timingSource`. Node lane; no changeset.
+  ✅ **(ii) DONE 2026-09-21 (Osprey)** — group `PAT never writes the clock — the reverse of the pinned
+  direction` (`clock · pat · source-scan`): all four `pat-*.js` scanned from `env.sources` for a property
+  assignment into `hostAxis`/`stability`/`independent`/`timingSource`/`deviceDrawn` (compound assignments
+  included, comparisons and forwarding keys excluded), with two plants the regex must catch and three
+  decoys it must not, and an assertion that all four files were examined. 10/10. **(i) still open** —
+  a behavioural leg on the real compute, sized as its own unit.
 - **Runtime (Phase 17):** one number, measured on the box: `allan.stability` on the longest real
   arrival series of a night (H10 ECG packets ≈ 2·10⁵/night). Pre-stated band: ≤ 60 s on vigil is fine
   for an end-of-night job; above it, decimate the *phase* series (not the τ ladder) and record the
