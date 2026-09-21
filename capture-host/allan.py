@@ -38,6 +38,10 @@ import math
 # needs N > 2m, and a handful of terms produces a number with a confidence interval wider than the
 # answer — the failure mode this module exists to stop.
 _MIN_TERMS = 8
+# PROVENANCE VERSION for `stability()` (ALLAN-STABILITY-GAPS §2.3). Bump when ANY estimator in this
+# module changes what it computes — a curve carrying the same keys from a different estimator is
+# the drift `manifestHash` exists to catch one layer down. Not a suite version; a module constant.
+STABILITY_VERSION = "2026-09-21-pooled"
 # A tau is only reported when the series spans at least this many of them, for the same reason.
 _MIN_SPAN_MULTIPLE = 4.0
 
@@ -110,6 +114,54 @@ def adev(phase, tau0, taus=None):
         t = m * tau0
         out.append({"tau": t, "adev": math.sqrt(acc / (2.0 * terms)) / t, "n": terms})
     return out
+
+
+def segments_by_gap(sample_times, k=4.0):
+    """Index ranges `[(start, stop), …]` of CONTIGUOUS runs in `sample_times`: a run breaks wherever an
+    interval exceeds `k` × the median interval. ALLAN-STABILITY-GAPS §2.2 step 2a. Returns one run
+    covering everything when there are too few samples to define a median. `k` is stated by the
+    caller; the corpus measurement behind the default 4 is in that brief."""
+    ts = list(sample_times or [])
+    n = len(ts)
+    if n < 3:
+        return [(0, n)]
+    deltas = sorted(b - a for a, b in zip(ts, ts[1:]) if b > a)
+    if len(deltas) < 2:
+        return [(0, n)]
+    median = deltas[len(deltas) // 2]
+    out = []
+    start = 0
+    for i in range(1, n):
+        if ts[i] - ts[i - 1] > k * median:
+            out.append((start, i))
+            start = i
+    out.append((start, n))
+    return out
+
+
+def adev_pooled(phase, tau0, sample_times, k=4.0):
+    """Overlapping ADEV across the HOLES in a series — segment at every gap > k·median, compute per
+    contiguous segment, pool per tau as the n-weighted mean of sigma^2.
+
+    Exact, not a heuristic: each segment's sigma^2 is a mean of squared second differences over `n`
+    terms, so the n-weighted mean of the segments' sigma^2 IS the mean over the union of their terms.
+    What is lost is only the terms that would have straddled a hole — which is the point: `_clean`
+    COMPACTS a hole into two adjacent samples one tau0 apart, and the phase jump across it reads as a
+    step, tau^+1 energy the classifier names "drift". A tau that no segment can support is ABSENT from
+    the pooled curve, never extrapolated. Returns `(points, meta)` with
+    `meta = {segments, dropped_intervals, pooled}`; `dropped_intervals` counts the gaps cut."""
+    x = list(phase or [])
+    runs = segments_by_gap(sample_times, k) if sample_times is not None and len(sample_times) == len(x) else [(0, len(x))]
+    if len(runs) <= 1:
+        return adev(x, tau0), {"segments": 1, "dropped_intervals": 0, "pooled": False}
+    acc = {}
+    for a, b in runs:
+        for p in adev(x[a:b], tau0):
+            e = acc.setdefault(p["tau"], [0.0, 0])
+            e[0] += p["adev"] * p["adev"] * p["n"]
+            e[1] += p["n"]
+    pts = [{"tau": t, "adev": math.sqrt(v[0] / v[1]), "n": v[1]} for t, v in sorted(acc.items()) if v[1] > 0]
+    return pts, {"segments": len(runs), "dropped_intervals": len(runs) - 1, "pooled": True}
 
 
 def _clean_pair(phase_x, phase_y):
@@ -763,7 +815,7 @@ def _mtie_summary(curve):
     }
 
 
-def stability(phase, tau0, tdev_tau=None):
+def stability(phase, tau0, tdev_tau=None, sample_times=None, gap_k=4.0):
     """The whole answer for one series: the curve, its slope, the noise type, and the BEST averaging time.
 
     `optimal_tau` is the tau minimising sigma_y — the averaging window a measurement built on this clock
@@ -789,9 +841,12 @@ def stability(phase, tau0, tdev_tau=None):
     device, so it carries BLE transport as well as the oscillator. And two streams from one recording
     are not independent corroboration — they shared that night's link conditions.
     """
-    pts = adev(phase, tau0)
+    # §2.2 step 2a: with the sample instants known, holes are CUT, not compacted. `sample_times`
+    # is LAST and optional so every existing caller is unchanged; without it the curve is the
+    # compacted one it always was and `pooled` says so.
+    pts, seg = adev_pooled(phase, tau0, sample_times, gap_k)
     if len(pts) < 3:
-        return {"ok": False, "reason": "too-few-taus", "taus": len(pts)}
+        return {"ok": False, "reason": "too-few-taus", "taus": len(pts), **seg}
     sl = slope(pts)
     se = slope_se(pts)
     best = min(pts, key=lambda p: p["adev"])
@@ -800,15 +855,42 @@ def stability(phase, tau0, tdev_tau=None):
     if tdev_tau:
         got = tdev(phase, tau0, [tdev_tau])
         td = got[0] if got else None
+    # A DEGENERATE SERIES IS AN ANSWER, NOT A REFUSAL (ALLAN-STABILITY-GAPS §2.5 A). A constant phase
+    # series has every ADEV exactly 0: `slope` fits only `adev > 0` points, so it returned None and the
+    # record shipped `classification: None` — indistinguishable from "the fit could not be made". The
+    # honest statement is that there is NO measurable instability, and it is a classification record of
+    # the same shape as the others (a caller branches on `noise` being None either way, per `classify`).
+    # Pre-decided in the brief before this was written; pinned by the test named there.
+    flat = all(p["adev"] == 0 for p in pts)
+    cls = (
+        {"slope": None, "slope_se": None, "n_tau": len(pts), "noise": None, "candidates": None,
+         "meaning": "no measurable instability — every ADEV is exactly 0 (a constant series); the slope is undefined, not a category"}
+        if flat
+        else classify(sl, se, len(pts))
+    )
     return {
         "ok": True,
+        # ── PROVENANCE (§2.3): a curve without its tau0 and n is a ppm without its span, one level up.
+        #    Additive keys; series identity (device, meas) stays at the nightqc level where it lives.
+        "tau0": tau0,
+        "n": len(phase),
+        "span_s": (len(phase) - 1) * tau0,
+        "estimator": "overlapping-adev",
+        "min_terms": _MIN_TERMS,
+        "span_multiple": _MIN_SPAN_MULTIPLE,
+        "version": STABILITY_VERSION,
+        # §2.2 step 2a — how the curve treated holes. `pooled: False` means COMPACTED (no sample
+        # instants were given), which on a gappy arrival series overstates tau^+1 energy.
+        "segments": seg["segments"],
+        "dropped_intervals": seg["dropped_intervals"],
+        "pooled": seg["pooled"],
         "taus": len(pts),
         "tau_min": pts[0]["tau"],
         "tau_max": pts[-1]["tau"],
         "adev_min": best["adev"],
         "optimal_tau": best["tau"],
         "at_longest": pts[-1]["adev"],
-        "classification": classify(sl, se, len(pts)),
+        "classification": cls,
         # A SECOND, INDEPENDENT OPINION on the same question (Riley & Greenhall 2004). It fits no slope,
         # so it has no boundary to refuse near — where `classification` declines because the CI straddles
         # an edge, this still answers. Published beside rather than instead: see `noise_id`'s note on the
