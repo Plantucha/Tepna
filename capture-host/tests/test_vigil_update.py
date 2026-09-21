@@ -1205,3 +1205,38 @@ def test_system_file_drift_is_reported_even_though_the_checker_is_committed_0644
     _upstream_deploy_script(box, "check-system-files.sh", '#!/usr/bin/env bash\necho "tepna-clock.sh STALE"\nexit 1\n')
     r = _run(box)
     assert r.returncode == 1 and "a HUMAN must run" in r.stderr, r.stderr
+
+
+# ---------------------------------------------------------------- step 3 is keyed on the SERVED TREE
+
+
+def _upstream_sync_stub(box, marker, check_exit):
+    """A sync-apps.sh whose `--check` reports the served tree's state and whose bare run records a sync."""
+    _upstream_deploy_script(box, "sync-apps.sh",
+        f'#!/usr/bin/env bash\nif [ "${{1:-}}" = "--check" ]; then exit {check_exit}; fi\necho ran > "{marker}"\n')
+
+
+def test_a_stale_served_tree_is_synced_even_when_THIS_tick_moved_nothing(box, tmp_path):
+    """Two units fast-forward the checkout (this one and tepna-sync-main). Measured 2026-09-21 10:01/10:02
+    on vigil: sync-main moved the ref one minute before the hourly tick, the tick read "up to date —
+    nothing to do", and 30 of 35 served bundles stayed stale under an already-fixed guard, because the
+    serve step lived inside the "this run moved the ref" branch. The step is keyed on the served tree's
+    STATE now: `--check` says stale ⇒ sync, on every tick."""
+    marker = tmp_path / "synced"
+    _upstream_sync_stub(box, marker, check_exit=1)
+    _run(box)                      # acquire the stub (this run moves the ref)
+    marker.unlink()
+    r = _run(box)                  # up to date — nothing to fast-forward
+    assert "nothing to do" in r.stderr or "nothing to do" in r.stdout, r.stderr
+    assert marker.exists(), f"served tree stale, ref unmoved, and step 3 did not sync\n{r.stderr}"
+
+
+def test_a_current_served_tree_is_not_re_synced(box, tmp_path):
+    """`--check` clean ⇒ no copy: the step is a state check, not an hourly rewrite of /srv/tepna/app."""
+    marker = tmp_path / "synced"
+    _upstream_sync_stub(box, marker, check_exit=0)
+    _run(box)
+    assert not marker.exists()
+    _advance(box)
+    _run(box)                      # even a fast-forward does not sync a tree that already matches
+    assert not marker.exists()

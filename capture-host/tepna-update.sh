@@ -419,15 +419,25 @@ if [ "$before" = "$after" ]; then
   say "up to date at ${after:0:12} — nothing to do"
 else
   say "updated ${before:0:12} → ${after:0:12}"
+fi
 
-  # --- 3 · a git pull is only HALF a deploy: the bundles are served separately ------------------
-  # `-f`, NOT `-x`: the script is run through `bash`, so its mode is irrelevant to execution — and it
-  # was committed 0644, so an `-x` guard here SKIPPED this step on every automatic deploy from the
-  # day it was written (measured 2026-09-21: 29 of 34 served bundles stale, `sync-apps --check` red,
-  # while every tick logged "updated a → b" and the daemon restarted). The exec-bit gate in
-  # test_vigil_update covers systemd's execve; a bash-invoked script needs the opposite guard, and a
-  # guard that can silently drop half a deploy is not a guard.
-  if [ -f "$REPO_DIR/capture-host/deploy/sync-apps.sh" ]; then
+# --- 3 · a git pull is only HALF a deploy: the bundles are served separately ------------------
+# Keyed on the STATE of the served tree, not on whether THIS run moved the ref. Two units fast-forward
+# this checkout — this one and `tepna-sync-main` (tools/sync-main.sh) — and when the other wins the
+# hour this tick reads "up to date — nothing to do" while the served tree is exactly as stale as before
+# (measured 2026-09-21 10:01/10:02: sync-main moved 7220e686 → abbbf15d one minute before the tick, the
+# tick found nothing to do, and 30 of 35 served bundles stayed stale under a fixed guard). So: ask
+# `sync-apps.sh --check` every tick, and sync only when it reports drift. `--check` is a hash compare
+# (cheap, read-only) and exits non-zero on any stale/missing bundle.
+# `-f`, NOT `-x`: the script is run through `bash`, so its mode is irrelevant to execution — and it
+# was committed 0644, so an `-x` guard here SKIPPED this step on every automatic deploy from the
+# day it was written (measured 2026-09-21: 29 of 34 served bundles stale, `sync-apps --check` red,
+# while every tick logged "updated a → b" and the daemon restarted). The exec-bit gate in
+# test_vigil_update covers systemd's execve; a bash-invoked script needs the opposite guard, and a
+# guard that can silently drop half a deploy is not a guard.
+if [ -f "$REPO_DIR/capture-host/deploy/sync-apps.sh" ]; then
+  if ! bash "$REPO_DIR/capture-host/deploy/sync-apps.sh" --check >/dev/null 2>&1; then
+    say "served bundles differ from ${after:0:12} — syncing"
     bash "$REPO_DIR/capture-host/deploy/sync-apps.sh" || { warn "bundle sync FAILED — the served apps are now older than the code"; drifted=1; }
   fi
 fi
