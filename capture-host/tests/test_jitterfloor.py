@@ -120,9 +120,9 @@ def test_malformed_rows_are_dropped_not_guessed(tmp_path):
 
 
 def test_stamp_parser_rejects_and_accepts():
-    assert jf._parse_stamp_ms("2026-08-21T21:47:00.915") is not None
-    assert jf._parse_stamp_ms("21:47:00.915") is None
-    assert jf._parse_stamp_ms("2026-08-21T21:47:00") is None  # no millis — not the writer's format
+    assert jf._parse_stamp("2026-08-21T21:47:00.915") is not None
+    assert jf._parse_stamp("21:47:00.915") is None
+    assert jf._parse_stamp("2026-08-21T21:47:00") is None  # no millis — not the writer's format
 
 
 def test_folded_base_prefers_relative_score():
