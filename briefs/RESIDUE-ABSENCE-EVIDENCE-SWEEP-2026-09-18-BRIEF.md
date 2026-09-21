@@ -1,7 +1,7 @@
 <!-- Copyright 2026 Michal Planicka -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS — 2026-09-18 · **Created:** 2026-09-18 · **Residue:** 2026-09-20-no-loss-guard-during-live-capture, 2026-09-20-ledger-line-citations-rot
+**Status:** IN-PROGRESS — 2026-09-21 (re-verified: the three unverified rows are now verified and hold — browser ladder run, two seam checks against the tree; the ONLY remainder is §5's gate-tracked-state vocabulary, which is the owner's. Previously 2026-09-18) · **Created:** 2026-09-18 · **Residue:** 2026-09-20-no-loss-guard-during-live-capture, 2026-09-20-ledger-line-citations-rot
 
 # Residue rows whose evidence is an ABSENCE — a verification sweep
 
@@ -240,7 +240,7 @@ surfaces. Recorded here; not acted on.
 - [x] Criterion stated incl. the well-denominated exclusion; all 97 cells read (census, not sample)
 - [x] 12 of 15 verified, each surviving verdict carrying a positive control
 - [x] "Wrong when logged" separated from "stale window" as its own finding (section 1)
-- [ ] The 3 unverified rows — needs a browser run and two seam checks
+- [x] The 3 unverified rows — needs a browser run and two seam checks. **VERIFIED 2026-09-21, all three HOLD:** `2026-09-13-webgpu-absent-on-rig` — Playwright chromium-1140 on kernel 7.0.0-31, the row's own three-rung ladder (bare · `--enable-unsafe-webgpu` · `+ --enable-features=Vulkan --use-angle=vulkan --ignore-gpu-blocklist`): `navigator.gpu` **ABSENT on all three**, so the `amd/rdna-3` rung `trio-power-headless.mjs` documents does not reproduce. `2026-09-17-ble-timebase-edge-stamp-undecided` — `anchorsDroppedPreResync` is in `ppgdex-dsp.js` (2 refs; ECGDex 3), and no transport-edge stamp exists in any capture-host writer (`edge_stamp|edgeStamp|hci_rx_ts|transport_edge` → **0** of the `.py` files, against **10** carrying `Phone timestamp` as the positive control). `2026-09-17-seam-exposure-is-input-provenance` — `beatConfidence` bodies byte-identical across `ecgdex-dsp.js` and `ppgdex-dsp.js` (1,659 chars with comments and whitespace stripped — the row's 2,135 strips comments only), called at `ecgdex-dsp.js:1306` (drifted from the row's :1143 as the file grew) and `ppgdex-dsp.js:4480`. Each row's absence claim re-derived, none read off the row.
 - [x] New row for 1.2's narrower live-capture claim; old row closes pointing at it — `2026-09-20-no-loss-guard-during-live-capture`, old row `withdrawn` → it (2026-09-20)
 - [ ] Section 5's gate-tracked state — **owner**, vocabulary change not ours
 - [x] Section 4's citation rot — worth its own row — `2026-09-20-ledger-line-citations-rot` (2026-09-20; and §1.2's own `:5306` had already moved to `:5520` by the time the row was written)
