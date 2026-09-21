@@ -286,6 +286,38 @@ Per night, the sealed note carries: date · which row above · hci↔device map 
 
 Targets **1** (constant offset), **4** (packet loss), **6** (labelled beat FP/FN) require a **known perturbation injected at the `capture.py` write path** with the injected value recorded out-of-band, so recovery can be scored against truth. That injector **does not exist** (re-verified 2026-09-20). It is a capture-host unit: inject at write time, never rewrite a captured file (§∅ — captured bytes are immutable; the perturbation is applied to what is *written*, and the truth sidecar says so). Unassigned. Until it lands, targets 1·4·6 are not testable and the brief cannot close.
 
+**B.1 · Assigned to Heron 2026-09-20 — scoped, not started.** Two owner rulings, **relayed by Kestrel the
+same evening** (a peer relay is enough to design against and not enough to deploy against; the deploy of
+whatever this becomes is authorised by the owner directly, per §👥.0):
+
+1. *"Separate root, injector refuses production."* Injected nights are written to a root that **no corpus
+   tool walks** (`/srv/tepna/adversarial/` or similar), and the injector **exits non-zero if pointed anywhere
+   under the production capture tree.** A different tree, never a marker file. Reason: a labelled-but-co-located
+   perturbed night is walked by `find`, the folds, the end-of-night back-check, the nightly-triage timer and
+   `corpus-tier` (#2723) — which would symlink it into the NAS as a real night. Nothing on the box reads an
+   "adversarial" sidecar, because no such consumer exists; a label in a file nothing opens is the §∅ failure.
+2. *"No — shim or separate process."* The shipped daemon carries **no** path that fabricates data:
+   `capture.py`'s write path does not grow a branch a wrong config line can enable. An injecting shim between
+   device and writer, or a separately-launched process composing the same library code.
+
+**Scope, stated before the first line so a multi-writer diff is not read as creep:** the blast radius is
+**every writer, not one function.** §5's claim is that the capture pipeline itself is under test, and that is
+true only where `capture.py`'s write path, the sidecar writers and the arrival log all see the same perturbed
+stream. That place exists: **`capture.py:3205`, `for smp in samples:`** — the parsed PMD frame's sample list,
+dispatched to `write_ecg` / `write_acc` / `write_ppg`, with PMDARRIVAL written from the same frame a few lines
+above. Target 1 = offset `sensor_ns` / `t_ms`; target 4 = drop whole frames; target 6 = alter ECG values to add
+or flatten a QRS — the hardest, sized last, because a truth sidecar that is *approximately* right is a
+fabricated label.
+
+**The truth sidecar** lives beside the injected night in the adversarial root, never beside anything in
+production, and records what was **injected**, not what was measured (§∅ applies to it too).
+
+⚠️ **The trap, named before building into it:** reaching that seam from a separate process needs an
+injectable hook whose default is identity — the *injected-default-real-vs-noop* shape, where the same syntax
+means opposite things. Mitigation: a **positional callable the daemon never passes, never a config key**, and
+the PR must SHOW the shipped daemon cannot reach it. The refuse-production test is the plant that matters and
+is verified to fail without the guard before it is trusted.
+
 ⚠️ **The O2Ring must return REFUSAL on every recovery target** (§"The O2Ring is the stream…"). A night on which the ring's stream yields a confident ppm is a finding about the pipeline, not about the ring.
 
 ## Done when

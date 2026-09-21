@@ -342,6 +342,51 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
 .ev-experimental{background:transparent;box-shadow:0 0 0 1.5px var(--ev-ink) inset;}
 .ev-heuristic{background:transparent;border:1.5px dashed var(--ev-ink);width:12px;height:12px;}
 
+/* ── Nights (Ledger + Capture) ─────────────────────────────────────────────
+   Two views over ONE index (/api/nights): the LEDGER is the dense per-analyzer table, the CAPTURE
+   view is the same rows with device-grouped columns and a coverage bar per cell. A figure is a click
+   that opens the analyzer with that night's files already loaded — see openNight(). Figures are
+   monospace + tabular so columns of "MB / h" line up; an amber size is a stream that covered under
+   60 % of the night's longest stream (a strap that died, a late start) — shape and hue, never hue alone. */
+.nights-wrap{overflow-x:auto;margin:0 calc(-1*var(--sp-5));padding:0 var(--sp-5);}
+table.nights{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums;}
+table.nights th,table.nights td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle;}
+table.nights th{color:var(--text4);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;position:sticky;top:0;background:var(--surface);z-index:1;}
+table.nights th.grp{color:var(--text3);letter-spacing:.12em;border-bottom:1px solid var(--border2);text-align:center;font-size:10px;}
+table.nights th.grp.polar{box-shadow:inset 0 -2px 0 var(--blue);}table.nights th.grp.wellue{box-shadow:inset 0 -2px 0 var(--teal);}
+table.nights th.grp.resmed{box-shadow:inset 0 -2px 0 var(--amber);}table.nights th.grp.fused{box-shadow:inset 0 -2px 0 var(--text4);}
+table.nights tr:hover td{background:rgba(61,224,208,.035);}
+body.light table.nights tr:hover td{background:rgba(61,224,208,.07);}
+table.nights td.date{font-family:ui-monospace,monospace;color:var(--text);font-weight:600;}
+table.nights td.date small{display:block;color:var(--text4);font-weight:400;font-size:10.5px;}
+.nfig{display:inline-flex;align-items:baseline;gap:5px;font-family:ui-monospace,monospace;color:var(--text);background:transparent;
+  border:1px solid transparent;border-radius:8px;padding:3px 7px;cursor:pointer;text-decoration:none;line-height:1.2;font:inherit;font-family:ui-monospace,monospace;}
+.nfig .mb{font-weight:700;}.nfig .h{color:var(--text3);font-size:11.5px;}
+.nfig:hover,.nfig:focus-visible{border-color:rgba(61,224,208,.35);background:rgba(61,224,208,.06);color:var(--teal);outline:none;}
+.nfig:hover .h{color:var(--teal);}
+.nfig.partial .mb{color:var(--amber);}
+.nfig.static{cursor:default;color:var(--text2);}.nfig.static:hover{border-color:transparent;background:transparent;color:var(--text2);}
+.nfig.static:hover .h{color:var(--text3);}
+.nnone{color:var(--text4);font-family:ui-monospace,monospace;padding:3px 7px;display:inline-block;}
+.pill.click{cursor:pointer;}.pill.click:hover{filter:brightness(1.15);}
+.ncov{display:flex;flex-direction:column;gap:3px;min-width:78px;}
+.ncov .bar{height:4px;border-radius:2px;background:rgba(255,255,255,.07);overflow:hidden;}
+body.light .ncov .bar{background:rgba(0,0,0,.07);}
+.ncov .bar i{display:block;height:100%;background:var(--teal);border-radius:2px;}
+.ncov.polar .bar i{background:var(--blue);}.ncov.resmed .bar i{background:var(--amber);}.ncov .bar i.short{background:var(--amber);}
+tr.ndrawer td{background:var(--surface2)!important;padding:0!important;}
+.ndrawer-in{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;padding:14px 12px;}
+.nan{background:var(--surface);border:var(--b);border-radius:var(--r-sm);padding:10px 12px;}
+.nan h4{margin:0 0 4px;font-size:12px;display:flex;justify-content:space-between;align-items:center;}
+.nan .files{font-family:ui-monospace,monospace;font-size:10.5px;color:var(--text3);line-height:1.5;word-break:break-all;}
+.nan .open{font:inherit;font-size:11px;font-weight:700;color:var(--teal);background:rgba(61,224,208,.12);border:1px solid rgba(61,224,208,.2);border-radius:999px;padding:2px 9px;cursor:pointer;}
+.nan.off{opacity:.55;}.nan.off .open{display:none;}
+.nlegend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text3);margin-top:10px;}
+.nlegend i{display:inline-block;width:10px;height:4px;border-radius:2px;margin-right:5px;vertical-align:middle;}
+.ntoast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--surface3);color:var(--text);border:1px solid rgba(61,224,208,.35);
+  border-radius:12px;padding:10px 14px;font-size:12.5px;max-width:min(680px,92vw);box-shadow:0 8px 24px rgba(0,0,0,.24);display:none;font-family:ui-monospace,monospace;line-height:1.45;word-break:break-all;z-index:50;}
+.ntoast.on{display:block;}.ntoast.err{border-color:var(--red);}
+
 /* ── View routing + responsive ─────────────────────────────────────────── */
 .view{display:none;}
 .view.active{display:block;animation:fadeIn .25s ease;}
@@ -387,6 +432,8 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
     <div class="nav" id="nav">
       <div class="nav-item active" data-view="overview">◈ Overview <span class="nav-badge" id="navActiveN" style="display:none"></span></div>
       <div class="nav-item" data-view="scope">〜 Live scope</div>
+      <div class="nav-item" data-view="ledger">🌙 Ledger <span class="nav-badge" id="navNightsN" style="display:none"></span></div>
+      <div class="nav-item" data-view="capture">📅 Capture</div>
       <div class="nav-item" data-view="settings">⚙ Settings</div>
       <div class="nav-item" data-view="devices">📡 Devices <span class="nav-badge" id="navDevN" style="display:none"></span></div>
       <div class="nav-item" data-view="storage">🗄 Storage <span class="nav-badge" id="navStoreN" style="display:none"></span></div>
@@ -785,8 +832,30 @@ table.beat td.ev-cell{white-space:nowrap;color:var(--text3);font-size:11px;}
       </div>
     </section>
 
+    <!-- NIGHTS · LEDGER — the per-analyzer table: one row per night on the box, one figure per tool. -->
+    <section class="view" id="view-ledger">
+      <div class="ov-strip" id="nightsStrip"></div>
+      <div class="section-title">Nights on disk</div>
+      <div class="card">
+        <div class="nights-wrap"><table class="nights" id="ledgerTable"></table></div>
+        <div class="hint">Each figure is that analyzer's input on disk for the night — size / hours covered by its primary stream. Click it to open the analyzer with those files loaded and processed. Amber size = the stream covered under 60 % of the night's longest. ✓ opens the fused tool with the night's ECG + PPG (+ ring) loaded; ✗ = an input is missing; — = nothing captured (no CGM, no Muse on this box). Integrator figures are the raw input a fold would take — folds run on rig, not in the browser.</div>
+      </div>
+    </section>
+
+    <!-- NIGHTS · CAPTURE — the same rows, device-grouped, with a coverage bar per cell and a per-night drawer. -->
+    <section class="view" id="view-capture">
+      <div class="ov-strip" id="captureStrip"></div>
+      <div class="section-title">Coverage per analyzer</div>
+      <div class="card">
+        <div class="nights-wrap"><table class="nights" id="captureTable"></table></div>
+        <div class="hint">Bars are each stream's covered hours against that night's longest stream; amber = under 60 % of it. Click the date to see every file the night holds, with an Open ▸ per analyzer; click a figure to open the analyzer with those files loaded and processed.</div>
+        <div class="nlegend"><span><i style="background:var(--blue)"></i>Polar</span><span><i style="background:var(--teal)"></i>Wellue</span><span><i style="background:var(--amber)"></i>ResMed</span><span><i style="background:var(--amber)"></i>&lt; 60 % of the night</span></div>
+      </div>
+    </section>
+
   </div>
 </div>
+<div class="ntoast" id="nightsToast" role="status" aria-live="polite"></div>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -1122,9 +1191,10 @@ function showView(v){
   VIEW = v;
   document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active', el.id==='view-'+v));
   document.querySelectorAll('#nav .nav-item').forEach(el=>el.classList.toggle('active', el.dataset.view===v));
-  $('#viewTag').textContent = {overview:'Overview', scope:'Live scope', devices:'Devices', settings:'Settings', storage:'Storage'}[v] || v;
+  $('#viewTag').textContent = {overview:'Overview', scope:'Live scope', devices:'Devices', settings:'Settings', storage:'Storage', ledger:'Ledger', capture:'Capture'}[v] || v;
   if(v==='overview'){ ovStart(); scopeStop(); clkStop(); }
   else if(v==='scope'){ ovStop(); scopeResume(); clkStop(); }
+  else if(v==='ledger' || v==='capture'){ ovStop(); scopeStop(); clkStop(); loadNights(v); }
   else if(v==='settings'){ ovStop(); scopeStop(); clkStop(); loadSettings(); loadAlerts(); }
   else if(v==='storage'){ ovStop(); scopeStop(); clkStop(); loadStorage(); }
   else {
@@ -1163,6 +1233,125 @@ function stSyncFields(){
   const e = (STORAGE&&STORAGE.protocols||[]).find(x=>x.protocol===p);
   if(e && e.default_port && !$v('stPort')) $('#stPort').value = e.default_port;
 }
+
+// ══ Nights — Ledger + Capture ══
+// ONE index, two renderings. /api/nights is read on entering either view and cached for the session
+// (it stats every night; a night that finished since is one reload away). Every figure is a click that
+// opens the analyzer with the night's files loaded — see openNight below for how, and for why it
+// needs the monitor to be served from the same origin as the apps (vigil.local through Caddy).
+const NIGHT_COLS = ["ECGDex","OxyDex","PPGDex","PulseDex","CPAPDex","MotionDex","GlucoDex","HRVDex","EEGDex","Integrator"];
+const NIGHT_DERIVED = ["3 corner hat","PAT"];
+const NIGHT_CAPTURE_ORDER = ["ECGDex","HRVDex","PulseDex","PPGDex","MotionDex","OxyDex","CPAPDex","GlucoDex","EEGDex","Integrator"];
+const NIGHT_APP = {ECGDex:"ECGDex.html", OxyDex:"OxyDex.html", PPGDex:"PpgDex.html", PulseDex:"PulseDex.html", CPAPDex:"CPAPDex.html",
+  MotionDex:"MotionDex.html", GlucoDex:"GlucoDex.html", HRVDex:"HRVDex.html", EEGDex:"EEGDex.html", Integrator:"Integrator.html",
+  "3 corner hat":"sensor-trio-power-analysis.html", PAT:"PAT Feasibility.html"};
+// Which file input in each app takes which files. ECGDex splits its inputs by stream; every other app
+// takes everything through one `multiple` input. A missing entry = the first file input on the page.
+const NIGHT_INPUT = {ECGDex:[["_ECG.txt","#ecgInput"],["_ACC.txt","#accInput"],["_RR.txt","#rrInput"],["_HR.txt","#hrInput"]],
+  PulseDex:"#rawInput", MotionDex:"#mxInput"};
+const NIGHT_GROUP = {ECGDex:"polar",HRVDex:"polar",PulseDex:"polar",PPGDex:"polar",MotionDex:"polar",OxyDex:"wellue",CPAPDex:"resmed",GlucoDex:"fused",EEGDex:"fused",Integrator:"fused"};
+let NIGHTS = null;
+const nMB = b => b>=1e9 ? (b/1e9).toFixed(2)+' GB' : b>=1e6 ? Math.round(b/1e6)+' MB' : (b/1e3).toFixed(0)+' kB';
+const nHrs = h => h==null ? '?' : (h<1 ? Math.round(h*60)+' min' : h.toFixed(1)+' h');
+const nBase = f => f.split('/').pop();
+function nSpan(n){ return Math.max(0.1, ...NIGHT_COLS.map(c=>n[c]&&n[c].hours||0)); }
+function nToast(msg, err){ const t=$('#nightsToast'); t.textContent=msg; t.classList.toggle('err', !!err); t.classList.add('on');
+  clearTimeout(nToast._t); nToast._t=setTimeout(()=>t.classList.remove('on'), err?9000:5000); }
+function nFig(n, c, ver){
+  const v=n[c]; if(v===undefined||v===null) return '<span class="nnone">—</span>';
+  const s=nSpan(n); const part = v.hours!=null && s>=1 && v.hours < 0.6*s;
+  const cls = 'nfig'+(part?' partial':'')+(v.loadable?'':' static');
+  const attrs = v.loadable ? ` data-night="${n.night}" data-node="${c}" title="open ${c} with this night loaded"` : ' title="raw input of a fold — folds run on rig (tools/trio-batch.mjs), not in the browser"';
+  if(ver==='ledger') return `<button type="button" class="${cls}"${attrs}><span class="mb">${nMB(v.bytes)}</span><span class="h">/ ${nHrs(v.hours)}</span></button>`;
+  const pct = v.hours==null ? 0 : Math.round(100*Math.min(1, v.hours/s));
+  return `<button type="button" class="${cls}"${attrs}><span class="ncov ${NIGHT_GROUP[c]}"><span><span class="mb">${nMB(v.bytes)}</span> <span class="h">${nHrs(v.hours)}</span></span><span class="bar"><i class="${part?'short':''}" style="width:${pct}%"></i></span></span></button>`;
+}
+function nDerived(n, k){ return n[k] ? `<span class="pill pill-green click" data-night="${n.night}" data-node="${k}" title="open ${k} with this night's inputs loaded">✓ open</span>` : '<span class="pill pill-gray" title="an input this tool needs is missing tonight">✗</span>'; }
+function nStrip(rows){
+  const tot=rows.reduce((a,n)=>a+NIGHT_COLS.reduce((b,c)=>b+(n[c]?n[c].bytes:0),0),0);
+  const trio=rows.filter(n=>n['3 corner hat']).length;
+  return `<div class="ov-stat"><div class="lab">Nights</div><div class="val">${rows.length}</div><div class="sub">${rows[rows.length-1].night} → ${rows[0].night}</div></div>`+
+         `<div class="ov-stat"><div class="lab">On disk</div><div class="val">${nMB(tot)}</div><div class="sub">all analyzer inputs</div></div>`+
+         `<div class="ov-stat"><div class="lab">Trio nights</div><div class="val">${trio}</div><div class="sub">ECG + PPG + ring — 3-corner-hat eligible</div></div>`;
+}
+function renderNights(ver){
+  if(!NIGHTS || !NIGHTS.length){ const t = $(ver==='ledger' ? '#ledgerTable' : '#captureTable'); t.innerHTML='<tbody><tr><td class="nnone">no nights on disk</td></tr></tbody>'; return; }
+  const rows=[...NIGHTS].reverse();
+  $('#navNightsN').style.display=''; $('#navNightsN').textContent=rows.length;
+  $(ver==='ledger' ? '#nightsStrip' : '#captureStrip').innerHTML = nStrip(rows);
+  let h='';
+  if(ver==='ledger'){
+    h+='<thead><tr><th>Night</th>'+NIGHT_COLS.map(c=>`<th>${c}</th>`).join('')+NIGHT_DERIVED.map(d=>`<th>${d}</th>`).join('')+'</tr></thead><tbody>';
+    for(const n of rows) h+=`<tr><td class="date">${n.night}</td>`+NIGHT_COLS.map(c=>`<td>${nFig(n,c,'ledger')}</td>`).join('')+NIGHT_DERIVED.map(k=>`<td>${nDerived(n,k)}</td>`).join('')+'</tr>';
+    h+='</tbody>'; $('#ledgerTable').innerHTML=h; return;
+  }
+  h+='<thead><tr><th></th><th class="grp polar" colspan="5">Polar H10 · Verity</th><th class="grp wellue">Wellue O2Ring</th><th class="grp resmed">ResMed AS11</th><th class="grp fused" colspan="3">fused · absent</th><th class="grp fused" colspan="2">derived</th></tr>';
+  h+='<tr><th>Night</th>'+NIGHT_CAPTURE_ORDER.map(c=>`<th>${c}</th>`).join('')+NIGHT_DERIVED.map(d=>`<th>${d}</th>`).join('')+'</tr></thead><tbody>';
+  for(const n of rows){
+    const wd=new Date(n.night+'T00:00:00Z').toLocaleDateString('en-GB',{weekday:'short',timeZone:'UTC'});
+    h+=`<tr><td class="date"><button type="button" class="nfig" data-drawer="${n.night}" title="every file this night holds">${n.night}</button><small>${wd} · longest ${nHrs(nSpan(n))}</small></td>`+NIGHT_CAPTURE_ORDER.map(c=>`<td>${nFig(n,c,'capture')}</td>`).join('')+NIGHT_DERIVED.map(k=>`<td>${nDerived(n,k)}</td>`).join('')+'</tr>';
+    h+=`<tr class="ndrawer" id="ndr-${n.night}" hidden><td colspan="${NIGHT_CAPTURE_ORDER.length+3}"><div class="ndrawer-in">`+[...NIGHT_CAPTURE_ORDER,...NIGHT_DERIVED].map(c=>{
+      const v=n[c]; const isTool=NIGHT_DERIVED.includes(c); const ok = isTool ? v===true : !!(v && v.loadable);
+      const files = v&&v.files ? v.files.map(nBase).join('<br>') : (isTool ? (v?'uses this night\'s ECG + PPG (+ ring)':'an input is missing this night') : 'nothing captured');
+      return `<div class="nan${ok?'':' off'}"><h4>${c}${ok?`<button type="button" class="open" data-night="${n.night}" data-node="${c}">Open ▸</button>`:''}</h4><div class="files">${files}</div></div>`; }).join('')+'</div></td></tr>';
+  }
+  h+='</tbody>'; $('#captureTable').innerHTML=h;
+}
+async function loadNights(ver){
+  if(!NIGHTS){
+    try{ const r=await fetch('/api/nights?n=120'); const j=await r.json(); if(j.error) throw new Error(j.error); NIGHTS=j.nights; }
+    catch(e){ nToast('nights index failed: '+e.message, true); NIGHTS=[]; }
+  }
+  renderNights(ver);
+}
+// THE LOAD. The apps and the monitor share one origin behind Caddy (vigil.local: apps at /, nights at
+// /captures/<night>/…, this page at /monitor), so this page can open the app, fetch the night's files
+// itself, and hand them to the app's own file input exactly as a drop would — the app's `change`
+// listener then runs its ingest and analysis with no further click. Nothing in any app bundle
+// changes for this. Served from anywhere else (127.0.0.1:8760 directly), the app window is a
+// different origin, the DOM is closed to us, and the click degrades to "opened, drop the files yourself".
+function nightFilesFor(n, node){
+  if(node==='3 corner hat') return [...(n.ECGDex?n.ECGDex.files:[]), ...(n.PPGDex?n.PPGDex.files:[])];
+  if(node==='PAT') return [...(n.ECGDex?n.ECGDex.files.filter(f=>f.endsWith('_ECG.txt')):[]), ...(n.PPGDex?n.PPGDex.files.filter(f=>/VeritySense.*_PPG\.txt$/.test(f)):[])];
+  return n[node] ? n[node].files : [];
+}
+async function openNight(night, node){
+  const n = NIGHTS.find(x=>x.night===night); if(!n) return;
+  const rels = nightFilesFor(n, node); if(!rels.length){ nToast('nothing to load for '+node+' on '+night, true); return; }
+  const w = window.open('/'+NIGHT_APP[node], '_blank');
+  if(!w){ nToast('the browser blocked the analyzer window — allow pop-ups for this site', true); return; }
+  nToast('opening '+node+' — fetching '+rels.length+' file'+(rels.length>1?'s':'')+' from '+night+' …');
+  let files;
+  try{
+    files = await Promise.all(rels.map(async rel=>{ const r=await fetch('/captures/'+rel.split('/').map(encodeURIComponent).join('/')); if(!r.ok) throw new Error(r.status+' '+rel);
+      const b=await r.blob(); return new File([b], nBase(rel), {type: rel.endsWith('.edf')?'application/octet-stream':'text/plain', lastModified: Date.now()}); }));
+  }catch(e){ nToast('could not fetch the night\'s files: '+e.message, true); return; }
+  const total = files.reduce((a,f)=>a+f.size,0);
+  // wait for the app to finish loading — its listeners attach on DOMContentLoaded
+  await new Promise(res=>{ let tries=0; const t=setInterval(()=>{ let ready=false; try{ ready = w.document && w.document.readyState==='complete' && !!w.document.querySelector('input[type=file]'); }catch(_){ ready='foreign'; } if(ready||++tries>200){ clearInterval(t); res(); } }, 100); });
+  let doc; try{ doc = w.document; if(!doc.querySelector('input[type=file]')) doc=null; }catch(_){ doc=null; }
+  if(!doc){ nToast(node+' opened, but this page cannot reach it (different origin) — open the monitor at http://vigil.local/monitor, or drop the files yourself', true); return; }
+  const route = NIGHT_INPUT[node];
+  const groups = new Map();   // input element -> File[]
+  for(const f of files){
+    let sel = null;
+    if(Array.isArray(route)){ const hit=route.find(([suffix])=>f.name.endsWith(suffix)); sel = hit ? hit[1] : route[0][1]; }
+    else sel = route || 'input[type=file]:not([webkitdirectory])';
+    const el = doc.querySelector(sel) || doc.querySelector('input[type=file]:not([webkitdirectory])') || doc.querySelector('input[type=file]');
+    if(!groups.has(el)) groups.set(el, []); groups.get(el).push(f);
+  }
+  for(const [el, list] of groups){
+    const dt = new w.DataTransfer(); list.forEach(f=>dt.items.add(f));
+    el.files = dt.files; el.dispatchEvent(new w.Event('change', {bubbles:true}));
+  }
+  nToast(node+': '+files.length+' file'+(files.length>1?'s':'')+' ('+nMB(total)+') loaded from '+night+' — processing in the new tab');
+}
+function nightsClick(e){
+  const dr=e.target.closest('[data-drawer]'); if(dr){ const r=document.getElementById('ndr-'+dr.dataset.drawer); if(r) r.hidden=!r.hidden; return; }
+  const f=e.target.closest('[data-node]'); if(f){ openNight(f.dataset.night, f.dataset.node); }
+}
+$('#ledgerTable').addEventListener('click', nightsClick);
+$('#captureTable').addEventListener('click', nightsClick);
 
 async function loadStorage(){
   STORAGE = await api('/api/storage');
