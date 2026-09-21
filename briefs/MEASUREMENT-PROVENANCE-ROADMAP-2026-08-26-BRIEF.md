@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-09-21 (§3 DONE — OxyDex emits the measurement block on every night element, schema 2.1, invariance measured (one moved field per fixture), walk-through checkable via `tools/measurement-walk.mjs`. §5 DONE — the oracle harness runs on 52 real nights with pre-stated bands, `tools/oracle-ecg-firmware-rr.mjs`; rMSSD/mean-RR CONSISTENT; the time-anchored per-beat pairing landed the same day: matched 98.7 %, RR |Δ| 0.45 ms on pairs, LoA SHORTFALL tail-driven. Three units remain: §8, the F-section report, the follow-up brief.) · IN-PROGRESS — 2026-09-20 (NOT owner-blocked: the schedule decision was ratified 2026-09-15 (queue D5). Five Done-when units remain unticked and are executable by the fleet; re-stamped 2026-09-20 because the header still read as parked on a decision that was made five days earlier) · **Created:** 2026-08-26 · **Follows:** `ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` (the acquisition half of this chain — 21/22 §21 criteria met, last one in flight) · **Relates:** CLAUDE.md §🔒 Clock Contract, §🎫 evidence ladder, §🔏 provenance gates, `docs/LEXICON.md` · **Residue:** 2026-09-21-validaterr-compares-gap-spanning-intervals
+**Status:** IN-PROGRESS — 2026-09-21 (F-section report DONE — `docs/MEASUREMENT-PROVENANCE-REPORT-2026-09-21.md`, honesty criteria pre-stated, twelve limits each labelled found/assumed; one unit remains: the follow-up brief. §3 DONE — OxyDex emits the measurement block on every night element, schema 2.1, invariance measured (one moved field per fixture), walk-through checkable via `tools/measurement-walk.mjs`. §5 DONE — the oracle harness runs on 52 real nights with pre-stated bands, `tools/oracle-ecg-firmware-rr.mjs`; rMSSD/mean-RR CONSISTENT; the time-anchored per-beat pairing landed the same day: matched 98.7 %, RR |Δ| 0.45 ms on pairs, LoA SHORTFALL tail-driven. Three units remain: §8, the F-section report, the follow-up brief.) · IN-PROGRESS — 2026-09-20 (NOT owner-blocked: the schedule decision was ratified 2026-09-15 (queue D5). Five Done-when units remain unticked and are executable by the fleet; re-stamped 2026-09-20 because the header still read as parked on a decision that was made five days earlier) · **Created:** 2026-08-26 · **Follows:** `ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` (the acquisition half of this chain — 21/22 §21 criteria met, last one in flight) · **Relates:** CLAUDE.md §🔒 Clock Contract, §🎫 evidence ladder, §🔏 provenance gates, `docs/LEXICON.md` · **Residue:** 2026-09-21-validaterr-compares-gap-spanning-intervals
 
 # Measurement-provenance roadmap — the canonical Measurement layer between Dex outputs and the Integrator
 
@@ -227,6 +227,18 @@ oracle dev-dependency set (SOUP note required); (c) whether §11 gets an adapter
       `docs/ORACLE-ECG-FIRMWARE-RR-2026-09-21.md`. Related landing the same night, different instrument:
       #2759 validated the capture-host live-strip R detector against the same firmware stream.
 - [ ] §8 Integrator consumes canonical blocks behind a tolerant adapter.
-- [ ] The final report answers the draft's F-section honestly: what this does NOT prove
+- [x] The final report answers the draft's F-section honestly: what this does NOT prove
       scientifically (agreement ≠ physiological truth; provenance ≠ accuracy).
+      ✅ **DONE 2026-09-21 (Osprey) — `docs/MEASUREMENT-PROVENANCE-REPORT-2026-09-21.md`.** "Honest"
+      pre-stated as six criteria before the writing (every "proves" names its gate; every "does not
+      prove" names the missing mechanism and where it stands; numbers carry n, a missed band stays
+      missed; unexecuted sections listed as such; no tier moves; each limit labelled FOUND vs ASSUMED).
+      §1 delivered-with-gate table (§1+§2, §3, §3 D, §5, §8, §4 partial); §2 what it proves; §3 the
+      F-section — twelve limits: provenance ≠ accuracy (the ODI-bias lane named as the cross-device
+      night-level reference that exists; per-event truth out of scope), agreement ≠ truth (sharpened
+      by the bimodal finding), the LoA shortfall standing, contentId ≠ file hash, the envelope hop
+      unexercised, uncertainty null everywhere, one emitter / findings still bare scalars, night-level
+      windows only (with §10's measured cost: +4.1–4.35 KB per night, +11–17 %), per-bundle code
+      identity, §4 kernel-audit not built, §10 runtime/memory unmeasured, §11 unwritten, no tier
+      moves. §4 found-vs-assumed in one place. The right-hand column is the follow-up brief's input.
 - [ ] Remaining node migrations + unresolved scientific questions listed as the follow-up brief.
