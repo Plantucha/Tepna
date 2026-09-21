@@ -109,6 +109,9 @@ const SRC = opt('--src', null);
 const OUT = resolve(ROOT, opt('--out', 'uploads/trio'));
 const ONLY = optAll('--night');
 const LIMIT = parseInt(opt('--limit', '0'), 10) || 0;
+/* the QUALITY tolerance beside the 15 bpm fault gate — the value the residue measured with, above the
+   ~0.44–1 bpm σ the corpus estimates and below any fault a device could produce */
+const HR_QUALITY_TOL_BPM = 3;
 const MIN_HOURS = parseFloat(opt('--min-hours', '3'));
 // Three-way overlap floor. NOT invented: tch-multinight needs ≥12 five-min epochs (= 1 h) to solve a
 // night, and sensor-trio-worker.js:307 floors at 1000 s. 1 h satisfies both. Do not raise it without
@@ -1658,11 +1661,21 @@ function writeAgreement(dir, key) {
     console.log(`    ⚖ agreement: ${r && r.reason ? r.reason : 'not computed'}`);
     return null;
   }
+  /* TWO STATISTICS, because one number was doing two jobs (residue
+     `2026-09-16-agreement-gate-is-15x-coarser-than-sigma`). The 15 bpm default is a FAULT gate — the
+     wrong device, a harmonic double — and at that tolerance 59 of 63 corpus nights flag 0.0 %, which
+     then reads as "the nodes agree" while the σ the corpus actually estimates is ~0.44–1 bpm. The
+     same primitive at HR_QUALITY_TOL_BPM answers the quality question and has spread to report
+     (0–61 % over the same nights). Reported ALONGSIDE, never instead: the gate keeps its meaning. */
+  const q = ctx.IntegratorDSP.hrAgreement(sources, { tolBpm: HR_QUALITY_TOL_BPM });
+  const fine = q && q.ok ? { tolBpm: q.tolBpm, flagged: q.flagged, compared: q.compared, flaggedPct: q.flaggedPct } : null;
   const worst = Object.keys(r.fault).sort((a, b) => r.fault[b] - r.fault[a])[0];
   const named = r.fault[worst] > 0 ? `  worst=${worst} (${r.fault[worst]})` : '';
   const dropNote = r.droppedFragments ? `  dropped=${r.droppedFragments} fragment(s)` : '';
+  const fineNote = fine ? `  · quality: ${fine.flagged}/${fine.compared} >${fine.tolBpm} bpm (${fine.flaggedPct} %)` : '';
   console.log(
-    `    ⚖ HR agreement: ${r.flagged}/${r.compared} epoch(s) disagree >${r.tolBpm} bpm (${r.flaggedPct} %)` + `  adjudicable=${r.adjudicable}${dropNote}${named}  nodes=${r.nodes.join('/')}`
+    `    ⚖ HR agreement (fault gate): ${r.flagged}/${r.compared} epoch(s) disagree >${r.tolBpm} bpm (${r.flaggedPct} %)` +
+      `  adjudicable=${r.adjudicable}${dropNote}${named}  nodes=${r.nodes.join(',')}${fineNote}`
   );
   // Only the SUMMARY plus the flagged epochs — a full per-epoch dump would be most of the night.
   const outPath = join(dir, `agreement_${key}.json`);
@@ -1672,6 +1685,8 @@ function writeAgreement(dir, key) {
       {
         night: key,
         tolBpm: r.tolBpm,
+        // the fine statistic beside the gate — same primitive at HR_QUALITY_TOL_BPM; its flagged epochs are not kept
+        quality: fine,
         nodes: r.nodes,
         compared: r.compared,
         adjudicable: r.adjudicable,
