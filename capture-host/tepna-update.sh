@@ -52,7 +52,31 @@ RESTART_SH="${TEPNA_RESTART_SH:-/usr/local/lib/tepna/tepna-restart.sh}"
 #
 # ⚠️ It must NOT live inside $REPO_DIR: §1's cleanliness check (`git status --porcelain`) would see it
 # and refuse to update at all. That part of the original reasoning was right and still applies.
+#
+# HOW OFTEN THE DAEMON IS RESTARTED, AND BY WHOM — measured 2026-09-21 on vigil's journals over
+# 2026-08-07 → 09-21 (45 days), read-only, closing residue 2026-09-06-capture-daemon-restarts-nightly,
+# which recorded the rate (median 12.5 starts/night) and called the reason UNDETERMINED:
+#   • 541 stops in 45 days = 12.0/night. 535 are CLEAN (`Deactivated successfully`); 6 are crashes
+#     (`exit 1`, brought back by `Restart=always`, 5 s). The daemon never exits on its own — every clean
+#     stop is an external SIGTERM, and every one arrives through `tepna-restart.sh` (`restart` ×502,
+#     `radio` ×52, `deploy` ×168, `stop` ×39 in the sudo journal — the one narrow grant above).
+#   • Attributed by each caller's OWN log: this updater 242 (`daemon restarted on …`, 45 %); the cron
+#     watchdog 76 (33 daemon restarts + 43 `radio` resets, which restart the service too, 14 %); hands
+#     14 (tty `systemctl`, 3 %). That leaves ~209 (38 %) reaching the helper from a caller that logs to
+#     no unit — most likely the monitor page's apply/deploy button (`daemon_control` → helper), which
+#     records nothing. So the diagnosis is: deploys dominate, the watchdog is second, and one restart
+#     source is unattributable from the box's logs — which is a smaller defect than the row's
+#     "undetermined", and the one that remains.
+#   • What bounds it: the content gate (no restart for a docs-only delta) and the recording interlock
+#     (defer while recording), so restarts land when the box is idle. Whether ~12 idle restarts a night
+#     is acceptable — one per merge on a 50-merge day — is a cadence decision, not a defect here.
 DEPLOYED_MARK="${TEPNA_DEPLOYED_MARK:-/srv/tepna/.tepna-deployed-sha}"
+# The RUNNING daemon's own report of the sha it started on (`build_id.probe`, once at startup, served
+# as `/api/version` `{"git": ...}`). This is the quantity the content gate actually wants — see step 5.
+# A command, not a URL, so the test rig can stand in for the daemon the same way it stands in for
+# systemctl; the default is the box's monitor on its config.example port.
+VERSION_URL="${TEPNA_VERSION_URL:-http://127.0.0.1:8760/api/version}"
+VERSION_FETCH="${TEPNA_VERSION_FETCH:-curl -fsS --max-time 3 $VERSION_URL}"
 # CONSECUTIVE-FAILURE STATE — what makes a 9.3-hour outage look different from a blip.
 #
 # `systemctl status` shows `failed` identically for "failed once, the next tick recovered" and "failing
@@ -459,18 +483,44 @@ fi   # end of the non---pending-only path (steps 1-4)
 # That is the same shape as the 2026-08-03 event in this file's own header (four days of stale code,
 # "the pull had happened, nothing restarted the unit"), re-entered through the deferral path.
 #
-# So the question is now the honest one: is the daemon on the checkout? `$DEPLOYED_MARK` records the
-# SHA the daemon is actually running — written on a successful restart, and written on a DEFERRAL too
-# (recording `$before`, the code the daemon keeps), so the outstanding restart survives into the next
-# tick instead of evaporating with the variable that described it.
+# So the question is now the honest one: is the daemon on the checkout? `$DEPLOYED_MARK` records what
+# the UPDATER last deployed — written on a successful restart, and written on a DEFERRAL too (recording
+# `$before`, the code the daemon keeps), so the outstanding restart survives into the next tick instead
+# of evaporating with the variable that described it. It is NOT the sha the daemon is running — that is
+# the process's own `/api/version` (below) — and the two part company after any restart the updater
+# did not make, or after a docs-only advance (residue 2026-09-06-update-log-prints-marker-as-daemon).
 # What the DAEMON is on, which is not `$before` once a deferral is outstanding. On a repeat deferral
 # `before` equals `after` (nothing merged this tick), so deferring with `$before` would write the DISK
-# sha and silently mark the debt paid — re-creating the bug one level down. The marker, when it holds
-# anything, is the authority on what the process is running.
-running_sha="$before"
-if [ -s "$DEPLOYED_MARK" ]; then
+# sha and silently mark the debt paid — re-creating the bug one level down.
+#
+# THREE SOURCES, IN ORDER OF AUTHORITY, and the order is the fix for residue
+# 2026-09-05-content-gate-diffs-from-a-stale-marker:
+#   1. the process itself — `/api/version` reports the sha it STARTED on. Nothing can be more right
+#      about what is running than the thing that is running.
+#   2. `$DEPLOYED_MARK` — what the UPDATER last deployed. It is stale after any restart the updater did
+#      not perform (measured 2026-09-05: marker 31064194 while the process served 487faf9c after three
+#      hand restarts), and then the content gate diffs code the daemon ALREADY HAS, judges a restart
+#      owed, and fires it — content-justified — at the first doff of the night. A fallback, and it says
+#      so on every tick it is used, so a daemon that stops answering is never mistaken for one that did.
+#   3. `$before` — when neither exists.
+# The marker keeps its other job: it is what a DEFERRAL records so the debt survives the tick.
+running_sha="$before"; running_label="the checkout is at"; fallback_note=""
+api_sha="$(bash -c "$VERSION_FETCH" 2>/dev/null | python3 -c 'import sys,json
+try: v = json.load(sys.stdin).get("git")
+except Exception: v = None
+print(v if isinstance(v, str) and v and v != "unknown" else "")' 2>/dev/null)"
+if [ -n "$api_sha" ]; then
+  running_sha="$api_sha"; running_label="the daemon is on"
+elif [ -s "$DEPLOYED_MARK" ]; then
   running_sha="$(cat "$DEPLOYED_MARK" 2>/dev/null)"
-  [ -n "$running_sha" ] || running_sha="$before"
+  if [ -n "$running_sha" ]; then
+    running_label="the deploy marker says"
+    # Said only when a DECISION rests on it (below) — never as a heartbeat: `--pending-only` ticks
+    # every two minutes and a healthy box must print nothing at all.
+    fallback_note="daemon not answering at ${VERSION_URL} — using the deploy marker ${running_sha:0:12}, which records what the UPDATER last deployed and is stale after any restart it did not perform"
+  else
+    running_sha="$before"
+  fi
 fi
 
 restart_owed=0
@@ -478,8 +528,10 @@ if [ "$before" != "$after" ]; then
   restart_owed=1                         # merged this tick
 elif [ "$running_sha" != "$after" ]; then
   restart_owed=1                         # an earlier tick merged and deferred; still owed
-  say "restart still OWED from an earlier tick — the daemon is on ${running_sha:0:12}, disk is at ${after:0:12}"
+  say "restart still OWED from an earlier tick — ${running_label} ${running_sha:0:12}, disk is at ${after:0:12}"
 fi
+# A restart judged from the fallback authority says so, once, beside the judgement it informed.
+[ "$restart_owed" = 1 ] && [ -n "$fallback_note" ] && say "$fallback_note"
 
 # --- 5b · the CONTENT gate: a sha that moved is not code that moved ------------------------------
 # Measured on vigil 2026-09-05 13:40:45: the daemon was restarted to deploy `93a17e27`, a docs-only
@@ -516,7 +568,7 @@ if [ "$restart_owed" = 1 ] && [ "$MODE" != "--force-restart" ]; then
     say "cannot establish what changed between ${running_sha:0:12} and ${after:0:12} — restarting rather than assuming nothing did"
   elif [ -z "$delta" ]; then
     printf '%s\n' "$after" > "$DEPLOYED_MARK" 2>/dev/null || warn "could not record the deployed SHA at $DEPLOYED_MARK"
-    say "no capture-host/ change between ${running_sha:0:12} and ${after:0:12} — the daemon's code is current; marker advanced, no restart"
+    say "no capture-host/ change between ${running_sha:0:12} and ${after:0:12} — the daemon's capture-host CODE is current (${running_label} ${running_sha:0:12}); marker advanced to ${after:0:12}, no restart"
     _defer_clear
     restart_owed=0
   fi
