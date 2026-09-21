@@ -39,7 +39,7 @@ import ast
 import fnmatch
 import re
 
-__all__ = ["EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key",
+__all__ = ["GATE_BUDGET_SEC", "PREWORK_TRACE_FACTOR", "prework_estimate", "budget_refusal", "EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key",
            "annotation_only", "classify", "refusal_reason", "selftest", "string_only_verdict", "scan_is_reliable",
            "STRING_ONLY", "REQUIRED", "EMPTY_DIFF", "UNDECIDABLE"]
 
@@ -384,6 +384,49 @@ def classify(entries, survivors, generated):
         if k not in claimed:
             out["unclassified"].append(sv)
     return out
+
+
+# ── THE RUN BUDGET — residue 2026-09-17-mutation-scope-selects-whole-functions ─────────────────────
+# A gate that dies with no verdict is not a gate (CLAUDE.md §4c). Measured 2026-09-21 in the course of
+# closing that row: the cost that made #2590's job run 98 min "Generating mutants" and then die is NOT
+# the size of the functions selected (2422 lines) — it is the SELECTION. `capture.py`'s test selection
+# is 76 of 78 files and one clean run of it took 936.7 s here; `run_one` re-timed that clean run for
+# EVERY glob (5 globs → 78 min of pure re-timing before a mutant existed) and mutmut's stats pass runs
+# the same selection again under tracing. So the un-mutatable surface is "a change to a module whose
+# selection is the whole suite", not "three functions over 800 lines" — the size row measured the
+# wrong quantity. Two bounds, both stated as numbers before any run, both REFUSALS (a refusal is a
+# verdict with a reason; a SIGTERM is not):
+#   · PRE-WORK: the clean run is timed ONCE per module and the predicted pre-work
+#     (clean × (1 + TRACE_FACTOR)) must fit in what is left of the gate budget, or the module is
+#     refused BEFORE any mutant is generated, naming the module, its clean time and the prediction.
+#   · WALL: every mutmut invocation gets the REMAINING budget as its cap; a cap that is hit returns
+#     partial counts behind `timed_out`, and the gate refuses on it naming the glob and how far it got.
+GATE_BUDGET_SEC = 7200          # 2 h of gate wall time. Pre-stated: no mutation job in the visible history
+                                # produced a verdict past 98 min; the workflow cap sits above this so the
+                                # tool refuses before the runner kills it.
+PREWORK_TRACE_FACTOR = 2.0      # ASSUMPTION, stated: mutmut's stats pass ≈ 2× one clean run of the
+                                # selection (a traced run). Replace with a measured factor when one exists;
+                                # the refusal prints the clean time it multiplied so the reader can check.
+
+
+def prework_estimate(clean_sec: float, trace_factor: float = PREWORK_TRACE_FACTOR) -> float:
+    """Seconds a module costs BEFORE its first mutant is tested: one clean run (already spent when this
+    is called — it is what measured `clean_sec`) plus the traced stats pass."""
+    return clean_sec * (1.0 + trace_factor)
+
+
+def budget_refusal(module: str, clean_sec: float, n_globs: int, left_sec: float,
+                   trace_factor: float = PREWORK_TRACE_FACTOR) -> str | None:
+    """A refusal reason when the module's predicted pre-work does not fit in what is left, else None.
+    Names every number it used, so the reader can re-derive the verdict — never just "too big"."""
+    est = prework_estimate(clean_sec, trace_factor)
+    if est <= left_sec:
+        return None
+    return (f"{module}: predicted pre-work {est:.0f}s (clean run {clean_sec:.1f}s × (1 + {trace_factor:g}) "
+            f"stats pass) exceeds the {left_sec:.0f}s left of the {GATE_BUDGET_SEC}s gate budget — "
+            f"{n_globs} function(s) selected, none mutated. This is a REFUSAL with a reason, not a "
+            f"verdict on the diff: the module's test selection is too costly to mutate in one gate run. "
+            f"Scope the change, or run `tools/mutate.py --only` locally on the function(s).")
 
 
 def refusal_reason(venv_exists: bool, probe_rc: int | None) -> str | None:

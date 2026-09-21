@@ -30,6 +30,159 @@ changesets.)
 
 ---
 
+## [2.13.0] — 2026-09-21
+
+### Added
+- Seam exposure is decided by **input provenance**, not by whether a node detects seams — measured, so
+- CPAP-ACQ P3 executable brief — the phase the charter has named as its next step since 2026-09-02, and a (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`)
+- **INV11 — one acquisition owner per device.** Verified before building: **zero occurrences** of any owner (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`)
+- INV8 `continuity_status` — a recovered CPAP acquisition now says whether it was verified to have lost (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`)
+- Times the CPAP sink write, so a loop stall becomes **attributable**. (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`)
+- Promotes residue row `2026-09-18-ecg-saturation-unflagged` into a brief; the row closes pointing at (`ECG-SATURATION-ABSENCE-2026-09-18-BRIEF.md`)
+- `capture-host` gains `_adapter_responds` — an HCI command ROUND TRIP, closing §7's third item ("post-recovery (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- Committed adversarial twins for D3's comparability-keyed hrStatMixed — the ruling had no fixture that could express it in either direction. (`R5-HR-TRIPLET-FOLLOWUPS-2026-08-04-BRIEF.md`)
+- Measurement brief: a "pinned span" is three phenomena and `pinnedSpans` is rail-keyed, so it sees one (`PINNED-SPAN-POPULATIONS-2026-09-18-BRIEF.md`)
+- PpgDex reads the `_PPGRUNS.txt` sidecar and reports it as a SECOND POPULATION — not as a second (`PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md`)
+- A SATURATED span is labelled distinctly from an ABSENT one — owner ruling 2026-09-18, which scopes (`PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md`)
+- A published table can name the run that produced it — TABLE-PROVENANCE stamps, with the output hash over the table text so a hand-edited cell reds. (`PUBLISHED-NUMBER-PROVENANCE-2026-09-15-BRIEF.md`)
+- Advisory gates now emit a machine-readable verdict beside the prose one, so a downstream reader keys
+- The AS11's OWN session-boundary witness, recorded beside the live stream (WU4 core; owner "implement (`CPAP-AS11-BLE-WIRE-NOW-2026-09-07-BRIEF.md`)
+- The constant-run sidecar names what a span IS — two measured kinds, `unknown` everywhere else (`PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md`)
+- `tools/verify-draft-kills.mjs` — verifies that a drafted assertion, as written, actually kills its (`QWEN-ENGINEERING-PROGRAM-2026-08-27-BRIEF.md`)
+- `tools/corpus-tier.mjs`: keeps the 30 most recent nights of the canonical corpus local and replaces (`CORPUS-TIER-30-NIGHTS-2026-09-20-BRIEF.md`)
+- Residue: the guard hook's quote/heredoc stripping is wired into one of its twelve rules, so a
+- Two new pages in the vigil monitor's sidebar — **Ledger** and **Capture** — one index behind both
+- Resolve a changeset's `brief:` at write time, and point authors at the 4-second check that already
+- Names the failure class where machinery exists, is correct, is tested, and one of its several (`PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md`)
+- **The respiratory-rate paper has figures, seven weeks after the tool that draws them.** (`MOTIONDEX-RESPIRATORY-RATE-2026-07-21-BRIEF.md`)
+- ALLAN-STABILITY-GAPS closes. capture-host: holes in an arrival series are segmented at k×median and pooled (n-weighted σ² per τ), stability() carries provenance (tau0, n, span, estimator, version) and a real answer for a constant series, nightqc passes the host instants, the night report gets one clock line per stream. Measured on the box: max_gap ≤ 4× median holds on only 22.8 % of ECG/PPG arrival legs. The brief's prediction that a compacted hole reads as τ⁺¹ drift is corrected — a phase step is τ⁻¹ᐟ² energy, it inflates the level. Node lane: a PAT↛clock source-scan gate and §2.1's file-path export test. A nightqc test that passed over zero rows now plants a real night. (`ALLAN-STABILITY-GAPS-2026-09-07-BRIEF.md`)
+- tools/nsrr-coupling-bout-fpr.mjs measures DEEP-AUDIT-V F8 on 400 SHHS1 nights, XML only: event-coupling's circular-shift null is exact under real within-stream clustering (4.4 %) and its shared-modulation false-positive rate is a curve in the shared profile's scale — 88 % at 90 s, 58 % at 3 min, 30 % at 5 min, 13 % at 10 min, 7 % at 20 min; the synthetic 36–53 % sits at 3–5 min. The per-record density diagnostic the punch list prescribed fails its pre-registered AUC bar (≤ 0.76 vs 0.8) and is not shipped; the p-value is untouched. docs/COUPLING-BOUT-FPR-2026-09-20.md; F8 row DONE; residue for the header caveat. (`DEEP-AUDIT-V-FOLLOWUPS-2026-08-05-BRIEF.md`)
+- Integrator consumes per-instance measurement blocks behind a tolerant, fail-closed adapter — refs (value, code, input join, provenance verdict) ride forward on the fusion export's node cards; a legacy export fuses byte-identically. (`MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26-BRIEF.md`)
+- The measurement-provenance programme's final report and F-section — what it proves with the gate named, and twelve limits it does not, each labelled found vs assumed. (`MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26-BRIEF.md`)
+- The vigil monitor Ledger ✓ presses the batch tool Process button after loading the night, so the 3-corner-hat and PAT run from the click without another one; when the tool finds no eligible night the toast says so.
+- tools/oracle-ecg-firmware-rr.mjs — MEASUREMENT-PROVENANCE §5's oracle harness, ECG leg: ECGDex's Pan–Tompkins against the H10 firmware detector on every real night carrying both trains, with pre-stated bands and §5's caveats machine-printed. Over 52 nights: mean RR Δ 0.40 %, rMSSD Δ 1.2 % (consistent); per-beat pairing bimodal — 20 nights within one sample, 25 unpaired by the ±60-beat index alignment when the firmware's surplus exceeds it (limit named, time-anchored pairing scoped). Found ECGDex's validateRR / export validation block comparing gap-spanning intervals (65 797 % dRMSSD on a gappy night) — filed as residue, fix separate. (`MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26-BRIEF.md`)
+- Oracle harness time-anchored pairing: firmware RR placed on the host axis (envelope anchors + per-window coincidence latency, stepping at reconnections), paired 1:1 within ±150 ms — 98.7 % matched, RR |Δ| 0.45 ms on 52 real nights, bands pre-stated. (`MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26-BRIEF.md`)
+- OxyDex emits per-instance measurement blocks (meanSpo2, t90, odi4, hypoxicBurden) with window, channel, code identity and input lineage — schema 2.1; bundles carry their own manifestHash/computeHash on the html tag; the backward walk-through is checkable via tools/measurement-walk.mjs. (`MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26-BRIEF.md`)
+- find_unwired.py scan 7 (advisory): one consumer whose callers hand it the same parameter DERIVED by a defined function at one site and READ FROM CONFIG at another — the one-of-N adoption shape that reads as done. 13 plants, each planted red on a shape a real-source run exposed (IfExp, one assignment upstream, builtin wrappers, dict.get vs a method get, a binding after the call, a parameter inheriting another function's binding, subscript targets, same name in two modules). main: 692 slots, 1 FP allowlisted with reason; the tree before #2716: the known _usb_rebind instance flagged. Not in the --check sum. AUDIT-PROMPT class 16 asks the one-of-how-many question for the two populations no tool covers. (`PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md`)
+- **The "isolated 156 is a marker" heuristic is scored against the ring's own beat flag — and holds,
+
+### Changed
+- Resource-orchestration §7 — the adapter ladder DID fire on 2026-09-11, so residue row (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- The clock-sync gate now keys on a MEASURED per-unit capability instead of a configured vendor string — (`BLE-TRANSPORT-REDESIGN-2026-09-10-BRIEF.md`)
+- Resource-orchestration §7 — the post-fix fsync measurement the brief said was owed, taken on vigil. The (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- `mutate_diff.py` printed nothing for a function whose mutants were all killed, which is the common (`RESIDUE.md`)
+- Stamp the CPAP-ACQ-P3 brief's status header to the state its own items reached today: W1 (#2626), W2(a) (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`)
+- Stamp the resource-orchestration header: §7's post-recovery radio verification is BUILT (#2624, (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- The residue row claiming the GATT oracle settled for the weaker half of Robust Caching is withdrawn: (`GATT-HANDLE-MAP-2026-09-17-BRIEF.md`)
+- The UNDECIDED refusal reported a total and six sample mutant names, which cannot separate "all of them (`RESIDUE.md`)
+- Two AS11 boxes closed on measured evidence, and the run-length baseline for the three un-named sidecar (`AS11-AUTO-SESSION-DETECTION-2026-08-24-BRIEF.md`)
+- The live CPAP stream's cost is MEASURED before any dataId is added (Unit 2 of the 2026-09-19 ruling; (`CPAP-AS11-BLE-WIRE-NOW-2026-09-07-BRIEF.md`)
+- Capture-host brief drain: three absence claims were false, and **two of the three were false when they
+- Round-2 drain of the five stalest capture-host briefs — and the headline is not a stamp: **the ~17 days
+- Brief drain, box round 2 — four briefs re-verified against the tree AND the capture box; one
+- Brief drain, device/box partition — six briefs re-verified against the tree AND the box, headers
+- Drain stamp: the brief's done-when count dates from 2026-09-11 and five PRs have since landed in its own (`MUTATION-PIPELINE-INTEGRITY-2026-08-24-BRIEF.md`)
+- Ledger-only: records that the BLE counters cannot tell an absent device from a failing one, and that
+- The run sidecar emits the measurement and names nothing: `absence` / `in-wear-rail` (one afternoon (`PPG-ABSENCE-AS-VALUE-2026-09-06-BRIEF.md`)
+- Brief drain, round 3, box lane — four briefs re-triaged on the box's own record (2026-09-20, Wren), (`O2RING-POWER-AWARE-BLE-LIFECYCLE-2026-09-05-BRIEF.md`)
+- Brief drain, round 4, box lane — four briefs re-triaged on the box (2026-09-20, Wren), each next-step (`VIGIL-SELF-SUSTAINED-FOLDING-2026-09-01-BRIEF.md`)
+- Brief drain round 5: thirteen headers re-stamped from the owner's rulings of 2026-09-20. Five DONE
+- Round-3 drain. **Three of the four assigned briefs were already DONE** — the assignment selected by
+- Three genuinely open briefs re-verified against current `main`. **Two stamped, one unchanged.**
+- CORPUS-LOCATIONS now names both NAS boxes, the 189 GB NSRR cohort five tools read, and the
+- CORPUS-LOCATIONS records the TrueNAS copy as a verified full duplicate of the canonical corpus
+- Log a residue row: a guard denial cancels the **whole Bash invocation**, and nothing says which clauses
+- **`codegen` manifests: the `status` maturity enum is retired.** One hand-maintained word
+- Four residue rows re-verified against current `main`. **All four stay OPEN** — their premises hold — and
+- Two rows the sweep asked for: the narrower live-capture loss-guard claim (the old row falsified, (`RESIDUE-ABSENCE-EVIDENCE-SWEEP-2026-09-18-BRIEF.md`)
+- Three owner rulings on DEEP-AUDIT-V-FOLLOWUPS recorded at the point of use (68 tiles by review,
+- DEVICE-RATE-TRUTH closes: the RtPpg battery night is measured on the box from LINK.csv battery_pct over 58 nights — with ppg2w live since 2026-09-07 the O2Ring drains 4.05 %/h against 4.25 %/h the fortnight before, so the stream's cost is not detectable (≤ 0.3 %/h, ≤ 2.5 % per 8-h night); an unrelated +0.9 %/h drift across August is recorded, not explained. §8's 'ring has no ACC' doubt is answered by the tree (ACCRAW.txt captured nightly). (`DEVICE-RATE-TRUTH-2026-08-05-BRIEF.md`)
+- Drain: PAT-FORENSICS-WINDOW-ORACLE closes (its last box is PAT-RESIDUAL-ATTRIBUTION's owner-parked question, closed by reference; the posture-covariate substitute its own §-park proposed is confounded). COHORT-GEN-2.0-PAPER-RERUN's table corrected — rmssd-equivalence re-cut in #2584, treatment-response is an owner decision; two cohort-harness residue rows close as fixed #2582. (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28-BRIEF.md`)
+- Make `find_unwired` name the file whose bare-name match un-orphaned a function when its allowlist entry reads as spent, so an English word in a new shell log line costs one look instead of an hour of bisecting a file the author never touched.
+- Derive the monitor page's chip-function list from `renderRemembered`'s own template (closed over callees) for both node-lane tests that consumed a hand-kept copy, so a chip added to the page is stubbed and scope-checked without anyone editing a list — the copies went stale the day `oxyStormChip` landed and only reddened on a machine that had node.
+- PAT-OFFSET-ESTIMATOR-FOLLOWUPS closes: within-connection constancy of the PMD-arrival offset measured by halves over 96 box-night Polar streams — 67 of 69 certified streams agree at the connection midpoint within 10 ms (median 1.6 ms ECG, 2.0 ms PPG); the one 75 ms outlier is a stream the full-connection fit already refuses to certify. The anatomical-sign re-check is closed as not executable: the ring leg still has no certifiable arrival offset (2026-09-19 sidecar, estimators 1930 ms apart), so by elimination the 7-of-10 sign failure is not the per-connection offset. (`PAT-OFFSET-ESTIMATOR-FOLLOWUPS-2026-08-12-BRIEF.md`)
+- **`OxyDex.processNight`'s mutating contract is stated at its own signature.** It splices warm-up
+
+### Fixed
+- MotionDex refuses `immobileFrac` across a clock seam, and the `beatConfidence` mirror claim is now
+- capture-host's mypy count drops **100 → 68** and the ratchet is banked (`MYPY_BASELINE` 99 → 68). The (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- OxyDex's epoch HR is the mean of its 1 Hz rates, not the median — removing a −0.244 bpm cross-node bias — and the Integrator's mixed-statistic flag now keys on measured comparability rather than name equality. (`R5-HR-TRIPLET-FOLLOWUPS-2026-08-04-BRIEF.md`)
+- Re-anchor PpgDex's axis at a mid-file device-counter resync instead of spanning it — a planted step published a 7.66-year night while the rate guard read green. (`BLE-TIMEBASE-AT-THE-EDGE-2026-09-16-BRIEF.md`)
+- Two published CPAP aggregates were built from counters that nothing can increment, so they reported (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`)
+- The CPAP spool loop treated an already-committed round as "no new data" and dropped the device's (`CPAP-ACQ-P4-SPOOL-TRANSACTION-2026-08-23-BRIEF.md`)
+- The blind spot reported for `@property` is mutmut's rule for every decorated function, not a property (`RESIDUE.md`)
+- The ECG rail leg keyed on a global constant and fired on nothing. `computeSQI`'s flatline/rail check (`ECG-SATURATION-ABSENCE-2026-09-18-BRIEF.md`)
+- Corrects §5.2 of the pinned-span brief, which merged (#2640) carrying a refuted claim. (`PINNED-SPAN-POPULATIONS-2026-09-18-BRIEF.md`)
+- The GATT table recorder writes and logs only on a first sighting or a real change — it was re-recording an identical table every 34 seconds. (`GATT-HANDLE-MAP-2026-09-17-BRIEF.md`)
+- The GATT table recorder now runs on the WEARABLE rails, not only on CPAP. Measured by Wren on vigil (`GATT-HANDLE-MAP-2026-09-17-BRIEF.md`)
+- `resolve_hci` could not reach its last surviving source on the one deployment its guard was written
+- Correct the adapter recovery ladder's docstring — its rungs are btusb-shaped, not RTL8761B-shaped — and state where the ladder stops reaching.
+- `mmeta.generated_under_glob` matched `^def` at column 0, so it counted zero mutants for every class (`RESIDUE.md`)
+- capture-host's mypy count drops **58 → 41**; `MYPY_BASELINE` banked. Re-measured before starting: **58 in (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- capture-host's mypy count drops **68 → 58**; `MYPY_BASELINE` banked 68 → 58. Re-measured before starting, (`PYTHON-TYPES-AND-FORMAT-2026-08-27-BRIEF.md`)
+- CPAP-ACQ-P3 W1 — `as11_pull.stream` now calls `classify_frame` instead of re-deciding inline, so the (`CPAP-ACQ-P3-GAP-ACCOUNTING-2026-09-18-BRIEF.md`)
+- Pin the `not any_streaming` guard on the new `adapter_responds is False` wedge signal (#2624). Found by (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- mutmut generates no mutants for an `@property`, so the diff-scoped gate reported those functions as (`RESIDUE.md`)
+- Verification sweep of the residue ledger's absence-shaped rows, and a fix to the index's own (`RESIDUE-ABSENCE-EVIDENCE-SWEEP-2026-09-18-BRIEF.md`)
+- The gate that exists because unclosed-writer tail loss is invisible could itself only see **4 of 13** (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- My #2672 test asserted a property of the **branch** rather than of the code, so it failed for anyone
+- Correction to #2679: the AS11 detector did NOT report last night's therapy as quiet — the claim was a (`AS11-AUTO-SESSION-DETECTION-2026-08-24-BRIEF.md`)
+- Two BLE ops counted their failures into a dict `snapshot()` could not read, so `link` and `offline_op`
+- Brief drain, DSP/node lane: six briefs whose status headers assert an absence, re-checked against
+- Brief drain round 2, DSP/node lane: four briefs re-checked against landings in the files they NAME.
+- The CPAP sink-failure log fired on every SUCCESSFUL write — `#2641`'s timing `finally` was inserted
+- ECGDex's coupling grid now says which cells were measured. `_interpGrid` returned a bare Float64Array,
+- The AS11 link computed both frame CRCs on send and verified **neither** on receive. Both are now
+- `gattmap.configure()` dropped `recorded_at` on reload — the provenance stamp #2611 added lived only
+- Four shipped nodes' codegen manifests declared `"status": "planned"`. ECGDex, PpgDex, PulseDex and
+- Withdraws `2026-09-16-maxstepms-names-two-populations` and logs a narrower successor.
+- `how-to-collect/muse-eeg.md` warned about a constraint that stopped existing on the day it was
+- `function_of_mutant` could not read the only name format it is ever given, so the mutation gate's
+- The mutation scratch now carries the repo-root files a test reads — the `writers.py` lane had been
+- The mypy ratchet was right and `main` had drifted past it. **The baseline is not re-banked — the
+- A drain stamp merged this morning cited a span-kind vocabulary that was falsified the same evening.
+- The diff-scoped mutation gate scoped what it RAN to the changed functions but harvested UNDECIDED (`RUN-POLAR-MUTATION-PASS-2026-08-08-BRIEF.md`)
+- **Three corpus tools reported a finding when their input directory did not exist.** Each defaults
+- `tools/analysis-rerun.mjs` drove the treatment-response rerun at the page's default minimum of 6
+- A config-authored rsync archive target never started the offload — and said nothing. `archive_poller`
+- Derive the adapter watchdog's last recovery rung (USB unbind/bind) from the radio being watched instead of the single static `watchdog.usb_path`, so it can no longer re-enumerate a radio that is neither wedged nor monitored while leaving the wedged one untouched; when nothing is derivable the rung refuses rather than falling back.
+- Ask a spare radio an HCI round trip before failing over onto it, so a controller that reports `UP RUNNING` while answering nothing can no longer cost every wearable a disconnect, a re-bond and a hole in the recording; a spare that does not answer is quarantined for a cooldown, and a box whose every spare is deaf refuses the migration instead of spending its flap cap. (`CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT-2026-09-05-BRIEF.md`)
+- `tools/pat-host-offset.mjs` juxtaposes `maxStepE` and `maxStepP` in one row at a ~30% temporal density
+- `run_muse`'s `muse_tool` switch, re-read against BOTH upstreams at HEAD (2026-09-20). Residue
+- **The NSRR adapter now reads the oximeter's own validity channel.** SHHS1 ships `OX stat` — a 1 Hz
+- The O2Ring's passive scan now SENDS the filter BlueZ requires — owner ruling 2026-09-20 ("or_patterns (`O2RING-POWER-AWARE-BLE-LIFECYCLE-2026-09-05-BRIEF.md`)
+- `OXYLIFE.csv` — the O2Ring lifecycle journal every connect-yield number in the residue ledger rests (`O2RING-POWER-AWARE-BLE-LIFECYCLE-2026-09-05-BRIEF.md`)
+- The 0x03 probe's test fixtures accepted the link arguments and dropped them — `BleakClient`'s kwargs
+- **`docs-ledger` check8h/check8i named the wrong object when a residue row was malformed.**
+- **A shipped bundle published retracted validation figures for thirteen days.**
+- **The published site carried claims and withheld their corrections for over a month.**
+- Stop `_pick_live_spare` binding two different things to the name `mac` in one scope, which had pushed capture-host's mypy advisory count one above its baseline.
+- A test that faked `time.monotonic` could move `capture._now()` for every later test in the same
+- **Both fused tools now read the capture host's filenames, so the Ledger's ✓ is a click that
+- The rsync-over-ssh archive target (`archive.target: {protocol: rsync}`) — the direct vigil → NAS push
+- allan.stability() on a constant phase series now returns a classification record saying 'no measurable instability' (noise None, slope None) instead of classification: None, which was the shape of an unmade fit; determinism (J) and the degenerate input (A) from ALLAN-STABILITY-GAPS §2.5 are pinned by tests. (`ALLAN-STABILITY-GAPS-2026-09-07-BRIEF.md`)
+- Let the doff-path drain settle and retry, bounded, when BlueZ refuses it with `InProgress` because the predecessor pull's teardown has not finished — 9 of 32 drains since 09-07 were refused that way and left fragments for a poller lap up to an hour away — and record the drain's outcome in `autopull` status so "nothing stranded" and "refused" no longer both read as zero.
+- Resolve the DST fall-back hour when reading the box's naive local `Phone timestamp` — by host−device continuity where a device stamp rides along, by monotonicity otherwise — so the host axis no longer steps backwards by an hour inside a series on the one night a year the wall clock repeats; the next such night for the box is 2026-11-01 and this code had never been through one.
+- cohort-harness's realm tripwire (#2572) is now gate-backed by a plant: the authored boot script is driven in a vm with the node's global absent (ready WITH error, naming the global) and present (clean ready); REQUIRED_GLOBAL and SCRIPTS key sets are pinned equal, and the tripwire's fallback to an empty list — under which a node with no entry passed with nothing examined — is removed; every iframe consumer is scanned for reading the error. The same driver on the pre-#2572 harness produces no refusal, so the gate discriminates. (`COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`)
+- The vigil monitor live strip detects R-peaks on a 5–15 Hz bandpassed copy (rectified, per-beat polarity, median-amplitude guard, raw-extremum refinement): a baseline wander no longer dashes the live HR. Validated per 7 s window against the H10 RR stream on two real nights (within-3-bpm 3168 → 3257 of 3457; 563 → 568 of 568). (`VIGIL-DEEP-ANALYSIS-2026-07-22-BRIEF.md`)
+- Nights pages: every click names its input (OxyDex was going to its ECG-sidecar loader and dropping the night); one CPAP tree per night (SD set, else the BLE pull) so CPAPDex no longer doubles a session; HRVDex is figure-only (it reads Welltory CSV or an ECGDex export); the 3-corner-hat and PAT marks are on-disk eligibility, not a click, until their classifiers read capture-host filenames (residue 2026-09-20-tool-classifiers-phone-names, tripwire test).
+- pat-window-oracle refines its ECG leg by default (ECGDSP.refinePeaks through a new opts.refine on pat-matchrate-strict's ecgRpeakTimes; --no-ecg-refine reproduces earlier numbers). Paired over 58 scored box nights the whole-sample quantisation was verdict-level: 20 modes move (18 by one 10-ms bin), 2 verdicts flip, the two invariant nights hold. Closes PAT-FORENSICS-AXIS-LEG-ASYMMETRY's last box; nine sibling tools still take the whole-sample default and switch when re-cut. (`PAT-FORENSICS-AXIS-LEG-ASYMMETRY-2026-08-28-BRIEF.md`)
+- **OxyDex's primary stats builder counted a dropout as a reading.** `computeStats` mapped every row's
+- **`PAT Feasibility.html` was never in `build-analysis`'s `TOOLS`, so the box could not serve it.**
+- **The PAT tool paired sessions by file size and reported NO OVERLAP for a night that overlapped.**
+- **`validatePPI` ran Malik correction a second time on the export's already-corrected `nn`, and
+- Stop counting a Verity PPI frame's zero device stamp as an absent measurement — Polar documents that PPI/HR sample time "is either zero or missing" by design, and its SDK parser branches on exactly that — so the stream is declared timestamp-less once at onset instead of refused 7283 times a day, while every stream that does carry a sample time keeps the guard unchanged.
+- Run `test_the_config_path_DEFAULTS_when_no_argument_is_given` from an empty directory so its verdict no longer depends on whether the machine carries a gitignored operator `config.yaml` — it failed on a dev box with `radio_clock.enabled: false` while CI's fresh clone stayed green.
+- Record which configured device owns each telemetry stream where the stream is registered and publish it as `streams[].device`, so `capture_status.py` and the monitor page join streams to devices by ownership instead of by key spelling — which matched 2 of 10 streams on the live box by accident and rendered a Verity writing 16.8 MB as idle; an unmatched configured name now renders as UNMATCHED, never as idle.
+- Three tools/ residue rows fixed: a shared Playwright launch (tools/pw-launch.mjs) that keeps the sandbox where it works and relaunches --no-sandbox only on the AppArmor user-namespace failure, naming it; pat-fiducial-jitter stratifies by sample rate and quotes each SD's size in samples instead of scaling every file by the last file's fs; trio-batch reports a 3-bpm quality statistic beside the 15-bpm HR fault gate.
+- Make the box updater read the sha the daemon is actually running from the daemon's own `/api/version` instead of from the deploy marker — which records what the updater last deployed and goes stale after any restart it did not make, so the content gate then diffed code the daemon already had and fired a redundant restart at the first doff of the night; the marker remains the fallback, labelled as such whenever a restart decision rests on it, and every log line now says whose sha it is quoting.
+- tepna-update.sh runs sync-apps.sh and check-system-files.sh whenever they exist (-f), not only when executable (-x): both are committed 0644 and run through bash, so the serve-bundles half of every automatic deploy had been skipped silently (29 of 34 served bundles stale on the box) and /etc drift never reported. Two plant tests at the real mode 0644.
+- tepna-update.sh syncs the served bundles whenever sync-apps.sh --check reports drift, on every tick — not only when this run fast-forwarded the checkout. tepna-sync-main also fast-forwards it, and when it won the hour the tick read nothing-to-do while 30 of 35 served bundles stayed stale.
+- ECGDex's firmware cross-check (validateRR / alignFirmwareRR and the export's validation block) is computed on the gap-cut NN train, not the raw one: an interval that straddles a dropout is a non-measurement and is excluded exactly as the headline rMSSD/SDNN already exclude it; nnSpansGap is published on the analyze result and validation.gapCutBeats says how many were cut. A 20-minute dropout counted as one interval had put validation.dRMSSDPct at 65 797.8 on a real night (7.1 % gap-cut). Planted gate; ECGDex re-bundled, the corpus-backed fixture re-verified. (`MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26-BRIEF.md`)
+- Reset the process-global open-sample-writer counter before every capture-host test and trip after any test that leaves it raised, closing the ten writers ten tests left open — the leak that made `capture._now()` absorb clock steps instead of re-anchoring in the #2715 mutation lane.
+
+---
+
 ## [2.12.0] — 2026-09-17
 
 ### Added
@@ -2355,7 +2508,8 @@ and establishes the release-governance layer over it.
 - **The shared test suite** (`Dex-Test-Suite.html` + `tests/dex-tests.js`) and the build/provenance
   manifests.
 
-[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.12.0...HEAD
+[Unreleased]: https://github.com/Plantucha/Tepna/compare/v2.13.0...HEAD
+[2.13.0]: https://github.com/Plantucha/Tepna/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/Plantucha/Tepna/compare/v2.11.0...v2.12.0
 [2.11.0]: https://github.com/Plantucha/Tepna/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/Plantucha/Tepna/compare/v2.9.0...v2.10.0

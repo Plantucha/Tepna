@@ -633,3 +633,26 @@ def test_in_glob_scope_cannot_see_status_by_construction():
     assert list(inspect.signature(M.in_glob_scope).parameters) == ["mutant", "glob"]
     # and an in-scope mutant is selected regardless of any status it might carry
     assert M.in_glob_scope("link_rssi.x_resolve_hci__mutmut_1", "link_rssi.x_resolve_hci__mutmut_*")
+
+
+# ── the RUN BUDGET — residue 2026-09-17-mutation-scope-selects-whole-functions ─────────────────────
+def test_budget_refusal_names_every_number_it_used():
+    """A refusal must be re-derivable by the reader: module, clean time, the factor, what was left."""
+    from mutation_diff import GATE_BUDGET_SEC, PREWORK_TRACE_FACTOR, budget_refusal, prework_estimate
+
+    assert prework_estimate(100.0) == 100.0 * (1.0 + PREWORK_TRACE_FACTOR)
+    assert prework_estimate(100.0, trace_factor=0.5) == 150.0
+    # the measured capture.py case: 936.7 s clean, five globs, a fresh budget → FITS (once per module)
+    assert budget_refusal("capture.py", 936.7, 5, GATE_BUDGET_SEC) is None
+    # …and the same selection with only 20 minutes of budget left → refused, with the numbers
+    why = budget_refusal("capture.py", 936.7, 5, 1200.0)
+    assert why is not None
+    for needle in ("capture.py", "936.7s", "2810s", "1200s", str(GATE_BUDGET_SEC), "5 function(s)", "REFUSAL", "not a"):
+        assert needle in why, (needle, why)
+    assert "verdict on the diff" in why
+    # the boundary: an estimate exactly equal to what is left still fits
+    assert budget_refusal("m.py", 10.0, 1, prework_estimate(10.0)) is None
+    assert budget_refusal("m.py", 10.0, 1, prework_estimate(10.0) - 0.01) is not None
+    # the trace factor reaches the estimate: at 0.5 the same clean run fits where the default does not
+    assert budget_refusal("m.py", 10.0, 1, 16.0, trace_factor=0.5) is None
+    assert budget_refusal("m.py", 10.0, 1, 16.0) is not None

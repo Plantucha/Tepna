@@ -299,9 +299,7 @@ def test_the_remember_api_gates_on_identity_before_it_persists():
     """SOURCE SCAN, because webmon.py needs aiohttp and the test env has none — a skipped test here
     would be no gate at all, and this leg is exactly the one that was missing (the daemon checked,
     the API did not). Asserts the ordering that matters: reject BEFORE the config write."""
-    import os
-    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                            "webmon.py")).read()
+    src = module_source("webmon.py")   # skips on a mutmut file — see tests/_srcscan.py
     body = src[src.index("async def remember("):]
     body = body[:body.index("\n    async def ")]
     assert "missing_identity(" in body, "Remember API no longer validates device identity"

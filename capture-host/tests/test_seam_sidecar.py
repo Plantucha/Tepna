@@ -14,6 +14,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import writers  # noqa: E402
+from tests._srcscan import module_source
 
 T0 = dt.datetime(2026, 9, 16, 12, 0, 0)
 
@@ -90,8 +91,7 @@ def test_PLANT_every_device_clocked_writer_FEEDS_the_sidecar():
 
     Asserted as a NAMED SET, never a count: a count encodes "eight" as the invariant, when the
     question a reader has is WHICH."""
-    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                            "writers.py")).read().split("\n")
+    src = module_source("writers.py").split("\n")   # skips on a mutmut file — see tests/_srcscan.py
     starts = {}
     for i, l in enumerate(src):
         m = re.match(r"    def ([a-z_0-9]+)\(", l)
@@ -111,8 +111,7 @@ def test_the_uncovered_paths_are_uncovered_ON_PURPOSE():
     """`feed()` takes only `phone` — no device clock, so a seam is NOT EXPRESSIBLE there, which is a
     different fact from unmeasured. Pinned so that 'add it everywhere' is a deliberate change."""
     assert "feed" not in writers.SEAM_FED_WRITERS
-    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                            "writers.py")).read()
+    src = module_source("writers.py")   # skips on a mutmut file — see tests/_srcscan.py
     # ⚠️ TWO methods are now named `feed` — `_SeamSidecar.feed(self, phone, sensor_ns)` and
     # `_RunSidecar.feed(self, channel, value, phone)`. A bare `def feed(` search finds whichever comes
     # first in the file and would assert about the wrong one; this test failed exactly that way on its

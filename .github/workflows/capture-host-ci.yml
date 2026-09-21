@@ -242,6 +242,11 @@ jobs:
     if: needs.changes.outputs.run == 'true' && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     name: mutation (diff-scoped)
+    # The tool REFUSES at its own GATE_BUDGET_SEC (7200 s, mutation_diff.py) with the reason named;
+    # this cap sits above it so the runner only ever kills a run the tool itself failed to bound —
+    # a job that dies here has no verdict, which is the shape the in-tool budget exists to remove
+    # (residue 2026-09-17-mutation-scope-selects-whole-functions: 98 min, exit 143, nothing scored).
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v7
         with:
