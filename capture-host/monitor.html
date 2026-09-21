@@ -1265,6 +1265,12 @@ const NIGHT_APP = {ECGDex:"ECGDex.html", OxyDex:"OxyDex.html", PPGDex:"PpgDex.ht
 const NIGHT_INPUT = {ECGDex:[["_ECG.txt","#ecgInput"],["_ACC.txt","#accInput"],["_RR.txt","#rrInput"],["_HR.txt","#hrInput"]],
   OxyDex:"#fileInput", PPGDex:"#fileInput", PulseDex:"#rawInput", CPAPDex:"#fileInput", MotionDex:"#mxInput",
   "3 corner hat":"#fileInput", PAT:"#fileInput"};
+// The two batch tools index the files and then WAIT for their Process button — the six analyzers process
+// on load. The owner's ask is "load and process without other clicking", so openNight presses that button
+// once the tool enables it (both enable it synchronously inside their change handler when a night is
+// eligible; measured 2026-09-21 on the box: "1 nights indexed from 10 files", button enabled, idle). If it
+// never enables, the tool found no eligible night and the toast says so instead of claiming processing.
+const NIGHT_RUN = {"3 corner hat":"#procBtn", PAT:"#run"};
 // Figure-only columns: the raw input on disk that reaches the app through another node, never a click.
 const NIGHT_WHY_NOT = {Integrator:"raw input of a fold — folds run on rig (tools/trio-batch.mjs), not in the browser",
   HRVDex:"HRVDex reads Welltory CSV or an ECGDex export — this raw Polar input reaches it through ECGDex"};
@@ -1373,7 +1379,15 @@ async function openNight(night, node){
     const dt = new w.DataTransfer(); list.forEach(f=>dt.items.add(f));
     el.files = dt.files; el.dispatchEvent(new w.Event('change', {bubbles:true}));
   }
-  nToast(node+': '+files.length+' file'+(files.length>1?'s':'')+' ('+nMB(total)+') loaded from '+night+' — processing in the new tab');
+  const loaded = node+': '+files.length+' file'+(files.length>1?'s':'')+' ('+nMB(total)+') loaded from '+night;
+  const runSel = NIGHT_RUN[node];
+  if(!runSel){ nToast(loaded+' — processing in the new tab'); return; }
+  // a batch tool: press Process for the user once the tool has indexed the night and enabled it
+  const btn = await new Promise(res=>{ let tries=0; const t=setInterval(()=>{ let b=null; try{ b=doc.querySelector(runSel); }catch(_){}
+    if((b && !b.disabled) || ++tries>100){ clearInterval(t); res(b && !b.disabled ? b : null); } }, 100); });
+  if(!btn){ nToast(loaded+', but the tool found no eligible night in them — it is open, check its night table', true); return; }
+  btn.click();
+  nToast(loaded+' — Process pressed, running in the new tab');
 }
 function nightsClick(e){
   const dr=e.target.closest('[data-drawer]'); if(dr){ const r=document.getElementById('ndr-'+dr.dataset.drawer); if(r) r.hidden=!r.hidden; return; }
