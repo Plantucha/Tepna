@@ -556,7 +556,13 @@ self.onmessage = function (e) {
             };
           };
           out.detail = pack(cp);
-          out.detailCorr = pack(cpCorr);
+          /* `detailCorr = pack(cpCorr)` used to be emitted here too — computed, sent across the
+             boundary, read by nobody (residue 2026-09-02-pat-detailcorr-unread, the same class as
+             `vdCorr` before #2117). Its parent finding, ENGINE-VERIFICATION §1.5, closed as MOOT:
+             "re-instrumenting a feasibility tool whose feasibility question has a final answer would
+             be work with no consumer" — so the field is deleted rather than given a surface. The
+             corrected coupling's SUMMARY (`cpCorr`, `vdCorr`, `accSync`) is read and stays. The
+             `dead-cross-boundary` gate now holds the known-dead set at ZERO. */
         }
         self.postMessage(out);
       } catch (err) {

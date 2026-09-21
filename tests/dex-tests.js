@@ -11555,6 +11555,41 @@
         T.ok('CONTROL · an edited table no longer matches its stamp', TP.sha12(probe.table + ' ') !== probe.output, 'one appended space must change the hash');
         T.ok('CONTROL · the hash is over the TABLE, not the whole file', TP.sha12(probe.table) === probe.output, 'recomputed from the captured block alone');
       }
+
+      /* ── THE UPSTREAM-DAG HASH — the half of phase 2 that lets a stamp CLEAR (#2614 built the other half).
+         `inputsDigest=` beside a resolvable `inputs=` is recomputed by the runner over the GIT-TRACKED
+         files under that path. Until this leg existed a resolvable path was checked for EXISTENCE only,
+         so "resolvable — this stamp CAN be cleared" was a label with nothing behind it: the corpus under
+         the decay sweep's table 4 moved twice and no gate saw either move. Residue
+         2026-09-21-table-provenance-inputs-digest-never-recomputed. */
+      var digested = TP.stamps.filter(function (x) {
+        return x.inputsDigest;
+      });
+      T.ok('at least one stamp carries an inputsDigest (a clearable stamp exists, or this leg is vacuous)', digested.length > 0, digested.length + ' digested stamp(s)');
+      digested.forEach(function (st) {
+        var where = st.file + ':' + st.line;
+        T.ok(where + ' · inputsDigest is a 12-hex digest', /^[0-9a-f]{12}$/.test(st.inputsDigest), 'inputsDigest=' + st.inputsDigest);
+        /* REFUSAL IS LOUD: no git, no tracked file, an unreadable input — each is a reason and reds. */
+        T.ok(where + ' · the tracked inputs could be enumerated and read', !st.inputsDigestReason, st.inputsDigestReason || st.inputsTracked + ' tracked file(s) under ' + st.inputs);
+        /* THE CLEARING LEG. */
+        T.eq(where + ' · the git-tracked inputs still hash to the recorded inputsDigest (this stamp CLEARS)', st.actualInputsDigest, st.inputsDigest);
+      });
+      /* PLANT — one moved input must move the digest, and the digest must be over the FILES, not the
+         path string. The tree cannot be mutated inside a test, so the recipe is exercised on a planted
+         file list: same paths, one byte flipped in one file, and the digest must differ. */
+      if (typeof TP.digestOver === 'function') {
+        var a = [
+          { path: 'x/1.json', bytes: '{"a":1}' },
+          { path: 'x/2.json', bytes: '{"b":2}' }
+        ];
+        var b = [
+          { path: 'x/1.json', bytes: '{"a":1}' },
+          { path: 'x/2.json', bytes: '{"b":3}' }
+        ];
+        T.ok('PLANT · one moved input moves the digest', TP.digestOver(a) !== TP.digestOver(b), TP.digestOver(a) + ' vs ' + TP.digestOver(b));
+        T.eq('PLANT · the recipe is deterministic (same files, same digest)', TP.digestOver(a), TP.digestOver(a.slice()));
+        T.ok('PLANT · the path is part of the digest, so a renamed input moves it too', TP.digestOver(a) !== TP.digestOver([a[0], { path: 'x/3.json', bytes: a[1].bytes }]));
+      }
     });
 
     group('CLAUDE.md claims match the tree (CLAIM markers)', 'docs · claude-md · claims', function (T) {
@@ -12050,7 +12085,7 @@
 
        Hand-fixing does not find the siblings: `vdCorr` was fixed by reading the code, and this scan
        found `detailCorr` — emitted at `pat-feasibility-worker.js:513`, appearing exactly ONCE in the
-       whole repo, its own assignment — on its first run.
+       whole repo, its own assignment — on its first run. (Deleted 2026-09-21; the set is empty.)
 
        ⚠️ Scoped to DECLARED producer/consumer pairs, not inferred. An automatic boundary-finder would
        false-positive on every object literal in the repo, and a gate that cries wolf gets switched
@@ -12058,12 +12093,13 @@
     group('No value crosses a worker boundary unread', 'cohesion · dead-cross-boundary · pat', function (T) {
       var S = env.sources || {};
       var PAIRS = [{ producer: 'pat-feasibility-worker.js', consumers: ['pat-feasibility.js', 'pat-gate.js'] }];
-      /* KNOWN, published, ratcheted — same discipline as the visibility cap above. `detailCorr` is
-         the packed per-beat detail for the ACC-CORRECTED coupling. Surfacing it is a UI decision (a
-         second scatter, or a toggle on the existing one), not a mechanical wiring, and inventing that
-         surface here would consume a design call the way promoting the tier would have in #2117. It
-         is rowed as residue instead; this gate holds the line at one so a SECOND dead key reds. */
-      var KNOWN_DEAD = ['detailCorr'];
+      /* KNOWN, published, ratcheted — same discipline as the visibility cap above. The set is now
+         EMPTY: `detailCorr` (the packed per-beat detail for the ACC-corrected coupling) sat here at
+         ratchet ONE from 2026-09-02 until its parent finding's own closure was read — ENGINE-VERIFICATION
+         §1.5 closed as MOOT, "work with no consumer" — and the field was deleted rather than surfaced
+         (residue 2026-09-02-pat-detailcorr-unread). Every key that crosses this boundary is read; a
+         new dead key reds immediately, and the ratchet must not be re-opened to admit one. */
+      var KNOWN_DEAD = [];
       PAIRS.forEach(function (pair) {
         var prod = S[pair.producer];
         T.ok(pair.producer + ' · producer source readable', !!prod, prod ? prod.length + ' bytes' : 'ABSENT from env.sources');
@@ -12084,9 +12120,22 @@
           return !new RegExp('[.\\b]' + k + '\\b').test(consumerText) && KNOWN_DEAD.indexOf(k) < 0;
         });
         T.eq(pair.producer + ' · no UNDECLARED dead key crosses the boundary', dead.join(',') || 'none', 'none');
-        /* Anti-vacuity: the known-dead key must still BE dead, or the gate is pinning a fiction and
-           the cap should drop. This is the leg that fails if someone surfaces `detailCorr` and forgets
-           to remove it from KNOWN_DEAD. */
+        T.eq('the known-dead ratchet is at ZERO — every key crossing the boundary is read', KNOWN_DEAD.length, 0);
+        /* PLANT — the detector must still FIRE. A key that no consumer mentions, appended to the
+           producer text, must be reported as dead; without this the empty set above could be the
+           detector seeing nothing rather than nothing being dead. */
+        var planted = prod + '\nout.zzPlantedUnreadKey = 1;';
+        var pk = {},
+          pm;
+        KEY_RE.lastIndex = 0;
+        while ((pm = KEY_RE.exec(planted))) pk[pm[1]] = true;
+        var deadPlanted = Object.keys(pk).filter(function (k) {
+          return !new RegExp('[.\\b]' + k + '\\b').test(consumerText);
+        });
+        T.eq('PLANT · an unread key appended to the producer is reported dead', deadPlanted.join(','), 'zzPlantedUnreadKey');
+        /* Anti-vacuity for any FUTURE entry: a declared dead key must still BE dead, or the gate is
+           pinning a fiction and the cap should drop. (Empty set today; the PLANT above is what keeps
+           the detector itself honest.) */
         KNOWN_DEAD.forEach(function (k) {
           T.ok(
             'the declared dead key ' + k + ' is still genuinely unread',
