@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED — 2026-09-20 · **Created:** 2026-09-20
+**Status:** DONE — 2026-09-20 (Osprey; scan 7 in `find_unwired.py` — population (1) only, advisory, 13 plants; AUDIT-PROMPT question for (2)/(3); §1 re-checked below) · **Created:** 2026-09-20
 
 # A mechanism wired to one of N consumers — the case that reads as done
 
@@ -21,6 +21,17 @@ else, and **not one needed new machinery built**:
 | append-when-non-empty — `SessionSidecar`, `ClockSidecar` | ✓ | **2 of 3** writers; OXYLIFE lacked it | Wren, #2715 |
 | passive `or_patterns` scan path | ✓ | observer **never** adopted | Wren, #2711 |
 | `cmd_noquotes` quote/heredoc stripping | ✓ | **1 of 12** guard rules | Kestrel, #2710 |
+
+**§1 re-checked 2026-09-20 (Osprey), each row against the tree, not the table:**
+
+| row | state | evidence |
+|---|---|---|
+| `adapter_usb_id` | **fixed** #2716 | `git log -S'_usb = adapter_usb_id(_hci)'` → `c50be244`; scan 7 flags `_usb_rebind 0 [CALL:adapter_usb_id, CONFIG]` on `c50be244^` and nothing on `main` |
+| `_adapter_responds` | open row | `2026-09-20-unpinned-radio-wedge-seen-only-at-failover` (OPEN) |
+| flap cap `max_failovers` | **the "missing" was the DOC** — built since P1.5 (`capture.py:6256`, both failover sites); Heron's 2026-09-20 re-triage stamp on `CAPTURE-HOST-RESOURCE-ORCHESTRATION-AUDIT` §7 corrects it | row `2026-09-11-dead-adapter-goes-unnoticed` (OPEN) still names the three-status bundle; its picker-up reads that stamp first |
+| OXYLIFE append | **fixed** #2715 | row `2026-09-20-oxylife-truncated-on-every-restart` stays OPEN for the re-measure it owes |
+| `or_patterns` | open rows | `2026-09-20-o2ring-passive-scan-needs-or-patterns` + `…-needs-experimental-bluetoothd` (OPEN, box half owner-authorized) |
+| `cmd_noquotes` | open row | `2026-09-20-guard-strips-quotes-for-one-rule-only` (OPEN) |
 
 ⚠️ **The six are not one population and must not be presented as one.** They are three, with different
 denominators and different tractability — see §3. Merging them would let the one measurable case lend
@@ -117,14 +128,26 @@ The known instance is what it was tuned against; rediscovering it proves only th
 
 ### Done when
 
-- [ ] `find_unwired.py` reports divergent-provenance arguments among the callers of one consumer;
-      exit stays 0; an allowlist entry requires a reason.
-- [ ] A **planted** test: a synthetic two-caller divergence the scan must flag, and a legitimate
+- [x] `find_unwired.py` reports divergent-provenance arguments among the callers of one consumer;
+      exit stays 0; an allowlist entry requires a reason. — scan 7, `ALLOW_PROVENANCE`, staleness-checked
+      like the other allowlists; deliberately OUTSIDE the `--check` sum until an FP rate exists on n > 1.
+- [x] A **planted** test: a synthetic two-caller divergence the scan must flag, and a legitimate
       configured-value caller it must not. Plant added **before** the scan is pointed at real source.
-- [ ] The FP rate is stated from a run over the whole package, with the population named.
-- [ ] `AUDIT-PROMPT.md` carries the "one of how many?" question for (2) and (3), saying explicitly
+      — **13 plants**, and the ORDER matters more than the count: 5 were written before the first
+      real-source run, which then flagged 9 consumers and MISSED `_usb_rebind`; each subsequent plant
+      names the shape that run exposed (§4.2's IfExp; the value ONE ASSIGNMENT UPSTREAM — `_usb_rebind(str(_cp_usb))`;
+      builtin wrappers transparent; `dict.get` vs a method named `get`; a Name binding AFTER the call
+      — `share = _abs_path(share)`; a parameter inheriting `main()`'s `root = cfg["root"]`; `out["k"]`
+      subscript targets; two modules each defining `probe`). Every one was planted red, then fixed.
+- [x] The FP rate is stated from a run over the whole package, with the population named. —
+      **`main` at 2026-09-20: 93 files · 304 consumers with ≥2 callers · 692 slots compared · 1 flagged ·
+      0 TP · 1 FP** (`_num_signal`: `channels.get(name, [])` is a DATA mapping; `.get` cannot tell config
+      from data — the classifier's known FP mechanism, allowlisted with that reason). **`c50be244^` (the
+      tree before #2716): 691 slots · 2 flagged · 1 TP (`_usb_rebind`) · 1 FP (the same).** n=1 TP is a
+      confirmation of tuning, not a rate — which is why the check is advisory.
+- [x] `AUDIT-PROMPT.md` carries the "one of how many?" question for (2) and (3), saying explicitly
       that no tool covers them.
-- [ ] This brief's §1 table is re-checked: each of the six either fixed, or carrying an open row.
+- [x] This brief's §1 table is re-checked: each of the six either fixed, or carrying an open row. — table under §1.
 
 ⚠️ **Not done when a detector exists.** A detector that finds the six known instances and nothing else
 has measured its own tuning.

@@ -134,6 +134,18 @@ ALLOW_MODULES = {
         "for the design it encodes; DELETE with this entry if per-device pinning is not taken up"),
 }
 
+# scan 7 — a consumer whose callers hand it the same parameter by DIFFERENT provenances, and a human has
+# read both sites and judged the divergence legitimate. Keyed by consumer name; the value is the reason.
+# ⚠️ An entry here silences a partial-adoption finding, which is the class that reads as FINISHED rather
+# than broken — so the reason must say which caller is right and why the other is not a gap.
+ALLOW_PROVENANCE: dict[str, str] = {
+    # `channels.get(spec[0], [])` (cpap_edf.py:339) is a DATA mapping, not a configuration: the PLD
+    # writer pads every channel to the longest one (aligned records) where the BRP writer pads each
+    # through `_pad_records` to a record multiple — different padding by design, and `.get` cannot
+    # tell a config mapping from a data one. The ONE false positive of 692 slots on 2026-09-20.
+    "_num_signal": "channels.get() is a data-mapping read; BRP/PLD pad differently by design",
+}
+
 ALLOW_FUNCS = {
     # ── The stored raw-PPG command family (type 1, opcodes 0x06-0x09), added 2026-09-06 ────────────
     # BUILT AND DELIBERATELY UNDISPATCHED. These frames have never been sent to a ring: the first
@@ -544,6 +556,235 @@ def is_entry_point(text: str) -> bool:
     return bool(re.search(r'if\s+__name__\s*==\s*[\'"]__main__[\'"]', text))
 
 
+def _all_functions(src: str) -> "tuple[set[str], set[str]]":
+    """`(functions, methods)` defined in one module — EVERY def, private and nested included.
+
+    Split ON PURPOSE. A bare-Name call `open(f)` can only reach a FUNCTION; `self.open(...)` can only
+    reach a METHOD. Three writers define `def open(self, …)` and one name-only set then claimed every
+    builtin `open(path)` in the tree as a call to them — 11 provenances on one slot, all builtin."""
+    tree = ast.parse(src)
+    methods: set[str] = set()
+    for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
+        for n in cls.body:
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                methods.add(n.name)
+    funcs = {n.name for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))} - methods
+    return funcs, methods
+
+
+def provenance(node: ast.AST, defined: set, scope: dict, depth: int = 0) -> str:
+    """How an argument VALUE arrived at a call site — the classifier scan 7 compares across callers.
+
+    `CALL:<name>`  the value was DERIVED by calling <name>, a function DEFINED in the tree
+    `CONFIG`       the value was READ from a mapping        (`wcfg.get("usb_path")`, `cfg["usb_path"]`)
+                   ⚠️ syntactically "a mapping read", which is why `channels.get(name, [])` — a DATA
+                   dict — is CONFIG too. That is the classifier's known false-positive mechanism (1 of
+                   692 slots on 2026-09-20, allowlisted); it is not tuned away by receiver NAME because
+                   `cfg`/`wcfg`/`t`/`target` all carry configuration here and a name rule would guess.
+    `NAME` · `ATTR` · `CONST` · `UNKNOWN`   — recorded, but never by themselves a divergence.
+
+    THREE UNWRAPPINGS, each bought by a plant that failed:
+
+    · `IfExp` (PARTIAL-ADOPTION §4.2). The real defect was `adapter_usb_id(_cp_hci) if _cp_hci else
+      None`; a classifier that knew only a bare `Call` returned UNKNOWN, the pair never formed, and the
+      probe reported two BUILTINS instead of the one thing it was written to find. First informative
+      branch wins; a `None` fallback is not a provenance.
+    · BUILTIN WRAPPERS. The actual call sites are `_usb_rebind(str(_cp_usb))` — `str` is not a
+      mechanism anyone could have failed to adopt, so a call to a name NOT defined in the tree is
+      unwrapped to its first argument. Only a DEFINED callee is a `CALL:` provenance; `len(xs)` against
+      `cfg["n"]` was the first false flag on real source.
+    · ONE ASSIGNMENT UPSTREAM. Both real sites pass a NAME whose derivation and config read are the
+      assignments a line above. A call-site-only classifier is blind to the instance it was tuned
+      against — the first four plants put the derivation inline and could not see this. `scope` maps
+      each name assigned in the enclosing function to its value; one hop, never a chain, so the
+      classifier stays bounded and the result stays explainable.
+
+    ⚠️ CONFIG requires a STRING key. `xs[0]` is list indexing, not a configuration read."""
+    if depth > 3:
+        return "UNKNOWN"
+    if isinstance(node, ast.IfExp):
+        for branch in (node.body, node.orelse):
+            k = provenance(branch, defined, scope, depth + 1)
+            if k not in ("UNKNOWN", "CONST"):
+                return k
+        return provenance(node.body, defined, scope, depth + 1)
+    if isinstance(node, ast.Call):
+        fn = node.func
+        if isinstance(fn, ast.Attribute) and fn.attr == "get":
+            return "CONFIG"
+        name = _consumer_name(node)
+        if name in defined:
+            return "CALL:%s" % name
+        # a builtin / foreign wrapper is transparent: classify what it wraps
+        if node.args:
+            return provenance(node.args[0], defined, scope, depth + 1)
+        return "UNKNOWN"
+    if isinstance(node, ast.Subscript):
+        key = _assign_key(node)
+        if key and key in scope:
+            # a tracked slot IS its binding — `out["k"] = h` with `h` a parameter is NAME, not a config read
+            return provenance(scope[key], defined, scope, depth + 1)
+        sl = node.slice
+        return "CONFIG" if isinstance(sl, ast.Constant) and isinstance(sl.value, str) else "UNKNOWN"
+    if isinstance(node, ast.Constant):
+        return "CONST"
+    if isinstance(node, ast.Name):
+        if node.id in scope:
+            k = provenance(scope[node.id], defined, scope, depth + 1)
+            if k != "NAME":
+                return k
+        return "NAME"
+    if isinstance(node, ast.Attribute):
+        return "ATTR"
+    return "UNKNOWN"
+
+
+def _assign_key(target: ast.AST) -> "str | None":
+    """The scope key an assignment target binds: `x` for a Name, `out["k"]` for a string-keyed
+    subscript on a Name (storage_targets normalises INTO a dict slot and reads it back one line
+    later — untracked, the read-back is a CONFIG and the sibling caller's `mp = _abs_path(...)` is a
+    CALL, a false pair). Anything else binds nothing this classifier follows."""
+    if isinstance(target, ast.Name):
+        return target.id
+    if (isinstance(target, ast.Subscript) and isinstance(target.value, ast.Name)
+            and isinstance(target.slice, ast.Constant) and isinstance(target.slice.value, str)):
+        return "%s[%r]" % (target.value.id, target.slice.value)
+    return None
+
+
+def _assignments(body: list) -> list:
+    """`[(lineno, key, value)]` for every single-target assignment in ONE statement list, in source
+    order, WITHOUT descending into nested `def`/`class` (their names are theirs). The caller filters
+    by line, because `share = _abs_path(share, …)` binds `share` AT the call that consumes it and
+    last-assignment-wins then read the config value as derived by its own consumer."""
+    out: list = []
+    stack = list(body)
+    while stack:
+        node = stack.pop(0)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        if isinstance(node, ast.Assign) and len(node.targets) == 1:
+            key = _assign_key(node.targets[0])
+            if key:
+                out.append((node.lineno, key, node.value))
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            key = _assign_key(node.target)
+            if key:
+                out.append((node.lineno, key, node.value))
+        for field in ("body", "orelse", "finalbody", "handlers"):
+            stack.extend(getattr(node, field, []) or [])
+    return out
+
+
+def _scope_at(assigns: list, lineno: int) -> dict:
+    """`{key: value}` — for each key, the LAST assignment strictly before `lineno`."""
+    scope: dict = {}
+    for ln, key, value in assigns:
+        if ln < lineno:
+            scope[key] = value
+    return scope
+
+
+def _module_of(path: str) -> str:
+    """`radioclock` for `…/radioclock.py` — the import name a bare call resolves against."""
+    return os.path.splitext(os.path.basename(path))[0]
+
+
+def _consumer_name(call: ast.Call) -> "str | None":
+    """The consumer a call site belongs to, or None when the callee is a FOREIGN method.
+
+    `get`, `join`, `write` all flagged on the first real-source run: some class in the tree defines a
+    method by that name, and a name-only match then claims every `wcfg.get(...)` and `"".join(...)`
+    as a call to it — same name, two populations. A bare Name is ours; a `self.` method is ours; a
+    call on any other receiver is that receiver's method and not a population this scan owns."""
+    fn = call.func
+    if isinstance(fn, ast.Name):
+        return fn.id
+    if isinstance(fn, ast.Attribute) and isinstance(fn.value, ast.Name) and fn.value.id == "self":
+        return "self." + fn.attr
+    return None
+
+
+def divergent_provenance(files: list[str], src: dict) -> tuple[list[dict], dict]:
+    """Scan 7 — ONE consumer, TWO callers, the same parameter arriving DERIVED at one and READ FROM
+    CONFIG at the other. `[rows], {population}`.
+
+    THE THIRD SIBLING in this tool's taxonomy. Scan 1 finds a check that reports to nobody (n == 0).
+    This finds a check that reports to only SOME of the places that need it (0 < n < should_be) — and
+    it is the one that survives review, because a zero-consumer mechanism looks BROKEN while a
+    one-of-two mechanism looks FINISHED. Six instances in one day (PARTIAL-ADOPTION-DETECTION §1), every
+    one with passing tests and at least one real caller.
+
+    THE DENOMINATOR IS THE CONSUMER, NOT THE MECHANISM (Heron's reframe, §3). "Who should have adopted
+    `adapter_usb_id`?" is not derivable from syntax. "Who calls `_usb_rebind`?" is 2, and is. So the rule
+    is narrow ON PURPOSE: flag only when one slot of one defined consumer sees BOTH a `CALL:<defined>`
+    provenance and a `CONFIG` provenance across its callers. A config read is often CORRECT (the CPAP's
+    `ble_stream.adapter` is configured, §4.1); "config reads are suspect" would convict working code,
+    and two callers that both read config are exactly the case that must NOT flag."""
+    defined: set[str] = set()
+    trees: dict = {}
+    home: dict[str, dict[str, str]] = {}          # file → {bare name → owning module}
+    for f in files:
+        trees[f] = ast.parse(src[f])
+        funcs, methods = _all_functions(src[f])
+        defined |= funcs | {"self." + m for m in methods}
+        home[f] = {n: _module_of(f) for n in funcs}
+    stems = {_module_of(f) for f in files}
+    for f, tree in trees.items():
+        # `from radioclock import probe` — b.py's `probe(...)` IS radioclock's; a bare name a module
+        # neither defines nor imports from THIS tree reaches nothing this scan owns
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and node.module.split(".")[-1] in stems:
+                for alias in node.names:
+                    home[f].setdefault(alias.asname or alias.name, node.module.split(".")[-1])
+    sites: dict[str, list[dict]] = {}
+    for f, tree in trees.items():
+        fn_nodes = [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
+        fn_assigns = [(fn, _assignments(fn.body)) for fn in fn_nodes]
+        module_assigns = _assignments(tree.body)
+        for call in (n for n in ast.walk(tree) if isinstance(n, ast.Call)):
+            name = _consumer_name(call)
+            if name not in defined:
+                continue
+            if name.startswith("self."):
+                consumer = "%s:%s" % (_module_of(f), name)
+            elif name in home[f]:
+                consumer = "%s:%s" % (home[f][name], name)
+            else:
+                continue
+            # innermost enclosing function wins; the module's TOP-LEVEL bindings sit beneath it —
+            # never another function's (a parameter `root` once inherited main()'s `root = cfg["root"]`)
+            scope = _scope_at(module_assigns, call.lineno)
+            for fn, assigns in fn_assigns:
+                if fn.lineno <= call.lineno <= (fn.end_lineno or fn.lineno):
+                    scope.update(_scope_at(assigns, call.lineno))
+            for i, a in enumerate(call.args):
+                sites.setdefault(consumer, []).append({"slot": i, "kind": provenance(a, defined, scope), "file": f, "line": call.lineno})
+            for kw in call.keywords:
+                if kw.arg:
+                    sites.setdefault(consumer, []).append({"slot": kw.arg, "kind": provenance(kw.value, defined, scope), "file": f, "line": call.lineno})
+    rows: list[dict] = []
+    consumers_2plus = 0
+    slots = 0
+    for consumer in sorted(sites):
+        entries = sites[consumer]
+        if len({(e["file"], e["line"]) for e in entries}) < 2:
+            continue
+        consumers_2plus += 1
+        by_slot: dict = {}
+        for e in entries:
+            by_slot.setdefault(e["slot"], []).append(e)
+        for slot in sorted(by_slot, key=str):
+            slots += 1
+            provs = by_slot[slot]
+            kinds = {e["kind"] for e in provs}
+            if any(k.startswith("CALL:") for k in kinds) and "CONFIG" in kinds:
+                rows.append({"consumer": consumer.split(":", 1)[1], "module": consumer.split(":", 1)[0], "slot": slot,
+                             "provenances": [{"kind": e["kind"], "file": e["file"], "line": e["line"]} for e in provs],
+                             "allowed": ALLOW_PROVENANCE.get(consumer.split(":", 1)[1])})
+    return rows, {"files": len(files), "consumers_with_2plus_callers": consumers_2plus, "slots": slots}
+
+
 def scan(root: "str | None" = None) -> dict:
     # `root=None` then `root or HERE`, NOT `root=HERE` as a default. A default argument binds at DEF
     # time, so `HERE` was frozen at import and `main()` could not be redirected at all — patching the
@@ -708,6 +949,7 @@ def scan(root: "str | None" = None) -> dict:
     # deleted, or renamed — and all three mean the excuse is spent.
     # Every public function DEFINED in the scanned tree, so an allowlist entry can be judged only
     # against a population that actually contains its subject.
+    divergent, examined_prov = divergent_provenance(files, src)
     defined = set()
     for f in files:
         defined |= public_functions(src[f])
@@ -717,6 +959,7 @@ def scan(root: "str | None" = None) -> dict:
         ("ALLOW_FUNCS", ALLOW_FUNCS, {r["func"] for r in orphan_funcs}),
         ("ALLOW_RENDERED", ALLOW_RENDERED, {r["key"] for r in orphan_rendered}),
         ("ALLOW_JS", ALLOW_JS, {r["func"] for r in orphan_js}),
+        ("ALLOW_PROVENANCE", ALLOW_PROVENANCE, {r["consumer"] for r in divergent}),
     ):
         # ⚠️ AN ENTRY IS STALE ONLY IF ITS SUBJECT WAS IN THE POPULATION THIS SCAN ENUMERATED and is
         # no longer reported. If the
@@ -728,7 +971,9 @@ def scan(root: "str | None" = None) -> dict:
         # fixture that sets HERE to itself IS the full tree by that test, and still knows nothing
         # about `close_harvest_decision`.)
         applies = {"ALLOW_FUNCS": defined, "ALLOW_KEYS": pop_keys | pop_top_keys,
-                   "ALLOW_RENDERED": pop_rendered, "ALLOW_JS": pop_js}[label]
+                   "ALLOW_RENDERED": pop_rendered, "ALLOW_JS": pop_js,
+                   # a provenance entry applies only to a consumer scan 7 actually saw with 2+ callers
+                   "ALLOW_PROVENANCE": {r["consumer"] for r in divergent} | set(ALLOW_PROVENANCE) & defined}[label]
         for name in sorted((set(allow) & applies) - reported):
             stale.append({"list": label, "name": name, "allowed": None,
                           "reason": allow[name]})
@@ -741,6 +986,10 @@ def scan(root: "str | None" = None) -> dict:
                                        "STATUS[key]= / STATUS.setdefault(key,…)": len(pop_top_keys - pop_keys)},
             "orphan_modules": orphan_modules,
             "orphan_rendered": orphan_rendered, "orphan_js": orphan_js,
+            # scan 7, with its population beside it: files scanned, consumers that had 2+ call sites,
+            # and argument slots compared. A "0 flagged" without these is the examined-nothing shape.
+            "divergent_provenance": divergent,
+            "examined_provenance": examined_prov,
             "stale_allowlist": stale,
             # ⚠️ STALENESS IS ONLY MEANINGFUL AGAINST THE TREE THE ALLOWLIST DESCRIBES. `ALLOW_FUNCS`
             # is a module constant about THIS repo; point `scan()` at a fixture tree or a subtree and
@@ -781,6 +1030,28 @@ def main(argv: list[str]) -> int:
             # each held. A "0 unexplained" over an unnamed population is the examined-nothing shape.
             print("   shapes examined: " + " · ".join(
                 "%s ×%d" % (s, n) for s, n in res["examined_status_shapes"].items()))
+    # ── SCAN 7 · divergent provenance — ADVISORY, and deliberately NOT in the --check sum ──────────
+    #
+    # The sibling scans gate because their FP rate was curated to 0 on a real population. This one's
+    # was measured on a codebase containing exactly ONE true positive (PARTIAL-ADOPTION-DETECTION §4.1):
+    # "0 false positives" over n=1 is encouraging, not established, and it is the number that decides
+    # advisory-vs-gate. Gating on an unmeasured FP rate is the invariant-that-convicts-working-code
+    # trap — a config read is often CORRECT. So this prints, names its population, and exits 0. The
+    # tool's own comment above (scan 6: "reports without gating is the decorative half") is right about
+    # a scan whose FP rate is KNOWN; promote this one to the sum when that number exists.
+    rows = res["divergent_provenance"]
+    live = [r for r in rows if not r["allowed"]]
+    print("\n== one consumer, callers handing it the SAME parameter by DIFFERENT provenances (advisory) ==")
+    for r in rows:
+        tag = "(allowed) " if r["allowed"] else ""
+        print("   %s%s  slot %r" % (tag, r["consumer"], r["slot"]))
+        for p_ in r["provenances"]:
+            print("       %-22s %s:%d" % (p_["kind"], p_["file"], p_["line"]))
+        if r["allowed"]:
+            print("       reason: %s" % r["allowed"])
+    ep = res["examined_provenance"]
+    print("   %d flagged, %d allowed  ·  population: %d files · %d consumer(s) with 2+ callers · %d slot(s) compared"
+          % (len(live), len(rows) - len(live), ep["files"], ep["consumers_with_2plus_callers"], ep["slots"]))
     print("\n== allowlist entries that excuse nothing (the suppression is spent) ==")
     for r in res["stale_allowlist"]:
         print("   %s[%r] — %s" % (r["list"], r["name"], r["reason"][:90]))
