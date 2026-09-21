@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** REFERENCE (living — re-run `tools/oracle-ecg-firmware-rr.mjs` when the detector, the alignment or the corpus changes) · **last-verified:** 2026-09-21
+**Status:** REFERENCE (living — re-run `tools/oracle-ecg-firmware-rr.mjs` when the detector, the alignment or the corpus changes) · **last-verified:** 2026-09-21 (both pairings)
 
 # ECGDex's Pan–Tompkins against the H10 firmware detector — 52 real nights
 
@@ -62,13 +62,49 @@ same way (08-11: firmware 28 605 beats / SDNN 284 vs self 21 379 / 88); rMSSD, l
    It now pairs per window with the window's own offset, as ECGDex does, and prints the empirical
    95 % half-width beside 1.96·SD so a reader can see whether tails or the body drive the number.
 
+## The time-anchored pairing — same 52 nights, later the same day
+
+Built as the "next instrument" the section below asked for, with its bands written into the tool
+header before its first run: cumulate the firmware RR into a device axis, anchor each 300-beat
+window to host time by the lower envelope of `arrival − cumulative`, recover the stream's delivery
+**latency per window by coincidence search** (it is ≈ 2.2 s and **steps at reconnections** — 1.3 s,
+0.2 s, −1.2 s, +4.6 s windows measured; a window straddling a step is halved down to 150 beats; a
+window with no coincidence peak is *unanchored*, never paired at the night's average), then pair
+one-to-one within ±150 ms.
+
+| statistic (time pairing) | bar | median over 52 nights | verdict |
+|---|---|---|---|
+| matched self (ECGDex beats with a firmware beat) | ≥ 97 % | **98.7 %** (IQR 96.1–99.5) | CONSISTENT |
+| matched firmware (in ECGDex coverage) | ≥ 97 % | **99.2 %** | CONSISTENT |
+| RR \|Δ\| on consecutively matched pairs | ≤ 8 ms | **0.45 ms** — ≤ 8 ms on **52 of 52** nights | CONSISTENT |
+| RR LoA (1.96·SD) on pairs | ≤ 30 ms | 35 ms | SHORTFALL |
+| RR empirical 95 % half-width | — | 1.9 ms | — |
+| \|Δt\| of pairs (after anchoring) | — | 35 ms | — |
+| stream latency, median / p5–p95 spread within a night | — | 2.21 s / 1.1 s | — |
+
+**So the 25 "unpaired" nights of the index alignment were the instrument, not the detectors**: once
+the firmware beats are placed on the host axis, the two detectors place the same beats within one
+sample on every night, and the extent difference (firmware beats outside ECGDex coverage: 15 417;
+unanchored, no coincidence peak in their window: 39 583 across 262 windows) is accounted for rather
+than scored as disagreement. The LoA shortfall is tail-driven — the empirical width says the body of
+the paired differences is within 2 ms; the tails are residual mispairs at ±one RR — and is reported
+exactly as the pre-registered band says, not re-banded. Four nights match < 90 % (2026-09-04 48.7 %, 09-20
+48.7 %, 09-05 70.7 %, 08-29 80.4 %): each carries 14–33 anchor jumps, a within-night latency spread of
+5.6–11.0 s and 2 100–3 653 firmware beats in 14–25 *unanchored* windows — on 09-20, 3 300 of 8 234
+firmware beats sit in windows with no coincidence peak, so the 48.7 % is the pairing instrument's
+coverage on a reconnection-heavy night, not the detectors disagreeing. Their paired RR still agrees
+(|Δ| 0.45–0.77 ms on three of them; 09-04 sits at 7.98 ms, at the band) while their LoA runs 39–98 ms
+with an empirical 95 % width of 28–77 ms — on these nights the tails are real, and they are the
+tails that put the pooled LoA over its bar. Listed, not averaged over.
+
+⚠️ Two plants corrected the instrument before the corpus saw it: the coincidence search first took
+the plateau's *edge* (biased by up to the tolerance; now its centre), and a window straddling a
+latency step was *refused* as "no peak" before the halving check ran (now halved first).
+
 ## What this does not decide
 
-- Which detector is "right" on the unpaired nights: nothing here can, and §5 forbids reading it as an
-  auto-fix either way. The next instrument is a **time-anchored pairing** — cumulate the firmware RR
-  into a device axis, re-anchor it on the arrival stamps every few hundred beats (they are BLE-batched,
-  ±300 ms, but the drift is ~0.5 s per night), and pair by tolerance window — which is the pairing §5
-  literally names and the unit that turns 25 "unpaired" nights into a measurement.
+- Which detector is "right" where the two disagree on a beat's *existence* (the ~1–3 % unmatched on
+  either side): nothing here can, and §5 forbids reading it as an auto-fix either way.
 - The PPG leg: 37 Verity nights carry a `_PPI.txt`, 32 with ≥ 300 rows — coverage only; nothing
   compared. Its own unit, sized from that count.
 
