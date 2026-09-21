@@ -828,3 +828,44 @@ def test_scan7_a_FLAGGED_row_prints_every_provenance_and_the_exit_stays_0(tmp_pa
     assert "CALL:derive" in out and "CONFIG" in out and "b.py:3" in out
     assert "1 flagged, 0 allowed" in out
     assert "reason:" not in out
+
+
+# ── a spent entry NAMES the file that un-orphaned it (residue 2026-09-06-find-unwired-prose-unorphans) ──
+def test_a_spent_ALLOW_FUNCS_entry_names_the_file_whose_bare_name_match_un_orphaned_it(tmp_path, monkeypatch, capsys):
+    """THE ROW'S OWN SHAPE. `prune` is unwired and allowlisted. A shell helper then gains a log line
+    whose STRING happens to contain the word — a `.sh` file keeps its strings in the corpus on purpose
+    (a helper that calls a function through `python3 -c "…"` does wire it). The bare-name match
+    un-orphans `prune`, the entry reads as spent, and before this the report named nothing the author
+    had touched: an hour of bisecting for a word in a log line. Now it names the file."""
+    root = _tree(tmp_path, {
+        "m.py": "def prune():\n    return 1\n",
+        "helper.sh": 'echo "about to prune old nights"\n',
+    })
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    monkeypatch.setitem(find_unwired.ALLOW_FUNCS, "prune", "synthetic: nothing calls it yet")
+    res = find_unwired.scan(root)
+    stale = [r for r in res["stale_allowlist"] if r["name"] == "prune"]
+    assert stale and stale[0]["where"] == ["helper.sh"], res["stale_allowlist"]
+    find_unwired.main([])
+    out = capsys.readouterr().out
+    assert "un-orphaned by a bare-name match in: helper.sh" in out
+
+
+def test_the_where_list_excludes_the_defining_file_and_is_empty_for_other_lists(tmp_path, monkeypatch):
+    """The definition is not a use, so the defining module must not be named as the culprit; and the
+    diagnostic is specific to ALLOW_FUNCS — the other lists judge by other populations."""
+    root = _tree(tmp_path, {
+        "m.py": "def prune():\n    return 1\n",
+        "other.py": "def g():\n    return prune\n",
+        # a WIRED status key with a spent ALLOW_KEYS entry: the diagnostic must stay empty for it
+        "capture.py": 'def f():\n    _set(name, wired_key=1)\n',
+        "webmon.py": 'x = st.get("wired_key")\n',
+    })
+    monkeypatch.setattr(find_unwired, "HERE", root)
+    monkeypatch.setitem(find_unwired.ALLOW_FUNCS, "prune", "synthetic")
+    monkeypatch.setitem(find_unwired.ALLOW_KEYS, "wired_key", "synthetic")
+    res = find_unwired.scan(root)
+    stale = {(r["list"], r["name"]): r for r in res["stale_allowlist"]}
+    assert stale[("ALLOW_FUNCS", "prune")]["where"] == ["other.py"]
+    assert ("ALLOW_KEYS", "wired_key") in stale, "the control entry was not judged spent — the assertion below would be vacuous"
+    assert stale[("ALLOW_KEYS", "wired_key")]["where"] == []
