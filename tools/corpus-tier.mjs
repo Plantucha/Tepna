@@ -9,7 +9,9 @@
  * vigil), not 30 calendar days; a file that ages out is REPLACED BY A SYMLINK into the NAS copy, never
  * deleted, so every reader that resolves through `/srv/data/tepna-corpus/` keeps working over NFS;
  * undated files (synthetic/, workshop-imports/, `.trio-stamp`, loose exports) STAY LOCAL ALWAYS as the
- * fixed reference set; the NAS twin is verified by SIZE AND SHA-256 before the local copy is touched;
+ * fixed reference set; ZERO-BYTE files stay local too (a marker's existence is its signal — `.archived` —
+ * and a symlink into an unmounted NAS reads as absent, silently flipping it; there is nothing to save);
+ * the NAS twin is verified by SIZE AND SHA-256 before the local copy is touched;
  * it runs at 14:30 daily, an hour after the vigil pull, so the newest night is counted first.
  *
  * WHY THIS EXISTS. `/srv/data` reached 96 % on 2026-09-20 with the canonical corpus at 174 GB and the
@@ -22,6 +24,14 @@
  * WHAT "A NIGHT" IS. A file's night is, in order: a `YYYY-MM-DD` directory component in its path; a
  * `YYYYMMDD` stamp in its filename (year 2025–2027, month 01–12, day 01–31); otherwise NONE, and a
  * file with no night is never tiered. Distinct nights sort descending; the top `--keep` stay local.
+ *
+ * SYNC BEFORE TIER (added 2026-09-21 after the first real run refused 29 files). The migration copied a
+ * SNAPSHOT; nothing carried new arrivals forward — the rig's daily vigil pull lands nights on
+ * `/srv/data` that the NAS never sees (vigil's own push goes to a different NAS dataset), and the
+ * `.archived` markers the pull writes exist only here. So a regular file with no NAS twin is first
+ * COPIED to the NAS (`fs.copyFile`, additive, never overwrites, never deletes), and only then is it a
+ * tier candidate. Symlinks are never synced — they already point into the NAS. The copy count is
+ * printed; a copy that fails leaves the file local and counts as refused.
  *
  * WHAT IT REFUSES. A gate that cannot see must not report green: if the NAS root is not a mountpoint,
  * or holds fewer than `--nas-min-files`, it exits 2 having changed nothing. A file whose NAS twin is
@@ -139,15 +149,42 @@ async function main() {
   const keepSet = new Set(sorted.slice(0, KEEP));
   const tierOut = sorted.slice(KEEP).flatMap((n) => nights.get(n));
 
+  // §sync — every regular local file with no NAS twin is copied there first (additive; never overwrites)
+  let synced = 0;
+  const syncFailed = [];
+  for (const rel of files) {
+    const remote = path.join(NAS, rel);
+    try {
+      await fs.access(remote);
+      continue; // twin exists
+    } catch {
+      /* missing — copy it */
+    }
+    if (DRY) {
+      synced++;
+      continue;
+    }
+    try {
+      await fs.mkdir(path.dirname(remote), { recursive: true });
+      await fs.copyFile(path.join(SRC, rel), remote, fs.constants.COPYFILE_EXCL);
+      synced++;
+    } catch (e) {
+      syncFailed.push(`${rel}: ${e.code ?? e.message}`);
+    }
+  }
+
   console.log(`corpus-tier ${DRY ? '(DRY RUN) ' : ''}src=${SRC} nas=${NAS} keep=${KEEP}`);
   console.log(`  regular files ${files.length} · already symlinked ${alreadyLinked} · undated (stay local) ${undated} · nights ${sorted.length}`);
   console.log(
     `  keep local: ${sorted.slice(0, KEEP).length} nights, ${[...keepSet].reduce((a, n) => a + nights.get(n).length, 0)} files (${sorted[Math.min(KEEP, sorted.length) - 1] ?? '—'} … ${sorted[0] ?? '—'})`
   );
   console.log(`  tier out:   ${sorted.length - keepSet.size} nights, ${tierOut.length} files`);
+  console.log(`  ${DRY ? 'would sync' : 'synced'} to NAS: ${synced} new file(s) · sync failed ${syncFailed.length}`);
+  for (const r of syncFailed.slice(0, 10)) console.log(`    ! ${r}`);
 
   let replaced = 0,
     refused = 0,
+    zeroByte = 0,
     bytes = 0;
   const refusals = [];
   for (const rel of tierOut) {
@@ -156,6 +193,14 @@ async function main() {
     let ls, rs;
     try {
       ls = await fs.stat(local);
+    } catch {
+      continue; // vanished between walk and tier
+    }
+    if (ls.size === 0) {
+      zeroByte++; // a marker: its EXISTENCE is the signal, a symlink into an unmounted NAS reads as absent, and there is nothing to save
+      continue;
+    }
+    try {
       rs = await fs.stat(remote);
     } catch {
       refused++;
@@ -185,10 +230,10 @@ async function main() {
     await fs.rename(tmp, local); // atomic over the regular file
     replaced++;
   }
-  console.log(`  ${DRY ? 'would replace' : 'replaced'} ${replaced} files (${(bytes / 2 ** 30).toFixed(1)} GB) · refused ${refused}`);
+  console.log(`  ${DRY ? 'would replace' : 'replaced'} ${replaced} files (${(bytes / 2 ** 30).toFixed(1)} GB) · refused ${refused} · zero-byte kept local ${zeroByte}`);
   for (const r of refusals.slice(0, 20)) console.log(`    ! ${r}`);
   if (refusals.length > 20) console.log(`    … and ${refusals.length - 20} more`);
-  process.exit(refused ? 3 : 0);
+  process.exit(refused || syncFailed.length ? 3 : 0);
 }
 main().catch((e) => {
   console.error(e);
