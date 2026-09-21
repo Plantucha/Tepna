@@ -372,3 +372,32 @@ def test_correlated_agreement_is_REPORTED_as_one_source_when_it_occurs():
     assert v is True
     assert "hr-contact-bit, ppi-contact" in why
     assert "1 independent source(s): device-contact" in why
+
+
+# ── A HEARTBEAT OUTVOTES A NOT-WORN CONTACT BIT, one direction only ─────────────────────────────────
+
+def test_a_heartbeat_outvotes_a_contact_bit_that_says_not_worn():
+    """2026-09-20: contact=0 all night, 48–77 bpm in the same packets, 131 link drops. The rate is the
+    thing itself; the bit is a proxy for electrode contact quality."""
+    assert telemetry.worn_verdict(contact=False, beats=True) == (True, "worn per hr-beats")
+
+
+def test_no_heartbeat_is_not_a_vote():
+    """An absent beat can be a cold start or a bad second; the contact bit already speaks for the desk.
+    So beats=False changes nothing — the drop can only ever be PREVENTED by this signal, never caused."""
+    assert telemetry.worn_verdict(contact=False, beats=False) == telemetry.worn_verdict(contact=False)
+    assert telemetry.worn_verdict(contact=None, beats=False)[0] is None
+
+
+def test_charging_still_outranks_a_heartbeat():
+    v, why = telemetry.worn_verdict(contact=False, beats=True, charging=True)
+    assert v is False and "charger" in why
+
+
+def test_hr_beats_reads_the_packet_not_the_bit():
+    assert telemetry.hr_beats(57, 0) is True
+    assert telemetry.hr_beats(0, 2) is True          # RR intervals alone are beats
+    assert telemetry.hr_beats(0, 0) is False         # the off-body shape
+    assert telemetry.hr_beats(None, 0) is None       # no measurement, no vote
+    assert telemetry.hr_beats(300, 0) is False       # not a human rate
+    assert telemetry.hr_beats(29, 0) is False and telemetry.hr_beats(30, 0) is True
