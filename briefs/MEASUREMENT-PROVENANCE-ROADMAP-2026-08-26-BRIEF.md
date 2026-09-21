@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-09-21 (**For the next emitter:** every owned bundle now carries its own code identity on the `<html>` tag — `data-manifest-hash` / `data-compute-hash`, stamped by `tools/build-core.js` OUTSIDE every inline block by the version stamp's masking, so reading it is free: `document.documentElement.dataset.manifestHash/computeHash` in the bundle, `opts.code` headless, and the stamp moves no hash and no fixture by itself. §8 DONE — the Integrator consumes the block behind a tolerant, fail-closed adapter and carries refs forward; 0 of 5 fusion fixtures moved. §3 DONE — OxyDex emits the measurement block on every night element, schema 2.1, invariance measured (one moved field per fixture), walk-through checkable via `tools/measurement-walk.mjs`. §5 DONE — the oracle harness runs on 52 real nights with pre-stated bands, `tools/oracle-ecg-firmware-rr.mjs`; rMSSD/mean-RR CONSISTENT; the time-anchored per-beat pairing landed the same day: matched 98.7 %, RR |Δ| 0.45 ms on pairs, LoA SHORTFALL tail-driven. Two units remain: the F-section report, the follow-up brief.) · IN-PROGRESS — 2026-09-20 (NOT owner-blocked: the schedule decision was ratified 2026-09-15 (queue D5). Five Done-when units remain unticked and are executable by the fleet; re-stamped 2026-09-20 because the header still read as parked on a decision that was made five days earlier) · **Created:** 2026-08-26 · **Follows:** `ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` (the acquisition half of this chain — 21/22 §21 criteria met, last one in flight) · **Relates:** CLAUDE.md §🔒 Clock Contract, §🎫 evidence ladder, §🔏 provenance gates, `docs/LEXICON.md` · **Residue:** 2026-09-21-validaterr-compares-gap-spanning-intervals
+**Status:** DONE — 2026-09-21 (every Done-when item ticked with its gate named; §4 half, §10 runtime/memory and §11 are NOT executed and are listed in §12 + the residue ledger rather than folded in — the roadmap is closed as a MAP, not as a claim that every section ran. F-section report DONE — `docs/MEASUREMENT-PROVENANCE-REPORT-2026-09-21.md`, honesty criteria pre-stated, twelve limits each labelled found/assumed; §12 lists the remainder. **For the next emitter:** every owned bundle now carries its own code identity on the `<html>` tag — `data-manifest-hash` / `data-compute-hash`, stamped by `tools/build-core.js` OUTSIDE every inline block by the version stamp's masking, so reading it is free: `document.documentElement.dataset.manifestHash/computeHash` in the bundle, `opts.code` headless, and the stamp moves no hash and no fixture by itself. §8 DONE — the Integrator consumes the block behind a tolerant, fail-closed adapter and carries refs forward; 0 of 5 fusion fixtures moved. §3 DONE — OxyDex emits the measurement block on every night element, schema 2.1, invariance measured (one moved field per fixture), walk-through checkable via `tools/measurement-walk.mjs`. §5 DONE — the oracle harness runs on 52 real nights with pre-stated bands, `tools/oracle-ecg-firmware-rr.mjs`; rMSSD/mean-RR CONSISTENT; the time-anchored per-beat pairing landed the same day: matched 98.7 %, RR |Δ| 0.45 ms on pairs, LoA SHORTFALL tail-driven. Two units remain: the F-section report, the follow-up brief.) · IN-PROGRESS — 2026-09-20 (NOT owner-blocked: the schedule decision was ratified 2026-09-15 (queue D5). Five Done-when units remain unticked and are executable by the fleet; re-stamped 2026-09-20 because the header still read as parked on a decision that was made five days earlier) · **Created:** 2026-08-26 · **Follows:** `ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` (the acquisition half of this chain — 21/22 §21 criteria met, last one in flight) · **Relates:** CLAUDE.md §🔒 Clock Contract, §🎫 evidence ladder, §🔏 provenance gates, `docs/LEXICON.md` · **Residue:** 2026-09-21-validaterr-compares-gap-spanning-intervals, 2026-09-21-measurement-envelope-hop-unexercised, 2026-09-21-measurement-block-serialises-shared-parts-per-block, 2026-09-21-measurement-emitter-runtime-memory-unmeasured, 2026-09-21-wfdb-interop-mapping-unwritten
 
 # Measurement-provenance roadmap — the canonical Measurement layer between Dex outputs and the Integrator
 
@@ -159,6 +159,49 @@ start time; EDF already an ingest format via CPAPDex). Implement an export adapt
 provably low-risk and somebody needs it; otherwise the doc is the deliverable. Tepna is not
 redesigned around WFDB.
 
+## §12 · REMAINDER — node migrations and open scientific questions (written 2026-09-21, closes the map)
+The last Done-when item asked for these "as the follow-up brief". **No `-FOLLOWUPS-` file is created**:
+the owner ruling of 2026-09-02 (CLAUDE.md §📌, `briefs/RESIDUE.md`) says a follow-up brief is written
+only by the session that picks the work up, so it has an owner the moment it exists — and this roadmap
+is itself the index ("this file is the index and stays the map"). So the list lives HERE, the verified
+defects it contains are residue rows (keyed on the Status line), and a unit spawns its own dated brief
+when picked up, exactly as every phase above did.
+
+**Node migrations — one unit each, in the order the emitter cost suggests (regen tooling exists for all):**
+
+| node | headline instances to emit | notes |
+|---|---|---|
+| ECGDex | meanHR · rMSSD · SDNN · (AHI-estimate) | the §5 oracle already names the code that agrees with the firmware; `deviceRR` gives a second `sourceChannel` per night |
+| PulseDex | rMSSD · SDNN · meanRR | RR-only input — `inputHash` is the RR train's contentId; no waveform |
+| PpgDex | rMSSD · meanHR · SpO₂-proxy where emitted | the seam-refusal (`clock-seam`) must map to *no block*, never a block over a discontinuity (§∅ ruling 2026-09-17) |
+| HRVDex | the per-measurement `measurements[]` rows | already a per-instance table — the block is the lineage it lacks; naming collision with `measurement` must be handled explicitly, not by renaming the existing table |
+| GlucoDex | mean glucose · TIR · CV · GMI | CGM windows are days, not nights — `window` spans the record; the 14 h-gap twin is the plant |
+| CPAPDex | AHI · leak p95 · usage | EDF ingest — `sourceChannel` names the EDF signal label; the device-scored AHI is a *measured* basis, ours is *derived* |
+| MotionDex | actigraphy immobile fraction · arousal index | the F1 counter step (`_clockResyncs`) → `clockDomain` must say which segment |
+| Integrator | per-**finding** refs (`findings[].sources[]` still carry bare scalars), `adaptEnvelopeNode` gains `consumeMeasurements` (one line) with the second emitter; kernel-audit ref integrity (§4's unbuilt half) | after ≥ 2 emitters |
+
+**Open scientific questions (each a unit with pre-stated bands, none a code change by itself):**
+
+1. **The per-beat LoA shortfall (35 ms vs 30 ms) on reconnection-heavy nights** — is the band right and
+   those nights refused for beat-level use, or does the pairing need a stronger anchor across a stalled
+   link? The harness already publishes the per-window verdicts; the decision is not made.
+2. **A second modality for the oracle** — the PPG leg is coverage only (32 usable Verity nights). Two
+   detectors on one lead share its artefacts; agreement across modalities is the claim the ECG leg
+   cannot make.
+3. **The oxygen leg has no same-signal oracle** — the ODI-bias lane (`docs/ODI-BIAS-README.md`) is a
+   cross-device night-level reference; per-event truth needs manual scoring or PSG. Whether the
+   ODI-4 walk-through should *consume* that lane's calibration is a design question, not an emitter one.
+4. **Uncertainty estimators** — every emitted block says `null` + reason. Which metrics admit a bootstrap
+   over windows, which a coverage-weighted bound, and which honestly none (§7: architecture, not a
+   statistics framework).
+5. **Window-level lineage under the export boundary** — §10's measured cost is +4.1–4.35 KB per night for
+   four whole-night blocks (+11–17 %), because shared window/evidence/reason objects serialise per block.
+   Hoisting the shared parts is a contract change; it must precede any per-window emission.
+
+**Verified remainders logged as residue** (keys on the Status line): the envelope hop unexercised on
+every committed fixture; the export-size repetition; §10 runtime/memory unmeasured; §11 interop doc
+unwritten.
+
 ## NON-GOALS (the draft's list, plus Tepna's own)
 No capture-host rewrite · no BLE redesign · no new clock system (§7 exists) · no DSP rewrites · no
 runtime NeuroKit2/WFDB (dev-lane only, quarantined) · no synthetic-golden re-centering · no
@@ -246,6 +289,23 @@ oracle dev-dependency set (SOUP note required); (c) whether §11 gets an adapter
       `nights[]` export takes) reads. NOT done, deliberately: only OxyDex emits, so only `adaptOxyDex` consumes — the generic
       `adaptEnvelopeNode` gains the call when a second node emits (one line, `consumeMeasurements` is
       node-agnostic); the render surface does not yet show the refs (interface only, per §8).
-- [ ] The final report answers the draft's F-section honestly: what this does NOT prove
+- [x] The final report answers the draft's F-section honestly: what this does NOT prove
       scientifically (agreement ≠ physiological truth; provenance ≠ accuracy).
-- [ ] Remaining node migrations + unresolved scientific questions listed as the follow-up brief.
+      ✅ **DONE 2026-09-21 (Osprey) — `docs/MEASUREMENT-PROVENANCE-REPORT-2026-09-21.md`.** "Honest"
+      pre-stated as six criteria before the writing (every "proves" names its gate; every "does not
+      prove" names the missing mechanism and where it stands; numbers carry n, a missed band stays
+      missed; unexecuted sections listed as such; no tier moves; each limit labelled FOUND vs ASSUMED).
+      §1 delivered-with-gate table (§1+§2, §3, §3 D, §5, §8, §4 partial); §2 what it proves; §3 the
+      F-section — twelve limits: provenance ≠ accuracy (the ODI-bias lane named as the cross-device
+      night-level reference that exists; per-event truth out of scope), agreement ≠ truth (sharpened
+      by the bimodal finding), the LoA shortfall standing, contentId ≠ file hash, the envelope hop
+      unexercised, uncertainty null everywhere, one emitter / findings still bare scalars, night-level
+      windows only (with §10's measured cost: +4.1–4.35 KB per night, +11–17 %), per-bundle code
+      identity, §4 kernel-audit not built, §10 runtime/memory unmeasured, §11 unwritten, no tier
+      moves. §4 found-vs-assumed in one place. The right-hand column is the follow-up brief's input.
+- [x] Remaining node migrations + unresolved scientific questions listed as the follow-up brief.
+      ✅ **DONE 2026-09-21 (Osprey) — listed as §12 of THIS file, not as a `-FOLLOWUPS-` brief**, per the
+      owner ruling of 2026-09-02 (a follow-up brief is created only by the session that picks the work
+      up); the four verified remainders are residue rows, keyed on the Status line. Seven node
+      migrations + the Integrator's per-finding refs, and five open scientific questions, each a unit
+      with its own dated brief when picked up.
