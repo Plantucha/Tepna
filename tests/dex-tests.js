@@ -12085,7 +12085,7 @@
 
        Hand-fixing does not find the siblings: `vdCorr` was fixed by reading the code, and this scan
        found `detailCorr` — emitted at `pat-feasibility-worker.js:513`, appearing exactly ONCE in the
-       whole repo, its own assignment — on its first run.
+       whole repo, its own assignment — on its first run. (Deleted 2026-09-21; the set is empty.)
 
        ⚠️ Scoped to DECLARED producer/consumer pairs, not inferred. An automatic boundary-finder would
        false-positive on every object literal in the repo, and a gate that cries wolf gets switched
@@ -12093,12 +12093,13 @@
     group('No value crosses a worker boundary unread', 'cohesion · dead-cross-boundary · pat', function (T) {
       var S = env.sources || {};
       var PAIRS = [{ producer: 'pat-feasibility-worker.js', consumers: ['pat-feasibility.js', 'pat-gate.js'] }];
-      /* KNOWN, published, ratcheted — same discipline as the visibility cap above. `detailCorr` is
-         the packed per-beat detail for the ACC-CORRECTED coupling. Surfacing it is a UI decision (a
-         second scatter, or a toggle on the existing one), not a mechanical wiring, and inventing that
-         surface here would consume a design call the way promoting the tier would have in #2117. It
-         is rowed as residue instead; this gate holds the line at one so a SECOND dead key reds. */
-      var KNOWN_DEAD = ['detailCorr'];
+      /* KNOWN, published, ratcheted — same discipline as the visibility cap above. The set is now
+         EMPTY: `detailCorr` (the packed per-beat detail for the ACC-corrected coupling) sat here at
+         ratchet ONE from 2026-09-02 until its parent finding's own closure was read — ENGINE-VERIFICATION
+         §1.5 closed as MOOT, "work with no consumer" — and the field was deleted rather than surfaced
+         (residue 2026-09-02-pat-detailcorr-unread). Every key that crosses this boundary is read; a
+         new dead key reds immediately, and the ratchet must not be re-opened to admit one. */
+      var KNOWN_DEAD = [];
       PAIRS.forEach(function (pair) {
         var prod = S[pair.producer];
         T.ok(pair.producer + ' · producer source readable', !!prod, prod ? prod.length + ' bytes' : 'ABSENT from env.sources');
@@ -12119,9 +12120,22 @@
           return !new RegExp('[.\\b]' + k + '\\b').test(consumerText) && KNOWN_DEAD.indexOf(k) < 0;
         });
         T.eq(pair.producer + ' · no UNDECLARED dead key crosses the boundary', dead.join(',') || 'none', 'none');
-        /* Anti-vacuity: the known-dead key must still BE dead, or the gate is pinning a fiction and
-           the cap should drop. This is the leg that fails if someone surfaces `detailCorr` and forgets
-           to remove it from KNOWN_DEAD. */
+        T.eq('the known-dead ratchet is at ZERO — every key crossing the boundary is read', KNOWN_DEAD.length, 0);
+        /* PLANT — the detector must still FIRE. A key that no consumer mentions, appended to the
+           producer text, must be reported as dead; without this the empty set above could be the
+           detector seeing nothing rather than nothing being dead. */
+        var planted = prod + '\nout.zzPlantedUnreadKey = 1;';
+        var pk = {},
+          pm;
+        KEY_RE.lastIndex = 0;
+        while ((pm = KEY_RE.exec(planted))) pk[pm[1]] = true;
+        var deadPlanted = Object.keys(pk).filter(function (k) {
+          return !new RegExp('[.\\b]' + k + '\\b').test(consumerText);
+        });
+        T.eq('PLANT · an unread key appended to the producer is reported dead', deadPlanted.join(','), 'zzPlantedUnreadKey');
+        /* Anti-vacuity for any FUTURE entry: a declared dead key must still BE dead, or the gate is
+           pinning a fiction and the cap should drop. (Empty set today; the PLANT above is what keeps
+           the detector itself honest.) */
         KNOWN_DEAD.forEach(function (k) {
           T.ok(
             'the declared dead key ' + k + ' is still genuinely unread',
