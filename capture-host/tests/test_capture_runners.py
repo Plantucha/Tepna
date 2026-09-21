@@ -7127,3 +7127,48 @@ def test_the_skew_window_is_bounded_and_drops_the_OLDEST():
     # Below the cap it is a plain append.
     w2 = capture.clock_skew_record([], 1.0, -0.5, cap=3)
     assert w2 == [(1.0, -0.5)]
+
+
+# ── PPI carries no sample time BY DESIGN (residue 2026-09-13-verity-emits-absent-stamps-at-scale) ──────
+def test_a_ZERO_PPI_stamp_is_the_vendors_documented_shape_not_an_absent_measurement(tmp_path, monkeypatch, caplog):
+    """THE PLANT, from the vendor's own words: Polar's TimeSystemExplained says PPI/HR sample time
+    "is either zero or missing", and the SDK's PpiData parser branches on `timeStamp != 0`. So a Verity
+    PPI frame stamped 0 must NOT be counted or logged as an absent stamp — the guard's first day counted
+    7283 of exactly these — and must be declared, ONCE, as what it is."""
+    import logging
+    _polar_common(monkeypatch)
+    capture._CLOCK_ABSENT.clear()
+    capture._NO_SAMPLE_TIME_SAID.clear()
+    c = FlexPolarClient(data_frames=[_ppi_frame(ns=0), _ppi_frame(ns=0), _ppi_frame(ns=0)], start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    with caplog.at_level(logging.INFO):
+        _run(capture.run_polar(_pdev(streams=["ppi"]), str(tmp_path)))
+    assert capture._CLOCK_ABSENT == {}, f"a by-design zero was counted as a refusal: {capture._CLOCK_ABSENT}"
+    assert "absent device stamp" not in caplog.text.lower()
+    said = [r for r in caplog.records if "no sample time by design" in r.getMessage()]
+    assert len(said) == 1, f"declared {len(said)} times — once per stream, on onset"
+    assert "PPI" in said[0].getMessage()
+    assert list((tmp_path / "captures").rglob("*_PPI.txt")), "the PPI rows themselves must still be written"
+
+
+def test_a_zero_ECG_stamp_is_STILL_refused_and_counted(tmp_path, monkeypatch):
+    """The control. The by-design rule is a named set of ONE measurement type; every stream that does
+    carry a sample time keeps the guard exactly as it was."""
+    _polar_common(monkeypatch)
+    capture._CLOCK_ABSENT.clear()
+    c = FlexPolarClient(data_frames=[_ecg_frame(ns=0)], start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(streams=["ecg"]), str(tmp_path)))
+    assert capture._CLOCK_ABSENT.get(_pdev()["name"]) == 1, capture._CLOCK_ABSENT
+    capture._CLOCK_ABSENT.clear()
+
+
+def test_the_by_design_set_is_exactly_PPI_and_cites_the_vendor():
+    """A set, not a device name: the vendor's rule is about the measurement type, and a rule keyed to
+    the Verity would miss the next device that streams PPI. And the citation is load-bearing — a
+    reader who cannot check it should treat the rule as a guess."""
+    assert capture._NO_SAMPLE_TIME_BY_DESIGN == frozenset({pmd.PPI})
+    src = module_source("capture.py")
+    assert "TimeSystemExplained.md" in src and "PpiData.kt" in src
