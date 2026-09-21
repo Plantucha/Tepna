@@ -303,3 +303,52 @@ def test_held_streams_are_COUNTED_not_latched_at_one():
     assert "(2 held)" in nr.build("2026-09-08", {"devices": [], "class_b": two}, None)["line"]
     three = two + [{"stream": "acc", "held": {"ratio": 1.0}, "clips": {"acc": 4}}]
     assert nr.back_check({"class_b": three}) == ("fail", 4, 3)
+
+
+# ── ALLAN-STABILITY-GAPS §2.4 — the clock line, in the report file and not in the digest ──────────
+
+
+def _summary_with_arrival(rows):
+    return {"devices": {}, "arrival": rows}
+
+
+def test_clock_line_names_noise_sigma_n_and_gap_per_stream():
+    rows = [{
+        "device": "Polar H10 02849638", "meas": "ecg",
+        "stability": {"ok": True, "adev_min": 0.0123, "optimal_tau": 64.0, "n": 67715,
+                      "classification": {"noise": "white-frequency", "candidates": None}},
+        "tau0_uniformity": {"ratio": 1.04, "median": 0.55, "max_gap": 96.8, "n": 67715},
+    }]
+    lines = nr.clock_lines(_summary_with_arrival(rows))
+    assert lines == ["clock H10/ecg: white-frequency · σ_y(τ_opt=64 s)=12.30 ppm · n=67715 · max_gap=96.8×median"]
+    rep = nr.build("2026-09-12", _summary_with_arrival(rows), None)
+    assert rep["clock"] == lines
+    assert "clock H10/ecg" not in rep["line"]  # the digest is untouched
+    assert "clock H10/ecg: white-frequency" in nr.render(rep)
+
+
+def test_clock_line_says_refused_with_the_candidates_and_unknown_for_absent_fields():
+    rows = [{
+        "device": "Polar VeritySense 0C301E3F", "meas": "ppg",
+        "stability": {"ok": True, "adev_min": 0.002,
+                      "classification": {"noise": None, "candidates": ["white-frequency", "flicker-frequency"]}},
+        # no optimal_tau, no n, no tau0_uniformity — an older QC record
+    }]
+    (line,) = nr.clock_lines(_summary_with_arrival(rows))
+    assert line.startswith("clock VeritySense/ppg: refused(white-frequency/flicker-frequency)")
+    assert "τ_opt=unknown s" in line and "n=unknown" in line and "max_gap=unknown×median" in line
+    assert "=2.00 ppm" in line
+
+
+def test_clock_line_skips_streams_without_a_stability_verdict_and_tolerates_junk():
+    rows = [
+        {"device": "Polar H10 X", "meas": "acc", "stability": {"ok": False, "reason": "too-few-taus"}},
+        {"device": "Polar H10 X", "meas": "ecg"},
+        "not a row",
+        None,
+    ]
+    assert nr.clock_lines(_summary_with_arrival(rows)) == []
+    assert nr.clock_lines(None) == []
+    assert nr.clock_lines({"arrival": "junk"}) == []
+    assert nr.build("n", None, None)["clock"] == []
+

@@ -1066,6 +1066,24 @@ If steps 1–6 hold, the node is already coherent with the system — no brandin
 
 ---
 
+## 4b. `basis` vs the evidence ladder — two axes, one shared word
+
+The measurement-instance block (`measurement-block.js`, `docs/EXPORT-SHAPES.md`) carries **`basis`**,
+and it is *not* the evidence ladder. Stated here because the two are confusable by construction:
+
+| | answers | granularity | lives in |
+|---|---|---|---|
+| **evidence ladder** — `measured ◉ validated ● emerging ◐ experimental ○ heuristic ◌` | *how well established is this KIND of number?* | per METRIC | the node registry |
+| **`basis`** — `measured · derived · estimated` | *how did THIS number come to exist?* | per INSTANCE | the measurement block |
+
+**`measured` is legal in both, and that is what makes the confusion invisible** — a reader who maps one
+onto the other gets a plausible reading every time until they hit `validated` or `heuristic`. The
+validator therefore rejects the ladder's four other values in `basis` **by name**, not by relying on
+the enum: an unknown-value check would report the same error for `vibes` and for `experimental`, and
+only one of those is a reader making the mistake this table exists to prevent.
+
+Conflating them is a red (roadmap §1). A second ladder is not wanted; `basis` is a small, separate enum.
+
 ## 5. One-line glossary
 
 - **-Dex node** — single-signal afferent receptor; senses one physiological signal, emits events.

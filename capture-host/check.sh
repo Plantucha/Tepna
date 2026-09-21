@@ -68,12 +68,16 @@ run_gate "unwired"    "$PY" tools/find_unwired.py --check
 # ── ADVISORY GATES (PYTHON-TYPES-AND-FORMAT-2026-08-27) ─────────────────────────────────────────
 # These RUN and REPORT but cannot fail the run yet. Advisory here is not the ignorable kind: the
 # counts print in the summary, and the flip conditions are pre-stated in the brief, not per-PR —
-# mypy flips BLOCKING at 0 errors (baseline 99, 2026-09-13; the number may only go DOWN); the
+# mypy flips BLOCKING at 0 errors (see MYPY_BASELINE below for the live figure and its date; the
+# number may only go DOWN). ⚠️ THIS LINE USED TO CARRY THE NUMBER ITSELF and drifted the moment
+# the ratchet was banked: it still read "baseline 99, 2026-09-13" after MYPY_BASELINE moved to
+# 68, and that stale prose was handed between sessions as if it were a reading. A number written
+# twice has one copy that nobody updates; the constant is the only place it may live. The
 # changed-files format check flips after one fleet-notice cycle. A big-bang reformat is FORBIDDEN
 # by the brief: mutation canaries/journals/equivalence are keyed on line text+numbers, and a
 # 263-file wave orphans that known-answer record at once — format lands file-by-file as files
 # change anyway.
-adv_names=(); adv_codes=(); adv_notes=()
+adv_names=(); adv_codes=(); adv_notes=(); adv_states=()
 run_advisory() {                    # run_advisory <label> <note-on-fail> <cmd...>
   local label="$1"; local note="$2"; shift 2
   # A command may set ADVISORY_NOTE to replace the static note with what it MEASURED. Every other row
@@ -82,12 +86,26 @@ run_advisory() {                    # run_advisory <label> <note-on-fail> <cmd..
   # is how a mypy count of 104 was reported as "baseline 103" and believed. Cleared before each run so
   # a stale note cannot survive into the next advisory.
   ADVISORY_NOTE=""
+  # A MACHINE-READABLE VERDICT BESIDE THE PROSE ONE. The note above is an English sentence, and
+  # for an advisory that reports a DIRECTION that was the only place the direction existed:
+  # `RISEN` and `at baseline` differ by a word and by nothing a script can key on. NOT by the exit
+  # code either — measured 2026-09-19 across two real runs, the mypy leg exits **1 in both
+  # states**, because mypy exits non-zero whenever any error exists and there are 41. So an
+  # aggregate keyed on exit status sees the two cases as identical, which is how a RISEN count
+  # reached `main` and then surfaced on a later branch as that author's fault.
+  #
+  # The default derives from `rc` so every leg gets a state without knowing about this seam; a
+  # command that knows its own direction overrides it, exactly as `ADVISORY_NOTE` already works.
+  ADVISORY_STATE=""
   printf '
 [1m▸ %s (advisory)[0m
 ' "$label"
   "$@"
   local rc=$?
   adv_names+=("$label"); adv_codes+=("$rc"); adv_notes+=("${ADVISORY_NOTE:-$note}")
+  if [ -n "$ADVISORY_STATE" ]; then adv_states+=("$ADVISORY_STATE")
+  elif [ "$rc" -eq 0 ]; then adv_states+=("OK")
+  else adv_states+=("ISSUES"); fi
   return 0
 }
 # PERSIST MYPY'S OUTPUT — the §P2 fix lane's work queue. `qwen-idle-driver.sh` stage 5 reads
@@ -106,8 +124,8 @@ MYPY_OUT=".mypy-latest.txt"
 #
 # Still ADVISORY: this reports the direction, it does not fail the run. §P3 is what flips mypy
 # blocking, and it flips at 0 — moving that decision here would pre-empt it.
-MYPY_BASELINE=99
-MYPY_BASELINE_DATE="2026-09-13"
+MYPY_BASELINE=39
+MYPY_BASELINE_DATE="2026-09-20"
 mypy_advisory() {
   "$PY" -m mypy --ignore-missing-imports --explicit-package-bases . > "$MYPY_OUT" 2>&1
   local rc=$?
@@ -121,18 +139,26 @@ mypy_advisory() {
     # "0 errors" here would be the loudest possible lie, so say what actually happened.
     printf '  mypy: NO COUNT — mypy did not report a summary line (it aborted, not passed)\n'
     ADVISORY_NOTE="NO COUNT — mypy aborted; nothing was examined"
+    ADVISORY_STATE="NO_COUNT"
   elif [ "$n" -gt "$MYPY_BASELINE" ]; then
     printf '  mypy: %s errors — RISEN from the %s baseline (%s). The count may only go DOWN.\n' \
            "$n" "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"
     ADVISORY_NOTE="$n (baseline $MYPY_BASELINE, RISEN) — the count may only go DOWN"
+    ADVISORY_STATE="RISEN"
   elif [ "$n" -lt "$MYPY_BASELINE" ]; then
     printf '  mypy: %s errors — BELOW the %s baseline (%s). Lower MYPY_BASELINE to bank it, or the\n' \
            "$n" "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"
     printf '        improvement can be spent again without anything noticing.\n'
     ADVISORY_NOTE="$n (baseline $MYPY_BASELINE, BELOW) — lower MYPY_BASELINE to bank it"
+    ADVISORY_STATE="BELOW"
   else
     printf '  mypy: %s errors — at the %s baseline (%s).\n' "$n" "$MYPY_BASELINE" "$MYPY_BASELINE_DATE"
+    # ⚠️ `AT_BASELINE`, never `NOT_RISEN`: `test_A_COUNT_AT_THE_BASELINE_SAYS_SO_WITHOUT_ALARM`
+    # asserts the string "RISEN" is ABSENT from the whole run, and it greps stdout+stderr of the
+    # entire script — so a token merely CONTAINING the word would red it. The negative assertion is
+    # the valuable half of that test and the token must not collide with it.
     ADVISORY_NOTE="$n (baseline $MYPY_BASELINE, at baseline)"
+    ADVISORY_STATE="AT_BASELINE"
   fi
   return "$rc"
 }
@@ -147,7 +173,7 @@ else
 [1m▸ mypy (advisory)[0m
   mypy not installed (pip install -r requirements-dev.txt) — ADVISORY GATE DID NOT RUN
 '
-  adv_names+=("mypy"); adv_codes+=(127); adv_notes+=("not installed — nothing was examined")
+  adv_names+=("mypy"); adv_codes+=(127); adv_notes+=("not installed — nothing was examined"); adv_states+=("NOT_INSTALLED")
 fi
 # Changed .py files vs origin/main — honest empty-scope line when none (a formatter that checked
 # nothing must say so, never read as clean).
@@ -159,7 +185,7 @@ else
 [1m▸ format (advisory)[0m
   0 changed .py files vs origin/main — nothing in scope (not a pass, an empty scope)
 '
-  adv_names+=("format"); adv_codes+=(0); adv_notes+=("empty scope")
+  adv_names+=("format"); adv_codes+=(0); adv_notes+=("empty scope"); adv_states+=("EMPTY_SCOPE")
 fi
 
 echo
@@ -171,6 +197,30 @@ for i in "${!adv_names[@]}"; do
     printf '  \033[33m◦\033[0m %-11s ADVISORY exit %s — %s\n' "${adv_names[$i]}" "${adv_codes[$i]}" "${adv_notes[$i]}"
   fi
 done
+# THE MACHINE-READABLE VERDICT LINE. One line, fixed prefix, `key=value` per advisory leg — the
+# thing a downstream reader keys on instead of parsing an English sentence.
+#
+# WHY `key=value` AND NOT A BARE WORD, measured 2026-09-19: a reader grepping the bare adjective has
+# no correct option. Anchored to the sentence (`^\s*mypy: .*RISEN`) it breaks on any reflow that
+# keeps the word but moves it — a FALSE GREEN. Loosened to `grep -c RISEN` it matches
+# `test_A_RISEN_COUNT_IS_NAMED_AS_RISEN`, which pytest prints in its short summary whenever that
+# test FAILS — so the test ABOUT the token, failing, reports as the condition the token names. A
+# FALSE ALARM, self-referentially. Both failure modes are properties of the prose, not of the
+# reader: the test guarantees the word appears SOMEWHERE, a reader needs it as the mypy VERDICT.
+#
+# `=` is what closes it, and the reason is structural rather than stylistic: `=` cannot occur in a
+# Python identifier, so `mypy=RISEN` is UNFORGEABLE by a test name however that test is worded.
+# The collision above cannot recur for this token.
+#
+# ADDITIVE ON PURPOSE. Every `  mypy: …` line above is byte-unchanged: `test_check_script.py`
+# asserts the word in both directions, and a peer's handoff predicate is anchored to that exact
+# prefix. Restructuring the sentence to carry a status would have passed the test and silently
+# returned 0 for that reader — the same anchored-pattern failure, introduced by its own fix.
+adv_state_line=""
+for i in "${!adv_names[@]}"; do
+  adv_state_line+="${adv_names[$i]}=${adv_states[$i]:-UNSPECIFIED} "
+done
+printf '  advisory-state: %s\n' "${adv_state_line% }"
 failed=0
 for i in "${!names[@]}"; do
   if [ "${codes[$i]}" -eq 0 ]; then

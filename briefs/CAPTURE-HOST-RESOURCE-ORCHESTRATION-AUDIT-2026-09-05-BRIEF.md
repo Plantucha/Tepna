@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS (audit + smallest change set landed 2026-09-05; §7 is the remainder. **Re-verified 2026-09-15 (Heron) against the tree, because §9 left all three of its met gates reading as outstanding:** §7's *fsync off the loop* is BUILT and its residue is closed `fixed #2382` — `writers.py` carries `_fsync_worker`/`_submit_fsync`/`_drain_fsync` and the queue holds dup'd-fd+health pairs, never rows, which is exactly the narrow remedy §9 argued for; *adapter hotplug/quarantine/flap cap* is NOT built and its residue `2026-09-11-dead-adapter-goes-unnoticed` is still OPEN; *post-recovery verification for a radio* is NOT built — there is **no HCI command round-trip probe anywhere in capture-host** (`0x0c03`/`HCI_RESET`/`hci_send`: zero hits), and `classify_adapter_health` is pure and flag-fed, taking `adapter_up` from `_adapter_is_up(_hci_now)` — a state read on the SINGLE PINNED adapter, with exactly one consumer at `capture.py:5793`. That is precisely the shape §9 says would have called the wedged radio healthy, and it is also blind to a wedge on any of the other three radios vigil was running) · **Created:** 2026-09-05 · **Residue:** 2026-09-05-retry-sleep-stale-connected, 2026-09-05-fsync-on-loop-unmeasured, 2026-09-05-supervised-restart-resets-state, 2026-09-06-writer-close-list-hand-kept
+**Status:** IN-PROGRESS (audit + smallest change set landed 2026-09-05; §7 is the remainder. **Re-verified 2026-09-15 (Heron) against the tree, because §9 left all three of its met gates reading as outstanding:** §7's *fsync off the loop* is BUILT and its residue is closed `fixed #2382` — `writers.py` carries `_fsync_worker`/`_submit_fsync`/`_drain_fsync` and the queue holds dup'd-fd+health pairs, never rows, which is exactly the narrow remedy §9 argued for; *adapter hotplug/quarantine/flap cap* is NOT built and its residue `2026-09-11-dead-adapter-goes-unnoticed` is still OPEN; *post-recovery verification for a radio* is **BUILT 2026-09-18 (#2624)** — `_adapter_responds` (`capture.py:5931`) round-trips `hciconfig <hci> version`, chosen by measurement: it increments the adapter's TX `commands:` counter by 1 where the state read increments it by 0. A failed round trip now BREAKS `classify_adapter_health`'s `adapter_up is True` suppression and is wedge evidence on its own; a TIMEOUT is False deliberately, every other failure is None. Live on vigil since the 2026-09-18 deploy. ⚠️ The SECOND blindness §9 named is NOT closed: it still reads only the PINNED adapter, so a wedge on any other radio is unseen. **So §7's remainder is ONE item, not three** — and the two that closed did so in opposite directions, which §10 and §11 record: §10 excluded the fsync disk-pressure confound by measurement (zero low-disk windows in six weeks; latency barely moved, incidence rose 12x per file), and §11 REFUTED the adapter-ladder residue row's headline — the ladder DID detect, escalate and reset on 2026-09-11; the real defects are ~19 min detection latency and rungs that cannot fix a cdc_acm wedge. **Re-triaged 2026-09-20 (Heron) on picking up §7's remainder: that row names THREE things of three different statuses, and reading it as one unbuilt item is how it keeps getting re-sized.** (a) The *flap cap* IS ALREADY BUILT — `max_failovers` (default 3) has capped ping-pong between two flaky radios since P1.5, at both failover call sites; the row lists as missing something that ships. (b) *Quarantine* is now built, in the shape the measurement actually justifies (changeset `2026-09-20-live-spare-round-trip`): `failover_target` chose a spare on `up`, the CACHED kernel flag that the 2026-09-11 radio reported while `HCI Reset` timed out at -110, so the ladder could disconnect and re-bond every wearable onto a radio that answers nothing and then reset its own reset budget as though it had recovered. A spare is now round-tripped before migration, a deaf one is quarantined for a cooldown (never a permanent verdict), and a box whose every spare is deaf refuses the migration rather than spending the flap cap. ⚠️ Only `False` convicts — an undeterminable probe leaves prior behaviour exactly as it was. (c) What is genuinely LEFT is *wiring `adapter_pool.py`* — still imported by nothing but its own test, and its per-device `{device: adapter}` map still has no consumer because the daemon repoints ONE global pin, so wiring it is an architecture change and not a hookup — and *hotplug*. Neither is unblocked by this work. The health of an IDLE radio is residue `2026-09-20-unpinned-radio-wedge-seen-only-at-failover`) · **Created:** 2026-09-05 · **Residue:** 2026-09-20-unpinned-radio-wedge-seen-only-at-failover, 2026-09-05-retry-sleep-stale-connected, 2026-09-05-fsync-on-loop-unmeasured, 2026-09-05-supervised-restart-resets-state, 2026-09-06-writer-close-list-hand-kept
 
 # Capture-host resource orchestration — audit, diagnosis, smallest change set
 
@@ -203,8 +203,9 @@ actionable rather than waiting:
 >   `_drain_fsync`, and its own comment records that the queue carries "(dup'd fd, health) pairs, never
 >   rows". That is the narrow shape argued for above, landed: the **fsync** moved and the writer did not,
 >   so the queue-on-crash loss class that justified the original deferral never appeared. ⚠️ The
->   disk-pressure confound §9 raised is still NOT excluded — a post-fix latency measurement owes free
->   space beside it, and none has been taken.
+>   disk-pressure confound §9 raised **is now EXCLUDED — measured 2026-09-18, §10 below.** Free space was
+>   never low (zero `storage: LOW` lines in a six-week journal, 148 GB free), and the latency distribution
+>   barely moved. What DID move is the incidence, 12× per file — §10 says what that is and is not.
 > * **Adapter hotplug / quarantine / flap cap — NOT built.** Residue
 >   `2026-09-11-dead-adapter-goes-unnoticed` is still `OPEN`.
 > * **Post-recovery verification for a radio — NOT built, and the gap is narrower than "no probe exists".**
@@ -268,6 +269,146 @@ contention this design does not have — and `find_unwired` would correctly call
 decorative, exactly as it did for `adapter_pool` (5 public functions, allowlisted as ASPIRATIONAL,
 waiting on per-device pinning nobody has asked for). **Build the three gated items; do not build the
 framework around them.**
+
+## 10 · 2026-09-18 — the owed post-fix measurement, taken on vigil (Kestrel)
+
+§9 left one thing owed in as many words: *"a post-fix latency measurement owes free space beside it, and
+none has been taken."* Taken now, read-only on the box, from `journalctl -u tepna-capture` (journal spans
+2026-08-04 → 2026-09-18) plus `df`.
+
+**The population splits on the log string itself.** `writers.py:323` tags the post-fix line
+`(off-loop worker)`; the pre-fix line does not. 185 `SLOW fsync` events total, **20 pre / 165 post** — and
+the 20 matches §9's *"20 `SLOW fsync` events"* exactly, which is the corroboration that the split is real
+and not a grep artifact.
+
+### The confound is excluded
+
+- **Zero** `storage: LOW` or `storage: recovered` lines in the entire six-week journal — so free space
+  never crossed `min_free_gb` at any point on either side of the fix.
+- `df` at measurement time: **148 GB free of 233 GB (34 % used)**.
+
+Disk pressure does not explain the post-fix latency. That is the question §9 asked, and the answer is no.
+
+### The latency barely moved — the INCIDENCE moved
+
+| | n | min | median | p90 | max | mean |
+|---|---|---|---|---|---|---|
+| pre-fix (on-loop) | 20 | 252 | 326 | 414 | **1702** | 398 |
+| post-fix (off-loop) | 165 | 255 | 376 | 619 | **1334** | 422 |
+
+Median +50 ms, mean +24 ms, and the **maximum FELL** (1702 → 1334 ms). The disk is not taking materially
+longer to confirm a write. What changed is how many files see a slow barrier at all:
+
+| window | events | files in the night dirs | share of files |
+|---|---|---|---|
+| pre 09-05 → 09-09 | 17 | 1003 | **1.7 %** |
+| post 09-10 → 09-18 | 165 | 803 | **20.5 %** |
+
+**12.1× per file** — and note the denominator moved the *other* way: file volume FELL 1003 → 803, so the
+rise is not a volume artifact. Per day it is 5.4×; per file, 12.1×.
+
+### What that is, and what it is not
+
+`_slow_said` fires **once per file**, so these counts are files-with-≥1-slow-barrier, never a count of slow
+barriers. Read with the distribution above, the most economical reading is that the fix did what it was
+built to do and this is its cost side: barriers now queue behind one another in the worker instead of
+blocking the loop, so more of them cross 250 ms while none of them stalls capture — which is exactly what
+the log line's own text asserts (*"capture was not stalled by it"*). **The trade was never quantified
+before; it is now.**
+
+⚠️ **Three limits, stated rather than smoothed over:**
+
+- **The transition is 2026-09-10 — five days BEFORE #2382 merged (2026-09-15).** The split by log string is
+  sound regardless, but *why* the box carried the off-loop code before the merge is not established here,
+  and it should not be explained away. Anyone reasoning from these windows should settle that first.
+- **There is no baseline before 2026-09-05.** The journal starts 08-04 and carries zero `SLOW fsync` lines
+  until 09-05 — that is the instrument arriving, not a fast disk. A "nothing before September" reading
+  would be `§4b`'s examined-nothing shape.
+- **"Files" is every file in the night directory**, not every file behind an fsync'd writer, so the share
+  is an under-estimate of the per-writer rate. The imperfection is identical on both sides, so the ratio
+  survives it; the absolute 1.7 %/20.5 % do not.
+
+### Unrelated, found while measuring
+
+`tepna-sniff.service` (*"Tepna — nightly BLE air capture + audit"*) is in **failed** state on vigil. Not
+touched — box ops is owner-authorized — and recorded here only so it is not discovered twice.
+
+
+## 11 · 2026-09-18 — the adapter ladder DID fire on 2026-09-11; the residue row's headline is wrong (Kestrel)
+
+§7's second remaining item is *adapter hotplug / quarantine / flap cap*, whose residue row
+`2026-09-11-dead-adapter-goes-unnoticed` opens with: *"A BLE adapter that stops answering HCI is not
+detected, reset, or reported by anything on the box"*, and records *"`journalctl` logged **0** reset
+attempts across the whole window."* The row also names its own first task — *"whether it exists, is wired,
+or simply has no trigger for this state is UNRESOLVED and is the first thing a picker-up should establish
+rather than assume."* Established, from the box's own journal, which still reaches back to 2026-08-04.
+
+### The ladder exists, is wired, and fired
+
+```
+19:42:06  WARNING watchdog: wedge sign 1/2 — pinned adapter DOWN/not-found; Wellue O2Ring-S: InProgress; Polar H10 02849638: InProgress
+19:43:06  WARNING watchdog: wedge sign 2/2 — pinned adapter DOWN/not-found; …
+19:43:06  WARNING watchdog: power-cycling adapter 99:67:24:2E:CD:98 (attempt 1/3)
+19:43:15  INFO    watchdog: recovery: hciconfig hci0 reset exited 1
+19:44:17  WARNING watchdog: wedge sign 1/2 — pinned adapter DOWN/not-found; Polar H10 02849638: InProgress
+```
+
+Detected, escalated through `grace_checks`, power-cycle attempted, `hciconfig reset` **exited 1**. The
+row's own manual attempt — *"`hciconfig reset` returned `Can't init device: Connection timed out (110)`"* —
+is the same failure by hand, which is the corroboration that the rung ran and could not work.
+
+### Why the row measured zero, and why both reasons matter more than the row
+
+Two independent causes, either sufficient:
+
+1. **The window closed before the event.** The row's check was `journalctl --since -12min` taken around
+   19:38. The first wedge sign is **19:42:06**. The evidence had not happened yet.
+2. **It searched for vocabulary the code does not emit.** The row grepped `btreset` / `reset-adapter` /
+   `resetting-hci`. The daemon logs `watchdog: power-cycling adapter …` and `recovery: hciconfig … reset`.
+   Zero matches, zero of them meaningful.
+
+⚠️ **And the same shape produced the row's other zero.** *"No btreset systemd unit exists on the box"* is
+TRUE and is not evidence: the ladder is not a unit. It is `adapter_watchdog`'s L1/L2 rungs inside
+`capture.py`, with `tepna-btreset.sh` reachable as `daemon_control._VERBS["rebind"]`. Re-verified
+2026-09-18 — there is still no btreset unit, unit file, or script at the searched paths, and the ladder
+still fired. **Searching for the wrong artifact type returns zero exactly as convincingly as absence
+does.**
+
+### What is ACTUALLY open, restated from the evidence
+
+| the row claims | measured 2026-09-18 |
+|---|---|
+| not detected | **detected** — wedge sign 1/2 at 19:42:06 |
+| not reset | **reset attempted** — power-cycle + `hciconfig reset`, 19:43:06/19:43:15 |
+| not reported | **reported** — four WARNING lines |
+| 0 reset attempts | **1 attempt, which FAILED (exit 1)** |
+
+So the defect is real but is **neither of the two things the row names**. What remains:
+
+- **Detection latency ≈ 19 minutes.** Wedge onset 19:23:12 (the row's own timestamp) → first wedge sign
+  19:42:06. On a capture box that is most of a lost episode. Why it took that long is NOT established
+  here and should not be guessed: `grace_checks`, the `healthy_run` hysteresis, the `_POLAR_PAUSED` skip
+  and the pinned-adapter read are all candidates, and §9's *"blind on any of the other three radios"*
+  finding is independent of all of them.
+- **The rungs cannot fix this wedge class.** `hciconfig reset` exited 1 from the daemon and timed out by
+  hand; the row's USB de/re-authorize left the device enumerated with no HCI device created. A ladder
+  that detects correctly and has no effective rung is a different defect from a missing detector, and it
+  is the one the fix should target.
+
+### One hypothesis measured and REFUTED, recorded so it is not re-derived
+
+`capture.py:5394` warns that *"adapter_watchdog, clock_watchdog and rssi_poller all skip while
+`_POLAR_PAUSED` is non-empty, so the one mechanism built to unwedge a stuck radio is disabled by exactly
+the condition that wedges it"*, and the window carries **77 pause/resume pairs in 29 minutes** — a clock
+auto-sync retry storm (64 `org.bluez.Error.InProgress` retries). That is an attractive explanation for a
+silent watchdog and it does **not** hold: the union of the paused intervals is **359 s of a 1733 s span =
+20.7 %**, which can starve roughly 6 of ~29 polls, not all of them. The starvation is real and bounded;
+it is not why detection took 19 minutes.
+
+⚠️ Note also that `_OFFLINE_OP_TIMEOUT_S = 300` bounds a SINGLE op and says nothing about duty cycle —
+77 short ops are not one long one. That gap is worth keeping in mind for the latency question above, but
+20.7 % does not carry it on its own.
+
 
 ## 8 · Verification
 

@@ -79,20 +79,67 @@ def fig_frame(vcid: int, payload: bytes) -> bytes:
     return struct.pack("<I", FIG_SYNC) + header + struct.pack("<I", zlib.crc32(header) & 0xFFFFFFFF) + payload
 
 
-def fig_unframe(buffer: bytes):
-    """Pull the first complete FIG packet out of buffer.
+def fig_unframe(buffer: bytes, *, on_bad_crc=None):
+    """Pull the first complete, CRC-VERIFIED FIG packet out of buffer.
 
     Returns (vcid, payload, remainder) or None when no complete packet is present yet.
     Bytes before the sync word are discarded — a notification stream can resume mid-packet.
+
+    🔴 BOTH CRCs ARE CHECKED, AND UNTIL 2026-09-19 NEITHER WAS. `fig_frame` has always written them —
+    the payload CRC32 inside the header struct and a CRC32 over that header — and this function
+    unpacked the payload CRC into a discard name and never read the header CRC at bytes 12-16 at all.
+    The framing carried its own integrity check and threw it away on arrival, while the payload cipher
+    is AES-256-CBC with NO MAC: a flipped payload bit surfaced only if it happened to break the pad or
+    the JSON. Nothing else was watching.
+
+    A BAD CRC MUST NOT RETURN None, AND THE REASON IS IN OUR OWN CALLER. capture.py's notify handler
+    runs `while True: r = fig_unframe(bytes(rx)); if not r: break` and trims `rx` ONLY on success.
+    Returning None for a corrupt frame would leave it at the head of the buffer forever: every later
+    notification re-parses the same bad bytes and breaks again, and the link goes permanently deaf. So
+    a failed CRC RESYNCS inside this call, and None keeps its one meaning - "no complete frame yet".
+
+    The two failures resync differently, and the difference is what the header CRC buys:
+      * header CRC bad  -> `length` is not trustworthy, so advance past this sync word only (+4) and
+        rescan. A corrupt header costs one resync, never the connection.
+      * payload CRC bad -> the header verified, so `length` IS trustworthy and the frame boundary is
+        known: skip the whole frame. Rescanning inside a frame whose extent we know would be hunting
+        a sync word in payload bytes.
+
+    `on_bad_crc(kind)` is called once per corrupt frame skipped, kind in {"header", "payload"}.
+    INJECTED rather than imported so this module stays dependency-free (see the module header); the
+    production caller wires it to `blestats`, which is what makes the count reachable by a consumer
+    instead of dying in a log line - the defect #2670 fixed one layer up.
+
+    THE COUNT IS AN UPPER BOUND, not an exact tally, and the bound is stated because an unstated one is
+    a fabricated number. A corrupt prefix sitting ahead of an INCOMPLETE frame is re-examined on every
+    notification until that frame completes, so such corruption is reported once per call rather than
+    once per event. Corruption followed by a complete frame is counted exactly once, because the caller
+    then trims everything this function skipped.
     """
-    start = buffer.find(struct.pack("<I", FIG_SYNC))
-    if start < 0 or len(buffer) - start < FIG_HEADER_LEN:
-        return None
-    vcid, length, _pcrc = struct.unpack_from("<HHI", buffer, start + 4)
-    end = start + FIG_HEADER_LEN + length
-    if len(buffer) < end:
-        return None
-    return vcid, buffer[start + FIG_HEADER_LEN : end], buffer[end:]
+    sync = struct.pack("<I", FIG_SYNC)
+    pos = 0
+    while True:
+        start = buffer.find(sync, pos)
+        if start < 0 or len(buffer) - start < FIG_HEADER_LEN:
+            return None
+        header = buffer[start + 4 : start + 12]
+        (hcrc,) = struct.unpack_from("<I", buffer, start + 12)
+        if zlib.crc32(header) & 0xFFFFFFFF != hcrc:
+            if on_bad_crc is not None:
+                on_bad_crc("header")
+            pos = start + 4  # length untrustworthy - rescan just past the sync word
+            continue
+        vcid, length, pcrc = struct.unpack_from("<HHI", buffer, start + 4)
+        end = start + FIG_HEADER_LEN + length
+        if len(buffer) < end:
+            return None  # genuinely incomplete: wait for bytes, do not resync
+        payload = buffer[start + FIG_HEADER_LEN : end]
+        if zlib.crc32(payload) & 0xFFFFFFFF != pcrc:
+            if on_bad_crc is not None:
+                on_bad_crc("payload")
+            pos = end  # header verified => boundary known => skip the frame
+            continue
+        return vcid, payload, buffer[end:]
 
 
 # ── Encrypted payload format (bluetooth_protocol.md §Encrypted payload format) ────────
@@ -210,6 +257,19 @@ def pull_spool_fragments(spool_id: int, max_fragment_size: int = 3000, max_notif
 # StartStream of PatientFlow+MaskPressure at 40 ms / 200 ms answered with per-dataId `valid` flags and a
 # `streamId`, then delivered `StreamData` notifications of exactly 5 samples each. See as11_pull.stream.
 _STREAM_REPORT_FACTOR = 5
+
+
+def subscribe_event(data_ids, rpc_id: int = 17) -> bytes:
+    """SubscribeEvent — ask the device to PUSH EventNotifications for these data ids. READ-ONLY: it
+    changes what the device tells us, not what it does. 1–30 non-empty strings, like StartStream; the
+    device answers a result echoing the id. Sent over the encrypted channel, BEFORE StartStream, so
+    awaiting its ack never consumes a waveform batch (cpap_events)."""
+    ids = list(data_ids)
+    if not ids or not all(isinstance(d, str) and d for d in ids):
+        raise ValueError("SubscribeEvent takes 1–30 non-empty dataId strings")
+    if len(ids) > 30:
+        raise ValueError("SubscribeEvent takes at most 30 dataIds")
+    return rpc("SubscribeEvent", {"dataIds": ids}, rpc_id, "1.0")
 
 
 def start_stream(data_ids, sample_interval_ms: int = 40, report_interval_ms: int | None = None, rpc_id: int = 16) -> bytes:

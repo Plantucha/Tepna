@@ -646,6 +646,12 @@ function readSources() {
        at the render step while every test stayed green. A layer nothing reads is a layer nothing
        checks. */
     'pat-feasibility.js',
+    /* The cohort HARNESS page — its authored boot script is the realm tripwire (refuse rather than serve
+       nulls, #2572); the gate drives it in a vm with the node's global absent and present, and pins its
+       two maps equal so a node cannot slip past the check unexamined. The DSP blocks inlined above the
+       tail are not evaluated by that gate. */
+    'cohort-harness.html',
+    'qrs-equiv-analysis.js',
     'signal-orchestrate.js',
     'dex-ingest.js',
     'cpapdex-dsp.js',
@@ -661,6 +667,7 @@ function readSources() {
     'dex-export.js',
     'ganglior-provenance.js',
     'signal-frame.js',
+    'measurement-block.js',
     'glucodex-render.js',
     'glucodex-app.js',
     'cpapdex-render.js',
@@ -1169,6 +1176,17 @@ function readEquiv() {
     }
   }
 
+  // D3 — the hrStat comparability twins. Fixture-only: the gate rebuilds both nights in-code.
+  {
+    const fxH = join(ROOT, 'uploads', 'integrator_hrstat_class_twins.node-export.json');
+    if (existsSync(fxH)) {
+      try {
+        out.integrator_hrstat_class_twins = { fixture: JSON.parse(readFileSync(fxH, 'utf8')), fixtureFile: 'integrator_hrstat_class_twins.node-export.json' };
+      } catch {
+        /* gate self-skips */
+      }
+    }
+  }
   // §4.3 — the apnea chance-null twins. Fixture-only: the gate rebuilds all four nights in-code.
   {
     const fxA = join(ROOT, 'uploads', 'integrator_apnea_null_twins.node-export.json');
@@ -1246,6 +1264,61 @@ function readNodeSurfaces() {
    this reads the tree for the same number. Prose stays prose; only the number is load-bearing, so the
    gate cannot drift into policing wording. Node-lane only (fs reads) — the browser lane has no readdir,
    so `env.claudeMdClaims` is undefined there and the group SKIPs, mirroring docs-ledger/release-ledger. */
+/* TABLE PROVENANCE — PUBLISHED-NUMBER-PROVENANCE-2026-09-15 §4, phase 2.
+   `CLAIM` is right for a number in a sentence and far too heavy for a 20-number table. A table wants
+   ONE footer carrying GATE-B's triple — producer, inputs, output — in a form Markdown already holds:
+
+     <!-- TABLE-PROVENANCE producer=<path> invocation="<argv>" inputs=<path|12hex> output=<12hex> generated=<YYYY-MM-DD> -->
+
+   THE OUTPUT HASH IS OVER THE TABLE TEXT ITSELF, and that is the load-bearing part. It makes the
+   exact failure the decay sweep measured — prose drifting from the artifact it reports — mechanically
+   visible, because hand-editing a cell without re-running the producer changes the text and breaks
+   the hash. Nothing else here needs the corpus, so it works in CI.
+
+   ⚠️ DO NOT extend this into a prose scanner. §2 of that brief BUILT one, measured it (45 flags, and
+   every one of 4 sampled a false positive, from four DISTINCT mechanisms), and refused it: statcheck's
+   precision comes from NHST's rigid convention, not from the checking, and discursive prose has
+   nothing for a parser to grip. The marker is not the cheaper option — it is the only one that works,
+   because it CREATES the stereotypy the method depends on. */
+function readTableProvenance() {
+  const crypto = require('node:crypto');
+  const sha12 = (t) => crypto.createHash('sha256').update(t, 'utf8').digest('hex').slice(0, 12);
+  const RE = /<!--\s*TABLE-PROVENANCE\s+([^>]*?)-->/g;
+  const out = { stamps: [], malformed: [], sha12 };
+  const roots = ['briefs', 'audits', 'docs'];
+  const files = [];
+  for (const r of roots) {
+    const d = join(ROOT, r);
+    if (!existsSync(d)) continue;
+    for (const f of readdirSync(d)) if (f.endsWith('.md')) files.push(join(r, f));
+  }
+  if (existsSync(join(ROOT, 'CLAUDE.md'))) files.push('CLAUDE.md');
+  for (const rel of files) {
+    const text = readFileSync(join(ROOT, rel), 'utf8');
+    const lines = text.split('\n');
+    RE.lastIndex = 0;
+    let m;
+    while ((m = RE.exec(text))) {
+      const attrs = {};
+      for (const a of m[1].matchAll(/(\w[\w-]*)=("([^"]*)"|\S+)/g)) attrs[a[1]] = a[3] !== undefined ? a[3] : a[2];
+      const lineNo = text.slice(0, m.index).split('\n').length;
+      /* The TABLE IS THE CONTIGUOUS `|` BLOCK IMMEDIATELY ABOVE the marker. Walking up from the
+         marker rather than down from a heading is what makes one file able to carry several. */
+      let i = lineNo - 2;
+      while (i >= 0 && !lines[i].trim().startsWith('|')) i--;
+      const end = i;
+      while (i >= 0 && lines[i].trim().startsWith('|')) i--;
+      const table = end >= 0 ? lines.slice(i + 1, end + 1).join('\n') : null;
+      if (!attrs.producer || !attrs.output || !table) {
+        out.malformed.push(`${rel}:${lineNo} — ${!table ? 'no table immediately above the marker' : 'missing producer= or output='}`);
+        continue;
+      }
+      out.stamps.push({ file: rel, line: lineNo, ...attrs, table, actualOutput: sha12(table) });
+    }
+  }
+  return out;
+}
+
 function readClaudeMdClaims() {
   const cm = join(ROOT, 'CLAUDE.md');
   if (!existsSync(cm)) return undefined;
@@ -1416,6 +1489,54 @@ function readNonBundleCsp() {
    `tools/`, `capture-host/` + its `tools/`), never curated: a curated list is how `trio-batch.mjs` sat
    outside `env.sources` for its first months. Tests are out — they name a wrong form on purpose.
    Node-lane only; the browser lane SKIPs (mirrors docs-ledger / release-ledger). */
+/* CODEGEN MANIFESTS — the authored manifests the three generators project from. Read as RAW TEXT
+   as well as parsed, because the `status` retirement is asserted on the presence of the KEY: a
+   re-added `"status": null` would parse to a falsy value and slip a value-based check, which is the
+   same shape as the field it replaced — a claim nothing examines. */
+/* SERVED MARKDOWN TWINS — every `docs/**.md` that also exists at the repo root. build-docs.mjs
+   writes a docs/ file only where a root twin exists AND the extension survives its asset filter,
+   which drops Markdown entirely — so an `.md` twin is a SERVED COPY that no builder maintains,
+   sitting beside an `.html` twin that one does. Report the whole population, not just the twins,
+   so the gate can pin the set as an equality rather than trusting a floor. */
+function readDocsMdTwins() {
+  const dir = join(ROOT, 'docs');
+  if (!existsSync(dir)) return null;
+  const out = [];
+  let total = 0;
+  const walkMd = (d) => {
+    for (const name of readdirSync(d).sort()) {
+      const abs = join(d, name);
+      if (statSync(abs).isDirectory()) walkMd(abs);
+      else if (name.endsWith('.md')) {
+        total++;
+        const rel = abs.slice(join(ROOT, 'docs').length + 1);
+        const rootTwin = join(ROOT, rel);
+        if (existsSync(rootTwin)) out.push({ rel, equal: readFileSync(abs, 'utf8') === readFileSync(rootTwin, 'utf8') });
+      }
+    }
+  };
+  walkMd(dir);
+  return { total, twins: out };
+}
+
+function readCodegenManifests() {
+  const dir = join(ROOT, 'codegen/manifests');
+  if (!existsSync(dir)) return null;
+  const files = readdirSync(dir)
+    .filter((f) => f.endsWith('.manifest.json'))
+    .map((f) => {
+      const text = readFileSync(join(dir, f), 'utf8');
+      let json = null;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        /* a malformed manifest is a different gate's finding — report the raw text either way */
+      }
+      return { name: f, warning: (json && json.warning) || null, hasStatusKey: /"status"\s*:/.test(text) };
+    });
+  return { dir: 'codegen/manifests', files };
+}
+
 function readCaptureFilenameScan() {
   const pick = (dir, re) => {
     const d = join(ROOT, dir);
@@ -1790,6 +1911,7 @@ async function main() {
       'pat-align.js',
       'signal-spec.js',
       'signal-frame.js',
+      'measurement-block.js',
       'dex-export.js',
       'signal-adapters.js',
       'adapters/polar-rr.js',
@@ -2094,6 +2216,7 @@ async function main() {
     MotionDex: ctx.MotionDex,
     MOTIONDSP: ctx.MOTIONDSP,
     SignalFrame: ctx.SignalFrame,
+    MeasurementBlock: ctx.MeasurementBlock,
     DexExport: ctx.DexExport,
     exportName: ctx.exportName,
     EXPORT_KINDS: ctx.EXPORT_KINDS,
@@ -2404,6 +2527,14 @@ async function main() {
         return null;
       }
     })(),
+    hrStatClassTwins: (() => {
+      try {
+        globalThis.tchGoldenInputs = require(join(ROOT, 'tests', 'tch-golden-inputs.js')).tchGoldenInputs;
+        return require(join(ROOT, 'tests', 'hrstat-class-twins.js')).hrStatClassTwins;
+      } catch {
+        return null;
+      }
+    })(),
     apneaNullTwins: (() => {
       try {
         return require(join(ROOT, 'tests', 'apnea-null-twins.js')).apneaNullTwins;
@@ -2472,7 +2603,20 @@ async function main() {
     nodeSurfaces: readNodeSurfaces(),
     nonBundleCsp: readNonBundleCsp(),
     captureFilenameScan: readCaptureFilenameScan(),
+    codegenManifests: readCodegenManifests(),
+    docsMdTwins: readDocsMdTwins(),
     claudeMdClaims: readClaudeMdClaims(),
+    tableProvenance: readTableProvenance(),
+    /* Does this repo-relative path exist in the tree? Used by the TABLE-PROVENANCE gate to red on a
+       dead producer or an unresolvable committed input, rather than skipping — a stamp naming a tool
+       that no longer exists is the stale attribution the gate is for. */
+    treeHas: (rel) => {
+      try {
+        return typeof rel === 'string' && rel.length > 0 && existsSync(join(ROOT, rel));
+      } catch {
+        return false;
+      }
+    },
     onGroup: PROGRESS ? progressReporter() : undefined,
     /* XMT GROUND TRUTH (analysis/xmt-fixture.js) — loaded through the SAME `loadInto` path the DSPs
        use, so c8 attributes per-function coverage to it exactly as it does for a DSP. That matters:

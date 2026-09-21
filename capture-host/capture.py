@@ -10,9 +10,11 @@
 
 from __future__ import annotations
 import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
-from writers import (StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
+from writers import (ContactLedger, StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
                      HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, capture_filename, missing_identity,
                      night_dir, open_sample_writers)
+from typing import Any, Iterable
+
 import proc_util
 import polar_pmd as pmd
 import viatom
@@ -21,12 +23,14 @@ import acq_evidence_o2ring
 import blestats
 import bonding
 import devcaps
+import gattmap
 import helper_path
 import bluez_wedge
 import link_distress
 import wifi_uplink
 import link_rssi
 import host_clock
+import cpap_continuity
 import geo as _geo   # OPTIONAL GNSS elevation; no-ops entirely when unconfigured
 import offline_lock
 import diskguard
@@ -190,7 +194,7 @@ def _utcoffset(when: _dt.datetime) -> _dt.timedelta:
     return when.astimezone().utcoffset() or _dt.timedelta(0)
 
 
-def _reanchor(shift: float = 0.0) -> None:
+def _reanchor(shift: float = 0.0) -> _dt.datetime:
     """Re-pin the monotonic clock to civil time. `shift` CARRIES FORWARD any DST relabelling already
     absorbed, so a genuine NTP correction landing on a night that has crossed a transition re-anchors
     within the session's original offset frame instead of dropping back to civil time — which would
@@ -201,6 +205,7 @@ def _reanchor(shift: float = 0.0) -> None:
     _anchor_mono = _time.monotonic()
     _anchor_utcoff = _utcoffset(now)
     _civil_shift = shift
+    return _anchor_wall
 
 
 def reset_clock_anchor(reason: str = "") -> None:
@@ -247,9 +252,16 @@ def heartbeat_ms() -> int:
 
 def _now() -> _dt.datetime:
     global _civil_shift
-    if _anchor_wall is None:
-        _reanchor()
-    predicted = _anchor_wall + _dt.timedelta(seconds=_time.monotonic() - _anchor_mono)
+    # Bind a LOCAL rather than re-reading the global. `_anchor_wall` is `datetime | None`, and mypy
+    # cannot narrow a global across the `_reanchor()` call that sets it — so the add below read as
+    # `None + timedelta` and every `return predicted` as `datetime | timedelta`, five errors from one
+    # unnarrowable name. `_reanchor` now hands back the anchor it just set, which narrows by
+    # construction and costs the fast path nothing: this is one local read where it was a global read
+    # plus a None test, and `_now()` runs per sample (ECG is 130 Hz).
+    anchor = _anchor_wall
+    if anchor is None:
+        anchor = _reanchor()
+    predicted = anchor + _dt.timedelta(seconds=_time.monotonic() - _anchor_mono)
     actual = _dt.datetime.now()
     drift = (actual - predicted).total_seconds()   # wall-vs-monotonic divergence == a clock step
     # Fast path, and the steady state after a transition has been absorbed. Deliberately avoids the
@@ -983,7 +995,7 @@ def cpap_escalation_gate(cfg: dict, cpap_mac: "str | None", status_devices: dict
     `{"escalate": bool, "reason": str, "blockers": [...]}` and touches no hardware.
 
     Residue `2026-09-04-cpap-wedge-failover-masks-escalation`: the per-device ladder ends at
-    `_restart_radio()` under a 2/day budget, while the rungs that actually fix an RTL8761B-class wedge
+    `_restart_radio()` under a 2/day budget, while the rungs that actually fix a btusb-class wedge
     (power-cycle -> `hciconfig reset` -> `_usb_rebind`) hang off `adapter_watchdog`, which arms only
     when a scan returns ZERO devices. A radio deaf to ONE device still sees everything else, so
     `consecutive` resets every round and those rungs are unreachable. Measured 2026-09-04: hci0 found
@@ -993,7 +1005,22 @@ def cpap_escalation_gate(cfg: dict, cpap_mac: "str | None", status_devices: dict
     and re-enumerate a radio, so it may run ONLY when no other device on that adapter is live. On the
     box today nothing else is declared on the CPAP's adapter, so the gate is satisfied by
     CONFIGURATION — it exists for the day that stops being true, which is exactly when a global
-    predicate would take the wearables down with it."""
+    predicate would take the wearables down with it.
+
+    ⚠️ THE RUNGS ABOVE ARE btusb-SHAPED, AND THAT IS THIS LADDER'S WHOLE REACH. Soft power off/on,
+    `hciconfig reset`, `_usb_rebind` and a VBUS cut all act on a USB Bluetooth device bound to btusb.
+    A Zephyr board on cdc_acm is not one: it carries HCI over a tty, so `hciconfig <hci> reset`
+    answering `Can't init device: Connection timed out (110)` there is a HUNG TRANSPORT, not a rung
+    that merely failed. Such a board is recovered by its own systemd unit, not from here — the daemon
+    does not carry hardware-class knowledge, and a cdc_acm branch here would only defer that.
+    Measured on vigil 2026-09-11: the pinned adapter resolved to hci0, hci0 was a Zephyr board, and
+    760 `0x200c tx timeout` followed — so the reset logged at 19:43 could not have worked. The earlier
+    "RTL8761B-class" wording named the UB500 unplugged 2026-09-07 20:08:27 (`usb 1-2` disconnect; zero
+    `RTL:` lines Sep 8 -> Sep 18, journal boot -1) and is corrected above.
+
+    A VBUS power-cycle (`uhubctl`) is a HARDWARE PRECONDITION here, not pending work: all four radios
+    hang off the xHCI ROOT hub, root hubs generally expose no per-port power switching, and uhubctl is
+    not installed. That rung cannot exist on this topology without a PPPS-capable external hub."""
     blockers = []
     if not cpap_mac:
         blockers.append("no cpap.ble_stream.adapter pinned — nothing to escalate on")
@@ -1018,7 +1045,8 @@ def cpap_escalation_gate(cfg: dict, cpap_mac: "str | None", status_devices: dict
                                         f"USB {usb_id} derived from the adapter itself", "blockers": []}
 
 
-def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = None) -> dict:
+def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = None,
+                            adapter_responds: "bool | None" = None) -> dict:
     """PURE (testable): from each configured device's {name, connected, last_error, bluez_connected} plus
     the PINNED ADAPTER's own up/down state, decide whether the BLE ADAPTER looks WEDGED vs merely idle
     because the devices AREN'T WORN — the distinction the whole watchdog turns on. Returns
@@ -1031,6 +1059,19 @@ def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = Non
         DOWN radio read as "just not worn" and the watchdog logged "adapter healthy again" 25×+ over a
         dead adapter on 2026-07-23, repeatedly resetting its own escalation counter. None preserves the
         pre-2026-07-24 behaviour for callers that don't probe it.
+
+      • `adapter_responds` (added 2026-09-18) is STRICTLY STRONGER than `adapter_up`, and exists because
+        `adapter_up` is a KERNEL FLAG READ: a controller that has stopped answering still reads UP RUNNING.
+        Measured on vigil 2026-09-11 — the radio wedged at 19:23:12 and the first wedge sign was logged at
+        19:42:06, ~19 min later, because the InProgress suppression below turns on `adapter_up is True` and
+        the flag stayed True until the radio finally went DOWN. `_adapter_responds` round-trips a real HCI
+        command, so it goes False while the flag is still True. Two effects, both additive: (a) when it is
+        False it BREAKS the `adapter_up is True` suppression below — a flag alone can no longer silence
+        the InProgress inference; and (b) False is wedge evidence on its OWN, like a phantom link, since
+        a radio that cannot answer HCI is wedged whatever the devices report. A TRUE verdict grants no
+        new suppression on purpose: a radio can answer HCI and still be unable to carry a link, so
+        trading this blindness for that one would be no gain.
+        **None changes nothing** — every pre-2026-09-18 caller keeps its exact behaviour.
 
       • `InProgress` in last_error → connection contention — BUT ADAPTER-LEVEL ONLY WHEN THE RADIO IS
         SERVING NOBODY. A single device's InProgress while OTHERS are connected is DEVICE churn, not an
@@ -1073,9 +1114,28 @@ def classify_adapter_health(devices: list[dict], adapter_up: "bool | None" = Non
     # to stand alone.
     if adapter_up is False and not any_streaming:
         reasons.append("pinned adapter DOWN/not-found")
+    # THE SAME SIGNAL ONE LAYER DEEPER: the radio is UP by the kernel's flags and does not ANSWER. That
+    # is a wedge on its own — it needs no device to be misbehaving, which is the point, because the
+    # device heuristics are exactly what a radio silently failing every connect defeats. Guarded by `not
+    # any_streaming` for the same reason as the line above: a live stream outranks any probe, so a
+    # misread can never power-cycle a demonstrably-working adapter. None (undeterminable) adds nothing.
+    if adapter_responds is False and not any_streaming:
+        reasons.append("pinned adapter does not answer HCI")
     for d in devices:
         err = d.get("last_error") or ""
-        if "InProgress" in err and not any_streaming and adapter_up is not True:
+        # `proven_ok` is the "radio is demonstrably working" test that SILENCES this inference. It was
+        # `adapter_up is True` alone — a kernel flag a wedged controller still passes, which is how the
+        # 2026-09-11 radio suppressed its own detection for ~19 minutes. A failed round trip now BREAKS
+        # that suppression.
+        #
+        # ⚠️ NOTE THE ASYMMETRY, IT IS DELIBERATE: a False round trip REMOVES suppression, and a True one
+        # NEVER ADDS IT. Letting `adapter_responds is True` license suppression on its own would convict
+        # nobody but would EXCUSE a radio that answers HCI while being unable to carry a link — deaf but
+        # alive — and that is a new blindness traded for the one being fixed. So this can only ever make
+        # the watchdog see MORE, never less, which is the same discipline the pinned-adapter signal above
+        # states for itself. None reproduces the old expression exactly.
+        proven_ok = (adapter_up is True) and (adapter_responds is not False)
+        if "InProgress" in err and not any_streaming and not proven_ok:
             # No device is connected AND a connect is stuck in-progress → INFER the radio is wedged... but
             # ONLY when the adapter is not CONFIRMED up. If _adapter_is_up() says the pinned adapter is
             # UP RUNNING (adapter_up is True), the radio is demonstrably working and this InProgress is
@@ -1807,7 +1867,7 @@ def parse_hciconfig(text: str) -> list[dict]:
     return out
 
 
-def failover_target(pinned_mac: str | None, adapters: list[dict], reserved=()) -> str | None:
+def failover_target(pinned_mac: str | None, adapters: list[dict], reserved=(), exclude=()) -> "str | None":
     """A healthy adapter to fail over to — UP, addressable, and NOT the pinned (wedged) one — or None.
     PURE. A down spare is no spare; without a MAC the reconnect cannot be pinned to it (adapter_kw needs
     the MAC); and never the pinned adapter itself, which is the one that just wedged.
@@ -1829,15 +1889,23 @@ def failover_target(pinned_mac: str | None, adapters: list[dict], reserved=()) -
 
     Matching is on MAC **or** hci name because `cpap.ble_stream.adapter` may legitimately be either —
     a bare `hciN` or a MAC — and a reservation that only understood one form would silently protect
-    nothing on the other."""
+    nothing on the other.
+
+    ⚠️ `exclude` HOLDS RADIOS A CALLER HAS ALREADY RULED OUT, and it is how `_pick_live_spare` walks
+    past a spare that reads `up` and answers nothing. It is deliberately NOT a second notion of
+    health inside this function: the ranking stays a pure statement about `up` + reservation, and
+    who is provably deaf stays the probing caller's knowledge. Optional and last, so every existing
+    caller is unaffected."""
     pin = (pinned_mac or "").upper()
     held = {str(r).upper() for r in (reserved or ()) if r}
+    skip = {str(x).upper() for x in (exclude or ()) if x}
 
     def _held(a):
         return (a.get("mac") or "").upper() in held or (a.get("hci") or "").upper() in held
 
     candidates = [a for a in adapters
-                  if (a.get("mac") or "").upper() and (a.get("mac") or "").upper() != pin and a.get("up")]
+                  if (a.get("mac") or "").upper() and (a.get("mac") or "").upper() != pin
+                  and a.get("up") and (a.get("mac") or "").upper() not in skip]
     for a in candidates:                      # unreserved first — the whole point
         if not _held(a):
             return (a.get("mac") or "").upper()
@@ -1958,6 +2026,21 @@ async def _connect(addr: str):
 _O2_PASSIVE_SCAN = True          # flipped off for good by the first refusal from this BlueZ stack
 
 
+def _passive_scan_kw(akw: dict) -> dict:
+    """bleak kwargs for one PASSIVE scan on BlueZ: `scanning_mode="passive"` plus the `or_patterns`
+    filter merged INTO the adapter pin's `bluez` dict (both live under the same key — a second
+    `bluez=` would replace the pin, and losing the pin is how a scan lands on the onboard radio that
+    cannot hear the ring). The filter itself is `oxy_presence.passive_or_pattern_spec()`."""
+    import oxy_presence
+    from bleak.args.bluez import OrPattern
+    from bleak.assigned_numbers import AdvertisementDataType
+    pats = [OrPattern(off, AdvertisementDataType(adt), prefix)
+            for off, adt, prefix in oxy_presence.passive_or_pattern_spec()]
+    bluez = dict(akw.get("bluez") or {})
+    bluez["or_patterns"] = pats
+    return {**akw, "scanning_mode": "passive", "bluez": bluez}
+
+
 @contextlib.asynccontextmanager
 async def _connect_scan(addr: str, timeout: float = 15.0):
     global _O2_PASSIVE_SCAN
@@ -1981,16 +2064,18 @@ async def _connect_scan(addr: str, timeout: float = 15.0):
     if _O2_PASSIVE_SCAN:
         try:
             async with _CONNECT_LOCK:
-                device = await _BS.find_device_by_filter(
-                    _match, timeout=timeout, scanning_mode="passive", **akw)
+                device = await _BS.find_device_by_filter(_match, timeout=timeout, **_passive_scan_kw(akw))
         except _BErr as exc:
             # Only a "this stack can't do passive" refusal downgrades. A real scan failure (adapter wedged,
             # D-Bus gone) must stay an error the caller retries + the watchdogs can see, not be masked by a
-            # second scan on the same broken radio.
-            if "passive" not in repr(exc).lower():
+            # second scan on the same broken radio. The refusal CLASS is logged so the box names the
+            # knob that is missing: `or_patterns` is code (fixed), `experimental` is the bluetoothd
+            # drop-in (the owner's). One line per process — the flag is per-process by design.
+            why = oxy_presence.passive_refusal(exc)
+            if why is None:
                 raise
             _O2_PASSIVE_SCAN = False
-            log.info("passive BLE scan unsupported here (%s) — using active scan for the O2Ring", exc)
+            log.info("passive BLE scan unsupported here [%s] (%s) — using active scan for the O2Ring", why, exc)
     if device is None and not _O2_PASSIVE_SCAN:
         async with _CONNECT_LOCK:
             device = await _BS.find_device_by_filter(_match, timeout=timeout, **akw)
@@ -2419,7 +2504,35 @@ def clock_skew_estimate(samples, now_mono, window_s=CLOCK_SKEW_WINDOW_S, min_n=C
     return {"skew": max(fresh), "n": len(fresh)}
 
 
-def clock_sync_due(is_polar, enabled, charging, first_attempt) -> bool:
+# The PS-FTP MTU characteristic. Its PRESENCE in a unit's attribute table is what makes a clock write
+# possible at all — `run_polar`'s own note records the alternative: on a device without it the sync
+# "fails on a missing characteristic", at the cost of an 18-second global capture pause. Duplicated as a
+# literal rather than imported because `polar_psftp` pulls bleak and `import capture` is kept
+# stdlib-clean for CI; `test_psftp_mtu_char_literal_matches_polar_psftp` pins the two together, so the
+# copy cannot drift silently.
+PSFTP_MTU_CHAR = "fb005c51-02e7-f387-1cad-8acd2d8df0c8"
+
+
+def clock_sync_capable(psftp, is_polar) -> bool:
+    """PURE: may this unit's clock be written at all? MEASURED capability first, config label second.
+
+    BLE-TRANSPORT-REDESIGN §1.3, residue `2026-09-16-devcaps-has-no-branch-consumer`. `is_polar` is a
+    VENDOR STRING SOMEBODY TYPED; `psftp` is `devcaps.get(addr, "psftp")` — whether this unit was
+    OBSERVED to expose `PSFTP_MTU_CHAR`. A capability branch must key on a measured property, never on a
+    configured label, so the measurement wins wherever one exists.
+
+    ⚠️ `None` IS NOT `False` (§∅), and that asymmetry is the whole safety argument. Unmeasured falls back
+    to the vendor string, i.e. to exactly today's behaviour — so the only units whose behaviour can
+    change are ones we have data for. The change cannot surprise us on a device we know nothing about.
+    Writing `bool(psftp)` here would coerce unmeasured to "incapable" and silently stop syncing the
+    clock on every device not yet in the map, which is the defect `devcaps.get` exists to refuse.
+
+    Presence is NECESSARY, not sufficient: a docked unit still refuses the write, which is
+    `clock_sync_due`'s business, not this one's."""
+    return bool(is_polar) if psftp is None else bool(psftp)
+
+
+def clock_sync_due(capable, enabled, charging, first_attempt) -> bool:
     """PURE: should we (re-)write this device's clock before the next connection attempt?
 
     RE-SYNC ON EVERY RECONNECT, not once per task. The sync used to run exactly once, ahead of the
@@ -2437,8 +2550,12 @@ def clock_sync_due(is_polar, enabled, charging, first_attempt) -> bool:
     right after it went on the dock). Skipping is not deferring the fix: coming OFF the dock produces a
     reconnect, which is exactly when this returns True.
 
-    `first_attempt` is True for the pre-loop sync that already runs, so this governs only the RE-syncs."""
-    return bool(is_polar and enabled and not charging and not first_attempt)
+    `first_attempt` is True for the pre-loop sync that already runs, so this governs only the RE-syncs.
+
+    `capable` was named `is_polar` until the §1.3 conversion; it is now `clock_sync_capable`'s verdict —
+    a measured capability where one exists, the vendor string only while unmeasured. Positional callers
+    are unaffected."""
+    return bool(capable and enabled and not charging and not first_attempt)
 
 
 def rebond_due(needs_pmd, bonded, iteration, attempts, every, limit) -> bool:
@@ -2728,6 +2845,25 @@ async def _exit_sdk_mode(ctrl, name: str) -> bool | None:
 # survived reconnects. Only the clock did not, which is why the asymmetry was invisible: half the rule
 # persisted and half of it reset.
 _BATT_FLAT_SINCE: dict[str, float] = {}
+# name -> which branch last decided its clock-sync gate ("measured:True" / "vendor-string" / …).
+# §1.3's conversion is a ROLLING behaviour change: as `gattmap` fills, each newly-recorded unit moves
+# from vendor-string logic to measured logic with nothing marking the transition — a behaviour change
+# distributed over time and invisible at every individual step, which is the hardest kind to attribute
+# afterwards. So log it, and log it on CHANGE ONLY: the gate is evaluated on every reconnect (~70 s),
+# and a line per evaluation is how a real event gets buried (the same reasoning `_gatt_record_table`
+# records for its "same" outcome).
+_CLOCK_CAP_BASIS: dict[str, str] = {}
+
+
+def _clock_gate(name: str, addr: str, is_polar: bool) -> bool:
+    """`clock_sync_capable` plus the rollout log. Returns the gate; logs only when the BASIS changes."""
+    psftp = devcaps.get(addr, "psftp")
+    gate = clock_sync_capable(psftp, is_polar)
+    basis = "vendor-string" if psftp is None else ("devcaps.psftp=%s" % psftp)
+    if _CLOCK_CAP_BASIS.get(name) != basis:
+        _CLOCK_CAP_BASIS[name] = basis
+        log.info("%s: clock-sync gate now decided by %s (gate=%s, vendor_is_polar=%s)", name, basis, gate, is_polar)
+    return gate
 
 
 async def run_polar(dev: dict, root: str):
@@ -2771,7 +2907,7 @@ async def run_polar(dev: dict, root: str):
     # PS-FTP is POLAR-SPECIFIC. On anything else the sync cannot succeed — it fails on a missing
     # characteristic — and it costs a global capture pause to find that out, every task start.
     # This is the FIRST sync; `clock_sync_due` repeats it on every later reconnect (see the loop below).
-    if is_polar and (_CFG.get("time") or {}).get("auto_sync_devices", True):
+    if _clock_gate(name, addr, is_polar) and (_CFG.get("time") or {}).get("auto_sync_devices", True):
         await auto_sync_clock(name, addr, root)
     first_attempt = True
     iteration = 0
@@ -2788,7 +2924,8 @@ async def run_polar(dev: dict, root: str):
         # device's single BLE link (see the first-sync comment above). Skipped while the device is on
         # its charger: a docked Polar cannot take the write, so trying only burns the watchdog's
         # give-up budget. Coming off the dock IS a reconnect, so the sync lands then.
-        if clock_sync_due(is_polar, (_CFG.get("time") or {}).get("auto_sync_devices", True),
+        if clock_sync_due(_clock_gate(name, addr, is_polar),
+                          (_CFG.get("time") or {}).get("auto_sync_devices", True),
                           STATUS["devices"].get(name, {}).get("charging"), first_attempt):
             await auto_sync_clock(name, addr, root)
         first_attempt = False
@@ -2889,7 +3026,7 @@ async def run_polar(dev: dict, root: str):
 
                 def _register(meas: int, fs_val: float) -> None:
                     base, unit, ch, labs = _LIVE_META[pmd.MEAS_NAME[meas]]
-                    BUS.register(_live_key(pmd.MEAS_NAME[meas], tag), f"{base} ({name})", unit, fs_val, ch, labs)
+                    BUS.register(_live_key(pmd.MEAS_NAME[meas], tag), f"{base} ({name})", unit, fs_val, ch, labs, device=name)
 
                 for s in streams:
                     if s in meas_of:
@@ -2911,11 +3048,11 @@ async def run_polar(dev: dict, root: str):
                         _register(meas_of[s], 0)
                 if "hr" in streams:
                     hr_writer = w("hr")
-                    BUS.register(_live_key("hr", tag), f"RR ({name})", "ms", 0)
+                    BUS.register(_live_key("hr", tag), f"RR ({name})", "ms", 0, device=name)
                     # The strap sends HR (bpm) alongside the RR intervals and we already write both to
                     # the file — but only RR was ever pushed to the monitor, so the device's own HR had
                     # no card at all. Both are real: RR is the HRV substrate, HR is the device's reading.
-                    BUS.register(_live_key("bpm", tag), f"HR ({name})", "bpm", 0)
+                    BUS.register(_live_key("bpm", tag), f"HR ({name})", "bpm", 0, device=name)
 
                 # ── optical-wear state, per connection ──────────────────────────────────────────
                 # `_amb` accumulates the PPG ambient channel; `_AMB_WINDOW` is ~4 s at 55 Hz, long
@@ -3238,6 +3375,10 @@ async def run_polar(dev: dict, root: str):
                     # BOUNDED like every other post-connect GATT await — see the block comment on
                     # _read_batt below for the 4h25m freeze a bare one cost.
                     await _bounded_setup(client.start_notify(HR_UUID, on_hr))
+                    # RECORD-ONLY (GATT-HANDLE-MAP-2026-09-17 §2b③) — see `_gatt_record_rail` for WHY it sits
+                    # after `start_notify` rather than at connect, and why calling it from several streams of
+                    # one connect is a deliberate no-op.
+                    await _gatt_record_rail(client, addr, name)
 
                 # Battery level via the standard Battery Service (0x2A19). Polar H10 + Verity both expose
                 # it; read once now and refresh every ~2 min. Silent no-op if a firmware lacks the char.
@@ -3364,6 +3505,10 @@ async def run_polar(dev: dict, root: str):
                         return b""
 
                     await _bounded_setup(client.start_notify(pmd.PMD_DATA, on_pmd))
+                    # RECORD-ONLY (GATT-HANDLE-MAP-2026-09-17 §2b③) — see `_gatt_record_rail` for WHY it sits
+                    # after `start_notify` rather than at connect, and why calling it from several streams of
+                    # one connect is a deliberate no-op.
+                    await _gatt_record_rail(client, addr, name)
                     # ── CHARGING RETRY RUNS ON THE LINK WE ALREADY HOLD ─────────────────────────
                     # A Polar on its dock refuses PMD START with 0x0D in_charger, and we re-attempt on a
                     # cadence so capture resumes within a minute of it coming off. That retry used to end
@@ -3768,20 +3913,56 @@ async def run_polar(dev: dict, root: str):
                 backoff = min(backoff * 2, _RECONNECT_BACKOFF_CAP_S)   # exponential backoff, capped
 
 
+def _wrote_something(path: str) -> bool:
+    """True when `path` exists with at least one byte — the only evidence a child recorder produced data."""
+    try:
+        return os.path.getsize(path) > 0
+    except OSError:
+        return False
+
+
+# One child process per night. Both tools default to a DEMO length (`muselsl record_direct` 60 s,
+# `OpenMuse record` 30 s — argparse defaults read at upstream HEAD 2026-09-20), so a spawn without an
+# explicit duration would have produced ~100 half-minute files a night with 5 s holes between them and
+# read as a working capture. 24 h means the child runs until the daemon stops it or the link dies.
+MUSE_RECORD_DURATION_S = 24 * 3600
+
+
 async def run_muse(dev: dict, root: str):
-    """Muse EEG is captured by a child tool (muselsl / OpenMuse), not bleak. Supervise + restart it."""
+    """Muse EEG is captured by a child tool (muselsl / OpenMuse), not bleak. Supervise + restart it.
+
+    THE `muse_tool` SPLIT IS A PROCESS-MODEL SPLIT, NOT A "WHICH TOOL SUPPORTS THE ATHENA" SPLIT — and
+    that distinction is what residue `2026-09-19-capture-muse-tool-switch-encodes-stale-assumption` got
+    backwards. This supervisor runs ONE child that connects by `--address` and writes ONE file. Read at
+    upstream HEAD on 2026-09-20 (a snapshot — re-check before relying on it; no gate here can):
+      • muse-lsl (BSD-3, v2.5.3 2026-09-08): Athena support is REAL since `74fcb916` (2026-06-30) — but
+        it lives in `stream` (`devices.create_device`, GATT probe → Athena | legacy). `record` is an LSL
+        CONSUMER: it takes NO `--address` (the argv this function used to spawn exited 2 on argparse,
+        every 5 s, and could never have recorded), needs a running `stream`, and RETURNS 0 when it finds
+        none. The one-process, by-address path is `record_direct`, which builds the LEGACY `Muse` class
+        — Gen 1–2 only, no Athena — and writes its CSV ONLY AFTER its loop ends (`recording.to_csv`):
+        SIGTERM kills it with nothing on disk; SIGINT takes the `KeyboardInterrupt` branch and saves.
+      • OpenMuse (DominiqueMakowski, no license file, last push 2026-01-28, open issues on optics/PPG
+        flatlining #27 and channel mapping #24): Athena-ONLY by design, and its `record` IS the shape
+        this supervisor needs — `--address`, `--outfile`, appends raw packets as they arrive.
+    So: `muselsl` = Gen 1–2 via `record_direct`; `openmuse` = Athena, one process. An Athena through
+    muse-lsl needs `stream` + `record` as two children on LSL, which this function does NOT run — that
+    is a build, not a flag, and it is not built. `how-to-collect/muse-eeg.md` (#2687) describes the
+    operator running `stream`/`record` by hand and is right for that; this is the daemon's path.
+    ⚠️ UNEXERCISED ON THE BOX: no Muse is configured and neither tool is installed (2026-09-20), so
+    every claim above is from upstream source, not from a capture. The exit-0-with-no-file check below
+    is what turns a wrong guess here into a red card instead of a green respawn loop."""
     name, addr = dev["name"], dev["address"]
     tool = dev.get("muse_tool", "muselsl")
     while not _STOP.is_set():
         started = _now()
         ndir = night_dir(root, started)
         out = os.path.join(ndir, capture_filename(dev["vendor"], dev["model"], dev["device_id"], started, "eeg", "csv"))
-        # NOTE: verify the exact CLI for YOUR tool/version. Defaults below are the common forms:
-        #   muselsl : needs a `stream` running, then `record`; or use a wrapper. OpenMuse: one-shot `record`.
+        dur = str(MUSE_RECORD_DURATION_S)
         if tool == "openmuse":
-            cmd = ["OpenMuse", "record", "--address", addr, "--outfile", out]
+            cmd = ["OpenMuse", "record", "--address", addr, "--duration", dur, "--outfile", out]
         else:
-            cmd = ["muselsl", "record", "--address", addr, "--filename", out]
+            cmd = ["muselsl", "record_direct", "--address", addr, "--filename", out, "--duration", dur]
         try:
             log.info("%s: %s", name, " ".join(cmd))
             # `connected` is set AFTER the child exists, not before. Setting it first meant a tool that
@@ -3804,9 +3985,17 @@ async def run_muse(dev: dict, root: str):
                 # finally runs on cancellation too, and we wait for the child so it can flush its CSV
                 # tail rather than being orphaned mid-write.
                 if proc.returncode is None:
-                    proc.terminate()
+                    # SIGINT FIRST, not SIGTERM. `muselsl record_direct` writes its CSV only after its
+                    # loop, and only the KeyboardInterrupt branch reaches that line — a SIGTERM there is
+                    # a night recorded and never saved. OpenMuse appends as it goes and loses at most a
+                    # buffered tail either way, so SIGINT is no worse for it. Escalate as before.
                     with contextlib.suppress(Exception):
+                        proc.send_signal(signal.SIGINT)
                         await asyncio.wait_for(proc.wait(), timeout=5)
+                    if proc.returncode is None:
+                        proc.terminate()
+                        with contextlib.suppress(Exception):
+                            await asyncio.wait_for(proc.wait(), timeout=5)
                     if proc.returncode is None:      # ignored SIGTERM — do not leave it holding the radio
                         with contextlib.suppress(Exception):
                             proc.kill()
@@ -3817,6 +4006,14 @@ async def run_muse(dev: dict, root: str):
                 _set(name, connected=False,
                      last_error=f"{tool} exited with code {proc.returncode} — retrying")
                 log.warning("%s: %s exited with code %s — retrying in 5s", name, tool, proc.returncode)
+            elif not _wrote_something(out):
+                # EXIT 0 IS NOT A CAPTURE. Both tools return 0 on "could not find / connect to the Muse"
+                # (`record_direct` prints and returns; `record` returns when no LSL stream answers), so a
+                # code-0 exit with no bytes on disk is the same silent green respawn the `connected`
+                # ordering above fixed, one layer down. The file is the evidence; the exit code is not.
+                _set(name, connected=False,
+                     last_error=f"{tool} exited 0 but wrote nothing to {os.path.basename(out)} — retrying")
+                log.warning("%s: %s exited 0 but wrote nothing to %s — retrying in 5s", name, tool, out)
             else:
                 _set(name, connected=False)
         except FileNotFoundError:
@@ -3911,6 +4108,10 @@ async def run_viatom(dev: dict, root: str):
                         _set(name, worn=pkt["worn"], last_error=None if pkt["worn"] else "not on finger")
 
                 await _bounded_setup(client.start_notify(notify_char, on_data))
+                # RECORD-ONLY (GATT-HANDLE-MAP-2026-09-17 §2b③) — see `_gatt_record_rail` for WHY it sits
+                # after `start_notify` rather than at connect, and why calling it from several streams of
+                # one connect is a deliberate no-op.
+                await _gatt_record_rail(client, addr, name)
                 if write_char is not None:
                     try:
                         await asyncio.wait_for(
@@ -4356,7 +4557,14 @@ async def run_oxyii(dev: dict, root: str):
                 # host-disciplined when the host earned it). Read from the poller's latest verdict; absent
                 # (poller hasn't run yet, or no clock) ⇒ no comment ⇒ PpgDex defaults to the crystal floor.
                 _tb = STATUS.get("host_clock", {}).get("timebase")
-                ppgwr = (StreamWriter(ppg_path, "ppg1", timebase=_tb)
+                # THE DEVICE'S CONTACT BYTE REACHES THE PPG SIDECAR. One ledger per session: fed with
+                # every 1 Hz frame's `contact` below (beside the OXYFRAME write), read by the ppg1 run
+                # sidecar when it writes a span row, joined by host time (writers.ContactLedger). The
+                # byte was always captured and acted on (the not-worn verdict IS it); the sidecar —
+                # the one component trying hardest to say "no measurement" — was the only reader
+                # that could not see it (2026-09-19).
+                contact_ledger = ContactLedger()
+                ppgwr = (StreamWriter(ppg_path, "ppg1", timebase=_tb, contact=contact_ledger)
                          if "ppg" in (dev.get("streams") or ["spo2", "ppg"]) else None)
                 # RAW DUAL-WAVELENGTH (cmd 0x05). OPT-IN — absent from the default stream list, so a box
                 # that has not asked for it is untouched. It is a SECOND poll on the ring's single BLE
@@ -4727,7 +4935,9 @@ async def run_oxyii(dev: dict, root: str):
                         # the time the poll loop runs. Kept as a guard because the three writers are
                         # torn down together and a future gate on this one would land here.
                         if oxyflagwr:   # pragma: no branch
-                            oxyflagwr.write(_now(), live, _ppgrow)   # PI + what the vendor CSV cannot carry
+                            _fnow = _now()
+                            oxyflagwr.write(_fnow, live, _ppgrow)    # PI + what the vendor CSV cannot carry
+                            contact_ledger.note(_fnow, live.get("contact"))
                         # [0:4] is the ring's SESSION DURATION, not a frame counter — the old
                         # frame_gap() accounting on it reported phantom loss (9 warnings in one
                         # evening, one claiming 111 frames, which was a session starting). What the
@@ -4822,8 +5032,10 @@ async def run_oxyii(dev: dict, root: str):
                                  last_error=None if live["worn"] else "no finger contact")
                             _power_observe(name, worn=live["worn"], battery=live["batt"])
 
-                BUS.register("motion_o2", "Motion (O2Ring)", "lvl", 0)
-                BUS.register("pi_o2", "Perfusion index (O2Ring)", "%", 0)
+                # The ring's DEFAULT_META keys were declared at import, ownerless; claim them now.
+                BUS.claim("spo2", name); BUS.claim("pr", name)
+                BUS.register("motion_o2", "Motion (O2Ring)", "lvl", 0, device=name)
+                BUS.register("pi_o2", "Perfusion index (O2Ring)", "%", 0, device=name)
                 if "acc" in (dev.get("streams") or []):
                     # THE RING'S 3-AXIS ACCELEROMETER — the H10-equivalent stream, declared the same way
                     # the H10's is (3 channels, X/Y/Z) so it draws the same three-trace card.
@@ -4833,9 +5045,9 @@ async def run_oxyii(dev: dict, root: str):
                     # ring here has ever been asked to push this stream, so there is nothing to
                     # calibrate against. Declaring mg would put a fabricated unit on the card — the
                     # same failure as the fs=0 note below, one field over.
-                    BUS.register("acc_o2", "ACC (O2Ring)", "raw", 0, chans=3, labels=("X", "Y", "Z"))
+                    BUS.register("acc_o2", "ACC (O2Ring)", "raw", 0, chans=3, labels=("X", "Y", "Z"), device=name)
                 if ppgwr:                                   # no card for a stream we are not capturing
-                    BUS.register("o2ppg", "PPG (O2Ring)", "raw", O2PPG_FS)   # finger pleth, Phase 2
+                    BUS.register("o2ppg", "PPG (O2Ring)", "raw", O2PPG_FS, device=name)   # finger pleth, Phase 2
                 # SIBLING of ppgwr/ppg2wr, deliberately NOT nested inside one of them: `pletha` is
                 # independently switchable, so registering it under another stream's `if` would leave
                 # its bus card missing whenever that other stream happened to be off. Caught by the
@@ -4848,7 +5060,7 @@ async def run_oxyii(dev: dict, root: str):
                     # unit "raw" like its siblings: the ring publishes no scale for these 8-bit
                     # optical counts, and "raw" is this bus's existing word for exactly that (o2ppg,
                     # o2ppg2w, acc_o2). A fabricated unit here is the accraw mistake one layer up.
-                    BUS.register("o2pletha", "Raw pleth A (O2Ring)", "raw", 0, chans=1)
+                    BUS.register("o2pletha", "Raw pleth A (O2Ring)", "raw", 0, chans=1, device=name)
                 if ppg2wr:
                     # fs=0 DELIBERATELY. Every reply carries exactly 102 records whatever the poll
                     # spacing, which is a fixed buffer cap and not a rate (cmd 0x03 caps the same way at
@@ -4859,8 +5071,12 @@ async def run_oxyii(dev: dict, root: str):
                     # that is a vendor-header claim we have not measured, and a monitor card is a bad
                     # place to publish a guess (see oxyii "WHICH-IS-WHICH" for the test that settles it).
                     BUS.register("o2ppg2w", "Raw 2-wavelength (O2Ring)", "raw", 0, chans=2,
-                                 labels=("ch0", "ch1"))
+                                 labels=("ch0", "ch1"), device=name)
                 await _bounded_setup(client.start_notify(nch, on_data))
+                # RECORD-ONLY (GATT-HANDLE-MAP-2026-09-17 §2b③) — see `_gatt_record_rail` for WHY it sits
+                # after `start_notify` rather than at connect, and why calling it from several streams of
+                # one connect is a deliberate no-op.
+                await _gatt_record_rail(client, addr, name)
                 await _bounded_setup(client.write_gatt_char(wch, oxyii.auth_frame(), response=False))  # 0xFF
                 await asyncio.sleep(0.6)     # the reply's settle window — it arrives on `nch`, not here
                 # ── THE ENCRYPTION DECISION, PRIMARY (SomnoTrace-class item (c)) ──────────────────
@@ -5507,6 +5723,16 @@ async def polar_offline_op(address: str, op, timeout: float | None = None,
     # is mid-download, instead of letting two pulls fight over the single radio.
     async with offline_lock.slot(name or address):
         _POLAR_PAUSED.add(address)
+        # THE DENOMINATOR, and its PLACEMENT is the whole of its meaning (residue
+        # 2026-09-19-ble-rate-cannot-see-absence). It sits AFTER the `_device_on_air` guard above and
+        # after the slot is acquired, so it counts ops we actually ran against a device that WAS on
+        # air. Counting earlier would put "the device never advertised" and "the op failed" into one
+        # denominator — the absent-vs-failing collapse that row is about — and counting before the
+        # slot would count an `OfflineBusy` bounce as an attempt at an op that never started.
+        # So a not-advertising skip is EXCLUDED from the denominator rather than scored as a failure,
+        # which is the out-of-band validity §∅ asks for: the guard decides presence, the counter
+        # measures only what presence admitted.
+        blestats.attempt("offline_op", address)
         try:
             for _ in range(120):                      # wait up to ~12 s for run_polar to drop its link
                 if not (name and STATUS["devices"].get(name, {}).get("connected")):
@@ -5524,7 +5750,9 @@ async def polar_offline_op(address: str, op, timeout: float | None = None,
             async def _locked():
                 async with _CONNECT_LOCK:
                     return await op()
-            return await asyncio.wait_for(_locked(), timeout=timeout)
+            _result = await asyncio.wait_for(_locked(), timeout=timeout)
+            blestats.ok("offline_op", address)
+            return _result
         except asyncio.TimeoutError:
             # COUNTED FIRST, so the frequency can never be hidden however this is logged. The rate rides
             # in `status.json` as `ble` and is the thing an operator should actually watch.
@@ -5800,6 +6028,117 @@ async def _adapter_is_up(hci: str) -> "bool | None":
         return None
 
 
+async def _adapter_responds(hci: str, timeout: float = 6.0) -> "bool | None":
+    """True if the adapter ANSWERED an HCI command, False if it did not, None when undeterminable.
+
+    THE COMPANION TO `_adapter_is_up`, AND THE ANSWER TO A BLINDNESS IT CANNOT SEE PAST.
+    `_adapter_is_up` shells `hciconfig <hci>`, which reads the KERNEL'S CACHED FLAGS and asks the
+    controller nothing — so a controller that has stopped answering still reads `UP RUNNING`. That is not
+    hypothetical: on 2026-09-11 the pinned radio wedged at 19:23:12 and the watchdog logged its first wedge
+    sign at **19:42:06**, ~19 minutes later, because `classify_adapter_health` SUPPRESSES the InProgress
+    inference while `adapter_up is True` (see its own docstring) and the flag stayed True until the radio
+    finally went DOWN.
+
+    `hciconfig <hci> version` issues HCI_Read_Local_Version_Information (0x1001) and waits for the reply,
+    so it is a genuine round trip rather than a state read. MEASURED on vigil 2026-09-18, which is why
+    this command and not another: running `version` incremented that adapter's TX `commands:` counter by
+    **1**, and a plain `hciconfig <hci>` incremented it by **0**. Unprivileged (the daemon holds
+    CAP_NET_ADMIN alone) it returns rc=0 on all four of the box's radios and prints `Manufacturer:`, a
+    field the cached read never carries.
+
+    ⚠️ **A TIMEOUT IS `False`, NOT `None` — deliberately, and it is the case this probe exists for.** A
+    wedged controller does not answer, so the command hangs; mapping that to "undeterminable" would throw
+    away the signal. Every OTHER failure is `None` (§∅: absence is never a number, and here it is never a
+    verdict either) — `hciconfig` missing, an unparseable output, any unexpected error. `None` leaves the
+    caller's pre-existing behaviour exactly as it was, so a probe that cannot run can never itself convict
+    a healthy radio. Hysteresis upstream (`grace_checks`, then `max_adapter_cycles`) is what keeps a single
+    slow poll on a loaded box from escalating.
+    """
+    try:
+        p = await asyncio.create_subprocess_exec(
+            "hciconfig", hci, "version",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        out, _ = await proc_util.communicate(p, timeout)
+    except asyncio.TimeoutError:
+        return False                  # the controller did not answer in time — the wedge signature
+    except Exception:
+        return None                   # hciconfig absent / unspawnable — unknown, never a verdict
+    if p.returncode != 0:
+        return False                  # the command ran against a named adapter and failed
+    text = out.decode("utf-8", "replace")
+    if "Manufacturer:" not in text:
+        return None                   # answered 0 but carried no controller-sourced field — do not convict
+    return True
+
+
+# Radios that FAILED the round trip, `mac -> monotonic deadline`. Keyed by MAC and never by `hciN`,
+# because `hciN` is an enumeration slot the kernel reassigns on replug — the fleet's standing rule is
+# that BLE identity is the address alone. Module-level so a refusal survives the poll that found it.
+_SPARE_QUARANTINE: "dict[str, float]" = {}
+
+
+async def _pick_live_spare(pinned_mac, adapters, reserved=(), *, cooldown_sec=900.0,
+                           probe=None, now=None) -> "str | None":
+    """`failover_target` with the winner ROUND-TRIPPED before we migrate onto it. None = do not fail over.
+
+    🔴 THE DEFECT THIS CLOSES. `failover_target` ranks spares on `up`, which `parse_hciconfig` reads from
+    the kernel's CACHED flag. That flag is not merely imprecise here — it is wrong about *precisely* the
+    failure a failover exists to escape. Measured on vigil 2026-09-11: the wedged radio reported
+    `UP RUNNING` while `HCI Reset` (`0x0c03`) itself timed out at `-110`, and vigil was running FOUR
+    radios that night. So the ladder could spend one of its `max_failovers` disconnecting every wearable,
+    re-bonding them and cutting a hole in the recording — onto a radio that answers nothing — and then
+    reset the reset budget (`cycles = consecutive = 0`) as though it had recovered.
+
+    ⚠️ **ONLY `False` CONVICTS.** `_adapter_responds` returns `None` for undeterminable (no `hciconfig`,
+    unparseable output) and that must leave the pre-existing behaviour exactly as it was: an absent
+    measurement is not evidence against a radio (§∅). A candidate with no `hci` name to probe is
+    likewise taken, not refused. This probe can only ever REMOVE a spare we can prove deaf; it can
+    never invent one.
+
+    ⚠️ **REFUSING IS A REAL OUTCOME, and it is why this returns None rather than falling back to the
+    old first-match.** If every spare is proven deaf, migrating onto one is not a partial win — it
+    costs the links we still have and burns the flap cap (`max_failovers`, default 3) that exists to
+    stop ping-pong between two flaky radios. Both callers already handle `None`: the ladder proceeds to
+    `exit_on_giveup` / stops auto-recovery, which is the correct end for a box with no working radio.
+
+    The quarantine is a COOLDOWN, not a verdict that sticks. A radio that fails is skipped for
+    `cooldown_sec` and then probed again, because the alternative — remembering a failure forever — is
+    the "failover that silently became permanent" the per-device-pinning brief warns about. Cost is
+    bounded by the radio count: we stop at the first acceptable candidate, so the all-deaf worst case is
+    one 6 s probe per radio, against a migration that is far more expensive and a poll that is about to
+    give up anyway."""
+    probe = probe or _adapter_responds
+    clock = now or _time.monotonic
+    t = clock()
+    by_mac = {(a.get("mac") or "").upper(): a for a in adapters}
+    # A radio still inside its cooldown is ruled out without being asked again; one whose cooldown has
+    # been served is dropped from the memory so the PROBE decides, never the memory.
+    for served in [m for m, until in _SPARE_QUARANTINE.items() if until <= t]:
+        del _SPARE_QUARANTINE[served]
+    ruled_out = set(_SPARE_QUARANTINE)
+    asked_any = False
+    while True:
+        mac = failover_target(pinned_mac, adapters, reserved, exclude=ruled_out)
+        if mac is None:
+            break
+        hci = (by_mac.get(mac) or {}).get("hci")
+        verdict = (await probe(hci)) if hci else None
+        asked_any = asked_any or hci is not None
+        if verdict is not False:
+            return mac
+        _SPARE_QUARANTINE[mac] = t + cooldown_sec
+        ruled_out.add(mac)
+        log.warning("watchdog: spare %s (%s) reads UP but did not answer an HCI round trip — not "
+                    "failing over onto it; quarantined for %.0f s", mac, hci, cooldown_sec)
+    if failover_target(pinned_mac, adapters, reserved) is not None:
+        # Say it. A failover that does not happen because every spare is deaf is a different state
+        # from having no spare at all, and the caller's log cannot tell those apart.
+        log.critical("watchdog: NO LIVE SPARE — every candidate radio is deaf or inside its "
+                     "quarantine (%d held off%s). Staying put rather than migrating onto a dead radio",
+                     len(_SPARE_QUARANTINE), "" if asked_any else ", none probed this pass")
+    return None
+
+
 async def _run_helper(*args, timeout=45):
     """Run a helper and return (rc, combined output). Mirrors clockcfg._run — proc_util.communicate
     already carries the timeout/kill discipline every subprocess on this box is required to use, so an
@@ -5917,6 +6256,9 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
     wedge_restarts, wedge_day = 0, None      # per-device wedge budget, reset each day
     cpap_handoffs = 0                        # adapter-ladder handoffs after that budget is SPENT (1/day)
     max_failovers = int(wcfg.get("max_failovers", 3))   # P1.5: cap ping-pong between two flaky radios
+    # How long a spare that failed its HCI round trip is skipped before being probed again. A cooldown,
+    # never a permanent verdict — see `_pick_live_spare`.
+    spare_cooldown = float(wcfg.get("spare_quarantine_sec", 900))
     # The BlueZ address, not the configured one: a Zephyr dongle is known to bluetoothctl by the
     # static-random identity BlueZ gave it, and `select <kernel address>` falls through to the DEFAULT
     # controller — a power-cycle aimed at the wedged radio would cycle a healthy one (bonding.bluez_address).
@@ -5956,7 +6298,11 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
         # the device heuristics stand. This is what stops the watchdog declaring health over a dead radio.
         _hci_now = await adapter_hci()
         adapter_up = (await _adapter_is_up(_hci_now)) if _hci_now else False
-        h = classify_adapter_health(devs, adapter_up=adapter_up)
+        # The round trip runs every poll, not only when something already looks wrong: its TRUE verdict is
+        # what licenses the InProgress suppression, so probing only on suspicion would leave the suppression
+        # resting on the flag it was introduced to replace. One bounded subprocess per `interval_sec`.
+        adapter_responds = (await _adapter_responds(_hci_now)) if _hci_now else None
+        h = classify_adapter_health(devs, adapter_up=adapter_up, adapter_responds=adapter_responds)
         if not h["wedged"]:
             # ── IS THE RADIO DEAF? ───────────────────────────────────────────────────────────
             # Everything above says "not wedged", and on 2026-07-30 that verdict was CORRECT by its own
@@ -6039,8 +6385,8 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                         # wedged night must not read as healthy because our bookkeeping ran out.
                         log.error("watchdog: bluez appears BLIND TO THE CPAP (%s) but %s", why, budget_why)
                         # ── HAND OFF TO THE ADAPTER LADDER (residue 2026-09-04-cpap-wedge-failover-
-                        #    masks-escalation). Budget spent USED TO BE THE END: the rungs that fix an
-                        #    RTL8761B-class wedge live in `adapter_watchdog`, which arms only when a scan
+                        #    masks-escalation). Budget spent USED TO BE THE END: the rungs that fix a
+                        #    btusb-class wedge live in `adapter_watchdog`, which arms only when a scan
                         #    returns ZERO devices — and a radio deaf to ONE device still sees everything
                         #    else, so they were unreachable. Measured 2026-09-04: the CPAP was found 0
                         #    times in 137 rounds while 107 then 81 other devices enumerated fine, and a
@@ -6104,8 +6450,9 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                             " (distress_failover OFF — report-only; arming is the owner's, "
                             "per the brief's pre-stated criterion)")
                     if wcfg.get("distress_failover") and failovers < max_failovers:
-                        spare = failover_target(adapter_mac, await list_adapters(),
-                                                reserved=_failover_reserved(cfg))
+                        spare = await _pick_live_spare(adapter_mac, await list_adapters(),
+                                                       reserved=_failover_reserved(cfg),
+                                                       cooldown_sec=spare_cooldown)
                         if spare:
                             failovers += 1
                             prev_mac = adapter_mac
@@ -6151,7 +6498,9 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                 # hci1 sat idle for 110 min the night this brief was written; use it.
                 # RESERVE THE CPAP'S DEDICATED FREE RADIO (see _failover_reserved / _migrate_to_spare —
                 # the dance is shared with the distress-verdict cause and must not drift from it).
-                spare = failover_target(adapter_mac, await list_adapters(), reserved=_failover_reserved(cfg)) \
+                spare = await _pick_live_spare(adapter_mac, await list_adapters(),
+                                               reserved=_failover_reserved(cfg),
+                                               cooldown_sec=spare_cooldown) \
                     if wcfg.get("failover", True) and failovers < max_failovers else None
                 if spare:
                     failovers += 1
@@ -6192,9 +6541,24 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
                 _hci = await adapter_hci()
                 if _hci and wcfg.get("hci_reset", True):
                     await _adapter_cmd(["hciconfig", _hci, "reset"]); await asyncio.sleep(2)
-                _usb = wcfg.get("usb_path")
-                if _usb and cycles >= max_cycles:
-                    await _usb_rebind(str(_usb)); await asyncio.sleep(2)
+                # ⚠️ DERIVE the target from the radio we are WATCHING. `watchdog.usb_path` ARMS this
+                # rung but must never name its target: it is one static value for the whole box, and on
+                # vigil 2026-09-06 it was `1-2` (the UB500) while this watchdog watched the Sena (USB
+                # 1-5) — so the last rung would have re-enumerated a radio that was neither wedged nor
+                # monitored. `adapter_usb_id` is the only sanctioned source; failing to derive REFUSES
+                # the rung rather than reaching for the static path (see its docstring).
+                if wcfg.get("usb_path") and cycles >= max_cycles:
+                    _usb = adapter_usb_id(_hci) if _hci else None
+                    if not _usb:
+                        log.error("watchdog: REFUSING the L3 USB rebind — no bus-port derivable for the "
+                                  "watched adapter (%s). watchdog.usb_path is NOT a fallback: it would "
+                                  "re-enumerate whichever radio it names, which need not be this one", _hci)
+                    else:
+                        if str(_usb) != str(wcfg.get("usb_path")):
+                            log.warning("watchdog: L3 rebind targets %s, derived from the watched adapter "
+                                        "(%s) — watchdog.usb_path says %s, which is a DIFFERENT radio and "
+                                        "is not used as a target", _usb, _hci, wcfg.get("usb_path"))
+                        await _usb_rebind(str(_usb)); await asyncio.sleep(2)
             finally:
                 _RECOVER.clear()                      # device tasks resume + reconnect on the fresh radio
 
@@ -6541,8 +6905,16 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
     # Retention only defers to the mirror when there IS one. With archiving off, age is the whole policy
     # and pruning behaves exactly as before — no silent new way for the disk to fill.
     acfg = cfg.get("archive") or {}
-    archive_enabled = bool(acfg.get("enabled")) and bool(acfg.get("dest"))
-    archive_dest = acfg.get("dest") or "(no dest configured)"
+    # A TRANSFER target (rsync over ssh) is an archive too. Until 2026-09-20 this line read
+    # `enabled and dest`, so a box archiving by rsync had NO retention gate at all — `keep_nights > 0`
+    # pruned by age while the verified-push markers went unread. The transfer form has no path to stat,
+    # so its gate asks the remote (`storage_targets.confirm_nights`, below) and fails safe.
+    _target = acfg.get("target") if isinstance(acfg.get("target"), dict) else None
+    archive_target = _target if _target and _target.get("protocol") == "rsync" else None
+    archive_enabled = bool(acfg.get("enabled")) and bool(acfg.get("dest") or archive_target)
+    archive_dest = acfg.get("dest") or (
+        f"rsync://{archive_target.get('user', '')}@{archive_target.get('host', '')}:{archive_target.get('share', '')}"
+        if archive_target else "(no dest configured)")
     # Mirrors archive_poller's own default so the "uncovered" report subtracts what is actually being
     # mirrored — a reporter that keeps naming handled subtrees stops being read (audit F2).
     _sub = acfg.get("include_subtrees", ["stored", "cpap"])
@@ -6573,10 +6945,20 @@ async def storage_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None
             # into the low-disk alert text so the reason arrives with the symptom. (This module's own
             # rule: a disk warning is recoverable, deleted recordings are not.)
             blocked: set[str] = set()
-            if archive_enabled and keep_nights > 0:
+            if archive_enabled and keep_nights > 0 and acfg.get("dest"):
                 # `archive_dest` is passed so the gate CONFIRMS the mirror rather than trusting the
                 # `.archived` marker — the marker records that a copy was made, not that it survives.
                 blocked = await asyncio.to_thread(nightarchive.unarchived_nights, captures, archive_dest)
+                protect |= blocked
+            elif archive_enabled and keep_nights > 0:
+                # TRANSFER TARGET. Two gates, both fail-safe: a night with no marker was never pushed
+                # (no ssh needed); a MARKED night is asked of the remote — and only the nights retention
+                # would actually take, so a 58-night box costs at most a few dry-runs per poll, not 58.
+                unmarked = await asyncio.to_thread(nightarchive.unarchived_nights, captures, None)
+                candidates = [n for n in diskguard.plan_prune(diskguard.list_nights(captures), keep_nights,
+                                                              protect | unmarked)]
+                assert archive_target is not None      # archive_enabled without dest ⇒ a target
+                blocked = unmarked | await storage_targets.confirm_nights(captures, candidates, archive_target)
                 protect |= blocked
             # rmtree of a whole night — ~1500 files, ~2 GB — is filesystem work, not arithmetic.
             # disk_report() stays inline (a single statvfs); only the delete is off-loaded.
@@ -7136,7 +7518,8 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             log.warning("qc poll failed: %r", e)
 
 
-async def _archive_transfer(captures: str, target: dict, settle: float, schedule: dict) -> None:
+async def _archive_transfer(captures: str, target: dict, settle: float, schedule: dict,
+                            subtrees: "Iterable[str]" = ()) -> None:
     """Push every settled, not-yet-confirmed night to a TRANSFER target (rsync over SSH).
 
     The `.archived` marker is written only on a VERIFIED push — a copy that a follow-up `--dry-run`
@@ -7158,7 +7541,24 @@ async def _archive_transfer(captures: str, target: dict, settle: float, schedule
         else:
             log.warning("archive: %s NOT confirmed on %s — %s (night stays held)",
                         night, target.get("host"), res["detail"])
-            break          # a failing link will fail for every night; stop rather than hammer it
+            return         # a failing link will fail for every night; stop rather than hammer it
+    # THE SUBTREES, the same way the mount form mirrors them (`nightarchive.mirror_subtree`): until
+    # 2026-09-20 `include_subtrees` was honoured only by the mount form, so a box archiving by rsync
+    # had exactly ONE copy of `stored/` (the onboard-flash pulls — the backup that exists BECAUSE the
+    # live link is lossy) and `cpap/`. No marker — these trees grow and rsync is incremental anyway.
+    # `nightarchive.uncovered_subtrees` reports whatever is under captures/ and in neither list.
+    for name in subtrees:
+        if name in nightarchive._INELIGIBLE_SUBTREES:
+            continue                                   # `incoming/` — a mirrored partial looks like data
+        src = os.path.join(captures, name)
+        if not os.path.isdir(src):
+            continue
+        res = await storage_targets.push_night(src, target)
+        STATUS.setdefault("archive", {}).setdefault("subtrees", {})[name] = {
+            "ok": res["ok"], "verified": res["verified"], "detail": res["detail"]}
+        if not res["ok"]:
+            log.warning("archive: subtree %s NOT pushed to %s — %s", name, target.get("host"), res["detail"])
+            return
 
 
 async def archive_poller(cfg: dict, root: str):
@@ -7168,12 +7568,34 @@ async def archive_poller(cfg: dict, root: str):
     archive.enabled + archive.dest are set."""
     acfg = cfg.get("archive") or {}
     target = acfg.get("target") or None
-    # A TRANSFER target (rsync) has no local dest — the night is pushed straight off the box. A MOUNT
-    # target is its mountpoint, which is what `dest` already meant, so the mirror path below is unchanged.
-    transfer = bool(target) and target.get("kind") == "transfer"
+    # VALIDATE THE CONFIG TARGET HERE, the way the web-UI save path already does. `kind` is not a field
+    # anyone writes — `storage_targets.validate()` DERIVES it from the protocol — so a target authored
+    # in config.yaml has none, and until 2026-09-20 this read `target.get("kind") == "transfer"` off the
+    # RAW dict: a config-authored rsync target never started this poller, and the return below was
+    # silent. Measured on vigil the day the NAS push was wired: `archive.enabled: true`, a valid rsync
+    # target, `/api/storage/test` green, and 23 minutes with no `archive:` line in the journal. The
+    # UI-saved target passed because the UI stores validate()'s output. Whatever the outcome, it is
+    # SAID: an offload that is off must be distinguishable from one that is broken.
+    if isinstance(target, dict):
+        try:
+            target = storage_targets.validate(target)
+        except storage_targets.StorageError as e:
+            log.warning("archive: target REFUSED (%s) — offload is OFF until config.yaml is fixed", e)
+            target = None
+    elif target is not None:
+        log.warning("archive: target must be a mapping, got %s — offload is OFF", type(target).__name__)
+        target = None
+    # `xfer` is the validated transfer target or None — one name mypy can narrow on, so the transfer
+    # branch below is typed as taking a dict, never a maybe-dict.
+    xfer: dict | None = target if isinstance(target, dict) and target.get("kind") == "transfer" else None
+    transfer = xfer is not None
     if not acfg.get("enabled") or not (acfg.get("dest") or transfer):
+        log.info("archive: OFF — %s", "archive.enabled is false" if not acfg.get("enabled")
+                 else "no dest and no transfer target configured")
         return
     dest = acfg.get("dest")
+    log.info("archive: ARMED — %s", f"{xfer['protocol']}://{xfer.get('user', '')}@{xfer['host']}:{xfer['share']}"
+             if xfer is not None else f"mirror to {dest}")
     # Non-night trees to mirror (audit F2). Defaults ON for the two that exist — the exposure they left
     # is real and they cost 0.4 % of a night — and `nightarchive` refuses `incoming/` and any night dir
     # regardless of what lands here. A non-list config value is ignored rather than crashing the poller.
@@ -7198,8 +7620,8 @@ async def archive_poller(cfg: dict, root: str):
             # link is not also carrying three live BLE streams.
             if not storage_targets.due(schedule, _now(), last_run):
                 continue
-            if transfer:
-                await _archive_transfer(captures, target, settle, schedule)
+            if xfer is not None:
+                await _archive_transfer(captures, xfer, settle, schedule, subtrees)
                 last_run = _now()
                 continue
             # Mirror only nights that have gone QUIET (no writes for `settle`), never the one still being
@@ -8553,7 +8975,7 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
     log.info("CPAP live stream wired: creds %s · edf_dir %s · raw_record_dir %s",
              creds_path, edf_dir or "(off — bus-only)", raw_dir or "(off — no raw record)")
 
-    return cpap_stream.LiveStreamController(
+    ctl = cpap_stream.LiveStreamController(
         bus, connect, lambda: _load_as11_creds(creds_path), lambda: STATUS.get("devices", {}),
         edf_sink_factory=edf_sink_factory, raw_record_factory=raw_record_factory,
         acq_evidence_out=acq_evidence_out,
@@ -8563,7 +8985,20 @@ def _build_cpap_controller(bus, cfg: dict, config_path: str):
         clock_offset_provider=((lambda: _as11_clock_offset(cfg["root"]))
                                if acq_evidence_out and cfg.get("root") else None),
         therapy_end_factory=_therapy_end_factory(cbs),
-        coexistence_gate=bool(cbs.get("coexistence_gate", False)))
+        events_factory=_cpap_events_factory(cbs, raw_dir or edf_dir),
+        extra_ids=_cpap_extra_ids(cbs, raw_dir),
+        coexistence_gate=bool(cbs.get("coexistence_gate", False)),
+        # INV8 — ALWAYS wired, not behind a config key. `raw_record_dir` is a config key and it is off
+        # on the production box, which is why INV9 is not in effect there; continuity must not join it.
+        continuity=cpap_continuity.ContinuityTracker())
+    # A daemon that starts mid-therapy has a tracker with no memory of the drop it is recovering from.
+    # The auto-start record survives the restart and says whether a session was open; if it was, the
+    # first start is a RESUME and must open `resumed-unverified`, not the `continuous` a fresh tracker
+    # defaults to (§∅). Read once, here; the controller consumes the hint on its first start.
+    if cfg.get("root"):
+        ctl.continuity_resume_hint = cpap_continuity.resume_hint_from_autostart(
+            _cpap_autostart_record(cfg["root"]))
+    return ctl
 
 
 def _as11_clock_offset(root):
@@ -8614,6 +9049,57 @@ def _therapy_end_factory(cbs):
     hold = float(ac.get("hold_sec", 120.0))
     log.info("CPAP auto-stop ARMED — stream ends after |flow| <= %.2f L/s for %.0f s", eps, hold)
     return lambda stop_ev: cpap_stream.TherapyEndSink(stop_ev, flow_eps=eps, hold_s=hold)
+
+
+def _cpap_extra_ids(cbs, raw_dir):
+    """`cpap.ble_stream.extra_data_ids` → the tuple of UNPUBLISHED stream ids, or `()`.
+
+    REFUSES (ValueError) when ids are set with no `raw_record_dir`: an unpublished id lands ONLY in
+    the raw record, so without one the device would be asked for samples the box then drops — a
+    request that carries airtime and records nothing, which is the shape §∅ exists to forbid. A
+    config that cannot mean anything is a config error, not a warning. Default OFF: it changes what
+    the radio carries, so it is an explicit edit (the `events` shape)."""
+    ids = cbs.get("extra_data_ids") or []
+    if not ids:
+        return ()
+    if not isinstance(ids, (list, tuple)) or not all(isinstance(d, str) and d for d in ids):
+        raise ValueError("cpap.ble_stream.extra_data_ids must be a list of non-empty dataId strings")
+    if not raw_dir:
+        raise ValueError("cpap.ble_stream.extra_data_ids needs cpap.ble_stream.raw_record_dir — an "
+                         "unpublished id is recorded ONLY there; without it the samples would be dropped")
+    log.info("CPAP stream extra dataIds ARMED (unpublished, raw record only): %s", list(ids))
+    return tuple(ids)
+
+
+def _cpap_events_factory(cbs, sidecar_dir):
+    """The SECOND WITNESS: `() -> cpap_events.EventRecorder`, or None when `cpap.ble_stream.events` is off.
+
+    Config-gated because SubscribeEvent is a live BLE request to the device — read-only, but a change
+    in what the radio carries, and therefore armed by the owner's edit, never by shipping the code
+    (the `scan_coexistence_verified` / `auto_start` shape). The recorder writes one host-stamped JSONL
+    per session beside the raw record (or the EDF, whichever root is configured); with neither root
+    it records in memory only and the gap line still carries the witness summary. Logged either way,
+    so an OFF path is distinguishable from a broken one."""
+    import cpap_events  # function-local, like every other CPAP import in this module
+    ev = cbs.get("events") or {}
+    if not ev.get("enabled"):
+        log.info("CPAP event subscription: OFF (set cpap.ble_stream.events.enabled: true to request "
+                 "the device's own TherapyStart/_ZLE witness)")
+        return None
+    ids = tuple(ev.get("data_ids") or cpap_events.EVENT_DATA_IDS_DEFAULT)
+    if not ids or not all(isinstance(d, str) and d for d in ids):
+        raise ValueError("cpap.ble_stream.events.data_ids must be a non-empty list of dataId strings")
+    log.info("CPAP event subscription ARMED — dataIds %s · sidecar root %s", list(ids),
+             sidecar_dir or "(none — in-memory only, summary on the gap line)")
+
+    def factory():
+        path = None
+        if sidecar_dir:
+            stamp = _time.strftime("%Y%m%d_%H%M%S", _time.gmtime())
+            path = os.path.join(sidecar_dir, f"cpap-events-{stamp}.jsonl")
+        return cpap_events.EventRecorder(path, data_ids=ids)
+
+    return factory
 
 
 def _cpap_acq_evidence_writer():
@@ -8893,7 +9379,11 @@ async def _cpap_spool_loop(*, at_hour, window_h, root, creds, connect_factory, e
             log.warning("CPAP spool pull failed: %s: %s", type(e).__name__, e)
             st(state="error", detail=f"{type(e).__name__}: {e}")
             continue
-        log.info("CPAP spool pull: %d round(s), cursor now %s%s",
+        # "in-pass cursor", NOT "cursor now": summary["cursor"] is the address the loop last ASKED
+        # for, and the restart authority is the ledger's committed_cursor, which only a committed
+        # round advances. Reading this field as persisted state is what made a 17-day spool stall
+        # look like 22 successful pulls (residue 2026-09-17-cpap-spool-cursor-advanced-past-uncommitted).
+        log.info("CPAP spool pull: %d round(s), in-pass cursor %s%s",
                  summary.get("rounds_committed", 0), summary.get("cursor"),
                  f", stopped={summary['stopped']}" if summary.get("stopped") else "")
         st(state="idle", detail=None, last_run=t.isoformat(timespec="seconds"))
@@ -9085,7 +9575,12 @@ async def _cpap_autostart_loop(*, root, op, is_running, retain_s, hold_s, max_at
         _CPAP_AUTOSTART["watch"] = watch
 
 
-_CPAP_AUTOSTART = {"watch": None, "root": None}
+# Annotated because the literal initialises both slots to None, which fixes the value type as
+# `None` — so every later `["watch"] = <StartWatch>` read as assigning to None, and the read at
+# `observe_start` as passing None. Three errors, one un-annotated literal. `object` rather than a
+# union: the two slots hold different things (a StartWatch and a path string) and narrowing is
+# done at each use, which is what the code already does.
+_CPAP_AUTOSTART: dict[str, Any] = {"watch": None, "root": None}
 
 
 def _cpap_autostart_wrap_op(op, root):
@@ -9436,12 +9931,14 @@ def _maybe_start_presence_scan(cfg, tasks, *, create_task=None, scan_factory=Non
             # process to the active scan for good. An observer that runs is worth more than air-time.
             try:
                 devs = await BleakScanner.discover(
-                    timeout=window, **({"scanning_mode": "passive"} if _O2_PASSIVE_SCAN else {}), **akw)
+                    timeout=window, **(_passive_scan_kw(akw) if _O2_PASSIVE_SCAN else akw))
             except BleakError as exc:
-                if not (_O2_PASSIVE_SCAN and "passive" in repr(exc).lower()):
+                why = oxy_presence.passive_refusal(exc) if _O2_PASSIVE_SCAN else None
+                if why is None:
                     raise
                 _O2_PASSIVE_SCAN = False
-                log.info("passive BLE scan unsupported here (%s) — presence observer using active scan", exc)
+                log.info("passive BLE scan unsupported here [%s] (%s) — presence observer using active scan",
+                         why, exc)
                 devs = await BleakScanner.discover(timeout=window, **akw)
             for d in devs:
                 # §5 identity via `oxy_presence.is_expected_ring`, NOT an inline comparison. The
@@ -9665,6 +10162,103 @@ def _gatt_missing(client, uuids) -> tuple | None:
     return tuple(u for u in uuids if u.lower() not in have)
 
 
+GATT_DB_HASH_UUID = "00002b2a-0000-1000-8000-00805f9b34fb"
+
+
+async def _gatt_record_table(client, addr) -> str:
+    """RECORD-ONLY. Persist the attribute table bleak currently holds for `addr`, keyed on the
+    peripheral's Database Hash. Returns "" when nothing was recorded, else a short phrase.
+
+    GATT-HANDLE-MAP-2026-09-17 §2b③, and it is deliberately the HALF that changes no behaviour. Nothing
+    reads this map yet: the oracle that will refuse an incomplete snapshot is a separate landing, after
+    real tables have accumulated. Landing the writer first is what the brief's §5 asks for — behind the
+    existing path, not in place of it — and it is also the only instrument that can answer the check
+    the journal could not: 14 days of logs held exactly one characteristic handle, because that logging
+    fires only on FAILURE snapshots, which are near-empty by construction. An instrument that observes
+    only broken trees cannot report what a healthy one contains.
+
+    ⚠️ THE HASH IS READ ONLY IF THE WALKED TREE ALREADY SHOWS IT — never blind. A device that does not
+    publish `0x2B2A` records under a `None` hash, which the map treats as checkable against itself and
+    against nothing else. That is not a failure; it is a device this oracle cannot key.
+
+    Best-effort by construction, like `_settle_gatt_chars` beside it: every failure path returns a
+    string and none raises, because this runs inside the leak guard with the link already open."""
+    try:
+        table = {c.uuid.lower(): c.handle for svc in client.services for c in svc.characteristics}
+    except Exception:          # noqa: BLE001 - unreadable snapshot is not an empty one (∅)
+        return "snapshot unreadable"
+    if not table:
+        return ""              # an empty table is the claim gattmap refuses; do not offer it one
+    db_hash = None
+    if GATT_DB_HASH_UUID in table:
+        try:
+            db_hash = bytes(await _bounded_setup(client.read_gatt_char(GATT_DB_HASH_UUID)))
+        except BaseException:  # noqa: BLE001 - an unread hash is `None`, never a fabricated key
+            db_hash = None
+    outcome = gattmap.record(addr, db_hash, table, source="connect-snapshot")
+    if outcome:
+        # DERIVE THE CAPABILITY HERE, WHERE THE TABLE IS VALID — §1.3's branch reads it somewhere the
+        # table is NOT readable, and that mismatch is what dictates this split rather than a direct read.
+        # `gattmap`'s only hash-free accessor is `wait_hint()`, whose docstring forbids exactly that use
+        # ("never an assertion about correctness … must never reach a code path where being wrong is
+        # silent"), and skipping a clock sync on a stale hint IS a silent-wrong path: the clock stays
+        # uncorrected and nothing says so. So: WRITE where the hash is valid, READ where no hash is
+        # needed. That difference in validity requirements is also the real reason `devcaps` exists
+        # separately from `gattmap`, which residue 2026-09-16 asserted without giving one.
+        #
+        # Written on EVERY accepted outcome including "same", deliberately: "same" means the TABLE was
+        # already stored, not that the capability was. A device recorded before this landed has a table
+        # and no capability, and gating on ("new", "changed") would leave it unmeasured until its
+        # firmware changed. An unchanged table re-deriving an identical value is idempotent in `devcaps`
+        # and writes no log line, so the cost is nil. `""` is a REFUSAL and derives nothing — a capability
+        # from a table the map rejected would be a fact with no evidence behind it.
+        devcaps.record(addr, "psftp", PSFTP_MTU_CHAR in table, source="gatt-mtu-char")
+    if outcome in ("", "same"):
+        # "" = refused; "same" = byte-identical to what is stored, so nothing was written and there is
+        # nothing to say. MEASURED 2026-09-17 on vigil (Wren): this fires on every connect, and an
+        # hour of CPAP polling produced ~112 byte-identical records at one per ~34 s. Logging those
+        # was >100 INFO lines an hour carrying no information — which is how a real event gets buried.
+        return ""
+    return "%s — %d char(s), db_hash %s" % (outcome, len(table), db_hash.hex() if db_hash else "absent")
+
+
+
+async def _gatt_record_rail(client, addr: str, name: str) -> None:
+    """Record a WEARABLE rail's GATT table, and log only when something was actually written.
+
+    THE DEFECT THIS EXISTS FOR, measured on vigil 2026-09-18 (Wren): `_gatt_record_table` had exactly ONE
+    caller — inside `_cpap_ble_connect` — so the wearable connect paths held zero gattmap references. The
+    map's silence on H10 / Verity / O2Ring was therefore a fact about the WIRING, not about the devices,
+    and a night of wearing them would have produced exactly the same silence. Proven live that day: a
+    Verity worn twice, `gattmap.json` unchanged, no record line either time.
+
+    CALLED AFTER A SUCCESSFUL `start_notify`, NOT AT CONNECT. That is the point the characteristic tree is
+    proven usable, and it is where the CPAP path records too (after its settle). Measured over a six-week
+    journal, `BleakCharacteristicNotFoundError` by device: CPAP 1092 · H10 3 · Verity 0 — so the
+    partial-snapshot race the CPAP path fights is ~365x rarer on these rails. Recording at connect would
+    write a short table roughly once a month per Polar, which is WORSE than no entry: `gattmap.record`
+    would then report "changed" on a device that never changed.
+
+    ⚠️ The O2Ring's 237 `CharacteristicNotFound` in the same window are NOT that race — every one is
+    `2a26` (Firmware Revision), a real absence in a stable table. A recorded O2Ring table correctly
+    carries no `2a26`; do not let those warnings argue for a settle step on the ring.
+
+    CALLING IT FROM SEVERAL STREAMS OF ONE CONNECT IS SAFE AND DELIBERATE. `client.services` is a snapshot
+    frozen at connect, so a second call sees identical bytes, `record` answers "same", and
+    `_gatt_record_table` returns "" — no write, no log. That is what lets each rail record from whichever
+    of its streams subscribes first without tracking which one did.
+
+    THE VERITY CHARGER QUESTION IS LEFT TO THE DATA. `source` is deliberately NOT keyed on the contact bit
+    (it lies — `verity-contact-bit-lies`). If a charger-state table ever differs structurally from a worn
+    one, `record` reports "changed" carrying both hashes and never overwrites silently. Absence of that
+    line across the charger↔worn transitions the corpus already makes daily is the answer, measured —
+    cheaper and more honest than a rule written from a prior.
+    """
+    recorded = await _gatt_record_table(client, addr)
+    if recorded:
+        log.info("%s: GATT table recorded — %s", name, recorded)
+
+
 async def _gatt_rebuild(client) -> bool:
     """Drop bleak's cached service snapshot and build a NEW one from BlueZ's CURRENT objects.
 
@@ -9811,7 +10405,11 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
     def _on_notify(_h, data):
         rx.extend(bytes(data))
         while True:
-            r = _L.fig_unframe(bytes(rx))
+            # THE COUNT MUST REACH A CONSUMER, not a log line. `blestats` publishes into
+            # `status.json` `ble`, which an operator reads directly — the same surface #2670 had to
+            # repair after `link`/`offline_op` counted failures into a dict `snapshot()` could not
+            # enumerate. A CRC that fails silently is a filter that discards data and tells nobody.
+            r = _L.fig_unframe(bytes(rx), on_bad_crc=lambda kind: blestats.fail("fig_crc", ble_addr, kind))
             if not r:
                 break
             vcid, payload, rest = r
@@ -9838,7 +10436,26 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
         # Costs one set-comprehension on the ~95 % path; only a miss sleeps. BOTH UUIDs, not just the
         # notify one: `GATT_TX` is consumed by `write` AFTER this function returns — i.e. OUTSIDE the
         # leak guard, where the identical missing-object failure has no retry at all.
-        settle = await _settle_gatt_chars(client, (_L.GATT_RX, _L.GATT_TX))
+        # THE ORACLE (GATT-HANDLE-MAP-2026-09-17 §2b③). The two named UUIDs are what this connect
+        # NEEDS; the recorded table is what this unit LOOKS LIKE. Waiting on the union means a tree
+        # that happens to carry both named characteristics while the rest is still in flight is seen
+        # as partial — which the two-UUID wait cannot do, and which is the measured failure (#2372:
+        # the Generic Attribute service ALONE, six byte-identical snapshots).
+        #
+        # ⚠️ SAFE BY CONSTRUCTION ON A DEVICE WITH NO RECORD: `wait_hint` returns None, the union is
+        # the same two UUIDs, and the behaviour is byte-for-byte today's. The oracle arms ITSELF as
+        # `_gatt_record_table` below accumulates tables; nothing here needs a migration or a flag.
+        #
+        # ⚠️ AND IT IS A HINT, NOT AN ASSERTION — see `gattmap.wait_hint`. The hash cannot gate this
+        # wait (reading the hash needs the tree we are waiting for), so a table that went stale across
+        # a firmware change could name characteristics that no longer exist. The cost is bounded to one
+        # settle window because `_settle_gatt_chars` already gives up and hands the verdict to
+        # `start_notify`; it is never allowed to decide anything on its own.
+        _want = (_L.GATT_RX, _L.GATT_TX)
+        _hint = gattmap.wait_hint(ble_addr)
+        if _hint:
+            _want = tuple(sorted({u.lower() for u in _want} | _hint))
+        settle = await _settle_gatt_chars(client, _want)
         if settle:
             # ~98 lines a night is the POINT: this is the measurement that says whether rebuilding the
             # snapshot closed #2170, and it is stated so it can be wrong. The prediction — these lines
@@ -9848,7 +10465,22 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
             # that is a different finding, not this fix working.
             log.info("CPAP %s on %s: BlueZ had not published %s/%s when bleak snapshotted (#2170) — %s",
                      ble_addr, hci or "default adapter", _L.GATT_TX, _L.GATT_RX, settle)
+        # RECORD-ONLY (GATT-HANDLE-MAP-2026-09-17). Nothing consumes this yet — see the docstring.
+        recorded = await _gatt_record_table(client, ble_addr)
+        if recorded:
+            log.info("CPAP %s: GATT table recorded — %s", ble_addr, recorded)
         await client.start_notify(_L.GATT_RX, _on_notify)
+        # THE REAL ATT MTU, acquired the way pull_session does for the ring. On BlueZ bleak reports a
+        # placeholder 23 until a characteristic is acquired, so this link's `mtu_size` read below was
+        # the placeholder on every night — and the MTU is the one number that turns the byte counters
+        # (`GapCounters.bytes_wire`) into radio cost: notifications per frame = ceil(bytes / (MTU-3)).
+        # Best-effort, reporting first: a failure leaves the placeholder and the write step at 20.
+        _be = getattr(client, "_backend", None)
+        if _be is not None and hasattr(_be, "_acquire_mtu"):
+            try:
+                await _be._acquire_mtu()
+            except Exception:  # noqa: BLE001 — a diagnostic must not cost the link
+                pass
     except BaseException as exc:
         # 🔴 READ THE EVIDENCE BEFORE DESTROYING IT — these two lines MUST precede the disconnect.
         # `client.disconnect()` nulls bleak's service collection (it ends with
@@ -9874,6 +10506,7 @@ async def _cpap_ble_connect(ble_addr: str, hci: str | None, timeout: float = 20.
         raise
     mtu = getattr(client, "mtu_size", 23) or 23
     step = max(20, mtu - 3)
+    log.info("CPAP %s: link MTU=%s (write step %d)", ble_addr, mtu, step)
 
     async def write(frame):
         for i in range(0, len(frame), step):
@@ -9919,6 +10552,7 @@ async def main():
     # 2026-09-15, 4 stop/starts in 6 h), so an in-memory-only record would re-probe every device
     # every deploy and never accumulate the history that makes it worth having.
     devcaps.configure(os.path.join(root, "captures", "devcaps.json"))
+    gattmap.configure(os.path.join(root, "captures", "gattmap.json"))
     global _CFG
     _CFG = cfg
     # One-time migration: the O2Ring's 125 Hz pleth used to be captured unconditionally, so existing

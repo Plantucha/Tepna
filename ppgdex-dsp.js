@@ -377,6 +377,186 @@
      writer's defaults (kernel-constants.js + a parity gate reading both) lands with that writer;
      until it exists there is nothing to pair with, and moving a constant into the spine churns all
      8 bundles' manifestHash for no reader. */
+  /* ── §∅ P5 clause 2: READ `_PPGRUNS.txt`, AND CROSS-CHECK IT — never one witness ──────────────
+     Owner ruling (P5, 2026-09-12): read the sidecar AND cross-check it against the in-JS derivation,
+     because "the writer saw the live stream; the samples are a second witness", and **a DISAGREEMENT
+     IS ITSELF A FINDING** about one of the two that must surface rather than be silently resolved.
+     Clause 1 (exclude a pinned span like a gap) landed in #2531; this is the second witness that PR
+     was explicitly deferred from.
+
+     🔴 "THE FILE WINS" IS SCOPED TO WHAT THE FILE COULD SEE, AND THE SCOPING IS LOAD-BEARING.
+     `PIN_MIN_RUN`'s note above records that the sidecar's comment line carries the parameters that
+     produced its rows and that THE FILE WINS for what was observed — correct, and it stops a later
+     default change rewriting history. Applied without a scope it does the opposite of its purpose.
+     Measured over all 186 `_PPGRUNS.txt` in the corpus: the writer gates emission at `min_run=200`
+     (185 of 186 headers) while this file's recompute default is `PIN_MIN_RUN = 5`, and §∅ records the
+     O2Ring blanking as 149 runs, 105 of them >= 10 samples, longest 78. 78 < 200, so the sidecar
+     CANNOT observe the blanking P5 exists to exclude. One real file states it outright:
+     `total_runs=122003 mean_run=1.88 examined=228954` with `runs=0` — 229k samples examined, 122k
+     runs found, nothing emitted. Corpus-wide: 105,612,378 runs detected, 61 rows emitted.
+
+     So a bare "the file wins" would read that emptiness as "no blanking" and delete the exclusion on
+     147 of 186 files. A threshold-gated NON-OBSERVATION is not an observation of absence — §∅ one
+     layer up, at the precedence rule instead of at the value. The scoping:
+
+       - run length >= the FILE's own `min_run` -> the sidecar is authoritative (it looked, and what
+         it recorded is what the live writer actually saw);
+       - below the file's `min_run`             -> the sidecar is SILENT, not empty, so the in-JS
+         derivation stands there;
+       - header absent/unparseable              -> parameters UNKNOWN, so no cross-check is possible
+         and none is claimed, never a default.
+
+     ⚠️ THE CROSS-CHECK IS LIKE-FOR-LIKE OR IT IS NOISE. The in-JS side is re-derived at the FILE's
+     parameters, never at ours; comparing a min_run=5 derivation against a min_run=200 sidecar would
+     report a parameter difference as a disagreement on every file in the corpus — the
+     same-name-two-populations error with a threshold in place of a denominator. */
+  function parsePinnedRuns(text) {
+    if (typeof text !== 'string' || !text) return null;
+    const out = /** @type {any} */ ({
+      params: null,
+      minRun: null,
+      mergeGapMax: null,
+      rows: [],
+      byChannel: Object.create(null),
+      malformed: false,
+      emitted: 0,
+      runsDetected: null,
+      examined: null,
+      sawHeader: false,
+      comparable: false
+    });
+    const lines = text.split(/\r?\n/);
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') {
+        /* The RULE line. `min_run` is the only field precedence depends on, so it is the only one
+           whose absence makes the file uncomparable; the rest are carried for the report. */
+        if (!out.params && /\bstream=/.test(line) && /\bmin_run=/.test(line)) {
+          out.params = line.replace(/^#\s*/, '');
+          const mr = /\bmin_run=(\d+)/.exec(line);
+          const mg = /\bmerge_gap_max=(\d+)/.exec(line);
+          if (mr) out.minRun = +mr[1];
+          if (mg) out.mergeGapMax = +mg[1];
+        }
+        const fin = /\btotal_runs=(\d+)/.exec(line);
+        if (fin) out.runsDetected = (out.runsDetected || 0) + +fin[1];
+        const ex = /\bexamined=(\d+)/.exec(line);
+        if (ex) out.examined = (out.examined || 0) + +ex[1];
+        continue;
+      }
+      if (/^Phone timestamp;/.test(line)) {
+        out.sawHeader = true;
+        continue;
+      }
+      const c = line.split(';');
+      if (c.length < 8) {
+        out.malformed = true;
+        continue;
+      }
+      const first = +c[3];
+      const n = +c[4];
+      if (!isFinite(first) || !isFinite(n) || n <= 0) {
+        out.malformed = true;
+        continue;
+      }
+      const ch = (c[1] || '').trim();
+      const row = { stream: ch, value: +c[2], first: first, n: n };
+      out.rows.push(row);
+      if (!out.byChannel[ch]) out.byChannel[ch] = [];
+      out.byChannel[ch].push(row);
+      out.emitted++;
+    }
+    /* A sidecar with no rule line cannot be compared against anything; an EMPTY one that DOES carry
+       its rule is a real observation at that rule — the writer looked and emitted nothing. Those are
+       different facts and the flag keeps them apart. */
+    out.comparable = out.minRun != null;
+    return out;
+  }
+
+  /* ── §∅ P5 clause 2: TWO POPULATIONS, AND THEY ARE NOT COMPARABLE ─────────────────────────────
+     🔴 THIS FUNCTION USED TO REPORT `agreed`/`disagreed`. THAT WAS WRONG AND THE CORPUS SAYS SO.
+     The two producers do not apply the same rule:
+
+       `_PPGRUNS.txt`   rule=stuck   — a constant run at ANY value
+       `pinnedSpans`                 — a constant run at an observed RAIL (an extreme)
+
+     Measured on `…_20260910210517_PPG.txt`, observed range lo=0 hi=200: the sidecar's 5919-sample
+     (47 s) run sits at **value 100 — mid-range**, and the samples there read
+     `100,100,100,100,100,100,100,100,100,100`. `pinnedSpans` cannot see it and is not
+     malfunctioning; it is doing what it says. Across the 61 emitted rows in the corpus, **8 are at a
+     rail and 53 are mid-range** — 87 % structurally invisible to the rail rule.
+
+     So an `agreed`/`disagreed` axis would differ on 53 of 61 rows BY CONSTRUCTION and report a RULE
+     difference as a finding. That is one name over two populations, which is the error this file
+     keeps meeting; it does not become correct by being softened, so the words are gone rather than
+     renamed. A reader who sees "agreed" will compare, and the comparison has no meaning here.
+
+     ⚠️ AND THE GAP IS OURS, NOT THE SIDECAR'S. §∅: *"Key on RUN LENGTH, never on value
+     membership"*, because *"a hardcoded != 0 fixes zero and misses the next sentinel — an in-range
+     value can do the same thing."* `pinnedSpans` keys on being at an extreme, which IS value
+     membership, and a 47-second frozen mid-range reading is the next sentinel, already in the
+     corpus. On this evidence the sidecar's rule is the more §∅-conformant of the two. Widening the
+     in-JS detector is a SEPARATE unit — a PR that both narrows a claim and widens a detector is two
+     units wearing one number.
+
+     What this therefore publishes: each population under its own name with its rule stated, one
+     geometric overlap count that carries no epistemic claim, and the threshold question kept
+     separate because it is real and independent. */
+  function crossCheckPinned(sidecar, derivedAtFileParams) {
+    const v = /** @type {any} */ ({
+      /* NOT "comparable" — the rules differ, so the populations are never comparable in the sense
+         that word invites. This says only whether the file declared parameters we could read. */
+      sidecarReadable: false,
+      reason: /** @type {string | null} */ (null),
+      fileRule: 'stuck-any-value',
+      derivedRule: 'rail-pinned',
+      rulesComparable: false, // permanently false, and stated rather than implied
+      fileMinRun: null,
+      fileSpans: 0,
+      derivedSpans: 0,
+      /* Spans the two rules happened to cover the same samples for. GEOMETRIC ONLY — it says the
+         intervals overlap, never that two detectors agreed about a measurement. Named so it cannot
+         be read as corroboration. */
+      coincidentSpans: 0,
+      /* The threshold question, which IS real and independent of the rule difference: a derived span
+         shorter than the file's own `min_run` is one the writer never examined. Not a conflict. */
+      sidecarBlind: 0
+    });
+    if (!sidecar) {
+      v.reason = 'no-sidecar';
+      return v;
+    }
+    if (!sidecar.comparable) {
+      /* Header absent or unparseable — 1 of 186 in the corpus, so this is a real branch. We know
+         nothing about what the writer was looking for, so we assert nothing. */
+      v.reason = 'sidecar-parameters-unknown';
+      v.fileSpans = sidecar.emitted;
+      return v;
+    }
+    v.sidecarReadable = true;
+    v.fileMinRun = sidecar.minRun;
+    v.fileSpans = sidecar.emitted;
+    const fileRanges = sidecar.rows.map((r) => [r.first, r.first + r.n - 1]);
+    const derived = derivedAtFileParams || [];
+    v.derivedSpans = derived.length;
+    const overlaps = (a, b) => a[0] <= b[1] && b[0] <= a[1];
+    for (const d of derived) {
+      const n = d[1] - d[0] + 1;
+      if (n < sidecar.minRun) {
+        v.sidecarBlind++;
+        continue;
+      }
+      for (let i = 0; i < fileRanges.length; i++) {
+        if (overlaps(d, fileRanges[i])) {
+          v.coincidentSpans++;
+          break;
+        }
+      }
+    }
+    return v;
+  }
+
   function pinnedSpans(x, opts) {
     const o = opts || {};
     const n = x.length;
@@ -543,6 +723,13 @@
   // Host-anchor spacing, in accepted rows. 500 ≈ 2.8 s at 176 Hz, giving ~2400 anchors on a 190 min
   // file — the geometry the running-median window was tuned against (clock.js CK_AXIS_WIN).
   const PPG_AXIS_EVERY = 500;
+  /* Bounds for the mid-file device-counter resync discriminator in parsePPG / parseSensorXYZ below.
+     The SAME numbers ECGDex uses (`ECG_RESYNC_BOUND_MS` / `ECG_GAP_CEIL_MS`) and MotionDex mirrors
+     (`MOTION_RESYNC_BOUND_MS` / `MOTION_GAP_CEIL_MS`), because all three nodes are reading the same
+     step in the same device's several files and a second constant would eventually disagree with the
+     first. Gate-asserted equal to ECGDex's in the `ppgdex-clock-seam` group. */
+  const PPG_RESYNC_BOUND_MS = 60000;
+  const PPG_GAP_CEIL_MS = 86400000;
   /* opts.timebase (O2RING-ADAPTIVE-TIMEBASE Stage 2):
        undefined / 'host-disciplined'  the device ns axis disciplined to the capture host (today's path,
                                         and the default — behaviour is byte-identical when unset).
@@ -579,6 +766,17 @@
     let ns0 = null,
       t0Ms = null,
       firstTs = null; // lastTs is resolved lazily in the fs fallback (§P1)
+    /* MID-FILE RESYNC state (BLE-TIMEBASE-AT-THE-EDGE §2). `ns0` alone anchors the WHOLE file, so a
+       counter step mid-file is spanned rather than seen. The current clock SEGMENT re-anchors at a
+       seam; `prevPhoneRaw` holds the previous row's raw host stamp UNPARSED so the discriminator can
+       be evaluated without reintroducing the per-row parseTimestamp §P1 removed. */
+    let prevNsB = null,
+      prevPhoneRaw = null,
+      segNs0 = null,
+      segBaseNs = 0,
+      prevRelNs = NaN,
+      preResyncAnchorsDropped = 0;
+    const resyncs = [];
     let pcols = null;
     // Minimum data-row field count. 6 for the Verity layout; a single-optical-column file
     // (`phone;ns;ch0`) has only 3, so the floor drops once a 1-channel header resolves. Until
@@ -661,10 +859,75 @@
       try {
         const b = BigInt(p[pcols && pcols.ns >= 0 ? pcols.ns : 1].trim());
         if (ns0 === null) ns0 = b;
-        relNs = Number(b - ns0);
+        /* ── MID-FILE CLOCK RESYNC on the DEVICE counter (BLE-TIMEBASE-AT-THE-EDGE-2026-09-16) ──────
+           `Number(b - ns0)` anchors every sample to the FIRST row of the file, so when the counter
+           steps mid-file the step lands in `relNs`, then in `relSec`, then in every duration, epoch
+           grid and export window downstream. Measured with the true F1 magnitude planted into a
+           `_PPG.txt`: a 16-second recording published a `relSec` span of **2.4159e8 s — 7.66 years**,
+           and `hostAxis` refused at ±50,000 ppm exactly as designed while doing so. That is Clock
+           Contract §7's rule in the negative: **a refusal guards the RATE, not the AXIS.** ECGDex
+           (`_clockResyncs`) and MotionDex (`parseSensorXYZ`) already split on this; PpgDex did not,
+           and the same night's files carry the step.
+
+           THE DISCRIMINATOR IS PHYSICAL, and it is the reason this cannot key on step size alone:
+           through a real BLE dropout BOTH clocks keep ticking, so the device delta ≈ the host delta;
+           only a clock step makes them disagree. MotionDex's census over 1278 ACC files found 137
+           whose worst step is a genuine dropout — the counter is RIGHT about those and re-anchoring
+           them would corrupt working recordings — against exactly 3 real resyncs. Identical
+           discriminator here, deliberately.
+
+           COST: the host stamp is parsed only when a CANDIDATE step fires (`devDeltaMs` over the
+           bound), which is 0–3 rows in a real file, so EFFICIENCY-AUDIT §P1's removal of the per-row
+           parseTimestamp stands — `prevPhoneRaw` carries the previous row's stamp as an unparsed
+           string reference (O(1), no parse on the hot path). */
+        if (prevNsB !== null) {
+          const devDeltaMs = Number(b - prevNsB) / 1e6;
+          if (devDeltaMs > PPG_RESYNC_BOUND_MS) {
+            const curTs = parseTimestamp(p[0]);
+            const prvTs = prevPhoneRaw != null ? parseTimestamp(prevPhoneRaw) : null;
+            const phoneDeltaMs = curTs && curTs.tMs != null && prvTs && prvTs.tMs != null ? Math.max(0, curTs.tMs - prvTs.tMs) : null;
+            if (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > PPG_RESYNC_BOUND_MS : devDeltaMs > PPG_GAP_CEIL_MS) {
+              /* RE-ANCHOR ON THE HOST, NOT BY SUBTRACTING THE STEP — ONE DEVICE CLOCK PER AXIS
+                 (Clock Contract §7). The counter before the sync is a different oscillator state,
+                 not merely a shifted one, so imposing the host delta alone would carry the pre-seam
+                 segment's error forward as a constant for the whole night.
+                 BLIND SEAM: when the seam row's own stamp does not parse there is no host offset to
+                 anchor on, and falling back to `Number(b - ns0)` would re-admit the very step being
+                 removed. The honest anchor is then the PREVIOUS row's position — an unmeasured gap
+                 contributes nothing rather than a fabricated duration (§∅ / Clock Contract §2.6) —
+                 and the seam is recorded with `phoneDeltaMs: null` so the absence stays visible. */
+              segBaseNs = t0Ms != null && curTs && curTs.tMs != null ? (curTs.tMs - t0Ms) * 1e6 : isFinite(prevRelNs) ? prevRelNs : Number(b - ns0);
+              segNs0 = b;
+              /* ONE DEVICE CLOCK PER AXIS (Clock Contract §7). Re-anchoring `relNs` makes the axis
+                 CONTINUOUS; it does not make the pre-seam samples the same CLOCK. `hostAxis` measures
+                 every divergence relative to its FIRST anchor, so leaving pre-seam anchors in the set
+                 measures against a different oscillator state — and because the step is now gone from
+                 the axis, hostAxis no longer REFUSES, so that bad rate would reach `fs` instead of
+                 being rejected. ECGDex measured this exact path: anchor 0 inside the pre-seam segment,
+                 484.7 ppm quoted, the span gate let it through, fs 129.968 → 129.903 — 500 ppm off the
+                 same H10's sibling file. The pre-seam anchors are therefore DROPPED and COUNTED, never
+                 silently discarded.
+                 ⚠️ This half was NOT in the first draft of this fix, and the pre-existing
+                 `THE GUARD THAT WORKS · hostAxis REFUSES a stepped counter` leg is what caught it: the
+                 moment the axis was bounded, that refusal turned into `ok:true` — the refusal had been
+                 doing this work all along. */
+              preResyncAnchorsDropped += axisAnchors.length;
+              axisAnchors.length = 0;
+              resyncs.push({
+                idx: nsArr.length,
+                deviceStepMs: Math.round(devDeltaMs),
+                phoneDeltaMs: phoneDeltaMs == null ? null : Math.round(phoneDeltaMs)
+              });
+            }
+          }
+        }
+        prevNsB = b;
+        relNs = segNs0 === null ? Number(b - ns0) : segBaseNs + Number(b - segNs0);
+        prevRelNs = relNs;
       } catch (e) {
         relNs = NaN;
       }
+      prevPhoneRaw = p[0];
       nsArr.push(relNs);
       // Clock Contract: the FIRST stamp is load-bearing (t0Ms + offsetMin). The LAST stamp is
       // read ONLY by the degenerate `deltas.length<=20` fs fallback below, which a real capture (190k
@@ -812,6 +1075,14 @@
       for (let i = 0; i < n; i++) relSec[i] = i / fs;
     }
     const chArr = nCh === 1 ? [Float32Array.from(ch0)] : nCh === 2 ? [Float32Array.from(ch0), Float32Array.from(ch1)] : [Float32Array.from(ch0), Float32Array.from(ch1), Float32Array.from(ch2)];
+    /* §∅ P5 clause 2 — the `_PPGRUNS.txt` companion, when the ingest attached one. Parsed ONCE
+       here rather than per channel, and keyed by the writer's own channel LABEL (`channel 0`),
+       which is the same label `_PPG.txt`'s header uses — so the two sides are joined on a name
+       both files actually carry, not on an index one of them merely implies. */
+    const _runs = parsePinnedRuns(opts && opts.runsText);
+    const _chanKey = function (ci) {
+      return 'channel ' + ci;
+    };
     // SITE is a layout fact, not a guess — but COLUMN COUNT ALONE IS NOT THE LAYOUT. The O2Ring emits
     // BOTH a 1-column pleth and a 3-column file whose three columns are the SAME reading replicated
     // (`124;124;124;0`), and column-count-only classification therefore called the ring a Verity on
@@ -936,6 +1207,13 @@
       fs,
       timebase,
       n,
+      /* PRESENT ONLY WHEN IT HAPPENED, so every clean stream keeps today's bytes and no clean fixture
+         moves (the `anchorsDroppedPreResync` discipline ECGDex uses, and MotionDex's `_clockResyncs`).
+         Each entry: { idx, deviceStepMs, phoneDeltaMs } — `phoneDeltaMs` null when the seam row's own
+         stamp did not parse, so an unmeasured gap reads as unmeasured rather than as zero. A consumer
+         that wants to refuse a duration spanning a seam has the seam; one that ignores the field gets
+         an axis that no longer silently spans it, which is the half that cannot be opted out of. */
+      clockResyncs: resyncs.length ? resyncs : undefined,
       t0Ms: t0Ms != null ? t0Ms : null,
       offsetMin: firstTs ? firstTs.offsetMin : null,
       /* NODE-EXPORT-DURATION-SEMANTICS §3 — the CLOCK position of the last sample, READ from the file,
@@ -970,9 +1248,69 @@
          and turn an absence of VALUE into an absence of TIME, shifting every index after it. One
          entry per optical channel, in channel order; `null` when the stream carries no qualifying
          rail, which is the honest answer for a clean recording. */
-      spans: chArr.map(function (c) {
-        return pinnedSpans(c);
+      spans: chArr.map(function (c, ci) {
+        /* §∅ P5 clause 2 — the sidecar is the FIRST witness where it could see, the recompute is
+           the second everywhere. `_runs` is null unless a `_PPGRUNS.txt` companion was ingested, so
+           the no-sidecar path is byte-identical to #2531's and needs no fixture to move. */
+        const derived = pinnedSpans(c);
+        if (!_runs || !_runs.comparable || _runs.minRun == null) return derived;
+        const _fileMinRun = _runs.minRun;
+        const fileSpans = (_runs.byChannel[_chanKey(ci)] || []).map(function (r) {
+          return { first: r.first, n: r.n };
+        });
+        /* THE FILE WINS WHERE THE FILE COULD SEE. Its rows replace the recompute's for runs at or
+           above its own `min_run`; below that threshold it never looked, so the recompute's shorter
+           spans are KEPT rather than deleted. Dropping them would read a threshold-gated
+           NON-observation as an observation of absence — §∅ at the precedence layer. */
+        const kept = /** @type {any[]} */ (derived.spans || []).filter(function (sp) {
+          return sp.n < _fileMinRun;
+        });
+        return { spans: fileSpans.concat(kept), lo: derived.lo, hi: derived.hi };
       }),
+      /* §∅ P5 clause 2 — the cross-check VERDICT, published so a consumer sees which witness said
+         what instead of inferring it from a span count. Three states plus `comparable:false`;
+         `sidecarBlind` is NOT a disagreement and must never be folded into one — see
+         `crossCheckPinned`. The in-JS side is re-derived at the FILE's own `min_run`/`merge`, never
+         at `PIN_MIN_RUN`, so a parameter difference cannot masquerade as a finding. */
+      pinnedCrossCheck: (function () {
+        if (!_runs) return null;
+        const perCh = [];
+        for (let ci = 0; ci < chArr.length; ci++) {
+          const at = _runs.comparable ? pinnedSpans(chArr[ci], { minRun: _runs.minRun, merge: _runs.mergeGapMax }) : { spans: [] };
+          const ranges = (at.spans || []).map(function (sp) {
+            return [sp.first, sp.first + sp.n - 1];
+          });
+          perCh.push(
+            crossCheckPinned(
+              {
+                comparable: _runs.comparable,
+                minRun: _runs.minRun,
+                emitted: (_runs.byChannel[_chanKey(ci)] || []).length,
+                rows: _runs.byChannel[_chanKey(ci)] || []
+              },
+              ranges
+            )
+          );
+        }
+        /* Sidecar channels the stream has no column for. Reported, never dropped: a label the two
+           files disagree on is a finding about the pair, not a reason to ignore rows. */
+        const known = {};
+        for (let ci = 0; ci < chArr.length; ci++) known[_chanKey(ci)] = 1;
+        const unmatched = Object.keys(_runs.byChannel).filter(function (k) {
+          return !known[k];
+        });
+        return {
+          params: _runs.params,
+          fileMinRun: _runs.minRun,
+          comparable: _runs.comparable,
+          malformedRows: _runs.malformed,
+          emitted: _runs.emitted,
+          runsDetected: _runs.runsDetected,
+          examined: _runs.examined,
+          unmatchedChannels: unmatched,
+          perChannel: perCh
+        };
+      })(),
       sentinelRejected: sent ? sent.rejected : 0,
       sentinelKept: sent ? sent.kept : 0,
       /* The firmware's own beat fiducials, as TIMES on the published axis. Positions, not a count —
@@ -1034,6 +1372,10 @@
             maxStepMs: hostAx.maxStepMs,
             drawn: axisSynthetic,
             quantizedShare,
+            /* Present ONLY when a seam dropped anchors, so a clean stream's export stays byte-identical
+               (ECGDex's discipline, and deliberately ECGDex's key NAME — a consumer should not have to
+               learn two spellings of one fact). */
+            anchorsDroppedPreResync: preResyncAnchorsDropped > 0 ? preResyncAnchorsDropped : undefined,
             /* ⚠️ APPLIED IS OWNED BY THE DSP THAT APPLIES THE AXIS, and this one does — see the
                `relSec[i] = (devMs + hostAx.correctionAt(devMs))` line above. Emitting it is not
                cosmetic: `pat-drift-attribution.mjs effectivePpm` reads
@@ -2024,7 +2366,12 @@
 
   // ════════════════════════════════════════════════════════════════════════
   //  PER-SECOND ARTIFACT CONFIDENCE  (TCH-FUSED-ROBUST-HAT-2026-07-14)
-  //  Byte-for-byte MIRROR of ECGDSP.beatConfidence — signal-agnostic (feet/beats + per-beat SQI →
+  //  CODE-IDENTICAL MIRROR of ECGDSP.beatConfidence — identical once comments are stripped (2135
+  //  chars each, measured 2026-09-17), NOT byte-for-byte: the comment blocks differ, so the raw
+  //  bodies are 2708 here against 3122 there. The old wording said "byte-for-byte", which a reader
+  //  can check and find false. Gated by `beatConfidence mirror` in tests/dex-tests.js.
+  //  ⚠️ THE TWO COPIES ARE DELIBERATE AND NEITHER IS REDUNDANT — see that gate's message.
+  //  signal-agnostic (feet/beats + per-beat SQI →
   //  per-second trust c = density_trust × quality_trust, AND-ed via min for AF-safety). For the
   //  Verity corner it catches any residual PPG over-detection (e.g. diastolic-notch doubling the
   //  optical-refractory fix leaves) exactly as it catches the ECG spurious-QRS burst: a window that
@@ -2758,6 +3105,19 @@
     const out = [];
     let ns0 = null;
     let cols = null;
+    /* Same mid-file resync split as parsePPG above and as MotionDex's function OF THE SAME NAME.
+       ⚠️ This is a node-local copy, not shared code — nodes never import each other (ARCHITECTURE
+       -PRINCIPLES §2) and PpgDex does not inline motiondex-dsp.js. It is deliberately NOT held
+       byte-equal to MotionDex's by an assertion: a parity assertion over two copies read as evidence
+       of redundancy once before and cost a whole PR (#1232). The shared CONSTANTS are asserted equal
+       instead, which is the part that would actually drift into disagreement. */
+    let prevNsB = null,
+      prevRowTMs = null,
+      firstRowTMs = null,
+      segNs0 = null,
+      segBaseNs = 0,
+      prevRelNs = NaN;
+    const resyncs = [];
     for (const line of lines) {
       const t = line.trim();
       if (!t) continue;
@@ -2772,14 +3132,36 @@
       const x = parseFloat(p[c.x]);
       if (!isFinite(x)) continue;
       let relNs = NaN;
+      const ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
       try {
         const b = BigInt(p[c.ns >= 0 ? c.ns : 1].trim());
         if (ns0 === null) ns0 = b;
-        relNs = Number(b - ns0);
+        if (prevNsB !== null) {
+          const devDeltaMs = Number(b - prevNsB) / 1e6;
+          if (devDeltaMs > PPG_RESYNC_BOUND_MS) {
+            const phoneDeltaMs = ts && ts.tMs != null && prevRowTMs != null ? Math.max(0, ts.tMs - prevRowTMs) : null;
+            if (phoneDeltaMs != null ? devDeltaMs - phoneDeltaMs > PPG_RESYNC_BOUND_MS : devDeltaMs > PPG_GAP_CEIL_MS) {
+              segBaseNs = firstRowTMs != null && ts && ts.tMs != null ? (ts.tMs - firstRowTMs) * 1e6 : isFinite(prevRelNs) ? prevRelNs : Number(b - ns0);
+              segNs0 = b;
+              resyncs.push({
+                idx: out.length,
+                deviceStepMs: Math.round(devDeltaMs),
+                phoneDeltaMs: phoneDeltaMs == null ? null : Math.round(phoneDeltaMs)
+              });
+            }
+          }
+        }
+        prevNsB = b;
+        relNs = segNs0 === null ? Number(b - ns0) : segBaseNs + Number(b - segNs0);
+        prevRelNs = relNs;
       } catch (e) {}
-      const ts = parseTimestamp(p[c.phone >= 0 ? c.phone : 0]);
+      if (ts && ts.tMs != null) {
+        if (firstRowTMs === null) firstRowTMs = ts.tMs;
+        prevRowTMs = ts.tMs;
+      }
       out.push({ relNs, tMs: ts ? ts.tMs : null, x, y: parseFloat(p[c.y]), z: parseFloat(p[c.z]) });
     }
+    if (resyncs.length) /** @type {any} */ (out)._clockResyncs = resyncs;
     return out;
   }
   /* DISCRETE MOVEMENT ONSETS from a motion grid — the fiducial an apnea's terminating arousal leaves
@@ -3732,7 +4114,15 @@
     const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.blocker == null || d.blocker === 0)).map((d) => d.ppi);
     if (dev.length < 3 || selfNN.length < 3) return { hasData: true, filePresent: true, usable: false, source, nDevice: dev.length };
     const devRaw = rmssdOf(dev);
-    const sC = _ppiCorrect(selfNN),
+    /* `selfNN` arrives ALREADY Malik-corrected — it is the export's `nn`. Passing it through
+       `_ppiCorrect` again was a SECOND pass, and correctRR is not idempotent: measured 2026-09-21 on a
+       real 24,898-interval H10 night, pass 1 corrected 19, pass 2 another 11, pass 3 one more. So
+       `selfEctopyCorrected` reported the second pass's count as the self side's artifact load (11 where
+       the real pass found 19), and `selfRMSSD`/`selfSDNN`/`nSelf` were computed on a twice-corrected
+       series against a once-corrected device series — an asymmetric comparison presented as symmetric.
+       Residue 2026-09-13-ppgdex-correctrr-not-idempotent. The self side is taken as-is; its correction
+       count is the caller's one real pass, or null when a caller cannot say (never a re-run's count). */
+    const sC = { out: selfNN, nc: opts && opts.selfCorrected != null ? opts.selfCorrected : null },
       dC = _ppiCorrect(dev);
     const self = sC.out,
       devc = dC.out;
@@ -4080,8 +4470,20 @@
        killed the whole night's export. Refuse the span here rather than inside the mirror (which is
        genuinely count-bounded on ECG): ppiConf becomes null, which the export site already tolerates
        (`conf: … : null`), and the rest of the record survives. */
+    /* ⚠️ THE SEAM MUST STILL REFUSE, AND THIS IS WHY — BLE-TIMEBASE-AT-THE-EDGE, 2026-09-17.
+       F10's guard above keyed on the SPAN, and a clock rebase was detectable only BECAUSE it made the
+       span implausible. Re-anchoring the axis at the seam removes that symptom — so keying on span
+       alone would have SILENTLY REMOVED this guard: measured on F10's own plant, `ppiConf` came back
+       `[1,1,1,…]` (perfect confidence) and `cvhrIndex` `0` across a recording with an 86-second clock
+       discontinuity in it. A metric computed across a seam and reporting no problem is the §∅ failure
+       one layer up: a number that is computable from discontinuous input and carries no information.
+       So the refusal now keys on the SEAM ITSELF, which is what the Done-when actually asks for — "a
+       node consuming the stream cannot construct a duration across a seam without seeing it" — and the
+       reason NAMES the real state. `implausible-span` would be a fabricated explanation for a 249 s
+       span; the span is fine, the CLOCK is not. */
+    const _clockSeam = !!(rec.clockResyncs && rec.clockResyncs.length);
     const _confSpanS = _confSpine.length > 1 ? _confSpine[_confSpine.length - 1] - _confSpine[0] : 0;
-    const _confSpanOK = isFinite(_confSpanS) && _confSpanS <= PPG_MAX_SPAN_S;
+    const _confSpanOK = isFinite(_confSpanS) && _confSpanS <= PPG_MAX_SPAN_S && !_clockSeam;
     const _pConfMap = _confSpanOK
       ? beatConfidence(
           _confSpine.map((s) => Math.round(s * rec.fs)),
@@ -4111,7 +4513,10 @@
       const _d = corr.tt[k] - corr.tt[k - 1];
       if (_d > 0 && _d <= PPG_CVHR_GAP_S) _cvhrActiveSec += _d;
     }
-    const _cvhr = cvhrFromNN(corr.nn, corr.tt, _cvhrActiveSec);
+    /* Same seam refusal as F10's above. `cvhrFromNN` takes no record, so it cannot see the seam and
+       the gate belongs at the caller — it counts apnea-band events per hour of observed recording, and
+       an hour that spans a clock discontinuity is not an hour it observed. */
+    const _cvhr = _clockSeam ? { events: [], index: null, reason: 'clock-seam' } : cvhrFromNN(corr.nn, corr.tt, _cvhrActiveSec);
     // §4: per-interval CLEAN-adjacency mask — interval i (between beat i & i+1) is clean when it
     // was NOT correction-flagged AND both endpoint beats cleared SQI≥0.5 (SQI folds the 3-LED
     // agreement, §5). rMSSD/pNN50/SD1 are computed over clean adjacent pairs so sub-ectopy optical
@@ -4541,7 +4946,7 @@
       ppiSeries = mk;
       ppiSource = 'o2ring-marker';
     }
-    const validation = validatePPI(nn, ppiSeries, { source: ppiSource });
+    const validation = validatePPI(nn, ppiSeries, { source: ppiSource, selfCorrected: corr.nCorr });
     /* The stability leg needs BOTH detectors' beat TIMES on ONE axis, which is true only for the
        marker source: those rows sit in the same file, on the same `relSec`, as the feet we detected.
        A `_PPI.txt` carries intervals plus the host's ARRIVAL stamps, so differencing against it would
@@ -4634,7 +5039,7 @@
       ppiClean: cleanMask,
       // Aligned with nn/tt the same way — the fused-hat per-beat weight (see the block above).
       ppiConf,
-      ...(_confSpanOK ? {} : { ppiConfReason: 'implausible-span' }), // F10 — see the beatConfidence call
+      ...(_confSpanOK ? {} : { ppiConfReason: _clockSeam ? 'clock-seam' : 'implausible-span' }), // F10 + seam — see the beatConfidence call
       poincareNN: nn,
       sd1: poin ? poin.sd1 : null,
       sd2: poin ? poin.sd2 : null,
@@ -5078,6 +5483,8 @@
     markO2BeatMarkers,
     // §∅ absence-as-value: span detection + the DERIVED settling widening (never a constant).
     pinnedSpans,
+    parsePinnedRuns,
+    crossCheckPinned,
     settlingWidenSec,
     markO2Sentinels: markO2BeatMarkers, // back-compat alias — the old name asserted the wrong semantics
     refineFeet,
@@ -5320,13 +5727,61 @@
            with zero spans. Errs low — a consumer can filter `n` upward but can never recover a span
            that was never emitted. */
         pinnedCoverage: (r.pinnedSpanSets || []).map(function (sp, ci) {
-          var lost = 0;
-          for (var k = 0; k < sp.spans.length; k++) lost += sp.spans[k].n;
+          /* ── §∅ SATURATION IS ITS OWN STATE (owner ruling 2026-09-18) ──────────────────────────
+             P5 ruled that a pinned span is an ABSENCE excluded like a gap. That ruling is now SCOPED
+             TO THE ZERO RAIL. A run at the TOP rail is a measurement AT ITS BOUND: the true value was
+             at-or-above the rail, which is strictly more than "not measured". Excluding it as absence
+             discards that; publishing it as data fabricates precision. So it is excluded exactly as
+             before AND labelled distinctly.
+
+             The detector has always known which rail — `pinnedSpans` stamps `end: 'lo' | 'hi'` per
+             span at its emit site — and this projection threw it away, pooling both into one
+             `samplesUnmeasured`. That is the §∅ shape one layer up, and the same one #2531 fixed for
+             absence while leaving it standing here: detected, reported, then collapsed at the point a
+             consumer would read it.
+
+             ⚠️ `samplesUnmeasured` IS KEPT AND STILL MEANS THE TOTAL. An existing consumer sees no
+             change, and the two new fields are additive. The name is now imprecise for the saturated
+             half — a saturated sample WAS measured — and it is deliberately NOT renamed, because
+             renaming a shipped field to improve a word breaks every reader of it.
+
+             🔴 THE LABEL IS DELIBERATELY INERT, AND THAT IS THE OWNER'S CALL, NOT AN OVERSIGHT.
+             Whether saturation should be excluded from a NARROWER set of statistics than absence was
+             put to the owner and DEFERRED (2026-09-18) until a controlled finger-off capture, so that
+             all three populations — floor, ceiling, and the non-rail run — are classified in ONE pass
+             rather than two. So `spansOmit` still excludes both rails identically to before, NOTHING
+             reads this label yet, and no computed statistic moves.
+
+             What the unit buys is that the decision becomes IMPLEMENTABLE. Today the exclusion set
+             cannot be narrowed for saturation at all: by the time `spansOmit` exists the rail is
+             already gone. After this, narrowing is a change at one site the moment the owner decides.
+
+             ⚠️ DO NOT "FINISH" THIS BY WIRING THE LABEL TO A DIFFERENT EXCLUSION. That is the deferred
+             decision, and taking it because the label now exists would be inferring an answer from the
+             shape of the enabling step.
+
+             NO THRESHOLD IS CHOSEN either: this re-labels what the shipped `PIN_MIN_RUN = 5` rail
+             detector already finds. The value-agnostic run-length rule needs a threshold, that
+             threshold is deferred to the same capture, and it is a separate unit. */
+          var lost = 0,
+            absent = 0,
+            saturated = 0;
+          for (var k = 0; k < sp.spans.length; k++) {
+            var sn = sp.spans[k].n;
+            lost += sn;
+            if (sp.spans[k].end === 'hi') saturated += sn;
+            else absent += sn;
+          }
           return {
             channel: ci,
             rail: sp.railLo != null || sp.railHi != null ? { lo: sp.railLo, hi: sp.railHi } : null,
             spans: sp.spans.length,
-            samplesUnmeasured: lost
+            samplesUnmeasured: lost,
+            /* ABSENT — pinned at the FLOOR. Nothing was measured; §∅'s original case. */
+            samplesAbsent: absent,
+            /* SATURATED — pinned at the CEILING. A measurement at its bound: the true value was
+               at-or-above `rail.hi`, so a consumer needing a lower bound has one. */
+            samplesSaturated: saturated
           };
         }),
         /* ── TIMING PROVENANCE (WEARABLE-HOST-AXIS-FOLLOWUPS §F1) — additive, contract-safe ──
@@ -5627,7 +6082,10 @@
       var text =
         typeof input === 'string' ? input : input && typeof input.text === 'string' ? input.text : input && input.samples && typeof input.samples.text === 'string' ? input.samples.text : null;
       if (text == null) throw new Error('PpgDex.compute: need a Polar Sense *_PPG.txt string, {text}, a parsed rec {ch:[…]}, or a ppg SignalFrame {samples:{ch:[…]}}.');
-      rec = parsePPG(text, { timebase: opts.timebase });
+      /* §∅ P5 clause 2 — `runsText` is the `_PPGRUNS.txt` companion's bytes when the caller
+         attached one. Added LAST and OPTIONAL: every existing caller keeps its exact behaviour and
+         `parsePinnedRuns(undefined)` returns null, so the no-sidecar path is unchanged. */
+      rec = parsePPG(text, { timebase: opts.timebase, runsText: opts.runsText });
     }
     if (opts.source) rec.source = opts.source;
     if (opts.fname && !rec.fname) rec.fname = opts.fname;

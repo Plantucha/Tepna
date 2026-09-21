@@ -448,7 +448,7 @@ ${pageCSS}
     <div class="sidebar-data-card">
       <div class="data-pill"><span class="data-dot"></span> Reference Guide</div>
       <div class="sidebar-data-info">
-        ${esc(manifest.node)} v${esc(manifest.version)} · ${esc(manifest.status)}<br>
+        ${esc(manifest.node)} v${esc(manifest.version)} · generated from ${esc(path.basename(manifestPath))}<br>
         ${totalMetrics} metrics · ${manifest.sections.length} sections
       </div>
     </div>

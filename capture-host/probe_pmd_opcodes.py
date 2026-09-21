@@ -42,6 +42,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import argparse
 import asyncio
 import datetime as _dt
@@ -129,7 +131,10 @@ async def run(address, adapter, lo, hi, include_dangerous, dry_run) -> dict:
         out["state_before"] = base
         results = {}
         for op in plan:
-            entry = {"known_as": KNOWN.get(op)}
+            # Annotated: the literal has one `str | None` value, so mypy fixes the value type there
+            # and every later row — a bool for `exists`, a dict for `side_effect` — reads as a
+            # mismatch. This is a probe record with heterogeneous fields by design.
+            entry: dict[str, Any] = {"known_as": KNOWN.get(op)}
             try:
                 code, name = status_of(await cp.send(bytes([op])))
             except Exception as exc:                   # noqa: BLE001 — an ATT refusal is a result

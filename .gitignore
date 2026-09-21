@@ -133,6 +133,7 @@ uploads/*
 !uploads/integrator_apnea_null_twins.node-export.json
 !uploads/integrator_fusion_night_twins.node-export.json
 !uploads/integrator_respiration_fusion_twins.node-export.json
+!uploads/integrator_hrstat_class_twins.node-export.json
 
 # Trio TCH corpus — DERIVED per-night node-exports (tools/trio-batch.mjs), the §6 input contract
 # for `tools/tch-multinight.mjs --dir`. Tracked so a fresh clone reproduces the real σ distribution

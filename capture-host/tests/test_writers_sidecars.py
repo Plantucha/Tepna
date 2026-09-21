@@ -421,7 +421,11 @@ import os as _os
 import writers as _w
 
 
-ALL_WRITERS = [
+# Renamed from ALL_WRITERS, which the table at the top of this file already owns. That one is
+# (class, write-action); this one is (class, constructor kwargs) — a different table with a
+# different shape, and it silently shadowed the first for every use below this line. mypy
+# reported it as six incompatible rows, which is the collision seen from the type side.
+WRITER_CTOR_KWARGS: list[tuple[type, dict[str, str]]] = [
     (_w.StreamWriter, {"stream": "ecg"}),
     (OxyFrameLogWriter, {}),
     (HostClockLogWriter, {}),
@@ -430,7 +434,7 @@ ALL_WRITERS = [
 ]
 
 
-@pytest.mark.parametrize("cls,kw", ALL_WRITERS, ids=lambda v: getattr(v, "__name__", ""))
+@pytest.mark.parametrize("cls,kw", WRITER_CTOR_KWARGS, ids=lambda v: getattr(v, "__name__", ""))
 def test_every_writer_fsyncs_by_default(tmp_path, monkeypatch, cls, kw):
     """The `fsync=True` default in all five writers, plus `self._fsync` being stored at all.
 
@@ -514,7 +518,7 @@ def test_the_link_header_records_which_radio_captured_the_night(tmp_path):
     assert _lines(str(r))[0].startswith("Phone timestamp;")
 
 
-@pytest.mark.parametrize("cls,kw", ALL_WRITERS, ids=lambda v: getattr(v, "__name__", ""))
+@pytest.mark.parametrize("cls,kw", WRITER_CTOR_KWARGS, ids=lambda v: getattr(v, "__name__", ""))
 def test_a_writer_remembers_the_path_it_opened(tmp_path, cls, kw):
     """`self.path = None` survived in every writer. `nightqc`, the archiver and the monitor all ask a
     live writer where it is writing; None there is a night that cannot be found while it is being
@@ -705,6 +709,43 @@ def test_oxylife_writer_header_and_rows(tmp_path):
     assert lines[1].startswith("host_wall;host_monotonic;prev;new;reason;device;session;failure")
     assert lines[2].endswith("scan;O2R-01;s1;") and lines[3].startswith("W;2.0;connecting;connected")
     assert w.rows == 2
+
+
+def test_oxylife_writer_APPENDS_across_daemon_restarts_instead_of_wiping_the_night(tmp_path):
+    """Until 2026-09-20 this writer opened `OXYLIFE.csv` with "w". The file is one fixed name per night
+    and the daemon restarts ~11–15 times a day, so each restart erased every earlier process's rows —
+    the 2026-09-10 file held 21 connect attempts against ~250 in the journal. A second open on a
+    non-empty file must CONTINUE it: one preamble, one header, every row from both processes, and the
+    writer says which case it is in (`resumed`)."""
+    import writers
+    p = tmp_path / "OXYLIFE.csv"
+    w1 = writers.OxyLifeLogWriter(str(p), device="O2R-01")
+    assert w1.resumed is False
+    w1.write(_FakeTransition("W;1.0;not_seen;connecting;scan;O2R-01;s1;"))
+    w1.write(_FakeTransition("W;2.0;connecting;disconnected;session ended;O2R-01;s1;device_unavailable"))
+    w1.close()
+    w2 = writers.OxyLifeLogWriter(str(p), device="O2R-01")             # the daemon restarted
+    assert w2.resumed is True
+    w2.write(_FakeTransition("W;3.0;not_seen;connecting;scan;O2R-01;s2;"))
+    w2.close()
+    lines = p.read_text().splitlines()
+    assert lines[0] == "# device=O2R-01" and lines[1].startswith("host_wall;")
+    assert sum(ln.startswith("# device=") for ln in lines) == 1 and sum(ln.startswith("host_wall;") for ln in lines) == 1
+    assert [ln.split(";")[1] for ln in lines[2:]] == ["1.0", "2.0", "3.0"], "all three rows, in order, nothing wiped"
+    assert w2.rows == 1, "the counter is per process; the FILE is per night"
+
+
+def test_oxylife_writer_treats_an_EMPTY_existing_file_as_fresh(tmp_path):
+    """A zero-byte file (a crash between open and header) gets the preamble + header, not a headerless
+    append — the same rule as `SessionSidecar`'s `fresh` test."""
+    import writers
+    p = tmp_path / "OXYLIFE.csv"
+    p.write_text("")
+    w = writers.OxyLifeLogWriter(str(p), device="O2R-01")
+    assert w.resumed is False
+    w.write(_FakeTransition("W;1.0;a;b;r;;;"))
+    w.close()
+    assert p.read_text().splitlines()[:2] == ["# device=O2R-01", "host_wall;host_monotonic;prev;new;reason;device;session;failure;axis"]
 
 
 def test_oxylife_writer_omits_the_device_comment_when_absent(tmp_path):

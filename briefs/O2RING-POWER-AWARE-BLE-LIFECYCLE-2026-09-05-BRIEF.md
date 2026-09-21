@@ -3,13 +3,25 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (core BUILT — verified 2026-09-05: `capture-host/oxy_power.py` is the engine, wired into
+**Status:** PROPOSED · **Residue:** 2026-09-20-o2ring-passive-scan-needs-or-patterns, 2026-09-20-passive-scan-needs-experimental-bluetoothd · (core BUILT — verified 2026-09-05: `capture-host/oxy_power.py` is the engine, wired into
 `capture.py` at the link-axis emit, the two automatic pull pollers, `pull_oxyii_session`, the presence scan
 loop and the restart-storm hold; 55 assertions in `tests/test_oxy_power.py` (30 adversarial state-machine
 cases, §23) + 18 wiring cases in `tests/test_oxy_power_wire.py`; `check.sh` green. Remainder is §22/§24 —
 the power budget and the 15-item acceptance run need the ring on the owner's bench, and the passive-scan
 mode (§3) is untested against vigil's BlueZ. **Owner:** owner (box) for §22/§24 · **Next step:** one
-attended night with `webmon /state` `"power"` sampled hourly) · **Created:** 2026-09-05
+attended night with `webmon /state` `"power"` sampled hourly. **DRAIN 2026-09-20 (Wren, measured on the box,
+15 unattended nights 09-05 → 09-19 of `OXYLIFE.csv` `axis=power` rows, 37–259 per night):** (a) §24
+`illegal_skipped == 0` — 0 illegal rows on 15/15 nights and the live counter reads 0; (b) harvests happen
+unattended — `pw_harvesting` entered 1–5× per night on 13/15 nights, `pw_error_backoff` 0–4× (typed
+`transport_failure`, 60 s strike-1), no connect-fail loop; (c) **§3's passive scan HAS NEVER RUN on vigil
+and cannot on this stack as written** — the journal carries the downgrade 174 times since 09-05: *"passive
+BLE scan unsupported here (passive scanning mode requires bluez or_patterns) — using active scan"*, so the
+50 %-duty concern §7 replaced is being addressed by the policy windows only, not by passive radio, and the
+`btmon` measurement §4 asks for is not reachable (bleak refuses before the controller is asked) → residue
+`2026-09-20-o2ring-passive-scan-needs-or-patterns`; (d) the live counters are PER-PROCESS (reset at every
+daemon restart — 07:06 today reads `scan_windows 0`), so §22's per-night budget must be read from the journal
+rows, not sampled from `/state`; (e) battery-at-doff across nights and the other §24 bench items remain
+unmeasured. The engine is in production; what is unproven is the passive half. ⚠️ **CORRECTION 2026-09-20 (Wren, later the same day): the 15 nights of `OXYLIFE.csv` rows those numbers came from are each ONE PROCESS's rows, not the night's** — the writer opened the file with `w` and the daemon restarts ~11–15×/day, so every restart wiped the earlier rows (residue `2026-09-20-oxylife-truncated-on-every-restart`). `illegal_skipped 0` stands for the surviving rows and the live counter; the harvest and backoff counts above are LOWER BOUNDS. Re-read after a week of appended files. **CORRECTION 2026-09-20 (Wren, same day, before building):** the residue's remedy line — "a code change, not a box change" — was HALF WRONG. `or_patterns` is necessary and not sufficient: bleak's next check (`manager.py:592`) needs `org.bluez.AdvertisementMonitorManager1`, absent on vigil's hci0–hci3 because bluetoothd 5.85 runs without `--experimental` (`VIGIL-BLUETOOTH-ADAPTERS` §144 and `probe_ring_adv.py:36` had both halves; the row dropped one). The code half is built (`passive_or_pattern_spec`, `_passive_scan_kw`, `passive_refusal`, the downgrade line now naming `[or_patterns]`/`[experimental]`); the box half — the `--experimental` drop-in and one bluetoothd restart — is the owner's (authorized 2026-09-20 at an idle window; residue `2026-09-20-passive-scan-needs-experimental-bluetoothd`). ⚠️ An earlier draft of this correction said the ring's AD was "recorded nowhere" and that the ring advertises only while disconnected; BOTH are false — `VIGIL-BLUETOOTH-ADAPTERS` §F5 and the 2026-09-05 air capture hold 537 ADV_IND from the ring while docked, unworn and connected (Flags 0x06 · manufacturer 0xF34E data 00), and the filter is built from that measurement plus §6's documented recording-mode id 0x036F, not from a guessed superset.) · **Created:** 2026-09-05
 
 # O2Ring — a power-aware BLE lifecycle for the acquisition system
 

@@ -901,12 +901,84 @@
     m4 /= n;
     return m2 > 0 ? m4 / (m2 * m2) : 0;
   }
+  /* ── §∅ THE RAIL IS A PER-FILE QUANTITY, NOT A CONSTANT ───────────────────────────────────────
+     `computeSQI`'s rail leg keyed on `|int16| > 31000`. Measured over 597 deduplicated ECG files:
+     it fires on **0 of 112** real saturation runs, because the H10 saturates at **~18,100-19,500**,
+     at a rail that differs PER FILE — 29 distinct values across the 62 files that carry one. A
+     global constant is the wrong SHAPE here, not merely the wrong number: any single value repeats
+     the defect at a different magnitude. (`ECG-SATURATION-ABSENCE-2026-09-18-BRIEF.md`.)
+
+     THE RULE IS `nightqc.rail_value`'s, PORTED: the rail is the HISTOGRAM SPIKE NEAREST THE EDGE,
+     not the edge. Scan the outermost few occupied values, stopping at a value gap so the window
+     never reaches across an empty region into the bulk, then take the dominant one — and require it
+     to OUT-COUNT its nearest occupied neighbour, because isolation alone is not a pin (a lone
+     outlier sample is isolated and is not a rail).
+
+     ⚠️ THE PORT WAS MEASURED BEFORE IT WAS WRITTEN, because these constants were tuned on u8 pleth
+     and this is int16 µV. Over the same 62 files: a rail QUALIFIES on 62 of 62, `railHi` equals the
+     observed maximum on 58 and differs on 4 — so the spike search is doing real work rather than
+     degenerating to min/max — and the median gap between occupied values is 3 against `GAP_MAX = 4`.
+     That last figure is the port's margin and it is thin: a lower-amplitude recording with sparser
+     occupied values would stop the scan at the edge. Recorded so the next person does not have to
+     rediscover that the port holds *here* without holding everywhere.
+
+     🔴 AND AN UNQUALIFIED RAIL IS `null`, NEVER A FALLBACK TO THE EXTREME. A file whose rail cannot
+     be qualified is UNMEASURED for saturation — it is not "no saturation". Falling back to min/max
+     would manufacture a rail out of an absence, which is §∅ at the classifier: the same shape as
+     reporting `disagreed` where the sidecar never looked, and as a run at no rail being filed as
+     mid-range. `railAbsent` is the honest third state and `quality.ecgRail` publishes it. */
+  function ecgRails(int16) {
+    const freq = new Map();
+    for (let i = 0; i < int16.length; i++) freq.set(int16[i], (freq.get(int16[i]) || 0) + 1);
+    const vals = Array.from(freq.keys()).sort((a, b) => a - b);
+    if (vals.length < 2) return { railLo: null, railHi: null, absent: true };
+    const RAIL_SCAN_VALUES = 8, // capture-host `_RAIL_SCAN_VALUES`
+      RAIL_GAP_MAX = 4, // capture-host `_RAIL_GAP_MAX`
+      RAIL_SPIKE_MIN = 5; // capture-host `_RAIL_SPIKE_MIN`
+    const railAt = (end) => {
+      const at = (k) => (end === 'lo' ? vals[k] : vals[vals.length - 1 - k]);
+      const cnt = (k) => freq.get(at(k)) || 0;
+      let take = 1;
+      while (take < Math.min(RAIL_SCAN_VALUES, vals.length) && Math.abs(at(take) - at(take - 1)) <= RAIL_GAP_MAX) take++;
+      let best = null,
+        bestC = -1;
+      for (let k = 0; k < take; k++)
+        if (cnt(k) > bestC) {
+          bestC = cnt(k);
+          best = at(k);
+        }
+      const neighbour = take < vals.length ? cnt(take) : 0;
+      return bestC >= RAIL_SPIKE_MIN * Math.max(1, neighbour) ? best : null;
+    };
+    /* 🔴 A VALUE HOLDING MOST OF THE RECORD IS THE BASELINE, NOT A RAIL. Without this the rule
+       convicts a silent baseline: an idealised beat train on an exact-zero floor makes 0 both the
+       edge value AND 93.4 % of the record, so it out-counts its neighbour by far more than
+       `RAIL_SPIKE_MIN` and qualifies — and then EVERY beat window contains baseline samples, so
+       every beat trips `flatBad`. Found by this change reddening the composite-SQI weight group,
+       which is a gate on working behaviour and therefore a true positive about the rule.
+
+       ⚠️ THE DISCRIMINATOR IS SHARE, NOT IDENTITY. "The rail must not be the modal value" was tried
+       first and is WRONG: on real ECG a heavily-saturated file legitimately has its rail as the mode,
+       and that guard loses **19 of 62** real files. The populations separate on SHARE instead, with
+       room to spare — global-mode share is **0.78-11.53 %** across the 62 real files carrying
+       saturation, against **93.4 %** for the synthetic baseline. The cut sits between them at a half,
+       ~4x clear of the real maximum and ~2x below the synthetic: measured, not chosen. */
+    const half = int16.length / 2;
+    const notBaseline = (v) => v != null && (freq.get(v) || 0) <= half;
+    const railLo = notBaseline(railAt('lo')) ? railAt('lo') : null,
+      railHi = notBaseline(railAt('hi')) ? railAt('hi') : null;
+    return { railLo: railLo, railHi: railHi, absent: railLo == null && railHi == null };
+  }
 
   // ════════════════════════════════════════════════════════════════════════
   //  PER-BEAT SQI  (composite 0..1 → Ganglior conf)
   //  flatline/rail · kurtosis · two-detector agreement (bSQI) · RR plausibility · range
   // ════════════════════════════════════════════════════════════════════════
   function computeSQI(int16, fs, peaks, times, peaksB) {
+    /* ONCE per record, not per beat: a rail is a property of the whole signal's histogram, and
+       computing it inside the ±130 ms beat window would ask 130 samples what the recording's
+       saturation level is. */
+    const rails = ecgRails(int16);
     const n = peaks.length;
     const sqi = new Float32Array(n);
     // RR (ms) from refined times
@@ -955,7 +1027,9 @@
           flatRun++;
           if (flatRun > maxFlat) maxFlat = flatRun;
         } else flatRun = 0;
-        if (Math.abs(int16[j]) > 31000) railHit++;
+        /* AT the file's own rail, not above a constant. `absent` ⇒ this leg contributes nothing
+           and says so through `quality.ecgRail`, rather than reading as clean signal. */
+        if (!rails.absent && (int16[j] === rails.railHi || int16[j] === rails.railLo)) railHit++;
         prev = int16[j];
       }
       const flatBad = maxFlat > 0.2 * fs || railHit > 3; // >200 ms flat
@@ -1049,7 +1123,7 @@
 
        The cut is buildNN's own `GAP_S`, hoisted so the interval this excludes and the interval that
        lands in `gapSec` can never disagree — two constants for one question eventually diverge. */
-    const GAP_S = 10; // any inter-beat interval longer than this is a coverage gap, not a missed beat
+    // GAP_S is module-scope (declared beside CVHR_MAX_SPAN_S) — ONE cut for the whole file.
     const spansGap = new Uint8Array(n);
     for (let k = 1; k < n; k++) if (times[k] - times[k - 1] > GAP_S) spansGap[k] = 1;
     for (let k = 0; k < n; k++) {
@@ -1726,10 +1800,26 @@
     }
     return o;
   }
+  /* Resample onto a uniform grid AND SAY WHICH CELLS WERE MEASURED.
+     Returns `{ v, flag }` — `flag[i]` is `GRID_FLAG.OK` when the cell sits inside a real inter-beat
+     interval, `GRID_FLAG.GAP_LONG` when it was drawn across an absence and never measured.
+
+     🔴 WHY IT GREW A SECOND RETURN. This used to return a bare `Float64Array`, so an interpolated
+     cell was INDISTINGUISHABLE from a measured one — §∅ fabrication at per-sample granularity, and
+     the same defect SomnoTrace's `session_writer.c` carries in its short-gap hold. Two ways it bit:
+     `tt` is the gap-ACCUMULATED beat-time axis (see `cardiorespCoupling`'s span guard), so a
+     multi-minute dropout was interpolated straight through; and `Math.max(0, Math.min(1, f))` CLAMPS
+     outside the data range, which is a literal HOLD of the endpoint value. Both fed four series into
+     seven published coupling metrics whose return carried `nGrid` — the denominator — and no count
+     of what was drawn. GlucoDex already solved this with a per-cell flag; this is that contract,
+     applied to the node that lacked it. */
   function _interpGrid(xs, ys, grid) {
     const N = xs.length,
       M = grid.length,
-      o = new Float64Array(M);
+      o = new Float64Array(M),
+      fl = new Int8Array(M);
+    const lo = xs[0],
+      hi = xs[N - 1];
     let j = 0;
     for (let i = 0; i < M; i++) {
       const g = grid[i];
@@ -1740,8 +1830,12 @@
         y1 = ys[j + 1];
       const f = x1 > x0 ? (g - x0) / (x1 - x0) : 0;
       o[i] = y0 + (y1 - y0) * Math.max(0, Math.min(1, f));
+      /* OUTSIDE the data range the clamp holds an endpoint — never a measurement. INSIDE, the cell is
+         measured only if its bracketing interval is within the coverage cut; `GAP_S` is that cut and
+         is the file's single one, shared with `buildNN`. */
+      fl[i] = g < lo || g > hi || !(x1 - x0 <= GAP_S) ? GRID_FLAG.GAP_LONG : GRID_FLAG.OK;
     }
-    return o;
+    return { v: o, flag: fl };
   }
   function _maHalf(x, half) {
     const N = x.length,
@@ -1816,7 +1910,8 @@
     if (M < 16) return null;
     const grid = new Float64Array(M);
     for (let i = 0; i < M; i++) grid[i] = t0 + i / FS;
-    const edrU = _interpGrid(tt, edr, grid);
+    const _edrG = _interpGrid(tt, edr, grid);
+    const edrU = _edrG.v;
     /* CPC needs the UNDETRENDED series. `edr`/`hrR` above are `_detrendMov(x, 40)` — a 40-BEAT moving
        high-pass, ~48 s at a 50 bpm sleep rate — and `edrB`/`hrB` below are `_bandResp`, which by its
        own comment drops everything under ~0.1 Hz. Measured retention through those filters:
@@ -1830,9 +1925,9 @@
        negative result. That is the same failure as `lfhf` being structurally blind to the VLF band
        (DEEP-STAGE-DESAT-CONFOUND §8.3), caught before shipping this time rather than after.
        `hrAbsU` is already the raw HR on this grid; the raw R-amplitude needs its own interpolation. */
-    const edrRawU = _interpGrid(tt, amp, grid);
-    const hrU = _interpGrid(tt, hrR, grid);
-    const hrAbsU = _interpGrid(tt, hrAbs, grid);
+    const edrRawU = _interpGrid(tt, amp, grid).v;
+    const hrU = _interpGrid(tt, hrR, grid).v;
+    const hrAbsU = _interpGrid(tt, hrAbs, grid).v;
     const edrB = _bandResp(edrU, FS),
       hrB = _bandResp(hrU, FS);
     // 3) respiration rate measured DIRECTLY from the EDR band (dominant period via
@@ -1939,10 +2034,19 @@
     }
     // CPC on the RAW grids (see the edrRawU note) — never on edrB/hrB, which retain 0-22 % of LFC.
     const cpc = _cpc(hrAbsU, edrRawU, FS);
+    /* COVERAGE — §∅: "an output computed over absent input reports the absence". Every metric below
+       is computed over the uniform grid, and some of that grid was DRAWN rather than measured. All
+       four series share one `grid` and one `tt`, so one flag array describes them all. `nGrid` alone
+       was the denominator with no numerator, which is exactly what made its silence a defect. */
+    let _gapCells = 0;
+    for (let i = 0; i < M; i++) if (_edrG.flag[i] === GRID_FLAG.GAP_LONG) _gapCells++;
+    const gridGapFrac = M ? +(_gapCells / M).toFixed(4) : null;
     return {
       cpc,
       respFromEDR,
       respFromEDRReason,
+      nGridGap: _gapCells,
+      gridGapFrac,
       rsaEfficiencyRatio: +rsaRatio.toFixed(2),
       rsaAmplitudeBpm: +rsaAmp.toFixed(1),
       crcPLV: +plv.toFixed(3),
@@ -1965,6 +2069,19 @@
   // grid — TWO consumers: `detectCVHR` (the #1800 refusal below) and `cardiorespCoupling` (the
   // sibling guard added after 2026-08-23's +2792-day sensor rebase OOM-killed the fold there).
   // 48 h — over twice any real recording, so a gappy night still fits.
+  const GAP_S = 10; // any inter-beat interval longer than this is a coverage gap, not a missed beat
+  /* HOISTED TO MODULE SCOPE 2026-09-19. It was `buildNN`-local, and `cardiorespCoupling` needed the
+     same cut to say which interpolated grid cells were drawn across an absence. Copying the literal
+     would have been the second constant for one question that this cut's own comment warns about —
+     and `gap-cut-parity` already gates it against PpgDex's `PPG_CVHR_GAP_S`. One declaration, two
+     readers. */
+  /* GRID FLAGS — a MIRROR of `glucodex-dsp.js`'s `FLAG`, names and numbering identical, deliberately
+     not a second vocabulary. GlucoDex already solved "which resampled cells were measured": OK is a
+     cell backed by real samples, GAP_LONG is one drawn across an absence and never measured. ECGDex
+     needs no middle `GAP` tier because `GAP_S` is already the cut between a missed beat (sound to
+     interpolate) and a coverage gap — inventing a third tier here would be coining. The two files
+     cannot share a constant (no common spine), so `grid-flag-parity` gates them equal instead. */
+  const GRID_FLAG = { OK: 0, GAP_LONG: 4 };
   const CVHR_MAX_SPAN_S = 48 * 3600;
   // `activeSec` (OPTIONAL, added LAST for back-compat per CLAUDE.md §🧪) is the beat-COVERED time
   // the caller measured (nnRes.activeSec — inter-beat deltas ≤ GAP_S summed); when it is > 0 it is
@@ -4369,6 +4486,7 @@
     stampEpochPositions,
     bandpass,
     detectPeaks,
+    ecgRails,
     /* Additive export for the PAT worker. `detectPeaks` returns INTEGER sample indices; `refinePeaks`
        is what turns them into the sub-sample R positions the rest of this node uses, and it was
        unreachable from outside — so every external consumer was silently stuck on whole samples, with
@@ -5865,6 +5983,14 @@
              golden's equiv leg caught exactly that), so the key is present iff the rate is refused.
              `respFromEDR: null` alone already marks the refusal; this is its diagnostic. */
           ...(r.crc && r.crc.respFromEDRReason ? { respFromEDRReason: r.crc.respFromEDRReason } : {}),
+          /* COVERAGE REACHES THE EXPORT, so the flag is consumed rather than merely computed. Emitted
+             ONLY when some of the coupling grid was drawn rather than measured — a `0` on every clean
+             night is noise, and the same argument the neighbouring reason field already makes.
+             ⚠️ It REPORTS and does not yet REFUSE: nulling the coupling metrics above some coverage
+             would need the corpus distribution of `gridGapFrac`, which nobody has measured. Inventing
+             that cut here would be a planted density, so the number is published and the judgement is
+             left to a consumer that can see it. */
+          ...(r.crc && r.crc.nGridGap ? { couplingGridGapCells: r.crc.nGridGap, couplingGridGapFrac: r.crc.gridGapFrac } : {}),
           respFromEDRMethod: 'EDR (R-peak amplitude modulation)'
         }
       };

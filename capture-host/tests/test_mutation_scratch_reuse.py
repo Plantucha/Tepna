@@ -138,3 +138,73 @@ def test_the_refreshed_count_is_reported_per_tree(tmp_path):
 
     # and an empty list is an honest zero, not a crash or a silent full copy
     assert _refresh(src, work, []) == 0
+
+
+# ── root reads: the file a test opens ABOVE capture-host/ (2026-09-19, #2675) ──────────────────────
+
+def _tree_with_root_read(tmp_path, literal="ecgdex-dsp.js", *, make_root_file=True):
+    """A repo shaped like ours: <root>/ecgdex-dsp.js beside <root>/capture-host/, and a test that names it."""
+    root = tmp_path / "repo"; tree = root / "capture-host"; tree.mkdir(parents=True)
+    _fake_tree(tree)
+    if make_root_file:
+        (root / "ecgdex-dsp.js").write_text("const ECG_RESYNC_BOUND_MS = 5000;\n")
+    (root / "README.md").write_text("never named by a test\n")
+    (root / "docs").mkdir()                       # a DIRECTORY whose name a test might mention
+    (tree / "tests" / "test_parity.py").write_text(
+        'import os\ndef test_p():\n    open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "%s")).read()\n' % literal)
+    return root, tree
+
+
+def test_root_reads_are_DERIVED_from_the_tests_never_listed(tmp_path):
+    """A test naming a repo-root FILE is a root read; a root file nobody names is not; a directory
+    name is not a read even when named. Keyed on what is read, not on the path idiom."""
+    root, tree = _tree_with_root_read(tmp_path)
+    (tree / "tests" / "test_mentions_dir.py").write_text('X = "docs"\n')
+    assert mutation_diff.root_reads(tree) == ["ecgdex-dsp.js"]
+
+
+def test_stage_root_reads_lands_the_file_where_BOTH_runs_resolve_it(tmp_path):
+    """The mutants run executes work/mutants/tests/ → grandparent's parent is work/; the clean baseline
+    executes work/tests/ → work/... Both must find the file, so it is copied to work/ AND work/.."""
+    root, tree = _tree_with_root_read(tmp_path)
+    scratch = tmp_path / "scratch"; work = scratch / "work"; (work / "mutants" / "tests").mkdir(parents=True)
+    n = mutation_diff.stage_root_reads(tree, work, mutation_diff.root_reads(tree))
+    assert n == 2
+    assert (work / "ecgdex-dsp.js").read_text() == "const ECG_RESYNC_BOUND_MS = 5000;\n"
+    assert (scratch / "ecgdex-dsp.js").read_text() == "const ECG_RESYNC_BOUND_MS = 5000;\n"
+    # and the read as the parity test spells it resolves from BOTH test locations
+    import os
+    for tests_dir in (work / "mutants" / "tests", work / "tests"):
+        p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(tests_dir / "test_parity.py"))), "..", "ecgdex-dsp.js")
+        assert os.path.isfile(p), p
+
+
+def test_a_named_root_file_that_does_not_exist_is_skipped_not_fabricated(tmp_path):
+    root, tree = _tree_with_root_read(tmp_path, make_root_file=False)
+    assert mutation_diff.root_reads(tree) == []          # not a file in the root ⇒ not a read
+    work = tmp_path / "s" / "work"; work.mkdir(parents=True)
+    assert mutation_diff.stage_root_reads(tree, work, ["ecgdex-dsp.js"]) == 0
+    assert not (work / "ecgdex-dsp.js").exists()
+
+
+def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
+    """Pinned as an EQUALITY so a change in the population is VISIBLE (a floor would not count it).
+    Measured 2026-09-19: one real read — `ecgdex-dsp.js` (the seam-bound parity check) — plus four
+    names tests merely MENTION as literals (over-flagged by design; each costs one small copy). If this
+    changes, the scratch already carries the new file — the assertion exists so the author sees it.
+    2026-09-20: two more real reads — `pat-feasibility.js` + `sensor-trio-power-analysis.js`, the
+    Nights-page tripwire that reds the day a fused tool's classifier accepts a box filename."""
+    from pathlib import Path
+    import pytest
+    here = Path(__file__).resolve().parent.parent
+    # Inside a mutation scratch `here` is work/ or work/mutants/, whose parent is the capture-host COPY —
+    # a different "root" with a different population, so the pin would measure the scratch, not the
+    # repo. Keyed on the directory NAME rather than a marker file: naming a root file here would stage
+    # it (root_reads takes literals), which is exactly the circularity this test must not create.
+    if here.name != "capture-host":
+        pytest.skip("population pin is about the real checkout's root; this is a scratch copy")
+    got = mutation_diff.root_reads(here)
+    assert "ecgdex-dsp.js" in got                                 # the read that broke writers.py's lane
+    assert not any(n.startswith(".") for n in got), got           # never a dotfile (`.git` is a FILE in a worktree)
+    assert got == ["Dex-Test-Suite.html", "README.md", "dex-badges.css", "ecgdex-dsp.js", "index.html",
+                   "pat-feasibility.js", "sensor-trio-power-analysis.js"], got

@@ -1,4 +1,4 @@
-**Status:** PROPOSED (**core BUILT — this brief is a GAP LIST over existing machinery, not a build; verified 2026-09-11 (Osprey) in the tree, not from the prose.** `capture-host/allan.py` exists and implements the overlapping estimators (`adev`/`mdev`/`tdev`/`hdev`/`gcov`/`mtie`), each returning its own `n` per tau, and `stability(phase, tau0, tdev_tau=None)` already returns the curve, the slope, the noise type and `optimal_tau`. `clock.js` forwards `stability` (4 sites) and `ppgdex-dsp.js` references `tau0` at 18 sites, so §2.1 — the permanent-`null` export it records as ✅ FIXED 2026-09-07 — is confirmed fixed rather than merely claimed. What remains is the brief's OWN named gaps 2.2–2.5 (gap/unequal-spacing segmentation with Sesia–Tavella deferred, provenance ON the `stability()` result, one human-readable line in the night report, and the tests §2.5 names), each a small unit against live code. No one should size any of this as "build the Allan machinery" — §1 exists precisely to stop that, and this header now says so where a reader looks first.) · 🔴 **§2.1's ✅ WAS CONFIRMED ON THE WRONG SURFACE — re-triaged 2026-09-14 (Kestrel).** This header calls §2.1 "confirmed fixed rather than merely claimed" on the evidence that `clock.js` forwards `stability` at 4 sites. But §2.1's own Done-when names the **PpgDex EXPORT path** — and that export emitted `recording.hostAxis` **not once**: `analyze` returned three scalars projected out of the axis and never the object, so `ppgBuildNodeExport`'s guard `r.hostAxis && r.hostAxis.ok` was unreachable. Written, gated, and covered by seven assertions that all passed by scanning SOURCE TEXT. Fixed 2026-09-13 in #2463; on a real Verity file the block now carries 138 anchors, ppm −0.909, `independent:false` and DexClock's refusal sentence. **So §2.1's Done-when test could not have been written before 2026-09-13** — the assertion target did not exist — and it is writable now. A forwarding site in `clock.js` is not the field arriving at the consumer; that is the distinction §2.1 turned on and the one the ✅ skipped. ⚠️ The residue `2026-09-07-hostaxis-stability-ntau-not-forwarded` STANDS and is now separable from this: with the block reachable, `stability` is present-and-**null** on the measured file, which is a forwarding gap rather than an emission gap. Next step unchanged in shape, cheaper in fact: write the §2.1 test against a surface that now exists. · **Created:** 2026-09-07 · 🔴 **tau_max MEASURED 2026-09-13 (Osprey) — §2.6: the item is MIS-SHAPED, not unexecuted.** `allan.py` stops at T/8 (>=4 INDEPENDENT spans), `clock.js` at ~T/2 (a count of OVERLAPPING terms). On the two longest contiguous segments of 2026-09-12 H10 ECG, every octave tau to **T/3.5** reproduces within 1.5x, so T/8 discards two octaves two disjoint hours agree on — but the cross-segment ratio is **tau-INDEPENDENT** (1.06-1.30, no trend), which measures how the two hours differ in noise LEVEL, not how the estimator degrades, so it cannot license T/2 either. **Do not unify these constants:** the supportable tau_max is a function of the noise type the curve reports, so one constant is the wrong shape. The discriminating experiment needs a tau^0/tau^+1 stream and **none exists in that night** — H10 ECG -0.379+-0.100 and ACC -0.400+-0.096 (classifier REFUSES both), Verity ACC -0.940 / PPG -0.971 (white/flicker-phase); the O2Ring is excluded by construction (§🔒.7, a drawn axis is not a clock). ⚠️ §2.2 gained one stream of Step 1 evidence on the way: that night carries **33 device-counter gaps of 44-74 s** against a 7.69 ms median — `max_gap/median ~ 9600` against the `<= 4` band, agreeing with #2461's independent -2522.8 s `tMsAt` error on the same night. · **Residue:** 2026-09-07-hostaxis-stability-ntau-not-forwarded
+**Status:** DONE — 2026-09-21 (Osprey — every §2 unit executed or filed: §2.1's file-path test written; §2.2 measured (holes material) and step 2a built; §2.3 provenance; §2.4 the clock line in the existing reporter; §2.5 J/A/(i)/(ii)/runtime; §2.6 filed as a residue row. Detail: §2.2 step 1 MEASURED on the box — **`max_gap ≤ 4× median` holds on only 22.8 % of the ECG/PPG arrival legs ≥ 1000 packets (H10 ecg median 97×, p95 405×); `ratio ≤ 1.05` on 70.7 %** — both pre-stated bands fail, holes are material; step 2a BUILT (holes cut and pooled, `pooled`/`segments`/`dropped_intervals` on every QC stability block); **§2.2's prediction that a compacted hole reads as τ⁺¹ drift is WRONG — a phase step is τ⁻¹ᐟ² energy, white FM's own slope; the LEVEL inflates (8× at 500σ), not the label — test F asserts level**; §2.3 provenance keys DONE; §2.5 J, A, the reverse-direction (i)/(ii) and the runtime number (0.80 s on vigil, 67 715 packets) DONE. Earlier header follows.) · PROPOSED (**core BUILT — this brief is a GAP LIST over existing machinery, not a build; verified 2026-09-11 (Osprey) in the tree, not from the prose.** `capture-host/allan.py` exists and implements the overlapping estimators (`adev`/`mdev`/`tdev`/`hdev`/`gcov`/`mtie`), each returning its own `n` per tau, and `stability(phase, tau0, tdev_tau=None)` already returns the curve, the slope, the noise type and `optimal_tau`. `clock.js` forwards `stability` (4 sites) and `ppgdex-dsp.js` references `tau0` at 18 sites, so §2.1 — the permanent-`null` export it records as ✅ FIXED 2026-09-07 — is confirmed fixed rather than merely claimed. What remains is the brief's OWN named gaps 2.2–2.5 (gap/unequal-spacing segmentation with Sesia–Tavella deferred, provenance ON the `stability()` result, one human-readable line in the night report, and the tests §2.5 names), each a small unit against live code. No one should size any of this as "build the Allan machinery" — §1 exists precisely to stop that, and this header now says so where a reader looks first.) · 🔴 **§2.1's ✅ WAS CONFIRMED ON THE WRONG SURFACE — re-triaged 2026-09-14 (Kestrel).** This header calls §2.1 "confirmed fixed rather than merely claimed" on the evidence that `clock.js` forwards `stability` at 4 sites. But §2.1's own Done-when names the **PpgDex EXPORT path** — and that export emitted `recording.hostAxis` **not once**: `analyze` returned three scalars projected out of the axis and never the object, so `ppgBuildNodeExport`'s guard `r.hostAxis && r.hostAxis.ok` was unreachable. Written, gated, and covered by seven assertions that all passed by scanning SOURCE TEXT. Fixed 2026-09-13 in #2463; on a real Verity file the block now carries 138 anchors, ppm −0.909, `independent:false` and DexClock's refusal sentence. **So §2.1's Done-when test could not have been written before 2026-09-13** — the assertion target did not exist — and it is writable now. A forwarding site in `clock.js` is not the field arriving at the consumer; that is the distinction §2.1 turned on and the one the ✅ skipped. ⚠️ The residue `2026-09-07-hostaxis-stability-ntau-not-forwarded` STANDS and is now separable from this: with the block reachable, `stability` is present-and-**null** on the measured file, which is a forwarding gap rather than an emission gap. Next step unchanged in shape, cheaper in fact: write the §2.1 test against a surface that now exists. · **Created:** 2026-09-07 · 🔴 **tau_max MEASURED 2026-09-13 (Osprey) — §2.6: the item is MIS-SHAPED, not unexecuted.** `allan.py` stops at T/8 (>=4 INDEPENDENT spans), `clock.js` at ~T/2 (a count of OVERLAPPING terms). On the two longest contiguous segments of 2026-09-12 H10 ECG, every octave tau to **T/3.5** reproduces within 1.5x, so T/8 discards two octaves two disjoint hours agree on — but the cross-segment ratio is **tau-INDEPENDENT** (1.06-1.30, no trend), which measures how the two hours differ in noise LEVEL, not how the estimator degrades, so it cannot license T/2 either. **Do not unify these constants:** the supportable tau_max is a function of the noise type the curve reports, so one constant is the wrong shape. The discriminating experiment needs a tau^0/tau^+1 stream and **none exists in that night** — H10 ECG -0.379+-0.100 and ACC -0.400+-0.096 (classifier REFUSES both), Verity ACC -0.940 / PPG -0.971 (white/flicker-phase); the O2Ring is excluded by construction (§🔒.7, a drawn axis is not a clock). ⚠️ §2.2 gained one stream of Step 1 evidence on the way: that night carries **33 device-counter gaps of 44-74 s** against a 7.69 ms median — `max_gap/median ~ 9600` against the `<= 4` band, agreeing with #2461's independent -2522.8 s `tMsAt` error on the same night. · **Residue:** 2026-09-07-hostaxis-stability-ntau-not-forwarded, 2026-09-21-adev-curve-not-exported-by-either-node · **DRAIN 2026-09-19 (Osprey): header STILL TRUE. Surface checked (no `Affects:` field — derived from the paths the brief names): `capture-host/allan.py` + `capture-host/tests/test_allan.py` — **0 landings since 2026-09-14**. Gaps §2.2–2.5 are untouched and the sizing warning stands. ⚠️ A wider surface (`clock.js`, `ppgdex-dsp.js`) shows 6 landings, but those are high-traffic files shared with unrelated work and NONE touches the Allan machinery — the wide count is surface noise, not evidence.**
 
 # Allan stability — the gaps that remain after eight PRs (and the ones that were never gaps)
 
@@ -42,6 +42,15 @@ reopen either.
 ## §2 Units — what is missing and worth building
 
 ### 2.1 ✅ FIXED 2026-09-07 — PpgDex exported `hostAxis.stability.tau0` and `.noiseType` as permanent `null`
+
+> ✅ **THE DONE-WHEN TEST NOW EXISTS ON THE SURFACE IT NAMES — 2026-09-21 (Osprey).** Kestrel's 2026-09-14
+> re-triage: the existing group drove `buildNodeExport` with a hand-built axis, while `analyze` never
+> returned the axis object, so the export path was unreachable from a file until #2463. New group
+> `PpgDex: from a two-clock FILE to an exported stability block — the path §2.1 actually names`: a 24 000-row
+> two-clock PPG text (30 ppm rate, ±40 ms host jitter, 48 anchors) through `compute({text}, {rich:true})`
+> to `recording.hostAxis.stability` — `independent: true`, `tau0` 3.70 s, `noiseType` white/flicker-phase,
+> `nTau` 5, never null-and-null. ⚠️ `rich: true` is load-bearing: the LIGHT export omits the whole
+> `hostAxis` block by design, and only the orchestrate emitter passes it.
 
 **EXECUTED (Brief runner).** Source keys corrected to `tau0Sec` / `noise`; the exported NAMES `tau0` and
 `noiseType` are kept, so consumers already reading them are unaffected. Verified both ways against the real
@@ -125,6 +134,38 @@ prerequisite is now cheap: #1429 publishes `tau0_uniformity = {ratio, median, ma
   τ₀ series must report its `ratio` and the curve must not move by more than the SE band.
 - Changeset: `patch` (QC-SUMMARY gains fields; nothing existing changes meaning).
 
+✅ **STEP 1 MEASURED 2026-09-21 (Osprey), read-only over every `QC-SUMMARY.json` on vigil — 34 nights,
+1924 streams, 1272 Polar (the O2Ring excluded: a drawn axis is not a clock).** Against the bands above:
+
+| population | `ratio ≤ 1.05` | `max_gap ≤ 4` | max_gap median / p95 |
+|---|---|---|---|
+| all Polar streams (1272) | 84.6 % | 80.6 % | 1.4 / 172 |
+| ECG + PPG legs ≥ 1000 packets (123) | 70.7 % | **22.8 %** | — / 409 |
+| H10 ecg (65) | 65 % | 22 % | **96.8** / 405 |
+| Verity ppg (484, median 316 packets) | 80 % | 94 % | 1.5 / 47 |
+
+**Both bands fail; holes are MATERIAL on the legs the arrival lane actually uses** (an H10 ecg stream's
+largest interval is typically ~97× its median, i.e. a ~50 s stall at 0.55 s cadence). The `ratio` failure is
+driven by the same holes (mean/median inflates with every gap), so **step 2b is NOT triggered by this
+measurement** — re-measure `ratio` WITHIN segments after 2a before spending Sesia–Tavella on it.
+
+✅ **STEP 2a BUILT 2026-09-21, same PR** — `allan.segments_by_gap(sample_times, k)` + `allan.adev_pooled(...)`
+(n-weighted mean of σ² per τ across the contiguous runs; a τ no run supports is absent), and `stability()`
+takes `sample_times=` / `gap_k=` (LAST and optional; without them the curve is the compacted one it always
+was, and `pooled: False` says so). `nightqc.arrival_quality` passes the host instants, so every per-stream
+`stability` block now carries `segments`, `dropped_intervals`, `pooled`. Pinned at both levels.
+
+🔴 **TEST F IS CORRECTED, BECAUSE ITS PREMISE WAS WRONG AND THE PROBE SAID SO BEFORE THE TEST WAS WRITTEN.**
+This section predicts a compacted hole reads as τ^+1 ("drift"). Planted and measured: a phase step of
+500σ across a 50-sample hole leaves the classifier at white-FM on BOTH the compacted and the pooled curve,
+slope −0.49 vs −0.51 — because a single step's second-difference energy falls as **τ^-1/2, the same slope
+as white FM**. What the step does is inflate the **LEVEL, at every τ, by its own size**: ADEV(τ₀)
+compacted 0.00796 against a no-hole truth of 0.00101 (8×), pooled 0.00101 (= truth). So the honest F
+asserts level, not label — compacted ≫ truth, pooled ≈ truth within 2 %, both white-FM — plus a no-hole
+decoy on which pooling must be the identity, and the pooled curve losing the τ no segment can support. A
+test written to the prediction would have asserted a misclassification the estimator cannot produce and
+failed forever, or been tuned until it "passed". Test H (spacing/ratio) belongs with 2b and is not built.
+
 ### 2.3 Provenance on `stability()` — the result does not say what it was computed from
 
 `allan.stability` returns `{ok, taus, tau_min, tau_max, adev_min, optimal_tau, at_longest,
@@ -136,6 +177,14 @@ forbids, one level up. Add, additively: `tau0`, `n` (samples after `_clean`), `s
 when any estimator changes). Series identity (`device`, `meas`) stays at the `nightqc` level where it
 already is. Done when `test_allan.py` asserts the keys on a seeded fixture and a QC-SUMMARY produced
 from a fixture night carries them. Changeset: `patch`. Lands with §2.5's Python tests as one PR.
+✅ **DONE 2026-09-21 (Osprey), in the §2.5 PR as prescribed.** `stability()` now carries `tau0`, `n`,
+`span_s`, `estimator: "overlapping-adev"`, `min_terms`, `span_multiple`, `version` (`STABILITY_VERSION`,
+a module constant). Pinned at both levels: `test_stability_carries_its_own_provenance_…` on the seeded
+series and `test_stability_provenance_reaches_the_qc_record` on a planted `*_PMDARRIVAL.csv` night through
+`nightqc.arrival_quality`. ⚠️ Writing the second test exposed that `test_the_budget_reaches_the_per_stream_record`
+had been passing OVER ZERO ROWS since it was written — it planted an `_ECG.csv`, `arrival_quality` lists
+only `*_PMDARRIVAL.csv`, and `all()` over `[]` is true. It now plants a real arrival file and asserts a row
+exists before asserting what it carries. §2.4 (the report line) is the night-report unit's, untouched.
 
 ### 2.4 One human-readable line — in the night report, not a new consumer
 
@@ -146,29 +195,68 @@ line belongs there, not in the one-line webhook digest. Format, per stream:
 `clock <dev>/<meas>: <noise|refused(<candidates>)> · σ_y(τ_opt=<τ> s)=<x> ppm · n=<n> · max_gap=<g>×median`.
 Done when the line appears in the report file for a night whose QC-SUMMARY carries `stability`; the
 ntfy line is untouched. **Owned by the night-report unit — do not build a second reporter.**
+✅ **DONE 2026-09-21 (Osprey) — in the EXISTING reporter, `capture-host/night_report.py`, not a second one.**
+`clock_lines(summary)` emits one line per arrival stream carrying a stability verdict, in exactly the
+format above, into the report FILE (`render`) and never into `line`; a field the record does not carry
+reads `unknown`. σ_y = `adev_min` × 1000 (phase in ms over τ in s → ppm). Three tests, incl. the
+refused-with-candidates shape and junk rows. Lands on the box with the next capture-host deploy
+(owner-authorised); the deployed `allan.py` predates `n`, so that field reads `unknown` until then.
 
 ### 2.5 Tests the prompt is right about, and one direction nobody pinned
 
-- **J — determinism:** `stability(x, τ₀)` called twice, and on a copy of `x`, is `==`; no test does this.
-- **A — degenerate input:** a long all-equal series. Today `slope` drops zero-ADEV points via
+- ✅ **J — determinism:** `stability(x, τ₀)` called twice, and on a copy of `x`, is `==`; no test does this.
+  **DONE 2026-09-21 (Osprey)** — `test_J_stability_is_deterministic_and_does_not_read_its_input_by_identity`,
+  with `tdev_tau` set so the TDEV leg is inside the comparison. It passed first time: the property held,
+  it was just unpinned.
+- ✅ **A — degenerate input:** a long all-equal series. Today `slope` drops zero-ADEV points via
   `p.get(key, 0) > 0` (`allan.py:461`), so the honest series falls through to `too-few-taus` — a refusal
   reason that is *wrong* about why. Pre-decided outcome: `ok: True`, every `adev == 0`, `classification.noise
   is None` with `meaning: "no measurable instability"`. Pin that.
+  **DONE 2026-09-21 (Osprey) — with one correction to the sentence above, measured before changing anything:**
+  a constant series did NOT fall through to `too-few-taus` (`adev` returns 8 τ points of exactly 0, so
+  `len(pts) ≥ 3` passes); it returned `ok: True` with **`classification: None`** — the shape of "the slope
+  fit could not be made", which was the wrong-about-why part. `stability()` now emits the pre-decided
+  record for the all-zero curve (`noise: None`, `candidates: None`, `slope: None`, `n_tau`, and the
+  `meaning` string), pinned by `test_A_…` with a structured-series decoy that must NOT take the branch.
+  ⚠️ Observed, not changed: on the same flat series `lag1_noise` still reports `white-phase` (α = 2, ρ = 0
+  over zero differences) — an identification from no variance. Left as it is because §2.5 A pre-decided
+  `classification` only; noted so the next reader does not discover it as new. The JS twin
+  (`clock.js` `stability`) returns `null` for an all-zero curve — reached only through an axis
+  `independent` already refused — so no parity change is owed.
 - **Reverse-direction independence (prompt Phase 16):** `dex-tests.js:9327-9387` (`pat-align · regression`) pins clock → PAT
   (a bad clock refuses PAT). Nothing pins PAT ↛ clock. Two cheap legs: (i) run the ECGDex/PpgDex compute
   twice with different PAT options and `deepEqual` the two `recording.hostAxis` blocks; (ii) a source
   scan that `pat-gate.js` and `pat-*.js` never assign into `hostAxis`, `stability`, `independent` or
   `timingSource`. Node lane; no changeset.
+  ✅ **(ii) DONE 2026-09-21 (Osprey)** — group `PAT never writes the clock — the reverse of the pinned
+  direction` (`clock · pat · source-scan`): all four `pat-*.js` scanned from `env.sources` for a property
+  assignment into `hostAxis`/`stability`/`independent`/`timingSource`/`deviceDrawn` (compound assignments
+  included, comparisons and forwarding keys excluded), with two plants the regex must catch and three
+  decoys it must not, and an assertion that all four files were examined. 10/10.
+  ✅ **(i) CLOSED BY CONSTRUCTION 2026-09-21** — it cannot be run as written, and the reason is the
+  answer: **no PAT option enters either compute.** `ECGDex.compute(input, opts)` reads
+  `opts.offsetMin` / `opts.source`; `PpgDex.compute` reads `opts.fname` / `opts.runsText` / `opts.source` /
+  `opts.timebase` (every `opts.` reference from each `compute` onward, grepped). PAT is computed
+  DOWNSTREAM of both exports, in `pat-align.js` / the worker, from what the nodes already published, so
+  "compute twice with different PAT options" has no second run to compare. The direction PAT ↛ clock is
+  structural; (ii) is the test that guards it against someone adding the option.
 - **Runtime (Phase 17):** one number, measured on the box: `allan.stability` on the longest real
   arrival series of a night (H10 ECG packets ≈ 2·10⁵/night). Pre-stated band: ≤ 60 s on vigil is fine
   for an end-of-night job; above it, decimate the *phase* series (not the τ ladder) and record the
   bias. Record the number in this brief's header.
+  ✅ **MEASURED 2026-09-21 (Osprey) — 0.80 s on vigil**, `/opt/tepna/capture-host/allan.py` as deployed,
+  on the largest H10 ECG arrival series of September (`2026-09-12`, **67 715 packets**, τ₀ 0.599 s,
+  `tdev_tau` 1453.2); **0.3 s on the rig** for the same series, compacted and pooled alike (the pooled
+  path found **130 segments** on that night). Two orders of magnitude inside the band; no decimation
+  owed. ⚠️ The "≈ 2·10⁵ packets/night" premise was an over-estimate for the ECG leg alone — the file
+  holds 276 k rows across all `meas` types; ECG is 67.7 k of them.
 
 ### 2.6 Residue (not built here)
 
 - Neither node exports the ADEV **curve** — only scalars (`ppgdex-dsp.js:5215`, `ecgdex-dsp.js:5263`).
   The prompt is right that the curve carries more than `optimal_tau`; an export-shape change on two
   nodes, owed a consumer first. → `briefs/RESIDUE.md` row on pickup.
+  ✅ Filed 2026-09-21: `2026-09-21-adev-curve-not-exported-by-either-node` (OPEN).
 
 ## §2.6 — tau_max: MEASURED 2026-09-13 (Osprey), and the item is MIS-SHAPED, not unexecuted
 

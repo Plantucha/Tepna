@@ -1,5 +1,10 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-**Status:** CHECKPOINT (living — last-verified **2026-09-15**) · **Created:** 2026-09-03 · **Owner rulings 2026-09-15 (Kestrel, one batch):** **D2 AUTHORIZED** — the named set of four, PLUS a new rail-keyed sidecar rule in `capture-host/writers.py` (floor 5, alongside `rule=stuck` at 200); authorization does NOT generalise to other box touches. **D4 — all three DECLINED**, closed as negatives, not deferrals. **D5 — all three RATIFIED.** **D8 — YES**, build the two-channel dual-wavelength ingest. ⚠️ **D6 WAS ALREADY DECIDED ON 2026-09-07 (option C) and this file still listed it as open** — the queue was `last-verified 2026-09-03` while the ruling landed four days later, so it manufactured a re-ask. **Still open: D3 and D7.**
+**Status:** CHECKPOINT (living — last-verified **2026-09-17**) · **Created:** 2026-09-03 · **Owner rulings 2026-09-15 (Kestrel, one batch):** **D2 AUTHORIZED** — the named set of four, PLUS a new rail-keyed sidecar rule in `capture-host/writers.py` (floor 5, alongside `rule=stuck` at 200); authorization does NOT generalise to other box touches. **D4 — all three DECLINED**, closed as negatives, not deferrals. **D5 — all three RATIFIED.** **D8 — YES**, build the two-channel dual-wavelength ingest. ⚠️ **D6 WAS ALREADY DECIDED ON 2026-09-07 (option C) and this file still listed it as open** — the queue was `last-verified 2026-09-03` while the ruling landed four days later, so it manufactured a re-ask. **Still open: D3 and D7** — and as of **2026-09-17** BOTH have moved: **D3 is ONE call** (re-verified,
+below), and **D7 is RULED — derive the mechanism first**, which converts it from a pending decision
+into an analysis unit with no owner. **D6-adjacent note:** `BLE-TRANSPORT-REDESIGN` §1.1 was also ruled
+on 2026-09-17 (**BUILD**, promoted to `GATT-HANDLE-MAP-2026-09-17-BRIEF.md`), and the fleet-wide
+refuse-vs-annotate question was ruled the same day and recorded in `CLAUDE.md` §∅ rather than here,
+because it is doctrine and not a queue item. ⚠️ **AND D3 IS NOT FOUR BRIEFS — RE-VERIFIED 2026-09-17 (Kestrel), brief by brief: two of its four were ANSWERED on 2026-09-06, nine days before the 2026-09-15 restamp, which did not re-read them.** `PPGDEX-ALGORITHM-DEEP-DIVE` was answered directly (*"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved"*) and is an engineering programme now, not a decision; `AUDIT-FOLLOWUPS` §4.4 was ratified the same day and its header reads **`Owner: none`**. What is actually left is **ONE genuinely parked call** — `R5-HR-TRIPLET-FOLLOWUPS` §3's `hrStatMixed` semantics — plus `DEEP-AUDIT-V-FOLLOWUPS` §1's three tiering POLICY calls, which that brief itself marks **no longer urgent** because `no-fabricated-tier` now runs at `KNOWN_UNREGISTERED = 0` (the 94-label backlog was discharged 2026-08-16 with 65 tiers owner-ratified). **This is the SECOND time this file has listed an answered question as open** — D6 was the first, and is recorded above. The cause is the same both times and is worth naming: this queue's per-item state is DERIVED from brief headers, so a restamp that re-reads only the queue re-verifies nothing. A restamp must re-read the briefs.
 
 # The owner decision queue — 8 calls that unblock ~44 briefs
 
@@ -102,11 +107,16 @@ no peer relay changes that boundary, so these cannot be self-served however smal
 `CAPTURE-HOST-FOLLOWUPS-II` (`deploy/enable-clock-control.sh`) · `DEVICE-RATE-TRUTH` ·
 `RADIO-FAILOVER-DISTRESS-SIGNAL` (the config key) · `OXYII-ACQUISITION-CHARTER`
 
-### D3 · Metric-identity / evidence-tier rulings — **4**
+### D3 · Metric-identity / evidence-tier rulings — ~~**4**~~ **1 parked + 1 non-urgent** (re-verified 2026-09-17)
 
-`R5-HR-TRIPLET-FOLLOWUPS` (`median`→`mean` moves a **published field**; needs a ruling on
-`hrStatMixed` semantics) · `PPGDEX-ALGORITHM-DEEP-DIVE` (its eight open items are **one** question) ·
-`DEEP-AUDIT-V-FOLLOWUPS` · `AUDIT-FOLLOWUPS`
+| brief | re-verified 2026-09-17 |
+|---|---|
+| `R5-HR-TRIPLET-FOLLOWUPS` | 🔴 **GENUINELY PARKED — this is the whole of D3.** §3's `median`→`mean` moves a **published field** and needs a ruling on `hrStatMixed` semantics. ⚠️ Its header flags the read as *per Heron's, not independently re-verified* — so the ruling should be asked with that caveat, not presented as settled analysis. |
+| `PPGDEX-ALGORITHM-DEEP-DIVE` | ✅ **ANSWERED 2026-09-06** — *"YES, PpgDex's exported values MAY move, and all eight open punch-list items are approved to land in the sequenced order."* The eight items were one question and it was put and answered; the brief is now an engineering programme (every PPG fixture moves, `regen-ppgdex-goldens.mjs` + a `verify-fixtures` lap per landing). **Not a decision. Do not re-ask.** |
+| `DEEP-AUDIT-V-FOLLOWUPS` | 🟡 **OPEN but NOT URGENT, by its own measurement.** §1's three evidence-tiering POLICY calls remain, but the debt they governed is gone: `no-fabricated-tier` runs at `KNOWN_UNREGISTERED = 0` (tests/dex-tests.js), the 94-label backlog having been discharged 2026-08-16 — 24 captions re-scoped to per-series, 5 denied as non-measurements, **65 tiers owner-ratified**. F8's NSRR DUA is data access, not a tiering judgement, and belongs with D1-class asks. |
+| `AUDIT-FOLLOWUPS` | ✅ **RATIFIED 2026-09-06** — all ten fusion `FINDING_EVIDENCE` grades accepted as they stand; header reads **`Owner: none`**. What remains there is data/tooling-gated or cosmetic-by-design, not an owner call. **Do not re-ask.** |
+
+**So the ask to put to the owner is ONE question, not four**, and bundling it with three resolved briefs is what makes a queue read as expensive when it is cheap.
 
 ### D4 · Purchases — **3** (a "no" closes them as negatives, which is why they are cheap)
 
@@ -121,6 +131,8 @@ confirmed no ResMed oximeter module exists — a purchase, not a cable) · `CROS
 
 > ✅ **ALL THREE RATIFIED 2026-09-15.** Ratifying `SPORT-CAPTURE-ANDROID` implies deciding who acquires
 > an Android toolchain — no fleet session owns one.
+>
+> ⚠️ **AND THE RATIFICATION DID NOT REACH THE BRIEFS — stamped into `MEASUREMENT-PROVENANCE-ROADMAP` on 2026-09-17 (Kestrel), two days late.** That file carried ZERO mentions of D5 while its own header read *"the owner has not scheduled it"*, so a greenlit programme read as owner-blocked to every session, including during an architecture review that was looking for exactly this work. **This is the THIRD instance in this file** — D6 (twelve days), D3 (nine days), D5 (two days) — and the three together are the evidence for a mechanism: a decision this queue marks RULED must be back-referenced by every brief it names, which is the same bidirectional resolution `docs-ledger` check 8 already enforces for residue keys. Ratifying a programme is not delivering the ruling; the brief is where the reader is.
 
 `QWEN-ENGINEERING-PROGRAM` (awaiting ratification; only the P0 idle-lane DSP review runs without it) ·
 `SPORT-CAPTURE-ANDROID` (no fleet session owns an Android toolchain) · `MEASUREMENT-PROVENANCE-ROADMAP`
@@ -150,6 +162,98 @@ confirmed no ResMed oximeter module exists — a purchase, not a cable) · `CROS
 >
 > ⚠️ **WHY** the fused weighting conditions worse was not derived, only the association measured.
 > Residue `2026-09-16-tch-degeneracy-is-estimator-not-data`.
+>
+> 🔬 **DERIVED 2026-09-18 (Kestrel) — THE MECHANISM IS A MEASURE MISMATCH, AND IT IS STRUCTURAL.**
+> The fused variant feeds three variances computed under THREE DIFFERENT PROBABILITY MEASURES into an
+> identity that requires ONE. `analysis-stats.js tchSigmasFused` builds a separate weight vector per
+> pair — `wHV = t·h·v`, `wHO = t·h·o`, `wVO = t·v·o` — and hands each to `_wvar`, which is a weighted
+> variance (`mu = Σwd/Σw`, then `s/Σw`), i.e. a variance under ITS OWN measure. Those three go straight
+> into `threeCorneredHat(vAB, vAC, vBC) = ½(vAB + vAC − vBC)`, whose derivation is
+> `Var(x_i − x_j) = σ²_i + σ²_j` — an identity that holds for variances over ONE COMMON measure. Under
+> three measures its premise is simply absent, so `a` can go negative **from the weighting alone, with
+> nothing wrong in the data**.
+>
+> With all `c = 1` the three weights collapse to the same vector `t`, the premise is restored, and
+> negativity-from-weighting cannot arise. **That is why unweighted scores 0 — structurally, not by
+> luck** — which is the part an association could never tell you, and which makes 0/64 (now 0/68) the
+> EXPECTED value rather than a fortunate one.
+>
+> It also accounts for both refuted candidates without needing them: neither clock alignment nor an
+> epoch artifact touches a measure mismatch, so neither could have predicted the degeneracy. And it
+> explains the finding that a degenerate night is NOT a bad night — degeneracy tracks how far the
+> per-corner confidences DIVERGE, a property of the estimator's inputs rather than of the recording.
+>
+> 📊 **PREDICTION TESTED 2026-09-18 — PARTIALLY CONFIRMED, AND THE SHORTFALL IS THE USEFUL PART.**
+> Measured over the 65 nights carrying all three exports (9 degenerate, 56 clean), with the direction
+> pre-stated before the run:
+>
+> | | result |
+> |---|---|
+> | median confidence-spread, degenerate vs clean | 0.0459 vs 0.0340, difference **+0.0119**, permutation **p = 0.029** one-sided |
+> | degenerate spread range | 0.0171–0.0857 — **entirely contained within** clean's 0.0087–0.1357 |
+> | degenerate nights below the CLEAN median | **3 of 9** |
+> | corners carrying a `conf` array | **exactly 2 of 3 on every night in the corpus** |
+>
+> **The structural half STANDS and was never statistical.** Unweighted collapses the three weights to
+> one vector, restoring the identity's premise, so its 0/68 is algebraic. Nothing above bears on it.
+>
+> **The magnitude half is SUPPORTED BUT INSUFFICIENT, and that is a result rather than a shortfall in
+> the test.** The direction holds at p = 0.029, yet spread does not SEPARATE the populations: the
+> highest-spread night in the corpus is clean, and a third of degenerate nights sit below the clean
+> median. So the mismatch explains why negativity is POSSIBLE at all — it does not predict WHICH
+> nights go over.
+>
+> ⚠️ **And the presence measure is flat, which kills the cleanest version of the test:** every night
+> has exactly TWO corners with a `conf` array and one without, so the third corner's `c` is 1
+> throughout and the measure mismatch is UNIVERSAL in this corpus. Mismatch-vs-no-mismatch therefore
+> cannot be compared here at all; only its magnitude can, and magnitude is what came back weak.
+>
+> **Reading: degeneracy needs the mismatch AND something else** — and as of 2026-09-18 **TWO
+> candidates for that something else are REFUTED**, so what explains INCIDENCE is now an open question
+> with three dead ends rather than an untested guess.
+>
+> | candidate for incidence | degenerate | clean | p (one-sided) | verdict |
+> |---|---|---|---|---|
+> | confidence spread (pre-stated) | 0.0459 | 0.0340 | 0.029 | supported, **does not separate** |
+> | short records — median min-epochs (pre-stated) | 85 | 83 | **0.737** | **REFUTED**, wrong direction |
+> | corner-length imbalance `nMax/nMin` (⚠️ POST-HOC) | 1.022 | 1.044 | **0.757** | **REFUTED**, wrong direction |
+>
+> **The short-record route is dead and it was the leading candidate.** Degenerate nights are if
+> anything slightly LONGER, and they are LESS likely to sit in the 48–96 band the code comment names
+> (5/9 against 42/56). So the comment's short-record hazard is real for the FUSION weights and is not
+> what drives the hat to the boundary.
+>
+> ⚠️ **The third row is POST-HOC and is labelled so because it would otherwise read as a finding.** I
+> chose `nMax/nMin` after noticing two degenerate nights with very unequal corner lengths (14/93 and
+> 36/76). Tested rather than narrated, it fails: those two outliers do not carry the population and
+> **6 of 9 degenerate nights sit BELOW the clean median**. Picking a measure after seeing the data is
+> how a finding gets manufactured; the discipline is to test it and report the failure, not to tell
+> the story the two nights suggested.
+>
+> **So: the mechanism explains POSSIBILITY and nothing yet explains INCIDENCE.** The structural claim
+> is untouched by all of this — it is algebraic, not statistical. What remains unexplained is narrow
+> and well-posed: given that the mismatch is universal in this corpus, which nights it tips over is
+> still unknown, and the obvious remaining reading is simple boundary proximity (a true σ-triple close
+> enough to the non-negativity boundary that any perturbation crosses it), which is close to tautology
+> and would need a different instrument to test.
+>
+> ⚠️ **A HYPOTHESIS I HELD AND THE CODE REFUTED**, recorded so nobody re-derives it: I first supposed a
+> feedback loop — weights from `inverseVarianceWeights(sigma2)` re-entering the solve. They do not.
+> That call sits AFTER the solve and its result is only returned, for the reconciled value. The
+> neighbouring comment is still worth reading: it records that sampling noise at short records
+> (~48–96 epochs) can drive one σ²→0, and floors it for the FUSION weights while the hat's own solve
+> stays unfloored. The 2026-09-17 night sits in exactly that range — n=74, σ[OxyDex] 0.07 against a
+> corpus median of 1.01 — so short-record noise is plausibly a SECOND, independent route to the
+> boundary, distinct from the measure mismatch and NOT established here.
+>
+> 🟢 **RULED 2026-09-17 — DERIVE THE MECHANISM BEFORE RULING.** The owner declined to pick an
+> estimator on the association alone. So D7 is no longer a decision awaiting an answer, it is an
+> ANALYSIS UNIT awaiting an owner: derive why the fused weighting conditions worse, then the choice
+> follows from the derivation instead of from a count. The reasoning to carry: adopting an estimator
+> because it fails less often, without knowing why the other fails, is the kind of choice that ages
+> badly in a paper — and both refuted explanations (clock alignment, epoch artifact) were exactly the
+> intuitive ones, so the remaining mechanism is not going to be guessed. The 12/64-vs-0/64 measurement
+> stands and does not need repeating.
 
 `TCH-FUSED-ROBUST-HAT` · `TRIO-POWER-N15-FINDINGS` — the new-generation fused triple
 (σ 2.87/1.18/0.68, ρ\* 0.576) is with the owner as a planted-sigma check.

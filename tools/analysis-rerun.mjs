@@ -92,6 +92,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { cpus } from 'node:os';
+import { launch } from './pw-launch.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CKPT = join(ROOT, '.cache', 'analysis-rerun-checkpoint.json');
@@ -138,7 +139,9 @@ export const TOOLS = [
     page: 'treatment-response-analysis.html',
     resultGlobal: 'TREATMENT_RESPONSE',
     paper: 'treatment-response.html',
-    inputs: { nSubj: 900 },
+    /* ⚠️ minN:10 is the PAPER's stated filter (>=10 nights); the page defaults to 6. A run at the
+       default is not this paper's configuration, and the difference changes who qualifies. */
+    inputs: { nSubj: 900, minN: 10 },
     pageDefault: { nSubj: 45 },
     figures: null,
     expect: 'CHANGE — severity-dependent'
@@ -314,7 +317,7 @@ async function main(argv) {
   todo = RESUME ? pending(todo, ck, PAPER_SCALE) : todo;
   if (skipped) console.log('  resume    ' + skipped + ' tool(s) already in the checkpoint — not re-run');
 
-  const browser = await chromium.launch({
+  const browser = await launch(chromium, {
     executablePath: process.env.CHROME_BIN || '/usr/bin/google-chrome',
     args: ['--allow-file-access-from-files']
   });

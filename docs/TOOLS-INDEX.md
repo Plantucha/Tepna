@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**191 tools** · 189 with a purpose line · **2 without**
+**199 tools** · 197 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -42,6 +42,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`closure-tol-hac.mjs`](../tools/closure-tol-hac.mjs) | derive the 3-source clock-closure tolerance from the legs' own PRECISION instead of their MAGNITUDE. |
 | [`cohort-fit.mjs`](../tools/cohort-fit.mjs) | `cohort-gen.js` samples synthetic patients; the SHHS1 corpus holds 5136 scored real ones. |
 | [`commit-shape.mjs`](../tools/commit-shape.mjs) | the AGENT-NEUTRAL half of the shared-tree guards. WHY THIS EXISTS. |
+| [`corpus-tier.mjs`](../tools/corpus-tier.mjs) | KEEP THE LAST 30 NIGHTS LOCAL; EVERYTHING OLDER BECOMES A SYMLINK INTO THE NAS. |
 | [`cpap-corpus.mjs`](../tools/cpap-corpus.mjs) | drive a WHOLE ResMed SD card through the REAL CPAPDex. Walks a day-foldered SD-card tree, groups each night's EDF files into session sets, and runs the real headless surface —… |
 | [`cpap-oxy-couple.mjs`](../tools/cpap-oxy-couple.mjs) | cross-node event↔event coupling with a SHUFFLED NULL. Folds O2Ring (OxyDex) into a CPAP corpus and asks the question the Integrator cannot currently ask: is a co-occurrence between two… |
 | [`cpap-sa2-agreement.mjs`](../tools/cpap-sa2-agreement.mjs) | the CPAP's wired SpO₂ against the ring's WHY — CPAP-SA2-OXIMETRY-SOURCE-2026-08-01-BRIEF. |
@@ -94,8 +95,10 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`mutation-suite.mjs`](../tools/mutation-suite.mjs) | THIS TOOL REUSES; IT DOES NOT REPLACE. `mutate.mjs` (2032 lines) already does the hard part — mutant generation, the worker pool, the journal, `--resume` with jammed-mutant quarantine, the… |
 | [`mutation-worklist.mjs`](../tools/mutation-worklist.mjs) | The target is 99 % OF DISTINGUISHABLE (owner-ratified 2026-08-11, raised from 90 %). |
 | [`nearest-advocate.mjs`](../tools/nearest-advocate.mjs) | EVENT-BASED time-shift estimation, for the case where cross-correlation is known to fail. |
+| [`new-changeset.mjs`](../tools/new-changeset.mjs) | write a changeset whose `brief:` RESOLVES, at write time. WHY THIS EXISTS. |
 | [`nsrr-aai-validate.mjs`](../tools/nsrr-aai-validate.mjs) | `aai` is user-visible and graded `heuristic`, and its own registry citation says why: "internal. |
 | [`nsrr-ahiest-validate.mjs`](../tools/nsrr-ahiest-validate.mjs) | `computeAHIestimates` (oxydex-dsp.js) produces TWO estimates of the same quantity: |
+| [`nsrr-coupling-bout-fpr.mjs`](../tools/nsrr-coupling-bout-fpr.mjs) | Measures, on SHHS1, the false-positive rate of `event-coupling.js`'s circular-shift null when two INDEPENDENT streams share a real OSA night's bout-scale rate profile — as a curve in the… |
 | [`nsrr-criterion-sweep.mjs`](../tools/nsrr-criterion-sweep.mjs) | `tools/nsrr-oxydex-odi.mjs` scores the SHIPPED detector against expert scoring at a fixed criterion. |
 | [`nsrr-effort-typing.mjs`](../tools/nsrr-effort-typing.mjs) | WHY THIS EXISTS our chest accelerometer, central apneas below half baseline.... |
 | [`nsrr-oxstat-validate.mjs`](../tools/nsrr-oxstat-validate.mjs) | §∅ says a value that was not measured is null, and — for the case where the sentinel is IN BAND — that "a consumer cannot null what it cannot distinguish", so "validity must travel… |
@@ -108,6 +111,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`o2ring-finger-validate-batch.mjs`](../tools/o2ring-finger-validate-batch.mjs) | // Batch real-data validation of the O2Ring finger-site round-trip (PPGDEX-O2RING-FINGER-SITE §6). |
 | [`o2ring-frame-cadence.mjs`](../tools/o2ring-frame-cadence.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ IS THE O2RING'S ~1 Hz CADENCE A FIRMWARE CLOCK OR HOST BLE FRAMING? |
 | [`o2ring-step-imbalance.mjs`](../tools/o2ring-step-imbalance.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS §2 — does the step imbalance track the POLL INTERVAL? |
+| [`oracle-ecg-firmware-rr.mjs`](../tools/oracle-ecg-firmware-rr.mjs) | Runs MEASUREMENT-PROVENANCE-ROADMAP §5's first target over the real corpus: every H10 night that carries both `_ECG.txt` and `_RR.txt` is scored as ECGDex's own R-peak train… |
 | [`oxy-hr-bias.mjs`](../tools/oxy-hr-bias.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ R5-HR-TRIPLET-REFERENCE §5 — "Investigate OxyDex's −0.36 bpm bias." |
 | [`oxydex-export-staleness.mjs`](../tools/oxydex-export-staleness.mjs) | re-run OxyDex on each export's OWN named source file and report which exports no longer reproduce. |
 | [`pat-axis-leg-audit.mjs`](../tools/pat-axis-leg-audit.mjs) | PAT-ROOT-CAUSE-FORENSICS §2/§3/§5: do the two legs of a PAT measurement ride the SAME time axis? |
@@ -136,6 +140,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`pb-operating-point.mjs`](../tools/pb-operating-point.mjs) | what does OxyDex's periodic-breathing detector actually track? |
 | [`per-group-coverage.mjs`](../tools/per-group-coverage.mjs) | Aggregate coverage (`npm run coverage:json`, read by tools/mutation-reach.mjs) answers "does ANY test execute this line". |
 | [`pin-coverage.mjs`](../tools/pin-coverage.mjs) | WHY IT EXISTS. `pinnedSpans` has detected O2Ring in-band blanking since #2317 and the export has REPORTED it as `quality.pinnedCoverage`, but nothing consumed it: every rMSSD/SD1/LF:HF was… |
+| [`pletha-marker-oracle.mjs`](../tools/pletha-marker-oracle.mjs) | `pinnedSpans` (ppgdex-dsp.js) steps over an ISOLATED `156` when merging spans — it treats a lone 156 as the O2Ring's inserted beat-marker row and a RUN of 156s as signal that happens to… |
 | [`ppg-bridge-hrv-validate.mjs`](../tools/ppg-bridge-hrv-validate.mjs) | does O2RING-PPG-GAP §4 move finger HRV toward or away from chest ECG? |
 | [`ppg-foot-consensus-e1.mjs`](../tools/ppg-foot-consensus-e1.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-1 E-1 asks: "does foot-domain consensus (feet on all three channels, de-offset, ±40 ms) recover the 1-of-3 drop rate without admitting false beats? |
 | [`ppg-foot-residual-sweep.mjs`](../tools/ppg-foot-residual-sweep.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ THE RESIDUAL 2.2–13.2 ms — per-night inter-LED foot dispersion against PRE-REGISTERED… |
@@ -151,6 +156,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`probe-reach.mjs`](../tools/probe-reach.mjs) | `probe-coverage` answers "could the prober form an opinion about this survivor" — a question about which `fn` names the families NAME. |
 | [`pulse-agreement.mjs`](../tools/pulse-agreement.mjs) | the O2Ring's 1 Hz VENDOR pulse vs an HR derived from its own finger PPG. |
 | [`pulse-template-toa.mjs`](../tools/pulse-template-toa.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ FOURIER-DOMAIN TEMPLATE TIME-OF-ARRIVAL for the PPG pulse — CROSS-DOMAIN-METHODS §2. |
+| [`pw-launch.mjs`](../tools/pw-launch.mjs) | Residue `2026-09-05-playwright-blocked-by-apparmor-userns`: on Ubuntu 23.10+ with `kernel.apparmor_restrict_unprivileged_userns = 1`, `chromium.launch()` RESOLVES and the first `newPage()`… |
 | [`queue-doctor.mjs`](../tools/queue-doctor.mjs) | queue-doctor — drain a PR queue that CANNOT drain itself, and NAME the state that no view reports. |
 | [`qwen-agent.mjs`](../tools/qwen-agent.mjs) | READ-ONLY LOCAL-MODEL AGENT — owner-directed 2026-08-27: "make sure qwen will read CLAUDE.md and have access to bge and other stuff so it can behave like normal Claude coder." |
 | [`qwen-mypy-fix.mjs`](../tools/qwen-mypy-fix.mjs) | // // qwen-mypy-fix.mjs — the mypy burn-down FIX lane (PYTHON-TYPES-AND-FORMAT §P2, qwen half). |
@@ -177,6 +183,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`rho-overlap-power.mjs`](../tools/rho-overlap-power.mjs) | `INTEGRATOR-TCH-FU-IV-FOLLOWUPS` §4 asks for a minimum aligned-overlap rule and is explicit that it must come "from how rho's stability varies with n on the corpus, not from a round number". |
 | [`run-check.mjs`](../tools/run-check.mjs) | `npm run check` used to be a 16-step `&&` chain. That is fine when a step fails on its merits and useless when one fails for an unrelated reason: the shell stops, npm prints the failure,… |
 | [`run-progress.mjs`](../tools/run-progress.mjs) | SHARED PROGRESS, ETA AND RESUME FOR THE MULTI-HOUR TOOLS Every long-runner here had the same two holes, and both cost real time: |
+| [`screen-draft-inputs.mjs`](../tools/screen-draft-inputs.mjs) | ADVISORY screen over drafted assertion INPUTS. WHY THIS EXISTS. |
 | [`selftest-all.mjs`](../tools/selftest-all.mjs) | ⚠️ THIS IS NOT THE GATE, and an earlier draft of this header wrongly said it was. |
 | [`served-link-check.mjs`](../tools/served-link-check.mjs) | which local links are DEAD on a deployed box? `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS` §1.2 records two dead-link residues on the served tree and says plainly what is missing: *"A link-checker… |
 | [`severity-ladder-audit.mjs`](../tools/severity-ladder-audit.mjs) | does a node ever render the SAME metric with two different good/warn/bad boundaries? |
@@ -200,6 +207,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`trio-batch.mjs`](../tools/trio-batch.mjs) | TRIO BATCH — raw Polar Sensor Logger + O2Ring capture folder → per-night trio node-exports, in the exact shape `tools/tch-multinight.mjs --dir` ingests (one subdir per night, three… |
 | [`trio-power-headless.mjs`](../tools/trio-power-headless.mjs) | run the sensor-trio power sweep headlessly, ON THE GPU. WHY. |
 | [`validate-exports.mjs`](../tools/validate-exports.mjs) | run the SHIPPED `validateNodeExport()` over every committed node export. |
+| [`verify-draft-kills.mjs`](../tools/verify-draft-kills.mjs) | // // verify-draft-kills.mjs — does a drafted assertion, AS WRITTEN, actually kill its mutant? |
 | [`verify-drafts.mjs`](../tools/verify-drafts.mjs) | // // verify-drafts.mjs — re-verify qwen mutation drafts IN THE REALM THAT WILL RUN THEM. |
 | [`verify-fixtures.mjs`](../tools/verify-fixtures.mjs) | WHY IT EXISTS. `build.mjs` re-stamps a fixture's `manifestHash` whenever the bundle moves. |
 | [`wearable-sync.mjs`](../tools/wearable-sync.mjs) | wearable-sync — ARE THE WEARABLES ON THE SAME TIMELINE? Two accelerometers strapped to one body see the same turn at the same instant — physics, no physiology in between — so ACC-vs-ACC is… |

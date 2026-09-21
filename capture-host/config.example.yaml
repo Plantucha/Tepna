@@ -38,6 +38,13 @@ watchdog:                               # auto-recover a WEDGED BLE controller (
   #                                     #     `ls /sys/bus/usb/devices/`. OFF by default.
   # exit_on_giveup: true                #   after exhausting cycles, exit non-zero so systemd re-execs with
   #                                     #     a fresh bleak/D-Bus stack instead of looping deaf all night.
+  spare_quarantine_sec: 900             #   before failing over onto a spare radio we ask it an HCI
+  #                                     #     round trip, because `UP RUNNING` is a CACHED kernel flag and
+  #                                     #     on 2026-09-11 a wedged radio reported it while HCI Reset
+  #                                     #     timed out. A spare that does not answer is skipped for this
+  #                                     #     long, then probed again — a cooldown, never a permanent
+  #                                     #     verdict. If EVERY spare is deaf the failover is refused
+  #                                     #     rather than spending the flap cap on a dead radio.
 
 link:                                   # weak-signal warning. Stream-rate health (packet rate vs nominal)
   rssi_enabled: true                    #   is always on & needs no privilege. RSSI dBm enrichment needs a
@@ -103,14 +110,23 @@ devices:
       # pedestal leaving, not a regression.
       acc: 26
 
-  # Muse S — raw EEG. Captured via a child tool, NOT bleak directly. Pick by firmware:
+  # Muse S — raw EEG. Captured via a child tool, NOT bleak directly. The switch is a PROCESS-MODEL
+  # split (one child, connects by address, writes one file — see capture.run_muse), verified against
+  # both upstreams at HEAD on 2026-09-20 (a dated snapshot, re-check before relying on it):
+  #   muselsl  → `muselsl record_direct` — Muse 2 / S gen 1-2 (the legacy GATT protocol). muse-lsl
+  #              v2.5.x DOES support the Athena, but only through `stream` (+ `record` over LSL), which
+  #              the daemon does not run; `record_direct` is legacy-only at HEAD.
+  #   openmuse → `OpenMuse record` — Muse S Athena ONLY (OpenMuse decodes nothing else). Unmaintained
+  #              since 2026-01-28 and carries open optics/PPG issues (#24, #27): EEG is the use here.
+  # Both are spawned with an explicit 24 h --duration (their defaults are 60 s / 30 s demos).
+  # ⚠️ Unexercised on the production box (no Muse configured, neither tool installed, 2026-09-20).
   - name: Muse S
     vendor: Muse
     model: S
     device_id: DDDDDDDD
     address: "ZZ:ZZ:ZZ:ZZ:ZZ:ZZ"
     streams: [eeg]
-    muse_tool: muselsl           # "muselsl" (Muse 2 / S gen 1-2) | "openmuse" (Muse S Athena)
+    muse_tool: muselsl           # "muselsl" (Muse 2 / S gen 1-2, record_direct) | "openmuse" (Muse S Athena)
 
   # Wellue O2Ring-S / T8520 (advertises as "S8-AW …") — LIVE SpO2 + pulse via the OxyII protocol
   # (run_oxyii; no bond, no vendor-app round-trip). Older O2Rings on the legacy Viatom protocol:
@@ -323,6 +339,35 @@ cpap:                    # ResMed card auto-harvest over an ez Share Wi-Fi SD ad
     #   enabled: false
     #   flow_eps_lpm: 0.5           # |flow| at or below this counts as "not breathing" (idle measured -0.01)
     #   hold_sec: 120.0             # continuous quiet REQUIRED, timed in samples (a dead link cannot age it)
+
+    # EVENT SUBSCRIPTION — the device's OWN session-boundary witness, recorded beside the stream. With
+    # auto_start the box had ONE witness for "therapy started" (the trigger fires on the shadow
+    # detector's own sighting, so detector and trigger cannot disagree). `SubscribeEvent` asks the AS11
+    # to push EventNotifications; two data ids are subscribed by default, each for a stated consumer:
+    #   UsageEvents-TherapyStatusEvents  TherapyStart/TherapyStop/MaskOn/MaskOff — the device's account
+    #   _ZLE                             Zero Leak Estimate 0/1 — rising = it accepts flow (data begins),
+    #                                    falling = end; a different subsystem from the therapy state.
+    # Every notification is written VERBATIM (host arrival stamp beside the device reportTime) to
+    # cpap-events-<UTC stamp>.jsonl under raw_record_dir (or edf_dir), and the gap line / acquisition
+    # envelope carry the `_ZLE` edges, the trigger's own start/stop, and the deltas between them —
+    # None when either side is absent, never 0. It does NOT replace auto_start/auto_stop; it records
+    # when they and the device disagree. READ-ONLY on the device (nothing is set), non-fatal (a
+    # declined subscription is recorded and the stream proceeds).
+    # 🔴 DEFAULT OFF. It changes what the radio carries beside a sleeping body, so it is armed by an
+    # explicit edit, never by shipping the code. The daemon logs its arming state either way.
+    # events:
+    #   enabled: false
+    #   data_ids: ["UsageEvents-TherapyStatusEvents", "_ZLE"]   # add an id only with its consumer named
+
+    # EXTRA STREAM IDS — requested in the SAME StartStream as PatientFlow/MaskPressure but PUBLISHED
+    # NOWHERE: no bus channel, no EDF channel. They land VERBATIM in the raw record (raw_record_dir is
+    # therefore REQUIRED — the daemon refuses this key without it) and in the gap line's byte counters,
+    # so the marginal cost of an id is measured (`bytes_json / frames_ok` with it on vs off) before any
+    # consumer is built on it, and its physical unit can be pinned from the recorded values first.
+    # First candidate: `_LKF` (Leak — the quantity `_ZLE` gates; the device holds each 2 s value across
+    # the 40 ms reports, so it costs the same as a third waveform channel until decimated).
+    # 🔴 DEFAULT OFF — it changes what the radio carries; armed by an explicit edit, never by code.
+    # extra_data_ids: ["_LKF"]
 
     # AUTO-START — the mirror of auto_stop: the live stream starts itself when therapy starts, instead
     # of waiting for someone to press a button. Ordered by the owner 2026-08-29 after two nights that

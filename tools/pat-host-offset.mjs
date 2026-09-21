@@ -496,8 +496,33 @@ if (IS_CLI) {
             win,
             ppmE: ax.ppm,
             ppmP: px.ppm,
+            /* 🔴 EACH `maxStep` TRAVELS WITH ITS ANCHOR COUNT, and that is not decoration.
+               These two values sit in ONE ROW for a human reader, and they are built at different
+               TEMPORAL densities: both nodes stride `AXIS_EVERY = 500` samples (`ecgdex-dsp.js`,
+               `ppgdex-dsp.js`), but at different sample rates, so ECG anchors land ~3.85 s apart at
+               130 Hz against PpgDex's ~4-5 s — roughly a 30 % gap.
+
+               MEASURED 2026-09-20 on 8 real H10 nights, rebuilding the axis from raw
+               `Phone timestamp`/`sensor timestamp [ns]` at stride 500 vs 650 (i.e. +30 % sparser):
+
+                 ratio(650/500)   1.25  1.06  1.03  1.02  1.01  0.85  0.77  0.54
+                 median 1.015     range 0.54 – 1.25
+
+               So a 30 % density difference carries NO systematic bias — the median is ~1.0 and the
+               direction is inconsistent — but it moves an INDIVIDUAL night by as much as −46 %/+25 %.
+               `maxStepMs` is an extreme-value statistic, and an extreme is a property of how often you
+               looked as much as of what happened. Comparing the two cells across that gap is therefore
+               unreliable at the tens-of-percent level while an aggregate over nights is not skewed.
+
+               The remedy is §7's own rule — *never quote `ppm` without the span beside it* — applied to
+               the other density-sensitive field: publish the denominator and let the reader see the
+               axes differ. A warning would have been the wrong shape; there is no systematic error to
+               warn about. `hostAxis` already returns `n`, so this costs nothing.
+               Residue: 2026-09-19-maxstep-juxtaposed-at-two-densities. */
             maxStepE: ax.maxStepMs,
             maxStepP: px.maxStepMs,
+            nE: ax.n,
+            nP: px.n,
             ...sc,
             ...(extra.refused ? {} : extra)
           });

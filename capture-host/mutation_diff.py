@@ -36,6 +36,8 @@ next reader does not treat a screen as a verdict.
 from __future__ import annotations
 
 import ast
+import fnmatch
+import re
 
 __all__ = ["EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key",
            "annotation_only", "classify", "refusal_reason", "selftest", "string_only_verdict", "scan_is_reliable",
@@ -54,6 +56,79 @@ UNDECIDABLE = "undecidable"     # the literal scan is outside its competence —
 # The classes that genuinely cannot be killed, and so stop failing the gate. `real-gap` is deliberately
 # NOT here: it is debt somebody wrote down, not an excuse, and it keeps failing until a test exists.
 EXCUSING = frozenset({"no-distinguishing-input", "untestable-by-design"})
+
+
+def source_function_of_glob(glob: str) -> str:
+    """The SOURCE function name a mutmut glob targets — `""` when it cannot be read.
+
+    A glob is `<module>.<mangled>__mutmut_*`, and the mangled part carries mutmut's own encoding:
+        cpap_ingest.x_helper__mutmut_*            → `helper`          (module-level)
+        cpap_ingest.xǁGapCountersǁtotal_lost__mutmut_*  → `total_lost` (method / property)
+
+    Distinct from `function_of_mutant`, which answers a different question and returns the QUALIFIED
+    name (`GapCounters.total_lost`) for reporting. This one returns the bare `def` name, because that
+    is what an AST lookup matches on. Two callers, two needs — one helper serving both would return
+    the wrong string to one of them, which is the kind of quiet mismatch this file exists to avoid.
+    """
+    stem = (glob or "").rstrip("*").rstrip("_")
+    if "__mutmut" not in stem:
+        return ""
+    mangled = stem.split(".", 1)[1] if "." in stem else stem
+    mangled = mangled.split("__mutmut", 1)[0]
+    if "ǁ" in mangled:
+        parts = [p for p in mangled.split("ǁ") if p and p != "x"]
+        return parts[-1] if parts else ""
+    return mangled[2:] if mangled.startswith("x_") and len(mangled) > 2 else ""
+
+
+def unmutatable_decorator(source: str, func: str) -> str:
+    """The decorator that makes mutmut SKIP `func` entirely — `""` if it would be mutated.
+
+    ⚠️ THIS MIRRORS MUTMUT'S OWN RULE, read from its source rather than inferred from behaviour
+    (`mutmut/mutation/file_mutation.py`, `_skip_node_and_children`). Its comment states the reason:
+
+        # ignore decorated functions, because
+        # 1) copying them for the trampoline setup can cause side effects
+        # 2) decorators are executed when the function is defined …
+        # 3) @property decorators break the trampoline signature assignment
+        # Exception: @staticmethod and @classmethod are allowed
+
+    So the exclusion is ARCHITECTURAL, not an oversight: mutmut mutates by replacing a function with a
+    trampoline that dispatches to `f__mutmut_N`, and a descriptor like `@property` cannot be rebound
+    that way. The rule it applies is EXACTLY ONE decorator that is `staticmethod` or `classmethod`;
+    everything else is skipped, generating zero mutants whatever the body contains.
+
+    ⚠️ AND THE BLIND SPOT IS WIDER THAN PROPERTIES, which is why this replaced an `is_property` check.
+    Measured over `capture-host/` 2026-09-18: **50** functions are skipped by this rule — 45
+    `@property`, 4 `@asynccontextmanager`, 1 `@middleware`. Reporting only the properties left the
+    other five telling a reader "cause not established" when the cause is known and is the same one.
+
+    Returns the decorator NAME so the message can say which one, and "" on unparseable source — a
+    false positive here invents a blind-spot warning nobody can act on.
+    """
+    try:
+        tree = ast.parse(source or "")
+    except SyntaxError:
+        return ""
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) or node.name != func:
+            continue
+        names = [_decorator_name(d) for d in node.decorator_list]
+        if not names:
+            return ""
+        if len(names) == 1 and names[0] in ("staticmethod", "classmethod"):
+            return ""          # mutmut's own exemption: trampolines are easy for these
+        return names[0]
+    return ""
+
+
+def _decorator_name(node: ast.expr) -> str:
+    """`@foo` / `@a.foo` / `@foo(...)` → `foo`. The call form matters: `@lru_cache()` is decorated."""
+    if isinstance(node, ast.Call):
+        node = node.func
+    if isinstance(node, ast.Name):
+        return node.id
+    return getattr(node, "attr", "")
 
 
 def functions_covering(source: str, lines: set[int]) -> set[str]:
@@ -539,6 +614,61 @@ def refresh_scratch(tree, work, extras) -> int:
     return n
 
 
+def root_reads(tree) -> list[str]:
+    """The REPO-ROOT files the test suite names — the reads the scratch copy cannot satisfy on its own.
+
+    `tools/mutate.py` copies `capture-host/` ("copy EVERYTHING a test reads from disk") and nothing above
+    it. A test that reads a sibling of `capture-host/` — `tests/test_seam_sidecar.py` opens
+    `../ecgdex-dsp.js` for the seam-bound parity check — therefore fails inside the scratch with
+    FileNotFoundError, the baseline reports "1 failed", and every mutant of that module comes back
+    "0 tested". Measured 2026-09-19 on #2675: the four `writers.py` globs refused, and the SAME failure
+    sits in #2581's log (the PR that added the test) — it passed only because the 0-tested refusal did
+    not exist yet. Every writers.py PR since 09-16 has carried it.
+
+    Keyed on WHAT is read, not on how the path is spelled (`test_mutation_hygiene.py` records why a
+    path-idiom anchor is a losing game): a test file that contains, as a string literal, the NAME of a
+    regular file in the repo root is taken to read it. Over-flags by design — a literal that merely
+    mentions the name costs one spurious copy of a small file; a miss costs a module's whole
+    measurement. Derived from the tree every run, so a new root read needs no list edited.
+    """
+    from pathlib import Path
+
+    tree = Path(tree)
+    root = tree.resolve().parent
+    # Dotfiles are never reads: in a git WORKTREE `.git` is a regular FILE (a gitdir pointer), and a
+    # test that mentions ".git" would otherwise stage it into the scratch.
+    names = {p.name for p in root.iterdir() if p.is_file() and not p.name.startswith(".")}
+    found: set[str] = set()
+    for t in sorted((tree / "tests").glob("*.py")):
+        for lit in re.findall(r"""["']([^"'\n]+)["']""", t.read_text(encoding="utf-8", errors="replace")):
+            if lit in names:
+                found.add(lit)
+    return sorted(found)
+
+
+def stage_root_reads(tree, work, names) -> int:
+    """Copy each root file in `names` to BOTH places a `tests/../..`-shaped read resolves from: `work/`
+    (the mutants run executes `work/mutants/tests/`, whose grandparent's parent is `work/`) and
+    `work/..` (the clean baseline executes `work/tests/`). Returns copies made. A name that is not a
+    regular file in the root is skipped, never fabricated — the read will then fail exactly as it
+    would in the tree, which is the honest outcome."""
+    import shutil
+    from pathlib import Path
+
+    tree = Path(tree); work = Path(work)
+    root = tree.resolve().parent
+    n = 0
+    for name in names:
+        src = root / name
+        if not src.is_file():
+            continue
+        for dest in (work, work.parent):
+            dest.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest / name)
+            n += 1
+    return n
+
+
 # Every line `mutmut results` prints is a mutant that was NOT killed — that is mutmut's own contract,
 # not an enumeration of ours: `results()` walks `exit_code_by_key` and does
 # `if status == "killed" and not all: continue`. So the listing is exactly the non-killed set.
@@ -581,6 +711,81 @@ def classify_results_line(line: str):
     if status == "killed":
         return (name, KILLED, status)
     return (name, SURVIVED if status == "survived" else UNDECIDED, status)
+
+
+def function_of_mutant(name: str) -> str:
+    """The FUNCTION a mutant belongs to, from its mutmut name — `""` when it cannot be read.
+
+    ⚠️ WHY THIS EXISTS: the UNDECIDED refusal reports a TOTAL and samples six names. With 116
+    undecided you learn six mutants and "and 110 more", which cannot distinguish the two cases that
+    need opposite responses — ALL of them in one pathological function (look at that function), versus
+    spread across several (look at the runner). That is the measurement that decides whether the
+    remedy is scheduling or something in the mutants themselves, and the data was already present in
+    every name; only the summary was missing.
+
+    Two shapes, and both are real — the method form is the one a column-0 assumption keeps missing:
+        x__floor_by_t__mutmut_12        → `_floor_by_t`     (module-level function)
+        xǁCounterǁscaled__mutmut_2      → `Counter.scaled`  (method, U+0281 separators)
+
+    Returns "" rather than guessing on anything else. A wrong attribution here would send a reader to
+    the wrong function, which is worse than declining to name one.
+    """
+    if not name:
+        return ""
+    stem = re.sub(r"__mutmut_\d+$", "", name.strip())
+    if stem == name.strip():
+        return ""                      # no mutmut suffix ⇒ not a mutant name
+    # 🔴 STRIP THE MODULE QUALIFIER, and this line is why the whole function was inert in production.
+    # `mutmut results` prints names MODULE-QUALIFIED — `gattmap.x__norm__mutmut_1` — and the caller
+    # (`mutate_diff.py`) passes them through verbatim from `split_results`. Both documented shapes
+    # below are BARE, the tests were written from those examples, and nothing ever fed this the form
+    # it actually receives. So `x_`/`ǁ` never matched, every mutant grouped under `?`, and the
+    # `by function` summary has reported nothing since it shipped — while its own test stayed green.
+    # Measured 2026-09-19 on a real refusal: 166 undecided, `by function: 166 ?`, zero attributed.
+    #
+    # `rsplit` on the LAST dot is the conservative read: a dotted prefix can only be a module path
+    # (`pkg.mod.x_f`), because the METHOD form separates with `ǁ` and not with `.` — the dots in
+    # `Counter.scaled` are produced by the join BELOW, never present in the input.
+    stem = stem.rsplit(".", 1)[-1]
+    if "ǁ" in stem:
+        parts = [p for p in stem.split("ǁ") if p and p != "x"]
+        return ".".join(parts) if parts else ""
+    return stem[2:] if stem.startswith("x_") and len(stem) > 2 else ""
+
+
+def undecided_by_function(items: list[dict]) -> list[tuple[str, int]]:
+    """`[(function, count)]` for an UNDECIDED list, commonest first, then alphabetical.
+
+    Unattributable mutants are grouped under `?` rather than dropped: a summary that silently omits
+    what it could not parse under-reports the total it is summarising, which is the shape this file
+    keeps finding elsewhere.
+    """
+    counts: dict[str, int] = {}
+    for it in items or []:
+        fn = function_of_mutant(str(it.get("mutant", ""))) or "?"
+        counts[fn] = counts.get(fn, 0) + 1
+    return sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+
+
+def in_glob_scope(mutant: str, glob: str) -> bool:
+    """True when `mutant` is one of the mutants `glob` selects.
+
+    WHY THIS EXISTS. The gate scopes what it RUNS to the functions the diff touched — one
+    `--only '<module>.x_<func>__mutmut_*'` per changed function (`mutate_diff.py`, `functions_covering`
+    over the changed lines). It then harvested UNDECIDED from `mutmut results`, which takes **no glob**
+    (`tools/mutate.py`) and enumerates the WHOLE workspace. So every mutant generated for a function
+    the diff never touched came back `not checked` and BLOCKED the run.
+
+    Measured 2026-09-19 across four refusals: 553, 338, 166 and 116 undecided, **100 % `not checked`
+    and 0 % `timeout`** — they were never run, so nothing could time out. On #2651 the changed hunks
+    were in `dbus_hci`/`resolve_hci` and the undecided set contained `parse_rssi`, which appears in
+    zero changed hunks. The counts track MODULE size, not diff size, which is why a one-import PR
+    produced 166 and why "re-run under less load" could never help: load was never the variable.
+
+    Deliberately `fnmatchcase`: mutant names are generated identifiers, and a case-insensitive match
+    would let `x_Parse__mutmut_1` answer for `x_parse__mutmut_*` on a case-preserving filesystem.
+    """
+    return fnmatch.fnmatchcase(str(mutant), str(glob))
 
 
 def split_results(results_text: str):

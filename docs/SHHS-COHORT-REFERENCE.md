@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** REFERENCE (living — cohort facts, re-measure if the corpus changes) · **last-verified:** 2026-09-13
+**Status:** REFERENCE (living — cohort facts, re-measure if the corpus changes) · **last-verified:** 2026-09-20
 
 # What the SHHS1 cohort actually contains
 
@@ -58,6 +58,37 @@ different things:
     19.7 % × (TST 6.11 h / recording ~9 h) = 13.4 %   ✓ reconciles
 
 Check the denominator before treating a difference as a defect — and state it when quoting either.
+
+## Oximeter status channel — `OX stat` (applied by the adapter since 2026-09-20)
+
+SHHS1 carries a **1 Hz `OX stat` channel, sample-aligned with `SaO2`**, documented by NSRR as
+"Oximetry Status" from the Nonin XPOD 3011 / 8000 sensor (SHHS1 montage; the same row appears in the
+CFS, HAASSA and ABC montages as `Ox Status` / `Ox stat`). It is the oximeter's own validity verdict on
+its samples. **NSRR does not define its values** — the montage, equipment page, Manual of Procedures and
+the sibling datasets were read 2026-09-20 and none maps 0–3 to a condition; the equipment page records
+that Compumedics did not share its proprietary algorithms.
+
+What is established, measured over 12 records / 367,680 samples: **0 is indistinguishable from a normal
+overnight trace** (100 % in-range, mean SpO₂ 95.0, p5 92.2); every non-zero value is shifted or out of
+range (1: mean 87.95, p5 74.2; 2: 50 % in-range; 3: 0.1 % in-range). Stat 3 and half of stat 2 were
+already excluded by the adapter's range guard; what survived it was **in-range, flagged, accepted** —
+a median 742 samples (5.4 %) per night.
+
+`nsrr-adapter.js` now applies the §∅-conservative rule and nothing finer: **a sample the device marks
+as anything but its normal state is absent for computation**, and the rows carry the count
+(`oxStat.flaggedSec`, `inRangeFlaggedSec`). Effect on the shipped detector, paired over 278 records
+(`tools/nsrr-oxstat-validate.mjs`, 2026-09-20): **ODI-4 median −0.700 events/h** (95 % half-width
+±0.23), as-shipped median 3.05 → 2.2, lower on 261/278, ≥1.0/h on 111, worst `shhs1-204801` 30.8 → 16.2.
+**22 of 300 records carry no status channel**; those rows pass through untouched and the result reads
+`oxStat.present: false` — not flagged, not clean by fiat.
+
+⚠️ Two things this does NOT establish. It does not say what stat 1 *means*: if Nonin/Compumedics
+documentation later shows a non-zero state under which the reading is still true, the exclusion is
+over-conservative by a known, reported amount and restates from `inRangeFlaggedSec`. And it does not
+rescue the ODI-4 surrogate — `papers/odi4-ahi-bias.html` finds ODI-4 under-reads scored AHI, and
+masking pushes ODI-4 lower still, so the corrected detector sits **further** below the reference.
+SHHS-derived figures published before 2026-09-20 were produced without this channel; whether to
+regenerate them is recorded as residue.
 
 ## Method
 

@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import time as _time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -129,6 +130,97 @@ class FailureClass(Enum):
         self.recoverable = recoverable
 
 
+class AcquisitionOwned(RuntimeError):
+    """Raised when a device already has an acquisition owner (INV11). Carries WHO holds it and since
+    when, so the refusal names a reason rather than reporting a generic conflict — the same discipline
+    as `InvalidTransition` above, which carries both states rather than "bad state"."""
+
+    def __init__(self, device_id: str, held_by: str, since_monotonic: float):
+        self.device_id = device_id
+        self.held_by = held_by
+        self.since_monotonic = since_monotonic
+        super().__init__(
+            f"device {device_id} already has an acquisition owner: session {held_by} "
+            f"(held since monotonic {since_monotonic:.3f}) — refusing a second acquisition")
+
+
+@dataclass(frozen=True)
+class OwnerToken:
+    """Proof that one session owns one device's acquisition. Frozen: a token is evidence of a claim,
+    and a mutable one could be edited to release someone else's."""
+
+    device_id: str
+    session_id: str
+    acquired_monotonic: float
+
+
+class AcquisitionOwners:
+    """One acquisition owner per DEVICE at a time (INV11 / spec §8).
+
+    Two acquisitions of one device can start concurrently today and the failure presents as interleaved
+    frames rather than as an error — the worst shape, because nothing reports it. `acquire` REFUSES a
+    second claim rather than queueing it: a queued acquisition looks like it worked and arrives late,
+    while a refusal is legible at the moment it happens.
+
+    ⚠️ PER-DEVICE, NOT PER-ADAPTER. Per-adapter would collide with the one-systemd-instance-per-adapter
+    decision (2026-08-26): under that model two instances legitimately drive two adapters, and a
+    per-adapter lock says nothing about the device either of them is talking to.
+
+    ⚠️ PROCESS-LIFETIME, AND THAT IS THE CORRECT SCOPE RATHER THAN A SHORTCUT. The dangerous failure for
+    a lock on an unattended overnight box is one that OUTLIVES the acquisition it guarded: a durable
+    on-disk lock left behind by a crash converts a recoverable failure into a permanent one, and this
+    daemon's whole recovery model assumes a restart can resume. An in-memory registry cannot have that
+    failure — it dies with the process that crashed, which is exactly the release path a durable lock
+    would need restart state to reproduce.
+
+    ⚠️ WHAT THIS DOES NOT COVER, stated rather than implied: two PROCESSES each hold their own registry,
+    so this cannot refuse a second acquisition started by a different instance. Closing that needs a
+    durable lock, and a durable lock is only safe if it carries a LIVENESS PROOF (a pid plus that
+    process's start time, so a stale entry is detectable rather than permanent). That is a separate unit
+    with a separate risk, not something to bolt on here.
+    """
+
+    def __init__(self) -> None:
+        self._held: dict[str, OwnerToken] = {}
+
+    def acquire(self, device_id: str, session_id: str, *, monotonic: float) -> OwnerToken:
+        """Claim `device_id` for `session_id`, or raise `AcquisitionOwned` naming the current holder.
+
+        Re-acquiring with the SAME session id is not a conflict — it returns the existing token. A
+        retry inside one session is not a second owner, and raising there would make the guard fire on
+        the recovery path it is meant to protect."""
+        cur = self._held.get(device_id)
+        if cur is not None:
+            if cur.session_id == session_id:
+                return cur
+            raise AcquisitionOwned(device_id, cur.session_id, cur.acquired_monotonic)
+        tok = OwnerToken(device_id=device_id, session_id=session_id, acquired_monotonic=monotonic)
+        self._held[device_id] = tok
+        return tok
+
+    def release(self, token: OwnerToken) -> bool:
+        """Release `token`'s claim. Returns whether it released anything.
+
+        Releasing a claim that is no longer yours is a NO-OP rather than an error: a late release from a
+        superseded session must not evict the session that legitimately took over. The return value is
+        there so a caller that cares can tell the two apart instead of assuming."""
+        cur = self._held.get(token.device_id)
+        if cur is None or cur.session_id != token.session_id:
+            return False
+        del self._held[token.device_id]
+        return True
+
+    def holder_in_this_process(self, device_id: str) -> "str | None":
+        """The session id owning `device_id` IN THIS PROCESS, or None.
+
+        ⚠️ THE NAME IS LOAD-BEARING. `None` here means "no holder that this registry can see", which is
+        NOT "no holder" — another instance may own it (see the process-lifetime note above). Calling
+        this `holder()` would invite a caller to read an unknown as an absence, which is the
+        `int(summary.get(k) or 0)` shape from W2 wearing a different name."""
+        tok = self._held.get(device_id)
+        return None if tok is None else tok.session_id
+
+
 class InvalidTransition(RuntimeError):
     """Raised when a transition not in LEGAL_TRANSITIONS is attempted. Carries both states so a caller
     logs the exact illegal edge rather than a generic 'bad state'."""
@@ -192,8 +284,8 @@ class AcqLifecycle:
     session_id: str | None = None
     state: AcqState = AcqState.DISCONNECTED
     history: list = field(default_factory=list)
-    mono: "callable" = _time.monotonic
-    wall: "callable" = _default_wall
+    mono: "Callable[[], float]" = _time.monotonic
+    wall: "Callable[[], str]" = _default_wall
 
     def can(self, to: AcqState) -> bool:
         """True iff moving to `to` from the current state is a legal transition."""

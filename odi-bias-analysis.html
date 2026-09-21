@@ -4822,6 +4822,16 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     return parts.join(', ') + context + '.';
   }
 
+  /* ⚠️ processNight OWNS `rows` FROM HERE ON. `trimSensorWarmup` splices head and tail rows out of the
+     caller's array and `cleanArtifactHR` rewrites HR values in place — deliberately, so every reader
+     below sees one trimmed night (the block on trimSensorWarmup says why). The consequence for a
+     CALLER: after this returns, `rows` is shorter and shifted, so an index you took before the call no
+     longer names the sample it named. Measured 2026-09-20: the NSRR OX-stat validator masked `rows[i]`
+     against a status channel AFTER this call and was misaligned on every record the trim touched (10
+     rows on one, 164 on another) — residue 2026-09-20-processnight-mutates-its-input. If you need the
+     pre-call array, keep your own copy; if you read `rows` after the call, you are reading the night as
+     the detector saw it, which is the right population to pair with the verdicts (pb-operating-point
+     does exactly that, and says so). */
   function processNight(rows, fname) {
     var warmupTrim = trimSensorWarmup(rows); // FIRST — drop device warm-up/cool-down placeholder edge rows (OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2)
     var artifactsCleaned = cleanArtifactHR(rows); // then clean HR before any analysis
@@ -5219,15 +5229,28 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   }
 
   function computeStats(rows) {
-    var spo2 = rows.map(function (r) {
-        return r.spo2;
-      }),
-      hr = rows.map(function (r) {
-        return r.hr;
-      }),
-      n = rows.length;
-    var mSpo2 = avg(spo2),
-      mHr = avg(hr);
+    /* §∅ — STATISTICS ARE COMPUTED OVER MEASURED SAMPLES, NEVER OVER ABSENT ONES. These arrays used to
+       carry every row's value including `null`, and three things happened to a null downstream: `avg`
+       summed it as 0 and divided by ALL rows (a night with 20 % dropouts under-read its mean SpO2 by
+       20 %); `v < 95` is TRUE for null, so every absent second counted as a desaturated one and T95/T90
+       were inflated by the dropout fraction; and `Math.min/max.apply` read it as 0. `parseCSV` drops
+       invalid rows, so the O2Ring CSV path never carried a null here — the NSRR adapter (`to1Hz` →
+       null), the self-ingest path and any SignalFrame do, and the SHHS lane's published T90 came
+       through this block. Residue 2026-09-13-oxydex-stats-block-absence-to-number, primary-builder half.
+       `spo2`/`hr` are now the MEASURED samples; `n` stays the row count for the duration/coverage
+       arithmetic below, and every rate below divides by the measured count, reporting null when there
+       is none — same rule as `meanPi` a few lines down, which was written this way from the start. */
+    var spo2 = [],
+      hr = [];
+    for (var _r = 0; _r < rows.length; _r++) {
+      var _sv = rows[_r].spo2,
+        _hv = rows[_r].hr;
+      if (_sv != null && isFinite(_sv)) spo2.push(_sv);
+      if (_hv != null && isFinite(_hv)) hr.push(_hv);
+    }
+    var n = rows.length;
+    var mSpo2 = spo2.length ? avg(spo2) : NaN,
+      mHr = hr.length ? avg(hr) : NaN;
     // Perfusion index (OXYDEX-PULSE-RESOURCING §4 Phase 1) — mean over the frames that actually
     // carry a reading. `r.pi` is null on the ViHealth CSV path (no column) and on the ring's
     // no-perfusion sentinel, so a night with no PI data yields meanPi = null, not a fabricated 0.
@@ -5270,33 +5293,42 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       durationInflated: _durInflated || undefined,
       start: fmtTime(rows[0].t),
       end: fmtTime(rows[n - 1].t),
-      meanSpo2: isFinite(mSpo2) ? +mSpo2.toFixed(1) : 0,
-      minSpo2: spo2.length ? Math.min.apply(null, spo2) : 0,
-      maxSpo2: spo2.length ? Math.max.apply(null, spo2) : 0,
-      spo2Std: +stdDev(spo2).toFixed(2),
+      /* §∅ — the PRIMARY builder's half of residue 2026-09-13-oxydex-stats-block-absence-to-number.
+         #2538 converted the self-ingest copies of these eight and fixed the render; this block still
+         reported a night with no valid SpO2 as mean 0 / min 0 / max 0 and no valid HR likewise — a
+         fabricated reading from the MAIN path, reached by every real file, not only re-ingested exports.
+         Same `null` form as `durationMin` above: absence is visible, a genuine 0 survives, and every
+         consumer already guards `!= null` (render since #2538; integrator carries `durationMin` null the
+         same way; oxydex-cross, nsrr-adapter and signal-orchestrate read through `? … : null`). */
+      meanSpo2: isFinite(mSpo2) ? +mSpo2.toFixed(1) : null,
+      minSpo2: spo2.length ? Math.min.apply(null, spo2) : null,
+      maxSpo2: spo2.length ? Math.max.apply(null, spo2) : null,
+      spo2Std: spo2.length > 1 ? +stdDev(spo2).toFixed(2) : null, // §∅: a spread needs two measured samples
+      /* T95/T90 over MEASURED seconds: numerator and denominator are both the measured set, so a
+         dropout is neither a desaturated second (the old `null < 95`) nor a normal one. */
       t95pct:
-        n > 0
+        spo2.length > 0
           ? +(
               (spo2.filter(function (v) {
                 return v < 95;
               }).length /
-                n) *
+                spo2.length) *
               100
             ).toFixed(1)
-          : 0,
+          : null,
       t90pct:
-        n > 0
+        spo2.length > 0
           ? +(
               (spo2.filter(function (v) {
                 return v < 90;
               }).length /
-                n) *
+                spo2.length) *
               100
             ).toFixed(1)
-          : 0,
-      meanHr: isFinite(mHr) ? +mHr.toFixed(1) : 0,
-      minHr: hr.length ? Math.min.apply(null, hr) : 0,
-      maxHr: hr.length ? Math.max.apply(null, hr) : 0,
+          : null,
+      meanHr: isFinite(mHr) ? +mHr.toFixed(1) : null,
+      minHr: hr.length ? Math.min.apply(null, hr) : null,
+      maxHr: hr.length ? Math.max.apply(null, hr) : null,
       // §4 Phase 1: mean perfusion index (%), or null when the input carried no PI (ViHealth CSV).
       // A NULL metric is honest absence — never coerced to 0, which would read as zero perfusion.
       meanPi: meanPi,
@@ -9483,12 +9515,33 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       .forEach(function (k) {
         var b = bins[k];
         if (b.hr.length < 60) return; // ≥1 min HR coverage in the 5-min window
-        var mh = _median(b.hr),
+        /* MEAN, NOT MEDIAN — owner ruling 2026-09-17 (D3), measured in R5-HR-TRIPLET-FOLLOWUPS §3.
+           OxyDex has no intervals: `parseCSV` yields a 1 Hz RATE column and nothing else, so
+           `60000/mean(RR)` — the statistic ECGDex and PpgDex publish — is not computable here. The
+           question was which aggregation of a rate series best estimates it, and it was answered over
+           726 paired epochs against ECGDex:
+
+               median(rate)  −0.244 bpm   5.7σ   spread SD 1.16   ← shipped until today
+               trimmed 20 %  −0.201       4.8σ             1.14
+               trimmed 10 %  −0.156       3.6σ             1.17
+               trimmed  5 %  −0.113       2.5σ             1.20
+               mean(rate)    +0.013 bpm   0.3σ             1.23   ← this
+
+           Monotonic and one-sided: the robustness the median bought cost 0.26 bpm of bias and saved
+           6 % of spread. The bias this brief family opened to remove is essentially gone.
+
+           ⚠️ THE THEORETICALLY-CORRECT ESTIMATOR LOSES, AND THE REASON IS MEASURED — do not "fix"
+           this to the harmonic mean on theory. For instantaneous rates the harmonic mean equals
+           `60000/mean(RR)` exactly, so it should win; it does not (−0.083, 1.9σ). The ring's `pr` is
+           ALREADY SMOOTHED — same overall SD as beat-to-beat ECG (4.09 vs 4.19) but 5.1× less
+           consecutive-sample jitter (0.256 vs 1.298 bpm) — and applying a convexity correction to a
+           series that has already absorbed one over-corrects. */
+        var mh = _mean(b.hr),
           mm = _mean(b.mo);
         /* `hrStat` — R5-HR-TRIPLET-FOLLOWUPS. This leg is the ODD ONE on statistic: ECGDex and
            PpgDex both publish 60000/mean(RR), this publishes the median of 1 Hz rates, and the two
            differ by 0.299 bpm on real RR — the size of the bias R5 attributed to the O2Ring itself. */
-        out.push({ tMin: k * 5, hr: mh != null ? +mh.toFixed(1) : null, hrStat: 'median-rate', motionIndex: mm != null ? +mm.toFixed(3) : null });
+        out.push({ tMin: k * 5, hr: mh != null ? +mh.toFixed(1) : null, hrStat: 'mean-rate', motionIndex: mm != null ? +mm.toFixed(3) : null });
       });
     return out;
   }
@@ -12660,6 +12713,11 @@ const OxyDex = window.OxyDex;
   // SpO₂ channel labels seen across NSRR cohorts (case-insensitive contains)
   var SPO2_LABELS = ['spo2', 'sao2', 'osat', 'sat'];
   var HR_LABELS = ['pulse', 'heart rate', 'hr', 'pr'];
+  /* The oximeter's own STATUS channel — documented by NSRR as "Oximetry Status" (SHHS1 montage: Nonin
+     XPOD 3011, 8000 sensor, 1 Hz, sample-aligned with SaO2; the same row appears in the CFS, HAASSA and
+     ABC montages under `Ox Status` / `Ox stat`). Matched on the alphanumeric residue like everything
+     else here, so `oxstat` covers `OX stat` / `Ox Status` / `OXSTAT` and cannot collide with `sao2`. */
+  var OXSTAT_LABELS = ['oxstat', 'oxstatus', 'oximetrystatus', 'oximeterstatus'];
 
   function findSignal(signals, names) {
     var keys = Object.keys(signals);
@@ -12715,12 +12773,50 @@ const OxyDex = window.OxyDex;
     return out;
   }
 
-  /* EDF → OxyDex rows. Returns { rows, t0Ms, durSec, spo2Pct, hadHR } | null. */
-  function edfToOxyRows(edf) {
+  /* EDF → OxyDex rows. Returns { rows, t0Ms, durSec, spo2Pct, hadHR, oxStat } | null.
+     opts.ignoreOxStat — read the SaO2 channel WITHOUT applying the oximeter status channel. Exists for
+     ONE consumer: `tools/nsrr-oxstat-validate.mjs`, whose paired design needs the pre-fix arm to stay
+     measurable after the fix. Not a runtime option; nothing in the suite passes it.
+
+     ── THE OXIMETER SAYS WHICH OF ITS OWN SAMPLES TO TRUST, AND THIS USED TO BE DISCARDED ──────────
+     `to1Hz` nulls an out-of-RANGE sample. That guard cannot see an in-range sample the device itself
+     flagged — CLAUDE.md §∅'s in-band case, where validity has to travel OUT-OF-BAND. SHHS1 ships
+     exactly that channel and nothing read it. Measured 2026-09-15 (`nsrr-oxstat-validate.mjs`, 300
+     records, paired): flagged samples are a median 5.33 % of the night, in-range and accepted; nulling
+     them and re-running the SAME detector moves ODI-4 by a median −0.700 events/h against a shipped
+     median of 3.05 (−23 %), lower on 258/278 records. About a quarter of the reported index came from
+     samples the device said not to use.
+
+     ⚠️ THE VALUES ARE NOT DOCUMENTED, AND THIS CODE DOES NOT PRETEND THEY ARE. NSRR's SHHS1
+     documentation (montage + equipment pages, the MOP, and the CFS/HAASSA/ABC siblings — read
+     2026-09-20) names the device and the sampling rate and defines NO value semantics; the 0–3 code is
+     Compumedics', whose algorithms the equipment page records as not shared. What IS established, and
+     is all this code relies on: (a) the channel is documented as the oximeter's STATUS, i.e. validity
+     information about SaO2; (b) value 0 is distributionally indistinguishable from a normal overnight
+     trace (100 % in-range, mean 95.0, p5 92.2) while every non-zero value is shifted or out of range
+     (stat 1: mean 87.95, p5 74.2; stat 2: 50 % in-range; stat 3: 0.1 % in-range). So the rule is the
+     §∅-conservative one and nothing finer: a sample the device marks as anything but its normal state is
+     ABSENT for computation, and the rows carry how many. If Nonin/Compumedics documentation later shows
+     a non-zero state under which the reading is still true, this is over-conservative in a KNOWN,
+     REPORTED amount (`oxStat.inRangeFlaggedSec`) and the figures restate from that field — which is the
+     point of carrying it.
+
+     ⚠️ ABSENCE OF THE CHANNEL IS NEITHER "FLAGGED" NOR "CLEAN". 22 of 300 SHHS1 records carry no
+     status channel at all. Those rows are passed through untouched and `oxStat.present` is false, so a
+     consumer can see the night was not status-qualified rather than infer it was. */
+  function edfToOxyRows(edf, opts) {
     if (!edf || !edf.signals) return null;
     var spo2Key = findSignal(edf.signals, SPO2_LABELS);
     if (!spo2Key) return null;
     var spo2 = to1Hz(edf.signals[spo2Key], 40, 100); // <40% or >100% = artifact
+    var statKey = findSignal(edf.signals, OXSTAT_LABELS);
+    var statPresent = !!(statKey && edf.signals[statKey] && edf.signals[statKey].data);
+    var statApplied = statPresent && !(opts && opts.ignoreOxStat);
+    var stat = statApplied ? edf.signals[statKey] : null; // present-but-ignored is reported, never silently equated with absent
+    var statFs = stat ? stat.fs || 1 : 1;
+    var statFlagged = 0,
+      statInRangeFlagged = 0,
+      statUncovered = 0;
     var hrKey = findSignal(edf.signals, HR_LABELS);
     var hr = hrKey ? to1Hz(edf.signals[hrKey], 20, 240) : null;
     var t0Ms = edf.clock && edf.clock.t0Ms != null ? edf.clock.t0Ms : Date.UTC(2020, 0, 1, 22, 0, 0);
@@ -12733,6 +12829,21 @@ const OxyDex = window.OxyDex;
          treatment of a dropout and the reason no fill is needed. */
       var sv = spo2[i],
         hv = hr ? hr[i] : null;
+      if (stat) {
+        var si = Math.floor(i * statFs);
+        if (si < stat.data.length) {
+          var st = stat.data[si];
+          /* any non-normal status ⇒ absent. `st > 0` is deliberately the whole test: NaN and negative
+             values fail it and pass through un-flagged rather than being invented into a verdict. */
+          if (st > 0) {
+            if (sv != null) statInRangeFlagged++; // would have been ACCEPTED by the range guard
+            statFlagged++;
+            sv = null;
+          }
+        } else {
+          statUncovered++; // the status channel ended before the SaO2 channel did — reported, not assumed
+        }
+      }
       rows.push({
         tMs: tMs,
         t: new Date(tMs),
@@ -12747,7 +12858,7 @@ const OxyDex = window.OxyDex;
     }
     /* §∅: an output computed over absent input reports the absence. Coverage travels with the rows so
        a consumer can qualify a rate instead of assuming the night was fully observed. */
-    var spo2Valid = spo2.validCount || 0;
+    var spo2Valid = (spo2.validCount || 0) - statInRangeFlagged; // the status removed samples the range guard had kept
     return {
       rows: rows,
       t0Ms: t0Ms,
@@ -12756,7 +12867,12 @@ const OxyDex = window.OxyDex;
       hadHR: !!hr,
       spo2ValidSec: spo2Valid,
       spo2CoveragePct: spo2.length ? +((100 * spo2Valid) / spo2.length).toFixed(2) : null,
-      hrValidSec: hr ? hr.validCount || 0 : null
+      hrValidSec: hr ? hr.validCount || 0 : null,
+      /* §∅: the device's own validity verdict travels with the rows. `present:false` is the honest
+         shape for the 22/300 records without the channel — not flagged, not clean, not qualified. */
+      oxStat: statPresent
+        ? { present: true, applied: statApplied, label: statKey, flaggedSec: statFlagged, inRangeFlaggedSec: statInRangeFlagged, uncoveredSec: statUncovered }
+        : { present: false, applied: false }
     };
   }
 

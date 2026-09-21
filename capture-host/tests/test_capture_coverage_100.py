@@ -257,6 +257,127 @@ def test_adapter_is_up_reads_the_radio_state_and_says_unknown_when_it_cannot(mon
     assert _run(capture._adapter_is_up("hci0")) is None, "an absent hciconfig is UNKNOWN, not 'down'"
 
 
+_VERSION_OK = (b"hci0:\tType: Primary  Bus: USB\n\tBD Address: 00:01:95:CC:53:02\n"
+               b"\tHCI Version: 4.0 (0x6)  Revision: 0x2031\n"
+               b"\tManufacturer: Cambridge Silicon Radio (10)\n")
+
+
+def test_adapter_responds_round_trips_and_a_HANG_is_False_while_everything_else_is_None(monkeypatch):
+    """`_adapter_is_up` reads the KERNEL'S CACHED FLAGS; this asks the CONTROLLER. The distinction is the
+    whole point and it is measured, not argued: on vigil 2026-09-18 `hciconfig hci0 version` incremented
+    that adapter's TX `commands:` counter by 1 and a plain `hciconfig hci0` incremented it by 0.
+
+    Four answers, and the ordering of the last two is what matters. A HANG is False — a wedged controller
+    does not reply, so mapping a timeout to 'undeterminable' would discard the one signal this probe was
+    built for. Everything else is None, so a probe that cannot RUN can never convict a healthy radio."""
+    async def ok(*cmd, **kw):
+        assert cmd[:3] == ("hciconfig", "hci0", "version"), "must be the round-trip form, not a state read"
+        return _Proc(0, _VERSION_OK)
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", ok)
+    assert _run(capture._adapter_responds("hci0")) is True
+
+    async def rc_fail(*cmd, **kw):
+        return _Proc(1, b"Can't init device: Connection timed out (110)\n")
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", rc_fail)
+    assert _run(capture._adapter_responds("hci0")) is False, "ran against a named adapter and failed"
+
+    async def no_marker(*cmd, **kw):
+        return _Proc(0, b"hci0:\tType: Primary  Bus: USB\n")
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", no_marker)
+    assert _run(capture._adapter_responds("hci0")) is None, \
+        "rc=0 carrying no controller-sourced field is UNKNOWN — do not convict on a changed tool"
+
+    async def boom(*cmd, **kw):
+        raise FileNotFoundError("hciconfig: not installed")
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", boom)
+    assert _run(capture._adapter_responds("hci0")) is None, "an absent hciconfig is UNKNOWN, never 'wedged'"
+
+
+def test_adapter_responds_maps_a_TIMEOUT_to_False_because_that_IS_the_wedge(monkeypatch):
+    """Split out because it is the load-bearing branch and it must not be reachable by accident: the
+    wedged controller's signature is that the command never comes back."""
+    async def spawn(*cmd, **kw):
+        return _Proc(0, b"")
+    monkeypatch.setattr(capture.asyncio, "create_subprocess_exec", spawn)
+
+    async def hang(_proc, _timeout, _stdin=None):
+        raise asyncio.TimeoutError()
+    monkeypatch.setattr(capture.proc_util, "communicate", hang)
+    assert _run(capture._adapter_responds("hci0")) is False
+
+
+def test_a_radio_that_does_not_ANSWER_is_wedged_even_while_its_flags_read_UP():
+    """THE 2026-09-11 INCIDENT, ENCODED. The radio wedged at 19:23:12 and the first wedge sign was logged
+    at 19:42:06 — ~19 minutes — because the InProgress inference is SUPPRESSED while `adapter_up is True`,
+    and the kernel flag stayed True until the radio finally went DOWN. With a round-trip verdict the
+    suppression can no longer be bought with a flag a wedged controller still passes."""
+    devs = [{"name": "H10", "address": "A", "connected": False,
+             "last_error": "BleakDBusError('org.bluez.Error.InProgress', ...)"}]
+
+    # PRE-CHANGE BEHAVIOUR, still exactly reproducible: the flag says UP, so InProgress is suppressed and
+    # the watchdog sees nothing. This is the bug, and it must stay reachable or the test below proves
+    # nothing about what changed.
+    blind = capture.classify_adapter_health(devs, adapter_up=True)
+    assert blind["wedged"] is False
+
+    # Same inputs, plus the round trip failing. Two independent things now fire: the suppression is gone,
+    # and the non-answering radio is wedge evidence on its own.
+    seeing = capture.classify_adapter_health(devs, adapter_up=True, adapter_responds=False)
+    assert seeing["wedged"] is True
+    assert "pinned adapter does not answer HCI" in seeing["reasons"]
+    assert any("InProgress" in r for r in seeing["reasons"]), "the suppression must be lifted, not merely outvoted"
+
+
+def test_a_round_trip_that_SUCCEEDS_still_suppresses_the_churn_it_always_did():
+    """The 2026-07-20 lesson is not repealed: a needless power-cycle is worse than the problem. A radio
+    that ANSWERS is positive proof, so lone InProgress churn stays suppressed — and it is now suppressed
+    on stronger evidence than before, since True here means the controller replied."""
+    devs = [{"name": "Ring", "address": "B", "connected": False,
+             "last_error": "BleakDBusError('org.bluez.Error.InProgress', ...)"}]
+    assert capture.classify_adapter_health(devs, adapter_up=True, adapter_responds=True)["wedged"] is False
+
+    # AND THE ASYMMETRY: a successful round trip must NOT buy suppression the flag did not already grant.
+    # A radio can answer HCI and still carry no link — deaf but alive — so if True licensed suppression on
+    # its own, this change would trade one blindness for another. It stays flagged, exactly as today.
+    assert capture.classify_adapter_health(devs, adapter_up=None, adapter_responds=True)["wedged"] is True
+    assert capture.classify_adapter_health(devs, adapter_up=None)["wedged"] is True, "…and unchanged from before"
+
+
+def test_a_LIVE_STREAM_outranks_a_failed_round_trip():
+    """THE GUARD THE PROBE'S OWN SIGNAL IS WRAPPED IN, and it had no test until a planted mutant showed
+    that: deleting `not any_streaming` from the `adapter_responds is False` branch left the whole suite
+    green. The guard is not decoration — it is what makes the probe SUPPRESSION-ONLY in the dangerous
+    direction. A radio carrying a live stream is demonstrably working whatever a round trip says, so a
+    probe misread must never be able to power-cycle it; that is the 2026-07-20 lesson ("a needless
+    power-cycle is worse than the problem") applied to a new signal, and the sibling `adapter_up is
+    False` branch states the same rule for itself.
+
+    `device_is_streaming` is the predicate: connected AND not charging AND not known-unworn — a sensor on
+    its charger reports connected=True while producing nothing, so `connected` alone would not do."""
+    streaming = {"name": "H10", "address": "A", "connected": True, "charging": False, "worn": True}
+    assert capture.device_is_streaming(streaming) is True, "the fixture must really stream, or this is vacuous"
+
+    # The radio does not answer HCI — and a device is streaming through it anyway. Not wedged.
+    assert capture.classify_adapter_health([streaming], adapter_responds=False)["wedged"] is False
+
+    # Same probe verdict, nothing streaming: now it IS wedged. Without this half the assertion above
+    # would also pass if the signal never fired at all.
+    idle = dict(streaming, connected=False)
+    h = capture.classify_adapter_health([idle], adapter_responds=False)
+    assert h["wedged"] is True and "pinned adapter does not answer HCI" in h["reasons"]
+
+
+def test_adapter_responds_None_changes_NOTHING_for_every_pre_existing_caller():
+    """Back-compat is the contract (CLAUDE.md §🧪: new params LAST and optional). None must reproduce the
+    pre-2026-09-18 verdict for both settings of the flag, or landing this would silently re-tier every
+    caller that does not probe."""
+    devs = [{"name": "H10", "address": "A", "connected": False,
+             "last_error": "BleakDBusError('org.bluez.Error.InProgress', ...)"}]
+    for flag in (True, False, None):
+        assert (capture.classify_adapter_health(devs, adapter_up=flag)
+                == capture.classify_adapter_health(devs, adapter_up=flag, adapter_responds=None))
+
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 # adapter_watchdog — the escalation ladder's upper rungs
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -500,8 +621,16 @@ def test_the_watchdog_power_cycles_the_adapter_by_its_BLUEZ_address(monkeypatch)
 def test_the_last_power_cycle_escalates_to_hci_reset_and_a_usb_rebind(monkeypatch):
     """A soft power off/on does not clear an RTL8761B firmware hang — the radio comes back "powered but
     deaf" (VIGIL-DEEP-ANALYSIS §2D). So the LAST cycle before give-up escalates: HCI-reset the
-    controller, then re-enumerate the dongle on its configured bus-port."""
+    controller, then re-enumerate the dongle.
+
+    ⚠️ THIS TEST USED TO ASSERT THE CONFIGURED BUS-PORT, AND THAT WAS THE DEFECT WRITTEN DOWN AS THE
+    CONTRACT. `watchdog.usb_path` is one static value for the whole box; on vigil 2026-09-06 it named
+    the UB500 while this watchdog watched the Sena, so re-enumerating it would have yanked a radio
+    that was neither wedged nor monitored. The rung now derives its target from the watched adapter,
+    which is what `adapter_usb_id` has said all along, so the fixture derives a DIFFERENT port from
+    the configured one and the assertion is that the derived one wins."""
     _wedge_rig(monkeypatch, adapter_up=False)
+    monkeypatch.setattr(capture, "adapter_usb_id", lambda h, **k: "3-2")
     ran = []
 
     async def fake_cmd(cmd):
@@ -524,7 +653,8 @@ def test_the_last_power_cycle_escalates_to_hci_reset_and_a_usb_rebind(monkeypatc
                         "hci_reset": True, "usb_path": "1-1.2", "exit_on_giveup": True}}
     _run(capture.adapter_watchdog("AA:BB:CC:DD:EE:FF", cfg))
     assert ("cmd", ("hciconfig", "hci0", "reset")) in ran
-    assert ("rebind", "1-1.2") in ran
+    assert ("rebind", "3-2") in ran, "the rung did not follow the adapter it is watching"
+    assert ("rebind", "1-1.2") not in ran, "it reached for the static watchdog.usb_path"
     # ...and having exhausted the ladder it exits NON-ZERO so systemd re-execs with a fresh bleak/D-Bus
     # stack, rather than looping forever over a radio it cannot fix (§2C).
     assert capture._EXIT_CODE[0] == 1 and capture._STOP.is_set()
@@ -694,12 +824,12 @@ def test_an_unparseable_schedule_falls_back_to_after_settle(tmp_path, monkeypatc
     only a config comment to explain why."""
     ran = []
 
-    async def fake_transfer(captures, target, settle, schedule):
+    async def fake_transfer(captures, target, settle, schedule, subtrees=()):
         ran.append(schedule)
     monkeypatch.setattr(capture, "_archive_transfer", fake_transfer)
     _stop_after(monkeypatch, 1)
     cfg = {"archive": {"enabled": True, "poll_sec": 1, "schedule": {"mode": "whenever"},
-                       "target": {"kind": "transfer", "protocol": "rsync", "host": "nas"}}}
+                       "target": {"protocol": "rsync", "host": "nas", "share": "/tank/tepna"}}}
     with caplog.at_level("WARNING"):
         _run(capture.archive_poller(cfg, str(tmp_path)))
     assert any("bad schedule" in r.getMessage() for r in caplog.records)
@@ -711,13 +841,13 @@ def test_the_offload_waits_for_its_daily_window(tmp_path, monkeypatch):
     also carrying three live BLE streams. Outside the window the poller must do nothing at all."""
     ran = []
 
-    async def fake_transfer(captures, target, settle, schedule):
+    async def fake_transfer(captures, target, settle, schedule, subtrees=()):
         ran.append(1)
     monkeypatch.setattr(capture, "_archive_transfer", fake_transfer)
     monkeypatch.setattr(capture, "_now", lambda: _dt.datetime(2026, 7, 25, 3, 0, 0))   # 03:00
     _stop_after(monkeypatch, 1)
     cfg = {"archive": {"enabled": True, "poll_sec": 1, "schedule": {"mode": "daily", "at": "11:00"},
-                       "target": {"kind": "transfer", "protocol": "rsync", "host": "nas"}}}
+                       "target": {"protocol": "rsync", "host": "nas", "share": "/tank/tepna"}}}
     _run(capture.archive_poller(cfg, str(tmp_path)))
     assert ran == [], "03:00 is not inside the 11:00 window"
 
@@ -2150,10 +2280,20 @@ def test_list_adapters_is_empty_when_hciconfig_is_missing(monkeypatch):
     assert _run(capture.list_adapters()) == []
 
 
-def _failover_rig(monkeypatch, spare_list):
-    """A wedged pinned radio, quiet deafness probe, stubbed power-cycle, and `list_adapters` → spare_list."""
+def _failover_rig(monkeypatch, spare_list, *, spare_responds=True):
+    """A wedged pinned radio, quiet deafness probe, stubbed power-cycle, and `list_adapters` → spare_list.
+
+    `spare_responds` is the spare's answer to the HCI round trip `_pick_live_spare` asks before
+    migrating onto it. It MUST be stubbed: an unstubbed probe shells `hciconfig` at whatever `hci`
+    name the fixture invented, so the rig would be asking the developer's own hardware whether a
+    made-up radio is alive — and a spare these tests call healthy would be refused on some machines
+    and taken on others."""
     _wedge_rig(monkeypatch, adapter_up=False)
     _quiet_deafness_probe(monkeypatch)
+
+    async def responds(_hci):
+        return spare_responds
+    monkeypatch.setattr(capture, "_adapter_responds", responds)
 
     async def fake_cmd(cmd):
         return True

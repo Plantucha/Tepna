@@ -39,6 +39,42 @@
 | **PpgDex** | Wrist PPG | `ppgBuildNodeExport` — **LIGHT** (recording + events; `opts.rich` orchestrate-only) | **`buildV2`/`exportSummary`** — RICH (recording + `hrv{time,frequency,nonlinear}` + `personalization` + `apnea`) | **`sessions[]`** | rich `buildV2` **or** light — reads whatever's present |
 | **EEGDex** *(planned)* | EEG | — decide at build time — | — decide at build time — | — | — |
 
+## The `measurement` block — per-instance lineage (additive, MINOR; NO node emits it yet)
+
+Specified by `MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26` §1 and validated by **`measurement-block.js`**
+(`validateMeasurement(block, opts) → {ok, errors[], checked[]}`), which is the schema authority the way
+`signal-frame.js` is for the canonical intermediate.
+
+**It is a NEW BLOCK INSIDE `ganglior.node-export`, not a sibling artifact.** The gap it closes, in one
+line: Tepna can prove that a BUNDLE produced an EXPORT from an INPUT, byte for byte, years later — and
+cannot answer the same question about one number *inside* that export. Provenance is airtight at
+ARTIFACT granularity (`manifestHash`, `computeHash`, GATE A/B) and absent at INSTANCE granularity.
+
+⚠️ **No node emits it today, deliberately** (roadmap §1's done-when ends *"no node emits it yet (that's
+§3)"*). Emission is staged per node, OxyDex first, and each stage re-records that node's fixtures. So
+this section describes a shape that is *specified and validated* but not yet *present in any export* —
+do not read a missing `measurement` block as a defect.
+
+**Back-compat:** additive, so **consumers tolerating its absence is the contract**, gated the same way
+the `t`-only event tolerance already is. The `schema.version` MINOR bump lands with the FIRST EMITTER,
+not with the shape: a version announcing a block no node writes is a claim the artifact does not
+honour.
+
+Field rules a reviewer should know without reading the module:
+
+- **`metricId` resolves; it never carries `unit`/`label`/`evidence` inline.** Those are the registry's
+  (the metric contract's single source), and the validator REJECTS them inline. An id the registry does
+  not resolve is the fabricated-identity failure one layer below `no-fabricated-tier`.
+- **`basis` is NOT the evidence ladder.** `measured | derived | estimated` is per-INSTANCE derivation
+  kind; the ladder is per-METRIC epistemics. They share the word `measured` and nothing else, which is
+  exactly why the validator rejects the ladder's other four values *by name*.
+- **`code: {manifestHash, computeHash}` — a hash IS the version.** §📦 forbids a hand-typed version
+  string, so the validator accepts only a 12-hex content hash.
+- **∅ at every optional field.** `window.spreadMs`, `uncertainty` and `evidence.envelopeRef` are
+  `null` **with a reason beside them**, never `0` and never silently absent — "unknown" is a valid
+  state, and a `spreadMs: 0` asserts the two clocks agreed exactly, which is a claim nobody made.
+- **`window.clockDomain` is named** (`device | host | host-corrected`), never implied.
+
 ## Rules that fall out of this (for a new node / a reviewer)
 
 1. **Decide the clinical export shape up front.** If the node's value is a derived table (HRV rows, glycemic

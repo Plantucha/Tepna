@@ -359,7 +359,7 @@ def test_A_SUCCESSFUL_POLL_CLEARS_THE_MESSAGE_AND_THE_LOG_MEMO(caplog):
 
 # ── THE HANDOFF AFTER THE BUDGET IS SPENT ─────────────────────────────────────────────────────────
 # Residue `2026-09-04-cpap-wedge-failover-masks-escalation`. Budget spent used to be the END of the
-# ladder: the rungs that fix an RTL8761B-class wedge live in `adapter_watchdog` and arm only when a
+# ladder: the rungs that fix a btusb-class wedge live in `adapter_watchdog` and arm only when a
 # scan returns ZERO devices, so a radio deaf to ONE device never reached them. These drive the branch
 # that hands off, because a recovery path whose first execution is during an incident is untested.
 _INTEL = "28:0C:50:0C:18:FD"

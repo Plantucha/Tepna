@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** PROPOSED (parked 2026-09-02 — drain triage, Kestrel: a ROADMAP whose first unit, the §1+§2 measurement-block schema contract, is a MINOR schema bump that re-stamps every node's fixtures in stages — §📦 makes its timing the owner's call, and the owner has not scheduled it; none of the six done-when items is started and none can start before that decision. Owner: the owner (schedule) → Kestrel (spawns the §1+§2 contract brief when scheduled). Not to be executed during the drain) · **Created:** 2026-08-26 · **Follows:** `ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` (the acquisition half of this chain — 21/22 §21 criteria met, last one in flight) · **Relates:** CLAUDE.md §🔒 Clock Contract, §🎫 evidence ladder, §🔏 provenance gates, `docs/LEXICON.md`
+**Status:** IN-PROGRESS — 2026-09-21 (§5 DONE — the oracle harness runs on 52 real nights with pre-stated bands, `tools/oracle-ecg-firmware-rr.mjs`; rMSSD/mean-RR CONSISTENT, per-beat pairing bimodal with the instrument limit named and the next unit scoped. Four units remain: §3, §8, the F-section report, the follow-up brief.) · IN-PROGRESS — 2026-09-20 (NOT owner-blocked: the schedule decision was ratified 2026-09-15 (queue D5). Five Done-when units remain unticked and are executable by the fleet; re-stamped 2026-09-20 because the header still read as parked on a decision that was made five days earlier) · **Created:** 2026-08-26 · **Follows:** `ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` (the acquisition half of this chain — 21/22 §21 criteria met, last one in flight) · **Relates:** CLAUDE.md §🔒 Clock Contract, §🎫 evidence ladder, §🔏 provenance gates, `docs/LEXICON.md` · **Residue:** 2026-09-21-validaterr-compares-gap-spanning-intervals
 
 # Measurement-provenance roadmap — the canonical Measurement layer between Dex outputs and the Integrator
 
@@ -173,10 +173,31 @@ one node's fixtures in §3, all eight eventually — staged, never fleet-wide at
 oracle dev-dependency set (SOUP note required); (c) whether §11 gets an adapter or stays a doc.
 
 ## Done when (this roadmap file)
-- [ ] §1+§2 contract brief spawned, executed, gates green (schema groups live).
+- [x] §1+§2 contract brief **SPAWNED AND EXECUTED 2026-09-17** — gates green (schema group live, 27 assertions; `npm run check` 16/16). The shape is specified and validated; NO node emits it, which is §3.
+- [~] ~~§1+§2 contract brief **SPAWNED 2026-09-17**~~ — `MEASUREMENT-INSTANCE-CONTRACT-2026-09-17-BRIEF.md`
+      (unassigned; any session may pick it up). Still owed by that brief: executed, gates green,
+      schema groups live. It holds the scope fence this item implies — spec + validator + tests,
+      **no node emits**, so it moves no fixture and no `manifestHash`; emission is §3.
 - [ ] §3 reference path executed: one real night's OxyDex export carries resolvable measurement
       blocks; the backward walk-through is written and checkable.
-- [ ] §5 harness runs at least the R-peak and HR comparisons on real nights with pre-stated bands.
+- [x] §5 harness runs at least the R-peak and HR comparisons on real nights with pre-stated bands.
+      ✅ **DONE 2026-09-21 (Osprey) — `tools/oracle-ecg-firmware-rr.mjs`, run over 52 real H10 nights
+      (965 326 beats).** Reference = the strap FIRMWARE's RR train (an independent detector on the same
+      lead; no dev-dep, so §5's quarantine holds by construction — and `tools/oracle/` was NOT used
+      because both tool gates read `tools/` non-recursively). Bands written before the first night; the
+      caveats machine-printed every run. **Detector comparison (pairing-free): mean RR Δ 0.40 %, rMSSD Δ
+      1.2 % — CONSISTENT.** Per-beat rows are BIMODAL — 20 nights paired within one sample (≈ 1 ms), 25
+      UNPAIRED because the index alignment (±60 beats/decile) loses the train when the firmware's
+      surplus (up to +34 %, bursts where ECGDex refused) exceeds it; SDNN inherits the extent
+      difference (8.85 % SHORTFALL). Two findings on our side: `validateRR` / the export's `validation`
+      compare a gap-contaminated train (65 797.8 % dRMSSD on 2026-09-03 — residue
+      `2026-09-21-validaterr-compares-gap-spanning-intervals`, fix is a separate PR), and the harness's
+      first LoA paired with one global offset (fixed before the report; both numbers stated).
+      **Next unit, named:** the TIME-ANCHORED pairing §5 literally asks for (cumulate firmware RR,
+      re-anchor on arrival stamps, tolerance-window pair), which turns 25 unpaired nights into a
+      measurement. PPG leg: coverage only (37 Verity nights with `_PPI.txt`, 32 usable). Detail:
+      `docs/ORACLE-ECG-FIRMWARE-RR-2026-09-21.md`. Related landing the same night, different instrument:
+      #2759 validated the capture-host live-strip R detector against the same firmware stream.
 - [ ] §8 Integrator consumes canonical blocks behind a tolerant adapter.
 - [ ] The final report answers the draft's F-section honestly: what this does NOT prove
       scientifically (agreement ≠ physiological truth; provenance ≠ accuracy).

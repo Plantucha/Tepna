@@ -67,6 +67,7 @@ import json
 import re
 import sys
 import subprocess
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
@@ -74,6 +75,7 @@ VENV_PY = HERE / ".venv" / "bin" / "python"
 sys.path.insert(0, str(HERE))
 from mutation_diff import (  # noqa: E402
     EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, classify, diff_key,
+    in_glob_scope, source_function_of_glob, undecided_by_function, unmutatable_decorator,
     functions_covering, refusal_reason, selftest, split_results, string_only_verdict,
 )
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -243,9 +245,14 @@ def main(argv=None) -> int:
     _attempted = _ran = 0
     _crashed: list = []          # §3 — globs that returned no error yet tested zero mutants (silent drop-out)
     _nothing_to_mutate: list = []  # §3b — globs with NO generated mutants: benign, not a failure
+    # NOT the same thing, and conflating them is the defect: a property generates no mutants because
+    # THIS TOOL CANNOT MUTATE ONE, so it was never examined. Counted apart so the summary can say so.
+    _unexaminable: list = []
+    _out_of_scope: int = 0   # undecided mutants belonging to functions the diff never touched
     verdict: dict = {"base": a.base, "modules": {}, "survivors": []}
     for module, lines in sorted(changed.items()):
-        stems = functions_covering(_read_source(HERE / module), lines)
+        _msrc = _read_source(HERE / module)   # read ONCE per module; the loop below reuses it
+        stems = functions_covering(_msrc, lines)
         if not stems:
             print(f"  {module}: {len(lines)} changed line(s), none inside a function — skipped")
             continue
@@ -256,9 +263,23 @@ def main(argv=None) -> int:
         # One mutmut invocation per function keeps a single slow function from hiding the others.
         for g in globs:
             _attempted += 1
+            # ── PROGRESS, AND WHY IT IS PRINTED BEFORE THE WORK RATHER THAN AFTER ───────────────
+            # A clean function used to print NOTHING: only survivors were reported, from inside the
+            # results parse. So a function that killed everything in 8 s and a function that hung for
+            # two hours produced identical output — none — and the run's own log could not tell them
+            # apart. Measured on run 35367452829 (#2624): last output at 16:36:08 "Generating
+            # mutants", then 2 h 05 m of silence, then exit 143. Nobody could say where the time went,
+            # which is why a granularity change was being considered against an interval no one had
+            # observed.
+            # The line goes BEFORE `run_one` deliberately. Printed after, a hang is still anonymous —
+            # the whole point is that the log NAMES the function currently being mutated, so a kill
+            # mid-run is attributable to one glob instead of to the job.
+            _t0 = time.monotonic()
+            print(f"    ▸ {g}: mutating…", flush=True)
             r = mut.run_one(module, only=g)
+            _secs = time.monotonic() - _t0
             if r.get("error"):
-                print(f"    ! {g}: {r['error']}")
+                print(f"    ! {g}: {r['error']}  [{_secs:.0f}s]", flush=True)
                 continue
             _ran += 1
             work = Path(r["work"])
@@ -267,14 +288,50 @@ def main(argv=None) -> int:
             # meta and hands back a clean-looking run with no survivors. Count the DECIDED mutants for this
             # glob; zero means it dropped out while listed as covered — record it and refuse below, exactly
             # as the preflight does, rather than banking an empty survivor list as a pass.
-            if mmeta.tested_count(work, module, g) == 0:
+            _tested = mmeta.tested_count(work, module, g)
+            if _tested == 0:
                 # ⚠️ 0-tested has TWO causes and only one is a failure. A function with no mutable
                 # operator generates nothing, and mutmut signals that by crashing rather than saying
                 # so — refusing on it reds a rename or a docstring edit. Ask the mutants file which
                 # case this is before deciding. (Measured: oxy_inventory.identity, 138 mutants in the
                 # file, 0 under its glob, whole run refused.)
                 if mmeta.generated_count(work, module, g) == 0:
-                    print(f"    · {g}: no mutable operator in this function — nothing to test")
+                    # ⚠️ THE MESSAGE STATES WHAT IS KNOWN, NOT AN INFERRED CAUSE. mutmut generated
+                    # nothing under this glob; WHY is not established here, and the two known causes
+                    # are different findings. A function with no mutable operator is genuinely nothing
+                    # to test. An `@property` is not — measured 2026-09-18, mutmut emits ZERO mutants
+                    # for a property whose body is `return self.a + self.b`, a perfectly mutatable `+`.
+                    # So for properties this is a limitation of the TOOL reported as a property of the
+                    # CODE, and every `@property` body in the tree is consequently unmutated. Saying
+                    # "no mutable operator" would assert a cause nobody checked — the same shape as
+                    # the guard above, which asserted a benign outcome it could not distinguish.
+                    # ⚠️ An `AssertionError: Filtered for specific mutants, but nothing matches` appears
+                    # above this line and is EXPECTED: mutmut asserts on a filter matching nothing,
+                    # `run_one` uses Popen so it reaches the log, and this tool reads the count and
+                    # continues. Handled, not a crash.
+                    # ⚠️ TWO CAUSES, ONE COUNT, AND ONLY ONE OF THEM IS "NOTHING TO TEST".
+                    # mutmut emits no mutants for an `@property` at all — measured on a body of
+                    # `return self.a + self.b`. So a zero here means either the function genuinely has
+                    # no mutable operator (benign, examined, clean) or this tool cannot examine it.
+                    # Saying "no mutable operator" for the second is a wrong diagnosis of a right
+                    # number: it reports a limitation of the TOOL as a property of the CODE, and a
+                    # reader takes it as coverage. Measured 2026-09-18: 45 properties in capture-host,
+                    # all generating zero, 15 with genuinely mutatable bodies, and all 15 changed this
+                    # quarter — so this is an active blind spot, not a theoretical one.
+                    _dec = unmutatable_decorator(_msrc, source_function_of_glob(g))
+                    if _dec:
+                        print(f"    ⊘ {g}: NOT EXAMINED — mutmut skips @{_dec}"
+                              f"  [{_secs:.0f}s]"
+                              f"\n      (it mutates by replacing a function with a trampoline, which a"
+                              f" decorated function cannot be rebound to. Zero mutants whatever the body"
+                              f"\n       contains — a blind spot, not a clean result.)", flush=True)
+                        _ran -= 1
+                        _unexaminable.append(g)
+                        continue
+                    print(f"    · {g}: mutmut generated 0 mutants under this glob — nothing to test"
+                          f"  [{_secs:.0f}s]"
+                          f"\n      (cause NOT established beyond 'not an @property'. The AssertionError"
+                          f" above is expected.)", flush=True)
                     # `_ran` was incremented on the way in; nothing actually ran, so give it back.
                     # Without this the run reports "every mutant on the changed functions was killed"
                     # over ZERO mutants — a claim of coverage that does not exist, which is the exact
@@ -284,10 +341,18 @@ def main(argv=None) -> int:
                     _nothing_to_mutate.append(g)
                     continue
                 print(f"    ! {g}: mutants were generated but 0 tested — a crash after generation, not "
-                      f"a clean run (the meta's exit codes are all null under this glob)")
+                      f"a clean run (the meta's exit codes are all null under this glob)  [{_secs:.0f}s]", flush=True)
                 _ran -= 1
                 _crashed.append(g)
                 continue
+            # THE SUCCESS PATH, which printed nothing whatsoever before this. A function whose
+            # mutants were all killed is the COMMON case, so the common case was the silent one — and
+            # silence is what made a slow run indistinguishable from a healthy one. The count and the
+            # elapsed are both here because either alone is ambiguous: 2 mutants in 600 s and 900
+            # mutants in 600 s are different findings, and only the pair separates a wide sweep from a
+            # slow one. That distinction is exactly what the granularity question needs and could not
+            # get from the old log.
+            print(f"    ✓ {g}: {_tested} mutant(s) decided  [{_secs:.0f}s]", flush=True)
             # ── the GENERATED set, for REFUTED detection ────────────────────────────────────────
             # `mutmut results` lists survivors and not-checked ONLY — a KILLED mutant is absent from
             # it entirely, so an earlier draft's `": killed" in line` matched nothing and REFUTED could
@@ -316,7 +381,16 @@ def main(argv=None) -> int:
             # `split_results` inverts that: survivors are blocking, everything else is UNDECIDED, and
             # UNDECIDED is never killed and never refutes an equivalence entry.
             _split = split_results(r.get("results") or "")
+            # 🔴 SCOPE THE HARVEST TO THE GLOB THAT WAS ACTUALLY RUN. `mutmut results` takes no glob
+            # and enumerates the WHOLE workspace, so without this every mutant generated for a
+            # function the diff never touched came back `not checked` and BLOCKED the run. Measured
+            # over four refusals: 553/338/166/116 undecided, 100% `not checked` and 0% `timeout` —
+            # never run, so nothing could time out. Counted, never silently dropped: a filter that
+            # does not publish what it removed is the shape this gate exists to refuse.
             for _nm, _status in _split[UNDECIDED]:
+                if not in_glob_scope(_nm, g):
+                    _out_of_scope += 1
+                    continue
                 undecided.append({"mutant": _nm, "module": module, "status": _status})
             for name in _split[SURVIVED]:
                 show = subprocess.run([str(VENV_PY), "-m", "mutmut", "show", name],
@@ -364,6 +438,21 @@ def main(argv=None) -> int:
     # was tested, so nothing was shown. This is the layer the import check cannot cover.
     # A glob with nothing to mutate is counted in `_attempted` but is not a failure, so it must not
     # feed the all-or-nothing refusal either: otherwise a diff touching only unmutable functions reds.
+    # ⚠️ THE BLIND SPOT IS NAMED IN THE SUMMARY, NOT ONLY PER FUNCTION. A run whose only output was a
+    # per-glob line scrolls past; the count is what a reader carries away, and "0 survivors" over
+    # functions this tool never opened is a coverage claim it has not earned. Measured 2026-09-18:
+    # 45 properties in capture-host, all unmutatable by this tool, 15 with genuinely mutatable bodies,
+    # and all 15 changed this quarter — so this line will fire on real diffs, not hypothetical ones.
+    if _unexaminable:
+        print(f"\n  ⊘ {len(_unexaminable)} changed function(s) were NOT EXAMINED — mutmut skips "
+              f"decorated functions (except a lone @staticmethod/@classmethod):")
+        for _g in _unexaminable[:8]:
+            print(f"      {_g}")
+        if len(_unexaminable) > 8:
+            print(f"      … and {len(_unexaminable) - 8} more")
+        print("    Their mutants were never generated, so nothing below speaks to them. This is a\n"
+              "    limitation of the TOOL, not a finding about the code.")
+
     if _nothing_to_mutate and not _ran and not _crashed and len(_nothing_to_mutate) == _attempted:
         print(f"\nmutate-diff: {len(_nothing_to_mutate)} changed function(s) had no mutable operator — "
               "nothing to test, and nothing to conclude. Not a failure.")
@@ -453,6 +542,15 @@ def main(argv=None) -> int:
     # killed" is not a claim this run is entitled to make. Reported as its own class rather than
     # folded into survivors: a survivor means "a test COULD see this and none does", an undecided
     # means "nobody knows", and they want different responses.
+    # REPORTED UNCONDITIONALLY, AND THAT PLACEMENT IS THE POINT. Inside the undecided branch this
+    # line
+    # would go silent in the one case that matters most — every undecided mutant out of scope, so the
+    # run PASSES and nobody is told a filter ran at all. A filter that publishes its count only when
+    # something survives it is not publishing a denominator.
+    if _out_of_scope:
+        print(f"\n  note: {_out_of_scope} undecided mutant(s) excluded as OUT OF SCOPE — `mutmut "
+              "results` takes no glob and lists the whole workspace, including functions this diff\n"
+              "  never touched. They were never run, so they are not evidence either way.")
     if undecided:
         by_status: dict[str, list[dict]] = {}
         for u in undecided:
@@ -465,8 +563,41 @@ def main(argv=None) -> int:
                 print(f"    ── {u['module']}  {u['mutant']}")
             if len(items) > 6:
                 print(f"    … and {len(items) - 6} more")
-        print("\n  A timeout is UNMEASURED, never killed — a tighter bound cannot manufacture a pass.\n"
-              "  Re-run under less load, or raise `timeout_multiplier`, before reading the verdict.")
+        # WHICH FUNCTIONS, not just how many. A total plus six samples cannot separate the two cases
+        # that need opposite responses: all of them in ONE function points at that function's mutants,
+        # spread across SEVERAL points at the runner. Measured 2026-09-18 across three PRs the gate
+        # refused (116, 553 and a 145-min kill), nobody could tell which shape any of them was.
+        _dist = undecided_by_function(undecided)
+        print("\n  by function:")
+        for _fn, _n in _dist[:8]:
+            print(f"    {_n:>5}  {_fn}")
+        if len(_dist) > 8:
+            print(f"    … and {len(_dist) - 8} more function(s)")
+        # ⚠️ `timeout_multiplier` DELIBERATELY NOT RECOMMENDED HERE, and this line used to recommend it.
+        # An UNDECIDED mutant was never observed by a test; raising the bound until it fits converts
+        # "not measured" into "passed" without anyone learning which mutants moved — the fabricated-pass
+        # shape this whole refusal exists to prevent, arrived at through the tool's own advice.
+        # And it does not even fit the evidence: the three refusals above ran 145 min, 2m53s and ~1 min,
+        # so a bound is not what separates them.
+        # ⚠️ THE REMEDY IS CONDITIONED ON THE STATUSES ACTUALLY PRESENT, and it used to be
+        # unconditional. "Re-run under less load" is LOAD advice, and it was printed on refusals that
+        # were 100% `not checked` and 0% `timeout` — measured over four runs (553/338/166/116). Load
+        # was never the variable there, and this is the first line anyone reads and acts on, so the
+        # gate refused honestly and then misdirected the fix. `by_status` is three lines above; not
+        # consulting it was the same defect as a diagnostic that names a cause the code did not check.
+        _load_shaped = sorted({"timeout", "suspicious"} & set(by_status))
+        print("\n  An UNDECIDED mutant was never seen by a test — it is UNMEASURED, not killed, and no\n"
+              "  bound can turn one into the other.")
+        if _load_shaped:
+            print(f"  {', '.join(_load_shaped)} present ⇒ load or the runner is in play. Re-run under less\n"
+                  "  load. If the same functions keep appearing above, the cause is in those mutants;\n"
+                  "  if it moves around, look at the runner.")
+        else:
+            print(f"  No load-shaped status here ({', '.join(sorted(by_status))} only) — re-running under\n"
+                  "  less load will NOT change this. These mutants were never executed at all, so look at\n"
+                  "  what selected them, not at how long they were given.")
+        print("  Do NOT raise `timeout_multiplier` to clear this: it would report a pass for mutants\n"
+              "  nobody measured, which is precisely what this refusal is here to stop.")
         if not a.report_only:
             return 2
 

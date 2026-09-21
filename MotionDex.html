@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-LK5VOOBa0EEy7ufo1WyQm1kSFnDsFWmUvZ1fThFN8ws=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-i3reGRzkJM7QjIg1lbF4DPDdb5yytZOi+1xN8393YJc=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-qrP75q2RaLPbMsjTwkX9LYv+0WulLvr9R/XTAfT9VZY='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A5IOHO4TVAjxMeWYBbqHuYMVdTRsVI1H8TBxvzdcv4w=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-LK5VOOBa0EEy7ufo1WyQm1kSFnDsFWmUvZ1fThFN8ws=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-s/Nk1bqiBjE0ZX5O987aEfmh+0ye89VWIlc+r/sLjXo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.12.0</title>
@@ -4347,13 +4347,17 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       unit: 'br/min',
       goodDirection: 'down',
       depth: 'advanced',
-      /* emerging, NOT validated: real-corpus validated (26 nights / 172 h / 19,193 epochs of
-         chest ACC vs ResMed CPAP `Flow.40ms` breath-by-breath reference — MAE 1.01 br/min,
-         95% CI 0.91–1.12; 91.6% within 2 br/min) but on a SINGLE subject, which does not meet
+      /* emerging, NOT validated: real-corpus validated (49 ACC/CPAP-paired nights / 8,057
+         epochs of chest ACC vs ResMed CPAP `Flow.40ms` breath-by-breath reference — MAE
+         1.10 br/min, 95% CI 0.96–1.27; 90.8% within 2 br/min) but on a SINGLE subject, which does not meet
          the Literature-Use Policy bar for `validated`. Posture robustness is untested (corpus
-         gravity-roll IQR 13.1–17.9°, i.e. one posture). */
+         gravity-roll IQR 13.1–17.9°, i.e. one posture).
+         ⚠ FIGURES RESTATED 2026-09-07. The previous 26 nights / 172 h / 19,193 epochs / MAE 1.01 /
+         91.6% predate the cross-device alignment fix of #1042 and were never reproducible from
+         committed code; a tier justified by an unreproducible number is the fabricated authority
+         §🎫 exists to prevent. See the correction notice in `papers/acc-respiratory-rate.html`. */
       evidence: 'emerging',
-      cite: 'Chest-ACC spectral ridge tracking (Viterbi) validated against CPAP flow, 26 nights — MAE 1.01 br/min; time-domain blend per Charlton 2016, Physiol Meas 37(4):610'
+      cite: 'Chest-ACC spectral ridge tracking (Viterbi) validated against CPAP flow, 49 nights — MAE 1.10 br/min; time-domain blend per Charlton 2016, Physiol Meas 37(4):610'
     },
     effortAmp: {
       label: 'Effort amplitude',
@@ -5746,6 +5750,10 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       var dyn = Math.abs(mags[i] - base[i]);
       if (dyn > MOVE_G) counts[idx] += dyn;
     }
+    /* the parser hangs the seam list on the row array itself (`out._clockResyncs`, :289), so the
+       signal is already in scope here — no signature change, and no new parameter for a caller to
+       forget to pass. */
+    var _seam = !!(accRows && accRows._clockResyncs && accRows._clockResyncs.length);
     var epochs = [],
       immobile = 0,
       covered = 0,
@@ -5769,7 +5777,28 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       epochs: epochs,
       coveredEpochs: covered,
       totalCounts: total,
-      immobileFrac: covered ? immobile / covered : null,
+      /* ── §∅ REFUSE-VS-ANNOTATE (CLAUDE.md §∅, owner ruling 2026-09-17) ──────────────────────
+         "A DISCONTINUITY refuses; reduced COVERAGE annotates. The line is whether the window still
+         describes ONE continuous stretch of signal."
+
+         `immobileFrac` is a DURATION over the axis: epochs are assigned by
+         `Math.floor(relSecOf(...) / epoch)`, a TIME-DERIVED index. A device-clock seam is re-anchored
+         upstream, which makes the axis continuous again and therefore makes the discontinuity
+         INVISIBLE here — samples either side of the seam land in adjacent epochs as though no time
+         passed between them. The fraction over that stretch is not an observation anyone made.
+         Measured on ECGDex 2026-09-17: a metric fed SAMPLE indices is immune to this and needs no
+         guard; one fed time-derived indices is not. That is the criterion, not "does the node detect
+         seams" — see residue `2026-09-17-seam-exposure-is-input-provenance`.
+
+         `movementIndex` is a MAGNITUDE (mean dynamic-g per covered epoch), not a span, so it is left
+         published. And the COVERAGE half above is already what §∅ mandates — tri-state `moving`,
+         uncovered epochs outside the denominator — so it is deliberately untouched: conforming it
+         would be a change with no defect behind it.
+
+         The reason string is `clock-seam` VERBATIM, the spelling PpgDex established (#2600). Never a
+         second spelling of one fact. */
+      immobileFrac: _seam ? null : covered ? immobile / covered : null,
+      ...(_seam ? { immobileFracReason: 'clock-seam' } : {}),
       movementIndex: covered ? total / covered : null
     };
   }
@@ -5777,12 +5806,19 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
   /* ════════════════════════════════════════════════════════════════════════
      RESPIRATORY RATE — spectral ridge tracking (MOTIONDEX-RESPIRATORY-RATE-2026-07-21)
      ────────────────────────────────────────────────────────────────────────
-     Validated on 26 nights / 172 h / 19,193 epochs of Polar H10 chest ACC against
+     Validated on 49 ACC/CPAP-paired nights / 8,057 epochs of Polar H10 chest ACC against
      ResMed CPAP `Flow.40ms` breath-by-breath reference:
-        MAE 1.01 brpm (95% CI 0.91-1.12), 91.6% within 2 brpm, at 100% coverage;
-        MAE 0.56 / 97.8% at 70% coverage, i.e. AT the reference's own 0.70 brpm floor.
-     The predecessor zero-crossing estimator (still below, still exported) scored
-     MAE 3.59 on the same epochs — worse than predicting a constant (1.50).
+        MAE 1.10 brpm (95% CI 0.96-1.27), 90.8% within 2 brpm, at 100% coverage;
+        MAE 0.63 / 97.2% at 70% coverage, i.e. AT the reference's own 0.74 brpm floor.
+     The null baseline (predicting the corpus median) scores MAE 1.64 on the same epochs.
+
+     ⚠ RESTATED 2026-09-07, and note WHAT IS NOT RESTATED. The previous figures — 26 nights /
+     172 h / 19,193 epochs, MAE 1.01, 91.6% — predate the cross-device alignment fix of #1042,
+     whose own commit message records nine of sixteen nights scored against noise; they were
+     never reproducible from committed code. The predecessor zero-crossing comparison (MAE 3.59)
+     is WITHDRAWN rather than updated: the analysis tool no longer emits that configuration, so
+     it could not be reproduced, and carrying a number forward under corrected figures is the
+     precise thing the correction refuses to do.
 
      Design notes, each measured rather than assumed:
        · 3 band-passed acceleration axes. A tilt-ANGLE channel is NOT built: for a

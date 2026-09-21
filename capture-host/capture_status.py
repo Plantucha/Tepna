@@ -41,19 +41,31 @@ def render(state: dict) -> str:
     on `connected` — the exact distinction the whole tool exists to make."""
     adapter = state.get("adapter")
     devices = state.get("devices") or []
-    stream_by_key = {s.get("key"): s for s in (state.get("streams") or [])}
+    streams = state.get("streams") or []
+    # OWNERSHIP, not spelling. A bus KEY (`acc_vs`, `o2ppg`, bare `ecg`) and a configured stream NAME
+    # (`acc`, `ppg`, `ecg`) are different namespaces; joining them by equality matched 2 of 10 streams on
+    # the live box, both by accident, and rendered a Verity writing 16.8 MB as "connected (idle)"
+    # (residue 2026-09-05-capture-status-joins-two-key-namespaces). The daemon now says which device
+    # owns each key (`streams[].device`), and that is the only join used here.
+    owned: dict[str, list[dict]] = {}
+    for s in streams:
+        if s.get("device") is not None:
+            owned.setdefault(s["device"], []).append(s)
+    ownership_known = any(s.get("device") is not None for s in streams)
 
     body = []
     streaming = 0
     for dev in devices:
         name = dev.get("name") or dev.get("device_id") or "?"
-        dev_streams = [stream_by_key.get(k, {"key": k}) for k in (dev.get("streams") or [])]
+        names = list(dev.get("streams") or [])
+        dev_streams = owned.get(name, [])
         active = [s for s in dev_streams if s.get("active")]
         if active:
             streaming += 1
             status = "STREAMING"
         elif dev.get("connected"):
-            status = "connected (idle)"
+            # "idle" is a claim about the streams; with none matched it is not one we can make.
+            status = "connected (UNMATCHED)" if (names and not dev_streams) else "connected (idle)"
         else:
             status = "OFFLINE"
 
@@ -64,6 +76,14 @@ def render(state: dict) -> str:
                 f"      {str(s.get('key', '')):9} active={s.get('active')} "
                 f"effFs={s.get('effFs')} health={s.get('health')}"
             )
+        # A configured name with no owned stream is UNMATCHED — said as such, never rendered as
+        # `active=None`, which is indistinguishable from a stream that is genuinely idle. With no
+        # ownership in the state at all (a daemon older than the field) every configured name lands
+        # here, and the line says why rather than falling back to the equality join that was the bug.
+        if names and not dev_streams:
+            why = ("daemon reports no stream ownership — older than streams[].device"
+                   if not ownership_known else "no bus stream is owned by this device")
+            body.append(f"      UNMATCHED {len(names)} configured: {' '.join(names)} — {why}")
         if dev.get("last_error"):
             body.append(f"      last_error: {dev['last_error']}")
 

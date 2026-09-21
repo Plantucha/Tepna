@@ -433,3 +433,203 @@ def test_selftest_reds_on_a_lying_annotation_classifier(monkeypatch):
     monkeypatch.setattr(M, "annotation_only",
                         lambda a, b: (True, "stripped ASTs identical"))
     assert M.selftest() == 1
+
+
+# ── UNDECIDED attribution: which FUNCTION, not just how many ────────────────────────────────────────
+# The refusal reported a total and six sample names. That cannot separate "all 116 in one pathological
+# function" from "spread across five" — two findings needing opposite responses, and the data was in
+# every mutant name already. These pin both real name shapes; the METHOD form is the one a column-0
+# assumption keeps missing (see mmeta.generated_under_glob).
+
+def test_function_of_mutant_reads_a_module_level_function():
+    assert M.function_of_mutant("x__floor_by_t__mutmut_12") == "_floor_by_t"
+
+
+def test_function_of_mutant_reads_the_MODULE_QUALIFIED_form_production_actually_sends():
+    """🔴 THE FORM THIS FUNCTION IS ACTUALLY CALLED WITH, and it could not read it until 2026-09-19.
+
+    `mutmut results` prints names module-qualified and `mutate_diff.py` passes them through verbatim
+    from `split_results`. Every example in the docstring is BARE, these tests were written from those
+    examples, and nothing ever fed it the production form — so `by function` grouped 100 % of mutants
+    under `?` from the day it shipped, with this file green throughout.
+
+    Measured on a real refusal: 166 undecided, `by function: 166 ?`, zero attributed. The feature
+    exists to separate "all in one pathological function" from "spread across several" — the
+    measurement that decides whether the remedy is scheduling or the mutants — and it has never once
+    produced that answer."""
+    assert M.function_of_mutant("gattmap.x__norm__mutmut_1") == "_norm"
+    assert M.function_of_mutant("gattmap.x_configure__mutmut_3") == "configure"
+    assert M.function_of_mutant("gattmap.xǁCounterǁscaled__mutmut_2") == "Counter.scaled"
+    assert M.function_of_mutant("pkg.mod.x_f__mutmut_9") == "f", "a dotted package path is still a prefix"
+
+
+def test_function_of_mutant_reads_a_METHOD_including_its_class():
+    assert M.function_of_mutant("xǁCounterǁscaled__mutmut_2") == "Counter.scaled"
+    assert M.function_of_mutant("xǁGapCountersǁtotal_lost__mutmut_3") == "GapCounters.total_lost"
+
+
+def test_function_of_mutant_declines_rather_than_guesses():
+    """A wrong attribution sends a reader to the wrong function — worse than naming none."""
+    assert M.function_of_mutant("not_a_mutant") == ""     # no __mutmut_N suffix
+    assert M.function_of_mutant("") == ""
+    assert M.function_of_mutant("x__mutmut_1") == ""      # suffix, but no name left after `x_`
+    assert M.function_of_mutant("ǁǁ__mutmut_1") == ""     # separators, no parts
+    # ...and stripping the module qualifier must not turn a decline into a GUESS: a qualified name
+    # whose remainder is still unreadable stays unattributed rather than naming the module.
+    assert M.function_of_mutant("gattmap.not_a_mutant") == ""
+    assert M.function_of_mutant("gattmap.junk__mutmut_1") == ""
+    assert M.function_of_mutant("gattmap.x__mutmut_1") == ""
+
+
+def test_undecided_by_function_counts_and_orders_commonest_first():
+    items = [{"mutant": f"x__floor_by_t__mutmut_{i}"} for i in range(5)]
+    items += [{"mutant": "xǁCǁs__mutmut_1"}, {"mutant": "xǁCǁs__mutmut_2"}]
+    assert M.undecided_by_function(items) == [("_floor_by_t", 5), ("C.s", 2)]
+
+
+def test_undecided_by_function_attributes_the_QUALIFIED_names_the_refusal_carries():
+    """The end-to-end shape of the 2026-09-19 refusal, in the form `mutate_diff.py` builds: every item
+    is `{"mutant": <qualified>, "module": …}`. Before the fix this returned `[("?", 7)]` — a summary
+    reporting nothing about the set it was summarising."""
+    items = [{"mutant": f"gattmap.x__norm__mutmut_{i}", "module": "gattmap.py"} for i in range(5)]
+    items += [
+        {"mutant": "gattmap.x_configure__mutmut_1", "module": "gattmap.py"},
+        {"mutant": "gattmap.x_configure__mutmut_2", "module": "gattmap.py"},
+    ]
+    assert M.undecided_by_function(items) == [("_norm", 5), ("configure", 2)]
+
+
+def test_undecided_by_function_groups_the_unattributable_rather_than_dropping_it():
+    """A summary that silently omits what it could not parse under-reports its own total."""
+    out = M.undecided_by_function([{"mutant": "junk"}, {"mutant": "x__a__mutmut_1"}, {}])
+    assert dict(out)["?"] == 2
+    assert sum(n for _, n in out) == 3
+
+
+def test_undecided_by_function_is_empty_safe():
+    assert M.undecided_by_function([]) == []
+    assert M.undecided_by_function(None) == []
+
+
+# ── @property: a function this tool CANNOT examine is not a function with nothing to examine ────────
+# mutmut generates no mutants for a property whatever its body holds — measured 2026-09-18 on
+# `return self.a + self.b`. Reporting that as "no mutable operator" states a property of the CODE for
+# what is a limitation of the TOOL. Measured the same day: 45 properties in capture-host, all
+# unmutatable, 15 with genuinely mutatable bodies, and all 15 changed this quarter.
+
+_PROP_SRC = (
+    "import functools\n"
+    "class C:\n"
+    "    @property\n"
+    "    def total(self):\n        return self.a + self.b\n"
+    "    @functools.cached_property\n"
+    "    def cached(self):\n        return 1\n"
+    "    def plain(self):\n        return 2\n"
+    # DECORATED BUT NOT A PROPERTY — the case `plain` cannot cover, because it has no decorators at
+    # all. Without this the inner decorator loop never completes un-matched, and the "has decorators,
+    # none of them property" path goes untaken. Caught by the branch-coverage floor, not by reading.
+    "    @staticmethod\n    def helper():\n        return 3\n"
+)
+
+
+def test_unmutatable_names_the_decorator_for_both_property_forms():
+    assert M.unmutatable_decorator(_PROP_SRC, "total") == "property"
+    assert M.unmutatable_decorator(_PROP_SRC, "cached") == "cached_property"
+
+
+def test_an_undecorated_method_and_an_absent_name_are_mutatable():
+    assert M.unmutatable_decorator(_PROP_SRC, "plain") == ""
+    assert M.unmutatable_decorator(_PROP_SRC, "nope") == ""
+
+
+def test_a_lone_staticmethod_is_mutmuts_OWN_exemption_and_stays_mutatable():
+    """mutmut allows exactly one @staticmethod/@classmethod because trampolines are easy for those.
+    Mirroring its rule rather than inventing one is why this returns "" and not "staticmethod"."""
+    assert M.unmutatable_decorator(_PROP_SRC, "helper") == ""
+
+
+def test_the_blind_spot_is_WIDER_than_properties():
+    """45 properties, but also 4 @asynccontextmanager and 1 @middleware in capture-host — 50 total.
+    Reporting only properties left the other five saying "cause not established" for a known cause."""
+    src = ("import contextlib, functools\n"
+           "@contextlib.asynccontextmanager\n"
+           "async def scope():\n    yield 1\n"
+           "@functools.lru_cache()\n"
+           "def cached_fn():\n    return 2\n")
+    assert M.unmutatable_decorator(src, "scope") == "asynccontextmanager"
+    assert M.unmutatable_decorator(src, "cached_fn") == "lru_cache"   # the @foo() CALL form counts
+
+
+def test_unparseable_source_yields_no_claim_rather_than_raising():
+    """Empty is the safe direction: a false positive invents a warning nobody can act on."""
+    assert M.unmutatable_decorator("def (", "a") == ""
+    assert M.unmutatable_decorator("", "a") == ""
+
+
+def test_source_function_of_glob_reads_the_bare_def_name():
+    assert M.source_function_of_glob("cpap_ingest.xǁGapCountersǁtotal_lost__mutmut_*") == "total_lost"
+    assert M.source_function_of_glob("m.x_helper__mutmut_*") == "helper"
+
+
+def test_source_function_of_glob_declines_rather_than_guessing():
+    assert M.source_function_of_glob("m.x__mutmut_*") == ""
+    assert M.source_function_of_glob("nonsense") == ""
+    assert M.source_function_of_glob("") == ""
+
+
+def test_the_two_name_helpers_answer_DIFFERENT_questions():
+    """`function_of_mutant` reports a QUALIFIED name; `source_function_of_glob` returns the bare `def`
+    name an AST lookup matches on. One helper serving both would hand the wrong string to one caller."""
+    assert M.function_of_mutant("xǁGapCountersǁtotal_lost__mutmut_3") == "GapCounters.total_lost"
+    assert M.source_function_of_glob("m.xǁGapCountersǁtotal_lost__mutmut_*") == "total_lost"
+
+
+# ── in_glob_scope — the harvest must be scoped to the glob that was RUN ──────────────────────────
+# The gate runs one `--only '<mod>.x_<func>__mutmut_*'` per CHANGED function but harvested UNDECIDED
+# from `mutmut results`, which takes no glob. Every mutant of an untouched function came back
+# `not checked` and blocked the run: 553/338/166/116 across four refusals, 100% `not checked`,
+# 0% `timeout`. These pin the predicate that scopes it.
+def test_in_glob_scope_accepts_a_mutant_the_glob_selects():
+    assert M.in_glob_scope("link_rssi.x_resolve_hci__mutmut_7", "link_rssi.x_resolve_hci__mutmut_*")
+
+
+def test_in_glob_scope_rejects_a_sibling_function_in_the_same_module():
+    """The real #2651 case: the diff touched `resolve_hci`, `parse_rssi` was never run."""
+    assert not M.in_glob_scope("link_rssi.x_parse_rssi__mutmut_1", "link_rssi.x_resolve_hci__mutmut_*")
+
+
+def test_in_glob_scope_rejects_the_same_function_in_a_different_module():
+    assert not M.in_glob_scope("other.x_resolve_hci__mutmut_1", "link_rssi.x_resolve_hci__mutmut_*")
+
+
+def test_in_glob_scope_is_case_sensitive():
+    """`fnmatchcase`, deliberately: a case-folding match would let a differently-cased generated
+    identifier answer for one the gate never ran."""
+    assert not M.in_glob_scope("link_rssi.x_Resolve_hci__mutmut_1", "link_rssi.x_resolve_hci__mutmut_*")
+
+
+def test_in_glob_scope_does_not_match_a_longer_function_name_by_prefix():
+    """`x_resolve_hci_extra` must not be selected by `x_resolve_hci__mutmut_*`."""
+    assert not M.in_glob_scope("link_rssi.x_resolve_hci_extra__mutmut_1", "link_rssi.x_resolve_hci__mutmut_*")
+
+
+def test_in_glob_scope_coerces_non_string_inputs_rather_than_raising():
+    assert not M.in_glob_scope(None, "link_rssi.x_a__mutmut_*")
+
+
+def test_in_glob_scope_cannot_see_status_by_construction():
+    """🔴 THE DISTINGUISHING CASE: an IN-SCOPE mutant that is `not checked` must still BLOCK.
+
+    Filtering the undecided set by STATUS instead of by SCOPE converts a refusal into a pass for
+    mutants nobody measured — the same fabrication `Do NOT raise timeout_multiplier` exists to
+    prevent, through a different door, and indistinguishable from the correct fix in the output.
+    This pins it structurally rather than by example: the predicate takes (mutant, glob) and has no
+    status parameter, so keying on status is impossible without changing the signature — which this
+    test would then fail. After the scoping fix the in-scope-and-unchecked case becomes rare, so it
+    is exactly the case that would otherwise rot untested.
+    """
+    import inspect
+
+    assert list(inspect.signature(M.in_glob_scope).parameters) == ["mutant", "glob"]
+    # and an in-scope mutant is selected regardless of any status it might carry
+    assert M.in_glob_scope("link_rssi.x_resolve_hci__mutmut_1", "link_rssi.x_resolve_hci__mutmut_*")

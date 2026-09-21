@@ -17,6 +17,8 @@
 # Protocol: RESMED-AS11-PROTOCOL-REFERENCE-2026-08-21-BRIEF.
 from __future__ import annotations
 
+import asyncio
+
 import base64
 import json
 
@@ -29,15 +31,24 @@ class As11Error(RuntimeError):
 
 # P3 gap-accounting taxonomy — used ONLY to COUNT frames at the stream boundary (see stream()).
 from cpap_ingest import FrameKind as _FrameKind
+from cpap_ingest import classify_frame
 
-async def _read_json(recv_frame, unseal=None):
-    """Read one FIG frame; decrypt if it is an encrypted-channel frame; decode JSON."""
+async def _read_frame(recv_frame, unseal=None):
+    """Read one FIG frame; decrypt if it is an encrypted-channel frame; decode JSON.
+    Returns `(msg, wire_bytes, json_bytes)` — the payload size as received and as decrypted — so the
+    stream loop can account for what the link carried (cpap_ingest.GapCounters, the cost axis)."""
     vcid, payload = await recv_frame()
+    wire = len(payload)
     if vcid == L.VCID_ENC_RX:
         if unseal is None:
             raise As11Error("encrypted frame received without a cipher")
         payload = unseal(payload)
-    return json.loads(payload.decode("utf-8"))
+    return json.loads(payload.decode("utf-8")), wire, len(payload)
+
+
+async def _read_json(recv_frame, unseal=None):
+    """`_read_frame` for the callers that only want the message."""
+    return (await _read_frame(recv_frame, unseal))[0]
 
 
 async def _await_result(recv_frame, rpc_id, unseal=None):
@@ -124,7 +135,7 @@ async def pull_spool_round(write, recv_frame, seal, unseal, spool_type, from_dt,
 
 async def stream(write, recv_frame, seal, unseal, data_ids, *,
                  sample_interval_ms=40, report_interval_ms=None, start_id=16, max_batches=None,
-                 counters=None):
+                 counters=None, subscribe=None, on_event=None, on_subscribed=None, subscribe_timeout_s=10.0):
     """Async generator over a LIVE AS11 waveform stream (StartStream → StreamData). READ-ONLY.
 
     Sends StartStream, verifies the device marked EVERY requested dataId valid (a partial accept raises
@@ -139,6 +150,22 @@ async def stream(write, recv_frame, seal, unseal, data_ids, *,
 
     Stops after `max_batches` batches, or — when that is None — runs until the caller stops iterating.
     There is no StopStream RPC: ending iteration and dropping the BLE link is what stops the device."""
+    # EVENT SUBSCRIPTION FIRST (cpap_events). Requested before StartStream so that awaiting its ack can
+    # never consume a waveform batch — there are none yet. Non-fatal by design: a night must not be lost
+    # because an optional witness declined, so a timeout or an error is RECORDED on the recorder and the
+    # stream proceeds without events. `subscribe` is the id list; `on_event` receives each notification's
+    # params; `on_subscribed` receives the outcome string. All None ⇒ this block is byte-for-byte the old
+    # behaviour.
+    if subscribe:
+        sub_id = start_id + 1
+        try:
+            await _send_enc(write, seal, L.subscribe_event(subscribe, rpc_id=sub_id))
+            await asyncio.wait_for(_await_result(recv_frame, sub_id, unseal), timeout=subscribe_timeout_s)
+            status = "ok"
+        except Exception as exc:  # noqa: BLE001 — recorded, never fatal to the stream
+            status = f"failed:{type(exc).__name__}"
+        if on_subscribed is not None:
+            on_subscribed(status)
     await _send_enc(write, seal, L.start_stream(data_ids, sample_interval_ms, report_interval_ms, rpc_id=start_id))
     ack = await _await_result(recv_frame, start_id, unseal)
     stream_id = ack.get("streamId")
@@ -149,24 +176,40 @@ async def stream(write, recv_frame, seal, unseal, data_ids, *,
         raise As11Error(f"StartStream: device rejected dataId(s): {rejected}")
     count = 0
     while max_batches is None or count < max_batches:
-        msg = await _read_json(recv_frame, unseal)
-        if msg.get("method") != "StreamData":
-            # P3 gap accounting at the frame boundary — count where the frame is SEEN, before the filter
-            # eats it (INV7). COUNTING ONLY: what is dropped is unchanged, it is just no longer silent.
+        msg, _wire, _json = await _read_frame(recv_frame, unseal)
+        # P3 gap accounting at the frame boundary — count where the frame is SEEN, before the filter eats
+        # it (INV7). ONE CLASSIFIER: `classify_frame` is the tested spec of this decision, and until
+        # CPAP-ACQ-P3 W1 it was a DEAD TWIN — the decision was ALSO made inline here, so the copy under
+        # test and the copy that ran could not be made to disagree by any test. They did disagree:
+        #
+        #   • a non-dict frame, a missing/non-dict `params`, or a non-list `data` RAISED here (AttributeError
+        #     / KeyError / TypeError) and killed the stream generator. classify_frame returns MALFORMED.
+        #   • a StreamData carrying `data: []` yielded a batch of ZERO samples. classify_frame calls it
+        #     MALFORMED, which is the behaviour change this wiring makes, deliberately: a zero-sample batch
+        #     is presence-shaped absence (§∅) — it reaches the bus and the EDF sink looking like data and
+        #     carries none, where a counted MALFORMED is visible. No test exercised that path either way,
+        #     and whether AS11 emits such frames is NOT established here; if it turns out to emit them
+        #     routinely they will show up as `malformed`, which is the loud failure rather than the quiet one.
+        kind = classify_frame(msg, stream_id)
+        if kind is not _FrameKind.OK:
             if counters is not None:
-                counters.note_frame(_FrameKind.MALFORMED)
-            continue  # a HeartBeat or other out-of-band notification — keep reading
+                counters.note_frame(kind, wire_bytes=_wire, json_bytes=_json)
+            if kind is _FrameKind.EVENT and on_event is not None:
+                # The device's own witness. Handed to the recorder, which validates and persists it;
+                # a recorder failure is its own to count, never this loop's to propagate.
+                try:
+                    on_event(msg.get("params"))
+                except Exception:  # noqa: BLE001
+                    pass
+            continue  # a HeartBeat (NOTIFICATION), a foreign stream, an event, or a frame with nothing in it
         p = msg["params"]
-        if p.get("streamId") != stream_id:
-            if counters is not None:
-                counters.note_frame(_FrameKind.FOREIGN)
-            continue  # data from a different stream (defensive) — not ours
         channels: dict[str, list] = {}
-        for entry in p.get("data", []):
+        for entry in p["data"]:
             channels.update(entry)
         if counters is not None:
             counters.note_frame(_FrameKind.OK,
-                                n_samples=sum(len(v) for v in channels.values() if isinstance(v, list)))
+                                n_samples=sum(len(v) for v in channels.values() if isinstance(v, list)),
+                                wire_bytes=_wire, json_bytes=_json)
         yield {"stream_id": stream_id, "start_time": p.get("startTime"),
                "interval_ms": p.get("intervalMs"), "channels": channels}
         count += 1

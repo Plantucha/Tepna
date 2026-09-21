@@ -130,9 +130,12 @@ _SSH = "ssh -p 22 -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
 
 
 def test_the_offload_command_is_exactly_this():
+    """Until 2026-09-20 the last operand was `…:/mnt/tank/tepna/` — the night's CONTENTS into the share
+    itself, so every night would have flattened into one directory. The mount mirror writes
+    `dest/<night>/` (`nightarchive.archive_night`), and so must this."""
     assert _argv() == ["rsync", "-rlt", "--partial", "--timeout=120", "-e", _SSH,
                        "--", "/srv/tepna/captures/2026-07-25/",
-                       "tepna@192.168.0.142:/mnt/tank/tepna/"]
+                       "tepna@192.168.0.142:/mnt/tank/tepna/2026-07-25/"]
 
 
 def test_a_real_offload_is_not_a_dry_run():
@@ -151,11 +154,14 @@ def test_the_dry_run_flags_are_added_to_the_command_not_substituted_for_it():
 
 
 def test_both_operands_end_in_a_slash_so_rsync_copies_contents_not_the_directory():
-    """rsync's trailing slash is semantic: `src/` copies the CONTENTS of src, `src` creates src inside
-    the destination — a night nested one directory deeper than the mirror expects."""
+    """rsync's trailing slash is semantic: `src/` copies the CONTENTS of src into the destination
+    directory, which is therefore named for the night on the remote side — `share/<night>/`, the
+    shape `nightarchive.archive_night` writes for the mount form and every reader of a captures tree
+    expects. (This docstring used to say a nested night was "deeper than the mirror expects"; it was
+    the flat form that disagreed with the mirror.)"""
     argv = _argv()
     assert argv[-2] == "/srv/tepna/captures/2026-07-25/"
-    assert argv[-1].endswith(":/mnt/tank/tepna/")
+    assert argv[-1].endswith(":/mnt/tank/tepna/2026-07-25/")
     assert st.rsync_argv("/srv/tepna/captures/2026-07-25/", st.validate(RSYNC))[-2] == \
         "/srv/tepna/captures/2026-07-25/", "an src the caller already slashed must not gain a second"
 
@@ -165,12 +171,12 @@ def test_the_remote_path_stays_absolute():
     ssh user's home — which usually exists, so the nights land somewhere plausible and wrong."""
     host, _, remote = _argv()[-1].partition(":")
     assert remote.startswith("/"), f"the remote path must stay absolute, got {remote!r}"
-    assert remote == "/mnt/tank/tepna/"
+    assert remote == "/mnt/tank/tepna/2026-07-25/"
 
 
 def test_a_userless_target_omits_the_at_sign():
     argv = st.rsync_argv("/srv/x", st.validate({k: v for k, v in RSYNC.items() if k != "user"}))
-    assert argv[-1] == "192.168.0.142:/mnt/tank/tepna/"
+    assert argv[-1] == "192.168.0.142:/mnt/tank/tepna/x/"
 
 
 def test_a_configured_ssh_port_and_identity_reach_the_ssh_command():

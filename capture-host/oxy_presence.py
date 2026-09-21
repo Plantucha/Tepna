@@ -255,6 +255,59 @@ class Arming:
 # facts have different owners — the operator owns intent, the matrix owns permission.
 COEXISTENCE_KEY = "scan_coexistence_verified"
 
+# ── PASSIVE SCAN FILTER (2026-09-20) ────────────────────────────────────────────────────────────────
+# BlueZ can passive-scan ONLY through an AdvertisementMonitor with `or_patterns` — (offset, AD type,
+# prefix) filters, matched OR-wise against each advertisement; and bleak's backend refuses a passive
+# scan with no patterns at construction. Measured on vigil 2026-09-20: that refusal had fired once per
+# daemon process since the power axis shipped (174 processes), so every "passive" window since 09-05
+# was in fact ACTIVE, and the radio-duty saving the power brief was designed around was never taken.
+#
+# THIS IS A RADIO FILTER, NOT AN IDENTITY CHECK. Identity stays address-only (`is_expected_ring`); the
+# pattern only decides which advertisements the controller wakes the host for. It is built from the
+# ring's MEASURED advertisement, not guessed (owner ruling 2026-09-20: measure first): the 2026-09-05
+# air capture (`sniffer/allscan-20260905-1313.pcap`, `VIGIL-BLUETOOTH-ADAPTERS` §F5 — 537 ADV_IND from
+# `d1:98:62:7c:92:b3`, docked on the charger, unworn AND BLE-connected) decodes to
+#     Flags 0x06 (LE General Discoverable + BR/EDR not supported) · Manufacturer 0xF34E data 00 ·
+#     Appearance 0x0341 · Name "S8-AW 2100"
+# so the filter is: the measured Flags byte, the measured manufacturer id, and `0x036F` — the id
+# `O2RING-PROTOCOL` §6 documents for RECORDING mode, which no capture has yet measured. The Flags
+# pattern is the one that survives a mode change the manufacturer id might not: a ring that swaps
+# 0xF34E for 0x036F while recording still carries Flags 0x06 (a documented expectation, unmeasured
+# for that state — the attended night is what measures it; a ring unsighted while recording would
+# be the specific hypothesis a probe window then earns).
+#
+# ⚠️ NECESSARY, NOT SUFFICIENT. With patterns supplied bleak's next check (`manager.py`) requires the
+# `org.bluez.AdvertisementMonitorManager1` interface, which bluetoothd exposes only with
+# `--experimental`; vigil's bluetoothd 5.85 runs without it (measured 2026-09-20: absent on hci0–hci3).
+# Until the owner's drop-in lands, the refusal simply changes wording — `passive_refusal()` names which.
+PASSIVE_FLAG_BYTES: tuple[int, ...] = (0x06,)               # MEASURED 2026-09-05 (state: charger)
+PASSIVE_MFR_CIDS: tuple[int, ...] = (0xF34E, 0x036F)        # 0xF34E MEASURED · 0x036F documented (§6, recording)
+AD_TYPE_FLAGS = 0x01
+AD_TYPE_MANUFACTURER = 0xFF
+
+
+def passive_or_pattern_spec() -> list[tuple[int, int, bytes]]:
+    """The filter as plain `(offset, ad_type, prefix)` triples — bleak-free so it is testable here;
+    `capture._passive_scan_kw` turns them into `bleak.args.bluez.OrPattern`s."""
+    return ([(0, AD_TYPE_FLAGS, bytes([b])) for b in PASSIVE_FLAG_BYTES]
+            + [(0, AD_TYPE_MANUFACTURER, cid.to_bytes(2, "little")) for cid in PASSIVE_MFR_CIDS])
+
+
+def passive_refusal(exc: object) -> str | None:
+    """Classify a BleakError from a passive scan request: which knob is missing.
+    `"or_patterns"` — no filter was supplied (fixed in code); `"experimental"` — bluetoothd lacks the
+    AdvertisementMonitor API (`--experimental`, the owner's box-side drop-in); `"passive"` — some other
+    passive-mode refusal; None — not a passive refusal at all (a wedged adapter, D-Bus gone), which the
+    caller must RAISE rather than mask behind a second scan on the same broken radio."""
+    text = repr(exc).lower()
+    if "passive" not in text:
+        return None
+    if "or_patterns" in text:
+        return "or_patterns"
+    if "experimental" in text:
+        return "experimental"
+    return "passive"
+
 
 def arming(cfg: dict) -> Arming:
     """Read `o2ring.presence_harvest` — default OFF, NEVER inherited (§21). PURE.
