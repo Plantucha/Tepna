@@ -1290,7 +1290,9 @@ function readNodeSurfaces() {
    `CLAIM` is right for a number in a sentence and far too heavy for a 20-number table. A table wants
    ONE footer carrying GATE-B's triple — producer, inputs, output — in a form Markdown already holds:
 
-     <!-- TABLE-PROVENANCE producer=<path> invocation="<argv>" inputs=<path|12hex> output=<12hex> generated=<YYYY-MM-DD> -->
+     <!-- TABLE-PROVENANCE producer=<path> invocation="<argv>" inputs=<path|12hex> [inputsDigest=<12hex>] output=<12hex> generated=<YYYY-MM-DD> -->
+   `inputsDigest=` (beside a resolvable `inputs=` path) is the upstream-DAG hash: recomputed over the
+   git-tracked files under that path on every run, so the stamp can CLEAR, not only flag.
 
    THE OUTPUT HASH IS OVER THE TABLE TEXT ITSELF, and that is the load-bearing part. It makes the
    exact failure the decay sweep measured — prose drifting from the artifact it reports — mechanically
@@ -1326,19 +1328,70 @@ function readTableProvenance() {
       const lineNo = text.slice(0, m.index).split('\n').length;
       /* The TABLE IS THE CONTIGUOUS `|` BLOCK IMMEDIATELY ABOVE the marker. Walking up from the
          marker rather than down from a heading is what makes one file able to carry several. */
+      // A table inside a blockquote (`> | … |`, the house style for a dated correction block) is the
+      // same table: the quote prefix is stripped for detection AND for the hash, so quoting it does
+      // not move `output`.
+      const unquote = (l) => l.replace(/^\s*(?:>\s?)+/, '');
+      const isRow = (l) => unquote(l).trim().startsWith('|');
       let i = lineNo - 2;
-      while (i >= 0 && !lines[i].trim().startsWith('|')) i--;
+      while (i >= 0 && !isRow(lines[i])) i--;
       const end = i;
-      while (i >= 0 && lines[i].trim().startsWith('|')) i--;
-      const table = end >= 0 ? lines.slice(i + 1, end + 1).join('\n') : null;
+      while (i >= 0 && isRow(lines[i])) i--;
+      const table =
+        end >= 0
+          ? lines
+              .slice(i + 1, end + 1)
+              .map(unquote)
+              .join('\n')
+          : null;
       if (!attrs.producer || !attrs.output || !table) {
         out.malformed.push(`${rel}:${lineNo} — ${!table ? 'no table immediately above the marker' : 'missing producer= or output='}`);
         continue;
       }
-      out.stamps.push({ file: rel, line: lineNo, ...attrs, table, actualOutput: sha12(table) });
+      const st = { file: rel, line: lineNo, ...attrs, table, actualOutput: sha12(table) };
+      /* THE UPSTREAM-DAG HASH (PUBLISHED-NUMBER-PROVENANCE §4, the half of phase 2 that #2614 left
+         out — residue 2026-09-21-table-provenance-inputs-digest-never-recomputed). A stamp whose
+         `inputs=` names a COMMITTED path may also carry `inputsDigest=<12hex>`; the runner then
+         recomputes the digest over the GIT-TRACKED files under that path and the gate compares. That
+         is what lets a stamp CLEAR a churn flag rather than only raise one: a moved corpus moves a
+         number CI can see. Recipe (shared with analysis/published-numbers/*.json `inputs.digest`):
+         sha12 over `path\0sha12(bytes)` per file, joined by '\n', in `git ls-files` order. Tracked
+         files only — the primary checkout also holds gitignored raw nights under the same paths, and
+         a digest over those would differ from CI's for reasons that have nothing to do with the table.
+         A missing git or an unreadable file is a REASON, never a silent null: the gate reds on it. */
+      if (attrs.inputsDigest) {
+        if (!attrs.inputs || attrs.inputs.indexOf('/') < 0) st.inputsDigestReason = 'inputsDigest= needs a resolvable inputs= path';
+        else {
+          const tracked = trackedUnder(attrs.inputs);
+          if (tracked == null) st.inputsDigestReason = 'git ls-files unavailable — the tracked set cannot be enumerated';
+          else if (!tracked.length) st.inputsDigestReason = 'no git-tracked file under ' + attrs.inputs;
+          else {
+            try {
+              st.actualInputsDigest = digestOver(tracked.map((f) => ({ path: f, bytes: readFileSync(join(ROOT, f)) })));
+              st.inputsTracked = tracked.length;
+            } catch (e) {
+              st.inputsDigestReason = 'unreadable input: ' + String((e && e.message) || e).slice(0, 80);
+            }
+          }
+        }
+      }
+      out.stamps.push(st);
     }
   }
+  out.digestOver = digestOver;
   return out;
+
+  function digestOver(entries) {
+    return sha12(entries.map((e) => e.path + '\0' + sha12(e.bytes)).join('\n'));
+  }
+  function trackedUnder(rel) {
+    try {
+      const out = execSync('git ls-files -z -- ' + JSON.stringify(rel), { cwd: ROOT, encoding: 'buffer', maxBuffer: 128 * 1024 * 1024 });
+      return out.toString('utf8').split('\0').filter(Boolean);
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 function readClaudeMdClaims() {
