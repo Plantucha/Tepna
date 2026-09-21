@@ -36,6 +36,7 @@ FAKES = (
     "    monkeypatch.setattr(mod, 'short')\n"
     "    monkeypatch.setattr(mod, 3, lambda *a: 1)\n"
     "    obj.method = lambda *a, **k: None\n"
+    "    sleepfake = lambda *a, **k: None\n"                 # a bare-NAME target — the branch the Attribute case does not reach
     "    a, b = lambda: 1, 2\n"
     "async def _nosleep(secs):\n"
     "    return None\n"
@@ -96,6 +97,7 @@ def test_swallowing_fakes_every_shape():
     assert ("early", "setattr-def", ("a",)) in fakes            # bound before its def — two-pass
     assert ("plain", "setattr-lambda", ("a",)) in fakes          # bare setattr()
     assert ("method", "lambda", ("a", "k")) in fakes             # attribute-target lambda
+    assert ("sleepfake", "lambda", ("a", "k")) in fakes          # name-target lambda
     assert ("seek", "def", ("a", "k")) in fakes
     names = {f["name"] for f in M.swallowing_fakes(FAKES)}
     assert "write" not in names, "a method that reads every parameter is not a swallower"
@@ -136,13 +138,13 @@ def test_attribute_intersection_and_controls():
     assert r["attributable"] == 2
     assert {row["callee"] for row in r["rows"]} == {"BleakClient", "sleep"}
     assert r["rows"][0]["fakes"][0]["test"] == "tests/test_mod.py"
-    assert r["candidates"] == {"tests/test_mod.py": 6}
+    assert r["candidates"] == {"tests/test_mod.py": 7}
     # a fake outside the module's selection cannot have let the mutant survive
     r2 = M.attribute(surv[:1], {"mod.py": {}, "zzz.py": {"tests/test_zzz.py": FAKES}})
     assert r2["attributable"] == 0 and r2["call_argument"] == 1
     # the same test file feeding two modules is parsed once (cache) and counted once
     r3 = M.attribute(surv[:1], {"mod.py": {"tests/t.py": FAKES}, "other.py": {"tests/t.py": FAKES}})
-    assert r3["candidates"] == {"tests/t.py": 6}
+    assert r3["candidates"] == {"tests/t.py": 7}
 
 
 def test_tool_loads_selects_reports(tmp_path, capsys):
