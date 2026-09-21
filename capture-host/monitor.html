@@ -362,6 +362,7 @@ table.nights td.date small{display:block;color:var(--text4);font-weight:400;font
 .nfig{display:inline-flex;align-items:baseline;gap:5px;font-family:ui-monospace,monospace;color:var(--text);background:transparent;
   border:1px solid transparent;border-radius:8px;padding:3px 7px;cursor:pointer;text-decoration:none;line-height:1.2;font:inherit;font-family:ui-monospace,monospace;}
 .nfig .mb{font-weight:700;}.nfig .h{color:var(--text3);font-size:11.5px;}
+.nfr{font-size:10.5px;color:var(--text3);white-space:nowrap;}.nfr.bad{color:var(--amber);}
 .nfig:hover,.nfig:focus-visible{border-color:rgba(61,224,208,.35);background:rgba(61,224,208,.06);color:var(--teal);outline:none;}
 .nfig:hover .h{color:var(--teal);}
 .nfig.partial .mb{color:var(--amber);}
@@ -432,8 +433,7 @@ tr.ndrawer td{background:var(--surface2)!important;padding:0!important;}
     <div class="nav" id="nav">
       <div class="nav-item active" data-view="overview">◈ Overview <span class="nav-badge" id="navActiveN" style="display:none"></span></div>
       <div class="nav-item" data-view="scope">〜 Live scope</div>
-      <div class="nav-item" data-view="ledger">🌙 Ledger <span class="nav-badge" id="navNightsN" style="display:none"></span></div>
-      <div class="nav-item" data-view="capture">📅 Capture</div>
+      <div class="nav-item" data-view="nights">🌙 Nights <span class="nav-badge" id="navNightsN" style="display:none"></span></div>
       <div class="nav-item" data-view="settings">⚙ Settings</div>
       <div class="nav-item" data-view="devices">📡 Devices <span class="nav-badge" id="navDevN" style="display:none"></span></div>
       <div class="nav-item" data-view="storage">🗄 Storage <span class="nav-badge" id="navStoreN" style="display:none"></span></div>
@@ -833,23 +833,13 @@ tr.ndrawer td{background:var(--surface2)!important;padding:0!important;}
     </section>
 
     <!-- NIGHTS · LEDGER — the per-analyzer table: one row per night on the box, one figure per tool. -->
-    <section class="view" id="view-ledger">
+    <section class="view" id="view-nights">
       <div class="ov-strip" id="nightsStrip"></div>
       <div class="section-title">Nights on disk</div>
       <div class="card">
-        <div class="nights-wrap"><table class="nights" id="ledgerTable"></table></div>
-        <div class="hint">Each figure is that analyzer's input on disk for the night — size / hours covered by its primary stream. Click it to open the analyzer with those files loaded and processed. Amber size = the stream covered under 60 % of the night's longest. ✓ = every input the fused tool needs is on disk (it opens with them once the tool reads capture-host filenames); ✗ = an input is missing; — = nothing captured (no CGM, no Muse on this box). Integrator figures are the raw input a fold would take — folds run on rig, not in the browser; HRVDex figures are the raw Polar input that reaches it through an ECGDex export.</div>
-      </div>
-    </section>
-
-    <!-- NIGHTS · CAPTURE — the same rows, device-grouped, with a coverage bar per cell and a per-night drawer. -->
-    <section class="view" id="view-capture">
-      <div class="ov-strip" id="captureStrip"></div>
-      <div class="section-title">Coverage per analyzer</div>
-      <div class="card">
-        <div class="nights-wrap"><table class="nights" id="captureTable"></table></div>
-        <div class="hint">Bars are each stream's covered hours against that night's longest stream; amber = under 60 % of it. Click the date to see every file the night holds, with an Open ▸ per analyzer; click a figure to open the analyzer with those files loaded and processed.</div>
-        <div class="nlegend"><span><i style="background:var(--blue)"></i>Polar</span><span><i style="background:var(--teal)"></i>Wellue</span><span><i style="background:var(--amber)"></i>ResMed</span><span><i style="background:var(--amber)"></i>&lt; 60 % of the night</span></div>
+        <div class="nights-wrap"><table class="nights" id="nightsTable"></table></div>
+        <div class="hint">Each figure is that analyzer's input on disk for the night — size / hours spanned by its primary stream, then how many contiguous <b>fragments</b> that stream holds and the <b>coverage</b> — the share of the span it actually recorded (a link that drops and reconnects leaves the span intact and the coverage low: 2026-09-20 read 6.1 h and held 41 %). The bar is the coverage; amber = under 60 %. Click a figure to open the analyzer with those files loaded and processed; click the date for every file the night holds. ✓ = the fused tool's inputs are on disk — it opens, loads them and runs. Integrator figures are the raw input a fold would take — folds run on rig, not in the browser; HRVDex figures are the raw Polar input that reaches it through an ECGDex export. "…" = still counting fragments for that stream (the page keeps asking).</div>
+        <div class="nlegend"><span><i style="background:var(--blue)"></i>Polar</span><span><i style="background:var(--teal)"></i>Wellue</span><span><i style="background:var(--amber)"></i>ResMed</span><span><i style="background:var(--amber)"></i>&lt; 60 % coverage</span></div>
       </div>
     </section>
 
@@ -1201,10 +1191,10 @@ function showView(v){
   VIEW = v;
   document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active', el.id==='view-'+v));
   document.querySelectorAll('#nav .nav-item').forEach(el=>el.classList.toggle('active', el.dataset.view===v));
-  $('#viewTag').textContent = {overview:'Overview', scope:'Live scope', devices:'Devices', settings:'Settings', storage:'Storage', ledger:'Ledger', capture:'Capture'}[v] || v;
+  $('#viewTag').textContent = {overview:'Overview', scope:'Live scope', devices:'Devices', settings:'Settings', storage:'Storage', nights:'Nights'}[v] || v;
   if(v==='overview'){ ovStart(); scopeStop(); clkStop(); }
   else if(v==='scope'){ ovStop(); scopeResume(); clkStop(); }
-  else if(v==='ledger' || v==='capture'){ ovStop(); scopeStop(); clkStop(); loadNights(v); }
+  else if(v==='nights'){ ovStop(); scopeStop(); clkStop(); loadNights(); }
   else if(v==='settings'){ ovStop(); scopeStop(); clkStop(); loadSettings(); loadAlerts(); }
   else if(v==='storage'){ ovStop(); scopeStop(); clkStop(); loadStorage(); }
   else {
@@ -1275,21 +1265,28 @@ const NIGHT_RUN = {"3 corner hat":"#procBtn", PAT:"#run"};
 const NIGHT_WHY_NOT = {Integrator:"raw input of a fold — folds run on rig (tools/trio-batch.mjs), not in the browser",
   HRVDex:"HRVDex reads Welltory CSV or an ECGDex export — this raw Polar input reaches it through ECGDex"};
 const NIGHT_GROUP = {ECGDex:"polar",HRVDex:"polar",PulseDex:"polar",PPGDex:"polar",MotionDex:"polar",OxyDex:"wellue",CPAPDex:"resmed",GlucoDex:"fused",EEGDex:"fused",Integrator:"fused"};
-let NIGHTS = null;
+let NIGHTS = null, NIGHTS_PENDING = 0;
 const nMB = b => b>=1e9 ? (b/1e9).toFixed(2)+' GB' : b>=1e6 ? Math.round(b/1e6)+' MB' : (b/1e3).toFixed(0)+' kB';
 const nHrs = h => h==null ? '?' : (h<1 ? Math.round(h*60)+' min' : h.toFixed(1)+' h');
 const nBase = f => f.split('/').pop();
 function nSpan(n){ return Math.max(0.1, ...NIGHT_COLS.map(c=>n[c]&&n[c].hours||0)); }
 function nToast(msg, err){ const t=$('#nightsToast'); t.textContent=msg; t.classList.toggle('err', !!err); t.classList.add('on');
   clearTimeout(nToast._t); nToast._t=setTimeout(()=>t.classList.remove('on'), err?9000:5000); }
-function nFig(n, c, ver){
+function nFig(n, c){
   const v=n[c]; if(v===undefined||v===null) return '<span class="nnone">—</span>';
-  const s=nSpan(n); const part = v.hours!=null && s>=1 && v.hours < 0.6*s;
+  // coverage = the share of the span the primary stream actually recorded (server: nights_index.stream_stats);
+  // it is the bar and the amber, because the span cannot see a torn night. Falls back to span-vs-longest
+  // only for streams that have no row stamps (EDF).
+  const s=nSpan(n);
+  const cov = v.coverage!=null ? v.coverage : (v.hours!=null && s>=1 ? Math.min(1, v.hours/s) : null);
+  const part = cov!=null && cov < 0.6;
   const cls = 'nfig'+(part?' partial':'')+(v.loadable?'':' static');
   const attrs = v.loadable ? ` data-night="${n.night}" data-node="${c}" title="open ${c} with this night loaded"` : ` title="${NIGHT_WHY_NOT[c]||'shown, not offered'}"`;
-  if(ver==='ledger') return `<button type="button" class="${cls}"${attrs}><span class="mb">${nMB(v.bytes)}</span><span class="h">/ ${nHrs(v.hours)}</span></button>`;
-  const pct = v.hours==null ? 0 : Math.round(100*Math.min(1, v.hours/s));
-  return `<button type="button" class="${cls}"${attrs}><span class="ncov ${NIGHT_GROUP[c]}"><span><span class="mb">${nMB(v.bytes)}</span> <span class="h">${nHrs(v.hours)}</span></span><span class="bar"><i class="${part?'short':''}" style="width:${pct}%"></i></span></span></button>`;
+  const frag = v.pending ? '<span class="nfr">…</span>'
+             : v.fragments!=null ? `<span class="nfr${part?' bad':''}">${v.fragments} fragment${v.fragments===1?'':'s'} · ${Math.round(100*v.coverage)} %</span>`
+             : '';
+  const pct = cov==null ? 0 : Math.round(100*cov);
+  return `<button type="button" class="${cls}"${attrs}><span class="ncov ${NIGHT_GROUP[c]}"><span><span class="mb">${nMB(v.bytes)}</span> <span class="h">/ ${nHrs(v.hours)}</span></span>${frag}<span class="bar"><i class="${part?'short':''}" style="width:${pct}%"></i></span></span></button>`;
 }
 // ✓ = every input the tool needs is on disk tonight, AND a click: since 2026-09-20 both tools' classifiers read the
 // capture-host names as well as the phone-app ones (RESIDUE 2026-09-20-tool-classifiers-phone-names, closed), so the
@@ -1302,36 +1299,36 @@ function nStrip(rows){
          `<div class="ov-stat"><div class="lab">On disk</div><div class="val">${nMB(tot)}</div><div class="sub">all analyzer inputs</div></div>`+
          `<div class="ov-stat"><div class="lab">Trio nights</div><div class="val">${trio}</div><div class="sub">ECG + PPG + ring — 3-corner-hat eligible</div></div>`;
 }
-function renderNights(ver){
-  if(!NIGHTS || !NIGHTS.length){ const t = $(ver==='ledger' ? '#ledgerTable' : '#captureTable'); t.innerHTML='<tbody><tr><td class="nnone">no nights on disk</td></tr></tbody>'; return; }
+function renderNights(){
+  if(!NIGHTS || !NIGHTS.length){ $('#nightsTable').innerHTML='<tbody><tr><td class="nnone">no nights on disk</td></tr></tbody>'; return; }
   const rows=[...NIGHTS].reverse();
   $('#navNightsN').style.display=''; $('#navNightsN').textContent=rows.length;
-  $(ver==='ledger' ? '#nightsStrip' : '#captureStrip').innerHTML = nStrip(rows);
-  let h='';
-  if(ver==='ledger'){
-    h+='<thead><tr><th>Night</th>'+NIGHT_COLS.map(c=>`<th>${c}</th>`).join('')+NIGHT_DERIVED.map(d=>`<th>${d}</th>`).join('')+'</tr></thead><tbody>';
-    for(const n of rows) h+=`<tr><td class="date">${n.night}</td>`+NIGHT_COLS.map(c=>`<td>${nFig(n,c,'ledger')}</td>`).join('')+NIGHT_DERIVED.map(k=>`<td>${nDerived(n,k)}</td>`).join('')+'</tr>';
-    h+='</tbody>'; $('#ledgerTable').innerHTML=h; return;
-  }
-  h+='<thead><tr><th></th><th class="grp polar" colspan="5">Polar H10 · Verity</th><th class="grp wellue">Wellue O2Ring</th><th class="grp resmed">ResMed AS11</th><th class="grp fused" colspan="3">fused · absent</th><th class="grp fused" colspan="2">derived</th></tr>';
+  $('#nightsStrip').innerHTML = nStrip(rows);
+  const open = new Set([...document.querySelectorAll('.ndrawer:not([hidden])')].map(e=>e.id));   // keep drawers open across refreshes
+  let h='<thead><tr><th></th><th class="grp polar" colspan="5">Polar H10 · Verity</th><th class="grp wellue">Wellue O2Ring</th><th class="grp resmed">ResMed AS11</th><th class="grp fused" colspan="3">fused · absent</th><th class="grp fused" colspan="2">derived</th></tr>';
   h+='<tr><th>Night</th>'+NIGHT_CAPTURE_ORDER.map(c=>`<th>${c}</th>`).join('')+NIGHT_DERIVED.map(d=>`<th>${d}</th>`).join('')+'</tr></thead><tbody>';
   for(const n of rows){
     const wd=new Date(n.night+'T00:00:00Z').toLocaleDateString('en-GB',{weekday:'short',timeZone:'UTC'});
-    h+=`<tr><td class="date"><button type="button" class="nfig" data-drawer="${n.night}" title="every file this night holds">${n.night}</button><small>${wd} · longest ${nHrs(nSpan(n))}</small></td>`+NIGHT_CAPTURE_ORDER.map(c=>`<td>${nFig(n,c,'capture')}</td>`).join('')+NIGHT_DERIVED.map(k=>`<td>${nDerived(n,k)}</td>`).join('')+'</tr>';
-    h+=`<tr class="ndrawer" id="ndr-${n.night}" hidden><td colspan="${NIGHT_CAPTURE_ORDER.length+3}"><div class="ndrawer-in">`+[...NIGHT_CAPTURE_ORDER,...NIGHT_DERIVED].map(c=>{
+    h+=`<tr><td class="date"><button type="button" class="nfig" data-drawer="${n.night}" title="every file this night holds">${n.night}</button><small>${wd} · longest ${nHrs(nSpan(n))}</small></td>`+NIGHT_CAPTURE_ORDER.map(c=>`<td>${nFig(n,c)}</td>`).join('')+NIGHT_DERIVED.map(k=>`<td>${nDerived(n,k)}</td>`).join('')+'</tr>';
+    h+=`<tr class="ndrawer" id="ndr-${n.night}"${open.has('ndr-'+n.night)?'':' hidden'}><td colspan="${NIGHT_CAPTURE_ORDER.length+3}"><div class="ndrawer-in">`+[...NIGHT_CAPTURE_ORDER,...NIGHT_DERIVED].map(c=>{
       const v=n[c]; const isTool=NIGHT_DERIVED.includes(c); const ok = isTool ? v===true : !!(v && v.loadable);
       const files = v&&v.files ? v.files.map(nBase).join('<br>') : (isTool ? (v?'every input it needs is on disk':'an input is missing this night') : 'nothing captured');
-      const open = ok ? `<button type="button" class="open" data-night="${n.night}" data-node="${c}">Open ▸</button>` : '';
-      return `<div class="nan${ok?'':' off'}"><h4>${c}${open}</h4><div class="files">${files}</div></div>`; }).join('')+'</div></td></tr>';
+      const openBtn = ok ? `<button type="button" class="open" data-night="${n.night}" data-node="${c}">Open ▸</button>` : '';
+      return `<div class="nan${ok?'':' off'}"><h4>${c}${openBtn}</h4><div class="files">${files}</div></div>`; }).join('')+'</div></td></tr>';
   }
-  h+='</tbody>'; $('#captureTable').innerHTML=h;
+  h+='</tbody>'; $('#nightsTable').innerHTML=h;
 }
-async function loadNights(ver){
+let nightsPoll=null;
+async function loadNights(){
   if(!NIGHTS){
-    try{ const r=await fetch('/api/nights?n=120'); const j=await r.json(); if(j.error) throw new Error(j.error); NIGHTS=j.nights; }
-    catch(e){ nToast('nights index failed: '+e.message, true); NIGHTS=[]; }
+    try{ const r=await fetch('/api/nights?n=120'); const j=await r.json(); if(j.error) throw new Error(j.error); NIGHTS=j.nights; NIGHTS_PENDING=j.pending|0; }
+    catch(e){ nToast('nights index failed: '+e.message, true); NIGHTS=[]; NIGHTS_PENDING=0; }
   }
-  renderNights(ver);
+  renderNights();
+  // fragments/coverage are counted server-side within a time budget per request and cached per file;
+  // while any stream is still pending, ask again (the cache fills, the "…" cells resolve, nothing re-counts)
+  clearTimeout(nightsPoll);
+  if(NIGHTS_PENDING>0 && VIEW==='nights'){ nightsPoll=setTimeout(()=>{ NIGHTS=null; loadNights(); }, 4000); }
 }
 // THE LOAD. The apps and the monitor share one origin behind Caddy (vigil.local: apps at /, nights at
 // /captures/<night>/…, this page at /monitor), so this page can open the app, fetch the night's files
@@ -1393,8 +1390,7 @@ function nightsClick(e){
   const dr=e.target.closest('[data-drawer]'); if(dr){ const r=document.getElementById('ndr-'+dr.dataset.drawer); if(r) r.hidden=!r.hidden; return; }
   const f=e.target.closest('[data-node]'); if(f){ openNight(f.dataset.night, f.dataset.node); }
 }
-$('#ledgerTable').addEventListener('click', nightsClick);
-$('#captureTable').addEventListener('click', nightsClick);
+$('#nightsTable').addEventListener('click', nightsClick);
 
 async function loadStorage(){
   STORAGE = await api('/api/storage');
