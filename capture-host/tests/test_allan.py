@@ -1213,3 +1213,37 @@ def test_a_uniform_tau_rescale_leaves_the_SLOPE_invariant():
     # error partially defeats. That is the concrete consequence of a non-uniform arrival axis.
     assert b["optimal_tau"] == pytest.approx(a["optimal_tau"] * 3.0, rel=1e-9)
     assert b["tau_max"] == pytest.approx(a["tau_max"] * 3.0, rel=1e-9)
+
+
+# ── ALLAN-STABILITY-GAPS §2.5 — J (determinism) and A (degenerate input), pre-decided before written ──
+
+
+def test_J_stability_is_deterministic_and_does_not_read_its_input_by_identity():
+    """`stability(x, tau0)` twice, and on a COPY of x, is `==` — nothing in the pipeline reads a clock,
+    an RNG, or the identity of its input. No test pinned this before the brief named it."""
+    import copy
+    x = [float(i % 7) * 0.01 + i * 1e-4 for i in range(3000)]
+    a = allan.stability(x, 1.0, tdev_tau=8.0)
+    b = allan.stability(x, 1.0, tdev_tau=8.0)
+    c = allan.stability(copy.deepcopy(x), 1.0, tdev_tau=8.0)
+    assert a == b == c
+    assert a["ok"] is True and a["classification"] is not None
+
+
+def test_A_a_constant_series_is_NO_MEASURABLE_INSTABILITY_not_an_unmade_fit():
+    """Pre-decided outcome (§2.5 A): `ok: True`, every `adev == 0`, `classification.noise is None` with a
+    `meaning` that says why. Before this the record carried `classification: None`, which is the shape
+    of 'the slope fit could not be made' — a refusal reason wrong about why."""
+    s = allan.stability([5.0] * 2000, 1.0)
+    assert s["ok"] is True
+    assert all(p["adev"] == 0 for p in s["curve"])
+    assert s["adev_min"] == 0
+    c = s["classification"]
+    assert c is not None
+    assert c["noise"] is None and c["candidates"] is None
+    assert "no measurable instability" in c["meaning"]
+    assert c["slope"] is None and c["n_tau"] == s["taus"]
+    # and a series with real structure does NOT take this branch — the decoy for the flat rule
+    d = allan.stability([float(i % 7) * 0.01 + i * 1e-4 for i in range(3000)], 1.0)
+    assert d["classification"]["slope"] is not None
+

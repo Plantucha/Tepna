@@ -149,11 +149,25 @@ ntfy line is untouched. **Owned by the night-report unit — do not build a seco
 
 ### 2.5 Tests the prompt is right about, and one direction nobody pinned
 
-- **J — determinism:** `stability(x, τ₀)` called twice, and on a copy of `x`, is `==`; no test does this.
-- **A — degenerate input:** a long all-equal series. Today `slope` drops zero-ADEV points via
+- ✅ **J — determinism:** `stability(x, τ₀)` called twice, and on a copy of `x`, is `==`; no test does this.
+  **DONE 2026-09-21 (Osprey)** — `test_J_stability_is_deterministic_and_does_not_read_its_input_by_identity`,
+  with `tdev_tau` set so the TDEV leg is inside the comparison. It passed first time: the property held,
+  it was just unpinned.
+- ✅ **A — degenerate input:** a long all-equal series. Today `slope` drops zero-ADEV points via
   `p.get(key, 0) > 0` (`allan.py:461`), so the honest series falls through to `too-few-taus` — a refusal
   reason that is *wrong* about why. Pre-decided outcome: `ok: True`, every `adev == 0`, `classification.noise
   is None` with `meaning: "no measurable instability"`. Pin that.
+  **DONE 2026-09-21 (Osprey) — with one correction to the sentence above, measured before changing anything:**
+  a constant series did NOT fall through to `too-few-taus` (`adev` returns 8 τ points of exactly 0, so
+  `len(pts) ≥ 3` passes); it returned `ok: True` with **`classification: None`** — the shape of "the slope
+  fit could not be made", which was the wrong-about-why part. `stability()` now emits the pre-decided
+  record for the all-zero curve (`noise: None`, `candidates: None`, `slope: None`, `n_tau`, and the
+  `meaning` string), pinned by `test_A_…` with a structured-series decoy that must NOT take the branch.
+  ⚠️ Observed, not changed: on the same flat series `lag1_noise` still reports `white-phase` (α = 2, ρ = 0
+  over zero differences) — an identification from no variance. Left as it is because §2.5 A pre-decided
+  `classification` only; noted so the next reader does not discover it as new. The JS twin
+  (`clock.js` `stability`) returns `null` for an all-zero curve — reached only through an axis
+  `independent` already refused — so no parity change is owed.
 - **Reverse-direction independence (prompt Phase 16):** `dex-tests.js:9327-9387` (`pat-align · regression`) pins clock → PAT
   (a bad clock refuses PAT). Nothing pins PAT ↛ clock. Two cheap legs: (i) run the ECGDex/PpgDex compute
   twice with different PAT options and `deepEqual` the two `recording.hostAxis` blocks; (ii) a source

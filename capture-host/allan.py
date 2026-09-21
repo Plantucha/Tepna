@@ -800,6 +800,19 @@ def stability(phase, tau0, tdev_tau=None):
     if tdev_tau:
         got = tdev(phase, tau0, [tdev_tau])
         td = got[0] if got else None
+    # A DEGENERATE SERIES IS AN ANSWER, NOT A REFUSAL (ALLAN-STABILITY-GAPS §2.5 A). A constant phase
+    # series has every ADEV exactly 0: `slope` fits only `adev > 0` points, so it returned None and the
+    # record shipped `classification: None` — indistinguishable from "the fit could not be made". The
+    # honest statement is that there is NO measurable instability, and it is a classification record of
+    # the same shape as the others (a caller branches on `noise` being None either way, per `classify`).
+    # Pre-decided in the brief before this was written; pinned by the test named there.
+    flat = all(p["adev"] == 0 for p in pts)
+    cls = (
+        {"slope": None, "slope_se": None, "n_tau": len(pts), "noise": None, "candidates": None,
+         "meaning": "no measurable instability — every ADEV is exactly 0 (a constant series); the slope is undefined, not a category"}
+        if flat
+        else classify(sl, se, len(pts))
+    )
     return {
         "ok": True,
         "taus": len(pts),
@@ -808,7 +821,7 @@ def stability(phase, tau0, tdev_tau=None):
         "adev_min": best["adev"],
         "optimal_tau": best["tau"],
         "at_longest": pts[-1]["adev"],
-        "classification": classify(sl, se, len(pts)),
+        "classification": cls,
         # A SECOND, INDEPENDENT OPINION on the same question (Riley & Greenhall 2004). It fits no slope,
         # so it has no boundary to refuse near — where `classification` declines because the CI straddles
         # an edge, this still answers. Published beside rather than instead: see `noise_id`'s note on the
