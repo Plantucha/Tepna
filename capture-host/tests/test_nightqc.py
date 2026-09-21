@@ -1084,13 +1084,48 @@ def test_dominant_share_is_a_VARIANCE_share_so_it_says_whether_the_fix_is_worth_
     assert u["dominant_share"] == pytest.approx(d * d / (d * d + q * q), abs=1e-6)
 
 
-def test_the_budget_reaches_the_per_stream_record(tmp_path):
-    """Wired, not merely defined — the defect this repo keeps finding one layer up."""
+def _arrival_night(tmp_path, n=400, base_s=0.5):
+    """A real `*_PMDARRIVAL.csv` with a crystal-scale wobble on the device axis — the same shape
+    `test_jitterfloor` plants — so `arrival_quality` has a stream to judge. An exact synthetic clock
+    is a DRAWN axis and would be refused, which is correct and useless here."""
     d = tmp_path / "2026-08-15"
     d.mkdir()
-    (d / "Polar_H10_02849638_20260815024240_ECG.csv").write_text("h\n" + "r\n" * 400)
-    rows = nightqc.arrival_quality(str(d))
-    assert all("u_time" in r for r in rows), rows
+    wobble = (0.31, -0.17, 0.23, -0.29, 0.11, -0.37, 0.19, -0.13)
+    jitter = (3, -3)
+    lines = ["Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples"]
+    for i in range(n):
+        host_s = i * base_s + jitter[i % 2] / 1000.0
+        dev_ns = int(i * base_s * 1e9 + wobble[i % 8] * 1e6)
+        stamp = "2026-08-15T02:%02d:%02d.%03d" % (int(host_s // 60), int(host_s % 60), int((host_s * 1000) % 1000))
+        lines.append("%s;Polar H10 02849638;ecg;%d;%d;73" % (stamp, dev_ns, dev_ns))
+    (d / "Polar_H10_02849638_20260815024240_PMDARRIVAL.csv").write_text("\n".join(lines) + "\n")
+    return d
+
+
+def test_the_budget_reaches_the_per_stream_record(tmp_path):
+    """Wired, not merely defined — the defect this repo keeps finding one layer up.
+    ⚠️ Until 2026-09-21 this test wrote an `_ECG.csv` and asserted over `arrival_quality`'s rows —
+    which lists only `*_PMDARRIVAL.csv`, so `rows == []` and `all()` was TRUE OVER NOTHING. It now
+    plants a real arrival file and pins that a row exists before pinning what it carries."""
+    rows = nightqc.arrival_quality(str(_arrival_night(tmp_path)))
+    assert len(rows) == 1, rows
+    assert "u_time" in rows[0], rows[0]
+
+
+def test_stability_provenance_reaches_the_qc_record(tmp_path):
+    """ALLAN-STABILITY-GAPS §2.3, at the level a reader meets it: the per-stream QC record's
+    `stability` block names its tau0, n, span, estimator and version — not only in `allan.py`."""
+    rows = nightqc.arrival_quality(str(_arrival_night(tmp_path)))
+    assert len(rows) == 1
+    st = rows[0]["stability"]
+    assert st["ok"] is True, st
+    for k in ("tau0", "n", "span_s", "estimator", "min_terms", "span_multiple", "version"):
+        assert k in st, k
+    assert st["n"] == 400 and st["estimator"] == "overlapping-adev"
+    # §2.2 step 2a reaches the record too: the instants were passed, so the hole policy is stated
+    for k in ("segments", "dropped_intervals", "pooled"):
+        assert k in st, k
+    assert st["segments"] == 1 and st["pooled"] is False  # this fixture has no hole; see the gap test
 
 
 # ── ppg2w_contact — the ring's independent coupling vote ───────────────────────────────────────────
@@ -2687,3 +2722,24 @@ def test_a_pin_shorter_than_min_run_is_not_reported():
     spans = nightqc.clip_regions(v, min_run=5, annotations=(_MK,))
     assert [r["n_samples"] for r in spans] == [30, 30, 30], "the 3-sample pin is under the bar"
     assert all(r["n_samples"] >= 5 for r in spans)
+
+
+def test_a_BLE_hole_in_the_arrival_record_is_CUT_not_compacted(tmp_path):
+    """§2.2 step 2a at the QC level: a 60 s hole in a 0.5 s cadence produces two segments and
+    `pooled: True` in the per-stream stability block — the ledger says how the curve treated it."""
+    d = tmp_path / "2026-08-15"
+    d.mkdir()
+    lines = ["Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples"]
+    wobble = (0.31, -0.17, 0.23, -0.29, 0.11, -0.37, 0.19, -0.13)
+    for i in range(600):
+        host_s = i * 0.5 + (3 if i % 2 == 0 else -3) / 1000.0 + (60.0 if i >= 300 else 0.0)
+        dev_ns = int(i * 0.5e9 + wobble[i % 8] * 1e6 + (60.0e9 if i >= 300 else 0))
+        stamp = "2026-08-15T02:%02d:%02d.%03d" % (int(host_s // 60), int(host_s % 60), int((host_s * 1000) % 1000))
+        lines.append("%s;Polar H10 02849638;ecg;%d;%d;73" % (stamp, dev_ns, dev_ns))
+    (d / "Polar_H10_02849638_20260815024240_PMDARRIVAL.csv").write_text("\n".join(lines) + "\n")
+    rows = nightqc.arrival_quality(str(d))
+    assert len(rows) == 1
+    st = rows[0]["stability"]
+    assert st["ok"] is True, st
+    assert st["pooled"] is True and st["segments"] == 2 and st["dropped_intervals"] == 1
+

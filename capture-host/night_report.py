@@ -138,6 +138,40 @@ def sniffer_verdict(verdict_text: str | None) -> tuple[str, str]:
     return verdict, coverage
 
 
+def clock_lines(summary: dict | None) -> list[str]:
+    """One human-readable line per arrival stream that carries a stability block — ALLAN-STABILITY-GAPS
+    §2.4, in the report file and not in the one-line digest. Format, per stream:
+      clock <dev>/<meas>: <noise|refused(<candidates>)> · σ_y(τ_opt=<τ> s)=<x> ppm · n=<n> · max_gap=<g>×median
+    σ_y is the ADEV minimum: phase in ms over τ in s is ms/s, so ×1000 is ppm. A field the record does
+    not carry reads `unknown`, never a number — the same rule as every other field in this file."""
+    rows = (summary or {}).get("arrival") if isinstance(summary, dict) else None
+    out: list[str] = []
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        st = r.get("stability")
+        if not isinstance(st, dict) or not st.get("ok"):
+            continue
+        dev = str(r.get("device") or UNKNOWN)
+        dev = dev.split()[1] if " " in dev else dev
+        cls: dict = st["classification"] if isinstance(st.get("classification"), dict) else {}
+        noise = cls.get("noise")
+        cands = cls.get("candidates")
+        label = noise if noise else ("refused(%s)" % "/".join(str(c) for c in cands) if cands else "refused(%s)" % (cls.get("meaning") or UNKNOWN)[:40])
+        adev = st.get("adev_min")
+        sig = UNKNOWN if not isinstance(adev, (int, float)) else "%.2f" % (adev * 1000.0)
+        tau = st.get("optimal_tau")
+        tau_s = UNKNOWN if not isinstance(tau, (int, float)) else "%g" % tau
+        n = st.get("n")
+        uni: dict = r["tau0_uniformity"] if isinstance(r.get("tau0_uniformity"), dict) else {}
+        gap = uni.get("max_gap")
+        out.append("clock %s/%s: %s · σ_y(τ_opt=%s s)=%s ppm · n=%s · max_gap=%s×median" % (
+            dev, r.get("meas") or UNKNOWN, label, tau_s, sig,
+            UNKNOWN if not isinstance(n, int) else n,
+            UNKNOWN if not isinstance(gap, (int, float)) else "%g" % gap))
+    return out
+
+
 def build(night: str, summary: dict | None, verdict_text: str | None) -> dict:
     """Everything the report says, as data. `line` is what the operator reads; `detail` is the file."""
     hours = _hours_from_spo2((summary or {}).get("devices") if isinstance(summary, dict) else None)
@@ -155,6 +189,9 @@ def build(night: str, summary: dict | None, verdict_text: str | None) -> dict:
         "back_check": check,
         "sniffer": sniff,
         "coverage": coverage,
+        # §2.4: the per-stream clock lines live in the FILE (rendered below), never in `line` — the
+        # one-line digest stays what it is.
+        "clock": clock_lines(summary),
         "line": "%s: ring %s h, %s spans%s, back-check %s, sniffer coverage %s %s" % (
             night,
             UNKNOWN if hours is None else "%.1f" % hours,
@@ -173,6 +210,8 @@ def render(report: dict) -> str:
     for k in ("night", "ring_hours", "spans", "held", "back_check", "sniffer", "coverage"):
         v = report.get(k)
         out.append("%-12s %s" % (k, UNKNOWN if v is None else v))
+    for c in report.get("clock") or []:
+        out.append(c)
     out.append("")
     out.append("Every field above is a reading or the word `unknown`. A missing input is never a 0 —")
     out.append("a night nobody watched must not read like a night that went well.")
