@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**196 tools** · 194 with a purpose line · **2 without**
+**197 tools** · 195 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -154,6 +154,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`probe-reach.mjs`](../tools/probe-reach.mjs) | `probe-coverage` answers "could the prober form an opinion about this survivor" — a question about which `fn` names the families NAME. |
 | [`pulse-agreement.mjs`](../tools/pulse-agreement.mjs) | the O2Ring's 1 Hz VENDOR pulse vs an HR derived from its own finger PPG. |
 | [`pulse-template-toa.mjs`](../tools/pulse-template-toa.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ FOURIER-DOMAIN TEMPLATE TIME-OF-ARRIVAL for the PPG pulse — CROSS-DOMAIN-METHODS §2. |
+| [`pw-launch.mjs`](../tools/pw-launch.mjs) | Residue `2026-09-05-playwright-blocked-by-apparmor-userns`: on Ubuntu 23.10+ with `kernel.apparmor_restrict_unprivileged_userns = 1`, `chromium.launch()` RESOLVES and the first `newPage()`… |
 | [`queue-doctor.mjs`](../tools/queue-doctor.mjs) | queue-doctor — drain a PR queue that CANNOT drain itself, and NAME the state that no view reports. |
 | [`qwen-agent.mjs`](../tools/qwen-agent.mjs) | READ-ONLY LOCAL-MODEL AGENT — owner-directed 2026-08-27: "make sure qwen will read CLAUDE.md and have access to bge and other stuff so it can behave like normal Claude coder." |
 | [`qwen-mypy-fix.mjs`](../tools/qwen-mypy-fix.mjs) | // // qwen-mypy-fix.mjs — the mypy burn-down FIX lane (PYTHON-TYPES-AND-FORMAT §P2, qwen half). |
