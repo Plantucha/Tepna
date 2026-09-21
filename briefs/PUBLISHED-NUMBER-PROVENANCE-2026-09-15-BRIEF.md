@@ -162,7 +162,19 @@ sound and is not the reason for rejection.
 - [x] Unresolvable source REDS rather than skipping; anti-vacuity assertions present.
 - [x] Mutation-verified across all three failure modes, including artifact-moved-prose-didn't.
 - [x] One real published number marked.
-- [ ] A second and third marker on numbers that have actually drifted, chosen from the sweep's table 3
+- [x] A second and third marker on numbers that have actually drifted, chosen from the sweep's table 3
       and table 4 — the markers that would have *caught* something, rather than one that agrees.
+      **DONE 2026-09-21 (Magpie, #PRNUM).** Both tables re-run and re-cut under a dated correction block
+      beside the original: table 3 (`PAT-UNDER-PERBLOCK-ALIGNMENT` §3a, 18 `CLAIM`s — beats, legacy ratio,
+      strict ratio × 6 nights) and table 4 (`SENSOR-TRIO-NIGHTS-PAPER` §11, 8 `CLAIM`s — both sides of the
+      identity × 3 corners, nights, pooled seconds), each resolving against a committed record under
+      `analysis/published-numbers/` that carries producer, commit, invocation, inputs (a RESOLVABLE
+      git-tracked digest for table 4; recorded-only for table 3's gitignored raw captures) and the tool's
+      full-precision output. ⚠️ Table 4 had moved a THIRD time since the sweep (h10 gap 0.007960 → 0.007835,
+      54 → 63 nights) — the drift the sweep measured was still running while the fix was being built, which
+      is the point. Table 3 reproduced the sweep's re-run exactly (deterministic surrogates, tool unchanged
+      since 09-03). The gate's exact-equality compare needs the record to carry the values AT PUBLISHED
+      PRECISION (`claims/*`, 2 dp ratios / 9 dp variances) beside the full-precision `result` — a convention
+      the next marker should copy rather than re-derive.
 - [ ] Phase 2 per-table stamp, with the upstream-DAG hash that lets the churn screen clear.
 - [ ] Phase 3 generate-rather-than-mark, only where phase 2 keeps firing.

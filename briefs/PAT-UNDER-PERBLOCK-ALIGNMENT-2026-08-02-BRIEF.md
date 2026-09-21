@@ -107,6 +107,35 @@ favour alignment grants the observation it grants the null identically.
 
 **The open item is answered: yes, such a definition exists — chance floor 6–9 %, not 60 %.**
 
+> ### ⚠️ RE-CUT 2026-09-21 — the table above is a 2026-08-03 photograph of a tool that has since changed; these are the CURRENT values, and each load-bearing cell is a sourced `CLAIM`
+> `PUBLISHED-NUMBER-DECAY-SWEEP-2026-09-03` table 3 re-ran this table and found **6 of 6 rows diverged** —
+> beat counts by ≤5, ratios by up to 2.5×, three of the four sub-1 ratios crossing above 1 — attributed to
+> **six commits to `tools/pat-matchrate-strict.mjs`** since 2026-08-03 (three named fixes), not to the data.
+> The 2026-08-03 table stays above as the record of what was published (owner precedent 2026-09-07: old
+> figures stay under a correction notice). Re-run 2026-09-21 at `336ac85a`, `--dir
+> /srv/data/tepna-corpus/smoketest-captures --night <n> --json`, 100 surrogates, deterministic (a second run
+> of 07-23 was byte-identical); the full rows sit in the committed record and the `docs · claude-md · claims`
+> gate compares every `CLAIM` below against it on every push — so the NEXT drift reds instead of decaying
+> silently, which is what `PUBLISHED-NUMBER-PROVENANCE` §7 item 6 asked for: markers that would have caught
+> something. ⚠️ Raw inputs are gitignored, so this record can be FLAGGED by a re-run and never CLEARED
+> from CI (the recorded-only case). The sweep's "ratio" column was the LEGACY ratio (its re-run values equal
+> today's legacy column exactly); §3a's original "ratio" column was strict/its-chance. Both are marked.
+>
+> | night | overlap | anchors | beats | legacy | its chance | legacy ratio | strict | its chance | strict ratio | p (strict) |
+> |---|---|---|---|---|---|---|---|---|---|---|
+> | 2026-07-20 | 365 m | 17 | CLAIM beats20260720 = 18153 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/beats20260720 | 46 % | 19 % | CLAIM legacyRatio20260720 = 2.42 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/legacyRatio20260720 | 16 % | 7 % | CLAIM strictRatio20260720 = 2.48 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/strictRatio20260720 | 0.0109 |
+> | 2026-07-22 | 266.5 m | 9 | CLAIM beats20260722 = 13329 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/beats20260722 | 28 % | 20 % | CLAIM legacyRatio20260722 = 1.41 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/legacyRatio20260722 | 4 % | 7 % | CLAIM strictRatio20260722 = 0.6 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/strictRatio20260722 | 1 |
+> | 2026-07-23 | 36.5 m | 7 | CLAIM beats20260723 = 1799 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/beats20260723 | 34 % | 18 % | CLAIM legacyRatio20260723 = 1.85 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/legacyRatio20260723 | 4 % | 7 % | CLAIM strictRatio20260723 = 0.6 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/strictRatio20260723 | 1 |
+> | 2026-07-25 | 153.3 m | 7 | CLAIM beats20260725 = 7537 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/beats20260725 | 39 % | 19 % | CLAIM legacyRatio20260725 = 1.99 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/legacyRatio20260725 | 7 % | 7 % | CLAIM strictRatio20260725 = 1 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/strictRatio20260725 | 0.5 |
+> | 2026-07-26 | 177 m | 29 | CLAIM beats20260726 = 12924 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/beats20260726 | 45 % | 24 % | CLAIM legacyRatio20260726 = 1.88 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/legacyRatio20260726 | 5 % | 9 % | CLAIM strictRatio20260726 = 0.56 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/strictRatio20260726 | 1 |
+> | 2026-07-28 | 182.5 m | 6 | CLAIM beats20260728 = 8837 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/beats20260728 | 17 % | 18 % | CLAIM legacyRatio20260728 = 0.96 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/legacyRatio20260728 | 2 % | 6 % | CLAIM strictRatio20260728 = 0.27 FROM analysis/published-numbers/pat-matchrate-strict-2026-09-21.json#claims/strictRatio20260728 | 1 |
+>
+> **What moved and what did not.** Under the current tool the LEGACY ratio is ≥1.4 on five of six nights
+> (07-28 at 0.96) with p ≈ 0.01 on five — the shipped statistic now clears its own surrogate floor — while
+> the STRICT ratio reads 0.27–1.00 on five nights and 2.48 on 07-20 only. The 2026-08-03 verdict *"four of
+> six nights score below chance"* is now a statement about the strict definition alone; under the legacy
+> one it is inverted. The §3c pair-selection caveat is unchanged and still bounds both.
+
 **And under it the coupling leg does not survive.** Observed strict `matchRate` is 5–9 %, i.e. *at*
 its own floor; **four of six nights score BELOW chance** and only two reach p<0.05, at ratios 1.22
 and 1.35. There is no R→foot coupling here beyond what a phase-randomised foot train produces.
