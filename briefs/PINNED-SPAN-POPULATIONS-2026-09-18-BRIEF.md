@@ -245,7 +245,7 @@ see three different things.
 - [x] The pre-registered ECG branch tested and its refutation recorded at full weight
 - [x] The rig/box overlap quantified — 45-of-3013, three buckets published
 - [ ] Box-side PPG run over the remaining 2,968 captures — **commissioned to the box lane**, read-only
-- [ ] Owner's saturation-vs-absence semantics (§6) — **owner**, blocks any detector
+- [x] Owner's saturation-vs-absence semantics (§6) — **RULED 2026-09-21: saturation IS absence, matched by MAGNITUDE.** A run at |railLo| or |railHi| is an absence, excluded like a pinned span (P5, 2026-09-13) and like a gap. The matcher keys on magnitude so the third state Magpie found (`2026-09-20-positive-saturation-at-negated-low-rail`: positive saturation at −railLo, invisible to exact equality) joins the first two. The detector change is a `computeHash` mover — one compute-path PR, JS lane
 - [ ] The threshold itself — bounded here (unusable below ~50, viable somewhere 79–200), chosen nowhere
 
 ## 8 · Method — hold one hand-verified case outside the pipeline
