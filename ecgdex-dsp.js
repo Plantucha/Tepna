@@ -931,7 +931,7 @@
     const freq = new Map();
     for (let i = 0; i < int16.length; i++) freq.set(int16[i], (freq.get(int16[i]) || 0) + 1);
     const vals = Array.from(freq.keys()).sort((a, b) => a - b);
-    if (vals.length < 2) return { railLo: null, railHi: null, absent: true };
+    if (vals.length < 2) return { railLo: null, railHi: null, mirrorLo: null, mirrorHi: null, values: [], absent: true };
     const RAIL_SCAN_VALUES = 8, // capture-host `_RAIL_SCAN_VALUES`
       RAIL_GAP_MAX = 4, // capture-host `_RAIL_GAP_MAX`
       RAIL_SPIKE_MIN = 5; // capture-host `_RAIL_SPIKE_MIN`
@@ -967,7 +967,67 @@
     const notBaseline = (v) => v != null && (freq.get(v) || 0) <= half;
     const railLo = notBaseline(railAt('lo')) ? railAt('lo') : null,
       railHi = notBaseline(railAt('hi')) ? railAt('hi') : null;
-    return { railLo: railLo, railHi: railHi, absent: railLo == null && railHi == null };
+    /* ── THE RAIL IS MATCHED BY MAGNITUDE (owner ruling 2026-09-21, D9.3) ─────────────────────────
+       The H10 saturates POSITIVE at the magnitude of its NEGATIVE rail, minus the int16 asymmetry.
+       Measured on every file the residue row named plus the two it did not: -18033 ↔ 18031,
+       -18133 ↔ 18131, -18733 ↔ 18731, -18233 ↔ 18231, -18600 ↔ 18597 — the positive pin sits 2-3 µV
+       under |railLo| on 5 of 5. On three of those files the edge search above NEVER REACHES IT: a
+       handful of stray samples ABOVE the real pin (18 at 18064 on 09-16, 2 at 18597 on 09-12, 8 at
+       18731 on 09-15 — the file's opening samples, at what looks like the previous session's rail)
+       are the outermost occupied value, the scan stops at the first value gap, and `railHi` comes
+       back as that startup spike (09-16) or as null (09-12, 09-15). The real positive rail — 1381,
+       1968 and 703 samples — is invisible to an edge-anchored search and to an exact-equality
+       matcher alike. Three positive saturation runs of the census fell outside the population
+       entirely: not caught, not counted (`2026-09-20-positive-saturation-at-negated-low-rail`).
+
+       So each qualified rail is MIRRORED: the histogram spike within `RAIL_GAP_MAX` of its negated
+       value is a rail too, under the SAME qualification (out-count the nearest occupied neighbour
+       outside the window by `RAIL_SPIKE_MIN`, and not the baseline). The window is the scan's own
+       adjacency width, not a new tolerance — the 2-3 µV asymmetry sits inside it with margin, and a
+       lone stray sample at |railLo| does not qualify because it out-counts nothing. Emission stays
+       EXACT-VALUE against the qualified set (`values`): "within N of the rail" would admit signal
+       under the pin, the one-sided rule the PPG side adopted after measurement. */
+    const mirrorOf = (rail) => {
+      if (rail == null) return null;
+      const c = -rail;
+      let best = null,
+        bestC = 0;
+      for (let v = c - RAIL_GAP_MAX; v <= c + RAIL_GAP_MAX; v++) {
+        const k = freq.get(v) || 0;
+        if (k > bestC) {
+          bestC = k;
+          best = v;
+        }
+      }
+      if (best == null || !notBaseline(best)) return null;
+      // the nearest occupied value just OUTSIDE the window on either side — the edge search's
+      // "neighbour", so the mirror is held to the same bar as the rail it mirrors
+      let below = null,
+        above = null;
+      for (let i = 0; i < vals.length; i++) {
+        if (vals[i] < c - RAIL_GAP_MAX) below = vals[i];
+        else if (vals[i] > c + RAIL_GAP_MAX) {
+          above = vals[i];
+          break;
+        }
+      }
+      const nb = Math.max(below == null ? 0 : freq.get(below), above == null ? 0 : freq.get(above));
+      return bestC >= RAIL_SPIKE_MIN * Math.max(1, nb) ? best : null;
+    };
+    const mirrorLo = mirrorOf(railLo),
+      mirrorHi = mirrorOf(railHi);
+    const values = [];
+    for (const v of [railLo, railHi, mirrorLo, mirrorHi]) if (v != null && values.indexOf(v) < 0) values.push(v);
+    return {
+      railLo: railLo,
+      railHi: railHi,
+      // the positive spike at |railLo| / the negative spike at -|railHi|; null when none qualifies
+      mirrorLo: mirrorLo,
+      mirrorHi: mirrorHi,
+      // every qualified rail value — the set the matcher keys on
+      values: values,
+      absent: values.length === 0
+    };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -979,6 +1039,11 @@
        computing it inside the ±130 ms beat window would ask 130 samples what the recording's
        saturation level is. */
     const rails = ecgRails(int16);
+    /* COUNTED once over the whole record, not only inside beat windows: a saturation run with no
+       detected beat near it is exactly the one the per-beat leg never examines, and the count is
+       what makes that population visible (`quality.ecgRail.samples`). */
+    let railSamples = 0;
+    if (!rails.absent) for (let i = 0; i < int16.length; i++) if (rails.values.indexOf(int16[i]) >= 0) railSamples++;
     const n = peaks.length;
     const sqi = new Float32Array(n);
     // RR (ms) from refined times
@@ -1029,7 +1094,7 @@
         } else flatRun = 0;
         /* AT the file's own rail, not above a constant. `absent` ⇒ this leg contributes nothing
            and says so through `quality.ecgRail`, rather than reading as clean signal. */
-        if (!rails.absent && (int16[j] === rails.railHi || int16[j] === rails.railLo)) railHit++;
+        if (!rails.absent && rails.values.indexOf(int16[j]) >= 0) railHit++;
         prev = int16[j];
       }
       const flatBad = maxFlat > 0.2 * fs || railHit > 3; // >200 ms flat
@@ -1078,7 +1143,16 @@
       ampOK: mean(sumA),
       flatBadPct: n > 0 ? +((100 * nFlat) / n).toFixed(2) : null
     };
-    return { sqi, rr, terms };
+    const ecgRail = {
+      lo: rails.railLo,
+      hi: rails.railHi,
+      mirrorLo: rails.mirrorLo,
+      mirrorHi: rails.mirrorHi,
+      absent: rails.absent,
+      // null, not 0, when no rail qualified: an unmeasured record is not an unsaturated one (§∅)
+      samples: rails.absent ? null : railSamples
+    };
+    return { sqi, rr, terms, ecgRail };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -2666,7 +2740,7 @@
       }
     }
     prog(46, 'Per-beat signal-quality scoring…');
-    const { sqi, rr, terms: sqiTerms } = computeSQI(int16, fs, peaks, times, peaksB);
+    const { sqi, rr, terms: sqiTerms, ecgRail } = computeSQI(int16, fs, peaks, times, peaksB);
     prog(56, 'Gating + NN interpolation…');
     const nnRes = buildNN(times, rr, sqi);
     // TCH-FUSED-ROBUST-HAT: exclude SUSTAINED-artifact windows the per-beat gate misses (a burst of
@@ -3062,6 +3136,9 @@
          a THRESHOLD count of the composite and cannot say WHICH term moved it, so a term pinned at 0
          and a term doing real work produce the same `cleanBeatPct` story. */
       sqiTerms,
+      /* The file's own saturation rails (`ecgRails`), matched by magnitude, and how many samples sit
+         at them over the WHOLE record. `absent: true` + `samples: null` is "unmeasured", never clean. */
+      ecgRail,
       nGaps: nnRes.nGaps,
       artifactSec,
       spanMin: +(spanSec / 60).toFixed(1),
@@ -5945,7 +6022,7 @@
       var amb = !!r.ambulatory,
         lng = !!r.longRec;
       var _geom = baevskyGeom(r.nn); // Baevsky-SI inputs for the envelope (FOLLOWUP-FINDINGS P4)
-      out.quality = { analyzablePct: nz(r.analyzablePct), cleanBeatPct: nz(r.cleanBeatPct), coveragePct: nz(r.coveragePct) };
+      out.quality = { analyzablePct: nz(r.analyzablePct), cleanBeatPct: nz(r.cleanBeatPct), coveragePct: nz(r.coveragePct), ecgRail: r.ecgRail || null };
       out.hrv = {
         time: {
           hr: nz(r.dispHr),

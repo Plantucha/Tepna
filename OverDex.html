@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="aa6e5fe73131" data-compute-hash="2e5b1fa91b9f"><head>
+<html lang="en" data-manifest-hash="8177ba2cd532" data-compute-hash="91069a21d376"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2/P17dUL1JcPYpJM85bGXVsn9M5fCoEX2o8B54PqGAs=' 'sha256-62m0eMmR6jDhQ5/DNkZjjrxDGuV1p9Jwk3jYRpflohI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-GB3hCuE1RHE92ovcijLs+hFvVJC+VOGfRLQPwry0nhM=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bcL7l63Nwzz/ZYRXDOuIJObcPq4EY33N5TA5aViVeaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2/P17dUL1JcPYpJM85bGXVsn9M5fCoEX2o8B54PqGAs=' 'sha256-62m0eMmR6jDhQ5/DNkZjjrxDGuV1p9Jwk3jYRpflohI=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-D0B0J1xG4/p01mgy+EoHt3o1R2vIWeP2YsT44GDIVrs=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bcL7l63Nwzz/ZYRXDOuIJObcPq4EY33N5TA5aViVeaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -33070,7 +33070,7 @@ __exports.PpgDex = window.PpgDex;
     const freq = new Map();
     for (let i = 0; i < int16.length; i++) freq.set(int16[i], (freq.get(int16[i]) || 0) + 1);
     const vals = Array.from(freq.keys()).sort((a, b) => a - b);
-    if (vals.length < 2) return { railLo: null, railHi: null, absent: true };
+    if (vals.length < 2) return { railLo: null, railHi: null, mirrorLo: null, mirrorHi: null, values: [], absent: true };
     const RAIL_SCAN_VALUES = 8, // capture-host `_RAIL_SCAN_VALUES`
       RAIL_GAP_MAX = 4, // capture-host `_RAIL_GAP_MAX`
       RAIL_SPIKE_MIN = 5; // capture-host `_RAIL_SPIKE_MIN`
@@ -33106,7 +33106,67 @@ __exports.PpgDex = window.PpgDex;
     const notBaseline = (v) => v != null && (freq.get(v) || 0) <= half;
     const railLo = notBaseline(railAt('lo')) ? railAt('lo') : null,
       railHi = notBaseline(railAt('hi')) ? railAt('hi') : null;
-    return { railLo: railLo, railHi: railHi, absent: railLo == null && railHi == null };
+    /* ── THE RAIL IS MATCHED BY MAGNITUDE (owner ruling 2026-09-21, D9.3) ─────────────────────────
+       The H10 saturates POSITIVE at the magnitude of its NEGATIVE rail, minus the int16 asymmetry.
+       Measured on every file the residue row named plus the two it did not: -18033 ↔ 18031,
+       -18133 ↔ 18131, -18733 ↔ 18731, -18233 ↔ 18231, -18600 ↔ 18597 — the positive pin sits 2-3 µV
+       under |railLo| on 5 of 5. On three of those files the edge search above NEVER REACHES IT: a
+       handful of stray samples ABOVE the real pin (18 at 18064 on 09-16, 2 at 18597 on 09-12, 8 at
+       18731 on 09-15 — the file's opening samples, at what looks like the previous session's rail)
+       are the outermost occupied value, the scan stops at the first value gap, and `railHi` comes
+       back as that startup spike (09-16) or as null (09-12, 09-15). The real positive rail — 1381,
+       1968 and 703 samples — is invisible to an edge-anchored search and to an exact-equality
+       matcher alike. Three positive saturation runs of the census fell outside the population
+       entirely: not caught, not counted (`2026-09-20-positive-saturation-at-negated-low-rail`).
+
+       So each qualified rail is MIRRORED: the histogram spike within `RAIL_GAP_MAX` of its negated
+       value is a rail too, under the SAME qualification (out-count the nearest occupied neighbour
+       outside the window by `RAIL_SPIKE_MIN`, and not the baseline). The window is the scan's own
+       adjacency width, not a new tolerance — the 2-3 µV asymmetry sits inside it with margin, and a
+       lone stray sample at |railLo| does not qualify because it out-counts nothing. Emission stays
+       EXACT-VALUE against the qualified set (`values`): "within N of the rail" would admit signal
+       under the pin, the one-sided rule the PPG side adopted after measurement. */
+    const mirrorOf = (rail) => {
+      if (rail == null) return null;
+      const c = -rail;
+      let best = null,
+        bestC = 0;
+      for (let v = c - RAIL_GAP_MAX; v <= c + RAIL_GAP_MAX; v++) {
+        const k = freq.get(v) || 0;
+        if (k > bestC) {
+          bestC = k;
+          best = v;
+        }
+      }
+      if (best == null || !notBaseline(best)) return null;
+      // the nearest occupied value just OUTSIDE the window on either side — the edge search's
+      // "neighbour", so the mirror is held to the same bar as the rail it mirrors
+      let below = null,
+        above = null;
+      for (let i = 0; i < vals.length; i++) {
+        if (vals[i] < c - RAIL_GAP_MAX) below = vals[i];
+        else if (vals[i] > c + RAIL_GAP_MAX) {
+          above = vals[i];
+          break;
+        }
+      }
+      const nb = Math.max(below == null ? 0 : freq.get(below), above == null ? 0 : freq.get(above));
+      return bestC >= RAIL_SPIKE_MIN * Math.max(1, nb) ? best : null;
+    };
+    const mirrorLo = mirrorOf(railLo),
+      mirrorHi = mirrorOf(railHi);
+    const values = [];
+    for (const v of [railLo, railHi, mirrorLo, mirrorHi]) if (v != null && values.indexOf(v) < 0) values.push(v);
+    return {
+      railLo: railLo,
+      railHi: railHi,
+      // the positive spike at |railLo| / the negative spike at -|railHi|; null when none qualifies
+      mirrorLo: mirrorLo,
+      mirrorHi: mirrorHi,
+      // every qualified rail value — the set the matcher keys on
+      values: values,
+      absent: values.length === 0
+    };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -33118,6 +33178,11 @@ __exports.PpgDex = window.PpgDex;
        computing it inside the ±130 ms beat window would ask 130 samples what the recording's
        saturation level is. */
     const rails = ecgRails(int16);
+    /* COUNTED once over the whole record, not only inside beat windows: a saturation run with no
+       detected beat near it is exactly the one the per-beat leg never examines, and the count is
+       what makes that population visible (`quality.ecgRail.samples`). */
+    let railSamples = 0;
+    if (!rails.absent) for (let i = 0; i < int16.length; i++) if (rails.values.indexOf(int16[i]) >= 0) railSamples++;
     const n = peaks.length;
     const sqi = new Float32Array(n);
     // RR (ms) from refined times
@@ -33168,7 +33233,7 @@ __exports.PpgDex = window.PpgDex;
         } else flatRun = 0;
         /* AT the file's own rail, not above a constant. `absent` ⇒ this leg contributes nothing
            and says so through `quality.ecgRail`, rather than reading as clean signal. */
-        if (!rails.absent && (int16[j] === rails.railHi || int16[j] === rails.railLo)) railHit++;
+        if (!rails.absent && rails.values.indexOf(int16[j]) >= 0) railHit++;
         prev = int16[j];
       }
       const flatBad = maxFlat > 0.2 * fs || railHit > 3; // >200 ms flat
@@ -33217,7 +33282,16 @@ __exports.PpgDex = window.PpgDex;
       ampOK: mean(sumA),
       flatBadPct: n > 0 ? +((100 * nFlat) / n).toFixed(2) : null
     };
-    return { sqi, rr, terms };
+    const ecgRail = {
+      lo: rails.railLo,
+      hi: rails.railHi,
+      mirrorLo: rails.mirrorLo,
+      mirrorHi: rails.mirrorHi,
+      absent: rails.absent,
+      // null, not 0, when no rail qualified: an unmeasured record is not an unsaturated one (§∅)
+      samples: rails.absent ? null : railSamples
+    };
+    return { sqi, rr, terms, ecgRail };
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -34805,7 +34879,7 @@ __exports.PpgDex = window.PpgDex;
       }
     }
     prog(46, 'Per-beat signal-quality scoring…');
-    const { sqi, rr, terms: sqiTerms } = computeSQI(int16, fs, peaks, times, peaksB);
+    const { sqi, rr, terms: sqiTerms, ecgRail } = computeSQI(int16, fs, peaks, times, peaksB);
     prog(56, 'Gating + NN interpolation…');
     const nnRes = buildNN(times, rr, sqi);
     // TCH-FUSED-ROBUST-HAT: exclude SUSTAINED-artifact windows the per-beat gate misses (a burst of
@@ -35201,6 +35275,9 @@ __exports.PpgDex = window.PpgDex;
          a THRESHOLD count of the composite and cannot say WHICH term moved it, so a term pinned at 0
          and a term doing real work produce the same `cleanBeatPct` story. */
       sqiTerms,
+      /* The file's own saturation rails (`ecgRails`), matched by magnitude, and how many samples sit
+         at them over the WHOLE record. `absent: true` + `samples: null` is "unmeasured", never clean. */
+      ecgRail,
       nGaps: nnRes.nGaps,
       artifactSec,
       spanMin: +(spanSec / 60).toFixed(1),
@@ -38084,7 +38161,7 @@ __exports.PpgDex = window.PpgDex;
       var amb = !!r.ambulatory,
         lng = !!r.longRec;
       var _geom = baevskyGeom(r.nn); // Baevsky-SI inputs for the envelope (FOLLOWUP-FINDINGS P4)
-      out.quality = { analyzablePct: nz(r.analyzablePct), cleanBeatPct: nz(r.cleanBeatPct), coveragePct: nz(r.coveragePct) };
+      out.quality = { analyzablePct: nz(r.analyzablePct), cleanBeatPct: nz(r.cleanBeatPct), coveragePct: nz(r.coveragePct), ecgRail: r.ecgRail || null };
       out.hrv = {
         time: {
           hr: nz(r.dispHr),

@@ -17353,6 +17353,109 @@
       }
     });
 
+    /* ── THE RAIL IS MATCHED BY MAGNITUDE (owner ruling 2026-09-21, D9.3) ─────────────────────────
+       The H10 saturates POSITIVE at |railLo| minus the int16 asymmetry — measured 5 of 5 files:
+       -18033 ↔ 18031, -18133 ↔ 18131, -18733 ↔ 18731, -18233 ↔ 18231, -18600 ↔ 18597. On the
+       2026-09-16 file the exact-equality matcher of #2658 saw NONE of the 1381 positive rail samples:
+       18 stray opening samples at 18064 are the outermost value, the edge scan stops at the first
+       value gap, `railHi` comes back as that startup spike, and the real positive pin sits 33 µV under
+       it, outside the window and outside the matcher. Three census runs were neither caught nor
+       counted (`2026-09-20-positive-saturation-at-negated-low-rail`). The plant below is that file's
+       geometry — the same counts at the same values. */
+    group('ECGDex §∅ — the rail is matched by MAGNITUDE: the positive pin at |railLo| joins the set', 'ecgdex-dsp · absence-as-value · rail · magnitude', function (T) {
+      var E = env.ECGDSP;
+      if (!E || typeof E.ecgRails !== 'function') {
+        T.skip('ECGDSP.ecgRails unavailable');
+        return;
+      }
+      var HZ = 130,
+        N = HZ * 120,
+        v = new Int16Array(N),
+        sd = 7;
+      var rnd = function () {
+        sd = (sd * 1103515245 + 12345) & 0x7fffffff;
+        return sd / 0x7fffffff;
+      };
+      for (var i = 0; i < N; i++) v[i] = Math.round(-17000 + 34000 * rnd());
+      for (var a = 0; a < 18; a++) v[a] = 18064; // the startup spike — the OUTERMOST value, 18 samples
+      v[18] = 18042; // its one nearest neighbour below, as on the file (18064:18 · 18042:1) — what qualifies it
+      for (var b = HZ * 100; b < HZ * 100 + 318; b++) v[b] = -18033; // the floor rail, 318 samples
+      for (var c = HZ * 80; c < HZ * 80 + 1381; c++) v[c] = 18031; // the real positive pin, 1381 samples, 2 under |railLo|
+      var r = E.ecgRails(v);
+      T.eq('the floor rail is found at the planted value', r.railLo, -18033);
+      T.eq('the edge search still returns the STARTUP SPIKE as railHi — the masking is real, not a story', r.railHi, 18064);
+      T.eq('the positive pin is found by MAGNITUDE, as the mirror of railLo', r.mirrorLo, 18031);
+      T.eq('there is no negative spike at -|railHi|, so mirrorHi is null rather than fabricated', r.mirrorHi, null);
+      T.eq('the matcher set carries all three, deduplicated, in rail order', r.values.join(','), '-18033,18064,18031');
+
+      /* 🔴 THE DECOY — the retired exact-equality rule misses every one of the 1381 samples. */
+      var missedByOld = 0,
+        hitByNew = 0;
+      for (var k = 0; k < N; k++) {
+        if (v[k] === 18031) {
+          if (v[k] !== r.railHi && v[k] !== r.railLo) missedByOld++;
+          if (r.values.indexOf(v[k]) >= 0) hitByNew++;
+        }
+      }
+      T.eq('the retired railHi/railLo equality misses ALL 1381 positive-pin samples', missedByOld, 1381);
+      T.eq('the magnitude set matches ALL 1381', hitByNew, 1381);
+
+      /* NEGATIVE CONTROLS — the mirror is qualified, not assumed. */
+      var w = new Int16Array(N);
+      for (var j = 0; j < N; j++) w[j] = v[j];
+      for (var c2 = HZ * 80; c2 < HZ * 80 + 1381; c2++) w[c2] = Math.round(-17000 + 34000 * rnd()); // remove the pin
+      w[HZ * 80] = 18031; // ONE stray sample at |railLo| - 2
+      var r2 = E.ecgRails(w);
+      T.eq('control · the floor rail is unchanged', r2.railLo, -18033);
+      T.eq('a LONE sample at |railLo| is not a mirror — it out-counts nothing', r2.mirrorLo, null);
+      T.eq('…so the set is the two edge rails only', r2.values.join(','), '-18033,18064');
+      var y = new Int16Array(8000);
+      for (var q = 0; q < 8000; q++) y[q] = Math.round(15000 * Math.sin(q / 40));
+      var r3 = E.ecgRails(y);
+      T.ok('a clean sine has no rail and therefore no mirror', r3.absent && r3.mirrorLo == null && r3.mirrorHi == null && r3.values.length === 0);
+
+      /* AGREEMENT — where the edge search DOES find the positive rail, the mirror lands on the same
+         value (2 of 2 real files: 18731/-18733, 18231/-18233), so the set does not double-count. */
+      var z = new Int16Array(N);
+      for (var m = 0; m < N; m++) z[m] = Math.round(-17000 + 34000 * rnd());
+      for (var e1 = HZ * 100; e1 < HZ * 100 + 89; e1++) z[e1] = -18733;
+      for (var e2 = HZ * 80; e2 < HZ * 80 + 1886; e2++) z[e2] = 18731;
+      var r4 = E.ecgRails(z);
+      T.eq('both edge rails found', String(r4.railLo) + ',' + String(r4.railHi), '-18733,18731');
+      T.eq('the mirror of railLo IS railHi', r4.mirrorLo, 18731);
+      T.eq('the mirror of railHi IS railLo', r4.mirrorHi, -18733);
+      T.eq('…and the set holds each value once', r4.values.join(','), '-18733,18731');
+
+      /* 🔴 THE WIRING ASSERTION — `computeSQI` keys on the SET. Same isolation as the group above:
+         ten pin samples in one beat window trip the rail leg (`railHit > 3`) and cannot trip the flat
+         leg (26 at 130 Hz). Under the retired matcher the railed beat read as clean. */
+      if (typeof E.computeSQI === 'function') {
+        var pk = [];
+        for (var t = 200; t < HZ * 60; t += HZ) pk.push(t);
+        var tm = pk.map(function (pp) {
+          return pp / HZ;
+        });
+        var withPin = new Int16Array(N);
+        for (var p2 = 0; p2 < N; p2++) withPin[p2] = v[p2];
+        for (var zz = 0; zz < 10; zz++) withPin[pk[10] + zz] = 18031;
+        var sA = E.computeSQI(v, HZ, pk, tm, pk),
+          sB = E.computeSQI(withPin, HZ, pk, tm, pk);
+        T.ok('control · the beat is otherwise clean without the pin', sA.sqi[10] > 0.4);
+        T.ok('computeSQI penalises a beat sitting at the MIRROR rail (×0.15 flatBad)', sB.sqi[10] < sA.sqi[10] * 0.5);
+        T.ok('…and only that beat', sA.sqi[9] === sB.sqi[9] && sA.sqi[11] === sB.sqi[11]);
+        /* COUNTED over the whole record, not only where a beat was detected: the 1381-sample pin at
+           HZ*80 lies outside every beat window (beats stop at HZ*60) and is still in the count. */
+        T.eq('quality.ecgRail counts every rail sample in the record — 18 + 318 + 1381', sA.ecgRail.samples, 18 + 318 + 1381);
+        T.eq('…and the ten planted pin samples add exactly ten', sB.ecgRail.samples, 18 + 318 + 1381 + 10);
+        T.eq('the count publishes the mirror beside the edge rails', sA.ecgRail.mirrorLo, 18031);
+        T.eq(
+          'a rail-ABSENT record reports samples as null, never 0 — unmeasured is not unsaturated',
+          E.computeSQI(y, HZ, [400, 530, 660], [400 / HZ, 530 / HZ, 660 / HZ], [400, 530, 660]).ecgRail.samples,
+          null
+        );
+      }
+    });
+
     group('ECGDex §∅ — an interval straddling a dropout is an ABSENCE, not a correctable beat', 'ecgdex-dsp · absence-as-value · regression', function (T) {
       /* `buildNN` repairs beats that were MIS-MEASURED: low SQI, out of physiological range, ectopic.
          A beat separated from its predecessor by a 74-second hole is none of those — it is a true
