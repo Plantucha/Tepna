@@ -445,14 +445,20 @@ else
   say "updated ${before:0:12} → ${after:0:12}"
 
   # --- 3 · a git pull is only HALF a deploy: the bundles are served separately ------------------
-  if [ -x "$REPO_DIR/capture-host/deploy/sync-apps.sh" ]; then
+  # `-f`, NOT `-x`: the script is run through `bash`, so its mode is irrelevant to execution — and it
+  # was committed 0644, so an `-x` guard here SKIPPED this step on every automatic deploy from the
+  # day it was written (measured 2026-09-21: 29 of 34 served bundles stale, `sync-apps --check` red,
+  # while every tick logged "updated a → b" and the daemon restarted). The exec-bit gate in
+  # test_vigil_update covers systemd's execve; a bash-invoked script needs the opposite guard, and a
+  # guard that can silently drop half a deploy is not a guard.
+  if [ -f "$REPO_DIR/capture-host/deploy/sync-apps.sh" ]; then
     bash "$REPO_DIR/capture-host/deploy/sync-apps.sh" || { warn "bundle sync FAILED — the served apps are now older than the code"; drifted=1; }
   fi
 fi
 
 # --- 4 · report /etc + root-helper drift; NEVER install it (see the header) --------------------
 # Runs on every tick, not only after a move: #914's drift appeared without this checkout changing at all.
-if [ -x "$REPO_DIR/capture-host/deploy/check-system-files.sh" ]; then
+if [ -f "$REPO_DIR/capture-host/deploy/check-system-files.sh" ]; then   # -f, not -x: run via bash (see step 3)
   if ! out="$(bash "$REPO_DIR/capture-host/deploy/check-system-files.sh" 2>&1)"; then
     drifted=1
     warn "/etc or /usr/local/lib drift — a HUMAN must run check-system-files.sh --install:"

@@ -54,6 +54,7 @@
  * USAGE  node tools/frozen-timeline-check.mjs [--base http://127.0.0.1:8080]
  * ════════════════════════════════════════════════════════════════════════════ */
 import { chromium } from 'playwright';
+import { launch } from './pw-launch.mjs';
 
 const argv = process.argv.slice(2);
 const opt = (n, d) => {
@@ -75,7 +76,7 @@ const PROBE_CLASSES = ['chart-card', 'finding-card', 'pair-card', 'metric', 'mai
    while looking clean. The harness therefore enumerates whatever the page ACTUALLY animates and reads
    the computed opacity of each — which is how `div.main-wrap`, the whole app wrapper, was found. */
 
-const browser = await chromium.launch({ args: ['--disable-dev-shm-usage'] });
+const browser = await launch(chromium);
 const rows = [];
 for (const app of APPS) {
   const page = await browser.newPage();

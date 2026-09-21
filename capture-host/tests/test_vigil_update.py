@@ -1255,3 +1255,44 @@ def test_the_docs_only_advance_names_the_source_and_never_claims_identity(box):
     assert "capture-host CODE is current (the daemon is on " + head1[:12] in r.stdout
     assert "marker advanced to" in r.stdout
     assert not box["called"].exists()
+
+
+# ---------------------------------------------------------------- steps 3 + 4 run for a 0644 script
+
+
+def _upstream_deploy_script(box, name, body, mode=0o644):
+    """Put a stub deploy/<name> UPSTREAM at the given MODE, acquired by the checkout on fast-forward.
+    0644 is the real committed mode of sync-apps.sh and check-system-files.sh (`git ls-files -s`)."""
+    d = box["up"] / "capture-host" / "deploy"
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / name
+    p.write_text(body)
+    p.chmod(mode)
+    _git(box["up"], "add", "-A"); _git(box["up"], "commit", "-qm", f"deploy script {name}")
+
+
+def test_the_served_bundles_are_synced_even_though_sync_apps_is_committed_0644(box, tmp_path):
+    """THE OTHER HALF OF THE EXEC-BIT LESSON. `test_a_unit_that_directly_execs_a_repo_script_requires_
+    the_exec_bit` covers execve; this covers a script the updater runs THROUGH `bash`, where the mode is
+    irrelevant to execution and an `-x` guard is therefore a silent skip. sync-apps.sh has been committed
+    0644 since it was written, so step 3 — "a git pull is only HALF a deploy" — never ran from the timer:
+    measured 2026-09-21 on vigil, 29 of 34 served bundles stale while every tick logged the fast-forward
+    and the daemon restarted. The plant is the real mode, 0644; the fixture used by the other tests
+    chmods its stub to 0755, which is why 40 green tests never saw it."""
+    marker = tmp_path / "synced"
+    _upstream_deploy_script(box, "sync-apps.sh", f'#!/usr/bin/env bash\necho ran > "{marker}"\n')
+    _advance(box)
+    r = _run(box)
+    assert marker.exists(), f"sync-apps.sh was not run after the fast-forward (mode 0644)\n{r.stderr}"
+    # the checkout acquired it at 0644 — the plant is the real shape, not a test convenience
+    mode = subprocess.run(["git", "-C", str(box["repo"]), "ls-files", "-s", "capture-host/deploy/sync-apps.sh"],
+                          capture_output=True, text=True).stdout.split()[0]
+    assert mode == "100644", mode
+
+
+def test_system_file_drift_is_reported_even_though_the_checker_is_committed_0644(box):
+    """Step 4, same guard, same defect: a 0644 check-system-files.sh was skipped every tick, so /etc drift
+    was never reported by the timer at all (the other drift tests chmod their stub to 0755)."""
+    _upstream_deploy_script(box, "check-system-files.sh", '#!/usr/bin/env bash\necho "tepna-clock.sh STALE"\nexit 1\n')
+    r = _run(box)
+    assert r.returncode == 1 and "a HUMAN must run" in r.stderr, r.stderr
