@@ -1,7 +1,7 @@
 <!-- Copyright 2026 Michal Planicka -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS (item 1, the box census, DONE 2026-09-20 — verified read-only across rig, vigil and both NAS boxes: the box's ECG population is a strict subset of the rig corpus, so nothing lies beyond it; §7) · **Created:** 2026-09-18 · **Supersedes-row:** 2026-09-18-ecg-saturation-unflagged
+**Status:** IN-PROGRESS (items 1 and 3 DONE — the box census 2026-09-20 (Heron, §7) and the rail leg, which had LANDED in #2658 on 2026-09-19 and sat unstamped; §7.4 classifies the census increment with the shipped detector and 28-of-55 does not extend. The ONLY remainder is `GAP_S`, a two-node threshold and the owner's; item 1 detail: the box census, DONE 2026-09-20 — verified read-only across rig, vigil and both NAS boxes: the box's ECG population is a strict subset of the rig corpus, so nothing lies beyond it; §7) · **Created:** 2026-09-18 · **Residue:** 2026-09-20-positive-saturation-at-negated-low-rail · **Supersedes-row:** 2026-09-18-ecg-saturation-unflagged
 
 # A fix keyed on the CAUSE it was written for does not generalise to a second cause with the same consequence
 
@@ -91,7 +91,7 @@ stretch with no beats still yields a spanning interval — but the magnitude is 
 - [x] Each remedy's dependency **checked** rather than inherited (§4)
 - [x] Box census — **DONE 2026-09-20 (Heron), read-only, and the premise was wrong in a useful way: there is nothing beyond.** The box's ECG population is a strict subset of the rig corpus (§7). What exists beyond 597 is the rig corpus itself growing to 602; the rail-level census over all 602 reproduces every number above exactly and adds 5 runs in 3 files. The peak-conditional half (the 55 → 28 split) needs the JS DSP and is handed to the rail-leg owner with the 3 file paths (§7.3).
 - [ ] `GAP_S`: a threshold decision across TWO nodes — **owner**, and it must move `PPG_CVHR_GAP_S` with it or state why not
-- [ ] rail leg: replace the global constant with a per-file rail — **unassigned, and not blocked**
+- [x] rail leg: replace the global constant with a per-file rail — **LANDED 2026-09-19 in #2658** (`ecgRails()` + exact-equality match at the file's own `railHi`/`railLo`, gated with a wiring decoy) and **left unstamped by the session that landed it** — this box read "unassigned" for a day after the code merged, the `2026-09-13-executing-session-stamps-nothing` class, caught when the item was re-assigned as new work. The one surviving `31000` in `ecgdex-dsp.js` is the history comment above `ecgRails`.
 
 **No threshold is proposed here.** 28-of-55 is a rate on 597 files and wants the census before anyone
 moves a number.
@@ -156,3 +156,27 @@ rail leg's owner. The 3 files above are the entire increment; whether their 5 ru
 they fall against `GAP_S` is a ≤3-file JS run, handed over with paths rather than approximated here.
 
 **Fleet-Session:** Heron
+
+**7.4 · The increment, classified with the shipped detector (2026-09-20) — 28-of-55 does NOT extend.**
+Same instrument as §2–3, run on `origin/main`'s `ECGDSP` (`parseECG` → `bandpass` → `detectPeaks`, rails
+from `ecgRails`, runs ≥200 at the file's own rail by exact equality, then the §2b/§3 split: a detected peak
+within ±130 ms ⇒ the flat leg LOOKS; otherwise the bracketing RR against `GAP_S = 10`):
+
+| file | at-rail runs ≥200 | classification |
+|---|---|---|
+| `…20260917221148` | 1 — n=570 (4.39 s) at 18197 HI | peak within ±130 ms → **flat leg looks, caught** |
+| `…20260919183658` | 2 — n=226 (1.74 s), n=1533 (11.80 s) at 17164 HI | both: peak within ±130 ms → **caught** |
+| `…20260916222657` | **0** | the two runs (n=353, 837) sit at **18031** — not the file's rail by the detector's exact-equality rule |
+
+So the three at-rail runs all join the **caught** side (55 → 58) and **none** the unexamined/median-filled side
+(57 → 57, 28 → 28). The consequential population is unchanged at 28, and §3's numbers stand as written.
+
+⚠️ **The two 09-16 runs are the §7.2 class, not a near-miss of the high rail.** Heron read 18031 as "33 µV
+inside 18064". It is also **2 µV from the NEGATED low rail** (`railLo = −18033`) — the same shape as 09-12
+`18131` and 09-15 `18597`, "saturation the high-side detector declined to name". That is now **three
+instances**: a positive run that saturates at |railLo| rather than at railHi. Filed as residue
+`2026-09-20-positive-saturation-at-negated-low-rail`; whether the matcher should accept ±railLo is a detector
+change (moves ECGDex's `computeHash`) and is not taken here. Denominator: this is a 3-file classification and
+carries no corpus denominator — §7's 602-vs-598 question is Heron's census's, not this table's.
+
+**Fleet-Session:** Magpie
