@@ -7224,6 +7224,156 @@
       T.eq('DECOY: a read is not a write', ('var s = r.hostAxis.stability; if (s.noise == null) x();'.match(WRITE) || []).length, 0);
     });
 
+    /* THE COHORT HARNESS TRIPWIRE, PLANTED (residue `2026-09-16-cohort-harness-broken-since-esm`).
+       For two months three realms died on their ESM export lines while the calling page reported
+       "100 %" over nulls. #2572 made the realm REFUSE (assert its globals before announcing `ready`),
+       #2582 fixed the load. Neither was gated by a plant, and a tripwire nobody has seen fire is a
+       comment. This group drives the harness's authored boot script in a vm, with the node's global
+       ABSENT and then PRESENT, and pins the two maps that decide what is examined equal — because a
+       node in SCRIPTS with no REQUIRED_GLOBAL entry used to pass with nothing checked (`|| []`). */
+    group('cohort-harness REFUSES a dead realm — planted, not assumed', 'cohort-harness · tripwire · plant', function (T) {
+      var html = (env.sources || {})['cohort-harness.html'];
+      var vmMod = typeof require === 'function' ? require('node:vm') : null;
+      if (html == null || !vmMod) {
+        T.skip('cohort-harness.html in env.sources + node:vm', 'not in this lane');
+        return;
+      }
+      // the AUTHORED tail: the last <script> block, after every data-inline-src block
+      var tailAt = html.lastIndexOf('<script>');
+      var tailEnd = html.lastIndexOf('</script>');
+      T.ok('the harness carries an authored boot block after the inlined sources', tailAt > 0 && tailEnd > tailAt, 'at ' + tailAt);
+      if (!(tailAt > 0 && tailEnd > tailAt)) return;
+      var boot = html.slice(tailAt + '<script>'.length, tailEnd);
+      T.ok('…and it is the tripwire block, not a stray script', /REQUIRED_GLOBAL/.test(boot) && /missing global\(s\)/.test(boot));
+
+      /* Boot the block against a fake page. `var` declarations at the top level of a script become
+         globals of the vm context, which is how REQUIRED_GLOBAL / SCRIPTS are read back. */
+      function bootWith(node, globals) {
+        var posted = [];
+        var listeners = {};
+        var win = {
+          addEventListener: function (t, fn) {
+            listeners[t] = fn;
+          }
+        };
+        Object.keys(globals || {}).forEach(function (k) {
+          win[k] = globals[k];
+        });
+        var sb = {
+          window: win,
+          document: {
+            createElement: function () {
+              return {};
+            },
+            head: { appendChild: function () {} }
+          },
+          location: { search: '?node=' + node },
+          URLSearchParams: URLSearchParams,
+          parent: {
+            postMessage: function (m) {
+              posted.push(m);
+            }
+          },
+          performance: {
+            now: function () {
+              return 0;
+            }
+          },
+          console: console,
+          Promise: Promise,
+          Error: Error,
+          Math: Math,
+          Object: Object,
+          Array: Array,
+          JSON: JSON,
+          isFinite: isFinite,
+          String: String
+        };
+        Object.keys(globals || {}).forEach(function (k) {
+          sb[k] = globals[k];
+        });
+        var ctx = vmMod.createContext(sb);
+        vmMod.runInContext(boot, ctx, { filename: 'cohort-harness.html#boot' });
+        return { posted: posted, ctx: ctx, listeners: listeners };
+      }
+
+      // 1 · THE PLANT: the node's global is absent → ready WITH error, naming the global
+      var dead = bootWith('pulsedex', {});
+      var readyDead = dead.posted.filter(function (m) {
+        return m && m.type === 'ready';
+      })[0];
+      T.ok('PLANT: a realm whose node global never defined posts ready WITH an error', !!(readyDead && readyDead.error), JSON.stringify(readyDead));
+      T.ok('…naming the missing global', !!(readyDead && /missing global\(s\): PulseDex/.test(String(readyDead.error))), String(readyDead && readyDead.error));
+      T.eq(
+        '…and posts nothing that reads as a clean ready',
+        dead.posted.filter(function (m) {
+          return m && m.type === 'ready' && !m.error;
+        }).length,
+        0
+      );
+
+      // 2 · THE CONTROL: the global present → ready, no error
+      var live = bootWith('pulsedex', { PulseDex: { computeAll: function () {} } });
+      var readyLive = live.posted.filter(function (m) {
+        return m && m.type === 'ready';
+      })[0];
+      T.ok('CONTROL: with the global defined the realm announces a clean ready', !!(readyLive && !readyLive.error), JSON.stringify(readyLive));
+
+      // 3 · an unknown node is refused by name, never booted
+      var unknown = bootWith('eegdex', {});
+      var readyUnk = unknown.posted.filter(function (m) {
+        return m && m.type === 'ready';
+      })[0];
+      T.ok('an unknown node is refused as such', !!(readyUnk && /unknown node/.test(String(readyUnk.error))), JSON.stringify(readyUnk));
+
+      // 4 · THE MAP THAT DECIDES WHAT IS EXAMINED. A node served (SCRIPTS) without a required global
+      //     used to pass the tripwire with `[]` — nothing examined, `ready` announced.
+      var R = live.ctx.REQUIRED_GLOBAL;
+      var S = live.ctx.SCRIPTS;
+      T.ok('REQUIRED_GLOBAL and SCRIPTS are readable from the booted block', !!(R && S), typeof R + '/' + typeof S);
+      if (R && S) {
+        T.eq('every node the harness serves has a REQUIRED_GLOBAL entry (key sets equal)', Object.keys(S).sort().join(','), Object.keys(R).sort().join(','));
+        T.ok(
+          '…and every entry names at least one global',
+          Object.keys(R).every(function (k) {
+            return Array.isArray(R[k]) && R[k].length > 0;
+          })
+        );
+        T.ok(
+          'the fallback to an empty list is GONE from the tripwire — a missing entry is a refusal, not a pass',
+          !/REQUIRED_GLOBAL\[NODE\] \|\| \[\]/.test(boot) && /no REQUIRED_GLOBAL entry/.test(boot)
+        );
+      }
+
+      // 5 · a RUN that throws is a result WITH error, never a silent null envelope
+      var h = live.listeners.message;
+      T.ok('the realm installs a message handler', typeof h === 'function');
+      if (typeof h === 'function') {
+        var replies = [];
+        h({
+          data: { type: 'run', reqId: 7, payload: {} },
+          source: {
+            postMessage: function (m) {
+              replies.push(m);
+            }
+          }
+        });
+        T.ok('a run whose adapter throws answers with result.error, not a scoreless envelope', replies.length === 1 && replies[0].type === 'result' && !!replies[0].error, JSON.stringify(replies[0]));
+      }
+
+      // 6 · THE CONSUMERS: every iframe consumer reads `error` on the ready message, so a refusal
+      //     reaches the page instead of dying in the frame. (Worker consumers read `err` — a
+      //     different channel, traced in the cohort-worker group; not scanned here.)
+      ['qrs-equiv-analysis.js', 'cohort-regression.js', 'cohort-runner.html'].forEach(function (f) {
+        var src = (env.sources || {})[f];
+        if (src == null) {
+          T.skip(f + ' wired into env.sources', 'not in this lane');
+          return;
+        }
+        T.ok(f + " reads the ready message's error into bootErr", /bootErr\s*=\s*m\.error/.test(src));
+      });
+    });
+
     /* ════ mergeEcg carries timing provenance across the merge (H10-2019-ORIGIN, 2026-09-01) ════════
        The ECG twin of mergePpg's F3 fix: `parseECG` now publishes `deviceEpoch` + `hostAxis`. These
        ride the single-fragment path for free (mergeEcg returns the rec itself), but the MULTI-fragment
@@ -11746,7 +11896,7 @@
       });
 
       /* The cap. Lower it — never raise it — when a file is wired into either lane. */
-      var INVISIBLE_CAP = 13;
+      var INVISIBLE_CAP = 12; // 13 → 12 on 2026-09-21: cohort-harness.html + qrs-equiv-analysis.js entered env.sources for the tripwire plant
       T.ok(
         'no NEW unscannable source layer (ratchet ' + INVISIBLE_CAP + ')',
         invisible.length <= INVISIBLE_CAP,
