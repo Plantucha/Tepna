@@ -5,6 +5,7 @@
 testpaths = ["tests"]
 markers = [
   "sets_capture_events: this test sets a capture module-global Event as part of its scenario; the autouse fixture scopes it",
+  "leaves_writers_open: this test ends with a sample writer open as part of its scenario; the autouse counter tripwire is silenced for it",
 ]
 
 # Coverage config (CAPTURE-HOST-FOLLOWUPS-III test-coverage; taken to 100% statement+branch by
