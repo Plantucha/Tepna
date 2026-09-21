@@ -200,7 +200,7 @@ def _classifier_regexes(path):
 
 
 def test_the_tool_classifiers_accept_box_filenames():
-    """Was the TRIPWIRE `…still_reject_box_filenames` (2026-09-20 morning): 0 of the 134 files in the box's
+    r"""Was the TRIPWIRE `…still_reject_box_filenames` (2026-09-20 morning): 0 of the 134 files in the box's
     09-19 night matched either tool's classifier, both written for the phone-app names, so the Ledger
     showed ✓ as on-disk eligibility and offered no click. It fired the same evening — the classifiers now
     take both layouts (`(\d{8})_?(\d{6})`, and the ring's box `_SPO2.csv` as the `o2` role) — and a
