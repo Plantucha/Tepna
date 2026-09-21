@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**198 tools** · 196 with a purpose line · **2 without**
+**199 tools** · 197 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -111,6 +111,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`o2ring-finger-validate-batch.mjs`](../tools/o2ring-finger-validate-batch.mjs) | // Batch real-data validation of the O2Ring finger-site round-trip (PPGDEX-O2RING-FINGER-SITE §6). |
 | [`o2ring-frame-cadence.mjs`](../tools/o2ring-frame-cadence.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ IS THE O2RING'S ~1 Hz CADENCE A FIRMWARE CLOCK OR HOST BLE FRAMING? |
 | [`o2ring-step-imbalance.mjs`](../tools/o2ring-step-imbalance.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ O2RING-FRAME-SAMPLE-LOCK-FOLLOWUPS §2 — does the step imbalance track the POLL INTERVAL? |
+| [`oracle-ecg-firmware-rr.mjs`](../tools/oracle-ecg-firmware-rr.mjs) | Runs MEASUREMENT-PROVENANCE-ROADMAP §5's first target over the real corpus: every H10 night that carries both `_ECG.txt` and `_RR.txt` is scored as ECGDex's own R-peak train… |
 | [`oxy-hr-bias.mjs`](../tools/oxy-hr-bias.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ R5-HR-TRIPLET-REFERENCE §5 — "Investigate OxyDex's −0.36 bpm bias." |
 | [`oxydex-export-staleness.mjs`](../tools/oxydex-export-staleness.mjs) | re-run OxyDex on each export's OWN named source file and report which exports no longer reproduce. |
 | [`pat-axis-leg-audit.mjs`](../tools/pat-axis-leg-audit.mjs) | PAT-ROOT-CAUSE-FORENSICS §2/§3/§5: do the two legs of a PAT measurement ride the SAME time axis? |
