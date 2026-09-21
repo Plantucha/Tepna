@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import datetime as _dt
 import glob
+import json
 import os
 import re
+import time
 
 # analyzer -> (input globs relative to the night dir — `{ymd}` for the CPAP trees keyed by date —, the
 # primary glob whose first→last stamp is the covered span). The list order is the ingest order.
@@ -127,6 +129,161 @@ def edf_hours(path: str) -> float | None:
     return round(hours, 2) if hours > 0 else None
 
 
+# ── FRAGMENTS + COVERAGE: the span hides a torn night ─────────────────────────────────────────────────
+# 2026-09-20 and 2026-09-17 both read "6.1 h" while the 09-20 H10 held 41 % of its samples — the link had
+# dropped 151 times (the not-worn power drop on a dry strap) and first→last span cannot see that. So the
+# primary stream also reports how many CONTIGUOUS stretches it holds and what fraction of the span they
+# cover: a gap is a step of more than GAP_S between consecutive stamps (BLE delivers ~1 s buffers, so 2 s
+# is above any normal arrival jitter and below any reconnect), fragments = gaps + 1, coverage =
+# 1 − Σgaps / span. The gap threshold is RELATIVE to the stream's own delivery cadence — max(GAP_S,
+# 5 × the 95th-percentile step over the first 2 000 rows) — because "consecutive rows" arrive very
+# differently per stream: ECG/PPG in ~1 s BLE buffers, the ring's CSV at 1 Hz, the Verity PPI in ~5 s
+# batches that share one stamp (a fixed 2 s cut read that stream as 4 434 fragments at 0 % coverage,
+# and the ring's one-sample hiccups as 40). A reconnect is ≥ 90 s, far above any of them.
+# That is a pass over every stamp, seconds per night, so results are cached per file
+# (keyed on size + mtime — a captured file never changes, only grows) in `<root>/run/`, and a request
+# computes only what fits in its time budget; the rest reads `pending` and the page asks again.
+GAP_S = 2.0
+_CACHE_NAME = "nights-index-cache.json"
+_cache: dict[str, dict] = {}
+_cache_loaded_from: str | None = None
+
+
+def _cache_path(captures: str) -> str:
+    return os.path.join(os.path.dirname(captures.rstrip("/")), "run", _CACHE_NAME)
+
+
+def _cache_load(captures: str) -> None:
+    global _cache_loaded_from
+    path = _cache_path(captures)
+    if _cache_loaded_from == path:
+        return
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        _cache.clear()
+        _cache.update(data if isinstance(data, dict) else {})
+    except (OSError, ValueError):
+        _cache.clear()
+    _cache_loaded_from = path
+
+
+def _cache_save(captures: str) -> None:
+    path = _cache_path(captures)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(_cache, fh)
+        os.replace(tmp, path)
+    except OSError:
+        pass                        # a cache that cannot be written is recomputed next time, not an error
+
+
+def _row_seconds(line: str, iso: bool) -> float | None:
+    """Seconds since midnight from a row's stamp, by SLICE — a regex per row costs 10× on a 3 M-row file.
+    ISO rows carry `YYYY-MM-DDTHH:MM:SS.mmm`, the ring's CSV `HH:MM:SS DD/MM/YYYY`."""
+    try:
+        if iso:
+            return int(line[11:13]) * 3600 + int(line[14:16]) * 60 + float(line[17:23])
+        return int(line[0:2]) * 3600 + int(line[3:5]) * 60 + int(line[6:8])
+    except ValueError:
+        return None
+
+
+def _cadence_gap(path: str, head_rows: int = 2000, floor: float = GAP_S) -> float:
+    """The gap threshold for this stream: max(floor, 5 × p95 of the inter-row steps over the head)."""
+    steps: list[float] = []
+    prev: float | None = None
+    iso: bool | None = None
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if iso is None:
+                    if _ISO.match(line):
+                        iso = True
+                    elif _O2.match(line):
+                        iso = False
+                    else:
+                        continue
+                t = _row_seconds(line, iso)
+                if t is None:
+                    continue
+                if prev is not None and t >= prev:
+                    steps.append(t - prev)
+                prev = t
+                if len(steps) >= head_rows:
+                    break
+    except OSError:
+        return floor
+    if len(steps) < 20:              # too few rows to know the cadence: the floor is the honest cut
+        return floor
+    steps.sort()
+    return max(floor, 5.0 * steps[min(len(steps) - 1, int(0.95 * len(steps)))])
+
+
+def stream_stats(path: str, gap_s: float | None = None) -> dict | None:
+    """{fragments, coverage, span_s, gap_s} for a stamped text stream — one pass over its stamps. None
+    when the stream has no readable stamps. Midnight wrap: a stamp that steps back by more than 12 h is
+    the next day. `gap_s` defaults to the stream's own cadence threshold (`_cadence_gap`)."""
+    if gap_s is None:
+        gap_s = _cadence_gap(path)
+    frags = 1
+    gaps = 0.0
+    first: float | None = None
+    prev: float | None = None
+    iso: bool | None = None
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                if iso is None:
+                    if _ISO.match(line):
+                        iso = True
+                    elif _O2.match(line):
+                        iso = False
+                    else:
+                        continue
+                t = _row_seconds(line, iso)
+                if t is None:
+                    continue
+                if prev is None:
+                    first = t
+                else:
+                    if t < prev - 43200:
+                        t += 86400.0        # past midnight: every later row reads small and gets the same day
+                    if t - prev > gap_s:
+                        frags += 1
+                        gaps += t - prev
+                prev = t
+    except OSError:
+        return None
+    if first is None or prev is None or prev <= first:
+        return None
+    span = prev - first
+    return {"fragments": frags, "coverage": round(max(0.0, 1.0 - gaps / span), 3), "span_s": round(span, 1),
+            "gap_s": round(gap_s, 2)}
+
+
+def cached_stats(captures: str, path: str, deadline: float | None) -> tuple[dict | None, bool]:
+    """(stats, pending). Cached by relpath + size + mtime; computed now if the deadline allows, else pending."""
+    _cache_load(captures)
+    rel = os.path.relpath(path, captures)
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None, False
+    key = f"{st.st_size}:{st.st_mtime_ns}"
+    hit = _cache.get(rel)
+    if hit and hit.get("key") == key:
+        return hit.get("stats"), False
+    if deadline is not None and time.monotonic() > deadline:
+        return None, True
+    stats = stream_stats(path)
+    _cache[rel] = {"key": key, "stats": stats}
+    _cache_save(captures)
+    return stats, False
+
+
 def _expand(root: str, night_dir: str, pattern: str) -> list[str]:
     ymd = os.path.basename(night_dir).replace("-", "")
     base = root if "/" in pattern else night_dir
@@ -147,8 +304,10 @@ def _expand_alt(root: str, night_dir: str, pat: Pattern, pick: int | None = None
     return [], None
 
 
-def night_entry(root: str, night_dir: str) -> dict:
-    """One night, every column. A node with no input is `None`; a derived tool is True/False."""
+def night_entry(root: str, night_dir: str, deadline: float | None = None) -> dict:
+    """One night, every column. A node with no input is `None`; a derived tool is True/False. A node's
+    `fragments`/`coverage` come from its primary stream (None for EDF primaries, which have no row
+    stamps; `pending: True` when the deadline left no time to compute them yet)."""
     out: dict = {"night": os.path.basename(night_dir)}
     for node, (patterns, primary) in NODES.items():
         files: list[str] = []
@@ -162,13 +321,23 @@ def night_entry(root: str, night_dir: str) -> dict:
             out[node] = None
             continue
         hours = None
+        stats: dict | None = None
+        pending = False
         prims = _expand_alt(root, night_dir, primary, tree)[0] if primary else []
         if prims:
             f = max(prims, key=os.path.getsize)
-            hours = edf_hours(f) if f.lower().endswith(".edf") else span_hours(f)
+            if f.lower().endswith(".edf"):
+                hours = edf_hours(f)
+            else:
+                hours = span_hours(f)
+                if hours is not None:
+                    stats, pending = cached_stats(root, f, deadline)
         out[node] = {
             "bytes": sum(os.path.getsize(f) for f in files),
             "hours": hours,
+            "fragments": stats["fragments"] if stats else None,
+            "coverage": stats["coverage"] if stats else None,
+            "pending": pending,
             "files": [os.path.relpath(f, root) for f in files],
             "loadable": node not in NOT_LOADABLE,
         }
@@ -187,9 +356,18 @@ def list_nights(root: str) -> list[str]:
                   if _NIGHT.match(n) and os.path.isdir(os.path.join(captures, n)))
 
 
-def index_nights(root: str, limit: int = 60) -> list[dict]:
+def index_nights(root: str, limit: int = 60, budget_s: float | None = 15.0) -> list[dict]:
     """The newest `limit` nights, oldest first. `root` is the box root (`config.root`); its `captures/`
-    holds the night directories and the CPAP trees the CPAPDex globs reach into."""
+    holds the night directories and the CPAP trees the CPAPDex globs reach into. `budget_s` bounds the
+    fragment/coverage passes this call may run (newest nights first, so the ones being looked at fill
+    first); nodes left uncomputed carry `pending: True` and a later call finishes them from the cache."""
     nights = list_nights(root)
     captures = os.path.join(root, "captures")
-    return [night_entry(captures, d) for d in nights[-max(1, limit):]]
+    deadline = None if budget_s is None else time.monotonic() + budget_s
+    picked = nights[-max(1, limit):]
+    rows = [night_entry(captures, d, deadline) for d in reversed(picked)]
+    return list(reversed(rows))
+
+
+def pending_count(rows: list[dict]) -> int:
+    return sum(1 for r in rows for v in r.values() if isinstance(v, dict) and v.get("pending"))
