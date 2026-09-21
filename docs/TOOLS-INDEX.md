@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**195 tools** · 193 with a purpose line · **2 without**
+**196 tools** · 194 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -98,6 +98,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`new-changeset.mjs`](../tools/new-changeset.mjs) | write a changeset whose `brief:` RESOLVES, at write time. WHY THIS EXISTS. |
 | [`nsrr-aai-validate.mjs`](../tools/nsrr-aai-validate.mjs) | `aai` is user-visible and graded `heuristic`, and its own registry citation says why: "internal. |
 | [`nsrr-ahiest-validate.mjs`](../tools/nsrr-ahiest-validate.mjs) | `computeAHIestimates` (oxydex-dsp.js) produces TWO estimates of the same quantity: |
+| [`nsrr-coupling-bout-fpr.mjs`](../tools/nsrr-coupling-bout-fpr.mjs) | Measures, on SHHS1, the false-positive rate of `event-coupling.js`'s circular-shift null when two INDEPENDENT streams share a real OSA night's bout-scale rate profile — as a curve in the… |
 | [`nsrr-criterion-sweep.mjs`](../tools/nsrr-criterion-sweep.mjs) | `tools/nsrr-oxydex-odi.mjs` scores the SHIPPED detector against expert scoring at a fixed criterion. |
 | [`nsrr-effort-typing.mjs`](../tools/nsrr-effort-typing.mjs) | WHY THIS EXISTS our chest accelerometer, central apneas below half baseline.... |
 | [`nsrr-oxstat-validate.mjs`](../tools/nsrr-oxstat-validate.mjs) | §∅ says a value that was not measured is null, and — for the case where the sentinel is IN BAND — that "a consumer cannot null what it cannot distinguish", so "validity must travel… |
