@@ -559,6 +559,7 @@ The derivation holds to floating point. **The prediction it makes, however, is f
 > | h10 | CLAIM tchLhsH10 = 0.007835089 FROM analysis/published-numbers/tch-pooled-hat-2026-09-21.json#claims/lhsH10 | CLAIM tchGapH10 = 0.007835089 FROM analysis/published-numbers/tch-pooled-hat-2026-09-21.json#claims/gapH10 | 4.3e-16 |
 > | verity | CLAIM tchLhsVerity = 0.002192679 FROM analysis/published-numbers/tch-pooled-hat-2026-09-21.json#claims/lhsVerity | CLAIM tchGapVerity = 0.002192679 FROM analysis/published-numbers/tch-pooled-hat-2026-09-21.json#claims/gapVerity | 5.8e-16 |
 > | o2 | CLAIM tchLhsO2 = 0.016950839 FROM analysis/published-numbers/tch-pooled-hat-2026-09-21.json#claims/lhsO2 | CLAIM tchGapO2 = 0.016950839 FROM analysis/published-numbers/tch-pooled-hat-2026-09-21.json#claims/gapO2 | 1.8e-16 |
+> <!-- TABLE-PROVENANCE producer=tools/tch-pooled-hat.mjs invocation="--dir uploads/trio --json" inputs=uploads/trio inputsDigest=19c31a194ec7 output=0303fa53bd81 generated=2026-09-21 -->
 >
 > The identity still holds to 1e-16 and the between-night term is still ~0.1 % of within — §11's refutation
 > stands under the refolded corpus; only the magnitudes moved.
