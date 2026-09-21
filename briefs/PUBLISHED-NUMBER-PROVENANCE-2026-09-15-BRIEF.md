@@ -180,7 +180,7 @@ sound and is not the reason for rejection.
       resolvable-vs-recorded `inputs` told apart). **The upstream-DAG hash that lets the churn screen
       CLEAR is NOT built** — verified 2026-09-21 by reading the gate, not the header: a resolvable
       `inputs=` path is checked for existence only and no digest is recomputed over it. Residue row
-      `2026-09-21-table-provenance-inputs-digest-never-recomputed` — **BUILT #PRNUM (2026-09-21):**
+      `2026-09-21-table-provenance-inputs-digest-never-recomputed` — **BUILT #2790 (2026-09-21):**
       `inputsDigest=<12hex>` beside a resolvable `inputs=`, recomputed by the runner over the git-tracked
       files under that path (sha12 over `path\0sha12(bytes)`, `git ls-files` order — the same recipe the
       `analysis/published-numbers/` records use), compared by the gate, refusing loudly when git or a file
