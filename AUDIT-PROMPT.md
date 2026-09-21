@@ -242,6 +242,27 @@ at a time.
     over-reports a capability that does not exist) are the same defect off the command line. The check
     that covers both: **ask who calls it and with what arguments — never whether the name appears.**
 
+16. **The mechanism wired to ONE of N consumers — the case that reads as DONE.** Class 13 is the absent
+    instance; this is its survivor: the machinery exists, is correct, is tested, has a real caller — and
+    one of its *several* consumers never adopted it. A zero-consumer mechanism looks BROKEN and gets
+    found; a one-of-two mechanism looks FINISHED and ships. **Six in one day, 2026-09-20**
+    (`briefs/PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md` §1): `adapter_usb_id`, *"the only sanctioned
+    source of a rebind target"*, derived at one `_usb_rebind` caller while the other read `wcfg.get("usb_path")`;
+    append-never-truncate in two of three sidecar writers; `cmd_noquotes` stripping in one of twelve guard
+    rules. **For every mechanism the change you are auditing touches, ask: *how many places SHOULD use
+    this, and how many DO?* — and write both numbers down.** The denominator is the whole finding; "it
+    has a caller" is the sentence that hides it.
+    **Three populations, and only ONE has a tool:** (1) *consumer call sites* — the same parameter arriving
+    at one function DERIVED by one caller and READ FROM CONFIG by another — is syntactic, and
+    `capture-host/tools/find_unwired.py` scan 7 reports it (advisory; 692 slots on `main`, 1 FP, allowlisted
+    with its reason). **(2) *sibling instances* — "which of the 4 radios / 3 writers / 12 rules got the
+    fix?" — and (3) *a documented exclusivity* — a docstring saying "the only sanctioned source" — have NO
+    tool and cannot: the denominator ("who should have adopted it?") is not derivable from syntax.** For
+    those two the question above IS the check; an auditor who reads a docstring with *only* / *every* /
+    *never* in it and does not count the sites has not audited it. A config read at the other caller is
+    often CORRECT (the CPAP's adapter is configured by design) — the finding is the DIVERGENCE between
+    callers, never the config read by itself.
+
 ---
 
 ## ⚡ PROVEN 2026-08-31 — six classes, each with a receipt
