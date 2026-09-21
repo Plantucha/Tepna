@@ -336,6 +336,124 @@
     "total": 9.1,
     "rate": 4.5
   },
+  "measurement": {
+    "meanSpo2": {
+      "metricId": "meanSpo2",
+      "value": 96.5,
+      "window": {
+        "startTMs": 1781391616000,
+        "endTMs": 1781398815000,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+      },
+      "sourceChannel": "O2Ring:spo2",
+      "code": {
+        "manifestHash": "57a90c14bc79",
+        "computeHash": "c3a111143d7e"
+      },
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": "21d9ddfbdabc",
+        "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+      },
+      "basis": "measured",
+      "quality": {
+        "n": 7200,
+        "durationMin": 120
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+    },
+    "t90": {
+      "metricId": "t90",
+      "value": 0.9,
+      "window": {
+        "startTMs": 1781391616000,
+        "endTMs": 1781398815000,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+      },
+      "sourceChannel": "O2Ring:spo2",
+      "code": {
+        "manifestHash": "57a90c14bc79",
+        "computeHash": "c3a111143d7e"
+      },
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": "21d9ddfbdabc",
+        "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+      },
+      "basis": "measured",
+      "quality": {
+        "n": 7200,
+        "durationMin": 120
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+    },
+    "odi4": {
+      "metricId": "odi4",
+      "value": 2,
+      "window": {
+        "startTMs": 1781391616000,
+        "endTMs": 1781398815000,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+      },
+      "sourceChannel": "O2Ring:spo2",
+      "code": {
+        "manifestHash": "57a90c14bc79",
+        "computeHash": "c3a111143d7e"
+      },
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": "21d9ddfbdabc",
+        "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 7200,
+        "durationMin": 120
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+    },
+    "hypoxicBurden": {
+      "metricId": "hypoxicBurden",
+      "value": 4.5,
+      "window": {
+        "startTMs": 1781391616000,
+        "endTMs": 1781398815000,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+      },
+      "sourceChannel": "O2Ring:spo2",
+      "code": {
+        "manifestHash": "57a90c14bc79",
+        "computeHash": "c3a111143d7e"
+      },
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": "21d9ddfbdabc",
+        "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 7200,
+        "durationMin": 120
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries"
+    }
+  },
   "motionProfile": {
     "motionPct": 0.1,
     "arousalIndex": 0,

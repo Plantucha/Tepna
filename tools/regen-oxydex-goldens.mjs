@@ -123,12 +123,28 @@ function realm() {
 
 const { OxyDex } = realm();
 
+/* MEASUREMENT-PROVENANCE-ROADMAP §3 — the fixture's `measurement.*.code` names the SHIPPED bundle. A
+   headless source-module run has no bundle identity of its own (the running OxyDex.html reads its stamp
+   off <html data-manifest-hash data-compute-hash>), so the regenerator reads the hashes off the built
+   bundle by the same projection manifest-gate.js defines and hands them to compute() as `opts.code`.
+   Build BEFORE regenerating: a stale OxyDex.html would stamp the fixtures with a hash the ledger no
+   longer carries — and the `measurement · fixture code identity` gate reds exactly that. */
+async function bundleCode() {
+  const bp = path.join(REPO, 'OxyDex.html');
+  if (!fs.existsSync(bp)) throw new Error('OxyDex.html is not built — run `node tools/build.mjs --app OxyDex` first (the fixtures stamp its code identity)');
+  const text = fs.readFileSync(bp, 'utf8');
+  const code = { manifestHash: await ManifestGate.manifestHashFromText(text), computeHash: await ManifestGate.computeHashFromText(text) };
+  if (!code.manifestHash || !code.computeHash) throw new Error('OxyDex.html is not a plain-inline owned bundle — refusing to stamp a null code identity');
+  return code;
+}
+const CODE = await bundleCode();
+
 /* O2Ring CSV → compute() → nights[0], or null when the input is absent (gitignored recording).
    `wrap` reproduces the fixture's existing container: [night] for the summaries, night for the twin. */
 const fromCSV = (file, wrap) => {
   const p = path.join(CORPUS, file);
   if (!fs.existsSync(p)) return null;
-  const res = OxyDex.compute({ text: fs.readFileSync(p, 'utf8') });
+  const res = OxyDex.compute({ text: fs.readFileSync(p, 'utf8') }, { code: CODE });
   const night = res && res.nights && res.nights[0];
   if (!night) return null;
   return wrap ? [night] : night;

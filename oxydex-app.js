@@ -202,7 +202,7 @@ function exportJSON() {
     kernel: _kernel,
     schema: {
       name: 'ganglior.node-export',
-      version: '2.0',
+      version: '2.1', // MINOR — the per-night `measurement` block (roadmap §3); additive, consumers tolerate absence
       node: 'OxyDex',
       nodeVersion: '1.0',
       multiNight: nights.length > 1,
