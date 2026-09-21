@@ -346,6 +346,8 @@ def on_body(st: "dict | None") -> "bool | None":
 # which is exactly the 55 Hz / no-PPG configuration where the ambient pair is all there is.
 _WORN_SOURCE = {
     "hr-contact-bit": "device-contact",
+    "hr-beats": "device-heartbeat",       # the rate/RR in the HR packet — the strap's own measurement of a beat,
+                                          # not of electrode contact; a separate origin from the bit beside it
     "ppi-contact": "device-contact",
     "ambient-level": "optical-ambient",
     "ambient-stability": "optical-ambient",
@@ -364,9 +366,25 @@ def independent_sources(names) -> list:
     return sorted({_WORN_SOURCE.get(n, n) for n in names})
 
 
+def hr_beats(bpm: int | None, rr_n: int) -> bool | None:
+    """The HR characteristic's OWN beat evidence: does this packet carry a heartbeat? A plausible rate
+    (30–220 bpm) or any RR interval ⇒ True; a rate of 0 with no RR ⇒ False; no measurement ⇒ None.
+
+    Why it exists (measured 2026-09-20/21 on vigil): the H10 reported `contact detected = 0` all night
+    while every one of the same packets carried 48–77 bpm and 8 242 RR intervals — the dry/loose-
+    electrode signature, usable ECG under a contact flag that says off. The 180 s not-worn drop trusted
+    the flag alone and cut the link 131 times, 3.6 h of a 6.1 h night. An off-body strap reports 0 bpm
+    (1 695 such rows in the corpus since August; one 08-04 session is 193/193 zeros), so the rate is
+    the measurement that separates "dry on a chest" from "on a desk", and the flag is not."""
+    if bpm is None and not rr_n:
+        return None
+    return bool(rr_n) or (bpm is not None and 30 <= bpm <= 220)
+
+
 def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None,
                  charging: bool | None = None,
                  contact: bool | None = None,
+                 beats: bool | None = None,
                  ppg=None) -> tuple[bool | None, str]:
     """Combine every worn detector that is AVAILABLE and IN DOMAIN into one verdict plus its reason.
 
@@ -408,6 +426,15 @@ def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None,
     # Verity streamed 3 h 24 m into its charger on 2026-08-14 under `worn: True` because of it.
     if contact is not None:
         votes.append(("hr-contact-bit", contact))
+    # ── A HEARTBEAT OUTVOTES A CONTACT BIT THAT SAYS NOT-WORN — one direction only ─────────────────
+    # `hr_beats` is the strap's own measurement of the thing itself (a rate, RR intervals); the contact
+    # bit is a proxy for electrode contact QUALITY and reads "off" on a dry or loose strap that is still
+    # on a chest and still producing usable ECG. Under the "worn if ANY" rule a True beat vote keeps the
+    # link; a False one is NOT a vote — no beat can mean a cold start, a bad second, or a strap on a
+    # desk, and the contact bit already speaks for the last of those. So this can only ever PREVENT a
+    # drop, never cause one, which is the safe direction of the asymmetry above.
+    if beats:
+        votes.append(("hr-beats", True))
     ppi = ppi_contact(ppi_flags)
     if ppi is not None:
         votes.append(("ppi-contact", ppi))
