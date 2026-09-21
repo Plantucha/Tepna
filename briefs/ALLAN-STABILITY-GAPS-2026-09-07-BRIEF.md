@@ -125,6 +125,38 @@ prerequisite is now cheap: #1429 publishes `tau0_uniformity = {ratio, median, ma
   τ₀ series must report its `ratio` and the curve must not move by more than the SE band.
 - Changeset: `patch` (QC-SUMMARY gains fields; nothing existing changes meaning).
 
+✅ **STEP 1 MEASURED 2026-09-21 (Osprey), read-only over every `QC-SUMMARY.json` on vigil — 34 nights,
+1924 streams, 1272 Polar (the O2Ring excluded: a drawn axis is not a clock).** Against the bands above:
+
+| population | `ratio ≤ 1.05` | `max_gap ≤ 4` | max_gap median / p95 |
+|---|---|---|---|
+| all Polar streams (1272) | 84.6 % | 80.6 % | 1.4 / 172 |
+| ECG + PPG legs ≥ 1000 packets (123) | 70.7 % | **22.8 %** | — / 409 |
+| H10 ecg (65) | 65 % | 22 % | **96.8** / 405 |
+| Verity ppg (484, median 316 packets) | 80 % | 94 % | 1.5 / 47 |
+
+**Both bands fail; holes are MATERIAL on the legs the arrival lane actually uses** (an H10 ecg stream's
+largest interval is typically ~97× its median, i.e. a ~50 s stall at 0.55 s cadence). The `ratio` failure is
+driven by the same holes (mean/median inflates with every gap), so **step 2b is NOT triggered by this
+measurement** — re-measure `ratio` WITHIN segments after 2a before spending Sesia–Tavella on it.
+
+✅ **STEP 2a BUILT 2026-09-21, same PR** — `allan.segments_by_gap(sample_times, k)` + `allan.adev_pooled(...)`
+(n-weighted mean of σ² per τ across the contiguous runs; a τ no run supports is absent), and `stability()`
+takes `sample_times=` / `gap_k=` (LAST and optional; without them the curve is the compacted one it always
+was, and `pooled: False` says so). `nightqc.arrival_quality` passes the host instants, so every per-stream
+`stability` block now carries `segments`, `dropped_intervals`, `pooled`. Pinned at both levels.
+
+🔴 **TEST F IS CORRECTED, BECAUSE ITS PREMISE WAS WRONG AND THE PROBE SAID SO BEFORE THE TEST WAS WRITTEN.**
+This section predicts a compacted hole reads as τ^+1 ("drift"). Planted and measured: a phase step of
+500σ across a 50-sample hole leaves the classifier at white-FM on BOTH the compacted and the pooled curve,
+slope −0.49 vs −0.51 — because a single step's second-difference energy falls as **τ^-1/2, the same slope
+as white FM**. What the step does is inflate the **LEVEL, at every τ, by its own size**: ADEV(τ₀)
+compacted 0.00796 against a no-hole truth of 0.00101 (8×), pooled 0.00101 (= truth). So the honest F
+asserts level, not label — compacted ≫ truth, pooled ≈ truth within 2 %, both white-FM — plus a no-hole
+decoy on which pooling must be the identity, and the pooled curve losing the τ no segment can support. A
+test written to the prediction would have asserted a misclassification the estimator cannot produce and
+failed forever, or been tuned until it "passed". Test H (spacing/ratio) belongs with 2b and is not built.
+
 ### 2.3 Provenance on `stability()` — the result does not say what it was computed from
 
 `allan.stability` returns `{ok, taus, tau_min, tau_max, adev_min, optimal_tau, at_longest,
