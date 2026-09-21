@@ -20,6 +20,31 @@ def _night(tmp_path, night="2026-09-19"):
     return d
 
 
+def test_api_nights_reports_how_many_streams_are_still_pending(tmp_path, monkeypatch):
+    """The response carries `pending` — the count of primary streams whose fragments/coverage did not fit
+    the request's time budget — so the page knows whether to ask again; a later call serves them from
+    the per-file cache."""
+    import nights_index as ni
+
+    _night(tmp_path)
+    app, *_ = _mk(tmp_path)
+    real = ni.index_nights
+    monkeypatch.setattr(ni, "index_nights", lambda root, limit=60, budget_s=15.0: real(root, limit, 0.0))
+    ni._cache.clear(); ni._cache_loaded_from = None
+    async def go(c):
+        r = await c.get("/api/nights?n=5")
+        return r.status, await r.json()
+    status, j = _serve(app, go)
+    n = [x for x in j["nights"] if x["night"] == "2026-09-19"][0]
+    assert status == 200 and j["pending"] >= 1 and n["ECGDex"]["pending"] is True and n["ECGDex"]["fragments"] is None
+    monkeypatch.setattr(ni, "index_nights", real)
+    app, *_ = _mk(tmp_path)                        # a fresh app: one aiohttp app serves on one loop
+    status, j = _serve(app, go)
+    n = [x for x in j["nights"] if x["night"] == "2026-09-19"][0]
+    assert j["pending"] == 0 and n["ECGDex"]["pending"] is False and n["ECGDex"]["fragments"] == 2
+    assert n["ECGDex"]["coverage"] == 0.0      # two rows an hour apart: one hole, the whole span
+
+
 def test_api_nights_indexes_the_box_root_and_names_its_columns(tmp_path):
     _night(tmp_path)
     app, *_ = _mk(tmp_path)
@@ -60,12 +85,17 @@ def test_api_nights_reports_an_indexing_failure_instead_of_a_bare_500(tmp_path, 
     assert status == 500 and j["error"] == "RuntimeError: disk gone"
 
 
-def test_the_monitor_carries_the_ledger_and_capture_pages_and_the_load_hook():
+def test_the_monitor_carries_ONE_nights_page_and_the_load_hook():
+    """Ledger and Capture were two pages of the same rows (2026-09-20); the owner folded them into one
+    (2026-09-21) once each cell carried fragments + coverage as well as size / span."""
     html = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "monitor.html"), encoding="utf-8").read()
-    for frag in ('data-view="ledger"', 'data-view="capture"', 'id="view-ledger"', 'id="view-capture"',
-                 "id=\"ledgerTable\"", "id=\"captureTable\"", "fetch('/api/nights?n=", "function openNight(",
-                 "ledger:'Ledger', capture:'Capture'", "v==='ledger' || v==='capture'"):
+    for frag in ('data-view="nights"', 'id="view-nights"', "id=\"nightsTable\"", "fetch('/api/nights?n=",
+                 "function openNight(", "nights:'Nights'", "v==='nights'", "fragment", "v.coverage", "v.pending"):
         assert frag in html, frag
+    for gone in ('data-view="ledger"', 'data-view="capture"', "ledgerTable", "captureTable"):
+        assert gone not in html, gone
+    # while the server is still counting fragments the page asks again — and stops when nothing is pending
+    assert "NIGHTS_PENDING>0 && VIEW==='nights'" in html
     # the load hands files to the app's OWN input and fires its change event — no bundle is changed
     assert "el.files = dt.files; el.dispatchEvent(new w.Event('change', {bubbles:true}))" in html
     # ECGDex routes by stream suffix; the Integrator is shown but never offered as a click
