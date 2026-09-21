@@ -80,15 +80,27 @@ export function maskFlagged(rows, statData) {
 export function poolScoreRecord(ctx, rec) {
   const edf = ctx.CpapEdf.readEDF(ODI.toArrayBuffer(readFileSync(rec.edf)));
   const stat = edf.signals && edf.signals['OX stat'];
-  const conv = ctx.NSRR.edfToOxyRows(edf);
-  /* ⚠️ `.rows`, not the object itself */
-  const rows = conv && conv.rows;
-  if (!rows || !rows.length) return { id: rec.id, err: 'no rows' };
   if (!stat || !stat.data) return { id: rec.id, err: 'no OX stat channel' };
 
-  const asShipped = ctx.OxyDex._bare.processNight(rows);
-  const m = maskFlagged(rows, stat.data);
-  const masked = ctx.OxyDex._bare.processNight(m.rows);
+  /* ⚠️ `processNight` MUTATES ITS INPUT — deliberately (`trimSensorWarmup` + `cleanArtifactHR` run
+     in place, OXYDEX-HR-ARTIFACT-RUNAWAY-FIX). Measured 2026-09-20: 10 leading rows dropped from
+     shhs1-200981, 164 from shhs1-200233. The first version of this tool ran `processNight` on the
+     as-shipped rows and THEN masked those same rows against `OX stat[i]`, so on any record the DSP
+     trimmed, the status index was misaligned with the row it described and the "paired design" was
+     not paired. Each arm therefore gets its OWN rows from its own `edfToOxyRows` call, and every
+     count taken for comparison is taken BEFORE a DSP call can touch the array. */
+  const convA = ctx.NSRR.edfToOxyRows(edf, { ignoreOxStat: true }); // pre-fix behaviour, explicitly
+  const convB = ctx.NSRR.edfToOxyRows(edf); // the adapter's own behaviour since 2026-09-20
+  if (!convA || !convA.rows || !convA.rows.length) return { id: rec.id, err: 'no rows' };
+
+  /* Independent count of what the status channel flags, on fresh rows, BEFORE any DSP call — the
+     figure the adapter's `oxStat` must reproduce, or one of the two is wrong. */
+  const m = maskFlagged(convA.rows, stat.data);
+  const totalSamples = convA.rows.length;
+  const adapterAgrees = !!(convB && convB.oxStat && convB.oxStat.applied && convB.oxStat.flaggedSec === m.masked && convB.oxStat.inRangeFlaggedSec === m.inRangeFlagged);
+
+  const asShipped = ctx.OxyDex._bare.processNight(convA.rows); // consumes convA.rows
+  const masked = ctx.OxyDex._bare.processNight(convB.rows); // consumes convB.rows
 
   const rate = (n) => (n && n.odi4 && n.odi4.rate != null ? +n.odi4.rate : null);
   const a = rate(asShipped),
@@ -100,8 +112,9 @@ export function poolScoreRecord(ctx, rec) {
     delta: a != null && b != null ? +(b - a).toFixed(3) : null,
     flaggedSamples: m.masked,
     flaggedInRange: m.inRangeFlagged,
-    totalSamples: rows.length,
-    flaggedPct: rows.length ? +((100 * m.masked) / rows.length).toFixed(3) : null
+    totalSamples,
+    flaggedPct: totalSamples ? +((100 * m.masked) / totalSamples).toFixed(3) : null,
+    adapterAgrees
   };
 }
 
