@@ -764,6 +764,28 @@ async function readComputeHashProbe() {
   };
 }
 
+/* MEASUREMENT-PROVENANCE-ROADMAP §3 — the SHIPPED bundles' code identity, read off the artifacts by the
+   same projection GATE A uses. The `measurement · fixture code identity` group asserts a committed
+   OxyDex fixture's `measurement.*.code.computeHash` equals the bundle's — the roadmap's literal done-when
+   ("code.computeHash matches the shipped bundle"). Async (crypto.subtle) → computed here, asserted there;
+   an unbuilt or non-plain-inline bundle reads null and the group SKIPs by name rather than passing. */
+async function readBundleCodeIdentity() {
+  const MG = ManifestGate;
+  if (!MG || typeof MG.computeHashFromText !== 'function') return null;
+  const out = {};
+  for (const b of MG.MANIFEST_BUNDLES || []) {
+    const f = join(ROOT, b);
+    if (!existsSync(f)) continue;
+    try {
+      const text = readFileSync(f, 'utf8');
+      out[b] = { manifestHash: await MG.manifestHashFromText(text), computeHash: await MG.computeHashFromText(text) };
+    } catch {
+      /* unreadable → absent → the group skips by name */
+    }
+  }
+  return out;
+}
+
 // demo-inputs gate (CPAP-REAL-CORPUS-FOLLOWUPS-II §3): the git-tracked path set, so the group can
 // assert every uploads/ file a shipped demo fetches is committed (never a gitignored personal recording).
 // `git ls-files` is the authority for "tracked"; a missing git (tarball checkout) → null → group SKIPs.
@@ -2595,6 +2617,7 @@ async function main() {
     // is passed for the (sync) closure-membership self-tests.
     ManifestGate,
     computeHashProbe: await readComputeHashProbe(),
+    bundleCodeIdentity: await readBundleCodeIdentity(), // roadmap §3 — shipped bundles' {manifestHash, computeHash}
     fixtures: readFixtures(),
     equiv: readEquiv(),
     odiPilot: readOdiPilot(),

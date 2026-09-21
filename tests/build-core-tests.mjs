@@ -54,7 +54,8 @@ function buildOne(bundleFile) {
   const refs = DexBuild.scanRefs(srcHtml);
   const assets = {};
   for (const p of [...refs.styles, ...refs.scripts]) assets[p] = readT(p);
-  return DexBuild.build({ srcHtml, assets, suiteVersion: SUITE_VERSION });
+  // roadmap §3 — the same compute-closure predicate the node lane passes, so this rebuild carries the stamp
+  return DexBuild.build({ srcHtml, assets, suiteVersion: SUITE_VERSION, isComputeAsset: ManifestGate.isComputeAsset });
 }
 
 async function main() {
@@ -127,6 +128,79 @@ async function main() {
     ok(plain.manifestHash === withV.manifestHash, 'manifestHash INVARIANT under the version stamp', plain.manifestHash);
     ok(plain.html !== withV.html && withV.html.includes('v3.1.4'), 'html differs only by the stamp');
   }
+  /* ── roadmap §3 projectCodeIdentity — the version stamp's sibling, same invariance, same decoy ──
+     The emitter reads `data-manifest-hash` / `data-compute-hash` off <html>; the stamp must therefore be
+     (a) present on every shipped GATE-A bundle, (b) EQUAL to what manifest-gate.js computes from the
+     artifact (cross-hasher parity — build-core hashes synchronously, the gate asynchronously), and (c)
+     manifestHash-INVARIANT, or every render edit would move every fixture through the stamp itself. */
+  {
+    const q = String.fromCharCode(34);
+    const A = { 'x.js': 'var x=1;', 'y-render.js': 'var y=1;' };
+    const src3 =
+      '<html lang=' +
+      q +
+      'en' +
+      q +
+      '><head><title>S \u00b7 v1.0</title></head><body><script src=' +
+      q +
+      'x.js' +
+      q +
+      '></scr' +
+      'ipt><script src=' +
+      q +
+      'y-render.js' +
+      q +
+      '></scr' +
+      'ipt></body></html>';
+    const plain = DexBuild.build({ srcHtml: src3, assets: A });
+    const stamped = DexBuild.build({ srcHtml: src3, assets: A, isComputeAsset: ManifestGate.isComputeAsset });
+    ok(plain.computeHash === null && !plain.html.includes('data-compute-hash'), 'no predicate \u2192 no stamp, computeHash null (lanes cannot drift one-sided)');
+    ok(plain.manifestHash === stamped.manifestHash, 'manifestHash INVARIANT under the code-identity stamp', stamped.manifestHash);
+    ok(/^<html lang="en" data-manifest-hash="[0-9a-f]{12}" data-compute-hash="[0-9a-f]{12}">/.test(stamped.html), 'stamp lands on the <html> tag, outside every inline block');
+    ok((stamped.html.match(/data-manifest-hash/g) || []).length === 1, 'exactly ONE stamp');
+    ok(
+      stamped.html.includes('data-manifest-hash="' + stamped.manifestHash + '"') && stamped.html.includes('data-compute-hash="' + stamped.computeHash + '"'),
+      'the stamped values are the returned hashes'
+    );
+    ok(DexBuild.projectCodeIdentity(stamped.html, stamped.manifestHash, stamped.computeHash) === stamped.html, 'idempotent');
+    const renderEdit = DexBuild.build({ srcHtml: src3, assets: { 'x.js': 'var x=1;', 'y-render.js': 'var y=2;' }, isComputeAsset: ManifestGate.isComputeAsset });
+    ok(
+      renderEdit.computeHash === stamped.computeHash && renderEdit.manifestHash !== stamped.manifestHash,
+      'a render-only edit moves manifestHash, NOT computeHash (the projection is manifest-gate\u2019s, not a restatement)'
+    );
+    const dspEdit = DexBuild.build({ srcHtml: src3, assets: { 'x.js': 'var x=2;', 'y-render.js': 'var y=1;' }, isComputeAsset: ManifestGate.isComputeAsset });
+    ok(dspEdit.computeHash !== stamped.computeHash, 'a compute-closure edit moves computeHash');
+    // DECOY: a stamp-shaped string INSIDE an inline script is unreachable (masked, not trusted)
+    const decoySrc = '<html><head></head><body><script src=' + q + 'd.js' + q + '></scr' + 'ipt></body></html>';
+    const decoy = DexBuild.build({
+      srcHtml: decoySrc,
+      assets: { 'd.js': 'var s=' + q + '<html data-manifest-hash=\\' + q + '000000000000\\' + q + ' data-compute-hash=\\' + q + '000000000000\\' + q + '>' + q + ';' },
+      isComputeAsset: ManifestGate.isComputeAsset
+    });
+    ok(
+      decoy.html.includes('000000000000') && (decoy.html.match(/data-manifest-hash/g) || []).length === 2 && /^<html data-manifest-hash="[0-9a-f]{12}"/.test(decoy.html),
+      'DECOY inside an inline script is untouched; the real <html> tag is stamped'
+    );
+    // cross-hasher parity + presence on the SHIPPED fleet (an absent stamp reads as an undefined dataset — examined-nothing)
+    const parity = await (async () => {
+      const out = [];
+      out.push([(await ManifestGate.computeHashFromText(stamped.html)) === stamped.computeHash, 'synthetic: build-core computeHash === manifest-gate computeHashFromText']);
+      for (const b of ManifestGate.MANIFEST_BUNDLES) {
+        const f = join(ROOT, b);
+        if (!existsSync(f)) {
+          out.push([false, 'GATE-A bundle ' + b + ' present to check its code-identity stamp']);
+          continue;
+        }
+        const text = readFileSync(f, 'utf8');
+        const m = text.match(/^<html[^>]*data-manifest-hash="([0-9a-f]{12})" data-compute-hash="([0-9a-f]{12})"/m);
+        const mh = await ManifestGate.manifestHashFromText(text);
+        const ch = await ManifestGate.computeHashFromText(text);
+        out.push([!!m && m[1] === mh && m[2] === ch, b + ' <html> carries its OWN manifestHash + computeHash (' + (m ? m[1] + '/' + m[2] : 'NO STAMP') + ' vs ' + mh + '/' + ch + ')']);
+      }
+      return out;
+    })();
+    for (const [pass, label] of parity) ok(pass, label);
+  }
   for (const b of owned) {
     console.log(paint('  \u2500 ' + b, C.dim));
     const r1 = buildOne(b),
@@ -139,7 +213,7 @@ async function main() {
     for (const p of [...rf.styles, ...rf.scripts]) a[p] = readT(p);
     const firstScript = rf.scripts[0];
     a[firstScript] = a[firstScript] + '\n;/*drift*/';
-    const rMut = DexBuild.build({ srcHtml: s, assets: a, suiteVersion: SUITE_VERSION });
+    const rMut = DexBuild.build({ srcHtml: s, assets: a, suiteVersion: SUITE_VERSION, isComputeAsset: ManifestGate.isComputeAsset });
     ok(rMut.manifestHash !== r1.manifestHash, b + ' manifestHash moves on an executed-code change');
     // CROSS-HASHER PARITY: sync core === async manifest-gate (crypto.subtle)
     const gateHash = await ManifestGate.manifestHashFromText(r1.html);

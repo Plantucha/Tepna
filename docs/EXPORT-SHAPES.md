@@ -39,7 +39,7 @@
 | **PpgDex** | Wrist PPG | `ppgBuildNodeExport` — **LIGHT** (recording + events; `opts.rich` orchestrate-only) | **`buildV2`/`exportSummary`** — RICH (recording + `hrv{time,frequency,nonlinear}` + `personalization` + `apnea`) | **`sessions[]`** | rich `buildV2` **or** light — reads whatever's present |
 | **EEGDex** *(planned)* | EEG | — decide at build time — | — decide at build time — | — | — |
 
-## The `measurement` block — per-instance lineage (additive, MINOR; NO node emits it yet)
+## The `measurement` block — per-instance lineage (additive, MINOR; OxyDex emits it since 2026-09-21)
 
 Specified by `MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26` §1 and validated by **`measurement-block.js`**
 (`validateMeasurement(block, opts) → {ok, errors[], checked[]}`), which is the schema authority the way
@@ -50,10 +50,18 @@ line: Tepna can prove that a BUNDLE produced an EXPORT from an INPUT, byte for b
 cannot answer the same question about one number *inside* that export. Provenance is airtight at
 ARTIFACT granularity (`manifestHash`, `computeHash`, GATE A/B) and absent at INSTANCE granularity.
 
-⚠️ **No node emits it today, deliberately** (roadmap §1's done-when ends *"no node emits it yet (that's
-§3)"*). Emission is staged per node, OxyDex first, and each stage re-records that node's fixtures. So
-this section describes a shape that is *specified and validated* but not yet *present in any export* —
-do not read a missing `measurement` block as a defect.
+**OxyDex is the first emitter (roadmap §3, 2026-09-21).** Every OxyDex night element carries
+`measurement: { meanSpo2, t90, odi4, hypoxicBurden }` — one block per headline metric, keyed by registry
+id (each block still carries its own `metricId`) — and its `schema.version` is **2.1**. The values are
+the element's own numbers (`stats.meanSpo2` / `stats.t90pct` / `odi4.rate` / `hypoxicBurden.rate`);
+the block adds lineage and recomputes nothing. `code` is read off the bundle's own `<html
+data-manifest-hash data-compute-hash>` stamp (build-time, outside every inline block); a headless
+source-module run has none and emits `code: null` + `codeReason`. `evidence.inputHash` is the
+recording's `contentId`; `evidence.envelopeRef` is the attached acquisition envelope's `session_id` or
+`null` + reason on a CSV. Desat events carry `inputHash` + `evidenceRef` (§2). Walk-through + tool:
+`docs/MEASUREMENT-WALKTHROUGH-OXYDEX-2026-09-21.md`, `tools/measurement-walk.mjs`. Emission is still
+staged per node — the other seven do not emit it yet, and a missing block on THEIR exports is not a
+defect.
 
 **Back-compat:** additive, so **consumers tolerating its absence is the contract**, gated the same way
 the `t`-only event tolerance already is. The `schema.version` MINOR bump lands with the FIRST EMITTER,

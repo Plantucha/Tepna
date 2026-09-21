@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS — 2026-09-21 (§5 DONE — the oracle harness runs on 52 real nights with pre-stated bands, `tools/oracle-ecg-firmware-rr.mjs`; rMSSD/mean-RR CONSISTENT, per-beat pairing bimodal with the instrument limit named and the next unit scoped. Four units remain: §3, §8, the F-section report, the follow-up brief.) · IN-PROGRESS — 2026-09-20 (NOT owner-blocked: the schedule decision was ratified 2026-09-15 (queue D5). Five Done-when units remain unticked and are executable by the fleet; re-stamped 2026-09-20 because the header still read as parked on a decision that was made five days earlier) · **Created:** 2026-08-26 · **Follows:** `ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` (the acquisition half of this chain — 21/22 §21 criteria met, last one in flight) · **Relates:** CLAUDE.md §🔒 Clock Contract, §🎫 evidence ladder, §🔏 provenance gates, `docs/LEXICON.md` · **Residue:** 2026-09-21-validaterr-compares-gap-spanning-intervals
+**Status:** IN-PROGRESS — 2026-09-21 (§3 DONE — OxyDex emits the measurement block on every night element, schema 2.1, invariance measured (one moved field per fixture), walk-through checkable via `tools/measurement-walk.mjs`. §5 DONE — the oracle harness runs on 52 real nights with pre-stated bands, `tools/oracle-ecg-firmware-rr.mjs`; rMSSD/mean-RR CONSISTENT, per-beat pairing bimodal with the instrument limit named and the next unit scoped. Three units remain: §8, the F-section report, the follow-up brief.) · IN-PROGRESS — 2026-09-20 (NOT owner-blocked: the schedule decision was ratified 2026-09-15 (queue D5). Five Done-when units remain unticked and are executable by the fleet; re-stamped 2026-09-20 because the header still read as parked on a decision that was made five days earlier) · **Created:** 2026-08-26 · **Follows:** `ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` (the acquisition half of this chain — 21/22 §21 criteria met, last one in flight) · **Relates:** CLAUDE.md §🔒 Clock Contract, §🎫 evidence ladder, §🔏 provenance gates, `docs/LEXICON.md` · **Residue:** 2026-09-21-validaterr-compares-gap-spanning-intervals
 
 # Measurement-provenance roadmap — the canonical Measurement layer between Dex outputs and the Integrator
 
@@ -178,8 +178,26 @@ oracle dev-dependency set (SOUP note required); (c) whether §11 gets an adapter
       (unassigned; any session may pick it up). Still owed by that brief: executed, gates green,
       schema groups live. It holds the scope fence this item implies — spec + validator + tests,
       **no node emits**, so it moves no fixture and no `manifestHash`; emission is §3.
-- [ ] §3 reference path executed: one real night's OxyDex export carries resolvable measurement
+- [x] §3 reference path executed: one real night's OxyDex export carries resolvable measurement
       blocks; the backward walk-through is written and checkable.
+      ✅ **DONE 2026-09-21 (Osprey).** OxyDex is the first emitter: every night element carries
+      `measurement.{meanSpo2,t90,odi4,hypoxicBurden}`, `schema.version` 2.1, desat events carry
+      `inputHash`+`evidenceRef` (§2). **Numerical invariance measured, not claimed:** the regenerator
+      reported exactly ONE moved field on each of the three fixtures (`measurement: undefined → {…}`),
+      every other byte identical. `code` comes off a new build-time `<html data-manifest-hash
+      data-compute-hash>` stamp (tools/build-core.js, both lanes) that is manifestHash-INVARIANT by the
+      same masking construction as the version stamp — so only OxyDex's hash moved
+      (1b7905a69e6b → 57a90c14bc79) and only its 3 fixtures were re-recorded. `evidence.inputHash` is
+      `contentId` (12-hex, recomputable from the committed input; the raw file's sha256 sits one hop
+      further in the ledger). All four blocks validate under `measurement-block.js` with all five
+      legs RUN, on the synthetic golden and both real nights. **Walk-through, checkable:**
+      `docs/MEASUREMENT-WALKTHROUGH-OXYDEX-2026-09-21.md` + `tools/measurement-walk.mjs` (re-derives
+      every hop from disk — value, window, channel, code vs the shipped bundle AND the ledger, contentId
+      recomputed by the real parser, envelope reason, ledger vs raw bytes; 13 plants). Gates: two
+      new groups (36 + 22 assertions) incl. the done-when literally — fixture `code.computeHash` ≡
+      shipped `OxyDex.html`; build-core-tests assert the stamp on all 9 GATE-A bundles. Deliberately
+      NOT done: the envelope hop is unexercised on committed fixtures (they are CSVs; a `.dat` +
+      `acq/*.json` night carries `session_id`); no uncertainty model (null + reason).
 - [x] §5 harness runs at least the R-peak and HR comparisons on real nights with pre-stated bands.
       ✅ **DONE 2026-09-21 (Osprey) — `tools/oracle-ecg-firmware-rr.mjs`, run over 52 real H10 nights
       (965 326 beats).** Reference = the strap FIRMWARE's RR train (an independent detector on the same

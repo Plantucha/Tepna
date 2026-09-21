@@ -80,8 +80,9 @@ async function buildOne(bundleFile){
   const assets = {};
   for (const p of [...refs.styles, ...refs.scripts]) { const t = await fetchText(p); if (t == null) return { err:'missing asset ' + p }; assets[p] = t; }
   const sv = await suiteVersion();
-  let r; try { r = DexBuild.build({ srcHtml: src, assets, suiteVersion: sv }); } catch(e){ return { err: e.message }; }
-  const r2 = DexBuild.build({ srcHtml: src, assets, suiteVersion: sv });
+  const isComputeAsset = ManifestGate.isComputeAsset; // roadmap §3 — same predicate as the node lane
+  let r; try { r = DexBuild.build({ srcHtml: src, assets, suiteVersion: sv, isComputeAsset }); } catch(e){ return { err: e.message }; }
+  const r2 = DexBuild.build({ srcHtml: src, assets, suiteVersion: sv, isComputeAsset });
   r.deterministic = (r.html === r2.html && r.manifestHash === r2.manifestHash);
   r.async = await ManifestGate.manifestHashFromText(r.html);
   const rawCommitted = await fetchRaw(bundleFile);

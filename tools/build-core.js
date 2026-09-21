@@ -427,6 +427,46 @@
     });
   }
 
+  /* ── MEASUREMENT-PROVENANCE-ROADMAP §3 — CODE IDENTITY INTO THE BUNDLE, the version stamp's sibling ──
+     A measurement block names the algorithm that produced its number as `code:{manifestHash,computeHash}`
+     (measurement-block.js), and the running bundle has no other way to know its own content hash: the
+     hash is a function of the inline blocks, so it cannot live INSIDE one. It is projected onto the
+     `<html>` tag as `data-manifest-hash` / `data-compute-hash` — outside every inline block by the same
+     masking construction as projectVersion, so the stamp is manifestHash-INVARIANT and moves no fixture
+     on its own (gate-asserted in build-core-tests). The emitter reads `document.documentElement.dataset`.
+     Both hashes are computed HERE, synchronously, by the same projection manifest-gate.js defines —
+     computeHash needs the compute-closure predicate (`opts.isComputeAsset`, from manifest-gate.js) and
+     is NOT restated: a second denylist would be the competing-vocabulary defect. No predicate → no stamp,
+     in BOTH lanes, so the lanes cannot drift silently (build:check's byte-compare reds a one-sided stamp). */
+  function computeHashFromInline(bundleText, isComputeAsset) {
+    if (typeof isComputeAsset !== 'function') return null;
+    var assets = plainInlineAssets(bundleText);
+    var parts = [];
+    for (var i = 0; i < assets.length; i++) {
+      if (!isComputeAsset(assets[i].name)) continue;
+      parts.push(assets[i].name + '\u0000' + sha256hex(assets[i].text));
+    }
+    parts.sort();
+    return sha256hex(parts.join('\n')).slice(0, 12);
+  }
+  function projectCodeIdentity(html, manifestHash, computeHash) {
+    if (typeof html !== 'string' || !/^[0-9a-f]{12}$/.test(String(manifestHash)) || !/^[0-9a-f]{12}$/.test(String(computeHash))) return html;
+    var vault = [];
+    var mask = function (m) {
+      vault.push(m);
+      return '\u0000DEXC' + (vault.length - 1) + '\u0000';
+    };
+    var masked = html.replace(INLINE_SCRIPT_RE, mask).replace(INLINE_STYLE_RE, mask);
+    // Idempotent: strip a previous stamp from the <html> tag, then write the current one.
+    masked = masked.replace(/(<html\b[^>]*?)\s+data-manifest-hash="[0-9a-f]{12}"\s+data-compute-hash="[0-9a-f]{12}"/i, '$1');
+    masked = masked.replace(/<html\b[^>]*?(?=\s*\/?>)/i, function (tag) {
+      return tag + ' data-manifest-hash="' + manifestHash + '" data-compute-hash="' + computeHash + '"';
+    });
+    return masked.replace(/\u0000DEXC(\d+)\u0000/g, function (_m, i) {
+      return vault[+i];
+    });
+  }
+
   function build(opts) {
     opts = opts || {};
     var src = opts.srcHtml,
@@ -509,7 +549,10 @@
     out += src.slice(i);
     out = applyScriptHashes(out); // CSP strict script-src: fill __DEX_SCRIPT_HASHES__ (no-op if absent)
     out = projectVersion(out, opts.suiteVersion); // §📦 — outside every inline block, manifestHash-invariant
-    return { html: out, manifestHash: manifestHashFromInline(out), assetNames: assetNames };
+    var mh = manifestHashFromInline(out);
+    var ch = computeHashFromInline(out, opts.isComputeAsset);
+    if (ch) out = projectCodeIdentity(out, mh, ch); // roadmap §3 — same invariance, same construction
+    return { html: out, manifestHash: mh, computeHash: ch, assetNames: assetNames };
   }
 
   root.DexBuild = {
@@ -524,6 +567,8 @@
     classicify: classicify,
     build: build,
     projectVersion: projectVersion,
+    computeHashFromInline: computeHashFromInline,
+    projectCodeIdentity: projectCodeIdentity,
     INLINE_SCRIPT_RE: INLINE_SCRIPT_RE,
     INLINE_STYLE_RE: INLINE_STYLE_RE
   };
