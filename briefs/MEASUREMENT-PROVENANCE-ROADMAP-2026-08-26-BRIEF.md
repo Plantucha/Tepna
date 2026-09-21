@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** DONE — 2026-09-21 (every Done-when item ticked with its gate named; §4 half, §10 runtime/memory and §11 are NOT executed and are listed in §12 + the residue ledger rather than folded in — the roadmap is closed as a MAP, not as a claim that every section ran. F-section report DONE — `docs/MEASUREMENT-PROVENANCE-REPORT-2026-09-21.md`, honesty criteria pre-stated, twelve limits each labelled found/assumed; one unit remains: the follow-up brief. §3 DONE — OxyDex emits the measurement block on every night element, schema 2.1, invariance measured (one moved field per fixture), walk-through checkable via `tools/measurement-walk.mjs`. §5 DONE — the oracle harness runs on 52 real nights with pre-stated bands, `tools/oracle-ecg-firmware-rr.mjs`; rMSSD/mean-RR CONSISTENT; the time-anchored per-beat pairing landed the same day: matched 98.7 %, RR |Δ| 0.45 ms on pairs, LoA SHORTFALL tail-driven. Three units remain: §8, the F-section report, the follow-up brief.) · IN-PROGRESS — 2026-09-20 (NOT owner-blocked: the schedule decision was ratified 2026-09-15 (queue D5). Five Done-when units remain unticked and are executable by the fleet; re-stamped 2026-09-20 because the header still read as parked on a decision that was made five days earlier) · **Created:** 2026-08-26 · **Follows:** `ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` (the acquisition half of this chain — 21/22 §21 criteria met, last one in flight) · **Relates:** CLAUDE.md §🔒 Clock Contract, §🎫 evidence ladder, §🔏 provenance gates, `docs/LEXICON.md` · **Residue:** 2026-09-21-validaterr-compares-gap-spanning-intervals, 2026-09-21-measurement-envelope-hop-unexercised, 2026-09-21-measurement-block-serialises-shared-parts-per-block, 2026-09-21-measurement-emitter-runtime-memory-unmeasured, 2026-09-21-wfdb-interop-mapping-unwritten
+**Status:** DONE — 2026-09-21 (every Done-when item ticked with its gate named; §4 half, §10 runtime/memory and §11 are NOT executed and are listed in §12 + the residue ledger rather than folded in — the roadmap is closed as a MAP, not as a claim that every section ran. F-section report DONE — `docs/MEASUREMENT-PROVENANCE-REPORT-2026-09-21.md`, honesty criteria pre-stated, twelve limits each labelled found/assumed; §12 lists the remainder. **For the next emitter:** every owned bundle now carries its own code identity on the `<html>` tag — `data-manifest-hash` / `data-compute-hash`, stamped by `tools/build-core.js` OUTSIDE every inline block by the version stamp's masking, so reading it is free: `document.documentElement.dataset.manifestHash/computeHash` in the bundle, `opts.code` headless, and the stamp moves no hash and no fixture by itself. §8 DONE — the Integrator consumes the block behind a tolerant, fail-closed adapter and carries refs forward; 0 of 5 fusion fixtures moved. §3 DONE — OxyDex emits the measurement block on every night element, schema 2.1, invariance measured (one moved field per fixture), walk-through checkable via `tools/measurement-walk.mjs`. §5 DONE — the oracle harness runs on 52 real nights with pre-stated bands, `tools/oracle-ecg-firmware-rr.mjs`; rMSSD/mean-RR CONSISTENT; the time-anchored per-beat pairing landed the same day: matched 98.7 %, RR |Δ| 0.45 ms on pairs, LoA SHORTFALL tail-driven. Two units remain: the F-section report, the follow-up brief.) · IN-PROGRESS — 2026-09-20 (NOT owner-blocked: the schedule decision was ratified 2026-09-15 (queue D5). Five Done-when units remain unticked and are executable by the fleet; re-stamped 2026-09-20 because the header still read as parked on a decision that was made five days earlier) · **Created:** 2026-08-26 · **Follows:** `ACQ-EVIDENCE-CONTRACT-2026-08-24-BRIEF.md` (the acquisition half of this chain — 21/22 §21 criteria met, last one in flight) · **Relates:** CLAUDE.md §🔒 Clock Contract, §🎫 evidence ladder, §🔏 provenance gates, `docs/LEXICON.md` · **Residue:** 2026-09-21-validaterr-compares-gap-spanning-intervals
 
 # Measurement-provenance roadmap — the canonical Measurement layer between Dex outputs and the Integrator
 
@@ -269,7 +269,26 @@ oracle dev-dependency set (SOUP note required); (c) whether §11 gets an adapter
       listed in the doc, not averaged over. PPG leg: coverage only (37 Verity nights with `_PPI.txt`, 32 usable). Detail:
       `docs/ORACLE-ECG-FIRMWARE-RR-2026-09-21.md`. Related landing the same night, different instrument:
       #2759 validated the capture-host live-strip R detector against the same firmware stream.
-- [ ] §8 Integrator consumes canonical blocks behind a tolerant adapter.
+- [x] §8 Integrator consumes canonical blocks behind a tolerant adapter.
+      ✅ **DONE 2026-09-21 (Osprey) — interface only, no fusion-engine work.** `integrator-dsp.js
+      consumeMeasurements(night, scalars)`, wired into `adaptOxyDex`: a night carrying `measurement.*`
+      adapts to a rec with `measurements.{blocks, resolved, unresolved}`; each block becomes a REF
+      (metricId · value · basis · window · code · evidence join · `provenance: resolved|unresolved` +
+      reason), never the payload, and the refs ride forward on the fusion export's node card
+      (`nodes[].measurements`). **Tolerant:** a legacy export adds no key anywhere — measured with
+      `regen-integrator-goldens --check`: 0 of 5 fixtures moved (their inputs predate the block).
+      **Fail closed (§4):** inputHash ≠ the element's contentId · missing/non-12-hex code identity ·
+      value ≠ the element scalar (the block adds lineage, never a second number) · non-positive window ·
+      non-finite value — each reads `unresolved` with the reason named, carried forward LOUDLY, while the
+      summary scalar every existing consumer reads is untouched. The summary scalars stay element-
+      sourced; a resolved block is what makes them walkable. 25 assertions (real OxyDex 2.1 export →
+      4/0 resolved, legacy → no key, five plants). Integrator manifestHash 1430f6feee5d → 29252cdcfe8c.
+      Verified before writing (Kestrel's two named interactions): the `fascia` alias is an EVENTS-key
+      alias (`fascia_events`, `BUS_ALIASES`) and `ganglior.crossnight` is a top-level ≥3-night block —
+      neither touches the per-night `measurement` map, which only `adaptOxyDex` (the route every
+      `nights[]` export takes) reads. NOT done, deliberately: only OxyDex emits, so only `adaptOxyDex` consumes — the generic
+      `adaptEnvelopeNode` gains the call when a second node emits (one line, `consumeMeasurements` is
+      node-agnostic); the render surface does not yet show the refs (interface only, per §8).
 - [x] The final report answers the draft's F-section honestly: what this does NOT prove
       scientifically (agreement ≠ physiological truth; provenance ≠ accuracy).
       ✅ **DONE 2026-09-21 (Osprey) — `docs/MEASUREMENT-PROVENANCE-REPORT-2026-09-21.md`.** "Honest"
