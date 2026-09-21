@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** IN-PROGRESS — 2026-09-18 (phase 1 BUILT #2514; **PHASE 2 BUILT 2026-09-18** — `TABLE-PROVENANCE` stamps, gate `docs · table-provenance · published-numbers`, first marked table in §4b. The output hash is over the TABLE TEXT, so a hand-edited cell reds: planted σ 0.07→0.99 and the gate moved `0f30dca78aa2`→`35750bcdda57`, which is the decay sweep's measured failure made mechanical, and it needs no corpus so it runs in CI. The marker distinguishes a RESOLVABLE committed `inputs` path from a recorded-only digest, because only the first can ever CLEAR a churn flag — §2 of the sweep says its screen "can FLAG but probably cannot CLEAR", and a committed upstream node is precisely what changes that. Phase 3 (generate rather than mark) remains unbuilt and is only worth it where phase 2 keeps firing — so it waits on evidence from phase 2 rather than on effort) · **Created:** 2026-09-15 · **Follows:** `audits/PUBLISHED-NUMBER-DECAY-SWEEP-2026-09-03.md` (the measurement this answers) · **Interlocks:** the `docs · claude-md · claims` gate, `tools/formula-constant-audit.mjs`
+**Status:** DONE — 2026-09-21 (closed by Magpie, #PRNUM, on the tree not the header: phase 1 BUILT #2514; phase 2 STAMP BUILT #2614; item 6 DONE #2787 — 26 sourced `CLAIM`s on the sweep's two drifted tables, against committed records. ⚠️ The DAG-HASH HALF of phase 2 is NOT built, verified 2026-09-21 in the gate itself: `docs · table-provenance · published-numbers` checks a resolvable `inputs=` path for EXISTENCE only (`env.treeHas`) and recomputes no digest over it, so a stamp with git-tracked inputs is distinguished from a recorded-only one but can still not CLEAR a churn flag — that remainder is residue row `2026-09-21-table-provenance-inputs-digest-never-recomputed`, one unit with a ready first consumer (`analysis/published-numbers/tch-pooled-hat-2026-09-21.json` already carries the digest). Phase 3 is EVIDENCE-GATED, not open: "only where phase 2 keeps firing" — no stamp has fired yet, so it is a parked sub-item, re-opened by the first real red, never by effort. Earlier header text follows: phase 1 BUILT #2514; **PHASE 2 BUILT 2026-09-18** — `TABLE-PROVENANCE` stamps, gate `docs · table-provenance · published-numbers`, first marked table in §4b. The output hash is over the TABLE TEXT, so a hand-edited cell reds: planted σ 0.07→0.99 and the gate moved `0f30dca78aa2`→`35750bcdda57`, which is the decay sweep's measured failure made mechanical, and it needs no corpus so it runs in CI. The marker distinguishes a RESOLVABLE committed `inputs` path from a recorded-only digest, because only the first can ever CLEAR a churn flag — §2 of the sweep says its screen "can FLAG but probably cannot CLEAR", and a committed upstream node is precisely what changes that. Phase 3 (generate rather than mark) remains unbuilt and is only worth it where phase 2 keeps firing — so it waits on evidence from phase 2 rather than on effort) · **Created:** 2026-09-15 · **Residue:** 2026-09-21-table-provenance-inputs-digest-never-recomputed · **Follows:** `audits/PUBLISHED-NUMBER-DECAY-SWEEP-2026-09-03.md` (the measurement this answers) · **Interlocks:** the `docs · claude-md · claims` gate, `tools/formula-constant-audit.mjs`
 
 # 98 % of this repo's published numbers are uncheckable — and the fix is a convention, not a cleverer parser
 
@@ -176,5 +176,23 @@ sound and is not the reason for rejection.
       since 09-03). The gate's exact-equality compare needs the record to carry the values AT PUBLISHED
       PRECISION (`claims/*`, 2 dp ratios / 9 dp variances) beside the full-precision `result` — a convention
       the next marker should copy rather than re-derive.
-- [ ] Phase 2 per-table stamp, with the upstream-DAG hash that lets the churn screen clear.
-- [ ] Phase 3 generate-rather-than-mark, only where phase 2 keeps firing.
+- [x] Phase 2 per-table stamp — **BUILT #2614** (`TABLE-PROVENANCE`, output hash over the table text,
+      resolvable-vs-recorded `inputs` told apart). **The upstream-DAG hash that lets the churn screen
+      CLEAR is NOT built** — verified 2026-09-21 by reading the gate, not the header: a resolvable
+      `inputs=` path is checked for existence only and no digest is recomputed over it. Residue row
+      `2026-09-21-table-provenance-inputs-digest-never-recomputed`; the first consumer is ready
+      (the table-4 record already carries `inputs.digest` over the 441 git-tracked trio exports).
+- [x] Phase 3 generate-rather-than-mark — **PARKED, evidence-gated, not open** (2026-09-21): it is
+      worth building "only where phase 2 keeps firing", and no `TABLE-PROVENANCE` or sourced `CLAIM` has
+      yet fired on `main`. The first real red re-opens it; nothing else does.
+
+## 8 · The published-precision rule (a RULE, not a note — learned on #2787)
+
+The `CLAIM` gate compares by **exact equality** against the committed artifact, and a producer's raw
+output is full-precision. So **a record that backs sourced `CLAIM`s MUST carry the values AT PUBLISHED
+PRECISION** (`claims/*` — 2 dp ratios, 9 dp variances, whole-percent rates, whatever the prose prints)
+**beside the full-precision `result`**, and the marker points at `claims/<key>`. A marker pointed at the
+raw value can never match once the prose rounds, and "round in the gate" would re-import the parser
+problem §2 refused (whose rounding? to what?). The wrapper that rounds is part of the producer's record,
+named in it, so the rounding is itself attributable. Both records under `analysis/published-numbers/`
+follow this; the next one copies the shape rather than re-deriving it.
