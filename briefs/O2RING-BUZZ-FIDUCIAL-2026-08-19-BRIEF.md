@@ -3,7 +3,7 @@
   Copyright 2026 Michal Planicka
   SPDX-License-Identifier: Apache-2.0
 -->
-**Status:** PROPOSED (parked 2026-09-02 — ⚠ the previous status line said the matched-filter estimator was *owed*; it was MET in 08ad7476 (#1561) at SE 19 ms, inside the pre-stated 30 ms band. Corrected here. The remaining item is the aperiodic-buzz correlation: the TOOL exists (`tools/buzz-fiducial-correlate.mjs`, ca2a4a5b, 11 selftest assertions) and the RUN does not — repo-wide, the only mentions of a host-axis residual are the brief and the tool's own docstring, so no result has ever been recorded. It needs the ring WORN (the motion channel must carry the ~1.1 s spikes) firing a commanded aperiodic schedule with gaps > 1.1 s. **Owner:** Heron · **Next step:** run the tool on a worn night and record the residual EITHER WAY — a null result closes this item too. Triaged 2026-09-09 (Kestrel, against main): the aperiodic schedule needs NO new code — a scripted loop against `POST /api/ring/buzz` (`webmon.py`, → `capture.queue_ring_buzz` → one `0x83` write on the next poll iteration, ≤ 0.4 s quantisation) fires each buzz and stamps `ring_buzz_at` to the ms with a `BUZZ fired at …` log line; feed the LOGGED gaps, not the intended ones, to `--gaps`. `capture.py`'s *"never scheduled"* refers to the daemon self-scheduling, not to an operator loop. Still operator-commanded, daytime, never mid-night · ⚠ **RE-VERIFIED 2026-09-19 (Wren, box + tree):** nothing landed in the surface I checked since 09-09 (subjects /buzz|fiducial/ + `tools/buzz-fiducial-correlate.mjs`: 0 commits). BOX (not checkable from code): the 'never run' clause is about the TOOL; the SCHEDULE half HAS run — 43 `BUZZ fired at` journal lines on four dates (08-19 ×15, 08-20 ×12, 09-04 ×4, 09-05 ×12), and the 09-05 set (04:59–05:18) is aperiodic with logged gaps of 5 s · 8 s · ~4 min, i.e. the > 1.1 s condition. Whether the ring was worn at 05:00 that morning is unrecorded, and no residual exists anywhere in the tree. Candidate, not ticked: run the tool against 2026-09-05's files with the LOGGED gaps — the inputs are on the box, node is not (a rig job over box files)) · **Created:** 2026-08-19
+**Status:** DONE — 2026-09-21 (Wren, box + tree; the last two boxes: the aperiodic-buzz correlation was RUN and is a NULL — §7; the opt-in/`0x83` box is gate-backed — `test_run_oxyii_fires_a_queued_buzz_exactly_once` pins one `0x83` per operator command, `check.sh` EXIT=0 2026-09-21 on this tree) · **Residue:** 2026-09-21-buzz-motion-byte-sparse-in-daemon-stream · **Created:** 2026-08-19
 
 # The commanded buzz as a self-written timing fiducial — removing the human from the marker
 
@@ -179,13 +179,59 @@ Recorded per `EXTERNAL-METHODS-SURVEY-2026-08-20-BRIEF.md` §4, which surveyed i
 *"worth one sentence in the buzz brief's related work; not worth building against"*. This is that
 sentence, and the survey's §4 box is satisfied by it.
 
+## 7 · The aperiodic-correlation RUN — 2026-09-21, a NULL, and why (Wren, on the box)
+
+**Inputs.** No new fires: the box journal already held 43 `BUZZ fired at …` lines on four dates (08-19 ×15,
+08-20 ×12, 09-04 ×4, 09-05 ×12), and the 2026-09-05 set (04:59–05:18) is the aperiodic schedule this item
+asked for — four 5 s / 8 s triplets with logged inter-triplet gaps of 240.4 s, 745.6 s and 112.8 s. The ring
+was WORN (3922 valid SpO₂ rows 04:53–05:59 in `…20260905045318_SPO2.csv`) and the daemon's own
+`…20260905045318_PPG2W.txt` (58 MB, 04:53–06:46, same `parse_rt_ppg` byte the probe read) covers every fire.
+Motor intensity unchanged since the 08-20 sweep left it at 60 (no `settings write motor` line between 08-20
+04:34 and 09-06).
+
+**The tool.** `node tools/buzz-fiducial-correlate.mjs --ppg2w <09-05 file> --gaps 5.036,8.053,240.400,5.053,8.055,745.554,5.031,8.057,112.845,5.043,8.052`
+(the LOGGED gaps, per the 09-09 triage) → *"1338593 motion samples, 7 spike onset(s) detected — the commanded
+schedule did NOT align"*; the last triplet alone (`--gaps 5.043,8.052`) → the same. The 7 onsets are the file's
+7 runs of motion ≥ 10 (04:58:40, 05:14:02, 05:19:26, 05:35:10, 05:44:31, 05:54:37, 06:44:48 — hand movements),
+none within 10 s of a fire.
+
+**Why — measured at the byte, three files, 39 daemon fires.** The probe of §3.1 (`probe_buzz_fiducial.py`,
+still resting baseline) saw 0 → **22** over ~81 samples. The DAEMON stream, same byte, never does:
+
+| date · file | fires | motion byte registers the buzz | amplitude when it does |
+|---|---|---|---|
+| 08-19 `…223216_PPG2W` (the §5 night) | 15 | **3** (22:35:33 · 22:42:31 · 22:42:37) — runs of 84–102 samples | peak 2–3 |
+| 08-20 `…19224924_PPG2W` (motor 40/20/60 sweep) | 12 | **0** — max 0–5 in every ±3 s window | — |
+| 09-05 `…045318_PPG2W` (the aperiodic set) | 12 | **3** (05:03:35 · 05:16:27 · 05:18:33) — runs of 49–118 samples | peak 1–9 |
+
+33 of 39 fires leave the byte at **exactly 0** through the buzz — the "baseline exactly 0" of §3.1 holding on
+both sides of a vibration. §5's own table had already recorded this without naming it: *"C 3-way stack · ring
+motion · 2/5"* against 5/5 on the H10 and Verity ACC legs.
+
+**The residual, on the six that registered** (first non-zero sample after the command, host stamps):
++0.953 · +0.039 · +0.297 · +1.067 · +1.207 · +1.193 s. Median ≈ +1.0 s, spread 1.17 s — and 102 of those
+samples carry stamps 0.05 s apart, i.e. one 0x05 buffer arriving at once. That spread IS the ~1 s raw-buffer
+back-timing §3.1 warned about; it is the ruler's resolution and says nothing about the ring's host axis.
+
+**What this closes and what it does not.** The item is closed as asked — *recorded either way*. The ring's
+motion byte is **not** a usable ring-side fiducial detector in the daemon stream (sparse, amplitude-1, and
+buffer-quantised); the H10/Verity ACC legs are (§5, 15/15, ±25 ms). Whether the 125 Hz pleth path (§3.1's
+alternative) carries the buzz is untested and is the residue row. A `0x83` on a ring at rest on a desk (the
+probe's condition) and on a worn finger evidently differ by an order of magnitude in this byte; fit no
+story to why — that is a controlled-condition unit, not a reading of these files.
+
 ## Done when
 
 - [x] The `0x83` artifact shape is characterised on hardware (width, channel, amplitude) — DONE 2026-08-19, §3.1.
 - [x] Per-fire latency distribution measured (§5): ±25 ms/fire on the rigid leg, ~±10 ms per 5-fire pattern.
-- [ ] An aperiodic buzz at capture start is correlated against host command times → ring host-axis residual,
-      recorded either way.
+- [x] An aperiodic buzz at capture start is correlated against host command times → ring host-axis residual,
+      recorded either way — DONE 2026-09-21, §7: **NULL.** The tool does not align (7 onsets, 0 alignment) because
+      the daemon stream's motion byte registers only 6 of 39 fires, at amplitude 1–9 not 22; on those six,
+      onset − command = +0.04 … +1.21 s, a spread bounded by the 0x05 buffer back-timing (§3.1), not a clock.
 - [x] (2b) DONE beyond spec: ring→H10, ring→Verity, AND the 3-way stack — all detected (§5); the
       pairwise H10↔Verity offset measured directly (+193.5 ± 64 ms). Owed: matched-filter estimator to
       reach the ≤30 ms per-event band.
-- [ ] `check.sh` green; the fiducial path opt-in and whitelisted to `0x83`.
+- [x] `check.sh` green; the fiducial path opt-in and whitelisted to `0x83` — verified in the tree 2026-09-21: the only
+      writer is the operator path (`POST /api/ring/buzz` → `queue_ring_buzz` → one `oxyii.encode(0x83, b"", 0)` on the
+      next poll; nothing self-schedules), pinned by `tests/test_capture_runners.py::test_run_oxyii_fires_a_queued_buzz_exactly_once`
+      + `…_write_failure_is_reported_not_retried`; `check.sh` EXIT=0 (7558 passed, 100 % cov) on 2026-09-21.
