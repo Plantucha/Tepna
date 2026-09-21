@@ -3026,7 +3026,7 @@ async def run_polar(dev: dict, root: str):
 
                 def _register(meas: int, fs_val: float) -> None:
                     base, unit, ch, labs = _LIVE_META[pmd.MEAS_NAME[meas]]
-                    BUS.register(_live_key(pmd.MEAS_NAME[meas], tag), f"{base} ({name})", unit, fs_val, ch, labs)
+                    BUS.register(_live_key(pmd.MEAS_NAME[meas], tag), f"{base} ({name})", unit, fs_val, ch, labs, device=name)
 
                 for s in streams:
                     if s in meas_of:
@@ -3048,11 +3048,11 @@ async def run_polar(dev: dict, root: str):
                         _register(meas_of[s], 0)
                 if "hr" in streams:
                     hr_writer = w("hr")
-                    BUS.register(_live_key("hr", tag), f"RR ({name})", "ms", 0)
+                    BUS.register(_live_key("hr", tag), f"RR ({name})", "ms", 0, device=name)
                     # The strap sends HR (bpm) alongside the RR intervals and we already write both to
                     # the file — but only RR was ever pushed to the monitor, so the device's own HR had
                     # no card at all. Both are real: RR is the HRV substrate, HR is the device's reading.
-                    BUS.register(_live_key("bpm", tag), f"HR ({name})", "bpm", 0)
+                    BUS.register(_live_key("bpm", tag), f"HR ({name})", "bpm", 0, device=name)
 
                 # ── optical-wear state, per connection ──────────────────────────────────────────
                 # `_amb` accumulates the PPG ambient channel; `_AMB_WINDOW` is ~4 s at 55 Hz, long
@@ -5032,8 +5032,10 @@ async def run_oxyii(dev: dict, root: str):
                                  last_error=None if live["worn"] else "no finger contact")
                             _power_observe(name, worn=live["worn"], battery=live["batt"])
 
-                BUS.register("motion_o2", "Motion (O2Ring)", "lvl", 0)
-                BUS.register("pi_o2", "Perfusion index (O2Ring)", "%", 0)
+                # The ring's DEFAULT_META keys were declared at import, ownerless; claim them now.
+                BUS.claim("spo2", name); BUS.claim("pr", name)
+                BUS.register("motion_o2", "Motion (O2Ring)", "lvl", 0, device=name)
+                BUS.register("pi_o2", "Perfusion index (O2Ring)", "%", 0, device=name)
                 if "acc" in (dev.get("streams") or []):
                     # THE RING'S 3-AXIS ACCELEROMETER — the H10-equivalent stream, declared the same way
                     # the H10's is (3 channels, X/Y/Z) so it draws the same three-trace card.
@@ -5043,9 +5045,9 @@ async def run_oxyii(dev: dict, root: str):
                     # ring here has ever been asked to push this stream, so there is nothing to
                     # calibrate against. Declaring mg would put a fabricated unit on the card — the
                     # same failure as the fs=0 note below, one field over.
-                    BUS.register("acc_o2", "ACC (O2Ring)", "raw", 0, chans=3, labels=("X", "Y", "Z"))
+                    BUS.register("acc_o2", "ACC (O2Ring)", "raw", 0, chans=3, labels=("X", "Y", "Z"), device=name)
                 if ppgwr:                                   # no card for a stream we are not capturing
-                    BUS.register("o2ppg", "PPG (O2Ring)", "raw", O2PPG_FS)   # finger pleth, Phase 2
+                    BUS.register("o2ppg", "PPG (O2Ring)", "raw", O2PPG_FS, device=name)   # finger pleth, Phase 2
                 # SIBLING of ppgwr/ppg2wr, deliberately NOT nested inside one of them: `pletha` is
                 # independently switchable, so registering it under another stream's `if` would leave
                 # its bus card missing whenever that other stream happened to be off. Caught by the
@@ -5058,7 +5060,7 @@ async def run_oxyii(dev: dict, root: str):
                     # unit "raw" like its siblings: the ring publishes no scale for these 8-bit
                     # optical counts, and "raw" is this bus's existing word for exactly that (o2ppg,
                     # o2ppg2w, acc_o2). A fabricated unit here is the accraw mistake one layer up.
-                    BUS.register("o2pletha", "Raw pleth A (O2Ring)", "raw", 0, chans=1)
+                    BUS.register("o2pletha", "Raw pleth A (O2Ring)", "raw", 0, chans=1, device=name)
                 if ppg2wr:
                     # fs=0 DELIBERATELY. Every reply carries exactly 102 records whatever the poll
                     # spacing, which is a fixed buffer cap and not a rate (cmd 0x03 caps the same way at
@@ -5069,7 +5071,7 @@ async def run_oxyii(dev: dict, root: str):
                     # that is a vendor-header claim we have not measured, and a monitor card is a bad
                     # place to publish a guess (see oxyii "WHICH-IS-WHICH" for the test that settles it).
                     BUS.register("o2ppg2w", "Raw 2-wavelength (O2Ring)", "raw", 0, chans=2,
-                                 labels=("ch0", "ch1"))
+                                 labels=("ch0", "ch1"), device=name)
                 await _bounded_setup(client.start_notify(nch, on_data))
                 # RECORD-ONLY (GATT-HANDLE-MAP-2026-09-17 §2b③) — see `_gatt_record_rail` for WHY it sits
                 # after `start_notify` rather than at connect, and why calling it from several streams of
