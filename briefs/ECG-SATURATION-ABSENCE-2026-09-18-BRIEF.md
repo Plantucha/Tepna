@@ -181,7 +181,7 @@ carries no corpus denominator — §7's 602-vs-598 question is Heron's census's,
 
 **Fleet-Session:** Magpie
 
-**7.5 · The matcher keyed on magnitude (owner ruling D9.3, built #PRNUM, 2026-09-21).** Measured before writing:
+**7.5 · The matcher keyed on magnitude (owner ruling D9.3, built #2785, 2026-09-21).** Measured before writing:
 the H10's positive pin sits **2–3 µV under |railLo|** on 5 of 5 files checked (−18033↔18031, −18133↔18131,
 −18733↔18731, −18233↔18231, −18600↔18597), and on the three §7.2/§7.4 files a few stray OPENING samples above the
 real pin (18 at 18064, 2 at 18597, 8 at 18731 — each at what looks like a previous session's rail) are the
