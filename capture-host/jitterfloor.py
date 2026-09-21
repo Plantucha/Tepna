@@ -31,6 +31,8 @@ import re
 import statistics
 import sys
 from datetime import datetime
+
+from localstamp import LocalStampResolver
 from pathlib import Path
 
 MIN_FRAMES = 100  # a floor claimed from fewer frames is an anecdote, not a floor
@@ -38,33 +40,39 @@ DRAWN_CONCENTRATION = 0.99  # lattice share at or above this ⇒ the device axis
 _STAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}$")
 
 
-def _parse_stamp_ms(s: str) -> float | None:
-    """Explicit-format parse (Clock Contract: regex the format, never a locale guess).
-
-    Only deltas are consumed downstream, so the zone-free epoch is immaterial — but a row that
-    does not match the writer's exact format is dropped, never guessed at.
-    """
+def _parse_stamp(s: str) -> datetime | None:
+    """Explicit-format parse (Clock Contract: regex the format, never a locale guess). A row that
+    does not match the writer's exact format is dropped, never guessed at. Returns the NAIVE local
+    `datetime`; turning it into an instant is `LocalStampResolver`'s job, because for one hour a year
+    that step is ambiguous and needs the series to decide (residue
+    2026-09-13-dst-fallback-splits-the-host-axis — "only deltas are consumed downstream" is true for a
+    constant offset and false at the fall-back seam, which is a step INSIDE the series)."""
     if not _STAMP.match(s):
         return None
-    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%S.%f").timestamp() * 1000.0
+    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%S.%f")
 
 
 def parse_pmdarrival(path: Path) -> dict[str, list[tuple[float, int]]]:
     """CSV → {"device|meas": [(host_ms, first_sensor_ns), ...]} keeping only well-formed rows."""
     streams: dict[str, list[tuple[float, int]]] = {}
+    # One resolver PER STREAM: the fall-back hour is decided by host−device continuity, and another
+    # stream's offset must not decide this one's fold.
+    folds: dict[str, LocalStampResolver] = {}
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         parts = line.split(";")
         if len(parts) != 6 or parts[0] == "Phone timestamp":
             continue
-        host = _parse_stamp_ms(parts[0])
-        if host is None:
+        dt = _parse_stamp(parts[0])
+        if dt is None:
             continue
         try:
             first_ns = int(parts[3])
         except ValueError:
             continue  # the floor is a MINIMUM over parsed rows, so a dropped row can only make
             # the estimate more conservative, never smaller than the truth
-        streams.setdefault(parts[1] + "|" + parts[2], []).append((host, first_ns))
+        key = parts[1] + "|" + parts[2]
+        host = folds.setdefault(key, LocalStampResolver()).resolve_ms(dt, dev_ms=first_ns / 1e6)
+        streams.setdefault(key, []).append((host, first_ns))
     return streams
 
 

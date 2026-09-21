@@ -23,6 +23,7 @@ import clock_offset
 import writers
 from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
+from localstamp import LocalStampResolver
 
 log = logging.getLogger("tepna-capture")
 
@@ -1241,6 +1242,7 @@ def arrival_quality(night_dir: str) -> list[dict]:
         # the append AND everything downstream that unpacks it ("float is not iterable", "not
         # indexable") — six errors from one wrong declaration, none of them a real defect.
         per: dict[tuple[str, str], list[tuple[float, float, int]]] = {}
+        folds: dict[tuple[str, str], LocalStampResolver] = {}
         try:
             with open(path, newline="", encoding="utf-8", errors="replace") as fh:
                 for row in _csv.DictReader(fh, delimiter=";"):
@@ -1283,7 +1285,10 @@ def arrival_quality(night_dir: str) -> list[dict]:
                         dev_ns = int(ns)
                         if dev_ns <= 0:
                             continue
-                        host_ms = datetime.fromisoformat(ts).timestamp() * 1000.0
+                        # The fall-back hour is decided by host−device continuity, per stream, never
+                        # by `fold=0` (residue 2026-09-13-dst-fallback-splits-the-host-axis).
+                        host_ms = folds.setdefault((row.get("device", ""), meas), LocalStampResolver()) \
+                            .resolve_ms(datetime.fromisoformat(ts), dev_ms=_POLAR_EPOCH_MS + dev_ns / 1e6)
                         # 🔴 SUBTRACT THE DEVICE EPOCH. `host_ms` counts from 1970 and `dev_ns` from
                         # 2000, so differencing them raw added the 946 684 800 000 ms between the two
                         # epochs to every reading — and CERTIFIED it, because nothing downstream
@@ -1983,8 +1988,11 @@ def rtc_drift_summary(path: str | Sequence[str]) -> dict | None:
         return None
     span_h = None
     try:
-        t0 = datetime.fromisoformat(times[0]).timestamp()
-        t1 = datetime.fromisoformat(times[-1]).timestamp()
+        # The endpoints alone cannot resolve a fall-back seam; walking the series with the
+        # monotonicity rule can, so the span is the last resolved stamp minus the first.
+        r = LocalStampResolver()
+        walked = [r.resolve_ms(datetime.fromisoformat(t)) for t in times]
+        t0, t1 = walked[0] / 1000.0, walked[-1] / 1000.0
         span_h = round((t1 - t0) / 3600, 1)
     except ValueError:
         span_h = None
