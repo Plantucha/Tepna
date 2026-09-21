@@ -39830,6 +39830,27 @@
       // generated), not just res.elements[0].*; the node-lane gate never pinned them, so dropping one stays
       // green. Pin the accessors the review view consumes.
       T.ok('top-level res.recording + res.generated surface on reload (review view reads them, not just elements[0])', !!(res.recording && res.generated));
+      /* A RETRACTED METRIC DOES NOT RETURN THROUGH THE LOADER. `respRate` is null at compute since
+         #2527; a pre-retraction export still carries a number, and until 2026-09-21 the loader read
+         it straight back into the night, where the render guard `n.respRate && n.respRate.respRateBpm
+         != null` would draw the retracted section again. Plant a legacy value and assert it is dropped;
+         the control beside it proves a live newMetrics key on the same object DOES survive the reload,
+         so the null is a decision, not a broken loader. */
+      var legacy = JSON.parse(JSON.stringify(envlp));
+      legacy.nights[0].newMetrics = legacy.nights[0].newMetrics || {};
+      legacy.nights[0].newMetrics.respRate = { respRateBpm: 11.9, rsaPeakFreq: 0.1983, respRateLabel: 'Normal (10-20)', basis: 'medianOf30minWindows', windowsUsed: 12 };
+      legacy.nights[0].newMetrics.hrAsymmetry = legacy.nights[0].newMetrics.hrAsymmetry || { planted: true };
+      var resL = OD.loadOwnExport(legacy);
+      T.ok(
+        'a pre-#2527 export carrying newMetrics.respRate reloads as respRate === null (retracted, not re-imported)',
+        !!(resL && resL.ok) && resL.nights[0].respRate === null,
+        resL && resL.ok ? JSON.stringify(resL.nights[0].respRate) : 'reload failed'
+      );
+      T.ok(
+        'CONTROL · a live newMetrics key on the same export survives the same reload',
+        !!(resL && resL.ok) && resL.nights[0].hrAsym != null,
+        'hrAsym=' + JSON.stringify(resL && resL.ok ? resL.nights[0].hrAsym : null)
+      );
       T.ok(
         'reconstructed nights[] count == envelope nights[] count',
         !!(res && res.ok) && res.nights.length === envlp.nights.length,
