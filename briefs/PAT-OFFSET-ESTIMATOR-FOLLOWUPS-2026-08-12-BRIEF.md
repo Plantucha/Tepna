@@ -3,7 +3,7 @@ Copyright 2026 Michal Planicka
 SPDX-License-Identifier: Apache-2.0
 -->
 
-**Status:** IN-PROGRESS · **Created:** 2026-08-12 · **Follows:** `PAT-OFFSET-ESTIMATOR-2026-08-11-BRIEF.md` · **DRAIN 2026-09-02 (Osprey):** verified 2 open Done-when boxes. **Owner: Osprey. Next step:** same check as PAT-NO-VALID-ANCHOR — the offset estimator's inputs moved under the host-axis and pairing fixes, so re-verify the two boxes against current code before costing them. · **TRIAGED 2026-09-03 (Osprey): TWO Done-when items genuinely open, both named, neither blocked.** §2 within-connection constancy (fit `estimate` over first and second halves of ONE connection and compare) and §3 the anatomical-sign repair (apply the measured offset to both legs; success is the SIGN turning positive on the 7 of 10 impossible nights, not a better-looking number). Three boxes verify as ticked. ⚠️ **NEAR-MISS worth recording: §2 is NOT closed by the 2026-09-01 halves result, and I nearly cleared it on that.** That work measured the WINDOW ORACLE's first-vs-second-half *window modes* on signal nights; §2 asks whether the *PMD-arrival offset estimator* is constant within a connection. Different instrument, different quantity, same word — so the earlier result is not evidence here in either direction. Owner: Osprey. **Next step:** §2 first — it is the cheaper of the two and §3's interpretation depends on whether a single per-connection number is even well-defined. · **DRAIN 2026-09-19 (Osprey): both open items STAND — header unchanged. Narrowed to this brief's actual subject, the PMD-arrival offset estimator (`capture-host/clock_offset.py`): **1 landing since 2026-09-03 — #2540**, which raised `SPAN_MIN_SEC` 2400 → 3600 s. ⚠️ **That is not a stamp-clearing change, it is an INPUT change to §2**: the floor decides which connections are resolvable at all, so the population §2 would measure (within-connection constancy) is not the population it was scoped against. This brief's own next-step already says the estimator's inputs moved and the boxes need re-verifying against current code — #2540 is one more such move, now named. ⚠️ A wider derived surface (`capture.py`, `writers.py`, `mutate_diff.py`) reports 80 landings and is meaningless here: those are high-traffic capture-host files shared with unrelated work.**
+**Status:** DONE — 2026-09-21 (Osprey: §2 constancy MEASURED and HOLDS — 67/69 certified Polar arrival streams agree at the connection midpoint within 10 ms, median 1.6/2.0 ms; §3 CLOSED as not executable — the ring leg has no certifiable offset to apply, a device property re-verified on the 2026-09-19 sidecar, so by elimination the anatomical-sign failure is not the per-connection offset. Earlier header text follows.) · IN-PROGRESS · **Created:** 2026-08-12 · **Follows:** `PAT-OFFSET-ESTIMATOR-2026-08-11-BRIEF.md` · **DRAIN 2026-09-02 (Osprey):** verified 2 open Done-when boxes. **Owner: Osprey. Next step:** same check as PAT-NO-VALID-ANCHOR — the offset estimator's inputs moved under the host-axis and pairing fixes, so re-verify the two boxes against current code before costing them. · **TRIAGED 2026-09-03 (Osprey): TWO Done-when items genuinely open, both named, neither blocked.** §2 within-connection constancy (fit `estimate` over first and second halves of ONE connection and compare) and §3 the anatomical-sign repair (apply the measured offset to both legs; success is the SIGN turning positive on the 7 of 10 impossible nights, not a better-looking number). Three boxes verify as ticked. ⚠️ **NEAR-MISS worth recording: §2 is NOT closed by the 2026-09-01 halves result, and I nearly cleared it on that.** That work measured the WINDOW ORACLE's first-vs-second-half *window modes* on signal nights; §2 asks whether the *PMD-arrival offset estimator* is constant within a connection. Different instrument, different quantity, same word — so the earlier result is not evidence here in either direction. Owner: Osprey. **Next step:** §2 first — it is the cheaper of the two and §3's interpretation depends on whether a single per-connection number is even well-defined. · **DRAIN 2026-09-19 (Osprey): both open items STAND — header unchanged. Narrowed to this brief's actual subject, the PMD-arrival offset estimator (`capture-host/clock_offset.py`): **1 landing since 2026-09-03 — #2540**, which raised `SPAN_MIN_SEC` 2400 → 3600 s. ⚠️ **That is not a stamp-clearing change, it is an INPUT change to §2**: the floor decides which connections are resolvable at all, so the population §2 would measure (within-connection constancy) is not the population it was scoped against. This brief's own next-step already says the estimator's inputs moved and the boxes need re-verifying against current code — #2540 is one more such move, now named. ⚠️ A wider derived surface (`capture.py`, `writers.py`, `mutate_diff.py`) reports 80 landings and is meaningless here: those are high-traffic capture-host files shared with unrelated work.**
 
 # The estimator exists and has never seen a real arrival
 
@@ -95,7 +95,27 @@ Recorded here because it was found executing this brief and would otherwise be l
 
 - [x] a real `*_PMDARRIVAL.csv` exists, its rows are non-degenerate, and `estimate` has been run on it
 - [x] the ring leg's `OXYLIVE_DURATION_S` pairing tested — it does NOT produce a usable fit (3851 ppm)
-- [ ] within-connection constancy tested by halves, and the result recorded either way
+- [x] within-connection constancy tested by halves, and the result recorded either way
+      ✅ **DONE 2026-09-21 (Osprey) — CONSTANCY HOLDS.** The sidecars exist now (the blocker below is
+      spent: 96 ECG/PPG arrival streams ≥ 2 h and ≥ 200 packets under `/srv/data/tepna-corpus/
+      smoketest-captures`, every box night). Method: per (device, meas) stream, `clock_offset.estimate`
+      on the FIRST and SECOND halves of the packets separately, each half's fitted line evaluated at
+      the connection midpoint `t_mid`, Δ = second − first (so a slope and an intercept disagreement both
+      show; a slope alone would cancel at the centroid). Only halves the estimator CERTIFIES count
+      (69 of 96; 73 certify over the full connection).
+
+      | leg | streams | median \|Δ\| | p90 | max | ≤ 10 ms | 10–30 | > 30 |
+      |---|---|---|---|---|---|---|---|
+      | H10 ecg | 28 | **1.6 ms** | 6.6 | 75.3 | 26 | 1 | 1 |
+      | Verity ppg | 41 | **2.0 ms** | 6.1 | 8.4 | 41 | 0 | 0 |
+
+      Bands, stated before the run: ≤ `AGREE_MAX_MS` (10 ms) constant · 10–30 marginal · > 30 not
+      constant. **67 of 69 constant; the per-connection single-number model is well-defined.** The one
+      > 30 (2026-09-10 H10 ecg, 75 ms, half-slopes −20.1 → +0.9 ppm) is a stream whose FULL-connection
+      fit is already **uncertified** (`offset_ms: None`) — a step inside the connection, and the
+      certification refusing it is the mechanism working, not a counter-example to constancy.
+      ⚠️ This is the PMD-ARRIVAL estimator on Polar streams; it says nothing about the ring (next box).
+      Script: scratch, 40 lines over `clock_offset.estimate`; not committed as a tool — one measurement.
       **BLOCKED ON THE SIDECAR, checked 2026-08-18 — and this is the SAME measurement as
       `PAT-RELATIVE-REFRAME-2026-08-17-BRIEF.md` §5's "within-connection offset stability", which now
       carries the full finding.** Recorded here too because two briefs hold the same open item, and a
@@ -166,7 +186,18 @@ Recorded here because it was found executing this brief and would otherwise be l
       **What would actually close this:** nights with fewer Verity reconnects (a stable link), or a
       lower `--min-span-sec` paired with a beats-based rather than duration-based span filter. The
       machinery is built either way — this is now a data question with a known shape, not an unknown.
-- [ ] the anatomical sign re-checked after correcting both legs
+- [x] the anatomical sign re-checked after correcting both legs
+      ⛔ **CLOSED 2026-09-21 (Osprey) — NOT EXECUTABLE AS WRITTEN, and the reason is the answer.** The
+      two legs of the anatomical check are the Verity (ankle) and the ring (finger). The Verity leg's
+      offset is certifiable and constant to ~2 ms (box above). **The ring leg has no measured offset to
+      apply**: re-verified on the 2026-09-19 sidecar — `OXYLIVE_DURATION_S` only, 24 756 packets over
+      7.1 h, `slope_ppm 154.8`, the two estimators **1930 ms apart**, `offset_ms: None`. That is
+      `PAT-PACKET-ARRIVAL` §(a)'s finding standing a month later: the finger leg has no second clock of
+      PAT quality, and it is a device property, not a capture gap. So "correct both legs" cannot be
+      done for the leg the sign question is about, and §3's contingent — *"if the sign does not repair,
+      the per-connection offset was not the blocker and PAT-PACKET-ARRIVAL §1 needs revisiting"* — is
+      reached by elimination: the Polar offset is constant and ms-precise, so the 7-of-10 sign failure
+      does not live in the per-connection offset. §5's rule stands: nothing consumes the offset.
       **GATED ON THE BOX ABOVE** (checked 2026-08-18): §5 states the correction must not be consumed
       until §3 shows it repairs the sign, and §3 rests on the constancy test. So both remaining items
       are blocked on one missing input — sidecar nights from vigil — not on two separate pieces of

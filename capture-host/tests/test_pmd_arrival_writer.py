@@ -561,9 +561,9 @@ def test_arrival_quality_asks_for_tdev_at_the_FIXED_comparison_tau(tmp_path, mon
     seen = []
     real = nightqc.allan.stability
 
-    def spy(phase, tau0, tdev_tau=None):
+    def spy(phase, tau0, tdev_tau=None, **kw):
         seen.append(tdev_tau)
-        return real(phase, tau0, tdev_tau)
+        return real(phase, tau0, tdev_tau, **kw)
 
     monkeypatch.setattr(nightqc.allan, "stability", spy)
     _write_sidecar(os.path.join(tmp_path, "Tepna_9_PMDARRIVAL.csv"), "ECG",
