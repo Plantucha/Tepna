@@ -1320,7 +1320,11 @@ def arrival_quality(night_dir: str) -> list[dict]:
             offset = clock_offset.estimate([((h - t0) / 1000.0, d) for h, d, _ in pairs])
             # Hoisted so the uncertainty budget below composes them rather than recomputing.
             jit = host_jitter(diffs)
-            stab = allan.stability(diffs, _tau0_of(pairs), _TDEV_TAU_S)
+            # §2.2 step 2a: the host instants go in so a BLE hole is CUT, not compacted — measured
+            # 2026-09-21 over 34 box nights, max_gap ≤ 4× median held on only 22.8 % of the ECG/PPG
+            # legs (H10 ecg median 97×), and a compacted hole inflates every ADEV level by the step's
+            # size (8× at a 500σ step, slope untouched). Seconds, the unit `_tau0_of` returns.
+            stab = allan.stability(diffs, _tau0_of(pairs), _TDEV_TAU_S, sample_times=[(h - pairs[0][0]) / 1000.0 for h, _, _ in pairs])
             out.append({
                 "file": name, "device": device, "meas": meas, "rows": len(diffs),
                 "quantised": quantised,

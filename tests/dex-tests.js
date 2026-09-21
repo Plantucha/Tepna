@@ -1490,6 +1490,68 @@
       T.ok('candidates is a non-empty array or null, never an empty array', st.candidates === null || (Array.isArray(st.candidates) && st.candidates.length > 0), JSON.stringify(st.candidates));
     });
 
+    /* ALLAN-STABILITY-GAPS §2.1's Done-when names the EXPORT PATH, and the group above drives
+       `buildNodeExport` with a hand-built axis — which is the surface Kestrel's 2026-09-14 re-triage
+       named as the wrong one: `analyze` never returned the axis object, so the export block was
+       unreachable from a file. #2463 made it reachable. This group starts from TEXT: a two-clock PPG
+       file long enough to carry the ≥3 τ points a stability curve needs (an anchor per 500 rows), through
+       `compute`, to `recording.hostAxis.stability` in the export. */
+    group('PpgDex: from a two-clock FILE to an exported stability block — the path §2.1 actually names', 'ppgdex-dsp · hostaxis-stability · ALLAN-STABILITY-GAPS · export-path', function (T) {
+      var P = env.PPGDSP || env.PpgDSP;
+      if (!P || typeof P.compute !== 'function') {
+        T.skip('PPGDSP.compute available', 'not loaded');
+        return;
+      }
+      var seed = 4242;
+      var rnd = function () {
+        seed = (seed * 16807) % 2147483647;
+        return seed / 2147483647 - 0.5;
+      };
+      /* 24 000 rows at 135 Hz ≈ 3 min: 48 host anchors (one per PPG_AXIS_EVERY = 500), a 30 ppm real
+         rate and ±40 ms delivery jitter so the host is an INDEPENDENT clock (spread ≫ 2 ms), and a
+         pleth-shaped channel so the beat path has something to do rather than a flat line to refuse. */
+      var rows = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+      var N = 24000,
+        step = 1000 / 135,
+        devMs = 0;
+      for (var i = 0; i < N; i++) {
+        devMs += step;
+        var hostMs = devMs * (1 + 30e-6) + 40 * rnd();
+        var pleth = Math.round(20000 + 3000 * Math.sin((2 * Math.PI * i) / 135 / 0.9));
+        rows.push(
+          new Date(Date.UTC(2026, 8, 7) + Math.round(hostMs)).toISOString().replace('T', ' ').replace('Z', '') +
+            ';' +
+            Math.round(devMs * 1e6) +
+            ';' +
+            pleth +
+            ';' +
+            (pleth + 50) +
+            ';' +
+            (pleth - 50) +
+            ';' +
+            400
+        );
+      }
+      var out = null;
+      try {
+        //  is what carries hostAxis into the export at all — the orchestrate emitter passes it
+        out = P.compute({ text: rows.join('\n'), fname: 'Polar_VeritySense_TEST_20260907000000_PPG.txt' }, { source: 'test', rich: true });
+      } catch (e) {
+        T.ok('compute() accepts a two-clock PPG text', false, String(e && e.message));
+        return;
+      }
+      var ha = out && out.recording && out.recording.hostAxis;
+      T.ok('the export carries recording.hostAxis from a FILE, not from a hand-built axis', !!ha, JSON.stringify(ha && Object.keys(ha)));
+      if (!ha) return;
+      T.eq('…the planted host is INDEPENDENT (spread ≫ 2 ms), so a stability curve is owed', ha.independent, true);
+      var st = ha.stability;
+      T.ok('…and stability is a BLOCK, not null — the §2.1 forwarding gap is closed on the file path', !!st, JSON.stringify(st));
+      if (!st) return;
+      T.ok('tau0 is the measured anchor interval in seconds (~3.7 s for 500 rows at 135 Hz)', typeof st.tau0 === 'number' && st.tau0 > 3 && st.tau0 < 4.5, 'tau0 = ' + st.tau0);
+      T.ok('nTau ≥ 3 — the curve had points to fit', typeof st.nTau === 'number' && st.nTau >= 3, 'nTau = ' + st.nTau);
+      T.ok('never null noiseType AND null candidates', !(st.noiseType === null && st.candidates === null), JSON.stringify({ noiseType: st.noiseType, candidates: st.candidates }));
+    });
+
     group('PpgDex stability survives the REAL path — parse → analyze → export, not a hand-built rec', 'ppgdex-dsp · hostaxis-stability · export-boundary', function (T) {
       /* The §2.1 group above hands `buildNodeExport` a rec it constructed with `hostAxis` already on
          it. That tests the EMITTER given a good input, and is blind by construction to whether
@@ -7126,6 +7188,40 @@
              stream is missing — "no candidate stream" alone sends the reader to the wrong device. */
       T.ok('a file-scan throw is reported, not swallowed', /catch \(e\) \{\s*note\(`\$\{night\}: file scan failed/.test(src));
       T.ok('an empty candidate list names the missing stream', /no candidate stream — missing \$\{missing\.join/.test(src));
+    });
+
+    /* ALLAN-STABILITY-GAPS §2.5 — the REVERSE direction. `pat-align · regression` pins clock → PAT (a
+       bad clock refuses PAT). Nothing pinned PAT ↛ clock: that no PAT module writes into the axis it
+       reads. A source scan, because the property is "never assigns", which no behavioural sample can
+       prove — and a PLANT, because a scan that examined nothing reads exactly like a scan that found
+       nothing (verify-the-plant-was-seen). */
+    group('PAT never writes the clock — the reverse of the pinned direction', 'clock · pat · source-scan', function (T) {
+      var S = env.sources || {};
+      var FILES = ['pat-gate.js', 'pat-align.js', 'pat-feasibility.js', 'pat-feasibility-worker.js'];
+      var FIELDS = ['hostAxis', 'stability', 'independent', 'timingSource', 'deviceDrawn'];
+      /* a property ASSIGNMENT into one of the clock fields — `x.independent = …`, `ax.hostAxis.ok = …`,
+         `rec['timingSource'] = …` — but not a comparison (`===`) and not an object-literal key that
+         forwards a record (`hostAxis: rec.hostAxis`), which is a read. */
+      var WRITE = new RegExp('(?:\\.|\\[[\'"])(' + FIELDS.join('|') + ')(?:[\'"]\\])?\\s*(?:[-+*/%|&^]|<<|>>>?)?=(?!=)', 'g');
+      var scanned = 0;
+      FILES.forEach(function (f) {
+        var src = S[f];
+        if (src == null) {
+          T.skip(f + ' wired into env.sources', 'not in env.sources — the scan would read nothing');
+          return;
+        }
+        scanned++;
+        var hits = src.match(WRITE) || [];
+        T.eq(f + ' assigns into no clock field (' + FIELDS.join('/') + ')', hits.length, 0);
+      });
+      T.ok('the scan examined all four PAT modules, not a subset', scanned === FILES.length, scanned + ' of ' + FILES.length);
+      /* THE PLANT — and its decoys. The regex must fire on a write and stay quiet on the three
+         read shapes the real files use. */
+      T.eq('PLANT: a property write is caught', ('ax.independent = true;'.match(WRITE) || []).length, 1);
+      T.eq('PLANT: a compound write is caught', ("rec['timingSource'] += 'x';".match(WRITE) || []).length, 1);
+      T.eq('DECOY: a comparison is not a write', ('if (ax.independent === false) refuse();'.match(WRITE) || []).length, 0);
+      T.eq('DECOY: a forwarding key is not a write', ('return { hostAxis: rec.hostAxis, timingSource: q.timingSource };'.match(WRITE) || []).length, 0);
+      T.eq('DECOY: a read is not a write', ('var s = r.hostAxis.stability; if (s.noise == null) x();'.match(WRITE) || []).length, 0);
     });
 
     /* ════ mergeEcg carries timing provenance across the merge (H10-2019-ORIGIN, 2026-09-01) ════════
