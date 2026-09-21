@@ -267,7 +267,9 @@ jobs:
           # /usr/bin/shellcheck — an older build that flags three SC2015 sites the pinned 0.11.0 does
           # not. The repo then has two shellchecks that disagree, and the mutation baseline fails on
           # findings no other lane produces, so every mutant reports "no budget" and the gate REFUSES.
-          pip install pytest mutmut==3.8.0 hypothesis shellcheck-py   # mutmut PINNED: the generator is the gate — see requirements-dev.txt
+          # mutmut PINNED to the version every venv runs: the mutant GENERATOR is the gate, and 3.7 vs 3.8
+          # examine different populations. The pin lives here AND in requirements-dev.txt; a test asserts they agree.
+          pip install pytest mutmut==3.8.0 hypothesis shellcheck-py
           pip install -r requirements.txt
       - name: Mutate only what this PR changed
         # `tools/mutate.py` shells out to `.venv/bin/python`; on the runner the venv is the ambient
