@@ -51,6 +51,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { launch } from './pw-launch.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -128,7 +129,7 @@ if (!stampOf) {
   if (acc.length && !dated.length) console.log('  ⚠ none carry a recognisable stamp — expected _YYYYMMDD_HHMMSS_ACC.txt (phone) or _YYYYMMDDHHMMSS_ACC.txt (capture host)');
 }
 
-const b = await chromium.launch();
+const b = await launch(chromium);
 const p = await b.newPage();
 const errs = [];
 p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
