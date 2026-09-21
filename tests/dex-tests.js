@@ -39315,8 +39315,8 @@
       var exp = OD.compute({ text: csv, fileMeta: { fname: 'O2Ring_test_20260512230000.csv' } });
       // ── 1 · envelope schema ──
       T.ok(
-        'compute() → ganglior.node-export v2.0 envelope (name/version/node)',
-        !!(exp && exp.schema && exp.schema.name === 'ganglior.node-export' && exp.schema.version === '2.0' && exp.schema.node === 'OxyDex'),
+        'compute() → ganglior.node-export v2.1 envelope (name/version/node — 2.1 = the measurement block, roadmap §3)',
+        !!(exp && exp.schema && exp.schema.name === 'ganglior.node-export' && exp.schema.version === '2.1' && exp.schema.node === 'OxyDex'),
         exp && exp.schema ? exp.schema.name + '/' + exp.schema.version : 'no schema'
       );
       T.ok(
@@ -41436,6 +41436,13 @@
       // `generated` = schema timestamp (changes every run); `kernel` = DexKernel version/hash
       // (identical run-to-run but metadata, not a computed physiological field).
       var EXCL = { file: 1, provenance: 1, kernel: 1, generated: 1, vo2est: 1, karv: 1 };
+      /* MEASUREMENT-PROVENANCE-ROADMAP §3 — `measurement.<id>.code` is the SHIPPED BUNDLE's identity
+         (stamped on <html> at build time, handed to the regenerator as opts.code); a headless source-
+         module run has none and says so (`code:null` + `codeReason`). That pair is code IDENTITY, not a
+         computed number, so it is volatile HERE — and pinned instead by the `measurement · fixture code
+         identity` group, which checks the fixture's computeHash against OxyDex.html. Scoped to that path
+         on purpose: a bare `code` key anywhere else in an export is still compared. */
+      var MEAS_PATH_RE = /(^|\.)measurement\.[A-Za-z0-9_]+$/;
       function diff(a, b, path, out) {
         if (out.length > 40) return;
         if (a === b) return;
@@ -41460,7 +41467,9 @@
         Object.keys(b).forEach(function (k) {
           keys[k] = 1;
         });
+        var inMeas = MEAS_PATH_RE.test(path || '');
         Object.keys(keys).forEach(function (k) {
+          if (inMeas && (k === 'code' || k === 'codeReason')) return;
           if (!EXCL[k]) diff(a[k], b[k], path ? path + '.' + k : k, out);
         });
       }
@@ -49305,6 +49314,178 @@
         typeof MB.validateMeasurement === 'function',
         'the block is per-metric-instance and carries no event ids; §2 extends ganglior_events separately'
       );
+    });
+
+    /* ═══ MEASUREMENT-PROVENANCE-ROADMAP §3 — OxyDex is the FIRST EMITTER of the measurement block ═══
+       The reference path, executed 2026-09-21: every OxyDex night element carries `measurement.<id>`
+       blocks for the four headline metrics, and this group is the roadmap's done-when made into a gate:
+         · every emitted block VALIDATES under the schema authority with all five legs RUN (the
+           `checked` denominator is asserted, not the ok flag alone — a leg that did not run is not a
+           pass);
+         · NUMERICAL INVARIANCE: each block's `value` is the SAME number the element already carries —
+           the block adds lineage, never a second computation;
+         · `evidence.inputHash` IS the recording's contentId (recomputable from the committed input);
+         · a headless run without a bundle identity says so (`code:null` + reason) and FAILS validation
+           loudly — it never names a hash it does not have;
+         · an unmeasured metric emits NO block (∅: absence is not a block with a fabricated value);
+         · desat events carry the §2 refs; schema.version is 2.1 — the MINOR bump lands with the emitter.
+       PLANTS: a null meanSpo2 → its block absent, the other three present; a window that cannot be
+       placed (tEndMs ≤ t0Ms) → no measurement at all. */
+    group('OxyDex emits measurement blocks — roadmap §3 reference path (plant-backed)', 'oxydex-dsp · measurement-block · provenance · roadmap-§3 · plant', function (T) {
+      var OD = env.OxyDex;
+      var MB = env.MeasurementBlock;
+      var REG = env.OXY_REGISTRY;
+      var eq = env.equiv || {};
+      var input = (eq.oxydex_synth && eq.oxydex_synth.input) || (eq.oxydex && eq.oxydex.input) || null;
+      if (!OD || typeof OD.compute !== 'function' || !MB || !REG) {
+        T.skip('OxyDex + MeasurementBlock + OXY_REGISTRY co-loaded', 'not available in this runner');
+        return;
+      }
+      if (!input) {
+        T.skip('a committed O2Ring input is reachable (env.equiv.oxydex_synth)', 'uploads/synthetic_oxydex_o2ring.csv not reachable in this lane');
+        return;
+      }
+      var CODE = { manifestHash: '0123456789ab', computeHash: 'ba9876543210' };
+      var resolve = function (id) {
+        return !!REG[id];
+      };
+      var res = OD.compute({ text: input }, { code: CODE });
+      var el = res && res.nights && res.nights[0];
+      var m = el && el.measurement;
+      T.ok('night element carries a `measurement` map', !!m && typeof m === 'object', m ? Object.keys(m).join(',') : 'absent');
+      if (!m) return;
+      var IDS = ['meanSpo2', 't90', 'odi4', 'hypoxicBurden'];
+      T.eq('exactly the four headline metrics, keyed by registry id', Object.keys(m).sort().join(','), IDS.slice().sort().join(','));
+      var LEGS = ['metricId resolves', 'window', 'code identity', 'evidence join', 'basis'];
+      IDS.forEach(function (id) {
+        var b = m[id];
+        if (!b) return;
+        var v = MB.validateMeasurement(b, { resolveMetric: resolve });
+        T.ok(id + ' · validates under measurement-block.js', v.ok, v.errors.join(' | '));
+        T.eq(id + ' · all five legs RAN (checked denominator)', v.checked.slice().sort().join(','), LEGS.slice().sort().join(','));
+        T.eq(id + ' · metricId is the registry key', b.metricId, id);
+      });
+      // numerical invariance — the block carries the element's number, not a recomputation
+      T.eq('meanSpo2 block value ≡ stats.meanSpo2', m.meanSpo2 && m.meanSpo2.value, el.stats.meanSpo2);
+      T.eq('t90 block value ≡ stats.t90pct', m.t90 && m.t90.value, el.stats.t90pct);
+      T.eq('odi4 block value ≡ odi4.rate', m.odi4 && m.odi4.value, el.odi4.rate);
+      T.eq('hypoxicBurden block value ≡ hypoxicBurden.rate', m.hypoxicBurden && m.hypoxicBurden.value, el.hypoxicBurden.rate);
+      T.eq(
+        'basis: meanSpo2/t90 measured, odi4/hypoxicBurden derived (LEXICON §4b — not the ladder)',
+        [m.meanSpo2.basis, m.t90.basis, m.odi4.basis, m.hypoxicBurden.basis].join(','),
+        'measured,measured,derived,derived'
+      );
+      // the joins
+      T.eq('evidence.inputHash IS the recording contentId', m.odi4.evidence.inputHash, el.contentId);
+      T.ok('contentId is a 12-hex content address', /^[0-9a-f]{12}$/.test(String(el.contentId)), String(el.contentId));
+      T.ok(
+        'CSV input: envelopeRef null WITH a reason (legacy path is a state, said)',
+        m.odi4.evidence.envelopeRef === null && typeof m.odi4.evidence.envelopeReason === 'string' && m.odi4.evidence.envelopeReason.length > 0,
+        m.odi4.evidence.envelopeReason
+      );
+      T.eq('code identity is the supplied bundle identity', JSON.stringify(m.odi4.code), JSON.stringify(CODE));
+      T.ok(
+        'window spans t0Ms → last stamped row (positive, finite)',
+        m.odi4.window.startTMs === el.t0Ms && m.odi4.window.endTMs > m.odi4.window.startTMs && isFinite(m.odi4.window.endTMs),
+        m.odi4.window.startTMs + '→' + m.odi4.window.endTMs
+      );
+      T.ok('window.spreadMs null WITH a reason (single device clock)', m.odi4.window.spreadMs === null && typeof m.odi4.window.spreadReason === 'string', m.odi4.window.spreadReason);
+      T.ok('uncertainty null WITH a reason', m.odi4.uncertainty === null && typeof m.odi4.uncertaintyReason === 'string', m.odi4.uncertaintyReason);
+      T.eq('schema.version bumped to 2.1 with the first emitter', res.schema && res.schema.version, '2.1');
+      // §2 refs on desat events
+      var desats = (res.ganglior_events || []).filter(function (e) {
+        return e.impulse === 'desat_event';
+      });
+      if (desats.length) {
+        T.eq('desat_event.inputHash ≡ contentId', desats[0].inputHash, el.contentId);
+        T.ok('desat_event.evidenceRef null on a CSV input (never a fabricated ref)', desats[0].evidenceRef === null, String(desats[0].evidenceRef));
+      } else T.skip('desat events carry §2 refs', 'the input produced no desat_event');
+      // headless without a bundle identity — honest, and loud
+      var res0 = OD.compute({ text: input });
+      var b0 = res0 && res0.nights && res0.nights[0] && res0.nights[0].measurement && res0.nights[0].measurement.odi4;
+      T.ok('no bundle identity → code:null WITH a reason', !!b0 && b0.code === null && typeof b0.codeReason === 'string', b0 ? b0.codeReason : 'no block');
+      var v0 = b0 ? MB.validateMeasurement(b0, { resolveMetric: resolve }) : { ok: true, errors: [] };
+      T.ok(
+        'no bundle identity → the block FAILS validation, naming code',
+        !v0.ok &&
+          v0.errors.some(function (e) {
+            return e.indexOf('code') >= 0;
+          }),
+        v0.ok ? 'ACCEPTED — a block with no code identity passed' : v0.errors.join(' | ')
+      );
+      T.eq('…and the numbers are identical with or without the identity (invariance)', b0 && b0.value, m.odi4.value);
+      // PLANTS — through the builder seam on a copy of the night
+      if (typeof OD.buildMeasurementBlocks !== 'function' || typeof OD.computeNight !== 'function') {
+        T.skip('plants via OxyDex.buildMeasurementBlocks', 'builder seam not exposed');
+        return;
+      }
+      var night = OD.computeNight({ text: input }, null);
+      var clone = function (n) {
+        var c = {};
+        Object.keys(n).forEach(function (k) {
+          c[k] = n[k];
+        });
+        return c;
+      };
+      var p1 = clone(night);
+      p1.stats = clone(night.stats);
+      p1.stats.meanSpo2 = null; // ∅ — an unmeasured mean
+      var m1 = OD.buildMeasurementBlocks(p1, { code: CODE });
+      T.ok('PLANT · null meanSpo2 → NO meanSpo2 block, the other three present', !!m1 && !('meanSpo2' in m1) && !!m1.t90 && !!m1.odi4 && !!m1.hypoxicBurden, m1 ? Object.keys(m1).join(',') : 'null');
+      var p2 = clone(night);
+      p2.tEndMs = p2.t0Ms; // a window that cannot be placed
+      T.eq('PLANT · zero-length window → no measurement at all (never a fabricated window)', OD.buildMeasurementBlocks(p2, { code: CODE }), null);
+      var p3 = clone(night);
+      p3.acquisitionEvidence = { session_id: 'S8AW2100-20260612' };
+      var m3 = OD.buildMeasurementBlocks(p3, { code: CODE });
+      T.ok(
+        'envelope attached → evidence.envelopeRef is its session_id, no reason field',
+        !!m3 && m3.odi4.evidence.envelopeRef === 'S8AW2100-20260612' && !('envelopeReason' in m3.odi4.evidence),
+        m3 ? JSON.stringify(m3.odi4.evidence) : 'null'
+      );
+      T.ok('…and it still validates', MB.validateMeasurement(m3.odi4, { resolveMetric: resolve }).ok, MB.validateMeasurement(m3.odi4, { resolveMetric: resolve }).errors.join(' | '));
+    });
+
+    /* The roadmap §3 done-when, literally: "a real committed night's export carries blocks whose
+       evidence.inputHash matches the committed input, code.computeHash matches the shipped bundle".
+       The equiv gate proves the NUMBERS (it deliberately treats `measurement.*.code` as identity, not a
+       computed field); THIS group proves the IDENTITY — against the artifact on disk, not the ledger's
+       claim about it. It reds when OxyDex.html is rebuilt on a compute-path change without regenerating
+       the fixtures, which is the exact staleness §🔏 exists to catch. Node-lane only (needs the bundle
+       text); the browser lane skips by name. */
+    group('measurement · fixture code identity — committed OxyDex blocks name the SHIPPED bundle', 'oxydex-dsp · measurement-block · provenance · roadmap-§3 · fixture', function (T) {
+      var ident = env.bundleCodeIdentity && env.bundleCodeIdentity['OxyDex.html'];
+      var eq = env.equiv || {};
+      if (!ident || !ident.computeHash) {
+        T.skip('OxyDex.html code identity readable', 'env.bundleCodeIdentity not wired (browser lane) or OxyDex.html unbuilt');
+        return;
+      }
+      var CASES = [
+        ['oxydex', 'OxyDex_2026-06-13_1056_summary.json'],
+        ['oxydex_0439', 'OxyDex_2026-06-25_0439_summary.json'],
+        ['oxydex_synth', 'synthetic_oxydex_golden.node-export.json']
+      ];
+      var seen = 0;
+      CASES.forEach(function (c) {
+        var rec = eq[c[0]];
+        var fx = rec && rec.fixture;
+        var el = Array.isArray(fx) ? fx[0] : fx;
+        if (!el) {
+          T.skip(c[1] + ' committed fixture reachable', 'absent in this lane');
+          return;
+        }
+        seen++;
+        var m = el.measurement;
+        T.ok(c[1] + ' carries measurement blocks', !!m && !!m.odi4, m ? Object.keys(m).join(',') : 'absent — regenerate: node tools/regen-oxydex-goldens.mjs');
+        if (!m || !m.odi4) return;
+        T.eq(c[1] + ' · code.computeHash ≡ shipped OxyDex.html computeHash', m.odi4.code && m.odi4.code.computeHash, ident.computeHash);
+        T.eq(c[1] + ' · code.manifestHash ≡ shipped OxyDex.html manifestHash', m.odi4.code && m.odi4.code.manifestHash, ident.manifestHash);
+        T.eq(c[1] + ' · evidence.inputHash ≡ the fixture’s own contentId', m.odi4.evidence && m.odi4.evidence.inputHash, el.contentId);
+        ['meanSpo2', 't90', 'hypoxicBurden'].forEach(function (id) {
+          T.ok(c[1] + ' · ' + id + ' block shares the same code identity', !!m[id] && m[id].code && m[id].code.computeHash === ident.computeHash, m[id] ? JSON.stringify(m[id].code) : 'absent');
+        });
+      });
+      T.ok('at least one committed OxyDex fixture was examined (denominator)', seen >= 1, 'seen=' + seen);
     });
 
     group('Property / metamorphic — HRV + SignalFrame', 'property-metamorphic · signal-adapters · signal-spec', function (T) {

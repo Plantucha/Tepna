@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**199 tools** · 197 with a purpose line · **2 without**
+**200 tools** · 198 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -84,6 +84,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`land-pr.mjs`](../tools/land-pr.mjs) | THE RACE THIS EXISTS FOR (measured 2026-08-09). `main` moves a median 7.2 min between merges (min 1.2, max 120; only 8 of 19 recent gaps were >= 12 min), CI is ~10-12 min over 7 required… |
 | [`make-synthetic-edf.mjs`](../tools/make-synthetic-edf.mjs) | emit a DETERMINISTIC, SYNTHETIC ResMed EDF file set. WHY THIS EXISTS. |
 | [`make-synthetic-inputs.mjs`](../tools/make-synthetic-inputs.mjs) | a COMMITTABLE vendor-format input for every node. WHY. The suite's strongest correctness gate — Phase-9 `compute() ≡ committed export` — DOES NOT RUN IN CI. |
+| [`measurement-walk.mjs`](../tools/measurement-walk.mjs) | MEASUREMENT-PROVENANCE-ROADMAP §3's done-when asks for "a written walk-through tracing ODI-4 → window → channel → envelope → raw.dat" that is CHECKABLE. |
 | [`motion-rho-vs-minrho.mjs`](../tools/motion-rho-vs-minrho.mjs) | is the shipped correlation proxy in the right range, on the right nights? |
 | [`mutate-triage.mjs`](../tools/mutate-triage.mjs) | `tools/mutate.mjs` answers "what fraction of mutants does the suite kill?". |
 | [`mutate.mjs`](../tools/mutate.mjs) | This repo's central anxiety is the hollow gate: an assertion that passes, is quoted as evidence, and could never have failed. |
