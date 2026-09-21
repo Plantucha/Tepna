@@ -8,7 +8,15 @@ pytest-xdist>=3.8.0    # CI runs the suite `-n 4` (see capture-host-ci.yml); che
 pytest-asyncio>=1.4.0
 hypothesis>=6.165.10      # property tests for the clock surface — invariants over an input space,
                        # where a known-answer table cannot go (tests/test_clock_properties.py)
-mutmut>=3.7.0          # tools/mutate_diff.py (the diff-scoped mutation gate) and tools/mutate.py.
+mutmut==3.8.0          # tools/mutate_diff.py (the diff-scoped mutation gate) and tools/mutate.py.
+                       # ⚠️ PINNED EXACTLY, the only `==` in this file, on purpose (2026-09-21): the
+                       # mutant GENERATOR is the gate. `>=3.7.0` let CI install 3.8.0 against every
+                       # local venv at 3.7.0, and the two generate different mutant sets — on #2776 four
+                       # extra mutants under 3.8, one reaching a branch no local run had ever driven. A gate
+                       # that can disagree with its own local run by version is not a gate. Owner chose
+                       # 3.8.0 (the stricter generator) over 3.7.0 (what venvs had), 2026-09-21. Bumping this is a
+                       # deliberate change: upgrade every venv, re-run the gate on a known-clean module,
+                       # and re-baseline survivors — never a `pip install -U`.
                        # CI installs it inline in the `mutation-diff` job, which is why this file could
                        # omit it without CI noticing — but that made the gate UNRUNNABLE from the
                        # documented local setup: `mutate_diff.py` refuses when mutmut is absent (rightly
