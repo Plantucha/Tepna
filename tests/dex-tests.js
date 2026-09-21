@@ -11800,7 +11800,7 @@
       });
 
       /* The cap. Lower it — never raise it — when a file is wired into either lane. */
-      var INVISIBLE_CAP = 13;
+      var INVISIBLE_CAP = 12; // 13 → 12 on 2026-09-21: cohort-harness.html + qrs-equiv-analysis.js entered env.sources for the tripwire plant
       T.ok(
         'no NEW unscannable source layer (ratchet ' + INVISIBLE_CAP + ')',
         invisible.length <= INVISIBLE_CAP,
