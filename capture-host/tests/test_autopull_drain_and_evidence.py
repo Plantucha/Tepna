@@ -199,3 +199,82 @@ def test_THE_DRAIN_IS_BOOKED_UNDER_THE_EVENT_TRIGGER_NOT_MANUAL(monkeypatch):
 
     _drive(monkeypatch, pull)
     assert seen[:2] == [("latest", "presence"), ("new", "presence")], seen
+
+
+# ── the collision with the predecessor's teardown (residue 2026-09-07-drain-collides-with-predecessor-pull) ──
+class _InProgress(Exception):
+    """The shape bleak raises: the class name carries the DBus error name."""
+    pass
+
+
+class BleakDBusError(_InProgress):
+    def __init__(self):
+        super().__init__("org.bluez.Error.InProgress", "Operation already in progress")
+
+
+def test_the_classifier_names_ONLY_the_teardown_refusal():
+    assert capture.bluez_in_progress(BleakDBusError())
+    assert capture.bluez_in_progress(RuntimeError("org.bluez.Error.InProgress"))
+    assert not capture.bluez_in_progress(RuntimeError("ring went away"))
+    assert not capture.bluez_in_progress(TimeoutError())
+
+
+def test_a_drain_refused_by_the_TEARDOWN_settles_and_succeeds_on_the_next_attempt(monkeypatch, caplog):
+    """THE PLANT — the row's own shape. The first `which=new` is refused in the same second the primary
+    released the link; the second, after a settle, lands the fragments. Before this the fragments
+    waited for a poller lap up to an hour away, and STATUS read `drained: 0` — indistinguishable from
+    a ring that had nothing stranded."""
+    calls = []
+    async def pull(dev, root, which="latest", resume=False, trigger="manual"):
+        calls.append(which)
+        if which == "new" and calls.count("new") == 1:
+            raise BleakDBusError()
+        return {"new_files": ["frag.dat"] if which == "new" else ["main.dat"]}
+    with caplog.at_level("INFO"):
+        ap = _drive(monkeypatch, pull, ticks=6)          # the settle is a sleep the rig counts
+    assert calls[:3] == ["latest", "new", "new"], calls
+    assert ap.get("drained") == 1 and ap.get("drain") == "ok after 2 attempt(s)", ap
+    assert "still tearing down the previous operation (attempt 1/3)" in caplog.text
+    assert "stay on flash" not in caplog.text, "the retry succeeded — nothing was left behind"
+
+
+def test_a_refusal_that_NEVER_clears_is_bounded_and_RECORDED_as_refused(monkeypatch, caplog):
+    """Three attempts, two settles, then the honest outcome — never `drained: 0` alone."""
+    calls = []
+    async def pull(dev, root, which="latest", resume=False, trigger="manual"):
+        calls.append(which)
+        if which == "new":
+            raise BleakDBusError()
+        return {"new_files": ["main.dat"]}
+    with caplog.at_level("INFO"):
+        ap = _drive(monkeypatch, pull, ticks=8)
+    assert calls.count("new") == capture._DRAIN_TRIES, calls
+    assert ap.get("drained") == 0 and ap.get("drain", "").startswith("refused: "), ap
+    assert "InProgress" in ap["drain"]
+    assert ap.get("new") == 1, "the primary pull is not retracted"
+    assert "stay on flash for the poller" in caplog.text
+
+
+def test_ANY_OTHER_error_is_not_retried(monkeypatch):
+    """A retry keyed on an unexplained error would hide its cause. A ring that went away mid-drain is
+    refused ONCE, recorded as such, and left for the poller — today's behaviour, now named."""
+    calls = []
+    async def pull(dev, root, which="latest", resume=False, trigger="manual"):
+        calls.append(which)
+        if which == "new":
+            raise RuntimeError("ring went away mid-drain")
+        return {"new_files": ["main.dat"]}
+    ap = _drive(monkeypatch, pull, ticks=6)
+    assert calls.count("new") == 1, calls
+    assert ap.get("drain", "").startswith("refused: ") and "ring went away" in ap["drain"], ap
+
+
+def test_a_clean_drain_and_a_busy_slot_are_recorded_as_what_they_are(monkeypatch):
+    async def clean(dev, root, which="latest", resume=False, trigger="manual"):
+        return {"new_files": ["x"] if which == "new" else ["main"]}
+    assert _drive(monkeypatch, clean).get("drain") == "ok"
+    async def busy(dev, root, which="latest", resume=False, trigger="manual"):
+        if which == "new":
+            raise offline_lock.OfflineBusy("slot held")
+        return {"new_files": ["main"]}
+    assert _drive(monkeypatch, busy).get("drain", "").startswith("deferred: ")

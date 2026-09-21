@@ -2229,6 +2229,14 @@ def link_error_text(exc: BaseException) -> str:
     return "link error: %r" % (exc,)
 
 
+def bluez_in_progress(exc: BaseException) -> bool:
+    """True when BlueZ refused because the PREVIOUS operation on that link has not finished tearing
+    down — `org.bluez.Error.InProgress`. Sibling of `connection_ceiling_error`: one named classifier
+    for one specific refusal, so a caller can retry THIS and only this. Anything else is a different
+    failure with a different right response, and a retry on an unexplained error hides its cause."""
+    return "org.bluez.Error.InProgress" in repr(exc) or "InProgress" in type(exc).__name__
+
+
 def connection_ceiling_error(exc: BaseException) -> bool:
     """True when a connect failed because the ADAPTER is out of connection slots, not because the sensor
     is absent — a diagnosable over-provisioning, not a flapping device."""
@@ -5612,6 +5620,11 @@ async def pull_oxyii_session(dev: dict, root: str, which: str = "latest", *,
 # the condition that wedges it. bleak's own timeouts did not bound it either — a wedged BlueZ can leave a
 # D-Bus call outstanding indefinitely. So the bound has to live here, at the point that holds the locks.
 _OFFLINE_OP_TIMEOUT_S = 300.0
+# The doff-path drain's settle-and-retry on `org.bluez.Error.InProgress` ONLY. The collision is with
+# the predecessor's teardown in the same second, so the settle is seconds, and it is bounded: three
+# attempts, two settles, at most 6 s added to a path whose primary pull already landed.
+_DRAIN_TRIES = 3
+_DRAIN_SETTLE_S = 3.0
 
 # A CLOCK SYNC IS NOT A DOWNLOAD. It is a connect plus three short PS-FTP queries — seconds of work, not
 # minutes — and it runs UNATTENDED on a retry loop, so its ceiling must be sized for the operation rather
@@ -8028,6 +8041,7 @@ async def charger_pull_poller(cfg: dict, root: str):
                     _WITNESS.setdefault(addr, {})["artifact_committed"] = now
                 log.info("auto-pull (%s): %s → %d new file(s)", trigger, dev.get("name"), len(new))
                 drained = 0
+                drain = "not-attempted"           # a Polar pull, or a ring trigger with no follow-on sweep
                 if trigger in ("not-worn", "presence") and dev.get("vendor") in ("Wellue", "Viatom"):
                     # THE FRAGMENTS THE NARROW SCOPE LEFT. `pull_scope_for` keeps the event pull at
                     # `latest` because it races the ring's post-drop advertising tail, so a night with
@@ -8047,25 +8061,49 @@ async def charger_pull_poller(cfg: dict, root: str):
                     #
                     # Failure is benign by construction: if the ring drops mid-drain the remainder stays
                     # on flash for the hourly poller, which is exactly today's behaviour.
-                    try:
-                        # Booked under the SAME trigger as the primary pull — the POWER axis counts this
-                        # as the event's second attempt, not a manual one.
-                        more = await pull_oxyii_session(dev, root, which="new", resume=resume_pull,
-                                                        trigger=trigger)
-                        drained = len((more or {}).get("new_files", []) if isinstance(more, dict) else [])
-                        if drained:
-                            log.info("auto-pull (%s): drained %d stranded fragment(s) from %s",
-                                     trigger, drained, dev.get("name"))
-                    except offline_lock.OfflineBusy:
-                        log.debug("drain deferred — another offline op holds the slot")
-                    except Exception as e:                      # noqa: BLE001
-                        # The PRIMARY pull already succeeded and is recorded; a failed drain must not
-                        # retract that, and the remainder is exactly as reachable as it was before.
-                        log.info("auto-pull (%s): drain of the remaining fragments did not complete "
-                                 "(%s) — they stay on flash for the poller", trigger, link_error_text(e))
+                    # The drain is dispatched in the SAME SECOND its predecessor released the link, and
+                    # BlueZ refuses it while the previous operation is still tearing down
+                    # (`org.bluez.Error.InProgress`) — measured on vigil 2026-09-07 → 09-18: 9 of 32
+                    # doff-path drains, spread across the fortnight, so the fragments waited for a poller
+                    # lap up to an hour away (residue 2026-09-07-drain-collides-with-predecessor-pull).
+                    # A bounded settle-and-retry keyed on THAT refusal and no other: every other failure
+                    # keeps today's response, because a retry on an unexplained error hides its cause.
+                    # And the outcome is RECORDED as what it was — "nothing stranded" and "refused" used
+                    # to both read `drained: 0`, which is §∅'s absence-as-a-number one layer up.
+                    attempt = 0
+                    while True:                   # every arm below breaks; no exhaustion path to leave uncovered
+                        attempt += 1
+                        try:
+                            # Booked under the SAME trigger as the primary pull — the POWER axis counts
+                            # this as the event's second attempt, not a manual one.
+                            more = await pull_oxyii_session(dev, root, which="new", resume=resume_pull,
+                                                            trigger=trigger)
+                            drained = len((more or {}).get("new_files", []) if isinstance(more, dict) else [])
+                            drain = "ok" if attempt == 1 else "ok after %d attempt(s)" % attempt
+                            if drained:
+                                log.info("auto-pull (%s): drained %d stranded fragment(s) from %s",
+                                         trigger, drained, dev.get("name"))
+                            break
+                        except offline_lock.OfflineBusy:
+                            drain = "deferred: another offline op holds the slot"
+                            log.debug("drain deferred — another offline op holds the slot")
+                            break
+                        except Exception as e:                      # noqa: BLE001
+                            if bluez_in_progress(e) and attempt < _DRAIN_TRIES:
+                                log.info("auto-pull (%s): BlueZ is still tearing down the previous "
+                                         "operation (attempt %d/%d) — settling %.0fs before the drain",
+                                         trigger, attempt, _DRAIN_TRIES, _DRAIN_SETTLE_S)
+                                await asyncio.sleep(_DRAIN_SETTLE_S)
+                                continue
+                            # The PRIMARY pull already succeeded and is recorded; a failed drain must
+                            # not retract that, and the remainder is exactly as reachable as it was.
+                            drain = "refused: " + link_error_text(e)
+                            log.info("auto-pull (%s): drain of the remaining fragments did not complete "
+                                     "(%s) — they stay on flash for the poller", trigger, link_error_text(e))
+                            break
                 STATUS.setdefault("autopull", {}).update({"last": _now().isoformat(timespec="seconds"),
                                                           "new": len(new) + drained, "trigger": trigger,
-                                                          "drained": drained})
+                                                          "drained": drained, "drain": drain})
                 # HERE, and only here: the PRIMARY pull returned. This is what licenses
                 # `alerts.powered_off_after_pull` to read a following silence as the ring's idle timer
                 # rather than as an outage. Deliberately NOT set in the `except` arms below — a pull that
