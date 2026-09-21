@@ -14035,7 +14035,12 @@ const GlucoDex = window.GlucoDex;
       // itself ready with the node's global never defined, every scoring call came back without a
       // score, and the calling page charted nulls and reported 100%. That is how the 2026-07-16
       // breakage went unnoticed for two months. Assert the thing the realm exists to provide.
-      var missing = (REQUIRED_GLOBAL[NODE] || []).filter(function (g) { return !window[g]; });
+      // ⚠️ NO FALLBACK TO `[]`: a node listed in SCRIPTS without a REQUIRED_GLOBAL entry would pass this
+      // check with NOTHING examined and announce `ready` — the same silent green this tripwire exists to
+      // end, one map over. Gate-pinned: the two key sets must be equal (tests/dex-tests.js).
+      var required = REQUIRED_GLOBAL[NODE];
+      if (!required || !required.length) throw new Error('node has no REQUIRED_GLOBAL entry — the tripwire cannot examine it');
+      var missing = required.filter(function (g) { return !window[g]; });
       if (missing.length) throw new Error('node did not initialise — missing global(s): ' + missing.join(', '));
       parent.postMessage({ type: 'ready', node: NODE }, '*');
     }
