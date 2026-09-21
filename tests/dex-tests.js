@@ -47740,6 +47740,96 @@
         T.eq('no staging · remFrac null (never 0 — that would read as "no REM")', nost.remFrac, null);
         T.eq('no staging · tstHours still null ⇒ scoredAHI null (unchanged)', nost.scoredAHI, null);
       }
+
+      /* ── THE OXIMETER'S OWN STATUS CHANNEL IS READ, AND ABSENCE IS NOT A VERDICT (§∅) ──────────
+         SHHS1 ships `OX stat` (NSRR montage: Nonin XPOD 3011 / 8000 sensor, 1 Hz, sample-aligned with
+         SaO2), a validity channel about SaO2 that the adapter discarded until 2026-09-20 — so about a
+         quarter of the reported ODI-4 came from samples the device flagged (row
+         2026-09-15-nsrr-ignores-oximeter-status). NSRR defines no value semantics; the rule is the
+         §∅-conservative one: any non-zero status ⇒ the SaO2 sample is ABSENT, and the rows carry how many.
+         These pin the four states that need opposite treatment: flagged (null) · unflagged (kept) ·
+         channel ABSENT (rows untouched, present:false — never "clean by fiat") · channel present but
+         IGNORED by option (rows untouched, present:true, applied:false — the validate tool's pre-fix
+         arm, never confused with absent). The decoy is the option itself: the same EDF must yield
+         DIFFERENT rows with and without it, or the masking is not wired. */
+      var T0 = Date.UTC(2020, 0, 1, 0, 0, 0);
+      var withStat = {
+        signals: {
+          SaO2: { fs: 1, data: [95, 94, 93, 92, 91, 90, 89, 88] },
+          'OX stat': { fs: 1, data: [0, 0, 1, 0, 2, 0, 3, 0] }
+        },
+        clock: { t0Ms: T0 }
+      };
+      var q = N.edfToOxyRows(withStat);
+      T.ok('OX stat: channel found and applied', q && q.oxStat && q.oxStat.present === true && q.oxStat.applied === true, JSON.stringify(q && q.oxStat));
+      T.eq(
+        'OX stat: every non-zero status nulls its SaO2 sample (1, 2 and 3 alike — no per-value semantics invented)',
+        q.rows.map(function (r) {
+          return r.spo2;
+        }),
+        [95, 94, null, 92, null, 90, null, 88]
+      );
+      T.eq('OX stat: flagged count is carried on the result', q.oxStat.flaggedSec, 3);
+      T.eq('OX stat: in-range-but-flagged is counted separately (the samples the range guard would have kept)', q.oxStat.inRangeFlaggedSec, 3);
+      T.eq('OX stat: coverage subtracts what the status removed', q.spo2ValidSec, 5);
+      T.eq('OX stat: coverage % follows', q.spo2CoveragePct, 62.5);
+
+      // out-of-range AND flagged: counted flagged, NOT counted in-range-flagged (it was already absent)
+      var both = N.edfToOxyRows({ signals: { SaO2: { fs: 1, data: [95, 200, 93] }, 'OX stat': { fs: 1, data: [0, 3, 0] } }, clock: { t0Ms: T0 } });
+      T.eq('OX stat: an out-of-range sample that is also flagged counts as flagged but not as in-range-flagged', [both.oxStat.flaggedSec, both.oxStat.inRangeFlaggedSec, both.spo2ValidSec], [1, 0, 2]);
+
+      // DECOY — the option is the wiring proof: same EDF, opposite rows
+      var ign = N.edfToOxyRows(withStat, { ignoreOxStat: true });
+      T.eq(
+        'OX stat (decoy): ignoreOxStat leaves every sample in place — so the masking above is LIVE, not incidental',
+        ign.rows.map(function (r) {
+          return r.spo2;
+        }),
+        [95, 94, 93, 92, 91, 90, 89, 88]
+      );
+      T.ok(
+        'OX stat: present-but-ignored is reported as present:true, applied:false — never equated with absent',
+        ign.oxStat.present === true && ign.oxStat.applied === false,
+        JSON.stringify(ign.oxStat)
+      );
+      T.eq('OX stat: ignored ⇒ coverage is the range-guard figure alone', ign.spo2ValidSec, 8);
+
+      // ABSENT channel — rows untouched, and the absence is VISIBLE
+      var none = N.edfToOxyRows({ signals: { SaO2: { fs: 1, data: [95, 94, 93] } }, clock: { t0Ms: T0 } });
+      T.ok(
+        'OX stat: absent channel ⇒ present:false, applied:false (not flagged, not clean by fiat)',
+        none.oxStat && none.oxStat.present === false && none.oxStat.applied === false,
+        JSON.stringify(none.oxStat)
+      );
+      T.eq(
+        'OX stat: absent channel ⇒ no sample is nulled',
+        none.rows.map(function (r) {
+          return r.spo2;
+        }),
+        [95, 94, 93]
+      );
+
+      // label variants from the sibling NSRR montages resolve; SaO2 itself must NOT be taken as the status
+      ['Ox Status', 'OXSTAT', 'Oximetry Status'].forEach(function (lbl) {
+        var sig = { SaO2: { fs: 1, data: [95, 94] } };
+        sig[lbl] = { fs: 1, data: [0, 1] };
+        var v = N.edfToOxyRows({ signals: sig, clock: { t0Ms: T0 } });
+        T.ok('OX stat: label "' + lbl + '" resolves and applies', v.oxStat.present && v.oxStat.applied && v.rows[1].spo2 === null && v.rows[0].spo2 === 95, JSON.stringify(v.oxStat));
+      });
+      var collide = N.edfToOxyRows({ signals: { SaO2: { fs: 1, data: [95, 94] } }, clock: { t0Ms: T0 } });
+      T.ok('OX stat: the SaO2 channel itself is never mistaken for the status channel', collide.oxStat.present === false);
+
+      // a status channel SHORTER than SaO2 — the tail is reported uncovered, never assumed either way
+      var shortStat = N.edfToOxyRows({ signals: { SaO2: { fs: 1, data: [95, 94, 93, 92] }, 'OX stat': { fs: 1, data: [0, 1] } }, clock: { t0Ms: T0 } });
+      T.eq('OX stat: status shorter than SaO2 ⇒ uncovered tail is counted and its samples are kept', [shortStat.oxStat.uncoveredSec, shortStat.rows[1].spo2, shortStat.rows[3].spo2], [2, null, 92]);
+
+      // NaN / negative status values are not a verdict either way
+      var odd = N.edfToOxyRows({ signals: { SaO2: { fs: 1, data: [95, 94, 93] }, 'OX stat': { fs: 1, data: [NaN, -1, 0] } }, clock: { t0Ms: T0 } });
+      T.eq(
+        'OX stat: NaN and negative status values flag nothing (no verdict invented from a value the device did not define)',
+        [odd.oxStat.flaggedSec, odd.rows[0].spo2, odd.rows[1].spo2],
+        [0, 95, 94]
+      );
     });
 
     /* ════ 21c-bis · THE ODI-4 → AHI SURROGATE (deep-scout §AD, the last adapter residue) ════
