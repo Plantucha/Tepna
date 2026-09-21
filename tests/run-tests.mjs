@@ -646,6 +646,12 @@ function readSources() {
        at the render step while every test stayed green. A layer nothing reads is a layer nothing
        checks. */
     'pat-feasibility.js',
+    /* The cohort HARNESS page — its authored boot script is the realm tripwire (refuse rather than serve
+       nulls, #2572); the gate drives it in a vm with the node's global absent and present, and pins its
+       two maps equal so a node cannot slip past the check unexamined. The DSP blocks inlined above the
+       tail are not evaluated by that gate. */
+    'cohort-harness.html',
+    'qrs-equiv-analysis.js',
     'signal-orchestrate.js',
     'dex-ingest.js',
     'cpapdex-dsp.js',
