@@ -30,6 +30,14 @@ which is why this file exists.
 
 ## 🟢 CONSOLIDATED 2026-08-28 — `/srv/data/tepna-corpus/` is THE canonical corpus (owner-ordered)
 
+> **Byte baseline (2026-09-21).** After the NAS migration and the first `corpus-tier` run, a second
+> instrument hashed every local regular file against its NAS twin and produced a SHA-256 manifest of
+> every NAS file: `/srv/data/tepna-corpus/.manifests/nas-sha256-2026-09-21.txt` (60,383 lines, SHA-256
+> `a274d619…ef2671`) and `local-vs-nas-2026-09-21.tsv` (14,091 lines). Numbers and limits in
+> [`audits/CORPUS-BYTE-AUDIT-2026-09-21.md`](../audits/CORPUS-BYTE-AUDIT-2026-09-21.md). The `.manifests/`
+> directory is undated by both of the tool's rules and is never tiered.
+
+
 Every local tree was merged into **one corpus root on the second disk**, each source verified
 contained before deletion, and every old path replaced by a **symlink** so existing tools and
 habits keep working unchanged:
