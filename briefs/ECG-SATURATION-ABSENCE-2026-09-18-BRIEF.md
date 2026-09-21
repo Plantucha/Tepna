@@ -1,7 +1,7 @@
 <!-- Copyright 2026 Michal Planicka -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** PROPOSED — 2026-09-18 · **Created:** 2026-09-18 · **Supersedes-row:** 2026-09-18-ecg-saturation-unflagged
+**Status:** IN-PROGRESS (items 1 and 3 DONE — the box census 2026-09-20 (Heron, §7) and the rail leg, which had LANDED in #2658 on 2026-09-19 and sat unstamped; §7.4 classifies the census increment with the shipped detector and 28-of-55 does not extend. The ONLY remainder is `GAP_S`, a two-node threshold and the owner's; item 1 detail: the box census, DONE 2026-09-20 — verified read-only across rig, vigil and both NAS boxes: the box's ECG population is a strict subset of the rig corpus, so nothing lies beyond it; §7) · **Created:** 2026-09-18 · **Residue:** 2026-09-20-positive-saturation-at-negated-low-rail · **Supersedes-row:** 2026-09-18-ecg-saturation-unflagged
 
 # A fix keyed on the CAUSE it was written for does not generalise to a second cause with the same consequence
 
@@ -89,11 +89,94 @@ stretch with no beats still yields a spanning interval — but the magnitude is 
 - [x] Existing guard identified before proposing anything (two of three picked-up rows today were stale)
 - [x] Detection rate vs CONSEQUENTIAL rate separated — 112 detected, 55 spanning, 28 median-filled
 - [x] Each remedy's dependency **checked** rather than inherited (§4)
-- [ ] Box census confirming 28-of-55 beyond these 597 files — **box lane**, read-only
+- [x] Box census — **DONE 2026-09-20 (Heron), read-only, and the premise was wrong in a useful way: there is nothing beyond.** The box's ECG population is a strict subset of the rig corpus (§7). What exists beyond 597 is the rig corpus itself growing to 602; the rail-level census over all 602 reproduces every number above exactly and adds 5 runs in 3 files. The peak-conditional half (the 55 → 28 split) needs the JS DSP and is handed to the rail-leg owner with the 3 file paths (§7.3).
 - [ ] `GAP_S`: a threshold decision across TWO nodes — **owner**, and it must move `PPG_CVHR_GAP_S` with it or state why not
-- [ ] rail leg: replace the global constant with a per-file rail — **unassigned, and not blocked**
+- [x] rail leg: replace the global constant with a per-file rail — **LANDED 2026-09-19 in #2658** (`ecgRails()` + exact-equality match at the file's own `railHi`/`railLo`, gated with a wiring decoy) and **left unstamped by the session that landed it** — this box read "unassigned" for a day after the code merged, the `2026-09-13-executing-session-stamps-nothing` class, caught when the item was re-assigned as new work. The one surviving `31000` in `ecgdex-dsp.js` is the history comment above `ecgRails`.
 
 **No threshold is proposed here.** 28-of-55 is a rate on 597 files and wants the census before anyone
 moves a number.
+
+**Fleet-Session:** Magpie
+
+## 7 · Box census — 2026-09-20 (Heron, read-only)
+
+**7.1 · The population is CLOSED, and the box adds nothing.** The item assumed the box holds ECG captures
+only the box lane can read. Measured across every location `docs/CORPUS-LOCATIONS.md` names, deduplicated
+by basename with identity confirmed by bytes (sha256 of the first 8 MB, the same method as §"Denominators"):
+
+| location | distinct `_ECG.txt` | not in the rig corpus |
+|---|---|---|
+| rig `/srv/data/tepna-corpus` | **602** | — |
+| vigil `/srv/tepna/captures` (2026-07-25 → 09-19) | 300 | **0** |
+| TrueNAS `vigil-archive` | 300 | **0** |
+| TrueNAS `tepna-corpus` | 602 | **0** |
+| Synology | 0 | 0 |
+
+All 300 box files are in the rig corpus: same basenames, same sizes, and **bytes-identical on all 8 hashed**,
+including the three newest (09-18, 09-19 ×2). The rig corpus is the SUPERSET because it also carries the June
+phone-PSL captures the box never had. So "beyond these 597 files" is not a box population; it is the rig
+corpus growing **597 → 602** in the two days since §2 was measured. ⚠️ 4 of the 602 are **zero-byte**
+`smoketest-captures/2026-07-16/17` files — inside the denominator, carrying no samples.
+
+**7.2 · Rail-level census over all 602 — same instrument, and it reproduces §2's numbers exactly.**
+Constant runs ≥200 samples classified with production `nightqc.rail_value` (byte-identical to its 09-18
+form; the one commit since is mypy-only):
+
+| | §2 (597) | all 602 | excluding the 3 files added since |
+|---|---|---|---|
+| samples | 315,020,756 | 321,386,283 | — |
+| runs ≥200 | 112 | **117** | **112** ✓ |
+| files with runs | 62 | 65 | **62** ✓ |
+| distinct rail values | 29 | 31 | **29** ✓ |
+| longest run | 1,721 | 1,721 | 1,721 ✓ |
+| at the file's own rail | 108 | 111 | **108** ✓ |
+
+The four off-rail runs in the old population are §2's four: the two "`railHi` null" (09-12 `18131` and 09-15
+`18597`, each within 3 µV of the NEGATED low rail — saturation the high-side detector declined to name) and
+two near-rail (08-18 at 1.19 % of rail; 08-07 at **2.38 % of rail = 1.19 % of the rail-to-rail range**).
+§2's "2 within 2 percent" holds only if the 2 % is of the RANGE; stated here so the next reader does not
+re-derive it. **0 mid-range runs**, as before.
+
+**7.3 · The increment — 5 runs in 3 September box files, all at or within 0.2 % of a per-file rail:**
+
+| file | runs (samples) | rail | note |
+|---|---|---|---|
+| `Polar_H10_02849638_20260916222657` | 353, 837 | 18064 | at 18031, 33 µV inside the rail |
+| `Polar_H10_02849638_20260917221148` | 570 | 18197 | at rail |
+| `Polar_H10_02849638_20260919183658` | 226, 1533 | **17164** | at rail, both in the first ~70 s of the file |
+
+`17164` is a new low for the per-file rail — §2a's "rails are per file" now spans 17,164–19,600. The 09-18
+file opens AT 18564 µV but carries no run ≥200. ⚠️ Only 4 of the 5 added files are identifiable by mtime —
+rsync preserves it, and the 09-18 file list was not retained; the arithmetic above closes exactly if the fifth
+is `20260916222657`, and closes under no other assignment I could construct. **A census should commit its
+file list with hashes** so the next increment is derivable rather than reconstructed.
+
+**What this does NOT do:** the 55 → 28 split is peak-conditional and needs `ecgdex-dsp.js`'s detector — the
+rail leg's owner. The 3 files above are the entire increment; whether their 5 runs are bracketed and where
+they fall against `GAP_S` is a ≤3-file JS run, handed over with paths rather than approximated here.
+
+**Fleet-Session:** Heron
+
+**7.4 · The increment, classified with the shipped detector (2026-09-20) — 28-of-55 does NOT extend.**
+Same instrument as §2–3, run on `origin/main`'s `ECGDSP` (`parseECG` → `bandpass` → `detectPeaks`, rails
+from `ecgRails`, runs ≥200 at the file's own rail by exact equality, then the §2b/§3 split: a detected peak
+within ±130 ms ⇒ the flat leg LOOKS; otherwise the bracketing RR against `GAP_S = 10`):
+
+| file | at-rail runs ≥200 | classification |
+|---|---|---|
+| `…20260917221148` | 1 — n=570 (4.39 s) at 18197 HI | peak within ±130 ms → **flat leg looks, caught** |
+| `…20260919183658` | 2 — n=226 (1.74 s), n=1533 (11.80 s) at 17164 HI | both: peak within ±130 ms → **caught** |
+| `…20260916222657` | **0** | the two runs (n=353, 837) sit at **18031** — not the file's rail by the detector's exact-equality rule |
+
+So the three at-rail runs all join the **caught** side (55 → 58) and **none** the unexamined/median-filled side
+(57 → 57, 28 → 28). The consequential population is unchanged at 28, and §3's numbers stand as written.
+
+⚠️ **The two 09-16 runs are the §7.2 class, not a near-miss of the high rail.** Heron read 18031 as "33 µV
+inside 18064". It is also **2 µV from the NEGATED low rail** (`railLo = −18033`) — the same shape as 09-12
+`18131` and 09-15 `18597`, "saturation the high-side detector declined to name". That is now **three
+instances**: a positive run that saturates at |railLo| rather than at railHi. Filed as residue
+`2026-09-20-positive-saturation-at-negated-low-rail`; whether the matcher should accept ±railLo is a detector
+change (moves ECGDex's `computeHash`) and is not taken here. Denominator: this is a 3-file classification and
+carries no corpus denominator — §7's 602-vs-598 question is Heron's census's, not this table's.
 
 **Fleet-Session:** Magpie

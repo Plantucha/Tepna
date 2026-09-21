@@ -28,6 +28,7 @@ import polar_psftp
 import storage_targets
 import alerts
 import timeline as _timeline
+import nights_index as _nights
 import build_id
 import settings_schema
 import wifi_join
@@ -1494,6 +1495,21 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
     # worth a rebuild. Both bounds are module-level so a test can import them.
     _tl_cache: dict = {}
 
+    async def nights_get(req):
+        """The Ledger / Capture pages: every night on the box, per analyzer — bytes, hours covered, the
+        files a click would load (nights_index). Read-only; off the loop (it stats and head/tails a few
+        files per night); `n` caps how many nights, newest, are indexed."""
+        try:
+            n = max(1, min(400, int(req.query.get("n", 60))))
+        except (TypeError, ValueError):
+            n = 60
+        root = cfg.get("root", "/srv/tepna")
+        try:
+            rows = await asyncio.to_thread(_nights.index_nights, root, n)
+        except Exception as e:  # noqa: BLE001 — a listing that fails must say so, not 500 the page
+            return web.json_response({"error": f"{type(e).__name__}: {e}"}, status=500)
+        return web.json_response({"nights": rows, "columns": list(_nights.COLUMNS), "root": root})
+
     async def timeline_get(req):
         night = req.query.get("night") or ""
         try:
@@ -1737,6 +1753,7 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/settings", settings_post),
         web.post("/api/daemon", daemon_post),
         web.get("/api/timeline", timeline_get),
+        web.get("/api/nights", nights_get),
         web.get("/api/storage", storage_get),
         web.get("/api/alerts", alerts_get),
         web.post("/api/alerts", alerts_post),

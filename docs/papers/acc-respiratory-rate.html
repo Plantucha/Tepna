@@ -79,14 +79,29 @@
     <tr><td>Proposed @ 70% coverage</td><td><b>0.63</b></td><td>—</td><td><b>97.2%</b></td><td>—</td><td>70%</td></tr>
     <tr><td><i>Reference channel self-noise</i> <span class="cite">[10]</span></td><td><i>≈0.74</i></td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
   </table>
-  <p>Bias is −0.53 brpm, RMSE 3.07, 95% limits of agreement ±5.93 at full coverage. Per-night MAE ranges 0.76–1.67 (median 0.88) across all 26 nights; every night reaches ≥81.6% within 2 brpm.</p>
+  <p>Bias is −0.53 brpm, RMSE 3.07, 95% limits of agreement ±5.93 at full coverage. Per-night MAE ranges 0.76–3.31 (median 1.04) across the 14 scored nights (Figure 3); the three nights above 2.0 brpm are the three shortest in the corpus (0.7–0.8 h, 77–89 epochs), and the worst within-2-brpm proportion is 69.7%, on the shortest of them. <span class="cite">(Restated 2026-09-20 from the same regeneration that produced the figures; the prior sentence — 0.76–1.67, median 0.88, 26 nights — was the retracted cohort and had survived the correction.)</span></p>
   <div class="callout"><b>MAE is a weak discriminator here and must not be read alone.</b> The reference rate distribution is narrow — median 16.0 brpm, IQR [15.2, 16.9] — so a constant predictor already scores MAE 1.64. This range restriction also caps achievable correlation. The informative quantity is the joint (error, coverage) curve, and the within-2-brpm proportion.</div>
+
+  <figure>
+    <img src="figures/acc-resp-bland-altman.png" alt="Bland–Altman plot of estimate minus reference against their mean, 8,057 epochs, with a fitted proportional-bias line and limits that follow the fit">
+    <figcaption><b>Figure 1.</b> Agreement with the CPAP-flow reference — Bland–Altman over 8,057 epochs (live output of <code>resp-acc-analysis.html</code>, written by <code>tools/resp-acc-headless.mjs --figures</code>, 2026-09-20). The bias is <b>proportional</b>: slope −1.04 brpm per brpm (r −0.68), so the ±1.96 SD limits follow the fitted line rather than a constant; the flat bias −0.53 with fixed limits reported in Table 2 is the full-coverage summary and is not valid as a plot under that slope (§5). 141 points beyond ±8.7 brpm are outside the frame. A constant 16.0 brpm scores MAE 1.61 against the estimator's 1.10 — skill over guessing of 32% in MAE and 5% in RMSE. Dark theme is the tool's native rendering.</figcaption>
+  </figure>
 
   <h3 class="sub">3.2 Abstention is the single largest lever</h3>
   <p>Moving from 100% to 70% coverage cuts MAE by 43% (1.10 → 0.63) and raises within-2-brpm from 90.8% to 97.2%, monotonically at every intermediate operating point. At 70% coverage the estimator sits at the reference's own noise floor, which is the correct place to stop claiming improvement. An estimator that cannot abstain — as the shipped predecessor cannot, its quality field being constant — forfeits this entirely.</p>
 
+  <figure>
+    <img src="figures/acc-resp-coverage.png" alt="MAE in breaths per minute against coverage from 50 to 100 percent, falling monotonically from 1.10 to 0.48">
+    <figcaption><b>Figure 2.</b> What abstention buys — MAE against the fraction of epochs the estimator is allowed to answer, 50–100% (same run). Monotone at every operating point: 1.10 at 100%, 0.63 at 70%, 0.48 at 50%.</figcaption>
+  </figure>
+
   <h3 class="sub">3.3 Where the error concentrates</h3>
   <p>Epochs overlapping a device-scored apnea or hypopnea are 6% of the night and carry disproportionate error (MAE 4.98, bias −4.66) — expected, since breathing genuinely stops and the reference's median-period statistic does not. Excluding them raises r from 0.37 to 0.57. This mirrors Schipper et al.'s stratified finding that effort estimation degrades ~2.7× in MSE during apnea, and that wake epochs are worse still <span class="cite">[6]</span>.</p>
+
+  <figure>
+    <img src="figures/acc-resp-per-night.png" alt="Per-night MAE for the 14 scored nights sorted ascending, median 1.04, with the three shortest nights at the top">
+    <figcaption><b>Figure 3.</b> Per-night MAE, 14 scored nights sorted (same run), median 1.04. The spread tracks the reference's own noise and the night's length, not only the estimator: the three nights above 2.0 are the three shortest (0.7–0.8 h).</figcaption>
+  </figure>
 
   <h3 class="sub">3.4 Design choices, each measured</h3>
   <table class="tbl">
@@ -109,7 +124,7 @@
 
   <h2 class="sec">6. Reproducibility</h2>
   <p>The estimator is dependency-free ES5, runs entirely in-browser, and processes 172 h of accelerometry in 4.5 s single-threaded. Its Butterworth design was verified against a reference implementation to machine precision (maximum impulse-response difference 5.3×10⁻¹⁶; passband magnitude ratio error 2.4×10⁻¹⁵), and the shipped implementation reproduces the prototype to MAE 0.130 brpm (r = 0.977, 95.3% of epochs within 0.5 brpm).</p>
-  <div class="callout" style="border:1px dashed #b00"><b>⛔ Status of the reproducibility requirement.</b> <code>resp-acc-analysis.html</code> now exists and runs the shipped estimator; it reproduces the original harness on four spot-checked nights (clock offsets within 8 s, per-night MAE within 0.06 br/min). The full 26-night corpus has not yet been re-run through it, so this paper remains a <b>DRAFT</b>. See <code>briefs/MOTIONDEX-RESPIRATORY-RATE-2026-07-21-BRIEF.md</code> §4.</div>
+  <div class="callout" style="border:1px dashed #b00"><b>⛔ Status of the reproducibility requirement — MET as of 2026-09-20; the DRAFT label is now editorial, not a reproducibility gap.</b> <code>resp-acc-analysis.html</code> runs the shipped estimator and has been driven end to end through its own interface twice: on 2026-09-07, producing the restated headline in the correction notice above, and on 2026-09-20 by <code>tools/resp-acc-headless.mjs --figures</code> from the same staged corpus (50 <code>Polar_H10_*_ACC.txt</code> against the 192-night CPAP tree, 49 paired nights, 14 scored, 8,057 epochs), reproducing that headline <b>bit-for-bit</b> — MAE 1.10, CI 0.96–1.27, bias −0.53, RMSE 3.07, LoA ±5.93, 90.8%, r 0.351 — and writing Figures 1–3 straight off the live canvases (<code>papers/figures/cohort-manifest.json</code> records the staged file set). The earlier text here — <i>"the full 26-night corpus has not yet been re-run"</i> — described the retracted cohort and had survived the correction. See <code>briefs/MOTIONDEX-RESPIRATORY-RATE-2026-07-21-BRIEF.md</code>.</div>
 
   <h2 class="sec">7. References</h2>
   <div class="callout" style="font-size:13px"><b>Citation provenance.</b> <b>✓</b> = retrieved and verified directly by the author against the publisher record, including the specific quoted statistics. <b>△</b> = retrieved by automated literature agents with full text obtained, not independently re-verified. <b>✗</b> = full text never obtained; cited for concept only, never for a number.</div>

@@ -1,7 +1,7 @@
 <!-- Copyright 2026 Michal Planicka -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS — 2026-09-18 · **Created:** 2026-09-18
+**Status:** IN-PROGRESS — 2026-09-18 · **Created:** 2026-09-18 · **Residue:** 2026-09-20-no-loss-guard-during-live-capture, 2026-09-20-ledger-line-citations-rot
 
 # Residue rows whose evidence is an ABSENCE — a verification sweep
 
@@ -241,9 +241,9 @@ surfaces. Recorded here; not acted on.
 - [x] 12 of 15 verified, each surviving verdict carrying a positive control
 - [x] "Wrong when logged" separated from "stale window" as its own finding (section 1)
 - [ ] The 3 unverified rows — needs a browser run and two seam checks
-- [ ] New row for 1.2's narrower live-capture claim; old row closes pointing at it
+- [x] New row for 1.2's narrower live-capture claim; old row closes pointing at it — `2026-09-20-no-loss-guard-during-live-capture`, old row `withdrawn` → it (2026-09-20)
 - [ ] Section 5's gate-tracked state — **owner**, vocabulary change not ours
-- [ ] Section 4's citation rot — worth its own row
+- [x] Section 4's citation rot — worth its own row — `2026-09-20-ledger-line-citations-rot` (2026-09-20; and §1.2's own `:5306` had already moved to `:5520` by the time the row was written)
 
 **No row's non-state cell was edited by this sweep, and no row was closed.** Rows are append-and-close;
 the artifact of a wrong row is a brief section carrying the evidence, per #2623.

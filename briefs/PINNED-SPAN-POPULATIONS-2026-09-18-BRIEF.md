@@ -1,7 +1,7 @@
 <!-- Copyright 2026 Michal Planicka -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-**Status:** IN-PROGRESS (§5.2 REFUTED 2026-09-18 — corrected in place; the cause and the rule it produced are in §5.2a) · **Created:** 2026-09-18 · **Residue:** 2026-09-18-ecg-saturation-unflagged
+**Status:** IN-PROGRESS (§5.2 REFUTED 2026-09-18 — corrected in place; the cause and the rule it produced are in §5.2a) · **Created:** 2026-09-18 · **Residue:** 2026-09-20-census-file-list-not-retained, 2026-09-18-ecg-saturation-unflagged
 
 # A "pinned span" is three phenomena, and our detector sees one and a half
 
