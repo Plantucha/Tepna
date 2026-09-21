@@ -237,3 +237,27 @@ def test_the_tool_classifiers_accept_box_filenames():
                        ("sensor-trio-power-analysis.js", "O2Ring S 2100_20260503210952.csv"),
                        ("pat-feasibility.js", "Polar_Sense_0C301E3F_20260609_190208_PPG.txt")):
         assert any(r.search(name) for r in _classifier_regexes(os.path.join(root, tool))), (tool, name)
+
+def test_the_batch_tools_get_their_process_button_pressed_and_the_selector_is_real():
+    """The six analyzers process on load; the two batch tools index the night and WAIT for their Process
+    button (measured 2026-09-21 on the box after #2746: "1 nights indexed from 10 files", `#procBtn`
+    enabled, status idle — the owner asked for "process it without other clicking"). openNight now waits
+    for that button to enable and presses it; if it never enables the toast says the tool found no
+    eligible night rather than "processing". NIGHT_RUN is pinned as an EQUALITY to the derived tools, and
+    each selector must be an element id in the tool's own source."""
+    import re
+
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
+    run = _monitor_js_table(html, "NIGHT_RUN")
+    apps = _monitor_js_table(html, "NIGHT_APP")
+    m = re.search(r'const NIGHT_DERIVED = \[(.*?)\];', html)
+    assert m
+    derived_keys = [k.strip().strip('"') for k in m.group(1).split(",")]
+    assert set(run) == set(derived_keys), (sorted(run), derived_keys)
+    assert "btn.click();" in html and "Process pressed" in html and "found no eligible night" in html
+    root = os.path.dirname(here)
+    for node, sel in run.items():
+        src = os.path.join(root, apps[node])  # the analysis tools are authored/built in place at the root
+        text = open(src, encoding="utf-8").read()
+        assert sel.startswith("#") and f'id="{sel[1:]}"' in text, (node, sel)

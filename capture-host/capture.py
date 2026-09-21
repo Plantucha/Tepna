@@ -102,6 +102,24 @@ class _AbsentDeviceStamp(Exception):
     stamp would otherwise become a fabricated instant."""
 
 
+class _NoSampleTimeByDesign(_AbsentDeviceStamp):
+    """The stream carries no sample time BY DESIGN — the vendor's rule, not a missing measurement.
+    Same control flow as `_AbsentDeviceStamp` (the clock derivation is skipped), different accounting:
+    it is neither counted nor logged as a refusal, because there is nothing to refuse."""
+
+
+# Measurement types whose samples carry NO device time, per the vendor. Polar BLE SDK,
+# `documentation/TimeSystemExplained.md` (master at 8.3.0, 2026-09-09): "some data streams are the type
+# where time of the individual sample cannot be defined, e.g. PPI or HR. If the sample time of the
+# stream cannot be defined then the sample time is either zero or it is missing from the stream." The
+# SDK's own `PpiData.kt` parser carries the matching `if (frame.timeStamp != 0uL)` branch. So a Verity
+# PPI frame stamped 0 is the documented shape of that stream, not an absent measurement: residue
+# 2026-09-13-verity-emits-absent-stamps-at-scale measured 7283 refusals in the guard's first day, all
+# Verity, all this. The guard below stays exactly as it is for every stream that DOES carry a time.
+_NO_SAMPLE_TIME_BY_DESIGN = frozenset({pmd.PPI})
+# (device, meas) pairs already declared once this process, so the journal says it on onset, not per frame.
+_NO_SAMPLE_TIME_SAID: set = set()
+
 # Absent device stamps per device this run, so the refusal is OBSERVABLE. A guard that drops values
 # without saying so is indistinguishable from a device that simply never reported.
 _CLOCK_ABSENT: dict = {}
@@ -3162,6 +3180,16 @@ async def run_polar(dev: dict, root: str):
                         # that turns a stamp into a CLOCK. Device-agnostic on purpose — only one device has done this
                         # so far, and a guard keyed to that device would not catch the next one.
                         _sns = samples[-1].sensor_ns
+                        if meas in _NO_SAMPLE_TIME_BY_DESIGN:
+                            # Not absent — undefined by the vendor's rule (see the constant). No clock
+                            # can be derived from this stream and none is owed; say so once.
+                            if (name, meas) not in _NO_SAMPLE_TIME_SAID:
+                                _NO_SAMPLE_TIME_SAID.add((name, meas))
+                                log.info("%s: %s frames carry no sample time by design (Polar: PPI/HR "
+                                         "sample time \"is either zero or missing\") — no device clock "
+                                         "is derived from this stream, and that is not a refusal",
+                                         name, pmd.MEAS_NAME.get(meas, meas))
+                            raise _NoSampleTimeByDesign
                         if not _sns:
                             _CLOCK_ABSENT[name] = _CLOCK_ABSENT.get(name, 0) + 1
                             # The JOURNAL, not a STATUS key: `find_unwired` correctly calls a key
