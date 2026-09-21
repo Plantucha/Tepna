@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS — 2026-09-20 (tool built and plant-tested; timer installed and armed on rig for 2026-09-21 14:31; dry-run measured; the first REAL run is the timer's first fire, per owner ruling) · **Created:** 2026-09-20
+**Status:** IN-PROGRESS — 2026-09-21 (FIRST REAL RUN 2026-09-21 14:31 → 15:08: replaced 46,517 files / 118.2 GB, `/srv/data` 96 % → 50 %, exit 3 on 29 refusals — all 0-byte `.archived` markers with no NAS twin, written by the vigil pull AFTER the migration snapshot. Two defects found by that run, both fixed same day: (1) nothing carried rig-originated files to the NAS — 228 local files had no twin; the tool now SYNCS a missing twin (additive, `COPYFILE_EXCL`) before tiering; (2) a 0-byte marker's existence is its signal and a symlink into an unmounted NAS reads as absent — zero-byte files now stay local unconditionally. Unit re-pointed to run the tool from `origin/main` via `git show | node -`, because the primary checkout sits on a stale branch and the timer was going to run yesterday's copy tomorrow) · **Created:** 2026-09-20
 
 # Corpus tier — the last 30 nights stay local, everything older reads from the NAS
 
@@ -95,7 +95,7 @@ tool's own `findmnt` check is the second witness. Exit 2 and exit 3 both read as
 - [x] `tools/corpus-tier.mjs` built; biome clean; `--dry-run` measured on the real tree.
 - [x] Plant covers: unmounted → exit 2; content-differs → refused; keep window + undated untouched; idempotent.
 - [x] Timer installed, enabled, next fire shown by `systemctl --user list-timers`.
-- [ ] **First real run completes** (2026-09-21 14:31): `replaced ≈ 46,400 · refused 0`, `/srv/data` drops to ~57 GB used.
+- [x] **First real run completed** 2026-09-21 14:31 → 15:08: `replaced 46,517 (118.2 GB) · refused 29` (all 0-byte markers, see header), `/srv/data` 96 % → 50 %, 113 GB free.
 - [ ] `node tests/run-tests.mjs` from the primary checkout still passes its corpus-backed groups reading through the new symlinks (the 43 assertions CI cannot see).
 - [ ] `node tools/verify-fixtures.mjs` still resolves every input — the June/July corpus now over NFS.
 - [ ] Header flipped to DONE with the first run's numbers.
