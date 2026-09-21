@@ -177,8 +177,14 @@ ntfy line is untouched. **Owned by the night-report unit — do not build a seco
   direction` (`clock · pat · source-scan`): all four `pat-*.js` scanned from `env.sources` for a property
   assignment into `hostAxis`/`stability`/`independent`/`timingSource`/`deviceDrawn` (compound assignments
   included, comparisons and forwarding keys excluded), with two plants the regex must catch and three
-  decoys it must not, and an assertion that all four files were examined. 10/10. **(i) still open** —
-  a behavioural leg on the real compute, sized as its own unit.
+  decoys it must not, and an assertion that all four files were examined. 10/10.
+  ✅ **(i) CLOSED BY CONSTRUCTION 2026-09-21** — it cannot be run as written, and the reason is the
+  answer: **no PAT option enters either compute.** `ECGDex.compute(input, opts)` reads
+  `opts.offsetMin` / `opts.source`; `PpgDex.compute` reads `opts.fname` / `opts.runsText` / `opts.source` /
+  `opts.timebase` (every `opts.` reference from each `compute` onward, grepped). PAT is computed
+  DOWNSTREAM of both exports, in `pat-align.js` / the worker, from what the nodes already published, so
+  "compute twice with different PAT options" has no second run to compare. The direction PAT ↛ clock is
+  structural; (ii) is the test that guards it against someone adding the option.
 - **Runtime (Phase 17):** one number, measured on the box: `allan.stability` on the longest real
   arrival series of a night (H10 ECG packets ≈ 2·10⁵/night). Pre-stated band: ≤ 60 s on vigil is fine
   for an end-of-night job; above it, decimate the *phase* series (not the τ ladder) and record the
