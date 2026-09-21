@@ -47,6 +47,7 @@
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { launch } from './pw-launch.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PAGE = join(ROOT, 'sensor-trio-power-analysis.html');
@@ -74,7 +75,7 @@ try {
   process.exit(2);
 }
 
-const browser = await chromium.launch({
+const browser = await launch(chromium, {
   executablePath: process.env.CHROME_BIN || '/usr/bin/google-chrome',
   args: ['--allow-file-access-from-files', ...(WANT_CPU ? [] : GPU_ARGS)]
 });

@@ -1158,6 +1158,16 @@ function _devTag(d){
   return t.includes('h10') ? 'h10' : (t.includes('verity')||t.includes('sense')) ? 'vs' : 'o2';
 }
 function deviceForStream(key){
+  // OWNERSHIP FIRST. Since 2026-09-21 the daemon publishes `streams[].device` — the configured device
+  // name recorded where the stream is REGISTERED — so the join is by a field, not by parsing the key's
+  // spelling. Everything below this block is the older-daemon fallback: suffix/prefix rules that
+  // reverse-engineer the owner from the key, which is exactly the two-namespace join residue
+  // 2026-09-05-capture-status-joins-two-key-namespaces found matching 2 of 10 streams by accident.
+  const row = STREAMS.find(s=>s.key===key);
+  if(row && row.device != null){
+    const d = DEVICES.find(x=>x.name===row.device);
+    if(d) return d;
+  }
   const m = key.match(/_(vs|h10|o2)$/);
   if(m){ const d = DEVICES.find(x=>_devTag(x)===m[1]); if(d) return d; }
   const base = key.replace(/_(vs|h10|o2)$/,'');
@@ -2926,10 +2936,10 @@ const KIND_FOOT = { hr:'derived rate', scalar:'current', multi:'raw 3-axis', ppi
 // anywhere on the Overview — the reason was in the device row and the stream cards only. Owner-reported
 // 2026-09-06. The daemon already publishes it per device as `last_error`; this surfaces the distinct
 // reasons rather than inventing a new one, and says nothing when it does not know.
-// ⚠️ Uses `deviceForStream`, NOT a device field on the stream row: `TelemetryBus.meta()` publishes
-// key/label/unit/fs/chans/labels/active/effFs/health and no device at all. A first draft of this read
-// `s.dev`, which does not exist — it would have made every linked device look quiet and printed a
-// confident wrong reason. The key→device map already exists and is the one the device rows use.
+// Uses `deviceForStream`, which since 2026-09-21 reads the stream row's `device` field first and only
+// falls back to key parsing for a daemon older than that field. (An earlier draft read `s.dev`, which
+// never existed — it would have made every linked device look quiet and printed a confident wrong
+// reason. The field is `device`, published by `TelemetryBus.meta()`; the fallback is the old map.)
 function linkedWhy(){
   const linked = DEVICES.filter(d=>d.connected);
   if(!linked.length) return 'linked — none';

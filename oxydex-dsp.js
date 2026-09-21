@@ -2665,6 +2665,16 @@
     return parts.join(', ') + context + '.';
   }
 
+  /* ⚠️ processNight OWNS `rows` FROM HERE ON. `trimSensorWarmup` splices head and tail rows out of the
+     caller's array and `cleanArtifactHR` rewrites HR values in place — deliberately, so every reader
+     below sees one trimmed night (the block on trimSensorWarmup says why). The consequence for a
+     CALLER: after this returns, `rows` is shorter and shifted, so an index you took before the call no
+     longer names the sample it named. Measured 2026-09-20: the NSRR OX-stat validator masked `rows[i]`
+     against a status channel AFTER this call and was misaligned on every record the trim touched (10
+     rows on one, 164 on another) — residue 2026-09-20-processnight-mutates-its-input. If you need the
+     pre-call array, keep your own copy; if you read `rows` after the call, you are reading the night as
+     the detector saw it, which is the right population to pair with the verdicts (pb-operating-point
+     does exactly that, and says so). */
   function processNight(rows, fname) {
     var warmupTrim = trimSensorWarmup(rows); // FIRST — drop device warm-up/cool-down placeholder edge rows (OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2)
     var artifactsCleaned = cleanArtifactHR(rows); // then clean HR before any analysis
@@ -3062,15 +3072,28 @@
   }
 
   function computeStats(rows) {
-    var spo2 = rows.map(function (r) {
-        return r.spo2;
-      }),
-      hr = rows.map(function (r) {
-        return r.hr;
-      }),
-      n = rows.length;
-    var mSpo2 = avg(spo2),
-      mHr = avg(hr);
+    /* §∅ — STATISTICS ARE COMPUTED OVER MEASURED SAMPLES, NEVER OVER ABSENT ONES. These arrays used to
+       carry every row's value including `null`, and three things happened to a null downstream: `avg`
+       summed it as 0 and divided by ALL rows (a night with 20 % dropouts under-read its mean SpO2 by
+       20 %); `v < 95` is TRUE for null, so every absent second counted as a desaturated one and T95/T90
+       were inflated by the dropout fraction; and `Math.min/max.apply` read it as 0. `parseCSV` drops
+       invalid rows, so the O2Ring CSV path never carried a null here — the NSRR adapter (`to1Hz` →
+       null), the self-ingest path and any SignalFrame do, and the SHHS lane's published T90 came
+       through this block. Residue 2026-09-13-oxydex-stats-block-absence-to-number, primary-builder half.
+       `spo2`/`hr` are now the MEASURED samples; `n` stays the row count for the duration/coverage
+       arithmetic below, and every rate below divides by the measured count, reporting null when there
+       is none — same rule as `meanPi` a few lines down, which was written this way from the start. */
+    var spo2 = [],
+      hr = [];
+    for (var _r = 0; _r < rows.length; _r++) {
+      var _sv = rows[_r].spo2,
+        _hv = rows[_r].hr;
+      if (_sv != null && isFinite(_sv)) spo2.push(_sv);
+      if (_hv != null && isFinite(_hv)) hr.push(_hv);
+    }
+    var n = rows.length;
+    var mSpo2 = spo2.length ? avg(spo2) : NaN,
+      mHr = hr.length ? avg(hr) : NaN;
     // Perfusion index (OXYDEX-PULSE-RESOURCING §4 Phase 1) — mean over the frames that actually
     // carry a reading. `r.pi` is null on the ViHealth CSV path (no column) and on the ring's
     // no-perfusion sentinel, so a night with no PI data yields meanPi = null, not a fabricated 0.
@@ -3113,33 +3136,42 @@
       durationInflated: _durInflated || undefined,
       start: fmtTime(rows[0].t),
       end: fmtTime(rows[n - 1].t),
-      meanSpo2: isFinite(mSpo2) ? +mSpo2.toFixed(1) : 0,
-      minSpo2: spo2.length ? Math.min.apply(null, spo2) : 0,
-      maxSpo2: spo2.length ? Math.max.apply(null, spo2) : 0,
-      spo2Std: +stdDev(spo2).toFixed(2),
+      /* §∅ — the PRIMARY builder's half of residue 2026-09-13-oxydex-stats-block-absence-to-number.
+         #2538 converted the self-ingest copies of these eight and fixed the render; this block still
+         reported a night with no valid SpO2 as mean 0 / min 0 / max 0 and no valid HR likewise — a
+         fabricated reading from the MAIN path, reached by every real file, not only re-ingested exports.
+         Same `null` form as `durationMin` above: absence is visible, a genuine 0 survives, and every
+         consumer already guards `!= null` (render since #2538; integrator carries `durationMin` null the
+         same way; oxydex-cross, nsrr-adapter and signal-orchestrate read through `? … : null`). */
+      meanSpo2: isFinite(mSpo2) ? +mSpo2.toFixed(1) : null,
+      minSpo2: spo2.length ? Math.min.apply(null, spo2) : null,
+      maxSpo2: spo2.length ? Math.max.apply(null, spo2) : null,
+      spo2Std: spo2.length > 1 ? +stdDev(spo2).toFixed(2) : null, // §∅: a spread needs two measured samples
+      /* T95/T90 over MEASURED seconds: numerator and denominator are both the measured set, so a
+         dropout is neither a desaturated second (the old `null < 95`) nor a normal one. */
       t95pct:
-        n > 0
+        spo2.length > 0
           ? +(
               (spo2.filter(function (v) {
                 return v < 95;
               }).length /
-                n) *
+                spo2.length) *
               100
             ).toFixed(1)
-          : 0,
+          : null,
       t90pct:
-        n > 0
+        spo2.length > 0
           ? +(
               (spo2.filter(function (v) {
                 return v < 90;
               }).length /
-                n) *
+                spo2.length) *
               100
             ).toFixed(1)
-          : 0,
-      meanHr: isFinite(mHr) ? +mHr.toFixed(1) : 0,
-      minHr: hr.length ? Math.min.apply(null, hr) : 0,
-      maxHr: hr.length ? Math.max.apply(null, hr) : 0,
+          : null,
+      meanHr: isFinite(mHr) ? +mHr.toFixed(1) : null,
+      minHr: hr.length ? Math.min.apply(null, hr) : null,
+      maxHr: hr.length ? Math.max.apply(null, hr) : null,
       // §4 Phase 1: mean perfusion index (%), or null when the input carried no PI (ViHealth CSV).
       // A NULL metric is honest absence — never coerced to 0, which would read as zero perfusion.
       meanPi: meanPi,

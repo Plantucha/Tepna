@@ -14,7 +14,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-a4Uys3KCB5xfX+Q4tRQxCzBCHc2+M7SsxwKFQyGiScI=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-ndtbymiFV7y/RXwGWqFgSTIVzi6sTjnw6Nt8nUchStc=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-w6cTxgHqaqk9+vToFBRXCKpf0MJvKDL+J7G5uSKI9vw=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-5is25mPtmZVnOXeTFuPYRBqy8Z3VqAuiXkup5ss80EA=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-DTxbmchdNQ5AIVCBsfvKPO16uHARq3dxNWwrvRfJDCs=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bcL7l63Nwzz/ZYRXDOuIJObcPq4EY33N5TA5aViVeaI=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-w6cTxgHqaqk9+vToFBRXCKpf0MJvKDL+J7G5uSKI9vw=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Data Unifier — Tepna universal ingest front-door</title>
 <style data-inline-src="inline:style:0">
@@ -6067,6 +6067,16 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
     return parts.join(', ') + context + '.';
   }
 
+  /* ⚠️ processNight OWNS `rows` FROM HERE ON. `trimSensorWarmup` splices head and tail rows out of the
+     caller's array and `cleanArtifactHR` rewrites HR values in place — deliberately, so every reader
+     below sees one trimmed night (the block on trimSensorWarmup says why). The consequence for a
+     CALLER: after this returns, `rows` is shorter and shifted, so an index you took before the call no
+     longer names the sample it named. Measured 2026-09-20: the NSRR OX-stat validator masked `rows[i]`
+     against a status channel AFTER this call and was misaligned on every record the trim touched (10
+     rows on one, 164 on another) — residue 2026-09-20-processnight-mutates-its-input. If you need the
+     pre-call array, keep your own copy; if you read `rows` after the call, you are reading the night as
+     the detector saw it, which is the right population to pair with the verdicts (pb-operating-point
+     does exactly that, and says so). */
   function processNight(rows, fname) {
     var warmupTrim = trimSensorWarmup(rows); // FIRST — drop device warm-up/cool-down placeholder edge rows (OXYDEX-HR-ARTIFACT-RUNAWAY-FIX Fix 2)
     var artifactsCleaned = cleanArtifactHR(rows); // then clean HR before any analysis
@@ -6464,15 +6474,28 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
   }
 
   function computeStats(rows) {
-    var spo2 = rows.map(function (r) {
-        return r.spo2;
-      }),
-      hr = rows.map(function (r) {
-        return r.hr;
-      }),
-      n = rows.length;
-    var mSpo2 = avg(spo2),
-      mHr = avg(hr);
+    /* §∅ — STATISTICS ARE COMPUTED OVER MEASURED SAMPLES, NEVER OVER ABSENT ONES. These arrays used to
+       carry every row's value including `null`, and three things happened to a null downstream: `avg`
+       summed it as 0 and divided by ALL rows (a night with 20 % dropouts under-read its mean SpO2 by
+       20 %); `v < 95` is TRUE for null, so every absent second counted as a desaturated one and T95/T90
+       were inflated by the dropout fraction; and `Math.min/max.apply` read it as 0. `parseCSV` drops
+       invalid rows, so the O2Ring CSV path never carried a null here — the NSRR adapter (`to1Hz` →
+       null), the self-ingest path and any SignalFrame do, and the SHHS lane's published T90 came
+       through this block. Residue 2026-09-13-oxydex-stats-block-absence-to-number, primary-builder half.
+       `spo2`/`hr` are now the MEASURED samples; `n` stays the row count for the duration/coverage
+       arithmetic below, and every rate below divides by the measured count, reporting null when there
+       is none — same rule as `meanPi` a few lines down, which was written this way from the start. */
+    var spo2 = [],
+      hr = [];
+    for (var _r = 0; _r < rows.length; _r++) {
+      var _sv = rows[_r].spo2,
+        _hv = rows[_r].hr;
+      if (_sv != null && isFinite(_sv)) spo2.push(_sv);
+      if (_hv != null && isFinite(_hv)) hr.push(_hv);
+    }
+    var n = rows.length;
+    var mSpo2 = spo2.length ? avg(spo2) : NaN,
+      mHr = hr.length ? avg(hr) : NaN;
     // Perfusion index (OXYDEX-PULSE-RESOURCING §4 Phase 1) — mean over the frames that actually
     // carry a reading. `r.pi` is null on the ViHealth CSV path (no column) and on the ring's
     // no-perfusion sentinel, so a night with no PI data yields meanPi = null, not a fabricated 0.
@@ -6515,33 +6538,42 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       durationInflated: _durInflated || undefined,
       start: fmtTime(rows[0].t),
       end: fmtTime(rows[n - 1].t),
-      meanSpo2: isFinite(mSpo2) ? +mSpo2.toFixed(1) : 0,
-      minSpo2: spo2.length ? Math.min.apply(null, spo2) : 0,
-      maxSpo2: spo2.length ? Math.max.apply(null, spo2) : 0,
-      spo2Std: +stdDev(spo2).toFixed(2),
+      /* §∅ — the PRIMARY builder's half of residue 2026-09-13-oxydex-stats-block-absence-to-number.
+         #2538 converted the self-ingest copies of these eight and fixed the render; this block still
+         reported a night with no valid SpO2 as mean 0 / min 0 / max 0 and no valid HR likewise — a
+         fabricated reading from the MAIN path, reached by every real file, not only re-ingested exports.
+         Same `null` form as `durationMin` above: absence is visible, a genuine 0 survives, and every
+         consumer already guards `!= null` (render since #2538; integrator carries `durationMin` null the
+         same way; oxydex-cross, nsrr-adapter and signal-orchestrate read through `? … : null`). */
+      meanSpo2: isFinite(mSpo2) ? +mSpo2.toFixed(1) : null,
+      minSpo2: spo2.length ? Math.min.apply(null, spo2) : null,
+      maxSpo2: spo2.length ? Math.max.apply(null, spo2) : null,
+      spo2Std: spo2.length > 1 ? +stdDev(spo2).toFixed(2) : null, // §∅: a spread needs two measured samples
+      /* T95/T90 over MEASURED seconds: numerator and denominator are both the measured set, so a
+         dropout is neither a desaturated second (the old `null < 95`) nor a normal one. */
       t95pct:
-        n > 0
+        spo2.length > 0
           ? +(
               (spo2.filter(function (v) {
                 return v < 95;
               }).length /
-                n) *
+                spo2.length) *
               100
             ).toFixed(1)
-          : 0,
+          : null,
       t90pct:
-        n > 0
+        spo2.length > 0
           ? +(
               (spo2.filter(function (v) {
                 return v < 90;
               }).length /
-                n) *
+                spo2.length) *
               100
             ).toFixed(1)
-          : 0,
-      meanHr: isFinite(mHr) ? +mHr.toFixed(1) : 0,
-      minHr: hr.length ? Math.min.apply(null, hr) : 0,
-      maxHr: hr.length ? Math.max.apply(null, hr) : 0,
+          : null,
+      meanHr: isFinite(mHr) ? +mHr.toFixed(1) : null,
+      minHr: hr.length ? Math.min.apply(null, hr) : null,
+      maxHr: hr.length ? Math.max.apply(null, hr) : null,
       // §4 Phase 1: mean perfusion index (%), or null when the input carried no PI (ViHealth CSV).
       // A NULL metric is honest absence — never coerced to 0, which would read as zero perfusion.
       meanPi: meanPi,
@@ -21097,7 +21129,15 @@ __exports.GlucoDex = window.GlucoDex;
     const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.blocker == null || d.blocker === 0)).map((d) => d.ppi);
     if (dev.length < 3 || selfNN.length < 3) return { hasData: true, filePresent: true, usable: false, source, nDevice: dev.length };
     const devRaw = rmssdOf(dev);
-    const sC = _ppiCorrect(selfNN),
+    /* `selfNN` arrives ALREADY Malik-corrected — it is the export's `nn`. Passing it through
+       `_ppiCorrect` again was a SECOND pass, and correctRR is not idempotent: measured 2026-09-21 on a
+       real 24,898-interval H10 night, pass 1 corrected 19, pass 2 another 11, pass 3 one more. So
+       `selfEctopyCorrected` reported the second pass's count as the self side's artifact load (11 where
+       the real pass found 19), and `selfRMSSD`/`selfSDNN`/`nSelf` were computed on a twice-corrected
+       series against a once-corrected device series — an asymmetric comparison presented as symmetric.
+       Residue 2026-09-13-ppgdex-correctrr-not-idempotent. The self side is taken as-is; its correction
+       count is the caller's one real pass, or null when a caller cannot say (never a re-run's count). */
+    const sC = { out: selfNN, nc: opts && opts.selfCorrected != null ? opts.selfCorrected : null },
       dC = _ppiCorrect(dev);
     const self = sC.out,
       devc = dC.out;
@@ -21921,7 +21961,7 @@ __exports.GlucoDex = window.GlucoDex;
       ppiSeries = mk;
       ppiSource = 'o2ring-marker';
     }
-    const validation = validatePPI(nn, ppiSeries, { source: ppiSource });
+    const validation = validatePPI(nn, ppiSeries, { source: ppiSource, selfCorrected: corr.nCorr });
     /* The stability leg needs BOTH detectors' beat TIMES on ONE axis, which is true only for the
        marker source: those rows sit in the same file, on the same `relSec`, as the feet we detected.
        A `_PPI.txt` carries intervals plus the host's ARRIVAL stamps, so differencing against it would

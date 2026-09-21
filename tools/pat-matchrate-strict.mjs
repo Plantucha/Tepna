@@ -145,8 +145,15 @@ function ecgRpeakTimes(text, opts) {
   const bp = ECGDSP.bandpass(rec.int16, rec.fs);
   const peaks = ECGDSP.detectPeaks(rec.int16, bp, rec.fs);
   const piecewise = opts && opts.axis === 'piecewise';
+  /* `refine`: sub-sample R positions through `ECGDSP.refinePeaks` (exported in #2487 for
+     `pat-feasibility-worker.js`, which took them the same day). Without it this leg quantises every
+     R to a whole sample — 7.7 ms at 130 Hz — on an axis whose PPG side has been fractional since
+     `timeAt`. OFF by default so no published oracle number moves silently; the oracle's
+     `--ecg-refine` turns it on, and PAT-FORENSICS-AXIS-LEG-ASYMMETRY's last box is the paired run. */
+  const refined = opts && opts.refine && typeof ECGDSP.refinePeaks === 'function' ? ECGDSP.refinePeaks(bp, peaks, rec.fs).refIdx : null;
+  const posAt = (k) => (refined && Number.isFinite(refined[k]) ? refined[k] : peaks[k]);
   const t = new Float64Array(peaks.length);
-  for (let i = 0; i < peaks.length; i++) t[i] = piecewise ? rec.tMsAt(peaks[i]) : rec.t0Ms + (peaks[i] / rec.fs) * 1000;
+  for (let i = 0; i < peaks.length; i++) t[i] = piecewise ? rec.tMsAt(posAt(i)) : rec.t0Ms + (posAt(i) / rec.fs) * 1000;
   if (piecewise) {
     for (let i = 1; i < t.length; i++) if (!(t[i] >= t[i - 1])) throw new Error(`piecewise ECG axis broke sortedness at beat ${i}`);
   }
@@ -156,6 +163,7 @@ function ecgRpeakTimes(text, opts) {
     durSec: rec.durSec,
     times: t,
     n: peaks.length,
+    refined: !!refined,
     tMsAt: rec.tMsAt,
     tMsCorrected: !!rec.tMsCorrected,
     independent: rec.hostAxis ? rec.hostAxis.independent : null,

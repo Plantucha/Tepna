@@ -20,6 +20,7 @@
  * Run: BASE_URL=http://127.0.0.1:8080 node tests/browser-gates.mjs
  */
 import { chromium } from 'playwright';
+import { launch } from '../tools/pw-launch.mjs';
 
 const BASE = (process.env.BASE_URL || 'http://127.0.0.1:8080').replace(/\/$/, '');
 const FAILS = [];
@@ -28,7 +29,7 @@ const FAILS = [];
 // and the RENDERER PROCESS CRASHES mid-run — which surfaces as an EARLY waitForFunction rejection
 // (~30 s in), NOT a 5-min stall. Routing Chromium shared memory to /tmp removes the crash. (Local runs
 // have a large /dev/shm, which is why the suite is green there but red in CI.)
-const browser = await chromium.launch({ args: ['--disable-dev-shm-usage'] });
+const browser = await launch(chromium);
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 1600 } });
 
 /* ── Gate 1 · Dex-Test-Suite (assertions + render-coverage) ───────────────── */
