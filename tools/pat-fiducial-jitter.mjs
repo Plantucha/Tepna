@@ -147,6 +147,22 @@ export const FAMILIES = ['min', 'maxSlope', 'tangent', 'pct10', 'pct25', 'pct50'
 
 /* Pairwise, on the same beat: the clock cancels identically. Returns SD in ms of the beat-to-beat
    difference for every family pair. */
+/* Stratum key = NOMINAL rate (nearest Hz). Measured effFs differs by hundredths file to file and each
+   of those is one quantum, not a different one; 55.11 and 55.15 Hz are one stratum, 55 and 176 are two. */
+export function strataOf(perFile) {
+  return [...new Set(perFile.map((x) => String(Math.round(x.fs))))].sort((a, b) => a - b);
+}
+export function stratum(perFile, key) {
+  const members = perFile.filter((x) => String(Math.round(x.fs)) === key);
+  return {
+    members,
+    fsMedian: q(
+      members.map((x) => x.fs),
+      0.5
+    )
+  };
+}
+
 export function pairwiseJitter(beats, fs) {
   const msPer = 1000 / fs;
   const out = {};
@@ -194,6 +210,15 @@ function selftest() {
   ok(band(15) === 'INTERMEDIATE', 'band 15 -> INTERMEDIATE');
   ok(band(10) === 'INTERMEDIATE', 'band boundary 10 is INTERMEDIATE (closed, no gap)');
   ok(band(5) === 'NOT-DOMINANT', 'band 5 -> NOT-DOMINANT');
+  /* Residue 2026-09-05-fiducial-sd-quoted-without-its-sample-rate: strata are NOMINAL rates, one per
+     quantum — hundredths of measured effFs collapse, 55 and 176 do not, and each stratum quotes ITS fs. */
+  const pf = [{ fs: 55.11 }, { fs: 55.15 }, { fs: 176.2 }, { fs: 55.14 }, { fs: 176.41 }];
+  const st = strataOf(pf);
+  ok(st.length === 2 && st[0] === '55' && st[1] === '176', 'strata: 55.11/55.15/55.14 collapse to 55; 176.2/176.41 to 176; sorted numerically');
+  const s55 = stratum(pf, '55');
+  ok(s55.members.length === 3 && Math.abs(s55.fsMedian - 55.14) < 1e-9, 'stratum 55: three members, median measured fs 55.14');
+  ok(stratum(pf, '176').members.length === 2, 'stratum 176: two members');
+  ok(stratum(pf, '135').members.length === 0, 'an absent stratum has no members, not a fabricated one');
 
   /* A synthetic upstroke with a KNOWN tangent foot. Ramp from 0 to 1 over samples 10..20, so the
      max slope is constant on the ramp and the tangent meets the minimum level at sample 10. */
@@ -224,7 +249,7 @@ function selftest() {
   const t = tchTriple({ 'a|b': { sdMs: 1 }, 'a|c': { sdMs: 1 }, 'b|c': { sdMs: 10 } }, 'a', 'b', 'c');
   ok(t && !t.ok && t.negative.length > 0, 'an inconsistent triple must REFUSE, not clamp');
 
-  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : 'SELFTEST PASS (11/11)');
+  console.log(fails.length ? `SELFTEST FAIL (${fails.length})\n  ${fails.join('\n  ')}` : 'SELFTEST PASS (15/15)');
   return fails.length === 0;
 }
 
@@ -240,7 +265,6 @@ async function main() {
   const { PPGDSP } = getDsps();
   const all = [];
   const byFile = [];
-  let fsSeen = 0;
   for (const f of files) {
     let rec;
     try {
@@ -249,7 +273,6 @@ async function main() {
       continue;
     }
     if (!rec || !rec.ch) continue;
-    fsSeen = rec.fs;
     const per = rec.ch.map((c) => PPGDSP.detectChannel(c, rec.fs));
     let refIdx = 0;
     let best = -1;
@@ -271,30 +294,60 @@ async function main() {
         mine.push(fam);
       }
     }
-    if (mine.length >= 10) byFile.push(mine);
+    if (mine.length >= 10) byFile.push({ beats: mine, fs: rec.fs });
   }
   if (all.length < 10) {
     console.error(`only ${all.length} usable beats — refusing to report`);
     process.exit(2);
   }
-  /* WITHIN-FILE, then median across files — see the pooling warning in the header. */
-  const perFile = byFile.map((beats) => pairwiseJitter(beats, fsSeen)).filter((x) => Object.keys(x).length);
-  const keys = [...new Set(perFile.flatMap((x) => Object.keys(x)))];
-  const pw = {};
-  for (const k of keys) {
-    const sds = perFile.map((x) => x[k]?.sdMs).filter(Number.isFinite);
-    const means = perFile.map((x) => x[k]?.meanMs).filter(Number.isFinite);
-    if (!sds.length) continue;
-    const betweenSd = means.length > 1 ? Math.sqrt(variance(means)) : Number.NaN;
-    pw[k] = { sdMs: q(sds, 0.5), iqrMs: q(perFile.map((x) => x[k]?.iqrMs).filter(Number.isFinite), 0.5), n: perFile.length, betweenSd };
-  }
-  console.log(`beats ${all.length} across ${byFile.length} files · fs ${fsSeen.toFixed(2)} Hz · one sample = ${(1000 / fsSeen).toFixed(2)} ms`);
-  console.log(`\nCLOCK-FREE beat-to-beat SD (ms), WITHIN file, median across ${perFile.length} files:`);
-  const rows = Object.entries(pw).sort((a, b) => a[1].sdMs - b[1].sdMs);
-  for (const [k, v] of rows)
+  /* WITHIN-FILE at THAT FILE'S fs, then median across files — see the pooling warning in the header.
+     ⚠️ Residue `2026-09-05-fiducial-sd-quoted-without-its-sample-rate`: this used to convert EVERY
+     file with the LAST file's fs (`fsSeen`), so a population mixing 55 Hz and 176 Hz Verity files
+     was scaled by one wrong quantum, and the dominance verdict moved with which file happened to be
+     read last. A fiducial SD is a number of SAMPLES wearing ms: it is comparable only within one fs,
+     so the report is STRATIFIED by fs, each stratum carrying its own quantum beside its SD. */
+  const perFile = byFile.map(({ beats, fs }) => ({ fs, pw: pairwiseJitter(beats, fs) })).filter((x) => Object.keys(x.pw).length);
+  /* stratum key = NOMINAL rate (nearest Hz): measured effFs differs by hundredths file to file and
+     each of those is one quantum, not a different one */
+  const strata = strataOf(perFile);
+  console.log(`beats ${all.length} across ${byFile.length} files · ${strata.length} sample-rate stratum/strata: ${strata.map((f) => f + ' Hz').join(', ')}`);
+  if (strata.length > 1) console.log('⚠️  mixed sample rates — SDs are reported PER STRATUM and must not be compared across them (one sample differs between strata).');
+  let pw = {};
+  let tchFs = null;
+  let tchN = -1;
+  for (const fsKey of strata) {
+    const members = perFile.filter((x) => String(Math.round(x.fs)) === fsKey);
+    const inStratum = members.map((x) => x.pw);
+    const fsNum = q(
+      members.map((x) => x.fs),
+      0.5
+    ); // the stratum's MEDIAN measured fs, for the quantum
+    const keys = [...new Set(inStratum.flatMap((x) => Object.keys(x)))];
+    const pwS = {};
+    for (const k of keys) {
+      const sds = inStratum.map((x) => x[k]?.sdMs).filter(Number.isFinite);
+      const means = inStratum.map((x) => x[k]?.meanMs).filter(Number.isFinite);
+      if (!sds.length) continue;
+      const betweenSd = means.length > 1 ? Math.sqrt(variance(means)) : Number.NaN;
+      pwS[k] = { sdMs: q(sds, 0.5), iqrMs: q(inStratum.map((x) => x[k]?.iqrMs).filter(Number.isFinite), 0.5), n: inStratum.length, betweenSd };
+    }
     console.log(
-      `   ${k.padEnd(22)} within-SD ${v.sdMs.toFixed(2).padStart(7)}  IQR ${v.iqrMs.toFixed(2).padStart(7)}  between-file SD ${Number.isFinite(v.betweenSd) ? v.betweenSd.toFixed(2).padStart(7) : '      -'}   ${band(v.sdMs)}`
+      `\nfs ≈ ${fsKey} Hz (median measured ${fsNum.toFixed(2)}) · one sample = ${(1000 / fsNum).toFixed(2)} ms · CLOCK-FREE beat-to-beat SD (ms), WITHIN file, median across ${inStratum.length} files:`
     );
+    const rows = Object.entries(pwS).sort((a, b) => a[1].sdMs - b[1].sdMs);
+    for (const [k, v] of rows)
+      console.log(
+        `   ${k.padEnd(22)} within-SD ${v.sdMs.toFixed(2).padStart(7)} (${(v.sdMs / (1000 / fsNum)).toFixed(2)} samples)  IQR ${v.iqrMs.toFixed(2).padStart(7)}  between-file SD ${Number.isFinite(v.betweenSd) ? v.betweenSd.toFixed(2).padStart(7) : '      -'}   ${band(v.sdMs)} @ ~${fsKey} Hz`
+      );
+    /* the TCH decomposition below runs on the LARGEST stratum only — a variance split across strata
+       would mix two quanta into one number, which is the row's defect one layer up */
+    if (inStratum.length > tchN) {
+      pw = pwS;
+      tchN = inStratum.length;
+      tchFs = fsKey;
+    }
+  }
+  if (strata.length > 1) console.log(`\n(TCH below: largest stratum only — fs ${tchFs} Hz, ${tchN} files)`);
   console.log(`\nTCH decomposition (independence NOT assumed — see header; negatives are refusals):`);
   for (const [A, B, C] of [
     ['tangent', 'pct25', 'pct50'],

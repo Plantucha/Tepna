@@ -92,6 +92,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { cpus } from 'node:os';
+import { launch } from './pw-launch.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CKPT = join(ROOT, '.cache', 'analysis-rerun-checkpoint.json');
@@ -316,7 +317,7 @@ async function main(argv) {
   todo = RESUME ? pending(todo, ck, PAPER_SCALE) : todo;
   if (skipped) console.log('  resume    ' + skipped + ' tool(s) already in the checkpoint — not re-run');
 
-  const browser = await chromium.launch({
+  const browser = await launch(chromium, {
     executablePath: process.env.CHROME_BIN || '/usr/bin/google-chrome',
     args: ['--allow-file-access-from-files']
   });
