@@ -103,11 +103,12 @@ def test_every_clickable_night_routes_to_an_input_the_app_actually_has():
     html = open(os.path.join(here, "monitor.html"), encoding="utf-8").read()
     routes = _monitor_js_table(html, "NIGHT_INPUT")
     apps = _monitor_js_table(html, "NIGHT_APP")
-    clickable = [c for c, (globs, _p) in ni.NODES.items() if globs and c not in ni.NOT_LOADABLE]
+    clickable = [c for c, (globs, _p) in ni.NODES.items() if globs and c not in ni.NOT_LOADABLE] + list(ni.DERIVED)
     assert set(routes) == set(clickable), (sorted(set(clickable) - set(routes)), sorted(set(routes) - set(clickable)))
-    # the derived tools are ✓/✗ on disk, not a click, until their classifiers read box filenames
-    # (test_the_tool_classifiers_still_reject_box_filenames is the tripwire that says when)
-    assert 'data-node="${k}"' not in html.split("function nDerived")[1].split("\n")[0]
+    # the derived tools are a click again (their classifiers read box filenames since 2026-09-20 —
+    # test_the_tool_classifiers_accept_box_filenames), so the ✓ pill carries the same data-night/data-node
+    # the node figures do, and their routes are in the equality above like any other clickable column
+    assert 'data-node="${k}"' in html.split("function nDerived")[1].split("\n")[0]
     # the positional fallback is gone: a missing route or selector refuses instead of guessing
     assert "doc.querySelector('input[type=file]:not([webkitdirectory])')" not in html
     assert "has no input route for it" in html and "input is missing" in html
@@ -198,12 +199,41 @@ def _classifier_regexes(path):
     return out
 
 
-def test_the_tool_classifiers_still_reject_box_filenames():
-    """TRIPWIRE, and it is meant to red. Measured 2026-09-20: 0 of the 134 files in the box's 09-19 night
-    match either tool's classifier — both were written for the phone-app names. The Ledger therefore
-    shows the tools' ✓ as on-disk eligibility and offers no click. The day a classifier accepts a box
-    name this fails, and the fix is to offer the click again (NIGHT_INPUT + nDerived), not to edit here."""
+def test_the_tool_classifiers_accept_box_filenames():
+    """Was the TRIPWIRE `…still_reject_box_filenames` (2026-09-20 morning): 0 of the 134 files in the box's
+    09-19 night matched either tool's classifier, both written for the phone-app names, so the Ledger
+    showed ✓ as on-disk eligibility and offered no click. It fired the same evening — the classifiers now
+    take both layouts (`(\d{8})_?(\d{6})`, and the ring's box `_SPO2.csv` as the `o2` role) — and a
+    tripwire that has fired becomes the regression guard: every box name a tool has a ROLE for must match
+    one of its stamp-capturing regexes, read from the tool's own `classify` body so a rewrite cannot
+    pass by editing this file. Names no regex of a tool matches (the hat has none for the ring's raw PPG; PAT has none for
+    `_HR.txt` or the ring CSV) are asserted as still REJECTED, so the widening did not become a wildcard."""
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    for tool in ("sensor-trio-power-analysis.js", "pat-feasibility.js"):
-        hits = [(n, r.pattern) for r in _classifier_regexes(os.path.join(root, tool)) for n in BOX_NAMES if r.search(n)]
-        assert not hits, f"{tool} now reads capture-host filenames {hits} — offer the ✓ click in monitor.html"
+    wants = {
+        "sensor-trio-power-analysis.js": {
+            "Polar_H10_02849638_20260919183658_HR.txt": True,
+            "Polar_VeritySense_0C301E3F_20260919183724_PPG.txt": True,
+            "Wellue_O2Ring-S_S8AW2100_20260919002219_SPO2.csv": True,
+            # the ring's raw PPG waveform: no regex — the hat reads the ring's PULSE from its CSV. (The hat's
+            # H10 regex matches every _KIND.txt and keeps only HR AFTER the match, in JS; that filter is
+            # not visible at this layer, so an _ECG.txt is not a usable negative here.)
+            "Wellue_O2Ring-S_S8AW2100_20260919002219_PPG.txt": False,
+        },
+        "pat-feasibility.js": {
+            "Polar_H10_02849638_20260919183658_ECG.txt": True,
+            "Polar_VeritySense_0C301E3F_20260919183724_PPG.txt": True,
+            "Polar_H10_02849638_20260919183658_HR.txt": False,
+            "Wellue_O2Ring-S_S8AW2100_20260919002219_SPO2.csv": False,
+        },
+    }
+    for tool, table in wants.items():
+        regexes = _classifier_regexes(os.path.join(root, tool))
+        assert regexes, f"{tool}: no stamp-capturing regex found in classify() — the extractor lost the body"
+        for name, want in table.items():
+            hit = any(r.search(name) for r in regexes)
+            assert hit == want, f"{tool} {'rejects' if want else 'accepts'} box name {name}"
+    # and the phone-app names the classifiers were written for still match — both layouts, one rule each
+    for tool, name in (("sensor-trio-power-analysis.js", "Polar_H10_02849638_20260610_211538_HR.txt"),
+                       ("sensor-trio-power-analysis.js", "O2Ring S 2100_20260503210952.csv"),
+                       ("pat-feasibility.js", "Polar_Sense_0C301E3F_20260609_190208_PPG.txt")):
+        assert any(r.search(name) for r in _classifier_regexes(os.path.join(root, tool))), (tool, name)

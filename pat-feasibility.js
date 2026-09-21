@@ -74,10 +74,13 @@
       mo;
     // anchor the YYYYMMDD_HHMMSS immediately before the kind suffix — a loose \d{8}_\d{6}
     // scan grabs the H10 device serial (H10-01) instead of the date (the zero-nights bug).
-    if ((mo = n.match(/_(\d{8})_(\d{6})_ECG\.txt$/i))) return { role: 'ecg', stamp: mo[1] + mo[2] };
-    if ((mo = n.match(/_(\d{8})_(\d{6})_PPG\.txt$/i))) return { role: 'ppg', stamp: mo[1] + mo[2] };
+    // `_?` between date and time: the phone app writes YYYYMMDD_HHMMSS, the capture host the same
+    // 14 digits with no separator — one pattern per role, both layouts (2026-09-20; until then a box
+    // night indexed 0 of 134 files). Gated by capture-host test_the_tool_classifiers_accept_box_filenames.
+    if ((mo = n.match(/_(\d{8})_?(\d{6})_ECG\.txt$/i))) return { role: 'ecg', stamp: mo[1] + mo[2] };
+    if ((mo = n.match(/_(\d{8})_?(\d{6})_PPG\.txt$/i))) return { role: 'ppg', stamp: mo[1] + mo[2] };
     // ACC on BOTH devices → the cross-device drift anchor (H10 chest vs Verity arm)
-    if ((mo = n.match(/_(\d{8})_(\d{6})_ACC\.txt$/i))) return { role: /Polar_H10/i.test(n) ? 'ecgacc' : 'ppgacc', stamp: mo[1] + mo[2] };
+    if ((mo = n.match(/_(\d{8})_?(\d{6})_ACC\.txt$/i))) return { role: /Polar_H10/i.test(n) ? 'ecgacc' : 'ppgacc', stamp: mo[1] + mo[2] };
     return null;
   }
   // sessions starting before noon fold into the PREVIOUS evening (floating civil time)

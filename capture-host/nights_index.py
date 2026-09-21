@@ -56,7 +56,9 @@ NODES: dict[str, tuple[tuple[Pattern, ...], Pattern | None]] = {
 NOT_LOADABLE = frozenset({"Integrator", "HRVDex"})
 # derived tools: eligible when every required input exists; they open with those inputs loaded
 DERIVED: dict[str, tuple[str, ...]] = {
-    "3 corner hat": ("Polar_H10_*_ECG.txt", "Polar_VeritySense_*_PPG.txt", "Wellue_O2Ring-S_*_PPG.txt"),
+    # the hat's O2Ring corner is the ring's PULSE from its _SPO2.csv (sensor-trio-power-analysis.js role `o2`), not the
+    # ring's raw PPG waveform — a ✓ must mean the tool can run, so the requirement names the file it reads
+    "3 corner hat": ("Polar_H10_*_HR.txt", "Polar_VeritySense_*_PPG.txt", "Wellue_O2Ring-S_*_SPO2.csv"),
     "PAT":          ("Polar_H10_*_ECG.txt", "Polar_VeritySense_*_PPG.txt"),
 }
 COLUMNS = tuple(NODES) + tuple(DERIVED)

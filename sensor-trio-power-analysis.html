@@ -2427,12 +2427,21 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>) {
   //  raw PPG) are handed to a worker lane that parses + beat-detects + solves.
   // ════════════════════════════════════════════════════════════════════════
   const NIGHTS = {};
+  /* TWO CAPTURE LAYOUTS, ONE RULE EACH. The phone app (Polar Sensor Logger / the O2Ring app) writes
+     `Polar_H10_<id>_YYYYMMDD_HHMMSS_<KIND>.txt`, `Polar_Sense_…`, `O2Ring…_<14 digits>.csv`; the capture
+     host writes the SAME bytes as `Polar_H10_<id>_YYYYMMDDHHMMSS_<KIND>.txt` (one 14-digit run, no
+     separator), `Polar_VeritySense_…`, and `Wellue_O2Ring-S_<serial>_YYYYMMDDHHMMSS_SPO2.csv`. Until
+     2026-09-20 only the first set matched, so a box night — every input on disk — indexed as "0 nights
+     from 26 files" (RESIDUE 2026-09-20-tool-classifiers-phone-names). The stamp is `(\d{8})_?(\d{6})` so
+     each role has ONE pattern rather than a phone copy and a box copy that drift; the O2Ring's box
+     `_SPO2.csv` IS the 'o2' role. Gated by capture-host `test_the_tool_classifiers_accept_box_filenames`,
+     which reads these literals and runs the box's real filenames through them. */
   function classify(file) {
     const n = file.name;
     let mo;
-    if (/^O2Ring.*_(\d{14})\.csv$/i.test(n)) return { role: 'o2', stamp: n.match(/(\d{14})\.csv$/i)[1] };
-    if ((mo = n.match(/^Polar_H10_[0-9A-Za-zx]+_(\d{8})_(\d{6})_([A-Z]+)\.txt$/i))) return mo[3].toUpperCase() === 'HR' ? { role: 'h10', stamp: mo[1] + mo[2] } : null;
-    if ((mo = n.match(/^Polar_Sense_[0-9A-Za-zx]+_(\d{8})_(\d{6})_([A-Z]+)\.txt$/i))) {
+    if ((mo = n.match(/^(?:O2Ring.*|Wellue_O2Ring-S_[0-9A-Za-z]+)_(\d{14})(?:_SPO2)?\.csv$/i))) return { role: 'o2', stamp: mo[1] };
+    if ((mo = n.match(/^Polar_H10_[0-9A-Za-zx]+_(\d{8})_?(\d{6})_([A-Z]+)\.txt$/i))) return mo[3].toUpperCase() === 'HR' ? { role: 'h10', stamp: mo[1] + mo[2] } : null;
+    if ((mo = n.match(/^Polar_(?:Sense|VeritySense)_[0-9A-Za-zx]+_(\d{8})_?(\d{6})_([A-Z]+)\.txt$/i))) {
       const k = mo[3].toUpperCase(),
         role = k === 'PPG' ? 'verityPPG' : k === 'PPI' ? 'verityPPI' : k === 'HR' ? 'verityHR' : null;
       return role ? { role, stamp: mo[1] + mo[2] } : null;
