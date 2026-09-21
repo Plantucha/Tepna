@@ -3044,6 +3044,13 @@
       nnCorrected: nnCorr,
       // Filter-aligned per-beat fused-hat confidence — same alignment contract as nnCorrected.
       nnConf,
+      /* §∅, filter-aligned like the two above: 1 where interval i straddles a dropout or a beat the
+         confidence filter removed. The headline rMSSD/SDNN already exclude these (`_gapPair` /
+         `_rrOnly` above); until 2026-09-21 the mask stopped there and `validateRR`/`alignFirmwareRR`
+         were handed the raw `nn` — a 20-minute dropout counted as one beat-to-beat interval made the
+         export's `validation.dRMSSDPct` read 65 797.8 on 2026-09-03 (oracle-ecg-firmware-rr). Published
+         so every consumer can exclude what the node itself calls a non-measurement. */
+      nnSpansGap,
       // quality
       analyzablePct: nnRes.analyzablePct,
       correctionRate: nnRes.correctionRate,
@@ -5867,12 +5874,23 @@
         return rs;
       });
     if (r.deviceRR && r.deviceRR.length) {
-      const _v = validateRR(r.nn, r.deviceRR);
+      /* AN OUTPUT COMPUTED OVER ABSENT INPUT REPORTS THE ABSENCE (§∅). The self train handed to the
+         cross-check excludes the intervals `analyze` marked as straddling a dropout — the same
+         exclusion the headline rMSSD/SDNN make — so the comparison is measurement against measurement.
+         Fed the raw train, a single 1 232 840 ms "interval" (a 20-minute dropout, 2026-09-03) put the
+         published dRMSSDPct at 65 797.8 against 7.1 % on the gap-cut train; a consumer reading
+         `validation` as "does our detector agree with the strap" got NO on every gappy night for a
+         reason that had nothing to do with either detector. `gapCutBeats` says how many were cut. */
+      const _gapMask = Array.isArray(r.nnSpansGap) && r.nnSpansGap.length === r.nn.length ? r.nnSpansGap : null;
+      const _nnCut = _gapMask ? r.nn.filter((_, i) => !_gapMask[i]) : r.nn;
+      const _v = validateRR(_nnCut, r.deviceRR);
       if (_v) {
-        const _al = alignFirmwareRR(r.nn, r.deviceRR, { fs: r.fs });
+        const _al = alignFirmwareRR(_nnCut, r.deviceRR, { fs: r.fs });
         out.validation = {
           source: 'device-rr',
           beatsCompared: _v.nSelf,
+          // intervals the node marked as straddling a dropout, excluded from BOTH legs of this block
+          gapCutBeats: r.nn.length - _nnCut.length,
           nDevice: _v.nDev,
           dMeanPct: _v.dMean,
           dRMSSDPct: _v.dRMSSD,

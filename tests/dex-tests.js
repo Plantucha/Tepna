@@ -45357,6 +45357,58 @@
       } else T.skip('IntegratorDSP.readDetectorStability for the round-trip', 'wire env.IntegratorDSP in both runners');
     });
 
+    /* §∅ ON THE CROSS-CHECK (residue `2026-09-21-validaterr-compares-gap-spanning-intervals`). `analyze`
+       marks the intervals that straddle a dropout (`nnSpansGap`) and excludes them from the headline
+       rMSSD/SDNN — but `validateRR`/`alignFirmwareRR`, and the export's `validation` block built on them,
+       were handed the RAW train. A 20-minute dropout counted as ONE beat-to-beat interval put the
+       published dRMSSDPct at 65 797.8 on 2026-09-03 (oracle-ecg-firmware-rr, 52 real nights). The plant
+       here is that night's shape: a flat 20-minute span spliced into a synthetic recording. */
+    group('ECGDex validation block compares MEASUREMENTS — a dropout is cut, not counted as an interval', 'ecgdex-dsp · validation · gap-cut · plant', function (T) {
+      var E = env.ECGDSP;
+      if (!E || typeof E.genSynthetic !== 'function' || typeof E.compute !== 'function' || typeof E.validateRR !== 'function') {
+        T.skip('ECGDSP.genSynthetic + compute + validateRR available', 'not loaded');
+        return;
+      }
+      var rec = E.genSynthetic({ durSec: 2 * 3600, seed: 7 });
+      var gapN = Math.round(20 * 60 * rec.fs);
+      var cut = Math.round(rec.int16.length / 2);
+      var int16 = new Int16Array(rec.int16.length + gapN);
+      int16.set(rec.int16.subarray(0, cut), 0);
+      int16.set(rec.int16.subarray(cut), cut + gapN); // 20 min of exact zeros: no beats, one huge interval
+      var planted = Object.assign({}, rec, { int16: int16, durSec: rec.durSec + 1200 });
+      var clean = Object.assign({}, rec);
+
+      // THE PLANT IS SEEN: the raw train really does carry the dropout as one interval, and the OLD
+      // behaviour (validateRR on the raw train) really does publish the absurd number.
+      var r = E.analyze(planted, null);
+      T.ok('the planted dropout is one raw interval > 10 minutes', Array.isArray(r.nn) && Math.max.apply(null, r.nn) > 600000, 'max nn = ' + Math.max.apply(null, r.nn));
+      T.ok(
+        '…and `nnSpansGap` is PUBLISHED on the result, aligned with nn',
+        Array.isArray(r.nnSpansGap) && r.nnSpansGap.length === r.nn.length,
+        JSON.stringify([r.nnSpansGap && r.nnSpansGap.length, r.nn.length])
+      );
+      var rawV = E.validateRR(r.nn, r.deviceRR);
+      T.ok('OLD BEHAVIOUR, kept visible: validateRR on the raw train reads > 1000 % dRMSSD', !!rawV && rawV.dRMSSD > 1000, 'raw dRMSSD = ' + (rawV && rawV.dRMSSD));
+
+      // THE FIX: the export's validation block is built on the gap-cut train and says how many it cut.
+      var out = E.compute(planted, {});
+      var v = out && out.validation;
+      T.ok('the export carries a validation block (deviceRR was on the frame)', !!v, JSON.stringify(v && Object.keys(v)));
+      if (!v) return;
+      T.ok('validation.dRMSSDPct is a measurement, not the dropout (< 25 %)', v.dRMSSDPct < 25, 'dRMSSDPct = ' + v.dRMSSDPct);
+      T.ok('…and dSDNNPct likewise (< 25 %)', v.dSDNNPct < 25, 'dSDNNPct = ' + v.dSDNNPct);
+      var out0 = E.compute(clean, {});
+      var v0 = out0 && out0.validation;
+      T.ok(
+        'gapCutBeats is PUBLISHED and the planted night cut MORE than the clean twin',
+        v0 && typeof v.gapCutBeats === 'number' && typeof v0.gapCutBeats === 'number' && v.gapCutBeats > v0.gapCutBeats,
+        'planted ' + v.gapCutBeats + ' vs clean ' + (v0 && v0.gapCutBeats)
+      );
+      // DECOY: on the clean twin the cut changes nothing material — the fix does not touch a night
+      // without a dropout beyond the confidence-filter adjacencies it already carried.
+      T.ok("DECOY: the clean twin's dRMSSDPct is unchanged in kind (< 25 %)", v0 && v0.dRMSSDPct < 25, 'clean dRMSSDPct = ' + (v0 && v0.dRMSSDPct));
+    });
+
     /* ════ PER-BEAT ALIGNMENT AGAINST THE STRAP'S OWN DETECTOR — a whole-record median hides a decay ════
        `validateRR` compares whole-record summaries, which are invariant to WHICH beat matched which, so
        a night whose beat correspondence has fallen apart still reports healthy means and RMSSD. This
