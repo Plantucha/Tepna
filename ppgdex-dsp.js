@@ -4114,7 +4114,15 @@
     const dev = devicePPI.filter((d) => d.ppi > 300 && d.ppi < 2000 && (d.blocker == null || d.blocker === 0)).map((d) => d.ppi);
     if (dev.length < 3 || selfNN.length < 3) return { hasData: true, filePresent: true, usable: false, source, nDevice: dev.length };
     const devRaw = rmssdOf(dev);
-    const sC = _ppiCorrect(selfNN),
+    /* `selfNN` arrives ALREADY Malik-corrected — it is the export's `nn`. Passing it through
+       `_ppiCorrect` again was a SECOND pass, and correctRR is not idempotent: measured 2026-09-21 on a
+       real 24,898-interval H10 night, pass 1 corrected 19, pass 2 another 11, pass 3 one more. So
+       `selfEctopyCorrected` reported the second pass's count as the self side's artifact load (11 where
+       the real pass found 19), and `selfRMSSD`/`selfSDNN`/`nSelf` were computed on a twice-corrected
+       series against a once-corrected device series — an asymmetric comparison presented as symmetric.
+       Residue 2026-09-13-ppgdex-correctrr-not-idempotent. The self side is taken as-is; its correction
+       count is the caller's one real pass, or null when a caller cannot say (never a re-run's count). */
+    const sC = { out: selfNN, nc: opts && opts.selfCorrected != null ? opts.selfCorrected : null },
       dC = _ppiCorrect(dev);
     const self = sC.out,
       devc = dC.out;
@@ -4938,7 +4946,7 @@
       ppiSeries = mk;
       ppiSource = 'o2ring-marker';
     }
-    const validation = validatePPI(nn, ppiSeries, { source: ppiSource });
+    const validation = validatePPI(nn, ppiSeries, { source: ppiSource, selfCorrected: corr.nCorr });
     /* The stability leg needs BOTH detectors' beat TIMES on ONE axis, which is true only for the
        marker source: those rows sit in the same file, on the same `relSec`, as the feet we detected.
        A `_PPI.txt` carries intervals plus the host's ARRIVAL stamps, so differencing against it would
