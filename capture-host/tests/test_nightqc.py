@@ -1084,13 +1084,44 @@ def test_dominant_share_is_a_VARIANCE_share_so_it_says_whether_the_fix_is_worth_
     assert u["dominant_share"] == pytest.approx(d * d / (d * d + q * q), abs=1e-6)
 
 
-def test_the_budget_reaches_the_per_stream_record(tmp_path):
-    """Wired, not merely defined — the defect this repo keeps finding one layer up."""
+def _arrival_night(tmp_path, n=400, base_s=0.5):
+    """A real `*_PMDARRIVAL.csv` with a crystal-scale wobble on the device axis — the same shape
+    `test_jitterfloor` plants — so `arrival_quality` has a stream to judge. An exact synthetic clock
+    is a DRAWN axis and would be refused, which is correct and useless here."""
     d = tmp_path / "2026-08-15"
     d.mkdir()
-    (d / "Polar_H10_02849638_20260815024240_ECG.csv").write_text("h\n" + "r\n" * 400)
-    rows = nightqc.arrival_quality(str(d))
-    assert all("u_time" in r for r in rows), rows
+    wobble = (0.31, -0.17, 0.23, -0.29, 0.11, -0.37, 0.19, -0.13)
+    jitter = (3, -3)
+    lines = ["Phone timestamp;device;meas;first_sensor_ns;last_sensor_ns;n_samples"]
+    for i in range(n):
+        host_s = i * base_s + jitter[i % 2] / 1000.0
+        dev_ns = int(i * base_s * 1e9 + wobble[i % 8] * 1e6)
+        stamp = "2026-08-15T02:%02d:%02d.%03d" % (int(host_s // 60), int(host_s % 60), int((host_s * 1000) % 1000))
+        lines.append("%s;Polar H10 02849638;ecg;%d;%d;73" % (stamp, dev_ns, dev_ns))
+    (d / "Polar_H10_02849638_20260815024240_PMDARRIVAL.csv").write_text("\n".join(lines) + "\n")
+    return d
+
+
+def test_the_budget_reaches_the_per_stream_record(tmp_path):
+    """Wired, not merely defined — the defect this repo keeps finding one layer up.
+    ⚠️ Until 2026-09-21 this test wrote an `_ECG.csv` and asserted over `arrival_quality`'s rows —
+    which lists only `*_PMDARRIVAL.csv`, so `rows == []` and `all()` was TRUE OVER NOTHING. It now
+    plants a real arrival file and pins that a row exists before pinning what it carries."""
+    rows = nightqc.arrival_quality(str(_arrival_night(tmp_path)))
+    assert len(rows) == 1, rows
+    assert "u_time" in rows[0], rows[0]
+
+
+def test_stability_provenance_reaches_the_qc_record(tmp_path):
+    """ALLAN-STABILITY-GAPS §2.3, at the level a reader meets it: the per-stream QC record's
+    `stability` block names its tau0, n, span, estimator and version — not only in `allan.py`."""
+    rows = nightqc.arrival_quality(str(_arrival_night(tmp_path)))
+    assert len(rows) == 1
+    st = rows[0]["stability"]
+    assert st["ok"] is True, st
+    for k in ("tau0", "n", "span_s", "estimator", "min_terms", "span_multiple", "version"):
+        assert k in st, k
+    assert st["n"] == 400 and st["estimator"] == "overlapping-adev"
 
 
 # ── ppg2w_contact — the ring's independent coupling vote ───────────────────────────────────────────

@@ -1247,3 +1247,19 @@ def test_A_a_constant_series_is_NO_MEASURABLE_INSTABILITY_not_an_unmade_fit():
     d = allan.stability([float(i % 7) * 0.01 + i * 1e-4 for i in range(3000)], 1.0)
     assert d["classification"]["slope"] is not None
 
+
+def test_stability_carries_its_own_provenance_tau0_n_span_estimator_version():
+    """§2.3: a curve without its tau0 and n is a ppm without its span. Keys are ADDITIVE and derived
+    from the call, never from the caller's memory of it."""
+    x = [float(i % 7) * 0.01 + i * 1e-4 for i in range(3000)]
+    s = allan.stability(x, 0.5)
+    assert s["ok"] is True
+    assert s["tau0"] == 0.5 and s["n"] == 3000
+    assert s["span_s"] == pytest.approx((3000 - 1) * 0.5)
+    assert s["estimator"] == "overlapping-adev"
+    assert s["min_terms"] == allan._MIN_TERMS and s["span_multiple"] == allan._MIN_SPAN_MULTIPLE
+    assert s["version"] == allan.STABILITY_VERSION and isinstance(s["version"], str) and s["version"]
+    # the flat series carries them too — provenance is not conditional on the answer
+    f = allan.stability([5.0] * 2000, 1.0)
+    assert f["tau0"] == 1.0 and f["n"] == 2000 and f["version"] == allan.STABILITY_VERSION
+

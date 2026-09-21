@@ -136,6 +136,14 @@ forbids, one level up. Add, additively: `tau0`, `n` (samples after `_clean`), `s
 when any estimator changes). Series identity (`device`, `meas`) stays at the `nightqc` level where it
 already is. Done when `test_allan.py` asserts the keys on a seeded fixture and a QC-SUMMARY produced
 from a fixture night carries them. Changeset: `patch`. Lands with §2.5's Python tests as one PR.
+✅ **DONE 2026-09-21 (Osprey), in the §2.5 PR as prescribed.** `stability()` now carries `tau0`, `n`,
+`span_s`, `estimator: "overlapping-adev"`, `min_terms`, `span_multiple`, `version` (`STABILITY_VERSION`,
+a module constant). Pinned at both levels: `test_stability_carries_its_own_provenance_…` on the seeded
+series and `test_stability_provenance_reaches_the_qc_record` on a planted `*_PMDARRIVAL.csv` night through
+`nightqc.arrival_quality`. ⚠️ Writing the second test exposed that `test_the_budget_reaches_the_per_stream_record`
+had been passing OVER ZERO ROWS since it was written — it planted an `_ECG.csv`, `arrival_quality` lists
+only `*_PMDARRIVAL.csv`, and `all()` over `[]` is true. It now plants a real arrival file and asserts a row
+exists before asserting what it carries. §2.4 (the report line) is the night-report unit's, untouched.
 
 ### 2.4 One human-readable line — in the night report, not a new consumer
 

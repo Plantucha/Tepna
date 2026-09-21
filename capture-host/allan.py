@@ -38,6 +38,10 @@ import math
 # needs N > 2m, and a handful of terms produces a number with a confidence interval wider than the
 # answer — the failure mode this module exists to stop.
 _MIN_TERMS = 8
+# PROVENANCE VERSION for `stability()` (ALLAN-STABILITY-GAPS §2.3). Bump when ANY estimator in this
+# module changes what it computes — a curve carrying the same keys from a different estimator is
+# the drift `manifestHash` exists to catch one layer down. Not a suite version; a module constant.
+STABILITY_VERSION = "2026-09-21"
 # A tau is only reported when the series spans at least this many of them, for the same reason.
 _MIN_SPAN_MULTIPLE = 4.0
 
@@ -815,6 +819,15 @@ def stability(phase, tau0, tdev_tau=None):
     )
     return {
         "ok": True,
+        # ── PROVENANCE (§2.3): a curve without its tau0 and n is a ppm without its span, one level up.
+        #    Additive keys; series identity (device, meas) stays at the nightqc level where it lives.
+        "tau0": tau0,
+        "n": len(phase),
+        "span_s": (len(phase) - 1) * tau0,
+        "estimator": "overlapping-adev",
+        "min_terms": _MIN_TERMS,
+        "span_multiple": _MIN_SPAN_MULTIPLE,
+        "version": STABILITY_VERSION,
         "taus": len(pts),
         "tau_min": pts[0]["tau"],
         "tau_max": pts[-1]["tau"],
