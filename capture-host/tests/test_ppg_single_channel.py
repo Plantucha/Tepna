@@ -50,6 +50,7 @@ def test_ppg1_never_replicates_the_single_value(tmp_path):
     row = _read(str(p))[1]
     assert row.split(";")[2:] == ["123"], row
     assert ";123;123" not in row, "the single pleth value was fanned across channels again: " + row
+    w.close()                                       # a sample writer left open leaks the process-global counter
 
 
 def test_verity_three_led_layout_is_unchanged(tmp_path):
@@ -61,6 +62,7 @@ def test_verity_three_led_layout_is_unchanged(tmp_path):
     lines = _read(str(p))
     assert lines[0] == "Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient"
     assert lines[1].split(";")[2:] == ["-499500", "-508840", "-516640", "-650690"], lines[1]
+    w.close()                                       # a sample writer left open leaks the process-global counter
 
 
 def test_header_column_count_matches_row_column_count(tmp_path):
@@ -79,3 +81,4 @@ def test_header_column_count_matches_row_column_count(tmp_path):
         assert lines[0].count(";") == lines[1].count(";"), f"{stream}: header/row column mismatch"
         # and the header really does name as many optical columns as the device has sensors
         assert lines[0].count("channel ") == len(ch), f"{stream}: header names the wrong sensor count"
+        w.close()                                   # a sample writer left open leaks the process-global counter
