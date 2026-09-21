@@ -50,7 +50,7 @@
  *
  * Usage:
  *   node tools/pat-window-oracle.mjs --selftest
- *   node tools/pat-window-oracle.mjs --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half] [--ecg-axis linear|piecewise]
+ *   node tools/pat-window-oracle.mjs --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half] [--ecg-axis linear|piecewise] [--no-ecg-refine]
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -635,6 +635,12 @@ async function main() {
      requires an independent second clock); otherwise the night is ANNOTATED and skipped, never
      scored on a silent zero-correction axis wearing the piecewise label. */
   const AXIS = argv.includes('--ecg-axis') ? argv[argv.indexOf('--ecg-axis') + 1] : 'linear';
+  /* Sub-sample R times (`ECGDSP.refinePeaks`) on the ECG leg — ON by default since 2026-09-21, to match
+     the shipped `pat-feasibility-worker.js` (#2487). Measured paired over 58 scored box nights: 20 modes
+     move (18 by exactly one 10-ms bin, the 7.7 ms whole-sample quantisation), 2 verdicts flip, and the
+     two pre-registered invariant nights hold (07-24 405→405, 08-17 215→215). `--no-ecg-refine`
+     reproduces every number published before that date. PAT-FORENSICS-AXIS-LEG-ASYMMETRY, last box. */
+  const REFINE = !argv.includes('--no-ecg-refine');
   /* `--search-max` varies the interval the MODE IS SEARCHED IN — not `--half-width`, which is the band
      drawn AROUND the mode and is what §4a already swept. The two are independent and only the second
      has ever been varied. `--json` emits the per-night record including `modeN`, the null's own mode,
@@ -644,7 +650,7 @@ async function main() {
   const JSON_OUT = argv.includes('--json');
   const jsonRows = [];
   if (!DIR || !existsSync(DIR) || !['foot', 'cfd', 'half'].includes(FID) || !['linear', 'piecewise'].includes(AXIS)) {
-    console.error('usage: node tools/pat-window-oracle.mjs --selftest | --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half] [--ecg-axis linear|piecewise]');
+    console.error('usage: node tools/pat-window-oracle.mjs --selftest | --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half] [--ecg-axis linear|piecewise] [--no-ecg-refine]');
     process.exit(2);
   }
   const { getDsps, ecgRpeakTimes, ppgFootTimes } = await import(join(HERE, 'pat-matchrate-strict.mjs'));
@@ -659,7 +665,7 @@ async function main() {
     process.exit(3);
   }
   console.log(
-    `half-width ±${HW} ms · fiducial ${FID} · ecg-axis ${AXIS} · mode search 0–${MODE_SEARCH_MAX} ms · bands: <=${BAND_RECOVERED} RECOVERED, <${BAND_PARTIAL} PARTIAL, else NO RECOVERY; null must be beaten\n`
+    `half-width ±${HW} ms · fiducial ${FID} · ecg-axis ${AXIS}${REFINE ? '+refine' : ' (whole-sample R)'} · mode search 0–${MODE_SEARCH_MAX} ms · bands: <=${BAND_RECOVERED} RECOVERED, <${BAND_PARTIAL} PARTIAL, else NO RECOVERY; null must be beaten\n`
   );
   console.log('night        mode    n     narrowSD    fullSD     nullSD   verdict');
   const tally = {};
@@ -690,7 +696,7 @@ async function main() {
     let E;
     let P;
     try {
-      E = ecgRpeakTimes(readFileSync(eF, 'utf8'), AXIS === 'piecewise' ? { axis: 'piecewise' } : undefined);
+      E = ecgRpeakTimes(readFileSync(eF, 'utf8'), { axis: AXIS === 'piecewise' ? 'piecewise' : undefined, refine: REFINE });
       P = ppgFootTimes(readFileSync(pF, 'utf8'));
     } catch (e) {
       /* The catch cannot narrow WHAT the parse/transform layer throws (it is another module's
