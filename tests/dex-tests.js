@@ -2086,65 +2086,91 @@
        over-smoothing — while correcting the firmware side too (306 beats) brings it to 53.6, a 10.7 %
        difference. The uncorrected reading does not just exaggerate, it points the wrong way.
        These pin the INVARIANTS, not the corpus numbers. */
-    group("PpgDex self-vs-firmware PPI corrects BOTH sides, or one side's artifact reads as disagreement", 'ppgdex-dsp · ppi-validation', function (T) {
-      var P = env.PPGDSP || env.PpgDSP;
-      if (!P || typeof P.validatePPI !== 'function') {
-        T.skip('PPGDSP.validatePPI available', 'not loaded');
-        return;
-      }
-      // A clean firmware series with real beat-to-beat variability, and a self series that is the
-      // SAME rhythm shifted by a constant — two detectors with a fixed latency between them.
-      var dev = [],
-        self = [];
-      /* Beat-to-beat variability at a PHYSIOLOGICAL scale (rMSSD tens of ms, as a real night has),
+    group(
+      "PpgDex self-vs-firmware PPI corrects the firmware side ONCE and never re-corrects the export's nn — or one side's artifact reads as disagreement",
+      'ppgdex-dsp · ppi-validation',
+      function (T) {
+        var P = env.PPGDSP || env.PpgDSP;
+        if (!P || typeof P.validatePPI !== 'function') {
+          T.skip('PPGDSP.validatePPI available', 'not loaded');
+          return;
+        }
+        // A clean firmware series with real beat-to-beat variability, and a self series that is the
+        // SAME rhythm shifted by a constant — two detectors with a fixed latency between them.
+        var dev = [],
+          self = [];
+        /* Beat-to-beat variability at a PHYSIOLOGICAL scale (rMSSD tens of ms, as a real night has),
          deterministic so the group cannot flake. A near-constant series would make any residual read
          as a huge percentage of a near-zero rMSSD, which tests the arithmetic rather than the fix. */
-      var seed = 12345;
-      var rnd = function () {
-        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-        return seed / 0x7fffffff - 0.5;
-      };
-      for (var i = 0; i < 400; i++) {
-        var v = 900 + 40 * Math.sin(i / 7) + 60 * rnd();
-        dev.push({ ppi: v, blocker: 0 });
-        self.push(v + 2);
-      }
-      var base = P.validatePPI(self, dev, { source: 'o2ring-marker' });
-      T.ok('a clean pair validates', base.usable === true);
-      T.eq('the firmware source is carried, not guessed', base.source, 'o2ring-marker');
-      /* A CONSTANT OFFSET IS NOT A VARIABILITY DIFFERENCE. This is the assertion that keeps the card
+        var seed = 12345;
+        var rnd = function () {
+          seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+          return seed / 0x7fffffff - 0.5;
+        };
+        for (var i = 0; i < 400; i++) {
+          var v = 900 + 40 * Math.sin(i / 7) + 60 * rnd();
+          dev.push({ ppi: v, blocker: 0 });
+          self.push(v + 2);
+        }
+        var base = P.validatePPI(self, dev, { source: 'o2ring-marker' });
+        T.ok('a clean pair validates', base.usable === true);
+        T.eq('the firmware source is carried, not guessed', base.source, 'o2ring-marker');
+        /* A CONSTANT OFFSET IS NOT A VARIABILITY DIFFERENCE. This is the assertion that keeps the card
          honest about what each row means: a fixed detector latency must move Mean and leave rMSSD and
          SDNN untouched. If a future refactor compares raw series or forgets to correct one side,
          these two stop being zero. */
-      T.ok('a constant offset moves the MEAN row', base.dMean > 0, 'dMean=' + base.dMean);
-      T.eq('a constant offset leaves rMSSD identical', base.dRMSSD, 0);
-      T.eq('a constant offset leaves SDNN identical', base.dSDNN, 0);
-      // THE DEFECT: artifact on the FIRMWARE side only. Self stays clean; the device gets ectopic
-      // beats. Uncorrected these land almost entirely in rMSSD (a first-difference statistic).
-      var dirty = dev.map(function (d, k) {
-        return { ppi: k % 25 === 11 ? d.ppi * 0.45 : d.ppi, blocker: 0 };
-      });
-      var got = P.validatePPI(self, dirty, { source: 'o2ring-marker' });
-      T.ok('the firmware side was actually corrected', got.devEctopyCorrected > 0, 'devEctopyCorrected=' + got.devEctopyCorrected);
-      T.ok('the RAW firmware rMSSD is reported alongside the corrected one', got.devRawRMSSD > got.devRMSSD, 'raw=' + got.devRawRMSSD + ' corrected=' + got.devRMSSD);
-      /* The bound is the point: uncorrected, this pair's rMSSD differs by hundreds of percent — the
+        T.ok('a constant offset moves the MEAN row', base.dMean > 0, 'dMean=' + base.dMean);
+        T.eq('a constant offset leaves rMSSD identical', base.dRMSSD, 0);
+        T.eq('a constant offset leaves SDNN identical', base.dSDNN, 0);
+        // THE DEFECT: artifact on the FIRMWARE side only. Self stays clean; the device gets ectopic
+        // beats. Uncorrected these land almost entirely in rMSSD (a first-difference statistic).
+        var dirty = dev.map(function (d, k) {
+          return { ppi: k % 25 === 11 ? d.ppi * 0.45 : d.ppi, blocker: 0 };
+        });
+        var got = P.validatePPI(self, dirty, { source: 'o2ring-marker' });
+        T.ok('the firmware side was actually corrected', got.devEctopyCorrected > 0, 'devEctopyCorrected=' + got.devEctopyCorrected);
+        T.ok('the RAW firmware rMSSD is reported alongside the corrected one', got.devRawRMSSD > got.devRMSSD, 'raw=' + got.devRawRMSSD + ' corrected=' + got.devRMSSD);
+        /* The bound is the point: uncorrected, this pair's rMSSD differs by hundreds of percent — the
          raw device rMSSD is many times the self value. After equal treatment the two detectors agree.
          Deliberately not an exact number: it must hold for the SHAPE of the fix, not one arithmetic. */
-      T.ok(
-        'with both sides corrected, one-sided artifact no longer reads as disagreement',
-        got.dRMSSD < 25,
-        'dRMSSD=' + got.dRMSSD + ' (raw firmware rMSSD ' + got.devRawRMSSD + ' vs self ' + got.selfRMSSD + ')'
-      );
-      T.ok(
-        'and the uncorrected comparison WOULD have disagreed',
-        (100 * Math.abs(got.selfRMSSD - got.devRawRMSSD)) / got.devRawRMSSD > 50,
-        'raw gap=' + ((100 * Math.abs(got.selfRMSSD - got.devRawRMSSD)) / got.devRawRMSSD).toFixed(1) + '%'
-      );
-      // The absent/empty distinction predates this change and must survive it.
-      T.eq('no firmware series at all is still distinguishable from an empty one', P.validatePPI(self, null).filePresent, false);
-      T.eq('an empty series reports the file WAS present', P.validatePPI(self, []).filePresent, true);
-      T.eq('a too-sparse series is unusable, not a comparison', P.validatePPI(self, [{ ppi: 900, blocker: 0 }]).usable, false);
-    });
+        T.ok(
+          'with both sides corrected, one-sided artifact no longer reads as disagreement',
+          got.dRMSSD < 25,
+          'dRMSSD=' + got.dRMSSD + ' (raw firmware rMSSD ' + got.devRawRMSSD + ' vs self ' + got.selfRMSSD + ')'
+        );
+        T.ok(
+          'and the uncorrected comparison WOULD have disagreed',
+          (100 * Math.abs(got.selfRMSSD - got.devRawRMSSD)) / got.devRawRMSSD > 50,
+          'raw gap=' + ((100 * Math.abs(got.selfRMSSD - got.devRawRMSSD)) / got.devRawRMSSD).toFixed(1) + '%'
+        );
+        // The absent/empty distinction predates this change and must survive it.
+        T.eq('no firmware series at all is still distinguishable from an empty one', P.validatePPI(self, null).filePresent, false);
+        T.eq('an empty series reports the file WAS present', P.validatePPI(self, []).filePresent, true);
+        T.eq('a too-sparse series is unusable, not a comparison', P.validatePPI(self, [{ ppi: 900, blocker: 0 }]).usable, false);
+        /* ── THE SELF SIDE IS NOT RE-CORRECTED (residue 2026-09-13-ppgdex-correctrr-not-idempotent) ──
+         `selfNN` is the export's already-corrected nn. validatePPI used to run Malik on it AGAIN, and
+         correctRR is not idempotent (real H10 night: pass 1 corrected 19, pass 2 another 11) — so
+         `selfEctopyCorrected` published the second pass's count and `nSelf`/`selfRMSSD` came from a
+         twice-corrected series against a once-corrected device one. Plant: a self series carrying one
+         interval a pass WOULD remove must come through with its length intact, and the count must be
+         the caller's real pass — or null, never a re-run's. */
+        var spiky = self.slice();
+        spiky[200] = 1900; // a pass would drop this; the self side must keep it, because the caller already decided
+        var once = P.validatePPI(spiky, dev, { source: 'o2ring-marker', selfCorrected: 7 });
+        T.eq('the self series is taken as-is — no second Malik pass thins it', once.nSelf, spiky.length);
+        T.eq("selfEctopyCorrected is the caller's one real pass, not a re-run's count", once.selfEctopyCorrected, 7);
+        var unsaid = P.validatePPI(spiky, dev, { source: 'o2ring-marker' });
+        T.eq('…and null when the caller cannot say — never a fabricated count', unsaid.selfEctopyCorrected, null);
+        T.ok('the device side is still corrected once (its count is a number ≥ 0)', typeof unsaid.devEctopyCorrected === 'number' && unsaid.devEctopyCorrected >= 0);
+        // DECOY — the old behaviour would have thinned the spiky series; prove the plant is one a pass removes
+        var tt = [];
+        for (var q = 0, acc = 0; q < spiky.length; q++) {
+          acc += spiky[q] / 1000;
+          tt.push(acc);
+        }
+        T.ok('the planted interval IS one correctRR removes (so the length assertion above has teeth)', P.correctRR(spiky, tt).nCorr >= 1);
+      }
+    );
 
     /* ════ THE CRYSTAL AXIS MUST NOT RUN BACKWARD — AND MUST NOT SWALLOW A DROPOUT ════
        The re-anchor snapped to the host's ABSOLUTE value on a genuine loss. That assumed the host is
