@@ -61,6 +61,12 @@ const TOOLS = [
   'hrv-confound-analysis.html',
   'nights-icc-analysis.html',
   'odi-bias-analysis.html',
+  /* PAT Feasibility.html was a hand-copied page (2026-07-25) that loaded pat-gate.js + pat-feasibility.js from
+     the served root, whose worker then importScripts seven more — and the box's sync-apps serves only OWNED
+     output, so every one of them 404'd there and the monitor's PAT click could never process (Wren, 2026-09-21).
+     pat-feasibility-worker.js had said "DEAD in the build-analysis blob" since it was written: built to be
+     inlined, never listed. */
+  'PAT Feasibility.html',
   'qrs-equiv-analysis.html',
   'qrs-yield-analysis.html',
   'resp-acc-analysis.html',
