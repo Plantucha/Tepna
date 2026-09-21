@@ -1213,3 +1213,138 @@ def test_a_uniform_tau_rescale_leaves_the_SLOPE_invariant():
     # error partially defeats. That is the concrete consequence of a non-uniform arrival axis.
     assert b["optimal_tau"] == pytest.approx(a["optimal_tau"] * 3.0, rel=1e-9)
     assert b["tau_max"] == pytest.approx(a["tau_max"] * 3.0, rel=1e-9)
+
+
+# ── ALLAN-STABILITY-GAPS §2.5 — J (determinism) and A (degenerate input), pre-decided before written ──
+
+
+def test_J_stability_is_deterministic_and_does_not_read_its_input_by_identity():
+    """`stability(x, tau0)` twice, and on a COPY of x, is `==` — nothing in the pipeline reads a clock,
+    an RNG, or the identity of its input. No test pinned this before the brief named it."""
+    import copy
+    x = [float(i % 7) * 0.01 + i * 1e-4 for i in range(3000)]
+    a = allan.stability(x, 1.0, tdev_tau=8.0)
+    b = allan.stability(x, 1.0, tdev_tau=8.0)
+    c = allan.stability(copy.deepcopy(x), 1.0, tdev_tau=8.0)
+    assert a == b == c
+    assert a["ok"] is True and a["classification"] is not None
+
+
+def test_A_a_constant_series_is_NO_MEASURABLE_INSTABILITY_not_an_unmade_fit():
+    """Pre-decided outcome (§2.5 A): `ok: True`, every `adev == 0`, `classification.noise is None` with a
+    `meaning` that says why. Before this the record carried `classification: None`, which is the shape
+    of 'the slope fit could not be made' — a refusal reason wrong about why."""
+    s = allan.stability([5.0] * 2000, 1.0)
+    assert s["ok"] is True
+    assert all(p["adev"] == 0 for p in s["curve"])
+    assert s["adev_min"] == 0
+    c = s["classification"]
+    assert c is not None
+    assert c["noise"] is None and c["candidates"] is None
+    assert "no measurable instability" in c["meaning"]
+    assert c["slope"] is None and c["n_tau"] == s["taus"]
+    # and a series with real structure does NOT take this branch — the decoy for the flat rule
+    d = allan.stability([float(i % 7) * 0.01 + i * 1e-4 for i in range(3000)], 1.0)
+    assert d["classification"]["slope"] is not None
+
+
+def test_stability_carries_its_own_provenance_tau0_n_span_estimator_version():
+    """§2.3: a curve without its tau0 and n is a ppm without its span. Keys are ADDITIVE and derived
+    from the call, never from the caller's memory of it."""
+    x = [float(i % 7) * 0.01 + i * 1e-4 for i in range(3000)]
+    s = allan.stability(x, 0.5)
+    assert s["ok"] is True
+    assert s["tau0"] == 0.5 and s["n"] == 3000
+    assert s["span_s"] == pytest.approx((3000 - 1) * 0.5)
+    assert s["estimator"] == "overlapping-adev"
+    assert s["min_terms"] == allan._MIN_TERMS and s["span_multiple"] == allan._MIN_SPAN_MULTIPLE
+    assert s["version"] == allan.STABILITY_VERSION and isinstance(s["version"], str) and s["version"]
+    # the flat series carries them too — provenance is not conditional on the answer
+    f = allan.stability([5.0] * 2000, 1.0)
+    assert f["tau0"] == 1.0 and f["n"] == 2000 and f["version"] == allan.STABILITY_VERSION
+
+
+# ── ALLAN-STABILITY-GAPS §2.2 step 2a — holes are CUT, not compacted ────────────────────────────
+
+
+def _white_fm_with_hole(hole, step_sigma, sigma=1e-3, n=4000, tau0=1.0, seed=3):
+    """White-FM phase (integrated white frequency noise) with a hole of `hole` samples planted at the
+    midpoint, across which the clock kept running: the later half is shifted in time by the hole and in
+    phase by `step_sigma` sigmas. Returns (phase, sample_times, phase_without_hole)."""
+    import random
+    random.seed(seed)
+    ph = [0.0]
+    for _ in range(n - 1):
+        ph.append(ph[-1] + random.gauss(0, sigma) * tau0)
+    ts = [i * tau0 for i in range(n)]
+    ts2 = [t if i < n // 2 else t + hole for i, t in enumerate(ts)]
+    ph2 = [p if i < n // 2 else p + step_sigma * sigma for i, p in enumerate(ph)]
+    return ph2, ts2, ph
+
+
+def test_F_a_compacted_hole_INFLATES_the_level_and_pooling_recovers_the_truth():
+    """Test F, corrected before it was written. The brief predicted a compacted hole would read as
+    tau^+1 ("drift"). Probed first: a single phase step has second-difference energy that falls as
+    tau^-1/2 — the SAME slope as white FM — so the classifier does NOT move; what moves is the LEVEL,
+    at every tau, by the step's size. So the honest F is: compacted ADEV(tau0) is inflated beyond the
+    no-hole truth by far more than its SE; pooled equals the truth; both classify white FM. A test
+    that asserted misclassification would have been asserting something the estimator cannot do."""
+    ph2, ts2, truth_ph = _white_fm_with_hole(hole=50, step_sigma=500)
+    compacted = allan.stability(ph2, 1.0)
+    pooled = allan.stability(ph2, 1.0, sample_times=ts2)
+    truth = allan.stability(truth_ph, 1.0)
+    assert compacted["pooled"] is False and compacted["segments"] == 1
+    assert pooled["pooled"] is True and pooled["segments"] == 2 and pooled["dropped_intervals"] == 1
+    a0 = lambda s: s["curve"][0]["adev"]  # noqa: E731
+    assert a0(compacted) > 5 * a0(truth), (a0(compacted), a0(truth))
+    assert a0(pooled) == pytest.approx(a0(truth), rel=0.02)
+    assert compacted["classification"]["noise"] == "white-frequency"
+    assert pooled["classification"]["noise"] == "white-frequency"
+    # the tau no segment can support is ABSENT from the pooled curve, not extrapolated
+    assert pooled["taus"] < compacted["taus"]
+    assert pooled["curve"][-1]["tau"] < compacted["curve"][-1]["tau"]
+
+
+def test_F_decoy_without_a_hole_pooling_is_the_identity():
+    """The same call with sample instants that carry NO gap must return the compacted curve exactly —
+    otherwise the pooling path is changing numbers it has no business touching."""
+    ph = [float(i % 7) * 0.01 + i * 1e-4 for i in range(3000)]
+    a = allan.stability(ph, 1.0)
+    b = allan.stability(ph, 1.0, sample_times=[i * 1.0 for i in range(3000)])
+    assert b["pooled"] is False and b["segments"] == 1 and b["dropped_intervals"] == 0
+    assert [p["adev"] for p in a["curve"]] == [p["adev"] for p in b["curve"]]
+
+
+def test_segments_by_gap_cuts_at_k_times_the_median_and_only_there():
+    ts = [0, 1, 2, 3, 4, 5, 20, 21, 22, 23, 24, 25]  # one 15 s hole in a 1 s cadence
+    assert allan.segments_by_gap(ts, 4.0) == [(0, 6), (6, 12)]
+    assert allan.segments_by_gap(ts, 20.0) == [(0, 12)]  # k above the hole: one run
+    assert allan.segments_by_gap([0, 1], 4.0) == [(0, 2)]  # too few to have a median: one run
+    assert allan.segments_by_gap([], 4.0) == [(0, 0)]
+    assert allan.segments_by_gap([5, 5, 5, 5], 4.0) == [(0, 4)]  # no positive spacing at all: one run, no median
+
+
+def test_adev_pooled_is_the_n_weighted_mean_of_sigma_squared():
+    """Pooling is exact by construction; pin the arithmetic on two hand-made segments."""
+    import random
+    random.seed(11)
+    x = [0.0]
+    for _ in range(1999):
+        x.append(x[-1] + random.gauss(0, 1e-3))
+    ts = [i if i < 1000 else i + 100 for i in range(2000)]
+    pts, meta = allan.adev_pooled(x, 1.0, ts, 4.0)
+    assert meta == {"segments": 2, "dropped_intervals": 1, "pooled": True}
+    left, right = allan.adev(x[:1000], 1.0), allan.adev(x[1000:], 1.0)
+    by = {p["tau"]: p for p in pts}
+    for l_ in left:
+        r_ = next((p for p in right if p["tau"] == l_["tau"]), None)
+        if r_ is None:
+            assert by[l_["tau"]]["adev"] == l_["adev"]
+            continue
+        want = ((l_["adev"] ** 2 * l_["n"] + r_["adev"] ** 2 * r_["n"]) / (l_["n"] + r_["n"])) ** 0.5
+        assert by[l_["tau"]]["adev"] == pytest.approx(want, rel=1e-12)
+        assert by[l_["tau"]]["n"] == l_["n"] + r_["n"]
+    # a series whose length does not match the instants is treated as compacted, never misaligned
+    pts2, meta2 = allan.adev_pooled(x, 1.0, ts[:-1], 4.0)
+    assert meta2["pooled"] is False and [p["adev"] for p in pts2] == [p["adev"] for p in allan.adev(x, 1.0)]
+
