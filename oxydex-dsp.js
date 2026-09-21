@@ -6812,7 +6812,13 @@
           spo2Over: (obj.newMetrics || {}).spo2Overshoot || null,
           spo2Ac1: (obj.newMetrics || {}).spo2Ac1 || null,
           hrFreq: (obj.newMetrics || {}).hrFreqBands || null,
-          respRate: (obj.newMetrics || {}).respRate || null,
+          /* RETRACTED, and a retracted metric must not come back through the loader. `respRate` has
+             been `null` at compute since #2527 (r = 0.05 against two inductance belts — the proxy does
+             not measure respiration), but exports written BEFORE that still carry a number, and reading
+             it back here re-surfaced the "Respiratory Rate (RSA spectral proxy)" section on reload — an
+             unattributed proxy reaching a reader by the one path the retraction did not cover
+             (residue 2026-09-03-oxydex-proxy-resprate-unattributed / -has-no-consumer). */
+          respRate: null,
           hrAsym: (obj.newMetrics || {}).hrAsymmetry || null,
           hrQuart: (obj.newMetrics || {}).hrQuartiles || null,
           spo2HRLag: (obj.newMetrics || {}).spo2HRLag || null,
