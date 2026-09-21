@@ -633,6 +633,52 @@
       T.eq('…and an absent perfusion reading stays null rather than becoming 0', out[2].pi, null);
     });
 
+    /* ════ §∅ — THE PRIMARY STATS BUILDER, NOT ONLY THE SELF-INGEST COPY ═════════════════════════════
+       #2538 converted the eight self-ingest scalars of residue 2026-09-13-oxydex-stats-block-absence-to-number
+       and fixed the render, and left the row open because `processNight`'s OWN stats block still reported a
+       night with no valid SpO2 as mean 0 / min 0 / max 0, and no valid HR likewise — the main path every real
+       file takes. A night nobody measured read as a night of zeros. Driven through the real `processNight`
+       with a control beside it, so the assertion is about behaviour and not about a literal. */
+    group('OxyDex §∅ — processNight reports an unmeasured SpO2/HR night as null, never 0', 'oxydex-dsp · absence-as-value · primary-builder', function (T) {
+      var _od = env.OxyDex || env.OxyDSP || env.OXYDSP;
+      var OD = (_od && _od._bare) || _od;
+      if (!OD || typeof OD.processNight !== 'function') {
+        T.ok('OxyDex.processNight is reachable', false, 'not loaded — this group cannot run and must not read as a pass');
+        return;
+      }
+      var t0 = Date.UTC(2026, 0, 1, 22, 0, 0);
+      var mk = function (spo2, hr) {
+        var rows = [];
+        for (var i = 0; i < 900; i++) rows.push({ tMs: t0 + i * 1000, t: new Date(t0 + i * 1000), spo2: spo2, hr: hr, motion: 0 });
+        return rows;
+      };
+      var absent = OD.processNight(mk(null, null), 'absent.csv');
+      var st = absent && absent.stats;
+      T.ok('a night with rows but no valid SpO2/HR still yields a stats block', !!st);
+      if (!st) return;
+      ['meanSpo2', 'minSpo2', 'maxSpo2', 'spo2Std', 't95pct', 't90pct', 'meanHr', 'minHr', 'maxHr'].forEach(function (k) {
+        T.eq('§∅ · stats.' + k + ' is null on an unmeasured night, not 0', st[k], null);
+      });
+      // A HALF-MEASURED night: 450 rows at 92 % and 450 dropouts. Before: mean 46 (nulls summed as 0 over all
+      // rows) and T95 100 % (null < 95 is true). Now: the measured half alone — mean 92, T95 100 % of MEASURED
+      // seconds, and the row count still carries the duration.
+      var halfRows = mk(92, 70);
+      for (var hi = 1; hi < halfRows.length; hi += 2) {
+        halfRows[hi].spo2 = null;
+        halfRows[hi].hr = null;
+      }
+      var half = OD.processNight(halfRows, 'half.csv').stats;
+      T.eq('§∅ · dropouts are not summed as 0 into the mean (half-measured night reads 92, not 46)', half.meanSpo2, 92);
+      T.eq('§∅ · dropouts are not counted as desaturated seconds (T95 over measured seconds)', half.t95pct, 100);
+      T.eq('§∅ · …and T90 likewise (92 is above 90, so 0 % of measured seconds)', half.t90pct, 0);
+      T.eq('§∅ · mean HR over measured samples (70, not 35)', half.meanHr, 70);
+      T.ok('the row count still carries the duration (900 rows → 15 min, not 7.5)', Math.abs(half.durationMin - 15) < 0.1, String(half.durationMin));
+      // CONTROL — a measured night yields numbers through the same path, so the nulls above are absence, not breakage
+      var real = OD.processNight(mk(96, 60), 'real.csv').stats;
+      T.ok('control · a measured night reports numbers (mean SpO2 96, mean HR 60)', real.meanSpo2 === 96 && real.meanHr === 60, JSON.stringify({ meanSpo2: real.meanSpo2, meanHr: real.meanHr }));
+      T.ok('control · min/max SpO2 and HR are numbers on the measured night', real.minSpo2 === 96 && real.maxSpo2 === 96 && real.minHr === 60 && real.maxHr === 60);
+    });
+
     group('an impossible HR onset is rejected; a real arousal near a clock hour is NOT', 'oxydex · hr-artifact', function (T) {
       var OD = env.OxyDSP || env.OXYDSP || env.OxyDex;
       if (!OD || typeof OD.compute !== 'function') {
