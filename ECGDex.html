@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0mqhj4PCQsNRywYOCDIa/lI1dB/pbF/OnCPxEs9VBIo=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-humLfsum3iuPyxKG/voJNiH8l+wh7lokogz90PMwyJs=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-w6cTxgHqaqk9+vToFBRXCKpf0MJvKDL+J7G5uSKI9vw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0mqhj4PCQsNRywYOCDIa/lI1dB/pbF/OnCPxEs9VBIo=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-GB3hCuE1RHE92ovcijLs+hFvVJC+VOGfRLQPwry0nhM=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-humLfsum3iuPyxKG/voJNiH8l+wh7lokogz90PMwyJs=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>ECGDex — Raw ECG Analyzer · v2.12.0</title>
@@ -11675,6 +11675,13 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       nnCorrected: nnCorr,
       // Filter-aligned per-beat fused-hat confidence — same alignment contract as nnCorrected.
       nnConf,
+      /* §∅, filter-aligned like the two above: 1 where interval i straddles a dropout or a beat the
+         confidence filter removed. The headline rMSSD/SDNN already exclude these (`_gapPair` /
+         `_rrOnly` above); until 2026-09-21 the mask stopped there and `validateRR`/`alignFirmwareRR`
+         were handed the raw `nn` — a 20-minute dropout counted as one beat-to-beat interval made the
+         export's `validation.dRMSSDPct` read 65 797.8 on 2026-09-03 (oracle-ecg-firmware-rr). Published
+         so every consumer can exclude what the node itself calls a non-measurement. */
+      nnSpansGap,
       // quality
       analyzablePct: nnRes.analyzablePct,
       correctionRate: nnRes.correctionRate,
@@ -14498,12 +14505,23 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
         return rs;
       });
     if (r.deviceRR && r.deviceRR.length) {
-      const _v = validateRR(r.nn, r.deviceRR);
+      /* AN OUTPUT COMPUTED OVER ABSENT INPUT REPORTS THE ABSENCE (§∅). The self train handed to the
+         cross-check excludes the intervals `analyze` marked as straddling a dropout — the same
+         exclusion the headline rMSSD/SDNN make — so the comparison is measurement against measurement.
+         Fed the raw train, a single 1 232 840 ms "interval" (a 20-minute dropout, 2026-09-03) put the
+         published dRMSSDPct at 65 797.8 against 7.1 % on the gap-cut train; a consumer reading
+         `validation` as "does our detector agree with the strap" got NO on every gappy night for a
+         reason that had nothing to do with either detector. `gapCutBeats` says how many were cut. */
+      const _gapMask = Array.isArray(r.nnSpansGap) && r.nnSpansGap.length === r.nn.length ? r.nnSpansGap : null;
+      const _nnCut = _gapMask ? r.nn.filter((_, i) => !_gapMask[i]) : r.nn;
+      const _v = validateRR(_nnCut, r.deviceRR);
       if (_v) {
-        const _al = alignFirmwareRR(r.nn, r.deviceRR, { fs: r.fs });
+        const _al = alignFirmwareRR(_nnCut, r.deviceRR, { fs: r.fs });
         out.validation = {
           source: 'device-rr',
           beatsCompared: _v.nSelf,
+          // intervals the node marked as straddling a dropout, excluded from BOTH legs of this block
+          gapCutBeats: r.nn.length - _nnCut.length,
           nDevice: _v.nDev,
           dMeanPct: _v.dMean,
           dRMSSDPct: _v.dRMSSD,
