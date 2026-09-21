@@ -39,7 +39,7 @@ import alerts
 import nightqc
 import nightarchive
 import storage_targets
-from telemetry import (TelemetryBus, calibrated_for, note_flat_battery, on_body,
+from telemetry import (TelemetryBus, calibrated_for, hr_beats, note_flat_battery, on_body,
                        ppi_contact, sd_calibrated_for, worn_verdict)
 
 # ── JOURNAL SEVERITY (VIGIL-COEXISTENCE-AND-RANGE §1) ────────────────────────────────────────────────
@@ -3399,8 +3399,12 @@ async def run_polar(dev: dict, root: str):
                         # It also duplicated the `_WORN_SINCE` bookkeeping, so the drop timer keyed off
                         # the RAW bit rather than the verdict — meaning the 180 s not-worn drop could
                         # not accumulate no matter what any other detector concluded.
+                        # A heartbeat in the same packet outvotes a contact bit that says not-worn
+                        # (telemetry.hr_beats): 2026-09-20 the strap read contact=0 for 6 h while
+                        # reporting 48–77 bpm, and the 180 s drop cut the link 131 times.
                         _publish_worn(*worn_verdict(
                             contact=contact,
+                            beats=hr_beats(bpm, len(rr)),
                             charging=STATUS["devices"].get(name, {}).get("charging")))
                     if rr:                        # raw RR intervals to the monitor (no HRV computed on-box)
                         BUS.push(_live_key("hr", tag), [float(x) for x in rr], 0)

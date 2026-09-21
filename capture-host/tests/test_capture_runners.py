@@ -742,7 +742,7 @@ def test_the_two_transients_are_not_the_same_state():
 def test_run_polar_sets_worn_from_the_hr_contact_bit(tmp_path, monkeypatch):
     """An HR frame with contact-supported-but-absent (flags 0x04) drives worn=False."""
     _polar_common(monkeypatch)
-    c = FakePolarClient(start_status=0x00, hr_frame=bytes([0x04, 57]))   # contact supported, not worn
+    c = FakePolarClient(start_status=0x00, hr_frame=bytes([0x04, 0]))    # contact absent, HR 0: off body
     _inject_connect(monkeypatch, c)
     _stop_after(monkeypatch, 1)
     _run(capture.run_polar(_pdev(streams=["ecg", "hr"]), str(tmp_path)))
@@ -995,7 +995,7 @@ def test_run_polar_drops_the_link_when_not_worn_too_long(tmp_path, monkeypatch):
     _polar_common(monkeypatch)
     monkeypatch.setattr(capture, "_DROP_NOT_WORN_SEC", 0.001)     # trip immediately
     capture._WORN_SINCE["24:AC:AC:02:84:96"] = 0.0               # not-worn since the epoch
-    c = FakePolarClient(start_status=0x00, hr_frame=bytes([0x04, 57]))
+    c = FakePolarClient(start_status=0x00, hr_frame=bytes([0x04, 0]))    # contact absent, HR 0: off body
     _inject_connect(monkeypatch, c)
     calls = {"n": 0}
     async def fake_sleep(_s):
@@ -4591,7 +4591,12 @@ def _hr_session(tmp_path, monkeypatch, hr_frame, clear=False):
     return capture.STATUS["devices"]["H10"]
 
 
-_NOT_WORN = bytes([0x04, 57])      # contact supported, absent
+# The OFF-BODY frame carries HR 0 — that is what a strap on a desk reports (1 695 such rows in the corpus
+# since August; one 08-04 session is 193/193 zeros). `[0x04, 57]` — contact absent WITH a 57 bpm rate —
+# is the dry/loose-electrode shape measured all night on 2026-09-20 (48–77 bpm, contact=0, 131 drops),
+# and it is worn: see test_a_dry_strap_reporting_a_heartbeat_is_worn_and_is_not_dropped.
+_NOT_WORN = bytes([0x04, 0])       # contact supported, absent, no heartbeat — off body
+_DRY      = bytes([0x04, 57])      # contact supported, absent, 57 bpm — on a chest, dry electrodes
 _WORN     = bytes([0x06, 57])      # contact supported, present
 
 
@@ -4606,6 +4611,20 @@ def test_a_not_worn_strap_starts_the_grace_clock_once(tmp_path, monkeypatch):
     _hr_session(tmp_path, monkeypatch, _NOT_WORN)          # a second not-worn probe
     assert capture._WORN_SINCE[addr] == first, \
         "the grace clock must NOT restart on each reconnect, or the grace never elapses"
+
+
+def test_a_dry_strap_reporting_a_heartbeat_is_worn_and_is_not_dropped(tmp_path, monkeypatch):
+    """THE 2026-09-20 NIGHT. The H10 reported contact=0 for six hours while every packet carried a
+    plausible sleep rate and RR intervals; the not-worn drop trusted the bit and cut the link 131
+    times (3.6 h of 6.1 h lost, 41 % of the ECG kept). A heartbeat is the strap's own measurement that
+    it is on a body — it outvotes the contact bit, the grace clock never starts, and the drop cannot
+    fire. Same frame with HR 0 (off body) still starts the clock — the plant is the rate, not the bit."""
+    addr = _pdev()["address"]
+    st = _hr_session(tmp_path, monkeypatch, _DRY, clear=True)
+    assert st["worn"] is True and "hr-beats" in st["worn_why"], st
+    assert addr not in capture._WORN_SINCE, "a strap reporting a heartbeat must not accumulate not-worn time"
+    st = _hr_session(tmp_path, monkeypatch, _NOT_WORN, clear=True)
+    assert st["worn"] is False and addr in capture._WORN_SINCE
 
 
 def test_putting_the_strap_back_on_clears_the_grace_clock(tmp_path, monkeypatch):
