@@ -258,6 +258,34 @@ confirmed no ResMed oximeter module exists — a purchase, not a cable) · `CROS
 `TCH-FUSED-ROBUST-HAT` · `TRIO-POWER-N15-FINDINGS` — the new-generation fused triple
 (σ 2.87/1.18/0.68, ρ\* 0.576) is with the owner as a planted-sigma check.
 
+
+### D9 · Four rulings of 2026-09-21, recorded at the point of use and here (Kestrel)
+
+> 🟢 **RULED 2026-09-21 — all four in one sitting.** Each is also stamped where it applies; this block is
+> the index so no session re-asks.
+>
+> 1. **Three published numbers are re-cut in ONE run:** `odi4-ahi-bias` (produced without the `OX stat`
+>    channel — `2026-09-20-shhs-figures-predate-oxstat`), every NSRR T90 (dropout seconds counted as
+>    desaturation, `null < 95` — `2026-09-21-nsrr-t90-counted-dropouts-as-desaturation`), and
+>    `acc-respiratory-rate`'s cohort text ("26 nights (172 h)" in eight places for a 14-night run —
+>    `2026-09-20-respacc-cohort-description-survived-correction`). Old figures stay under a correction
+>    notice per the 09-07 precedent. One session, one PR; the three rows close `fixed #N` on it.
+> 2. **COHORT-GEN treatment-response: re-cut at what the generator yields** — 269/317 per arm, the
+>    headline restated at that n with the CI it actually supports. Not reconfigured toward the paper's
+>    ~900/arm. Stamped in the brief's table.
+> 3. **Saturation IS absence, matched by MAGNITUDE.** A run at |railLo| or |railHi| is excluded like a
+>    pinned span (P5) and like a gap; the matcher keys on magnitude so the third state
+>    (`2026-09-20-positive-saturation-at-negated-low-rail`) joins the first two. Stamped in
+>    PINNED-SPAN-POPULATIONS §6's item. The detector change moves `computeHash`.
+> 4. **`GAP_S`: MEASURE BEFORE RULING.** A sweep over the corpus reporting where the CVHR index moves on
+>    both nodes (`GAP_S` and the coupled `PPG_CVHR_GAP_S`); the owner rules on the numbers. Stamped in
+>    ECG-SATURATION-ABSENCE's last item. A measurement unit, not a decision yet.
+>
+> ⚠️ **Three questions were put to the owner today whose answers the tree already carried** (the 68 tiles,
+> the cohort-harness fix, the 3600 skew floor). These four were tree-checked first — the rows named above
+> were verified OPEN, the items verified unticked, the constants verified at their current values — before
+> any question was asked. That check is now the rule (memory: `check-the-tree-before-asking-the-owner`).
+
 ### D8 · Scope/gate calls
 
 > ✅ **YES 2026-09-15** — build the two-channel O2Ring dual-wavelength ingest. The stream is already being
