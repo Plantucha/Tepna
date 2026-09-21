@@ -1164,3 +1164,94 @@ def test_RECORDING_still_outranks_a_pull_state(box):
     _advance(box)
     _write_status_oxy(box["status"], "pulling", recording=True)
     assert "a device is recording" in _run(box).stdout
+
+
+# ── what the daemon is ON comes from the daemon, not from the deploy marker ────────────────────────
+# Residue 2026-09-05-content-gate-diffs-from-a-stale-marker and 2026-09-06-update-log-prints-marker-
+# as-daemon. The marker records what the UPDATER last deployed; a restart by anyone else leaves it
+# behind, and the content gate then diffs code the daemon already has and fires a redundant,
+# content-justified restart at the first doff of the night.
+def _hand_restarted_box(box):
+    """Deploy HEAD1 through the updater (marker = HEAD1), then land HEAD2 with a capture.py change and
+    fast-forward the checkout BY HAND — the shape of an operator restart the updater never saw. The
+    marker still says HEAD1; the truth is HEAD2."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": False})
+    _run(box)
+    head1 = _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
+    assert box["mark"].read_text().strip() == head1
+    box["called"].unlink()
+    _advance(box)                                              # capture-host code moved upstream
+    _git(box["repo"], "fetch", "-q", "origin", "main")
+    _git(box["repo"], "merge", "-q", "--ff-only", "origin/main")
+    head2 = _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
+    assert head1 != head2 and box["mark"].read_text().strip() == head1
+    return head1, head2
+
+
+def _version(sha):
+    return "echo '{\"git\": \"%s\", \"dirty\": false, \"started\": 1.0}'" % sha
+
+
+def test_a_daemon_already_on_HEAD_is_not_restarted_because_the_marker_is_stale(box):
+    """THE PLANT. Marker HEAD1, daemon HEAD2 (hand-restarted), disk HEAD2. The old gate diffed
+    HEAD1..HEAD2 -- capture-host/, found the change the daemon already runs, and restarted into
+    identical code — at the first moment recording went false."""
+    head1, head2 = _hand_restarted_box(box)
+    r = _run(box, TEPNA_VERSION_FETCH=_version(head2))
+    assert r.returncode == 0, r.stderr
+    assert not box["called"].exists(), "restarted into code the daemon was already running"
+    assert "restart still OWED" not in r.stdout
+    assert "using the deploy marker" not in r.stdout
+
+
+def test_the_same_box_with_the_daemon_silent_falls_back_to_the_marker_AND_SAYS_SO(box):
+    """The fallback is the old behaviour — one redundant restart — and the difference is that it is now
+    labelled: a daemon that stops answering is never mistaken for one that agreed."""
+    head1, head2 = _hand_restarted_box(box)
+    r = _run(box, TEPNA_VERSION_FETCH="false")
+    assert r.returncode == 0, r.stderr
+    assert "daemon not answering" in r.stdout and "using the deploy marker " + head1[:12] in r.stdout
+    assert "stale after any restart it did not perform" in r.stdout
+    assert "the deploy marker says " + head1[:12] in r.stdout      # never "the daemon is on"
+    assert "the daemon is on" not in r.stdout
+    assert box["called"].exists()
+
+
+def test_a_daemon_reporting_an_OLDER_sha_is_the_owed_case_and_is_labelled_as_the_daemon(box):
+    """Disk HEAD2, daemon genuinely on HEAD1: restart owed, and the line says where the number came
+    from."""
+    head1, head2 = _hand_restarted_box(box)
+    r = _run(box, TEPNA_VERSION_FETCH=_version(head1))
+    assert "restart still OWED" in r.stdout and "the daemon is on " + head1[:12] in r.stdout
+    assert box["called"].exists()
+
+
+@pytest.mark.parametrize("fetch", [
+    "echo '{\"git\": \"unknown\"}'",          # a tarball deploy: build_id could not tell
+    "echo 'not json'",
+    "echo '{\"git\": 7}'",
+    "echo ''",
+])
+def test_an_unusable_version_report_is_absence_never_a_sha(box, fetch):
+    """§∅: an answer the updater cannot use is treated exactly like no answer — the marker path, with
+    its label — never as a sha to diff from."""
+    head1, head2 = _hand_restarted_box(box)
+    r = _run(box, TEPNA_VERSION_FETCH=fetch)
+    assert "using the deploy marker " + head1[:12] in r.stdout
+    assert "the deploy marker says" in r.stdout
+
+
+def test_the_docs_only_advance_names_the_source_and_never_claims_identity(box):
+    """After a docs-only deploy the marker advances to HEAD while the process keeps its start sha. The
+    line used to read as if the daemon were ON the new sha; it now says whose number it is."""
+    _advance(box)
+    _write_status(box["status"], {"Ring": False})
+    _run(box)
+    head1 = _git(box["repo"], "rev-parse", "HEAD").stdout.strip()
+    box["called"].unlink()
+    _advance(box, path="README")
+    r = _run(box, TEPNA_VERSION_FETCH=_version(head1))
+    assert "capture-host CODE is current (the daemon is on " + head1[:12] in r.stdout
+    assert "marker advanced to" in r.stdout
+    assert not box["called"].exists()
