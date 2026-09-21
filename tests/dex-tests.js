@@ -11555,6 +11555,41 @@
         T.ok('CONTROL · an edited table no longer matches its stamp', TP.sha12(probe.table + ' ') !== probe.output, 'one appended space must change the hash');
         T.ok('CONTROL · the hash is over the TABLE, not the whole file', TP.sha12(probe.table) === probe.output, 'recomputed from the captured block alone');
       }
+
+      /* ── THE UPSTREAM-DAG HASH — the half of phase 2 that lets a stamp CLEAR (#2614 built the other half).
+         `inputsDigest=` beside a resolvable `inputs=` is recomputed by the runner over the GIT-TRACKED
+         files under that path. Until this leg existed a resolvable path was checked for EXISTENCE only,
+         so "resolvable — this stamp CAN be cleared" was a label with nothing behind it: the corpus under
+         the decay sweep's table 4 moved twice and no gate saw either move. Residue
+         2026-09-21-table-provenance-inputs-digest-never-recomputed. */
+      var digested = TP.stamps.filter(function (x) {
+        return x.inputsDigest;
+      });
+      T.ok('at least one stamp carries an inputsDigest (a clearable stamp exists, or this leg is vacuous)', digested.length > 0, digested.length + ' digested stamp(s)');
+      digested.forEach(function (st) {
+        var where = st.file + ':' + st.line;
+        T.ok(where + ' · inputsDigest is a 12-hex digest', /^[0-9a-f]{12}$/.test(st.inputsDigest), 'inputsDigest=' + st.inputsDigest);
+        /* REFUSAL IS LOUD: no git, no tracked file, an unreadable input — each is a reason and reds. */
+        T.ok(where + ' · the tracked inputs could be enumerated and read', !st.inputsDigestReason, st.inputsDigestReason || st.inputsTracked + ' tracked file(s) under ' + st.inputs);
+        /* THE CLEARING LEG. */
+        T.eq(where + ' · the git-tracked inputs still hash to the recorded inputsDigest (this stamp CLEARS)', st.actualInputsDigest, st.inputsDigest);
+      });
+      /* PLANT — one moved input must move the digest, and the digest must be over the FILES, not the
+         path string. The tree cannot be mutated inside a test, so the recipe is exercised on a planted
+         file list: same paths, one byte flipped in one file, and the digest must differ. */
+      if (typeof TP.digestOver === 'function') {
+        var a = [
+          { path: 'x/1.json', bytes: '{"a":1}' },
+          { path: 'x/2.json', bytes: '{"b":2}' }
+        ];
+        var b = [
+          { path: 'x/1.json', bytes: '{"a":1}' },
+          { path: 'x/2.json', bytes: '{"b":3}' }
+        ];
+        T.ok('PLANT · one moved input moves the digest', TP.digestOver(a) !== TP.digestOver(b), TP.digestOver(a) + ' vs ' + TP.digestOver(b));
+        T.eq('PLANT · the recipe is deterministic (same files, same digest)', TP.digestOver(a), TP.digestOver(a.slice()));
+        T.ok('PLANT · the path is part of the digest, so a renamed input moves it too', TP.digestOver(a) !== TP.digestOver([a[0], { path: 'x/3.json', bytes: a[1].bytes }]));
+      }
     });
 
     group('CLAUDE.md claims match the tree (CLAIM markers)', 'docs · claude-md · claims', function (T) {

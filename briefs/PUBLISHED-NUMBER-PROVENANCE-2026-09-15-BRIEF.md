@@ -180,8 +180,13 @@ sound and is not the reason for rejection.
       resolvable-vs-recorded `inputs` told apart). **The upstream-DAG hash that lets the churn screen
       CLEAR is NOT built** — verified 2026-09-21 by reading the gate, not the header: a resolvable
       `inputs=` path is checked for existence only and no digest is recomputed over it. Residue row
-      `2026-09-21-table-provenance-inputs-digest-never-recomputed`; the first consumer is ready
-      (the table-4 record already carries `inputs.digest` over the 441 git-tracked trio exports).
+      `2026-09-21-table-provenance-inputs-digest-never-recomputed` — **BUILT #PRNUM (2026-09-21):**
+      `inputsDigest=<12hex>` beside a resolvable `inputs=`, recomputed by the runner over the git-tracked
+      files under that path (sha12 over `path\0sha12(bytes)`, `git ls-files` order — the same recipe the
+      `analysis/published-numbers/` records use), compared by the gate, refusing loudly when git or a file
+      is unavailable. First clearable stamp: the table-4 re-cut in `SENSOR-TRIO-NIGHTS-PAPER` §11 over the
+      441 trio exports. Plant: one byte appended to one export reds the leg by name (`e06b2bf23139` ≠
+      `19c31a194ec7`). A blockquoted table is now captured (quote prefix stripped for detection and hash).
 - [x] Phase 3 generate-rather-than-mark — **PARKED, evidence-gated, not open** (2026-09-21): it is
       worth building "only where phase 2 keeps firing", and no `TABLE-PROVENANCE` or sourced `CLAIM` has
       yet fired on `main`. The first real red re-opens it; nothing else does.
