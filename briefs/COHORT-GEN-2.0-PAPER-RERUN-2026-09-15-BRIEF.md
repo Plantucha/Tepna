@@ -1,5 +1,5 @@
 <!-- Copyright 2026 Michal Planicka · SPDX-License-Identifier: Apache-2.0 -->
-**Status:** IN-PROGRESS · **Created:** 2026-09-15
+**Status:** IN-PROGRESS (re-verified against the tree 2026-09-21, Osprey: FOUR of six re-cut — `rmssd-equivalence` landed in #2584 after the table below was stamped; `qrs-yield` decided not-re-cut; `treatment-response` is an OWNER DECISION on which of three cohort sizes to publish, not a measurement — the only open item, and not executable by a session) · **Created:** 2026-09-15
 
 # Re-cut the six cohort-gen-pinned papers under `cohort-gen/2.0`
 
@@ -52,8 +52,8 @@ cite it:
 | `hrv-age-confound.html` | `hrv-confound-analysis.html` | **RE-CUT** #2562 — every headline quantity unchanged; no causal claim, so no A/B owed |
 | `cgm-hrv-coupling.html` | `cgm-hrv-coupling-analysis.html` | **RE-CUT** #2563 — unchanged but for glucose↔AHI +0.42→+0.427; Figure 1 deliberately NOT regenerated (composite, layout unrecorded) |
 | `qrs-yield.html` | `qrs-yield-analysis.html` | **NOT re-cut** — A/B shows its divergence is tool drift (#2575, #2577). Re-cutting would blame the generator for a sign flip it did not cause |
-| `rmssd-equivalence.html` | `qrs-equiv-analysis.html` | **BLOCKED** — needs `cohort-harness.html` fixed; it throws on every node since the 2026-07-16 ESM migration (#2570), now at least REFUSING rather than serving nulls (#2572) |
-| `treatment-response.html` | `treatment-response-analysis.html` | **BLOCKED** — the paper's stated ~900/arm yields 269/317 against its published 912/918, a 3.4× gap; configuration not determined by its own text |
+| `rmssd-equivalence.html` | `qrs-equiv-analysis.html` | **RE-CUT** #2584 (2026-09-16, after this table was stamped — verified in the paper 2026-09-21): harness repaired #2582 on top of #2572's refusal; 240 patients / 220 windows reproduce the published count; electrical equivalence reproduces (−0.011 ms, r 0.9998), the optical figures do NOT — and the 1.9 A/B puts that drift at a FIXED generator (1.9: 7.46 %/0.839; 2.0: +0.3 pp/−0.02), so it is tool drift, not 2.0. Figure 1 not regenerated (composite, layout unrecorded); the "collapses to ≈+1 %" claim retracted as current |
+| `treatment-response.html` | `treatment-response-analysis.html` | **OWNER DECISION, not a measurement** (verified 2026-09-21 against residue `2026-09-17-treatment-response-gap-is-not-the-generator` + `…-three-cohort-sizes`): the 1.9 A/B returns 269/317 byte-identical to 2.0, so the generator moves the count by 0; three artifacts claim three cohort sizes (1830 published · 882 in an untracked local CSV with every `nNights` = 12 · 586 at the stated `nSubj: 900`) and the config is not recoverable from the repository. Options and their costs are in the second row; nothing here can be run until one is chosen |
 
 ⚠️ **The `expect` column this table used to carry is gone, and deliberately.** It predicted
 "no change — cohort-wide" for `nights-icc` and was refuted on the first test; the split it encoded
