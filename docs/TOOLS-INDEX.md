@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**197 tools** · 195 with a purpose line · **2 without**
+**198 tools** · 196 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -139,6 +139,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`pb-operating-point.mjs`](../tools/pb-operating-point.mjs) | what does OxyDex's periodic-breathing detector actually track? |
 | [`per-group-coverage.mjs`](../tools/per-group-coverage.mjs) | Aggregate coverage (`npm run coverage:json`, read by tools/mutation-reach.mjs) answers "does ANY test execute this line". |
 | [`pin-coverage.mjs`](../tools/pin-coverage.mjs) | WHY IT EXISTS. `pinnedSpans` has detected O2Ring in-band blanking since #2317 and the export has REPORTED it as `quality.pinnedCoverage`, but nothing consumed it: every rMSSD/SD1/LF:HF was… |
+| [`pletha-marker-oracle.mjs`](../tools/pletha-marker-oracle.mjs) | `pinnedSpans` (ppgdex-dsp.js) steps over an ISOLATED `156` when merging spans — it treats a lone 156 as the O2Ring's inserted beat-marker row and a RUN of 156s as signal that happens to… |
 | [`ppg-bridge-hrv-validate.mjs`](../tools/ppg-bridge-hrv-validate.mjs) | does O2RING-PPG-GAP §4 move finger HRV toward or away from chest ECG? |
 | [`ppg-foot-consensus-e1.mjs`](../tools/ppg-foot-consensus-e1.mjs) | PPGDEX-ALGORITHM-DEEP-DIVE §6 experiment E-1 E-1 asks: "does foot-domain consensus (feet on all three channels, de-offset, ±40 ms) recover the 1-of-3 drop rate without admitting false beats? |
 | [`ppg-foot-residual-sweep.mjs`](../tools/ppg-foot-residual-sweep.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ THE RESIDUAL 2.2–13.2 ms — per-night inter-LED foot dispersion against PRE-REGISTERED… |
