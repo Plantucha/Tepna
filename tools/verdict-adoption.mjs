@@ -26,7 +26,25 @@
  *                 WITH `reason` — an exemption without a reason is a silent adoption gap
  *   test          a test file asserting on verdict words is a READER, not a producer — exempt by class
  *
+ * ADOPTION IS A RATCHET, and the gate holds it against the MERGE BASE. Measured 2026-09-22: this
+ * manifest conflicts as ONE whole-file hunk on nearly every adoption PR (two sides rewrite one dict),
+ * and the obvious resolution — take main, substitute every key where MY side differs — silently put
+ * #2888's `tools/pb-agreement.mjs` back to `word-only`/`exempt`. The merge committed clean and this
+ * gate stayed GREEN, because an exempt row is a legal row. So `checkRatchet` reads the manifest at
+ * `git merge-base HEAD <base>` and reds on any tool that was `adopted` there and is not `adopted`
+ * here — the row absent, or its status moved — unless the tool's FILE is gone from the tree (a
+ * retired tool is not a de-adoption). Population is an equality: adoptedAtBase = kept + retired +
+ * deAdopted. A branch that is merely BEHIND has de-adopted nothing (its merge base predates the new
+ * adoption); a branch that MERGED main and lost the row has, and that is the case this catches.
+ *
+ * The companion procedure for resolving that conflict, so the gate is the backstop and not the plan:
+ * compute BOTH deltas from the merge base (`changed by me` · `changed by main` · `by both`, and a
+ * key both changed is resolved by hand), rebuild from main's dict plus your own keys, and round-trip
+ * main's bytes through `JSON.stringify(obj, null, 2) + '\n'` FIRST so the rewrite cannot smuggle a
+ * reformat. Then `git diff --stat <base> -- tools/verdict-adoption.json` must show only your rows.
+ *
  *   node tools/verdict-adoption.mjs --check          # the gate (npm run check step; exit 1 on any red)
+ *   node tools/verdict-adoption.mjs --check --base <ref>   # ratchet base (default origin/main; merge-base with HEAD)
  *   node tools/verdict-adoption.mjs --triage         # first-pass suggestions for UNBINNED files; writes nothing
  *   node tools/verdict-adoption.mjs --selftest
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
@@ -227,7 +245,6 @@ export const WO_CLAIM_RATCHET = new Set([
   'tools/beat-leg-closure.mjs',
   'tools/formula-constant-audit.mjs',
   'tools/pat-fiducial-jitter.mjs',
-  'tools/pat-residual-structure.mjs',
   /* `tools/pat-window-oracle.mjs` was the ninth; it ADOPTED, so the ratchet shrank by one. */
   'tools/probe-clock-equivalence.mjs',
   'tools/probe-equivalence.mjs'
@@ -289,6 +306,71 @@ export function checkGated(manifest, readSource, testRefs, ratchet = UNGATED_RAT
   }
   for (const p of ratchet) if (!decides.includes(p)) errors.push(`${p}: in UNGATED_RATCHET but not a \`decides\` producer — remove the stale entry`);
   return { ok: errors.length === 0, errors, gated, ungated, decides: decides.length };
+}
+
+/* ── ADOPTION IS A RATCHET — a population equality over the base's `adopted` set ─────────────────
+   Pure. `baseManifest` is the manifest at the merge base, `headManifest` the tree's, `fileExists(p)`
+   answers for the HEAD tree. Returns { ok, errors[], adoptedAtBase, kept, retired, deAdopted[] } with
+   adoptedAtBase === kept + retired.length + deAdopted.length. */
+export function checkRatchet(baseManifest, headManifest, fileExists) {
+  const base = (baseManifest && baseManifest.producers) || {};
+  const head = (headManifest && headManifest.producers) || {};
+  const adopted = Object.keys(base)
+    .filter((p) => base[p] && base[p].status === 'adopted')
+    .sort();
+  const errors = [];
+  const retired = [];
+  const deAdopted = [];
+  let kept = 0;
+  for (const p of adopted) {
+    const h = head[p];
+    if (h && h.status === 'adopted') {
+      kept++;
+      continue;
+    }
+    if (!h && !fileExists(p)) {
+      retired.push(p); // the tool left the tree with its row — not a de-adoption
+      continue;
+    }
+    deAdopted.push(p);
+    errors.push(
+      `${p}: ADOPTED on the base and ${h ? `${JSON.stringify(h.bin)}/${JSON.stringify(h.status)}` : 'ABSENT'} here while the file still exists — ` +
+        'adoption is a ratchet. This is the #2888 shape: a whole-file manifest conflict resolved mine-vs-main reverts the other side; ' +
+        'compute both deltas from the merge base (header) and restore the row'
+    );
+  }
+  return { ok: errors.length === 0, errors, adoptedAtBase: adopted.length, kept, retired, deAdopted };
+}
+
+/* The base manifest, read from git at `merge-base HEAD <baseRef>`. Mirrors tools/residue-ids.mjs:
+   a shallow clone or an unresolvable base REFUSES (exit 2) rather than comparing against nothing —
+   a ratchet judged against an empty base reports 0 de-adoptions because it sees 0 adoptions. */
+function baseManifestAt(root, baseRef) {
+  const git = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const refuse = (msg, detail) => {
+    process.stderr.write(`verdict-adoption: REFUSING — ${msg}\n`);
+    for (const d of detail) process.stderr.write(`  ${d}\n`);
+    process.exit(2);
+  };
+  if (git(['rev-parse', '--is-shallow-repository']).trim() === 'true') {
+    refuse('shallow clone, the base manifest is not present.', ['The ratchet would report 0 de-adoptions because it sees 0 adoptions. Set `fetch-depth: 0` on actions/checkout.']);
+  }
+  let mergeBase;
+  try {
+    git(['rev-parse', '--verify', baseRef]);
+    mergeBase = git(['merge-base', 'HEAD', baseRef]).trim() || baseRef;
+  } catch {
+    refuse(`cannot resolve base ref \`${baseRef}\`.`, ['Fetch it (`git fetch origin main`) or pass --base <ref>.']);
+  }
+  let text;
+  try {
+    text = git(['show', `${mergeBase}:tools/verdict-adoption.json`]);
+  } catch {
+    refuse(`tools/verdict-adoption.json does not exist at the merge base ${mergeBase.slice(0, 12)}.`, [
+      'The manifest has been committed since the adoption wave began; pass --base <a ref that carries it>.'
+    ]);
+  }
+  return { mergeBase, manifest: JSON.parse(text) };
 }
 
 function treeReaders(root) {
@@ -522,7 +604,56 @@ function selftest() {
     ok(realW.checked + realW.conceded === realW.wordOnly && realW.checked > 0, `the real population is an equality, got ${realW.checked}+${realW.conceded}=${realW.wordOnly}`);
   }
 
-  const N = 39;
+  /* ── ADOPTION IS A RATCHET — the #2888 revert, planted ───────────────────────────────────── */
+  {
+    const A = (bin, status, extra) => Object.assign({ bin, status }, extra || {});
+    const BASE = {
+      producers: {
+        'tools/x.mjs': A('decides', 'adopted', { emits: { cmd: ['node', 'tools/x.mjs'] } }),
+        'tools/y.mjs': A('decides', 'adopted', { emits: { cmd: ['node', 'tools/y.mjs'] } }),
+        'tools/gone.mjs': A('decides', 'adopted', { emits: { cmd: ['node', 'tools/gone.mjs'] } }),
+        'tools/w.mjs': A('word-only', 'exempt', { reason: 'label' }),
+        'tools/p.mjs': A('decides', 'pending')
+      }
+    };
+    const exists = (p) => p !== 'tools/gone.mjs';
+    /* the measured defect: y was adopted on main, the merge put it back to word-only/exempt */
+    const reverted = { producers: { ...BASE.producers, 'tools/y.mjs': A('word-only', 'exempt', { reason: 'selftest assertion printer' }) } };
+    delete reverted.producers['tools/gone.mjs'];
+    const rv = checkRatchet(BASE, reverted, exists);
+    ok(!rv.ok && rv.deAdopted.length === 1 && rv.deAdopted[0] === 'tools/y.mjs', 'ratchet FIRES on the planted #2888 revert (adopted on base → word-only/exempt on head), naming the tool');
+    ok(
+      rv.errors.length === 1 && /ratchet/.test(rv.errors[0]) && /"word-only"\/"exempt"/.test(rv.errors[0]),
+      'the red names the head bin/status it found, so the reader sees the revert, not a generic mismatch'
+    );
+    ok(rv.retired.length === 1 && rv.retired[0] === 'tools/gone.mjs', 'a tool whose FILE left the tree with its row is RETIRED, not de-adopted');
+    ok(
+      rv.adoptedAtBase === 3 && rv.kept + rv.retired.length + rv.deAdopted.length === rv.adoptedAtBase,
+      `the population is an equality: ${rv.kept}+${rv.retired.length}+${rv.deAdopted.length}=${rv.adoptedAtBase}`
+    );
+    /* a row DELETED while the file remains is a de-adoption, not a retirement */
+    const dropped = { producers: { ...BASE.producers } };
+    delete dropped.producers['tools/x.mjs'];
+    const dv = checkRatchet(BASE, dropped, exists);
+    ok(
+      !dv.ok && dv.deAdopted.length === 1 && dv.deAdopted[0] === 'tools/x.mjs' && /ABSENT/.test(dv.errors[0]),
+      'a row removed while the file still exists is DE-ADOPTED (the file, not the row, decides retirement)'
+    );
+    /* the clean cases: identical manifests, and a head that ADDS an adoption (the ratchet only goes up) */
+    const grown = { producers: { ...BASE.producers, 'tools/p.mjs': A('decides', 'adopted', { emits: { cmd: ['node', 'tools/p.mjs'] } }) } };
+    const gv = checkRatchet(BASE, grown, exists);
+    ok(gv.ok && gv.kept === 3 && gv.deAdopted.length === 0, 'head that KEEPS every base adoption and adds one passes (pending → adopted is the direction the ratchet allows)');
+    ok(
+      checkRatchet(BASE, BASE, () => true).ok && checkRatchet({ producers: {} }, BASE, () => true).adoptedAtBase === 0,
+      'identical manifests pass; an empty base has nothing to hold and says so with adoptedAtBase 0'
+    );
+    /* the real leg: the committed manifest against ITSELF is all kept — non-vacuous by count */
+    const realM = JSON.parse(fs.readFileSync(MANIFEST, 'utf8'));
+    const sv = checkRatchet(realM, realM, (p) => fs.existsSync(path.join(ROOT, p)));
+    ok(sv.ok && sv.kept === sv.adoptedAtBase && sv.adoptedAtBase > 0, `the committed manifest holds its own ${sv.adoptedAtBase} adoptions (kept ${sv.kept})`);
+  }
+
+  const N = 47;
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
     console.log(`${fails.length} failed of ${N}`);
@@ -550,6 +681,10 @@ function main() {
   const { readSource, testRefs } = treeReaders(ROOT);
   const g = checkGated(manifest, readSource, testRefs);
   const w = checkWordOnlyClaim(manifest, readSource);
+  const bi = argv.indexOf('--base');
+  const baseRef = bi >= 0 && argv[bi + 1] ? argv[bi + 1] : 'origin/main';
+  const { mergeBase, manifest: baseManifest } = baseManifestAt(ROOT, baseRef);
+  const rt = checkRatchet(baseManifest, manifest, (p) => fs.existsSync(path.join(ROOT, p)));
   console.log(
     `verdict-adoption: ${w.checked} word-only row(s) CLAIM nothing is emitted \u00b7 ${w.conceded} concede emission and say why ` +
       `= ${w.wordOnly} word-only \u2014 ${w.flagged.length} still print a decision outside their selftest, all in WO_CLAIM_RATCHET (debt, may only shrink)`
@@ -560,12 +695,15 @@ function main() {
   console.log(
     `verdict-adoption: ${g.decides} \`decides\` producer(s) — ${Object.keys(g.gated).length} gated (a selftest or a test names them) · ${g.ungated.length} ungated, all in UNGATED_RATCHET (debt, may only shrink)`
   );
-  const errors = [...r.errors, ...g.errors, ...w.errors];
+  console.log(
+    `verdict-adoption: ${rt.adoptedAtBase} adopted at the merge base ${mergeBase.slice(0, 12)} (${baseRef}) — ${rt.kept} kept · ${rt.retired.length} retired with their file · ${rt.deAdopted.length} DE-ADOPTED (adoption is a ratchet; must be 0)`
+  );
+  const errors = [...r.errors, ...g.errors, ...w.errors, ...rt.errors];
   if (errors.length) {
     console.log(errors.map((e) => '  ✗ ' + e).join('\n'));
     console.log(`\n✗ ${errors.length} red(s) — the population and the manifest are not equal, an adoption does not hold, or a check has no test`);
     process.exit(1);
   }
-  console.log('✓ the manifest partitions the enumerated population; every adoption read and valid; every check is gated or in the ratchet');
+  console.log('✓ the manifest partitions the enumerated population; every adoption read and valid; every check is gated or in the ratchet; nothing adopted on the base was de-adopted');
 }
 main();
