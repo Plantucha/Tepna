@@ -2679,6 +2679,29 @@
          to update — deliberately, with that node's fixtures re-cut. */
       T.eq('KNOWN HOLE · independent is still spread-only, so a drawn axis still reads independent', dr.independent, true);
       T.ok('…which is exactly why deviceDrawn is published for consumers to move to', dr.deviceDrawn === true && dr.independent === true);
+
+      /* ── ZERO SPAN REFUSES (residue 2026-09-02-hostaxis-accepts-drawn-axis) ─────────────────────
+         The narrowest drawn case: every device stamp identical while the host wanders. Before
+         2026-09-21 this returned `ok:true, ppm:0, independent:true` — `span > 0 ? … : 0` fabricated
+         the rate and the spread gate saw a wandering host and called it independent. A rate over a
+         zero span is not 0; it does not exist. Refused like the ≥3-anchor and ±ppm bounds. */
+      var zero = [];
+      for (var z = 0; z < 50; z++) zero.push({ devMs: 0, hostMs: z * 1000 });
+      var zr = C.hostAxis(zero);
+      T.eq('a zero-device-span axis is REFUSED, not scored', zr.ok, false);
+      T.ok('…with a reason that names the cause', /zero span/.test(String(zr.reason)), String(zr.reason));
+      T.ok('…and no correctionAt — a caller cannot apply a silent zero', typeof zr.correctionAt !== 'function');
+      T.ok('…and no fabricated ppm on the refusal', zr.ppm == null, 'ppm=' + zr.ppm);
+      /* BOUNDARY, both sides: the smallest positive span is still a span. One anchor one ms apart
+         from the rest makes the axis a (terrible) clock, which is `deviceDrawn`'s business, not this
+         refusal's — it must still return ok:true so the two guards do not overlap. */
+      var tiny = zero.slice();
+      tiny[49] = { devMs: 1, hostMs: 49 * 1000 };
+      var tr = C.hostAxis(tiny);
+      T.eq('a span of ONE ms is not refused as zero — the guard is the span, not a tolerance', tr.ok === false && /zero span/.test(String(tr.reason)), false);
+      /* And the plant that proves the refusal is not the ppm bound wearing a new name: the uniform
+         SYNTHETIC axis every fixture uses (span > 0, deviceDrawn) still passes. */
+      T.eq('CONTROL · the uniform fixture axis (devMs = i·1000) is still ok:true', dr.ok, true);
     });
 
     /* ════ THE CLOCK CONTRACT'S OWN GUARDS, FOUND UNTESTED BY `tools/mutate.mjs` ═══════════════
@@ -3308,15 +3331,19 @@
         'default ppm ' + (wDefault.ppm != null ? wDefault.ppm.toFixed(3) : '-') + ' vs window:0 ppm ' + (wZero.ppm != null ? wZero.ppm.toFixed(3) : '-')
       );
 
-      /* KILLS `var ppm = span > 0 ? … : 0` → `>=`.
-         Every anchor at the SAME device time gives span 0. Guarded, ppm is 0; under `>=` it divides
-         by zero and reports NaN — and `ok` then turns false, so a degenerate input stops being a
-         reported zero and becomes a refusal for the wrong reason. */
+      /* KILLS `if (!(span > 0)) return …` → `>=` (refuses everything — every other group reds) and
+         → dropping the guard (divides by zero, NaN ppm, and the ±ppm bound then refuses for the WRONG
+         reason). Every anchor at the SAME device time gives span 0.
+         ⚠ Until 2026-09-21 this pair asserted the OPPOSITE — "ppm is 0, never NaN" and "a flat axis
+         is a measurement, not a failure" — pinning the fabricated zero the residue row
+         2026-09-02-hostaxis-accepts-drawn-axis was written about. A rate over a zero span is not 0;
+         it does not exist, and the honest answer is a NAMED refusal (§∅, §2.6 at the rate). */
       var flat = [];
       for (var z = 0; z < 6; z++) flat.push({ devMs: 1000, hostMs: 1500 });
       var zeroSpan = C.hostAxis(flat, {});
-      T.eq('zero device span ⇒ ppm is 0, never NaN (no divide-by-zero)', zeroSpan.ok && zeroSpan.ppm === 0, true);
-      T.ok('…and such a record is still ok:true — a flat axis is a measurement, not a failure', zeroSpan.ok === true, JSON.stringify({ ok: zeroSpan.ok, ppm: zeroSpan.ppm }));
+      T.eq('zero device span ⇒ a refusal, never a fabricated 0 ppm', zeroSpan.ok, false);
+      T.ok('…for the RIGHT reason — the span, not a NaN tripping the ±ppm bound', /zero span/.test(String(zeroSpan.reason)) && !/implausible/.test(String(zeroSpan.reason)), String(zeroSpan.reason));
+      T.ok('…and the refusal carries no ppm at all (no NaN, no 0)', zeroSpan.ppm == null, 'ppm=' + zeroSpan.ppm);
 
       /* KILLS `if (!(dx > 0)) return sm[lo2]` → dropping the `!`.
          `dx` is the gap between the two bracketing anchors, so it is > 0 on every real interior
@@ -16535,6 +16562,27 @@
       T.eq('…and the fs correction is therefore NOT applied', dAx.applied, false);
       T.eq('a genuinely independent host column IS independent', iAx.independent, true);
       T.eq('…and there the correction IS applied — the guard did not break the feature', iAx.applied, true);
+
+      /* THE REFUSAL REACHES THE CONSUMER AS A REFUSAL, NOT AS A ZERO (residue
+         2026-09-02-hostaxis-accepts-drawn-axis, and the check Kestrel asked for beside it): a device
+         column that never ticks — every `timestamp [ms]` zero while the host advances — used to come
+         back from the spine as `ok:true, ppm:0, independent:true`. Now the spine refuses, and this
+         asserts ECGDex publishes THAT — `ok:false`, the spine's own reason, `applied:false`, the axis
+         left on the device clock — rather than turning the refusal back into a silent 0 correction
+         one layer up. `fs` stays at the parsed rate. */
+      var zeroSpan = D.parseECG(
+        (function () {
+          var rows = [HDR];
+          for (var i = 0; i < 2600; i++) rows.push(new Date(BASE + i * 1000).toISOString() + ';0;0;' + (100 + (i % 40)));
+          return rows.join('\n');
+        })()
+      );
+      var zAx = zeroSpan.hostAxis || {};
+      T.eq('a zero-span device axis reaches the export as ok:false', zAx.ok, false);
+      T.ok("…carrying the spine's own reason, not a stock string", /zero span/.test(String(zAx.reason)), String(zAx.reason));
+      T.eq('…applied:false — no correction was turned into a silent 0', zAx.applied, false);
+      T.eq('…and the axis is declared as the device clock alone', zAx.timingSource, 'device');
+      T.ok('…with fs left at the parsed rate', zeroSpan.fs === derived.fs, 'fs=' + zeroSpan.fs + ' vs ' + derived.fs);
       // the consequence, asserted on the number rather than described
       T.ok('fs is left alone on the derived capture', derived.fs === Math.round(derived.fs), 'fs=' + derived.fs);
       /* Direction and order of magnitude, not the exact rate. §7 is explicit that `ppm` is biased at
