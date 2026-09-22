@@ -961,9 +961,16 @@
    "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); finger\u2194ankle PPG coupling control; the in-code \u226550 %-of-nights rule is reported as result.inCodeRulePasses, never a status rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
   "tools/pat-residual-structure.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-residual-structure.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "PAT-ROOT-CAUSE-FORENSICS \u00a714 \u2014 is the leftover 20\u201340 ms ERROR or SIGNAL? The tool decides per night against its OWN pre-stated band (rho1 >= BAND_STRUCTURED 0.30) and printed a TALLY; the row's previous reason was copy-pasted and false. \u26a0\ufe0f PASS/FAIL name CRITERION SATISFACTION, not goodness, and here they invert instinct: STRUCTURED means the residual is physiological PAT variation, UNSTRUCTURED means the budget has a hole. Adoption also forced the population to be honest \u2014 five bare `continue`s dropped a night out of the TALLY with no record, so `excluded` is now a NAMED skip census and checked + excluded = eligible. Found by residue 2026-09-22-word-only-claims-go-stale."
   },
   "tools/pat-window-oracle.mjs": {
    "bin": "decides",
