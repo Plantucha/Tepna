@@ -31089,10 +31089,7 @@
       );
       T.ok(
         'self-test · check9 does NOT convict a new runtime file, and DOES fire on a stray doc or dotfile',
-        rootClassOf('newnode-dsp.js') === 'runtime' &&
-          rootClassOf('OxyDex Reference.html') === 'runtime' &&
-          rootClassOf('NOTES.md') === null &&
-          rootClassOf('.env') === null,
+        rootClassOf('newnode-dsp.js') === 'runtime' && rootClassOf('OxyDex Reference.html') === 'runtime' && rootClassOf('NOTES.md') === null && rootClassOf('.env') === null,
         [rootClassOf('newnode-dsp.js'), rootClassOf('NOTES.md'), rootClassOf('.env')].join('/')
       );
       T.ok('self-test · check9 publishes an EQUALITY, so a class going missing moves the numbers', vStray.classified + vStray.unclassified.length === vStray.total);
@@ -31103,7 +31100,9 @@
         T.ok(
           'check9 · the repo root holds exactly the documented classes (' + rootV.classified + ' classified + ' + rootV.unclassified.length + ' unclassified = ' + rootV.total + ')',
           rootV.unclassified.length === 0,
-          rootV.unclassified.length ? 'UNCLASSIFIED at root: ' + rootV.unclassified.join(', ') + ' — a root file must be a named doc/OSS/config entry or a runtime ' + ROOT_RUNTIME_EXT.join('/') + ' file (CLAUDE.md §📁)' : 'ok'
+          rootV.unclassified.length
+            ? 'UNCLASSIFIED at root: ' + rootV.unclassified.join(', ') + ' — a root file must be a named doc/OSS/config entry or a runtime ' + ROOT_RUNTIME_EXT.join('/') + ' file (CLAUDE.md §📁)'
+            : 'ok'
         );
       }
     });
