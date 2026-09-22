@@ -472,7 +472,7 @@
   "tools/deep-desat-falsifier.mjs": {
    "bin": "already-json",
    "status": "pending",
-   "note": "falsifier verdict over the corpus"
+   "note": "BAND-LESS (Magpie, 2026-09-22, read before flipping): it reports a per-stage desat-rate table with 95 % CIs, a one-sided exact sign-test p-value and a dose-response correlation \u2014 and states NO alpha and NO decision rule anywhere in the file; the only decision it makes is the testability rider (xAxisHasRange). A 'falsified / survives' verdict needs a pre-stated alpha and a direction; adding one after seeing the p-values is the post-hoc threshold the contract's UNKNOWN clause names. Not flipped; the alpha belongs in the parent brief (DEEP-STAGE-DESAT-CONFOUND \u00a76 / REM-STAGING-REDESIGN \u00a75) before this tool can decide."
   },
   "tools/deep-vlf-probe.mjs": {
    "bin": "word-only",
@@ -491,13 +491,27 @@
   },
   "tools/ecg-physionet-differential.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "CONSISTENT/SHORTFALL bands over PhysioNet records (P5-gated doc: scope must be internal)"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/ecg-physionet-differential.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "wave-2 adopter (Magpie): the PRE-STATED BANDS as one object \u2014 PASS CONSISTENT (min(Se,PPV) >= 99.0 %) \u00b7 FAIL SHORTFALL/DEFECT (the band and the min in reason; the contract's SHORTFALL status is not this) \u00b7 NOT_RUN no record scored. Population = records scored of records expected, so a partial corpus is visible in the object. scope is internal and STAYS internal (P5 gates publication, not measurement). --json prints the object with the old summary/records riding beside it; the absent-records skip is a NOT_RUN object."
   },
   "tools/ecg-rate-transfer.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "VERDICT: does the rate transfer"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/ecg-rate-transfer.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "wave-2 adopter (Magpie): E3's two pre-stated bands (median |delta| <= 4 ms AND correspondence >= 99 %) as a conjunction counted in bands missed \u2014 PASS 0 \u00b7 FAIL names which band (and a non-zero same-rate control) \u00b7 UNKNOWN no matched beats \u00b7 NOT_RUN no record found. --json prints the object after the report."
   },
   "tools/extreme-mutate.mjs": {
    "bin": "already-json",
@@ -549,9 +563,9 @@
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
   "tools/land-pr.mjs": {
-   "bin": "already-json",
-   "status": "pending",
-   "note": "a decision about a PR (update / wait / stop); FAIL-CLOSED on an unreadable ruleset"
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "a QUEUE decision (update \u00b7 wait \u00b7 merge \u00b7 stop) about a PR's state, in its own vocabulary \u2014 not a gate over data; its 'VERDICT' is the gh checks exit it reads, i.e. it is a CONSUMER of CI's verdicts, and the contract's status enum does not describe queue actions"
   },
   "tools/make-synthetic-inputs.mjs": {
    "bin": "word-only",
@@ -600,9 +614,9 @@
    "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
   },
   "tools/mutation-reach.mjs": {
-   "bin": "already-json",
-   "status": "pending",
-   "note": "unresolved files FAIL CLOSED in the reach report"
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "a fail-closed CLASSIFICATION (which files/functions are in scope) that feeds the mutation gates, not a decision over a criterion; 'FAIL CLOSED' names the direction of the default, not a verdict"
   },
   "tools/mutation-suite.mjs": {
    "bin": "already-json",
@@ -622,9 +636,9 @@
    "reason": "CONSUMER, not a producer \u2014 renders the tepna.verdict/1 object mutate.mjs --diff emits into the CI job summary (the first CI reader of the contract); its status words are the object's fields quoted back, validated by verdict.js before rendering, and it produces no verdict of its own"
   },
   "tools/mutation-worklist.mjs": {
-   "bin": "already-json",
-   "status": "pending",
-   "note": "FAIL-CLOSED production/aside classification per function"
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "a fail-closed CLASSIFICATION (which files/functions are in scope) that feeds the mutation gates, not a decision over a criterion; 'FAIL CLOSED' names the direction of the default, not a verdict"
   },
   "tools/nearest-advocate.mjs": {
    "bin": "word-only",
@@ -633,8 +647,15 @@
   },
   "tools/nsrr-effort-typing.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "VERDICT over central-apnea effort typing on NSRR records"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/nsrr-effort-typing.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "wave-2 adopter (Magpie): the three bands over the fraction of central apneas whose effort falls below half baseline \u2014 PASS TRANSFERS (>= 0.7) \u00b7 FAIL PARTIAL / ARTIFACT (named in reason; a graded miss is still a miss under the closed enum) \u00b7 NOT_RUN no central apnea scored. Population = central apneas; the obstructive control rides in result."
   },
   "tools/nsrr-score-pool.mjs": {
    "bin": "decides",
@@ -783,8 +804,15 @@
   },
   "tools/pletha-marker-oracle.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "VERDICT: the marker heuristic holds / vacuous"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pletha-marker-oracle.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "wave-2 adopter (Magpie): the #2758 heuristic (a lone 156 is a beat marker, a run of 156s is signal) \u2014 PASS holds with >= 1 discriminating run row \u00b7 UNDERPOWERED holds but VACUOUS (no run of 156s seen; minimum 1) \u00b7 FAIL names which of the three counts is non-zero \u00b7 NOT_RUN nothing scored. Population = rows scored. --json prints the object after the report; the sample is the #2758 corpus counts."
   },
   "tools/ppg-bridge-hrv-validate.mjs": {
    "bin": "word-only",
@@ -891,12 +919,12 @@
   "tools/run-check.mjs": {
    "bin": "decides",
    "status": "pending",
-   "note": "the check runner: a step that must FAIL through the default"
+   "note": "the check runner: a step that must FAIL through the default \u2014 RUNNER over N gates: decides (every step/suite green), so it stays `decides`, but its object is a run-level summary over the population of steps, which is the wave-3 design question (VERDICT-CONTRACT \u00a73b #9: a runner's verdict must not restate its children's, it aggregates them); pending until that design lands, deliberately not wrapped now"
   },
   "tools/selftest-all.mjs": {
    "bin": "decides",
    "status": "pending",
-   "note": "the runner that reads every selftest verdict and exits on it"
+   "note": "the runner that reads every selftest verdict and exits on it \u2014 RUNNER over N gates: decides (every step/suite green), so it stays `decides`, but its object is a run-level summary over the population of steps, which is the wave-3 design question (VERDICT-CONTRACT \u00a73b #9: a runner's verdict must not restate its children's, it aggregates them); pending until that design lands, deliberately not wrapped now"
   },
   "tools/stmt-delete.mjs": {
    "bin": "already-json",
@@ -984,6 +1012,11 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "the gate itself: the verdict words occur in its header, its bin vocabulary and its red messages; its own result is the exit code + the summary line, read by npm run check / CI \u2014 it names producers, it is not one (a gate-verdict object for the gate is a wave-2 question, not an omission)"
+  },
+  "tools/verdict-emit.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the shared make-and-validate helper for tepna.verdict/1 objects (Verdict.make + Verdict.validate + producedBy.commit); the words occur only in its header comment \u2014 it decides nothing, it refuses to print an invalid object"
   },
   "tools/verdict-undeclared.mjs": {
    "bin": "decides",
