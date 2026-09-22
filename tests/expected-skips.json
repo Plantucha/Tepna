@@ -55,6 +55,11 @@
     },
     {
       "group": "Phase-9 compute() ≡ committed export — equivalence gate",
+      "test": "OxyDex (stored .dat + acquisition envelope — the envelope hop, for real) compute() ≡ committed export",
+      "why": "corpus-absent"
+    },
+    {
+      "group": "Phase-9 compute() ≡ committed export — equivalence gate",
       "test": "CPAPDex (real EDF, 2 sessions — was code-gated with no leg) compute() ≡ committed export",
       "why": "corpus-absent"
     },
