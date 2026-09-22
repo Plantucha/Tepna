@@ -40,6 +40,9 @@ import json
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import verdict as VD  # noqa: E402
+
 # ── PRE-STATED DECISION BANDS ────────────────────────────────────────────────────────────────────
 # Written BEFORE any data exists, because a band chosen after seeing the numbers is not a band
 # (CLAUDE.md's repeated finding; `pre-state-the-threshold`). These are the AUTHOR'S PROPOSAL and the
@@ -151,6 +154,60 @@ def verdict(pops, windows, *, min_ratio=MIN_DELIVERY_RATIO, max_gap=MAX_GAP_RATI
     return {"overall": overall, "seconds": secs, "streams": rows}
 
 
+# ── tepna.verdict/1 — the matrix as ONE object (VERDICT-CONTRACT wave 2) ─────────────────────────
+# The rule is `verdict()`'s, unchanged: every decided stream inside BOTH bands. One criterion cannot
+# carry two thresholds, so the object's criterion is the COUNT of streams outside a band, ≤ 0, with the
+# bands themselves and every per-stream ratio in `result`. PASS all streams within · FAIL any stream
+# outside (which, and by how much, is the reason) · UNDERPOWERED any stream INCONCLUSIVE and none
+# failed (the prose overall; the minimum and the counts in the reason) · NOT_RUN no stream at all. Population: streams; an
+# INCONCLUSIVE stream is excluded — it was not decided, and a PASS over it would certify a radio the
+# scan never tested (the ∅ paragraph above).
+VERDICT_GATE = "scan-coexistence"
+VERDICT_CRITERION = {"name": "streams_outside_bands", "threshold": 0, "unit": "streams", "direction": "lte"}
+
+
+def verdict_object(v: dict, night: str = "<night>") -> dict:
+    """PURE over `verdict()`'s record."""
+    rows = v["streams"]
+    failed = [r for r in rows if r["state"] == "FAIL"]
+    inconclusive = [r for r in rows if r["state"] == "INCONCLUSIVE"]
+    n = len(rows)
+    pop = {"checked": n - len(inconclusive), "eligible": n, "excluded": len(inconclusive)}
+    result = {"streams": n, "outside_bands": len(failed), "inconclusive": len(inconclusive),
+              "bands": {"min_delivery_ratio": MIN_DELIVERY_RATIO, "max_gap_ratio": MAX_GAP_RATIO,
+                        "min_arrivals_per_population": MIN_ARRIVALS_PER_POPULATION},
+              "seconds": v["seconds"],
+              "per_stream": {r["stream"]: {k: r.get(k) for k in ("state", "n_on", "n_off", "delivery_ratio", "gap_ratio")}
+                             for r in rows}}
+    ev = ["capture-host/tools/scan_coexistence.py", night]
+    tool = "capture-host/tools/scan_coexistence.py"
+    if n == 0:
+        return VD.make(gate=VERDICT_GATE, status="NOT_RUN", population=pop, criterion=VERDICT_CRITERION,
+                       result=None, evidence=ev, tool=tool,
+                       reason="no stream arrived in either window population — nothing to compare")
+    if failed:
+        return VD.make(gate=VERDICT_GATE, status="FAIL", population=pop, criterion=VERDICT_CRITERION,
+                       result=result, evidence=ev, tool=tool,
+                       reason="; ".join(f"{r['stream']}: {r['why']}" for r in failed))
+    if inconclusive:
+        # The prose overall is INCONCLUSIVE whether one stream or all of them fell under the minimum:
+        # one status for it here too — UNDERPOWERED, the minimum and every count as numbers.
+        return VD.make(gate=VERDICT_GATE, status="UNDERPOWERED", population=pop, criterion=VERDICT_CRITERION,
+                       result=result, evidence=ev, tool=tool,
+                       reason=f"{len(inconclusive)} of {n} stream(s) had fewer than {MIN_ARRIVALS_PER_POPULATION} "
+                              "arrivals in a population: "
+                              + "; ".join(f"{r['stream']} on={r['n_on']} off={r['n_off']}" for r in inconclusive))
+    return VD.make(gate=VERDICT_GATE, status="PASS", population=pop, criterion=VERDICT_CRITERION,
+                   result=result, evidence=ev, tool=tool, reason=None)
+
+
+def verdict_sample() -> dict:
+    """The object the adoption gate reads (`--verdict-sample`): synthetic windows and arrivals, no night."""
+    windows = [{"t_start": 0.0, "t_end": 100.0, "state": "off"}, {"t_start": 100.0, "t_end": 200.0, "state": "on"}]
+    pops = {"off": {"H10/ECG": [i * 0.4 for i in range(250)]}, "on": {"H10/ECG": [100 + i * 0.4 for i in range(250)]}}
+    return verdict_object(verdict(pops, windows), "<synthetic>")
+
+
 async def _run(adapter: str, cycles: int, window: float, out_path: str) -> int:
     """Alternate passive-scan windows and record their boundaries. Needs a radio; not unit-tested."""
     import asyncio
@@ -210,6 +267,8 @@ def _verdict_cmd(windows_path: str, night_dir: str) -> int:
     for r in v["streams"]:
         print(f"  {r['state']:13} {r['stream']:44} n_on={r['n_on']:<7} n_off={r['n_off']:<7} {r['why']}")
     print(f"\n  OVERALL: {v['overall']}")
+    # One line, the object, after the prose — the verdict a machine reads (VERDICT-CONTRACT §1).
+    print(json.dumps(verdict_object(v, night_dir)))
     if v["overall"] == "PASS":
         print("\n  This is EVIDENCE, not permission. If you accept it, YOU set "
               "`o2ring.presence_harvest.scan_coexistence_verified: true` — this tool will not.")
@@ -217,6 +276,10 @@ def _verdict_cmd(windows_path: str, night_dir: str) -> int:
 
 
 def main(argv=None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv == ["--verdict-sample"]:  # the adoption gate's cmd — no night, no radio
+        print(json.dumps(verdict_sample(), indent=1))
+        return 0
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run", help="alternate passive-scan windows on the box (owner-attended)")
