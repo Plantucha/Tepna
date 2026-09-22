@@ -67,6 +67,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`find-copied-bodies.mjs`](../tools/find-copied-bodies.mjs) | FIND TESTS THAT EXERCISE A PRIVATE COPY INSTEAD OF THE SHIPPED SYMBOL. |
 | [`find-unwired-js.mjs`](../tools/find-unwired-js.mjs) | THE JS SIBLING OF `capture-host/tools/find_unwired.py`. Finds machinery that exists, is tested, and is connected to NOTHING — on the JS side, which that tool does not reach. |
 | [`findings-ledger.mjs`](../tools/findings-ledger.mjs) | THE FINDINGS LEDGER — C1 of the qwen engineering program (QWEN-ENGINEERING-PROGRAM 2026-08-27 §4). |
+| [`fold-provenance.mjs`](../tools/fold-provenance.mjs) | // // Run-level provenance for a trio fold: WHICH nights, from WHICH files, on WHICH volumes. |
 | [`formula-constant-audit.mjs`](../tools/formula-constant-audit.mjs) | REFERENCE-GUIDE-AUDIT dimension 2, made repeatable — the sibling of `severity-ladder-audit.mjs` (dimension 3). |
 | [`frozen-timeline-check.mjs`](../tools/frozen-timeline-check.mjs) | do the shipped bundles render BLANK when the document timeline never advances (print · PDF export · headless capture · a throttled background tab)? |
 | [`gap-s-sweep.mjs`](../tools/gap-s-sweep.mjs) | ECG-SATURATION-ABSENCE §"GAP_S": the cut that turns an inter-beat interval into an ABSENCE (`spansGap`, excluded, never median-filled) is `GAP_S = 10 s` in ecgdex-dsp.js and… |
