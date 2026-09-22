@@ -65,12 +65,20 @@ expect() { # expect <want> <label> <command>
   if [ "$got" = "$1" ]; then printf '  ok    %-56s %s\n' "$2" "$got"
   else printf '  FAIL  %-56s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
 }
+run_from() { # run_from <cwd> <command> ; like run, but with the hook's cwd set explicitly
+  ( cd "$1" && jq -nc --arg c "$2" '{tool_input:{command:$c}}' | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW )
+}
+expect_from() { # expect_from <cwd> <want> <label> <command>
+  local got; got="$(run_from "$1" "$4")"
+  if [ "$got" = "$2" ]; then printf '  ok    %-56s %s\n' "$3" "$got"
+  else printf '  FAIL  %-56s got %s, want %s\n' "$3" "$got" "$2"; fail=$((fail+1)); fi
+}
 
 echo "### the case it exists for"
 git add ugly.js >/dev/null
 expect DENY  "an unformatted .js is STAGED"                    "git commit -m wip"
 expect DENY  "…and through a -C form"                          "git -C . commit -m wip"
-expect DENY  "…and when it is not the first word"              "cd /tmp && git commit -m wip"
+expect DENY  "…and when it is not the first word"              "cd \"$W\" && git commit -m wip"
 
 echo
 echo "### the paired ALLOWs — each differs in exactly ONE property"
@@ -86,6 +94,31 @@ git add ugly.js >/dev/null
 expect ALLOW "not a commit at all"                             "git status --short"
 expect ALLOW "git commit-tree is not git commit"               "git commit-tree \$TREE -m x"
 expect ALLOW "asking for help never commits"                   "git commit --help"
+
+echo
+echo "### THE TREE IS THE COMMAND'S, NOT THE HOOK'S — driven from OUTSIDE the repo"
+# The hook runs with the SESSION's cwd (the shared root, for nearly every session);
+# the commit runs wherever the command sends it, and §👥.1 sends it to a worktree.
+# Before this leg the guard resolved the repo from its own cwd and examined the ROOT's
+# index for a worktree commit — inert for every `cd <wt> && git commit`, measured
+# 2026-09-22 with a staged unformatted plant that committed straight through.
+# W2 is a second repo with only a TIDY file staged, so each pair differs in the TREE alone.
+W2="$TMP/w2"; mkdir -p "$W2"
+( cd "$W2" && git init -q . && git config user.email t@t && git config user.name t \
+  && cp "$REPO/biome.json" . && ln -s "$NM" node_modules \
+  && printf 'export const a = { b: 1, c: 2 };\n' > tidy.js && git add tidy.js ) >/dev/null 2>&1
+expect_from "$TMP" DENY  "cd <ugly repo> && git commit — cwd OUTSIDE any repo"   "cd $W && git commit -m wip"
+expect_from "$TMP" ALLOW "cd <tidy repo> && git commit — same cwd"              "cd $W2 && git commit -m ok"
+expect_from "$TMP" DENY  "…the cd target quoted"                                "cd \"$W\" && git commit -m wip"
+expect_from "$TMP" DENY  "git -C <ugly repo> commit — cwd OUTSIDE"               "git -C $W commit -m wip"
+expect_from "$W2"  DENY  "git -C <ugly repo> commit — cwd inside the TIDY repo"  "git -C $W commit -m wip"
+expect_from "$W2"  ALLOW "…and the tidy repo's own plain commit stays clean"     "git commit -m ok"
+expect_from "$W"   DENY  "anti-vacuity: cwd IS the ugly repo, no cd, no -C"      "git commit -m wip"
+# Two RESIDUALS, pinned so they are known rather than discovered: with nothing in the
+# command naming a tree, the hook's cwd is all there is; and a tree the same command
+# CREATES does not exist at PreToolUse time, so there is nothing to ask.
+expect_from "$TMP" ALLOW "RESIDUAL: no cd, no -C, cwd outside ⇒ nothing to examine" "git commit -m wip"
+expect_from "$TMP" ALLOW "RESIDUAL: cd to a tree the command creates ⇒ fallback"   "git worktree add $TMP/nope && cd $TMP/nope && git commit -m wip"
 
 echo
 echo "### escape hatch + degenerate inputs"

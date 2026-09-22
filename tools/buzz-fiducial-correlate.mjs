@@ -38,6 +38,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import fs from 'node:fs';
+import { makeVerdict } from './verdict-emit.mjs';
 
 const arg = (k) => {
   const i = process.argv.indexOf(k);
@@ -229,12 +230,132 @@ function selftest() {
   // PLANT 4: an empty capture is refused, never scored.
   ok('empty capture is refused', refuseIfNotProbeCapture([]) !== null);
 
+  /* ── the verdict, all four reachable statuses ───────────────────────────────── */
+  const VAT = { at: '2026-09-22T00:00:00Z', commit: null, commitReason: 'selftest' };
+  const G = [1, 4, 2, 6, 3];
+  const V = (on, ref) => buzzVerdict({ status: 'RUN', tolS: 1.5, gaps: G, series: 1200, onsets: on, match: ref ? null : matchSchedule(on, G, 1.5), refusal: ref, ...VAT });
+  const vPass = V([0, 1, 5, 7, 13, 16]);
+  const vFail = V([0, 9, 9.5, 10, 11, 12, 14]);
+  const vUnder = V([1, 2]);
+  const vNA = V([], { reason: 'daemon capture: peak motion 9 (probe captures peak ~22)' });
+  ok('verdict: an aligned schedule PASSES and carries the host-axis residual', vPass.status === 'PASS' && typeof vPass.result.residualMs === 'number', vPass.status);
+  ok('verdict: windows existed and none matched ⇒ FAIL', vFail.status === 'FAIL' && vFail.result.windowsTried > 0, `${vFail.status}/${vFail.result && vFail.result.windowsTried}`);
+  /* The distinction Kestrel's review forced, and it was FAIL before the split: too few onsets is not
+     a failed alignment, because FAIL asserts the schedule was LOOKED FOR and not seen. */
+  ok('verdict: fewer onsets than one window ⇒ UNDERPOWERED, not FAIL', vUnder.status === 'UNDERPOWERED' && vUnder.result === null, vUnder.status);
+  ok('verdict: …and it says how many onsets a window needs', /6 are needed/.test(vUnder.reason || ''), JSON.stringify(vUnder.reason));
+  ok('verdict: a daemon capture is NOT_APPLICABLE — the stream cannot carry the fiducial', vNA.status === 'NOT_APPLICABLE' && vNA.result === null, vNA.status);
+  ok("verdict: the threshold IS the tool's own --tol, not a new bar", vPass.criterion.threshold === 1.5 && vPass.criterion.direction === 'lte' && vPass.criterion.unit === 's');
+  for (const [l, v] of [
+    ['PASS', vPass],
+    ['FAIL', vFail],
+    ['UNDERPOWERED', vUnder],
+    ['NOT_APPLICABLE', vNA]
+  ])
+    ok(`verdict: ${l} population is an equality`, v.population.eligible === v.population.checked + v.population.excluded, JSON.stringify(v.population));
+
   console.log(fail ? `\n${fail} FAILURE(S)` : `\n${pass} assertions — all green`);
   return fail ? 1 : 0;
 }
 
+/* ── THE VERDICT ────────────────────────────────────────────────────────────────
+   The criterion is NOT invented here: `matchSchedule` already returns null unless a window aligns
+   EVERY commanded gap within `tolS`, defaulted to 1.5 s at the CLI. The adoption reports the bar the
+   tool already applies — an adoption must not change what a tool decides.
+
+   ⚠ THE REFUSAL IS `NOT_APPLICABLE`, NOT `FAIL`, and the distinction is the reason the refusal was
+   built. A daemon PPG2W stream carries the buzz on 6 of 39 fires at amplitude 1-9 (residue
+   2026-09-21-buzz-motion-byte-sparse-in-daemon-stream), so a null from such a file says nothing about
+   whether the schedule fired: the stream cannot carry the fiducial. FAIL would convict the schedule
+   on a capture that could never have shown it. The tool arrived at that distinction independently of
+   the verdict contract; this maps it onto the contract's own word for it. */
+export function buzzVerdict({ status, tolS, gaps, series, onsets, match, refusal, at, commit, commitReason }) {
+  const base = {
+    tool: 'tools/buzz-fiducial-correlate.mjs',
+    gate: 'buzz-fiducial-correlate',
+    scope: 'internal',
+    criterion: {
+      name: 'every commanded buzz gap aligns to a detected motion onset within --tol (the whole schedule, not a best subset): matchSchedule returns null unless EVERY gap is within tolerance',
+      direction: 'lte',
+      threshold: tolS,
+      unit: 's'
+    },
+    evidence: ['tools/buzz-fiducial-correlate.mjs'],
+    at,
+    commit,
+    commitReason
+  };
+  const nGaps = Array.isArray(gaps) ? gaps.length : 0;
+  if (status === 'NOT_RUN') {
+    return makeVerdict({ ...base, status: 'NOT_RUN', population: { eligible: 0, checked: 0, excluded: 0 }, result: null, reason: 'no capture given: --ppg2w and --gaps are both required' });
+  }
+  if (refusal) {
+    return makeVerdict({
+      ...base,
+      status: 'NOT_APPLICABLE',
+      population: { eligible: nGaps, checked: 0, excluded: nGaps },
+      result: null,
+      reason: refusal.reason + ' — the stream cannot carry the fiducial, so a null alignment is not evidence the schedule did not fire'
+    });
+  }
+  /* ⚠ TWO DIFFERENT NULLS, AND ONLY ONE IS A FAILURE. `matchSchedule` returns null both when no
+     window aligned AND, by an explicit early return, when there are fewer than `gaps.length + 1`
+     onsets — too few to form a single candidate window. FAIL asserts *the commanded schedule was not
+     seen*, a claim you can only make if the detector had enough onsets to look. The second is
+     UNDERPOWERED: the criterion would bind, there is simply not enough data to evaluate it. */
+  const need = nGaps + 1;
+  if (onsets.length < need) {
+    return makeVerdict({
+      ...base,
+      status: 'UNDERPOWERED',
+      population: { eligible: nGaps, checked: 0, excluded: nGaps },
+      result: null,
+      reason: `${onsets.length} onset(s) detected but ${need} are needed to form one candidate window for a ${nGaps}-gap schedule — too few to evaluate the alignment either way`
+    });
+  }
+  if (!match) {
+    return makeVerdict({
+      ...base,
+      status: 'FAIL',
+      population: { eligible: nGaps, checked: nGaps, excluded: 0 },
+      result: { motionSamples: series, onsets: onsets.length, windowsTried: onsets.length - need + 1, alignedGaps: 0, commandedGaps: nGaps, tolS },
+      reason: `the commanded schedule [${(gaps || []).join(',')}] aligned to none of the ${onsets.length - need + 1} candidate window(s) over ${onsets.length} detected onset(s) within ${tolS}s — wrong file, buzz too weak, or the schedule differs`
+    });
+  }
+  return makeVerdict({
+    ...base,
+    status: 'PASS',
+    population: { eligible: nGaps, checked: nGaps, excluded: 0 },
+    result: { motionSamples: series, onsets: onsets.length, startIndex: match.startIndex, gapErrorsMs: match.gapErrorsMs, residualMs: match.residualMs, commandedGaps: nGaps, tolS }
+  });
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   if (process.argv.includes('--selftest')) process.exit(selftest());
+  if (process.argv.includes('--verdict-sample')) {
+    /* The PASS shape, from an aligned synthetic schedule. No capture is read and none is claimed. */
+    const g = [1, 4, 2, 6, 3];
+    const on = [0, 1, 5, 7, 13, 16];
+    console.log(
+      JSON.stringify(
+        buzzVerdict({
+          status: 'RUN',
+          tolS: 1.5,
+          gaps: g,
+          series: 1200,
+          onsets: on,
+          match: matchSchedule(on, g, 1.5),
+          refusal: null,
+          at: '2026-09-22T00:00:00Z',
+          commit: null,
+          commitReason: '--verdict-sample: a synthetic aligned schedule, no capture read'
+        }),
+        null,
+        2
+      )
+    );
+    process.exit(0);
+  }
   const p = arg('--ppg2w');
   const gapsRaw = arg('--gaps');
   if (!p || !gapsRaw) {
@@ -254,17 +375,27 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (refusal) {
     console.log(`  ✗ REFUSED — ${refusal.reason}`);
     for (const l of REFUSAL_EXPLAIN) console.log(`    ${l}`);
+    console.log(JSON.stringify(buzzVerdict({ status: 'RUN', tolS: tol, gaps, series: series.length, onsets: [], match: null, refusal })));
     process.exit(2);
   }
   const onsets = detectOnsets(series);
   console.log(`  ${series.length} motion samples, ${onsets.length} spike onset(s) detected`);
   const m = matchSchedule(onsets, gaps, tol);
+  const V = buzzVerdict({ status: 'RUN', tolS: tol, gaps, series: series.length, onsets, match: m, refusal: null });
   if (!m) {
-    console.log(`  ✗ the commanded schedule [${gaps.join(',')}] did NOT align to the detected onsets — the`);
-    console.log(`    aperiodic buzz was not seen (wrong file, buzz too weak, or the schedule differs).`);
+    /* The human line says "did NOT align"; the verdict distinguishes WHY — UNDERPOWERED when there
+       were too few onsets to form a window, FAIL when windows existed and none matched. The exit
+       code cannot carry that distinction, which is why the object is printed beside it. */
+    if (V.status === 'UNDERPOWERED') console.log(`  ⊘ ${V.reason}`);
+    else {
+      console.log(`  ✗ the commanded schedule [${gaps.join(',')}] did NOT align to the detected onsets — the`);
+      console.log(`    aperiodic buzz was not seen (wrong file, buzz too weak, or the schedule differs).`);
+    }
+    console.log(JSON.stringify(V));
     process.exit(1);
   }
   console.log(`  ✓ schedule aligned at onset #${m.startIndex} — the aperiodic pattern is present in the motion channel`);
   console.log(`  per-gap error (ms): ${m.gapErrorsMs.map((e) => e.toFixed(0)).join(', ')}`);
   console.log(`  HOST-AXIS RESIDUAL: ${m.residualMs.toFixed(1)} ms RMS  (bounded by the ~1 s raw-buffer back-timing)`);
+  console.log(JSON.stringify(V));
 }
