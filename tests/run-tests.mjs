@@ -1594,6 +1594,15 @@ function readClaudeMdClaims() {
   } catch {
     /* unreadable briefs/ ⇒ CLAUDE.md alone; the non-vacuity assertion notices if nothing was scanned */
   }
+  /* 2026-09-22 — the preprints too: a re-cut correction block states its numbers as sourced CLAIMs against
+     analysis/published-numbers/*.json (owner ruling D9.1), and a marker that no gate reads is prose. Opt-in,
+     so a paper with no marker adds nothing to the scan. */
+  try {
+    const pd = join(ROOT, 'papers');
+    if (existsSync(pd)) for (const f of readdirSync(pd).filter((x) => x.endsWith('.html'))) claimFiles.push(['papers/' + f, readFileSync(join(pd, f), 'utf8')]);
+  } catch {
+    /* unreadable papers/ ⇒ the briefs + CLAUDE.md scan stands */
+  }
   for (const [where, text] of claimFiles) {
     for (const m of text.matchAll(CLAIM_FROM)) {
       const [, name, raw, file, pointer] = m;

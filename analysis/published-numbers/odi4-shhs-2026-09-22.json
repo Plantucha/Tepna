@@ -1,0 +1,167 @@
+{
+  "schema": "tepna.published-number-record/1",
+  "producer": "tools/odi4-shhs-recut.mjs",
+  "producerCommit": "2d5405b2",
+  "invocation": "node tools/nsrr-score-pool.mjs --scorer ./nsrr-oxydex-odi.mjs --workers 8 --out <results.json> · node tools/odi4-shhs-recut.mjs --results <results.json>",
+  "generated": "2026-09-22",
+  "inputs": {
+    "path": "NSRR SHHS1 (EDF + annotations-events-nsrr XML; data-use agreement — NOT committed, never fetched by the suite)",
+    "committed": false,
+    "files": 5136,
+    "digest": "09dba4a0b298",
+    "note": "digest = sha256[0:12] over the pool results file bytes (the per-record rows this re-cut reads) — recorded-only, since the corpus itself is not in the tree; the pool run is reproducible from the same corpus + producerCommit"
+  },
+  "publishedIn": "papers/odi4-ahi-bias.html §3.2 (re-cut correction block, 2026-09-22) · docs/SHHS-COHORT-REFERENCE.md",
+  "claims": {
+    "note": "values EXACTLY as the prose states them (published precision), so CLAIM … FROM … #claims/<key> compares equal; full precision is under result",
+    "nRecords": 5136,
+    "nVsScoredAhi": 5136,
+    "nVsExpertDesat": 4932,
+    "olsSlopeVsAhi": 0.107,
+    "r2VsAhi": 0.25,
+    "biasVsAhi": -36.63,
+    "medianDiffVsAhi": -31.37,
+    "loaLoVsAhi": -83.45,
+    "loaHiVsAhi": 10.19,
+    "biasVsDesat": -2.2,
+    "medianDiffVsDesat": -0.81,
+    "loaLoVsDesat": -12.25,
+    "loaHiVsDesat": 7.86,
+    "medianRatioVsDesat": 0.657,
+    "olsSlopeVsDesat": 0.536,
+    "r2VsDesat": 0.693,
+    "coverageMedianPct": 95.29,
+    "coverageP5Pct": 80.32,
+    "coverageMinPct": 48.36,
+    "coverageBelow95": 2462,
+    "coverageBelow95Pct": 47.9,
+    "t90MedianPct": 0.7,
+    "t90InflationMedianPoints": 4.45,
+    "meanSpo2Median": 94.9,
+    "meanSpo2ShiftMedianPoints": -4.45,
+    "realNoneN": 61,
+    "realNoneBias": -3.4,
+    "realMildN": 611,
+    "realMildBias": -10.1,
+    "realModerateN": 1456,
+    "realModerateBias": -20.6,
+    "realSevereN": 3008,
+    "realSevereBias": -50.4
+  },
+  "result": {
+    "records": {
+      "total": 5136,
+      "ok": 5136,
+      "vsScoredAhi": 5136,
+      "vsExpertDesat": 4932
+    },
+    "table3": {
+      "vsScoredAhi": {
+        "n": 5136,
+        "olsSlope": 0.10700734645299649,
+        "r2": 0.25104868342715186,
+        "bias": -36.62829633956394,
+        "medianDiff": -31.370000000000005,
+        "loa": [
+          -83.4465883737088,
+          10.189995694580936
+        ]
+      },
+      "vsExpertDesat": {
+        "n": 4932,
+        "bias": -2.1976317923763156,
+        "medianDiff": -0.81,
+        "loa": [
+          -12.253154331124152,
+          7.857890746371522
+        ],
+        "medianRatio": 0.656934306569343,
+        "ratioN": 4932,
+        "olsSlope": 0.5363035547799364,
+        "r2": 0.693010765494256
+      }
+    },
+    "table4Real": {
+      "none": {
+        "n": 61,
+        "meanBias": -3.4172131147540985,
+        "medianBias": -3.85,
+        "meanAhi": 3.7057377049180324
+      },
+      "mild": {
+        "n": 611,
+        "meanBias": -10.135302782324064,
+        "medianBias": -10.35,
+        "meanAhi": 10.925482815057293
+      },
+      "moderate": {
+        "n": 1456,
+        "meanBias": -20.617719780219765,
+        "medianBias": -20.43,
+        "meanAhi": 22.624519230769177
+      },
+      "severe": {
+        "n": 3008,
+        "meanBias": -50.43298204787222,
+        "medianBias": -44.870000000000005,
+        "meanAhi": 56.489132313829835
+      }
+    },
+    "coverage": {
+      "n": 5136,
+      "median": 95.29,
+      "p5": 80.32,
+      "min": 48.36,
+      "below95": 2462
+    },
+    "saturation": {
+      "t90": {
+        "fixed": {
+          "n": 5136,
+          "median": 0.7,
+          "p5": 0,
+          "p95": 16.1,
+          "mean": 3.409832554517134
+        },
+        "preFixDerived": {
+          "n": 5136,
+          "median": 6.9202000000000075,
+          "p5": 1.1474499999999952,
+          "p95": 29.11268,
+          "mean": 10.110755695093456
+        },
+        "inflationPoints": {
+          "n": 5136,
+          "median": 4.4510799999999975,
+          "p5": 0.6936699999999885,
+          "p95": 18.82754999999999,
+          "mean": 6.700923140576314
+        }
+      },
+      "meanSpo2": {
+        "fixed": {
+          "n": 5136,
+          "median": 94.9,
+          "p5": 91.4,
+          "p95": 97.3,
+          "mean": 94.67108644859763
+        },
+        "preFixDerived": {
+          "n": 5136,
+          "median": 89.88154999999999,
+          "p5": 75.66999,
+          "p95": 95.12334000000001,
+          "mean": 88.07643651674448
+        },
+        "shiftPoints": {
+          "n": 5136,
+          "median": -4.454999999999998,
+          "p5": -18.535920000000004,
+          "p95": -0.7075600000000009,
+          "mean": -6.59464993185357
+        }
+      },
+      "note": "preFixDerived = the value the OLD computeStats would have reported, derived exactly from the fixed value and the coverage (null seconds counted as < 90 and averaged as 0); inflation (T90) and shift (mean SpO₂, negative) = old − new per record"
+    }
+  }
+}
