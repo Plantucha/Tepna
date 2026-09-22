@@ -39,7 +39,7 @@ import ast
 import fnmatch
 import re
 
-__all__ = ["GATE_BUDGET_SEC", "PREWORK_TRACE_FACTOR", "prework_estimate", "budget_refusal", "EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key",
+__all__ = ["GATE_BUDGET_SEC", "PREWORK_TRACE_FACTOR", "prework_estimate", "budget_refusal", "verdict_object", "VERDICT_STATUSES", "EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key",
            "annotation_only", "classify", "refusal_reason", "selftest", "string_only_verdict", "scan_is_reliable",
            "STRING_ONLY", "REQUIRED", "EMPTY_DIFF", "UNDECIDABLE"]
 
@@ -427,6 +427,53 @@ def budget_refusal(module: str, clean_sec: float, n_globs: int, left_sec: float,
             f"{n_globs} function(s) selected, none mutated. This is a REFUSAL with a reason, not a "
             f"verdict on the diff: the module's test selection is too costly to mutate in one gate run. "
             f"Scope the change, or run `tools/mutate.py --only` locally on the function(s).")
+
+
+# ── tepna.verdict/1 — the ONE object the gate emits (VERDICT-CONTRACT §1/§3b step 5) ─────────────────
+# The gate's outcomes map onto the closed enum and NOTHING is collapsed into a word a reader must parse:
+#   PASS            every mutant on the changed functions was killed (population.checked > 0)
+#   FAIL            survivors on changed lines, or a REFUTED equivalence entry (a wrong claim is a failure)
+#   UNKNOWN         mutants UNDECIDED (timeout · suspicious · no tests · not checked) — never a kill; or
+#                   functions refused inside the run budget — not measured, said so
+#   NOT_RUN         the gate could not execute: mutmut absent, every invocation errored
+#   NOT_APPLICABLE  nothing behavioural to mutate: no capture-host/*.py changed, annotation-only, or no
+#                   mutable operator in the changed functions
+# `result` carries the counts at full precision (they are integers); `population` is functions:
+# checked = mutated, excluded = refused/crashed/nothing-to-mutate, eligible = selected.
+VERDICT_SCHEMA = "tepna.verdict/1"
+VERDICT_STATUSES = ("PASS", "FAIL", "SHORTFALL", "UNDERPOWERED", "NOT_RUN", "NOT_APPLICABLE", "UNKNOWN")
+
+
+def verdict_object(status: str, *, checked: int, eligible: int, result: dict | None, reason: str | None,
+                   evidence: list[str], commit: str | None, at: str, base: str) -> dict:
+    """Build the verdict. Pure; the shape is `verdict.js`'s and is asserted against it by the JS gate
+    (`tools/verdict-adoption.mjs` reads `--verdict-sample`), not restated here as a second validator."""
+    if status not in VERDICT_STATUSES:
+        raise ValueError(f"status {status!r} is not in the closed enum {VERDICT_STATUSES}")
+    if status == "PASS" and reason is not None:
+        raise ValueError("PASS carries reason: null")
+    if status != "PASS" and not reason:
+        raise ValueError(f"{status} requires a reason")
+    excluded = eligible - checked
+    if excluded < 0:
+        raise ValueError(f"checked {checked} > eligible {eligible}")
+    produced: dict = {"tool": "capture-host/tools/mutate_diff.py", "commit": commit}
+    if commit is None:
+        produced["commitReason"] = "not run inside a git checkout"
+    return {
+        "schema": VERDICT_SCHEMA,
+        "gate": "mutate-diff",
+        "status": status,
+        "scope": "internal",
+        "population": {"checked": checked, "eligible": eligible, "excluded": excluded},
+        "criterion": {"name": "survivors_on_changed_lines", "threshold": 0, "unit": "mutants", "direction": "lte"},
+        "result": None if status in ("NOT_RUN", "NOT_APPLICABLE") else result,
+        "evidence": evidence,
+        "reason": reason,
+        "producedBy": produced,
+        "at": at,
+        "base": base,
+    }
 
 
 def refusal_reason(venv_exists: bool, probe_rc: int | None) -> str | None:
