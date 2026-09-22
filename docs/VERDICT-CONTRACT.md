@@ -86,7 +86,7 @@ decisions about numbers; the two compose (a verdict's `evidence[]` may name bloc
 The set is not this table — it is **`tools/verdict-adoption.json`**, held equal to the enumerated
 population by `tools/verdict-adoption.mjs --check` (`npm run check` · CI `static`): every file in
 `tools/*.mjs`, `capture-host/*.py` and `tests/*.mjs` (non-recursive; `tests/` joined 2026-09-22 when the test runner adopted §3d from outside the population) that prints a verdict word is binned as `decides` (adopt) ·
-`already-json` (converge) · `word-only` (exempt, with the reason) · `test` (a reader). An adoption is
+`already-json` (converge) · `word-only` (exempt, with the reason) · `test` (a reader). **Every `decides` producer is GATED** — it declares `--selftest` in call position or a file under `tests/` / `capture-host/tests/` names it — a static equality over the enumerated set of checks, ratcheted (`UNGATED_RATCHET`, may only shrink), so a check with no test reds by name the day it is binned rather than by a diff rule that would flag half of all tool fixes (residue `2026-09-12-ungated-tool-fix-rule-not-viable`). An adoption is
 READ by the gate — `emits: { cmd: […] }` printing the object, or `emits: { file }` — and validated here;
 a row is never believed. Because CI runs `emits.cmd`, it must be cheap and corpus-free (a
 `--vectors --json` or selftest emission, a committed record), not the tool's real run. Below, the

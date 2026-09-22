@@ -179,7 +179,10 @@ function selftest() {
 const arg = process.argv[2];
 const JSON_OUT = process.argv.includes('--json');
 const out = (line) => (JSON_OUT ? console.error(line) : console.log(line));
-if (arg === '--selftest') selftest();
+/* `includes('--selftest')` in CALL position — the shape selftest-all's discovery reads; the `arg ===`
+   form this shipped with was invisible to it, so this selftest never ran in the sweep (caught by the
+   decides-are-gated ratchet the day it landed). */
+if (process.argv.includes('--selftest')) selftest();
 else if (arg === '--verdict-sample') console.log(JSON.stringify(verdictSample()));
 else if (!arg || !fs.existsSync(arg)) {
   console.error('usage: node tools/pletha-marker-oracle.mjs <captures-root> [--json] | --selftest | --verdict-sample');
