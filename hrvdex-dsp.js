@@ -774,7 +774,10 @@
       const _tanakaR = 208 - 0.7 * AGE;
       const _hrRestR = p_prof.hrrest_manual > 0 ? p_prof.hrrest_manual : r._hr;
       const hrmax_tanaka = p_prof.hrmax_manual > 0 && p_prof.hrmax_manual >= 140 && p_prof.hrmax_manual > _hrRestR + 45 ? p_prof.hrmax_manual : _tanakaR;
-      const _altFR = p_prof.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.elev - 1500) / 300) * 0.01);
+      /* §∅ — a NULL elevation is unmeasured, and an unmeasured altitude cannot correct anything: the
+         factor is 1 (no adjustment), which is what <= 1500 m also yields, so no shipped number moves —
+         but the two are now different states in the code rather than one coerced zero. */
+      const _altFR = p_prof.elev == null || !isFinite(p_prof.elev) ? 1 : p_prof.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((p_prof.elev - 1500) / 300) * 0.01);
       // Method 1: Uth-Sørensen (2004) — resting HR ratio, altitude-corrected
       r.d_vo2_base = r._hr > 0 ? 15.3 * (hrmax_tanaka / r._hr) * _altFR : NaN;
       // Method 2: HRV-adjusted — rMSSD modulation ±8% band
