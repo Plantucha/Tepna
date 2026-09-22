@@ -232,10 +232,16 @@
     and the same run measures it.</p>
   </div>
 
-  <p><b>The detector is not undercounting desaturations.</b> Against the expert&rsquo;s own desaturation index it
-    recovers a median 89.7&nbsp;% with a median difference of <b>&minus;0.22 events/h</b>. Against scored AHI the same
-    detector on the same nights reads 35 events/h low. A detector cannot be simultaneously accurate and
-    catastrophically biased about one night, so the two numbers are measuring different things.</p>
+  <p><s><b>The detector is not undercounting desaturations.</b> Against the expert&rsquo;s own desaturation index it
+    recovers a median 89.7&nbsp;% with a median difference of <b>&minus;0.22 events/h</b>.</s>
+    <b style="color:#b00">Struck 2026-09-22 (correction above):</b> under the corrected adapter it recovers a median
+    <b>65.7&nbsp;%</b> (CLAIM shhsRatioDesatStruck = 0.657 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/medianRatioVsDesat)
+    with a median difference of &minus;0.81 events/h &mdash; it <em>is</em> under-reading the expert&rsquo;s desaturations by a
+    third, and whether that third belongs to the detector or to the device flag that masking now honours is not
+    settled here. What survives is the ordering: against scored AHI the same detector on the same nights reads
+    <b>36.6</b> events/h low (was 35), against the expert index <b>2.2</b> (was 1) &mdash; an order of magnitude apart. A
+    detector cannot be simultaneously that close and that far about one night, so the two numbers are still measuring
+    different things.</p>
 
   <p><b>They are, and the reason is a scoring convention.</b> SHHS scored hypopneas <i>without</i> requiring an
     accompanying desaturation: 85.3&nbsp;% of its respiratory events are hypopneas, and a median 66.7&nbsp;% of its
