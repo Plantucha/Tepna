@@ -288,7 +288,7 @@ emits an object.
 - `selftest-all.mjs` reads a parseable `all N selftests passed` line per tool and already refuses an
   unparseable one (`nearMiss → exit 1`); its children are per-tool verdicts, so `checked` = tools with a
   parsed summary, `excluded` = tools discovery found and did not run, and an unparseable summary is UNKNOWN,
-  never a failure of the tool under test.
+  never a failure of the tool under test. **Adopted #2828 (2026-09-22)** — children read from the summary line (provenance `summary`); measured on the real sweep `UNKNOWN` over 121/121, 26 ratcheted-unparseable children, where the prose says "all green".
 - `tests/run-tests.mjs` is the largest and is the one §3 named for "design first": the corpus-deciding
   groups (`docs-ledger`, `release-ledger`, `verdict-adoption`, the equiv legs) become children; a group is a
   child, an assertion is not. A shard emits its own object over the groups it ran; the union runner
