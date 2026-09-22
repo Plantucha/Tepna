@@ -1329,6 +1329,18 @@
         ]
       },
       "note": "a census commits its file list (residue 2026-09-20-census-file-list-not-retained): --write records one row per file (name, bytes, sha256 of the first 8 MB — the digest the ECG census itself used) into analysis/census/<id>.json; --diff NAMES every added/removed/CHANGED file against that manifest instead of reconstructing by elimination. Criterion: no unexplained population change. A moved population is SHORTFALL — a corpus grows, and the finding is that numbers computed over the recorded set need re-running or re-stating; an EMPTY census is NOT_RUN, never a clean bill. Both dedupe keys are published with their definitions (604 by basename, 549 by content on the real ECG corpus — a 10 % gap, and the published 597/602 used the basename key). 27 plants incl. the row's own 597→602 case with all five additions named; the cmd is three scratch rows, corpus-free."
+    },
+    "tools/pat-mode-posture.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/pat-mode-posture.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "residue 2026-09-06-a-statistic-both-hypotheses-predict: the posture covariate the §-park note asked for. Population = NIGHTS (checked + excluded = night dirs, every skip named); criterion = per-night median |Δmode| over same-posture pairs / adjacent different-posture pairs, bands pre-registered in the header before the first corpus run (PHYS median ≤ 0.5 & ≥ 70 % of nights < 1 → PASS · TIME median ≥ 1 → FAIL · between → UNKNOWN · < 5 nights → UNDERPOWERED). PASS/FAIL are the contract's words, not goodness."
     }
   }
 }
