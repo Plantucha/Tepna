@@ -78,6 +78,11 @@ js="$(printf '{"session_id":"%s","tool_name":"Write","tool_input":{"file_path":"
 printf '%s' "$js" | env CLAUDE_ALLOW_STALE_MEMORY=1 bash "$H" pre >/dev/null 2>&1; [ $? -eq 2 ] && h=DENY || h=ALLOW
 ok ALLOW "$h"                                 'the EXPORTED escape hatch allows a deliberate overwrite'
 
+# 6b · the cheap reject cannot turn a DENY into an ALLOW: a payload naming a memory path still parses
+js="$(printf '{"session_id":"%s","tool_name":"Write","tool_input":{"file_path":"%s"}}' "$SID2" "$F")"
+printf '%s' "$js" | env -u CLAUDE_ALLOW_STALE_MEMORY bash "$H" pre >/dev/null 2>&1; [ $? -eq 2 ] && c=DENY || c=ALLOW
+ok DENY "$c"                                  'the cheap /memory/ substring reject still lets a real memory path through to the check'
+
 # 7 · the denial names the reason
 msg="$(printf '{"session_id":"%s","tool_name":"Write","tool_input":{"file_path":"%s"}}' "$SID2" "$F" | bash "$H" pre 2>&1 >/dev/null)"
 case "$msg" in *"has NOT read it"*) n=named ;; *) n=unnamed ;; esac

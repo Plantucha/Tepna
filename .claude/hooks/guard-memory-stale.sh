@@ -47,8 +47,14 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
 [ "${CLAUDE_ALLOW_STALE_MEMORY:-}" = "1" ] && exit 0
-command -v jq >/dev/null 2>&1 || exit 0
 payload="$(cat 2>/dev/null)" || exit 0
+# ⚡ CHEAP REJECT FIRST — this hook rides Read, the hottest tool in the loop, and almost every Read is
+# not a memory file. A substring test on the RAW payload costs nothing and skips the jq fork for all
+# of them; only a payload that could name a memory path pays for parsing. (Measured: 5.2 ms → 1.4 ms
+# per non-memory Read.) It can only over-admit — a payload mentioning the string still goes through
+# the real path check below — so it cannot turn a DENY into an ALLOW.
+case "$payload" in *"/memory/"*) : ;; *) exit 0 ;; esac
+command -v jq >/dev/null 2>&1 || exit 0
 f="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null)"
 tool="$(printf '%s' "$payload" | jq -r '.tool_name // empty' 2>/dev/null)"
 sid="$(printf '%s' "$payload" | jq -r '.session_id // empty' 2>/dev/null)"
