@@ -876,13 +876,16 @@ const skippedDirs = new Set();
 for (const rel of readdirSync(SRC, { recursive: true })) {
   const name = basename(rel);
   const full = join(SRC, rel);
-  const hidden = String(rel)
-    .split(sep)
-    .find((seg) => seg.startsWith('.') && seg !== '.' && seg !== '..');
-  if (hidden) {
-    skippedDirs.add(hidden);
+  /* Only DIRECTORY segments are named: a hidden FILE (`.trio-stamp`, a `.…PPG.txt.Ll1fHj` temp) is
+     never a capture, and listing it would make the line claim a directory that does not exist — the
+     message must be as honest as the skip. Hidden files are dropped silently; directories are named. */
+  const segs = String(rel).split(sep);
+  const hiddenDir = segs.slice(0, -1).find((seg) => seg.startsWith('.') && seg !== '.' && seg !== '..');
+  if (hiddenDir) {
+    skippedDirs.add(hiddenDir);
     continue;
   }
+  if (segs[segs.length - 1].startsWith('.')) continue;
   let st;
   try {
     st = statSync(full);
