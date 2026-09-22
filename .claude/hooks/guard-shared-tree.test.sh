@@ -29,12 +29,24 @@ v(){ local o; o=$(jq -Rn --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}
      [[ "$o" == *'"deny"'* ]] && echo DENY || echo allow; }
 
 fail=0
-chk(){ # chk <expected> <command>
+# AN INTENDED RELAXATION IS NAMED, NOT EXEMPTED WHOLESALE. The comparison against `origin/main` is
+# the harness's whole value: any command main DENIED and this copy ALLOWS is a regression until
+# somebody says otherwise, in writing, per case. `chk allowNEW` is that statement — it asserts allow
+# AND asserts main denied it, so a relaxation that main already allowed (i.e. one that is not the
+# change being made) fails as loudly as an unintended one. Weakening the comparison instead would
+# have bought silence on every future relaxation.
+chk(){ # chk <expected|allowNEW> <command>
+  local want="$1"; local newly=0
+  [ "$want" = allowNEW ] && { want=allow; newly=1; }
   local got; got=$(v "$2" "$H")
   local base; base=$(v "$2" "$BASE")
   local flag=""
-  [ "$got" != "$1" ] && { flag=" <-- EXPECTED $1"; fail=$((fail+1)); }
-  [ "$got" = allow ] && [ "$base" = DENY ] && { flag="$flag <-- REGRESSION vs origin/main"; fail=$((fail+1)); }
+  [ "$got" != "$want" ] && { flag=" <-- EXPECTED $want"; fail=$((fail+1)); }
+  if [ "$newly" = 1 ]; then
+    [ "$base" = DENY ] || { flag="$flag <-- NOT A RELAXATION: origin/main already allows it"; fail=$((fail+1)); }
+  else
+    [ "$got" = allow ] && [ "$base" = DENY ] && { flag="$flag <-- REGRESSION vs origin/main"; fail=$((fail+1)); }
+  fi
   printf '  %-5s %-5s %s%s\n' "$got" "$base" "$2" "$flag"
 }
 
@@ -230,6 +242,38 @@ DENY3
 # 3 · blanket staging by glob. These go through chk directly rather than a heredoc: the add rule
 # matches $cmdn RAW (deliberately — so `bash -c "git add -A"` cannot hide), which means a heredoc
 # listing the glob denies the very command that writes this matrix. Noted rather than worked around.
+# ── DATA vs CODE: the heredoc split, planted BOTH ways (residue
+#    2026-09-20-guard-strips-quotes-for-one-rule-only). A heredoc BODY is data and is stripped for
+#    EVERY rule; a heredoc feeding an interpreter is a PROGRAM and stays raw; quotes stay raw always,
+#    which is what keeps the `-c` bypass closed. Delete either half and the split silently becomes
+#    "strip everything" or "strip nothing".
+# Documentation heredocs — the artifact whose whole job is to describe what was done — must pass.
+chk allowNEW "git commit -F - <<'MSG'
+a message describing git add -A in prose
+MSG"
+chk allowNEW "gh pr create --body-file - <<'BODY'
+the PR explains why git clean -f is forbidden here
+BODY"
+# An INTERPRETER heredoc is a PROGRAM, not a description — still read raw, still denied.
+chk DENY "python3 - <<'PY'
+import os
+os.system('git add -A')
+PY"
+chk DENY "bash <<'EOF'
+git clean -f
+EOF"
+# FAIL CLOSED when the terminator appears twice: a greedy strip would swallow the real command after
+# the heredoc (measured 2026-08-05 on the rebase rule), so the full text is kept and the rule runs.
+chk DENY "git commit -F - <<'A'
+body mentioning git add -A
+A
+git clean -f
+A"
+# The quote bypass the raw match exists for stays closed — this is what the row's own remedy
+# (strip quotes for every rule) would have reopened.
+chk DENY 'bash -c "git add -A"'
+chk DENY "bash -c 'git clean -f'"
+
 chk DENY 'git add *'
 chk DENY "git add '*'"
 chk DENY 'git add ./*'

@@ -42,6 +42,49 @@ cmd_noquotes="$(sed "s/'[^']*'/''/g; s/\"[^\"]*\"/\"\"/g" <<<"$cmdn")"
 # `git commit -a`, as one documenting THIS FILE must, was denied. Same intent, one more delimiter.
 # Measured 2026-08-05: it blocked the commit shipping the rebase-guard rule.
 cmd_noquotes="$(printf '%s' "$cmd_noquotes" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\1([[:space:]]|$)/ /g")"
+
+# ── A HEREDOC BODY IS DATA — AND EVERY RULE GETS TO SEE THAT, NOT JUST `commit` ──────────────────
+#    Residue 2026-09-20-guard-strips-quotes-for-one-rule-only: the stripping above is wired into ONE
+#    of twelve rules, so whether a session may WRITE DOWN what it did depends on which rule the thing
+#    it did belongs to. Measured on the live hook: a `git commit -F - <<'MSG'` whose message merely
+#    DESCRIBES a blanket add is denied — by the `add` rule, which reads the body raw — even though the
+#    `commit` rule strips it. The commit message is the artifact whose whole job is to describe what
+#    was done, so the more precisely a session documents itself, the more likely it is blocked.
+#
+#    ⚠ THE ROW'S OWN REMEDY IS REFUSED, AND MEASURED BEFORE REFUSING. It says the reasoning
+#    generalises to every rule — i.e. match `$cmd_noquotes` everywhere. That would REOPEN a live
+#    bypass: quotes after `bash -c` are CODE, and the raw match is what catches them. Five probes
+#    against the shipped hook, reading the JSON decision (this hook denies via stdout and EXITS 0):
+#        deny  git add -A
+#        deny  bash -c "git add -A"        <- goes dark under the row's remedy
+#        deny  git clean -f
+#        deny  bash -c 'git clean -f'      <- goes dark under the row's remedy
+#        deny  git commit -F - <<'MSG' … describes the -A form in prose … MSG   <- the defect
+#
+#    So the line is not quotes-vs-raw, it is DATA-vs-CODE, and the shell already draws it: a heredoc
+#    body is data UNLESS the heredoc feeds an interpreter (`bash <<EOF`, `python3 - <<PY`, `sh -s`),
+#    where the body is the program. `$cmd_nohere` therefore blanks heredoc bodies for ALL rules, and
+#    LEAVES the interpreter ones in place — a property of the shell, not a heuristic tuned to today.
+#    Quote-stripping stays `commit`-only for exactly the same reason it always was.
+cmd_nohere="$cmdn"
+_hdw0="$(printf '%s' "$cmdn" | grep -oE "<<-?'?[A-Za-z_][A-Za-z0-9_]*'?" | head -1 | sed -E "s/^<<-?'?//; s/'$//")"
+if [ -n "$_hdw0" ]; then
+  # Does the command OWNING the heredoc read it as a program? Tested on the text before the `<<`,
+  # which is where the interpreter is named. If so the body is CODE and every rule keeps it raw.
+  _pre0="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?[A-Za-z_].*//")"
+  if printf '%s' "$_pre0" | grep -qE '(^|[;&|[:space:]])(bash|sh|zsh|python3?|node|perl|ruby|php)([[:space:]]|$)'; then
+    : # interpreter heredoc — the body is the program, so it stays visible to every rule
+  # ⚠ AND THE STRIP FAILS CLOSED, reusing the rule the rebase-guard learned the hard way: `.*` is
+  #   greedy and newlines are folded, so a terminator word appearing a SECOND time as a standalone
+  #   token lets the strip swallow real commands after the heredoc (measured 2026-08-05: a body
+  #   ending `A`, then a real `git checkout origin/main -- oxydex-dsp.js`, then a stray `A` — the
+  #   checkout was stripped and the rule passed). POSIX sed has no lazy quantifier, so strip only
+  #   when the terminator appears EXACTLY ONCE standalone; anything else keeps the full text.
+  elif [ "$(printf '%s' "$cmdn" | grep -oE "(^|[[:space:]])$_hdw0([[:space:]]|$)" | wc -l)" -eq 1 ]; then
+    cmd_nohere="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\\1([[:space:]]|$)/ /g")"
+  fi
+fi
+
 GITX='(^|[^[:alnum:]_-])([^[:space:];&|]*/)?git([[:space:]]+(-[cC][[:space:]]*("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--git-dir=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--work-tree=("[^"]*"|'"'"'[^'"'"']*'"'"'|[^[:space:]]+)|--exec-path=[^[:space:]]*|--no-pager))*[[:space:]]+'
 QT='["'"'"']?'
 
@@ -90,7 +133,7 @@ deny() {
 #
 # The check that hid it: `git rev-list --count HEAD..origin/main` returned 0. The ref WAS synced.
 _RE2="$GITX"'(update-ref([[:space:]]+--stdin|[[:space:]]+(-d[[:space:]]+|--no-deref[[:space:]]+)*'"$QT"'refs/heads/)|branch[[:space:]]+([^;&|]*[[:space:]])?(-f\b|--force\b)|push[[:space:]]+\.([[:space:]]|$)|symbolic-ref[[:space:]]+HEAD)'
-if grep -qE "$_RE2" <<<"$cmdn"; then
+if grep -qE "$_RE2" <<<"$cmd_nohere"; then
   deny "BLOCKED: 'git update-ref refs/heads/...' in a shared checkout.
 
 THE REF IS NOT THE TREE. update-ref is plumbing — it moves the ref and touches neither the working tree nor the index, and it is the ONLY form that skips git's checked-out-branch check. Every porcelain equivalent already refuses by name:
@@ -130,12 +173,12 @@ _RE="$GITX"'add[[:space:]]+([^;&|]*[[:space:]])?(-A\b|--all\b|-u\b|--update\b|\.
 # own index, so `GIT_INDEX_FILE=.git/index git add -A` stays DENIED — that is ordinary blanket
 # staging wearing the recipe's clothes. `git commit -a` is not exempted at all: it commits.
 _TEMPIDX=0
-if grep -qE 'GIT_INDEX_FILE=[^[:space:];&|]+' <<<"$cmdn" \
-   && ! grep -qE 'GIT_INDEX_FILE=[^[:space:];&|]*\.git/index' <<<"$cmdn"; then
+if grep -qE 'GIT_INDEX_FILE=[^[:space:];&|]+' <<<"$cmd_nohere" \
+   && ! grep -qE 'GIT_INDEX_FILE=[^[:space:];&|]*\.git/index' <<<"$cmd_nohere"; then
   _TEMPIDX=1
 fi
 
-if [ "$_TEMPIDX" != 1 ] && grep -qE "$_RE" <<<"$cmdn"; then
+if [ "$_TEMPIDX" != 1 ] && grep -qE "$_RE" <<<"$cmd_nohere"; then
   deny "BLOCKED: blanket staging in a SHARED checkout (CONTRIBUTING §6).
 
 Several agent sessions work this repo at once, so the working tree is not yours alone — a blanket add sweeps their in-flight files into your commit, under your message. That is exactly how cabd7f7 ended up carrying an unrelated brief.
@@ -159,7 +202,7 @@ Instead: 'git add <explicit paths>' then a bare 'git commit'."
 fi
 
 # `git reset --hard` — destroys uncommitted work
-if grep -qE "$GITX"'reset\b[^;&|]*(--hard|--keep)\b' <<<"$cmdn"; then
+if grep -qE "$GITX"'reset\b[^;&|]*(--hard|--keep)\b' <<<"$cmd_nohere"; then
   deny "BLOCKED: 'git reset --hard' discards uncommitted work in a SHARED checkout — which may be another session's ONLY copy.
 
 If you must reset, FIRST preserve what is there (this does not touch the tree):
@@ -203,11 +246,12 @@ fi
 # and the checkout was stripped and the rule passed. POSIX sed has no lazy quantifier, so instead:
 # strip only when the terminator appears EXACTLY ONCE standalone (the closer; the opener `<<'W'` is
 # quoted and does not count). Anything else keeps the full text and the rule runs on it.
-_hdw="$(printf '%s' "$cmdn" | grep -oE "<<-?'?[A-Za-z_][A-Za-z0-9_]*'?" | head -1 | sed -E "s/^<<-?'?//; s/'$//")"
-cmd_nohd="$cmdn"
-if [ -n "$_hdw" ] && [ "$(printf '%s' "$cmdn" | grep -oE "(^|[[:space:]])$_hdw([[:space:]]|$)" | wc -l)" -eq 1 ]; then
-  cmd_nohd="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\\1([[:space:]]|$)/ /g")"
-fi
+# ONE HEREDOC-STRIPPING IMPLEMENTATION, NOT TWO. This rule grew its own copy (`cmd_nohd`) because it
+# was the second rule to need it; the residue that made it every rule's (2026-09-20-guard-strips-
+# quotes-for-one-rule-only) also made keeping a private copy a drift risk — two spellings of
+# "a heredoc body is data" would eventually disagree about which bodies. `$cmd_nohere` above IS this
+# rule's old logic, fail-closed test included, plus the interpreter exemption.
+cmd_nohd="$cmd_nohere"
 # THE SOURCE PATHS ARE EXTRACTED, NOT INFERRED FROM THE WHOLE COMMAND. Three holes in the first
 # version, all found by an adversarial pass 2026-08-05, all of the accidental kind this guard exists
 # to stop:
@@ -328,7 +372,7 @@ explicit path outside a rebase, and VERIFY afterwards:
 fi
 
 # `git checkout .` / `git checkout -- .` / `git restore .` — discards working-tree changes
-if grep -qE "$GITX"'(checkout[[:space:]]+([^;&|]*[[:space:]])?(-f\b|--force\b)|(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--[[:space:]]+)?(\.([[:space:]]|$)|:/))' <<<"$cmdn"; then
+if grep -qE "$GITX"'(checkout[[:space:]]+([^;&|]*[[:space:]])?(-f\b|--force\b)|(checkout|restore)[[:space:]]+([^;&|]*[[:space:]])?(--[[:space:]]+)?(\.([[:space:]]|$)|:/))' <<<"$cmd_nohere"; then
   deny "BLOCKED: discarding ALL working-tree changes in a SHARED checkout — they may be another session's only copy.
 
 Restore only the paths you own:
@@ -336,8 +380,8 @@ Restore only the paths you own:
 fi
 
 # `git stash` (mutating forms) — hides another session's work out from under it
-if grep -qE "$GITX"'stash([[:space:]]|$)' <<<"$cmdn" \
-   && grep -oE "$GITX"'stash([[:space:]]+[^[:space:];&|]+)?' <<<"$cmdn" \
+if grep -qE "$GITX"'stash([[:space:]]|$)' <<<"$cmd_nohere" \
+   && grep -oE "$GITX"'stash([[:space:]]+[^[:space:];&|]+)?' <<<"$cmd_nohere" \
       | grep -qvE 'stash[[:space:]]+(list|show)$'; then
   deny "BLOCKED: 'git stash' in a SHARED checkout would sweep another session's uncommitted work into your stash — invisible to them, and easy to lose.
 
@@ -347,7 +391,7 @@ If you need a clean tree, use your OWN worktree instead:
 fi
 
 # `git clean -f` — deletes untracked files (another session's new files)
-if grep -qE "$GITX"'clean\b[^;&|]*-[a-zA-Z]*f' <<<"$cmdn"; then
+if grep -qE "$GITX"'clean\b[^;&|]*-[a-zA-Z]*f' <<<"$cmd_nohere"; then
   deny "BLOCKED: 'git clean -f' DELETES untracked files — which in a shared checkout includes new files another session has not committed yet (briefs, changesets, fixtures).
 
 Delete only what you created, by name."
@@ -357,7 +401,7 @@ fi
 # `git rm -r --cached .` / `git rm -rf .` — blanket removal. Same damage class as blanket staging
 # (it stages a deletion of everything, including files that are another session's only copy), and
 # there was no rule for it at all.
-if grep -qE "$GITX"'rm[[:space:]]+([^;&|]*[[:space:]])?(-[a-zA-Z]*r[a-zA-Z]*\b|--cached\b)[^;&|]*(\.([[:space:]]|$)|:/)' <<<"$cmdn"; then
+if grep -qE "$GITX"'rm[[:space:]]+([^;&|]*[[:space:]])?(-[a-zA-Z]*r[a-zA-Z]*\b|--cached\b)[^;&|]*(\.([[:space:]]|$)|:/)' <<<"$cmd_nohere"; then
   deny "BLOCKED: blanket 'git rm' in a SHARED checkout.
 
 This stages a deletion of every matching file — including files another session created and has not
@@ -373,7 +417,7 @@ fi
 #   git branch -D                 overrides "not fully merged"
 # A reviewer of THIS PR had their worktree removed out from under them mid-session. That is the
 # failure being prevented, observed, in this repo, today.
-if grep -qE "$GITX"'worktree[[:space:]]+remove[[:space:]]+([^;&|]*[[:space:]])?(-f\b|--force\b)' <<<"$cmdn"; then
+if grep -qE "$GITX"'worktree[[:space:]]+remove[[:space:]]+([^;&|]*[[:space:]])?(-f\b|--force\b)' <<<"$cmd_nohere"; then
   deny "BLOCKED: 'git worktree remove --force' in a SHARED checkout.
 
 --force exists to override git's refusal to remove a worktree holding modified or untracked files.
@@ -384,7 +428,7 @@ Run it WITHOUT --force. If git refuses, that is the guard working — look at wh
 Escape hatch when the tree is genuinely yours alone: CLAUDE_ALLOW_BLANKET_GIT=1"
 fi
 
-if grep -qE "$GITX"'branch[[:space:]]+([^;&|]*[[:space:]])?-D\b' <<<"$cmdn"; then
+if grep -qE "$GITX"'branch[[:space:]]+([^;&|]*[[:space:]])?-D\b' <<<"$cmd_nohere"; then
   deny "BLOCKED: 'git branch -D' in a SHARED checkout.
 
 -D overrides git's refusal to delete a branch that is not fully merged — which is how another
