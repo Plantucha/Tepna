@@ -44,6 +44,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 
 import { fileURLToPath } from 'node:url';
+import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 
 /* REPO defaults to THIS FILE's own repo root, never to an absolute path.
    It used to default to `/run/media/…/Tepna`, and that is worse than a crash: run from a WORKTREE the
@@ -59,6 +60,12 @@ const argRepo = process.argv[2] && !process.argv[2].startsWith('-') ? process.ar
 const REPO = argRepo || SELF_REPO;
 const argRoot = process.argv[3] && !process.argv[3].startsWith('-') ? process.argv[3] : null;
 const ROOT = argRoot || process.env.DEX_CAPTURES || '/home/michal/tepna-smoketest/captures';
+/* VERDICT-CONTRACT §3b — this tool never pre-stated a band (its numbers are on record), so its object
+   is UNKNOWN by design with the statistic in `result`; `--verdict-sample` is what the adoption gate reads. */
+if (process.argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample('tools/acc-acc-control.mjs'), null, 1));
+  process.exit(0);
+}
 if (process.argv.includes('--help') || process.argv.includes('-h')) {
   console.log('usage: node tools/acc-acc-control.mjs [<repo-root>] [<captures-dir>]');
   console.log("  repo-root defaults to this tool's own checkout; captures-dir to $DEX_CAPTURES.");
@@ -259,12 +266,14 @@ console.log(`  COARSE (flow-vs-acc params): ${COARSE.dtMs} ms bins · ±${COARSE
 console.log(`  FINE   (PATAlign DEFAULTS):  ${FINE.dtMs} ms bins · ±${FINE.windowHalfMs} ms window · ±${FINE.maxLagMs} ms search · minCorr ${FINE.minCorr}`);
 
 const res = [];
+let skipped = 0; // nights with both streams that did not parse or did not overlap — the verdict's `excluded`
 for (const [night, d] of [...nights].sort()) {
   if (!d.h10.length || !d.ver.length) continue;
   const A = stitch(d.h10),
     B = stitch(d.ver);
   if (!A || !B) {
     console.log(`  ${night}  UNPARSED — h10 ${A ? A.t.length : 0} rows / ver ${B ? B.t.length : 0} rows (${d.h10.length}+${d.ver.length} fragments)`);
+    skipped++;
     continue;
   }
   const ov0 = Math.max(A.t[0], B.t[0]),
@@ -272,6 +281,7 @@ for (const [night, d] of [...nights].sort()) {
   const ovMin = (ov1 - ov0) / 60000;
   if (!(ovMin > 30)) {
     console.log(`  ${night}  overlap only ${ovMin.toFixed(0)} min — skipped`);
+    skipped++;
     continue;
   }
 
@@ -330,3 +340,28 @@ leg('COARSE@0.0', 'COARSE @ true 0', null);
 leg('COARSE@-39.0', 'COARSE @ injected -39', -39);
 leg('COARSE@17.5', 'COARSE @ injected +17.5', 17.5);
 leg('FINE@0.0', 'FINE @ true 0', null);
+
+/* The object — UNKNOWN with the four legs' statistics carried verbatim (the VERDICT banner above is
+   explanation; the object is the API). Population = nights that parsed and overlapped. */
+{
+  const legStat = (key) => {
+    const ok = res.map((r) => r.legs[key]).filter((L) => L && L.ok);
+    return {
+      aligned: ok.length,
+      of: res.length,
+      medianOffsetMin: ok.length ? +med(ok.map((L) => L.med)).toFixed(2) : null,
+      medianAnchorSpreadMin: ok.length ? +med(ok.map((L) => L.hi - L.lo)).toFixed(1) : null
+    };
+  };
+  printVerdict(
+    undeclaredVerdict({
+      tool: 'tools/acc-acc-control.mjs',
+      stat: {
+        label: 'ACC↔ACC alignment recovery per leg (offset min, anchor spread min)',
+        legs: { coarse0: legStat('COARSE@0.0'), coarseMinus39: legStat('COARSE@-39.0'), coarsePlus17_5: legStat('COARSE@17.5'), fine0: legStat('FINE@0.0') }
+      },
+      population: { checked: res.length, eligible: res.length + skipped },
+      evidence: [ROOT + '/**/*_ACC.txt']
+    })
+  );
+}

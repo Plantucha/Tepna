@@ -37,12 +37,19 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
+import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (k, d) => {
   const i = process.argv.indexOf(k);
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : d;
 };
+/* VERDICT-CONTRACT §3b — no band was ever pre-stated for the lift (its numbers are on record), so the
+   object is UNKNOWN by design with the lifts in `result`; `--verdict-sample` is what the adoption gate reads. */
+if (process.argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample('tools/cpap-oxy-couple.mjs'), null, 1));
+  process.exit(0);
+}
 const EXPORTS = arg('--exports', null);
 const OXYDIR = arg('--oxy', null);
 if (!EXPORTS || !OXYDIR) {
@@ -176,6 +183,41 @@ for (const [lo, hi, label] of WINDOWS) {
     return `n=${r.n} ${r.observedPct.toFixed(1)}%v${r.chancePct.toFixed(1)}% ×${r.lift.toFixed(2)}${flag}`.padEnd(26);
   });
   console.log('  ' + label.padEnd(11) + cells.join(''));
+}
+
+/* The object — UNKNOWN, carrying every class × window lift with its n / chance / expectedHits and the
+   UNDERPOWERED / SATURATED flags verbatim (the table above is explanation; the object is the API).
+   Population = events the oximeter was observing, summed over classes at the first window; the
+   excluded are the events outside its span. */
+{
+  const cells = {};
+  let nAll = 0;
+  let exclAll = 0;
+  for (const [lo, hi, label] of WINDOWS)
+    for (const k of Object.keys(CLASSES)) {
+      const r = couplingPerNight(CLASSES[k], [lo, hi]);
+      cells[k + '@' + label] = {
+        n: r.n,
+        observedPct: isFinite(r.observedPct) ? +r.observedPct.toFixed(2) : null,
+        chancePct: isFinite(r.chancePct) ? +r.chancePct.toFixed(2) : null,
+        lift: isFinite(r.lift) ? +r.lift.toFixed(3) : null,
+        expectedHits: isFinite(r.expectedHits) ? +r.expectedHits.toFixed(2) : null,
+        underpowered: !!r.underpowered,
+        saturated: !!r.saturated
+      };
+      if (lo === WINDOWS[0][0] && hi === WINDOWS[0][1]) {
+        nAll += r.n;
+        exclAll += r.excluded || 0;
+      }
+    }
+  printVerdict(
+    undeclaredVerdict({
+      tool: 'tools/cpap-oxy-couple.mjs',
+      stat: { label: 'event → desat coupling lift per class × window (observed % / shuffled-null %)', cells },
+      population: { checked: nAll, eligible: nAll + exclAll },
+      evidence: [EXPORTS || '<--exports>', OXYDIR || '<--oxy>']
+    })
+  );
 }
 
 /* ── couplingPerNight — now a CONSUMER of the real primitive (FOLLOWUPS §2) ──────────────────

@@ -31,6 +31,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TCH = createRequire(import.meta.url)(join(ROOT, 'integrator-tch.js'));
@@ -276,6 +277,13 @@ function runNight(night) {
 /* ── report + verdict ────────────────────────────────────────────────────── */
 const f2 = (x) => (x == null ? ' —  ' : x.toFixed(2));
 function main() {
+  /* VERDICT-CONTRACT §3b — the "beat BASE by > 0.10 bpm" rule below lives in this code and was never pre-stated
+     in a brief before its numbers were on record, so the object is UNKNOWN by design with the MAEs in `result`;
+     `--verdict-sample` is what the adoption gate reads. */
+  if (process.argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample('tools/tch-estimator-bakeoff.mjs'), null, 1));
+    process.exit(0);
+  }
   console.log('IntegratorTCH estimator bake-off — kernel v' + TCH.VERSION + '  (INTEGRATOR-TCH-ML-ESTIMATOR §2)\n');
   const rows = corpus().map(runNight);
   const ESTS = ['BASE', 'GCOV', 'NNLS', 'ORACLE'];
@@ -331,6 +339,20 @@ function main() {
     console.log("  advantage is over-determination (N≥4) — fold it into §4's n-cornered hat, not a N=3 swap.");
   }
   console.log('════════════════════════════════════════════════════════════════');
+  /* The object — UNKNOWN; the in-code winner rule is a field, never a status. Population = quiet-order nights. */
+  printVerdict(
+    undeclaredVerdict({
+      tool: 'tools/tch-estimator-bakeoff.mjs',
+      stat: {
+        label: 'quiet-corner σ recovery MAE (bpm) per estimator, planted truth',
+        maeBpm: { BASE: +baseMAE.toFixed(4), GCOV: +mae(quietErr('GCOV')).toFixed(4), NNLS: +mae(quietErr('NNLS')).toFixed(4), ORACLE: +mae(quietErr('ORACLE')).toFixed(4) },
+        inCodeRuleWinner: winner || null
+      },
+      population: { checked: qo.length, eligible: rows.length },
+      evidence: ['<synthetic planted-truth corpus built in this tool: corpus()>'],
+      note: 'the in-code rule (a candidate must beat BASE by > 0.10 bpm on the quiet-corner MAE without breaking the culprit) is reported as `result.inCodeRuleWinner`; it was not pre-stated in a brief'
+    })
+  );
 }
 /* ⚠️ ENTRY GUARD — without it this file runs its CLI the moment anything imports it, and prints an analysis to stdout.
    Swept 2026-08-19 alongside `device-stability.mjs` and `beat-leg-closure.mjs`: a bare top-level
