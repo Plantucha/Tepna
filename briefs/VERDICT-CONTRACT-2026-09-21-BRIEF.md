@@ -307,7 +307,7 @@ contract does not name is UNKNOWN.**
   groups (`docs-ledger`, `release-ledger`, `verdict-adoption`, the equiv legs) become children; a group is a
   child, an assertion is not. A shard emits its own object over the groups it ran; the union runner
   aggregates the shard objects by the table above, so a shard that died (§4c) is a NOT_RUN child and the
-  union is UNKNOWN, never a pass over the shards that finished.
+  union is UNKNOWN, never a pass over the shards that finished. **Adopted #2835 (2026-09-22)** — `tools/run-tests-verdict.mjs` (pure, 35 plants) called by `tests/run-tests.mjs`; measured on a real full run `PASS` over 8/8 shards (641 groups, 10091 assertions, 13 declared skips) and on a real `--group=docs-ledger` run `PASS` over `{1, 641, 640}` filtered — not the gate; a dead shard is an undeclared NOT_RUN ⇒ UNKNOWN (plant). **All three runners now adopt §3d through one `aggregateChildren`.**
 
 **Done when** (for a runner row to flip): the object is printed under `--json`; a plant per table row
 (a planted FAIL child, a planted UNKNOWN child, a planted abort) is asserted by a test that READS the

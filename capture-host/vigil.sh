@@ -94,8 +94,15 @@ is_vigil() {  # $1 = pid
   # Pin to OUR checkout, not just any capture.py on the box. The cwd (not the config path) is the right
   # discriminator: `VIGIL_HOST=… start` runs the daemon off a throwaway temp config, so a later stop that
   # matched on $CONFIG would fail to recognise the very process it just launched.
+  # A cwd that cannot be read is NOT a match. This used to accept an empty cwd ("unreadable, so do not
+  # convict"), and that is the hole a concurrent run falls through: `running()`'s pgrep fallback lists a
+  # pid whose process is mid-exit, readlink on its /proc cwd fails, and the empty string passed — so a
+  # stranger with `capture.py` in its argv was claimed as OUR daemon, `start` reported "already running"
+  # and started nothing, `status` reported RUNNING on a cold box. Measured 2026-09-22: two runs of
+  # tests/test_vigil_sh.py on one box, 3 of 6 rounds red. Own-uid processes always have a readable cwd
+  # while alive, so requiring one costs nothing a live daemon can fail.
   cwd="$(readlink -f "/proc/$p/cwd" 2>/dev/null)"
-  [ -z "$cwd" ] || [ "$cwd" = "$(readlink -f "$VIGIL_DIR")" ] || return 1
+  [ -n "$cwd" ] && [ "$cwd" = "$(readlink -f "$VIGIL_DIR")" ] || return 1
   return 0
 }
 
