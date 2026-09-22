@@ -1645,6 +1645,21 @@
         'slopeSE=' + stS.slopeSE + ' nTau=' + stS.nTau
       );
       T.eq('…and nTau is the spine value, not a recomputation that could drift', stS.nTau, haS.stability.nTau);
+      /* ── THE CURVE REACHES THE EXPORT, not only the spine (residue
+         2026-09-21-adev-curve-not-exported-by-either-node). The group above proves `clock.js` COMPUTES
+         it; this one is the boundary that the same residue's parent defect crossed the wrong way —
+         "a forwarding site is not the field arriving at the consumer". Pinned by EQUALITY against the
+         spine's own points, so an export carrying a re-rounded or resampled ladder fails. */
+      T.ok('the exported stability carries the σ_y(τ) CURVE, not only its projections', Array.isArray(stS.curve) && stS.curve.length >= 3, 'points=' + (stS.curve ? stS.curve.length : null));
+      T.eq('…the same number of points the spine measured', stS.curve.length, haS.stability.curve.length);
+      T.ok(
+        '…point for point, τ and σ_y identical to the spine (no re-rounding at the boundary)',
+        stS.curve.every(function (pt, i) {
+          var src = haS.stability.curve[i];
+          return src && Math.abs(pt.tauSec - src.tauSec) < 1e-12 && Math.abs(pt.adevPpm - src.adevPpm) < 1e-12 && pt.n === src.n;
+        }),
+        JSON.stringify(stS.curve.slice(0, 2))
+      );
     });
 
     group('hostAxis stability — the spine Allan core, and it refuses when there is no second clock', 'clock · hostaxis-stability', function (T) {
@@ -1816,6 +1831,99 @@
         'the legacy …Ms pair survives, so integrator-dsp and ppgdex readers do not break',
         ha2.stability && typeof ha2.stability.atShortestMs === 'number',
         'atShortestMs=' + (ha2.stability && ha2.stability.atShortestMs)
+      );
+      /* ── THE CURVE IS PUBLISHED, AND EVERY SCALAR BESIDE IT IS A PROJECTION OF IT (residue
+         2026-09-21-adev-curve-not-exported-by-either-node). Before this the object carried only the
+         projections, and the one thing a reader needs them for — WHERE the floor sits, whether the
+         slope was fitted over a straight run or across a KNEE — is exactly what a projection cannot
+         show. §7: the slope names the MECHANISM, so a slope fitted across two mechanisms names
+         neither. These assertions are EQUALITIES against the curve, not existence checks: a `curve`
+         key carrying the wrong points would pass "is an array" and fail every line below. */
+      var cv = ha2.stability && ha2.stability.curve;
+      T.ok('the stability object publishes its σ_y(τ) curve', Array.isArray(cv) && cv.length >= 3, 'points=' + (cv ? cv.length : null));
+      T.eq('…with one point per τ the fit counted', Array.isArray(cv) && cv.length, ha2.stability.taus);
+      T.ok(
+        '…on an OCTAVE ladder starting at τ0 (the estimator’s own spacing, not a resample)',
+        cv &&
+          Math.abs(cv[0].tauSec - ha2.stability.tau0Sec) < 1e-9 &&
+          cv.every(function (pt, i) {
+            return i === 0 || Math.abs(pt.tauSec - 2 * cv[i - 1].tauSec) < 1e-9;
+          }),
+        cv &&
+          cv
+            .map(function (pt) {
+              return pt.tauSec;
+            })
+            .join(',')
+      );
+      T.ok(
+        '…each point carrying the term count n the estimate rests on',
+        cv &&
+          cv.every(function (pt) {
+            return pt.n > 0;
+          })
+      );
+      T.ok('…with n DECREASING as τ grows (fewer terms, a wider estimate — the reason n is published)', cv && cv[cv.length - 1].n < cv[0].n, cv && cv[0].n + ' → ' + cv[cv.length - 1].n);
+      /* The unit: adev is ms/s here, ×1000 is ppm — the same conversion `ppmUncertainty` applies. */
+      T.ok(
+        'the last point IS ppmUncertainty (the curve and the scalar are one measurement)',
+        cv && Math.abs(cv[cv.length - 1].adevPpm - ha2.stability.ppmUncertainty) < 1e-9,
+        cv && cv[cv.length - 1].adevPpm + ' vs ' + ha2.stability.ppmUncertainty
+      );
+      T.ok('…and the first point IS atShortestPpm', cv && Math.abs(cv[0].adevPpm - ha2.stability.atShortestPpm) < 1e-9);
+      T.ok(
+        '…and the τ of the minimum IS optimalTauSec',
+        cv &&
+          cv.reduce(function (b, pt) {
+            return pt.adevPpm < b.adevPpm ? pt : b;
+          }, cv[0]).tauSec === ha2.stability.optimalTauSec
+      );
+      /* THE LOAD-BEARING ONE: the published slope must be the log-log fit over the published points.
+         This is what makes the curve evidence rather than decoration — a reader (and
+         `tools/adev-curve.mjs`) can re-derive the verdict instead of trusting it. */
+      var lg = function (arr) {
+        var n = arr.length,
+          mx = 0,
+          my = 0,
+          i;
+        for (i = 0; i < n; i++) {
+          mx += Math.log(arr[i].tauSec);
+          my += Math.log(arr[i].adevPpm);
+        }
+        mx /= n;
+        my /= n;
+        var sxx = 0,
+          sxy = 0;
+        for (i = 0; i < n; i++) {
+          sxx += Math.pow(Math.log(arr[i].tauSec) - mx, 2);
+          sxy += (Math.log(arr[i].tauSec) - mx) * (Math.log(arr[i].adevPpm) - my);
+        }
+        return sxy / sxx;
+      };
+      var fitOverCurve =
+        cv &&
+        lg(
+          cv.filter(function (pt) {
+            return pt.adevPpm > 0 && pt.tauSec > 0;
+          })
+        );
+      T.ok(
+        'the PUBLISHED SLOPE is the fit over the PUBLISHED CURVE — re-derivable, not trusted',
+        cv && Math.abs(fitOverCurve - ha2.stability.slope) < 1e-9,
+        'refit=' + fitOverCurve + ' published=' + (ha2.stability && ha2.stability.slope)
+      );
+      /* ANTI-VACUITY for the line above: the same fit over a DIFFERENT ladder must NOT match, or the
+         equality would be reading a constant. */
+      T.ok(
+        '…and a ladder with a different slope does not reproduce it (the check is not vacuous)',
+        cv &&
+          Math.abs(
+            lg(
+              cv.map(function (pt) {
+                return { tauSec: pt.tauSec, adevPpm: pt.adevPpm * Math.sqrt(pt.tauSec) };
+              })
+            ) - ha2.stability.slope
+          ) > 0.4
       );
       /* ── THE SE'S OWN n IS PUBLISHED, AND IT IS NOT `taus`.
          `_ckClassifyAllan` has carried `nTau` on both return paths since it was written (asserted
@@ -3886,6 +3994,26 @@
         T.eq('the node that shipped a curve appears in it', ag.stability.PpgDex ? ag.stability.PpgDex.slope : null, -1.01);
         T.eq('a node with no curve is ABSENT, not defaulted to a slope', ag.stability.ECGDex, undefined);
       }
+      /* ── THE CURVE ITSELF TRAVELS (residue 2026-09-21-adev-curve-not-exported-by-either-node). The
+         reader forwarded the scalars and dropped the points, so the Integrator — the one consumer
+         that weighs a detector attribution — could not see whether the slope it was handed was fitted
+         across a KNEE. Carried through UNCHANGED, and [] when the source shipped none: a fabricated
+         empty ladder and a real absence must not read alike, which is why the length is asserted on
+         both sides rather than only the presence of the key. */
+      var ladder = [
+        { tauSec: 1, adevPpm: 6000, n: 400 },
+        { tauSec: 2, adevPpm: 3000, n: 396 },
+        { tauSec: 4, adevPpm: 1500, n: 388 }
+      ];
+      var withC = I.readDetectorStability({ validation: { stability: { slope: -1.01, curve: ladder } } });
+      T.eq('the curve is carried through to the Integrator reader', withC.curve.length, 3);
+      T.eq('…point for point, unchanged', JSON.stringify(withC.curve), JSON.stringify(ladder));
+      T.eq('a source with NO curve yields [], never a fabricated point', I.readDetectorStability({ validation: { stability: { slope: -1.01 } } }).curve.length, 0);
+      T.eq(
+        'a malformed point is dropped rather than propagated as NaN',
+        I.readDetectorStability({ validation: { stability: { slope: -1.01, curve: [{ tauSec: 1, adevPpm: 6000, n: 400 }, { tauSec: Number.NaN, adevPpm: 1, n: 2 }, { tauSec: 2 }] } } }).curve.length,
+        1
+      );
     });
 
     /* ════ 4 · INTEGRATOR window honors durationMin (#2/#3) ════ */

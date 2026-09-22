@@ -6024,7 +6024,14 @@
               noise: r.hostAxis.stability.noise,
               candidates: r.hostAxis.stability.candidates,
               optimalTauSec: r.hostAxis.stability.optimalTauSec,
-              tauMaxSec: r.hostAxis.stability.tauMaxSec
+              tauMaxSec: r.hostAxis.stability.tauMaxSec,
+              /* THE CURVE (residue 2026-09-21-adev-curve-not-exported-by-either-node), straight from
+                 `clock.js`'s builder as `{tauSec, adevPpm, n}`. The scalars beside it are projections
+                 of exactly these points: `slope` is the log-log fit over them, `optimalTauSec` the τ
+                 of the minimum, `ppmUncertainty` the last point. Publishing them without the curve
+                 leaves a reader unable to see a KNEE — a slope fitted across one describes neither
+                 side of it (§7: the slope names the mechanism). */
+              curve: r.hostAxis.stability.curve || []
             }
           : null,
         note: 'quote `ppm` WITH `ppmUncertainty`; `stability:null` means there was no second clock (host column ≡ device stamp), not that the clock was perfect'

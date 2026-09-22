@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="c7880fa1a3aa" data-compute-hash="190082a2933f">
+<html lang="en" data-manifest-hash="2029bfb42c8a" data-compute-hash="aa71e4ea3fd4">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-G7lddcFSXrsWU+xNh3F3RyYjH3DJx0QDGR8jLdfAj+E=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-f+QT/0zTO9AolD7kxoAHfiK50gfysYkfW5t1omOsjkQ=' 'sha256-i6jRg4w3FkJGmcHdy4VzKqroE3ERveXtU1iJw7vqCBQ=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+wwK4R0C4NW2fgchPCvkcaYqquEx4zvjELT5rJruVYs=' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-f+QT/0zTO9AolD7kxoAHfiK50gfysYkfW5t1omOsjkQ=' 'sha256-i6jRg4w3FkJGmcHdy4VzKqroE3ERveXtU1iJw7vqCBQ=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.13.0</title>
@@ -12408,6 +12408,15 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
               atLongestPpm: _v.stability.atLongestPpm,
               tauMaxSec: _v.stability.tauMaxSec,
               optimalTauSec: _v.stability.optimalTauSec,
+              /* THE CURVE (residue 2026-09-21-adev-curve-not-exported-by-either-node). The DSP has
+                 computed it all along; the EXPORT dropped it, so every reader got projections —
+                 `optimalTauSec` and `atLongest*` cannot show WHERE the floor sits or whether the
+                 slope was fitted across a KNEE, and §7's point is that the slope names the mechanism.
+                 Republished as `{tauSec, adevPpm, n}`: `adev` here is ms/s (phase in ms over τ in
+                 seconds), so ×1000 is ppm — the same unit as `atShortestPpm`, and never the `…Ms`
+                 misnomer the block above is stuck with. `n` is the term count at that τ, so a reader
+                 can see the estimate widen as τ grows. Octave ladder ⇒ ≤ ~20 points. */
+              curve: (_v.stability.curve || []).map((pt) => ({ tauSec: pt.tau, adevPpm: pt.adev * 1000, n: pt.n })),
               /* KEPT, with corrected text rather than deleted: a consumer may key on its presence, and
                  removing a published field is a contract change for a string that only needed to stop
                  lying. Before 2026-08-16 it warned that the label was unreliable near a boundary;
@@ -12603,7 +12612,13 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
                 candidates: r.hostAxis.stability.candidates || null,
                 optimalTauSec: nz(r.hostAxis.stability.optimalTauSec),
                 atLongestPpm: nz(r.hostAxis.stability.atLongestPpm),
-                ppmUncertainty: nz(r.hostAxis.stability.ppmUncertainty)
+                ppmUncertainty: nz(r.hostAxis.stability.ppmUncertainty),
+                /* THE CURVE (residue 2026-09-21-adev-curve-not-exported-by-either-node) — every field
+                   above is a projection of exactly these points, and none of them can show a KNEE,
+                   which is the shape that makes `slope` unreadable (§7: the slope names the
+                   mechanism). Straight from the spine as `{tauSec, adevPpm, n}`; `[]` only if a spine
+                   older than the curve ever reaches here. */
+                curve: r.hostAxis.stability.curve || []
               }
             : null
         };
