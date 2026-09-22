@@ -67,20 +67,21 @@ jobs:
           set -e
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           echo "mutate.mjs --diff exited $CODE"
+      # THE OBJECT IS THE API (VERDICT-CONTRACT §1). This step used to render the EXIT CODE — `0 →
+      # **PASS**` — and exit 0 is also what the gate returns when no mutable JS changed and what it
+      # returned when the changed lines carried no mutable operator, so 273 of the 300 commits on main
+      # 2026-09-14 → 09-22 read PASS on a gate that decided nothing about them (residue
+      # `2026-09-22-mutation-summary-parsed-exit-code`). `mutate.mjs --diff --json` now writes a
+      # `tepna.verdict/1` object as the last NDJSON line; `tools/mutation-summary.mjs` renders THAT —
+      # NOT_APPLICABLE / NOT_RUN as themselves, a missing or invalid object or a status that disagrees
+      # with the exit code as UNKNOWN, never as PASS. The exit code is still shown; it is for the shell.
       - name: Report the verdict
         if: always()
         env:
           CODE: ${{ steps.mutate.outputs.code }}
         run: |
           {
-            echo "## Diff-scoped JS mutation"
-            echo
-            case "$CODE" in
-              0) echo "**PASS** — every mutant on a changed line was killed, or is recorded as having no distinguishing input." ;;
-              1) echo "**SURVIVOR** — you changed a line and no test can see the change." ;;
-              3) echo "**INCONCLUSIVE** — the run could not prove anything (a canary survived, or a mutant never ran). Treat as unmeasured, not as a pass." ;;
-              *) echo "**HARNESS ERROR** (exit \`$CODE\`) — the gate did not run. This is not a green." ;;
-            esac
+            node tools/mutation-summary.mjs mutation-diff.ndjson "${CODE:-none}"
             echo
             echo '```'
             tail -40 mutation-diff.log 2>/dev/null || echo '(no output)'
