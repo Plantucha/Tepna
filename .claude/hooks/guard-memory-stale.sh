@@ -42,6 +42,17 @@
 #   directory. Each fail-open leg is pinned in the self-test beside the DENY it differs from by one
 #   property.
 #
+# ⚠ THIS GUARD CLOSES OVERWRITE, NOT CONVERGENCE — and the difference is not a corner case.
+#   It catches one session REPLACING another's body, which is what it was built for. It cannot catch
+#   two sessions INDEPENDENTLY APPENDING THE SAME FINDING: both reads are legitimate, both writes are
+#   additions, and the mtime moves exactly as ordinary sequential work does. Measured 2026-09-22 while
+#   this very follow-up was being written — two sessions wrote the same correction into
+#   `stale-root-is-the-default.md` minutes apart and the file carried BOTH, at line 33 and line 87,
+#   with no conflict and no signal. Nothing was lost (which is why duplication is the cheaper failure)
+#   but the file decays, and it decays invisibly for the same reason the overwrite did.
+#   The mitigation is human: the second writer notices and prunes. Do not read "the memory dir is
+#   guarded" as covering this.
+#
 # ⚠ A MOVE IS REPORTED ONCE, BY DESIGN — and a later exit 0 means "already told you", NOT "nothing
 #   happened". The sequence is: post #1 finds no snapshot and writes one (silent — there is no
 #   baseline, so no finding is possible); a file then moves with no Read recorded; post #2 exits 2 and
