@@ -1,0 +1,36 @@
+{
+  "boxId": "TESTBOX0",
+  "boxKeyFingerprint": "sha256/b3b6d8285b4ea226cc4768b8a507fa4c2fd50a1e3412311891b6533f4975cbff",
+  "cardKeyHex": "000102030405060708090a0b0c0d0e0f",
+  "header": {
+    "anchor": null,
+    "boxId": "TESTBOX0",
+    "boxKey": "BLWBvwVfZpvWJBU6K/pMq3nBb027C4u5Z9ukj4pUaLRG2WmHi9c+TWqVJcmVBEBLZ2Eb014G0YWzCU2n7NybMLA=",
+    "boxKeyFingerprint": "sha256/b3b6d8285b4ea226cc4768b8a507fa4c2fd50a1e3412311891b6533f4975cbff",
+    "bytes": 828698,
+    "closedAt": 1789977600000,
+    "consent": null,
+    "files": 3,
+    "format": "tepna-seal/1",
+    "keyId": 1,
+    "night": "2026-09-20",
+    "recipients": [
+      {
+        "keyId": 1,
+        "kind": "card",
+        "wrap": "AES-KW",
+        "wrapped": "BTsPHikUTPH4d0Am3gg7X/Ub1A5ab2mM2RwKT2b3yrXx7dU0vkE+KQ=="
+      }
+    ],
+    "revision": 1
+  },
+  "inputs": [
+    "synthetic_ecgdex_h10.txt",
+    "synthetic_oxydex_o2ring.csv",
+    "synthetic_motiondex_acc.txt"
+  ],
+  "keyId": 1,
+  "night": "2026-09-20",
+  "seal": "TESTBOX0-2026-09-20.tepna",
+  "sha256": "3619c2963b0037a4d1f81bd3b444bc838c7f5d853b4190ad42bca54f8e82bc2d"
+}
