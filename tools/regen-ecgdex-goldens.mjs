@@ -115,12 +115,25 @@ function realm() {
 
 const { ECGDex } = realm();
 
+/* MEASUREMENT-PROVENANCE-ROADMAP §12 — ECGDex is the SECOND emitter; its fixtures' `measurement.*.code` names
+   the SHIPPED bundle, read off ECGDex.html by manifest-gate.js's projection (same recipe as
+   regen-oxydex-goldens). Build BEFORE regenerating. */
+async function bundleCode() {
+  const bp = path.join(REPO, 'ECGDex.html');
+  if (!fs.existsSync(bp)) throw new Error('ECGDex.html is not built — run `node tools/build.mjs --app ECGDex` first (the fixtures stamp its code identity)');
+  const text = fs.readFileSync(bp, 'utf8');
+  const code = { manifestHash: await ManifestGate.manifestHashFromText(text), computeHash: await ManifestGate.computeHashFromText(text) };
+  if (!code.manifestHash || !code.computeHash) throw new Error('ECGDex.html is not a plain-inline owned bundle — refusing to stamp a null code identity');
+  return code;
+}
+const CODE = await bundleCode();
+
 /* Polar H10 *_ECG.txt → compute({ text }) → the node-export (the equiv gate's pick is identity),
    or null when the input is absent (gitignored recording). */
 const fromECG = (file) => {
   const p = path.join(CORPUS, file);
   if (!fs.existsSync(p)) return null;
-  return ECGDex.compute({ text: fs.readFileSync(p, 'utf8') });
+  return ECGDex.compute({ text: fs.readFileSync(p, 'utf8') }, { code: CODE });
 };
 
 /* The RICH export — `compute(input, { rich: true })`. Only `signal-orchestrate.emitEcgNodeExport`
@@ -128,7 +141,7 @@ const fromECG = (file) => {
 const fromECGRich = (file) => {
   const p = path.join(CORPUS, file);
   if (!fs.existsSync(p)) return null;
-  return ECGDex.compute({ text: fs.readFileSync(p, 'utf8') }, { rich: true });
+  return ECGDex.compute({ text: fs.readFileSync(p, 'utf8') }, { rich: true, code: CODE });
 };
 
 const FIXTURES = [
