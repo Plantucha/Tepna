@@ -231,6 +231,16 @@ for i in "${!names[@]}"; do
   fi
 done
 
+# THE OBJECT (VERDICT-CONTRACT §3d, wave 2). One `tepna.verdict/1` over the blocking children, written
+# beside `.mypy-latest.txt` by `checkverdict.py` from the SAME arrays the rows above were printed from —
+# a missing tool (exit 127) is NOT_RUN for that child and leaves the run UNKNOWN, never FAIL and never
+# a PASS over the three that ran. The exit code below STAYS the shell's verdict (§3d); the object is
+# what a reader keys on instead of "all gates green". `CHECK_VERDICT_OUT` relocates the file (tests).
+child_pairs=(); for i in "${!names[@]}"; do child_pairs+=("${names[$i]}=${codes[$i]}"); done
+adv_args=();    for i in "${!adv_names[@]}"; do adv_args+=(--advisory "${adv_names[$i]}=${adv_states[$i]:-UNSPECIFIED}"); done
+"$PY" checkverdict.py --write "${CHECK_VERDICT_OUT:-.check-verdict.json}" "${adv_args[@]}" "${child_pairs[@]}" \
+  || printf '  verdict: NOT WRITTEN — checkverdict.py exited %s (the exit code below is still the gate)\n' "$?"
+
 if [ "$failed" -ne 0 ]; then
   echo
   echo "  $failed gate(s) failed — the run above contains all of them, not just the first."

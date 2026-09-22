@@ -245,6 +245,7 @@ coverage/
 # Machine-local and regenerated, never a source of truth — committing it would ship one box's
 # error list as if it were the repo's.
 capture-host/.mypy-latest.txt
+capture-host/.check-verdict.json
 
 # Hypothesis example database — per-machine and regenerated. ⚠️ Hypothesis ALREADY writes its own
 # `.gitignore` inside the directory, which is why `git status` never showed it while `git check-ignore`

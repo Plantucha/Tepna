@@ -1151,6 +1151,22 @@
    "bin": "test",
    "status": "exempt"
   },
+  "capture-host/checkverdict.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/checkverdict.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "check.sh's runner-level object (VERDICT-CONTRACT \u00a73d, #2672's advisory token one level up): population = the four blocking children ruff \u00b7 shellcheck \u00b7 pytest \u00b7 unwired; the three EXTERNAL tools are read off their PUBLISHED exit-code contract (mapping beside the tool versions in the module: 0 PASS \u00b7 issues code FAIL \u00b7 127 NOT_RUN = a missing TOOL, excluded, and the run UNKNOWN \u00b7 abnormal codes and pytest 5 UNKNOWN); unwired is OURS and unadopted, so it is UNKNOWN by provenance and the object reads UNKNOWN on a green run until find_unwired emits its own object (\u00a73d's lever); aggregation by precedence FAIL > UNKNOWN > PASS, never a vote; advisory-state tokens ride in result.advisory; written to capture-host/.check-verdict.json; the shell exit code STAYS"
+  },
+  "capture-host/tests/test_checkverdict.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
   "tools/run-tests-verdict.mjs": {
    "bin": "decides",
    "status": "adopted",
