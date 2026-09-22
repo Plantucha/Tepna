@@ -143,6 +143,126 @@ export function gatedBy(p, readSource, testRefs) {
   return refs.length ? 'tests:' + refs.slice(0, 2).join(',') : null;
 }
 
+/* ── A WORD-ONLY ROW MAKES A CLAIM, AND THE CLAIM GOES STALE ──────────────────────────────────
+   `bin: "word-only"` is an assertion ABOUT THE SOURCE — that the verdict vocabulary in the file is
+   prose, not an emitted decision. Nothing checked it after it was written, so it rots two ways:
+   copy-paste (47 of 85 rows carry one reason string verbatim) and, worse, DRIFT — a row's reason is
+   true when written and false once the tool gains a decision. Measured 2026-09-22 on my own work:
+   #2851 gave `tools/buzz-fiducial-correlate.mjs` a daemon-capture refusal that morning; its row
+   still said "not a verdict about data" that afternoon, and no gate could see it, because the bin is
+   ASSERTED in the manifest rather than DERIVED from the source.
+
+   ⚠️ THE POPULATION IS THE DESIGN, NOT A CAVEAT. This check tests the CLAIM A ROW MAKES, and a row
+   that CONCEDES emission is outside its population by construction. Three reason-classes assert that
+   nothing is emitted (`CLAIM_REASONS`, 71 of 85 rows); the other 14 concede the words are emitted and
+   explain why they are not a decision over a criterion — `land-pr.mjs`'s queue vocabulary,
+   `mutation-reach.mjs`'s fail-closed classification. Those are judgement calls the gate must not
+   adjudicate, and including them is what took the false-positive rate from 0 to 18 %: measured over
+   all 85 rows the discriminator flags 11, two of them wrong, and BOTH are conceding rows.
+
+   Measured before shipping (the bands are pre-stated): 71 checked · 9 flagged · 0 false positives.
+   The 9 are handed to the follow-up adoptions through `WO_CLAIM_RATCHET`, which may only SHRINK —
+   the same shape as `UNGATED_RATCHET` above, and for the same reason: an entry removed is a
+   demonstration the check has teeth on a real file. */
+export const CLAIM_REASONS = ['selftest assertion printer', 'verdict words appear only in comments', 'not as an emitted verdict'];
+
+/* A DECISION word. Kept narrower than `WORDS`: these are what a tool prints when it decides, not
+   what it prints as a log level. */
+const DECISION_WORDS = /\b(REFUSED|VERDICT|TALLY|RECOVERED|UNDERPOWERED|SHORTFALL|NOT_RUN|NOT_APPLICABLE|REALM-FAIL|PASS|FAIL)\b/;
+
+/* The named exclusions — the twelve false positives measured 2026-09-22, every one of them selftest
+   INFRASTRUCTURE living at module scope, outside the function body: the `cond ? 'ok' : 'FAIL'`
+   assertion printer, the `SELFTEST FAIL:` handler, and calls to the `ok(` helper itself. */
+const NOT_A_DECISION = [/\?\s*'ok\s*'?\s*:\s*'?FAIL/, /SELF-?TEST\s+FAIL/, /\bok\s*\(/];
+
+/* ⚠️ AN ESCAPE GLUES TO THE WORD AND KILLS `\b` — `console.log('\nTALLY:', …)` reads as `nTALLY` and
+   was MISSED on this check's first run (`tools/pat-residual-structure.mjs`, found only because the
+   flag count moved 10 → 11 when it was fixed). The unescaping below is why; the selftest plants it
+   permanently, because a detector whose sensitivity was assumed once will be assumed again. */
+const unescape = (s) => s.replace(/\\[nrt]/g, ' ');
+
+/** The span of a `selftest` body, or null when no locator matches (then the WHOLE file is scanned,
+ *  which biases toward false positives, never toward misses — 33 of the 71 rows, named in the
+ *  output so the bias travels with the number). PURE. */
+export function selftestSpan(src, isPy) {
+  const m = isPy ? /\ndef\s+selftest\w*\s*\(/.exec(src) : /\n(?:export\s+)?(?:async\s+)?function\s+selftest\w*\s*\(/.exec(src);
+  if (!m) return null;
+  const from = m.index;
+  if (isPy) {
+    const j = src.indexOf('\ndef ', m.index + m[0].length);
+    return [from, j < 0 ? src.length : j];
+  }
+  const b = src.indexOf('{', m.index + m[0].length - 1);
+  let depth = 0;
+  for (let k = b; k < src.length; k++) {
+    if (src[k] === '{') depth++;
+    else if (src[k] === '}' && --depth === 0) return [from, k + 1];
+  }
+  return [from, src.length];
+}
+
+/** Lines where the tool PRINTS a decision word outside its selftest body. PURE. */
+export function emittedDecisionLines(src, isPy) {
+  const span = selftestSpan(src, isPy);
+  const scanned = span ? src.slice(0, span[0]) + src.slice(span[1]) : src;
+  const out = [];
+  for (const raw of scanned.split('\n')) {
+    const s = unescape(raw.trim());
+    if (!/console\.(log|error)\(|\bprint\(/.test(s)) continue;
+    if (!DECISION_WORDS.test(s)) continue;
+    if (NOT_A_DECISION.some((r) => r.test(s))) continue;
+    out.push(raw.trim().slice(0, 120));
+  }
+  return { lines: out, hasLocator: span !== null };
+}
+
+/* The nine rows whose claim was already false when this check landed (2026-09-22). DEBT, not
+   approval: each is owed an adoption with its own criterion, and the ratchet may only SHRINK — a
+   row that stops emitting, or that leaves `word-only`, reds until it is removed here. */
+export const WO_CLAIM_RATCHET = new Set([
+  'tools/beat-leg-closure.mjs',
+  'tools/buzz-fiducial-correlate.mjs',
+  'tools/formula-constant-audit.mjs',
+  'tools/pat-fiducial-jitter.mjs',
+  'tools/pat-residual-structure.mjs',
+  'tools/pat-window-oracle.mjs',
+  'tools/pb-agreement.mjs',
+  'tools/probe-clock-equivalence.mjs',
+  'tools/probe-equivalence.mjs'
+]);
+
+/** Judge every `word-only` row that CLAIMS nothing is emitted. Returns the population as an
+ *  EQUALITY (checked + conceded = word-only rows) so a row moving between reason-classes moves the
+ *  numbers rather than sliding out of view. PURE — `readSource(p)` is injected. */
+export function checkWordOnlyClaim(manifest, readSource, ratchet = WO_CLAIM_RATCHET) {
+  const rows = (manifest && manifest.producers) || {};
+  const wordOnly = Object.keys(rows)
+    .filter((p) => rows[p] && rows[p].bin === 'word-only')
+    .sort();
+  const claims = wordOnly.filter((p) => CLAIM_REASONS.some((c) => (rows[p].reason || '').includes(c)));
+  const conceded = wordOnly.filter((p) => !claims.includes(p));
+  const errors = [];
+  const flagged = [];
+  let noLocator = 0;
+  for (const p of claims) {
+    const src = readSource(p);
+    if (src == null) {
+      errors.push(`${p}: word-only row whose source could not be read — an unreadable claim is not a held claim`);
+      continue;
+    }
+    const e = emittedDecisionLines(src, p.endsWith('.py'));
+    if (!e.hasLocator) noLocator++;
+    if (e.lines.length === 0) {
+      if (ratchet.has(p)) errors.push(`${p}: no longer emits a decision — REMOVE it from WO_CLAIM_RATCHET (the ratchet may only go down)`);
+      continue;
+    }
+    flagged.push({ path: p, lines: e.lines });
+    if (!ratchet.has(p)) errors.push(`${p}: its row claims no emitted verdict ("${(rows[p].reason || '').slice(0, 48)}…") but it PRINTS a decision outside its selftest — ${e.lines[0]}`);
+  }
+  for (const p of ratchet) if (!claims.includes(p)) errors.push(`${p}: in WO_CLAIM_RATCHET but is not a word-only row claiming no emission — remove the stale entry`);
+  return { ok: errors.length === 0, errors, checked: claims.length, conceded: conceded.length, wordOnly: wordOnly.length, noLocator, flagged };
+}
+
 /* Pure: judge the decides set against the ratchet. Returns { ok, errors[], gated, ungated }. */
 export function checkGated(manifest, readSource, testRefs, ratchet = UNGATED_RATCHET) {
   const errors = [];
@@ -346,7 +466,61 @@ function selftest() {
   const en = enumerate(ROOT);
   ok(en.length > 50 && en.every((p) => p.startsWith('tools/') || p.startsWith('capture-host/') || p.startsWith('tests/')), 'enumerate() finds the population on the real tree (' + en.length + ')');
   ok(en.includes('tests/run-tests.mjs') && !en.some((p) => /^tests\/.+\//.test(p)), 'tests/*.mjs is in the population, non-recursive (the runner is no longer outside the gate)');
-  const N = 26;
+  /* ── word-only rows make a CLAIM, and the claim is checked (2026-09-22) ─────────────────────
+     Plants for each arm, including the one that matters most: the detector's own SENSITIVITY. */
+  {
+    const W = (producers) => ({ schema: 'tepna.verdict-adoption/1', producers });
+    const claim = { bin: 'word-only', status: 'exempt', reason: 'selftest assertion printer — not a verdict about data' };
+    const concede = { bin: 'word-only', status: 'exempt', reason: 'a QUEUE decision about a PR state, in its own vocabulary — not a gate over data' };
+    const SRC = {
+      // emits a decision on a reachable path — the claim is FALSE
+      'tools/emitter.mjs': "function selftest() { ok('x', true); }\nconsole.log('  ⊘ REFUSED — ' + why);\n",
+      // ⚠️ THE SENSITIVITY PLANT: the only decision word is glued to a `\n` escape, which kills \b.
+      // This exact shape was MISSED on this check's first run (pat-residual-structure.mjs).
+      'tools/escaped.mjs': "function selftest() { ok('x', true); }\nconsole.log('\\nTALLY:', JSON.stringify(tally));\n",
+      // selftest INFRASTRUCTURE at module scope — the twelve measured false positives
+      'tools/printer.mjs': "const ok = (n, c) => console.log(`  ${c ? 'ok  ' : 'FAIL'}  ${n}`);\nfunction selftest() { ok('a', true); }\n",
+      'tools/handler.mjs': "function selftest() { return 0; }\nprocess.on('x', (m) => console.error('SELFTEST FAIL:', m));\n",
+      // prose only
+      'tools/quiet.mjs': "// this one REFUSED nothing, the word is in a comment\nfunction selftest() { ok('a', true); }\n"
+    };
+    const read = (q) => SRC[q] ?? null;
+    let w = checkWordOnlyClaim(W({ 'tools/emitter.mjs': claim }), read, new Set());
+    ok(!w.ok && /tools\/emitter\.mjs: its row claims no emitted verdict/.test(w.errors[0]), `an emitting word-only row reds BY NAME, got ${w.errors[0]}`);
+    ok(w.errors[0].includes('REFUSED'), 'the red quotes the line that falsifies the claim, not just the path');
+    /* PLANT — permanent, not a fixed bug: an escape adjacent to the word must still be FOUND. */
+    w = checkWordOnlyClaim(W({ 'tools/escaped.mjs': claim }), read, new Set());
+    ok(!w.ok && /tools\/escaped\.mjs/.test(w.errors[0]), 'PLANT: a decision word glued to a \\n escape is still found (the measured false negative)');
+    /* The named exclusions must NOT fire — an invariant that convicts working code is the wrong rule. */
+    ok(checkWordOnlyClaim(W({ 'tools/printer.mjs': claim }), read, new Set()).ok, "a module-scope `cond ? 'ok' : 'FAIL'` assertion printer is not a decision");
+    ok(checkWordOnlyClaim(W({ 'tools/handler.mjs': claim }), read, new Set()).ok, 'a SELFTEST FAIL: handler is not a decision');
+    ok(checkWordOnlyClaim(W({ 'tools/quiet.mjs': claim }), read, new Set()).ok, 'a word in a comment is not an emission');
+    /* THE POPULATION IS THE DESIGN: a row that CONCEDES emission is outside it, even though its
+       source prints the same line that reds the claiming row above. */
+    w = checkWordOnlyClaim(W({ 'tools/emitter.mjs': concede }), read, new Set());
+    ok(w.ok && w.checked === 0 && w.conceded === 1 && w.wordOnly === 1, `a conceding row is outside the population by construction, got ${JSON.stringify({ c: w.checked, x: w.conceded })}`);
+    /* The population is an EQUALITY, so a row moving between classes moves the numbers. */
+    w = checkWordOnlyClaim(W({ 'tools/quiet.mjs': claim, 'tools/emitter.mjs': concede }), read, new Set());
+    ok(w.checked + w.conceded === w.wordOnly, 'checked + conceded = word-only rows, an equality');
+    /* The ratchet may only SHRINK — a clean row still listed is a red. */
+    w = checkWordOnlyClaim(W({ 'tools/quiet.mjs': claim }), read, new Set(['tools/quiet.mjs']));
+    ok(!w.ok && /no longer emits a decision — REMOVE it/.test(w.errors[0]), 'a ratchet entry that stopped emitting reds until it is removed');
+    w = checkWordOnlyClaim(W({ 'tools/emitter.mjs': claim }), read, new Set(['tools/gone.mjs']));
+    ok(
+      w.errors.some((e) => /tools\/gone\.mjs: in WO_CLAIM_RATCHET but is not a word-only row/.test(e)),
+      'a stale ratchet entry is a red'
+    );
+    /* An unreadable source is not a held claim. */
+    w = checkWordOnlyClaim(W({ 'tools/absent.mjs': claim }), read, new Set());
+    ok(!w.ok && /could not be read/.test(w.errors[0]), 'an unreadable word-only source reds rather than passing');
+    /* The real tree: the ratchet is exact today, and the population is the measured one. */
+    const { readSource } = treeReaders(ROOT);
+    const realW = checkWordOnlyClaim(JSON.parse(fs.readFileSync(MANIFEST, 'utf8')), readSource);
+    ok(realW.ok, 'the committed manifest: every claiming word-only row holds, or is in WO_CLAIM_RATCHET (' + realW.errors.join(' | ') + ')');
+    ok(realW.checked + realW.conceded === realW.wordOnly && realW.checked > 0, `the real population is an equality, got ${realW.checked}+${realW.conceded}=${realW.wordOnly}`);
+  }
+
+  const N = 39;
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
     console.log(`${fails.length} failed of ${N}`);
@@ -373,10 +547,18 @@ function main() {
   );
   const { readSource, testRefs } = treeReaders(ROOT);
   const g = checkGated(manifest, readSource, testRefs);
+  const w = checkWordOnlyClaim(manifest, readSource);
+  console.log(
+    `verdict-adoption: ${w.checked} word-only row(s) CLAIM nothing is emitted \u00b7 ${w.conceded} concede emission and say why ` +
+      `= ${w.wordOnly} word-only \u2014 ${w.flagged.length} still print a decision outside their selftest, all in WO_CLAIM_RATCHET (debt, may only shrink)`
+  );
+  console.log(
+    `verdict-adoption: ${w.noLocator} of the ${w.checked} have no recognisable selftest locator, so their WHOLE file is scanned \u2014 ` + `that bias runs toward false positives, never toward misses`
+  );
   console.log(
     `verdict-adoption: ${g.decides} \`decides\` producer(s) — ${Object.keys(g.gated).length} gated (a selftest or a test names them) · ${g.ungated.length} ungated, all in UNGATED_RATCHET (debt, may only shrink)`
   );
-  const errors = [...r.errors, ...g.errors];
+  const errors = [...r.errors, ...g.errors, ...w.errors];
   if (errors.length) {
     console.log(errors.map((e) => '  ✗ ' + e).join('\n'));
     console.log(`\n✗ ${errors.length} red(s) — the population and the manifest are not equal, an adoption does not hold, or a check has no test`);
