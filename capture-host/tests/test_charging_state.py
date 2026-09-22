@@ -96,6 +96,12 @@ def test_a_FULL_flat_battery_sets_charging_where_the_rising_rule_is_blind(tmp_pa
     # in a module-level store so it can survive reconnects, and the predicate is called from telemetry's
     # namespace, where a patch on `capture.` cannot reach it.
     monkeypatch.setattr(capture, "note_flat_battery", lambda *_a, **_k: True)
+    # R2 (#2833): the flat-at-full inference fires only on a unit OBSERVED to charge. This test passed in
+    # the full suite only because an earlier test left `can_charge` recorded in the module-level devcaps
+    # store, and failed alone (residue 2026-09-22-charging-state-test-order-dependent). The capability is
+    # this scenario's own premise, so it is recorded here — the test no longer asserts a leak.
+    capture.devcaps.reset()
+    capture.devcaps.record("24:AC:AC:02:84:96", "can_charge", True, source="test: a unit observed to charge")
     c = T.FlexPolarClient(data_frames=[T._ppg_frame()], batt_level=100)
     T._inject_connect(monkeypatch, c)
     T._stop_after(monkeypatch, 130)          # past `secs % 120` → a SECOND battery read
