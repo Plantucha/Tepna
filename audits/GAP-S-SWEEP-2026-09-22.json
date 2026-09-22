@@ -3217,5 +3217,57 @@
     "status": "NOT verified"
    }
   ]
+ },
+ "verityFragmentStratification": {
+  "preStated": "scratchpad gaps/PRESTATED.md 2026-09-22T11:40Z; same bands as the ECG-fragment test; average-rank Spearman",
+  "fragmentMeasure": "number of Polar_VeritySense*_PPG.txt session files on the date",
+  "medianFragments": 2,
+  "counts": {
+   "2026-08-24": 2,
+   "2026-08-25": 1,
+   "2026-08-26": 2,
+   "2026-08-28": 2,
+   "2026-08-29": 1,
+   "2026-08-30": 2,
+   "2026-08-31": 3,
+   "2026-09-03": 2,
+   "2026-09-04": 1,
+   "2026-09-05": 3,
+   "2026-09-06": 2,
+   "2026-09-07": 2,
+   "2026-09-08": 1,
+   "2026-09-09": 1,
+   "2026-09-10": 3,
+   "2026-09-11": 3,
+   "2026-09-12": 2,
+   "2026-09-13": 1,
+   "2026-09-15": 2,
+   "2026-09-16": 1,
+   "2026-09-17": 1,
+   "2026-09-19": 5,
+   "2026-09-20": 2
+  },
+  "low": {
+   "n": 18,
+   "spearman": -0.1416020860928624
+  },
+  "high": {
+   "n": 5,
+   "spearman": 0.7
+  },
+  "all": {
+   "n": 23,
+   "spearman": 0.04205840753161465
+  },
+  "rhoFragmentsVsAbsDelta": -0.07170822936856795,
+  "candidateVerdict": "INDETERMINATE",
+  "verdict": "INDETERMINATE (HIGH n = 5) and opposite in sign to the candidate (LOW n=18 rho -0.14, HIGH n=5 rho 0.70): Verity-link fragmentation does not explain the box non-correlation either"
+ },
+ "candidatesTested": {
+  "ecgFragmentation": "INDETERMINATE, leaning against (LOW n=19 rho 0.08)",
+  "verityFragmentation": "INDETERMINATE, opposite in sign (LOW n=18 rho -0.14)",
+  "ppgSampleRate55Hz": "on the boundary: explains ~a fifth of the gap (phone rho 0.635 -> 0.508 when decimated to the box grid) \u2014 see the phone record decimationTest",
+  "nextMeasurableTerm": "within-night ACTIVE-WINDOW OVERLAP of the two streams \u2014 on a box night the ECG (cut by the not-worn drop) and the PPG may cover different stretches of the night, so the two indices are computed over different hours; a fragment COUNT does not capture WHERE the coverage is. Measurable from the existing session files (per-stream active windows, their intersection as a fraction of each), not run here; named, not fitted",
+  "documentedOnly": "Verity wear site (ankle on the deployment per ppgdex-dsp.js)"
  }
 }

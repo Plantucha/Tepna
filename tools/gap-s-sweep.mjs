@@ -29,7 +29,9 @@
  * first night and printed before the rest run.
  *
  *   node tools/gap-s-sweep.mjs --nights <list.txt: "<date> <ecg> <ppg>" per line, TAB-separated if a path has a space> [--values 3,5,7.5,10,15,20,30,60]
- *                              [--out <json>] [--limit N] [--resume]
+ *                              [--out <json>] [--limit N] [--resume] [--ppg-keep-hz <hz>] [--ppg-only]
+ *   --ppg-keep-hz  ROW-KEEPING decimation of the PPG to a coarser grid (a row is kept iff its sensor timestamp
+ *                  advanced ≥ 1/hz since the last kept row; nothing is resampled or invented)
  *   node tools/gap-s-sweep.mjs --selftest
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
@@ -119,27 +121,67 @@ function realm(files, patchFile, decl, name, value) {
   return ctx;
 }
 
-/* One night under one value on both nodes → scalars only. */
-export function scoreNight(realms, ecgText, ppgText) {
+/* ROW-KEEPING decimation of a PPG text to a coarser grid: the source is binned into 1/hz-second bins by
+   its own sensor timestamp [ns] and the FIRST original row entering each bin is kept — an achieved rate
+   of ≈ hz with jittered spacing (the box's own stream is also not on an exact grid). "Advance ≥ 1/hz
+   since the last kept row" was tried first and snaps to every 4th row (44 Hz) on the 176 → 55 ratio,
+   which is why the rule is bin entry. No sample is invented (never a resample); the header is kept; a
+   row whose timestamp does not parse is dropped. Pure. */
+export function decimatePpgText(text, hz) {
+  if (!(hz > 0)) return text;
+  const lines = text.split('\n');
+  const out = [lines[0]];
+  let lastBin = null;
+  for (let i = 1; i < lines.length; i++) {
+    const l = lines[i];
+    if (!l) continue;
+    const j = l.indexOf(';');
+    const k = l.indexOf(';', j + 1);
+    if (j < 0 || k < 0) continue;
+    const t = Number(l.slice(j + 1, k));
+    if (!Number.isFinite(t)) continue;
+    const bin = Math.floor((t * hz) / 1e9);
+    if (bin !== lastBin) {
+      out.push(l);
+      lastBin = bin;
+    }
+  }
+  return out.join('\n') + '\n';
+}
+
+/* One night under one value on both nodes → scalars only. opts.ppgKeepHz decimates the PPG text by rows;
+   opts.ppgOnly skips the ECG (its index is then null WITH the reason). */
+export function scoreNight(realms, ecgText, ppgText, opts) {
+  opts = opts || {};
+  if (opts.ppgKeepHz) ppgText = decimatePpgText(ppgText, opts.ppgKeepHz);
   const E = realms.ecg;
   const P = realms.ppg;
   let ecg = { index: null, reason: 'threw' };
   let ppg = { index: null, reason: 'threw' };
-  try {
-    const r = E.ECGDSP.analyze(E.ECGDSP.parseECG(ecgText), null);
-    ecg = {
-      index: r.cvhr ? r.cvhr.index : null,
-      denomSec: r.cvhr ? r.cvhr.denomSec : null,
-      events: r.cvhr && r.cvhr.events ? r.cvhr.events.length : null,
-      nBeats: r.nBeats != null ? r.nBeats : null,
-      reason: r.cvhr && r.cvhr.suppressed ? 'suppressed' : null
-    };
-  } catch (e) {
-    ecg = { index: null, reason: 'threw: ' + String(e && e.message).slice(0, 80) };
+  if (opts.ppgOnly) ecg = { index: null, reason: 'skipped (--ppg-only)' };
+  else {
+    try {
+      const r = E.ECGDSP.analyze(E.ECGDSP.parseECG(ecgText), null);
+      ecg = {
+        index: r.cvhr ? r.cvhr.index : null,
+        denomSec: r.cvhr ? r.cvhr.denomSec : null,
+        events: r.cvhr && r.cvhr.events ? r.cvhr.events.length : null,
+        nBeats: r.nBeats != null ? r.nBeats : null,
+        reason: r.cvhr && r.cvhr.suppressed ? 'suppressed' : null
+      };
+    } catch (e) {
+      ecg = { index: null, reason: 'threw: ' + String(e && e.message).slice(0, 80) };
+    }
   }
   try {
     const r = P.PPGDSP.analyze(P.PPGDSP.parsePPG(ppgText, undefined), null);
-    ppg = { index: r.cvhrIndex != null ? r.cvhrIndex : null, events: r.cvhrEvents != null ? r.cvhrEvents : null, nBeats: r.nBeats != null ? r.nBeats : null, reason: r.cvhrReason || null };
+    ppg = {
+      index: r.cvhrIndex != null ? r.cvhrIndex : null,
+      events: r.cvhrEvents != null ? r.cvhrEvents : null,
+      nBeats: r.nBeats != null ? r.nBeats : null,
+      reason: r.cvhrReason || null,
+      ...(opts.ppgKeepHz ? { keepHz: opts.ppgKeepHz, rows: ppgText.split('\n').length - 2 } : {})
+    };
   } catch (e) {
     ppg = { index: null, reason: 'threw: ' + String(e && e.message).slice(0, 80) };
   }
@@ -153,12 +195,20 @@ export function report(rows, values, shipped) {
     const s = a.filter((v) => v != null && Number.isFinite(v)).sort((x, y) => x - y);
     return s.length ? (s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : null;
   };
+  /* AVERAGE ranks for ties. The first version broke ties by input order, which put the decimation
+     result at 0.4999 against a pre-stated 0.5 band while average ranks gave 0.508 — a tie rule must not
+     be the thing that decides a band, so it is the textbook one now. */
   const rank = (a) => {
     const idx = a.map((v, i) => [v, i]).sort((x, y) => x[0] - y[0]);
     const r = new Array(a.length);
-    idx.forEach(([, i], k) => {
-      r[i] = k;
-    });
+    let k = 0;
+    while (k < idx.length) {
+      let j = k;
+      while (j + 1 < idx.length && idx[j + 1][0] === idx[k][0]) j++;
+      const avg = (k + j) / 2;
+      for (let m = k; m <= j; m++) r[idx[m][1]] = avg;
+      k = j + 1;
+    }
     return r;
   };
   const spearman = (a, b) => {
@@ -268,6 +318,20 @@ function selftest() {
   );
   ok('report: a −0.2 shift at 20 s moves 0 % by ≥ 1 and 0 % by ≥ 10 %', R.perValue['20'].ecg.movedAbs1 === 0 && R.perValue['20'].ecg.movedRel10 === 0);
   ok('report: cross-node Spearman is 1 on monotone planted indices', Math.abs(R.perValue['10'].cross.spearman - 1) < 1e-12, String(R.perValue['10'].cross.spearman));
+  {
+    const tied = [
+      { night: 'a', byValue: { 10: { ecg: { index: 1 }, ppg: { index: 2 } } } },
+      { night: 'b', byValue: { 10: { ecg: { index: 1 }, ppg: { index: 3 } } } },
+      { night: 'c', byValue: { 10: { ecg: { index: 2 }, ppg: { index: 1 } } } },
+      { night: 'd', byValue: { 10: { ecg: { index: 3 }, ppg: { index: 4 } } } }
+    ];
+    // average ranks: ecg [1.5,1.5,3,4] ↔ ppg [2,3,1,4] → ρ = 1 − 6·Σd²/(n(n²−1)) with d = [−0.5,−1.5,2,0] → 1 − 6·6.5/60 = 0.35
+    ok(
+      'report: ties take AVERAGE ranks (planted: ρ 0.3162 = Pearson over the ranks; the 1 − 6Σd²/(n(n²−1)) shortcut is exact only without ties)',
+      Math.abs(report(tied, [10], 10).perValue['10'].cross.spearman - 0.31622776601683794) < 1e-9,
+      String(report(tied, [10], 10).perValue['10'].cross.spearman)
+    );
+  }
   ok('report: the knee below the shipped cut is 5 (the only value that moved), none above', R.knee.below === 5 && R.knee.above === null, JSON.stringify(R.knee));
   /* NULL CONTROL — the instrument must SEE the cut. A flat curve on the real corpus is only a finding if a
      planted gap moves the number: a synthetic ECG night with one 20 s gap is analysed in patched realms at
@@ -290,9 +354,26 @@ function selftest() {
     ok('NULL CONTROL · a planted 20 s gap is counted at GAP_S 30 and excluded at 10: denominator differs by ~20 s', d30 - d10 > 15 && d30 - d10 < 25, JSON.stringify({ d10, d30 }));
     ok('NULL CONTROL · …and is an absence under both 3 and 10 (no difference)', Math.abs(d10 - d3) < 1, JSON.stringify({ d3, d10 }));
   }
+  {
+    const hdr = 'Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient';
+    const rows = [];
+    for (let i = 0; i < 1760; i++) rows.push('x;' + Math.round((i * 1e9) / 176) + ';1;2;3;4'); // 10 s at 176 Hz
+    const dec = decimatePpgText(hdr + '\n' + rows.join('\n') + '\n', 55);
+    const kept = dec.split('\n').filter(Boolean).length - 1;
+    ok('decimatePpgText: 10 s at 176 Hz keeps ≈ 550 rows at 55 Hz (bin entry, row-keeping, never a resample)', kept >= 545 && kept <= 555, String(kept));
+    ok(
+      'decimatePpgText: every kept row is an ORIGINAL row (no invented sample)',
+      dec
+        .split('\n')
+        .filter(Boolean)
+        .slice(1)
+        .every((l) => rows.includes(l))
+    );
+    ok('decimatePpgText: the header survives and hz ≤ 0 is a no-op', dec.startsWith(hdr) && decimatePpgText('h\na;1;\n', 0) === 'h\na;1;\n');
+  }
   const R0 = report([{ night: 'x', byValue: { 10: { ecg: { index: null, reason: 'threw' }, ppg: { index: null } } } }], [10], 10);
   ok('report: refused nights count as refused and yield nulls, never zeros', R0.perValue['10'].ecg.refused === 1 && R0.perValue['10'].ecg.medianIndex === null);
-  console.log(fail ? fail + ' failed of 12' : 'all 12 selftests passed');
+  console.log(fail ? fail + ' failed of 16' : 'all 16 selftests passed');
   return fail ? 1 : 0;
 }
 
@@ -316,6 +397,8 @@ function main(argv) {
   values.sort((a, b) => a - b);
   const out = arg('--out', join(ROOT, '.cache', 'gap-s-sweep.json'));
   const limit = Number(arg('--limit', '0'));
+  const ppgKeepHz = Number(arg('--ppg-keep-hz', '0')) || 0;
+  const ppgOnly = argv.includes('--ppg-only');
   const nights = readFileSync(list, 'utf8')
     .split('\n')
     .map((l) => l.trim())
@@ -339,12 +422,12 @@ function main(argv) {
   for (const n of nights) {
     if (done.has(n.night)) continue;
     const tn = Date.now();
-    const ecgText = readFileSync(n.ecg, 'utf8');
+    const ecgText = ppgOnly ? '' : readFileSync(n.ecg, 'utf8');
     const ppgText = readFileSync(n.ppg, 'utf8');
     const byValue = {};
-    for (const v of values) byValue[String(v)] = scoreNight(realms[String(v)], ecgText, ppgText);
+    for (const v of values) byValue[String(v)] = scoreNight(realms[String(v)], ecgText, ppgText, { ppgKeepHz, ppgOnly });
     rows.push({ night: n.night, ecg: n.ecg, ppg: n.ppg, byValue, ms: Date.now() - tn });
-    writeFileSync(out, JSON.stringify({ generated: new Date().toISOString(), values, shipped: SHIPPED, rows, report: report(rows, values, SHIPPED) }, null, 1));
+    writeFileSync(out, JSON.stringify({ generated: new Date().toISOString(), values, shipped: SHIPPED, ppgKeepHz: ppgKeepHz || null, ppgOnly, rows, report: report(rows, values, SHIPPED) }, null, 1));
     console.error(
       `  ${n.night}  ${((Date.now() - tn) / 1000).toFixed(0)} s  ecg@10 ${byValue[String(SHIPPED)].ecg.index}  ppg@10 ${byValue[String(SHIPPED)].ppg.index}  (${rows.length}/${nights.length}, ${((Date.now() - t0) / 60000).toFixed(1)} min)`
     );

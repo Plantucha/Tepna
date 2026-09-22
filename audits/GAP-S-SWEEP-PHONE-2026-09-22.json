@@ -5654,5 +5654,245 @@
   "gapsOver10sTotal": 0,
   "nights": 30,
   "finding": "the H10 ECG stream is CONTIGUOUS on all 30 phone nights on all three clocks; the \"dropout-heavy phone nights\" premise holds for the Verity PPG and O2Ring BLE links in the corpus lore, not for the H10 ECG in this tree. GAP_S population (inter-beat intervals longer than the cut) is therefore EMPTY above 10 s on both corpora and holds seconds to tens of seconds per night in the 3-10 s band; this corpus cannot discriminate the constant"
+ },
+ "decimationTest": {
+  "preStated": "scratchpad gaps/PRESTATED.md 2026-09-22T11:05Z: target 55 Hz; ROW-KEEPING decimation (first original row entering each 1/55 s bin of the sensor timestamp; nothing resampled); PpgDex re-scored at the shipped cut, ECG index unchanged; bands GRID IS THE TERM rho_dec <= 0.2 / NOT THE TERM rho_dec >= 0.5 / INDETERMINATE between",
+  "boxRateMeasured": {
+   "method": "rows / sensor-timestamp span (device column)",
+   "nights": {
+    "Polar_VeritySense_0C301E3F_20260824052358_PPG.txt": 51.55,
+    "Polar_VeritySense_0C301E3F_20260829234612_PPG.txt": 55.06,
+    "Polar_VeritySense_0C301E3F_20260905025701_PPG.txt": 53.76
+   },
+   "note": "per-night averages sit below the nominal 55 Hz by dropouts included in the span; Heron reads 55.14 by device stamps on three nights \u2014 the nominal setting is 55 Hz"
+  },
+  "phoneRateMeasured": {
+   "Polar_Sense_0C301E3F_20260610_211539_PPG.txt": 176.4,
+   "Polar_Sense_0C301E3F_20260620_225524_PPG.txt": 176.36,
+   "Polar_Sense_0C301E3F_20260703_224152_PPG.txt": 176.34
+  },
+  "nights": 30,
+  "rhoFull": 0.6347332110229814,
+  "rhoDecimated": 0.5075792485874653,
+  "rhoDecimatedOrderBrokenTies": 0.49988876529477194,
+  "ppgIndexShift": {
+   "median": 0.0,
+   "movedRel10": 7,
+   "of": 30
+  },
+  "rowsKeptMedian": 1248766.0,
+  "verdict": "ON THE BOUNDARY: rho 0.635 -> 0.508 with average ranks (0.4999 with order-broken ties \u2014 the tie rule must not decide a band, so the instrument now uses average ranks and the value is reported both ways). By the pre-stated bands this is NOT \"grid is the term\" (it does not fall to the box level) and only just not \"indeterminate\"; the 55 Hz grid explains roughly a fifth of the 0.63 -> 0.05 gap and 7 of 30 nights PPG index moved >= 10 %. The remainder is unexplained here.",
+  "perNight": [
+   {
+    "night": "20260610",
+    "ecgIndex": 3.6,
+    "ppgIndex176": 3.5,
+    "ppgIndex55": 3.9,
+    "rowsKept": 1412146
+   },
+   {
+    "night": "20260611",
+    "ecgIndex": 6.7,
+    "ppgIndex176": 6.2,
+    "ppgIndex55": 6,
+    "rowsKept": 1528450
+   },
+   {
+    "night": "20260612",
+    "ecgIndex": 4.8,
+    "ppgIndex176": 5.3,
+    "ppgIndex55": 5.1,
+    "rowsKept": 1412149
+   },
+   {
+    "night": "20260613",
+    "ecgIndex": 7.8,
+    "ppgIndex176": 8.4,
+    "ppgIndex55": 8.4,
+    "rowsKept": 1471841
+   },
+   {
+    "night": "20260614",
+    "ecgIndex": 5,
+    "ppgIndex176": 2.8,
+    "ppgIndex55": 2.8,
+    "rowsKept": 639720
+   },
+   {
+    "night": "20260615",
+    "ecgIndex": 7,
+    "ppgIndex176": 6.5,
+    "ppgIndex55": 6.8,
+    "rowsKept": 1471519
+   },
+   {
+    "night": "20260616",
+    "ecgIndex": 3.8,
+    "ppgIndex176": 5.3,
+    "ppgIndex55": 5.6,
+    "rowsKept": 1169009
+   },
+   {
+    "night": "20260618",
+    "ecgIndex": 1.3,
+    "ppgIndex176": 1.3,
+    "ppgIndex55": 1.3,
+    "rowsKept": 155889
+   },
+   {
+    "night": "20260619",
+    "ecgIndex": 5.3,
+    "ppgIndex176": 4,
+    "ppgIndex55": 3.8,
+    "rowsKept": 889730
+   },
+   {
+    "night": "20260620",
+    "ecgIndex": 6.9,
+    "ppgIndex176": 4.3,
+    "ppgIndex55": 4.2,
+    "rowsKept": 1417990
+   },
+   {
+    "night": "20260624",
+    "ecgIndex": 6.4,
+    "ppgIndex176": 5.6,
+    "ppgIndex55": 5.8,
+    "rowsKept": 1201017
+   },
+   {
+    "night": "20260625",
+    "ecgIndex": 5.9,
+    "ppgIndex176": 4.3,
+    "ppgIndex55": 4.3,
+    "rowsKept": 1379743
+   },
+   {
+    "night": "20260626",
+    "ecgIndex": 0,
+    "ppgIndex176": 4,
+    "ppgIndex55": 5.3,
+    "rowsKept": 152969
+   },
+   {
+    "night": "20260627",
+    "ecgIndex": 7.4,
+    "ppgIndex176": 8.3,
+    "ppgIndex55": 8.2,
+    "rowsKept": 1367267
+   },
+   {
+    "night": "20260628",
+    "ecgIndex": 5.2,
+    "ppgIndex176": 6.1,
+    "ppgIndex55": 5.1,
+    "rowsKept": 1373607
+   },
+   {
+    "night": "20260629",
+    "ecgIndex": 4,
+    "ppgIndex176": 2.7,
+    "ppgIndex55": 2.2,
+    "rowsKept": 1098430
+   },
+   {
+    "night": "20260630",
+    "ecgIndex": 5.9,
+    "ppgIndex176": 2.7,
+    "ppgIndex55": 3,
+    "rowsKept": 1115594
+   },
+   {
+    "night": "20260701",
+    "ecgIndex": 4.3,
+    "ppgIndex176": 7.3,
+    "ppgIndex55": 7.9,
+    "rowsKept": 1425009
+   },
+   {
+    "night": "20260702",
+    "ecgIndex": 3.4,
+    "ppgIndex176": 3.4,
+    "ppgIndex55": 3.4,
+    "rowsKept": 1098748
+   },
+   {
+    "night": "20260703",
+    "ecgIndex": 2.9,
+    "ppgIndex176": 4.3,
+    "ppgIndex55": 4.3,
+    "rowsKept": 138321
+   },
+   {
+    "night": "20260704",
+    "ecgIndex": 7.1,
+    "ppgIndex176": 4.7,
+    "ppgIndex55": 4.2,
+    "rowsKept": 718768
+   },
+   {
+    "night": "20260705",
+    "ecgIndex": 7.9,
+    "ppgIndex176": 9.9,
+    "ppgIndex55": 9.8,
+    "rowsKept": 1024675
+   },
+   {
+    "night": "20260706",
+    "ecgIndex": 4.5,
+    "ppgIndex176": 4.1,
+    "ppgIndex55": 4.2,
+    "rowsKept": 1323493
+   },
+   {
+    "night": "20260707",
+    "ecgIndex": 5.1,
+    "ppgIndex176": 4.9,
+    "ppgIndex55": 5.2,
+    "rowsKept": 1388245
+   },
+   {
+    "night": "20260708",
+    "ecgIndex": 5.1,
+    "ppgIndex176": 5.4,
+    "ppgIndex55": 5.6,
+    "rowsKept": 999067
+   },
+   {
+    "night": "20260709",
+    "ecgIndex": 5.1,
+    "ppgIndex176": 5.7,
+    "ppgIndex55": 5.8,
+    "rowsKept": 1357384
+   },
+   {
+    "night": "20260710",
+    "ecgIndex": 4.1,
+    "ppgIndex176": 0,
+    "ppgIndex55": 4.1,
+    "rowsKept": 97434
+   },
+   {
+    "night": "20260711",
+    "ecgIndex": 5.8,
+    "ppgIndex176": 4.4,
+    "ppgIndex55": 3.8,
+    "rowsKept": 316884
+   },
+   {
+    "night": "20260712",
+    "ecgIndex": 4,
+    "ppgIndex176": 4.6,
+    "ppgIndex55": 4.3,
+    "rowsKept": 1336588
+   },
+   {
+    "night": "20260713",
+    "ecgIndex": 7.6,
+    "ppgIndex176": 7.7,
+    "ppgIndex55": 8.3,
+    "rowsKept": 1296515
+   }
+  ]
  }
 }
