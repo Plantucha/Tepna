@@ -32,6 +32,19 @@
 > new numbers or retracting the old ones is an **owner decision**, escalated 2026-09-05. Until it lands,
 > the "not tool-reproduced" caution below **stands for every MotionDex resp-acc figure** — nothing has
 > been cleared.
+>
+> **2026-09-22 — the TOOLING precondition is now MET; what remains is the decision.** This preamble
+> names its own clearing route as *re-running the corpus end-to-end through `resp-acc-analysis.html`*,
+> and residue `2026-09-02-papers-remedy-unavailable` recorded that that route did not work — the
+> headless driver pegged a core for 2.5 h and read 2.5 MB of a 1.7 GB corpus, i.e. never ingested it.
+> **#2749's sandbox-first Playwright launch repaired it.** Executed 2026-09-22 (#2823): the full path,
+> `tools/resp-acc-headless.mjs <staged> --figures papers/figures`, over 50 staged `_ACC.txt` files →
+> 49 ACC/CPAP-paired nights → 14 scored, 8,057 epochs; three figures written and byte-identical to the
+> 2026-09-20 set on a second run; `papers/figures/cohort-manifest.json` and
+> `analysis/published-numbers/acc-resp-cohort-2026-09-22.json` written from that run. So the route this
+> preamble names is available and has been walked. **The caution still stands**, for the reason the
+> residue row never named: publishing the new numbers or retracting the old ones is the OWNER decision
+> escalated 2026-09-05, and it has not landed. Tooling was the blocker; it is not any more.
 
 > **2026-08-08 — a fourth wall for §2.2, and a caution on §2.8.** The `ms;hr;c` export contract made the
 > papers' own fused-weight three-cornered hat runnable from a committed artifact for the first time

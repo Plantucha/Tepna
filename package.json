@@ -22,6 +22,7 @@
     "test:shard": "node tests/run-tests.mjs --shard",
     "verify:shard-union": "node tests/verify-shard-union.mjs",
     "test:build-core": "node tests/build-core-tests.mjs",
+    "test:trio-anchor": "node tests/trio-anchor-tests.mjs",
     "coverage": "npx -y c8@10.1.2 node tests/run-tests.mjs",
     "coverage:report": "npx -y c8@10.1.2 --reporter=html --reporter=text-summary node tests/run-tests.mjs",
     "coverage:json": "npx -y c8@10.1.2 --reporter=json --report-dir=.mutation-sweeps/cov node tests/run-tests.mjs",

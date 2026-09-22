@@ -478,6 +478,11 @@ tr.ndrawer td{background:var(--surface2)!important;padding:0!important;}
         <div class="data-pill idle" id="hlPill"><span class="data-dot"></span> <span id="hlText">Loop —</span></div>
         <div class="sidebar-data-info" id="hlDetail"></div>
       </div>
+      <div class="sidebar-data-card" style="margin-bottom:8px" id="llCard" hidden
+           title="The files this daemon currently holds open, checked every status round against the previous look: one that has vanished, lost bytes, or been replaced under its own name. It reports loss only — a file that grew is not a finding — and it watches only since this run started.">
+        <div class="data-pill idle" id="llPill"><span class="data-dot"></span> <span id="llText">Files —</span></div>
+        <div class="sidebar-data-info" id="llDetail"></div>
+      </div>
       <div class="sidebar-data-card">
         <div class="data-pill idle" id="connPill"><span class="data-dot"></span> <span id="connText">No stream</span></div>
         <div class="sidebar-data-info" id="adapterInfo">adapter —</div>
@@ -1846,6 +1851,28 @@ function renderHostLoad(lp, gates, tasks){
     .concat(crashed.map(([n, t]) => `${n}: ${t.crashes}× — ${t.last_error || ''}`)).join('\n');
 }
 
+// The live loss guard, as one sidebar card. THE RESTING STATE IS THE POINT: a guard that only ever
+// appears when it fires is indistinguishable from one that never runs, so this says how many files are
+// being watched even when nothing is wrong. Three states, and the middle one is why `last` exists — a
+// file lost at 02:00 is still the night's fact at 08:00, long after `findings` has gone clean again.
+function renderLiveLoss(ll){
+  const card = $('#llCard'), pill = $('#llPill'), txt = $('#llText'), det = $('#llDetail');
+  if(!card) return;
+  if(!ll || ll.open_files == null){ card.hidden = true; return; }   // null until the guard has run once
+  card.hidden = false;
+  const now = ll.findings || [], last = ll.last || [];
+  const n = ll.open_files;
+  const say = f => `${f.kind} ${String(f.path||'').split('/').pop()} (${f.detail||''})`;
+  pill.className = 'data-pill ' + (now.length ? 'bad' : last.length ? 'warn' : 'ok');
+  txt.textContent = now.length ? `FILE LOST · ${now.length}`
+                  : last.length ? `Lost earlier · ${last.length}`
+                  : `Files ok · ${n} open`;
+  det.textContent = now.length ? now.map(say).join(' · ')
+                  : last.length ? `${ll.last_at || ''} — ${last.map(say).join(' · ')} · ${n} open now`
+                  : `${n} file${n === 1 ? '' : 's'} watched since this run started`;
+  det.title = (now.length ? now : last).map(f => `${f.path} — ${f.kind}: ${f.detail || ''}`).join('\n');
+}
+
 function renderStoragePill(st){
   st = st || {};
   const held = (st.retention_held||[]).length;
@@ -2145,6 +2172,7 @@ async function loadState(){
   renderAutopull(s.autopull);
   renderRadioDistress(s.radio_distress, s.radio_distress_adapter, s.radio_switches);
   renderHostLoad(s.loop, s.gates, s.tasks);
+  renderLiveLoss(s.live_loss);
   renderCpap(s.cpap);
   renderCpapSpool(s.cpap_spool);
   renderDownload(DEVICES);

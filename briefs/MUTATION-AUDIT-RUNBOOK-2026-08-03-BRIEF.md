@@ -215,6 +215,20 @@ optimising — skipping that step cost an hour on `capture.py`.
 | `capture.py` | **compile**, once per run — a 567-line flat `run_polar` replicated 1 241× | cold import **429 s**, warm **0.4 s** |
 | `webmon.py` | **compile ~46 %, then test time** — 23 files, aiohttp servers per case | cold import **26 min**, warm **0.5 s**; 0.79 s/mutant after |
 | `clock.js` | **group selection** — 41 groups, loaded by everything | **7 m 49 s** per mutant |
+| `capture.py` **in the DIFF-SCOPED gate** | **test selection, re-timed per glob** — not the size of what was selected | one clean run of its selection **936.7 s**; 5 globs → **78 min** before a mutant existed |
+
+⚠️ **THE TABLE'S FIRST ROW IS THE FULL SWEEP; THE DIFF GATE IS A DIFFERENT COST (measured 2026-09-21,
+residue `2026-09-21-mutation-cost-is-the-selection-not-the-function-size`).** For a full `mutmut` run the
+compile dominates and is paid once, as below. For `tools/mutate_diff.py` it is the **test SELECTION**:
+`capture.py`'s selection is 76 of 78 test files, one clean run of it took **936.7 s** here, and `run_one`
+re-timed that clean run for EVERY function glob — five globs, **78 minutes of pure re-timing before any
+mutant was generated** — with mutmut's stats pass running the same selection again under tracing. Two
+earlier rows attributed #2590's 98-minute death to the SIZE of the selected functions (2422 lines across
+five) and to a three-function "un-mutatable surface"; that survey measured a real thing which is the
+WRONG QUANTITY, and the gap it reported sizes nothing about the gate. The remedy that shipped (#2776) is
+once-per-module timing plus a pre-work refusal and a wall bound, not a size rule. ⚠️ `PREWORK_TRACE_FACTOR
+= 2.0` is an ASSUMPTION labelled as such in `capture-host/mutation_diff.py`; the stats-pass cost has not
+been measured on `capture.py` and the refusal prints the clean time it multiplied so a reader can check.
 
 ⚠️ **The compile is paid ONCE PER RUN, not per mutant** — mutmut imports the module in the parent and
 `fork()`s children that inherit it. That is why webmon averaged 1.5 s/mutant while its module took 26

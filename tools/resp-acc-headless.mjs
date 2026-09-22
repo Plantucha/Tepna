@@ -31,6 +31,15 @@
  * announced "0 of 193 name-matching" three lines before the page grouped 188 nights from them.
  * The pre-flight now CALLS `sessionStamp`, so there is one rule and it cannot drift again.
  *
+ * WHICH PAPER GETS WHICH FIGURE (settled 2026-09-22, residue 2026-09-20-sibling-papers-have-no-figure-source):
+ *   · `papers/acc-respiratory-rate.html`  — Bland-Altman · coverage · per-night MAE   (3, since 2026-09-20)
+ *   · `papers/cpap-flow-reference.html`   — reference self-noise · clock drift        (2, added here)
+ *   · `papers/effort-typing-null.html`    — NONE, deliberately. The row left "does this paper NEED a
+ *     figure" explicitly NOT ASSESSED. Assessed: it is a negative result whose evidence is two tables,
+ *     with zero figure references in its text, and its DRAFT condition is the corpus regeneration, not
+ *     an image. Emitting something for it would be the fabricated close the row warned about, so this
+ *     tool writes nothing for it and says so here rather than leaving a silent absence.
+ *
  * Stage by HARDLINK, not copy — an ACC night is ~300 MB:
  *     T=/path/staged; mkdir -p "$T/CPAP/20260610"
  *     ln "<corpus>/Polar_H10_..._20260610_211538_ACC.txt" "$T/"
@@ -41,7 +50,9 @@
  *   node tools/resp-acc-headless.mjs <staged-dir> [--url http://127.0.0.1:8080] [--figures <out-dir>]
  *   (serve the repo first: python3 -m http.server 8080 --bind 127.0.0.1)
  *
- * `--figures <out-dir>` writes the page's three canvases — Bland-Altman, coverage, per-night MAE — as
+ * `--figures <out-dir>` writes the page's FIVE canvases — Bland-Altman, coverage and per-night MAE for
+ * `papers/acc-respiratory-rate.html`, plus reference self-noise and clock drift for
+ * `papers/cpap-flow-reference.html` (2026-09-22) — as
  * PNGs named exactly as the page's own download buttons name them, so a run reproduces the published
  * figures rather than a look-alike. Read straight off the live canvas via `toDataURL`; nothing is
  * re-plotted here, so there is no second drawing implementation to drift from the one on screen.
@@ -348,7 +359,15 @@ if (FIGDIR) {
   const FIGS = [
     ['figBA', 'acc-resp-bland-altman.png'],
     ['figCov', 'acc-resp-coverage.png'],
-    ['figNights', 'acc-resp-per-night.png']
+    ['figNights', 'acc-resp-per-night.png'],
+    /* THE SIBLING PAPER'S TWO (residue 2026-09-20-sibling-papers-have-no-figure-source). Same page,
+       same run, same live canvases — `papers/cpap-flow-reference.html` §3.1 and §3.2 were plotted as
+       tables only, so the paper carried zero images while its own status line said it stays a DRAFT
+       until figures are emitted here. The third sibling, `papers/effort-typing-null.html`, is NOT in
+       this list and owes nothing: it is a negative result with two tables and no figure reference in
+       its text — see this tool's header note. */
+    ['figRefFloor', 'cpap-reference-self-noise.png'],
+    ['figDrift', 'cpap-clock-drift.png']
   ];
   fs.mkdirSync(FIGDIR, { recursive: true });
   console.log('\n▸ FIGURES → ' + FIGDIR);
