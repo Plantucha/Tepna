@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED (owner-ordered 2026-09-22 — *"do deep audit of logic for all devices how data is captured, this data loss is unacceptable"*; §1–§4 are the audit, measured on the box; §5 is the remedy, awaiting the owner's ruling on R1) · **Created:** 2026-09-22
+**Status:** IN-PROGRESS (owner-ordered 2026-09-22 — *"do deep audit of logic for all devices how data is captured, this data loss is unacceptable"*; §1–§4 are the audit, measured on the box. **Owner rulings 2026-09-22 (relayed by Kestrel, option labels verbatim): R1 = "Per-unit can-charge capability"; R2–R4 = "Yes, all three".** R1 + R2 BUILT the same day (`should_drop_not_worn(can_charge=)` reads devcaps `can_charge`, recorded where a charge is MEASURED — `battery-rose`, `pmd-in-charger`; absent ⇒ never dropped, and the flat-at-full inference never fires); R4 and R3 next, in that order) · **Created:** 2026-09-22
 
 # CAPTURE-LOSS-PRECEDENCE-AUDIT — where the box loses a night it was wearing, measured
 
@@ -147,9 +147,9 @@ the tripwire that would have caught 09-03 (25 fragments) eighteen nights before 
 
 ## 6 · Done when
 
-- [ ] Owner ruling on R1 (capability-gated drop vs config-off on the H10).
-- [ ] R1–R2 built and gate-tested with the 09-21/22 shape as the plant (a full flat battery + a beat
-      on a unit with no observed charge ⇒ worn, no drop, no inference).
+- [x] Owner ruling on R1 (capability-gated drop vs config-off on the H10) — **"Per-unit can-charge capability"**, 2026-09-22.
+- [x] R1–R2 built and gate-tested with the 09-21/22 shape as the plant (a full flat battery + a beat
+      on a unit with no observed charge ⇒ worn, no drop, no inference) — 2026-09-22, the Verity-in-SDK-mode plant too.
 - [ ] R3: the precedence table is code + a printed test artefact; this brief's §2 is diffed against it.
 - [ ] R4: `LOSS-AUDIT.json` beside every night's QC summary; the 09-20 and 09-21 nights re-audited
       read FAIL with `daemon:not-worn drop` as the named cause.
