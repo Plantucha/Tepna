@@ -19,8 +19,112 @@
  *
  * Run: BASE_URL=http://127.0.0.1:8080 node tests/browser-gates.mjs
  */
-import { chromium } from 'playwright';
-import { launch } from '../tools/pw-launch.mjs';
+import { aggregateChildren, makeVerdict } from '../tools/verdict-emit.mjs';
+
+/* ── VERDICT-CONTRACT §3d — the four browser legs as ONE object ──────────────────────────────────
+   Children = the legs this invocation runs (test-suite · provenance · no-network · night-seal), each
+   read from its own FAILS delta (provenance `leg`): no failure ⇒ PASS, ≥ 1 ⇒ FAIL, a leg that THREW
+   (a crashed renderer, a timeout the leg did not catch) ⇒ UNKNOWN — it decided nothing. NN_ONLY /
+   SEAL_ONLY select one leg and are DECLARED exclusions ⇒ filtered:true with the consumer rule (the
+   no-network workflow runs one leg on purpose; it is that workflow's gate, not this one's). The
+   night-seal leg already READS verify-seals' tepna.verdict/1 (`verdictValid`), so this runner is a
+   consumer one level up. `--json` prints the object on stdout; the exit code stays. The playwright
+   import is DYNAMIC so `--selftest` / `--verdict-sample` run where no browser is installed. */
+export const LEGS = ['Dex-Test-Suite.html?full', 'verify-provenance.html', 'no-network.html', 'night-seal (OverDex.html)'];
+export function browserGatesVerdict(legs, { selectedBy = null, commit, commitReason, at } = {}) {
+  const ran = legs.map((l) => ({
+    name: l.name,
+    provenance: 'leg',
+    status: l.threw ? 'UNKNOWN' : l.fails.length ? 'FAIL' : 'PASS',
+    ...(l.threw ? { why: String(l.threw).slice(0, 160) } : l.fails.length ? { why: l.fails[0].split('\n')[0].slice(0, 160) } : {})
+  }));
+  const missing = LEGS.filter((n) => !legs.some((l) => l.name === n));
+  /* a leg not run under a selector is a DECLARED exclusion; without one it is an unplanned NOT_RUN
+     child — the aggregation makes the run UNKNOWN, never green (a leg list edited without a selector). */
+  const children = selectedBy ? ran : [...ran, ...missing.map((name) => ({ name, provenance: 'not-run' }))];
+  const agg = aggregateChildren(children, { eligible: LEGS.length, declaredExcluded: selectedBy ? missing : [], excludedBy: selectedBy });
+  let { result } = agg;
+  if (result) result = { ...result, fails: legs.reduce((a, l) => a + l.fails.length, 0), children: result.children.map((c, i) => ({ ...c, ...(ran[i] && ran[i].why ? { why: ran[i].why } : {}) })) };
+  return makeVerdict({
+    gate: 'browser-gates',
+    status: agg.status,
+    population: agg.population,
+    criterion: CRIT,
+    result,
+    evidence: EV,
+    reason: agg.reason,
+    tool: 'tests/browser-gates.mjs',
+    commit,
+    commitReason,
+    at
+  });
+}
+const CRIT = {
+  name: "legs_failing (each browser leg reads its page's OWN DOM verdict; a leg that threw is UNKNOWN; NN_ONLY / SEAL_ONLY are declared exclusions)",
+  threshold: 0,
+  unit: 'failing legs',
+  direction: 'eq'
+};
+const EV = ['Dex-Test-Suite.html', 'verify-provenance.html', 'no-network.html', 'OverDex.html', 'capture-host/tests/vectors/tepna-seal-1/'];
+
+export function verdictSample() {
+  return browserGatesVerdict(
+    LEGS.map((name) => ({ name, fails: [], threw: null })),
+    { commit: null, commitReason: '--verdict-sample: four scratch legs, no browser launched, no code identity claimed', at: '2026-09-22T00:00:00Z' }
+  );
+}
+
+function selftest() {
+  let n = 0;
+  const eq = (a, b, msg) => {
+    n++;
+    if (a !== b) {
+      console.log(`✗ ${msg}: expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`);
+      process.exit(1);
+    }
+    console.log(`✓ ${msg}`);
+  };
+  const AT = { commit: null, commitReason: 'selftest', at: '2026-09-22T00:00:00Z' };
+  const L = (name, fails = [], threw = null) => ({ name, fails, threw });
+  const all = LEGS.map((name) => L(name));
+  const green = browserGatesVerdict(all, AT);
+  eq(green.status === 'PASS' && green.population.checked === 4 && green.result.filtered === false, true, '§3d · four clean legs ⇒ PASS over 4/4');
+  const red = browserGatesVerdict([L(LEGS[0], ['Dex-Test-Suite RED — 2 failing']), L(LEGS[1]), L(LEGS[2]), L(LEGS[3])], AT);
+  eq(red.status === 'FAIL' && /Dex-Test-Suite/.test(red.reason), true, '§3d plant · a red leg ⇒ FAIL, named');
+  const crashed = browserGatesVerdict([L(LEGS[0], [], 'Error: page crashed'), L(LEGS[1]), L(LEGS[2]), L(LEGS[3])], AT);
+  eq(crashed.status === 'UNKNOWN' && /page crashed/.test(crashed.reason), true, '§3d plant · a leg that THREW ⇒ UNKNOWN (it decided nothing), never green');
+  const nn = browserGatesVerdict([L(LEGS[2])], { ...AT, selectedBy: 'NN_ONLY=1' });
+  eq(
+    nn.status === 'PASS' && nn.result.filtered === true && nn.result.excludedBy === 'NN_ONLY=1' && JSON.stringify(nn.population) === JSON.stringify({ checked: 1, eligible: 4, excluded: 3 }),
+    true,
+    '§3d plant · NN_ONLY ⇒ a declared exclusion: PASS over 1/4, filtered'
+  );
+  eq(/NOT the gate/.test(nn.result.consumerRule || ''), true, '§3d plant · …with the consumer rule');
+  const missing = browserGatesVerdict([L(LEGS[0]), L(LEGS[1]), L(LEGS[2])], AT);
+  eq(
+    missing.status === 'UNKNOWN' && /night-seal/.test(missing.reason) && missing.population.excluded === 1,
+    true,
+    '§3d plant · a leg missing with NO selector ⇒ an unplanned NOT_RUN: UNKNOWN, the leg named, counted excluded'
+  );
+  eq(browserGatesVerdict([], AT).status, 'NOT_RUN', '§3d plant · nothing ran ⇒ NOT_RUN');
+  eq(verdictSample().status === 'PASS' && verdictSample().producedBy.commit === null, true, '§3d · --verdict-sample: four scratch legs ⇒ PASS, no commit');
+  console.log(`all ${n} selftests passed`);
+}
+
+const ARGV = process.argv.slice(2);
+if (ARGV.includes('--selftest')) {
+  selftest();
+  process.exit(0);
+}
+if (ARGV.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
+const JSON_OUT = ARGV.includes('--json');
+const say = (...a) => (JSON_OUT ? console.error(...a) : console.log(...a)); // --json: stdout carries ONE object
+
+const { chromium } = await import('playwright');
+const { launch } = await import('../tools/pw-launch.mjs');
 
 const BASE = (process.env.BASE_URL || 'http://127.0.0.1:8080').replace(/\/$/, '');
 const FAILS = [];
@@ -36,12 +140,12 @@ const ctx = await browser.newContext({ viewport: { width: 1280, height: 1600 } }
 async function gateTestSuite() {
   const page = await ctx.newPage();
   let crashed = false;
-  page.on('pageerror', (e) => console.log('   [suite page error]', e.message));
+  page.on('pageerror', (e) => say('   [suite page error]', e.message));
   page.on('crash', () => {
     crashed = true;
-    console.log('   [suite] RENDERER CRASHED (page "crash" event) — almost always /dev/shm OOM booting the app bundles');
+    say('   [suite] RENDERER CRASHED (page "crash" event) — almost always /dev/shm OOM booting the app bundles');
   });
-  console.log('▸ Dex-Test-Suite.html …');
+  say('▸ Dex-Test-Suite.html …');
   // ?full is REQUIRED: render-coverage is ON-DEMAND (lazy, 2026-06-30). A bare open paints only the
   // headless floor and never boots the rigs → __rcState stays 'pending' and the wait below times out.
   await page.goto(BASE + '/Dex-Test-Suite.html?full', { waitUntil: 'load', timeout: 60000 });
@@ -126,9 +230,9 @@ async function gateTestSuite() {
       .filter((t) => t.length > 0),
     failTotal: document.querySelectorAll('div.test.no').length
   }));
-  console.log('   summary:', r.summary + (r.bootSkips.length ? '   [boot-skips: ' + r.bootSkips.join(', ') + ']' : ''));
-  r.failures.forEach((f) => console.log('   ✕', f));
-  if (r.failTotal > r.failures.length) console.log('   … and ' + (r.failTotal - r.failures.length) + ' more (listing capped at 25)');
+  say('   summary:', r.summary + (r.bootSkips.length ? '   [boot-skips: ' + r.bootSkips.join(', ') + ']' : ''));
+  r.failures.forEach((f) => say('   ✕', f));
+  if (r.failTotal > r.failures.length) say('   … and ' + (r.failTotal - r.failures.length) + ' more (listing capped at 25)');
   if (r.hasFail) FAILS.push('Dex-Test-Suite RED — ' + r.summary + (r.failures.length ? '\n     ' + r.failures.join('\n     ') : ''));
   await page.close();
 }
@@ -136,8 +240,8 @@ async function gateTestSuite() {
 /* ── Gate 2 · verify-provenance (build manifest + fixture audit) ──────────── */
 async function gateProvenance() {
   const page = await ctx.newPage();
-  page.on('pageerror', (e) => console.log('   [provenance page error]', e.message));
-  console.log('▸ verify-provenance.html …');
+  page.on('pageerror', (e) => say('   [provenance page error]', e.message));
+  say('▸ verify-provenance.html …');
   await page.goto(BASE + '/verify-provenance.html', { waitUntil: 'load', timeout: 60000 });
   // Manifest appends one row per bundle (8). Wait for all, then a short settle
   // so the (best-effort) fixture audit finishes too.
@@ -157,7 +261,7 @@ async function gateProvenance() {
       reds: reds.map((e) => (e.closest('tr')?.innerText || '').replace(/\s+/g, ' ').trim()).slice(0, 30)
     };
   });
-  console.log(`   ${out.bundles} bundles · ${out.fixtures} fixtures audited`);
+  say(`   ${out.bundles} bundles · ${out.fixtures} fixtures audited`);
   if (out.reds.length) FAILS.push('verify-provenance RED verdicts:\n   - ' + out.reds.join('\n   - '));
   await page.close();
 }
@@ -165,8 +269,8 @@ async function gateProvenance() {
 /* ── Gate 3 · no-network invariant (privacy: 0 remote egress across the shipped surfaces) ── */
 async function gateNoNetwork() {
   const page = await ctx.newPage();
-  page.on('pageerror', (e) => console.log('   [no-network page error]', e.message));
-  console.log('▸ no-network.html …');
+  page.on('pageerror', (e) => say('   [no-network page error]', e.message));
+  say('▸ no-network.html …');
   await page.goto(BASE + '/no-network.html', { waitUntil: 'load', timeout: 60000 });
   // Read the gate's OWN verdict (window.__noNetworkOK + noNetworkStatus()), never scrape prose.
   // It boots the 8 bundles + 2 orchestrators in trapped iframes; an unsettled boot is a SKIP inside
@@ -179,7 +283,7 @@ async function gateNoNetwork() {
     return;
   }
   const s = await page.evaluate(() => (window.noNetworkStatus ? window.noNetworkStatus() : { ok: window.__noNetworkOK }));
-  console.log(
+  say(
     '   static:' +
       s.static +
       ' runtime:' +
@@ -229,8 +333,8 @@ async function gateNoNetwork() {
    — eight enumerated, eight seen. `consent absent` is the one that must NOT refuse (reads null). */
 async function gateNightSeal() {
   const page = await ctx.newPage();
-  page.on('pageerror', (e) => console.log('   [overdex page error]', e.message));
-  console.log('▸ OverDex.html · sealed night (tepna-seal/1) …');
+  page.on('pageerror', (e) => say('   [overdex page error]', e.message));
+  say('▸ OverDex.html · sealed night (tepna-seal/1) …');
   await page.goto(BASE + '/OverDex.html', { waitUntil: 'load', timeout: 60000 });
   const { readFileSync } = await import('node:fs');
   const { join, dirname } = await import('node:path');
@@ -322,7 +426,7 @@ async function gateNightSeal() {
     return;
   }
   const v = r.vector;
-  console.log('   vector:', v.status, v.badge, '· streams', JSON.stringify(v.streams), '· verdict', v.verdictStatus, v.verdictValid ? 'valid' : 'INVALID');
+  say('   vector:', v.status, v.badge, '· streams', JSON.stringify(v.streams), '· verdict', v.verdictStatus, v.verdictValid ? 'valid' : 'INVALID');
   if (v.status !== 'PASS') FAILS.push('night-seal: the committed vector did not open as PASS — ' + v.status + ' ' + (v.kind || ''));
   if (!(v.streams && v.streams.opened === 3 && v.streams.verified === 3 && v.streams.tampered.length === 0))
     FAILS.push('night-seal: vector streams ' + JSON.stringify(v.streams) + ', want 3 opened / 3 verified / 0 tampered');
@@ -331,11 +435,11 @@ async function gateNightSeal() {
   if (!v.items.some((it) => /^TESTBOX0-2026-09-20\//.test(it.rel))) FAILS.push('night-seal: the unsealed streams did not enter the manifest under <boxId>-<night>/');
   // the EIGHT plants — an equality on the count, each by name
   const names = Object.keys(r.plants);
-  console.log('   plants seen:', names.length, '—', names.join(' · '));
+  say('   plants seen:', names.length, '—', names.join(' · '));
   if (names.length !== 8) FAILS.push('night-seal: ' + names.length + ' plants seen, the denominator is EIGHT');
   for (const [name, o] of Object.entries(r.plants)) {
     const tag = '   plant ' + name + ': ' + o.status + ' ' + (o.kind || '') + (o.badge ? ' — ' + o.badge : '');
-    console.log(tag);
+    say(tag);
     if (o.expect === null) {
       if (o.status !== 'PASS' || o.consent !== null) FAILS.push('night-seal plant "' + name + '": must OPEN with consent null, got ' + o.status + ' consent=' + JSON.stringify(o.consent));
     } else if (o.expect.indexOf('manifest:') === 0) {
@@ -354,21 +458,44 @@ async function gateNightSeal() {
 
 // NN_ONLY=1 → run just the fast no-network gate (its own lightweight workflow, on every push);
 // default → run all three (rides the on-demand browser-gates workflow).
+/* §3d — each leg records its own FAILS delta and whether it threw; the object is built from these. */
+const LEG_RESULTS = [];
+async function leg(name, fn) {
+  const before = FAILS.length;
+  let threw = null;
+  try {
+    await fn();
+  } catch (e) {
+    threw = (e && e.message) || String(e);
+    FAILS.push(name + ': threw — ' + threw);
+  }
+  LEG_RESULTS.push({ name, fails: FAILS.slice(before), threw });
+}
+let selectedBy = null;
 if (process.env.NN_ONLY) {
-  await gateNoNetwork();
+  selectedBy = 'NN_ONLY=1';
+  await leg(LEGS[2], gateNoNetwork);
 } else if (process.env.SEAL_ONLY) {
   // SEAL_ONLY=1 → just the sealed-night leg (seconds; for iterating on the reader)
-  await gateNightSeal();
+  selectedBy = 'SEAL_ONLY=1';
+  await leg(LEGS[3], gateNightSeal);
 } else {
-  await gateTestSuite();
-  await gateProvenance();
-  await gateNoNetwork();
-  await gateNightSeal();
+  await leg(LEGS[0], gateTestSuite);
+  await leg(LEGS[1], gateProvenance);
+  await leg(LEGS[2], gateNoNetwork);
+  await leg(LEGS[3], gateNightSeal);
 }
 await browser.close();
 
+const verdict = browserGatesVerdict(LEG_RESULTS, { selectedBy });
+if (JSON_OUT) console.log(JSON.stringify(verdict));
+else
+  say(
+    `  tepna.verdict/1: ${verdict.status}  ·  ${verdict.population.checked} checked / ${verdict.population.eligible} eligible / ${verdict.population.excluded} excluded${verdict.result && verdict.result.filtered ? '  ·  FILTERED (' + verdict.result.excludedBy + ') — not the gate' : ''}`
+  );
+/* THE EXIT CODE STAYS — CI reads it until the consumer reads the object (§3d). */
 if (FAILS.length) {
   console.error('\n✕ BROWSER GATES FAILED:\n' + FAILS.map((f) => '  ' + f).join('\n'));
   process.exit(1);
 }
-console.log('\n✓ browser gates passed (render-coverage + provenance + no-network + night-seal)');
+say('\n✓ browser gates passed (render-coverage + provenance + no-network + night-seal)');
