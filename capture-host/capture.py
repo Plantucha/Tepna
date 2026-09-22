@@ -10,9 +10,12 @@
 
 from __future__ import annotations
 import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
+import build_id
 from writers import (ContactLedger, StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
-                     HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, capture_filename, missing_identity,
-                     night_dir, open_sample_writers)
+                     HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, append_daemon_start,
+                     append_pmd_negotiation, capture_filename, missing_identity, night_dir,
+                     open_sample_writers)
+import writers                       # the MODULE too: the live loss guard asks it for the open set
 from typing import Any, Iterable
 
 import proc_util
@@ -3699,6 +3702,16 @@ async def run_polar(dev: dict, root: str):
                                     break
                                 if transient:
                                     break                 # retrying the fixed cmd cannot help while charging
+                            # WRITE THE NEGOTIATION INTO THE NIGHT, refused or not (residue
+                            # 2026-09-22-negotiated-pmd-rate-not-written). The warning above fires
+                            # only when the config and the device disagree, and STATUS forgets; this
+                            # is the durable answer to "what was this stream captured at", beside the
+                            # stream rather than in a journal that rotates. A REFUSED start is logged
+                            # too — it is exactly the case a rate inferred from rows cannot see.
+                            append_pmd_negotiation(
+                                root, _now(), name, addr, pmd.MEAS_NAME.get(meas, str(meas)),
+                                requested=_prefer, offered=settings.get(0x00) if settings else None,
+                                chosen=used_fs, ack=pmd.CTRL_STATUS.get(st, hex(st)), how=how)
                             if pmd_started:                  # record + re-register at the ACTUAL negotiated rate
                                 stream_fs[meas] = used_fs
                                 if (meas == pmd.PPG and not calibrated_for(used_fs)
@@ -5896,6 +5909,12 @@ def status_path(root: str, instance: str | None = None) -> str:
     return os.path.join(root, "captures", name)
 
 
+# What `live_loss_check` saw last pass: {path: (size, inode)}. Module-level for the same reason
+# `_BATT_FLAT_SINCE` is — a snapshot inside the loop body would be re-created on every iteration and
+# the check would never have a prior observation to compare against.
+_LIVE_LOSS_SEEN: dict = {}
+
+
 async def status_loop(root: str, data_stale_sec: float = 120.0):
     path = status_path(root, INSTANCE)
     while not _STOP.is_set():
@@ -5935,6 +5954,36 @@ async def status_loop(root: str, data_stale_sec: float = 120.0):
         # same as the comment it replaced — an answer nobody has to look at.
         STATUS["devcaps"] = devcaps.snapshot()
         STATUS["gates"] = gate_state()
+        # LIVE LOSS GUARD (residue 2026-09-20-no-loss-guard-during-live-capture). `oxy_inventory.
+        # reconcile()` already classifies a lost recording, but it is reached only at PULL and
+        # COLD-START boundaries; the incident that opened the row was a LIVE session losing two files
+        # mid-session, with nothing looking at the files the daemon believed it was writing. This is
+        # that look: every open writer's path, stat'd against what the last pass saw — a file that
+        # vanished, shrank, or was replaced under the same name. The snapshot lives here (one loop, one
+        # owner), so the first pass after a restart only establishes a baseline.
+        global _LIVE_LOSS_SEEN
+        try:
+            _findings, _LIVE_LOSS_SEEN = await asyncio.to_thread(writers.live_loss_check, _LIVE_LOSS_SEEN)
+        except Exception:  # noqa: BLE001 — a guard that cannot run must not end the status loop
+            log.warning("live-loss check failed this round", exc_info=True)
+            _findings = []
+        for _f in _findings:
+            log.error("LIVE LOSS: %s %s (%s) — a file this daemon is writing %s", _f["kind"],
+                      os.path.basename(_f["path"]), _f["detail"],
+                      {"missing": "is gone from disk", "shrank": "lost bytes",
+                       "replaced": "is no longer the file we opened"}[_f["kind"]])
+        # `findings` is THIS pass — a clean pass publishes an empty list rather than leaving the last
+        # loss standing as if it were current — and `last`/`last_at` keep the most recent event visible,
+        # because a file lost at 02:00 is still the night's fact at 08:00.
+        _ll = STATUS.setdefault("live_loss", {})
+        _ll["findings"] = _findings
+        _ll["open_files"] = len(writers.open_writer_paths())
+        if _findings:
+            _ll["last"], _ll["last_at"] = _findings, _now().isoformat(timespec="seconds")
+            if _NOTIFIER is not None:
+                await _NOTIFIER.send("Tepna: a live capture file was lost",
+                                     "; ".join(f"{f['kind']} {os.path.basename(f['path'])} ({f['detail']})"
+                                               for f in _findings), key="live-loss")
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             _tmp = path + ".tmp"
@@ -11020,6 +11069,13 @@ async def main():
         "adapter_resolved": _hci,
         "adapter_ok": ADAPTER is None or bool(_hci),   # a pinned-but-unresolved adapter is the failure
     }
+    # …AND INTO THE NIGHT, not only into a status field the next write erases and a journal that
+    # rotates (residue 2026-09-10-daemon-restarts-are-idle-gated). `started_at` above makes THIS start
+    # visible; the sidecar makes the night's starts COUNTABLE afterwards, which is what the count was
+    # being re-derived from `journalctl` for.
+    _bid = build_id.probe(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    append_daemon_start(root, _now(), pid=os.getpid(), git=_bid.get("git"),
+                        dirty=_bid.get("dirty"), adapter=ADAPTER)
     await startup_defense_check(_hci, cfg)    # LOUD-warn if a wedge defense is disarmed (§P1.4)
     log.info("tepna-capture up: %d device(s), root=%s", len(cfg.get("devices", [])), root)
     sdnotify.sd_notify("READY=1")             # Type=notify: `systemctl start` unblocks once capture is up

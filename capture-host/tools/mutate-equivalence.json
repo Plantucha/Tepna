@@ -4153,6 +4153,62 @@
       "key": "- hi = max((getattr(n, \"end_lineno\", lo) or lo) ...) | + getattr(n, \"end_lineno\", None)",
       "probe": "Direct: functions_covering() over a module-level function, a method, and a function nested inside a method, targeting the def line and body lines in each. Identical in every case. Also covered by the 2004-diff canary-validated corpus used for this module's other entries.",
       "why": "A PROOF: the getattr default is consumed immediately by `or lo`. If `end_lineno` is absent the original yields `lo or lo` and the mutant `None or lo` — both `lo`. The two can only differ if `lo` itself were falsy, and `lo` is `child.lineno`, a 1-based line number that is always >= 1. So no AST, and no input, distinguishes them."
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- [\"git\", \"ls-files\", \"-z\"], cwd=str(root), capture_output=True, text=True, timeout=60, check=True | + [\"git\", \"ls-files\", \"-z\"], cwd=str(root), capture_output=True, text=True, timeout=None, check=True",
+      "probe": "ran the call both ways: cwd=<tmp non-repo> raises CalledProcessError in ms; cwd=None returns 530 paths in ms — no fixture reaches 60 s. Validated on the run that produced these survivors (#2872's branch): 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — the timeout VALUE is unobservable. `git ls-files` returns in milliseconds on every tree a fixture can build, so 60, 61, None and no-timeout-at-all take the same branch. Distinguishing them needs a `git` that hangs for a minute, which this suite cannot produce without a sleeping stub on PATH — a fixture that would test the stub, not this call.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- [\"git\", \"ls-files\", \"-z\"], cwd=str(root), capture_output=True, text=True, timeout=60, check=True | + [\"git\", \"ls-files\", \"-z\"], cwd=str(root), capture_output=True, text=True, check=True",
+      "probe": "ran the call both ways: cwd=<tmp non-repo> raises CalledProcessError in ms; cwd=None returns 530 paths in ms — no fixture reaches 60 s. Validated on the run that produced these survivors (#2872's branch): 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — the timeout VALUE is unobservable. `git ls-files` returns in milliseconds on every tree a fixture can build, so 60, 61, None and no-timeout-at-all take the same branch. Distinguishing them needs a `git` that hangs for a minute, which this suite cannot produce without a sleeping stub on PATH — a fixture that would test the stub, not this call.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- [\"git\", \"ls-files\", \"-z\"], cwd=str(root), capture_output=True, text=True, timeout=60, check=True | + [\"git\", \"ls-files\", \"-z\"], cwd=str(root), capture_output=True, text=True, timeout=61, check=True",
+      "probe": "ran the call both ways: cwd=<tmp non-repo> raises CalledProcessError in ms; cwd=None returns 530 paths in ms — no fixture reaches 60 s. Validated on the run that produced these survivors (#2872's branch): 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — the timeout VALUE is unobservable. `git ls-files` returns in milliseconds on every tree a fixture can build, so 60, 61, None and no-timeout-at-all take the same branch. Distinguishing them needs a `git` that hangs for a minute, which this suite cannot produce without a sleeping stub on PATH — a fixture that would test the stub, not this call.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- by_base[rel.rsplit(\"/\", 1)[-1]].append(rel) | + by_base[rel.rsplit(\"/\", )[-1]].append(rel)",
+      "probe": "2- and 3-segment paths through by_base; docs/deep/deep_fixture.txt is asserted to index as deep_fixture.txt in test_subdir_index_reads_GIT_when_the_root_is_a_checkout. Validated on #2872's branch: 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — `rsplit(sep, 1)` on a string CONTAINING `sep` yields exactly two elements, so `[-1]` and `[+1]` are the same element, and any maxsplit ≥ 1 (or the default -1) leaves the LAST element unchanged. `rel` always contains `/` here: the loop skips anything with fewer than two path segments.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- by_base[rel.rsplit(\"/\", 1)[-1]].append(rel) | + by_base[rel.rsplit(\"/\", 2)[-1]].append(rel)",
+      "probe": "2- and 3-segment paths through by_base; docs/deep/deep_fixture.txt is asserted to index as deep_fixture.txt in test_subdir_index_reads_GIT_when_the_root_is_a_checkout. Validated on #2872's branch: 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — `rsplit(sep, 1)` on a string CONTAINING `sep` yields exactly two elements, so `[-1]` and `[+1]` are the same element, and any maxsplit ≥ 1 (or the default -1) leaves the LAST element unchanged. `rel` always contains `/` here: the loop skips anything with fewer than two path segments.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- by_base[rel.rsplit(\"/\", 1)[-1]].append(rel) | + by_base[rel.rsplit(\"/\", 1)[+1]].append(rel)",
+      "probe": "2- and 3-segment paths through by_base; docs/deep/deep_fixture.txt is asserted to index as deep_fixture.txt in test_subdir_index_reads_GIT_when_the_root_is_a_checkout. Validated on #2872's branch: 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — `rsplit(sep, 1)` on a string CONTAINING `sep` yields exactly two elements, so `[-1]` and `[+1]` are the same element, and any maxsplit ≥ 1 (or the default -1) leaves the LAST element unchanged. `rel` always contains `/` here: the loop skips anything with fewer than two path segments.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if lit.split(\"/\", 1)[0] == tree.name: | + if lit.split(\"/\", )[0] == tree.name:",
+      "probe": "2- and 3-segment capture-host/… literals; the 3-segment case kills the rsplit sibling, and neither maxsplit variant changes [0]. Validated on #2872's branch: 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — `[0]` is the FIRST segment whatever the maxsplit: `split('/', 1)[0]`, `split('/', 2)[0]` and `split('/')[0]` all return the text before the first separator. ⚠️ The sibling mutation `split(None, 1)` is NOT equivalent — it splits on whitespace — and is killed by test_root_reads_excludes_the_TREE_ITSELF_by_its_first_segment.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
+    },
+    {
+      "class": "no-distinguishing-input",
+      "key": "- if lit.split(\"/\", 1)[0] == tree.name: | + if lit.split(\"/\", 2)[0] == tree.name:",
+      "probe": "2- and 3-segment capture-host/… literals; the 3-segment case kills the rsplit sibling, and neither maxsplit variant changes [0]. Validated on #2872's branch: 14 → 6, no REFUTED.",
+      "why": "EQUIVALENT — `[0]` is the FIRST segment whatever the maxsplit: `split('/', 1)[0]`, `split('/', 2)[0]` and `split('/')[0]` all return the text before the first separator. ⚠️ The sibling mutation `split(None, 1)` is NOT equivalent — it splits on whitespace — and is killed by test_root_reads_excludes_the_TREE_ITSELF_by_its_first_segment.",
+      "brief": "#2872 — root_reads sees the whole read (entries filed in the follow-up)"
     }
   ],
   "mutation_pure.py": [

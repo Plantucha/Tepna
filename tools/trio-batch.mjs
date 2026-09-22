@@ -77,7 +77,7 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
 /* t0 from the file's first data row — see tools/trio-anchor.mjs for the rule and why the name is not it. */
 import { anchoredRec, startOf } from './trio-anchor.mjs';
-import { join, dirname, resolve, basename } from 'node:path';
+import { join, dirname, resolve, basename, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import os from 'node:os';
@@ -278,6 +278,26 @@ function legEvidence(pick) {
   }
   return out;
 }
+/* WHAT A FINISHED CHILD PRINTS — pure, so `--selftest` can pin the rule that was broken. The bug it
+   exists to prevent: the failure tail used to be emitted only when `body` was EMPTY, so a child that
+   died after printing its per-node results had its abort message discarded — the one case where it was
+   the only evidence. The rule now: a non-zero exit ALWAYS contributes the child's last `tailLines`
+   lines, whatever else it said. `body` is the filtered result lines, `out` the child's raw stdout+stderr. */
+function childReport(code, body, out, tailLines = 12) {
+  const parts = [];
+  if (body) parts.push(body);
+  if (code !== 0) {
+    const tail = String(out || '')
+      .trim()
+      .split('\n')
+      .slice(-tailLines)
+      .map((l) => '    ! ' + l)
+      .join('\n');
+    if (tail) parts.push(tail);
+  }
+  return parts.join('\n');
+}
+
 function nightVerdict(key, status, { offered, judged, result, reason, evidence }) {
   const v = Verdict.make({
     gate: 'trio-batch-night',
@@ -470,6 +490,53 @@ if (flag('--selftest')) {
     eq('…the night key rides as an extension field', pass.night, '2026-01-01');
     const f = nightVerdict('2026-01-02', 'FAIL', { offered: 8, judged: 3, result: { overlapH: 0.4 }, reason: 'three-way merged overlap 0.4 h < 1 h', evidence: ['synthetic'] });
     eq('FAIL night validates, reason names the hours', val(f) === true && /0\.4 h/.test(f.reason), true);
+    // THE FAILURE TAIL IS NOT CONDITIONAL ON SILENCE (2026-09-22). `childReport` used to be an
+    // `if (!body)` at the call site, so a child that died AFTER printing results said nothing about why.
+    const withBoth = childReport(1, '    ✓ ECGDex 80 epochs', 'noise\nFATAL ERROR: Reached heap limit', 12);
+    eq('a failed child that ALSO printed results still shows its tail', /Reached heap limit/.test(withBoth) && /✓ ECGDex/.test(withBoth), true);
+    eq('…the tail is marked so it cannot be read as a result line', /^ {4}! /m.test(withBoth), true);
+    eq('a failed child that said nothing else still shows its tail', /heap/.test(childReport(null, '', 'boom: heap', 12)), true);
+    eq('a SUCCESSFUL child shows its results and no tail', childReport(0, '    ✓ ok', 'chatter\nmore chatter', 12), '    ✓ ok');
+    eq('a successful silent child prints nothing at all', childReport(0, '', 'chatter', 12), '');
+    eq('the tail is bounded to the requested number of lines', childReport(1, '', 'a\nb\nc\nd', 2).split('\n').length, 2);
+    /* ── ONE RECORDING, INGESTED ONCE (2026-09-22) ──────────────────────────────────────────────
+       The planted case is the real one: the same basename reached the walk from six roots. The
+       property the separation depends on is stated so nobody relaxes it later — a capture basename
+       carries device + stream + full start timestamp, so two files sharing one ARE one recording. */
+    const six = ['uploads/Ecg nightly', '.mrr-full-hrn', '.mrr-10', '.mrr-eve-test', '.mrr-pilot-hrn', '.stage-respacc-papers'].map((d) => ({
+      name: 'Polar_H10_02849638_20260606_220647_ACC.txt',
+      full: d + '/Polar_H10_02849638_20260606_220647_ACC.txt',
+      bytes: 341_312_512
+    }));
+    const d6 = dedupeStream(six);
+    eq('six copies of one recording collapse to ONE (main ingests all 6)', JSON.stringify([six.length, d6.kept.length]), '[6,1]');
+    eq('…and the dropped paths are a NAMED SET, not a count', d6.dropped.length === 5 && d6.dropped.every((p) => /^\./.test(p)), true);
+    eq('…the copy kept is the CORPUS file, never a staging copy', d6.kept[0].full, 'uploads/Ecg nightly/Polar_H10_02849638_20260606_220647_ACC.txt');
+    eq('…and no conflict is raised when the copies agree', d6.conflicts.length, 0);
+    // The bytes a duplicate ingest would have claimed: 6 × 325.5 MB for 325.5 MB of data.
+    eq('the inflation the drop removes', Math.round((six.reduce((t, r) => t + r.bytes, 0) / d6.kept[0].bytes) * 10) / 10, 6);
+    // DIFFERENT sizes under one basename is an AMBIGUITY, not a copy — refuse, never guess (§∅).
+    const clash = dedupeStream([
+      { name: 'Polar_H10_x_20260606_220647_ECG.txt', full: 'a/Polar_H10_x_20260606_220647_ECG.txt', bytes: 100 },
+      { name: 'Polar_H10_x_20260606_220647_ECG.txt', full: 'b/Polar_H10_x_20260606_220647_ECG.txt', bytes: 101 }
+    ]);
+    eq(
+      'same basename, DIFFERENT size ⇒ a conflict naming both paths and both sizes',
+      JSON.stringify([clash.conflicts.length, clash.conflicts[0].keptBytes, clash.conflicts[0].otherBytes]),
+      '[1,100,101]'
+    );
+    eq(
+      '…and the night is refused rather than folded from a guess',
+      clash.conflicts[0].kept + '|' + clash.conflicts[0].other,
+      'a/Polar_H10_x_20260606_220647_ECG.txt|b/Polar_H10_x_20260606_220647_ECG.txt'
+    );
+    // Distinct recordings are UNTOUCHED — the rule must not convict working behaviour.
+    const distinct = dedupeStream([
+      { name: 'Polar_H10_x_20260717213258_ECG.txt', full: 'a/Polar_H10_x_20260717213258_ECG.txt', bytes: 25 },
+      { name: 'Polar_H10_x_20260717222753_ECG.txt', full: 'a/Polar_H10_x_20260717222753_ECG.txt', bytes: 1 }
+    ]);
+    eq('two DIFFERENT recordings of one night are both kept', JSON.stringify([distinct.kept.length, distinct.dropped.length, distinct.conflicts.length]), '[2,0,0]');
+    eq('a single file is returned unchanged', dedupeStream([{ name: 'x.txt', full: 'a/x.txt', bytes: 1 }]).kept.length, 1);
     const na = nightVerdict('2026-01-03', 'NOT_APPLICABLE', { offered: 2, judged: 0, reason: 'not a trio night — no O2Ring anchor' });
     eq('NOT_APPLICABLE night: checked 0, result null, reason present', val(na) === true && na.population.checked === 0 && na.result === null, true);
     // …AND THE SHAPE THE REAL CALL SITE USED TO PASS IS REFUSED. It handed a `result` with the legs in
@@ -735,6 +802,59 @@ const parse8_6 = (d, t) => utc(+d.slice(0, 4), +d.slice(4, 6), +d.slice(6, 8), +
 // of the same sleep collapse onto one key. See NIGHT BOUNDARY above.
 const nightKeyOf = (tMs) => new Date(tMs - 12 * 3600e3).toISOString().slice(0, 10);
 
+/* ── ONE PHYSICAL RECORDING IS INGESTED ONCE (2026-09-22) ────────────────────────────────────────
+   A capture basename carries device + stream + the full start timestamp, so TWO FILES SHARING A
+   BASENAME ARE THE SAME RECORDING BY CONSTRUCTION. There is no legitimate second case, which is what
+   makes this a detector rather than a heuristic: it cannot convict working behaviour.
+
+   It was not theoretical. A fold pointed at the corpus ROOT ingested `Polar_H10_..._20260606_220647_
+   ACC.txt` SIX times — once from `uploads/Ecg nightly/` and once from each of five staging copies
+   (`.mrr-full-hrn` 4.0 GB / 284 capture files, `.stage-respacc-papers`, `.mrr-10`, `.mrr-eve-test`,
+   `.mrr-pilot-hrn`) — reporting "6 session(s), 1952.8 MB" for 325.5 MB of unique data, and the night
+   then needed 6 GB of heap it does not need. The scoping check that was supposed to catch a bad root
+   compared NIGHT SETS and passed: a set comparison is insensitive to MULTIPLICITY, so "both roots
+   agree on 140 nights" could never have seen a 6× ingest.
+
+   The rule, per stream list:
+     · same basename, same size  ⇒ keep ONE (first by sorted path — deterministic), report the drop
+     · same basename, DIFFERENT size ⇒ REFUSE the night. That is not a copy; it is an ambiguity about
+       which bytes are the recording, and §∅'s ruling applies — a discontinuity refuses, reduced
+       coverage annotates. Guessing here would silently pick one night's data over another's.
+   Drops are a NAMED SET on the night (`n.dropped`), never a count, so the offending paths are visible
+   on the first run rather than on the sixth ingest; `n.conflicts` carries the refusing kind. */
+function dedupeStream(recs) {
+  const byName = new Map();
+  /* Order decides WHICH copy is kept, so it is not arbitrary: a path with no hidden segment wins over
+     one that has (a staging copy must never displace the corpus file), then lexicographic for
+     determinism. The dot-skip in the walk usually removes hidden copies before they reach here; this
+     is what makes the choice right when they do — e.g. a `--src` pointed INSIDE a staging tree. */
+  const hiddenPath = (r) =>
+    String(r.full)
+      .split(sep)
+      .some((seg) => seg.startsWith('.') && seg.length > 1)
+      ? 1
+      : 0;
+  for (const r of [...recs].sort((a, b) => hiddenPath(a) - hiddenPath(b) || String(a.full).localeCompare(String(b.full)))) {
+    const k = basename(r.name || r.full);
+    const seen = byName.get(k);
+    if (!seen) {
+      byName.set(k, { keep: r, dropped: [], conflict: null });
+      continue;
+    }
+    if (Number(seen.keep.bytes) === Number(r.bytes)) seen.dropped.push(r.full);
+    else seen.conflict = { name: k, kept: seen.keep.full, keptBytes: seen.keep.bytes, other: r.full, otherBytes: r.bytes };
+  }
+  const kept = [];
+  const dropped = [];
+  const conflicts = [];
+  for (const v of byName.values()) {
+    kept.push(v.keep);
+    dropped.push(...v.dropped);
+    if (v.conflict) conflicts.push(v.conflict);
+  }
+  return { kept, dropped, conflicts };
+}
+
 const nights = new Map();
 const bump = (key) => {
   if (!nights.has(key)) nights.set(key, { key, ecg: [], acc_h10: [], ppg: [], acc_ver: [], gyro: [], magn: [], oxy: [], o2ppg: [] });
@@ -746,9 +866,26 @@ const bump = (key) => {
 
 // ingest from the same `--src` — the regexes match on the BASENAME, and `readdirSync(recursive:true)`
 // on a flat folder still returns bare filenames, so this is back-compat for the Polar corpus.
+/* HIDDEN DIRECTORIES ARE NOT CAPTURE TREES — and the skip SAYS SO, by name. Five staging copies at a
+   corpus root (`.mrr-full-hrn`, `.stage-respacc-papers`, `.mrr-10`, `.mrr-eve-test`, `.mrr-pilot-hrn`)
+   were silently ingested as extra sessions on 2026-09-22. This is HYGIENE, not the mechanism: a copy in
+   `staging/` or `backup-2026-06/` carries no leading dot and is caught by the de-dup rule above, which
+   is the actual guarantee. A SILENT skip would be the same defect one directory over, so every skipped
+   directory is printed — an unprinted one would have hidden exactly the five dirs that caused this. */
+const skippedDirs = new Set();
 for (const rel of readdirSync(SRC, { recursive: true })) {
   const name = basename(rel);
   const full = join(SRC, rel);
+  /* Only DIRECTORY segments are named: a hidden FILE (`.trio-stamp`, a `.…PPG.txt.Ll1fHj` temp) is
+     never a capture, and listing it would make the line claim a directory that does not exist — the
+     message must be as honest as the skip. Hidden files are dropped silently; directories are named. */
+  const segs = String(rel).split(sep);
+  const hiddenDir = segs.slice(0, -1).find((seg) => seg.startsWith('.') && seg !== '.' && seg !== '..');
+  if (hiddenDir) {
+    skippedDirs.add(hiddenDir);
+    continue;
+  }
+  if (segs[segs.length - 1].startsWith('.')) continue;
   let st;
   try {
     st = statSync(full);
@@ -815,6 +952,39 @@ for (const rel of readdirSync(SRC, { recursive: true })) {
    the .dat for one recording under the same 14-digit stamp, and they carry the same samples (the brief
    pins it: 24,040 rows, zero mismatches on SpO₂/pulse/motion). Keep the CSV — it is the corpus's
    established provenance — and drop its .dat twin, so one recording never appears as two anchors. */
+if (skippedDirs.size) {
+  console.log(`\n  skipped ${skippedDirs.size} hidden directory/ies under --src (not capture trees): ${[...skippedDirs].sort().join(', ')}`);
+}
+
+/* Applied once, after the walk, to every stream list of every night — before any planning reads a
+   session count, an overlap or a byte total, all of which a duplicate inflates. */
+const DEDUPE_LISTS = ['ecg', 'acc_h10', 'ppg', 'acc_ver', 'gyro', 'magn', 'oxy', 'o2ppg'];
+for (const n of nights.values()) {
+  n.dropped = [];
+  n.conflicts = [];
+  for (const list of DEDUPE_LISTS) {
+    if (!Array.isArray(n[list]) || n[list].length < 2) continue;
+    const { kept, dropped, conflicts } = dedupeStream(n[list]);
+    n[list] = kept;
+    n.dropped.push(...dropped);
+    n.conflicts.push(...conflicts);
+  }
+}
+const dupNights = [...nights.values()].filter((n) => n.dropped.length);
+const conflictNights = [...nights.values()].filter((n) => n.conflicts.length);
+if (dupNights.length) {
+  const files = dupNights.reduce((t, n) => t + n.dropped.length, 0);
+  console.log(`\n  de-duplicated: ${files} file(s) across ${dupNights.length} night(s) were the SAME recording ingested twice — one copy kept per basename`);
+  for (const n of dupNights.slice(0, 6)) console.log(`    ${n.key}: ${n.dropped.length} dropped, e.g. ${n.dropped[0]}`);
+  if (dupNights.length > 6) console.log(`    … +${dupNights.length - 6} more night(s)`);
+}
+for (const n of conflictNights) {
+  for (const c of n.conflicts)
+    console.log(
+      `  ✗ ${n.key}: ${c.name} exists twice with DIFFERENT sizes (${c.keptBytes} vs ${c.otherBytes}) — which bytes are the recording is ambiguous; night REFUSED\n      ${c.kept}\n      ${c.other}`
+    );
+}
+
 for (const n of nights.values()) {
   const csvStamps = new Set(n.oxy.filter((r) => r.kind === 'csv').map((r) => r.stamp));
   n.oxy = n.oxy.filter((r) => r.kind !== 'dat' || !csvStamps.has(r.stamp));
@@ -938,6 +1108,9 @@ const concurrentSet = (arr, anchorIv, label, key, minOverlapH) => {
 
 /* ── 3 · plan ────────────────────────────────────────────────────────────── */
 let plan = [...nights.values()].sort((a, b) => a.key.localeCompare(b.key));
+// A night whose inputs are AMBIGUOUS never reaches the planner: printing the refusal and then folding
+// it anyway would be the loudest possible way to ship a guess (§∅ — a discontinuity refuses).
+plan = plan.filter((n) => !(n.conflicts && n.conflicts.length));
 if (ONLY.length) plan = plan.filter((n) => ONLY.includes(n.key));
 
 // The worker's hard floor is 1000 s of simultaneous coverage (sensor-trio-worker.js:307). Require
@@ -1331,19 +1504,9 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
           .filter((l) => /^\s{4,}[✓✗⊘·⏱⚖]/.test(l)) // `{4,}`, ⏱ and ⚖: deeper-indented fit/agreement lines — an exact-4 filter silently ate the first, and a missing ⚖ ate the second
           .join('\n');
         console.log(`\n▸ ${p.key}${node ? ` · ${node}` : ''}  [${done}/${queue0}]${code === 0 ? '' : `  ✗ child exit ${code}`}`);
-        if (body) console.log(body);
-        if (code !== 0) {
-          failed++;
-          if (!body)
-            console.log(
-              out
-                .trim()
-                .split('\n')
-                .slice(-3)
-                .map((l) => '    ' + l)
-                .join('\n')
-            );
-        }
+        const report = childReport(code, body, out);
+        if (report) console.log(report);
+        if (code !== 0) failed++;
         // A split night is only STAMPED once every one of its nodes has come back 0 — the same rule the
         // in-child path uses (all three exports landed), enforced here because no single child can see
         // its siblings. A night with one failed node stays unstamped and is redone next run.
