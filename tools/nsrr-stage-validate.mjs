@@ -43,8 +43,26 @@
  * labels are mostly missing (an unscored gap) is EXCLUDED rather than counted as a miss — the same
  * discipline as `pat-matchrate-strict`'s coverable-beat denominator.
  *
+ * ── THE VERDICT (tepna.verdict/1) — a DECLARED pool scorer ──────────────────────────────────────
+ * This scorer exports `CRITERION` + `verdict()`, so `nsrr-score-pool.mjs` emits a decided object for it
+ * rather than UNKNOWN; the same decision is emitted by `--dir` here. The band is the one PRE-STATED in
+ * `SHHS-EXTERNAL-VALIDATION-2026-09-04-BRIEF.md` §4 E1, published before #2423 ran it: **κ ≥ 0.60
+ * transfers · 0.40–0.60 partial · < 0.40 does not**. Mapping onto the closed enum:
+ *   PASS          pooled κ ≥ 0.60
+ *   FAIL          κ < 0.60 — the reason names WHICH pre-stated band it fell in (partial / does not
+ *                 transfer) and the per-stage recall E1 asks for beside the overall κ, because an
+ *                 overall κ hides the ~4× REM under-call
+ *   UNKNOWN       `populationMisalignment` says `suspect-shift`: every record peaks at the same
+ *                 non-zero lag, so the κ measures the PIPELINE, not the detector — no decision
+ *   UNDERPOWERED  fewer than BANDS.minRecords records (10 — the same floor the misalignment test
+ *                 needs, so a κ that could not be checked for a shift is not decided on)
+ *   NOT_RUN       no record scored
+ * Population = records: checked = records contributing a per-record κ, eligible = paired records.
+ * scope: internal — NSRR data under a DUA, P5.
+ *
  * USAGE
  *   node tools/nsrr-stage-validate.mjs --selftest          # prove the path, no records needed
+ *   node tools/nsrr-stage-validate.mjs --verdict-sample    # the object over synthetic rows — CI reads it
  *   node tools/nsrr-stage-validate.mjs --dir <psg-dir>     # score real records (EDF + XML pairs)
  *   node tools/nsrr-stage-validate.mjs --dir <psg-dir> --json
  */
@@ -421,6 +439,57 @@ export function liveStat(rows) {
   return { label: "Cohen's kappa (stager vs expert)", value: k.kappa, halfWidth: clusterHW, n: ks.length, detail: det };
 }
 
+/* ── the declared criterion (E1, pre-stated 2026-09-04) ──────────────────────────────────────────*/
+export const BANDS = Object.freeze({ transfer: 0.6, partial: 0.4, minRecords: 10 });
+export const CRITERION = Object.freeze({ name: 'cohen_kappa_4class_pooled', threshold: BANDS.transfer, unit: 'kappa', direction: 'gte' });
+/* The decision the pool applies: `stat` is this file's liveStat, `rows` the scored records. Pure. */
+export function verdict(stat, rows) {
+  const n = stat && Number.isFinite(stat.n) ? stat.n : 0;
+  if (!n || stat.value == null) return { status: 'NOT_RUN', reason: 'no record produced a kappa' };
+  if (n < BANDS.minRecords)
+    return { status: 'UNDERPOWERED', reason: n + ' record(s) < the pre-stated minimum of ' + BANDS.minRecords + ' (the misalignment check needs 10 to run, and an unchecked kappa is not decided on)' };
+  const mis = populationMisalignment(rows);
+  if (mis.verdict === 'suspect-shift')
+    return {
+      status: 'UNKNOWN',
+      reason:
+        'population misalignment: ' +
+        (100 * mis.modalShare).toFixed(0) +
+        ' % of records peak at lag ' +
+        mis.modalLag +
+        ' (uniform expectation ' +
+        (100 * mis.uniformExpected).toFixed(0) +
+        ' %) — the kappa measures the pipeline, not the detector'
+    };
+  const k = stat.value;
+  const recall = /per-stage recall: ([^\n]*)/.exec((stat.detail || []).join('\n'));
+  const tail = (recall ? '; per-stage recall ' + recall[1] : '') + ' (n=' + n + ' records)';
+  if (k >= BANDS.transfer) return { status: 'PASS', reason: null };
+  if (k >= BANDS.partial)
+    return { status: 'FAIL', reason: 'kappa ' + k + ' in the pre-stated PARTIAL band ' + BANDS.partial + '–' + BANDS.transfer + ' (transfer requires ≥ ' + BANDS.transfer + ')' + tail };
+  return { status: 'FAIL', reason: 'kappa ' + k + ' < ' + BANDS.partial + ' — the pre-stated DOES-NOT-TRANSFER band' + tail };
+}
+/* --verdict-sample: synthetic rows through the real liveStat and the real decision — no EDF, no
+   corpus, no git. Rows carry a confusion matrix and an alignment, which is all liveStat and
+   populationMisalignment read. */
+export function sampleRows(n, opts) {
+  opts = opts || {};
+  const agree = opts.agree == null ? 0.9 : opts.agree;
+  const EXPERT = ['Wake', 'N2', 'N3', 'REM']; // one expert label per detector class
+  const rows = [];
+  for (let i = 0; i < n; i++) {
+    const confusion = {};
+    EXPERT.forEach((e, ei) => {
+      confusion[e] = {};
+      DET_CLASSES.forEach((d, di) => {
+        confusion[e][d] = ei === di ? Math.round(120 * agree) : Math.round((120 * (1 - agree)) / 3);
+      });
+    });
+    rows.push({ id: 'syn-' + i, score: { confusion }, alignment: { bestLag: opts.lag == null ? 0 : opts.lag } });
+  }
+  return rows;
+}
+
 /* ── the pool adapter ─────────────────────────────────────────────────────────────────────────
    `tools/nsrr-score-pool.mjs` hands a worker `{ id, edf, xml }` PATHS and expects one row back; this
    file's own CLI already holds the bytes, so its `scoreRecord` takes buffers. Rather than change that
@@ -548,6 +617,25 @@ if (IS_CLI) {
     return i >= 0 && argv[i + 1] ? argv[i + 1] : d;
   };
   const JSON_OUT = argv.includes('--json');
+  if (argv.includes('--verdict-sample')) {
+    /* dynamic, CLI-only: a worker importing this scorer must never pull the pool in again */
+    const pool = await import('./nsrr-score-pool.mjs');
+    const rows = sampleRows(12);
+    console.log(
+      JSON.stringify(
+        pool.poolVerdict(
+          { CRITERION, verdict, liveStat },
+          liveStat(rows),
+          rows,
+          { total: 12 },
+          { scorerSpec: './nsrr-stage-validate.mjs', commit: null, commitReason: '--verdict-sample: synthetic rows, no code identity claimed', at: '2026-09-22T00:00:00Z' }
+        ),
+        null,
+        1
+      )
+    );
+    process.exit(0);
+  }
   const ctx = makeRealm();
 
   if (argv.includes('--selftest')) {
@@ -614,6 +702,36 @@ if (IS_CLI) {
       'REM'
     );
     A('join: no "[object Object]" reaches the confusion table', !JSON.stringify(sRaw.confusion).includes('object Object'), JSON.stringify(sRaw.confusion));
+    /* the verdict — E1's pre-stated band on synthetic rows, pinned against verdict.js */
+    {
+      const V = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
+      const pool = await import('./nsrr-score-pool.mjs');
+      const me = { CRITERION, verdict, liveStat };
+      const obj = (rows, total) =>
+        pool.poolVerdict(me, liveStat(rows), rows, { total: total == null ? rows.length : total }, { scorerSpec: './nsrr-stage-validate.mjs', commit: 'ec4e2d93', at: '2026-09-22T00:00:00Z' });
+      const val = (v) => (V.validate(v).ok ? true : V.validate(v).errors.join(' | '));
+      const good = obj(sampleRows(12, { agree: 0.9 }));
+      A('verdict: kappa above 0.60 on 12 aligned records → PASS, reason null', good.status === 'PASS' && good.reason === null, JSON.stringify({ s: good.status, v: good.result && good.result.value }));
+      A("verdict: …valid under verdict.js, criterion is E1's", val(good) === true && good.criterion.name === 'cohen_kappa_4class_pooled' && good.criterion.threshold === 0.6, String(val(good)));
+      const part = obj(sampleRows(12, { agree: 0.62 }));
+      A('verdict: kappa in 0.40–0.60 → FAIL naming the PARTIAL band and per-stage recall', part.status === 'FAIL' && /PARTIAL/.test(part.reason) && /per-stage recall/.test(part.reason), part.reason);
+      const no = obj(sampleRows(12, { agree: 0.4 }));
+      A('verdict: kappa < 0.40 → FAIL naming DOES-NOT-TRANSFER', no.status === 'FAIL' && /DOES-NOT-TRANSFER/.test(no.reason) && val(no) === true, no.reason);
+      const shifted = obj(sampleRows(12, { agree: 0.9, lag: 2 }));
+      A(
+        'verdict: every record peaking at lag 2 → UNKNOWN (pipeline, not detector), even with a high kappa',
+        shifted.status === 'UNKNOWN' && /lag 2/.test(shifted.reason) && val(shifted) === true,
+        shifted.reason
+      );
+      const few = obj(sampleRows(6), 8);
+      A(
+        'verdict: 6 records → UNDERPOWERED naming 6 and 10, population 6 of 8',
+        few.status === 'UNDERPOWERED' && /6 record/.test(few.reason) && /10/.test(few.reason) && few.population.checked === 6 && few.population.eligible === 8 && val(few) === true,
+        few.reason
+      );
+      const none = obj([], 3);
+      A('verdict: no record → NOT_RUN, result null', none.status === 'NOT_RUN' && none.result === null && val(none) === true, String(val(none)));
+    }
     if (bad) {
       console.error(`\nSELFTEST FAILED: ${bad} join assertion(s)\n`);
       process.exit(1);
@@ -666,7 +784,16 @@ if (IS_CLI) {
     rows.push({ id: r.id, ...scoreRecord(ctx, toArrayBuffer(readFileSync(r.edf)), readFileSync(r.xml, 'utf8')) });
   }
   const ok = rows.filter((r) => !r.err);
-  if (JSON_OUT) console.log(JSON.stringify({ rows }, null, 2));
+  /* the same decision the pool would emit for this scorer, over these rows — one object per run */
+  const pool = await import('./nsrr-score-pool.mjs');
+  let commit = null;
+  try {
+    commit = (await import('node:child_process')).execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    /* not a checkout → commit null with commitReason (the pool says so) */
+  }
+  const verdictObj = pool.poolVerdict({ CRITERION, verdict, liveStat }, liveStat(ok), ok, { total: rows.length }, { scorerSpec: './nsrr-stage-validate.mjs', commit, evidence: [DIR] });
+  if (JSON_OUT) console.log(JSON.stringify({ ...verdictObj, detail: { rows } }, null, 2));
   else {
     console.log('\nSHIPPED STAGER vs EXPERT PSG LABELS — REM\n');
     console.log('record                     epochs  recall  precis    F1   expert%  detected%');
@@ -690,5 +817,6 @@ if (IS_CLI) {
       console.log('\nCARRY THE DOMAIN SHIFT: NSRR is clinical PSG on a clinical population, not a consumer chest');
       console.log('strap on a healthy sleeper. A good number here does NOT retire the real-night falsifiers.');
     }
+    console.log('\nVERDICT (tepna.verdict/1): ' + JSON.stringify({ status: verdictObj.status, population: verdictObj.population, reason: verdictObj.reason }));
   }
 }
