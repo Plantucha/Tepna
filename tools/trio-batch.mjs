@@ -283,6 +283,38 @@ function legEvidence(pick) {
    died after printing its per-node results had its abort message discarded — the one case where it was
    the only evidence. The rule now: a non-zero exit ALWAYS contributes the child's last `tailLines`
    lines, whatever else it said. `body` is the filtered result lines, `out` the child's raw stdout+stderr. */
+/* A HEAP DEATH IS NOT A FAILED NIGHT — it is a night that needs a bigger cap, and telling the two
+   apart is what lets the remedy reach one night instead of all of them. Pure, so `--selftest` pins it.
+
+   Measured 2026-09-22 on 2026-07-19, the one night of 139 that died in the clean re-fold (the #2860
+   diagnostic named it: `Ineffective mark-compacts near heap limit`). Driving the child directly at
+   descending caps, peak RSS beside each:
+
+     cap 2048 -> OOM (2.34 GB)   cap 3200 -> OOM (3.83)   cap 3328 -> ok (4.07)   cap 4096 -> ok (4.35)
+
+   so its abort edge is (3200, 3328] and RETRY_HEAP_MB is set a full notch above it, not one. The
+   comment on CHILD_HEAP_MB warns that the old 1536 floor "sat one notch above the abort edge with no
+   observed margin"; 3328 would repeat that.
+
+   ⚠️ WHY THIS IS A RETRY AND NOT A RAISED CEILING. `childHeapMB` is max(floor, min(ceiling, perJobMB))
+   and perJobMB on a dev rig is ~13.8 GB, so the CEILING binds and a raise hands the new cap to EVERY
+   child. That is not free: a LIGHT night (2026-07-17) peaks 2.27 GB at cap 2048 and 3.03 GB at 4096 —
+   +33 % for a night that never needed it. At --jobs 3 that is 9.1 GB of box residency for typical
+   nights, over the owner's 8 GB standing rule, to serve 0.7 % of the corpus. The retry instead leaves
+   138 of 139 nights at ~2.3 GB and gives the one night 4096 while NOTHING ELSE RUNS. */
+const RETRY_HEAP_MB = 4096;
+
+function isHeapOom(code, text) {
+  // V8 aborts on heap exhaustion: SIGABRT -> 134, or a null code when the signal is reported instead.
+  // EITHER signal is enough, and that is deliberate rather than sloppy: 134 is also an ordinary
+  // assert, so this DOES convict a non-heap abort. The asymmetry is the reason — a wasted retry
+  // costs one run of one night, while a heap death missed (a child killed before it could print)
+  // costs the night entirely and leaves it unstamped. The selftest names that case as ACCEPTED, not
+  // as rejected, so the trade stays visible to whoever narrows this later.
+  const said = /(heap out of memory|Ineffective mark-compacts|Reached heap limit|FATAL ERROR: .*[Aa]llocation failed)/.test(String(text || ''));
+  return said || code === 134;
+}
+
 function childReport(code, body, out, tailLines = 12) {
   const parts = [];
   if (body) parts.push(body);
@@ -499,6 +531,15 @@ if (flag('--selftest')) {
     eq('a SUCCESSFUL child shows its results and no tail', childReport(0, '    ✓ ok', 'chatter\nmore chatter', 12), '    ✓ ok');
     eq('a successful silent child prints nothing at all', childReport(0, '', 'chatter', 12), '');
     eq('the tail is bounded to the requested number of lines', childReport(1, '', 'a\nb\nc\nd', 2).split('\n').length, 2);
+
+    // A heap death must be distinguishable from every other failure, or the retry reaches the wrong
+    // nights and the box-residency argument for retrying at all stops holding.
+    eq('the real 07-19 message is recognised', isHeapOom(134, 'FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory'), true);
+    eq('a heap death reported by signal, code null', isHeapOom(null, 'FATAL ERROR: Reached heap limit Allocation failed'), true);
+    eq('a bare 134 with no heap message IS retried — a wasted retry beats a missed night', isHeapOom(134, 'Assertion failed: bad fixture'), true);
+    eq('a plain non-zero exit is NOT a heap death', isHeapOom(1, 'TypeError: x is not a function'), false);
+    eq('a SUCCESSFUL child is never a heap death', isHeapOom(0, 'all good'), false);
+    eq('empty output does not throw or match', isHeapOom(2, ''), false);
     /* ── ONE RECORDING, INGESTED ONCE (2026-09-22) ──────────────────────────────────────────────
        The planted case is the real one: the same basename reached the walk from six roots. The
        property the separation depends on is stated so nobody relaxes it later — a capture basename
@@ -589,7 +630,22 @@ const CHILD = flag('--child'); // internal: this process computes ONE night and 
  * a concurrent agent. We leave a reserve so we degrade to slower-but-correct instead of being OOM-killed.
  */
 const GB = 1024 ** 3;
-const PER_JOB_GB = 1.2; // measured ~0.9 GB peak/night + headroom
+/* Peak RSS of ONE child, measured — not the heap cap, and not a guess. `--max-old-space-size` bounds
+   V8's old space; the PROCESS holds that plus the young generation, external buffers (a Verity
+   `_PPG.txt` is ~330 MB of them) and the binary, so RSS runs above the cap wherever the workload
+   saturates it. Measured 2026-09-22 at the shipped cap of 2048 MB: 2.27 GB on an ordinary night
+   (2026-07-17), 2.34 GB on the heaviest (2026-07-19, at the moment it aborted).
+
+   ⚠️ 1.2 was stale by ~1.9x and it is the constant that decides HOW MANY children start, so the
+   error compounded: at --jobs 3 the fold held ~6.9 GB while the planner believed 3.6. It did not
+   bite on a 59 GB dev rig, which is why it survived — the failure it is guarding against shows up
+   on a small box, and the comment above (`the box may already be hosting a browser, an IDE, and a
+   concurrent agent`) is describing THIS machine, rig-x870, not the capture box.
+
+   ⚠️ Do NOT re-derive this from the sweep figures in RETRY_HEAP_MB's comment. Those are peaks at
+   RAISED caps (3.7-4.8 GB) and are true about the sweep, not about the fold: a peak measured at a
+   cap production never uses says nothing about production. Re-measure at the cap actually shipped. */
+const PER_JOB_GB = 2.4;
 const RESERVE_GB = 2.0; // never consume the host's last 2 GB
 const HARD_CAP = 8; // beyond this the disk/parse becomes the bottleneck anyway
 function planConcurrency() {
@@ -1442,9 +1498,24 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
   const nightOutcome = new Map(); // night key → { ok, total } so the parent can stamp a fully-green night
   let done = 0,
     failed = 0;
-  const runOne = ({ p, node }) =>
+  const oomRetry = []; // nights that died of heap exhaustion, retried ALONE after the pool drains
+  const runOne = ({ p, node }, opts = {}) =>
     new Promise((res) => {
-      const args = [`--max-old-space-size=${heapMB}`, __filename, '--src', SRC, '--out', OUT, '--night', p.key, '--child', '--min-hours', String(MIN_HOURS), '--min-overlap', String(MIN_OVERLAP)];
+      const args = [
+        `--max-old-space-size=${opts.heapMB || heapMB}`,
+        __filename,
+        '--src',
+        SRC,
+        '--out',
+        OUT,
+        '--night',
+        p.key,
+        '--child',
+        '--min-hours',
+        String(MIN_HOURS),
+        '--min-overlap',
+        String(MIN_OVERLAP)
+      ];
       if (node) args.push('--only-node', node);
       if (KEEP_DAYTIME) args.push('--keep-daytime');
       if (ALLOW_PARTIAL) args.push('--allow-partial');
@@ -1497,16 +1568,26 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
       });
       ch.on('close', (code) => settle(code, null));
       function finish(code) {
-        done++;
+        if (!opts.retry) done++;
         // Print each night's block whole, so interleaved children never shred each other's output.
         const body = out
           .split('\n')
           .filter((l) => /^\s{4,}[✓✗⊘·⏱⚖]/.test(l)) // `{4,}`, ⏱ and ⚖: deeper-indented fit/agreement lines — an exact-4 filter silently ate the first, and a missing ⚖ ate the second
           .join('\n');
-        console.log(`\n▸ ${p.key}${node ? ` · ${node}` : ''}  [${done}/${queue0}]${code === 0 ? '' : `  ✗ child exit ${code}`}`);
+        // A retry is not an (n+1)th job: counting it in the denominator printed `[4/3]`, which reads
+        // as a miscount rather than as a second attempt at a job already counted.
+        const tag = opts.retry ? 'heap retry' : `${done}/${queue0}`;
+        console.log(`\n▸ ${p.key}${node ? ` · ${node}` : ''}  [${tag}]${code === 0 ? '' : `  ✗ child exit ${code}`}`);
         const report = childReport(code, body, out);
         if (report) console.log(report);
-        if (code !== 0) failed++;
+        if (code !== 0) {
+          failed++;
+          /* A heap death is deferred to the retry phase rather than retried here. Retrying in place
+             would put the big-cap child beside its siblings — which is the failure mode this whole
+             design exists to avoid, and it would still LOOK fine on a run where the siblings
+             happened to have finished. */
+          if (!opts.retry && isHeapOom(code, out)) oomRetry.push({ p, node });
+        }
         // A split night is only STAMPED once every one of its nodes has come back 0 — the same rule the
         // in-child path uses (all three exports landed), enforced here because no single child can see
         // its siblings. A night with one failed node stays unstamped and is redone next run.
@@ -1549,6 +1630,30 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
     while (queue.length) await runOne(queue.shift());
   });
   await Promise.all(workers);
+
+  /* ── RETRY A HEAP DEATH, ALONE ─────────────────────────────────────────────────────────────────
+     "Alone" is the entire argument for retrying rather than raising the ceiling (see RETRY_HEAP_MB),
+     so it is ENFORCED here rather than hoped for. `Promise.all(workers)` resolves only once every
+     worker loop has exited, which happens only when the queue is empty AND its last child has
+     settled — so at this line nothing of ours is running, and the loop below awaits each retry in
+     turn. A retry therefore holds RETRY_HEAP_MB while the box holds nothing else of this run's.
+
+     ⚠️ Do NOT move this into the worker pool or run it with `Promise.all`. A big-cap child beside
+     two ordinary ones is ~8.7 GB against today's ~6.9 — worse than not retrying at all, and on a
+     run where the siblings happen to finish first it would look identical to this code. "It was
+     alone" and "it is guaranteed alone" are indistinguishable on a passing run; only one of them
+     survives a busy box. */
+  if (oomRetry.length) {
+    console.log(`\n${'─'.repeat(64)}`);
+    console.log(`heap retry    : ${oomRetry.length} night(s) died of heap exhaustion at ${heapMB} MB — retrying ALONE at ${RETRY_HEAP_MB} MB`);
+    for (const job of oomRetry) {
+      const before = failed;
+      await runOne(job, { heapMB: RETRY_HEAP_MB, retry: true });
+      if (failed === before)
+        failed--; // it succeeded on retry: un-count the first death, don't double-count
+      else console.log(`    ✗ ${job.p.key} failed again at ${RETRY_HEAP_MB} MB — this is not a cap problem`);
+    }
+  }
 
   const secs = (Date.now() - t0) / 1000;
   const complete = readdirSync(OUT, { withFileTypes: true }).filter((d) => d.isDirectory() && countTrioExports(join(OUT, d.name)) === TRIO_NODES.length).length;
