@@ -78,7 +78,9 @@ export function makeVerdict(f) {
    Precedence, NOT a vote: FAIL > SHORTFALL > UNKNOWN > PASS; checked = 0 ⇒ NOT_RUN.
    Returns { status, reason, population, result } — the caller adds gate/criterion/evidence/producedBy. */
 export function aggregateChildren(children, opts = {}) {
-  const declared = opts.declaredExcluded || [];
+  /* declaredExcluded: the NAMES of the children a filter left out, or just their COUNT when the runner
+     knows how many it did not ask but not which (the test runner's --group= knows only totalGroups). */
+  const declared = Array.isArray(opts.declaredExcluded) ? opts.declaredExcluded : Array.from({ length: opts.declaredExcluded | 0 }, (_, i) => `(undisclosed ${i + 1})`);
   const eligible = Number.isInteger(opts.eligible) ? opts.eligible : children.length + declared.length;
   const rows = children.map((c) => {
     if (c.provenance === 'not-run') return { ...c, status: 'NOT_RUN' };

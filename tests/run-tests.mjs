@@ -28,6 +28,7 @@ import { attenuateAndRecover, buildTemplate as beatBuildTemplate } from '../tool
 import * as deviceStability from '../tools/device-stability.mjs';
 import * as beatCorrespondence from '../tools/beat-correspondence.mjs';
 import * as circularStats from '../tools/circular-stats.mjs';
+import { suiteVerdict, unionVerdict } from '../tools/run-tests-verdict.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import vm from 'node:vm';
@@ -2043,7 +2044,8 @@ async function runForked(jobs) {
   const self = fileURLToPath(import.meta.url);
   const passthru = process.argv.slice(2).filter((a) => !/^--?(jobs?|json|timings?|quiet|q|verbose|no-quiet)(=|$)/i.test(a));
   const t0 = Date.now();
-  console.log(paint(`▸ --jobs=${jobs}`, C.cyan) + paint(`  forking ${jobs} shard(s) over the same partition CI uses…`, C.dim));
+  const say = AS_JSON ? (m) => console.error(m) : (m) => console.log(m); // --json: stdout carries ONE payload
+  say(paint(`▸ --jobs=${jobs}`, C.cyan) + paint(`  forking ${jobs} shard(s) over the same partition CI uses…`, C.dim));
 
   const child = (i) =>
     new Promise((res) => {
@@ -2057,6 +2059,8 @@ async function runForked(jobs) {
 
   const results = await Promise.all(Array.from({ length: jobs }, (_, k) => child(k + 1)));
   const groups = [];
+  const shards = []; // §3d: each shard's OWN object (or null when it died) — the union aggregates these
+  let dead = null;
   for (const r of results) {
     let j = null;
     try {
@@ -2065,15 +2069,27 @@ async function runForked(jobs) {
       /* fall through to the hard failure below */
     }
     if (!j || !Array.isArray(j.groups)) {
-      console.error(paint(`\n✗ shard ${r.i}/${jobs} produced no parseable result (exit ${r.code}) — refusing to report a partial gate as a pass.`, C.red));
-      console.error((r.err || r.out || '').split('\n').slice(0, 15).join('\n'));
-      process.exit(2);
+      shards.push({ i: r.i, code: r.code, verdict: null });
+      dead = dead || r;
+      continue;
     }
+    shards.push({ i: r.i, code: r.code, verdict: j.verdict || null });
     groups.push(...j.groups);
   }
+  const verdict = unionVerdict(shards, jobs, { groupFilter: GROUP_FILTER || null });
+  if (dead) {
+    /* UNCHANGED failure path — exit 2, never a pass over the shards that finished. The union object
+       says the same thing in the contract's shape: the dead shard is an undeclared NOT_RUN child and
+       the union is UNKNOWN (§3d, §4c made structural). */
+    console.error(paint(`\n✗ shard ${dead.i}/${jobs} produced no parseable result (exit ${dead.code}) — refusing to report a partial gate as a pass.`, C.red));
+    console.error((dead.err || dead.out || '').split('\n').slice(0, 15).join('\n'));
+    console.error(paint(`  tepna.verdict/1: ${verdict.status} — ${verdict.reason}`, C.yellow));
+    if (AS_JSON) console.log(JSON.stringify({ verdict }));
+    process.exit(2);
+  }
   groups.sort((a, b) => a.index - b.index); // declaration order, so the report reads like a serial run
-  console.log(paint(`  ${groups.length} groups in ${((Date.now() - t0) / 1000).toFixed(1)} s\n`, C.dim));
-  return groups;
+  say(paint(`  ${groups.length} groups in ${((Date.now() - t0) / 1000).toFixed(1)} s\n`, C.dim));
+  return { groups, verdict };
 }
 
 async function main() {
@@ -2879,8 +2895,16 @@ async function main() {
   }
 
   if (__covPost && !process.env.DEX_IV_NODISCARD && !process.env.DEX_IV_COUNTS) await __covPost('Profiler.takePreciseCoverage'); // DISCARD: the load-time baseline (skipped in COUNTS mode — see intervalToCounts)
-  const forked = JOBS && !SHARD && !AS_JSON && !LIST_ONLY && !INTERVAL_COV ? await runForked(JOBS) : null;
-  const { groups, totalGroups, groupFilter } = forked ? { groups: forked, totalGroups: forked.length, groupFilter: GROUP_FILTER || null } : runDexTests(env);
+  const forked = JOBS && !SHARD && !LIST_ONLY && !INTERVAL_COV ? await runForked(JOBS) : null;
+  const { groups, totalGroups, groupFilter } = forked ? { groups: forked.groups, totalGroups: forked.groups.length, groupFilter: GROUP_FILTER || null } : runDexTests(env);
+  /* §3d — ONE object per process. A forked run's object is the UNION over its shard objects; any other
+     run's is over the groups it ran (a --group= or --shard= run is a declared exclusion ⇒ filtered).
+     The skip budget is judged here for the object; the human lane judges it again below for the exit. */
+  const verdict = forked
+    ? forked.verdict
+    : LIST_ONLY
+      ? null
+      : suiteVerdict({ groups, totalGroups, groupFilter: groupFilter || null, shard: SHARD ? SHARD.label : null, skipViolations: auditSkips(groups, EXPECTED_SKIPS.allow || []).violations });
   if (__covPost && process.env.DEX_IV_COUNTS) {
     const iv = await __covPost('Profiler.takePreciseCoverage');
     writeFileSync(INTERVAL_COV, JSON.stringify({ groupIndices: GROUP_INDICES ? [...GROUP_INDICES] : null, counts: intervalToCounts(iv) }));
@@ -2908,6 +2932,7 @@ async function main() {
         listOnly: LIST_ONLY,
         shard: SHARD ? SHARD.label : null,
         groupFilter: groupFilter || null,
+        verdict, // §3d — the tepna.verdict/1 object; a superset of the shape verify-shard-union reads
         groups: groups.map((g) => ({
           index: g.index,
           title: g.title,
@@ -3055,6 +3080,17 @@ async function main() {
     ? paint('✕ ' + fail + ' failing', C.red) + paint('  ·  ' + pass + ' passing', C.dim) + (skip ? paint('  ·  ' + skip + ' skipped', C.yellow) : '')
     : paint('✓ all ' + pass + ' assertions passed', C.green) + (skip ? paint('  ·  ' + skip + ' skipped', C.yellow) : '');
   console.log(paint('Tepna test suite', C.cyan) + '  ' + summary + paint('  (' + groups.length + ' groups)', C.dim) + (groupFilter ? paint('  [FILTERED — not the full gate]', C.yellow) : ''));
+  /* §3d — the object's one-line reading, so the human lane cannot say "all green" without it. The
+     object itself is on stdout under --json; the exit code below is unchanged. */
+  if (verdict) {
+    const p = verdict.population;
+    console.log(
+      paint(
+        `  tepna.verdict/1: ${verdict.status}  ·  ${p.checked} checked / ${p.eligible} eligible / ${p.excluded} excluded${verdict.result && verdict.result.filtered ? '  ·  FILTERED (' + verdict.result.excludedBy + ') — not the gate' : ''}`,
+        verdict.status === 'PASS' ? C.green : verdict.status === 'FAIL' ? C.red : C.yellow
+      ) + (verdict.reason ? paint('  — ' + verdict.reason.slice(0, 200), C.dim) : '')
+    );
+  }
   /* PUBLISH THE DEBT, then RATCHET it. Printing the count is what makes the number falsifiable —
      a cap with no visible measurement is a claim. The cap is the count as measured on a full green
      run; it may only ever go DOWN, and lowering it when the debt shrinks is the point. A run that
