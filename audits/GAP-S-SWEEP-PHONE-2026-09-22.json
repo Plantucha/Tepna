@@ -4056,5 +4056,1603 @@
     }
    }
   }
- ]
+ ],
+ "postHocExtension": {
+  "decidedAt": "2026-09-22T09:20Z (AFTER reading both halves \u2014 labelled, reported beside the pre-stated result, never instead of it)",
+  "values": [
+   10,
+   120,
+   300,
+   900
+  ],
+  "report": {
+   "nights": 30,
+   "values": [
+    10,
+    120,
+    300,
+    900
+   ],
+   "shipped": 10,
+   "perValue": {
+    "10": {
+     "ecg": {
+      "nights": 30,
+      "refused": 0,
+      "medianIndex": 5.1,
+      "movedAbs1": 0,
+      "movedRel10": 0,
+      "medianDeltaVsShipped": 0
+     },
+     "ppg": {
+      "nights": 30,
+      "refused": 0,
+      "medianIndex": 4.65,
+      "movedAbs1": 0,
+      "movedRel10": 0,
+      "medianDeltaVsShipped": 0
+     },
+     "cross": {
+      "nights": 30,
+      "medianAbsDiff": 0.8999999999999999,
+      "spearman": 0.6253615127919911
+     }
+    },
+    "120": {
+     "ecg": {
+      "nights": 30,
+      "refused": 0,
+      "medianIndex": 5.1,
+      "movedAbs1": 0,
+      "movedRel10": 0,
+      "medianDeltaVsShipped": 0
+     },
+     "ppg": {
+      "nights": 30,
+      "refused": 0,
+      "medianIndex": 4.65,
+      "movedAbs1": 0,
+      "movedRel10": 0,
+      "medianDeltaVsShipped": 0
+     },
+     "cross": {
+      "nights": 30,
+      "medianAbsDiff": 0.8999999999999999,
+      "spearman": 0.632035595105673
+     }
+    },
+    "300": {
+     "ecg": {
+      "nights": 30,
+      "refused": 0,
+      "medianIndex": 5.1,
+      "movedAbs1": 0,
+      "movedRel10": 0,
+      "medianDeltaVsShipped": 0
+     },
+     "ppg": {
+      "nights": 30,
+      "refused": 0,
+      "medianIndex": 4.65,
+      "movedAbs1": 0,
+      "movedRel10": 0,
+      "medianDeltaVsShipped": 0
+     },
+     "cross": {
+      "nights": 30,
+      "medianAbsDiff": 0.8999999999999999,
+      "spearman": 0.632035595105673
+     }
+    },
+    "900": {
+     "ecg": {
+      "nights": 30,
+      "refused": 0,
+      "medianIndex": 5.1,
+      "movedAbs1": 0,
+      "movedRel10": 0,
+      "medianDeltaVsShipped": 0
+     },
+     "ppg": {
+      "nights": 30,
+      "refused": 0,
+      "medianIndex": 4.65,
+      "movedAbs1": 0,
+      "movedRel10": 0,
+      "medianDeltaVsShipped": 0
+     },
+     "cross": {
+      "nights": 30,
+      "medianAbsDiff": 0.8999999999999999,
+      "spearman": 0.632035595105673
+     }
+    }
+   },
+   "knee": {
+    "below": null,
+    "above": null
+   },
+   "kneeNote": "the nearest value on each side of the shipped cut at which \u2265 25 % of nights move by \u2265 10 % on either node \u2014 where sensitivity lives, not a recommendation"
+  },
+  "rows": [
+   {
+    "night": "20260610",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 3.6,
+       "denomSec": 25676.87800374202,
+       "events": 26
+      },
+      "ppg": {
+       "index": 3.5,
+       "events": 25
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 3.6,
+       "denomSec": 25676.87800374202,
+       "events": 26
+      },
+      "ppg": {
+       "index": 3.5,
+       "events": 25
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 3.6,
+       "denomSec": 25676.87800374202,
+       "events": 26
+      },
+      "ppg": {
+       "index": 3.5,
+       "events": 25
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 3.6,
+       "denomSec": 25676.87800374202,
+       "events": 26
+      },
+      "ppg": {
+       "index": 3.5,
+       "events": 25
+      }
+     }
+    }
+   },
+   {
+    "night": "20260611",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 6.7,
+       "denomSec": 27792.39573172122,
+       "events": 52
+      },
+      "ppg": {
+       "index": 6.2,
+       "events": 48
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 6.7,
+       "denomSec": 27792.39573172122,
+       "events": 52
+      },
+      "ppg": {
+       "index": 6.2,
+       "events": 48
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 6.7,
+       "denomSec": 27792.39573172122,
+       "events": 52
+      },
+      "ppg": {
+       "index": 6.2,
+       "events": 48
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 6.7,
+       "denomSec": 27792.39573172122,
+       "events": 52
+      },
+      "ppg": {
+       "index": 6.2,
+       "events": 48
+      }
+     }
+    }
+   },
+   {
+    "night": "20260612",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 4.8,
+       "denomSec": 25677.633073739493,
+       "events": 34
+      },
+      "ppg": {
+       "index": 5.3,
+       "events": 38
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 4.8,
+       "denomSec": 25677.633073739493,
+       "events": 34
+      },
+      "ppg": {
+       "index": 5.3,
+       "events": 38
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 4.8,
+       "denomSec": 25677.633073739493,
+       "events": 34
+      },
+      "ppg": {
+       "index": 5.3,
+       "events": 38
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 4.8,
+       "denomSec": 25677.633073739493,
+       "events": 34
+      },
+      "ppg": {
+       "index": 5.3,
+       "events": 38
+      }
+     }
+    }
+   },
+   {
+    "night": "20260613",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 7.8,
+       "denomSec": 8814.559142080183,
+       "events": 19
+      },
+      "ppg": {
+       "index": 8.4,
+       "events": 62
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 7.8,
+       "denomSec": 8814.559142080183,
+       "events": 19
+      },
+      "ppg": {
+       "index": 8.3,
+       "events": 62
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 7.8,
+       "denomSec": 8814.559142080183,
+       "events": 19
+      },
+      "ppg": {
+       "index": 8.3,
+       "events": 62
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 7.8,
+       "denomSec": 8814.559142080183,
+       "events": 19
+      },
+      "ppg": {
+       "index": 8.3,
+       "events": 62
+      }
+     }
+    }
+   },
+   {
+    "night": "20260614",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 5,
+       "denomSec": 26139.174728769827,
+       "events": 36
+      },
+      "ppg": {
+       "index": 2.8,
+       "events": 9
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 5,
+       "denomSec": 26139.174728769827,
+       "events": 36
+      },
+      "ppg": {
+       "index": 2.8,
+       "events": 9
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 5,
+       "denomSec": 26139.174728769827,
+       "events": 36
+      },
+      "ppg": {
+       "index": 2.8,
+       "events": 9
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 5,
+       "denomSec": 26139.174728769827,
+       "events": 36
+      },
+      "ppg": {
+       "index": 2.8,
+       "events": 9
+      }
+     }
+    }
+   },
+   {
+    "night": "20260615",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 7,
+       "denomSec": 26757.73205672458,
+       "events": 52
+      },
+      "ppg": {
+       "index": 6.5,
+       "events": 48
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 7,
+       "denomSec": 26757.73205672458,
+       "events": 52
+      },
+      "ppg": {
+       "index": 6.5,
+       "events": 48
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 7,
+       "denomSec": 26757.73205672458,
+       "events": 52
+      },
+      "ppg": {
+       "index": 6.5,
+       "events": 48
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 7,
+       "denomSec": 26757.73205672458,
+       "events": 52
+      },
+      "ppg": {
+       "index": 6.5,
+       "events": 48
+      }
+     }
+    }
+   },
+   {
+    "night": "20260616",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 3.8,
+       "denomSec": 10484.787782337711,
+       "events": 11
+      },
+      "ppg": {
+       "index": 5.3,
+       "events": 31
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 3.8,
+       "denomSec": 10484.787782337711,
+       "events": 11
+      },
+      "ppg": {
+       "index": 5.3,
+       "events": 31
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 3.8,
+       "denomSec": 10484.787782337711,
+       "events": 11
+      },
+      "ppg": {
+       "index": 5.3,
+       "events": 31
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 3.8,
+       "denomSec": 10484.787782337711,
+       "events": 11
+      },
+      "ppg": {
+       "index": 5.3,
+       "events": 31
+      }
+     }
+    }
+   },
+   {
+    "night": "20260618",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 1.3,
+       "denomSec": 2838.8535571839693,
+       "events": 1
+      },
+      "ppg": {
+       "index": 1.3,
+       "events": 1
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 1.3,
+       "denomSec": 2838.8535571839693,
+       "events": 1
+      },
+      "ppg": {
+       "index": 1.3,
+       "events": 1
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 1.3,
+       "denomSec": 2838.8535571839693,
+       "events": 1
+      },
+      "ppg": {
+       "index": 1.3,
+       "events": 1
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 1.3,
+       "denomSec": 2838.8535571839693,
+       "events": 1
+      },
+      "ppg": {
+       "index": 1.3,
+       "events": 1
+      }
+     }
+    }
+   },
+   {
+    "night": "20260619",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 5.3,
+       "denomSec": 16284.005902348496,
+       "events": 24
+      },
+      "ppg": {
+       "index": 4,
+       "events": 18
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 5.3,
+       "denomSec": 16284.005902348496,
+       "events": 24
+      },
+      "ppg": {
+       "index": 4,
+       "events": 18
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 5.3,
+       "denomSec": 16284.005902348496,
+       "events": 24
+      },
+      "ppg": {
+       "index": 4,
+       "events": 18
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 5.3,
+       "denomSec": 16284.005902348496,
+       "events": 24
+      },
+      "ppg": {
+       "index": 4,
+       "events": 18
+      }
+     }
+    }
+   },
+   {
+    "night": "20260620",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 6.9,
+       "denomSec": 26188.231443065448,
+       "events": 50
+      },
+      "ppg": {
+       "index": 4.3,
+       "events": 31
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 6.9,
+       "denomSec": 26188.231443065448,
+       "events": 50
+      },
+      "ppg": {
+       "index": 4.3,
+       "events": 31
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 6.9,
+       "denomSec": 26188.231443065448,
+       "events": 50
+      },
+      "ppg": {
+       "index": 4.3,
+       "events": 31
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 6.9,
+       "denomSec": 26188.231443065448,
+       "events": 50
+      },
+      "ppg": {
+       "index": 4.3,
+       "events": 31
+      }
+     }
+    }
+   },
+   {
+    "night": "20260624",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 6.4,
+       "denomSec": 21837.010718095942,
+       "events": 39
+      },
+      "ppg": {
+       "index": 5.6,
+       "events": 34
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 6.4,
+       "denomSec": 21837.010718095942,
+       "events": 39
+      },
+      "ppg": {
+       "index": 5.6,
+       "events": 34
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 6.4,
+       "denomSec": 21837.010718095942,
+       "events": 39
+      },
+      "ppg": {
+       "index": 5.6,
+       "events": 34
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 6.4,
+       "denomSec": 21837.010718095942,
+       "events": 39
+      },
+      "ppg": {
+       "index": 5.6,
+       "events": 34
+      }
+     }
+    }
+   },
+   {
+    "night": "20260625",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 5.9,
+       "denomSec": 25086.200771410357,
+       "events": 41
+      },
+      "ppg": {
+       "index": 4.3,
+       "events": 30
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 5.9,
+       "denomSec": 25086.200771410357,
+       "events": 41
+      },
+      "ppg": {
+       "index": 4.3,
+       "events": 30
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 5.9,
+       "denomSec": 25086.200771410357,
+       "events": 41
+      },
+      "ppg": {
+       "index": 4.3,
+       "events": 30
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 5.9,
+       "denomSec": 25086.200771410357,
+       "events": 41
+      },
+      "ppg": {
+       "index": 4.3,
+       "events": 30
+      }
+     }
+    }
+   },
+   {
+    "night": "20260626",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 0,
+       "denomSec": 2784.2542510761227,
+       "events": 0
+      },
+      "ppg": {
+       "index": 4,
+       "events": 3
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 0,
+       "denomSec": 2784.2542510761227,
+       "events": 0
+      },
+      "ppg": {
+       "index": 3.9,
+       "events": 3
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 0,
+       "denomSec": 2784.2542510761227,
+       "events": 0
+      },
+      "ppg": {
+       "index": 3.9,
+       "events": 3
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 0,
+       "denomSec": 2784.2542510761227,
+       "events": 0
+      },
+      "ppg": {
+       "index": 3.9,
+       "events": 3
+      }
+     }
+    }
+   },
+   {
+    "night": "20260627",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 7.4,
+       "denomSec": 24860.157844309895,
+       "events": 51
+      },
+      "ppg": {
+       "index": 8.3,
+       "events": 57
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 7.4,
+       "denomSec": 24860.157844309895,
+       "events": 51
+      },
+      "ppg": {
+       "index": 8.3,
+       "events": 57
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 7.4,
+       "denomSec": 24860.157844309895,
+       "events": 51
+      },
+      "ppg": {
+       "index": 8.3,
+       "events": 57
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 7.4,
+       "denomSec": 24860.157844309895,
+       "events": 51
+      },
+      "ppg": {
+       "index": 8.3,
+       "events": 57
+      }
+     }
+    }
+   },
+   {
+    "night": "20260628",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 5.2,
+       "denomSec": 24975.796127952945,
+       "events": 36
+      },
+      "ppg": {
+       "index": 6.1,
+       "events": 42
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 5.2,
+       "denomSec": 24975.796127952945,
+       "events": 36
+      },
+      "ppg": {
+       "index": 6.1,
+       "events": 42
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 5.2,
+       "denomSec": 24975.796127952945,
+       "events": 36
+      },
+      "ppg": {
+       "index": 6.1,
+       "events": 42
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 5.2,
+       "denomSec": 24975.796127952945,
+       "events": 36
+      },
+      "ppg": {
+       "index": 6.1,
+       "events": 42
+      }
+     }
+    }
+   },
+   {
+    "night": "20260629",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 4,
+       "denomSec": 19971.273689606092,
+       "events": 22
+      },
+      "ppg": {
+       "index": 2.7,
+       "events": 15
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 4,
+       "denomSec": 19971.273689606092,
+       "events": 22
+      },
+      "ppg": {
+       "index": 2.7,
+       "events": 15
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 4,
+       "denomSec": 19971.273689606092,
+       "events": 22
+      },
+      "ppg": {
+       "index": 2.7,
+       "events": 15
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 4,
+       "denomSec": 19971.273689606092,
+       "events": 22
+      },
+      "ppg": {
+       "index": 2.7,
+       "events": 15
+      }
+     }
+    }
+   },
+   {
+    "night": "20260630",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 5.9,
+       "denomSec": 20284.7448266472,
+       "events": 33
+      },
+      "ppg": {
+       "index": 2.7,
+       "events": 15
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 5.9,
+       "denomSec": 20284.7448266472,
+       "events": 33
+      },
+      "ppg": {
+       "index": 2.7,
+       "events": 15
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 5.9,
+       "denomSec": 20284.7448266472,
+       "events": 33
+      },
+      "ppg": {
+       "index": 2.7,
+       "events": 15
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 5.9,
+       "denomSec": 20284.7448266472,
+       "events": 33
+      },
+      "ppg": {
+       "index": 2.7,
+       "events": 15
+      }
+     }
+    }
+   },
+   {
+    "night": "20260701",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 4.3,
+       "denomSec": 25912.062794460042,
+       "events": 31
+      },
+      "ppg": {
+       "index": 7.3,
+       "events": 52
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 4.3,
+       "denomSec": 25912.062794460042,
+       "events": 31
+      },
+      "ppg": {
+       "index": 7.2,
+       "events": 52
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 4.3,
+       "denomSec": 25912.062794460042,
+       "events": 31
+      },
+      "ppg": {
+       "index": 7.2,
+       "events": 52
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 4.3,
+       "denomSec": 25912.062794460042,
+       "events": 31
+      },
+      "ppg": {
+       "index": 7.2,
+       "events": 52
+      }
+     }
+    }
+   },
+   {
+    "night": "20260702",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 3.4,
+       "denomSec": 19978.595123695657,
+       "events": 19
+      },
+      "ppg": {
+       "index": 3.4,
+       "events": 19
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 3.4,
+       "denomSec": 19978.595123695657,
+       "events": 19
+      },
+      "ppg": {
+       "index": 3.4,
+       "events": 19
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 3.4,
+       "denomSec": 19978.595123695657,
+       "events": 19
+      },
+      "ppg": {
+       "index": 3.4,
+       "events": 19
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 3.4,
+       "denomSec": 19978.595123695657,
+       "events": 19
+      },
+      "ppg": {
+       "index": 3.4,
+       "events": 19
+      }
+     }
+    }
+   },
+   {
+    "night": "20260703",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 2.9,
+       "denomSec": 2517.013526581366,
+       "events": 2
+      },
+      "ppg": {
+       "index": 4.3,
+       "events": 3
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 2.9,
+       "denomSec": 2517.013526581366,
+       "events": 2
+      },
+      "ppg": {
+       "index": 4.3,
+       "events": 3
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 2.9,
+       "denomSec": 2517.013526581366,
+       "events": 2
+      },
+      "ppg": {
+       "index": 4.3,
+       "events": 3
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 2.9,
+       "denomSec": 2517.013526581366,
+       "events": 2
+      },
+      "ppg": {
+       "index": 4.3,
+       "events": 3
+      }
+     }
+    }
+   },
+   {
+    "night": "20260704",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 7.1,
+       "denomSec": 28585.653992438063,
+       "events": 56
+      },
+      "ppg": {
+       "index": 4.7,
+       "events": 17
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 7.1,
+       "denomSec": 28585.653992438063,
+       "events": 56
+      },
+      "ppg": {
+       "index": 4.7,
+       "events": 17
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 7.1,
+       "denomSec": 28585.653992438063,
+       "events": 56
+      },
+      "ppg": {
+       "index": 4.7,
+       "events": 17
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 7.1,
+       "denomSec": 28585.653992438063,
+       "events": 56
+      },
+      "ppg": {
+       "index": 4.7,
+       "events": 17
+      }
+     }
+    }
+   },
+   {
+    "night": "20260705",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 7.9,
+       "denomSec": 18655.84898796654,
+       "events": 41
+      },
+      "ppg": {
+       "index": 9.9,
+       "events": 51
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 7.9,
+       "denomSec": 18655.84898796654,
+       "events": 41
+      },
+      "ppg": {
+       "index": 9.9,
+       "events": 51
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 7.9,
+       "denomSec": 18655.84898796654,
+       "events": 41
+      },
+      "ppg": {
+       "index": 9.9,
+       "events": 51
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 7.9,
+       "denomSec": 18655.84898796654,
+       "events": 41
+      },
+      "ppg": {
+       "index": 9.9,
+       "events": 51
+      }
+     }
+    }
+   },
+   {
+    "night": "20260706",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 4.5,
+       "denomSec": 24064.564545308738,
+       "events": 30
+      },
+      "ppg": {
+       "index": 4.1,
+       "events": 27
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 4.5,
+       "denomSec": 24064.564545308738,
+       "events": 30
+      },
+      "ppg": {
+       "index": 4,
+       "events": 27
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 4.5,
+       "denomSec": 24064.564545308738,
+       "events": 30
+      },
+      "ppg": {
+       "index": 4,
+       "events": 27
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 4.5,
+       "denomSec": 24064.564545308738,
+       "events": 30
+      },
+      "ppg": {
+       "index": 4,
+       "events": 27
+      }
+     }
+    }
+   },
+   {
+    "night": "20260707",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 5.1,
+       "denomSec": 25241.959267217717,
+       "events": 36
+      },
+      "ppg": {
+       "index": 4.9,
+       "events": 34
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 5.1,
+       "denomSec": 25241.959267217717,
+       "events": 36
+      },
+      "ppg": {
+       "index": 4.8,
+       "events": 34
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 5.1,
+       "denomSec": 25241.959267217717,
+       "events": 36
+      },
+      "ppg": {
+       "index": 4.8,
+       "events": 34
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 5.1,
+       "denomSec": 25241.959267217717,
+       "events": 36
+      },
+      "ppg": {
+       "index": 4.8,
+       "events": 34
+      }
+     }
+    }
+   },
+   {
+    "night": "20260708",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 5.1,
+       "denomSec": 21083.501406899697,
+       "events": 30
+      },
+      "ppg": {
+       "index": 5.4,
+       "events": 27
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 5.1,
+       "denomSec": 21083.501406899697,
+       "events": 30
+      },
+      "ppg": {
+       "index": 5.4,
+       "events": 27
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 5.1,
+       "denomSec": 21083.501406899697,
+       "events": 30
+      },
+      "ppg": {
+       "index": 5.4,
+       "events": 27
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 5.1,
+       "denomSec": 21083.501406899697,
+       "events": 30
+      },
+      "ppg": {
+       "index": 5.4,
+       "events": 27
+      }
+     }
+    }
+   },
+   {
+    "night": "20260709",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 5.1,
+       "denomSec": 24680.18065026889,
+       "events": 35
+      },
+      "ppg": {
+       "index": 5.7,
+       "events": 39
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 5.1,
+       "denomSec": 24680.18065026889,
+       "events": 35
+      },
+      "ppg": {
+       "index": 5.7,
+       "events": 39
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 5.1,
+       "denomSec": 24680.18065026889,
+       "events": 35
+      },
+      "ppg": {
+       "index": 5.7,
+       "events": 39
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 5.1,
+       "denomSec": 24680.18065026889,
+       "events": 35
+      },
+      "ppg": {
+       "index": 5.7,
+       "events": 39
+      }
+     }
+    }
+   },
+   {
+    "night": "20260710",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 4.1,
+       "denomSec": 1773.11425521659,
+       "events": 2
+      },
+      "ppg": {
+       "index": 0,
+       "events": 0
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 4.1,
+       "denomSec": 1773.11425521659,
+       "events": 2
+      },
+      "ppg": {
+       "index": 0,
+       "events": 0
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 4.1,
+       "denomSec": 1773.11425521659,
+       "events": 2
+      },
+      "ppg": {
+       "index": 0,
+       "events": 0
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 4.1,
+       "denomSec": 1773.11425521659,
+       "events": 2
+      },
+      "ppg": {
+       "index": 0,
+       "events": 0
+      }
+     }
+    }
+   },
+   {
+    "night": "20260711",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 5.8,
+       "denomSec": 24230.76527860618,
+       "events": 39
+      },
+      "ppg": {
+       "index": 4.4,
+       "events": 7
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 5.8,
+       "denomSec": 24230.76527860618,
+       "events": 39
+      },
+      "ppg": {
+       "index": 4.4,
+       "events": 7
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 5.8,
+       "denomSec": 24230.76527860618,
+       "events": 39
+      },
+      "ppg": {
+       "index": 4.4,
+       "events": 7
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 5.8,
+       "denomSec": 24230.76527860618,
+       "events": 39
+      },
+      "ppg": {
+       "index": 4.4,
+       "events": 7
+      }
+     }
+    }
+   },
+   {
+    "night": "20260712",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 4,
+       "denomSec": 24301.47201192204,
+       "events": 27
+      },
+      "ppg": {
+       "index": 4.6,
+       "events": 31
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 4,
+       "denomSec": 24301.47201192204,
+       "events": 27
+      },
+      "ppg": {
+       "index": 4.6,
+       "events": 31
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 4,
+       "denomSec": 24301.47201192204,
+       "events": 27
+      },
+      "ppg": {
+       "index": 4.6,
+       "events": 31
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 4,
+       "denomSec": 24301.47201192204,
+       "events": 27
+      },
+      "ppg": {
+       "index": 4.6,
+       "events": 31
+      }
+     }
+    }
+   },
+   {
+    "night": "20260713",
+    "byValue": {
+     "10": {
+      "ecg": {
+       "index": 7.6,
+       "denomSec": 23573.54512235593,
+       "events": 50
+      },
+      "ppg": {
+       "index": 7.7,
+       "events": 50
+      }
+     },
+     "120": {
+      "ecg": {
+       "index": 7.6,
+       "denomSec": 23573.54512235593,
+       "events": 50
+      },
+      "ppg": {
+       "index": 7.6,
+       "events": 50
+      }
+     },
+     "300": {
+      "ecg": {
+       "index": 7.6,
+       "denomSec": 23573.54512235593,
+       "events": 50
+      },
+      "ppg": {
+       "index": 7.6,
+       "events": 50
+      }
+     },
+     "900": {
+      "ecg": {
+       "index": 7.6,
+       "denomSec": 23573.54512235593,
+       "events": 50
+      },
+      "ppg": {
+       "index": 7.6,
+       "events": 50
+      }
+     }
+    }
+   }
+  ],
+  "finding": "zero denominator gain on every night from 10 s to 900 s: no inter-beat interval longer than 10 s reaches buildNN on any phone night"
+ },
+ "rawGapCensus": {
+  "method": "consecutive sensor-timestamp [ns] deltas per _ECG.txt (and the phone-clock and ms columns on one night), counted above 3 s and above 10 s",
+  "nightsWithAnyGapOver3s": 0,
+  "gapsOver10sTotal": 0,
+  "nights": 30,
+  "finding": "the H10 ECG stream is CONTIGUOUS on all 30 phone nights on all three clocks; the \"dropout-heavy phone nights\" premise holds for the Verity PPG and O2Ring BLE links in the corpus lore, not for the H10 ECG in this tree. GAP_S population (inter-beat intervals longer than the cut) is therefore EMPTY above 10 s on both corpora and holds seconds to tens of seconds per night in the 3-10 s band; this corpus cannot discriminate the constant"
+ }
 }
