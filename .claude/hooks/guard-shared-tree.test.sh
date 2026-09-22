@@ -279,6 +279,40 @@ chk DENY "git add '*'"
 chk DENY 'git add ./*'
 
 echo
+echo "### THE DENIAL NAMES WHAT IT CANCELLED (residue 2026-09-20-guard-denial-takes-the-whole-invocation)"
+# A denial cancels the whole Bash call — the harness cannot run half of one. So the report must say
+# what went with it. This replays the row's own measured instance: a PR creation chained ahead of a
+# forced removal, where the removal was rightly denied and the PR silently never happened.
+reason(){ jq -Rn --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}' | bash "$H" 2>/dev/null \
+  | jq -r '.hookSpecificOutput.permissionDecisionReason // ""'; }
+_r="$(reason 'gh pr create --title x --body-file /tmp/pr.md && git worktree remove ../wt-x --force && npm run check')"
+case "$_r" in
+  *"CANCELLED THE WHOLE INVOCATION"*) : ;;
+  *) echo "  FAIL  a multi-clause denial does not report the cancellation"; fail=$((fail+1)) ;;
+esac
+case "$_r" in
+  *"gh pr create --title x"*) echo "  ok    the cancelled PR-creation clause is NAMED" ;;
+  *) echo "  FAIL  the cancelled clause is not named — the silence is the defect"; fail=$((fail+1)) ;;
+esac
+case "$_r" in
+  *"npm run check"*) echo "  ok    …and so is the clause AFTER the denied one" ;;
+  *) echo "  FAIL  a later clause is not named"; fail=$((fail+1)) ;;
+esac
+# A SINGLE-CLAUSE denial cancelled nothing else, so it must NOT grow the section — a report that
+# fires on every denial is noise, and noise is how a real one gets skipped.
+_r1="$(reason 'git clean -f')"
+case "$_r1" in
+  *"CANCELLED THE WHOLE INVOCATION"*) echo "  FAIL  a single-clause denial claims it cancelled other work"; fail=$((fail+1)) ;;
+  *) echo "  ok    a single-clause denial says nothing about cancellation" ;;
+esac
+# A clause inside a QUOTED STRING is not a command: reporting it would invent work that never existed.
+_r2="$(reason 'git clean -f && echo "a && b ; c"')"
+case "$_r2" in
+  *'"a && b ; c"'*) echo "  FAIL  a quoted string was split into clauses"; fail=$((fail+1)) ;;
+  *) echo "  ok    quoted text is not mistaken for clauses" ;;
+esac
+
+echo
 echo "### MUST ALLOW — ordinary work"
 while IFS= read -r c; do [ -n "$c" ] && [[ "$c" != \#* ]] && chk allow "$c"; done <<'ALLOW'
 # creating a BRANCH is not a ref-checkout of a path; main allows it too, it was mis-filed as DENY

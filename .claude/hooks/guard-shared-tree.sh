@@ -109,8 +109,37 @@ QT='["'"'"']?'
 # `-c alias.z=...` indirection. Do not describe it as complete.
 
 
+# ── A DENIAL CANCELS THE WHOLE INVOCATION, SO IT SAYS WHAT IT CANCELLED ─────────────────────────
+#    Residue 2026-09-20-guard-denial-takes-the-whole-invocation. A PreToolUse hook denies the ENTIRE
+#    Bash call, so a correct objection to one clause silently cancels every unrelated clause beside
+#    it. THE REPORTABLE PROPERTY IS THE SILENCE, NOT THE BREADTH: the rule that fires is right, and
+#    the operator is told a rule was violated while being told nothing about the work that was
+#    cancelled to enforce it — a FALSE BELIEF ABOUT STATE, the same shape as a push returning rc=0
+#    while carrying nothing. Measured instance: one call chained `gh pr create …` then a forced
+#    worktree removal; the removal was denied, correctly, and THE PR WAS NEVER CREATED. Nothing said
+#    so. It surfaced only when a later command tripped over the missing file.
+#
+#    The per-call blast radius is the harness's, not this hook's — it cannot run half an invocation.
+#    What it CAN do is stop being silent, so the denial now lists the other top-level clauses. They
+#    are split on `;`, `&&` and `||` at the top level only: a clause inside a quoted string or a
+#    heredoc body is not a command, and splitting there would invent work that was never going to run.
+#    ⚠ This is a REPORT, not a claim about what would have succeeded: a later clause might have
+#    failed on its own merits. It says what was in the call, which is exactly what the operator
+#    cannot otherwise see.
+_other_clauses() {
+  printf '%s' "$cmd_nohere" \
+    | sed -E "s/'[^']*'/''/g; s/\"[^\"]*\"/\"\"/g" \
+    | tr ';' '\n' | sed -E 's/[[:space:]]*(&&|\|\|)[[:space:]]*/\n/g' \
+    | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | grep -vE '^$' | head -8
+}
 deny() {
-  jq -nc --arg r "$1" \
+  local _n _list _extra=""
+  _list="$(_other_clauses)"
+  _n="$(printf '%s\n' "$_list" | grep -c . 2>/dev/null || echo 0)"
+  if [ "${_n:-0}" -gt 1 ]; then
+    _extra="$(printf '\n\n⚠ THIS DENIAL CANCELLED THE WHOLE INVOCATION — %s clause(s), none of which ran:\n%s\n\nOnly the clause named above was objected to; the rest were cancelled to enforce it and left NO\ntrace. Re-issue the ones you still want, separately, and check whether anything they were going to\nwrite is missing.' "$_n" "$(printf '%s\n' "$_list" | sed 's/^/    /')")"
+  fi
+  jq -nc --arg r "$1$_extra" \
     '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
   exit 0
 }
