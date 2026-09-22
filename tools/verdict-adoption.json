@@ -978,9 +978,16 @@
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
   "tools/pat-window-oracle.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-window-oracle.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the PAT window oracle decides per unit and per run: the row's previous reason (\"selftest assertion printer \u2026 not a verdict about data\") was copy-pasted and false \u2014 the tool prints a per-unit verdict table and a TALLY over real nights. The run object uses the tool's OWN pre-stated bands (BAND_RECOVERED 20 ms, BAND_PARTIAL 60, null must be beaten), so no threshold is invented: PASS every scored unit inside the band \u00b7 SHORTFALL some inside, some not \u00b7 FAIL none \u00b7 UNDERPOWERED units offered and none scorable \u00b7 NOT_RUN no units \u00b7 UNKNOWN an UNDEFINED band. Named refusals are EXCLUDED from the population, never averaged into the data verdict. Found by residue 2026-09-22-word-only-claims-go-stale; `--verdict-sample` emits the SHORTFALL arm corpus-free."
   },
   "tools/pb-agreement.mjs": {
    "bin": "word-only",
