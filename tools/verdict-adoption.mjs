@@ -230,7 +230,6 @@ export const WO_CLAIM_RATCHET = new Set([
   'tools/pat-fiducial-jitter.mjs',
   'tools/pat-residual-structure.mjs',
   /* `tools/pat-window-oracle.mjs` was the ninth; it ADOPTED, so the ratchet shrank by one. */
-  'tools/pb-agreement.mjs',
   'tools/probe-clock-equivalence.mjs',
   'tools/probe-equivalence.mjs'
 ]);
