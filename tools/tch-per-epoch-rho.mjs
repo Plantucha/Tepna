@@ -26,7 +26,14 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 
+/* VERDICT-CONTRACT §3b — no band was ever pre-stated for rho (its numbers are on record), so the object
+   is UNKNOWN by design with the per-night and pooled rho in `result`; `--verdict-sample` is what the gate reads. */
+if (process.argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample('tools/tch-per-epoch-rho.mjs'), null, 1));
+  process.exit(0);
+}
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DexBuild = createRequire(import.meta.url)('./build-core.js');
 
@@ -235,6 +242,29 @@ if (nights.length >= 4) {
     const frac = boot.filter((r) => r >= cv).length / boot.length;
     console.log(`  rhoCrit ${cv.toFixed(5)} — the bootstrap puts ${(frac * 100).toFixed(1)} % of the mass AT OR PAST the singularity`);
   }
+}
+
+/* The object — UNKNOWN, carrying the pooled rho, the per-night distribution and the night counts
+   verbatim (the VERDICT banner above is explanation; the object is the API). Population = nights
+   that solved; excluded = no-solution + refused (n<4). */
+{
+  const rhos = solved.map((p) => p.rho).sort((a, b) => a - b);
+  printVerdict(
+    undeclaredVerdict({
+      tool: 'tools/tch-per-epoch-rho.mjs',
+      stat: {
+        label: 'per-epoch residual correlation rho(ECG,PPG) with CPAP as truth',
+        pooledRho: isFinite(P.rho) ? +P.rho.toFixed(4) : null,
+        epochs: P.n,
+        perNightRho: rhos.length ? { min: +rhos[0].toFixed(3), median: +rhos[rhos.length >> 1].toFixed(3), max: +rhos[rhos.length - 1].toFixed(3) } : null,
+        solved: solved.length,
+        noSolution: nosol.length,
+        refused: refused.length
+      },
+      population: { checked: solved.length, eligible: per.length },
+      evidence: [process.env.TCH_EPOCHS || '<per-epoch triples>']
+    })
+  );
 }
 
 /* ════════════════════════════════════════════════════════════════════════════════════════════════

@@ -51,6 +51,7 @@ import { readdirSync, readFileSync, statSync, existsSync, writeFileSync } from '
 import { join, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadDsps, getDsps, median, quantile, BIN_MIN } from './pat-matchrate-strict.mjs';
+import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 
 const argv = process.argv.slice(2);
 const arg = (k, d) => {
@@ -266,6 +267,13 @@ function scorePair(A, B) {
 }
 
 function main() {
+  /* VERDICT-CONTRACT §3b — the ≥50 %-of-nights rule below lives in this code and was never pre-stated in a
+     brief before the numbers were on record (PAT-VERDICT-CONSOLIDATED), so the object is UNKNOWN by design
+     with the control statistics in `result`; `--verdict-sample` is what the adoption gate reads. */
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample('tools/pat-ppg-ppg-control.mjs'), null, 1));
+    process.exit(0);
+  }
   if (!DIR || !existsSync(DIR)) {
     console.error('--dir <captures root> required');
     process.exit(2);
@@ -373,6 +381,23 @@ function main() {
         : 'CONTROL FAILS: even two PPG streams on one host do not couple -> the machinery, not the physiology, is the term. NO PAT verdict from this repo is meaningful.'
     );
     console.log('NOTE: best-of-pairs is an UPPER bound (§3c.4) — valid for "is it detectable at all", not for a level.');
+    /* The object — UNKNOWN, the control statistics carried verbatim; the in-code ≥50 % rule is reported
+       as a field and named in the reason, never promoted to a status. Population = nights with a best pair. */
+    printVerdict(
+      undeclaredVerdict({
+        tool: 'tools/pat-ppg-ppg-control.mjs',
+        stat: {
+          label: 'finger↔ankle PPG coupling control — best-pair strict-match ratio vs surrogates',
+          nights: bests.length,
+          medianRatio: +median(bests.map((b) => b.ratio)).toFixed(3),
+          significant: sig.length,
+          inCodeRulePasses: sig.length >= bests.length * 0.5
+        },
+        population: { checked: bests.length, eligible: nights.length },
+        evidence: [DIR],
+        note: 'the in-code rule (≥ 50 % of nights with p < 0.05 and ratio > 1) is reported as `result.inCodeRulePasses`; it was not pre-stated in a brief'
+      })
+    );
   }
 }
 
