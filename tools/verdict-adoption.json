@@ -622,6 +622,18 @@
    },
    "note": "wave-2 adopter: --json prints ONE tepna.verdict/1 (PASS = every changeset-deleting commit in range is a release or declared exempt; FAIL names the flagged shas; NOT_RUN on a shallow clone). Was binned word-only/exempt because its rows' `verdict` field is a classification, not an emitted verdict; the CLI now emits one. Needs full history (fetch-depth: 0), which the static job has."
   },
+  "tools/corpus-scope.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/corpus-scope.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "counts a file pattern across EVERY documented corpus root and names the scope it searched. Residue 2026-09-05-triage-stamps-searched-the-repo-tree-only: two triage stamps asserted this machine held zero _ECG.txt and two _PPG.txt after counting only the repo's uploads/ tree, which licensed a \"blocked on data locality\" verdict across four briefs. `population` is ROOTS (checked + excluded = documented), a root that is not on this machine counts null and never 0, and every root unreachable emits UNDERPOWERED rather than a zero-file PASS \u2014 which is exactly the stamp that shipped."
+  },
   "tools/corpus-tier.mjs": {
    "bin": "decides",
    "status": "adopted",
