@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**207 tools** · 205 with a purpose line · **2 without**
+**208 tools** · 206 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -208,6 +208,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`tch-third-corner.mjs`](../tools/tch-third-corner.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════ THE O2RING AS A REAL THIRD CORNER — its own clock, not the host's. |
 | [`tch-window-sensitivity.mjs`](../tools/tch-window-sensitivity.mjs) | how much of the night did you keep, and what did that do to σ? |
 | [`tools-index.mjs`](../tools/tools-index.mjs) | GENERATE `docs/TOOLS-INDEX.md` — one line per tool, so a capability can be FOUND without already knowing its filename. |
+| [`treatment-response-recut.mjs`](../tools/treatment-response-recut.mjs) | Owner ruling 2026-09-21 (OWNER-DECISION-QUEUE D9.2): the paper's Table 1 states 912 intervention + 918 flat-control patients at ≥ 10 nights, and that configuration is not recoverable from… |
 | [`trio-batch.mjs`](../tools/trio-batch.mjs) | TRIO BATCH — raw Polar Sensor Logger + O2Ring capture folder → per-night trio node-exports, in the exact shape `tools/tch-multinight.mjs --dir` ingests (one subdir per night, three… |
 | [`trio-power-headless.mjs`](../tools/trio-power-headless.mjs) | run the sensor-trio power sweep headlessly, ON THE GPU. WHY. |
 | [`validate-exports.mjs`](../tools/validate-exports.mjs) | run the SHIPPED `validateNodeExport()` over every committed node export. |
