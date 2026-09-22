@@ -76,6 +76,7 @@ exit {shellcheck_rc}
     env["PATH"] = f"{binn}{os.pathsep}{env['PATH']}"
     env["PYTHON"] = str(binn / "fakepy")
     env["CHECK_VERDICT_OUT"] = str(tmp_path / "check-verdict.json")   # never the real tree's file
+    env["MYPY_OUT"] = str(tmp_path / "mypy-latest.txt")              # per sandbox: eight boxes, eight files
     return env, log
 
 
@@ -445,3 +446,11 @@ def test_the_object_is_validated_by_verdict_js_the_contract_s_own_validator(tmp_
     _run(tmp_path, ruff_rc=1)
     r = js_validate(_verdict(tmp_path))
     assert r["ok"], r["errors"]
+
+
+def test_every_path_check_sh_writes_is_redirectable():
+    """The sandbox relies on both files being overridable; a default that crept back would make eight
+    concurrent sandboxes share one file again (the 2026-09-22 race)."""
+    code = open(CHECK, encoding="utf-8").read()
+    for var in ("MYPY_OUT", "CHECK_VERDICT_OUT"):
+        assert f"${{{var}:-" in code, f"{var} is no longer an override — sandboxes would share the checkout's file"
