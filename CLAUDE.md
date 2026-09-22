@@ -806,6 +806,38 @@ Same family as §🔒 §2.6 (stamps), §🎫's "never upgrade a badge on prose" 
 success about something it never examined" (gates): a fabricated value, a fabricated tier, a fabricated
 pass — all one shape.
 
+## 🧾 VERDICTS ARE MACHINE-READABLE — prose is explanation, not the API (owner, standing requirement 2026-09-21)
+
+**Every gate, oracle, audit, harness or study that decides something emits ONE JSON object of a fixed
+shape beside its prose** — `tepna.verdict/1`, defined once in `verdict.js` and specified in
+`briefs/VERDICT-CONTRACT-2026-09-21-BRIEF.md`. The owner's framing, verbatim: *"A human can determine the
+truth from the evidence, but a downstream machine cannot reliably distinguish PASS / FAIL / NOT RUN / NOT
+APPLICABLE / UNDERPOWERED / SHORTFALL / UNKNOWN without parsing prose. That is dangerous. … Then prose
+becomes explanation, not the API."* The sealed-night reader (`CAPTURE-NIGHT-SEAL`) will be an independent
+consumer of this suite's verdicts; a clinician or a machine must never regex a paragraph to decide whether
+evidence is trustworthy.
+
+```json
+{ "schema": "tepna.verdict/1", "gate": "oracle-ecg-firmware-rr", "status": "PASS",
+  "population": { "checked": 52, "eligible": 52, "excluded": 0 },
+  "criterion": { "name": "rr_delta_median", "threshold": 8, "unit": "ms", "direction": "lte" },
+  "result": { "median": 0.45 }, "evidence": ["tools/oracle-ecg-firmware-rr.mjs"], "reason": null,
+  "producedBy": { "tool": "tools/oracle-ecg-firmware-rr.mjs", "commit": "3c0dbdec" }, "at": "2026-09-21T18:40:12Z" }
+```
+
+- **`status` is a closed enum of EXACTLY seven** — `PASS · FAIL · SHORTFALL · UNDERPOWERED · NOT_RUN ·
+  NOT_APPLICABLE · UNKNOWN`. `NOT_RUN` (nothing examined) and `NOT_APPLICABLE` (examined; rule does not
+  bind) are different states and both read as green to a naive reader — which is why they are named.
+- **`population` is an equality** (`checked + excluded = eligible`); a `PASS` over `checked: 0` is invalid
+  by schema — §4b's examined-nothing shape refused at the type level. A `PASS` with empty `evidence` is
+  invalid. Every non-`PASS` carries a `reason`; `PASS` carries none.
+- **`criterion` is pre-stated** (threshold, unit, direction written before the measurement); a threshold
+  derived from the data it judges is `UNKNOWN`, not `PASS`.
+- **Prose stays** — tables, bands, explanations are for humans. The object is what the next tool reads.
+  Never the reverse: a verdict that exists only as a sentence is the defect this section records.
+- **Adoption is a named set with a gate**, not a sweep (`PARTIAL-ADOPTION-DETECTION`): a tool that prints
+  a status word and is not in the set is a red with the tool's name.
+
 ## 📏 Units — the metric system is superior and is the default (non-negotiable)
 SI / metric is the **canonical and preferred** unit system across the whole suite. **Store and
 compute in metric, always** — kg, cm, °C, mmol/L (or the clinical metric unit a field conventionally
