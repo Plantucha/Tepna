@@ -556,9 +556,9 @@
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
   "tools/land-pr.mjs": {
-   "bin": "already-json",
-   "status": "pending",
-   "note": "a decision about a PR (update / wait / stop); FAIL-CLOSED on an unreadable ruleset"
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "a QUEUE decision (update \u00b7 wait \u00b7 merge \u00b7 stop) about a PR's state, in its own vocabulary \u2014 not a gate over data; its 'VERDICT' is the gh checks exit it reads, i.e. it is a CONSUMER of CI's verdicts, and the contract's status enum does not describe queue actions"
   },
   "tools/make-synthetic-inputs.mjs": {
    "bin": "word-only",
@@ -607,9 +607,9 @@
    "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
   },
   "tools/mutation-reach.mjs": {
-   "bin": "already-json",
-   "status": "pending",
-   "note": "unresolved files FAIL CLOSED in the reach report"
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "a fail-closed CLASSIFICATION (which files/functions are in scope) that feeds the mutation gates, not a decision over a criterion; 'FAIL CLOSED' names the direction of the default, not a verdict"
   },
   "tools/mutation-suite.mjs": {
    "bin": "already-json",
@@ -629,9 +629,9 @@
    "reason": "CONSUMER, not a producer \u2014 renders the tepna.verdict/1 object mutate.mjs --diff emits into the CI job summary (the first CI reader of the contract); its status words are the object's fields quoted back, validated by verdict.js before rendering, and it produces no verdict of its own"
   },
   "tools/mutation-worklist.mjs": {
-   "bin": "already-json",
-   "status": "pending",
-   "note": "FAIL-CLOSED production/aside classification per function"
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "a fail-closed CLASSIFICATION (which files/functions are in scope) that feeds the mutation gates, not a decision over a criterion; 'FAIL CLOSED' names the direction of the default, not a verdict"
   },
   "tools/nearest-advocate.mjs": {
    "bin": "word-only",
@@ -905,12 +905,12 @@
   "tools/run-check.mjs": {
    "bin": "decides",
    "status": "pending",
-   "note": "the check runner: a step that must FAIL through the default"
+   "note": "the check runner: a step that must FAIL through the default \u2014 RUNNER over N gates: decides (every step/suite green), so it stays `decides`, but its object is a run-level summary over the population of steps, which is the wave-3 design question (VERDICT-CONTRACT \u00a73b #9: a runner's verdict must not restate its children's, it aggregates them); pending until that design lands, deliberately not wrapped now"
   },
   "tools/selftest-all.mjs": {
    "bin": "decides",
    "status": "pending",
-   "note": "the runner that reads every selftest verdict and exits on it"
+   "note": "the runner that reads every selftest verdict and exits on it \u2014 RUNNER over N gates: decides (every step/suite green), so it stays `decides`, but its object is a run-level summary over the population of steps, which is the wave-3 design question (VERDICT-CONTRACT \u00a73b #9: a runner's verdict must not restate its children's, it aggregates them); pending until that design lands, deliberately not wrapped now"
   },
   "tools/stmt-delete.mjs": {
    "bin": "already-json",
