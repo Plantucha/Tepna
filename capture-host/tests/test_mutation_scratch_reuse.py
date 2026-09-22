@@ -194,8 +194,9 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     changes, the scratch already carries the new file — the assertion exists so the author sees it.
     2026-09-20: two more real reads — `pat-feasibility.js` + `sensor-trio-power-analysis.js`, the
     Nights-page tripwire that reds the day a fused tool's classifier accepts a box filename.
-    2026-09-21: `verdict.js` — a REAL read: test_seal.py validates both sealed-night readers' verdict
-    objects through the contract's own validator rather than a hand-written copy of its rules."""
+    2026-09-21: `verdict.js` — a REAL read, from two suites: test_seal.py validates both sealed-night
+    readers' verdict objects through the contract's own validator rather than a hand-written copy of its
+    rules, and test_verdict cross-validates the Python half (verdict.py) against the same JS contract."""
     from pathlib import Path
     import pytest
     here = Path(__file__).resolve().parent.parent

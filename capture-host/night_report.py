@@ -60,6 +60,27 @@ def _hours_from_spo2(devices) -> float | None:
     return None
 
 
+def back_check_from_verdict(obj) -> tuple[str, int | None, int | None] | None:
+    """(verdict, clip_regions, held_streams) read off a `tepna.verdict/1` BACKCHECK-VERDICT.json — the
+    first CONSUMER of a verdict object on the box (VERDICT-CONTRACT §3b). None when the object is absent
+    or not the shape, so the caller falls back to re-reading `class_b`; never a fabricated `ok`.
+
+    PASS → ok; FAIL → fail; anything else (NOT_RUN, UNKNOWN, …) → unknown, because those are the states
+    the contract exists to keep apart from a clean night."""
+    if not isinstance(obj, dict) or obj.get("schema") != "tepna.verdict/1" or obj.get("gate") != "night-backcheck":
+        return None
+    st = obj.get("status")
+    raw = obj.get("result")
+    res: dict = raw if isinstance(raw, dict) else {}
+    clips = res.get("clip_regions") if isinstance(res.get("clip_regions"), int) else None
+    held = res.get("held_streams") if isinstance(res.get("held_streams"), int) else None
+    if st == "PASS":
+        return "ok", clips, held
+    if st == "FAIL":
+        return "fail", clips, held
+    return UNKNOWN, clips, held
+
+
 def back_check(summary: dict | None) -> tuple[str, int | None, int | None]:
     """(verdict, clip_regions, held_streams) for the end-of-night class-B back-check.
 
@@ -172,10 +193,13 @@ def clock_lines(summary: dict | None) -> list[str]:
     return out
 
 
-def build(night: str, summary: dict | None, verdict_text: str | None) -> dict:
-    """Everything the report says, as data. `line` is what the operator reads; `detail` is the file."""
+def build(night: str, summary: dict | None, verdict_text: str | None, backcheck_obj=None) -> dict:
+    """Everything the report says, as data. `line` is what the operator reads; `detail` is the file.
+    `backcheck_obj` is the night's BACKCHECK-VERDICT.json when it exists: the object is read first and
+    the class_b re-parse is only the fallback for nights written before the verdicts existed."""
     hours = _hours_from_spo2((summary or {}).get("devices") if isinstance(summary, dict) else None)
-    check, spans, held = back_check(summary)
+    from_obj = back_check_from_verdict(backcheck_obj)
+    check, spans, held = from_obj if from_obj is not None else back_check(summary)
     sniff, coverage = sniffer_verdict(verdict_text)
     # A HELD stream is named in the line rather than folded into the clip count: "25 clipped regions"
     # and "a stream was pinned all night" are different findings and call for different actions. It is
@@ -225,6 +249,11 @@ def read_night(captures_root: str, night: str, sniffer_dir: str | None = None) -
             summary = json.load(fh)
     except (OSError, ValueError):
         summary = None
+    try:
+        with open(os.path.join(captures_root, night, "BACKCHECK-VERDICT.json"), encoding="utf-8") as fh:
+            backcheck_obj = json.load(fh)
+    except (OSError, ValueError):
+        backcheck_obj = None
     verdict = None
     if sniffer_dir:
         try:
@@ -234,7 +263,7 @@ def read_night(captures_root: str, night: str, sniffer_dir: str | None = None) -
                     verdict = fh.read()
         except OSError:
             verdict = None
-    return build(night, summary, verdict)
+    return build(night, summary, verdict, backcheck_obj)
 
 
 def main(argv: list[str]) -> int:

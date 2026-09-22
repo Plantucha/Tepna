@@ -118,9 +118,13 @@
  * of benchmark numbers, not measurement (owner 2026-09-12): run it, act on it, do not quote it out.
  *
  *   node tools/oracle-ecg-firmware-rr.mjs --selftest
+ *   node tools/oracle-ecg-firmware-rr.mjs --verdict-sample   # the tepna.verdict/1 object over SYNTHETIC pooled input — no corpus, no DSP;
+ *                                                            # what `tools/verdict-adoption.mjs --check` runs in CI to assert the shape
  *   node tools/oracle-ecg-firmware-rr.mjs [--root <captures root>] [--min-beats 3600] [--limit N] [--tol 150] [--anchor-window 300] [--json]
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  */
+import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -602,6 +606,98 @@ export function pooled(rows) {
   };
 }
 
+/* ── THE VERDICT OBJECT — tepna.verdict/1 (VERDICT-CONTRACT §1; `verdict.js` is the authority) ───────
+   ONE object per gate: the headline criterion is the per-beat agreement on TIME-MATCHED pairs (RR |Δ|
+   median ≤ 8 ms — the roadmap §5 comparison, pre-stated in this header), over the population of nights
+   scored. Status: UNDERPOWERED below minNights (reason carries both numbers) · FAIL when the headline
+   band is INVESTIGATE · SHORTFALL when the headline holds but a stated tail does not (the LoA band, or
+   any secondary band, at SHORTFALL/INVESTIGATE — the reason names which) · PASS when every band is
+   CONSISTENT. `result` carries the medians at published precision beside full precision. Pure. */
+export function verdictObject(P, rows, meta) {
+  meta = meta || {};
+  const r2 = (x) => (Number.isFinite(x) ? +x.toFixed(2) : null);
+  const t = P.time || {};
+  const head = t.rrMedianAbs || { median: null, band: 'UNDERPOWERED' };
+  const result = {
+    rrMedianAbsMs: r2(head.median),
+    rrMedianAbsMsFull: Number.isFinite(head.median) ? head.median : null,
+    matchedSelfPct: r2(t.matchedSelf && t.matchedSelf.median),
+    matchedFwPct: r2(t.matchedFw && t.matchedFw.median),
+    rrLoaMs: r2(t.rrLoa && t.rrLoa.median),
+    rrEmpirical95Ms: r2(t.rrEmpirical95 && t.rrEmpirical95.median),
+    dMeanPct: r2(P.dMean && P.dMean.median),
+    dRMSSDPct: r2(P.dRMSSD && P.dRMSSD.median),
+    nightsBelow90Pct: t.investigate ? t.investigate.length : null
+  };
+  const secondaries = {
+    rrLoa: t.rrLoa && t.rrLoa.band,
+    matchedSelf: t.matchedSelf && t.matchedSelf.band,
+    matchedFw: t.matchedFw && t.matchedFw.band,
+    dMean: P.dMean && P.dMean.band,
+    dRMSSD: P.dRMSSD && P.dRMSSD.band,
+    dSDNN: P.dSDNN && P.dSDNN.band
+  };
+  let status;
+  let reason = null;
+  if (P.nights < BANDS.minNights) {
+    status = 'UNDERPOWERED';
+    reason = `${P.nights} night(s) scored < the pre-stated minimum of ${BANDS.minNights}`;
+  } else if (head.band === 'INVESTIGATE') {
+    status = 'FAIL';
+    reason = `per-beat RR |Δ| median ${r2(head.median)} ms > ${BANDS.medianAbsMs[1]} ms (INVESTIGATE band)`;
+  } else {
+    const off = Object.entries(secondaries).filter(([, b]) => b && b !== 'CONSISTENT' && b !== 'not banded');
+    if (head.band === 'SHORTFALL' || off.length) {
+      status = 'SHORTFALL';
+      const parts = [];
+      if (head.band === 'SHORTFALL') parts.push(`headline RR |Δ| ${r2(head.median)} ms in the ${BANDS.medianAbsMs[0]}–${BANDS.medianAbsMs[1]} ms SHORTFALL band`);
+      for (const [k, b] of off)
+        parts.push(`${k} ${b}${k === 'rrLoa' ? ` (LoA ${r2(t.rrLoa.median)} ms vs ≤ ${BANDS.loaMs[0]}; empirical 95 % ${r2(t.rrEmpirical95 && t.rrEmpirical95.median)} ms — tail-driven)` : ''}`);
+      if (t.investigate && t.investigate.length) parts.push(`${t.investigate.length} night(s) < 90 % matched: ${t.investigate.join(', ')}`);
+      reason = parts.join('; ');
+    } else status = 'PASS';
+  }
+  return {
+    schema: 'tepna.verdict/1',
+    gate: 'oracle-ecg-firmware-rr',
+    scope: 'internal',
+    status,
+    population: { checked: P.nights, eligible: rows.length, excluded: rows.length - P.nights },
+    criterion: { name: 'rr_delta_median_time_paired', threshold: BANDS.medianAbsMs[0], unit: 'ms', direction: 'lte' },
+    result: status === 'UNDERPOWERED' && !Number.isFinite(head.median) ? null : result,
+    evidence: ['tools/oracle-ecg-firmware-rr.mjs', ...(meta.roots || []).map((r) => `${r}/**/{*_ECG.txt,*_RR.txt}`)],
+    reason,
+    producedBy: {
+      tool: 'tools/oracle-ecg-firmware-rr.mjs',
+      commit: meta.commit || null,
+      ...(meta.commit ? {} : { commitReason: meta.sample ? '--verdict-sample: synthetic pooled input, no code identity claimed' : 'not run inside a git checkout' })
+    },
+    at: (meta.at || new Date().toISOString()).replace(/\.\d{3}Z$/, 'Z')
+  };
+}
+
+/* ── --verdict-sample: the object the adoption gate reads (VERDICT-CONTRACT §3b: `emits.cmd` must be
+   cheap and corpus-free — CI runs it). SYNTHETIC pooled input, fixed `at`, no git call: it asserts the
+   SHAPE the tool emits, never a number about any night. The same fixture is the selftest's. */
+export const SAMPLE_POOLED = Object.freeze({
+  nights: 52,
+  dMean: { median: 0.4, band: 'CONSISTENT' },
+  dRMSSD: { median: 1.2, band: 'CONSISTENT' },
+  dSDNN: { median: 4, band: 'CONSISTENT' },
+  time: {
+    rrMedianAbs: { median: 0.45, band: 'CONSISTENT' },
+    rrLoa: { median: 35.3, band: 'SHORTFALL' },
+    rrEmpirical95: { median: 1.9 },
+    matchedSelf: { median: 98.7, band: 'CONSISTENT' },
+    matchedFw: { median: 99.2, band: 'CONSISTENT' },
+    investigate: ['2026-09-20', '2026-09-04']
+  }
+});
+export const SAMPLE_ROWS = Object.freeze(Array.from({ length: 55 }, (_, i) => ({ ok: i < 52 })));
+export function verdictSample() {
+  return verdictObject(SAMPLE_POOLED, SAMPLE_ROWS, { roots: ['<synthetic>'], commit: null, at: '2026-09-21T18:40:12Z', sample: true });
+}
+
 function header() {
   return [
     'oracle-ecg-firmware-rr — ECGDex Pan–Tompkins vs the H10 FIRMWARE detector, real nights',
@@ -850,12 +946,60 @@ function selftest() {
   );
   ok(/NOT GROUND TRUTH/.test(header()) && /proves nothing physiological/.test(header()), "the header prints §5's two caveats");
   for (const f of fails) console.error('  ✗ ' + f);
-  console.log(fails.length ? fails.length + ' failed of 26' : 'all 26 selftests passed');
+  // verdictObject — tepna.verdict/1 (VERDICT-CONTRACT): the four statuses the oracle can emit, each with its reason
+  {
+    const V = createRequire(import.meta.url)('../verdict.js');
+    const mkP = (over) => ({ ...SAMPLE_POOLED, ...over });
+    const rows52 = SAMPLE_ROWS;
+    const meta = { roots: ['/corpus'], commit: '3c0dbdec', at: '2026-09-21T18:40:12Z' };
+    const sf = verdictObject(mkP(), rows52, meta);
+    ok(
+      sf.status === 'SHORTFALL' &&
+        /rrLoa SHORTFALL/.test(sf.reason) &&
+        /35.3/.test(sf.reason) &&
+        /2 night/.test(sf.reason) &&
+        sf.population.checked === 52 &&
+        sf.population.excluded === 3 &&
+        sf.population.eligible === 55,
+      'verdict: headline met, LoA tail not → SHORTFALL naming the tail and the nights, population as an equality'
+    );
+    ok(V.validate(sf).ok, 'verdict: the SHORTFALL object validates under verdict.js: ' + V.validate(sf).errors.join(' | '));
+    const pass = verdictObject(mkP({ time: { ...mkP().time, rrLoa: { median: 20, band: 'CONSISTENT' }, investigate: [] } }), rows52, meta);
+    ok(pass.status === 'PASS' && pass.reason === null && V.validate(pass).ok, 'verdict: every band CONSISTENT → PASS with reason null, valid');
+    const fail = verdictObject(mkP({ time: { ...mkP().time, rrMedianAbs: { median: 25, band: 'INVESTIGATE' } } }), rows52, meta);
+    ok(fail.status === 'FAIL' && /25/.test(fail.reason) && V.validate(fail).ok, 'verdict: headline INVESTIGATE → FAIL with the number, valid');
+    const few = verdictObject(
+      mkP({ nights: 3, time: { rrMedianAbs: { median: null, band: 'UNDERPOWERED' } } }),
+      Array.from({ length: 3 }, () => ({ ok: true })),
+      meta
+    );
+    ok(
+      few.status === 'UNDERPOWERED' && /3 night/.test(few.reason) && /minimum of 10/.test(few.reason) && few.result === null && V.validate(few).ok,
+      'verdict: below minNights → UNDERPOWERED naming both numbers, result null, valid'
+    );
+    const noGit = verdictObject(mkP(), rows52, { roots: [], commit: null, at: '2026-09-21T18:40:12Z' });
+    ok(noGit.producedBy.commit === null && typeof noGit.producedBy.commitReason === 'string' && V.validate(noGit).ok, 'verdict: no checkout → commit null WITH a reason (∅), valid');
+    const smp = verdictSample();
+    ok(
+      smp.scope === 'internal' &&
+        smp.status === 'SHORTFALL' &&
+        smp.producedBy.commit === null &&
+        /synthetic/.test(smp.producedBy.commitReason) &&
+        smp.at === '2026-09-21T18:40:12Z' &&
+        V.validate(smp).ok,
+      'verdict: --verdict-sample is internal-scope, SHORTFALL over the synthetic fixture, claims no commit, fixed `at`, valid: ' + V.validate(smp).errors.join(' | ')
+    );
+  }
+  console.log(fails.length ? fails.length + ' failed of 33' : 'all 33 selftests passed');
   return fails.length ? 1 : 0;
 }
 
 async function main(argv) {
   if (argv.includes('--selftest')) return selftest();
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample(), null, 1));
+    return 0;
+  }
   const arg = (k, d) => {
     const i = argv.indexOf(k);
     return i >= 0 && argv[i + 1] != null ? argv[i + 1] : d;
@@ -890,8 +1034,16 @@ async function main(argv) {
   }
   const P = pooled(rows);
   const cov = ppiCoverage(roots[0]);
-  if (argv.includes('--json')) console.log(JSON.stringify({ bands: BANDS, roots, pooled: P, ppiCoverage: cov, nights: rows }, null, 1));
-  else console.log(report(rows, P, cov, roots));
+  let commit = null;
+  try {
+    commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: HERE, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    /* not a checkout → commit null with commitReason (the verdict says so) */
+  }
+  const verdict = verdictObject(P, rows, { roots, commit });
+  // VERDICT-CONTRACT §1: the object IS the API. --json emits it at the top level; the report detail rides under `detail`.
+  if (argv.includes('--json')) console.log(JSON.stringify({ ...verdict, detail: { bands: BANDS, roots, pooled: P, ppiCoverage: cov, nights: rows } }, null, 1));
+  else console.log(report(rows, P, cov, roots) + '\n\nVERDICT (tepna.verdict/1): ' + JSON.stringify({ status: verdict.status, population: verdict.population, reason: verdict.reason }));
   return 0;
 }
 
