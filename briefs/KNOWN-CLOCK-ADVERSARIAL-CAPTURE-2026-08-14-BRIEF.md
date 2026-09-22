@@ -286,7 +286,7 @@ Per night, the sealed note carries: date · which row above · hci↔device map 
 
 Targets **1** (constant offset), **4** (packet loss), **6** (labelled beat FP/FN) require a **known perturbation injected at the `capture.py` write path** with the injected value recorded out-of-band, so recovery can be scored against truth. That injector **does not exist** (re-verified 2026-09-20). It is a capture-host unit: inject at write time, never rewrite a captured file (§∅ — captured bytes are immutable; the perturbation is applied to what is *written*, and the truth sidecar says so). Unassigned. Until it lands, targets 1·4·6 are not testable and the brief cannot close.
 
-**B.1 · Assigned to Heron 2026-09-20 — scoped, not started.** Two owner rulings, **relayed by Kestrel the
+**B.1 · Assigned to Heron 2026-09-20 — BUILT for targets 1 · 4 (2026-09-22, `capture-host/adversarial_capture.py`); target 6 deliberately NOT built, see B.2.** Two owner rulings, **relayed by Kestrel the
 same evening** (a peer relay is enough to design against and not enough to deploy against; the deploy of
 whatever this becomes is authorised by the owner directly, per §👥.0):
 
@@ -317,6 +317,26 @@ injectable hook whose default is identity — the *injected-default-real-vs-noop
 means opposite things. Mitigation: a **positional callable the daemon never passes, never a config key**, and
 the PR must SHOW the shipped daemon cannot reach it. The refuse-production test is the plant that matters and
 is verified to fail without the guard before it is trusted.
+
+**B.2 · What landed (2026-09-22, Heron).** `capture-host/adversarial_capture.py` is a SEPARATE PROCESS that
+composes the shipped capture library unchanged: it replaces `bleak.BleakClient` in its own process with a
+subclass whose `start_notify` on the PMD data characteristic of a TARGETED address wraps the daemon's callback
+— every frame passes `inject()` before `capture.py` ever decodes it. **Target 1** adds a known `offset_ns` to
+the u64 device stamp at bytes 1..8 of every frame (decode, back-timing, the arrival sidecar, the watchdog and
+every writer see a device whose clock is offset by a known amount against the host's untouched arrival);
+**target 4** drops a frame before decode by a seeded hash of (seed, address, frame index) — deterministic and
+replayable. The truth sidecar `INJECTION-TRUTH-<stamp>.jsonl` (`tepna.injection-truth/1`) sits in the
+adversarial root, plan first, one row per perturbed frame with the original and injected stamps. Ruling 1 is
+`refuse_production`: exit 3 on any root that is, lies under, or lies ABOVE the config's `root` or `/srv/tepna`
+(vigil's, read 2026-09-22), or has no `adversarial` path component — so the default is the SIBLING
+`/srv/tepna-adversarial`, never `/srv/tepna/adversarial`, which every walker of `/srv/tepna` would find. The
+plant was shown load-bearing first: with the guard neutralised the same argv dry-runs INTO production. Ruling 2
+holds by construction: `capture.py` carries no hook, branch or config key (test-asserted by token absence), and
+the derived config switches off the alert webhook and the CPAP harvest. **Target 6 is not built**, on this
+brief's own sizing: flattening or inserting a QRS at a device time needs a truth that says whether a beat WAS
+there, and a sidecar that is approximately right is a fabricated label — it needs its own design (a live
+detector's verdict is not truth). Running the injector beside the production daemon is running two daemons on
+one box; the owner runs the clock nights and that is the owner's call.
 
 ⚠️ **The O2Ring must return REFUSAL on every recovery target** (§"The O2Ring is the stream…"). A night on which the ring's stream yields a confident ppm is a finding about the pipeline, not about the ring.
 

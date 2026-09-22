@@ -1259,6 +1259,8 @@ def test_run_polar_drops_the_link_when_not_worn_too_long(tmp_path, monkeypatch):
     _polar_common(monkeypatch)
     monkeypatch.setattr(capture, "_DROP_NOT_WORN_SEC", 0.001)  # trip immediately
     capture._WORN_SINCE["24:AC:AC:02:84:96"] = 0.0  # not-worn since the epoch
+    capture.devcaps.reset()
+    capture.devcaps.record("24:AC:AC:02:84:96", "can_charge", True, source="test: a unit observed to charge")
     c = FakePolarClient(start_status=0x00, hr_frame=bytes([0x04, 0]))  # contact absent, HR 0: off body
     _inject_connect(monkeypatch, c)
     calls = {"n": 0}
@@ -8706,10 +8708,91 @@ def test_the_H10_on_a_chest_with_a_FULL_flat_battery_is_worn_not_docked(tmp_path
 
     st = frame(62, True, "flat-at-full")  # tonight: a beat under an inferred dock
     assert st["worn"] is True and "hr-beats" in st["worn_why"], st
-    assert st["charging"] is True and st["charging_why"] == "flat-at-full"  # the inference still fires, and says so
     assert addr not in capture._WORN_SINCE
+    # R2 (CAPTURE-LOSS-PRECEDENCE-AUDIT): the inference itself no longer fires on a unit never observed
+    # to charge — the seeded `charging: True` above is what a PRE-R2 daemon had published; a fresh read
+    # here on the same battery clears nothing (the flat rule is skipped) and the beat still decides
+    capture.devcaps.reset()
+    assert capture.devcaps.get(addr, "can_charge") is None
     st = frame(0, True, "flat-at-full")  # no beat: a strap on a desk is still dropped
     assert st["worn"] is False and "charger" in st["worn_why"] and addr in capture._WORN_SINCE
     st = frame(62, True, "rising")  # a MEASURED charge outranks even a beat
     assert st["worn"] is False and "charger" in st["worn_why"]
     capture._STOP.clear()
+
+
+def test_a_unit_never_observed_to_charge_is_NEVER_dropped_for_power(tmp_path, monkeypatch):
+    """CAPTURE-LOSS-PRECEDENCE-AUDIT R1 (owner ruling 2026-09-22). The drop protects a dock's charge
+    budget; the H10's coin cell read 100 % after 14 nights of streaming and the drop cost it 557 minutes
+    over 33 nights. `can_charge` is measured per unit (a battery that ROSE, or a PMD IN_CHARGER); absent
+    is null, not a dock. Same session shape as the drop test above, capability unrecorded ⇒ no drop."""
+    _polar_common(monkeypatch)
+    monkeypatch.setattr(capture, "_DROP_NOT_WORN_SEC", 0.001)
+    capture._WORN_SINCE["24:AC:AC:02:84:96"] = 0.0
+    capture.devcaps.reset()
+    assert capture.devcaps.get("24:AC:AC:02:84:96", "can_charge") is None
+    c = FakePolarClient(start_status=0x00, hr_frame=bytes([0x04, 0]))
+    _inject_connect(monkeypatch, c)
+    calls = {"n": 0}
+
+    async def fake_sleep(_s):
+        calls["n"] += 1
+        if calls["n"] >= 3:
+            capture._STOP.set()
+
+    monkeypatch.setattr(capture.asyncio, "sleep", fake_sleep)
+    _run(capture.run_polar(_pdev(streams=["ecg", "hr"]), str(tmp_path)))
+    assert "save battery" not in (capture.STATUS["devices"]["H10"].get("last_error") or "")
+    assert capture.STATUS["devices"]["H10"]["worn"] is False  # the VERDICT still stands; only the link is kept
+
+
+def test_the_capability_is_recorded_where_charging_is_MEASURED_and_gates_the_flat_inference(tmp_path, monkeypatch):
+    """R2. A battery that ROSE records `can_charge` for the unit (source named); the flat-at-100 %
+    inference fires only on such a unit. The Verity-on-a-wrist-in-SDK-mode plant: 100 % flat for 45 min,
+    no PPI, no rise ever observed ⇒ no `charging`, no drop — the 09-22 shape on the other Polar."""
+    _polar_common(monkeypatch)
+    addr = _pdev()["address"]
+    capture.devcaps.reset()
+    # (a) flat at 100 % on a unit never observed to charge: the inference does NOT fire
+    capture.STATUS["devices"]["H10"] = {"battery": 100}
+    capture._BATT_FLAT_SINCE["H10"] = -10_000.0
+    c = FlexPolarClient(data_frames=[_ecg_frame()], batt_level=100, start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert capture.STATUS["devices"]["H10"].get("charging") is not True
+    assert capture.devcaps.get(addr, "can_charge") is None
+    # (b) a rise records the capability with its source
+    capture._STOP = asyncio.Event()
+    capture.STATUS["devices"]["H10"] = {"battery": 50}
+    c = FlexPolarClient(data_frames=[_ecg_frame()], batt_level=80, start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert (
+        capture.devcaps.get(addr, "can_charge") is True and capture.devcaps.source(addr, "can_charge") == "battery-rose"
+    )
+    # (c) now the same flat-at-100 % session DOES infer a dock — the Verity's real case
+    capture._STOP = asyncio.Event()
+    capture.STATUS["devices"]["H10"] = {"battery": 100}
+    capture._BATT_FLAT_SINCE["H10"] = -10_000.0
+    c = FlexPolarClient(data_frames=[_ecg_frame()], batt_level=100, start_status=0x00)
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert (
+        capture.STATUS["devices"]["H10"]["charging"] is True
+        and capture.STATUS["devices"]["H10"]["charging_why"] == "flat-at-full"
+    )
+    capture._STOP.clear()
+
+
+def test_a_pmd_in_charger_answer_records_the_capability(tmp_path, monkeypatch):
+    _polar_common(monkeypatch)
+    capture.devcaps.reset()
+    c = FakePolarClient(start_status=0x0D)  # START ack 0x0D: in_charger
+    _inject_connect(monkeypatch, c)
+    _stop_after(monkeypatch, 1)
+    _run(capture.run_polar(_pdev(), str(tmp_path)))
+    assert capture.devcaps.get(_pdev()["address"], "can_charge") is True
+    assert capture.devcaps.source(_pdev()["address"], "can_charge") == "pmd-in-charger"
