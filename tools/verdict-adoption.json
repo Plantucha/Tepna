@@ -340,8 +340,15 @@
   },
   "tools/acc-acc-control.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "VERDICT block over the ACC control experiment"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/acc-acc-control.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); ACC\u2194ACC alignment recovery per leg rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
   "tools/acc-select-compare.mjs": {
    "bin": "word-only",
@@ -432,8 +439,15 @@
   },
   "tools/cpap-oxy-couple.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "UNDERPOWERED flag on the coupling lift"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/cpap-oxy-couple.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); event \u2192 desat coupling lift per class \u00d7 window (the UNDERPOWERED/SATURATED flags ride as fields) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
   "tools/deep-desat-falsifier.mjs": {
    "bin": "already-json",
@@ -678,9 +692,16 @@
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
   "tools/pat-ppg-ppg-control.mjs": {
-   "bin": "already-json",
-   "status": "pending",
-   "note": "control-experiment verdict in the JSON record"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pat-ppg-ppg-control.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); finger\u2194ankle PPG coupling control; the in-code \u226550 %-of-nights rule is reported as result.inCodeRulePasses, never a status rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
   "tools/pat-residual-structure.mjs": {
    "bin": "word-only",
@@ -769,8 +790,15 @@
   },
   "tools/pulse-agreement.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "per-stream FAIL over real recordings (debug print)"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/pulse-agreement.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); PPG\u2212vendor pulse Bland\u2013Altman (bias/SD/LoA, per-night medians) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
   "tools/queue-doctor.mjs": {
    "bin": "word-only",
@@ -834,23 +862,51 @@
   },
   "tools/tch-estimator-bakeoff.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "VERDICT: which estimator wins"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/tch-estimator-bakeoff.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); quiet-corner \u03c3 MAE per estimator on planted truth; the in-code \"beat BASE by > 0.10 bpm\" rule is result.inCodeRuleWinner, never a status rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
   "tools/tch-multinight.mjs": {
-   "bin": "already-json",
-   "status": "pending",
-   "note": "multinight verdict keyed in the record"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/tch-multinight.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); multi-night \u03c3 medians classic vs \u03c1-on, emitted on both the --dir and the known-answer branch (the checks decide the SELF-TEST exit, not the verdict) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
   "tools/tch-per-epoch-rho.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "VERDICT block over per-epoch rho"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/tch-per-epoch-rho.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); pooled and per-night residual rho(ECG,PPG) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
   "tools/tch-third-corner.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "per-corner FAIL over real nights (O2Ring axis)"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/tch-third-corner.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); one-night three-cornered hat \u03c3 per corner on the O2Ring's own clock rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
   },
   "tools/trio-batch.mjs": {
    "bin": "decides",
@@ -873,6 +929,18 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "the gate itself: the verdict words occur in its header, its bin vocabulary and its red messages; its own result is the exit code + the summary line, read by npm run check / CI \u2014 it names producers, it is not one (a gate-verdict object for the gate is a wave-2 question, not an omission)"
+  },
+  "tools/verdict-undeclared.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/verdict-undeclared.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the ONE builder the eight band-less analysis tools share: tepna.verdict/1 with status UNKNOWN (NOT_RUN when nothing contributed), the statistic verbatim in result, the \u00a71 sentence and the route to a band as the reason; selftest pins the shape against verdict.js"
   },
   "tools/verify-drafts.mjs": {
    "bin": "word-only",

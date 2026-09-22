@@ -43,6 +43,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
+import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -421,6 +422,42 @@ function distributionHeading(nSolved, rows) {
   );
 }
 
+/* The statistic the verdict object carries — the same medians report() prints, as data. Pure. */
+function summarize(rows) {
+  const isBoundary = (x) => x.withRho.method === 'correlated' || x.withRho.method === 'classic-clamped';
+  const solvedAll = rows.filter((x) => x.ok && x.withRho.ok);
+  const solved = solvedAll.filter((x) => !isBoundary(x));
+  const culpritSig = solved.map((x) => (x.sigmaRho ? x.sigmaRho[x.withRho.culprit] : null)).filter((v) => v != null);
+  const medOf = (f) => {
+    const v = solved.map(f).filter((x) => x != null && isFinite(x));
+    return v.length ? +median(v).toFixed(3) : null;
+  };
+  const per = {};
+  for (const L of LABELS) per[L] = { classic: medOf((x) => x.sigmaClassic && x.sigmaClassic[L]), rhoOn: medOf((x) => x.sigmaRho && x.sigmaRho[L]) };
+  return {
+    nights: rows.length,
+    solved: solved.length,
+    degenerate: solvedAll.length - solved.length,
+    unsolved: rows.length - solvedAll.length,
+    medianCulpritSigmaRhoOnBpm: culpritSig.length ? +median(culpritSig).toFixed(3) : null,
+    medianSigmaBpm: per
+  };
+}
+/* VERDICT-CONTRACT §3b — this A/B never pre-stated a band on the σ medians (real-night numbers are on
+   record: §F3), so the object is UNKNOWN by design with summarize() in `result`; on the known-answer
+   corpus the checks decide the SELF-TEST (exit code), not the verdict. */
+function emitVerdict(rows, evidence) {
+  const st = summarize(rows);
+  printVerdict(
+    undeclaredVerdict({
+      tool: 'tools/tch-multinight.mjs',
+      stat: { label: 'IntegratorTCH multi-night σ medians (bpm), classic vs per-night motion-ρ', ...st },
+      population: { checked: st.solved, eligible: st.nights },
+      evidence
+    })
+  );
+}
+
 function report(rows, { json } = {}) {
   if (json) {
     console.log(JSON.stringify(rows, null, 2));
@@ -645,6 +682,10 @@ function verify(rows, corpus) {
 function main() {
   const argv = process.argv.slice(2);
   const json = argv.includes('--json');
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample('tools/tch-multinight.mjs'), null, 1));
+    process.exit(0);
+  }
   const dirIx = argv.indexOf('--dir');
 
   console.log('IntegratorTCH multi-night A/B — kernel v' + TCH.VERSION + '  (classic vs per-night motion-ρ)');
@@ -665,6 +706,7 @@ function main() {
     const rows = subs.map((d) => runNight(readNightDir(d), LABELS));
     report(rows, { json });
     console.log('\n  (real nights: no planted truth → distribution is the verdict; compare median σ to the corpus reference.)');
+    emitVerdict(rows, [base]);
     return;
   }
 
@@ -672,6 +714,7 @@ function main() {
   const corpus = synthCorpus();
   const rows = corpus.map((c) => runNight(c, LABELS));
   report(rows, { json });
+  emitVerdict(rows, ['<synthetic known-answer corpus built in this tool: synthCorpus()>']);
   const checks = verify(rows, corpus);
   const pass = checks.filter((c) => c.pass).length,
     fail = checks.length - pass;
