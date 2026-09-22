@@ -584,9 +584,16 @@
       "reason": "verdict words appear only in comments"
     },
     "tools/buzz-fiducial-correlate.mjs": {
-      "bin": "word-only",
-      "status": "exempt",
-      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/buzz-fiducial-correlate.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the buzz-fiducial alignment as a tepna.verdict/1. The criterion is the tool's OWN pre-existing bar, not a new one: matchSchedule returns null unless EVERY commanded gap aligns within --tol (default 1.5 s). Four statuses, and the two nulls are separated: windows existed and none matched = FAIL; fewer onsets than gaps+1 = UNDERPOWERED, because FAIL asserts the schedule was looked for and not seen. A daemon capture is NOT_APPLICABLE (residue 2026-09-21-buzz-motion-byte-sparse-in-daemon-stream: the stream carries the buzz on 6 of 39 fires, so a null says nothing about whether the schedule fired). scope: internal."
     },
     "tools/buzz-onset-extract.mjs": {
       "bin": "word-only",
