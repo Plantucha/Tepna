@@ -139,6 +139,12 @@ jobs:
       # contributor can fix it by running the tool, so none of the reasons for informational apply.
       - name: Tools index ≡ tools-index(source) (the fifth generated tree)
         run: node tools/tools-index.mjs --check
+      # VERDICT-CONTRACT §3 — the producers of a verdict word, ENUMERATED on the tree and held equal to a
+      # committed manifest that bins every one (decides · already-json · word-only-with-reason · test).
+      # A new tool that prints PASS/FAIL and is in no bin is a red with its name; an adoption is READ
+      # (the object run or read, validated under verdict.js), never believed. Pure Node, no corpus.
+      - name: Verdict adoption ≡ enumerated producers (every one binned; every adoption read and valid)
+        run: node tools/verdict-adoption.mjs --check
       # The SERVED tree (docs/) is a build output of the root tree — and until 2026-07-14 NOTHING
       # guarded it, so it drifted twice, and both times the drift reached main AND the live site:
       #   · the 8 served docs/*.html APP BUNDLES fell behind their root twins (re-bundles moved the
