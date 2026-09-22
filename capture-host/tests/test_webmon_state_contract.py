@@ -241,7 +241,8 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
           "qc": {"nights": 3},
           "host": {"started_at": 1750000000},
           "archive": {"verified": True},
-          "cpap": {"state": "ok", "files": 5}}
+          "cpap": {"state": "ok", "files": 5},
+          "live_loss": {"open_files": 4}}
     cfg = {"root": str(tmp_path), "clock": {"sudo": False}, "devices": [dict(DEV)]}
     app = webmon.make_app(telemetry.TelemetryBus(), cfg, str(tmp_path / "config.yaml"),
                           "AA:AA:AA:AA:AA:AA", st, None)
@@ -256,6 +257,7 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
     assert body["host"] == {"started_at": 1750000000}
     assert body["archive"] == {"verified": True}
     assert body["cpap"] == {"state": "ok", "files": 5}
+    assert body["live_loss"] == {"open_files": 4}
     assert set(body) == {"adapter", "devices", "streams", "host_clock", "storage", "qc", "host",
                          # `alerts` is the ALERT TRANSPORT's own health, not an alert. It belongs on
                          # this surface because every other block here is designed to reach the
@@ -295,7 +297,12 @@ def test_the_top_level_blocks_are_projected_verbatim(tmp_path):
                          # The daemon's own load and gates (RESOURCE-ORCHESTRATION-AUDIT-2026-09-05):
                          # loop lag, held recovery/pause gates, supervised-task crash counts. Same
                          # reason as every block above — STATUS-only is unpublished.
-                         "loop", "gates", "tasks"}
+                         "loop", "gates", "tasks",
+                         # The live loss guard's findings + the open-file count it examined. Declared
+                         # here rather than by relaxing the assertion, per the rule above — and for
+                         # this block the rule is the whole point: a loss guard nobody can see is the
+                         # defect it was written to close, one layer up.
+                         "live_loss"}
 
 
 def test_the_top_level_blocks_are_null_before_their_pollers_run(tmp_path):
@@ -423,7 +430,7 @@ def test_a_broken_live_view_omits_the_block_rather_than_taking_the_endpoint_down
         return await (await c.get("/api/state")).json()
     body = _serve(app, go)
     assert body["cpap_live"] is None, "a throwing overlay must degrade to null"
-    assert body["cpap"] == {"state": "ok", "files": 5}, "the harvest block must survive untouched"
+    assert body["cpap"] == {"state": "ok", "files": 5}
     # `devices` is built by `_remembered()` from the CONFIG, not echoed from the status dict — my
     # first version of this assertion compared it against the raw `{}` and failed, which was the test
     # being wrong rather than the code. What matters here is only that the endpoint still SERVED.
