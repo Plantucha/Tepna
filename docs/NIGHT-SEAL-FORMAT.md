@@ -97,8 +97,11 @@ a browser reads back with `DecompressionStream("deflate-raw")` — no vendored z
 ## 5 · Verification order, and what each step refuses
 
 A reader checks in this order and refuses **by name** — `SealRefused(kind, detail)` in Python, the same
-`kind` vocabulary in Node, and both emit one `tepna.verdict/1` object (`FAIL` with `reason = "<kind>:
-<detail>"`; `NOT_RUN` when the file cannot be read; `PASS` with what is inside):
+`kind` vocabulary in Node, and both emit one `tepna.verdict/1` object validated by `verdict.js` before it
+is printed (`scope: "internal"` — nothing a reader says is quotable outside the repo until a producer
+writes `publishable`): `PASS` with what is inside; `FAIL` with `reason = "<kind>: <detail>"`; `NOT_RUN`
+with `checked: 0` when the file cannot be read; **`UNKNOWN`** when the reader itself failed — a crash is
+not a verdict, and a consumer must never read an exception as green or as red.
 
 | step | refusal kind | the brief's plant it guards |
 |---|---|---|
@@ -112,6 +115,7 @@ A reader checks in this order and refuses **by name** — `SealRefused(kind, det
 | zip structure, tag files present and UTF-8 | `zip` | — |
 | `Payload-Oxum` vs `data/` — **before any hashing** | `oxum` | a truncated payload |
 | `tagmanifest-sha256.txt`, then `manifest-sha256.txt` | `manifest:<path>` | one flipped byte in one stream — reds **that stream's name** |
+| clear-header `consent` ≠ `bag-info.txt`'s | `consent` | two answers to one question — the header mirrors the bag, and a reader picks neither |
 | `consent` absent | *not a refusal* — reads `null` | `consent` absent must read `null`, never `"no"` |
 
 ## 6 · Test vectors and determinism

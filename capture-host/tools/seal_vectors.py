@@ -64,7 +64,7 @@ def seal_kwargs(signing_key, **over):
     return kw
 
 
-# ── the seven plants (§6) — built HERE so the committed plant vectors and the test build the same bytes ──
+# ── the eight plants (§6) — built HERE so the committed plant vectors and the test build the same bytes ──
 # Each plant is a hook between construction and signing (`mutate_bag` / `mutate_header`), a different
 # key, a post-hoc header forgery, or a reader-side condition. `expect` is the refusal kind BOTH readers
 # must name; None means "not a refusal — reads null". The committed `plants/` directory carries the four
@@ -91,6 +91,10 @@ def _drop_consent(header):
     h = dict(header); del h["consent"]; return h
 
 
+def _disagree_consent(header):
+    return {**header, "consent": "yes"}    # the bag says null (not asked); the header now claims an answer
+
+
 PLANTS: dict[str, dict[str, Any]] = {
     "flipped byte in one stream": dict(mutate_bag=_flip_one_byte_in_one_stream, expect="manifest:" + FLIPPED_STREAM, sealed=True),
     "truncated payload":          dict(mutate_bag=_truncate_payload, expect="oxum", sealed=True),
@@ -99,6 +103,7 @@ PLANTS: dict[str, dict[str, Any]] = {
     "forged header":              dict(forge=True, expect="signature"),
     "stale revision":             dict(known_revision=2, expect="revision"),
     "consent absent":             dict(mutate_header=_drop_consent, expect=None, sealed=True),   # NOT a refusal: reads null
+    "consent disagrees":          dict(mutate_header=_disagree_consent, expect="consent", sealed=True),
 }
 OTHER_KEY_PEM = "test-signing-key-other.pem"   # the SECOND committed test key — "unknown signing key" must be deterministic too
 

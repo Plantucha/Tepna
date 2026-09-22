@@ -77,7 +77,7 @@ from mutation_diff import (  # noqa: E402
     EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, classify, diff_key,
     in_glob_scope, source_function_of_glob, undecided_by_function, unmutatable_decorator,
     functions_covering, refusal_reason, selftest, split_results, string_only_verdict,
-    GATE_BUDGET_SEC, budget_refusal,
+    GATE_BUDGET_SEC, budget_refusal, verdict_object,
 )
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
@@ -164,22 +164,63 @@ def load_equivalence() -> dict:
 
 
 
+def _head_sha() -> str | None:
+    """Short sha of the tree the gate ran in — provenance of the RUN; None outside a checkout."""
+    try:
+        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=HERE, capture_output=True, text=True)
+        return r.stdout.strip() or None if r.returncode == 0 else None
+    except OSError:
+        return None
+
+
+def _now_utc() -> str:
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
 def main(argv=None) -> int:
-    undecided = []   # mutants mutmut could not settle — never "killed"; see split_results
+    undecided: list[dict] = []   # mutants mutmut could not settle — never "killed"; see split_results
     ap = argparse.ArgumentParser(description="Diff-scoped mutation gate for capture-host")
     ap.add_argument("--base", default="origin/main", help="merge base to diff against")
     ap.add_argument("--report-only", action="store_true", help="never exit non-zero")
     ap.add_argument("--json", default=None, help="write the verdict here")
     ap.add_argument("--selftest", action="store_true", help="pin the classifier, run no mutants")
+    ap.add_argument("--verdict-sample", action="store_true",
+                    help="print one synthetic tepna.verdict/1 object built by the real builder and exit (the adoption gate reads this — cheap, corpus-free)")
     a = ap.parse_args(argv)
 
     if a.selftest:
         return selftest()
+    if a.verdict_sample:
+        print(json.dumps(verdict_object("PASS", checked=2, eligible=2, result={"generated": 9, "decided": 9, "killed": 9, "survived": 0, "undecided": 0, "excused": 0},
+                                        reason=None, evidence=["capture-host/tools/mutate_diff.py", "capture-host/mutation_diff.py"], commit=_head_sha(), at=_now_utc(), base="origin/main"), indent=1))
+        return 0
+
+    # ── tepna.verdict/1 — every exit below emits ONE object (VERDICT-CONTRACT §3b step 5) ─────────
+    # `emit` writes it into the JSON record (top-level `verdict`), prints one line, and returns the exit
+    # code it was given, so an exit path cannot leave without a verdict. Prose above it is explanation.
+    verdict: dict = {"base": a.base, "modules": {}, "survivors": []}
+    _counts = {"generated": 0, "decided": 0, "killed": 0, "survived": 0, "undecided": 0, "excused": 0, "refuted": 0}
+    _pop = {"checked": 0, "eligible": 0}
+    _ran_box = [0]  # mirrors `_ran` (a local of main, rebound below) so emit() can read it
+
+    def emit(status, reason, code, evidence=None):
+        _pop["checked"] = min(_pop["eligible"], max(_pop["checked"], _ran_box[0]))
+        _counts["survived"] = len(verdict.get("survivors", []))
+        _counts["undecided"] = len(undecided)
+        obj = verdict_object(status, checked=_pop["checked"], eligible=_pop["eligible"],
+                             result=dict(_counts), reason=reason,
+                             evidence=["capture-host/tools/mutate_diff.py"] + (evidence or []),
+                             commit=_head_sha(), at=_now_utc(), base=a.base)
+        verdict["verdict"] = obj
+        if a.json:
+            Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
+        print("\nVERDICT (tepna.verdict/1): " + json.dumps({k: obj[k] for k in ("status", "population", "reason")}))
+        return code
 
     changed = changed_lines(a.base)
     if not changed:
         print(f"mutate-diff: no capture-host/*.py changed against {a.base} — nothing to check.")
-        return 0
+        return emit("NOT_APPLICABLE", f"no capture-host/*.py changed against {a.base} — the criterion does not bind", 0)
 
     # ── ANNOTATION-ONLY EXCLUSION (measured on #1946) ────────────────────────────────────────
     # Touching a signature line pulls the whole function into mutation scope, so four one-line
@@ -206,7 +247,7 @@ def main(argv=None) -> int:
             del changed[module]
     if not changed:
         print("mutate-diff: every changed module is signature-annotation-only — nothing behavioural to mutate.")
-        return 0
+        return emit("NOT_APPLICABLE", "every changed module is signature-annotation-only — nothing behavioural to mutate", 0)
 
     # ── PREFLIGHT — refuse rather than green when the gate cannot actually run ──────────────
     # Checked BEFORE any work, because the failure is total: no mutmut means no mutants for any
@@ -226,7 +267,7 @@ def main(argv=None) -> int:
         print(f"mutate-diff: REFUSING — {_why}")
         print("  Nothing was mutated, so nothing can be concluded. This is deliberately not a pass:\n"
               "  a gate that cannot see must not report green.")
-        return 2
+        return emit("NOT_RUN", f"preflight refusal: {_why}", 2)
 
     import importlib.util
     spec = importlib.util.spec_from_file_location("mut", HERE / "tools" / "mutate.py")
@@ -250,7 +291,6 @@ def main(argv=None) -> int:
     # THIS TOOL CANNOT MUTATE ONE, so it was never examined. Counted apart so the summary can say so.
     _unexaminable: list = []
     _out_of_scope: int = 0   # undecided mutants belonging to functions the diff never touched
-    verdict: dict = {"base": a.base, "modules": {}, "survivors": []}
     # ── THE RUN BUDGET (mutation_diff.GATE_BUDGET_SEC) — a refusal is a verdict, a SIGTERM is not ──
     _gate_t0 = time.monotonic()
     _refused_budget: list[str] = []
@@ -262,6 +302,7 @@ def main(argv=None) -> int:
             continue
         stem_mod = module[:-3]
         globs = [f"{stem_mod}.{s}__mutmut_*" for s in sorted(stems)]
+        _pop["eligible"] += len(globs)
         print(f"  {module}: {len(lines)} changed line(s) in {len(stems)} function(s) → "
               f"{', '.join(sorted(stems))}", flush=True)
         # The clean run is timed ONCE per module and handed to every glob's run_one. Re-timing it per
@@ -485,14 +526,14 @@ def main(argv=None) -> int:
     if _nothing_to_mutate and not _ran and not _crashed and len(_nothing_to_mutate) == _attempted and not _refused_budget:
         print(f"\nmutate-diff: {len(_nothing_to_mutate)} changed function(s) had no mutable operator — "
               "nothing to test, and nothing to conclude. Not a failure.")
-        if a.json:
-            Path(a.json).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
-        return 0
+        _ran_box[0] = _ran
+        return emit("NOT_APPLICABLE", f"{len(_nothing_to_mutate)} changed function(s) generated no mutants — nothing behavioural to test", 0)
     if _attempted and not _ran:
         print(f"\nmutate-diff: REFUSING — all {_attempted} mutmut invocation(s) failed, so no mutant "
               "was generated or tested. The per-glob errors are above.")
         print("  Deliberately not a pass: a gate that cannot see must not report green.")
-        return 2
+        _ran_box[0] = _ran
+        return emit("NOT_RUN", f"all {_attempted} mutmut invocation(s) failed — nothing was generated or tested", 2)
 
     # ── the recorded classification ───────────────────────────────────────────────────────────
     # Applied to survivors ONLY, and only per-module, so an entry filed against a different file can
@@ -564,7 +605,9 @@ def main(argv=None) -> int:
             print(f"     claimed: {e.get('class')} — {e.get('why', '')[:140]}")
         print("\n  Fix the ENTRY, never the test that killed it. Delete it, or reclassify it as real-gap\n"
               "  with the evidence that changed.")
-        return 0 if a.report_only else 1
+        _ran_box[0] = _ran
+        _counts["refuted"] = len(cls["refuted"])
+        return emit("FAIL", f"{len(cls['refuted'])} equivalence entr(y/ies) REFUTED — the mutant was killed, so the recorded claim is wrong", 0 if a.report_only else 1)
 
     # UNDECIDED BLOCKS, and says so before the survivor report. A mutant mutmut could not settle
     # (timeout, suspicious, no tests, not checked) was never seen by a test, so "every mutant was
@@ -627,8 +670,10 @@ def main(argv=None) -> int:
                   "  what selected them, not at how long they were given.")
         print("  Do NOT raise `timeout_multiplier` to clear this: it would report a pass for mutants\n"
               "  nobody measured, which is precisely what this refusal is here to stop.")
+        _ran_box[0] = _ran
+        _u = emit("UNKNOWN", f"{len(undecided)} mutant(s) UNDECIDED ({', '.join(sorted(set(u['status'] for u in undecided)))}) — never observed by a test, so this run cannot say they were killed", 2)
         if not a.report_only:
-            return 2
+            return _u
 
     # ── the budget refusal — after the survivor report has been recorded, before the verdict ─────
     # Whatever DID run is reported above and in the JSON; what did NOT run is named here. A refused
@@ -646,15 +691,19 @@ def main(argv=None) -> int:
               "  Nothing above about the functions that DID run is withdrawn — only the refused ones are\n"
               "  unmeasured. Do NOT raise GATE_BUDGET_SEC to clear this: measure the selection's clean run\n"
               "  and the trace factor it multiplies, then change the number that was wrong.")
+        _ran_box[0] = _ran
+        _b = emit("UNKNOWN", f"{len(_refused_budget)} module(s)/function(s) not mutated inside the {GATE_BUDGET_SEC}s gate budget — unmeasured, not failed", 2)
         if not a.report_only:
-            return 2
+            return _b
 
     blocking = cls["unclassified"] + cls["real_gap"]
     if not blocking:
         n_ex = len(cls["excused"])
         print("\nmutate-diff: every mutant on the changed functions was killed"
               + (f" ({n_ex} recorded as equivalent)." if n_ex else "."))
-        return 0
+        _ran_box[0] = _ran
+        _counts["excused"] = n_ex
+        return emit("PASS", None, 0)
 
     print(f"\nmutate-diff: {len(blocking)} mutant(s) survived on lines this branch "
           f"changed — no test can see these edits:\n")
@@ -670,7 +719,9 @@ def main(argv=None) -> int:
           "  observes it, or — if it is genuinely unkillable — record it in tools/mutate-equivalence.json\n"
           "  with a `probe` saying what you actually ran. Reproduce locally with:\n"
           "      cd capture-host && .venv/bin/python tools/mutate_diff.py --base origin/main")
-    return 0 if a.report_only else 1
+    _ran_box[0] = _ran
+    _counts["excused"] = len(cls["excused"])
+    return emit("FAIL", f"{len(blocking)} mutant(s) survived on lines this branch changed — no test observes them", 0 if a.report_only else 1)
 
 
 if __name__ == "__main__":

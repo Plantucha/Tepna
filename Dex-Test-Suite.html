@@ -480,6 +480,23 @@ async function main(){
     try { fixture = await fetchJSON('uploads/' + encodeURIComponent(fxF)); } catch (e) { /* committed → normally present */ }
     setEquiv(k, input, fixture, fxF);
   }
+  /* The stored .dat night WITH its acquisition envelope (residue 2026-09-21-measurement-envelope-hop-
+     unexercised) — the fourth OxyDex fixture, code-gated, so it needs a leg in THIS lane too or the
+     fixture-reproducibility gate reads its manifestHash claim as decoration (it did, on #2798's first
+     lap: the node lane had the pair, this one did not). Its input is BINARY plus a JSON sidecar, both
+     corpus-backed (gitignored, like the two CSV summaries) — fetched as bytes here, and the FIXTURE
+     registers even when the input is absent, so the leg exists everywhere and runs where the corpus is. */
+  {
+    const datF = 'Wellue_O2Ring-S_20260919224526_STORED.dat', metaF = datF + '.meta.json', fxF = 'OxyDex_2026-09-19_2245_stored_summary.json';
+    let input = null, fixture = null;
+    try {
+      const r = await fetch('uploads/' + encodeURIComponent(datF));
+      const m = await fetch('uploads/' + encodeURIComponent(metaF));
+      if (r.ok && m.ok) input = { bytes: new Uint8Array(await r.arrayBuffer()), fname: datF, meta: await m.json() };
+    } catch (e) { /* gitignored recording → this leg skips */ }
+    try { fixture = await fetchJSON('uploads/' + encodeURIComponent(fxF)); } catch (e) { /* committed → normally present */ }
+    setEquiv('oxydex_stored', input, fixture, fxF);
+  }
 
   // ── CPAPDex REAL-EDF legs (FIXTURE-REPRODUCIBILITY §1) — binary, multi-session ───────────────
   // Both were CODE-GATED (a manifestHash claiming "reproducible under this code") while NOTHING

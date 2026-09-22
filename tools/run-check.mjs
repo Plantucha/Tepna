@@ -55,6 +55,7 @@ export const STEPS = [
   'verify:analysis',
   'verify:docs',
   'verify:tools-index',
+  'verify:verdict-adoption',
   'verify:manifest',
   'test:hooks'
 ];

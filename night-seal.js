@@ -8,7 +8,7 @@
  * READ A `tepna-seal/1` NIGHT IN THE PAGE — CAPTURE-NIGHT-SEAL phase C (brief §5; format frozen in
  * docs/NIGHT-SEAL-FORMAT.md). The browser twin of tools/verify-seals.mjs and capture-host/unseal.py:
  * the same recipe, the same refusal vocabulary, the same order — and judged on the same committed
- * vector and the same seven plants, so the three readers cannot drift unseen.
+ * vector and the same eight plants, so the three readers cannot drift unseen.
  *
  * WebCrypto (`crypto.subtle`) and the browser-native `DecompressionStream('deflate-raw')` only. No
  * vendored crypto, no vendored zip: the ~40-line central-directory parser below IS the zip reader.
@@ -47,7 +47,7 @@
   var P256_SIG_BYTES = 64;
   // The refusal vocabulary — echo unseal.KINDS / verify-seals KINDS exactly. A kind outside this
   // list is a bug in the reader, not a new refusal.
-  var KINDS = ['magic', 'version', 'header', 'fingerprint', 'signature', 'revision', 'card-key', 'payload', 'zip', 'oxum', 'manifest'];
+  var KINDS = ['magic', 'version', 'header', 'fingerprint', 'signature', 'revision', 'card-key', 'payload', 'zip', 'oxum', 'manifest', 'consent'];
   var CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
   /* Web APIs are resolved LAZILY from the host realm, never at load: a Node vm co-load (the test
@@ -383,6 +383,10 @@
         return checkManifest(entries, 'tagmanifest-sha256.txt').then(function () {
           var want = parseManifest(entries, 'manifest-sha256.txt');
           var consent = header.consent === 'yes' || header.consent === 'no' ? header.consent : null; // absent ⇒ null, never "no"
+          // The header MIRRORS bag-info's consent (format §2). Two answers to one question is a seal
+          // that was not written by the sealer — refused by name, never resolved in either direction.
+          var inBag = info['Tepna-Research-Consent'] === 'yes' || info['Tepna-Research-Consent'] === 'no' ? info['Tepna-Research-Consent'] : null;
+          if (inBag !== consent) throw SealRefused('consent', 'clear header says ' + JSON.stringify(consent) + ' but bag-info.txt says ' + JSON.stringify(inBag));
           var out = {
             header: header,
             consent: consent,

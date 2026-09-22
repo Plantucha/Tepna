@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED · **Created:** 2026-09-21 · **Interlocks:** `MEASUREMENT-INSTANCE-CONTRACT-2026-09-17-BRIEF.md` (the sibling contract for a *number*; this one is for a *verdict*) · `CAPTURE-NIGHT-SEAL-2026-09-21-BRIEF.md` (phase A's `verify-seals` is a first adopter; phase C gives the suite an independent reader) · `PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md` (adoption is counted, not assumed) · CLAUDE.md §🧾
+**Status:** IN-PROGRESS — 2026-09-22 (steps 1 and 2 of §3b landed: `verdict.js` #2797, the adoption gate + manifest with 152 producers binned; 38 adoptions pending across the waves) · **Created:** 2026-09-21 · **Interlocks:** `MEASUREMENT-INSTANCE-CONTRACT-2026-09-17-BRIEF.md` (the sibling contract for a *number*; this one is for a *verdict*) · `CAPTURE-NIGHT-SEAL-2026-09-21-BRIEF.md` (phase A's `verify-seals` is a first adopter; phase C gives the suite an independent reader) · `PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md` (adoption is counted, not assumed) · CLAUDE.md §🧾
 
 # VERDICT-CONTRACT — a gate answers in a fixed shape; prose is explanation, not the API
 
@@ -41,7 +41,8 @@ core — whichever the tool already has), of exactly this shape:
   "evidence": ["tools/oracle-ecg-firmware-rr.mjs", "uploads/trio/**/ECGDex_*.node-export.json"],
   "reason": null,
   "producedBy": { "tool": "tools/oracle-ecg-firmware-rr.mjs", "commit": "3c0dbdec" },
-  "at": "2026-09-21T18:40:12Z"
+  "at": "2026-09-21T18:40:12Z",
+  "scope": "internal"
 }
 ```
 
@@ -75,6 +76,8 @@ core — whichever the tool already has), of exactly this shape:
 - **`producedBy.commit`** is the short sha of the tree the tool ran in; `at` is a real UTC instant (this
   is provenance of the *run*, not a floating recording time, so the Clock Contract's floating rule does
   not apply — and the field says so in the schema doc).
+- **`scope`** is `internal` unless the owner's P5 ruling for that tool says `publishable` (§3); a reader must never
+  take a green internal verdict as quotable.
 - **Absence is `null` with a reason, never a default.** A `result` that could not be computed is `null`
   and `reason` says why (§∅ applies to verdicts too).
 
@@ -95,27 +98,80 @@ under `PASS` · `PASS` with empty `evidence` · `NOT_RUN` carrying a `result` ·
 string where the object should be) · `UNDERPOWERED` without the minimum named in `reason`. Anti-vacuity:
 the plant runner asserts every plant was seen; the enum is asserted as an equality of seven.
 
-## 3 · Adoption — counted, not assumed
+## 3 · Adoption — enumerated FIRST, then counted (rewritten 2026-09-22 after the owner asked "is it generally a good list?")
 
-`PARTIAL-ADOPTION-DETECTION` showed six one-of-N adoptions in one day; this contract is exactly the
-kind of mechanism that gets wired to one tool and declared done. So adoption is a **named set with a
-gate**, not a sweep:
+The first version of this section listed eleven adopters. **It was a recency sample, not the population** —
+the tools one session had touched that week — and the owner's question exposed it. Enumerated on
+`origin/main` 2026-09-22 (`git grep -lE '\b(PASS|FAIL|VERDICT|UNDERPOWERED|SHORTFALL|CONSISTENT|INCONCLUSIVE)\b'`):
+**103 of the `tools/*.mjs` print a verdict word, ~40 `capture-host/*.py` modules do, and 53 tools already
+carry a `--json`** — so the job is mostly *converging* shapes that exist, not adding new ones, and it is an
+order of magnitude larger than the list said. A list written from memory in a brief about machine-readable
+verdicts was the one-of-N trap (`PARTIAL-ADOPTION-DETECTION`) committed in its own §3.
 
-| adopter | how | wave |
+**Step 0 of the unit is therefore the triage, and its output replaces any hand list.** `tools/verdict-adoption.mjs`
+enumerates every producer (the grep above, both lanes) and bins each one, with the bin recorded in a committed
+manifest so the population is an equality the gate can hold:
+
+| bin | meaning | action |
 |---|---|---|
-| `tools/oracle-ecg-firmware-rr.mjs` | `--json` emits the object (its bands already exist; `UNDERPOWERED` maps 1:1) | 1 — Osprey |
-| `tools/measurement-walk.mjs` | `--json` emits one object per fixture; a hop ✗ ⇒ `FAIL` naming the hop; `∘` ⇒ `NOT_RUN` per hop | 1 — Magpie, with the envelope-hop unit |
-| `tools/verify-seals.mjs` (NIGHT-SEAL phase A) | born emitting it — the first reader of a sealed night must never parse prose | 1 — Heron |
-| `n1-cohort-track` (local study) | `stable-within-noise → PASS`, `drifting → FAIL` (direction in `reason`), `variable-no-trend → SHORTFALL`, `inconclusive → UNDERPOWERED`, `inconclusive-for-stratum → NOT_APPLICABLE` with the stratum n | 1 — Osprey |
-| `tools/mutation-suite.mjs canaryVerdict` | already refuses to vouch without a machine-readable result — align its object to the schema | 2 |
-| `capture-host/check.sh` advisory state token (#2672) | the Python lane's equivalent: a JSON verdict file beside the token | 2 — Heron |
-| `corpus-tier.mjs`, the byte audit, `verify-fixtures`, `queue-doctor`, `commit-shape` | each prints a verdict today; each emits the object | 2 |
-| every `tests/dex-tests.js` group that decides on a corpus (oracle, equiv, fixture identity) | the runner already has `T.ok/T.eq`; a group-level verdict object is the summary | 3 — design first |
+| **decides** | the tool's output is a decision someone acts on (a gate, an oracle, a night-quality verdict, a queue action) | adopt `tepna.verdict/1` |
+| **already-json** | has `--json` or writes a record | converge the record to the schema (add the missing fields; keep the rest) |
+| **word-only** | the status word occurs in a comment, a label, a log line that decides nothing | exempt, WITH the reason in the manifest — an exemption without a reason is a silent adoption gap |
 
-Adoption gate: `tools/verdict-adoption.mjs` lists the named set, runs each adopter's `--json` (or reads
-its file) and validates; the set is an equality, and a tool that prints a status word (`grep -lE
-'\b(PASS|FAIL|UNDERPOWERED|SHORTFALL)\b' tools/*.mjs`) but is not in the set is a red with the tool's
-name — the consumer-call-site check from `PARTIAL-ADOPTION-DETECTION`, applied to producers.
+**Wave 1 — the verdicts an outside reader meets first (BGE 2026-09-22 surfaced the first two, which the
+sample had missed):**
+
+| adopter | why first | lane |
+|---|---|---|
+| **`capture-host/nightqc.py` (`summarize`) + `night_report.py` + the end-of-night back-check (#2315)** | the box-side nightly verdict — the first thing a clinician or the sealed-night reader ever sees (`QC-SCOPE-RESOLUTION-2026-07-28`) | Wren / Heron (box, owner-authorized deploy) |
+| `tools/verify-seals.mjs` + `unseal.py` | the seal's own reader; born emitting it (phase A, built) | Heron |
+| `tools/oracle-ecg-firmware-rr.mjs` | bands already pre-stated; `UNDERPOWERED` maps 1:1 | Osprey |
+| `tools/measurement-walk.mjs` | one object per fixture; a hop ✗ ⇒ `FAIL` naming the hop, ∘ ⇒ `NOT_RUN` | Magpie |
+| `mutate.mjs` / `mutation_diff.py` (killed · survived · timeout) | residue `2026-09-05-mutate-diff-timeout-reads-as-kill` IS this defect: a timeout read as a pass because the verdict was a word | Osprey |
+| `trio-batch.mjs` per-night gates ("NOT NOCTURNAL", "overlap 0 < 12") | verdicts that decide what enters the corpus | Kestrel |
+| `n1-cohort-track` (local) | the study's verdict vocabulary maps onto the enum (§1); done — 9/9 valid. **Mapping correction:** a criterion that could not be evaluated at all (no ICC ⇒ no noise band) is `UNKNOWN`, not `SHORTFALL`; SHORTFALL is a headline MET with a tail missed | Osprey |
+
+Wave 2: `nsrr-*-validate`, `cohort-fit`, `land-pr` / `queue-doctor` (decisions about PRs), `corpus-tier`,
+the byte audit, `verify-fixtures`, `commit-shape`, `check.sh`'s advisory token (#2672), `canaryVerdict`.
+Wave 3: `tests/dex-tests.js` corpus-deciding groups (design first — the runner's `T.ok` is per assertion,
+a group-level verdict is the summary).
+
+**Two boundaries the first draft did not state, and reviewers will ask:**
+
+- **DSP-level refusals are a DIFFERENT contract.** `hostAxis → { ok:false, reason, n }`, PpgDex's `clock-seam`,
+  `REFUSED-artifact` in the PAT oracle (`PAT-FORENSICS-WINDOW-ORACLE-2026-08-28` — the same argument a month
+  earlier: an artifact surfaces as a *state*, never a number) are per-computation states inside an export,
+  already machine-readable, already null-with-reason. They are NOT gate verdicts and do not adopt this shape;
+  a gate that *judges* them emits one. Naming this keeps the two from being merged into a fourth thing.
+- **Publishability rides IN the object.** `docs/ECG-PHYSIONET-DIFFERENTIAL-README.md` rules that nothing a
+  tool prints may be published as external validation until the owner opens that gate (P5, owner
+  2026-09-12: measure now, quote later). So `tepna.verdict/1` carries **`scope: "internal" | "publishable"`**,
+  default `internal`, flipped only by the owner's ruling recorded in the producing tool — a machine reader then
+  cannot mistake a green internal verdict for a quotable one.
+
+Adoption gate: the manifest's three bins partition the enumerated set (an equality — a producer in no bin is
+a red with its name); every `decides` and `already-json` entry validates under `verdict.js`; every `word-only`
+entry carries a reason.
+
+## 3b · Sequence — DECIDED (Kestrel, team lead, 2026-09-22; owner: "adoption sequence is in your hands")
+
+Ordered by the one dependency that binds (the schema) and then by *who reads the verdict first × cost of a
+wrong green*. Not a proposal; change it by editing this section with a reason.
+
+| # | unit | owner | gate to start |
+|---|---|---|---|
+| 1 | `verdict.js` + `docs/VERDICT-CONTRACT.md` + ten plants + `scope` and its two plants — **landed #2797** | Osprey | — |
+| 2 | `tools/verdict-adoption.mjs` + committed manifest: every producer binned (decides / already-json / word-only-with-reason), equality gate — **landed #2799** (153 binned; adoptions READ, never believed) | Osprey | after 1 — **the fleet's critical path**; nothing in wave 1 is "done" until its row reads `adopted` |
+| 3 | box nightly verdicts: `night-qc` + `night-backcheck` objects beside each night's summary; `night_report` decides nothing and becomes the first CONSUMER — **#2803 (relayed)**; the unit's finding: `class_b_quality` skipped files silently and "ok" over an empty list is now `UNKNOWN` with eligible/checked/excluded visible | Wren (box), Heron reviews | after 1; deploy owner-authorized |
+| 4 | `verify-seals.mjs` + `unseal.py` — validator call, `scope`, crash → UNKNOWN, consent-agreement plant — **landed #2800**, the manifest's first `adopted` row | Heron | after 1 |
+| 5 | `mutation_diff.py`: killed · survived · **timeout/suspicious as `UNKNOWN`, never a kill** — **landed #2802** (the residue row was already `fixed #2403`; this makes that state machine-readable one level up); `mutate.mjs` (JS side) still open | Osprey | after 2 |
+| 6 | `oracle-ecg-firmware-rr --json` (landed with 1) · `measurement-walk --json` (Magpie, in the envelope-hop unit) · `n1-cohort-track` (local, done) | Osprey · Magpie | converge to 1 |
+| 7 | `trio-batch` per-night gates (NOT NOCTURNAL · overlap · no anchor) — decides what enters the corpus | Kestrel | after the ECGDex emitter PR |
+| 8 | wave 2 sweep, one PR per lane: `nsrr-*-validate`, `cohort-fit`, `land-pr`/`queue-doctor`, `corpus-tier`, byte audit, `verify-fixtures`, `commit-shape`, `check.sh` token, `canaryVerdict` | by lane, from the manifest | after 2 |
+| 9 | wave 3: test-runner group-level verdicts — design first | Magpie | after 8 has held the shape unchanged |
+
+Rule for every unit: the object is asserted by a test that READS it (never the prose), the manifest row flips
+in the same PR, and a unit landing before 2 is re-checked against the manifest when 2 lands.
 
 ## 4 · What this does NOT do
 
@@ -129,9 +185,24 @@ name — the consumer-call-site check from `PARTIAL-ADOPTION-DETECTION`, applied
 
 ## 5 · Done when
 
-- [ ] `verdict.js` + `docs/VERDICT-CONTRACT.md` (schema frozen at `tepna.verdict/1`); gate group with the
+- [x] `verdict.js` + `docs/VERDICT-CONTRACT.md` (schema frozen at `tepna.verdict/1`); gate group with the
       ten plants, denominator published, anti-vacuity leg.
+      ✅ **DONE 2026-09-22 (Osprey, #2797)** — plus `scope: internal|publishable` (required on read, no
+      default; `make()` fills the restrictive `internal`) and its two plants; 24 assertions, eight legs,
+      enum equalities of seven and two; registered in both lanes + the mutation fleet.
 - [ ] Wave 1 adopters emit valid objects (oracle · measurement-walk · verify-seals · n1-cohort-track).
-- [ ] `tools/verdict-adoption.mjs` names the set as an equality and reds on a producer outside it.
+- [x] `tools/verdict-adoption.mjs` names the set as an equality and reds on a producer outside it.
+      ✅ **DONE 2026-09-22 (Osprey).** The population is COMPUTED (`git grep` for the verdict words over
+      `tools/*.mjs` + `capture-host/*.py`, on the tree) and every member is binned in the committed
+      `tools/verdict-adoption.json`: **152 producers — decides 25 · already-json 13 · word-only 75 (each
+      with its reason; 60 are selftest assertion printers whose machine-readable result is the exit code +
+      the `all N selftests passed` line) · test 39 (readers, not producers); 38 pending adoptions, 0
+      adopted.** The gate holds the partition as an EQUALITY both ways (an unbinned producer, or a stale
+      row, is a red with its name), demands a reason on every exemption, and READS an adoption — runs
+      `emits.cmd` or reads `emits.file` and validates under `verdict.js` — never believes the row.
+      Measured on its first run against main: it caught #2796's three new files (`verify-seals.mjs`,
+      `unseal.py`, `test_seal.py`) by name. `verify:verdict-adoption` in `npm run check` and the CI
+      `static` job. 13 selftests. `emits.cmd` must be cheap and corpus-free (CI runs it): a
+      `--vectors --json` / selftest emission or a committed record, not the tool's real run.
 - [ ] CLAUDE.md §🧾 states the rule (landed with this brief); DOCS-INDEX row; header → DONE with the
       adopter count measured, wave 2/3 as residue rows if not done in the same unit.

@@ -217,16 +217,16 @@ async function gateNoNetwork() {
   await page.close();
 }
 
-/* ── CAPTURE-NIGHT-SEAL phase C — the in-page reader, on the committed vector and the SEVEN plants ──
+/* ── CAPTURE-NIGHT-SEAL phase C — the in-page reader, on the committed vector and the EIGHT plants ──
    WebCrypto and DecompressionStream are browser-only in the sense that matters: a Node co-load runs
    the same reader (the node lane does, on the same vector) but cannot see OverDex's WIRING of it —
    the file input, the IndexedDB card store, the badge, the verdict object on `OverDex.seals`. This
    leg drives the real `ingest()` path in the served OverDex.html with File objects built from the
    committed bytes, and reads the page's own verdicts, never its prose.
 
-   The seven plants (brief §6, capture-host/tests/vectors/tepna-seal-1/plants/expected.json + the
+   The eight plants (brief §6 + the consent-mirror plant of #2801, capture-host/tests/vectors/tepna-seal-1/plants/expected.json + the
    three a reader builds itself): each must red BY NAME in-page, and the denominator is an equality
-   — seven enumerated, seven seen. `consent absent` is the one that must NOT refuse (reads null). */
+   — eight enumerated, eight seen. `consent absent` is the one that must NOT refuse (reads null). */
 async function gateNightSeal() {
   const page = await ctx.newPage();
   page.on('pageerror', (e) => console.log('   [overdex page error]', e.message));
@@ -329,10 +329,10 @@ async function gateNightSeal() {
   if (!/^sealed · box TESTBOX0 · closed \d\d:\d\d · verified$/.test(v.badge || '')) FAILS.push('night-seal: vector badge reads ' + JSON.stringify(v.badge));
   if (!v.verdictValid) FAILS.push("night-seal: the vector's tepna.verdict/1 does not validate under verdict.js");
   if (!v.items.some((it) => /^TESTBOX0-2026-09-20\//.test(it.rel))) FAILS.push('night-seal: the unsealed streams did not enter the manifest under <boxId>-<night>/');
-  // the SEVEN plants — an equality on the count, each by name
+  // the EIGHT plants — an equality on the count, each by name
   const names = Object.keys(r.plants);
   console.log('   plants seen:', names.length, '—', names.join(' · '));
-  if (names.length !== 7) FAILS.push('night-seal: ' + names.length + ' plants seen, the denominator is SEVEN');
+  if (names.length !== 8) FAILS.push('night-seal: ' + names.length + ' plants seen, the denominator is EIGHT');
   for (const [name, o] of Object.entries(r.plants)) {
     const tag = '   plant ' + name + ': ' + o.status + ' ' + (o.kind || '') + (o.badge ? ' — ' + o.badge : '');
     console.log(tag);
