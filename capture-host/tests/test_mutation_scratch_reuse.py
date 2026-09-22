@@ -187,6 +187,116 @@ def test_a_named_root_file_that_does_not_exist_is_skipped_not_fabricated(tmp_pat
     assert not (work / "ecgdex-dsp.js").exists()
 
 
+def _tree_with_subdir_read_via_helper(tmp_path):
+    """The shape that broke #2864, in miniature: the fixture lives in a SUBDIRECTORY of the root, and
+    the path is named by a HELPER MODULE rather than by a test file."""
+    root = tmp_path / "repo"; tree = root / "capture-host"; tree.mkdir(parents=True)
+    _fake_tree(tree)
+    (root / "uploads").mkdir()
+    (root / "uploads" / "synthetic_ecgdex_h10.txt").write_text("t,v\n0,1\n")
+    # the path is spelled in a HELPER, never in a test — test_seal.py calls V.stage_night(...)
+    (tree / "tests" / "vectors.py").write_text('FIXTURE = "uploads/synthetic_ecgdex_h10.txt"\n')
+    (tree / "tests" / "test_seal_like.py").write_text("import vectors\ndef test_s():\n    open(vectors.FIXTURE).read()\n")
+    return root, tree
+
+
+def test_root_reads_sees_a_SUBDIRECTORY_fixture_named_by_a_HELPER(tmp_path):
+    """⚠️ THE PLANT FOR #2864, and it fails against the pre-fix implementation on BOTH legs.
+
+    `root_reads` used to build its candidate set from `root.iterdir()` filtered by `p.is_file()` —
+    repo-root REGULAR FILES only — and to scan `tests/*.py` alone. The read that broke #2864 is
+    `uploads/synthetic_ecgdex_h10.txt`: inside a DIRECTORY, so no spelling could ever match the
+    candidate set, and named in `tests/vectors.py`, a HELPER, so a directory-aware version keyed on
+    test files would still have missed it. Either miss alone is fatal — the fixture is absent from the
+    scratch, the test ERRORS at setup, `-x` aborts collection, and five globs record 0 tested mutants.
+
+    The docstring claimed "copy EVERYTHING a test reads from disk" and "keyed on WHAT is read, not on
+    how the path is spelled". Both were broader than the code, which was keyed on a literal, in a test
+    file, naming a root-level regular file — three conjunctive conditions presented as one rule."""
+    root, tree = _tree_with_subdir_read_via_helper(tmp_path)
+    got = mutation_diff.root_reads(tree)
+    assert "uploads/synthetic_ecgdex_h10.txt" in got, got
+
+
+def test_root_reads_stages_a_SUBDIRECTORY_read_into_both_run_locations(tmp_path):
+    """A path-shaped read must land under its own subdirectory in BOTH places, or the copy is as
+    absent as no copy at all."""
+    root, tree = _tree_with_subdir_read_via_helper(tmp_path)
+    scratch = tmp_path / "scratch"; work = scratch / "work"; (work / "mutants" / "tests").mkdir(parents=True)
+    n = mutation_diff.stage_root_reads(tree, work, mutation_diff.root_reads(tree))
+    assert n == 2, n
+    assert (work / "uploads" / "synthetic_ecgdex_h10.txt").read_text() == "t,v\n0,1\n"
+    assert (scratch / "uploads" / "synthetic_ecgdex_h10.txt").read_text() == "t,v\n0,1\n"
+
+
+def test_root_reads_refuses_to_escape_the_root(tmp_path):
+    """Widening from NAMES to PATHS widens what a literal can reach, so the bound is explicit: an
+    absolute path and a `..` traversal are never candidates, however they are spelled."""
+    root, tree = _tree_with_subdir_read_via_helper(tmp_path)
+    (tree / "tests" / "test_escape.py").write_text(
+        'A = "/etc/passwd"\nB = "../../outside.txt"\nC = "uploads/../uploads/synthetic_ecgdex_h10.txt"\n'
+    )
+    got = mutation_diff.root_reads(tree)
+    assert not any(g.startswith("/") or ".." in g for g in got), got
+
+
+def test_root_reads_sees_a_PARTS_BUILT_path_through_its_unique_BASENAME(tmp_path):
+    """⚠️ THE REAL #2864 SHAPE, and the one a path-matching rule still misses.
+
+    `tools/seal_vectors.py` builds the read from PARTS — `UPLOADS = join(dirname(HERE), "uploads")`,
+    then `join(UPLOADS, n)` with `n = "synthetic_ecgdex_h10.txt"`. The full path
+    `uploads/synthetic_ecgdex_h10.txt` is a literal NOWHERE in the repo, so widening from NAMES to
+    PATHS does not find it either: only the BASENAME is ever written down. It is enough when it is
+    unique in the tree, which is what this asserts."""
+    root = tmp_path / "repo"; tree = root / "capture-host"; tree.mkdir(parents=True)
+    _fake_tree(tree)
+    (root / "uploads").mkdir()
+    (root / "uploads" / "synthetic_ecgdex_h10.txt").write_text("t,v\n0,1\n")
+    (tree / "tools").mkdir(exist_ok=True)
+    (tree / "tools" / "seal_vectors_like.py").write_text(
+        'import os\nUP = os.path.join(os.path.dirname(HERE), "uploads")\nN = ("synthetic_ecgdex_h10.txt",)\n'
+    )
+    got = mutation_diff.root_reads(tree)
+    assert "uploads/synthetic_ecgdex_h10.txt" in got, got
+
+
+def test_root_reads_refuses_an_AMBIGUOUS_basename(tmp_path):
+    """Staging the WRONG file is worse than staging none, so a basename in two places is not a read.
+
+    The index is built from unique basenames only; `_subdir_index` returns the dropped names so the
+    miss is a named set rather than a silence — the distinction this whole family turns on."""
+    root = tmp_path / "repo"; tree = root / "capture-host"; tree.mkdir(parents=True)
+    _fake_tree(tree)
+    for d in ("docs", "papers"):
+        (root / d).mkdir(); (root / d / "NOTES.md").write_text(d)
+    # a DOT directory and node_modules are pruned from the index — `.git` is the reason the
+    # root-level rule excludes dotfiles, and the same exclusion has to hold one level down
+    (root / ".hidden").mkdir(); (root / ".hidden" / "secret.txt").write_text("x")
+    (root / "node_modules").mkdir(); (root / "node_modules" / "vendored.txt").write_text("x")
+    (tree / "tests" / "test_names_hidden.py").write_text('A = "secret.txt"\nB = "vendored.txt"\n')
+    (tree / "tests" / "test_names_it.py").write_text('X = "NOTES.md"\n')
+    got = mutation_diff.root_reads(tree)
+    assert not any(g.endswith("NOTES.md") for g in got), got
+    _index, dups = mutation_diff._subdir_index(root, tree.name)
+    assert "NOTES.md" in dups, dups
+    assert "secret.txt" not in _index and "vendored.txt" not in _index, sorted(_index)
+    assert not any("hidden" in g or "node_modules" in g for g in got), got
+
+
+def test_root_reads_never_raises_on_an_UNRESOLVABLE_literal(tmp_path):
+    """A literal that cannot become a path at all is not a read — and must not be an exception.
+
+    Widening from NAMES to PATHS means arbitrary string literals now reach the filesystem layer, so a
+    literal the OS cannot even parse (an embedded NUL raises ValueError before any syscall) has to be
+    skipped rather than crash the staging step. A `root_reads` that raises takes the whole mutation
+    run down with it, which would be a worse failure than the miss this widening fixes."""
+    root, tree = _tree_with_subdir_read_via_helper(tmp_path)
+    (tree / "tests" / "test_junk.py").write_text('BAD = "up\x00loads/x.txt"\n')
+    got = mutation_diff.root_reads(tree)                      # must not raise
+    assert "uploads/synthetic_ecgdex_h10.txt" in got, got     # and the real read still lands
+    assert not any("\x00" in g for g in got), got
+
+
 def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     """Pinned as an EQUALITY so a change in the population is VISIBLE (a floor would not count it).
     Measured 2026-09-19: one real read — `ecgdex-dsp.js` (the seam-bound parity check) — plus four
@@ -209,5 +319,29 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     got = mutation_diff.root_reads(here)
     assert "ecgdex-dsp.js" in got                                 # the read that broke writers.py's lane
     assert not any(n.startswith(".") for n in got), got           # never a dotfile (`.git` is a FILE in a worktree)
-    assert got == ["Dex-Test-Suite.html", "README.md", "dex-badges.css", "ecgdex-dsp.js", "index.html",
-                   "pat-feasibility.js", "sensor-trio-power-analysis.js", "verdict.js"], got
+    # 2026-09-22 (#2864): the population WIDENED from 8 to 21 when root_reads stopped being keyed on
+    # a literal, in a test file, naming a root-level REGULAR FILE. Total staged: 5.3 MB, largest
+    # 3.95 MB (tests/dex-tests.js) — measured, because over-flagging is only cheap while it is small.
+    # The three `uploads/synthetic_*` entries are #2864's OWN read, reachable only by BASENAME:
+    # tools/seal_vectors.py builds the path from parts, so the full string is a literal nowhere.
+    # `.github/workflows/capture-host-ci.yml` is DELIBERATELY ABSENT: it IS a genuine read
+    # (test_dev_requirements.py, through a root anchor) but staging it would make a test that has
+    # never executed inside a scratch start executing there — a behaviour change this widening must
+    # not smuggle in. Dot segments stay out, matching the root-level rule. Filed as residue.
+    # Earlier reasons, kept:
+    #   uploads/synthetic_ecgdex_h10.txt — a SUBDIRECTORY fixture. This is the read that cost #2864
+    #     its measurement: invisible to every earlier version however it was spelled, because the
+    #     candidate set was built from root.iterdir() filtered by is_file().
+    #   suite.manifest.json              — a root file named by a NON-test module, which the old
+    #     non-recursive tests/*.py scan could not see.
+    # Self-references under capture-host/ are absent BY CONSTRUCTION, not by a carve-out: this
+    # function is "the reads the scratch cannot satisfy on its own", and the tree IS that copy.
+    # Without that rule the widened scan added 23 of them — measured, not assumed.
+    assert got == ["Dex-Test-Suite.html", "README.md",
+                   "briefs/CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md", "dex-badges.css",
+                   "ecgdex-dsp.js", "index.html", "pat-feasibility.js", "provenance/_meta.json",
+                   "provenance/index.json", "sensor-trio-power-analysis.js", "suite.manifest.json",
+                   "tests/dex-tests.js", "tools/mutate-equivalence.json", "tools/o2ring-dat-timefit.mjs",
+                   "tools/verdict-adoption.json", "tools/verify-seals.mjs",
+                   "uploads/synthetic_ecgdex_h10.txt", "uploads/synthetic_motiondex_acc.txt",
+                   "uploads/synthetic_oxydex_o2ring.csv", "verdict.js"], got
