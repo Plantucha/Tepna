@@ -1277,6 +1277,18 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "selftest printer; its own verdict() is a pure PR-state decision consumed by the tool itself, exit-coded \u2014 a wave-2 candidate, listed here by reason not by omission"
+  },
+  "tools/adev-curve.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/adev-curve.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the CONSUMER the ADEV-curve residue said was owed before the curve shipped (2026-09-21-adev-curve-not-exported-by-either-node): it RE-DERIVES the published slope from the published curve (log-log OLS over exactly those points) and looks for a KNEE by fitting each half of the ladder. Criterion: the published slope must be the fit over the published curve within 1.96\u00b7slopeSE \u2014 FAIL names both numbers; a KNEE is SHORTFALL (the headline held, a named sub-population \u2014 one half of the ladder \u2014 did not), never FAIL; an export carrying no curve (pre-2026-09-22) is NOT_RUN, never a pass. 19 plants; the cmd is a scratch \u03c4\u207b\u00b9 ladder, corpus-free."
   }
  }
 }

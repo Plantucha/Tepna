@@ -5968,6 +5968,20 @@ function readDetectorStability(nodeExport) {
     atShortestPpm: num(s.atShortestPpm),
     atLongestPpm: num(s.atLongestPpm),
     optimalTauSec: num(s.optimalTauSec),
+    /* THE CURVE, carried through UNCHANGED when the source shipped one (2026-09-22). The block above
+       forwards a detector's stability so a reader weighing an attribution has the fact that settles
+       it — and the scalars alone cannot show a KNEE, which is the one shape that makes `slope`
+       unreadable. Filtered to finite points so a malformed source cannot inject NaN into a consumer;
+       `[]` when the source carried none, never a fabricated default. */
+    curve: Array.isArray(s.curve)
+      ? s.curve
+          .filter(function (pt) {
+            return pt && isFinite(pt.tauSec) && isFinite(pt.adevPpm);
+          })
+          .map(function (pt) {
+            return { tauSec: pt.tauSec, adevPpm: pt.adevPpm, n: num(pt.n) };
+          })
+      : [],
     /* The one derived field, and it is a THRESHOLD RESTATEMENT rather than a fresh inference: a slope
        below the white/flicker-phase boundary (the same −0.75 midpoint `capture-host/allan.py` and
        `ppgdex-dsp.js` use) means averaging keeps paying, so a persistent divergence cannot be noise. */
