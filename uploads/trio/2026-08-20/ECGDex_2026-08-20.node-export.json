@@ -5,11 +5,11 @@
   },
   "schema": {
     "name": "ganglior.node-export",
-    "version": "2.0",
+    "version": "2.1",
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-01T02:48:09.292Z",
+    "generated": "2026-09-22T22:21:36.051Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -22,6 +22,11 @@
     "endEpochMs": null,
     "offsetMin": null,
     "events": 55,
+    "timingSource": "device+host",
+    "deviceEpoch": {
+      "offsetMs": 14399826,
+      "plausible": true
+    },
     "coverage": {
       "kind": "sparse",
       "spanSec": 14679,
@@ -39,6 +44,101 @@
       "nWithDuration": 2,
       "n": 2,
       "source": "ble-dropout"
+    }
+  },
+  "measurement": {
+    "hr": {
+      "metricId": "hr",
+      "value": 52.2,
+      "window": {
+        "startTMs": 1787270334272,
+        "endTMs": 1787285010272,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "single device clock — no host stamp column on this input (phone export or parsed rec), nothing to measure spread against",
+        "windowReason": "no parsed clock end on this input — endTMs is t0Ms + the beat-train span"
+      },
+      "sourceChannel": "H10:ecg",
+      "code": null,
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": null,
+        "envelopeReason": "no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none",
+        "inputReason": "contentId unavailable (SignalFrame not co-loaded, or no NN train)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 12501,
+        "durationMin": 244.6,
+        "analyzablePct": 98.5,
+        "coveragePct": 99.4
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)",
+      "codeReason": "no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle’s"
+    },
+    "rmssd": {
+      "metricId": "rmssd",
+      "value": 34.6,
+      "window": {
+        "startTMs": 1787270334272,
+        "endTMs": 1787285010272,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "single device clock — no host stamp column on this input (phone export or parsed rec), nothing to measure spread against",
+        "windowReason": "no parsed clock end on this input — endTMs is t0Ms + the beat-train span"
+      },
+      "sourceChannel": "H10:ecg",
+      "code": null,
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": null,
+        "envelopeReason": "no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none",
+        "inputReason": "contentId unavailable (SignalFrame not co-loaded, or no NN train)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 12501,
+        "durationMin": 244.6,
+        "analyzablePct": 98.5,
+        "coveragePct": 99.4
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)",
+      "codeReason": "no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle’s"
+    },
+    "sdnn": {
+      "metricId": "sdnn",
+      "value": 104.3,
+      "window": {
+        "startTMs": 1787270334272,
+        "endTMs": 1787285010272,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "single device clock — no host stamp column on this input (phone export or parsed rec), nothing to measure spread against",
+        "windowReason": "no parsed clock end on this input — endTMs is t0Ms + the beat-train span"
+      },
+      "sourceChannel": "H10:ecg",
+      "code": null,
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": null,
+        "envelopeReason": "no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none",
+        "inputReason": "contentId unavailable (SignalFrame not co-loaded, or no NN train)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 12501,
+        "durationMin": 244.6,
+        "analyzablePct": 98.5,
+        "coveragePct": 99.4
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)",
+      "codeReason": "no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle’s"
     }
   },
   "ganglior_events": [
@@ -810,22 +910,30 @@
   "quality": {
     "analyzablePct": 98.5,
     "cleanBeatPct": 99.1,
-    "coveragePct": 99.4
+    "coveragePct": 99.4,
+    "ecgRail": {
+      "lo": -19000,
+      "hi": 18997,
+      "mirrorLo": 18997,
+      "mirrorHi": -19000,
+      "absent": false,
+      "samples": 1423
+    }
   },
   "hrv": {
     "time": {
       "hr": 51.2,
       "meanRR": 1149.7,
       "sdnn": 43.4,
-      "rmssd": 33.7,
+      "rmssd": 33.9,
       "pnn50": 11.9,
-      "sdnnIndex": 57.2,
+      "sdnnIndex": 180.3,
       "wholeRecordHR": 52.2,
       "wholeRecordSDNN": 104.3,
       "wholeRecordRMSSD": 34.6,
       "amo50": 35.6,
       "mode": 1200,
-      "mxDMn": 0.763,
+      "mxDMn": 83.088,
       "units": "ms",
       "geometricNote": "Baevsky-SI inputs (Brennan/Welltory convention): amo50 = amplitude of the modal RR (%), mode = modal RR (ms), mxDMn = RR variation range (SECONDS). Same values as the ⬇ HRVDex CSV columns; null when the NN series is empty.",
       "windowNote": "sdnn/rmssd/pnn50 here are DISPLAY values = representative 5-min epoch median on overnight recordings (short recs: whole-record). For CROSS-NODE comparison use wholeRecordSDNN/wholeRecordRMSSD."
@@ -835,12 +943,14 @@
       "lf": 635,
       "hf": 313,
       "totalPower": 1638,
-      "lfhf": 1.343,
+      "lfhf": 1.231,
       "window": "epochMedian5min",
       "method": "Lomb–Scargle",
       "respRate": 14.3,
       "respRateMethod": "RSA (HF-peak of RR spectrum)",
       "respFromEDR": 18.2,
+      "couplingGridGapCells": 571,
+      "couplingGridGapFrac": 0.0098,
       "respFromEDRMethod": "EDR (R-peak amplitude modulation)"
     }
   },
@@ -1614,15 +1724,15 @@
       },
       {
         "tMin": 225,
-        "hr": 69.2,
-        "rmssd": 32.7,
-        "sdnn": 59.7,
-        "vlf": 1757,
-        "lf": 1317,
-        "hf": 358,
-        "totalPower": 3432,
-        "lfhf": 3.674,
-        "resp": 17.3,
+        "hr": 45.6,
+        "rmssd": 8631.4,
+        "sdnn": 6091.6,
+        "vlf": 3751561,
+        "lf": 10062048,
+        "hf": 22864154,
+        "totalPower": 36677763,
+        "lfhf": 0.44,
+        "resp": 9.5,
         "hrStat": "rate-of-mean",
         "sqi": 0.806,
         "beats": 185,
@@ -26139,7 +26249,7 @@
         924,
         922,
         956,
-        895,
+        83717,
         901,
         870,
         822,
@@ -38642,7 +38752,7 @@
         0,
         0,
         0,
-        1,
+        0,
         0,
         0,
         0,
@@ -51906,7 +52016,7 @@
     }
   },
   "apnea": {
-    "cvhrIndex": 5.5,
+    "cvhrIndex": 5.4,
     "cvhrEvents": 22,
     "onCPAP": false,
     "method": "CVHR index (cyclic variation of HR, Hayano) + CPC band shares (Thomas 2005). NOT an apnea–hypopnea index: against device-scored residual AHI over 39 paired nights the CVHR index did not track it (r = −0.151, p = 0.36); only cpc.hfcPct did (r = −0.408, p = 0.009). Screen-adjacent signal, not diagnosis.",
@@ -51915,17 +52025,18 @@
       "windowSec": 512,
       "freqResHz": 0.00195,
       "hfcPct": 39.8,
-      "lfcPct": 49.3,
-      "vlfcPct": 10.9,
+      "lfcPct": 49,
+      "vlfcPct": 11.2,
       "method": "CPC — coherence x cross-power of HR vs EDR (Thomas 2005), 512 s windows, 50 % overlap"
     },
-    "surgeEscalationPct": 34
+    "surgeEscalationPct": 34,
+    "cvhrHours": 4.05
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": 0.0001,
-    "var_lnRMSSD_slope": 0.0011,
-    "mean_lnRMSSD_slope": 0.0289,
-    "classification": "Flat — no clear nocturnal trend",
+    "sigma_lnRMSSD_slope": 0.3363,
+    "var_lnRMSSD_slope": 0.8134,
+    "mean_lnRMSSD_slope": 0.1838,
+    "classification": "Rising instability — persistent autonomic instability (glycemic-risk signal)",
     "windows": 8,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
     "interpretation": "slope<0 stabilizing (favourable) · slope>0 rising instability (glycemic-risk signal)",
@@ -51974,8 +52085,8 @@
       },
       {
         "tMin": 210,
-        "lnSD": 0.2,
-        "lnMean": 3.625,
+        "lnSD": 2.217,
+        "lnMean": 4.555,
         "n": 6
       }
     ]

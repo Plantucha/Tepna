@@ -1,7 +1,7 @@
 {
   "night": "2026-09-15",
   "packets": 239809,
-  "files": 3,
+  "files": 11,
   "devices": [
     {
       "device": "Polar H10 02849638",
@@ -56,7 +56,7 @@
     }
   ],
   "ringClock": {
-    "files": 1,
+    "files": 3,
     "reads": 39,
     "pushes": 2,
     "resets": 0,
@@ -469,5 +469,12 @@
         "offsetS": null
       }
     ]
+  },
+  "datTimefit": {
+    "converged": false,
+    "attempts": 1,
+    "reason": "no candidate .dat/_SPO2.csv pair produced a converged fit",
+    "dats": 1,
+    "csvs": 1
   }
 }

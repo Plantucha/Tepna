@@ -1,0 +1,520 @@
+{
+  "night": "2026-09-09",
+  "packets": 259508,
+  "files": 52,
+  "devices": [
+    {
+      "device": "Polar H10 02849638",
+      "anchors": 186123,
+      "ok": true,
+      "independent": true,
+      "spreadMs": 6184.03,
+      "ppm": -12.3,
+      "maxStepMs": 478.6,
+      "plausibleCrystal": true,
+      "deviceDrawn": false,
+      "drawnShare": 0.048,
+      "offsetMs": 946670400017.9,
+      "offsetMadMs": 66,
+      "t0DevMs": 842319003188,
+      "t0HostMs": 1788989403325,
+      "spanSec": 25155
+    },
+    {
+      "device": "Polar Sense 0C301E3F",
+      "anchors": 48796,
+      "ok": true,
+      "independent": true,
+      "spreadMs": 2088.94,
+      "ppm": -33.1,
+      "maxStepMs": 136.5,
+      "plausibleCrystal": true,
+      "deviceDrawn": false,
+      "drawnShare": 0.005,
+      "offsetMs": 946670400584.7,
+      "offsetMadMs": 175.8,
+      "t0DevMs": 842318979845,
+      "t0HostMs": 1788989380886,
+      "spanSec": 25065
+    },
+    {
+      "device": "Wellue O2Ring-S",
+      "anchors": 24589,
+      "ok": true,
+      "independent": true,
+      "spreadMs": 2049,
+      "ppm": 17.8,
+      "maxStepMs": 860,
+      "plausibleCrystal": true,
+      "deviceDrawn": true,
+      "drawnShare": 0.983,
+      "offsetMs": 1788989420020,
+      "offsetMadMs": 244,
+      "t0DevMs": 1000,
+      "t0HostMs": 1788989420967,
+      "spanSec": 25016
+    }
+  ],
+  "ringClock": {
+    "files": 35,
+    "reads": 43,
+    "pushes": 2,
+    "resets": 0,
+    "batteries": 43,
+    "firstOffsetS": -1.2,
+    "lastOffsetS": -1.1,
+    "driftS": 0.1,
+    "firstReadMs": 1788989397247,
+    "lastReadMs": 1789014555073,
+    "spanH": 7,
+    "rows": [
+      {
+        "tMs": 1788989396215,
+        "event": "push",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788989397247,
+        "event": "read",
+        "offsetS": -1.2
+      },
+      {
+        "tMs": 1788989397248,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788989997707,
+        "event": "read",
+        "offsetS": -0.7
+      },
+      {
+        "tMs": 1788989997716,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788990597769,
+        "event": "read",
+        "offsetS": -0.8
+      },
+      {
+        "tMs": 1788990597771,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788991198722,
+        "event": "read",
+        "offsetS": -0.7
+      },
+      {
+        "tMs": 1788991198725,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788991798763,
+        "event": "read",
+        "offsetS": -0.8
+      },
+      {
+        "tMs": 1788991798772,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788992399027,
+        "event": "read",
+        "offsetS": -1
+      },
+      {
+        "tMs": 1788992399035,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788992999485,
+        "event": "read",
+        "offsetS": -0.5
+      },
+      {
+        "tMs": 1788992999488,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788993600011,
+        "event": "read",
+        "offsetS": -1
+      },
+      {
+        "tMs": 1788993600014,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788994200720,
+        "event": "read",
+        "offsetS": -0.7
+      },
+      {
+        "tMs": 1788994200729,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788994800793,
+        "event": "read",
+        "offsetS": -0.8
+      },
+      {
+        "tMs": 1788994800802,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788995400962,
+        "event": "read",
+        "offsetS": -1
+      },
+      {
+        "tMs": 1788995400970,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788996001028,
+        "event": "read",
+        "offsetS": 0
+      },
+      {
+        "tMs": 1788996001037,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788996601734,
+        "event": "read",
+        "offsetS": -0.7
+      },
+      {
+        "tMs": 1788996601800,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788997202614,
+        "event": "read",
+        "offsetS": -0.6
+      },
+      {
+        "tMs": 1788997202616,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788997802910,
+        "event": "read",
+        "offsetS": -0.9
+      },
+      {
+        "tMs": 1788997802919,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788998403513,
+        "event": "read",
+        "offsetS": -0.5
+      },
+      {
+        "tMs": 1788998403522,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788999003859,
+        "event": "read",
+        "offsetS": -0.9
+      },
+      {
+        "tMs": 1788999003868,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1788999604046,
+        "event": "read",
+        "offsetS": 0
+      },
+      {
+        "tMs": 1788999604055,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789000204929,
+        "event": "read",
+        "offsetS": 0.1
+      },
+      {
+        "tMs": 1789000204938,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789000805536,
+        "event": "read",
+        "offsetS": -0.5
+      },
+      {
+        "tMs": 1789000805545,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789001406655,
+        "event": "read",
+        "offsetS": -0.7
+      },
+      {
+        "tMs": 1789001406658,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789002006963,
+        "event": "read",
+        "offsetS": 0
+      },
+      {
+        "tMs": 1789002006965,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789002607539,
+        "event": "read",
+        "offsetS": -0.5
+      },
+      {
+        "tMs": 1789002607548,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789003208079,
+        "event": "read",
+        "offsetS": -0.1
+      },
+      {
+        "tMs": 1789003208088,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789003808559,
+        "event": "read",
+        "offsetS": -0.6
+      },
+      {
+        "tMs": 1789003808563,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789004408620,
+        "event": "read",
+        "offsetS": -0.6
+      },
+      {
+        "tMs": 1789004408629,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789005009610,
+        "event": "read",
+        "offsetS": -0.6
+      },
+      {
+        "tMs": 1789005009619,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789005610125,
+        "event": "read",
+        "offsetS": -0.1
+      },
+      {
+        "tMs": 1789005610127,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789006210679,
+        "event": "read",
+        "offsetS": -0.7
+      },
+      {
+        "tMs": 1789006210688,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789006811196,
+        "event": "read",
+        "offsetS": -0.2
+      },
+      {
+        "tMs": 1789006811199,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789007411196,
+        "event": "read",
+        "offsetS": -0.2
+      },
+      {
+        "tMs": 1789007411205,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789008011795,
+        "event": "read",
+        "offsetS": 0.2
+      },
+      {
+        "tMs": 1789008011803,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789008612536,
+        "event": "read",
+        "offsetS": -0.5
+      },
+      {
+        "tMs": 1789008612544,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789009213153,
+        "event": "read",
+        "offsetS": -0.2
+      },
+      {
+        "tMs": 1789009213160,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789009813321,
+        "event": "read",
+        "offsetS": -0.3
+      },
+      {
+        "tMs": 1789009813330,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789010413825,
+        "event": "read",
+        "offsetS": 0.2
+      },
+      {
+        "tMs": 1789010413834,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789011014877,
+        "event": "read",
+        "offsetS": 0.1
+      },
+      {
+        "tMs": 1789011014886,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789011615299,
+        "event": "read",
+        "offsetS": -0.3
+      },
+      {
+        "tMs": 1789011615308,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789012215950,
+        "event": "read",
+        "offsetS": 0
+      },
+      {
+        "tMs": 1789012215952,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789012816453,
+        "event": "read",
+        "offsetS": -0.5
+      },
+      {
+        "tMs": 1789012816462,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789013417421,
+        "event": "read",
+        "offsetS": -0.4
+      },
+      {
+        "tMs": 1789013417430,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789014017619,
+        "event": "read",
+        "offsetS": 0.4
+      },
+      {
+        "tMs": 1789014017621,
+        "event": "battery",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789014439402,
+        "event": "push",
+        "offsetS": null
+      },
+      {
+        "tMs": 1789014555073,
+        "event": "read",
+        "offsetS": -1.1
+      },
+      {
+        "tMs": 1789014555073,
+        "event": "battery",
+        "offsetS": null
+      }
+    ]
+  },
+  "datTimefit": {
+    "converged": false,
+    "attempts": 2,
+    "reason": "no candidate .dat/_SPO2.csv pair produced a converged fit",
+    "dats": 2,
+    "csvs": 1
+  }
+}

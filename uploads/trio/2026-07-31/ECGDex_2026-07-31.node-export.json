@@ -5,11 +5,11 @@
   },
   "schema": {
     "name": "ganglior.node-export",
-    "version": "2.0",
+    "version": "2.1",
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-08-15T16:25:49.793Z",
+    "generated": "2026-09-22T22:08:10.664Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -21,7 +21,12 @@
     "durSec": 34120.903412582586,
     "endEpochMs": null,
     "offsetMin": null,
-    "events": 208,
+    "events": 246,
+    "timingSource": "device+host",
+    "deviceEpoch": {
+      "offsetMs": 14399913,
+      "plausible": true
+    },
     "coverage": {
       "kind": "sparse",
       "spanSec": 37840,
@@ -209,6 +214,101 @@
       "source": "ble-dropout"
     }
   },
+  "measurement": {
+    "hr": {
+      "metricId": "hr",
+      "value": 71.2,
+      "window": {
+        "startTMs": 1785533152703,
+        "endTMs": 1785570994703,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "single device clock — no host stamp column on this input (phone export or parsed rec), nothing to measure spread against",
+        "windowReason": "no parsed clock end on this input — endTMs is t0Ms + the beat-train span"
+      },
+      "sourceChannel": "H10:ecg",
+      "code": null,
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": null,
+        "envelopeReason": "no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none",
+        "inputReason": "contentId unavailable (SignalFrame not co-loaded, or no NN train)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 40532,
+        "durationMin": 630.7,
+        "analyzablePct": 90.2,
+        "coveragePct": 90.2
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)",
+      "codeReason": "no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle’s"
+    },
+    "rmssd": {
+      "metricId": "rmssd",
+      "value": 24.4,
+      "window": {
+        "startTMs": 1785533152703,
+        "endTMs": 1785570994703,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "single device clock — no host stamp column on this input (phone export or parsed rec), nothing to measure spread against",
+        "windowReason": "no parsed clock end on this input — endTMs is t0Ms + the beat-train span"
+      },
+      "sourceChannel": "H10:ecg",
+      "code": null,
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": null,
+        "envelopeReason": "no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none",
+        "inputReason": "contentId unavailable (SignalFrame not co-loaded, or no NN train)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 40532,
+        "durationMin": 630.7,
+        "analyzablePct": 90.2,
+        "coveragePct": 90.2
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)",
+      "codeReason": "no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle’s"
+    },
+    "sdnn": {
+      "metricId": "sdnn",
+      "value": 99.6,
+      "window": {
+        "startTMs": 1785533152703,
+        "endTMs": 1785570994703,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": null,
+        "spreadReason": "single device clock — no host stamp column on this input (phone export or parsed rec), nothing to measure spread against",
+        "windowReason": "no parsed clock end on this input — endTMs is t0Ms + the beat-train span"
+      },
+      "sourceChannel": "H10:ecg",
+      "code": null,
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": null,
+        "envelopeReason": "no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none",
+        "inputReason": "contentId unavailable (SignalFrame not co-loaded, or no NN train)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 40532,
+        "durationMin": 630.7,
+        "analyzablePct": 90.2,
+        "coveragePct": 90.2
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)",
+      "codeReason": "no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle’s"
+    }
+  },
   "ganglior_events": [
     {
       "t": "21:25:52",
@@ -229,9 +329,27 @@
       "meta": {}
     },
     {
-      "t": "21:55:52",
-      "tMs": 1785534952703,
+      "t": "22:00:52",
+      "tMs": 1785535252703,
       "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "22:15:52",
+      "tMs": 1785536152703,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "22:20:52",
+      "tMs": 1785536452703,
+      "impulse": "stage_rem",
       "node": "ECGDex",
       "conf": 0.7,
       "sqi": null,
@@ -274,6 +392,24 @@
     {
       "t": "22:25:52",
       "tMs": 1785536752703,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "22:35:52",
+      "tMs": 1785537352703,
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "22:40:52",
+      "tMs": 1785537652703,
       "impulse": "stage_deep",
       "node": "ECGDex",
       "conf": 0.7,
@@ -281,8 +417,52 @@
       "meta": {}
     },
     {
-      "t": "22:30:52",
-      "tMs": 1785537052703,
+      "t": "22:45:52",
+      "tMs": 1785537952703,
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "22:45:53",
+      "tMs": 1785537953703,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.64,
+      "sqi": 0.77,
+      "meta": {
+        "ampBpm": 9,
+        "periodSec": 21,
+        "peakTMs": 1785537974703,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "22:55:52",
+      "tMs": 1785538552703,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "23:15:52",
+      "tMs": 1785539752703,
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "23:25:52",
+      "tMs": 1785540352703,
       "impulse": "stage_light",
       "node": "ECGDex",
       "conf": 0.7,
@@ -292,7 +472,7 @@
     {
       "t": "23:30:52",
       "tMs": 1785540652703,
-      "impulse": "stage_rem",
+      "impulse": "stage_deep",
       "node": "ECGDex",
       "conf": 0.7,
       "sqi": null,
@@ -302,6 +482,15 @@
       "t": "23:35:52",
       "tMs": 1785540952703,
       "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "00:00:52",
+      "tMs": 1785542452703,
+      "impulse": "stage_deep",
       "node": "ECGDex",
       "conf": 0.7,
       "sqi": null,
@@ -342,15 +531,6 @@
       }
     },
     {
-      "t": "00:05:52",
-      "tMs": 1785542752703,
-      "impulse": "stage_deep",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
       "t": "00:09:53",
       "tMs": 1785542993703,
       "impulse": "autonomic_surge",
@@ -377,8 +557,43 @@
       "meta": {}
     },
     {
-      "t": "00:35:52",
-      "tMs": 1785544552703,
+      "t": "00:25:52",
+      "tMs": 1785543952703,
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "00:40:52",
+      "tMs": 1785544852703,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "00:44:14",
+      "tMs": 1785545054703,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.69,
+      "sqi": 0.73,
+      "meta": {
+        "ampBpm": 11.7,
+        "periodSec": 19,
+        "peakTMs": 1785545073703,
+        "position": "lateral",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "00:45:52",
+      "tMs": 1785545152703,
       "impulse": "stage_rem",
       "node": "ECGDex",
       "conf": 0.7,
@@ -395,8 +610,8 @@
       "meta": {}
     },
     {
-      "t": "00:55:52",
-      "tMs": 1785545752703,
+      "t": "01:00:52",
+      "tMs": 1785546052703,
       "impulse": "stage_deep",
       "node": "ECGDex",
       "conf": 0.7,
@@ -450,6 +665,15 @@
         "osaConf": null,
         "deltaSBP": null
       }
+    },
+    {
+      "t": "01:15:52",
+      "tMs": 1785546952703,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "01:17:34",
@@ -519,16 +743,16 @@
     {
       "t": "01:25:52",
       "tMs": 1785547552703,
-      "impulse": "stage_light",
+      "impulse": "stage_deep",
       "node": "ECGDex",
       "conf": 0.7,
       "sqi": null,
       "meta": {}
     },
     {
-      "t": "01:40:52",
-      "tMs": 1785548452703,
-      "impulse": "stage_deep",
+      "t": "01:35:52",
+      "tMs": 1785548152703,
+      "impulse": "stage_light",
       "node": "ECGDex",
       "conf": 0.7,
       "sqi": null,
@@ -537,7 +761,7 @@
     {
       "t": "01:45:52",
       "tMs": 1785548752703,
-      "impulse": "stage_light",
+      "impulse": "stage_deep",
       "node": "ECGDex",
       "conf": 0.7,
       "sqi": null,
@@ -578,6 +802,24 @@
       }
     },
     {
+      "t": "01:55:52",
+      "tMs": 1785549352703,
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "02:00:52",
+      "tMs": 1785549652703,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "02:06:42",
       "tMs": 1785550002703,
       "impulse": "autonomic_surge",
@@ -605,6 +847,23 @@
         "ampBpm": 10.8,
         "periodSec": 18,
         "peakTMs": 1785550052703,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "02:10:00",
+      "tMs": 1785550200703,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.84,
+      "sqi": 0.78,
+      "meta": {
+        "ampBpm": 18.7,
+        "periodSec": 28,
+        "peakTMs": 1785550228703,
         "position": "supine",
         "osaLabel": null,
         "osaConf": null,
@@ -641,6 +900,15 @@
         "osaConf": null,
         "deltaSBP": null
       }
+    },
+    {
+      "t": "02:10:52",
+      "tMs": 1785550252703,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "02:20:32",
@@ -753,15 +1021,41 @@
       }
     },
     {
-      "t": "02:27:23",
-      "tMs": 1785551243703,
+      "t": "02:25:52",
+      "tMs": 1785551152703,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "02:27:15",
+      "tMs": 1785551235703,
       "impulse": "autonomic_surge",
       "node": "ECGDex",
-      "conf": 0.69,
+      "conf": 0.66,
+      "sqi": 0.78,
+      "meta": {
+        "ampBpm": 10.3,
+        "periodSec": 25,
+        "peakTMs": 1785551260703,
+        "position": "lateral",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "02:27:31",
+      "tMs": 1785551251703,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.66,
       "sqi": 0.83,
       "meta": {
-        "ampBpm": 11.3,
-        "periodSec": 46,
+        "ampBpm": 10,
+        "periodSec": 38,
         "peakTMs": 1785551289703,
         "position": "lateral",
         "osaLabel": null,
@@ -858,6 +1152,15 @@
         "osaConf": null,
         "deltaSBP": null
       }
+    },
+    {
+      "t": "02:35:52",
+      "tMs": 1785551752703,
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "02:36:07",
@@ -1521,6 +1824,32 @@
       }
     },
     {
+      "t": "03:25:52",
+      "tMs": 1785554752703,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "03:26:42",
+      "tMs": 1785554802703,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.69,
+      "sqi": 0.79,
+      "meta": {
+        "ampBpm": 11.4,
+        "periodSec": 18,
+        "peakTMs": 1785554820703,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
       "t": "03:28:07",
       "tMs": 1785554887953,
       "impulse": "movement_onset",
@@ -1611,6 +1940,15 @@
       }
     },
     {
+      "t": "03:30:52",
+      "tMs": 1785555052703,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "03:31:00",
       "tMs": 1785555060703,
       "impulse": "autonomic_surge",
@@ -1626,6 +1964,15 @@
         "osaConf": null,
         "deltaSBP": null
       }
+    },
+    {
+      "t": "03:35:52",
+      "tMs": 1785555352703,
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "03:39:56",
@@ -1657,6 +2004,15 @@
         "osaConf": null,
         "deltaSBP": null
       }
+    },
+    {
+      "t": "03:40:52",
+      "tMs": 1785555652703,
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "03:41:40",
@@ -1699,6 +2055,15 @@
         ],
         "site": "chest"
       }
+    },
+    {
+      "t": "03:45:52",
+      "tMs": 1785555952703,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "03:45:59",
@@ -1758,15 +2123,6 @@
         ],
         "site": "chest"
       }
-    },
-    {
-      "t": "03:50:52",
-      "tMs": 1785556252703,
-      "impulse": "stage_wake",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
     },
     {
       "t": "03:50:53",
@@ -1893,6 +2249,15 @@
       }
     },
     {
+      "t": "03:55:52",
+      "tMs": 1785556552703,
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "03:57:09",
       "tMs": 1785556629703,
       "impulse": "movement_onset",
@@ -1977,15 +2342,15 @@
       }
     },
     {
-      "t": "04:02:49",
-      "tMs": 1785556969703,
+      "t": "04:02:42",
+      "tMs": 1785556962703,
       "impulse": "autonomic_surge",
       "node": "ECGDex",
       "conf": 0.79,
-      "sqi": 0.81,
+      "sqi": 0.75,
       "meta": {
-        "ampBpm": 16.3,
-        "periodSec": 21,
+        "ampBpm": 16.4,
+        "periodSec": 28,
         "peakTMs": 1785556990703,
         "position": "supine",
         "osaLabel": null,
@@ -2041,11 +2406,28 @@
     {
       "t": "04:05:52",
       "tMs": 1785557152703,
-      "impulse": "stage_light",
+      "impulse": "stage_deep",
       "node": "ECGDex",
       "conf": 0.7,
       "sqi": null,
       "meta": {}
+    },
+    {
+      "t": "04:10:25",
+      "tMs": 1785557425703,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.69,
+      "sqi": 0.78,
+      "meta": {
+        "ampBpm": 11.7,
+        "periodSec": 16,
+        "peakTMs": 1785557441703,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
     },
     {
       "t": "04:13:06",
@@ -2222,7 +2604,7 @@
     {
       "t": "04:45:52",
       "tMs": 1785559552703,
-      "impulse": "stage_deep",
+      "impulse": "stage_light",
       "node": "ECGDex",
       "conf": 0.7,
       "sqi": null,
@@ -2314,8 +2696,60 @@
       }
     },
     {
+      "t": "05:00:52",
+      "tMs": 1785560452703,
+      "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "05:12:07",
+      "tMs": 1785561127703,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.73,
+      "sqi": 0.76,
+      "meta": {
+        "ampBpm": 13.3,
+        "periodSec": 21,
+        "peakTMs": 1785561148703,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "05:15:38",
+      "tMs": 1785561338703,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.64,
+      "sqi": 0.78,
+      "meta": {
+        "ampBpm": 9.2,
+        "periodSec": 18,
+        "peakTMs": 1785561356703,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
       "t": "05:15:52",
       "tMs": 1785561352703,
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "05:20:52",
+      "tMs": 1785561652703,
       "impulse": "stage_light",
       "node": "ECGDex",
       "conf": 0.7,
@@ -2388,9 +2822,35 @@
       }
     },
     {
-      "t": "05:25:52",
-      "tMs": 1785561952703,
+      "t": "05:30:52",
+      "tMs": 1785562252703,
       "impulse": "stage_deep",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "05:32:35",
+      "tMs": 1785562355703,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.65,
+      "sqi": 0.72,
+      "meta": {
+        "ampBpm": 9.4,
+        "periodSec": 15,
+        "peakTMs": 1785562370703,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "05:35:52",
+      "tMs": 1785562552703,
+      "impulse": "stage_light",
       "node": "ECGDex",
       "conf": 0.7,
       "sqi": null,
@@ -2416,7 +2876,7 @@
     {
       "t": "05:40:52",
       "tMs": 1785562852703,
-      "impulse": "stage_light",
+      "impulse": "stage_rem",
       "node": "ECGDex",
       "conf": 0.7,
       "sqi": null,
@@ -2425,24 +2885,6 @@
     {
       "t": "05:45:52",
       "tMs": 1785563152703,
-      "impulse": "stage_rem",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
-      "t": "05:50:52",
-      "tMs": 1785563452703,
-      "impulse": "stage_light",
-      "node": "ECGDex",
-      "conf": 0.7,
-      "sqi": null,
-      "meta": {}
-    },
-    {
-      "t": "05:55:52",
-      "tMs": 1785563752703,
       "impulse": "stage_deep",
       "node": "ECGDex",
       "conf": 0.7,
@@ -2485,12 +2927,29 @@
       "tMs": 1785563791703,
       "impulse": "autonomic_surge",
       "node": "ECGDex",
-      "conf": 0.68,
+      "conf": 0.7,
       "sqi": 0.73,
       "meta": {
-        "ampBpm": 10.8,
-        "periodSec": 22,
-        "peakTMs": 1785563813703,
+        "ampBpm": 11.8,
+        "periodSec": 40,
+        "peakTMs": 1785563831703,
+        "position": "lateral",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
+    },
+    {
+      "t": "05:57:30",
+      "tMs": 1785563850703,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.69,
+      "sqi": 0.73,
+      "meta": {
+        "ampBpm": 11.4,
+        "periodSec": 17,
+        "peakTMs": 1785563867703,
         "position": "lateral",
         "osaLabel": null,
         "osaConf": null,
@@ -2527,6 +2986,15 @@
         ],
         "site": "chest"
       }
+    },
+    {
+      "t": "06:05:52",
+      "tMs": 1785564352703,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "06:06:57",
@@ -2594,13 +3062,30 @@
       }
     },
     {
-      "t": "06:10:52",
-      "tMs": 1785564652703,
-      "impulse": "stage_light",
+      "t": "06:30:52",
+      "tMs": 1785565852703,
+      "impulse": "stage_deep",
       "node": "ECGDex",
       "conf": 0.7,
       "sqi": null,
       "meta": {}
+    },
+    {
+      "t": "06:32:44",
+      "tMs": 1785565964703,
+      "impulse": "autonomic_surge",
+      "node": "ECGDex",
+      "conf": 0.68,
+      "sqi": 0.71,
+      "meta": {
+        "ampBpm": 10.9,
+        "periodSec": 23,
+        "peakTMs": 1785565987703,
+        "position": "supine",
+        "osaLabel": null,
+        "osaConf": null,
+        "deltaSBP": null
+      }
     },
     {
       "t": "06:33:47",
@@ -2784,6 +3269,15 @@
       }
     },
     {
+      "t": "06:45:52",
+      "tMs": 1785566752703,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "06:47:54",
       "tMs": 1785566874703,
       "impulse": "autonomic_surge",
@@ -2849,21 +3343,22 @@
       }
     },
     {
-      "t": "06:57:53",
-      "tMs": 1785567473703,
-      "impulse": "autonomic_surge",
+      "t": "06:55:52",
+      "tMs": 1785567352703,
+      "impulse": "stage_deep",
       "node": "ECGDex",
-      "conf": 0.73,
-      "sqi": 0.54,
-      "meta": {
-        "ampBpm": 13.5,
-        "periodSec": 17,
-        "peakTMs": 1785567490703,
-        "position": "upright",
-        "osaLabel": null,
-        "osaConf": null,
-        "deltaSBP": null
-      }
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "07:00:52",
+      "tMs": 1785567652703,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "07:05:48",
@@ -3011,6 +3506,24 @@
       }
     },
     {
+      "t": "07:15:52",
+      "tMs": 1785568552703,
+      "impulse": "stage_light",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
+      "t": "07:20:52",
+      "tMs": 1785568852703,
+      "impulse": "stage_rem",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
+    },
+    {
       "t": "07:26:06",
       "tMs": 1785569166703,
       "impulse": "autonomic_surge",
@@ -3060,6 +3573,15 @@
         "osaConf": null,
         "deltaSBP": null
       }
+    },
+    {
+      "t": "07:30:52",
+      "tMs": 1785569452703,
+      "impulse": "stage_wake",
+      "node": "ECGDex",
+      "conf": 0.7,
+      "sqi": null,
+      "meta": {}
     },
     {
       "t": "07:36:39",
@@ -3289,37 +3811,47 @@
   "quality": {
     "analyzablePct": 90.2,
     "cleanBeatPct": 100,
-    "coveragePct": 90.2
+    "coveragePct": 90.2,
+    "ecgRail": {
+      "lo": null,
+      "hi": null,
+      "mirrorLo": null,
+      "mirrorHi": null,
+      "absent": true,
+      "samples": null
+    }
   },
   "hrv": {
     "time": {
-      "hr": 69.6,
+      "hr": 64.8,
       "meanRR": 842.7,
-      "sdnn": 40.3,
-      "rmssd": 21.5,
-      "pnn50": 3.7,
-      "sdnnIndex": 42.1,
+      "sdnn": 48.8,
+      "rmssd": 26.5,
+      "pnn50": 4.3,
+      "sdnnIndex": 1777.3,
       "wholeRecordHR": 71.2,
       "wholeRecordSDNN": 99.6,
       "wholeRecordRMSSD": 24.4,
       "amo50": 18.1,
       "mode": 950,
-      "mxDMn": 0.54,
+      "mxDMn": 219.889,
       "units": "ms",
       "geometricNote": "Baevsky-SI inputs (Brennan/Welltory convention): amo50 = amplitude of the modal RR (%), mode = modal RR (ms), mxDMn = RR variation range (SECONDS). Same values as the ⬇ HRVDex CSV columns; null when the NN series is empty.",
       "windowNote": "sdnn/rmssd/pnn50 here are DISPLAY values = representative 5-min epoch median on overnight recordings (short recs: whole-record). For CROSS-NODE comparison use wholeRecordSDNN/wholeRecordRMSSD."
     },
     "frequency": {
-      "vlf": 706,
-      "lf": 389,
-      "hf": 135,
-      "totalPower": 1230,
-      "lfhf": 2.995,
+      "vlf": 1181,
+      "lf": 573,
+      "hf": 195,
+      "totalPower": 1949,
+      "lfhf": 2.112,
       "window": "epochMedian5min",
       "method": "Lomb–Scargle",
-      "respRate": 15.9,
+      "respRate": 15.6,
       "respRateMethod": "RSA (HF-peak of RR spectrum)",
       "respFromEDR": 18.5,
+      "couplingGridGapCells": 14877,
+      "couplingGridGapFrac": 0.0983,
       "respFromEDRMethod": "EDR (R-peak amplitude modulation)"
     }
   },
@@ -3413,15 +3945,15 @@
       },
       {
         "tMin": 25,
-        "hr": 60.8,
-        "rmssd": 25.4,
-        "sdnn": 24.1,
-        "vlf": 90,
-        "lf": 181,
-        "hf": 201,
-        "totalPower": 472,
-        "lfhf": 0.9,
-        "resp": 16.5,
+        "hr": 47.7,
+        "rmssd": 5911.6,
+        "sdnn": 4171.5,
+        "vlf": 1704274,
+        "lf": 4719703,
+        "hf": 10774172,
+        "totalPower": 17198149,
+        "lfhf": 0.438,
+        "resp": 16.2,
         "hrStat": "rate-of-mean",
         "sqi": 0.816,
         "beats": 239,
@@ -3430,15 +3962,15 @@
       },
       {
         "tMin": 30,
-        "hr": 61.7,
-        "rmssd": 19.6,
-        "sdnn": 20.8,
-        "vlf": 112,
-        "lf": 155,
-        "hf": 135,
-        "totalPower": 402,
-        "lfhf": 1.149,
-        "resp": 15.9,
+        "hr": 48.1,
+        "rmssd": 6035.1,
+        "sdnn": 4258.2,
+        "vlf": 1748227,
+        "lf": 4942586,
+        "hf": 11225869,
+        "totalPower": 17916682,
+        "lfhf": 0.44,
+        "resp": 11,
         "hrStat": "rate-of-mean",
         "sqi": 0.817,
         "beats": 240,
@@ -3498,15 +4030,15 @@
       },
       {
         "tMin": 50,
-        "hr": 63.3,
-        "rmssd": 21.1,
-        "sdnn": 24.4,
-        "vlf": 118,
-        "lf": 281,
-        "hf": 131,
-        "totalPower": 530,
-        "lfhf": 2.142,
-        "resp": 17,
+        "hr": 41.9,
+        "rmssd": 8280.4,
+        "sdnn": 8265.7,
+        "vlf": 6677139,
+        "lf": 18432323,
+        "hf": 41851545,
+        "totalPower": 66961007,
+        "lfhf": 0.44,
+        "resp": 17.9,
         "hrStat": "rate-of-mean",
         "sqi": 0.828,
         "beats": 292,
@@ -3583,15 +4115,15 @@
       },
       {
         "tMin": 75,
-        "hr": 63.5,
-        "rmssd": 21,
-        "sdnn": 30,
-        "vlf": 390,
-        "lf": 338,
-        "hf": 142,
-        "totalPower": 870,
-        "lfhf": 2.382,
-        "resp": 16.5,
+        "hr": 49.7,
+        "rmssd": 5852.6,
+        "sdnn": 4130.8,
+        "vlf": 2023049,
+        "lf": 4025062,
+        "hf": 9760048,
+        "totalPower": 15808159,
+        "lfhf": 0.412,
+        "resp": 19.4,
         "hrStat": "rate-of-mean",
         "sqi": 0.798,
         "beats": 249,
@@ -3753,15 +4285,15 @@
       },
       {
         "tMin": 125,
-        "hr": 63.7,
-        "rmssd": 17.5,
-        "sdnn": 24.9,
-        "vlf": 108,
-        "lf": 408,
-        "hf": 78,
-        "totalPower": 594,
-        "lfhf": 5.208,
-        "resp": 16.2,
+        "hr": 37,
+        "rmssd": 13109.6,
+        "sdnn": 9245,
+        "vlf": 8646141,
+        "lf": 23202924,
+        "hf": 52614857,
+        "totalPower": 84463922,
+        "lfhf": 0.441,
+        "resp": 15.8,
         "hrStat": "rate-of-mean",
         "sqi": 0.816,
         "beats": 185,
@@ -3855,14 +4387,14 @@
       },
       {
         "tMin": 155,
-        "hr": 66.3,
-        "rmssd": 19.8,
-        "sdnn": 55.9,
-        "vlf": 2144,
-        "lf": 316,
-        "hf": 92,
-        "totalPower": 2552,
-        "lfhf": 3.423,
+        "hr": 52,
+        "rmssd": 5659,
+        "sdnn": 3995.3,
+        "vlf": 1458451,
+        "lf": 4026779,
+        "hf": 9120388,
+        "totalPower": 14605618,
+        "lfhf": 0.442,
         "resp": 16.1,
         "hrStat": "rate-of-mean",
         "sqi": 0.812,
@@ -3889,15 +4421,15 @@
       },
       {
         "tMin": 165,
-        "hr": 61.7,
-        "rmssd": 24.6,
-        "sdnn": 26.6,
-        "vlf": 221,
-        "lf": 237,
-        "hf": 185,
-        "totalPower": 643,
-        "lfhf": 1.278,
-        "resp": 15.5,
+        "hr": 47.2,
+        "rmssd": 6539.7,
+        "sdnn": 4615.1,
+        "vlf": 2122952,
+        "lf": 5808480,
+        "hf": 13132661,
+        "totalPower": 21064093,
+        "lfhf": 0.442,
+        "resp": 17.9,
         "hrStat": "rate-of-mean",
         "sqi": 0.822,
         "beats": 236,
@@ -3991,15 +4523,15 @@
       },
       {
         "tMin": 195,
-        "hr": 69.5,
-        "rmssd": 18.7,
-        "sdnn": 35.2,
-        "vlf": 337,
-        "lf": 793,
-        "hf": 69,
-        "totalPower": 1199,
-        "lfhf": 11.544,
-        "resp": 9.2,
+        "hr": 31,
+        "rmssd": 13789.9,
+        "sdnn": 9693.5,
+        "vlf": 9662343,
+        "lf": 23632660,
+        "hf": 56051933,
+        "totalPower": 89346936,
+        "lfhf": 0.422,
+        "resp": 21.6,
         "hrStat": "rate-of-mean",
         "sqi": 0.811,
         "beats": 155,
@@ -4059,15 +4591,15 @@
       },
       {
         "tMin": 215,
-        "hr": 68.3,
-        "rmssd": 25.3,
-        "sdnn": 61.6,
-        "vlf": 3052,
-        "lf": 475,
-        "hf": 194,
-        "totalPower": 3721,
-        "lfhf": 2.442,
-        "resp": 14.6,
+        "hr": 37.4,
+        "rmssd": 9272.1,
+        "sdnn": 8122.2,
+        "vlf": 6440489,
+        "lf": 17809392,
+        "hf": 40759361,
+        "totalPower": 65009242,
+        "lfhf": 0.437,
+        "resp": 13.5,
         "hrStat": "rate-of-mean",
         "sqi": 0.819,
         "beats": 239,
@@ -4076,15 +4608,15 @@
       },
       {
         "tMin": 220,
-        "hr": 65,
-        "rmssd": 24.3,
-        "sdnn": 34.5,
-        "vlf": 529,
-        "lf": 389,
-        "hf": 201,
-        "totalPower": 1119,
-        "lfhf": 1.937,
-        "resp": 15,
+        "hr": 50.7,
+        "rmssd": 5852,
+        "sdnn": 4129.7,
+        "vlf": 1616608,
+        "lf": 4384685,
+        "hf": 9969455,
+        "totalPower": 15970748,
+        "lfhf": 0.44,
+        "resp": 15.2,
         "hrStat": "rate-of-mean",
         "sqi": 0.808,
         "beats": 254,
@@ -4093,15 +4625,15 @@
       },
       {
         "tMin": 225,
-        "hr": 65,
-        "rmssd": 19.9,
-        "sdnn": 24.4,
-        "vlf": 186,
-        "lf": 239,
-        "hf": 130,
-        "totalPower": 555,
-        "lfhf": 1.842,
-        "resp": 15.3,
+        "hr": 50.6,
+        "rmssd": 5894.6,
+        "sdnn": 4160.9,
+        "vlf": 1625423,
+        "lf": 4421720,
+        "hf": 10076161,
+        "totalPower": 16123304,
+        "lfhf": 0.439,
+        "resp": 10.1,
         "hrStat": "rate-of-mean",
         "sqi": 0.809,
         "beats": 253,
@@ -4144,15 +4676,15 @@
       },
       {
         "tMin": 240,
-        "hr": 65.9,
-        "rmssd": 21.1,
-        "sdnn": 24.2,
-        "vlf": 175,
-        "lf": 236,
-        "hf": 129,
-        "totalPower": 540,
-        "lfhf": 1.835,
-        "resp": 16.4,
+        "hr": 50.8,
+        "rmssd": 6090,
+        "sdnn": 4297.1,
+        "vlf": 1706049,
+        "lf": 4717633,
+        "hf": 10741218,
+        "totalPower": 17164900,
+        "lfhf": 0.439,
+        "resp": 11.4,
         "hrStat": "rate-of-mean",
         "sqi": 0.827,
         "beats": 254,
@@ -4161,15 +4693,15 @@
       },
       {
         "tMin": 245,
-        "hr": 67.1,
-        "rmssd": 20.5,
-        "sdnn": 22.3,
-        "vlf": 93,
-        "lf": 236,
-        "hf": 106,
-        "totalPower": 435,
-        "lfhf": 2.223,
-        "resp": 16.1,
+        "hr": 50.5,
+        "rmssd": 6628,
+        "sdnn": 4677.1,
+        "vlf": 1948635,
+        "lf": 5696208,
+        "hf": 12778137,
+        "totalPower": 20422980,
+        "lfhf": 0.446,
+        "resp": 9,
         "hrStat": "rate-of-mean",
         "sqi": 0.828,
         "beats": 252,
@@ -4212,15 +4744,15 @@
       },
       {
         "tMin": 260,
-        "hr": 72.2,
-        "rmssd": 24.6,
-        "sdnn": 55.3,
-        "vlf": 2235,
-        "lf": 332,
-        "hf": 132,
-        "totalPower": 2699,
-        "lfhf": 2.524,
-        "resp": 17,
+        "hr": 49,
+        "rmssd": 8721.1,
+        "sdnn": 6156,
+        "vlf": 3497700,
+        "lf": 10157128,
+        "hf": 22918497,
+        "totalPower": 36573325,
+        "lfhf": 0.443,
+        "resp": 13.2,
         "hrStat": "rate-of-mean",
         "sqi": 0.817,
         "beats": 245,
@@ -4229,15 +4761,15 @@
       },
       {
         "tMin": 265,
-        "hr": 68.3,
-        "rmssd": 17.6,
-        "sdnn": 33.9,
-        "vlf": 662,
-        "lf": 341,
-        "hf": 110,
-        "totalPower": 1113,
-        "lfhf": 3.102,
-        "resp": 14.3,
+        "hr": 51.3,
+        "rmssd": 6621,
+        "sdnn": 4671.6,
+        "vlf": 1947464,
+        "lf": 5561859,
+        "hf": 12519385,
+        "totalPower": 20028708,
+        "lfhf": 0.444,
+        "resp": 13.8,
         "hrStat": "rate-of-mean",
         "sqi": 0.804,
         "beats": 257,
@@ -4263,15 +4795,15 @@
       },
       {
         "tMin": 275,
-        "hr": 70.2,
-        "rmssd": 15.5,
-        "sdnn": 24,
-        "vlf": 242,
-        "lf": 226,
-        "hf": 86,
-        "totalPower": 554,
-        "lfhf": 2.611,
-        "resp": 18.3,
+        "hr": 48.8,
+        "rmssd": 6312.8,
+        "sdnn": 6301.4,
+        "vlf": 3890464,
+        "lf": 10435110,
+        "hf": 23862975,
+        "totalPower": 38188549,
+        "lfhf": 0.437,
+        "resp": 9,
         "hrStat": "rate-of-mean",
         "sqi": 0.803,
         "beats": 283,
@@ -4280,15 +4812,15 @@
       },
       {
         "tMin": 280,
-        "hr": 73.4,
-        "rmssd": 21.5,
-        "sdnn": 66.5,
-        "vlf": 3457,
-        "lf": 389,
-        "hf": 122,
-        "totalPower": 3968,
-        "lfhf": 3.194,
-        "resp": 17.4,
+        "hr": 58,
+        "rmssd": 5246.8,
+        "sdnn": 3705.8,
+        "vlf": 1154008,
+        "lf": 3090231,
+        "hf": 7004255,
+        "totalPower": 11248494,
+        "lfhf": 0.441,
+        "resp": 9.6,
         "hrStat": "rate-of-mean",
         "sqi": 0.809,
         "beats": 290,
@@ -4348,15 +4880,15 @@
       },
       {
         "tMin": 300,
-        "hr": 83,
-        "rmssd": 32,
-        "sdnn": 48.3,
-        "vlf": 1220,
-        "lf": 730,
-        "hf": 202,
-        "totalPower": 2152,
-        "lfhf": 3.607,
-        "resp": 16.1,
+        "hr": 41.5,
+        "rmssd": 12624.3,
+        "sdnn": 12600.8,
+        "vlf": 15483525,
+        "lf": 42859654,
+        "hf": 97419464,
+        "totalPower": 155762643,
+        "lfhf": 0.44,
+        "resp": 9.9,
         "hrStat": "rate-of-mean",
         "sqi": 0.818,
         "beats": 304,
@@ -4365,15 +4897,15 @@
       },
       {
         "tMin": 305,
-        "hr": 91,
-        "rmssd": 20.4,
-        "sdnn": 48.6,
-        "vlf": 1030,
-        "lf": 298,
-        "hf": 58,
-        "totalPower": 1386,
-        "lfhf": 5.117,
-        "resp": 12.8,
+        "hr": 59.9,
+        "rmssd": 8406.1,
+        "sdnn": 5934.2,
+        "vlf": 2769461,
+        "lf": 7669541,
+        "hf": 17448662,
+        "totalPower": 27887664,
+        "lfhf": 0.44,
+        "resp": 10.7,
         "hrStat": "rate-of-mean",
         "sqi": 0.833,
         "beats": 299,
@@ -4382,15 +4914,15 @@
       },
       {
         "tMin": 310,
-        "hr": 84.1,
-        "rmssd": 25.7,
-        "sdnn": 49.2,
-        "vlf": 1137,
-        "lf": 673,
-        "hf": 108,
-        "totalPower": 1918,
-        "lfhf": 6.242,
-        "resp": 9.2,
+        "hr": 60,
+        "rmssd": 7020.2,
+        "sdnn": 4957.1,
+        "vlf": 1905851,
+        "lf": 5377777,
+        "hf": 12173994,
+        "totalPower": 19457622,
+        "lfhf": 0.442,
+        "resp": 11.4,
         "hrStat": "rate-of-mean",
         "sqi": 0.822,
         "beats": 300,
@@ -4552,15 +5084,15 @@
       },
       {
         "tMin": 360,
-        "hr": 75.7,
-        "rmssd": 21.1,
-        "sdnn": 57.1,
-        "vlf": 1865,
-        "lf": 594,
-        "hf": 110,
-        "totalPower": 2569,
-        "lfhf": 5.415,
-        "resp": 9.8,
+        "hr": 56.6,
+        "rmssd": 4790.6,
+        "sdnn": 4787.8,
+        "vlf": 1936053,
+        "lf": 5229025,
+        "hf": 11881945,
+        "totalPower": 19047023,
+        "lfhf": 0.44,
+        "resp": 11.7,
         "hrStat": "rate-of-mean",
         "sqi": 0.847,
         "beats": 319,
@@ -4586,15 +5118,15 @@
       },
       {
         "tMin": 370,
-        "hr": 76.6,
-        "rmssd": 16.2,
-        "sdnn": 58.2,
-        "vlf": 2940,
-        "lf": 319,
-        "hf": 90,
-        "totalPower": 3349,
-        "lfhf": 3.523,
-        "resp": 10.4,
+        "hr": 46.8,
+        "rmssd": 8133.9,
+        "sdnn": 8115.1,
+        "vlf": 6358799,
+        "lf": 17668367,
+        "hf": 40408443,
+        "totalPower": 64435609,
+        "lfhf": 0.437,
+        "resp": 10.5,
         "hrStat": "rate-of-mean",
         "sqi": 0.851,
         "beats": 264,
@@ -4654,15 +5186,15 @@
       },
       {
         "tMin": 390,
-        "hr": 79,
-        "rmssd": 20.2,
-        "sdnn": 45.4,
-        "vlf": 791,
-        "lf": 605,
-        "hf": 101,
-        "totalPower": 1497,
-        "lfhf": 6.004,
-        "resp": 9.9,
+        "hr": 62.6,
+        "rmssd": 3625.6,
+        "sdnn": 3615.4,
+        "vlf": 942985,
+        "lf": 2731166,
+        "hf": 6175586,
+        "totalPower": 9849737,
+        "lfhf": 0.442,
+        "resp": 9.5,
         "hrStat": "rate-of-mean",
         "sqi": 0.83,
         "beats": 329,
@@ -4671,15 +5203,15 @@
       },
       {
         "tMin": 395,
-        "hr": 73.9,
-        "rmssd": 36,
-        "sdnn": 69.8,
-        "vlf": 1602,
-        "lf": 757,
-        "hf": 476,
-        "totalPower": 2835,
-        "lfhf": 1.591,
-        "resp": 11.9,
+        "hr": 56.5,
+        "rmssd": 5941.7,
+        "sdnn": 4191.8,
+        "vlf": 1479650,
+        "lf": 4048621,
+        "hf": 9269759,
+        "totalPower": 14798030,
+        "lfhf": 0.437,
+        "resp": 12.8,
         "hrStat": "rate-of-mean",
         "sqi": 0.823,
         "beats": 283,
@@ -4688,15 +5220,15 @@
       },
       {
         "tMin": 400,
-        "hr": 70.9,
-        "rmssd": 29.2,
-        "sdnn": 42.3,
-        "vlf": 635,
-        "lf": 700,
-        "hf": 390,
-        "totalPower": 1725,
-        "lfhf": 1.794,
-        "resp": 12.5,
+        "hr": 53.8,
+        "rmssd": 6252.9,
+        "sdnn": 4414.3,
+        "vlf": 1719091,
+        "lf": 4685177,
+        "hf": 10630820,
+        "totalPower": 17035088,
+        "lfhf": 0.441,
+        "resp": 10.1,
         "hrStat": "rate-of-mean",
         "sqi": 0.834,
         "beats": 269,
@@ -4722,15 +5254,15 @@
       },
       {
         "tMin": 410,
-        "hr": 76,
-        "rmssd": 26,
-        "sdnn": 52.1,
-        "vlf": 1436,
-        "lf": 783,
-        "hf": 219,
-        "totalPower": 2438,
-        "lfhf": 3.568,
-        "resp": 15.6,
+        "hr": 51,
+        "rmssd": 8754.7,
+        "sdnn": 6177.1,
+        "vlf": 3447143,
+        "lf": 9823507,
+        "hf": 22156554,
+        "totalPower": 35427204,
+        "lfhf": 0.443,
+        "resp": 9,
         "hrStat": "rate-of-mean",
         "sqi": 0.83,
         "beats": 255,
@@ -4739,15 +5271,15 @@
       },
       {
         "tMin": 415,
-        "hr": 73.9,
-        "rmssd": 21.2,
-        "sdnn": 35.5,
-        "vlf": 585,
-        "lf": 351,
-        "hf": 189,
-        "totalPower": 1125,
-        "lfhf": 1.855,
-        "resp": 14.7,
+        "hr": 56.9,
+        "rmssd": 5787,
+        "sdnn": 4087.7,
+        "vlf": 1428687,
+        "lf": 3828862,
+        "hf": 8698132,
+        "totalPower": 13955681,
+        "lfhf": 0.44,
+        "resp": 12.3,
         "hrStat": "rate-of-mean",
         "sqi": 0.822,
         "beats": 285,
@@ -4773,15 +5305,15 @@
       },
       {
         "tMin": 425,
-        "hr": 72.6,
-        "rmssd": 25.4,
-        "sdnn": 53.5,
-        "vlf": 1337,
-        "lf": 829,
-        "hf": 232,
-        "totalPower": 2398,
-        "lfhf": 3.578,
-        "resp": 13.4,
+        "hr": 55.7,
+        "rmssd": 5930.7,
+        "sdnn": 4186,
+        "vlf": 1419780,
+        "lf": 4158767,
+        "hf": 9335976,
+        "totalPower": 14914523,
+        "lfhf": 0.445,
+        "resp": 15.3,
         "hrStat": "rate-of-mean",
         "sqi": 0.814,
         "beats": 279,
@@ -4807,15 +5339,15 @@
       },
       {
         "tMin": 435,
-        "hr": 75.6,
-        "rmssd": 20.8,
-        "sdnn": 46.7,
-        "vlf": 978,
-        "lf": 354,
-        "hf": 192,
-        "totalPower": 1524,
-        "lfhf": 1.85,
-        "resp": 9.6,
+        "hr": 60.5,
+        "rmssd": 4865.4,
+        "sdnn": 3434.1,
+        "vlf": 927848,
+        "lf": 2532156,
+        "hf": 5793214,
+        "totalPower": 9253218,
+        "lfhf": 0.437,
+        "resp": 13.2,
         "hrStat": "rate-of-mean",
         "sqi": 0.812,
         "beats": 303,
@@ -4875,15 +5407,15 @@
       },
       {
         "tMin": 455,
-        "hr": 65.1,
-        "rmssd": 34.4,
-        "sdnn": 53.4,
-        "vlf": 412,
-        "lf": 2047,
-        "hf": 334,
-        "totalPower": 2793,
-        "lfhf": 6.135,
-        "resp": 16.1,
+        "hr": 50.4,
+        "rmssd": 4676.2,
+        "sdnn": 4663,
+        "vlf": 1963368,
+        "lf": 5634358,
+        "hf": 12711377,
+        "totalPower": 20309103,
+        "lfhf": 0.443,
+        "resp": 15.9,
         "hrStat": "rate-of-mean",
         "sqi": 0.81,
         "beats": 300,
@@ -4909,15 +5441,15 @@
       },
       {
         "tMin": 465,
-        "hr": 65.7,
-        "rmssd": 29.4,
-        "sdnn": 50.2,
-        "vlf": 738,
-        "lf": 1180,
-        "hf": 239,
-        "totalPower": 2157,
-        "lfhf": 4.948,
-        "resp": 15.8,
+        "hr": 29.7,
+        "rmssd": 13677.4,
+        "sdnn": 9605.1,
+        "vlf": 8949660,
+        "lf": 24883203,
+        "hf": 56981671,
+        "totalPower": 90814534,
+        "lfhf": 0.437,
+        "resp": 13.7,
         "hrStat": "rate-of-mean",
         "sqi": 0.805,
         "beats": 148,
@@ -4977,15 +5509,15 @@
       },
       {
         "tMin": 485,
-        "hr": 66.9,
-        "rmssd": 32.1,
-        "sdnn": 60.2,
-        "vlf": 1354,
-        "lf": 1825,
-        "hf": 289,
-        "totalPower": 3468,
-        "lfhf": 6.319,
-        "resp": 9.2,
+        "hr": 45.3,
+        "rmssd": 9147.9,
+        "sdnn": 6454,
+        "vlf": 3956375,
+        "lf": 11410944,
+        "hf": 25513281,
+        "totalPower": 40880600,
+        "lfhf": 0.447,
+        "resp": 13.1,
         "hrStat": "rate-of-mean",
         "sqi": 0.824,
         "beats": 226,
@@ -5028,15 +5560,15 @@
       },
       {
         "tMin": 500,
-        "hr": 77.5,
-        "rmssd": 18.1,
-        "sdnn": 43.6,
-        "vlf": 1316,
-        "lf": 441,
-        "hf": 88,
-        "totalPower": 1845,
-        "lfhf": 5.013,
-        "resp": 9.2,
+        "hr": 57.2,
+        "rmssd": 6092.3,
+        "sdnn": 4299.8,
+        "vlf": 1508770,
+        "lf": 4305633,
+        "hf": 9373144,
+        "totalPower": 15187547,
+        "lfhf": 0.459,
+        "resp": 10.8,
         "hrStat": "rate-of-mean",
         "sqi": 0.821,
         "beats": 244,
@@ -5045,15 +5577,15 @@
       },
       {
         "tMin": 505,
-        "hr": 71.2,
-        "rmssd": 30.7,
-        "sdnn": 41.6,
-        "vlf": 622,
-        "lf": 709,
-        "hf": 222,
-        "totalPower": 1553,
-        "lfhf": 3.199,
-        "resp": 17.4,
+        "hr": 58.3,
+        "rmssd": 3402.6,
+        "sdnn": 3393.7,
+        "vlf": 917245,
+        "lf": 2567193,
+        "hf": 5856121,
+        "totalPower": 9340559,
+        "lfhf": 0.438,
+        "resp": 10.5,
         "hrStat": "rate-of-mean",
         "sqi": 0.817,
         "beats": 334,
@@ -5062,15 +5594,15 @@
       },
       {
         "tMin": 510,
-        "hr": 69.4,
-        "rmssd": 25.2,
-        "sdnn": 80.3,
-        "vlf": 4406,
-        "lf": 949,
-        "hf": 189,
-        "totalPower": 5544,
-        "lfhf": 5.022,
-        "resp": 18.3,
+        "hr": 55.2,
+        "rmssd": 5231.1,
+        "sdnn": 3698.2,
+        "vlf": 1174015,
+        "lf": 3225358,
+        "hf": 7367418,
+        "totalPower": 11766791,
+        "lfhf": 0.438,
+        "resp": 16.8,
         "hrStat": "rate-of-mean",
         "sqi": 0.811,
         "beats": 276,
@@ -5079,15 +5611,15 @@
       },
       {
         "tMin": 515,
-        "hr": 69.4,
-        "rmssd": 25.6,
-        "sdnn": 108.1,
-        "vlf": 9154,
-        "lf": 884,
-        "hf": 165,
-        "totalPower": 10203,
-        "lfhf": 5.37,
-        "resp": 9,
+        "hr": 38.9,
+        "rmssd": 13403.3,
+        "sdnn": 9457.5,
+        "vlf": 8409519,
+        "lf": 23733851,
+        "hf": 54123415,
+        "totalPower": 86266785,
+        "lfhf": 0.439,
+        "resp": 9.6,
         "hrStat": "rate-of-mean",
         "sqi": 0.817,
         "beats": 194,
@@ -5181,15 +5713,15 @@
       },
       {
         "tMin": 545,
-        "hr": 78.7,
-        "rmssd": 26.5,
-        "sdnn": 69,
-        "vlf": 3554,
-        "lf": 692,
-        "hf": 174,
-        "totalPower": 4420,
-        "lfhf": 3.984,
-        "resp": 17.6,
+        "hr": 59,
+        "rmssd": 6173,
+        "sdnn": 4361,
+        "vlf": 1510395,
+        "lf": 4220099,
+        "hf": 9545757,
+        "totalPower": 15276251,
+        "lfhf": 0.442,
+        "resp": 17.7,
         "hrStat": "rate-of-mean",
         "sqi": 0.799,
         "beats": 295,
@@ -5215,15 +5747,15 @@
       },
       {
         "tMin": 555,
-        "hr": 76.5,
-        "rmssd": 28,
-        "sdnn": 78.3,
-        "vlf": 4513,
-        "lf": 631,
-        "hf": 211,
-        "totalPower": 5355,
-        "lfhf": 2.995,
-        "resp": 16.8,
+        "hr": 51.4,
+        "rmssd": 8696.1,
+        "sdnn": 6139.5,
+        "vlf": 3662231,
+        "lf": 9513793,
+        "hf": 21753392,
+        "totalPower": 34929416,
+        "lfhf": 0.437,
+        "resp": 17.1,
         "hrStat": "rate-of-mean",
         "sqi": 0.797,
         "beats": 257,
@@ -5266,15 +5798,15 @@
       },
       {
         "tMin": 570,
-        "hr": 75.7,
-        "rmssd": 29.4,
-        "sdnn": 45.6,
-        "vlf": 760,
-        "lf": 953,
-        "hf": 242,
-        "totalPower": 1955,
-        "lfhf": 3.933,
-        "resp": 13.4,
+        "hr": 54.1,
+        "rmssd": 7356.8,
+        "sdnn": 5195.2,
+        "vlf": 2332235,
+        "lf": 6544482,
+        "hf": 14872334,
+        "totalPower": 23749051,
+        "lfhf": 0.44,
+        "resp": 12.8,
         "hrStat": "rate-of-mean",
         "sqi": 0.795,
         "beats": 270,
@@ -5334,14 +5866,14 @@
       },
       {
         "tMin": 590,
-        "hr": 87.5,
-        "rmssd": 22,
-        "sdnn": 28.8,
-        "vlf": 211,
-        "lf": 362,
-        "hf": 111,
-        "totalPower": 684,
-        "lfhf": 3.253,
+        "hr": 67.8,
+        "rmssd": 3865.4,
+        "sdnn": 3860.1,
+        "vlf": 1042690,
+        "lf": 2865552,
+        "hf": 6475994,
+        "totalPower": 10384236,
+        "lfhf": 0.442,
         "resp": 18.8,
         "hrStat": "rate-of-mean",
         "sqi": 0.813,
@@ -5513,7 +6045,7 @@
       },
       {
         "tMin": 30,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 35,
@@ -5529,15 +6061,15 @@
       },
       {
         "tMin": 50,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 55,
-        "stage": "Light"
+        "stage": "REM"
       },
       {
         "tMin": 60,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 65,
@@ -5545,19 +6077,19 @@
       },
       {
         "tMin": 70,
-        "stage": "Light"
+        "stage": "REM"
       },
       {
         "tMin": 75,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 80,
-        "stage": "Light"
+        "stage": "REM"
       },
       {
         "tMin": 85,
-        "stage": "Light"
+        "stage": "REM"
       },
       {
         "tMin": 90,
@@ -5577,11 +6109,11 @@
       },
       {
         "tMin": 110,
-        "stage": "Light"
+        "stage": "REM"
       },
       {
         "tMin": 115,
-        "stage": "Light"
+        "stage": "REM"
       },
       {
         "tMin": 120,
@@ -5589,7 +6121,7 @@
       },
       {
         "tMin": 125,
-        "stage": "REM"
+        "stage": "Deep"
       },
       {
         "tMin": 130,
@@ -5613,7 +6145,7 @@
       },
       {
         "tMin": 155,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 160,
@@ -5633,11 +6165,11 @@
       },
       {
         "tMin": 180,
-        "stage": "Light"
+        "stage": "REM"
       },
       {
         "tMin": 185,
-        "stage": "Light"
+        "stage": "REM"
       },
       {
         "tMin": 190,
@@ -5645,7 +6177,7 @@
       },
       {
         "tMin": 195,
-        "stage": "REM"
+        "stage": "Deep"
       },
       {
         "tMin": 200,
@@ -5657,7 +6189,7 @@
       },
       {
         "tMin": 210,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 215,
@@ -5673,19 +6205,19 @@
       },
       {
         "tMin": 230,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 235,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 240,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 245,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 250,
@@ -5693,27 +6225,27 @@
       },
       {
         "tMin": 255,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 260,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 265,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 270,
-        "stage": "Light"
+        "stage": "REM"
       },
       {
         "tMin": 275,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 280,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 285,
@@ -5729,11 +6261,11 @@
       },
       {
         "tMin": 300,
-        "stage": "Wake"
+        "stage": "Deep"
       },
       {
         "tMin": 305,
-        "stage": "Wake"
+        "stage": "Deep"
       },
       {
         "tMin": 310,
@@ -5777,7 +6309,7 @@
       },
       {
         "tMin": 360,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 365,
@@ -5785,11 +6317,11 @@
       },
       {
         "tMin": 370,
-        "stage": "Light"
+        "stage": "Wake"
       },
       {
         "tMin": 375,
-        "stage": "Light"
+        "stage": "REM"
       },
       {
         "tMin": 380,
@@ -5797,7 +6329,7 @@
       },
       {
         "tMin": 385,
-        "stage": "Wake"
+        "stage": "Light"
       },
       {
         "tMin": 390,
@@ -5809,47 +6341,47 @@
       },
       {
         "tMin": 400,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 405,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 410,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 415,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 420,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 425,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 430,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 435,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 440,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 445,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 450,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 455,
@@ -5865,7 +6397,7 @@
       },
       {
         "tMin": 470,
-        "stage": "Light"
+        "stage": "REM"
       },
       {
         "tMin": 475,
@@ -5873,7 +6405,7 @@
       },
       {
         "tMin": 480,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 485,
@@ -5881,19 +6413,19 @@
       },
       {
         "tMin": 490,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 495,
-        "stage": "Light"
-      },
-      {
-        "tMin": 500,
         "stage": "REM"
       },
       {
+        "tMin": 500,
+        "stage": "Deep"
+      },
+      {
         "tMin": 505,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 510,
@@ -5905,7 +6437,7 @@
       },
       {
         "tMin": 520,
-        "stage": "Deep"
+        "stage": "Light"
       },
       {
         "tMin": 525,
@@ -5925,15 +6457,15 @@
       },
       {
         "tMin": 545,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 550,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 555,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 560,
@@ -5945,7 +6477,7 @@
       },
       {
         "tMin": 570,
-        "stage": "Light"
+        "stage": "Deep"
       },
       {
         "tMin": 575,
@@ -5961,15 +6493,15 @@
       },
       {
         "tMin": 590,
-        "stage": "Wake"
+        "stage": "Light"
       },
       {
         "tMin": 595,
-        "stage": "Wake"
+        "stage": "REM"
       },
       {
         "tMin": 600,
-        "stage": "Wake"
+        "stage": "REM"
       },
       {
         "tMin": 605,
@@ -48242,7 +48774,7 @@
         998,
         958,
         972,
-        998,
+        65475,
         1003,
         998,
         995,
@@ -48393,7 +48925,7 @@
         974,
         989,
         984,
-        956,
+        66941,
         952,
         946,
         926,
@@ -49397,7 +49929,7 @@
         984,
         1007,
         971,
-        971,
+        142192,
         940,
         966,
         983,
@@ -51210,7 +51742,7 @@
         877,
         909,
         933,
-        954,
+        66126,
         974,
         1009,
         1021,
@@ -54092,7 +54624,7 @@
         955,
         961,
         962,
-        926,
+        126686,
         924,
         917,
         903,
@@ -56005,7 +56537,7 @@
         919,
         917,
         906,
-        917,
+        65322,
         942,
         922,
         911,
@@ -56550,7 +57082,7 @@
         911,
         947,
         969,
-        963,
+        71869,
         993,
         967,
         966,
@@ -58476,7 +59008,7 @@
         909,
         915,
         907,
-        889,
+        105128,
         880,
         880,
         861,
@@ -58514,7 +59046,7 @@
         875,
         861,
         854,
-        874,
+        62315,
         853,
         874,
         873,
@@ -59454,7 +59986,7 @@
         899,
         891,
         903,
-        899,
+        106647,
         884,
         873,
         851,
@@ -59563,7 +60095,7 @@
         910,
         922,
         911,
-        910,
+        68991,
         871,
         861,
         846,
@@ -59832,7 +60364,7 @@
         937,
         905,
         922,
-        937,
+        66737,
         917,
         941,
         958,
@@ -60143,7 +60675,7 @@
         946,
         917,
         922,
-        954,
+        67105,
         954,
         935,
         950,
@@ -60866,7 +61398,7 @@
         917,
         958,
         915,
-        904,
+        69395,
         884,
         876,
         924,
@@ -61319,7 +61851,7 @@
         899,
         887,
         900,
-        887,
+        75140,
         878,
         877,
         862,
@@ -62064,7 +62596,7 @@
         853,
         806,
         866,
-        845,
+        97184,
         845,
         817,
         816,
@@ -62303,7 +62835,7 @@
         903,
         868,
         843,
-        881,
+        75769,
         881,
         880,
         889,
@@ -62842,7 +63374,7 @@
         904,
         915,
         901,
-        892,
+        106860,
         850,
         842,
         865,
@@ -63343,7 +63875,7 @@
         826,
         822,
         809,
-        852,
+        63913,
         879,
         855,
         857,
@@ -64449,7 +64981,7 @@
         601,
         599,
         588,
-        667,
+        220424,
         675,
         671,
         667,
@@ -64931,7 +65463,7 @@
         650,
         655,
         661,
-        656,
+        103268,
         656,
         688,
         686,
@@ -65231,7 +65763,7 @@
         700,
         746,
         752,
-        710,
+        86569,
         713,
         710,
         703,
@@ -68860,7 +69392,7 @@
         851,
         863,
         849,
-        851,
+        86299,
         871,
         848,
         833,
@@ -69505,7 +70037,7 @@
         796,
         794,
         780,
-        780,
+        132634,
         724,
         724,
         734,
@@ -70886,7 +71418,7 @@
         707,
         699,
         724,
-        699,
+        66331,
         669,
         663,
         658,
@@ -71266,7 +71798,7 @@
         722,
         713,
         726,
-        726,
+        71320,
         811,
         783,
         811,
@@ -71732,7 +72264,7 @@
         881,
         898,
         825,
-        881,
+        73242,
         896,
         893,
         900,
@@ -72293,7 +72825,7 @@
         741,
         743,
         741,
-        789,
+        99427,
         791,
         811,
         815,
@@ -72504,7 +73036,7 @@
         866,
         886,
         911,
-        851,
+        69818,
         806,
         804,
         851,
@@ -73201,7 +73733,7 @@
         807,
         832,
         864,
-        800,
+        70741,
         775,
         787,
         768,
@@ -73876,7 +74408,7 @@
         811,
         783,
         794,
-        794,
+        60565,
         762,
         759,
         783,
@@ -74948,7 +75480,7 @@
         947,
         943,
         990,
-        926,
+        81680,
         824,
         845,
         822,
@@ -75574,7 +76106,7 @@
         925,
         881,
         873,
-        925,
+        71721,
         921,
         955,
         950,
@@ -75703,7 +76235,7 @@
         912,
         917,
         913,
-        913,
+        94349,
         877,
         871,
         921,
@@ -76779,7 +77311,7 @@
         858,
         874,
         905,
-        874,
+        97916,
         873,
         965,
         878,
@@ -77900,7 +78432,7 @@
         810,
         808,
         797,
-        797,
+        67936,
         769,
         769,
         757,
@@ -77926,7 +78458,7 @@
         826,
         822,
         840,
-        822,
+        62860,
         771,
         786,
         792,
@@ -78309,7 +78841,7 @@
         954,
         1003,
         987,
-        938,
+        62290,
         914,
         914,
         900,
@@ -78704,7 +79236,7 @@
         946,
         919,
         919,
-        919,
+        132583,
         915,
         908,
         912,
@@ -80567,7 +81099,7 @@
         792,
         807,
         823,
-        807,
+        75655,
         801,
         810,
         821,
@@ -81311,7 +81843,7 @@
         899,
         865,
         844,
-        865,
+        99199,
         785,
         800,
         881,
@@ -82292,7 +82824,7 @@
         830,
         866,
         884,
-        814,
+        86155,
         787,
         763,
         719,
@@ -83693,7 +84225,7 @@
         741,
         697,
         712,
-        712,
+        75534,
         683,
         724,
         707,
@@ -88776,7 +89308,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -88927,7 +89458,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -89931,7 +90461,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -91744,7 +92273,7 @@
         0,
         0,
         0,
-        1,
+        0,
         0,
         0,
         0,
@@ -92045,6 +92574,9 @@
         0,
         0,
         0,
+        0,
+        0,
+        0,
         1,
         1,
         0,
@@ -94626,7 +95158,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -96539,7 +97070,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -97084,7 +97614,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -99010,7 +99539,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -99048,7 +99576,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -99988,7 +100515,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -100097,7 +100623,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -100366,7 +100891,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -100677,7 +101201,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -101400,7 +101923,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -101853,7 +102375,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -102598,7 +103119,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -102837,7 +103357,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -103376,7 +103895,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -103877,7 +104395,15 @@
         0,
         0,
         0,
-        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
         0,
         0,
         0,
@@ -104783,6 +105309,12 @@
         0,
         0,
         0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
         1,
         1,
         1,
@@ -104983,7 +105515,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -105465,7 +105996,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -105765,7 +106295,8 @@
         0,
         0,
         0,
-        1,
+        0,
+        0,
         0,
         0,
         0,
@@ -107998,6 +108529,7 @@
         0,
         0,
         0,
+        0,
         1,
         0,
         0,
@@ -109394,7 +109926,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -110039,7 +110570,8 @@
         0,
         0,
         0,
-        1,
+        0,
+        0,
         0,
         0,
         0,
@@ -111420,7 +111952,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -111800,9 +112331,10 @@
         0,
         0,
         0,
-        1,
         0,
         0,
+        0,
+        0,
         1,
         1,
         0,
@@ -112266,7 +112798,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -112778,6 +113309,7 @@
         0,
         0,
         0,
+        0,
         1,
         1,
         0,
@@ -112827,7 +113359,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -113038,7 +113569,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -113735,7 +114265,7 @@
         0,
         0,
         0,
-        1,
+        0,
         0,
         0,
         0,
@@ -114038,6 +114568,8 @@
         0,
         0,
         0,
+        0,
+        0,
         1,
         0,
         0,
@@ -114410,7 +114942,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -114643,6 +115174,7 @@
         0,
         0,
         0,
+        0,
         1,
         0,
         0,
@@ -115482,7 +116014,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -116108,7 +116639,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -116237,7 +116767,7 @@
         0,
         0,
         0,
-        1,
+        0,
         0,
         0,
         0,
@@ -116833,6 +117363,8 @@
         0,
         0,
         0,
+        0,
+        0,
         1,
         1,
         0,
@@ -117313,7 +117845,7 @@
         0,
         0,
         0,
-        1,
+        0,
         1,
         0,
         0,
@@ -118434,7 +118966,7 @@
         0,
         0,
         0,
-        1,
+        0,
         1,
         0,
         0,
@@ -118460,7 +118992,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -118843,7 +119374,7 @@
         0,
         0,
         0,
-        1,
+        0,
         0,
         0,
         0,
@@ -119032,6 +119563,7 @@
         0,
         0,
         0,
+        0,
         1,
         1,
         0,
@@ -119238,7 +119770,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -119390,6 +119921,7 @@
         0,
         0,
         0,
+        0,
         1,
         0,
         0,
@@ -121101,7 +121633,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -121845,7 +122376,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -122498,6 +123028,8 @@
         0,
         0,
         0,
+        0,
+        0,
         1,
         0,
         0,
@@ -122826,7 +123358,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -122928,6 +123459,7 @@
         0,
         0,
         0,
+        0,
         1,
         1,
         0,
@@ -124227,7 +124759,7 @@
         0,
         0,
         0,
-        1,
+        0,
         0,
         0,
         0,
@@ -168138,34 +168670,35 @@
     }
   },
   "sleep": {
-    "totalSleepMin": 515,
+    "totalSleepMin": 540,
     "stageMinutes": {
-      "Wake": 120,
-      "REM": 25,
-      "Light": 375,
-      "Deep": 115
+      "Wake": 95,
+      "REM": 80,
+      "Light": 255,
+      "Deep": 205
     }
   },
   "apnea": {
-    "cvhrIndex": 9.5,
-    "cvhrEvents": 100,
+    "cvhrIndex": 11.6,
+    "cvhrEvents": 110,
     "onCPAP": false,
     "method": "CVHR index (cyclic variation of HR, Hayano) + CPC band shares (Thomas 2005). NOT an apnea–hypopnea index: against device-scored residual AHI over 39 paired nights the CVHR index did not track it (r = −0.151, p = 0.36); only cpc.hfcPct did (r = −0.408, p = 0.009). Screen-adjacent signal, not diagnosis.",
     "cpc": {
       "windows": 146,
       "windowSec": 512,
       "freqResHz": 0.00195,
-      "hfcPct": 35,
-      "lfcPct": 51.9,
-      "vlfcPct": 13.1,
+      "hfcPct": 26.4,
+      "lfcPct": 44.1,
+      "vlfcPct": 29.5,
       "method": "CPC — coherence x cross-power of HR vs EDR (Thomas 2005), 512 s windows, 50 % overlap"
     },
-    "surgeEscalationPct": 1188
+    "surgeEscalationPct": 1068,
+    "cvhrHours": 9.48
   },
   "hrvStability": {
-    "sigma_lnRMSSD_slope": 0.0072,
-    "var_lnRMSSD_slope": 0.002,
-    "mean_lnRMSSD_slope": 0.0324,
+    "sigma_lnRMSSD_slope": -0.0045,
+    "var_lnRMSSD_slope": 0.0307,
+    "mean_lnRMSSD_slope": 0.0891,
     "classification": "Flat — no clear nocturnal trend",
     "windows": 21,
     "ref": "Li & Kiyono 2026 Sensors 26(4):1118 [CC BY 4.0]",
@@ -168173,20 +168706,20 @@
     "series": [
       {
         "tMin": 0,
-        "lnSD": 0.116,
-        "lnMean": 3.044,
+        "lnSD": 2.32,
+        "lnMean": 3.952,
         "n": 6
       },
       {
         "tMin": 30,
-        "lnSD": 0.061,
-        "lnMean": 3.026,
+        "lnSD": 3.013,
+        "lnMean": 4.977,
         "n": 6
       },
       {
         "tMin": 60,
-        "lnSD": 0.103,
-        "lnMean": 3.084,
+        "lnSD": 2.281,
+        "lnMean": 4.022,
         "n": 6
       },
       {
@@ -168197,44 +168730,44 @@
       },
       {
         "tMin": 120,
-        "lnSD": 0.034,
-        "lnMean": 2.869,
+        "lnSD": 2.699,
+        "lnMean": 3.972,
         "n": 6
       },
       {
         "tMin": 150,
-        "lnSD": 0.212,
-        "lnMean": 3.088,
+        "lnSD": 2.913,
+        "lnMean": 4.961,
         "n": 6
       },
       {
         "tMin": 180,
-        "lnSD": 0.159,
-        "lnMean": 2.939,
+        "lnSD": 2.695,
+        "lnMean": 4.04,
         "n": 6
       },
       {
         "tMin": 210,
-        "lnSD": 0.145,
-        "lnMean": 3.221,
+        "lnSD": 3.032,
+        "lnMean": 6.068,
         "n": 6
       },
       {
         "tMin": 240,
-        "lnSD": 0.13,
-        "lnMean": 3.072,
+        "lnSD": 2.947,
+        "lnMean": 6.946,
         "n": 6
       },
       {
         "tMin": 270,
-        "lnSD": 0.276,
-        "lnMean": 2.965,
+        "lnSD": 2.936,
+        "lnMean": 4.882,
         "n": 6
       },
       {
         "tMin": 300,
-        "lnSD": 0.19,
-        "lnMean": 3.324,
+        "lnSD": 3.133,
+        "lnMean": 6.259,
         "n": 6
       },
       {
@@ -168245,50 +168778,50 @@
       },
       {
         "tMin": 360,
-        "lnSD": 0.11,
-        "lnMean": 2.975,
+        "lnSD": 2.967,
+        "lnMean": 4.915,
         "n": 6
       },
       {
         "tMin": 390,
-        "lnSD": 0.212,
-        "lnMean": 3.258,
+        "lnSD": 2.222,
+        "lnMean": 7.773,
         "n": 6
       },
       {
         "tMin": 420,
-        "lnSD": 0.283,
-        "lnMean": 3.204,
+        "lnSD": 2.777,
+        "lnMean": 5.022,
         "n": 6
       },
       {
         "tMin": 450,
-        "lnSD": 0.183,
-        "lnMean": 3.383,
+        "lnSD": 2.938,
+        "lnMean": 5.225,
         "n": 6
       },
       {
         "tMin": 480,
-        "lnSD": 0.219,
-        "lnMean": 3.223,
+        "lnSD": 3.015,
+        "lnMean": 5.92,
         "n": 6
       },
       {
         "tMin": 510,
-        "lnSD": 0.147,
-        "lnMean": 3.415,
+        "lnSD": 2.87,
+        "lnMean": 5.348,
         "n": 6
       },
       {
         "tMin": 540,
-        "lnSD": 0.07,
-        "lnMean": 3.338,
+        "lnSD": 2.866,
+        "lnMean": 5.203,
         "n": 6
       },
       {
         "tMin": 570,
-        "lnSD": 0.138,
-        "lnMean": 3.13,
+        "lnSD": 2.85,
+        "lnMean": 4.912,
         "n": 6
       },
       {

@@ -1,19 +1,25 @@
 {
   "night": "2026-08-20",
   "tolBpm": 15,
+  "quality": {
+    "tolBpm": 3,
+    "flagged": 5,
+    "compared": 69,
+    "flaggedPct": 7.2
+  },
   "nodes": [
     "PpgDex",
     "ECGDex",
     "OxyDex"
   ],
-  "compared": 72,
-  "adjudicable": 64,
+  "compared": 69,
+  "adjudicable": 59,
   "droppedFragments": 0,
-  "flagged": 1,
-  "flaggedPct": 1.4,
+  "flagged": 2,
+  "flaggedPct": 2.9,
   "fault": {
     "PpgDex": 1,
-    "ECGDex": 0,
+    "ECGDex": 1,
     "OxyDex": 0
   },
   "epochs": [
@@ -22,7 +28,7 @@
       "sources": [
         {
           "node": "PpgDex",
-          "hr": 52
+          "hr": 53
         },
         {
           "node": "ECGDex",
@@ -30,13 +36,34 @@
         },
         {
           "node": "OxyDex",
-          "hr": 77
+          "hr": 78.1
         }
       ],
       "median": 74.4,
-      "spreadBpm": 25,
+      "spreadBpm": 25.1,
       "adjudicated": true,
       "outlier": "PpgDex"
+    },
+    {
+      "tMs": 1787283711747,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 67
+        },
+        {
+          "node": "ECGDex",
+          "hr": 45.6
+        },
+        {
+          "node": "OxyDex",
+          "hr": 78.1
+        }
+      ],
+      "median": 67,
+      "spreadBpm": 32.5,
+      "adjudicated": true,
+      "outlier": "ECGDex"
     }
   ]
 }

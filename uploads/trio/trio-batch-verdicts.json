@@ -1,0 +1,135 @@
+{
+ "run": {
+  "schema": "tepna.verdict/1",
+  "gate": "trio-batch",
+  "status": "PASS",
+  "scope": "internal",
+  "population": {
+   "checked": 1,
+   "eligible": 1,
+   "excluded": 0
+  },
+  "criterion": {
+   "name": "three_way_nocturnal_overlap_h",
+   "threshold": 1,
+   "unit": "h",
+   "direction": "gte"
+  },
+  "result": {
+   "folded": 1,
+   "rejected": 0,
+   "notTrio": 0,
+   "nights": [
+    {
+     "night": "2026-07-19",
+     "status": "PASS"
+    }
+   ]
+  },
+  "evidence": [
+   "tools/trio-batch.mjs",
+   "/srv/data/tepna-corpus (capture root)"
+  ],
+  "reason": null,
+  "producedBy": {
+   "tool": "tools/trio-batch.mjs",
+   "commit": "a32bace0"
+  },
+  "at": "2026-09-22T22:41:38Z"
+ },
+ "nights": [
+  {
+   "schema": "tepna.verdict/1",
+   "gate": "trio-batch-night",
+   "status": "PASS",
+   "scope": "internal",
+   "population": {
+    "checked": 8,
+    "eligible": 8,
+    "excluded": 0
+   },
+   "criterion": {
+    "name": "three_way_nocturnal_overlap_h",
+    "threshold": 1,
+    "unit": "h",
+    "direction": "gte"
+   },
+   "result": {
+    "overlapH": 6.14,
+    "nocturnalFrac": 1,
+    "legs": [
+     "ECG",
+     "PPG",
+     "SpO2"
+    ],
+    "partial": false
+   },
+   "evidence": [
+    "tools/trio-batch.mjs",
+    "Wellue_O2Ring-S_S8AW2100_20260719213528_SPO2.csv",
+    "Wellue_O2Ring-S_S8AW2100_20260720013746_SPO2.csv",
+    "Wellue_O2Ring-S_S8AW2100_20260720013817_SPO2.csv",
+    "Wellue_O2Ring-S_S8AW2100_20260720013858_SPO2.csv",
+    "Wellue_O2Ring-S_S8AW2100_20260720013914_SPO2.csv",
+    "Wellue_O2Ring-S_S8AW2100_20260720013931_SPO2.csv",
+    "… +85 more oxy session(s)",
+    "Polar_H10_02849638_20260719214557_ECG.txt",
+    "Polar_H10_02849638_20260719221603_ECG.txt",
+    "Polar_H10_02849638_20260720020247_ECG.txt",
+    "Polar_H10_02849638_20260720033643_ECG.txt",
+    "Polar_H10_02849638_20260720040747_ECG.txt",
+    "Polar_H10_02849638_20260720042011_ECG.txt",
+    "… +5 more ecg session(s)",
+    "Polar_VeritySense_0C301E3F_20260719214346_PPG.txt",
+    "Polar_VeritySense_0C301E3F_20260719221410_PPG.txt",
+    "Polar_VeritySense_0C301E3F_20260719221550_PPG.txt",
+    "Polar_VeritySense_0C301E3F_20260720013750_PPG.txt",
+    "Polar_VeritySense_0C301E3F_20260720020247_PPG.txt",
+    "Polar_VeritySense_0C301E3F_20260720033421_PPG.txt",
+    "… +4 more ppg session(s)",
+    "Polar_H10_02849638_20260719214557_ACC.txt",
+    "Polar_H10_02849638_20260719221603_ACC.txt",
+    "Polar_H10_02849638_20260720020247_ACC.txt",
+    "Polar_H10_02849638_20260720033643_ACC.txt",
+    "Polar_H10_02849638_20260720040747_ACC.txt",
+    "Polar_H10_02849638_20260720042011_ACC.txt",
+    "… +5 more accH10 session(s)",
+    "Polar_VeritySense_0C301E3F_20260719214346_ACC.txt",
+    "Polar_VeritySense_0C301E3F_20260719221410_ACC.txt",
+    "Polar_VeritySense_0C301E3F_20260719221550_ACC.txt",
+    "Polar_VeritySense_0C301E3F_20260720013750_ACC.txt",
+    "Polar_VeritySense_0C301E3F_20260720020247_ACC.txt",
+    "Polar_VeritySense_0C301E3F_20260720033421_ACC.txt",
+    "… +4 more accVer session(s)",
+    "Polar_VeritySense_0C301E3F_20260719214346_GYRO.txt",
+    "Polar_VeritySense_0C301E3F_20260719221410_GYRO.txt",
+    "Polar_VeritySense_0C301E3F_20260719221550_GYRO.txt",
+    "Polar_VeritySense_0C301E3F_20260720013750_GYRO.txt",
+    "Polar_VeritySense_0C301E3F_20260720020247_GYRO.txt",
+    "Polar_VeritySense_0C301E3F_20260720033421_GYRO.txt",
+    "… +4 more gyro session(s)",
+    "Polar_VeritySense_0C301E3F_20260719214346_MAG.txt",
+    "Polar_VeritySense_0C301E3F_20260719221410_MAG.txt",
+    "Polar_VeritySense_0C301E3F_20260719221550_MAG.txt",
+    "Polar_VeritySense_0C301E3F_20260720013750_MAG.txt",
+    "Polar_VeritySense_0C301E3F_20260720020247_MAG.txt",
+    "Polar_VeritySense_0C301E3F_20260720033421_MAG.txt",
+    "… +3 more magn session(s)",
+    "Wellue_O2Ring-S_S8AW2100_20260719213528_PPG.txt",
+    "Wellue_O2Ring-S_S8AW2100_20260720013746_PPG.txt",
+    "Wellue_O2Ring-S_S8AW2100_20260720013817_PPG.txt",
+    "Wellue_O2Ring-S_S8AW2100_20260720013858_PPG.txt",
+    "Wellue_O2Ring-S_S8AW2100_20260720013914_PPG.txt",
+    "Wellue_O2Ring-S_S8AW2100_20260720013931_PPG.txt",
+    "… +85 more o2ppg session(s)"
+   ],
+   "reason": null,
+   "producedBy": {
+    "tool": "tools/trio-batch.mjs",
+    "commit": "a32bace0"
+   },
+   "at": "2026-09-22T22:41:38Z",
+   "night": "2026-07-19"
+  }
+ ]
+}
