@@ -760,6 +760,55 @@ def scan_night(night_dir: str) -> list[dict]:
     return out
 
 
+def daemon_starts(night_dir: str, files: list[dict] | None = None) -> dict:
+    """`{"starts": n, "inside_capture": m, "stamps": [...]}` — the night's daemon starts, and how many
+    of them landed INSIDE a signal-carrying file's span.
+
+    ⚠️ THE COUNT NEVER TRAVELS ALONE, and that is the finding this function exists to carry rather
+    than to re-open. A high restart count was read as evidence of fragmentation until the harm was
+    measured: over four nights, 9 restarts fell in capture hours and **0** of them landed inside a
+    live capture, because the deploy path gates on idleness. So the pair is the observation — a count
+    beside the number of them that could have interrupted anything.
+
+    The predicate is the row's own: a start whose stamp falls within `[filename stamp, mtime]` of a
+    data file that carries rows. `files` defaults to a fresh `scan_night`; callers that already have
+    it pass it rather than walking the night twice.
+
+    ⚠️ It bounds interruption of CAPTURE, not of WEAR: a restart while a device was worn but its link
+    was already down reads as outside, which is benign for this question (there was nothing to
+    interrupt) and is not the same statement. Absent sidecar ⇒ `starts: None`, never 0 — a night whose
+    daemon predates the sidecar did not restart zero times, it did not say."""
+    path = os.path.join(night_dir, writers.STARTS_NAME)
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            rows = fh.read().splitlines()[1:]
+    except OSError:
+        return {"starts": None, "inside_capture": None, "stamps": []}
+    stamps = []
+    for line in rows:
+        p_ = line.split(";")
+        if len(p_) < 5:
+            continue                       # a torn row is skipped, as in every sidecar reader here
+        t = _parse_phone_ts(p_[0])
+        if t is not None:
+            stamps.append(t)
+    if files is None:
+        files = scan_night(night_dir)
+    spans = [(f["session"], f["mtime"]) for f in (files or [])
+             if f.get("rows") and f.get("stream") not in _SIDECAR_TAGS]
+    inside = sum(1 for t in stamps if any(a <= t <= b for a, b in spans))
+    return {"starts": len(stamps), "inside_capture": inside, "stamps": sorted(stamps)}
+
+
+def _parse_phone_ts(raw: str) -> float | None:
+    """The sidecar's own stamp format back to an epoch, or None. Never `now` for an unparseable
+    stamp — a start we cannot place is not a start that happened at this instant (§2.6)."""
+    try:
+        return datetime.strptime(raw.strip()[:23], "%Y-%m-%dT%H:%M:%S.%f").timestamp()
+    except (ValueError, TypeError):
+        return None
+
+
 def newest_data_mtime(night_dir: str) -> float | None:
     """Newest mtime among this folder's DEVICE-CAPTURE files, or None if it holds none.
 
@@ -2422,6 +2471,10 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
         # capture, and conflating them would make a good recording read as a capture failure — the
         # same separation `arrival` above is kept out of `ok` for.
         "class_b": class_b_quality(night_dir),
+        # OBSERVABILITY (residue 2026-09-10-daemon-restarts-are-idle-gated): the night's daemon
+        # starts and how many fell inside a capture — `scanned` is passed so the night is not walked
+        # a second time for it.
+        "daemon": daemon_starts(night_dir, scanned),
         # What rate the files ACTUALLY carry, against what was asked for. Coverage notices a rate swap
         # only as `degraded`, which names it a link fault; this names it a rate fault.
         "rates": _rate_rows,
