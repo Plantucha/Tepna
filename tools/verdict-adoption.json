@@ -975,8 +975,15 @@
   },
   "tools/run-check.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "the check runner: a step that must FAIL through the default \u2014 RUNNER over N gates: decides (every step/suite green), so it stays `decides`, but its object is a run-level summary over the population of steps, which is the wave-3 design question (VERDICT-CONTRACT \u00a73b #9: a runner's verdict must not restate its children's, it aggregates them); pending until that design lands, deliberately not wrapped now"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/run-check.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the FIRST RUNNER adopter (Magpie, 2026-09-22, VERDICT-CONTRACT \u00a73d): the object is a projection of ran/notRun/failedIdx + each step's exit code through the shared aggregateChildren \u2014 population = STEPS (checked = ran to an exit, excluded = never asked after an abort + a --steps= exclusion), status by precedence FAIL > SHORTFALL > UNKNOWN > PASS. Every step is still an exit code, so a real run reads UNKNOWN by provenance until the steps adopt \u2014 that is the point; a red step is FAIL; a --steps= subset is filtered:true with the consumer rule. --json prints the object (children \u2192 stderr); the exit code stays for the shell/CI. Fifteen \u00a73d plants in --selftest; the cmd is a scratch step list."
   },
   "tools/selftest-all.mjs": {
    "bin": "decides",
@@ -1078,7 +1085,7 @@
   "tools/verdict-emit.mjs": {
    "bin": "word-only",
    "status": "exempt",
-   "reason": "the shared make-and-validate helper for tepna.verdict/1 objects (Verdict.make + Verdict.validate + producedBy.commit); the words occur only in its header comment \u2014 it decides nothing, it refuses to print an invalid object"
+   "reason": "the shared make-and-validate helper for tepna.verdict/1 objects (Verdict.make + Verdict.validate + producedBy.commit) and, since \u00a73d, the one RUNNER aggregation rule (aggregateChildren) every runner projects its children through; the words occur in comments and in the aggregation's status strings \u2014 it decides nothing of its own, it refuses to print an invalid object"
   },
   "tools/verdict-undeclared.mjs": {
    "bin": "decides",

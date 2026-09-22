@@ -27,12 +27,25 @@
  *
  *   node tools/run-check.mjs             # the gate
  *   node tools/run-check.mjs --list      # print the ordered steps, run nothing
+ *   node tools/run-check.mjs --json      # the gate, plus ONE tepna.verdict/1 object on stdout (log → stderr)
+ *   node tools/run-check.mjs --steps=typecheck,lint   # a DECLARED subset — the object is `filtered`
+ *   node tools/run-check.mjs --verdict-sample         # the object over a scratch step list, no gate run
  *   node tools/run-check.mjs --selftest
+ *
+ * VERDICT — the first RUNNER adopter of VERDICT-CONTRACT §3d. The object is a projection of what this
+ * file already computes (ran · notRun · failedIdx · each child's exit code) through the shared
+ * aggregation `aggregateChildren` (tools/verdict-emit.mjs): population = the steps (eligible = STEPS,
+ * checked = ran to an exit, excluded = never asked after an abort + a `--steps=` exclusion); status by
+ * precedence FAIL > SHORTFALL > UNKNOWN > PASS. ⚠️ EVERY STEP IS STILL AN EXIT CODE, so on a real run a
+ * green step is UNKNOWN BY PROVENANCE and the run-level object reads **UNKNOWN** until the steps adopt —
+ * that is the point (§3d: a runner can never read greener than its least-adopted child); a red step is
+ * FAIL. The EXIT CODE STAYS: the shell and CI keep reading process.exit until the consumer switches.
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { aggregateChildren, makeVerdict } from './verdict-emit.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -63,8 +76,9 @@ export const STEPS = [
 /* The real executor. Exported so the selftest can prove the default path is THIS and not a stub —
    an injected collaborator and an injected no-op are the same syntax, and only one of them means
    the caller is wired up. */
-export function defaultExec(step) {
-  const r = spawnSync('npm', ['run', step], { cwd: ROOT, stdio: 'inherit', encoding: 'utf8' });
+export function defaultExec(step, { toStderr = false } = {}) {
+  /* Under --json stdout carries ONE object and nothing else, so the children write to stderr. */
+  const r = spawnSync('npm', ['run', step], { cwd: ROOT, stdio: toStderr ? [0, 2, 2] : 'inherit', encoding: 'utf8' });
   return { code: r.status == null ? 1 : r.status };
 }
 
@@ -112,6 +126,47 @@ export function runAll(opts) {
   }
   log(`\n✓ check — all ${steps.length} steps passed`);
   return { ok: true, failedIdx: -1, failed: null, ran: steps.slice(), notRun: [], text: '', code: 0 };
+}
+
+/* ── the §3d object ───────────────────────────────────────────────────────────────────────────────
+   `r` is runAll's result; `steps` the steps this invocation ran (the plan); `declaredExcluded` the
+   STEPS a `--steps=` subset left out. `childVerdict(step)` may hand a child's own object (none of the
+   steps emits one yet — the hook exists so the plants can prove every §3d table row, and so the day a
+   step prints an object the runner can read it instead of the exit code). */
+export function runVerdict(r, { steps = STEPS, declaredExcluded = [], excludedBy = null, codes = {}, childVerdict = null, commit, commitReason, at } = {}) {
+  const children = steps.map((name) => {
+    if (r.notRun.includes(name)) return { name, provenance: 'not-run' };
+    const own = childVerdict ? childVerdict(name) : null;
+    if (own && own.status) return { name, provenance: 'object', status: own.status };
+    return { name, provenance: 'exit-code', code: name === r.failed ? r.code : codes[name] == null ? 0 : codes[name] };
+  });
+  const agg = aggregateChildren(children, { eligible: steps.length + declaredExcluded.length, declaredExcluded, excludedBy });
+  return makeVerdict({
+    gate: 'run-check',
+    status: agg.status,
+    population: agg.population,
+    criterion: {
+      name: 'children_failing (any FAIL ⇒ FAIL; SHORTFALL ⇒ SHORTFALL; an UNKNOWN or exit-code-only child, or an unplanned NOT_RUN, is never green; a declared exclusion is filtered)',
+      threshold: 0,
+      unit: 'failing children',
+      direction: 'eq'
+    },
+    result: agg.result,
+    evidence: children.filter((c) => c.provenance !== 'not-run').map((c) => `npm run ${c.name}`),
+    reason: agg.reason,
+    tool: 'tools/run-check.mjs',
+    commit,
+    commitReason,
+    at
+  });
+}
+
+/* A scratch step list, every step exit 0 — the honest shape of the first adopted runner: UNKNOWN by
+   provenance over 5/5, no gate run, no code identity claimed. */
+export function verdictSample() {
+  const S = ['scratch:a', 'scratch:b', 'scratch:c', 'scratch:d', 'scratch:e'];
+  const r = runAll({ steps: S, exec: () => ({ code: 0 }), log: () => {} });
+  return runVerdict(r, { steps: S, commit: null, commitReason: '--verdict-sample: a scratch step list, no gate run, no code identity claimed', at: '2026-09-22T00:00:00Z' });
 }
 
 const IS_MAIN = process.argv[1] && join(process.argv[1]) === fileURLToPath(import.meta.url);
@@ -168,6 +223,60 @@ if (IS_MAIN && process.argv.includes('--selftest')) {
   const viaDefault = runAll({ steps: ['__tepna_no_such_script__'], log: () => {} });
   ok('the DEFAULT executor really runs npm (a missing script fails)', !viaDefault.ok && viaDefault.code !== 0, 'code=' + viaDefault.code);
 
+  /* ── §3d PLANTS, one per table row — each object is built through makeVerdict, so an invalid one
+     THROWS here rather than passing. */
+  const AT = { commit: null, commitReason: 'selftest', at: '2026-09-22T00:00:00Z' };
+  const obj = (map) => (name) => (map[name] ? { status: map[name] } : null);
+  const allPass = obj({ a: 'PASS', b: 'PASS', c: 'PASS', d: 'PASS', e: 'PASS' });
+  const vGreenExit = runVerdict(green, { steps: S, ...AT });
+  ok('§3d · every child green by EXIT CODE only ⇒ run UNKNOWN by provenance', vGreenExit.status === 'UNKNOWN' && vGreenExit.result.exitCodeOnly === 5, vGreenExit.reason);
+  ok('§3d · …population 5 checked / 5 eligible / 0 excluded', JSON.stringify(vGreenExit.population) === JSON.stringify({ checked: 5, eligible: 5, excluded: 0 }));
+  ok('§3d · …the reason says UNKNOWN by provenance and names the children', /UNKNOWN by provenance/.test(vGreenExit.reason) && /a · b · c · d · e/.test(vGreenExit.reason), vGreenExit.reason);
+  const vFail = runVerdict(planted, { steps: S, ...AT });
+  ok('§3d plant · a FAIL child ⇒ run FAIL, first failure named with its exit', vFail.status === 'FAIL' && vFail.result.firstFailure === 'b' && /b \(exit 3\)/.test(vFail.reason), vFail.reason);
+  ok(
+    '§3d plant · …steps after the abort are NOT_RUN and counted EXCLUDED, never green',
+    vFail.result.notRun === 3 && JSON.stringify(vFail.population) === JSON.stringify({ checked: 2, eligible: 5, excluded: 3 }),
+    JSON.stringify(vFail.population)
+  );
+  const vAllObj = runVerdict(green, { steps: S, childVerdict: allPass, ...AT });
+  ok('§3d plant · every child a PASS object ⇒ run PASS (the only way to green)', vAllObj.status === 'PASS' && vAllObj.reason === null && vAllObj.result.exitCodeOnly === 0);
+  const vUnk = runVerdict(green, { steps: S, childVerdict: obj({ a: 'PASS', b: 'PASS', c: 'UNKNOWN', d: 'PASS', e: 'PASS' }), ...AT });
+  ok('§3d plant · one UNKNOWN child among PASS objects ⇒ UNKNOWN (precedence, not a vote)', vUnk.status === 'UNKNOWN' && /1 UNKNOWN: c/.test(vUnk.reason), vUnk.reason);
+  const vSf = runVerdict(green, { steps: S, childVerdict: obj({ a: 'PASS', b: 'SHORTFALL', c: 'PASS', d: 'PASS', e: 'PASS' }), ...AT });
+  ok('§3d plant · a SHORTFALL child with no FAIL ⇒ SHORTFALL', vSf.status === 'SHORTFALL' && /b/.test(vSf.reason));
+  const vNa = runVerdict(green, { steps: S, childVerdict: obj({ a: 'PASS', b: 'NOT_APPLICABLE', c: 'PASS', d: 'PASS', e: 'PASS' }), ...AT });
+  ok('§3d plant · a NOT_APPLICABLE child is checked-not-binding: run PASS, counted, never evidence', vNa.status === 'PASS' && vNa.result.notApplicable === 1 && vNa.population.checked === 5);
+  const abortObj = runVerdict(planted, { steps: S, childVerdict: obj({ a: 'PASS' }), ...AT });
+  ok('§3d plant · an abort keeps FAIL precedence even with PASS objects before it', abortObj.status === 'FAIL');
+  const unplanned = runVerdict({ ...green, notRun: ['e'], ran: ['a', 'b', 'c', 'd'] }, { steps: S, childVerdict: allPass, ...AT });
+  ok(
+    '§3d plant · an UNPLANNED NOT_RUN child with everything else PASS ⇒ UNKNOWN, never green',
+    unplanned.status === 'UNKNOWN' && /NOT_RUN without a declared exclusion/.test(unplanned.reason),
+    unplanned.reason
+  );
+  const sub = ['a', 'b'];
+  const subRun = runAll({ steps: sub, exec: () => ({ code: 0 }), log: () => {} });
+  const vFilt = runVerdict(subRun, { steps: sub, declaredExcluded: ['c', 'd', 'e'], excludedBy: '--steps=a,b', childVerdict: allPass, ...AT });
+  ok(
+    '§3d plant · a DECLARED exclusion ⇒ PASS over the smaller checked, filtered:true, excludedBy named',
+    vFilt.status === 'PASS' &&
+      vFilt.result.filtered === true &&
+      vFilt.result.excludedBy === '--steps=a,b' &&
+      JSON.stringify(vFilt.population) === JSON.stringify({ checked: 2, eligible: 5, excluded: 3 }),
+    JSON.stringify(vFilt.population)
+  );
+  ok('§3d plant · …and carries the consumer rule: a filtered PASS is NOT the gate', /NOT the gate/.test(vFilt.result.consumerRule || ''));
+  ok('§3d control · an unfiltered run has filtered:false and no consumer rule', vAllObj.result.filtered === false && vAllObj.result.consumerRule === undefined);
+  const vNone = runVerdict({ ...planted, notRun: S.slice(), ran: [], failed: null, code: 0 }, { steps: S, ...AT });
+  ok('§3d plant · checked = 0 ⇒ NOT_RUN', vNone.status === 'NOT_RUN' && vNone.population.checked === 0);
+  const sample = verdictSample();
+  ok(
+    '§3d · --verdict-sample is the honest first shape: UNKNOWN by provenance over 5/5, no commit',
+    sample.status === 'UNKNOWN' && sample.population.checked === 5 && sample.producedBy.commit === null
+  );
+  ok('§3d · the exit code is unchanged by adoption (a red run still propagates its code)', planted.code === 3 && green.code === 0);
+
   console.log(fail ? `\n✗ ${fail} failed, ${pass} passed` : `\n✓ all ${pass} selftests passed`);
   process.exit(fail ? 1 : 0);
 }
@@ -177,6 +286,23 @@ if (IS_MAIN && !process.argv.includes('--selftest')) {
     STEPS.forEach((s, i) => console.log(`${i + 1}/${STEPS.length}  ${s}`));
     process.exit(0);
   }
-  const r = runAll({});
+  if (process.argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample()));
+    process.exit(0);
+  }
+  const json = process.argv.includes('--json');
+  const stepsArg = process.argv.find((a) => a.startsWith('--steps='));
+  const selected = stepsArg ? stepsArg.slice('--steps='.length).split(',').filter(Boolean) : null;
+  const unknownStep = (selected || []).filter((s) => !STEPS.includes(s));
+  if (unknownStep.length) {
+    console.error(`--steps names step(s) not in STEPS: ${unknownStep.join(', ')}`);
+    process.exit(2);
+  }
+  const steps = selected ? STEPS.filter((s) => selected.includes(s)) : STEPS;
+  const declaredExcluded = selected ? STEPS.filter((s) => !selected.includes(s)) : [];
+  const codes = {};
+  const r = runAll({ steps, exec: (step) => ((codes[step] = defaultExec(step, { toStderr: json }).code), { code: codes[step] }), log: json ? (...a) => console.error(...a) : console.log });
+  if (json) console.log(JSON.stringify(runVerdict(r, { steps, declaredExcluded, excludedBy: selected ? stepsArg : null, codes })));
+  /* THE EXIT CODE STAYS — the shell and CI read it until the consumer reads the object (§3d). */
   process.exit(r.ok ? 0 : r.code || 1);
 }
