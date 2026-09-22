@@ -238,7 +238,30 @@ function commitShort() {
       .trim();
   } catch {
     return null;
-  } // absence is null with the reason implicit: not run inside a git tree
+  } // absence is null — and the caller must SAY WHY; see producedBy below (§∅)
+}
+
+/* ⚠️ AN IMPLICIT REASON IS NOT A STATED REASON. `commitShort()` returns null exactly when git cannot
+   be read, and the comment above used to call that reason "implicit" — but `tepna.verdict/1` requires
+   `producedBy.commitReason` whenever `commit` is null, and the validator below refuses the object
+   without it. So the tool KNEW why and declined to write it down, and every run outside a git tree
+   threw `verify-seals produced an invalid verdict: producedBy.commit is null without
+   producedBy.commitReason (∅: say why)` instead of emitting a verdict.
+
+   Measured 2026-09-22 on main @ f5db655a: inside a mutation scratch — a copied tree with no `.git` —
+   this is **22 of the 31 failures**, carried by `tests/test_check_script.py` and `tests/test_seal.py`.
+   It is a §∅ violation in a shipped tool, not a scratch artifact: the field exists for precisely the
+   case that triggers it.
+
+   ⚠️ THE REASON IS NOT SHARED WITH THE PYTHON SIDE, DELIBERATELY. `capture-host/verdict.py` has
+   `NO_GIT_REASON = "the tree this ran in is not a git checkout (build_id.probe found no sha)"` and a
+   helper that returns this same shape. Reusing that constant here would be the obvious tidy-up and
+   would make this tool's reason FALSE: `build_id.probe` is the Python probe and this tool never runs
+   it. The contract asks each producer to say why ITS OWN attempt failed, so two accurate reasons are
+   correct and one shared inaccurate one is not. */
+function producedBy() {
+  const commit = commitShort();
+  return commit ? { tool: 'tools/verify-seals.mjs', commit } : { tool: 'tools/verify-seals.mjs', commit: null, commitReason: 'git rev-parse --short HEAD failed in the tool\u2019s own directory (no checkout there)' };
 }
 
 export function verdict({ status, result, reason, evidence }) {
@@ -255,7 +278,7 @@ export function verdict({ status, result, reason, evidence }) {
     result,
     evidence,
     reason,
-    producedBy: { tool: 'tools/verify-seals.mjs', commit: commitShort() },
+    producedBy: producedBy(),
     at: new Date().toISOString()
   };
   const check = Verdict.validate(v);
