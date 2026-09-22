@@ -67,7 +67,7 @@ def test_seal_poller_refuses_on_a_bad_key_store_and_survives_a_failing_night(tmp
     (d / "x_ECG.txt").write_text("a\n1\n")
     monkeypatch.setattr(capture.diskguard, "active_nights", lambda captures, settle: set())
     monkeypatch.setattr(
-        capture.sealbox, "seal_or_reissue", lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom"))
+        capture.sealbox, "seal_in_subprocess", lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom"))
     )
     capture._STOP = asyncio.Event()
     _stop_after(monkeypatch, 1)
@@ -85,7 +85,7 @@ def test_seal_poller_logs_a_fail_verdict(tmp_path, monkeypatch, caplog):
     monkeypatch.setattr(capture.diskguard, "active_nights", lambda captures, settle: set())
     monkeypatch.setattr(
         capture.sealbox,
-        "seal_or_reissue",
+        "seal_in_subprocess",
         lambda *a, **kw: {
             "status": "FAIL",
             "at": "2026-09-21T00:00:00Z",
@@ -106,3 +106,73 @@ def test_suite_version_reads_the_manifest_or_none(tmp_path, monkeypatch):
     assert capture._suite_version(str(tmp_path)) is not None  # the real repo root above capture-host/
     monkeypatch.setattr(capture.os.path, "dirname", lambda p: str(tmp_path))
     assert capture._suite_version(str(tmp_path)) is None
+
+
+def test_a_failed_night_is_HELD_not_retried_every_tick_until_it_changes_or_the_window_passes(
+    tmp_path, monkeypatch, caplog
+):
+    """A night whose child timed out must not burn a 30-minute child every 10 minutes forever."""
+    root = tmp_path
+    d = root / "captures" / "2026-09-18"
+    d.mkdir(parents=True)
+    (d / "x_ECG.txt").write_text("a\n1\n")
+    monkeypatch.setattr(capture.diskguard, "active_nights", lambda captures, settle: set())
+    calls = []
+
+    def unknown(*a, **kw):
+        calls.append(1)
+        return {
+            "status": "UNKNOWN",
+            "at": "2026-09-21T00:00:00Z",
+            "result": None,
+            "reason": "the seal child exceeded 1800 s and was killed — nothing swapped in",
+        }
+
+    monkeypatch.setattr(capture.sealbox, "seal_in_subprocess", unknown)
+    capture._STOP = asyncio.Event()
+    _stop_after(monkeypatch, 3)  # three ticks
+    with caplog.at_level("WARNING"):
+        _run(capture.seal_poller({"seal": {"enabled": True, "poll_sec": 1, "retry_sec": 3600}}, str(root)))
+    assert len(calls) == 1, "one attempt, then held — not one per tick"
+    e = capture.STATUS["seal"]["nights"]["2026-09-18"]
+    assert e["status"] == "UNKNOWN" and e["held_until"] and "exceeded 1800 s" in e["reason"]
+    assert sum("held for 1 h unless the night changes" in r.getMessage() for r in caplog.records) == 1
+    # the night changes ⇒ tried again on the next tick
+    (d / "late.txt").write_text("more")
+    capture._STOP = asyncio.Event()
+    _stop_after(monkeypatch, 1)
+    _run(capture.seal_poller({"seal": {"enabled": True, "poll_sec": 1, "retry_sec": 3600}}, str(root)))
+    assert len(calls) == 2
+    # the window passes ⇒ tried again even unchanged, and a PASS clears the hold — three ticks in ONE run
+    # (the hold lives in the poller's loop; a restart forgets it, which is the right default)
+    mono = [0.0]
+    monkeypatch.setattr(capture._time, "monotonic", lambda: mono[0])
+    calls.clear()
+
+    def scripted(*a, **kw):  # first attempt UNKNOWN, every later one PASS
+        n = len(calls)
+        calls.append(1)
+        if n == 0:
+            return {
+                "status": "UNKNOWN",
+                "at": "2026-09-21T00:00:00Z",
+                "result": None,
+                "reason": "the seal child exceeded 1800 s",
+            }
+        return {"status": "PASS", "at": "2026-09-21T00:00:00Z", "result": {"revision": 1}}
+
+    monkeypatch.setattr(capture.sealbox, "seal_in_subprocess", scripted)
+    capture._STOP = asyncio.Event()
+    _stop_after(monkeypatch, 3)
+    ticking = capture.asyncio.sleep
+
+    async def sleep_and_age(secs):  # every tick is 6 s of monotonic time
+        mono[0] += 6.0
+        await ticking(secs)
+
+    monkeypatch.setattr(capture.asyncio, "sleep", sleep_and_age)
+    _run(capture.seal_poller({"seal": {"enabled": True, "poll_sec": 1, "retry_sec": 10}}, str(root)))
+    # tick 1 (t=6): UNKNOWN → held; tick 2 (t=12): 6 s < 10, skipped; tick 3 (t=18): 12 s ≥ 10 → PASS
+    assert len(calls) == 2 and capture.STATUS["seal"]["nights"]["2026-09-18"]["status"] == "PASS"
+    assert "held_until" not in capture.STATUS["seal"]["nights"]["2026-09-18"]
+    capture._STOP.clear()
