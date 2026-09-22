@@ -104,6 +104,13 @@ ALLOW_JS: dict = {}
 # SCAN 6's allowlist: modules nothing imports. Keyed by MODULE, not by function — the whole point is
 # that the module is unreachable, so exempting it function-by-function would restate the bug.
 ALLOW_MODULES = {
+    "unseal": (
+        "the tepna-seal/1 READER (CAPTURE-NIGHT-SEAL phase A, #TBD). PENDING its consumer, which is NAMED: "
+        "phase B wires seal.py at night close on the box and phase C gives the Dex a browser reader; the "
+        "Python reader's production consumer is the nightly `verify-seals` run over outbox/ and the archive "
+        "(brief §6), which phase B installs. Until then it is exercised only by its tests, which judge it and "
+        "tools/verify-seals.mjs on the same committed vectors. Retire this entry when phase B lands."
+    ),
     "status_union": (
         "the §3.6 merge layer of PER-DEVICE-ADAPTER-PINNING-2026-08-26-BRIEF. PENDING, and the "
         "consumer it waits on is NAMED: nothing yet writes the per-instance status.<instance>.json "
@@ -147,6 +154,10 @@ ALLOW_PROVENANCE: dict[str, str] = {
 }
 
 ALLOW_FUNCS = {
+    "card_code_decode": "sealfmt — the read half of the card code pair whose write half (card_code_encode) "
+                        "tools/seal_vectors.py uses to print the test card. Its consumer is the Dex's code entry "
+                        "(phase C, browser) and the box's card re-display (phase B); the seal tests exercise both "
+                        "directions. Retire when either phase lands",
     # ── The stored raw-PPG command family (type 1, opcodes 0x06-0x09), added 2026-09-06 ────────────
     # BUILT AND DELIBERATELY UNDISPATCHED. These frames have never been sent to a ring: the first
     # probe is owner-authorised separately, and wiring them into the daemon to satisfy this scan
