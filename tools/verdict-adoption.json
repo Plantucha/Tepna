@@ -17,10 +17,36 @@
    "status": "pending",
    "note": "the diff-scoped mutation gate: killed \u00b7 survived \u00b7 undecided \u00b7 refused (step 5)"
   },
-  "capture-host/nightqc.py": {
+  "capture-host/night_report.py": {
    "bin": "word-only",
    "status": "exempt",
-   "reason": "verdict words appear only in comments"
+   "reason": "relays night-backcheck (now read from BACKCHECK-VERDICT.json \u2014 the first consumer of a verdict object on the box) and the sniffer; decides nothing of its own"
+  },
+  "capture-host/night_verdicts.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/night_verdicts.py",
+     "--sample-json",
+     "night-backcheck"
+    ]
+   },
+   "note": "the emitter CLI for both nightly gates; this row validates night-backcheck (BACKCHECK-VERDICT.json): population = every PPG/PPG2W/ECG file, checked = files with a class-B block, excluded = files the check skipped \u2014 eligible>0 with checked==0 is UNKNOWN, never an empty-list ok"
+  },
+  "capture-host/nightqc.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/night_verdicts.py",
+     "--sample-json",
+     "night-qc"
+    ]
+   },
+   "note": "night-qc: summarize()'s own `ok` as one object per night (QC-VERDICT.json beside QC-SUMMARY.json) \u2014 PASS / FAIL (missing or degraded) / SHORTFALL (a session excluded inside the night) / UNDERPOWERED (span under 300 s) / NOT_RUN (no device configured); the cmd emits the object from synthetic input"
   },
   "capture-host/o2ring.py": {
    "bin": "decides",
@@ -134,6 +160,14 @@
    "bin": "test",
    "status": "exempt"
   },
+  "capture-host/tests/test_night_verdicts_cli.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_nightqc_verdicts.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
   "capture-host/tests/test_offline_lock.py": {
    "bin": "test",
    "status": "exempt"
@@ -174,6 +208,10 @@
    "bin": "test",
    "status": "exempt"
   },
+  "capture-host/tests/test_qc_poller_verdicts.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
   "capture-host/tests/test_run_polar_bounded_awaits.py": {
    "bin": "test",
    "status": "exempt"
@@ -203,6 +241,10 @@
    "status": "exempt"
   },
   "capture-host/tests/test_timeline.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_verdict.py": {
    "bin": "test",
    "status": "exempt"
   },
@@ -252,6 +294,11 @@
    "bin": "already-json",
    "status": "pending",
    "note": "the Python reader of a sealed night: one JSON object per file, PASS/FAIL with the refusal kind as reason (#2796); converge to the schema (scope, population equality) \u2014 step 4"
+  },
+  "capture-host/verdict.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the contract library \u2014 the Python half of tepna.verdict/1 (make/validate/write); names the enum, decides nothing"
   },
   "capture-host/webmon.py": {
    "bin": "word-only",

@@ -2428,6 +2428,131 @@ def summarize(night_dir: str, devices: list[dict]) -> dict:
     }
 
 
+# ── VERDICTS — one `tepna.verdict/1` object per gate per night (VERDICT-CONTRACT §3b, wave 1) ──────────
+# Both criteria are PRE-STATED here as constants, written from what the code decided BEFORE the objects
+# existed (2026-09-21): a tool that computes its threshold from the data it judges cannot emit a PASS.
+_QC_GATE = "night-qc"
+_QC_CRITERION = {"name": "stream_coverage", "threshold": _DEGRADED_BELOW, "unit": "fraction", "direction": "gte"}
+_QC_VERDICT_NAME = "QC-VERDICT.json"
+_BACKCHECK_GATE = "night-backcheck"
+_BACKCHECK_CRITERION = {"name": "clip_regions_plus_held_streams", "threshold": 0, "unit": "count", "direction": "lte"}
+_BACKCHECK_VERDICT_NAME = "BACKCHECK-VERDICT.json"
+_TOOL = "capture-host/nightqc.py"
+
+
+def qc_verdict(summary: dict, devices: list[dict], *, night_dir: str = "") -> dict:
+    """The `night-qc` verdict from a `summarize()` result. The rule is summarize's own `ok`, split into
+    the states a machine must not confuse:
+
+      PASS          every declared stream on every non-optional device delivered rows this session at
+                    coverage ≥ 0.5 of rate × span, and no session inside the night window was excluded
+      FAIL          a stream is missing or degraded (reason names each, with its %)
+      SHORTFALL     the headline held but a session inside the night was excluded from the judgement
+                    (`gaps_in_night`) — met on the whole, not on a stated sub-population
+      UNDERPOWERED  span < _MIN_SPAN_SEC: coverage is unknown there, not low
+      NOT_RUN       no device is configured — nothing was declared, so nothing was examined
+
+    Population = declared streams: checked are those on non-optional devices, excluded those on
+    `optional` backups (declared, not judged), eligible = both. A crash → UNKNOWN naming it.
+    """
+    import verdict as _v
+    ev = [_TOOL, os.path.join(night_dir, _SUMMARY_NAME) if night_dir else _SUMMARY_NAME]
+    try:
+        checked = sum(len(d.get("streams") or []) for d in devices if not d.get("optional"))
+        excluded = sum(len(d.get("streams") or []) for d in devices if d.get("optional"))
+        pop = {"checked": checked, "eligible": checked + excluded, "excluded": excluded}
+        cov = {f"{d['name']}:{s}": c for d in summary.get("devices") or [] for s, c in (d.get("coverage") or {}).items()}
+        result = {"coverage": cov, "missing": list(summary.get("missing") or []),
+                  "degraded": list(summary.get("degraded") or []),
+                  "gaps_in_night": list(summary.get("gaps_in_night") or []),
+                  "span_sec": summary.get("span_sec")}
+        span = summary.get("span_sec")
+        if checked == 0:
+            return _v.make(gate=_QC_GATE, status="NOT_RUN", population=pop, criterion=_QC_CRITERION, result=None,
+                           evidence=ev, reason="no device is configured — nothing was declared to judge", tool=_TOOL)
+        if result["missing"] or result["degraded"]:
+            parts = ([f"missing: {', '.join(result['missing'])}"] if result["missing"] else []) + \
+                    ([f"degraded (< {int(_DEGRADED_BELOW * 100)} %): {', '.join(result['degraded'])}"] if result["degraded"] else [])
+            return _v.make(gate=_QC_GATE, status="FAIL", population=pop, criterion=_QC_CRITERION, result=result,
+                           evidence=ev, reason="; ".join(parts), tool=_TOOL)
+        if span is None or span < _MIN_SPAN_SEC:
+            return _v.make(gate=_QC_GATE, status="UNDERPOWERED", population=pop, criterion=_QC_CRITERION,
+                           result=result, evidence=ev, tool=_TOOL,
+                           reason=f"span {span if span is not None else 'unknown'} s is under the {int(_MIN_SPAN_SEC)} s "
+                                  "minimum — coverage is unknown, not low")
+        if result["gaps_in_night"]:
+            return _v.make(gate=_QC_GATE, status="SHORTFALL", population=pop, criterion=_QC_CRITERION,
+                           result=result, evidence=ev, tool=_TOOL,
+                           reason="every stream met coverage, but a capture session inside the night window was "
+                                  "excluded from the judgement: " + "; ".join(result["gaps_in_night"]))
+        return _v.make(gate=_QC_GATE, status="PASS", population=pop, criterion=_QC_CRITERION, result=result,
+                       evidence=ev, reason=None, tool=_TOOL)
+    except Exception as exc:  # noqa: BLE001 — a crash is not a verdict; it is UNKNOWN with the exception named
+        return _v.unknown(gate=_QC_GATE, criterion=_QC_CRITERION, evidence=ev, tool=_TOOL, exc=exc)
+
+
+def backcheck_verdict(night_dir: str, summary: dict) -> dict:
+    """The `night-backcheck` verdict: no class-B block carries a clipped region or a held stream.
+
+    ⚠️ THE POPULATION IS THE NEW INFORMATION. `class_b_quality` SKIPS a file it cannot judge — unreadable,
+    no waveform column in its header, under the minimum run — with `continue`, so a night in which every
+    PPG file was skipped produced an empty list, which `night_report.back_check` read as "0 spans, ok".
+    Here eligible = every PPG/PPG2W/ECG capture in the directory, checked = those with a block, and
+    excluded = the difference — so a clean verdict about files nobody examined cannot be written:
+    eligible > 0 with checked == 0 is UNKNOWN, and a night with no class-B file at all is NOT_RUN.
+    """
+    import verdict as _v
+    ev = [_TOOL, os.path.join(night_dir, _SUMMARY_NAME)]
+    try:
+        names = sorted(os.listdir(night_dir)) if os.path.isdir(night_dir) else []
+        eligible_files = [n for n in names if (parse_capture_name(n) or ("", ""))[0] in _CLASS_B_TAGS]
+        blocks = [b for b in (summary.get("class_b") or []) if isinstance(b, dict)]
+        checked = sum(1 for b in blocks if b.get("file") in eligible_files)
+        pop = {"checked": checked, "eligible": len(eligible_files), "excluded": len(eligible_files) - checked}
+        per_file = {}
+        clips = held = 0
+        for b in blocks:
+            raw = b.get("clips")
+            got: dict = raw if isinstance(raw, dict) else {}
+            c = sum(int(v) for v in got.values() if isinstance(v, int) and not isinstance(v, bool) and v > 0)
+            h = b.get("held") is not None
+            per_file[str(b.get("file"))] = {"clip_regions": c, "held": h}
+            clips += c
+            held += 1 if h else 0
+        result = {"clip_regions": clips, "held_streams": held, "files": per_file}
+        if not eligible_files:
+            return _v.make(gate=_BACKCHECK_GATE, status="NOT_RUN", population=pop, criterion=_BACKCHECK_CRITERION,
+                           result=None, evidence=ev, tool=_TOOL,
+                           reason="the night holds no PPG/PPG2W/ECG capture — nothing to back-check")
+        if checked == 0:
+            return _v.make(gate=_BACKCHECK_GATE, status="UNKNOWN", population=pop, criterion=_BACKCHECK_CRITERION,
+                           result=result, evidence=ev, tool=_TOOL,
+                           reason=f"all {len(eligible_files)} class-B file(s) were skipped by the check "
+                                  "(unreadable, no waveform column, or under the minimum run) — nothing was examined")
+        if clips or held:
+            bad = [f"{f}: {v['clip_regions']} clip region(s)" + (", held" if v["held"] else "")
+                   for f, v in per_file.items() if v["clip_regions"] or v["held"]]
+            return _v.make(gate=_BACKCHECK_GATE, status="FAIL", population=pop, criterion=_BACKCHECK_CRITERION,
+                           result=result, evidence=ev, tool=_TOOL,
+                           reason=f"{clips} clipped region(s) and {held} held stream(s) over {checked} file(s): " + "; ".join(bad))
+        return _v.make(gate=_BACKCHECK_GATE, status="PASS", population=pop, criterion=_BACKCHECK_CRITERION,
+                       result=result, evidence=ev, reason=None, tool=_TOOL)
+    except Exception as exc:  # noqa: BLE001 — a crash is not a verdict
+        return _v.unknown(gate=_BACKCHECK_GATE, criterion=_BACKCHECK_CRITERION, evidence=ev, tool=_TOOL, exc=exc)
+
+
+def write_verdicts(night_dir: str, summary: dict, devices: list[dict]) -> None:
+    """Both objects beside QC-SUMMARY.json. Never raises: a verdict that cannot be written is logged,
+    and the summary write it accompanies must not be lost to it."""
+    import verdict as _v
+    for name, obj in ((_QC_VERDICT_NAME, qc_verdict(summary, devices, night_dir=night_dir)),
+                      (_BACKCHECK_VERDICT_NAME, backcheck_verdict(night_dir, summary))):
+        try:
+            _v.write(os.path.join(night_dir, name), obj)
+        except (OSError, ValueError):
+            log.warning("night-QC: could not write %s beside the summary", name, exc_info=True)
+
+
 _STREAM_ANNOTATIONS = {
     # Values that are NOT SAMPLES, by capture FORMAT rather than by defect. Keyed on the file tag.
     # ⚠️ This is a value list, and the detectors refuse to be value lists — the difference is that
