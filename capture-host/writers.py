@@ -522,6 +522,13 @@ class _FlushHealth:
 # a sidecar can carry one hour of overlapping rows across a transition, once, while nothing is being
 # recorded; the consumer (`timeline.bucket_link`) medians per bucket and is unharmed.
 _open_sample_writers = 0
+# THE OPEN SET, not just its size (LIVE-LOSS-GUARD, residue 2026-09-20-no-loss-guard-during-live-capture).
+# `oxy_inventory.reconcile()` already classifies a lost recording — missing from disk, or bytes changed
+# under a verified row — but it is reached only at PULL and COLD-START boundaries. The incident that
+# opened that row was a LIVE session losing two files mid-session, and nothing looked at the files the
+# daemon believed it was writing while it was writing them. This dict is what makes that checkable: the
+# paths currently open, so `live_loss_check` can stat them against what it last saw.
+_OPEN_WRITERS: dict[int, str] = {}
 
 
 def open_sample_writers() -> int:
@@ -529,14 +536,65 @@ def open_sample_writers() -> int:
     return _open_sample_writers
 
 
-def _writer_opened() -> None:
+# Both arguments are REQUIRED, deliberately. An optional `path`/`token` would let a future writer
+# increment the count without joining the open set, and a writer missing from that set is invisible to
+# `live_loss_check` — the guard would report clean about a file it never examined. Every call site
+# passes both; there is no caller for the defaults to serve.
+def _writer_opened(path: str, token: int) -> None:
     global _open_sample_writers
     _open_sample_writers += 1
+    _OPEN_WRITERS[token] = path
 
 
-def _writer_closed() -> None:
+def _writer_closed(token: int) -> None:
     global _open_sample_writers
     _open_sample_writers = max(0, _open_sample_writers - 1)
+    _OPEN_WRITERS.pop(token, None)
+
+
+def open_writer_paths() -> list[str]:
+    """The sample files the daemon believes it has open, sorted. The population `live_loss_check`
+    examines — derived from the writers themselves, never a list typed beside them."""
+    return sorted(_OPEN_WRITERS.values())
+
+
+def live_loss_check(prev: dict | None = None) -> tuple[list[dict], dict]:
+    """(findings, snapshot) — the LIVE half of the loss guard, run while sessions are open.
+
+    For every file a writer currently holds open, compare what is on disk now with what this function
+    last saw: `(size, inode)`. Three findings, and each is a thing that must never happen to a file the
+    daemon is actively appending to:
+
+      · `missing`  — the path is gone (deleted, or its tree moved out from under us);
+      · `shrank`   — fewer bytes than last seen: a truncation, the shape a half-written rotation leaves;
+      · `replaced` — same path, different inode: something else now owns the name we are writing to.
+
+    A file that GREW, or is unchanged, or is newly open (no prior observation) yields nothing — the
+    check reports loss, never progress. PURE apart from `os.stat`; the caller owns the snapshot, so the
+    first call after a restart establishes a baseline and cannot fabricate a finding from an absent one.
+    """
+    prev = prev or {}
+    findings: list[dict] = []
+    snapshot: dict = {}
+    for path in open_writer_paths():
+        try:
+            st = os.stat(path)
+        except OSError as exc:
+            if path in prev:
+                findings.append({"path": path, "kind": "missing", "detail": f"{type(exc).__name__}: {exc}",
+                                 "was": prev[path][0]})
+            continue
+        snapshot[path] = (st.st_size, st.st_ino)
+        was = prev.get(path)
+        if was is None:
+            continue
+        if st.st_ino != was[1]:
+            findings.append({"path": path, "kind": "replaced", "detail": f"inode {was[1]} → {st.st_ino}",
+                             "was": was[0], "now": st.st_size})
+        elif st.st_size < was[0]:
+            findings.append({"path": path, "kind": "shrank", "detail": f"{was[0]} → {st.st_size} bytes",
+                             "was": was[0], "now": st.st_size})
+    return findings, snapshot
 
 
 # Filename: <Vendor>_<Model>_<DeviceId>_<YYYYMMDDHHMMSS>_<STREAM>.<ext>
@@ -1503,7 +1561,7 @@ class StreamWriter:
         self._fsync = fsync
         self._last_flush = _time.monotonic()
         self._counted = True                # last: only a writer that fully opened is an open writer
-        _writer_opened()
+        _writer_opened(self.path, id(self))
 
     # `timestamp [ms]` in a real PSL export is RELATIVE to the recording's first sample and FRACTIONAL:
     #   0.0, 7.692288, 15.384576, …  (= (sensor_ns - first_sensor_ns)/1e6, verified against a real H10
@@ -1732,7 +1790,7 @@ class StreamWriter:
             # count is concerned, and leaking a count would pin the clock anchor open forever.
             if self._counted:
                 self._counted = False
-                _writer_closed()
+                _writer_closed(id(self))
 
     @property
     def flush_failures(self) -> int:
@@ -1839,7 +1897,7 @@ class OxyFrameLogWriter:
         self._fsync = fsync
         self._last_flush = _time.monotonic()
         self._counted = True
-        _writer_opened()
+        _writer_opened(self.path, id(self))
 
     def write(self, when: _dt.datetime, live: dict, ppg: dict | None = None) -> None:
         """One row per live frame (~1 Hz). Blank, never 0, for an absent value — a fabricated 0 is
@@ -1891,7 +1949,7 @@ class OxyFrameLogWriter:
         finally:
             if self._counted:
                 self._counted = False
-                _writer_closed()
+                _writer_closed(id(self))
 
     @property
     def flush_failures(self) -> int:
@@ -2509,7 +2567,7 @@ class Spo2CsvWriter:
         self._fsync = fsync
         self._last_flush = _time.monotonic()
         self._counted = True
-        _writer_opened()
+        _writer_opened(self.path, id(self))
 
     def write(self, when: _dt.datetime, spo2, pr, motion: int) -> None:
         """`spo2` and `pr` may both be None — the ring reports values outside the physiologic range when
@@ -2559,7 +2617,7 @@ class Spo2CsvWriter:
         finally:
             if self._counted:
                 self._counted = False
-                _writer_closed()
+                _writer_closed(id(self))
 
     @property
     def flush_failures(self) -> int:
