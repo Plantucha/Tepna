@@ -49708,6 +49708,107 @@
       );
     });
 
+    /* ═══ CAPTURE-NIGHT-SEAL phase C — the in-page tepna-seal/1 reader, judged on the SAME bytes ═══
+       night-seal.js is the browser twin of tools/verify-seals.mjs and capture-host/unseal.py. Three
+       readers, one committed vector, one set of eight plants: the runner RAN the co-loaded reader
+       (WebCrypto is promise-only and this harness is synchronous, so `env.sealRun` carries what it
+       returned) and this group asserts on the outcome — the vector opens with every stream verified;
+       each of the EIGHT plants reds BY NAME (the flipped byte on THAT stream's manifest line, not on
+       the signature; the truncation on the Oxum, not on a hash); `consent` absent reads null, never
+       "no"; the refusal vocabulary is byte-identical to the Node twin's; the badge texts are the
+       brief's; the verdict objects validate under verdict.js. Denominator: eight plants, an equality. */
+    group('Night seal — the in-page reader opens the vector and reds all eight plants by name', 'night-seal · tepna-seal · provenance · plant · verdict-contract', function (T) {
+      var R = env.sealRun;
+      if (!R) {
+        T.skip('env.sealRun provided to the runner', 'Node-lane only — the runner runs night-seal.js on the committed vector (fs + WebCrypto)');
+        return;
+      }
+      var exp = R.expected;
+      // ── the vector ──
+      T.ok('the committed vector OPENS under the test card + pinned fingerprint', R.vector.ok === true, R.vector.ok ? 'opened' : R.vector.kind + ': ' + R.vector.detail);
+      if (R.vector.ok) {
+        T.eq('…with exactly the three streams the vector carries', R.vector.files.join(','), (exp.inputs || []).slice().sort().join(','));
+        T.eq('…every opened stream verified against manifest-sha256 (per-file, on open)', R.vector.tampered.length, 0);
+        T.eq('…Payload-Oxum reads back from bag-info', R.vector.oxum, exp.header.bytes + '.' + exp.header.files);
+        T.eq('…consent null (the vector was sealed with consent null — "not asked")', R.vector.consent, null);
+        T.eq('…the header the reader returns is the header the vector was sealed with', R.vector.header.boxKeyFingerprint, exp.boxKeyFingerprint);
+      }
+      // ── the eight plants, each BY NAME ──
+      var names = Object.keys(R.plants);
+      T.eq('EIGHT plants were run (the denominator, an equality)', names.length, 8);
+      var expectedSet = ['flipped byte in one stream', 'truncated payload', 'wrong card key', 'unknown signing key', 'forged header', 'stale revision', 'consent absent', 'consent disagrees']
+        .sort()
+        .join(',');
+      T.eq("…and they are the format's eight (the brief's seven + the consent-mirror plant), no more, no fewer", names.slice().sort().join(','), expectedSet);
+      names.forEach(function (name) {
+        var o = R.plants[name];
+        if (o.expect === null) {
+          T.ok('plant "' + name + '" is NOT a refusal — the night opens', o.ok === true, o.ok ? 'opened' : o.kind + ': ' + o.detail);
+          T.eq('plant "' + name + '" reads consent null, never "no"', o.consent, null);
+        } else if (o.expect.indexOf('manifest:') === 0) {
+          // a tampered STREAM: the seal itself opens (signature, key, tag, oxum all hold) and the
+          // per-file verify reds THAT stream by name — the night still opens
+          T.ok('plant "' + name + '": the seal opens (the tamper is inside one stream)', o.ok === true, o.ok ? 'opened' : o.kind + ': ' + o.detail);
+          T.eq(
+            'plant "' + name + '": exactly ONE stream reds, by name',
+            (o.tampered || [])
+              .map(function (t) {
+                return t.kind;
+              })
+              .join(','),
+            o.expect
+          );
+          T.eq('plant "' + name + '": the other streams verified', (o.files || []).length - (o.tampered || []).length, 2);
+        } else {
+          T.ok('plant "' + name + '" is REFUSED', o.ok === false && o.refused === true, o.ok ? 'OPENED — the plant was NOT SEEN' : o.kind);
+          T.eq('plant "' + name + '" reds by the RIGHT name', o.kind, o.expect);
+        }
+      });
+      T.eq(
+        'the seven refusing plants red on SEVEN DISTINCT kinds — seven defects, not one defect seven times',
+        Object.keys(R.plants)
+          .map(function (k) {
+            var o = R.plants[k];
+            return o.expect === null ? null : o.expect && o.expect.indexOf('manifest:') === 0 ? o.tampered && o.tampered[0] && o.tampered[0].kind : o.kind;
+          })
+          .filter(function (k) {
+            return k;
+          })
+          .filter(function (k, i, a) {
+            return a.indexOf(k) === i;
+          }).length,
+        7
+      );
+      // ── the vocabulary is the Node twin's, byte for byte ──
+      var m = /KINDS\s*=\s*\[([^\]]*)\]/.exec(R.kindsSource || '');
+      var nodeKinds = m
+        ? m[1]
+            .split(',')
+            .map(function (x) {
+              return x.trim().replace(/^['"]|['"]$/g, '');
+            })
+            .filter(Boolean)
+        : null;
+      T.ok('tools/verify-seals.mjs KINDS readable', !!nodeKinds && nodeKinds.length > 0);
+      if (nodeKinds) T.eq('NightSeal.KINDS ≡ verify-seals.mjs KINDS (one refusal vocabulary for three readers)', R.kinds.join(','), nodeKinds.join(','));
+      // ── the badge texts are the brief\'s ──
+      T.ok('badge · a verified seal reads "sealed · box <id> · closed HH:MM · verified"', /^sealed · box TESTBOX0 · closed \d\d:\d\d · verified$/.test(R.badges.pass.text), R.badges.pass.text);
+      T.eq('badge · a tampered stream reads TAMPERED: <stream>', R.badges.tampered.text, 'TAMPERED: a.csv');
+      T.eq('badge · an unknown key says so', R.badges.unknownKey.text, 'signature: unknown key — not on card');
+      T.eq('badge · a file from no seal carries the honest default', R.badges.legacy.text, 'unsealed folder — provenance unknown');
+      // ── the verdict objects validate under verdict.js (the page emits these) ──
+      var V = env.Verdict;
+      if (V && typeof V.validate === 'function') {
+        ['pass', 'fail', 'notRun'].forEach(function (k) {
+          var v = V.validate(R.verdicts[k]);
+          T.ok("verdict · the page's " + R.verdicts[k].status + ' object validates under verdict.js', v.ok, (v.errors || []).join(' | '));
+        });
+        T.eq("verdict · scope is internal (a page's own provenance check is never publishable)", R.verdicts.pass.scope, 'internal');
+        T.ok('verdict · FAIL names the tampered stream in reason', /manifest:data\/x\.csv/.test(R.verdicts.fail.reason), R.verdicts.fail.reason);
+        T.eq('verdict · population is the OPENED streams, as an equality', R.verdicts.pass.population.checked + R.verdicts.pass.population.excluded, R.verdicts.pass.population.eligible);
+      } else T.skip('Verdict.validate available', 'verdict.js not co-loaded');
+    });
+
     /* ═══ VERDICT-CONTRACT §2 — `tepna.verdict/1`: a gate answers in a fixed shape ═══
        Owner standing requirement (CLAUDE.md §🧾): every gate/oracle/study emits ONE JSON verdict object;
        prose is explanation, not the API. `verdict.js` is the only definition of the shape. This group

@@ -593,6 +593,18 @@
    },
    "note": "the EMITTER for every pool scorer (nsrr-oxydex-odi \u00b7 nsrr-aai-validate \u00b7 nsrr-ahiest-validate \u00b7 nsrr-oxstat-validate \u00b7 nsrr-resprate-validate \u00b7 nsrr-stage-validate): poolVerdict() wraps the scorer's liveStat into one tepna.verdict/1, written into the results file and printed; a scorer decides only through its own pre-stated `CRITERION` + `verdict()` exports \u2014 a scorer that declares none is UNKNOWN with the statistic in result, never PASS (four 2026-09-15 scorers ran before any band was stated, so they are UNKNOWN until one is declared before a fresh run; stage-validate has a pre-stated \u03ba band and declares in its own PR)"
   },
+  "tools/nsrr-stage-validate.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/nsrr-stage-validate.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "a DECLARED pool scorer: exports CRITERION (cohen_kappa_4class_pooled \u2265 0.60, the E1 band pre-stated in SHHS-EXTERNAL-VALIDATION-2026-09-04 before #2423 ran) + verdict() \u2014 PASS \u2265 0.60 \u00b7 FAIL naming the partial / does-not-transfer band and per-stage recall \u00b7 UNKNOWN when populationMisalignment says suspect-shift (pipeline, not detector) \u00b7 UNDERPOWERED < 10 records \u00b7 NOT_RUN; --dir emits the same object via poolVerdict, --json puts it at the top level"
+  },
   "tools/o2ring-dat-timefit.mjs": {
    "bin": "word-only",
    "status": "exempt",
