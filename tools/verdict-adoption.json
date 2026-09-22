@@ -392,6 +392,18 @@
    "status": "exempt",
    "reason": "verdict words appear only in comments"
   },
+  "tools/cohort-fit.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/cohort-fit.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "synthetic cohort vs a real reference: verdictObject() decides on COVERAGE (unreachable_real_share \u2264 0 %, every real stratum weighted), never on KS resemblance \u2014 PASS \u00b7 SHORTFALL unweighted stratum \u00b7 FAIL records above the generator ceiling \u00b7 UNDERPOWERED < 100 real records \u00b7 NOT_RUN no scored record; --json emits the object at the top level"
+  },
   "tools/commit-shape.mjs": {
    "bin": "word-only",
    "status": "exempt",
@@ -477,10 +489,31 @@
    "status": "exempt",
    "reason": "verdict words appear only in comments"
   },
+  "tools/measurement-walk.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/measurement-walk.mjs",
+     "--json",
+     "--fixture",
+     "synthetic_oxydex_golden.node-export.json"
+    ]
+   },
+   "note": "wave-1 adopter (#2798): --json emits one tepna.verdict/1 per fixture (\u2717 hop \u21d2 FAIL naming the hop; \u2218 hop \u21d2 NOT_RUN naming the hop, result null; all \u2713 \u21d2 PASS); the manifest reads the committed synthetic fixture, whose input is committed too, so the check is corpus-free and runs in CI"
+  },
   "tools/mutate.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "MUTATION GATE INCONCLUSIVE when mutants never ran \u2014 killed \u00b7 survived \u00b7 timeout as its own state (step 5)"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/mutate.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the JS diff gate (pair of capture-host/tools/mutate_diff.py): diffVerdict() decides ONE tepna.verdict/1 at every --diff exit \u2014 PASS all killed \u00b7 FAIL survivors \u00b7 UNKNOWN canary survived or mutants never ran (never a kill) \u00b7 NOT_APPLICABLE no mutable source / no mutant on the changed lines (was \"all 0 killed\") \u00b7 NOT_RUN diff unreadable or no file measured; exit codes unchanged"
   },
   "tools/mutation-adoption-delta.mjs": {
    "bin": "word-only",
@@ -506,6 +539,11 @@
    "bin": "already-json",
    "status": "pending",
    "note": "canaryVerdict \u2014 already refuses to vouch without a machine-readable result; align its object"
+  },
+  "tools/mutation-summary.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "CONSUMER, not a producer \u2014 renders the tepna.verdict/1 object mutate.mjs --diff emits into the CI job summary (the first CI reader of the contract); its status words are the object's fields quoted back, validated by verdict.js before rendering, and it produces no verdict of its own"
   },
   "tools/mutation-worklist.mjs": {
    "bin": "already-json",
