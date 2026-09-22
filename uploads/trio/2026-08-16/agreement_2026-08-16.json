@@ -1,6 +1,12 @@
 {
   "night": "2026-08-16",
   "tolBpm": 15,
+  "quality": {
+    "tolBpm": 3,
+    "flagged": 2,
+    "compared": 73,
+    "flaggedPct": 2.7
+  },
   "nodes": [
     "PpgDex",
     "ECGDex",

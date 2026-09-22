@@ -5,11 +5,11 @@
   },
   "schema": {
     "name": "ganglior.node-export",
-    "version": "2.0",
+    "version": "2.1",
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-16T09:20:27.325Z",
+    "generated": "2026-09-22T22:37:54.551Z",
     "provenance": null,
     "doc": "ECGDex beat-derived events → Ganglior bus. tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -40,7 +40,69 @@
         "noise": "white/flicker-phase",
         "candidates": null,
         "optimalTauSec": 7878.0070000000005,
-        "tauMaxSec": 7878.0070000000005
+        "tauMaxSec": 7878.0070000000005,
+        "curve": [
+          {
+            "tauSec": 3.8466831054687503,
+            "adevPpm": 32756.604690839416,
+            "n": 6048
+          },
+          {
+            "tauSec": 7.6933662109375005,
+            "adevPpm": 16368.529350486075,
+            "n": 6046
+          },
+          {
+            "tauSec": 15.386732421875001,
+            "adevPpm": 8428.157684438422,
+            "n": 6042
+          },
+          {
+            "tauSec": 30.773464843750002,
+            "adevPpm": 4031.5222176561347,
+            "n": 6034
+          },
+          {
+            "tauSec": 61.546929687500004,
+            "adevPpm": 2081.1433812194723,
+            "n": 6018
+          },
+          {
+            "tauSec": 123.09385937500001,
+            "adevPpm": 1052.6666139096078,
+            "n": 5986
+          },
+          {
+            "tauSec": 246.18771875000002,
+            "adevPpm": 521.4370085638518,
+            "n": 5922
+          },
+          {
+            "tauSec": 492.37543750000003,
+            "adevPpm": 258.4374646278799,
+            "n": 5794
+          },
+          {
+            "tauSec": 984.7508750000001,
+            "adevPpm": 130.9160062419332,
+            "n": 5538
+          },
+          {
+            "tauSec": 1969.5017500000001,
+            "adevPpm": 65.26507414765773,
+            "n": 5026
+          },
+          {
+            "tauSec": 3939.0035000000003,
+            "adevPpm": 31.598806225094208,
+            "n": 4002
+          },
+          {
+            "tauSec": 7878.0070000000005,
+            "adevPpm": 16.015783710215178,
+            "n": 1954
+          }
+        ]
       },
       "note": "quote `ppm` WITH `ppmUncertainty`; `stability:null` means there was no second clock (host column ≡ device stamp), not that the clock was perfect"
     },
@@ -48,6 +110,95 @@
     "deviceEpoch": {
       "offsetMs": 14399853,
       "plausible": true
+    }
+  },
+  "measurement": {
+    "hr": {
+      "metricId": "hr",
+      "value": 51.7,
+      "window": {
+        "startTMs": 1789510236003,
+        "endTMs": 1789533504913,
+        "clockDomain": "device",
+        "timingSource": "device+host",
+        "spreadMs": 2442.986083984375
+      },
+      "sourceChannel": "H10:ecg",
+      "code": null,
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": null,
+        "envelopeReason": "no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none",
+        "inputReason": "contentId unavailable (SignalFrame not co-loaded, or no NN train)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 19871,
+        "durationMin": 387.8,
+        "analyzablePct": 99.7,
+        "coveragePct": 100
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)",
+      "codeReason": "no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle’s"
+    },
+    "rmssd": {
+      "metricId": "rmssd",
+      "value": 36.3,
+      "window": {
+        "startTMs": 1789510236003,
+        "endTMs": 1789533504913,
+        "clockDomain": "device",
+        "timingSource": "device+host",
+        "spreadMs": 2442.986083984375
+      },
+      "sourceChannel": "H10:ecg",
+      "code": null,
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": null,
+        "envelopeReason": "no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none",
+        "inputReason": "contentId unavailable (SignalFrame not co-loaded, or no NN train)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 19871,
+        "durationMin": 387.8,
+        "analyzablePct": 99.7,
+        "coveragePct": 100
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)",
+      "codeReason": "no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle’s"
+    },
+    "sdnn": {
+      "metricId": "sdnn",
+      "value": 75.2,
+      "window": {
+        "startTMs": 1789510236003,
+        "endTMs": 1789533504913,
+        "clockDomain": "device",
+        "timingSource": "device+host",
+        "spreadMs": 2442.986083984375
+      },
+      "sourceChannel": "H10:ecg",
+      "code": null,
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": null,
+        "envelopeReason": "no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none",
+        "inputReason": "contentId unavailable (SignalFrame not co-loaded, or no NN train)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 19871,
+        "durationMin": 387.8,
+        "analyzablePct": 99.7,
+        "coveragePct": 100
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)",
+      "codeReason": "no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle’s"
     }
   },
   "ganglior_events": [
@@ -1816,9 +1967,17 @@
     "doc": "Awaiting other fleet nodes; null until available."
   },
   "quality": {
-    "analyzablePct": 99.8,
-    "cleanBeatPct": 99.8,
-    "coveragePct": 100
+    "analyzablePct": 99.7,
+    "cleanBeatPct": 99.7,
+    "coveragePct": 100,
+    "ecgRail": {
+      "lo": -18233,
+      "hi": 18231,
+      "mirrorLo": 18231,
+      "mirrorHi": -18233,
+      "absent": false,
+      "samples": 1037
+    }
   },
   "hrv": {
     "time": {
@@ -1849,6 +2008,8 @@
       "respRate": 15.3,
       "respRateMethod": "RSA (HF-peak of RR spectrum)",
       "respFromEDR": 16.9,
+      "couplingGridGapCells": 474,
+      "couplingGridGapFrac": 0.0051,
       "respFromEDRMethod": "EDR (R-peak amplitude modulation)"
     }
   },
