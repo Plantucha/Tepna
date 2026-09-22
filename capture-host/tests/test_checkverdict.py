@@ -33,7 +33,7 @@ def ok(v, status):
         ("shellcheck", 1, "FAIL"), ("shellcheck", 2, "UNKNOWN"), ("shellcheck", 3, "UNKNOWN"), ("shellcheck", 4, "UNKNOWN"),
         ("pytest", 1, "FAIL"), ("pytest", 2, "UNKNOWN"), ("pytest", 3, "UNKNOWN"), ("pytest", 4, "UNKNOWN"),
         ("pytest", 5, "UNKNOWN"), ("pytest", 127, "NOT_RUN"),
-        ("unwired", 1, "FAIL"), ("unwired", 9, "UNKNOWN"),
+        ("unwired", 0, "UNKNOWN"), ("unwired", 1, "UNKNOWN"), ("unwired", 127, "NOT_RUN"),   # ours, unadopted: by provenance
         ("newchild", 1, "UNKNOWN"),   # no contract row: a code the contract does not name is never a FAIL
     ],
 )
@@ -47,12 +47,28 @@ def test_pytest_5_names_the_vacuous_run_and_127_names_the_missing_tool():
     assert "not installed" in C.child_status("shellcheck", 127)[1]
 
 
-def test_all_green_is_PASS_over_four_checked_with_the_advisory_tokens_riding_along():
-    v = ok(C.aggregate(GREEN, {"mypy": "AT_BASELINE", "format": "EMPTY_SCOPE"}), "PASS")
+def test_all_green_is_UNKNOWN_today_because_unwired_is_ours_and_unadopted_the_lever_of_3d():
+    """§3d: a runner is never greener than its least-adopted child. find_unwired publishes no exit-code
+    contract (1 = finding OR crash), so its exit 0 is UNKNOWN by provenance and the run is UNKNOWN —
+    the honest shape until it emits its own object."""
+    v = ok(C.aggregate(GREEN, {"mypy": "AT_BASELINE", "format": "EMPTY_SCOPE"}), "UNKNOWN")
     assert v["population"] == {"checked": 4, "eligible": 4, "excluded": 0}
-    assert v["result"]["pass"] == 4 and v["result"]["firstFailure"] is None
+    assert v["result"]["pass"] == 3 and v["result"]["unknown"] == 1 and v["result"]["statuses"]["unwired"] == "UNKNOWN"
+    assert "by provenance" in v["reason"]
     assert v["result"]["advisory"] == {"mypy": "AT_BASELINE", "format": "EMPTY_SCOPE"}
     assert v["evidence"] == ["capture-host/check.sh", "ruff exit 0", "shellcheck exit 0", "pytest exit 0", "unwired exit 0"]
+
+
+def test_the_three_external_children_green_IS_a_PASS_once_no_unadopted_child_is_in_the_run():
+    """The same aggregation over the published-contract children alone: the PASS path exists and is
+    reachable the day unwired adopts (or is read from its own object)."""
+    v = ok(C.aggregate({"ruff": 0, "shellcheck": 0, "pytest": 0}), "PASS")
+    assert v["result"]["pass"] == 3 and v["result"]["firstFailure"] is None
+
+
+def test_UNADOPTED_OURS_is_exactly_the_children_of_ours_that_publish_no_contract():
+    assert C.UNADOPTED_OURS == frozenset({"unwired"})
+    assert not (C.UNADOPTED_OURS & set(C.CONTRACTS)), "a child is read by contract OR by provenance, never both"
 
 
 def test_any_FAIL_wins_and_names_the_first_failing_child_and_the_count():
@@ -63,7 +79,7 @@ def test_any_FAIL_wins_and_names_the_first_failing_child_and_the_count():
 
 def test_an_UNKNOWN_child_is_never_green_one_level_up_it_is_not_a_vote():
     v = ok(C.aggregate({**GREEN, "pytest": 5}), "UNKNOWN")
-    assert v["result"]["unknown"] == 1 and "vacuous" in v["reason"]
+    assert v["result"]["unknown"] == 2 and "vacuous" in v["reason"]   # pytest 5 + the unadopted unwired
 
 
 def test_a_missing_tool_is_NOT_RUN_for_the_child_excluded_and_the_run_is_UNKNOWN_never_PASS():
@@ -88,7 +104,7 @@ def test_parse_pairs_reads_name_eq_code_and_refuses_a_malformed_pair():
 
 def test_cli_sample_write_and_usage(tmp_path, capsys):
     assert C.main(["--verdict-sample"]) == 0
-    ok(json.loads(capsys.readouterr().out), "PASS")
+    ok(json.loads(capsys.readouterr().out), "UNKNOWN")
     out = tmp_path / "v.json"
     assert C.main(["--write", str(out), "--advisory", "mypy=RISEN", "ruff=0", "shellcheck=1"]) == 0
     v = ok(json.load(open(out)), "FAIL")

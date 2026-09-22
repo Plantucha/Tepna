@@ -410,15 +410,16 @@ def _verdict(tmp_path):
         return json.load(fh)
 
 
-def test_a_green_run_writes_a_PASS_object_over_the_four_blocking_children(tmp_path):
+def test_a_green_run_writes_the_object_over_the_four_blocking_children_UNKNOWN_until_unwired_adopts(tmp_path):
     p, _ = _run(tmp_path)
-    assert p.returncode == 0
+    assert p.returncode == 0, "the shell's verdict is unchanged — §3d: the exit code STAYS"
     v = _verdict(tmp_path)
-    assert v["schema"] == "tepna.verdict/1" and v["gate"] == "capture-host-check" and v["status"] == "PASS"
+    assert v["schema"] == "tepna.verdict/1" and v["gate"] == "capture-host-check"
+    assert v["status"] == "UNKNOWN" and v["result"]["statuses"]["unwired"] == "UNKNOWN"   # ours, unadopted: by provenance
+    assert {k: s for k, s in v["result"]["statuses"].items() if k != "unwired"} == {"ruff": "PASS", "shellcheck": "PASS", "pytest": "PASS"}
     assert v["population"] == {"checked": 4, "eligible": 4, "excluded": 0}
-    assert set(v["result"]["statuses"]) == {"ruff", "shellcheck", "pytest", "unwired"}
     assert v["result"]["advisory"]["mypy"] == "NO_COUNT"   # the fake mypy prints no summary line: an abort, carried as the token
-    assert "verdict: PASS" in p.stdout
+    assert "verdict: UNKNOWN" in p.stdout
 
 
 def test_a_failing_child_is_a_FAIL_object_naming_it_and_the_exit_code_stays(tmp_path):

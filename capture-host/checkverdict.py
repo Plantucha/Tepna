@@ -7,15 +7,14 @@
 and two advisory legs, and its "all gates green" is an aggregation of their exit codes. This module writes
 that aggregation down as an object so a downstream reader keys on `status`, not on the sentence.
 
-CHILDREN ARE EXTERNAL TOOLS WITH A DOCUMENTED EXIT-CODE CONTRACT, and that is the one place this deviates
-from §3d's "an exit-code child is UNKNOWN by provenance": that clause is the lever that makes a runner's
-PASS wait for its adopters, and ruff / shellcheck / pytest will never adopt `tepna.verdict/1`. Their exit
-code IS their published verdict, so each child's status is read off that contract — and any code the
-contract does not name is UNKNOWN, never a guess:
+THREE CHILDREN ARE EXTERNAL TOOLS WITH A PUBLISHED EXIT-CODE CONTRACT, and §3d reads such a child BY
+that contract (Kestrel's ruling, 2026-09-22): the exit code is a machine-readable API the tool already
+publishes, so keying on it is not prose-parsing. The mapping lives here, beside the versions it was read
+from (ruff 0.16.0 · shellcheck 0.11.0 · pytest 9.1.1), and any code a contract does not name is UNKNOWN:
 
   · 0 → PASS on every child.
   · the contract's "issues found" code → FAIL (ruff 1 · shellcheck 1 · pytest 1, which is also the
-    coverage floor · unwired 1).
+    coverage floor).
   · 127 → NOT_RUN: the TOOL is missing, not the gate failing (CLAUDE.md §🐍 — "a missing TOOL, not a
     failing gate"). It is counted EXCLUDED, and the run is then UNKNOWN (an unplanned exclusion, §3d),
     never PASS over the three that ran.
@@ -23,9 +22,13 @@ contract does not name is UNKNOWN, never a guess:
     tests collected, a vacuous run — examined nothing, §∅).
   · anything else → UNKNOWN with the code in the reason.
 
-⚠ A child whose failure and crash share an exit code cannot be told apart HERE — `find_unwired.py`
-exits 1 for both a finding and an uncaught exception. That is the honest limit of an exit-code child
-and the reason §3d wants children to emit their own object; it is recorded, not papered over.
+A TOOL OF OURS NEVER GETS THAT EXEMPTION — it adopts `tepna.verdict/1` or counts UNKNOWN BY PROVENANCE.
+`find_unwired.py` is ours and publishes no contract (it exits 1 for a finding AND for an uncaught
+exception, which no reader of the code can separate), so its exit 0 is NOT a PASS here: `unwired` is
+UNKNOWN whenever it ran, and check.sh's object cannot read PASS until find_unwired emits its own object
+(a separate manifest row). That is §3d's lever working as designed — the runner is never greener than
+its least-adopted child — and a green `all gates green` line beside an UNKNOWN object is the honest
+state of this gate today.
 
 Aggregation is §3d's precedence, not a vote: FAIL > UNKNOWN > PASS, and `checked = 0` is NOT_RUN. The
 advisory legs (mypy · format) are NOT in the population — they cannot fail the run — and ride along in
@@ -66,16 +69,20 @@ CONTRACTS: dict[str, dict[int, tuple[str, str]]] = {
         4: ("UNKNOWN", "usage error"),
         5: ("UNKNOWN", "no tests collected — a vacuous run examined nothing"),
     },
-    "unwired": {1: ("FAIL", "unexplained findings (or an uncaught exception — the two share the code)")},
 }
+# Children of OURS that have not adopted the contract: read by PROVENANCE, never by an exit code they do
+# not publish — any code but 127 is UNKNOWN. Emptied one name at a time as each adopts.
+UNADOPTED_OURS = frozenset({"unwired"})
 
 
 def child_status(name: str, rc: int) -> tuple[str, str]:
     """`(status, detail)` for one child from its documented exit code. PURE."""
-    if rc == 0:
-        return "PASS", "exit 0"
     if rc == 127:
         return "NOT_RUN", "exit 127 — the tool is not installed; nothing was examined"
+    if name in UNADOPTED_OURS:
+        return "UNKNOWN", f"exit {rc} — a tool of ours that has not adopted tepna.verdict/1: UNKNOWN by provenance (§3d)"
+    if rc == 0:
+        return "PASS", "exit 0"
     row = CONTRACTS.get(name, {})
     if rc in row:
         status, meaning = row[rc]
@@ -132,7 +139,8 @@ def parse_pairs(pairs: list[str]) -> dict[str, int]:
 
 
 def verdict_sample() -> dict:
-    """The object the adoption gate reads (`--verdict-sample`): a green run of the four children."""
+    """The object the adoption gate reads (`--verdict-sample`): a green run of the four children — UNKNOWN,
+    because `unwired` has not adopted; the sample is the gate's real shape today, not a flattering one."""
     return aggregate({"ruff": 0, "shellcheck": 0, "pytest": 0, "unwired": 0},
                      {"mypy": "AT_BASELINE", "format": "EMPTY_SCOPE"})
 
