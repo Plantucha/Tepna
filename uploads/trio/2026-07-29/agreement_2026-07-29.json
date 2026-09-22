@@ -1,20 +1,111 @@
 {
   "night": "2026-07-29",
   "tolBpm": 15,
+  "quality": {
+    "tolBpm": 3,
+    "flagged": 13,
+    "compared": 35,
+    "flaggedPct": 37.1
+  },
   "nodes": [
     "PpgDex",
     "ECGDex",
     "OxyDex"
   ],
-  "compared": 37,
+  "compared": 35,
   "adjudicable": 34,
   "droppedFragments": 0,
-  "flagged": 0,
-  "flaggedPct": 0,
+  "flagged": 4,
+  "flaggedPct": 11.4,
   "fault": {
     "PpgDex": 0,
-    "ECGDex": 0,
+    "ECGDex": 4,
     "OxyDex": 0
   },
-  "epochs": []
+  "epochs": [
+    {
+      "tMs": 1785358936065,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 51
+        },
+        {
+          "node": "ECGDex",
+          "hr": 30.7
+        },
+        {
+          "node": "OxyDex",
+          "hr": 50.5
+        }
+      ],
+      "median": 50.5,
+      "spreadBpm": 20.3,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1785359236065,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 51
+        },
+        {
+          "node": "ECGDex",
+          "hr": 26.4
+        },
+        {
+          "node": "OxyDex",
+          "hr": 50.8
+        }
+      ],
+      "median": 50.8,
+      "spreadBpm": 24.6,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1785365536065,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 48
+        },
+        {
+          "node": "ECGDex",
+          "hr": 23.6
+        },
+        {
+          "node": "OxyDex",
+          "hr": 49.2
+        }
+      ],
+      "median": 48,
+      "spreadBpm": 25.6,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1785365836065,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 49
+        },
+        {
+          "node": "ECGDex",
+          "hr": 29.3
+        },
+        {
+          "node": "OxyDex",
+          "hr": 48
+        }
+      ],
+      "median": 48,
+      "spreadBpm": 19.7,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    }
+  ]
 }

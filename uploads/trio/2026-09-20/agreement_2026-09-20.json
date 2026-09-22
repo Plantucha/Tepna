@@ -1,0 +1,762 @@
+{
+  "night": "2026-09-20",
+  "tolBpm": 15,
+  "quality": {
+    "tolBpm": 3,
+    "flagged": 37,
+    "compared": 74,
+    "flaggedPct": 50
+  },
+  "nodes": [
+    "PpgDex",
+    "ECGDex",
+    "OxyDex"
+  ],
+  "compared": 74,
+  "adjudicable": 45,
+  "droppedFragments": 5,
+  "flagged": 35,
+  "flaggedPct": 47.3,
+  "fault": {
+    "PpgDex": 0,
+    "ECGDex": 35,
+    "OxyDex": 0
+  },
+  "epochs": [
+    {
+      "tMs": 1789947244000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 53
+        },
+        {
+          "node": "ECGDex",
+          "hr": 26.5
+        },
+        {
+          "node": "OxyDex",
+          "hr": 52.7
+        }
+      ],
+      "median": 52.7,
+      "spreadBpm": 26.5,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789947844000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 53
+        },
+        {
+          "node": "ECGDex",
+          "hr": 28.4
+        },
+        {
+          "node": "OxyDex",
+          "hr": 52.9
+        }
+      ],
+      "median": 52.9,
+      "spreadBpm": 24.6,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789949644000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 52
+        },
+        {
+          "node": "ECGDex",
+          "hr": 32.4
+        },
+        {
+          "node": "OxyDex",
+          "hr": 52.1
+        }
+      ],
+      "median": 52,
+      "spreadBpm": 19.7,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789950544000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 54
+        },
+        {
+          "node": "ECGDex",
+          "hr": 22.8
+        },
+        {
+          "node": "OxyDex",
+          "hr": 54
+        }
+      ],
+      "median": 54,
+      "spreadBpm": 31.2,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789951144000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 51
+        },
+        {
+          "node": "ECGDex",
+          "hr": 32
+        },
+        {
+          "node": "OxyDex",
+          "hr": 50.8
+        }
+      ],
+      "median": 50.8,
+      "spreadBpm": 19,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789951744000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 51
+        },
+        {
+          "node": "ECGDex",
+          "hr": 33.2
+        },
+        {
+          "node": "OxyDex",
+          "hr": 51.3
+        }
+      ],
+      "median": 51,
+      "spreadBpm": 18.1,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789952044000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 52
+        },
+        {
+          "node": "ECGDex",
+          "hr": 31.5
+        },
+        {
+          "node": "OxyDex",
+          "hr": 51.5
+        }
+      ],
+      "median": 51.5,
+      "spreadBpm": 20.5,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789952644000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 53
+        },
+        {
+          "node": "ECGDex",
+          "hr": 36.6
+        },
+        {
+          "node": "OxyDex",
+          "hr": 52.9
+        }
+      ],
+      "median": 52.9,
+      "spreadBpm": 16.4,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789953844000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 53
+        },
+        {
+          "node": "ECGDex",
+          "hr": 26.6
+        },
+        {
+          "node": "OxyDex",
+          "hr": 52.9
+        }
+      ],
+      "median": 52.9,
+      "spreadBpm": 26.4,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789954144000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 53
+        },
+        {
+          "node": "ECGDex",
+          "hr": 32.4
+        },
+        {
+          "node": "OxyDex",
+          "hr": 53
+        }
+      ],
+      "median": 53,
+      "spreadBpm": 20.6,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789954444000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 53
+        },
+        {
+          "node": "ECGDex",
+          "hr": 26.8
+        },
+        {
+          "node": "OxyDex",
+          "hr": 53.2
+        }
+      ],
+      "median": 53,
+      "spreadBpm": 26.4,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789954744000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 53
+        },
+        {
+          "node": "ECGDex",
+          "hr": 8.9
+        },
+        {
+          "node": "OxyDex",
+          "hr": 52.5
+        }
+      ],
+      "median": 52.5,
+      "spreadBpm": 44.1,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789955044000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 53
+        },
+        {
+          "node": "ECGDex",
+          "hr": 29.1
+        },
+        {
+          "node": "OxyDex",
+          "hr": 53.6
+        }
+      ],
+      "median": 53,
+      "spreadBpm": 24.5,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789955344000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 53
+        },
+        {
+          "node": "ECGDex",
+          "hr": 25.3
+        },
+        {
+          "node": "OxyDex",
+          "hr": 53.3
+        }
+      ],
+      "median": 53,
+      "spreadBpm": 28,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789955944000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 54
+        },
+        {
+          "node": "ECGDex",
+          "hr": 26.8
+        },
+        {
+          "node": "OxyDex",
+          "hr": 53.1
+        }
+      ],
+      "median": 53.1,
+      "spreadBpm": 27.2,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789956244000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 54
+        },
+        {
+          "node": "ECGDex",
+          "hr": 19.8
+        },
+        {
+          "node": "OxyDex",
+          "hr": 52.9
+        }
+      ],
+      "median": 52.9,
+      "spreadBpm": 34.2,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789956544000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 52
+        },
+        {
+          "node": "ECGDex",
+          "hr": 14.8
+        },
+        {
+          "node": "OxyDex",
+          "hr": 52.6
+        }
+      ],
+      "median": 52,
+      "spreadBpm": 37.8,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789957444000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 52
+        },
+        {
+          "node": "ECGDex",
+          "hr": 34.2
+        },
+        {
+          "node": "OxyDex",
+          "hr": 52
+        }
+      ],
+      "median": 52,
+      "spreadBpm": 17.8,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789958044000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 53
+        },
+        {
+          "node": "ECGDex",
+          "hr": 31.2
+        },
+        {
+          "node": "OxyDex",
+          "hr": 53.5
+        }
+      ],
+      "median": 53,
+      "spreadBpm": 22.3,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789958344000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 54
+        },
+        {
+          "node": "ECGDex",
+          "hr": 35.4
+        },
+        {
+          "node": "OxyDex",
+          "hr": 53.9
+        }
+      ],
+      "median": 53.9,
+      "spreadBpm": 18.6,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789958944000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 55
+        },
+        {
+          "node": "ECGDex",
+          "hr": 8.5
+        },
+        {
+          "node": "OxyDex",
+          "hr": 54.6
+        }
+      ],
+      "median": 54.6,
+      "spreadBpm": 46.5,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789959244000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 54
+        },
+        {
+          "node": "ECGDex",
+          "hr": 36.5
+        },
+        {
+          "node": "OxyDex",
+          "hr": 54
+        }
+      ],
+      "median": 54,
+      "spreadBpm": 17.5,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789959544000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 54
+        },
+        {
+          "node": "ECGDex",
+          "hr": 32.5
+        },
+        {
+          "node": "OxyDex",
+          "hr": 53.7
+        }
+      ],
+      "median": 53.7,
+      "spreadBpm": 21.5,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789959844000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 57
+        },
+        {
+          "node": "ECGDex",
+          "hr": 37.3
+        },
+        {
+          "node": "OxyDex",
+          "hr": 57.3
+        }
+      ],
+      "median": 57,
+      "spreadBpm": 20,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789960144000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 56
+        },
+        {
+          "node": "ECGDex",
+          "hr": 26.4
+        },
+        {
+          "node": "OxyDex",
+          "hr": 55.8
+        }
+      ],
+      "median": 55.8,
+      "spreadBpm": 29.6,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789960744000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 55
+        },
+        {
+          "node": "ECGDex",
+          "hr": 25.9
+        },
+        {
+          "node": "OxyDex",
+          "hr": 55
+        }
+      ],
+      "median": 55,
+      "spreadBpm": 29.1,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789961644000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 54
+        },
+        {
+          "node": "ECGDex",
+          "hr": 27.2
+        },
+        {
+          "node": "OxyDex",
+          "hr": 53.6
+        }
+      ],
+      "median": 53.6,
+      "spreadBpm": 26.8,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789962244000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 53
+        },
+        {
+          "node": "ECGDex",
+          "hr": 36.3
+        },
+        {
+          "node": "OxyDex",
+          "hr": 53.6
+        }
+      ],
+      "median": 53,
+      "spreadBpm": 17.3,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789962544000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 53
+        },
+        {
+          "node": "ECGDex",
+          "hr": 30
+        },
+        {
+          "node": "OxyDex",
+          "hr": 53.5
+        }
+      ],
+      "median": 53,
+      "spreadBpm": 23.5,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789962844000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 54
+        },
+        {
+          "node": "ECGDex",
+          "hr": 23.5
+        },
+        {
+          "node": "OxyDex",
+          "hr": 53.7
+        }
+      ],
+      "median": 53.7,
+      "spreadBpm": 30.5,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789963144000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 53
+        },
+        {
+          "node": "ECGDex",
+          "hr": 36.2
+        },
+        {
+          "node": "OxyDex",
+          "hr": 53.4
+        }
+      ],
+      "median": 53,
+      "spreadBpm": 17.2,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789964044000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 61
+        },
+        {
+          "node": "ECGDex",
+          "hr": 29.4
+        },
+        {
+          "node": "OxyDex",
+          "hr": 57.6
+        }
+      ],
+      "median": 57.6,
+      "spreadBpm": 31.6,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789964344000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 62
+        },
+        {
+          "node": "ECGDex",
+          "hr": 38
+        },
+        {
+          "node": "OxyDex",
+          "hr": 63.3
+        }
+      ],
+      "median": 62,
+      "spreadBpm": 25.3,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789964644000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 59
+        },
+        {
+          "node": "ECGDex",
+          "hr": 20.1
+        },
+        {
+          "node": "OxyDex",
+          "hr": 59.1
+        }
+      ],
+      "median": 59,
+      "spreadBpm": 39,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1789964944000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 59
+        },
+        {
+          "node": "ECGDex",
+          "hr": 29.8
+        },
+        {
+          "node": "OxyDex",
+          "hr": 58.7
+        }
+      ],
+      "median": 58.7,
+      "spreadBpm": 29.2,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    }
+  ]
+}

@@ -1,6 +1,12 @@
 {
   "night": "2026-07-30",
   "tolBpm": 15,
+  "quality": {
+    "tolBpm": 3,
+    "flagged": 15,
+    "compared": 87,
+    "flaggedPct": 17.2
+  },
   "nodes": [
     "PpgDex",
     "ECGDex",
@@ -9,12 +15,202 @@
   "compared": 87,
   "adjudicable": 83,
   "droppedFragments": 1,
-  "flagged": 0,
-  "flaggedPct": 0,
+  "flagged": 9,
+  "flaggedPct": 10.3,
   "fault": {
     "PpgDex": 0,
-    "ECGDex": 0,
+    "ECGDex": 9,
     "OxyDex": 0
   },
-  "epochs": []
+  "epochs": [
+    {
+      "tMs": 1785451617000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 47
+        },
+        {
+          "node": "ECGDex",
+          "hr": 23.6
+        },
+        {
+          "node": "OxyDex",
+          "hr": 46.7
+        }
+      ],
+      "median": 46.7,
+      "spreadBpm": 23.4,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1785454017000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 52
+        },
+        {
+          "node": "ECGDex",
+          "hr": 24.2
+        },
+        {
+          "node": "OxyDex",
+          "hr": 51.7
+        }
+      ],
+      "median": 51.7,
+      "spreadBpm": 27.8,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1785454317000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 52
+        },
+        {
+          "node": "ECGDex",
+          "hr": 33.4
+        },
+        {
+          "node": "OxyDex",
+          "hr": 52.3
+        }
+      ],
+      "median": 52,
+      "spreadBpm": 18.9,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1785458817000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 52
+        },
+        {
+          "node": "ECGDex",
+          "hr": 33.1
+        },
+        {
+          "node": "OxyDex",
+          "hr": 51.6
+        }
+      ],
+      "median": 51.6,
+      "spreadBpm": 18.9,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1785461817000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 51
+        },
+        {
+          "node": "ECGDex",
+          "hr": 35.2
+        },
+        {
+          "node": "OxyDex",
+          "hr": 51.1
+        }
+      ],
+      "median": 51,
+      "spreadBpm": 15.9,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1785462117000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 51
+        },
+        {
+          "node": "ECGDex",
+          "hr": 22.1
+        },
+        {
+          "node": "OxyDex",
+          "hr": 51.3
+        }
+      ],
+      "median": 51,
+      "spreadBpm": 29.2,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1785462417000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 51
+        },
+        {
+          "node": "ECGDex",
+          "hr": 15.4
+        },
+        {
+          "node": "OxyDex",
+          "hr": 50.9
+        }
+      ],
+      "median": 50.9,
+      "spreadBpm": 35.6,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1785464517000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 50
+        },
+        {
+          "node": "ECGDex",
+          "hr": 27.9
+        },
+        {
+          "node": "OxyDex",
+          "hr": 49.8
+        }
+      ],
+      "median": 49.8,
+      "spreadBpm": 22.1,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1785473517000,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 53
+        },
+        {
+          "node": "ECGDex",
+          "hr": 31.9
+        },
+        {
+          "node": "OxyDex",
+          "hr": 52.7
+        }
+      ],
+      "median": 52.7,
+      "spreadBpm": 21.1,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    }
+  ]
 }
