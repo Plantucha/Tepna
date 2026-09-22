@@ -1669,25 +1669,63 @@
   // ════════════════════════════════════════════════════════════════════════
   //  5-MIN EPOCH ENGINE — window the NN series; per-epoch short-term suite.
   // ════════════════════════════════════════════════════════════════════════
-  function epochEngine(nn, tt, winSec, sqiPerBeat) {
+  /* §∅ — THE EPOCH IS NOT EXEMPT. `spansGap` is the kept-frame mask analyze() builds (1 where interval i
+     straddles a dropout or a filtered-out beat); `seamSec` the beat-axis positions of device-clock
+     resyncs; `refusedOut` receives the windows this engine declines to score. The whole-record
+     statistics honoured that mask since the §∅ block in analyze(); this engine sliced the SAME `nn`
+     without it, so an epoch containing a dropout carried the dropout as an RR interval. Measured on the
+     owner's 2026-09-21 H10 night — 177 reconnects in 68 epochs: whole-record rMSSD 28.1 ms (masked),
+     per-epoch median 10,608.5 ms (unmasked), and it is the median that is DISPLAYED and SCORED. The
+     score read it as "Primed · strong autonomic reserve". Same defect two consumers along, and the
+     fixture corpus could not see it: its nights carry ≤5 dropouts, so the median epoch was clean.
+
+     Owner ruling 2026-09-17 (CLAUDE.md §∅): a DISCONTINUITY refuses, reduced COVERAGE annotates.
+       · dropout inside the window  ⇒ the straddling interval leaves every statistic (rMSSD/pNN50 via
+         the pair mask, mean/SDNN/spectrum via the kept set) and the epoch says `gaps: <n>`.
+       · clock seam inside the window ⇒ the window does not describe ONE stretch of signal: refused,
+         `reason: 'clock-seam'`, the epoch is absent from the series and present in `refusedOut`.
+       · fewer than 20 scorable beats  ⇒ refused, `reason: 'too-few-beats'` (was a silent skip).
+     A window with no beats at all is a dropout hole, already counted in gapSec, and stays silent. */
+  function epochEngine(nn, tt, winSec, sqiPerBeat, spansGap, seamSec, refusedOut) {
     winSec = winSec || 300;
     const N = nn.length,
       tEnd = tt[N - 1];
     const epochs = [];
+    const _seams = Array.isArray(seamSec) ? seamSec.filter((v) => Number.isFinite(v)) : [];
     let i = 0;
     for (let w0 = 0; w0 <= tEnd; w0 += winSec) {
       const w1 = w0 + winSec,
         seg = [],
         segT = [],
-        segQ = [];
+        segQ = [],
+        /* pair mask in the KEPT frame: 1 on the first survivor after a removed interval, so the
+           difference (previous survivor, this) — which spans the absence — is not a successive
+           difference. Same widening rule as analyze()'s `_gapPair`. */
+        segSkip = [];
+      let nAll = 0,
+        gaps = 0,
+        dropped = false;
       while (i < N && tt[i] < w1) {
+        nAll++;
+        if (spansGap && spansGap[i]) {
+          gaps++;
+          dropped = true;
+          i++;
+          continue;
+        }
         seg.push(nn[i]);
         segT.push(tt[i]);
+        segSkip.push(dropped ? 1 : 0);
+        dropped = false;
         if (sqiPerBeat && Number.isFinite(sqiPerBeat[i])) segQ.push(sqiPerBeat[i]);
         i++;
       }
-      // back up i so windows that share a boundary still see beats (non-overlap, simple advance is fine)
-      if (seg.length >= 20) {
+      const seamHere = _seams.some((v) => v >= w0 && v < w1);
+      if (seamHere || seg.length < 20) {
+        if (refusedOut && nAll > 0) refusedOut.push({ tMin: +(w0 / 60).toFixed(1), n: nAll, reason: seamHere ? 'clock-seam' : 'too-few-beats' });
+        continue;
+      }
+      {
         const m = mean(seg);
         const ls = lombScargle(seg, segT, 160);
         epochs.push({
@@ -1711,11 +1749,11 @@
              `rate-of-mean` = 60000 / mean(RR); the alternatives are `median-rate` and `mean-rate`. */
           hrStat: 'rate-of-mean',
           meanRR: +m.toFixed(1),
-          rmssd: +rmssd(seg).toFixed(1),
+          rmssd: +rmssd(seg, segSkip).toFixed(1),
           sdnn: +std(seg).toFixed(1),
           // vlf/tp carried too (DEEP-AUDIT §10): the exported spectrum is the 5-min epoch median, and it
           // must report ALL FOUR bands on that one scale — see the spec block in analyze().
-          pnn: +pnn50(seg).toFixed(1),
+          pnn: +pnn50(seg, segSkip).toFixed(1),
           lf: ls.lf,
           hf: ls.hf,
           vlf: ls.vlf,
@@ -1723,6 +1761,8 @@
           lfhf: ls.lfhf,
           resp: ls.respRate
         });
+        // present only when drawn (the `anchorsDroppedPreResync` discipline): a clean epoch keeps its bytes
+        if (gaps) Object.assign(epochs[epochs.length - 1], { gaps });
       }
     }
     return epochs;
@@ -2775,7 +2815,10 @@
          PpgDex for a fortnight (#2333 → the kept-frame fix). Rebuilt here in the kept frame instead:
          a pair is a non-measurement if it straddled a gap OR if the filter removed a beat between its
          endpoints, since the survivors are then adjacent in the array and not in time. */
-      nnSpansGap = [];
+      nnSpansGap = [],
+      /* sample index of each KEPT beat, same frame — the only way to place a clock seam (a SAMPLE
+         index, `rec.clockResyncs[].idx`) on the beat axis after the filter has thinned it. */
+      nnPeak = [];
     let _lastKept = -1;
     let artifactSec = 0,
       _pSec = null;
@@ -2787,6 +2830,7 @@
         tt.push(nnRes.tt[i]);
         nnCorr.push(nnRes.corrected[i] ? 1 : 0);
         nnSqi.push(Number.isFinite(sqi[i]) ? sqi[i] : null);
+        nnPeak.push(peaks[i]);
         nnConf.push(Number.isFinite(c) ? +c.toFixed(3) : 1);
         // straddled a dropout in the source frame, OR the filter dropped a beat between this one and
         // the previous survivor (first survivor has no predecessor, so its pair is vacuous)
@@ -2838,7 +2882,17 @@
     const lowCoverage = nnRes.coveragePct != null && nnRes.coveragePct < 80;
 
     prog(72, '5-min epoch engine…');
-    const epochs = epochEngine(nn, tt, 300, nnSqi);
+    /* A clock seam on the beat axis: the first kept beat at or after the resync's sample index. §7
+       "ONE DEVICE CLOCK PER AXIS" re-anchors the axis across it, which makes the axis continuous —
+       not the same clock; the epoch containing it is refused, not annotated (see epochEngine). */
+    const _seamSec = [];
+    for (const c of rec.clockResyncs || []) {
+      let k = 0;
+      while (k < N && nnPeak[k] < c.idx) k++;
+      if (k < N) _seamSec.push(tt[k]);
+    }
+    const epochsRefused = [];
+    const epochs = epochEngine(nn, tt, 300, nnSqi, nnSpansGap, _seamSec, epochsRefused);
 
     // representative window for advanced metrics (epoch with rmssd closest to median)
     let repSeg = nn,
@@ -2863,6 +2917,7 @@
         seg = [],
         segT = [];
       for (let i = 0; i < N; i++) {
+        if (nnSpansGap[i]) continue; // §∅ — not an RR interval (see epochEngine)
         if (tt[i] >= w0 && tt[i] < w1) {
           seg.push(nn[i]);
           segT.push(tt[i]);
@@ -2965,7 +3020,7 @@
     // Poincaré — geometric SD1/SD2 from the exact array that gets plotted.
     // Overnight: use the representative 5-min window (standard short-term Poincaré, norms apply);
     // shorter records: use the whole NN series. Guarantees ellipse == cloud.
-    const poincareNN = longRec && repSeg.length >= 20 ? repSeg : nn;
+    const poincareNN = longRec && repSeg.length >= 20 ? repSeg : _rrOnly; // §∅ — `_rrOnly`, never the gap-carrying `nn`
     const pg = poincareGeo(poincareNN);
     /* `.toFixed` on a refusal would throw, and `+null` would silently become 0 — the fabrication
        re-entering one line after the guard that removed it. Carry the null through. */
@@ -3209,6 +3264,7 @@
       lnrmssd: +Math.log(longRec ? dispRm : rm).toFixed(3),
       // epochs + sleep + cvhr + events
       epochs,
+      epochsRefused,
       stages,
       stageMin,
       totSleep: +totSleep.toFixed(0),
@@ -4604,6 +4660,7 @@
     /* Exported so their refusal guards are directly assertable. Additive only — no existing caller
        reaches them through this surface, and the internal call sites are unchanged. */
     poincareGeo,
+    epochEngine, // §∅ epoch gap-exclusion + seam refusal, gated directly
     detectCVHR,
     cardiorespCoupling,
     dfaAlpha1,
@@ -6068,6 +6125,14 @@
            past the seam (a resync inside the last 500 rows). */
         if (c.hostOffsetMs != null) rs.hostOffsetMs = c.hostOffsetMs;
         return rs;
+      });
+    /* §∅ — 5-min windows the epoch engine REFUSED to score (a clock seam inside the window, or too
+       few scorable beats). Attached only when one exists, same no-null-key discipline, so clean
+       fixtures keep today's bytes. A consumer counting `timeseries.epochs` against the span now has
+       the holes named rather than inferred. */
+    if (Array.isArray(r.epochsRefused) && r.epochsRefused.length)
+      out.recording.epochsRefused = r.epochsRefused.map(function (e) {
+        return { tMin: e.tMin, n: e.n, reason: e.reason };
       });
     if (r.deviceRR && r.deviceRR.length) {
       /* AN OUTPUT COMPUTED OVER ABSENT INPUT REPORTS THE ABSENCE (§∅). The self train handed to the
