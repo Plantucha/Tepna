@@ -225,7 +225,6 @@ export const WO_CLAIM_RATCHET = new Set([
      duplicated strings would have found eight of these nine and left this one behind, still
      asserting in the manifest something its source had stopped supporting. */
   'tools/beat-leg-closure.mjs',
-  'tools/buzz-fiducial-correlate.mjs',
   'tools/formula-constant-audit.mjs',
   'tools/pat-fiducial-jitter.mjs',
   'tools/pat-residual-structure.mjs',
