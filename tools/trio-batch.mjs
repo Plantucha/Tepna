@@ -75,6 +75,8 @@
  * --max-old-space-size is needed on the command line: the parent sizes each child's heap to the host.
  */
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
+/* t0 from the file's first data row — see tools/trio-anchor.mjs for the rule and why the name is not it. */
+import { anchoredRec, startOf } from './trio-anchor.mjs';
 import { join, dirname, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
@@ -470,6 +472,16 @@ if (flag('--selftest')) {
     eq('FAIL night validates, reason names the hours', val(f) === true && /0\.4 h/.test(f.reason), true);
     const na = nightVerdict('2026-01-03', 'NOT_APPLICABLE', { offered: 2, judged: 0, reason: 'not a trio night — no O2Ring anchor' });
     eq('NOT_APPLICABLE night: checked 0, result null, reason present', val(na) === true && na.population.checked === 0 && na.result === null, true);
+    // …AND THE SHAPE THE REAL CALL SITE USED TO PASS IS REFUSED. It handed a `result` with the legs in
+    // it, which the validator forbids for NOT_APPLICABLE, so every non-trio night threw — while the
+    // assertion above passed, because it used a shape the caller never did.
+    let naThrew = null;
+    try {
+      nightVerdict('2026-01-05', 'NOT_APPLICABLE', { offered: 2, judged: 0, result: { legs: ['ECG'] }, reason: 'not a trio night' });
+    } catch (e) {
+      naThrew = e.message;
+    }
+    eq('a NOT_APPLICABLE night carrying a result is REFUSED (the crash this tool shipped with)', /result: null/.test(naThrew || ''), true);
     let threw = null;
     try {
       nightVerdict('2026-01-04', 'PASS', { offered: 8, judged: 5, result: {} }); // no evidence
@@ -731,6 +743,7 @@ const bump = (key) => {
 
 // RECURSE: the Polar Sensor Logger corpus is one FLAT folder, but the capture-host daemon writes one
 // SUBDIRECTORY PER NIGHT (plus a `stored/` dir of onboard .dat backups). Walk the tree so both layouts
+
 // ingest from the same `--src` — the regexes match on the BASENAME, and `readdirSync(recursive:true)`
 // on a flat folder still returns bare filenames, so this is back-compat for the Polar corpus.
 for (const rel of readdirSync(SRC, { recursive: true })) {
@@ -760,8 +773,8 @@ for (const rel of readdirSync(SRC, { recursive: true })) {
     stream = m[4] === 'MAG' ? 'MAGN' : m[4];
   }
   if (dev) {
-    const rec = { name, full, t0, bytes: st.size, dev, stream };
-    const n = bump(nightKeyOf(t0));
+    const rec = anchoredRec({ name, full, t0, bytes: st.size, dev, stream });
+    const n = bump(nightKeyOf(rec.t0));
     if (dev === 'H10' && stream === 'ECG') n.ecg.push(rec);
     else if (dev === 'H10' && stream === 'ACC') n.acc_h10.push(rec);
     else if (dev === 'Sense' && stream === 'PPG') n.ppg.push(rec);
@@ -774,7 +787,8 @@ for (const rel of readdirSync(SRC, { recursive: true })) {
   m = RE_O2.exec(name) || RE_O2_CH.exec(name);
   if (m) {
     t0 = parse14(m[1]);
-    bump(nightKeyOf(t0)).oxy.push({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2', kind: 'csv', stamp: m[1] });
+    const rec = anchoredRec({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2', kind: 'csv', stamp: m[1] });
+    bump(nightKeyOf(rec.t0)).oxy.push(rec);
     continue;
   }
   // O2Ring finger plethysmogram → PpgDex's FINGER site (not OxyDex: it is an optical waveform, and
@@ -783,14 +797,17 @@ for (const rel of readdirSync(SRC, { recursive: true })) {
   m = RE_O2_PPG_CH.exec(name);
   if (m) {
     t0 = parse14(m[1]);
-    bump(nightKeyOf(t0)).o2ppg.push({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'PPG', kind: 'txt', stamp: m[1] });
+    const rec = anchoredRec({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'PPG', kind: 'txt', stamp: m[1] });
+    bump(nightKeyOf(rec.t0)).o2ppg.push(rec);
     continue;
   }
   // O2Ring onboard binary — bare "<14>.dat" OR capture-host "Wellue_O2Ring-S_…_STORED.dat".
   m = RE_O2_DAT.exec(name) || RE_O2_DAT_CH.exec(name);
   if (m) {
     t0 = parse14(m[1]);
-    bump(nightKeyOf(t0)).oxy.push({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2', kind: 'dat', stamp: m[1] });
+    // a .dat keeps the name: `startOf` returns null for it, and `endOf` derives its end FROM t0
+    const rec = anchoredRec({ name, full, t0, bytes: st.size, dev: 'O2Ring', stream: 'SPO2', kind: 'dat', stamp: m[1] });
+    bump(nightKeyOf(rec.t0)).oxy.push(rec);
   }
 }
 
@@ -979,10 +996,14 @@ for (const n of plan) {
      `--allow-partial` admits them; default OFF, so every existing analysis is byte-unchanged. */
   if (have.length < (ALLOW_PARTIAL ? 1 : 3)) {
     console.log(`  ⊘ ${n.key} — not a concurrent trio night (have: ${have.join('+') || 'none'})`);
+    // NO `result` — the validator refuses one on NOT_APPLICABLE (the criterion does not bind, so
+    // nothing was measured). The legs ride in the reason, where they already were. ⚠️ This CRASHED the
+    // tool on every non-trio night (measured 2026-09-22 re-folding 2026-08-24): the selftest above
+    // builds a NOT_APPLICABLE with no result and passed, so the assertion covered a shape the real
+    // call site never used — `the-named-suite-is-not-the-spec`, one line apart.
     nightVerdict(n.key, 'NOT_APPLICABLE', {
       offered: offeredLegs,
       judged: judgedLegs,
-      result: { legs: have },
       reason: `not a concurrent trio night — have ${have.join('+') || 'none'}, the run requires ${ALLOW_PARTIAL ? 1 : 3}`
     });
     continue;
