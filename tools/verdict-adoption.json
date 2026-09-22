@@ -582,6 +582,11 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/gap-s-sweep.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "a MEASUREMENT sweep for an owner ruling (GAP_S, measure-before-ruling): it reports where the CVHR index moves and decides nothing \u2014 no bands by design; its only verdict word is the selftest printer's FAIL"
+  },
   "tools/geometry-scan.mjs": {
    "bin": "word-only",
    "status": "exempt",

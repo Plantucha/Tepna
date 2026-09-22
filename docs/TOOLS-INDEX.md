@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**208 tools** · 206 with a purpose line · **2 without**
+**209 tools** · 207 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -66,6 +66,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`findings-ledger.mjs`](../tools/findings-ledger.mjs) | THE FINDINGS LEDGER — C1 of the qwen engineering program (QWEN-ENGINEERING-PROGRAM 2026-08-27 §4). |
 | [`formula-constant-audit.mjs`](../tools/formula-constant-audit.mjs) | REFERENCE-GUIDE-AUDIT dimension 2, made repeatable — the sibling of `severity-ladder-audit.mjs` (dimension 3). |
 | [`frozen-timeline-check.mjs`](../tools/frozen-timeline-check.mjs) | do the shipped bundles render BLANK when the document timeline never advances (print · PDF export · headless capture · a throttled background tab)? |
+| [`gap-s-sweep.mjs`](../tools/gap-s-sweep.mjs) | ECG-SATURATION-ABSENCE §"GAP_S": the cut that turns an inter-beat interval into an ABSENCE (`spansGap`, excluded, never median-filled) is `GAP_S = 10 s` in ecgdex-dsp.js and… |
 | [`gate-subject.mjs`](../tools/gate-subject.mjs) | print WHAT the gate is about to examine, before it examines it. |
 | [`gate-tightness.mjs`](../tools/gate-tightness.mjs) | A SOURCE-SCAN ASSERTION THAT A RENAME CAN SATISFY Reported by a peer session, with one confirmed instance. |
 | [`gen-comparator-twin.mjs`](../tools/gen-comparator-twin.mjs) | **⚠ NO PURPOSE LINE — add one to the header** |
