@@ -1178,6 +1178,44 @@
     ]
    },
    "note": "the THIRD RUNNER adopter and the largest (Magpie, 2026-09-22, VERDICT-CONTRACT \u00a73d) \u2014 the test runner's object, built here (pure) and called by tests/run-tests.mjs, which sits outside this gate's enumeration (tests/). A group is a child, an assertion is not (provenance 'assertions': a failing assertion \u21d2 FAIL, passes \u21d2 PASS, declared skips only \u21d2 NOT_APPLICABLE, none \u21d2 UNKNOWN); --group= and --shard= are declared exclusions \u21d2 filtered with the consumer rule; the skip budget is the runner's one own criterion (undeclared skip \u21d2 FAIL by name); the --jobs union aggregates the SHARD OBJECTS, a dead shard is an undeclared NOT_RUN \u21d2 UNKNOWN (\u00a74c made structural). --json payload carries `verdict` (a superset verify-shard-union still reads); the exit code stays. 32 plants; the cmd is three scratch shards, one dead."
+  },
+  "tests/run-tests.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tests/run-tests.mjs",
+     "--group=docs-ledger",
+     "--json"
+    ],
+    "key": "verdict"
+   },
+   "note": "the test RUNNER (VERDICT-CONTRACT \u00a73d, adopted #2835 through tools/run-tests-verdict.mjs, which holds the pure builders and their 35 plants): one object per process \u2014 a group is a child, an assertion is not; --group=/--shard= are declared exclusions \u21d2 filtered; the --jobs union aggregates the shard objects, a dead shard \u21d2 UNKNOWN. The cmd is a real, corpus-free filtered run; the object it emits carries filtered:true and the consumer rule, and validity is all this gate asserts of it. The --json payload wraps the object under `verdict` (emits.key), a superset of the shape verify-shard-union reads."
+  },
+  "tests/browser-gates.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "the headless-browser CI gate (render-coverage + no-network + night-seal): it READS verify-seals' objects for the seal leg and decides its own pass/fail by an exit code over FAILS[] \u2014 a runner over browser legs, \u00a73d shape; adopt after the three Node runners, population = the browser legs"
+  },
+  "tests/check-dex.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "the SCOPED runner (`SCOPED GREEN` / `SCOPED FAIL` over the groups a diff touches): a runner by construction filtered \u2014 under \u00a73d its object is filtered:true with excludedBy = the diff scope, never the gate; adopt by projecting run-tests' object"
+  },
+  "tests/verify-manifest.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "the Node sibling of verify-provenance.html: GATE A (bundle identity) + GATE B (fixture ledger) PASS/FAIL words over the shared manifest-gate core \u2014 a two-gate decision, population = bundles + fixtures; wave 4"
+  },
+  "tests/verify-shard-union.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "the partition proof (every group in exactly one shard; --deep diffs full-run vs shard-union verdicts): decides ok/not-ok by exit code; population = groups (and assertions under --deep); it consumes run-tests' --json and will read its `verdict` too once adopted"
+  },
+  "tests/build-core-tests.mjs": {
+   "bin": "test",
+   "status": "exempt"
   }
  }
 }

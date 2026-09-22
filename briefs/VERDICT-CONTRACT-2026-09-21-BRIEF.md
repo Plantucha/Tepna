@@ -333,7 +333,7 @@ object; the manifest row's `emits.cmd` is the runner over a scratch step list, c
 - [ ] Wave 1 adopters emit valid objects (oracle · measurement-walk · verify-seals · n1-cohort-track).
 - [x] `tools/verdict-adoption.mjs` names the set as an equality and reds on a producer outside it.
       ✅ **DONE 2026-09-22 (Osprey).** The population is COMPUTED (`git grep` for the verdict words over
-      `tools/*.mjs` + `capture-host/*.py`, on the tree) and every member is binned in the committed
+      `tools/*.mjs` + `capture-host/*.py`, on the tree — **+ `tests/*.mjs` since #PRNUM**, because the test runner adopted §3d from OUTSIDE the population, the one-of-N shape from the other side) and every member is binned in the committed
       `tools/verdict-adoption.json`: **152 producers — decides 25 · already-json 13 · word-only 75 (each
       with its reason; 60 are selftest assertion printers whose machine-readable result is the exit code +
       the `all N selftests passed` line) · test 39 (readers, not producers); 38 pending adoptions, 0
