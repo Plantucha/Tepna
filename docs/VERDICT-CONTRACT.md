@@ -83,6 +83,15 @@ decisions about numbers; the two compose (a verdict's `evidence[]` may name bloc
 
 ## Producers (the named set, counted — `VERDICT-CONTRACT` §3)
 
+The set is not this table — it is **`tools/verdict-adoption.json`**, held equal to the enumerated
+population by `tools/verdict-adoption.mjs --check` (`npm run check` · CI `static`): every file in
+`tools/*.mjs` and `capture-host/*.py` that prints a verdict word is binned as `decides` (adopt) ·
+`already-json` (converge) · `word-only` (exempt, with the reason) · `test` (a reader). An adoption is
+READ by the gate — `emits: { cmd: […] }` printing the object, or `emits: { file }` — and validated here;
+a row is never believed. Because CI runs `emits.cmd`, it must be cheap and corpus-free (a
+`--vectors --json` or selftest emission, a committed record), not the tool's real run. Below, the
+adopters landed so far; the manifest carries the pending ones by name.
+
 | adopter | shape | since |
 |---|---|---|
 | `n1-cohort-track` (local study, not committed) | `stable-within-noise → PASS` · `drifting → FAIL` (direction in `reason`) · `variable-no-trend → SHORTFALL` · no ICC → `UNKNOWN` · `inconclusive → UNDERPOWERED` · `inconclusive-for-stratum → NOT_APPLICABLE` with the stratum n; every object `scope: internal` (P5) | 2026-09-21 |
