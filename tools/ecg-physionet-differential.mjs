@@ -93,6 +93,7 @@ import { dirname, join, basename } from 'node:path';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import vm from 'node:vm';
+import { makeVerdict } from './verdict-emit.mjs';
 
 const require_ = createRequire(import.meta.url);
 const DexBuild = require_('./build-core.js');
@@ -320,6 +321,80 @@ export function verdict(se, ppv) {
   return 'DEFECT';
 }
 
+/* ── tepna.verdict/1 (VERDICT-CONTRACT §1; wave-2 adopter) — the PRE-STATED BANDS as ONE object ────
+   Criterion (registered above, before the first run): Se ≥ 99.0 % AND PPV ≥ 99.0 %, pooled over the
+   records present. PASS = CONSISTENT; FAIL = SHORTFALL or DEFECT — both are "the band was missed", the
+   tool's own band name and min(Se, PPV) ride in `reason` and `result.band` (the contract's SHORTFALL
+   status is a met headline with a failed sub-population, which this is not); NOT_RUN = no record
+   scored. POPULATION IS THE DENOMINATOR THE TOOL ALREADY PUBLISHES: checked = records scored,
+   eligible = records the manifest expects, excluded = the difference — so a pooled rate over 3 of 48
+   is visible in the object as it is in the prose ("a floor cannot detect exclusion").
+   ⚠ scope is `internal` and STAYS internal: P5 gates PUBLICATION of these numbers, not their
+   measurement — a producer must never write `publishable` here. */
+export function verdictObject(summary, { dir, commit, commitReason, at } = {}) {
+  const band = summary ? summary.verdict : 'NO DATA';
+  const scored = summary ? summary.records || 0 : 0;
+  const expected = summary && summary.recordsExpected ? summary.recordsExpected : scored;
+  const status = !scored || band === 'NO DATA' ? 'NOT_RUN' : band === 'CONSISTENT' ? 'PASS' : 'FAIL';
+  const m = summary && summary.sensitivityPct != null && summary.ppvPct != null ? Math.min(summary.sensitivityPct, summary.ppvPct) : null;
+  const partial = summary && summary.partialCorpus ? ' (PARTIAL CORPUS: ' + scored + ' of ' + expected + ' records — not the published 48-record figure)' : '';
+  return makeVerdict({
+    gate: 'ecg-physionet-differential',
+    status,
+    scope: 'internal',
+    population: { checked: status === 'NOT_RUN' ? 0 : scored, eligible: expected, excluded: status === 'NOT_RUN' ? expected : expected - scored },
+    criterion: { name: 'min(sensitivity, ppv) pooled over MIT-BIH records present', threshold: 99, unit: '%', direction: 'gte' },
+    result:
+      status === 'NOT_RUN'
+        ? null
+        : {
+            band,
+            sensitivityPct: summary.sensitivityPct,
+            ppvPct: summary.ppvPct,
+            min: m,
+            refBeats: summary.refBeats,
+            tp: summary.tp,
+            fp: summary.fp,
+            fn: summary.fn,
+            records: scored,
+            recordsExpected: summary.recordsExpected,
+            partialCorpus: summary.partialCorpus,
+            bands: summary.bands
+          },
+    evidence: ['tools/ecg-physionet-differential.mjs'].concat(dir ? [String(dir)] : []),
+    reason:
+      status === 'PASS'
+        ? null
+        : status === 'NOT_RUN'
+          ? 'no MIT-BIH record scored' + (dir ? ' under ' + dir : ' — records absent (100 % local; nothing is downloaded)')
+          : band + ' — min(Se, PPV) = ' + (m == null ? '?' : m.toFixed(3)) + ' % against the pre-stated 99.0 %' + partial,
+    tool: 'tools/ecg-physionet-differential.mjs',
+    commit,
+    commitReason,
+    at
+  });
+}
+/* What the adoption gate runs: a pooled summary of the published shape, through the real bands. */
+export function verdictSample() {
+  return verdictObject(
+    {
+      status: 'scored',
+      records: 48,
+      recordsExpected: 48,
+      partialCorpus: false,
+      refBeats: 109494,
+      tp: 108900,
+      fp: 500,
+      fn: 594,
+      sensitivityPct: 99.457,
+      ppvPct: 99.543,
+      verdict: 'CONSISTENT',
+      bands: { consistent: '>=99.0 both', shortfall: '95.0-99.0', defect: '<95.0' }
+    },
+    { commit: null, commitReason: '--verdict-sample: synthetic pooled summary, no code identity claimed', at: '2026-09-22T00:00:00Z' }
+  );
+}
+
 const sha256 = (b) => createHash('sha256').update(b).digest('hex');
 
 /* ── one record ───────────────────────────────────────────────────────────────────────────────
@@ -516,6 +591,31 @@ function selftest() {
   ok('band: 99.5/99.5 is CONSISTENT', verdict(99.5, 99.5) === 'CONSISTENT');
   ok('band: 98.0/99.9 is SHORTFALL (min governs)', verdict(98.0, 99.9) === 'SHORTFALL');
   ok('band: 94.9 is DEFECT', verdict(94.9, 99.9) === 'DEFECT');
+  // ── the object: every status through the real bands, the denominator published, scope pinned ──
+  const sm = (se, ppv, recs, exp) => ({
+    status: 'scored',
+    records: recs,
+    recordsExpected: exp,
+    partialCorpus: exp ? recs < exp : null,
+    refBeats: 1000,
+    tp: 990,
+    fp: 5,
+    fn: 10,
+    sensitivityPct: se,
+    ppvPct: ppv,
+    verdict: verdict(se, ppv),
+    bands: {}
+  });
+  const vo = (se, ppv, recs, exp) => verdictObject(sm(se, ppv, recs, exp), { commit: null, commitReason: 'selftest', at: '2026-09-22T00:00:00Z' });
+  ok('object: CONSISTENT ⇒ PASS, reason null', vo(99.5, 99.5, 48, 48).status === 'PASS' && vo(99.5, 99.5, 48, 48).reason === null);
+  ok('object: SHORTFALL band ⇒ FAIL naming the band and the min', vo(98, 99.9, 48, 48).status === 'FAIL' && /SHORTFALL.*98\.000/.test(vo(98, 99.9, 48, 48).reason));
+  ok('object: DEFECT band ⇒ FAIL naming DEFECT', /DEFECT/.test(vo(94.9, 99.9, 48, 48).reason));
+  ok(
+    'object: a partial corpus is IN the population (3 of 48 ⇒ excluded 45) and named in a FAIL reason',
+    vo(98, 99.9, 3, 48).population.excluded === 45 && /PARTIAL CORPUS/.test(vo(98, 99.9, 3, 48).reason)
+  );
+  ok('object: no record scored ⇒ NOT_RUN, result null', verdictObject(null, { commit: null, commitReason: 'selftest' }).status === 'NOT_RUN');
+  ok('object: scope is internal and cannot be lifted here (P5)', vo(99.5, 99.5, 48, 48).scope === 'internal' && verdictSample().scope === 'internal');
 
   // 10 · end-to-end: a synthetic record drives the REAL detector through the real reader.
   //      Asserts the CHAIN runs and produces beats. Deliberately asserts NO rate.
@@ -572,6 +672,10 @@ function selftest() {
 function main(argv) {
   const has = (f) => argv.includes(f);
   if (has('--selftest')) return selftest();
+  if (has('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample()));
+    return 0;
+  }
   const json = has('--json');
   const pin = has('--pin');
   const di = argv.indexOf('--dir');
@@ -591,7 +695,8 @@ function main(argv) {
 
   if (!recs.length) {
     const payload = { status: 'skipped', reason: 'no MIT-BIH records found', searched: paths };
-    if (json) console.log(JSON.stringify(payload, null, 2));
+    // absent records ⇒ a NOT_RUN verdict (nothing examined), with the old skip payload riding beside it
+    if (json) console.log(JSON.stringify({ ...verdictObject(null, { dir }), skipped: payload }, null, 2));
     else {
       console.log('⊘ SKIP — no MIT-BIH records found. NO METRICS PRODUCED.\n');
       console.log('  Searched, in order:');
@@ -668,7 +773,9 @@ function main(argv) {
   };
 
   if (json) {
-    console.log(JSON.stringify({ summary, records: rows }, null, 2));
+    // ONE object on stdout: the verdict, with the tool's own summary and per-record rows riding in
+    // `records`/`summary` beside it (a reader of the old shape finds them one level down)
+    console.log(JSON.stringify({ ...verdictObject(summary, { dir }), summary, records: rows }, null, 2));
     return 0;
   }
   console.log('▸ ECGDex Pan–Tompkins vs annotated beats — ' + dir + '\n');

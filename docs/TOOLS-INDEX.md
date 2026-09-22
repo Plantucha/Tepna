@@ -212,6 +212,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`trio-power-headless.mjs`](../tools/trio-power-headless.mjs) | run the sensor-trio power sweep headlessly, ON THE GPU. WHY. |
 | [`validate-exports.mjs`](../tools/validate-exports.mjs) | run the SHIPPED `validateNodeExport()` over every committed node export. |
 | [`verdict-adoption.mjs`](../tools/verdict-adoption.mjs) | The brief's first adopter list was a recency sample (eleven tools); enumerated, the population is ~150 files across both lanes. |
+| [`verdict-emit.mjs`](../tools/verdict-emit.mjs) | import { makeVerdict } from './verdict-emit.mjs'; const v = makeVerdict({ gate, status, population, criterion, result, evidence, reason, tool, commit?, at? |
 | [`verdict-undeclared.mjs`](../tools/verdict-undeclared.mjs) | VERDICT-CONTRACT §1: a threshold derived from the data it judges is UNKNOWN, not PASS. |
 | [`verify-draft-kills.mjs`](../tools/verify-draft-kills.mjs) | // // verify-draft-kills.mjs — does a drafted assertion, AS WRITTEN, actually kill its mutant? |
 | [`verify-drafts.mjs`](../tools/verify-drafts.mjs) | // // verify-drafts.mjs — re-verify qwen mutation drafts IN THE REALM THAT WILL RUN THEM. |
