@@ -2336,14 +2336,25 @@ def test_the_watchdog_fails_over_to_a_healthy_spare_then_exhausts(monkeypatch, c
         capture._EXIT_CODE[0] = 0
 
 
-def test_failover_can_be_disabled_and_does_not_even_probe(monkeypatch):
-    """watchdog.failover:false must not so much as enumerate the adapters — the pinned-radio ladder
-    behaves exactly as before, exiting on give-up."""
+def test_failover_can_be_disabled_and_does_not_migrate(monkeypatch):
+    """watchdog.failover:false must not pick a spare or move the pin — the pinned-radio ladder behaves
+    exactly as before, exiting on give-up.
+
+    This asserted "must not so much as enumerate the adapters" until 2026-09-22: the adapter-hci REPORT
+    (`_record_adapter_hci`, residue 2026-09-11) now enumerates every radio on every poll to write its
+    row, independent of failover — so enumeration is no longer the tell. What failover:false forbids is
+    the MIGRATION, and that is what is asserted: `_pick_live_spare` is never called and ADAPTER stays."""
     probed = []
+    picked = []
 
     async def spare(*a, **k):
         probed.append(1)
         return [{"hci": "hci1", "mac": "SPARE", "up": True}]
+
+    async def pick(*a, **k):
+        picked.append(1)
+        return "SPARE"
+    monkeypatch.setattr(capture, "_pick_live_spare", pick)
     _wedge_rig(monkeypatch, adapter_up=False)
     _quiet_deafness_probe(monkeypatch)
 
@@ -2357,8 +2368,10 @@ def test_failover_can_be_disabled_and_does_not_even_probe(monkeypatch):
            "watchdog": {"interval_sec": 1, "grace_checks": 1, "max_adapter_cycles": 1,
                         "failover": False, "exit_on_giveup": True}}
     try:
+        capture.ADAPTER = "PIN"
         _run(capture.adapter_watchdog("PIN", cfg))
-        assert probed == [], "failover:false must not probe the adapters"
+        assert picked == [] and capture.ADAPTER == "PIN", "failover:false must not pick a spare or move the pin"
+        assert probed, "the adapter-hci report still enumerates the radios — enumeration is not failover"
         assert capture._EXIT_CODE[0] == 1
     finally:
         capture._EXIT_CODE[0] = 0

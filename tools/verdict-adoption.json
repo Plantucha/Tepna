@@ -1178,6 +1178,22 @@
     ]
    },
    "note": "the THIRD RUNNER adopter and the largest (Magpie, 2026-09-22, VERDICT-CONTRACT \u00a73d) \u2014 the test runner's object, built here (pure) and called by tests/run-tests.mjs, which sits outside this gate's enumeration (tests/). A group is a child, an assertion is not (provenance 'assertions': a failing assertion \u21d2 FAIL, passes \u21d2 PASS, declared skips only \u21d2 NOT_APPLICABLE, none \u21d2 UNKNOWN); --group= and --shard= are declared exclusions \u21d2 filtered with the consumer rule; the skip budget is the runner's one own criterion (undeclared skip \u21d2 FAIL by name); the --jobs union aggregates the SHARD OBJECTS, a dead shard is an undeclared NOT_RUN \u21d2 UNKNOWN (\u00a74c made structural). --json payload carries `verdict` (a superset verify-shard-union still reads); the exit code stays. 32 plants; the cmd is three scratch shards, one dead."
+  },
+  "capture-host/adapter_hci.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/adapter_hci.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the adapter-hci night verdict (residue 2026-09-11-dead-adapter-goes-unnoticed, REPORT half): the watchdog probes every enumerated radio each poll (capture._adapter_responds, the HCI round trip) and appends a row per radio to <root>/ADAPTERHCI.csv; nightqc writes ADAPTERHCI-VERDICT.json beside the other two from the rows in the night's session window \u2014 pre-stated rule: longest run of unanswered polls >= 2 FAIL \u00b7 an isolated miss SHORTFALL \u00b7 every determinable probe answered PASS \u00b7 all undeterminable UNKNOWN \u00b7 no rows NOT_RUN; population = radios, all-None radios excluded; nothing here resets a radio"
+  },
+  "capture-host/tests/test_adapter_hci.py": {
+   "bin": "test",
+   "status": "exempt"
   }
  }
 }
