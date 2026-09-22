@@ -261,7 +261,9 @@ function commitShort() {
    correct and one shared inaccurate one is not. */
 function producedBy() {
   const commit = commitShort();
-  return commit ? { tool: 'tools/verify-seals.mjs', commit } : { tool: 'tools/verify-seals.mjs', commit: null, commitReason: 'git rev-parse --short HEAD failed in the tool\u2019s own directory (no checkout there)' };
+  return commit
+    ? { tool: 'tools/verify-seals.mjs', commit }
+    : { tool: 'tools/verify-seals.mjs', commit: null, commitReason: 'git rev-parse --short HEAD failed in the tool\u2019s own directory (no checkout there)' };
 }
 
 export function verdict({ status, result, reason, evidence }) {
