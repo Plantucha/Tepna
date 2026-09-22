@@ -225,7 +225,7 @@ function getProfile() {
       vo2gt: detOr0('vo2'),
       hrmax_manual: n(man.hrMax, 0) > 0 ? n(man.hrMax, 0) : 0,
       hrrest_manual: detOr0('hrRest'),
-      elev: n(p.elevation, 0)
+      elev: p.elevation != null && isFinite(n(p.elevation, NaN)) ? n(p.elevation, 0) : null // §∅ — absent ≠ sea level
     };
   }
   return {

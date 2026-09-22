@@ -106,6 +106,36 @@ three things that outlive it.
 > **What still stands:** the tool was blind to 54 wrist files and now is not, and it now prints its
 > denominator. Neither depends on any of the above.
 >
+> 🔴 **SETTLED 2026-09-22 — "corpus-dependent" is WITHDRAWN as unsupported** (residue
+> `2026-09-03-verity-jitter-corpus-vs-apparatus`; record
+> [`audits/VERITY-JITTER-CORPUS-2026-09-22.json`](../audits/VERITY-JITTER-CORPUS-2026-09-22.json)).
+> The two medians above were never compared **through their uncertainties**, so the word was a label
+> on an unexplained gap. Re-run with the same flags (`--device verity --sleep-only`) on both corpora,
+> bands written before either run: **box n=14 median 5.10 ms · PSL n=19 median 6.28 ms · Δ −1.18 ms,
+> 95 % bootstrap CI [−2.46, +0.44] ms** (B=10 000, seed 20260922). **The CI contains zero**, and
+> P(a box night is quieter than a PSL night) = 0.590 over 266 pairs — a shift too small to separate
+> these corpora at this n. The pre-stated rule was "CI includes 0 ⇒ not established", so that is the
+> answer, not "no difference": the corpora are **not distinguishable here**, which is a different
+> claim from being the same.
+>
+> ⚠️ **The 2026-08-18 numbers do not reproduce exactly, and anyone citing them needs the date**:
+> box **4.71 → 5.10 ms** (n 11 → 14) and PSL **6.09 → 6.28 ms**. More nights are on disk and
+> `ppgdex-dsp.js` has moved again, which is the re-derivation form working as intended — but it means
+> 4.71 and 6.09 are readings of a particular day, not constants.
+>
+> 🔵 **AND THAT GENERALISES PAST THIS BRIEF: a corpus median quoted without its DATE and its n is a
+> number with no referent.** Both terms move on their own — nights keep arriving, and the DSP that
+> derives the number keeps changing — so the pair (median, IQR) alone cannot be re-found, compared, or
+> falsified by anyone who reads it later. Every figure in the table above now carries both. Anything
+> elsewhere in the docs citing a corpus median bare is in the same position, and that is precisely
+> what the re-derivation form exists to catch: a frozen constant would have hidden the 4.71 → 5.10
+> move instead of surfacing it.
+>
+> ⚠️ **And the comparison is UNPAIRED — zero night dates are shared between the two corpora.** Device
+> naming, capture host, fragmentation and date range all differ at once, so even a CI that had
+> excluded zero would have identified *"these two collections differ"*, never *"the corpus is the
+> cause"*. That limit was written down before the run, not after it.
+>
 > ⚠️ **The general fault, twice in one day, is asserting equivalence across an axis I had not checked.**
 > First corpus identity; then, having fixed that, I kept a conclusion that only one of the two corpora
 > supported. A measurement that disagrees between corpora is a statement about *corpus sensitivity*, and
