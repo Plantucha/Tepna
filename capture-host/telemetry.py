@@ -385,8 +385,12 @@ def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None,
                  charging: bool | None = None,
                  contact: bool | None = None,
                  beats: bool | None = None,
+                 charging_why: str | None = None,
                  ppg=None) -> tuple[bool | None, str]:
     """Combine every worn detector that is AVAILABLE and IN DOMAIN into one verdict plus its reason.
+
+    `charging_why` says how `charging` was decided — `"rising"` / `"pmd-in-charger"` (measured) or
+    `"flat-at-full"` (inferred); it matters exactly once, against `beats` (below).
 
     Returns `(verdict, why)`. `why` names which detectors voted, so "no verdict" is visible rather
     than silent — the failure this function was written after was not a wrong answer but a STALE one:
@@ -416,7 +420,16 @@ def worn_verdict(*, ppi_flags=None, ambient=None, fs: float | None = None,
     # the only signal in the set that is a PHYSICAL FACT about where the device is rather than an
     # inference about what it is seeing, which is why it may overrule a contact bit that says worn —
     # and on 2026-08-14 that contact bit did say worn, for 80 minutes, on a charger.
-    if charging:
+    # ── …EXCEPT AN INFERRED DOCK AGAINST A MEASURED HEARTBEAT ────────────────────────────────────────
+    # `charging` has sources of very different weight: a battery that ROSE or the PMD's own IN_CHARGER
+    # state (measurements — cells do not self-charge) and a battery FLAT AT 100 % for 45 min (an
+    # inference written for the Verity's dock). The inference cannot tell a docked armband from a chest
+    # strap on a fresh CR2025, which sits at 100 % for days — measured 2026-09-22 04:00 on vigil: the
+    # H10 on a chest, 62 bpm every second, `charging: True` from the flat rule, 140 link drops since
+    # 22:08 under "not worn — on charger". A heartbeat is the strap's own measurement that it is on a
+    # body; an inferred dock does not outrank it. A measured charge still does — a rising cell IS a
+    # physical fact about where the device is, whatever its packets say.
+    if charging and not (beats and charging_why == "flat-at-full"):
         return False, "not worn — on charger (a docked device is not on a wrist)"
     votes: list[tuple[str, bool]] = []
     # The HR characteristic's contact bit, ALREADY DECODED by the caller — a different signal from the

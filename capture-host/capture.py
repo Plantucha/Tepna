@@ -3409,7 +3409,8 @@ async def run_polar(dev: dict, root: str):
                         _publish_worn(*worn_verdict(
                             contact=contact,
                             beats=hr_beats(bpm, len(rr)),
-                            charging=STATUS["devices"].get(name, {}).get("charging")))
+                            charging=STATUS["devices"].get(name, {}).get("charging"),
+                            charging_why=STATUS["devices"].get(name, {}).get("charging_why")))
                     if rr:                        # raw RR intervals to the monitor (no HRV computed on-box)
                         BUS.push(_live_key("hr", tag), [float(x) for x in rr], 0)
                     if bpm:
@@ -3449,9 +3450,9 @@ async def run_polar(dev: dict, root: str):
                             # A battery that RISES is unambiguous: these cells do not self-charge.
                             prev = STATUS["devices"].get(name, {}).get("battery")
                             if isinstance(prev, int) and lvl > prev:
-                                _set(name, charging=True)
+                                _set(name, charging=True, charging_why="rising")     # a cell that ROSE: measured
                             elif isinstance(prev, int) and lvl < prev:
-                                _set(name, charging=False)   # discharging again -> off the dock
+                                _set(name, charging=False, charging_why=None)   # discharging again -> off the dock
                             _set(name, battery=lvl)
                             # AT FULL, FLATNESS REPLACES RISING. The rule above cannot fire at 100 %
                             # — there is nowhere to rise to — so a device docked while full reported
@@ -3460,9 +3461,11 @@ async def run_polar(dev: dict, root: str):
                             # from a wrist. Streaming drains ~9 %/h, so 45 min of no movement at full
                             # is a charger.
                             # store is module-level, so a reconnect does not restart the clock
-                            if note_flat_battery(_BATT_FLAT_SINCE, name, prev, lvl,
-                                                 _time.monotonic()):
-                                _set(name, charging=True)
+                            if note_flat_battery(_BATT_FLAT_SINCE, name, prev, lvl, _time.monotonic()):
+                                # the INFERENCE, named so worn_verdict can weigh it against a heartbeat. It
+                                # cannot fire on the read that measured a rise (lvl > prev resets the clock),
+                                # so it never overwrites `rising` within a session.
+                                _set(name, charging=True, charging_why="flat-at-full")
                     except Exception:
                         # The charging/flat-battery detector silently STOPS here — `charging` keeps whatever it last
                         # held, so a docked device goes on looking worn. Say it, or the detector is machinery that
@@ -3725,7 +3728,7 @@ async def run_polar(dev: dict, root: str):
                                 # firing the on-charger auto-pull each time. A wrong flag was not
                                 # cosmetic: it cost the recording.
                                 if st == pmd.IN_CHARGER:
-                                    _set(name, charging=True,
+                                    _set(name, charging=True, charging_why="pmd-in-charger",
                                          last_error="charging — PMD streams unavailable until off the charger")
                                     _CHARGING.add(name)
                                     charging_hold = True
