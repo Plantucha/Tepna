@@ -1,0 +1,864 @@
+{
+ "schema": "tepna.audit/pat-mode-posture/1",
+ "measured": "2026-09-22",
+ "tool": "tools/pat-mode-posture.mjs",
+ "command": "node tools/pat-mode-posture.mjs --dir /srv/data/tepna-corpus/smoketest-captures --json",
+ "note": "ONE population. uploads/vigil-archive/captures scored 14 nights with row-for-row identical numbers because it holds the same recordings (byte-identical files); it is not a replication and is not recorded separately. Bands were committed in the tool header before the first corpus night was scored.",
+ "postHoc": {
+  "note": "NOT pre-registered; supporting only",
+  "spearmanDmodeVsDt": {
+   "allPairs": {
+    "rho": 0.259,
+    "n": 202
+   },
+   "samePosturePairs": {
+    "rho": 0.19,
+    "n": 104
+   }
+  }
+ },
+ "verdict": {
+  "schema": "tepna.verdict/1",
+  "gate": "pat-mode-posture",
+  "status": "FAIL",
+  "scope": "internal",
+  "population": {
+   "checked": 15,
+   "eligible": 69,
+   "excluded": 54
+  },
+  "criterion": {
+   "name": "median_same_posture_over_adjacent_different_posture_mode_diff_ratio",
+   "threshold": 0.5,
+   "unit": "ratio",
+   "direction": "lte"
+  },
+  "result": {
+   "reading": "TIME-LEANING: median ratio 2.00 ≥ 1 — same-posture pairs agree no better than posture changes; returning to a posture does not return the mode, so trunk posture is NOT the covariate — the mode follows elapsed time or a variable this design does not hold. (FAIL is the contract word, not a tool failure.)",
+   "medianRatio": 2,
+   "shareBelow1": 0.2,
+   "nights": [
+    {
+     "night": "2026-07-21",
+     "ratio": 2,
+     "p": 0.84,
+     "nS": 38,
+     "nD": 7,
+     "medS": 40,
+     "medD": 20,
+     "segments": 13,
+     "classes": "llsslslssssls",
+     "rows": [
+      {
+       "cls": "left",
+       "start": 1784667413984,
+       "end": 1784667893984,
+       "beats": 477,
+       "mode": 455
+      },
+      {
+       "cls": "left",
+       "start": 1784667953984,
+       "end": 1784668343984,
+       "beats": 349,
+       "mode": 465
+      },
+      {
+       "cls": "supine",
+       "start": 1784668763984,
+       "end": 1784669513984,
+       "beats": 653,
+       "mode": 485
+      },
+      {
+       "cls": "supine",
+       "start": 1784669933984,
+       "end": 1784670173984,
+       "beats": 208,
+       "mode": 485
+      },
+      {
+       "cls": "left",
+       "start": 1784670173984,
+       "end": 1784670503984,
+       "beats": 287,
+       "mode": 495
+      },
+      {
+       "cls": "supine",
+       "start": 1784670503984,
+       "end": 1784671343984,
+       "beats": 716,
+       "mode": 515
+      },
+      {
+       "cls": "left",
+       "start": 1784671343984,
+       "end": 1784671583984,
+       "beats": 214,
+       "mode": 435
+      },
+      {
+       "cls": "supine",
+       "start": 1784671703984,
+       "end": 1784672603984,
+       "beats": 760,
+       "mode": 425
+      },
+      {
+       "cls": "supine",
+       "start": 1784672873984,
+       "end": 1784673563984,
+       "beats": 591,
+       "mode": 495
+      },
+      {
+       "cls": "supine",
+       "start": 1784673623984,
+       "end": 1784674283984,
+       "beats": 562,
+       "mode": 525
+      },
+      {
+       "cls": "supine",
+       "start": 1784674313984,
+       "end": 1784676233984,
+       "beats": 1655,
+       "mode": 465
+      },
+      {
+       "cls": "left",
+       "start": 1784676233984,
+       "end": 1784676563984,
+       "beats": 305,
+       "mode": 385
+      },
+      {
+       "cls": "supine",
+       "start": 1784676563984,
+       "end": 1784688083984,
+       "beats": 9083,
+       "mode": 445
+      }
+     ]
+    },
+    {
+     "night": "2026-07-26",
+     "ratio": 2.409090909090909,
+     "p": 0.315,
+     "nS": 34,
+     "nD": 8,
+     "medS": 265,
+     "medD": 110,
+     "segments": 12,
+     "classes": "slssslsslsls",
+     "rows": [
+      {
+       "cls": "supine",
+       "start": 1785078743410,
+       "end": 1785079883410,
+       "beats": 1447,
+       "mode": 205
+      },
+      {
+       "cls": "left",
+       "start": 1785079883410,
+       "end": 1785080603410,
+       "beats": 869,
+       "mode": 805
+      },
+      {
+       "cls": "supine",
+       "start": 1785080603410,
+       "end": 1785082133410,
+       "beats": 1787,
+       "mode": 725
+      },
+      {
+       "cls": "supine",
+       "start": 1785082163410,
+       "end": 1785082823410,
+       "beats": 790,
+       "mode": 695
+      },
+      {
+       "cls": "supine",
+       "start": 1785082973410,
+       "end": 1785083633410,
+       "beats": 807,
+       "mode": 575
+      },
+      {
+       "cls": "left",
+       "start": 1785083633410,
+       "end": 1785085103410,
+       "beats": 1884,
+       "mode": 595
+      },
+      {
+       "cls": "supine",
+       "start": 1785085103410,
+       "end": 1785085643410,
+       "beats": 648,
+       "mode": 685
+      },
+      {
+       "cls": "supine",
+       "start": 1785085673410,
+       "end": 1785086123410,
+       "beats": 550,
+       "mode": 725
+      },
+      {
+       "cls": "left",
+       "start": 1785086123410,
+       "end": 1785087353410,
+       "beats": 1491,
+       "mode": 15
+      },
+      {
+       "cls": "supine",
+       "start": 1785087353410,
+       "end": 1785088613410,
+       "beats": 1413,
+       "mode": 205
+      },
+      {
+       "cls": "left",
+       "start": 1785088613410,
+       "end": 1785088823410,
+       "beats": 301,
+       "mode": 335
+      },
+      {
+       "cls": "supine",
+       "start": 1785088973410,
+       "end": 1785089363410,
+       "beats": 455,
+       "mode": 425
+      }
+     ]
+    },
+    {
+     "night": "2026-08-01",
+     "ratio": 0.8378378378378378,
+     "p": 0.57,
+     "nS": 1,
+     "nD": 1,
+     "medS": 310,
+     "medD": 370,
+     "segments": 3,
+     "classes": "ssl",
+     "rows": [
+      {
+       "cls": "supine",
+       "start": 1785624465921,
+       "end": 1785651225921,
+       "beats": 23501,
+       "mode": 135
+      },
+      {
+       "cls": "supine",
+       "start": 1785651375921,
+       "end": 1785657945921,
+       "beats": 6001,
+       "mode": 445
+      },
+      {
+       "cls": "left",
+       "start": 1785657945921,
+       "end": 1785658155921,
+       "beats": 425,
+       "mode": 75
+      }
+     ]
+    },
+    {
+     "night": "2026-08-04",
+     "ratio": 2.5,
+     "p": 0.82,
+     "nS": 1,
+     "nD": 3,
+     "medS": 100,
+     "medD": 40,
+     "segments": 4,
+     "classes": "susl",
+     "rows": [
+      {
+       "cls": "supine",
+       "start": 1785884434233,
+       "end": 1785907144233,
+       "beats": 20207,
+       "mode": 315
+      },
+      {
+       "cls": "upright",
+       "start": 1785907144233,
+       "end": 1785907474233,
+       "beats": 305,
+       "mode": 315
+      },
+      {
+       "cls": "supine",
+       "start": 1785907474233,
+       "end": 1785911014233,
+       "beats": 3261,
+       "mode": 415
+      },
+      {
+       "cls": "left",
+       "start": 1785911224233,
+       "end": 1785912394233,
+       "beats": 1083,
+       "mode": 375
+      }
+     ]
+    },
+    {
+     "night": "2026-08-06",
+     "ratio": 2,
+     "p": 1,
+     "nS": 1,
+     "nD": 2,
+     "medS": 300,
+     "medD": 150,
+     "segments": 3,
+     "classes": "sus",
+     "rows": [
+      {
+       "cls": "supine",
+       "start": 1786049763807,
+       "end": 1786075023807,
+       "beats": 25455,
+       "mode": 985
+      },
+      {
+       "cls": "upright",
+       "start": 1786075023807,
+       "end": 1786076103807,
+       "beats": 1010,
+       "mode": 865
+      },
+      {
+       "cls": "supine",
+       "start": 1786076103807,
+       "end": 1786083513807,
+       "beats": 6984,
+       "mode": 685
+      }
+     ]
+    },
+    {
+     "night": "2026-08-07",
+     "ratio": 1.1129032258064515,
+     "p": 0.63,
+     "nS": 2,
+     "nD": 3,
+     "medS": 345,
+     "medD": 310,
+     "segments": 4,
+     "classes": "susu",
+     "rows": [
+      {
+       "cls": "supine",
+       "start": 1786139516615,
+       "end": 1786161326615,
+       "beats": 20757,
+       "mode": 135
+      },
+      {
+       "cls": "upright",
+       "start": 1786161326615,
+       "end": 1786162496615,
+       "beats": 1090,
+       "mode": 515
+      },
+      {
+       "cls": "supine",
+       "start": 1786162496615,
+       "end": 1786171436615,
+       "beats": 7891,
+       "mode": 685
+      },
+      {
+       "cls": "upright",
+       "start": 1786171436615,
+       "end": 1786171886615,
+       "beats": 425,
+       "mode": 375
+      }
+     ]
+    },
+    {
+     "night": "2026-08-11",
+     "ratio": 0.4496124031007752,
+     "p": 0.355,
+     "nS": 1,
+     "nD": 2,
+     "medS": 290,
+     "medD": 645,
+     "segments": 3,
+     "classes": "sus",
+     "rows": [
+      {
+       "cls": "supine",
+       "start": 1786484421672,
+       "end": 1786505841672,
+       "beats": 18713,
+       "mode": 515
+      },
+      {
+       "cls": "upright",
+       "start": 1786505841672,
+       "end": 1786506051672,
+       "beats": 200,
+       "mode": 15
+      },
+      {
+       "cls": "supine",
+       "start": 1786506051672,
+       "end": 1786512621672,
+       "beats": 12702,
+       "mode": 805
+      }
+     ]
+    },
+    {
+     "night": "2026-08-25",
+     "ratio": 1.3333333333333333,
+     "p": 0.5,
+     "nS": 3,
+     "nD": 2,
+     "medS": 100,
+     "medD": 75,
+     "segments": 4,
+     "classes": "ssls",
+     "rows": [
+      {
+       "cls": "supine",
+       "start": 1787687982594,
+       "end": 1787688522594,
+       "beats": 543,
+       "mode": 245
+      },
+      {
+       "cls": "supine",
+       "start": 1787688582594,
+       "end": 1787691672594,
+       "beats": 3183,
+       "mode": 345
+      },
+      {
+       "cls": "left",
+       "start": 1787691672594,
+       "end": 1787691942594,
+       "beats": 315,
+       "mode": 465
+      },
+      {
+       "cls": "supine",
+       "start": 1787691942594,
+       "end": 1787720232594,
+       "beats": 25463,
+       "mode": 435
+      }
+     ]
+    },
+    {
+     "night": "2026-09-03",
+     "ratio": 0.5753424657534246,
+     "p": 0.13,
+     "nS": 15,
+     "nD": 2,
+     "medS": 210,
+     "medD": 365,
+     "segments": 7,
+     "classes": "sssssus",
+     "rows": [
+      {
+       "cls": "supine",
+       "start": 1788468326272,
+       "end": 1788469286272,
+       "beats": 988,
+       "mode": 345
+      },
+      {
+       "cls": "supine",
+       "start": 1788469406272,
+       "end": 1788471596272,
+       "beats": 2049,
+       "mode": 135
+      },
+      {
+       "cls": "supine",
+       "start": 1788472016272,
+       "end": 1788472466272,
+       "beats": 415,
+       "mode": 525
+      },
+      {
+       "cls": "supine",
+       "start": 1788473246272,
+       "end": 1788474056272,
+       "beats": 797,
+       "mode": 185
+      },
+      {
+       "cls": "supine",
+       "start": 1788478886272,
+       "end": 1788484556272,
+       "beats": 5176,
+       "mode": 125
+      },
+      {
+       "cls": "upright",
+       "start": 1788484556272,
+       "end": 1788486176272,
+       "beats": 1443,
+       "mode": 655
+      },
+      {
+       "cls": "supine",
+       "start": 1788486176272,
+       "end": 1788495986272,
+       "beats": 3065,
+       "mode": 455
+      }
+     ]
+    },
+    {
+     "night": "2026-09-04",
+     "ratio": 1.9310344827586208,
+     "p": 0.75,
+     "nS": 1,
+     "nD": 2,
+     "medS": 560,
+     "medD": 290,
+     "segments": 3,
+     "classes": "sls",
+     "rows": [
+      {
+       "cls": "supine",
+       "start": 1788554416205,
+       "end": 1788555226205,
+       "beats": 939,
+       "mode": 575
+      },
+      {
+       "cls": "left",
+       "start": 1788555226205,
+       "end": 1788555376205,
+       "beats": 206,
+       "mode": 585
+      },
+      {
+       "cls": "supine",
+       "start": 1788555376205,
+       "end": 1788566656205,
+       "beats": 7758,
+       "mode": 15
+      }
+     ]
+    },
+    {
+     "night": "2026-09-05",
+     "ratio": 1.125,
+     "p": 0.175,
+     "nS": 4,
+     "nD": 3,
+     "medS": 180,
+     "medD": 160,
+     "segments": 5,
+     "classes": "suusu",
+     "rows": [
+      {
+       "cls": "supine",
+       "start": 1788566725664,
+       "end": 1788581965664,
+       "beats": 14252,
+       "mode": 675
+      },
+      {
+       "cls": "upright",
+       "start": 1788581965664,
+       "end": 1788582835664,
+       "beats": 838,
+       "mode": 325
+      },
+      {
+       "cls": "upright",
+       "start": 1788583015664,
+       "end": 1788584095664,
+       "beats": 1056,
+       "mode": 425
+      },
+      {
+       "cls": "supine",
+       "start": 1788584095664,
+       "end": 1788587065664,
+       "beats": 2743,
+       "mode": 355
+      },
+      {
+       "cls": "upright",
+       "start": 1788587065664,
+       "end": 1788587845664,
+       "beats": 330,
+       "mode": 195
+      }
+     ]
+    },
+    {
+     "night": "2026-09-06",
+     "ratio": 2,
+     "p": 1,
+     "nS": 1,
+     "nD": 2,
+     "medS": 190,
+     "medD": 95,
+     "segments": 3,
+     "classes": "sus",
+     "rows": [
+      {
+       "cls": "supine",
+       "start": 1788653297355,
+       "end": 1788660167355,
+       "beats": 6278,
+       "mode": 485
+      },
+      {
+       "cls": "upright",
+       "start": 1788660227355,
+       "end": 1788663467355,
+       "beats": 2804,
+       "mode": 395
+      },
+      {
+       "cls": "supine",
+       "start": 1788663527355,
+       "end": 1788676007355,
+       "beats": 6569,
+       "mode": 295
+      }
+     ]
+    },
+    {
+     "night": "2026-09-11",
+     "ratio": 14,
+     "p": 0.835,
+     "nS": 10,
+     "nD": 2,
+     "medS": 280,
+     "medD": 20,
+     "segments": 6,
+     "classes": "slssss",
+     "rows": [
+      {
+       "cls": "supine",
+       "start": 1789155919756,
+       "end": 1789156789756,
+       "beats": 1178,
+       "mode": 515
+      },
+      {
+       "cls": "left",
+       "start": 1789156789756,
+       "end": 1789157269756,
+       "beats": 664,
+       "mode": 515
+      },
+      {
+       "cls": "supine",
+       "start": 1789157359756,
+       "end": 1789157509756,
+       "beats": 208,
+       "mode": 555
+      },
+      {
+       "cls": "supine",
+       "start": 1789157629756,
+       "end": 1789161079756,
+       "beats": 4683,
+       "mode": 115
+      },
+      {
+       "cls": "supine",
+       "start": 1789161109756,
+       "end": 1789168369756,
+       "beats": 9194,
+       "mode": 255
+      },
+      {
+       "cls": "supine",
+       "start": 1789168489756,
+       "end": 1789175419756,
+       "beats": 6696,
+       "mode": 15
+      }
+     ]
+    },
+    {
+     "night": "2026-09-12",
+     "ratio": 2.2,
+     "p": 0.81,
+     "nS": 21,
+     "nD": 4,
+     "medS": 330,
+     "medD": 150,
+     "segments": 9,
+     "classes": "sslssssus",
+     "rows": [
+      {
+       "cls": "supine",
+       "start": 1789240554376,
+       "end": 1789242894376,
+       "beats": 2783,
+       "mode": 95
+      },
+      {
+       "cls": "supine",
+       "start": 1789243014376,
+       "end": 1789244394376,
+       "beats": 1619,
+       "mode": 145
+      },
+      {
+       "cls": "left",
+       "start": 1789244724376,
+       "end": 1789246314376,
+       "beats": 1836,
+       "mode": 135
+      },
+      {
+       "cls": "supine",
+       "start": 1789246854376,
+       "end": 1789247574376,
+       "beats": 712,
+       "mode": 835
+      },
+      {
+       "cls": "supine",
+       "start": 1789247664376,
+       "end": 1789247964376,
+       "beats": 264,
+       "mode": 55
+      },
+      {
+       "cls": "supine",
+       "start": 1789248474376,
+       "end": 1789249014376,
+       "beats": 447,
+       "mode": 635
+      },
+      {
+       "cls": "supine",
+       "start": 1789249854376,
+       "end": 1789267434376,
+       "beats": 14760,
+       "mode": 345
+      },
+      {
+       "cls": "upright",
+       "start": 1789267434376,
+       "end": 1789271934376,
+       "beats": 4043,
+       "mode": 275
+      },
+      {
+       "cls": "supine",
+       "start": 1789271934376,
+       "end": 1789280184376,
+       "beats": 5380,
+       "mode": 505
+      }
+     ]
+    },
+    {
+     "night": "2026-09-19",
+     "ratio": 4.5,
+     "p": 0.87,
+     "nS": 9,
+     "nD": 4,
+     "medS": 90,
+     "medD": 20,
+     "segments": 7,
+     "classes": "sllslss",
+     "rows": [
+      {
+       "cls": "supine",
+       "start": 1789845640807,
+       "end": 1789846240807,
+       "beats": 580,
+       "mode": 555
+      },
+      {
+       "cls": "left",
+       "start": 1789846240807,
+       "end": 1789847620807,
+       "beats": 1585,
+       "mode": 535
+      },
+      {
+       "cls": "left",
+       "start": 1789847710807,
+       "end": 1789848100807,
+       "beats": 388,
+       "mode": 465
+      },
+      {
+       "cls": "supine",
+       "start": 1789848220807,
+       "end": 1789848430807,
+       "beats": 217,
+       "mode": 465
+      },
+      {
+       "cls": "left",
+       "start": 1789848430807,
+       "end": 1789848640807,
+       "beats": 213,
+       "mode": 445
+      },
+      {
+       "cls": "supine",
+       "start": 1789848640807,
+       "end": 1789848910807,
+       "beats": 272,
+       "mode": 405
+      },
+      {
+       "cls": "supine",
+       "start": 1789848940807,
+       "end": 1789849420807,
+       "beats": 475,
+       "mode": 305
+      }
+     ]
+    }
+   ],
+   "excludedBy": {
+    "fewer-than-2-scorable-segments": 36,
+    "no-adjacent-different-posture-pair": 5,
+    "no-same-posture-pair": 5,
+    "missing-stream": 5,
+    "too-few-beats": 3
+   },
+   "bands": {
+    "phys": [
+     0.5,
+     0.7
+    ],
+    "time": 1
+   }
+  },
+  "evidence": [
+   "/srv/data/tepna-corpus/smoketest-captures"
+  ],
+  "reason": "TIME-LEANING: median ratio 2.00 ≥ 1 — same-posture pairs agree no better than posture changes; returning to a posture does not return the mode, so trunk posture is NOT the covariate — the mode follows elapsed time or a variable this design does not hold. (FAIL is the contract word, not a tool failure.)",
+  "producedBy": {
+   "tool": "tools/pat-mode-posture.mjs",
+   "commit": "75863c58"
+  },
+  "at": "2026-09-22T23:16:30Z"
+ }
+}
