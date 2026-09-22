@@ -83,7 +83,12 @@ export function parseAcc(text) {
   const x = [];
   const y = [];
   const z = [];
-  const re = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?;[^;]*;(-?\d+);(-?\d+);(-?\d+)/;
+  /* Two layouts in the corpus: `stamp;ns;X;Y;Z` (2026-08 onward) and the earlier
+     `stamp;ns;timestamp [ms];X;Y;Z` (2026-07-16 carries it). The gravity triple is always the LAST
+     three integer fields; the optional middle column is skipped by shape, not by header parsing.
+     Measured 2026-09-22: the first parser assumed five fields and read every early night as
+     `acc-empty` — a NAMED skip, which is the only reason it was seen. */
+  const re = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?;[^;]*;(?:[^;]*;)?(-?\d+);(-?\d+);(-?\d+)\s*$/;
   for (const line of text.split('\n')) {
     const m = re.exec(line);
     if (!m) continue;
@@ -367,6 +372,11 @@ async function selftest() {
   /* parse: the capture-host layout line, ms kept, mg → g */
   const a = parseAcc('Phone timestamp;sensor timestamp [ns];X [mg];Y [mg];Z [mg]\n2026-08-04T22:48:10.115;599616068360302728;-733;115;51\n2026-08-04T22:48:10.155;5996;-700;100;60\n');
   ok(a.t.length === 2 && a.t[0] === Date.UTC(2026, 7, 4, 22, 48, 10, 115) && Math.abs(a.x[0] + 0.733) < 1e-9, 'parseAcc reads the phone stamp by regex onto the floating axis and scales mg→g');
+  const a6 = parseAcc('Phone timestamp;sensor timestamp [ns];timestamp [ms];X [mg];Y [mg];Z [mg]\n2026-07-16T21:08:59.143;599635091648980304;0.0;-707;-19;681\n');
+  ok(
+    a6.t.length === 1 && Math.abs(a6.x[0] + 0.707) < 1e-9 && Math.abs(a6.z[0] - 0.681) < 1e-9,
+    'the EARLY six-column layout (extra `timestamp [ms]`) parses to the same triple — the 2026-07 nights are not acc-empty'
+  );
   /* segments: unknown dropped without breaking, a class change breaks, a long gap breaks */
   const E = (k, cls) => ({ start: k * 30000, end: (k + 1) * 30000, cls });
   const sg = segments([E(0, 'supine'), E(1, 'unknown'), E(2, 'supine'), E(3, 'left'), E(4, 'left'), E(30, 'left')]);
@@ -423,7 +433,7 @@ async function selftest() {
   const sr = await sampleRun();
   const vs = runVerdict(sr.rows, sr.excludedBy, sr.eligible, { commit: 'abc1234', evidence: ['<sample>'] });
   ok(V.validate(vs).ok, `the sample verdict validates under verdict.js: ${JSON.stringify(V.validate(vs).errors)}`);
-  const N = 20;
+  const N = 21;
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
     console.log(`SELFTEST FAIL (${fails.length} of ${N})`);
