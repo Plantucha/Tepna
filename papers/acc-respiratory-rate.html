@@ -46,6 +46,35 @@
     The <i>field</i> half of the validation — a re-measurement on a capture-box night — remains
     outstanding and is <b>not</b> claimed here.
   </p>
+  <p class="correction" style="border:2px solid #b00;background:#fff4f4;padding:.6em .9em;margin:.8em 0">
+    <b>🔴 CORRECTION — 2026-09-22 (cohort description).</b> The 2026-09-07 correction restated the
+    headline and left the <em>cohort description</em> it was measured on: &ldquo;26 nights (172&nbsp;h)&rdquo;
+    still stands in the title, the abstract&rsquo;s Methods, &sect;2.1, &sect;2.3, &sect;5 and &sect;6 below.
+    Those sentences describe the retracted cohort. The figures and the headline come from the re-run
+    whose cohort manifest is committed (<code>papers/figures/cohort-manifest.json</code>), reproduced
+    byte-for-byte on 2026-09-22 (owner ruling 2026-09-21, OWNER-DECISION-QUEUE D9.1); every value below
+    is a sourced claim against <code>analysis/published-numbers/acc-resp-cohort-2026-09-22.json</code>, none hand-typed.
+    The cohort is <b>CLAIM respaccPairedNights = 49 FROM analysis/published-numbers/acc-resp-cohort-2026-09-22.json#claims/pairedNights ACC/CPAP-paired nights</b>,
+    of which <b>CLAIM respaccScoredNights = 14 FROM analysis/published-numbers/acc-resp-cohort-2026-09-22.json#claims/scoredNights were scored</b>
+    (the rest are off-model or unlocked in the clock table, listed in the manifest), totalling
+    <b>CLAIM respaccHours = 71.5 FROM analysis/published-numbers/acc-resp-cohort-2026-09-22.json#claims/hours h</b> and
+    <b>CLAIM respaccEpochs = 8057 FROM analysis/published-numbers/acc-resp-cohort-2026-09-22.json#claims/epochs epochs</b>. Read the originals with these
+    substitutions: title and &sect;6 &ldquo;172 hours / 172&nbsp;h&rdquo; &rarr; 71.5&nbsp;h; abstract Methods and &sect;2.1
+    &ldquo;26 nights (172&nbsp;h)&rdquo; &rarr; 14 scored nights (71.5&nbsp;h) of 49 paired; &sect;2.3 &ldquo;bootstrap over the 26
+    nights&rdquo; &rarr; over the 14 scored nights; &sect;5 &ldquo;across all 26 nights (per-night &minus;0.20 to &minus;1.27)&rdquo;
+    &rarr; across the 14 scored nights, per-night bias
+    <b>CLAIM respaccBiasMin = -1.63 FROM analysis/published-numbers/acc-resp-cohort-2026-09-22.json#claims/perNightBiasMin</b> to
+    <b>CLAIM respaccBiasMax = -0.11 FROM analysis/published-numbers/acc-resp-cohort-2026-09-22.json#claims/perNightBiasMax brpm</b>; the per-night MAE line in
+    &sect;3 (0.76&ndash;3.31, median
+    <b>CLAIM respaccMaeMedian = 1.04 FROM analysis/published-numbers/acc-resp-cohort-2026-09-22.json#claims/perNightMaeMedian</b>) was already the re-run&rsquo;s and
+    is now sourced rather than transcribed.
+    <b>Not restated:</b> &sect;5&rsquo;s claim that the +0.58&nbsp;brpm constant is &ldquo;consistent across all 26
+    nights&rdquo; under leave-one-night-out. The current tool applies the shipped constant and reports per-night
+    bias; it does not emit a leave-one-night-out estimate, so that sentence is withdrawn rather than carried
+    forward under a corrected paper (the 2026-09-07 rule for the event-free-epoch row). The estimator, the
+    reference and the headline are unchanged by this correction; only the description of what they were
+    measured on.
+  </p>
   <p class="kw"><b>Keywords:</b> respiratory rate · accelerometry · Polar H10 · CPAP · Viterbi · spectral tracking · abstention · sleep · n-of-1</p>
 
   <h2 class="sec">1. Introduction</h2>

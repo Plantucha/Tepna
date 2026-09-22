@@ -413,6 +413,12 @@ export function scoreRecord(ctx, rec) {
        complete night. Published per record so the two are never indistinguishable again. */
     coveragePct: out.spo2CoveragePct != null ? out.spo2CoveragePct : null,
     hours: out.durSec != null ? +(out.durSec / 3600).toFixed(2) : null,
+    // the saturation summaries under the FIXED computeStats (measured seconds only) — additive, so the
+    // T90 residue can be measured on the cohort in the same run as the ODI re-cut
+    meanSpo2: out.meanSpo2 != null ? +out.meanSpo2 : null,
+    t90: out.t90 != null ? +out.t90 : null,
+    t95: out.t95 != null ? +out.t95 : null,
+    minSpo2: out.minSpo2 != null ? +out.minSpo2 : null,
     odi3: out.odi3 != null ? +out.odi3 : null,
     odi4: out.odi4 != null ? +out.odi4 : null,
     ahiOxyEst: est != null ? +est : null,

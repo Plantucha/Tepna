@@ -53,6 +53,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, basename } from 'node:path';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
+import { makeVerdict } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require_ = createRequire(join(ROOT, 'tools', 'x.js'));
@@ -63,6 +64,56 @@ export const BAND_TRANSFERS = 0.7;
 export const BAND_PARTIAL = 0.4;
 /* Nassi's statistic: the share of central apneas whose effort falls below HALF the local baseline */
 export const COLLAPSE_FRACTION = 0.5;
+
+/* ── tepna.verdict/1 (VERDICT-CONTRACT §1; wave-2 adopter) — the three bands as ONE object ──────
+   Criterion, pre-stated above: the fraction of central apneas whose effort falls below half its local
+   baseline must be ≥ BAND_TRANSFERS for the belt contrast to TRANSFER. PASS = TRANSFERS; FAIL = PARTIAL
+   or ARTIFACT — both are "the criterion was not met", the band and the fraction are in `reason` and
+   `result.band` (the closed enum has no graded pass, and a PARTIAL is not a SHORTFALL in the contract's
+   sense — that word is reserved for a met headline with a failed sub-population). NOT_RUN = no central
+   apnea produced a usable ratio. Population = central apneas scored; the obstructive control rides in
+   `result`, never in the population. */
+export function bandOf(fraction) {
+  return fraction >= BAND_TRANSFERS ? 'TRANSFERS' : fraction >= BAND_PARTIAL ? 'PARTIAL' : 'ARTIFACT';
+}
+export function verdictObject(C, O, { records, commit, commitReason, at } = {}) {
+  const status = !C || !C.n ? 'NOT_RUN' : bandOf(C.belowHalfPct / 100) === 'TRANSFERS' ? 'PASS' : 'FAIL';
+  const band = C && C.n ? bandOf(C.belowHalfPct / 100) : null;
+  const ctrlNote = O
+    ? ' (obstructive control ' +
+      O.belowHalfPct +
+      ' % — ' +
+      (Math.abs(O.belowHalfPct - C.belowHalfPct) < 10 ? 'close to the central figure: the measure may be reading low amplitude, not effort' : 'separated from the central figure') +
+      ')'
+    : '';
+  return makeVerdict({
+    gate: 'nsrr-effort-typing',
+    status,
+    population: { checked: status === 'NOT_RUN' ? 0 : C.n, eligible: C && C.n ? C.n : 0, excluded: 0 },
+    criterion: { name: 'central_apneas_below_half_baseline_fraction', threshold: BAND_TRANSFERS, unit: 'fraction', direction: 'gte' },
+    result:
+      status === 'NOT_RUN' ? null : { band, central: C, obstructive: O || null, records: records ?? null, bands: { transfers: BAND_TRANSFERS, partial: BAND_PARTIAL, collapse: COLLAPSE_FRACTION } },
+    evidence: ['tools/nsrr-effort-typing.mjs'],
+    reason:
+      status === 'PASS'
+        ? null
+        : status === 'NOT_RUN'
+          ? 'no central apnea produced a usable amplitude ratio'
+          : band + ' — ' + C.belowHalfPct + ' % of central apneas fall below half baseline, band needs ≥ ' + 100 * BAND_TRANSFERS + ' %' + ctrlNote,
+    tool: 'tools/nsrr-effort-typing.mjs',
+    commit,
+    commitReason,
+    at
+  });
+}
+/* What the adoption gate runs: summary numbers of the measured shape, through the real bands. */
+export function verdictSample() {
+  return verdictObject(
+    { n: 812, median: 0.31, belowHalfPct: 76.4 },
+    { n: 4140, median: 0.71, belowHalfPct: 22.9 },
+    { records: 150, commit: null, commitReason: '--verdict-sample: synthetic summary numbers, no code identity claimed', at: '2026-09-22T00:00:00Z' }
+  );
+}
 
 /* ── realm ────────────────────────────────────────────────────────────────────────────────────
    Only the EDF reader is needed; no DSP runs here. Loaded through `classicify` because the shipped
@@ -245,6 +296,17 @@ function selftest() {
   A('CONTROL: an uncollapsed belt gives a ratio near 1, not near 0', Math.abs(dFlat / bFlat - 1) < 0.1, String((dFlat / bFlat).toFixed(3)));
 
   A('bands: pre-stated and constant', BAND_TRANSFERS === 0.7 && BAND_PARTIAL === 0.4 && COLLAPSE_FRACTION === 0.5);
+  // ── the object: every status through the real bands ──
+  const vo = (c, o) => verdictObject(c, o, { records: 1, commit: null, commitReason: 'selftest', at: '2026-09-22T00:00:00Z' });
+  A('object: ≥ 70 % below half ⇒ PASS, reason null', vo({ n: 10, median: 0.3, belowHalfPct: 80 }, null).status === 'PASS' && vo({ n: 10, median: 0.3, belowHalfPct: 80 }, null).reason === null);
+  A('object: 40–70 % ⇒ FAIL naming PARTIAL', vo({ n: 10, median: 0.5, belowHalfPct: 55 }, null).status === 'FAIL' && /PARTIAL/.test(vo({ n: 10, median: 0.5, belowHalfPct: 55 }, null).reason));
+  A('object: < 40 % ⇒ FAIL naming ARTIFACT', /ARTIFACT/.test(vo({ n: 10, median: 0.9, belowHalfPct: 10 }, null).reason));
+  A(
+    'object: an obstructive control close to the central figure is named in the reason',
+    /reading low amplitude/.test(vo({ n: 10, median: 0.5, belowHalfPct: 55 }, { n: 20, median: 0.5, belowHalfPct: 52 }).reason)
+  );
+  A('object: no central apnea scored ⇒ NOT_RUN, result null', vo(null, null).status === 'NOT_RUN' && vo(null, null).result === null);
+  A('object: the sample is a PASS (validated by makeVerdict)', verdictSample().status === 'PASS');
   A('median: ignores nulls rather than scoring them 0', median([null, 3, 3, null]) === 3);
 
   let ctx = null;
@@ -260,6 +322,10 @@ function selftest() {
 }
 
 if (process.argv.includes('--selftest') && process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exit(selftest());
+if (process.argv.includes('--verdict-sample') && process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
 
 /* ── the run ══════════════════════════════════════════════════════════════════════════════════ */
 function main(argv) {
@@ -328,6 +394,7 @@ function main(argv) {
   console.log('  records with ≥1 central apnea scanned: ' + withCentral + (noBelt ? '   (' + noBelt + ' had no usable belt)' : ''));
   if (!C) {
     console.error('✕ no central apnea produced a usable amplitude ratio');
+    if (argv.includes('--json')) console.log(JSON.stringify(verdictObject(null, null, { records: withCentral })));
     return 2;
   }
   console.log('');
@@ -339,6 +406,8 @@ function main(argv) {
   const verdict = f >= BAND_TRANSFERS ? 'NASSI TRANSFERS' : f >= BAND_PARTIAL ? 'PARTIAL' : 'ARTIFACT — the 16.5-vs-84 contrast does not survive one corpus';
   console.log('  VERDICT  ' + C.belowHalfPct + ' % of central apneas fall below half baseline → ' + verdict);
   if (O) console.log('  CONTROL  obstructive at ' + O.belowHalfPct + ' % — if this is close to the central figure, the measure is reading low amplitude, not effort');
+  // the object IS the verdict (stdout under --json; the report above is its explanation)
+  if (argv.includes('--json')) console.log(JSON.stringify(verdictObject(C, O, { records: withCentral })));
   return 0;
 }
 
@@ -347,4 +416,4 @@ function main(argv) {
    run instead, twice, before printing anything of its own. A tool that cannot be imported without
    executing is not reusable, and the reuse is the whole reason these helpers are exported. */
 const IS_CLI = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
-if (IS_CLI && !process.argv.includes('--selftest')) process.exit(main(process.argv.slice(2)));
+if (IS_CLI && !process.argv.includes('--selftest') && !process.argv.includes('--verdict-sample')) process.exit(main(process.argv.slice(2)));
