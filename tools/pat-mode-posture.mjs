@@ -42,7 +42,8 @@
 //                segments of ≥ MIN_BEATS R beats. Every other night is EXCLUDED BY NAME.
 //   UNDERPOWERED  fewer than MIN_NIGHTS (5) nights in the population — no verdict, the count is the result
 //   PHYSIOLOGY-LEANING (status PASS)   median R ≤ 0.5  AND  ≥ 70 % of nights R < 1
-//   TIME-LEANING       (status FAIL)   median R ≥ 1.0
+//   TIME-LEANING       (status FAIL)   median R ≥ 1.0 — posture is eliminated as the covariate; this does NOT name
+//                                      the instrument, only that returning to a posture does not return the mode
 //   INDETERMINATE      (status UNKNOWN) anything between — the design ran and could not separate them
 //   ⚠ PASS / FAIL are the contract's closed vocabulary, NOT goodness: FAIL means the mode followed TIME,
 //     not that the tool failed. Read the `reason` beside the status.
@@ -265,7 +266,7 @@ export function runVerdict(nightRows, excludedBy, eligible, { commit = null, evi
     reason = `PHYSIOLOGY-LEANING: median same/different-posture ratio ${medR.toFixed(2)} ≤ ${BAND_PHYS_RATIO} and ${(100 * shareBelow1).toFixed(0)} % of nights < 1 — returning to a posture returns the mode`;
   } else if (medR >= BAND_TIME_RATIO) {
     status = 'FAIL';
-    reason = `TIME-LEANING: median ratio ${medR.toFixed(2)} ≥ ${BAND_TIME_RATIO} — same-posture pairs agree no better than posture changes; the mode follows elapsed time, not the body. (FAIL is the contract word, not a tool failure.)`;
+    reason = `TIME-LEANING: median ratio ${medR.toFixed(2)} ≥ ${BAND_TIME_RATIO} — same-posture pairs agree no better than posture changes; returning to a posture does not return the mode, so trunk posture is NOT the covariate — the mode follows elapsed time or a variable this design does not hold. (FAIL is the contract word, not a tool failure.)`;
   } else {
     status = 'UNKNOWN';
     reason = `INDETERMINATE: median ratio ${medR.toFixed(2)}, ${(100 * shareBelow1).toFixed(0)} % of nights < 1 — between the pre-stated bands; the design ran and did not separate the hypotheses`;
