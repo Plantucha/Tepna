@@ -177,10 +177,71 @@
     </tbody>
   </table>
 
-  <p><b>The detector is not undercounting desaturations.</b> Against the expert&rsquo;s own desaturation index it
-    recovers a median 89.7&nbsp;% with a median difference of <b>&minus;0.22 events/h</b>. Against scored AHI the same
-    detector on the same nights reads 35 events/h low. A detector cannot be simultaneously accurate and
-    catastrophically biased about one night, so the two numbers are measuring different things.</p>
+  <div class="callout correction" style="border:2px solid #b00;background:#fff4f4">
+    <p><b>🔴 CORRECTION — 2026-09-22 (Tables 3–4, coverage, and the NSRR saturation summaries re-cut under the
+    corrected adapter).</b> Every SHHS1 number above and in Table 4 was produced on 2026-09-13 with the oximeter
+    status channel discarded; the adapter has since changed twice under it — <code>OX stat</code> masking
+    (#2725, residue <code>2026-09-20-shhs-figures-predate-oxstat</code>) and <code>computeStats</code> rating
+    T90 / mean SpO&#8322; over MEASURED seconds only (residue
+    <code>2026-09-21-nsrr-t90-counted-dropouts-as-desaturation</code>). Owner ruling 2026-09-21
+    (OWNER-DECISION-QUEUE D9.1): one full-cohort re-run, the originals stay above, and every number here is a
+    sourced claim against <code>analysis/published-numbers/odi4-shhs-2026-09-22.json</code> (all 5136 records re-scored 2026-09-22 by
+    <code>nsrr-score-pool.mjs --scorer ./nsrr-oxydex-odi.mjs</code>, aggregated by
+    <code>tools/odi4-shhs-recut.mjs</code>; nothing hand-typed). &ldquo;Moved&rdquo; was pre-stated before the run
+    as |new &minus; old| &ge; one unit of the published precision; <b>every number in Tables 3 and 4 moved.</b></p>
+    <p><b>Table 3, vs scored AHI (n = CLAIM shhsNAhi = 5136 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/nVsScoredAhi, unchanged):</b> OLS slope
+    CLAIM shhsSlopeAhi = 0.107 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/olsSlopeVsAhi (R&sup2; CLAIM shhsR2Ahi = 0.25 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/r2VsAhi), was 0.134 (0.27);
+    bias CLAIM shhsBiasAhi = -36.63 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/biasVsAhi events/h, was &minus;35.46; median difference
+    CLAIM shhsMedAhi = -31.37 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/medianDiffVsAhi, was &minus;30.35; 95&nbsp;% LoA CLAIM shhsLoaLoAhi = -83.45 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/loaLoVsAhi to
+    CLAIM shhsLoaHiAhi = 10.19 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/loaHiVsAhi, was &minus;81.32 to 10.40. <b>Direction: further below the reference</b>, as
+    the 2026-09-20 residue predicted &mdash; masking removes desaturations, so the under-count vs AHI grows.</p>
+    <p><b>Table 3, vs the expert desaturation index (n = CLAIM shhsNDesat = 4932 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/nVsExpertDesat, the records with a
+    non-zero expert index, unchanged):</b> bias CLAIM shhsBiasDesat = -2.20 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/biasVsDesat events/h, was &minus;0.99;
+    median difference CLAIM shhsMedDesat = -0.81 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/medianDiffVsDesat, was &minus;0.22; 95&nbsp;% LoA
+    CLAIM shhsLoaLoDesat = -12.25 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/loaLoVsDesat to CLAIM shhsLoaHiDesat = 7.86 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/loaHiVsDesat, was &minus;9.64 to 7.66;
+    <b>median ratio CLAIM shhsRatioDesat = 0.657 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/medianRatioVsDesat, was 0.897</b>; matched OLS slope
+    CLAIM shhsSlopeDesat = 0.536 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/olsSlopeVsDesat (R&sup2; CLAIM shhsR2Desat = 0.693 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/r2VsDesat), was 0.672 (0.756).
+    <b>This is the number that changes a sentence.</b> The paragraph below reads &ldquo;the detector is not
+    undercounting desaturations &hellip; recovers a median 89.7&nbsp;%&rdquo;. Under the corrected adapter it recovers
+    a median 65.7&nbsp;% of the expert&rsquo;s 4&nbsp;% desaturations: the device-flagged samples that masking now
+    nulls sit inside desaturations the expert scored, so the detector loses events the reference keeps. The
+    ordering the section rests on survives &mdash; the gap vs the expert index (&minus;2.2) is still an order of
+    magnitude smaller than the gap vs scored AHI (&minus;36.6), so the ODI-4/AHI gap remains definitional before it is
+    behavioural &mdash; but &ldquo;not undercounting desaturations&rdquo; no longer holds as written: against the
+    expert index the detector now under-reads by a third, and a reader must take the flagged-sample masking
+    into account before attributing that third to the detector or to the flag.</p>
+    <p><b>Table 4, real strata (n unchanged: CLAIM shhsNoneN = 61 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realNoneN / CLAIM shhsMildN = 611 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realMildN /
+    CLAIM shhsModN = 1456 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realModerateN / CLAIM shhsSevN = 3008 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realSevereN), mean bias:</b> none
+    CLAIM shhsNoneBias = -3.4 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realNoneBias (was &minus;3.1) &middot; mild CLAIM shhsMildBias = -10.1 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realMildBias (was &minus;9.8)
+    &middot; moderate CLAIM shhsModBias = -20.6 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realModerateBias (was &minus;20.0) &middot; severe
+    CLAIM shhsSevBias = -50.4 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/realSevereBias (was &minus;48.8). Every stratum moved further negative; the
+    synthetic-understates-real conclusion is unchanged in direction and slightly larger in magnitude.</p>
+    <p><b>Coverage (&sect;3.2 below):</b> median CLAIM shhsCovMed = 95.29 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/coverageMedianPct&nbsp;%, 5th percentile
+    CLAIM shhsCovP5 = 80.32 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/coverageP5Pct&nbsp;%, minimum CLAIM shhsCovMin = 48.36 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/coverageMinPct&nbsp;%, and
+    CLAIM shhsCovBelow95 = 2462 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/coverageBelow95 records (CLAIM shhsCovBelow95Pct = 47.9 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/coverageBelow95Pct&nbsp;%) below 95&nbsp;%
+    &mdash; was 98.45 / 83.36 / 52.29 / 1581 (30.8&nbsp;%). Coverage fell because status-flagged samples are now
+    counted as absent, which is the point of the fix: they were never measurements.</p>
+    <p><b>The NSRR saturation summaries (T90, mean SpO&#8322;) &mdash; the second residue, measured on the cohort.</b>
+    Under the old <code>computeStats</code> every absent second counted as &lt;&nbsp;90&nbsp;% and averaged as 0, so the
+    pre-fix value is derivable exactly from the fixed value and the coverage (T90<sub>old</sub> = T90<sub>new</sub>&middot;c + (1 &minus; c)&middot;100).
+    Fixed T90 median CLAIM shhsT90Med = 0.70 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/t90MedianPct&nbsp;% of measured seconds; the pre-fix figure would have read
+    a median CLAIM shhsT90Infl = 4.45 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/t90InflationMedianPoints percentage points higher per night (p95 of the inflation
+    18.8 points). Fixed mean SpO&#8322; median CLAIM shhsMeanSpo2 = 94.90 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/meanSpo2Median&nbsp;%; the pre-fix figure differed by a median
+    CLAIM shhsMeanSpo2Shift = -4.45 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/meanSpo2ShiftMedianPoints points per night (old &minus; new: it read that much LOWER, absent seconds averaged as 0). No T90 or mean SpO&#8322;
+    was published in this paper; the shift is recorded here because the residue names this paper&rsquo;s surfaces
+    and the same run measures it.</p>
+  </div>
+
+  <p><s><b>The detector is not undercounting desaturations.</b> Against the expert&rsquo;s own desaturation index it
+    recovers a median 89.7&nbsp;% with a median difference of <b>&minus;0.22 events/h</b>.</s>
+    <b style="color:#b00">Struck 2026-09-22 (correction above):</b> under the corrected adapter it recovers a median
+    <b>65.7&nbsp;%</b> (CLAIM shhsRatioDesatStruck = 0.657 FROM analysis/published-numbers/odi4-shhs-2026-09-22.json#claims/medianRatioVsDesat)
+    with a median difference of &minus;0.81 events/h &mdash; it <em>is</em> under-reading the expert&rsquo;s desaturations by a
+    third, and whether that third belongs to the detector or to the device flag that masking now honours is not
+    settled here. What survives is the ordering: against scored AHI the same detector on the same nights reads
+    <b>36.6</b> events/h low (was 35), against the expert index <b>2.2</b> (was 1) &mdash; an order of magnitude apart. A
+    detector cannot be simultaneously that close and that far about one night, so the two numbers are still measuring
+    different things.</p>
 
   <p><b>They are, and the reason is a scoring convention.</b> SHHS scored hypopneas <i>without</i> requiring an
     accompanying desaturation: 85.3&nbsp;% of its respiratory events are hypopneas, and a median 66.7&nbsp;% of its
