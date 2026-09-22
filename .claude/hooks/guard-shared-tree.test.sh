@@ -23,7 +23,29 @@ set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.." || exit 1
 H=.claude/hooks/guard-shared-tree.sh
 BASE=$(mktemp); trap 'rm -f "$BASE"' EXIT
-git show origin/main:"$H" > "$BASE" 2>/dev/null || cp "$H" "$BASE"
+
+# ⚠ THE BASE IS THE MERGE-BASE, NOT `origin/main`, AND IT IS SKIPPED WHEN THERE IS NOTHING
+# TO COMPARE. The first version read `git show origin/main:"$H"`, which made every `allowNEW`
+# assertion SELF-INVALIDATING: it asserts "origin/main still DENIES this", which is true while
+# the PR is open and FALSE FOREVER from the moment it merges. Green when written, red the
+# instant it landed — measured 2026-09-22, two failures on `main` in every checkout, reaching
+# every session through `npm run check` as a red that has nothing to do with their change.
+#
+# The merge-base fixes it on a BRANCH ("did MY branch newly relax this?" — the fork point still
+# denies). It does NOT fix it when the test runs ON main, where merge-base(HEAD, origin/main)
+# resolves to HEAD itself, so BASE and HEAD are the same bytes and the assertion fails again for
+# a new reason. Measured, not derived: with BASE forced to HEAD the suite reds with the same 2.
+#
+# So when the base IS HEAD the question has NO REFERENT — there is no branch that could have
+# introduced a relaxation — and a question with no referent must be SKIPPED, not answered. It is
+# announced rather than passed silently, because a comparison that did not happen and one that
+# found nothing must not look alike.
+_mb="$(git merge-base HEAD origin/main 2>/dev/null)"
+if [ -n "$_mb" ] && [ "$_mb" != "$(git rev-parse HEAD 2>/dev/null)" ] && git show "$_mb:$H" > "$BASE" 2>/dev/null; then
+  BASE_REF="$(git rev-parse --short "$_mb")"
+else
+  cp "$H" "$BASE"; BASE_REF=""
+fi
 
 v(){ local o; o=$(jq -Rn --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}' | bash "$2" 2>/dev/null)
      [[ "$o" == *'"deny"'* ]] && echo DENY || echo allow; }
@@ -32,26 +54,42 @@ fail=0
 # AN INTENDED RELAXATION IS NAMED, NOT EXEMPTED WHOLESALE. The comparison against `origin/main` is
 # the harness's whole value: any command main DENIED and this copy ALLOWS is a regression until
 # somebody says otherwise, in writing, per case. `chk allowNEW` is that statement — it asserts allow
-# AND asserts main denied it, so a relaxation that main already allowed (i.e. one that is not the
+# AND asserts the base denied it, so a relaxation the base already allowed (i.e. one that is not the
 # change being made) fails as loudly as an unintended one. Weakening the comparison instead would
 # have bought silence on every future relaxation.
+#
+# ⚠ THE MARKER HAS A LIFECYCLE, AND OMITTING IT IS WHAT PUT A RED ON `main`: use `allowNEW` while
+# the PR that introduces the relaxation is OPEN, and DEMOTE it to plain `allow` in or after the PR
+# that lands it. The claim is "my branch introduces this"; once merged, the relaxation is the base
+# and the claim is permanently false. A marker whose truth expires on merge, left un-demoted, is a
+# check that certifies its own pre-merge state — green when written, red from the moment it ships.
 chk(){ # chk <expected|allowNEW> <command>
   local want="$1"; local newly=0
   [ "$want" = allowNEW ] && { want=allow; newly=1; }
+  # No comparable base ⇒ the relaxation question is inapplicable, not answered.
+  [ -z "$BASE_REF" ] && newly=0
   local got; got=$(v "$2" "$H")
   local base; base=$(v "$2" "$BASE")
   local flag=""
   [ "$got" != "$want" ] && { flag=" <-- EXPECTED $want"; fail=$((fail+1)); }
   if [ "$newly" = 1 ]; then
-    [ "$base" = DENY ] || { flag="$flag <-- NOT A RELAXATION: origin/main already allows it"; fail=$((fail+1)); }
+    [ "$base" = DENY ] || { flag="$flag <-- NOT A RELAXATION: the merge-base $BASE_REF already allows it"; fail=$((fail+1)); }
   else
-    [ "$got" = allow ] && [ "$base" = DENY ] && { flag="$flag <-- REGRESSION vs origin/main"; fail=$((fail+1)); }
+    [ -n "$BASE_REF" ] && [ "$got" = allow ] && [ "$base" = DENY ] && { flag="$flag <-- REGRESSION vs the merge-base $BASE_REF"; fail=$((fail+1)); }
   fi
   printf '  %-5s %-5s %s%s\n' "$got" "$base" "$2" "$flag"
 }
 
 
-echo "### MUST DENY                                                 now   main"
+# Say which comparison is running, because a skipped comparison and a clean one must not look
+# alike in the output any more than they do in the pass/fail count.
+if [ -n "$BASE_REF" ]; then
+  echo "### base = merge-base $BASE_REF — relaxation + regression checks ACTIVE"
+else
+  echo "### ⊘ base = HEAD (nothing to compare: on main, or an unbranched checkout)"
+  echo "    relaxation + regression checks SKIPPED — this run cannot detect either."
+fi
+echo "### MUST DENY                                                 now   base"
 # `#` lines are commentary on WHY a case exists, not cases. Without this the harness runs them as
 # commands, they are allowed, and each one reads as a failure — which is how a genuine 9-case
 # addition first reported 11 problems.
@@ -188,7 +226,7 @@ printf '  '; chk DENY "$(printf 'git add \\\n  -A')"
 
 echo
 echo
-echo "### INTENTIONALLY RELAXED — main DENIES these, and that was the bug        now   main"
+echo "### INTENTIONALLY RELAXED — the base DENIES these, and that was the bug   now   base"
 # The one-way ratchet above ("never allow what main denied") is the right default and caught three
 # shipped defects. But it cannot express a deliberate loosening, and an over-block is a real defect
 # too: people route around a guard that refuses ordinary work, and then it protects nothing. So a
@@ -248,10 +286,18 @@ DENY3
 #    which is what keeps the `-c` bypass closed. Delete either half and the split silently becomes
 #    "strip everything" or "strip nothing".
 # Documentation heredocs — the artifact whose whole job is to describe what was done — must pass.
-chk allowNEW "git commit -F - <<'MSG'
+# ⚠ `allowNEW` IS A CLAIM ABOUT AN OPEN PR AND EXPIRES WHEN IT MERGES. It asserts "the base
+# still DENIES this, so my branch is introducing it" — true while the PR is open, FALSE FOREVER
+# once the relaxation IS the base. Measured 2026-09-22: these two landed in #2871 and their
+# assertions then failed in every checkout, on every branch, reaching every session through
+# `npm run check`. Switching the base to the merge-base does NOT rescue them — any branch cut
+# after #2871 has a merge-base that already allows them (measured, not assumed: the suite still
+# red 2/2 with the merge-base in place). So a landed relaxation must be DEMOTED to a plain
+# `allow`, which is what these two now are: still asserted, no longer claimed to be new.
+chk allow "git commit -F - <<'MSG'
 a message describing git add -A in prose
 MSG"
-chk allowNEW "gh pr create --body-file - <<'BODY'
+chk allow "gh pr create --body-file - <<'BODY'
 the PR explains why git clean -f is forbidden here
 BODY"
 # An INTERPRETER heredoc is a PROGRAM, not a description — still read raw, still denied.
@@ -437,6 +483,13 @@ else echo "  ok    exactly one terminal exit"; fi
 bash -n "$H" && echo "  ok    syntax"
 
 echo
-[ "$fail" -eq 0 ] && echo "PASS — all cases as expected, no regression vs origin/main" \
-                  || echo "FAIL — $fail problem(s)"
+if [ "$fail" -eq 0 ]; then
+  if [ -n "$BASE_REF" ]; then
+    echo "PASS — all cases as expected, no regression vs the merge-base $BASE_REF"
+  else
+    echo "PASS — all cases as expected; relaxation + regression checks SKIPPED (base = HEAD)"
+  fi
+else
+  echo "FAIL — $fail problem(s)"
+fi
 exit $((fail > 0))
