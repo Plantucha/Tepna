@@ -708,6 +708,11 @@
    "status": "pending",
    "note": "per-export warn/FAIL over real exports"
   },
+  "tools/verdict-adoption.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the gate itself: the verdict words occur in its header, its bin vocabulary and its red messages; its own result is the exit code + the summary line, read by npm run check / CI \u2014 it names producers, it is not one (a gate-verdict object for the gate is a wave-2 question, not an omission)"
+  },
   "tools/verify-drafts.mjs": {
    "bin": "word-only",
    "status": "exempt",
