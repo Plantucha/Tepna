@@ -109,6 +109,7 @@ const DEFAULT_FLEET = [
   /* MEASUREMENT-INSTANCE-CONTRACT-2026-09-17 — a validator whose mutants nothing kills is a validator
      that asserts nothing, which is the one failure mode a schema authority cannot afford. */
   'measurement-block.js',
+  'verdict.js',
   /* PHASE 2a — the priority pair named in MUTATION-FLEET-EXPANSION §2: the binary EDF parser and the
      crossnight stats. User-facing math, and a binary parser is where a surviving mutant is least
      likely to be caught by eye. §2a's survey measured all six as loading on SPINE alone with their
