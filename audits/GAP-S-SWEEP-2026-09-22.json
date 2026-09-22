@@ -1,0 +1,3164 @@
+{
+ "schema": "tepna.gap-s-sweep/1",
+ "producer": "tools/gap-s-sweep.mjs",
+ "invocation": "node tools/gap-s-sweep.mjs --nights <23 paired box nights> --values 3,5,7.5,10,15,20,30,60",
+ "generated": "2026-09-22",
+ "preStated": "report pre-stated 2026-09-22T06:24Z before the first run (three sections, no bands): per-value median index and share of nights moved \u2265 1 ev/h and \u2265 10 % vs the shipped cut per node; cross-node median |\u0394| and Spearman per value; the knee. Owner ruling 2026-09-21: MEASURE BEFORE RULING \u2014 the owner rules on these numbers",
+ "corpus": {
+  "tree": "/srv/data/tepna-corpus/uploads/vigil-archive/captures (box captures; the largest non-stub H10 _ECG.txt and Verity _PPG.txt per date)",
+  "nights": 23,
+  "notMeasured": "phone-tree nights (Polar Sensor Logger, dropout-heavy): the local copies of their _ECG.txt are 84-byte stubs, so they were NOT swept \u2014 a limitation of the local volume, not a finding about those nights"
+ },
+ "nullControl": "tools/gap-s-sweep.mjs --selftest: a planted 20 s gap on a synthetic night is excluded at GAP_S 10 and counted at 30 (denominator differs by ~20 s) and is an absence under both 3 and 10 \u2014 the patched constant reaches the index; a flat curve on the corpus is therefore a property of the corpus",
+ "report": {
+  "nights": 23,
+  "values": [
+   3,
+   5,
+   7.5,
+   10,
+   15,
+   20,
+   30,
+   60
+  ],
+  "shipped": 10,
+  "perValue": {
+   "3": {
+    "ecg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 6.2,
+     "movedAbs1": 0,
+     "movedRel10": 0,
+     "medianDeltaVsShipped": 0
+    },
+    "ppg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 5.9,
+     "movedAbs1": 0,
+     "movedRel10": 0,
+     "medianDeltaVsShipped": 0
+    },
+    "cross": {
+     "nights": 23,
+     "medianAbsDiff": 1,
+     "spearman": 0.03162055335968379
+    }
+   },
+   "5": {
+    "ecg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 6.2,
+     "movedAbs1": 0,
+     "movedRel10": 0,
+     "medianDeltaVsShipped": 0
+    },
+    "ppg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 5.9,
+     "movedAbs1": 0,
+     "movedRel10": 0,
+     "medianDeltaVsShipped": 0
+    },
+    "cross": {
+     "nights": 23,
+     "medianAbsDiff": 1,
+     "spearman": 0.03260869565217391
+    }
+   },
+   "10": {
+    "ecg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 6.2,
+     "movedAbs1": 0,
+     "movedRel10": 0,
+     "medianDeltaVsShipped": 0
+    },
+    "ppg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 5.9,
+     "movedAbs1": 0,
+     "movedRel10": 0,
+     "medianDeltaVsShipped": 0
+    },
+    "cross": {
+     "nights": 23,
+     "medianAbsDiff": 1.1000000000000005,
+     "spearman": 0.05237154150197629
+    }
+   },
+   "15": {
+    "ecg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 6.2,
+     "movedAbs1": 0.043478260869565216,
+     "movedRel10": 0,
+     "medianDeltaVsShipped": 0
+    },
+    "ppg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 5.9,
+     "movedAbs1": 0,
+     "movedRel10": 0,
+     "medianDeltaVsShipped": 0
+    },
+    "cross": {
+     "nights": 23,
+     "medianAbsDiff": 1.1000000000000005,
+     "spearman": 0.05138339920948617
+    }
+   },
+   "20": {
+    "ecg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 6.2,
+     "movedAbs1": 0.043478260869565216,
+     "movedRel10": 0,
+     "medianDeltaVsShipped": 0
+    },
+    "ppg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 5.9,
+     "movedAbs1": 0,
+     "movedRel10": 0,
+     "medianDeltaVsShipped": 0
+    },
+    "cross": {
+     "nights": 23,
+     "medianAbsDiff": 1.1000000000000005,
+     "spearman": 0.05138339920948617
+    }
+   },
+   "30": {
+    "ecg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 6.2,
+     "movedAbs1": 0.043478260869565216,
+     "movedRel10": 0.043478260869565216,
+     "medianDeltaVsShipped": 0
+    },
+    "ppg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 5.9,
+     "movedAbs1": 0,
+     "movedRel10": 0,
+     "medianDeltaVsShipped": 0
+    },
+    "cross": {
+     "nights": 23,
+     "medianAbsDiff": 1.1000000000000005,
+     "spearman": 0.04841897233201581
+    }
+   },
+   "60": {
+    "ecg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 6.1,
+     "movedAbs1": 0.043478260869565216,
+     "movedRel10": 0.043478260869565216,
+     "medianDeltaVsShipped": 0
+    },
+    "ppg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 5.9,
+     "movedAbs1": 0,
+     "movedRel10": 0,
+     "medianDeltaVsShipped": 0
+    },
+    "cross": {
+     "nights": 23,
+     "medianAbsDiff": 1,
+     "spearman": 0.04841897233201581
+    }
+   },
+   "7.5": {
+    "ecg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 6.2,
+     "movedAbs1": 0,
+     "movedRel10": 0,
+     "medianDeltaVsShipped": 0
+    },
+    "ppg": {
+     "nights": 23,
+     "refused": 0,
+     "medianIndex": 5.9,
+     "movedAbs1": 0,
+     "movedRel10": 0,
+     "medianDeltaVsShipped": 0
+    },
+    "cross": {
+     "nights": 23,
+     "medianAbsDiff": 1.1000000000000005,
+     "spearman": 0.036561264822134384
+    }
+   }
+  },
+  "knee": {
+   "below": null,
+   "above": null
+  },
+  "kneeNote": "the nearest value on each side of the shipped cut at which \u2265 25 % of nights move by \u2265 10 % on either node \u2014 where sensitivity lives, not a recommendation"
+ },
+ "rows": [
+  {
+   "night": "2026-08-24",
+   "ecgFile": "Polar_H10_02849638_20260824222338_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260824052358_PPG.txt",
+   "ms": 100557,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 2.8,
+      "denomSec": 22116.169801562257,
+      "events": 17,
+      "nBeats": 17856,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.2,
+      "events": 24,
+      "nBeats": 17199,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 2.8,
+      "denomSec": 22121.07812860663,
+      "events": 17,
+      "nBeats": 17856,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.2,
+      "events": 24,
+      "nBeats": 17199,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 2.8,
+      "denomSec": 22128.893084039828,
+      "events": 17,
+      "nBeats": 17856,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.2,
+      "events": 24,
+      "nBeats": 17199,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 2.8,
+      "denomSec": 22128.893084039828,
+      "events": 17,
+      "nBeats": 17856,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.2,
+      "events": 24,
+      "nBeats": 17199,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 2.8,
+      "denomSec": 22128.893084039828,
+      "events": 17,
+      "nBeats": 17856,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.2,
+      "events": 24,
+      "nBeats": 17199,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 2.8,
+      "denomSec": 22128.893084039828,
+      "events": 17,
+      "nBeats": 17856,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.2,
+      "events": 24,
+      "nBeats": 17199,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 2.8,
+      "denomSec": 22128.893084039828,
+      "events": 17,
+      "nBeats": 17856,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.2,
+      "events": 24,
+      "nBeats": 17199,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 2.8,
+      "denomSec": 22121.07812860663,
+      "events": 17,
+      "nBeats": 17856,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.2,
+      "events": 24,
+      "nBeats": 17199,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-08-25",
+   "ecgFile": "Polar_H10_02849638_20260825195615_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260825175314_PPG.txt",
+   "ms": 163565,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 6.5,
+      "denomSec": 38074.2087165761,
+      "events": 69,
+      "nBeats": 35004,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 46,
+      "nBeats": 29149,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 6.5,
+      "denomSec": 38074.2087165761,
+      "events": 69,
+      "nBeats": 35004,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 46,
+      "nBeats": 29149,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 6.5,
+      "denomSec": 38074.2087165761,
+      "events": 69,
+      "nBeats": 35004,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 46,
+      "nBeats": 29149,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 6.5,
+      "denomSec": 38084.23486970954,
+      "events": 69,
+      "nBeats": 35004,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 46,
+      "nBeats": 29149,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 6.5,
+      "denomSec": 38084.23486970954,
+      "events": 69,
+      "nBeats": 35004,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 46,
+      "nBeats": 29149,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 6.5,
+      "denomSec": 38084.23486970954,
+      "events": 69,
+      "nBeats": 35004,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 46,
+      "nBeats": 29149,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 6.4,
+      "denomSec": 38140.08003757407,
+      "events": 68,
+      "nBeats": 35004,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.1,
+      "events": 46,
+      "nBeats": 29149,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 6.5,
+      "denomSec": 38074.2087165761,
+      "events": 69,
+      "nBeats": 35004,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 46,
+      "nBeats": 29149,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-08-26",
+   "ecgFile": "Polar_H10_02849638_20260826223742_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260826223819_PPG.txt",
+   "ms": 142418,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 8.4,
+      "denomSec": 31451.48337013856,
+      "events": 73,
+      "nBeats": 28781,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.6,
+      "events": 40,
+      "nBeats": 27230,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 8.4,
+      "denomSec": 31463.652941988497,
+      "events": 73,
+      "nBeats": 28781,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.6,
+      "events": 40,
+      "nBeats": 27230,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 8.4,
+      "denomSec": 31471.067223027017,
+      "events": 73,
+      "nBeats": 28781,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.6,
+      "events": 40,
+      "nBeats": 27230,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 8.4,
+      "denomSec": 31471.067223027017,
+      "events": 73,
+      "nBeats": 28781,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.6,
+      "events": 40,
+      "nBeats": 27230,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 8.4,
+      "denomSec": 31471.067223027017,
+      "events": 73,
+      "nBeats": 28781,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.6,
+      "events": 40,
+      "nBeats": 27230,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 8.4,
+      "denomSec": 31471.067223027017,
+      "events": 73,
+      "nBeats": 28781,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.6,
+      "events": 40,
+      "nBeats": 27230,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 8.2,
+      "denomSec": 31529.673632541137,
+      "events": 72,
+      "nBeats": 28781,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.6,
+      "events": 40,
+      "nBeats": 27230,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 8.4,
+      "denomSec": 31471.067223027017,
+      "events": 73,
+      "nBeats": 28781,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.6,
+      "events": 40,
+      "nBeats": 27230,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-08-28",
+   "ecgFile": "Polar_H10_02849638_20260828001533_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260828100204_PPG.txt",
+   "ms": 101888,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 6.1,
+      "denomSec": 22263.142942399343,
+      "events": 38,
+      "nBeats": 18633,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.1,
+      "events": 41,
+      "nBeats": 21294,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 6.1,
+      "denomSec": 22263.142942399343,
+      "events": 38,
+      "nBeats": 18633,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.1,
+      "events": 41,
+      "nBeats": 21294,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 6.1,
+      "denomSec": 22263.142942399343,
+      "events": 38,
+      "nBeats": 18633,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.1,
+      "events": 41,
+      "nBeats": 21294,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 6.1,
+      "denomSec": 22274.18237720187,
+      "events": 38,
+      "nBeats": 18633,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.1,
+      "events": 41,
+      "nBeats": 21294,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 6.1,
+      "denomSec": 22274.18237720187,
+      "events": 38,
+      "nBeats": 18633,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.1,
+      "events": 41,
+      "nBeats": 21294,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 6.1,
+      "denomSec": 22274.18237720187,
+      "events": 38,
+      "nBeats": 18633,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.1,
+      "events": 41,
+      "nBeats": 21294,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 6.1,
+      "denomSec": 22274.18237720187,
+      "events": 38,
+      "nBeats": 18633,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.1,
+      "events": 41,
+      "nBeats": 21294,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 6.1,
+      "denomSec": 22263.142942399343,
+      "events": 38,
+      "nBeats": 18633,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.1,
+      "events": 41,
+      "nBeats": 21294,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-08-29",
+   "ecgFile": "Polar_H10_02849638_20260829000218_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260829234612_PPG.txt",
+   "ms": 99795,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 13.1,
+      "denomSec": 20370.287499948052,
+      "events": 74,
+      "nBeats": 19413,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.5,
+      "events": 34,
+      "nBeats": 20725,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 13.1,
+      "denomSec": 20373.681672428636,
+      "events": 74,
+      "nBeats": 19413,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.5,
+      "events": 34,
+      "nBeats": 20725,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 13.1,
+      "denomSec": 20373.681672428636,
+      "events": 74,
+      "nBeats": 19413,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.5,
+      "events": 34,
+      "nBeats": 20725,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 13.1,
+      "denomSec": 20373.681672428636,
+      "events": 74,
+      "nBeats": 19413,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.5,
+      "events": 34,
+      "nBeats": 20725,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 13.1,
+      "denomSec": 20373.681672428636,
+      "events": 74,
+      "nBeats": 19413,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.5,
+      "events": 34,
+      "nBeats": 20725,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 13.1,
+      "denomSec": 20373.681672428636,
+      "events": 74,
+      "nBeats": 19413,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.5,
+      "events": 34,
+      "nBeats": 20725,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 13,
+      "denomSec": 20432.051557400813,
+      "events": 74,
+      "nBeats": 19413,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.5,
+      "events": 34,
+      "nBeats": 20725,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 13.1,
+      "denomSec": 20373.681672428636,
+      "events": 74,
+      "nBeats": 19413,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.5,
+      "events": 34,
+      "nBeats": 20725,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-08-30",
+   "ecgFile": "Polar_H10_02849638_20260830002916_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260830224559_PPG.txt",
+   "ms": 65596,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 17359.04543117688,
+      "events": 27,
+      "nBeats": 16166,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.9,
+      "events": 17,
+      "nBeats": 9268,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 17359.04543117688,
+      "events": 27,
+      "nBeats": 16166,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.9,
+      "events": 17,
+      "nBeats": 9268,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 17372.394547683198,
+      "events": 27,
+      "nBeats": 16166,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.9,
+      "events": 17,
+      "nBeats": 9268,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 17372.394547683198,
+      "events": 27,
+      "nBeats": 16166,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.9,
+      "events": 17,
+      "nBeats": 9268,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 17372.394547683198,
+      "events": 27,
+      "nBeats": 16166,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.9,
+      "events": 17,
+      "nBeats": 9268,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 17372.394547683198,
+      "events": 27,
+      "nBeats": 16166,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.9,
+      "events": 17,
+      "nBeats": 9268,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 17422.143361747512,
+      "events": 27,
+      "nBeats": 16166,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.9,
+      "events": 17,
+      "nBeats": 9268,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 17364.577207602233,
+      "events": 27,
+      "nBeats": 16166,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.9,
+      "events": 17,
+      "nBeats": 9268,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-08-31",
+   "ecgFile": "Polar_H10_02849638_20260831225740_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260831225711_PPG.txt",
+   "ms": 102458,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 9.2,
+      "denomSec": 18352.14822116961,
+      "events": 47,
+      "nBeats": 18997,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.8,
+      "events": 25,
+      "nBeats": 18650,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 9.2,
+      "denomSec": 18352.14822116961,
+      "events": 47,
+      "nBeats": 18997,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.7,
+      "events": 25,
+      "nBeats": 18650,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 9.2,
+      "denomSec": 18352.14822116961,
+      "events": 47,
+      "nBeats": 18997,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.7,
+      "events": 25,
+      "nBeats": 18650,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 9.2,
+      "denomSec": 18352.14822116961,
+      "events": 47,
+      "nBeats": 18997,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.7,
+      "events": 25,
+      "nBeats": 18650,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 9.2,
+      "denomSec": 18352.14822116961,
+      "events": 47,
+      "nBeats": 18997,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.7,
+      "events": 25,
+      "nBeats": 18650,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 9.2,
+      "denomSec": 18352.14822116961,
+      "events": 47,
+      "nBeats": 18997,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.7,
+      "events": 25,
+      "nBeats": 18650,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 9.2,
+      "denomSec": 18352.14822116961,
+      "events": 47,
+      "nBeats": 18997,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.7,
+      "events": 25,
+      "nBeats": 18650,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 9.2,
+      "denomSec": 18352.14822116961,
+      "events": 47,
+      "nBeats": 18997,
+      "reason": null
+     },
+     "ppg": {
+      "index": 4.7,
+      "events": 25,
+      "nBeats": 18650,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-03",
+   "ecgFile": "Polar_H10_02849638_20260903191901_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260903180921_PPG.txt",
+   "ms": 140402,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 10.3,
+      "denomSec": 21014.16830910953,
+      "events": 60,
+      "nBeats": 19364,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.8,
+      "events": 97,
+      "nBeats": 34276,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 10.3,
+      "denomSec": 21014.16830910953,
+      "events": 60,
+      "nBeats": 19364,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.7,
+      "events": 97,
+      "nBeats": 34276,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 10.3,
+      "denomSec": 21040.817160708884,
+      "events": 60,
+      "nBeats": 19364,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.7,
+      "events": 97,
+      "nBeats": 34276,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 10.3,
+      "denomSec": 21040.817160708884,
+      "events": 60,
+      "nBeats": 19364,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.6,
+      "events": 97,
+      "nBeats": 34276,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 10.3,
+      "denomSec": 21040.817160708884,
+      "events": 60,
+      "nBeats": 19364,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.6,
+      "events": 97,
+      "nBeats": 34276,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 10.3,
+      "denomSec": 21040.817160708884,
+      "events": 60,
+      "nBeats": 19364,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.6,
+      "events": 97,
+      "nBeats": 34276,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 9.9,
+      "denomSec": 21524.189550357518,
+      "events": 59,
+      "nBeats": 19364,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.5,
+      "events": 97,
+      "nBeats": 34276,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 10.3,
+      "denomSec": 21031.870271983236,
+      "events": 60,
+      "nBeats": 19364,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.7,
+      "events": 97,
+      "nBeats": 34276,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-04",
+   "ecgFile": "Polar_H10_02849638_20260904204011_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260904203315_PPG.txt",
+   "ms": 73615,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 8898.784376325737,
+      "events": 19,
+      "nBeats": 8904,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.6,
+      "events": 34,
+      "nBeats": 21032,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 8898.784376325737,
+      "events": 19,
+      "nBeats": 8904,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.6,
+      "events": 34,
+      "nBeats": 21032,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 8898.784376325737,
+      "events": 19,
+      "nBeats": 8904,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.6,
+      "events": 34,
+      "nBeats": 21032,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 8898.784376325737,
+      "events": 19,
+      "nBeats": 8904,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.5,
+      "events": 34,
+      "nBeats": 21032,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 8898.784376325737,
+      "events": 19,
+      "nBeats": 8904,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.5,
+      "events": 34,
+      "nBeats": 21032,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 8898.784376325737,
+      "events": 19,
+      "nBeats": 8904,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.5,
+      "events": 34,
+      "nBeats": 21032,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 8898.784376325737,
+      "events": 19,
+      "nBeats": 8904,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.5,
+      "events": 34,
+      "nBeats": 21032,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 8898.784376325737,
+      "events": 19,
+      "nBeats": 8904,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.6,
+      "events": 34,
+      "nBeats": 21032,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-05",
+   "ecgFile": "Polar_H10_02849638_20260905000451_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260905025701_PPG.txt",
+   "ms": 82056,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 12.9,
+      "denomSec": 20608.611659524977,
+      "events": 74,
+      "nBeats": 19126,
+      "reason": null
+     },
+     "ppg": {
+      "index": 15.5,
+      "events": 55,
+      "nBeats": 12477,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 12.9,
+      "denomSec": 20619.356084210835,
+      "events": 74,
+      "nBeats": 19126,
+      "reason": null
+     },
+     "ppg": {
+      "index": 15.3,
+      "events": 55,
+      "nBeats": 12477,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 12.9,
+      "denomSec": 20624.783728990045,
+      "events": 74,
+      "nBeats": 19126,
+      "reason": null
+     },
+     "ppg": {
+      "index": 15.1,
+      "events": 55,
+      "nBeats": 12477,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 12.9,
+      "denomSec": 20624.783728990045,
+      "events": 74,
+      "nBeats": 19126,
+      "reason": null
+     },
+     "ppg": {
+      "index": 15,
+      "events": 55,
+      "nBeats": 12477,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 12.9,
+      "denomSec": 20624.783728990045,
+      "events": 74,
+      "nBeats": 19126,
+      "reason": null
+     },
+     "ppg": {
+      "index": 14.9,
+      "events": 55,
+      "nBeats": 12477,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 12.9,
+      "denomSec": 20624.783728990045,
+      "events": 74,
+      "nBeats": 19126,
+      "reason": null
+     },
+     "ppg": {
+      "index": 14.9,
+      "events": 55,
+      "nBeats": 12477,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 12.9,
+      "denomSec": 20669.535774922315,
+      "events": 74,
+      "nBeats": 19126,
+      "reason": null
+     },
+     "ppg": {
+      "index": 14.7,
+      "events": 55,
+      "nBeats": 12477,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 12.9,
+      "denomSec": 20624.783728990045,
+      "events": 74,
+      "nBeats": 19126,
+      "reason": null
+     },
+     "ppg": {
+      "index": 15.2,
+      "events": 55,
+      "nBeats": 12477,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-06",
+   "ecgFile": "Polar_H10_02849638_20260906232736_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260906000215_PPG.txt",
+   "ms": 92955,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 4,
+      "denomSec": 18024.633428689423,
+      "events": 20,
+      "nBeats": 16628,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8.5,
+      "events": 54,
+      "nBeats": 20927,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 4,
+      "denomSec": 18024.633428689423,
+      "events": 20,
+      "nBeats": 16628,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8.4,
+      "events": 54,
+      "nBeats": 20927,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 4,
+      "denomSec": 18024.633428689423,
+      "events": 20,
+      "nBeats": 16628,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8.4,
+      "events": 54,
+      "nBeats": 20927,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 4,
+      "denomSec": 18024.633428689423,
+      "events": 20,
+      "nBeats": 16628,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8.4,
+      "events": 54,
+      "nBeats": 20927,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 4,
+      "denomSec": 18024.633428689423,
+      "events": 20,
+      "nBeats": 16628,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8.3,
+      "events": 54,
+      "nBeats": 20927,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 4,
+      "denomSec": 18024.633428689423,
+      "events": 20,
+      "nBeats": 16628,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8.3,
+      "events": 54,
+      "nBeats": 20927,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 4,
+      "denomSec": 18024.633428689423,
+      "events": 20,
+      "nBeats": 16628,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8.3,
+      "events": 54,
+      "nBeats": 20927,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 4,
+      "denomSec": 18024.633428689423,
+      "events": 20,
+      "nBeats": 16628,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8.4,
+      "events": 54,
+      "nBeats": 20927,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-07",
+   "ecgFile": "Polar_H10_02849638_20260907222030_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260907222048_PPG.txt",
+   "ms": 107584,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 5.4,
+      "denomSec": 22141.51657577292,
+      "events": 33,
+      "nBeats": 19044,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.7,
+      "events": 35,
+      "nBeats": 19265,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 5.4,
+      "denomSec": 22144.700608089828,
+      "events": 33,
+      "nBeats": 19044,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.7,
+      "events": 35,
+      "nBeats": 19265,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 5.4,
+      "denomSec": 22144.700608089828,
+      "events": 33,
+      "nBeats": 19044,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.7,
+      "events": 35,
+      "nBeats": 19265,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 5.4,
+      "denomSec": 22155.637591087154,
+      "events": 33,
+      "nBeats": 19044,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.7,
+      "events": 35,
+      "nBeats": 19265,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 5.4,
+      "denomSec": 22155.637591087154,
+      "events": 33,
+      "nBeats": 19044,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.7,
+      "events": 35,
+      "nBeats": 19265,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 5.4,
+      "denomSec": 22155.637591087154,
+      "events": 33,
+      "nBeats": 19044,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.7,
+      "events": 35,
+      "nBeats": 19265,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 5.4,
+      "denomSec": 22203.572980568173,
+      "events": 33,
+      "nBeats": 19044,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.7,
+      "events": 35,
+      "nBeats": 19265,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 5.4,
+      "denomSec": 22144.700608089828,
+      "events": 33,
+      "nBeats": 19044,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.7,
+      "events": 35,
+      "nBeats": 19265,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-08",
+   "ecgFile": "Polar_H10_02849638_20260908231622_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260908231454_PPG.txt",
+   "ms": 100892,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 19068.900282714752,
+      "events": 41,
+      "nBeats": 20591,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8.1,
+      "events": 43,
+      "nBeats": 20848,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 19068.900282714752,
+      "events": 41,
+      "nBeats": 20591,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8.1,
+      "events": 43,
+      "nBeats": 20848,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 19068.900282714752,
+      "events": 41,
+      "nBeats": 20591,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8.1,
+      "events": 43,
+      "nBeats": 20848,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 19068.900282714752,
+      "events": 41,
+      "nBeats": 20591,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8.1,
+      "events": 43,
+      "nBeats": 20848,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 19068.900282714752,
+      "events": 41,
+      "nBeats": 20591,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8.1,
+      "events": 43,
+      "nBeats": 20848,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 19068.900282714752,
+      "events": 41,
+      "nBeats": 20591,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8,
+      "events": 43,
+      "nBeats": 20848,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 19068.900282714752,
+      "events": 41,
+      "nBeats": 20591,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8,
+      "events": 43,
+      "nBeats": 20848,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 19068.900282714752,
+      "events": 41,
+      "nBeats": 20591,
+      "reason": null
+     },
+     "ppg": {
+      "index": 8.1,
+      "events": 43,
+      "nBeats": 20848,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-09",
+   "ecgFile": "Polar_H10_02849638_20260909212954_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260909211932_PPG.txt",
+   "ms": 91193,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 4.6,
+      "denomSec": 11686.324107299546,
+      "events": 15,
+      "nBeats": 10952,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.7,
+      "events": 67,
+      "nBeats": 23895,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 4.6,
+      "denomSec": 11686.324107299546,
+      "events": 15,
+      "nBeats": 10952,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.7,
+      "events": 67,
+      "nBeats": 23895,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 4.6,
+      "denomSec": 11686.324107299546,
+      "events": 15,
+      "nBeats": 10952,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.6,
+      "events": 67,
+      "nBeats": 23895,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 4.6,
+      "denomSec": 11686.324107299546,
+      "events": 15,
+      "nBeats": 10952,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.6,
+      "events": 67,
+      "nBeats": 23895,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 4.6,
+      "denomSec": 11686.324107299546,
+      "events": 15,
+      "nBeats": 10952,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.6,
+      "events": 67,
+      "nBeats": 23895,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 4.6,
+      "denomSec": 11686.324107299546,
+      "events": 15,
+      "nBeats": 10952,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.6,
+      "events": 67,
+      "nBeats": 23895,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 4.6,
+      "denomSec": 11686.324107299546,
+      "events": 15,
+      "nBeats": 10952,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.6,
+      "events": 67,
+      "nBeats": 23895,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 4.6,
+      "denomSec": 11686.324107299546,
+      "events": 15,
+      "nBeats": 10952,
+      "reason": null
+     },
+     "ppg": {
+      "index": 9.7,
+      "events": 67,
+      "nBeats": 23895,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-10",
+   "ecgFile": "Polar_H10_02849638_20260910004504_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260910210609_PPG.txt",
+   "ms": 89437,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 11,
+      "denomSec": 13403.123423193761,
+      "events": 41,
+      "nBeats": 12319,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.4,
+      "events": 39,
+      "nBeats": 18276,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 11,
+      "denomSec": 13403.123423193761,
+      "events": 41,
+      "nBeats": 12319,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.4,
+      "events": 39,
+      "nBeats": 18276,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 11,
+      "denomSec": 13418.999807443062,
+      "events": 41,
+      "nBeats": 12319,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.4,
+      "events": 39,
+      "nBeats": 18276,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 11,
+      "denomSec": 13418.999807443062,
+      "events": 41,
+      "nBeats": 12319,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.4,
+      "events": 39,
+      "nBeats": 18276,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 11,
+      "denomSec": 13418.999807443062,
+      "events": 41,
+      "nBeats": 12319,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.4,
+      "events": 39,
+      "nBeats": 18276,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 11,
+      "denomSec": 13418.999807443062,
+      "events": 41,
+      "nBeats": 12319,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.4,
+      "events": 39,
+      "nBeats": 18276,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 11,
+      "denomSec": 13418.999807443062,
+      "events": 41,
+      "nBeats": 12319,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.4,
+      "events": 39,
+      "nBeats": 18276,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 11,
+      "denomSec": 13410.432627667273,
+      "events": 41,
+      "nBeats": 12319,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.4,
+      "events": 39,
+      "nBeats": 18276,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-11",
+   "ecgFile": "Polar_H10_02849638_20260911194444_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260911194435_PPG.txt",
+   "ms": 120025,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 18787.451913813402,
+      "events": 29,
+      "nBeats": 23089,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.9,
+      "events": 32,
+      "nBeats": 24139,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 18787.451913813402,
+      "events": 29,
+      "nBeats": 23089,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.8,
+      "events": 32,
+      "nBeats": 24139,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 18787.451913813402,
+      "events": 29,
+      "nBeats": 23089,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.8,
+      "events": 32,
+      "nBeats": 24139,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 18787.451913813402,
+      "events": 29,
+      "nBeats": 23089,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.8,
+      "events": 32,
+      "nBeats": 24139,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 18787.451913813402,
+      "events": 29,
+      "nBeats": 23089,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.8,
+      "events": 32,
+      "nBeats": 24139,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 18787.451913813402,
+      "events": 29,
+      "nBeats": 23089,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.8,
+      "events": 32,
+      "nBeats": 24139,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 5.4,
+      "denomSec": 18834.923909964025,
+      "events": 28,
+      "nBeats": 23089,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.8,
+      "events": 32,
+      "nBeats": 24139,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 18787.451913813402,
+      "events": 29,
+      "nBeats": 23089,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.8,
+      "events": 32,
+      "nBeats": 24139,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-12",
+   "ecgFile": "Polar_H10_02849638_20260912190318_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260912181913_PPG.txt",
+   "ms": 171895,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 6.2,
+      "denomSec": 38029.60971538136,
+      "events": 65,
+      "nBeats": 35041,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 49,
+      "nBeats": 30382,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 6.2,
+      "denomSec": 38040.30378391655,
+      "events": 66,
+      "nBeats": 35041,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 49,
+      "nBeats": 30382,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 6.2,
+      "denomSec": 38047.608546154996,
+      "events": 66,
+      "nBeats": 35041,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.1,
+      "events": 49,
+      "nBeats": 30382,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 6.2,
+      "denomSec": 38047.608546154996,
+      "events": 66,
+      "nBeats": 35041,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.1,
+      "events": 49,
+      "nBeats": 30382,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 6.2,
+      "denomSec": 38047.608546154996,
+      "events": 66,
+      "nBeats": 35041,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.1,
+      "events": 49,
+      "nBeats": 30382,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 6.2,
+      "denomSec": 38047.608546154996,
+      "events": 66,
+      "nBeats": 35041,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.1,
+      "events": 49,
+      "nBeats": 30382,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 6.1,
+      "denomSec": 38147.27552636237,
+      "events": 65,
+      "nBeats": 35041,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.1,
+      "events": 49,
+      "nBeats": 30382,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 6.2,
+      "denomSec": 38047.608546154996,
+      "events": 66,
+      "nBeats": 35041,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.1,
+      "events": 49,
+      "nBeats": 30382,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-13",
+   "ecgFile": "Polar_H10_02849638_20260913213551_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260913213235_PPG.txt",
+   "ms": 114012,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 24224.413847466705,
+      "events": 52,
+      "nBeats": 22147,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.8,
+      "events": 53,
+      "nBeats": 22610,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 7.7,
+      "denomSec": 24268.040842698676,
+      "events": 52,
+      "nBeats": 22147,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.8,
+      "events": 53,
+      "nBeats": 22610,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 7.9,
+      "denomSec": 24285.93427599576,
+      "events": 53,
+      "nBeats": 22147,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.8,
+      "events": 53,
+      "nBeats": 22610,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 7.9,
+      "denomSec": 24285.93427599576,
+      "events": 53,
+      "nBeats": 22147,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.8,
+      "events": 53,
+      "nBeats": 22610,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 7.9,
+      "denomSec": 24285.93427599576,
+      "events": 53,
+      "nBeats": 22147,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.8,
+      "events": 53,
+      "nBeats": 22610,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 7.9,
+      "denomSec": 24285.93427599576,
+      "events": 53,
+      "nBeats": 22147,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.8,
+      "events": 53,
+      "nBeats": 22610,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 7.9,
+      "denomSec": 24285.93427599576,
+      "events": 53,
+      "nBeats": 22147,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.8,
+      "events": 53,
+      "nBeats": 22610,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 7.9,
+      "denomSec": 24285.93427599576,
+      "events": 53,
+      "nBeats": 22147,
+      "reason": null
+     },
+     "ppg": {
+      "index": 7.8,
+      "events": 53,
+      "nBeats": 22610,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-15",
+   "ecgFile": "Polar_H10_02849638_20260915221031_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260915220844_PPG.txt",
+   "ms": 116004,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 23251.95694365823,
+      "events": 36,
+      "nBeats": 19871,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.2,
+      "events": 40,
+      "nBeats": 20086,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 23264.045657351544,
+      "events": 36,
+      "nBeats": 19871,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.2,
+      "events": 40,
+      "nBeats": 20086,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 23269.24610138298,
+      "events": 36,
+      "nBeats": 19871,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.2,
+      "events": 40,
+      "nBeats": 20086,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 23269.24610138298,
+      "events": 36,
+      "nBeats": 19871,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.2,
+      "events": 40,
+      "nBeats": 20086,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 23269.24610138298,
+      "events": 36,
+      "nBeats": 19871,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.2,
+      "events": 40,
+      "nBeats": 20086,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 23269.24610138298,
+      "events": 36,
+      "nBeats": 19871,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.2,
+      "events": 40,
+      "nBeats": 20086,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 23269.24610138298,
+      "events": 36,
+      "nBeats": 19871,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.2,
+      "events": 40,
+      "nBeats": 20086,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 5.6,
+      "denomSec": 23269.24610138298,
+      "events": 36,
+      "nBeats": 19871,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.2,
+      "events": 40,
+      "nBeats": 20086,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-16",
+   "ecgFile": "Polar_H10_02849638_20260916222657_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260916222609_PPG.txt",
+   "ms": 108306,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 5.9,
+      "denomSec": 21268.773120958376,
+      "events": 35,
+      "nBeats": 19239,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.7,
+      "events": 39,
+      "nBeats": 19276,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 5.9,
+      "denomSec": 21277.486767281353,
+      "events": 35,
+      "nBeats": 19239,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.7,
+      "events": 39,
+      "nBeats": 19276,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 5.9,
+      "denomSec": 21284.565052022645,
+      "events": 35,
+      "nBeats": 19239,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.6,
+      "events": 39,
+      "nBeats": 19276,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 5.9,
+      "denomSec": 21284.565052022645,
+      "events": 35,
+      "nBeats": 19239,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.6,
+      "events": 39,
+      "nBeats": 19276,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 5.9,
+      "denomSec": 21284.565052022645,
+      "events": 35,
+      "nBeats": 19239,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.6,
+      "events": 39,
+      "nBeats": 19276,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 5.9,
+      "denomSec": 21284.565052022645,
+      "events": 35,
+      "nBeats": 19239,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.6,
+      "events": 39,
+      "nBeats": 19276,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 5.9,
+      "denomSec": 21284.565052022645,
+      "events": 35,
+      "nBeats": 19239,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.6,
+      "events": 39,
+      "nBeats": 19276,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 5.9,
+      "denomSec": 21284.565052022645,
+      "events": 35,
+      "nBeats": 19239,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.6,
+      "events": 39,
+      "nBeats": 19276,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-17",
+   "ecgFile": "Polar_H10_02849638_20260917221148_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260917220830_PPG.txt",
+   "ms": 101677,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 6,
+      "denomSec": 22099.831003115763,
+      "events": 37,
+      "nBeats": 19934,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.5,
+      "events": 40,
+      "nBeats": 20250,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 6,
+      "denomSec": 22112.858556911546,
+      "events": 37,
+      "nBeats": 19934,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.5,
+      "events": 40,
+      "nBeats": 20250,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 6,
+      "denomSec": 22112.858556911546,
+      "events": 37,
+      "nBeats": 19934,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.5,
+      "events": 40,
+      "nBeats": 20250,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 6,
+      "denomSec": 22112.858556911546,
+      "events": 37,
+      "nBeats": 19934,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.5,
+      "events": 40,
+      "nBeats": 20250,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 6,
+      "denomSec": 22112.858556911546,
+      "events": 37,
+      "nBeats": 19934,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.5,
+      "events": 40,
+      "nBeats": 20250,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 6,
+      "denomSec": 22112.858556911546,
+      "events": 37,
+      "nBeats": 19934,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.5,
+      "events": 40,
+      "nBeats": 20250,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 6,
+      "denomSec": 22112.858556911546,
+      "events": 37,
+      "nBeats": 19934,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.5,
+      "events": 40,
+      "nBeats": 20250,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 6,
+      "denomSec": 22112.858556911546,
+      "events": 37,
+      "nBeats": 19934,
+      "reason": null
+     },
+     "ppg": {
+      "index": 6.5,
+      "events": 40,
+      "nBeats": 20250,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-19",
+   "ecgFile": "Polar_H10_02849638_20260919192038_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260919224059_PPG.txt",
+   "ms": 68751,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 5.4,
+      "denomSec": 4035.371300320304,
+      "events": 6,
+      "nBeats": 4259,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.5,
+      "events": 39,
+      "nBeats": 22374,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 5.4,
+      "denomSec": 4035.371300320304,
+      "events": 6,
+      "nBeats": 4259,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.4,
+      "events": 39,
+      "nBeats": 22374,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 5.3,
+      "denomSec": 4041.0127112983278,
+      "events": 6,
+      "nBeats": 4259,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.4,
+      "events": 39,
+      "nBeats": 22374,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 5.3,
+      "denomSec": 4041.0127112983278,
+      "events": 6,
+      "nBeats": 4259,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.4,
+      "events": 39,
+      "nBeats": 22374,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 5.3,
+      "denomSec": 4041.0127112983278,
+      "events": 6,
+      "nBeats": 4259,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.4,
+      "events": 39,
+      "nBeats": 22374,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 5.3,
+      "denomSec": 4041.0127112983278,
+      "events": 6,
+      "nBeats": 4259,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.4,
+      "events": 39,
+      "nBeats": 22374,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 5.3,
+      "denomSec": 4041.0127112983278,
+      "events": 6,
+      "nBeats": 4259,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.4,
+      "events": 39,
+      "nBeats": 22374,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 5.3,
+      "denomSec": 4041.0127112983278,
+      "events": 6,
+      "nBeats": 4259,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.4,
+      "events": 39,
+      "nBeats": 22374,
+      "reason": null
+     }
+    }
+   }
+  },
+  {
+   "night": "2026-09-20",
+   "ecgFile": "Polar_H10_02849638_20260920223622_ECG.txt",
+   "ppgFile": "Polar_VeritySense_0C301E3F_20260920223446_PPG.txt",
+   "ms": 82550,
+   "byValue": {
+    "3": {
+     "ecg": {
+      "index": 10.5,
+      "denomSec": 8932.710303405918,
+      "events": 26,
+      "nBeats": 8030,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 32,
+      "nBeats": 19684,
+      "reason": null
+     }
+    },
+    "5": {
+     "ecg": {
+      "index": 10.5,
+      "denomSec": 8943.05689250418,
+      "events": 26,
+      "nBeats": 8030,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 32,
+      "nBeats": 19684,
+      "reason": null
+     }
+    },
+    "10": {
+     "ecg": {
+      "index": 10.5,
+      "denomSec": 8943.05689250418,
+      "events": 26,
+      "nBeats": 8030,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 32,
+      "nBeats": 19684,
+      "reason": null
+     }
+    },
+    "15": {
+     "ecg": {
+      "index": 9.5,
+      "denomSec": 9132.087955817837,
+      "events": 24,
+      "nBeats": 8030,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 32,
+      "nBeats": 19684,
+      "reason": null
+     }
+    },
+    "20": {
+     "ecg": {
+      "index": 9.5,
+      "denomSec": 9132.087955817837,
+      "events": 24,
+      "nBeats": 8030,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 32,
+      "nBeats": 19684,
+      "reason": null
+     }
+    },
+    "30": {
+     "ecg": {
+      "index": 9,
+      "denomSec": 9177.569368743374,
+      "events": 23,
+      "nBeats": 8030,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 32,
+      "nBeats": 19684,
+      "reason": null
+     }
+    },
+    "60": {
+     "ecg": {
+      "index": 8.9,
+      "denomSec": 9258.196479966102,
+      "events": 23,
+      "nBeats": 8030,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 32,
+      "nBeats": 19684,
+      "reason": null
+     }
+    },
+    "7.5": {
+     "ecg": {
+      "index": 10.5,
+      "denomSec": 8943.05689250418,
+      "events": 26,
+      "nBeats": 8030,
+      "reason": null
+     },
+     "ppg": {
+      "index": 5.2,
+      "events": 32,
+      "nBeats": 19684,
+      "reason": null
+     }
+    }
+   }
+  }
+ ]
+}
