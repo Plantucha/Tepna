@@ -22,6 +22,7 @@ import re
 import os
 import shutil
 import stat
+import json
 import subprocess
 import sys
 
@@ -58,6 +59,7 @@ for a in "$@"; do
     ruff)   echo ruff   >> "{log}"; exit {ruff_rc} ;;
     pytest) echo pytest >> "{log}"; exit {pytest_rc} ;;
     mypy)   {mypy_emit}; exit 0 ;;   # NOT logged: `ran` is the BLOCKING gate set, and mypy is advisory
+    checkverdict.py) exec python3 "$@" ;;   # the verdict writer runs for REAL — it is what the object tests read
   esac
 done
 exit 0
@@ -73,6 +75,7 @@ exit {shellcheck_rc}
     env = dict(os.environ)
     env["PATH"] = f"{binn}{os.pathsep}{env['PATH']}"
     env["PYTHON"] = str(binn / "fakepy")
+    env["CHECK_VERDICT_OUT"] = str(tmp_path / "check-verdict.json")   # never the real tree's file
     return env, log
 
 
@@ -399,3 +402,46 @@ def test_the_PROSE_ANCHOR_a_downstream_reader_keys_on_is_byte_STABLE(tmp_path):
         d.mkdir()
         out = _mypy_run(d, base + delta)
         assert len(re.findall(anchor, out, re.M)) == count, f"{sub}: the anchor moved"
+
+
+# ── THE OBJECT (VERDICT-CONTRACT §3d): check.sh writes one tepna.verdict/1 beside .mypy-latest.txt ────
+def _verdict(tmp_path):
+    with open(tmp_path / "check-verdict.json", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def test_a_green_run_writes_the_object_over_the_four_blocking_children_UNKNOWN_until_unwired_adopts(tmp_path):
+    p, _ = _run(tmp_path)
+    assert p.returncode == 0, "the shell's verdict is unchanged — §3d: the exit code STAYS"
+    v = _verdict(tmp_path)
+    assert v["schema"] == "tepna.verdict/1" and v["gate"] == "capture-host-check"
+    assert v["status"] == "UNKNOWN" and v["result"]["statuses"]["unwired"] == "UNKNOWN"   # ours, unadopted: by provenance
+    assert {k: s for k, s in v["result"]["statuses"].items() if k != "unwired"} == {"ruff": "PASS", "shellcheck": "PASS", "pytest": "PASS"}
+    assert v["population"] == {"checked": 4, "eligible": 4, "excluded": 0}
+    assert v["result"]["advisory"]["mypy"] == "NO_COUNT"   # the fake mypy prints no summary line: an abort, carried as the token
+    assert "verdict: UNKNOWN" in p.stdout
+
+
+def test_a_failing_child_is_a_FAIL_object_naming_it_and_the_exit_code_stays(tmp_path):
+    p, _ = _run(tmp_path, pytest_rc=1)
+    assert p.returncode == 1, "§3d: the exit code STAYS the shell's verdict"
+    v = _verdict(tmp_path)
+    assert v["status"] == "FAIL" and v["result"]["firstFailure"] == "pytest" and "pytest" in v["reason"]
+    assert v["result"]["exitCodes"]["pytest"] == 1
+
+
+def test_a_MISSING_TOOL_is_NOT_RUN_for_that_child_and_leaves_the_run_UNKNOWN_never_FAIL(tmp_path):
+    """CLAUDE.md §🐍: exit 127 is a missing TOOL, not a failing gate — and §3d: an unplanned exclusion
+    is never a PASS over the children that ran."""
+    _run(tmp_path, shellcheck_rc=127)
+    v = _verdict(tmp_path)
+    assert v["status"] == "UNKNOWN" and v["result"]["statuses"]["shellcheck"] == "NOT_RUN"
+    assert v["population"] == {"checked": 3, "eligible": 4, "excluded": 1}
+    assert "not installed" in v["reason"]
+
+
+def test_the_object_is_validated_by_verdict_js_the_contract_s_own_validator(tmp_path):
+    from test_verdict import js_validate
+    _run(tmp_path, ruff_rc=1)
+    r = js_validate(_verdict(tmp_path))
+    assert r["ok"], r["errors"]

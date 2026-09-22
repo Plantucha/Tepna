@@ -287,6 +287,14 @@ so the runner-level object cannot read greener than the least-adopted child bene
 that makes wave 3 pull wave 2 along: the runner's PASS is only reachable once every child it aggregates
 emits an object.
 
+**An external tool with a published exit-code contract is read BY that contract** (ruled 2026-09-22, on
+`check.sh`'s object, #2830): the exit code is a machine-readable API the tool already publishes, so keying on
+it is not prose-parsing — the mapping is written in the adopter beside the tool's version (`checkverdict.py`:
+ruff · shellcheck · pytest). **A tool of OURS never gets this exemption — it adopts or counts UNKNOWN by
+provenance** (`find_unwired.py` exits 1 for a finding AND for a crash, which is exactly why it owes its own
+object; until then `check.sh`'s object reads UNKNOWN on a green run — the lever above, working). **A code the
+contract does not name is UNKNOWN.**
+
 **Where each runner sits today, so the two rows can be costed:**
 - `run-check.mjs` already computes `ran` / `notRun` / `failedIdx` (`planAfterFailure`); the object is a
   projection of that plus the child exit codes — the smallest of the three. Children are exit codes for now,
