@@ -30984,6 +30984,95 @@
       );
       T.ok('F1 · STATUS_RE accepts PROPOSED (deferred \u2026) — the in-vocab way to park a brief', STATUS_RE.test('**Status:** PROPOSED (consciously deferred 2026-06-24 \u2014 optional polish)'));
       T.ok('F1 · STATUS_RE REJECTS a bare **Status:** DEFERRED header (not first-class — decision a)', !STATUS_RE.test('**Status:** DEFERRED \u2014 2026-06-24'));
+      /* ══ check9 · THE REPO ROOT HOLDS EXACTLY THE DOCUMENTED CLASSES ═════════════════════════
+         CLAUDE.md §📁 states what the root may contain — base/entry docs, standard OSS files, and
+         runtime/build files — in PROSE, with nothing deriving it from the tree. Measured 2026-09-22:
+         `#2854` landed a **0-byte file named `Data`** at the repo root and it sat on main unnoticed.
+         The tell was `A Data` beside `M "Data Unifier.html"`: an unquoted path with a space reaching
+         a redirect or `git add`, the same hazard `docs/CORPUS-LOCATIONS.md` warns about for
+         `Ecg nightly`.
+
+         ⚠️ AN EQUALITY, NOT A FLOOR AND NOT A DENYLIST. "at least N expected files" and "no file
+         matching <bad pattern>" both fail OPEN on the next stray — and a 0-byte `Data` matches no bad
+         pattern anyone would write. So every root file must fall in a NAMED class or a runtime
+         EXTENSION class, the classes are exhaustive, and `classified + unclassified = total` is
+         published. Adding a root doc means moving the list, deliberately; adding `foo-dsp.js` does
+         not, because a rule that convicts working practice is the wrong rule.
+
+         Node-lane only: `rootFiles` is git's tracked list (see docs-ledger-fs.mjs on why tracked and
+         not `readdir`). Absent ⇒ SKIP, never a green over an unexamined root. */
+      var ROOT_NAMED_DOCS = [
+        'AGENTS.md',
+        'ARCHITECTURE-PRINCIPLES.md',
+        'AUDIT-PROMPT.md',
+        'CHANGELOG.md',
+        'CLAUDE.md',
+        'CONTRIBUTING.md',
+        'DOCS-INDEX.md',
+        'ORIENTATION.md',
+        'README.md',
+        'THIRD-PARTY.md'
+      ];
+      var ROOT_NAMED_OSS = ['CITATION.cff', 'LICENSE', 'NOTICE'];
+      var ROOT_NAMED_CONFIG = ['.c8rc.json', '.gitattributes', '.gitignore', '.kodiak.toml', '.secrets-exclude', '.secrets.baseline', '.zenodo.json'];
+      var ROOT_RUNTIME_EXT = ['css', 'html', 'js', 'json', 'jsx', 'ts'];
+      function rootClassOf(name) {
+        if (ROOT_NAMED_DOCS.indexOf(name) >= 0) return 'doc';
+        if (ROOT_NAMED_OSS.indexOf(name) >= 0) return 'oss';
+        if (ROOT_NAMED_CONFIG.indexOf(name) >= 0) return 'config';
+        /* A dotfile that is not NAMED is unclassified on purpose: `.env` at root is exactly the shape
+           nobody means to commit, and an extension rule would wave it through. */
+        if (name.charAt(0) === '.') return null;
+        var dot = name.lastIndexOf('.');
+        if (dot <= 0) return null; // extensionless and unnamed — the `Data` shape
+        return ROOT_RUNTIME_EXT.indexOf(name.slice(dot + 1)) >= 0 ? 'runtime' : null;
+      }
+      function rootSetVerdict(names) {
+        var byClass = { doc: 0, oss: 0, config: 0, runtime: 0 };
+        var unclassified = [];
+        names.forEach(function (n) {
+          var c = rootClassOf(n);
+          if (c) byClass[c]++;
+          else unclassified.push(n);
+        });
+        var classified = byClass.doc + byClass.oss + byClass.config + byClass.runtime;
+        return { total: names.length, classified: classified, unclassified: unclassified, byClass: byClass };
+      }
+      /* PLANTS FIRST, and the plant is the ACTUAL defect: an extensionless zero-byte `Data`, not a
+         tidy `stray.txt`. Both numbers, so the check is shown to fire AND to pass on the same set. */
+      var cleanRoot = ['CLAUDE.md', 'LICENSE', 'NOTICE', '.gitignore', 'oxydex-dsp.js', 'OxyDex.html', 'OxyDex.src.html', 'dex-globals.d.ts', 'package.json'];
+      var withStray = cleanRoot.concat(['Data']);
+      var vClean = rootSetVerdict(cleanRoot);
+      var vStray = rootSetVerdict(withStray);
+      T.ok(
+        'self-test · check9 PASSES a root of only documented classes (' + vClean.classified + '/' + vClean.total + ')',
+        vClean.unclassified.length === 0 && vClean.classified === vClean.total,
+        JSON.stringify(vClean.unclassified)
+      );
+      T.ok(
+        'self-test · check9 FIRES on the MEASURED defect — an extensionless `Data` (' + vStray.classified + '/' + vStray.total + ')',
+        vStray.unclassified.length === 1 && vStray.unclassified[0] === 'Data',
+        JSON.stringify(vStray.unclassified)
+      );
+      T.ok(
+        'self-test · check9 does NOT convict a new runtime file, and DOES fire on a stray doc or dotfile',
+        rootClassOf('newnode-dsp.js') === 'runtime' &&
+          rootClassOf('OxyDex Reference.html') === 'runtime' &&
+          rootClassOf('NOTES.md') === null &&
+          rootClassOf('.env') === null,
+        [rootClassOf('newnode-dsp.js'), rootClassOf('NOTES.md'), rootClassOf('.env')].join('/')
+      );
+      T.ok('self-test · check9 publishes an EQUALITY, so a class going missing moves the numbers', vStray.classified + vStray.unclassified.length === vStray.total);
+      if (!DL.rootFiles) {
+        T.skip('check9 · the repo root holds exactly the documented classes', 'no rootFiles wired (browser lane, or git unreadable)');
+      } else {
+        var rootV = rootSetVerdict(DL.rootFiles);
+        T.ok(
+          'check9 · the repo root holds exactly the documented classes (' + rootV.classified + ' classified + ' + rootV.unclassified.length + ' unclassified = ' + rootV.total + ')',
+          rootV.unclassified.length === 0,
+          rootV.unclassified.length ? 'UNCLASSIFIED at root: ' + rootV.unclassified.join(', ') + ' — a root file must be a named doc/OSS/config entry or a runtime ' + ROOT_RUNTIME_EXT.join('/') + ' file (CLAUDE.md §📁)' : 'ok'
+        );
+      }
     });
 
     /* ════ RELEASE-LEDGER — controlled releases, machine-checked (CONTROLLED-RELEASES-2026-07-05) ════
