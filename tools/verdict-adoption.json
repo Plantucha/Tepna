@@ -1211,23 +1211,51 @@
   },
   "tests/browser-gates.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "the headless-browser CI gate (render-coverage + no-network + night-seal): it READS verify-seals' objects for the seal leg and decides its own pass/fail by an exit code over FAILS[] \u2014 a runner over browser legs, \u00a73d shape; adopt after the three Node runners, population = the browser legs"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tests/browser-gates.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the four browser legs as ONE object (\u00a73d): children = the legs run (provenance 'leg'), each from its own FAILS delta \u2014 clean \u21d2 PASS, \u2265 1 failure \u21d2 FAIL, a leg that THREW \u21d2 UNKNOWN (it decided nothing); NN_ONLY / SEAL_ONLY are declared exclusions \u21d2 filtered (the no-network workflow's own gate, not this one's); a leg missing with no selector is an unplanned NOT_RUN \u21d2 UNKNOWN. The night-seal leg already reads verify-seals' object, so this is a consumer one level up. The playwright import is dynamic so the cmd runs where no browser is installed. Measured against a scratch server: full run PASS over 4/4 (9151 assertions, 9 bundles, 38 fixtures); SEAL_ONLY=1 \u21d2 PASS over {1, 4, 3} filtered. The exit code stays."
   },
   "tests/check-dex.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "the SCOPED runner (`SCOPED GREEN` / `SCOPED FAIL` over the groups a diff touches): a runner by construction filtered \u2014 under \u00a73d its object is filtered:true with excludedBy = the diff scope, never the gate; adopt by projecting run-tests' object"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tests/check-dex.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the scoped runner as ONE object (\u00a73d): children = the two lanes, each read from its OWN object under --json (run-tests' under `verdict`, verify-manifest's whole stdout); a lane with no valid object is exit-code only (0 \u21d2 UNKNOWN by provenance, \u2260 0 \u21d2 FAIL). Filtered BY CONSTRUCTION \u2014 the dex filter is the declared exclusion and the object always carries the consumer rule: check-dex is never the gate. Measured: `oxydex --json` \u21d2 PASS over {2, 3, 1} filtered, lanes {81/641} and {6/14}. The exit code stays (0 iff both lanes exited 0)."
   },
   "tests/verify-manifest.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "the Node sibling of verify-provenance.html: GATE A (bundle identity) + GATE B (fixture ledger) PASS/FAIL words over the shared manifest-gate core \u2014 a two-gate decision, population = bundles + fixtures; wave 4"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tests/verify-manifest.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "GATE A + GATE B as ONE object (VERDICT-CONTRACT \u00a73d, Magpie 2026-09-22): population = the bundles GATE A hashes + the page-wiring guard + the fixtures GATE B audits; a matching bundle / reproducible fixture is PASS, drift is FAIL, an absent fixture input (uploads/ gitignored \u2014 the header's declared skip class) is NOT_APPLICABLE, checked and never green evidence; --bundle= is a declared exclusion \u21d2 filtered; a setup error (exit 2) is NOT_RUN with the reason. Measured on this tree: PASS over 48/48 (9 bundles, 24 fixtures reproducible, 14 absent \u21d2 NOT_APPLICABLE); --bundle=oxydex \u21d2 PASS over {6, 14, 8} filtered. --json; the exit code stays."
   },
   "tests/verify-shard-union.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "the partition proof (every group in exactly one shard; --deep diffs full-run vs shard-union verdicts): decides ok/not-ok by exit code; population = groups (and assertions under --deep); it consumes run-tests' --json and will read its `verdict` too once adopted"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tests/verify-shard-union.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the partition proof as ONE object (\u00a73d): children = its named checks (provenance 'check'), criterion = the union equals the plan; --deep adds the empirical checks AND, since the shards emit objects (#2835), a CONSUMER check \u2014 the shard objects aggregated through aggregateChildren must reach the full run's object (a shard with no or an invalid object fails it). Not filtered: the non-deep run IS the CI plan. Measured: PASS over 12/12 checks; --json; the exit code stays."
   },
   "tests/build-core-tests.mjs": {
    "bin": "test",
