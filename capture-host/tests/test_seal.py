@@ -346,6 +346,45 @@ def test_the_vector_selftest_emits_a_PASS_verdict_on_stdout_and_prose_on_stderr(
     assert v["status"] == "PASS" and "ok" in r.stderr, "the object is the API; the prose is for a human"
 
 
+def test_the_NODE_verifier_also_says_why_its_commit_is_null(tmp_path):
+    """The node-side parity of the test below, and the exact case that broke 22 tests in a scratch.
+
+    `verify-seals.mjs` runs `git rev-parse --short HEAD` in ITS OWN directory, so inside a mutation
+    scratch — a copied tree with no `.git` — the commit is null. Before this was fixed the tool
+    emitted a bare null and its own validator refused the object:
+
+        verify-seals produced an invalid verdict: producedBy.commit is null without
+        producedBy.commitReason (∅: say why)
+
+    The comment above `commitShort()` had called that reason "implicit". **An implicit reason is not
+    a stated reason** — knowing why is not recording why, which is §∅'s in-band/out-of-band argument
+    applied to a justification rather than to a value.
+
+    ⚠️ The reason string is deliberately NOT `verdict.NO_GIT_REASON`: that names `build_id.probe`,
+    the Python probe, which this tool never runs. Each producer says why ITS OWN attempt failed."""
+    node = shutil.which("node")
+    if not node:  # pragma: no cover
+        pytest.skip("node is not installed")
+    # HERE is capture-host/ (NODE_VERIFIER above joins dirname(HERE) with tools/), so ONE dirname
+    # reaches the repo root. I wrote two and it failed — a path-anchor slip inside a test about a
+    # path-anchor defect, caught by the run rather than by rereading it.
+    root = os.path.dirname(HERE)                           # the repo root, which HAS a .git
+    away = tmp_path / "nogit"                              # a copy that does not
+    (away / "tools").mkdir(parents=True)
+    shutil.copy(os.path.join(root, "tools", "verify-seals.mjs"), away / "tools" / "verify-seals.mjs")
+    shutil.copy(os.path.join(root, "verdict.js"), away / "verdict.js")
+    shutil.copytree(V.VECTOR_DIR, away / "capture-host" / "tests" / "vectors" / os.path.basename(V.VECTOR_DIR))
+    assert not (away / ".git").exists(), "the point of this fixture is that git cannot be read here"
+    r = subprocess.run([node, str(away / "tools" / "verify-seals.mjs"), "--vectors"],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr                     # pre-fix this THREW instead of emitting
+    v = json.loads(r.stdout.strip())
+    assert_valid_verdict(v)
+    assert v["producedBy"]["commit"] is None, v["producedBy"]
+    assert v["producedBy"]["commitReason"], "a null commit without a reason is the defect"
+    assert "git rev-parse" in v["producedBy"]["commitReason"], v["producedBy"]["commitReason"]
+
+
 def test_the_commit_field_is_null_outside_a_git_tree_not_a_guess(monkeypatch):
     """Since wave 2 the object is built by `verdict.make`, so the commit comes from `verdict.commit_sha`
     and a null carries `commitReason` (verdict.js refuses a bare null)."""
