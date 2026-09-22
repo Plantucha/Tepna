@@ -11,6 +11,7 @@
 # sibling opcode 0x05 a saturated drain WAS read as a device rate for months (282 402 of 284 420
 # buffers pinned at the cap), and the number it produced looked entirely reasonable.
 
+import itertools
 import asyncio
 
 import pytest
@@ -212,9 +213,16 @@ class _FakeRing:
         self.notify_char = None
         self.write_chars = []
         self.write_modes = []
+        self.frames = []
         self.stopped = False
+        self.stop_char = None
         self.sleeps = []
         self.connect_kwargs = None
+        self.connected_dev = None
+        self.scan_filter = None
+        self.scan_kwargs = None
+        # `pr` may be one value or a cycle of them — a rounding test needs a mean with decimals.
+        self._prs = itertools.cycle(list(pr) if isinstance(pr, (list, tuple)) else [pr])
         self.services = [_FakeService()]
         self.mtu_size = 247
 
@@ -233,9 +241,15 @@ class _FakeRing:
 
     async def stop_notify(self, _c):
         self.stopped = True
+        self.stop_char = _c
 
-    async def write_gatt_char(self, _c, frame, response=False):
+    # `response` defaults to a SENTINEL, not to False: the probe writes `response=False` explicitly, and
+    # a fake whose default equalled the probe's choice could not see the kwarg being DROPPED (bleak's own
+    # default is None, which is a different write mode on some backends). 2026-09-22: four `response=False`
+    # -> omitted mutants survived for exactly that reason.
+    async def write_gatt_char(self, _c, frame, response="UNSET"):
         self.write_chars.append(_c)
+        self.frames.append(bytes(frame))
         # OBSERVED, not merely accepted. `response=False` is a write-without-response, the only mode
         # the ring answers on this characteristic; a fake that takes the argument and drops it lets
         # `response=False` -> `True` pass every test while changing what goes on the wire.
@@ -252,20 +266,26 @@ class _FakeRing:
                 return
             hdr = bytearray(24)
             hdr[6] = 96                               # spo2  (parse_live offset [6])
-            hdr[8] = self.pr                          # low byte of the u16 PR at [8:10]
+            hdr[8] = next(self._prs)                  # low byte of the u16 PR at [8:10]
             self.notify(0, oxyii.encode(oxyii.OP_LIVE, bytes(hdr)))
         elif self.other_op:
             self.notify(0, oxyii.encode(oxyii.OP_GET_INFO, b"\x01\x02"))
 
 
 def _install(monkeypatch, ring, device=None, step=0.5):
+    # The scanner fake used to swallow its filter and timeout, so `timeout=25` -> `26`, a filter that
+    # accepts a stranger's address, or no filter at all were all invisible (2026-09-22: ten survivors on
+    # one line). Record what the probe asked the scanner for; a test asserts the filter's behaviour.
     async def find(*a, **k):
+        ring.scan_filter = a[0] if a else k.get("filterfunc")
+        ring.scan_kwargs = dict(k)
         return device
     monkeypatch.setattr(probe.BleakScanner, "find_device_by_filter", find)
     # `**kw` used to SWALLOW the connection arguments, so `BleakClient(timeout=30)` -> `timeout=31`
     # was invisible to every test. Record them on the ring instead; the fixture now observes what the
     # probe asked the link for.
     def _client(dev, **kw):
+        ring.connected_dev = dev
         ring.connect_kwargs = dict(kw)
         return ring
     monkeypatch.setattr(probe, "BleakClient", _client)
@@ -526,3 +546,106 @@ def test_the_probe_asks_the_link_for_what_it_needs_and_the_fixture_can_see_it(mo
     assert 0.4 in ring.sleeps, (
         f"the post-auth and post-setup settles are 0.4 s each — saw {sorted(set(ring.sleeps))}"
     )
+
+
+# ── run(): what the probe hands the LINK is asserted, not merely accepted ─────────────────────────
+# Residue 2026-09-06-probe-mutation-survivors-are-fixture-limited: 63 of run()'s mutants survived a
+# whole-module audit on 2026-09-22 (216 module-wide) because the fixture recorded but nothing asserted.
+# Each test below names the mutant class it exists to kill; the audit re-run is the evidence, not this
+# comment.
+
+
+def test_the_scan_filter_is_address_only_and_the_scan_and_connect_timeouts_are_the_documented_ones(monkeypatch):
+    """Kills: filter -> None, filter accepting any address, `d.address`/`address` -> None, timeout 25 -> 26/None/
+    omitted, `BleakClient(None, ...)`, `timeout=30` (already observed) and `stop_notify(None)`."""
+    ring = _FakeRing()
+    dev = _FakeDevice()
+    _install(monkeypatch, ring, device=dev)
+    _run(probe.run("D1:98:62:7C:92:B3", 2.0, 5.0, None))
+    f = ring.scan_filter
+    assert callable(f), "the probe must hand the scanner a filter, not None"
+    assert f(_FakeDevice("D1:98:62:7C:92:B3"), None) is True
+    assert f(_FakeDevice("AA:BB:CC:DD:EE:FF"), None) is False, "ADDRESS-ONLY: a stranger's ring must be refused by the filter"
+    assert ring.scan_kwargs == {"timeout": 25}
+    assert ring.connected_dev is dev, "the client must be opened on the device the scan found"
+    assert ring.connect_kwargs == {"timeout": 30}
+    assert ring.stop_char is ring.notify_char, "notifications are stopped on the characteristic they were started on"
+
+
+def test_a_client_without_a_services_attribute_is_refused_not_crashed(monkeypatch):
+    """Kills `getattr(cl, "services", [])` -> `getattr(cl, "services")` (AttributeError instead of the refusal)."""
+    ring = _FakeRing()
+    del ring.services
+    _install(monkeypatch, ring, device=_FakeDevice())
+    with pytest.raises(SystemExit, match="write/notify pair"):
+        _run(probe.run("D1:98:62:7C:92:B3", 1.0, 5.0, None))
+
+
+def test_the_wire_sequence_is_auth_settle_setup_settle_then_requests_with_a_running_seq_byte(monkeypatch):
+    """Kills: sleep(0.4) -> 1.4/None, period = 1/hz -> 2/hz, 1*hz, None; `n = 0` -> 1, `n += 1` -> -= 1 / += 2,
+    `n & 0xFF` -> `n | 0xFF` / `n & 256` / seq omitted; every `response=False` dropped."""
+    ring = _FakeRing()
+    _install(monkeypatch, ring, device=_FakeDevice())
+    _run(probe.run("D1:98:62:7C:92:B3", 4.0, 2.0, None))
+    assert ring.sleeps[:2] == [0.4, 0.4], "auth and setup each settle for 0.4 s"
+    assert set(ring.sleeps[2:]) == {0.5}, "the poll period is 1/hz — at 2 Hz, 0.5 s, and only that"
+    ops = [fr[1] for fr in ring.frames]
+    assert ops[:2] == [oxyii.OP_AUTH, oxyii.OP_SETUP] if hasattr(oxyii, "OP_AUTH") and hasattr(oxyii, "OP_SETUP") else ops[0] != probe.OP_SAMPLES_A
+    seqs = [fr[4] for fr in ring.frames if fr[1] == probe.OP_SAMPLES_A]
+    assert len(seqs) >= 3, "the fixture must produce several requests for the sequence to be checkable"
+    assert seqs == list(range(len(seqs))), "0x03 requests carry a running seq byte from 0, one per request"
+    assert ring.write_modes and all(m is False for m in ring.write_modes), "every write is write-without-response, explicitly"
+
+
+def test_the_live_poll_rides_alongside_once_per_second_of_requests(monkeypatch):
+    """At hz=1 a live frame follows EVERY 0x03 request (n % max(1, 1) == 0). Kills `max(1, ...)` -> `max(2, ...)`
+    (halves the polls), `== 0` -> `== 1` (no polls), and `write_gatt_char(None, live_frame)`."""
+    ring = _FakeRing()
+    _install(monkeypatch, ring, device=_FakeDevice())
+    _run(probe.run("D1:98:62:7C:92:B3", 4.0, 1.0, None))
+    n_req = sum(1 for fr in ring.frames if fr[1] == probe.OP_SAMPLES_A)
+    n_live = sum(1 for fr in ring.frames if fr[1] == oxyii.OP_LIVE)
+    assert n_req >= 3 and n_live == n_req, f"at 1 Hz every request is followed by a live poll, got {n_req} requests / {n_live} polls"
+    assert all(c.uuid == oxyii.OXYII_WRITE for c in ring.write_chars), "the live poll goes to the WRITE handle like every other frame"
+
+
+def test_a_zero_second_window_writes_no_request_at_all(monkeypatch):
+    """`while monotonic() < end` -> `<=`: with a frozen clock and seconds=0 the strict form never enters the
+    loop; the inclusive form spins until the tick budget is exhausted."""
+    ring = _FakeRing()
+    _install(monkeypatch, ring, device=_FakeDevice(), step=0)
+    _run(probe.run("D1:98:62:7C:92:B3", 0.0, 5.0, None))
+    assert sum(1 for fr in ring.frames if fr[1] == probe.OP_SAMPLES_A) == 0
+
+
+def test_the_result_and_every_record_carry_exactly_the_documented_keys(monkeypatch):
+    """Kills every JSON-key mutant in run(): a consumer reads these names, so a renamed key is a broken
+    contract, not prose."""
+    ring = _FakeRing()
+    _install(monkeypatch, ring, device=_FakeDevice())
+    res = _run(probe.run("D1:98:62:7C:92:B3", 6.0, 5.0, None))
+    assert set(res) == {"summary", "samples", "beats"}
+    assert set(res["samples"][0]) == {"t", "count", "body_len", "payload_len", "markers", "isolated", "body_hex"}
+    assert set(res["beats"][0]) == {"t", "pr", "spo2"}
+    assert res["beats"][0]["spo2"] == 96 and res["beats"][0]["pr"] == 60, "the live fields are read from the parsed header by their names"
+
+
+def test_reported_pr_mean_rounds_to_one_decimal_and_records_per_beat_to_three(monkeypatch):
+    """Kills round(x, 1) -> 2/None/omitted, `/ len` -> `* len`, and the same family on records_per_beat.
+    The fixture's PR cycle is chosen so the means have MORE decimals than the rounding keeps; the
+    preconditions assert that, so a fixture drift reads as a fixture failure and not as a pass."""
+    # Measured 2026-09-22 under the fixture's tick budget: a 6 s window at 1 Hz polls exactly 4 beats,
+    # so the cycle (60, 60, 60, 61) gives a mean of 60.25 — two decimals, which round(x, 1) drops.
+    ring = _FakeRing(pr=(60, 60, 60, 61))
+    _install(monkeypatch, ring, device=_FakeDevice())
+    res = _run(probe.run("D1:98:62:7C:92:B3", 6.0, 1.0, None))
+    prs = [b["pr"] for b in res["beats"]]
+    assert len(prs) == 4, f"fixture geometry moved: expected 4 polled beats, got {len(prs)}"
+    mean = sum(prs) / len(prs)
+    assert round(mean, 1) != round(mean, 2), f"precondition: the mean {mean} must carry a second decimal"
+    s = res["summary"]
+    assert s["reported_pr_mean"] == round(mean, 1)
+    rpb = s["rate_unsaturated_hz"] * 60.0 / mean
+    assert round(rpb, 3) != round(rpb, 4), f"precondition: records/beat {rpb} must carry a fourth decimal"
+    assert s["records_per_beat"] == round(rpb, 3)
+
