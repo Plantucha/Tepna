@@ -481,8 +481,15 @@
   },
   "tools/extreme-mutate.mjs": {
    "bin": "already-json",
-   "status": "pending",
-   "note": "per-function verdict rule in the JSON record"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/extreme-mutate.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "wave-2 adopter (Magpie): the decision is the --baseline RATCHET \u2014 gateVerdict(): PASS 0 newly pseudo-tested functions vs tools/pseudo-tested-baseline.json \u00b7 FAIL names the new ones \u00b7 NOT_APPLICABLE file absent from the baseline (unmeasured, deliberately not gated) \u00b7 UNKNOWN canary survived \u00b7 population = function bodies scored, excluded = declined (trivial / no operator / not reached). Emitted at every --baseline exit (--json prints it); the pseudo-tested COUNT itself is a measurement, not the gate. Sample = a synthetic ratchet through the real decision, no git."
   },
   "tools/formula-constant-audit.mjs": {
    "bin": "word-only",
@@ -572,8 +579,15 @@
   },
   "tools/mutation-suite.mjs": {
    "bin": "already-json",
-   "status": "pending",
-   "note": "canaryVerdict \u2014 already refuses to vouch without a machine-readable result; align its object"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/mutation-suite.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "wave-2 adopter (Magpie): canaryVerdictObject() over canaryVerdict(), the driver's one decision per file \u2014 PASS the canary mutant died (kills detected, 1 of 1) \u00b7 UNKNOWN canary failed / sweep voided / no machine-readable result (the counts measure NOTHING) \u00b7 NOT_RUN no canary available (unverified is not disproved, and not a pass). Logged per parsed file beside the prose; the mutant counts ride in result and are what UNKNOWN refuses to vouch for."
   },
   "tools/mutation-summary.mjs": {
    "bin": "word-only",
@@ -853,7 +867,7 @@
   "tools/stmt-delete.mjs": {
    "bin": "already-json",
    "status": "pending",
-   "note": "KILLED / SURVIVED / INCONCLUSIVE per mutant"
+   "note": "BAND-LESS (Magpie, 2026-09-22, read before flipping): Level B reports pseudo-tested STATEMENTS and an invalid rate as a MEASUREMENT 'reported separately' from Level A, with no pre-stated threshold and no ratchet \u2014 the only decisions it makes are refusals (baseline suite red, no eligible statement). A PASS needs a criterion; adopting it means first giving it the ratchet extreme-mutate has (a committed pseudo-tested-statement baseline, growth-gated), which is a design change, not a wrapper. Not flipped."
   },
   "tools/tch-degeneracy-stats.mjs": {
    "bin": "word-only",
