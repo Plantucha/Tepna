@@ -394,6 +394,18 @@ def test_the_committed_verdict_sample_is_the_live_object_modulo_provenance():
     assert strip(committed) == strip(live), "the committed sample drifted from the reader — regenerate it ON PURPOSE"
 
 
+def test_evidence_never_carries_a_checkout_s_absolute_path():
+    """The plant behind #2815's first red: the committed sample named this worktree's /home/… path and
+    every other checkout read it as drift. A file under the repo is named repo-relative; one outside it
+    (a real sealed night under /srv) keeps the path it was given."""
+    v = unseal.verdict_sample()
+    assert not any(e.startswith(os.sep) for e in v["evidence"]), v["evidence"]
+    assert v["evidence"] == ["capture-host/unseal.py", "capture-host/tests/vectors/tepna-seal-1/TESTBOX0-2026-09-20.tepna"]
+    assert unseal._evidence_path("/srv/tepna/sealed/BOX-2026-09-20.tepna") == "/srv/tepna/sealed/BOX-2026-09-20.tepna"
+    with open(os.path.join(V.VECTOR_DIR, "verdict-sample.json"), encoding="utf-8") as fh:
+        assert not any(e.startswith(os.sep) for e in json.load(fh)["evidence"]), "the committed sample carries a checkout path"
+
+
 def test_the_verdict_sample_is_the_committed_vector_judged_PASS_and_needs_no_corpus():
     """`--verdict-sample` is what `tools/verdict-adoption.json` names for this producer: the committed
     vector under the committed test card key and fingerprint — PASS, with the three synthetic files."""

@@ -222,12 +222,25 @@ VERDICT_CRITERION = {"name": "tepna-seal/1 verifies end to end", "threshold": 0,
 _TOOL = "capture-host/unseal.py"
 
 
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _evidence_path(path: str) -> str:
+    """A file under the repo is named repo-relative in `evidence`; anything else as given. An absolute
+    path there is a checkout's, not the file's — the committed sample carried one worktree's `/home/…`
+    and read as drift in every other checkout (#2815, first CI lap). PURE."""
+    absolute = os.path.abspath(path)
+    if absolute == _REPO or absolute.startswith(_REPO + os.sep):
+        return os.path.relpath(absolute, _REPO)
+    return path
+
+
 def verdict(path: str, *, card_key: bytes, pinned_fingerprint: str, known_revision: int | None = None) -> dict:
     """One JSON object per file: PASS with what is inside, FAIL with the refusal's kind as the reason,
     NOT_RUN when the file cannot be read, UNKNOWN when the reader itself crashed. Prose is explanation;
     this is the API. A refusal is never an adjective — `reason` is `<kind>: <detail>`, the same string
     the exception carries. Population: the one file; NOT_RUN excludes it (nothing was opened)."""
-    evidence = [_TOOL, path]
+    evidence = [_TOOL, _evidence_path(path)]
     one = {"checked": 1, "eligible": 1, "excluded": 0}
     try:
         r = unseal(path, card_key=card_key, pinned_fingerprint=pinned_fingerprint, known_revision=known_revision)
