@@ -1,1320 +1,1327 @@
 {
- "schema": "tepna.verdict-adoption/1",
- "enumeratedWith": "git grep -lE <WORDS> -- tools/*.mjs capture-host/*.py (tools non-recursive)",
- "producers": {
-  "capture-host/adapter_hci.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/adapter_hci.py",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the adapter-hci night verdict (residue 2026-09-11-dead-adapter-goes-unnoticed, REPORT half): the watchdog probes every enumerated radio each poll (capture._adapter_responds, the HCI round trip) and appends a row per radio to <root>/ADAPTERHCI.csv; nightqc writes ADAPTERHCI-VERDICT.json beside the other two from the rows in the night's session window \u2014 pre-stated rule: longest run of unanswered polls >= 2 FAIL \u00b7 an isolated miss SHORTFALL \u00b7 every determinable probe answered PASS \u00b7 all undeterminable UNKNOWN \u00b7 no rows NOT_RUN; population = radios, all-None radios excluded; nothing here resets a radio"
-  },
-  "capture-host/ble_sniff.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/ble_sniff.py",
-     "--verdict-sample"
-    ]
-   },
-   "note": "wave 2: verdict_object() over summarise() \u2014 PASS a data-channel packet (a link was followed) \u00b7 FAIL none (the prose VERDICT lines are the reason) \u00b7 NOT_RUN a capture with zero records; population = records, CRC-bad excluded; the object is printed after the report, the sample is a synthetic summary"
-  },
-  "capture-host/capture.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
-  },
-  "capture-host/checkverdict.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/checkverdict.py",
-     "--verdict-sample"
-    ]
-   },
-   "note": "check.sh's runner-level object (VERDICT-CONTRACT \u00a73d, #2672's advisory token one level up): population = the four blocking children ruff \u00b7 shellcheck \u00b7 pytest \u00b7 unwired; the three EXTERNAL tools are read off their PUBLISHED exit-code contract (mapping beside the tool versions in the module: 0 PASS \u00b7 issues code FAIL \u00b7 127 NOT_RUN = a missing TOOL, excluded, and the run UNKNOWN \u00b7 abnormal codes and pytest 5 UNKNOWN); unwired is OURS and unadopted, so it is UNKNOWN by provenance and the object reads UNKNOWN on a green run until find_unwired emits its own object (\u00a73d's lever); aggregation by precedence FAIL > UNKNOWN > PASS, never a vote; advisory-state tokens ride in result.advisory; written to capture-host/.check-verdict.json; the shell exit code STAYS"
-  },
-  "capture-host/loss_audit.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/night_verdicts.py",
-     "--sample-json",
-     "night-loss"
-    ]
-   },
-   "note": "night-loss (CAPTURE-LOSS-PRECEDENCE-AUDIT R4): the \u00a70 metric per settled night \u2014 worn-but-not-recorded minutes, each gap attributed to the journal line before it; UNKNOWN with the number until the owner sets a bar (none ruled 2026-09-22), NOT_RUN when no primary stream exists; the sample audits a synthetic torn night with a planted daemon drop"
-  },
-  "capture-host/mutation_diff.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "the PURE builder (verdict_object, VERDICT_STATUSES) and the classifier vocabulary; the emitting producer is capture-host/tools/mutate_diff.py (adopted)"
-  },
-  "capture-host/night_report.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "relays night-backcheck (now read from BACKCHECK-VERDICT.json \u2014 the first consumer of a verdict object on the box) and the sniffer; decides nothing of its own"
-  },
-  "capture-host/night_verdicts.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/night_verdicts.py",
-     "--sample-json",
-     "night-backcheck"
-    ]
-   },
-   "note": "the emitter CLI for both nightly gates; this row validates night-backcheck (BACKCHECK-VERDICT.json): population = every PPG/PPG2W/ECG file, checked = files with a class-B block, excluded = files the check skipped \u2014 eligible>0 with checked==0 is UNKNOWN, never an empty-list ok"
-  },
-  "capture-host/nightqc.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/night_verdicts.py",
-     "--sample-json",
-     "night-qc"
-    ]
-   },
-   "note": "night-qc: summarize()'s own `ok` as one object per night (QC-VERDICT.json beside QC-SUMMARY.json) \u2014 PASS / FAIL (missing or degraded) / SHORTFALL (a session excluded inside the night) / UNDERPOWERED (span under 300 s) / NOT_RUN (no device configured); the cmd emits the object from synthetic input"
-  },
-  "capture-host/o2ring.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/o2ring.py",
-     "--verdict-sample"
-    ]
-   },
-   "note": "wave 2: the selftest's three known-answer vectors (two captured auth frames byte-for-byte, AES-128 FIPS-197 C.1) as selftest_verdict() \u2014 PASS all reproduce \u00b7 FAIL naming the mismatched; the pull path's self-consistency is parse_dat's decision and prints parse_dat's object, never a second builder"
-  },
-  "capture-host/oxy_transfer.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
-  },
-  "capture-host/parse_dat.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/parse_dat.py",
-     "--verdict-sample"
-    ]
-   },
-   "note": "wave 2: consistency_verdict() over self_consistency()'s two pre-stated bands (|mean SpO2 - trailer avg| <= 1, |n - total_seconds| <= max(2, 2 %)) \u2014 criterion = bands violated <= 0 with each band and value in result \u00b7 PASS \u00b7 FAIL (the notes are the reason) \u00b7 NOT_RUN no valid trailer; population = samples, None SpO2 excluded; the sample is the synthetic .dat"
-  },
-  "capture-host/probe_oxyii_0x03.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/probe_oxyii_0x03.py",
-     "--verdict-sample"
-    ]
-   },
-   "note": "wave 2: verdict_object() over summarise() \u2014 the 2 % band the prose has always applied: PASS the unsaturated rate is within 2 % of exactly one of 112.9 / 125.0 Hz (which one is the result) \u00b7 FAIL neither (a third answer) \u00b7 UNDERPOWERED no unsaturated pair (0 of N, minimum 1) \u00b7 UNKNOWN no records (empty reply and wrong argument indistinguishable); rides the --json log at the top level; bleak import guarded so the sample runs without a radio stack"
-  },
-  "capture-host/probe_polar_usb.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "capture-host/probe_rtc_read.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/probe_rtc_read.py",
-     "--verdict-sample"
-    ]
-   },
-   "note": "wave 2: classify() per opcode from clock_candidates() (the CLOCK CANDIDATE band diff() prints: a LE window advanced by the gap, +-max(2 s, 20 %)) then verdict_object() \u2014 PASS an opcode carries a candidate \u00b7 FAIL every readable reply byte-identical (the prose VERDICT) \u00b7 UNKNOWN bytes moved but no window tracked the gap (the prose said nothing there; the object says so) \u00b7 NOT_RUN nothing readable on both sides; population = opcodes, unreadable excluded; bleak import guarded"
-  },
-  "capture-host/probe_verity_survey.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "capture-host/pull_session.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "capture-host/sealbox.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/night_verdicts.py",
-     "--sample-json",
-     "night-seal"
-    ]
-   },
-   "note": "night-seal (CAPTURE-NIGHT-SEAL phase B): one object per settled night beside its seal in outbox/ \u2014 PASS (written and verified with unseal) / NOT_APPLICABLE (the seal still matches the directory) / FAIL (the written seal did not verify; previous kept) / NOT_RUN / UNKNOWN. The sample seals a synthetic night under a fresh key; where cryptography is not importable it emits NOT_RUN naming it"
-  },
-  "capture-host/tests/_srcscan.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/ecg_parity_harness.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_acq_evidence_cpap.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_adapter_hci.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_ax210_postinstall.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_ble_discovery.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_ble_sniff.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_capture.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_capture_runners.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_check_script.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_checkverdict.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_clock_resync_on_reconnect.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_coverage_gap_fill_ii.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_failover_planted_wedge.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_find_unwired.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_host_clock_and_helper_path.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_loss_audit.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_monitor_apply_restart.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_monitor_ecg_bandpass.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_mutation_diff.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_night_report.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_night_verdicts_cli.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_nightqc_verdicts.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_offline_lock.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_parse_dat.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pmd_arrival_writer.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_polar_pmd.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_polar_psftp_client.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_probe_oxyii_0x03.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_probe_read_char.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_psftp_protocol.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_once_contract.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_pull_session.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_qc_poller_verdicts.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_run_polar_bounded_awaits.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_run_polar_writer_contract.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_scan_coexistence.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_seal.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_seal_poller.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_sealbox.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_status_union.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_storage_targets.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_tepna_sniff_sh.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_timeline.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_verdict.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_verdict_wave2.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_webmon_state_contract.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_writers.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tests/test_writers_sidecars.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/tools/ax210_postinstall.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/tools/ax210_postinstall.py",
-     "--verdict-sample"
-    ]
-   },
-   "note": "wave 2: verdict_object() over assess() \u2014 PASS every check OK \u00b7 FAIL any check FAILED (named) \u00b7 UNKNOWN no failure but a check could not be read (never folded into a pass); population = checks, UNKNOWN excluded; the module gained a __main__ for the sample only, the decisions stay library calls"
-  },
-  "capture-host/tools/find_blindspots.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "an audit stamp in a docstring (VERDICT: KEEP AS IS), not an emitted verdict"
-  },
-  "capture-host/tools/find_unwired.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "capture-host/tools/mutate.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "capture-host/tools/mutate_diff.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "note": "the diff-scoped mutation gate: every exit emits tepna.verdict/1 \u2014 PASS all killed \u00b7 FAIL survivors or a REFUTED entry \u00b7 UNKNOWN undecided (timeout/suspicious/not checked, never a kill) or budget-refused \u00b7 NOT_RUN preflight/all-invocations-failed \u00b7 NOT_APPLICABLE nothing behavioural (step 5, closes the residue mapping of 2026-09-05-mutate-diff-timeout-reads-as-kill one level up)",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/tools/mutate_diff.py",
-     "--verdict-sample"
-    ]
-   }
-  },
-  "capture-host/tools/mutate_pure.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "capture-host/tools/scan_coexistence.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/tools/scan_coexistence.py",
-     "--verdict-sample"
-    ]
-   },
-   "note": "wave 2: verdict_object() over verdict()'s per-stream record \u2014 criterion = streams outside a band <= 0 with both pre-stated bands and every ratio in result \u00b7 PASS \u00b7 FAIL naming the stream and the band \u00b7 UNDERPOWERED any INCONCLUSIVE stream (the prose overall; minimum and counts as numbers) \u00b7 NOT_RUN no stream; population = streams, INCONCLUSIVE excluded; printed after the matrix"
-  },
-  "capture-host/unseal.py": {
-   "bin": "already-json",
-   "status": "adopted",
-   "emits": {
-    "file": "capture-host/tests/vectors/tepna-seal-1/verdict-sample.json"
-   },
-   "note": "wave 2: verdict() converged onto verdict.make / verdict.unknown (#2803) \u2014 PASS \u00b7 FAIL <kind>: <detail> \u00b7 NOT_RUN unreadable (excluded) \u00b7 UNKNOWN a crash; `python3 capture-host/unseal.py --verdict-sample` judges the committed vector, but the reader needs `cryptography`, which the static CI runner's python3 does not carry, so the gate reads the COMMITTED sample file and tests/test_seal.py pins it equal to the live object (everything but at/producedBy) \u2014 regenerate with that command when it drifts"
-  },
-  "capture-host/verdict.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "the contract library \u2014 the Python half of tepna.verdict/1 (make/validate/write); names the enum, decides nothing"
-  },
-  "capture-host/webmon.py": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
-  },
-  "tests/browser-gates.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tests/browser-gates.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the four browser legs as ONE object (\u00a73d): children = the legs run (provenance 'leg'), each from its own FAILS delta \u2014 clean \u21d2 PASS, \u2265 1 failure \u21d2 FAIL, a leg that THREW \u21d2 UNKNOWN (it decided nothing); NN_ONLY / SEAL_ONLY are declared exclusions \u21d2 filtered (the no-network workflow's own gate, not this one's); a leg missing with no selector is an unplanned NOT_RUN \u21d2 UNKNOWN. The night-seal leg already reads verify-seals' object, so this is a consumer one level up. The playwright import is dynamic so the cmd runs where no browser is installed. Measured against a scratch server: full run PASS over 4/4 (9151 assertions, 9 bundles, 38 fixtures); SEAL_ONLY=1 \u21d2 PASS over {1, 4, 3} filtered. The exit code stays."
-  },
-  "tests/build-core-tests.mjs": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "tests/check-dex.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tests/check-dex.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the scoped runner as ONE object (\u00a73d): children = the two lanes, each read from its OWN object under --json (run-tests' under `verdict`, verify-manifest's whole stdout); a lane with no valid object is exit-code only (0 \u21d2 UNKNOWN by provenance, \u2260 0 \u21d2 FAIL). Filtered BY CONSTRUCTION \u2014 the dex filter is the declared exclusion and the object always carries the consumer rule: check-dex is never the gate. Measured: `oxydex --json` \u21d2 PASS over {2, 3, 1} filtered, lanes {81/641} and {6/14}. The exit code stays (0 iff both lanes exited 0)."
-  },
-  "tests/run-tests.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tests/run-tests.mjs",
-     "--group=docs-ledger",
-     "--json"
-    ],
-    "key": "verdict"
-   },
-   "note": "the test RUNNER (VERDICT-CONTRACT \u00a73d, adopted #2835 through tools/run-tests-verdict.mjs, which holds the pure builders and their 35 plants): one object per process \u2014 a group is a child, an assertion is not; --group=/--shard= are declared exclusions \u21d2 filtered; the --jobs union aggregates the shard objects, a dead shard \u21d2 UNKNOWN. The cmd is a real, corpus-free filtered run; the object it emits carries filtered:true and the consumer rule, and validity is all this gate asserts of it. The --json payload wraps the object under `verdict` (emits.key), a superset of the shape verify-shard-union reads."
-  },
-  "tests/verify-manifest.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tests/verify-manifest.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "GATE A + GATE B as ONE object (VERDICT-CONTRACT \u00a73d, Magpie 2026-09-22): population = the bundles GATE A hashes + the page-wiring guard + the fixtures GATE B audits; a matching bundle / reproducible fixture is PASS, drift is FAIL, an absent fixture input (uploads/ gitignored \u2014 the header's declared skip class) is NOT_APPLICABLE, checked and never green evidence; --bundle= is a declared exclusion \u21d2 filtered; a setup error (exit 2) is NOT_RUN with the reason. Measured on this tree: PASS over 48/48 (9 bundles, 24 fixtures reproducible, 14 absent \u21d2 NOT_APPLICABLE); --bundle=oxydex \u21d2 PASS over {6, 14, 8} filtered. --json; the exit code stays."
-  },
-  "tests/verify-shard-union.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tests/verify-shard-union.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the partition proof as ONE object (\u00a73d): children = its named checks (provenance 'check'), criterion = the union equals the plan; --deep adds the empirical checks AND, since the shards emit objects (#2835), a CONSUMER check \u2014 the shard objects aggregated through aggregateChildren must reach the full run's object (a shard with no or an invalid object fails it). Not filtered: the non-deep run IS the CI plan. Measured: PASS over 12/12 checks; --json; the exit code stays."
-  },
-  "tools/acc-acc-control.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/acc-acc-control.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); ACC\u2194ACC alignment recovery per leg rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
-  },
-  "tools/acc-select-compare.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/acc-shared-movement.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/aperiodic-method-compare.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/aperiodic-offset.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/beat-capture-recapture.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/beat-correspondence.mjs": {
-   "bin": "decides",
-   "status": "pending",
-   "note": "BAND-LESS (Magpie, 2026-09-22, read before flipping): it REFUSES (anchor unidentifiable \u00b7 band-edge contact \u00b7 every mod-RR plane refused \u2192 exit 1) or prints an indel rate and a residual with NO threshold anywhere in the file; its PASS/FAIL words are selftest-only. No brief states the indel rate the audit passes at, so a verdict here would be a post-hoc band. Residue 2026-09-22-beat-correspondence-has-no-band."
-  },
-  "tools/beat-error-recovery.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/beat-injection-recovery.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/beat-leg-closure.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
-  },
-  "tools/box-sample.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/box-sample.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "a peak read off a memory trace is a claim about that trace's WINDOW, and the tool now decides which: PASS the span reaches saturation (the peak is the cap) \u00b7 SHORTFALL past the onset only (a lower bound) \u00b7 UNDERPOWERED short of the 665 s at which this tool's own 2026-09-15 traces first saw the startup step \u00b7 UNKNOWN a restart inside the trace or no elapsed_s. Residue 2026-09-22-startup-transient-refutation-underpowered: a ten-minute trace was read as \"no startup transient\" and that window ends before the step. `--verdict-sample` emits that exact trace, corpus-free; the selftest validates it against verdict.js."
-  },
-  "tools/build-docs.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "tools/buzz-fiducial-correlate.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/buzz-onset-extract.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/check-stranded.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "tools/cohort-fit.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/cohort-fit.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "synthetic cohort vs a real reference: verdictObject() decides on COVERAGE (unreachable_real_share \u2264 0 %, every real stratum weighted), never on KS resemblance \u2014 PASS \u00b7 SHORTFALL unweighted stratum \u00b7 FAIL records above the generator ceiling \u00b7 UNDERPOWERED < 100 real records \u00b7 NOT_RUN no scored record; --json emits the object at the top level"
-  },
-  "tools/commit-shape.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/commit-shape.mjs",
-     "--json"
-    ]
-   },
-   "note": "wave-2 adopter: --json prints ONE tepna.verdict/1 (PASS = every changeset-deleting commit in range is a release or declared exempt; FAIL names the flagged shas; NOT_RUN on a shallow clone). Was binned word-only/exempt because its rows' `verdict` field is a classification, not an emitted verdict; the CLI now emits one. Needs full history (fetch-depth: 0), which the static job has."
-  },
-  "tools/corpus-tier.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/corpus-tier.mjs",
-     "--selftest",
-     "--json"
-    ]
-   },
-   "note": "wave-2 adopter: --json prints ONE tepna.verdict/1 (PASS = 0 refused and 0 sync failures; FAIL names the refusals; NOT_RUN when the NAS is not mounted). The manifest reads --selftest: the refusal plant on a scratch src/nas pair (control tiered, one-byte plant REFUSED by sha256 and its NAS twin untouched, zero-byte marker kept local) \u2014 no NAS, no corpus, runs in CI."
-  },
-  "tools/cpap-oxy-couple.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/cpap-oxy-couple.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); event \u2192 desat coupling lift per class \u00d7 window (the UNDERPOWERED/SATURATED flags ride as fields) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
-  },
-  "tools/deep-desat-falsifier.mjs": {
-   "bin": "already-json",
-   "status": "pending",
-   "note": "BAND-LESS (Magpie, 2026-09-22, read before flipping): it reports a per-stage desat-rate table with 95 % CIs, a one-sided exact sign-test p-value and a dose-response correlation \u2014 and states NO alpha and NO decision rule anywhere in the file; the only decision it makes is the testability rider (xAxisHasRange). A 'falsified / survives' verdict needs a pre-stated alpha and a direction; adding one after seeing the p-values is the post-hoc threshold the contract's UNKNOWN clause names. Not flipped; the alpha belongs in the parent brief (DEEP-STAGE-DESAT-CONFOUND \u00a76 / REM-STAGING-REDESIGN \u00a75) before this tool can decide."
-  },
-  "tools/deep-vlf-probe.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/device-stability.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/ecg-apnea-correlate.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/ecg-physionet-differential.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/ecg-physionet-differential.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "wave-2 adopter (Magpie): the PRE-STATED BANDS as one object \u2014 PASS CONSISTENT (min(Se,PPV) >= 99.0 %) \u00b7 FAIL SHORTFALL/DEFECT (the band and the min in reason; the contract's SHORTFALL status is not this) \u00b7 NOT_RUN no record scored. Population = records scored of records expected, so a partial corpus is visible in the object. scope is internal and STAYS internal (P5 gates publication, not measurement). --json prints the object with the old summary/records riding beside it; the absent-records skip is a NOT_RUN object."
-  },
-  "tools/ecg-rate-transfer.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/ecg-rate-transfer.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "wave-2 adopter (Magpie): E3's two pre-stated bands (median |delta| <= 4 ms AND correspondence >= 99 %) as a conjunction counted in bands missed \u2014 PASS 0 \u00b7 FAIL names which band (and a non-zero same-rate control) \u00b7 UNKNOWN no matched beats \u00b7 NOT_RUN no record found. --json prints the object after the report."
-  },
-  "tools/extreme-mutate.mjs": {
-   "bin": "already-json",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/extreme-mutate.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "wave-2 adopter (Magpie): the decision is the --baseline RATCHET \u2014 gateVerdict(): PASS 0 newly pseudo-tested functions vs tools/pseudo-tested-baseline.json \u00b7 FAIL names the new ones \u00b7 NOT_APPLICABLE file absent from the baseline (unmeasured, deliberately not gated) \u00b7 UNKNOWN canary survived \u00b7 population = function bodies scored, excluded = declined (trivial / no operator / not reached). Emitted at every --baseline exit (--json prints it); the pseudo-tested COUNT itself is a measurement, not the gate. Sample = a synthetic ratchet through the real decision, no git."
-  },
-  "tools/formula-constant-audit.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/gap-s-sweep.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "a MEASUREMENT sweep for an owner ruling (GAP_S, measure-before-ruling): it reports where the CVHR index moves and decides nothing \u2014 no bands by design; its only verdict word is the selftest printer's FAIL"
-  },
-  "tools/geometry-scan.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "tools/guide-anchor-audit.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/guide-directive-audit.mjs": {
-   "bin": "already-json",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/guide-directive-audit.mjs",
-     "--json"
-    ]
-   },
-   "note": "wave-2 adopter (Magpie, group C; read before flipping \u2014 exact): FAIL iff \u2265 1 lower-tier band issues a clinical directive with no declared disclaimer (the same `undeclared` list the exit code keys on) \u00b7 the two REFUSE paths (< 7 guides; 0 lower cards or 0 bands) are the examined-nothing shape \u2192 UNDERPOWERED with the counts, still exit 2. Population = lower-tier cards, checked = those carrying a band, band-less cards excluded. --json prints { \u2026verdict, census, hits } \u2014 a superset of the old shape; the cmd is the real run over the seven reference guides in the tree."
-  },
-  "tools/integrator-block-precision.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/known-clock-recovery.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/land-pr.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "a QUEUE decision (update \u00b7 wait \u00b7 merge \u00b7 stop) about a PR's state, in its own vocabulary \u2014 not a gate over data; its 'VERDICT' is the gh checks exit it reads, i.e. it is a CONSUMER of CI's verdicts, and the contract's status enum does not describe queue actions"
-  },
-  "tools/make-synthetic-inputs.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "tools/measurement-walk.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/measurement-walk.mjs",
-     "--json",
-     "--fixture",
-     "synthetic_oxydex_golden.node-export.json"
-    ]
-   },
-   "note": "wave-1 adopter (#2798): --json emits one tepna.verdict/1 per fixture (\u2717 hop \u21d2 FAIL naming the hop; \u2218 hop \u21d2 NOT_RUN naming the hop, result null; all \u2713 \u21d2 PASS); the manifest reads the committed synthetic fixture, whose input is committed too, so the check is corpus-free and runs in CI"
-  },
-  "tools/mutate.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/mutate.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the JS diff gate (pair of capture-host/tools/mutate_diff.py): diffVerdict() decides ONE tepna.verdict/1 at every --diff exit \u2014 PASS all killed \u00b7 FAIL survivors \u00b7 UNKNOWN canary survived or mutants never ran (never a kill) \u00b7 NOT_APPLICABLE no mutable source / no mutant on the changed lines (was \"all 0 killed\") \u00b7 NOT_RUN diff unreadable or no file measured; exit codes unchanged"
-  },
-  "tools/mutation-adoption-delta.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "tools/mutation-ai-probe.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "tools/mutation-crawl.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
-  },
-  "tools/mutation-reach.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "a fail-closed CLASSIFICATION (which files/functions are in scope) that feeds the mutation gates, not a decision over a criterion; 'FAIL CLOSED' names the direction of the default, not a verdict"
-  },
-  "tools/mutation-suite.mjs": {
-   "bin": "already-json",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/mutation-suite.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "wave-2 adopter (Magpie): canaryVerdictObject() over canaryVerdict(), the driver's one decision per file \u2014 PASS the canary mutant died (kills detected, 1 of 1) \u00b7 UNKNOWN canary failed / sweep voided / no machine-readable result (the counts measure NOTHING) \u00b7 NOT_RUN no canary available (unverified is not disproved, and not a pass). Logged per parsed file beside the prose; the mutant counts ride in result and are what UNKNOWN refuses to vouch for."
-  },
-  "tools/mutation-summary.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "CONSUMER, not a producer \u2014 renders the tepna.verdict/1 object mutate.mjs --diff emits into the CI job summary (the first CI reader of the contract); its status words are the object's fields quoted back, validated by verdict.js before rendering, and it produces no verdict of its own"
-  },
-  "tools/mutation-worklist.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "a fail-closed CLASSIFICATION (which files/functions are in scope) that feeds the mutation gates, not a decision over a criterion; 'FAIL CLOSED' names the direction of the default, not a verdict"
-  },
-  "tools/nearest-advocate.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/nsrr-effort-typing.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/nsrr-effort-typing.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "wave-2 adopter (Magpie): the three bands over the fraction of central apneas whose effort falls below half baseline \u2014 PASS TRANSFERS (>= 0.7) \u00b7 FAIL PARTIAL / ARTIFACT (named in reason; a graded miss is still a miss under the closed enum) \u00b7 NOT_RUN no central apnea scored. Population = central apneas; the obstructive control rides in result."
-  },
-  "tools/nsrr-score-pool.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/nsrr-score-pool.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the EMITTER for every pool scorer (nsrr-oxydex-odi \u00b7 nsrr-aai-validate \u00b7 nsrr-ahiest-validate \u00b7 nsrr-oxstat-validate \u00b7 nsrr-resprate-validate \u00b7 nsrr-stage-validate): poolVerdict() wraps the scorer's liveStat into one tepna.verdict/1, written into the results file and printed; a scorer decides only through its own pre-stated `CRITERION` + `verdict()` exports \u2014 a scorer that declares none is UNKNOWN with the statistic in result, never PASS (four 2026-09-15 scorers ran before any band was stated, so they are UNKNOWN until one is declared before a fresh run; stage-validate has a pre-stated \u03ba band and declares in its own PR)"
-  },
-  "tools/nsrr-stage-validate.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/nsrr-stage-validate.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "a DECLARED pool scorer: exports CRITERION (cohen_kappa_4class_pooled \u2265 0.60, the E1 band pre-stated in SHHS-EXTERNAL-VALIDATION-2026-09-04 before #2423 ran) + verdict() \u2014 PASS \u2265 0.60 \u00b7 FAIL naming the partial / does-not-transfer band and per-stage recall \u00b7 UNKNOWN when populationMisalignment says suspect-shift (pipeline, not detector) \u00b7 UNDERPOWERED < 10 records \u00b7 NOT_RUN; --dir emits the same object via poolVerdict, --json puts it at the top level"
-  },
-  "tools/o2ring-dat-timefit.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/o2ring-finger-roundtrip.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/o2ring-finger-roundtrip.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "wave-2 adopter (Magpie, group C; read before flipping \u2014 exact): PASS iff |PPI-HR \u2212 ring 1 Hz| \u2264 3 bpm AND |PPI-HR \u2212 H10 ECG| \u2264 3 bpm AND > 10 feet on the foot spine (the three chk lines) \u00b7 FAIL names which check missed and by how much \u00b7 NOT_RUN when no window holds all three sources (the old \u274c over an empty window was a FAIL about nothing). Population = the one pair named. --json prints the object (report \u2192 stderr); the sample is the documented 2026-07-19 session (docs/O2RING-FINGER-ROUNDTRIP-2026-07-20.md)."
-  },
-  "tools/o2ring-finger-validate-batch.mjs": {
-   "bin": "decides",
-   "status": "pending",
-   "note": "BAND-LESS at the level it emits (Magpie + Kestrel, 2026-09-22, read before flipping): the per-pair rule is exact (both \u0394 \u2264 3 bpm, > 10 feet) but the tool prints `N/M pairs PASS` with NO aggregate criterion, and the documented run was accepted at 88/92 with four reference-side non-passes (docs/O2RING-FINGER-ROUNDTRIP-2026-07-20.md) \u2014 an all-pairs rule would convict a run the brief ratified. The aggregate bar belongs in that doc first. Residue 2026-09-22-finger-validate-batch-has-no-aggregate-bar."
-  },
-  "tools/o2ring-frame-cadence.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/odi4-shhs-recut.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "a re-cut AGGREGATOR, not a gate: it computes the paper's Table 3/4 statistics from a pool run into a tepna.published-number-record/1 (analysis/published-numbers/odi4-shhs-*.json) whose values the table-provenance gate compares as sourced CLAIMs; its only verdict word is the selftest printer's FAIL"
-  },
-  "tools/oracle-ecg-firmware-rr.mjs": {
-   "bin": "already-json",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/oracle-ecg-firmware-rr.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "pooled bands CONSISTENT/SHORTFALL/INVESTIGATE/UNDERPOWERED \u2192 verdictObject(); --json emits the object at the top level, --verdict-sample the synthetic-shape object the gate reads"
-  },
-  "tools/pat-axis-leg-audit.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/pat-buzz-stability.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/pat-drift-attribution.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/pat-ecg-axis-residual.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/pat-fiducial-compare.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/pat-fiducial-jitter.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/pat-fiducial.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/pat-per-led.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/pat-ppg-ppg-control.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/pat-ppg-ppg-control.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); finger\u2194ankle PPG coupling control; the in-code \u226550 %-of-nights rule is reported as result.inCodeRulePasses, never a status rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
-  },
-  "tools/pat-residual-structure.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/pat-window-oracle.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/pat-window-oracle.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the PAT window oracle decides per unit and per run: the row's previous reason (\"selftest assertion printer \u2026 not a verdict about data\") was copy-pasted and false \u2014 the tool prints a per-unit verdict table and a TALLY over real nights. The run object uses the tool's OWN pre-stated bands (BAND_RECOVERED 20 ms, BAND_PARTIAL 60, null must be beaten), so no threshold is invented: PASS every scored unit inside the band \u00b7 SHORTFALL some inside, some not \u00b7 FAIL none \u00b7 UNDERPOWERED units offered and none scorable \u00b7 NOT_RUN no units \u00b7 UNKNOWN an UNDEFINED band. Named refusals are EXCLUDED from the population, never averaged into the data verdict. Found by residue 2026-09-22-word-only-claims-go-stale; `--verdict-sample` emits the SHORTFALL arm corpus-free."
-  },
-  "tools/pb-agreement.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/pb-fusion-blast.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/per-group-coverage.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "tools/pin-coverage.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/pletha-marker-oracle.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/pletha-marker-oracle.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "wave-2 adopter (Magpie): the #2758 heuristic (a lone 156 is a beat marker, a run of 156s is signal) \u2014 PASS holds with >= 1 discriminating run row \u00b7 UNDERPOWERED holds but VACUOUS (no run of 156s seen; minimum 1) \u00b7 FAIL names which of the three counts is non-zero \u00b7 NOT_RUN nothing scored. Population = rows scored. --json prints the object after the report; the sample is the #2758 corpus counts."
-  },
-  "tools/ppg-bridge-hrv-validate.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/ppg-foot-consensus-e1.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/ppg-foot-residual-sweep.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/ppg-fusion-e3.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/ppg-gap-bridge-scan.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/ppg2w-rate.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/ppg2w-spo2-fit.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/ppi-jitter-vs-ecg.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/probe-clock-equivalence.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/probe-equivalence.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/pulse-agreement.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/pulse-agreement.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); PPG\u2212vendor pulse Bland\u2013Altman (bias/SD/LoA, per-night medians) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
-  },
-  "tools/queue-doctor.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "tools/qwen-mypy-fix.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "tools/rebase-safe.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
-  },
-  "tools/release-land.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/release.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "tools/residue-ids.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/resp-acc-headless.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "tools/resp-cardiac-suppression-e8.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/run-check.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/run-check.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the FIRST RUNNER adopter (Magpie, 2026-09-22, VERDICT-CONTRACT \u00a73d): the object is a projection of ran/notRun/failedIdx + each step's exit code through the shared aggregateChildren \u2014 population = STEPS (checked = ran to an exit, excluded = never asked after an abort + a --steps= exclusion), status by precedence FAIL > SHORTFALL > UNKNOWN > PASS. Every step is still an exit code, so a real run reads UNKNOWN by provenance until the steps adopt \u2014 that is the point; a red step is FAIL; a --steps= subset is filtered:true with the consumer rule. --json prints the object (children \u2192 stderr); the exit code stays for the shell/CI. Fifteen \u00a73d plants in --selftest; the cmd is a scratch step list."
-  },
-  "tools/run-tests-verdict.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/run-tests-verdict.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the THIRD RUNNER adopter and the largest (Magpie, 2026-09-22, VERDICT-CONTRACT \u00a73d) \u2014 the test runner's object, built here (pure) and called by tests/run-tests.mjs, which sits outside this gate's enumeration (tests/). A group is a child, an assertion is not (provenance 'assertions': a failing assertion \u21d2 FAIL, passes \u21d2 PASS, declared skips only \u21d2 NOT_APPLICABLE, none \u21d2 UNKNOWN); --group= and --shard= are declared exclusions \u21d2 filtered with the consumer rule; the skip budget is the runner's one own criterion (undeclared skip \u21d2 FAIL by name); the --jobs union aggregates the SHARD OBJECTS, a dead shard is an undeclared NOT_RUN \u21d2 UNKNOWN (\u00a74c made structural). --json payload carries `verdict` (a superset verify-shard-union still reads); the exit code stays. 32 plants; the cmd is three scratch shards, one dead."
-  },
-  "tools/selftest-all.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/selftest-all.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the second RUNNER adopter (Magpie, 2026-09-22, VERDICT-CONTRACT \u00a73d), through the same aggregateChildren as run-check: children = the per-tool selftests read from the summary line the script already parses (provenance 'summary' with n) \u2014 a parsed count is PASS, green-but-unparseable is UNKNOWN never a tool failure, a failing selftest is FAIL, a timeout/kill is UNKNOWN (the tool decided nothing), a near-miss tool discovery cannot run is NOT_RUN/excluded and unplanned \u21d2 UNKNOWN; the ratchet is the runner's one criterion of its own (an unratcheted unparseable tool or a paid debt left in the map \u21d2 FAIL by name). Measured on the real sweep: UNKNOWN over 121/121 \u2014 26 ratcheted-unparseable children, 1666 assertions counted. --json prints the object (report \u2192 stderr); the exit code stays. Ten \u00a73d plants in --selftest; the cmd is a scratch result set."
-  },
-  "tools/stmt-delete.mjs": {
-   "bin": "already-json",
-   "status": "pending",
-   "note": "BAND-LESS (Magpie, 2026-09-22, read before flipping): Level B reports pseudo-tested STATEMENTS and an invalid rate as a MEASUREMENT 'reported separately' from Level A, with no pre-stated threshold and no ratchet \u2014 the only decisions it makes are refusals (baseline suite red, no eligible statement). A PASS needs a criterion; adopting it means first giving it the ratchet extreme-mutate has (a committed pseudo-tested-statement baseline, growth-gated), which is a design change, not a wrapper. Not flipped."
-  },
-  "tools/tch-degeneracy-stats.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
-  },
-  "tools/tch-estimator-bakeoff.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/tch-estimator-bakeoff.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); quiet-corner \u03c3 MAE per estimator on planted truth; the in-code \"beat BASE by > 0.10 bpm\" rule is result.inCodeRuleWinner, never a status rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
-  },
-  "tools/tch-multinight.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/tch-multinight.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); multi-night \u03c3 medians classic vs \u03c1-on, emitted on both the --dir and the known-answer branch (the checks decide the SELF-TEST exit, not the verdict) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
-  },
-  "tools/tch-per-epoch-rho.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/tch-per-epoch-rho.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); pooled and per-night residual rho(ECG,PPG) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
-  },
-  "tools/tch-third-corner.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/tch-third-corner.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs \u2014 no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT \u00a71); one-night three-cornered hat \u03c3 per corner on the O2Ring's own clock rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
-  },
-  "tools/treatment-response-recut.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "a re-cut AGGREGATOR, not a gate: it reads the captured treatment-response result global and writes a tepna.published-number-record/1 with Wilson / Hanley\u2013McNeil intervals; its only verdict word is the selftest printer's FAIL"
-  },
-  "tools/trio-batch.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/trio-batch.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the corpus fold's per-night gate (VERDICT-CONTRACT \u00a73b #7): every night the plan DECIDES on emits one tepna.verdict/1 \u2014 PASS entered the fold \u00b7 FAIL rejected (no concurrent leg / not nocturnal / overlap < MIN_OVERLAP, hours in reason) \u00b7 NOT_APPLICABLE not a trio night (no anchor or too few legs; judged nothing) \u2014 plus one run-level object over the night population (SHORTFALL when any judged night was rejected; NOT_RUN over zero nights); written to <out>/trio-batch-verdicts.json, never into a night directory; a dry run computes but does not write"
-  },
-  "tools/validate-exports.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/validate-exports.mjs",
-     "--json"
-    ]
-   },
-   "note": "wave-2 adopter (Magpie, group C; read before flipping \u2014 exact): FAIL iff any ganglior.node-export fails validateNodeExport (the count --strict keys its exit on; warnings never fail, they ride in the result) \u00b7 NOT_RUN when the dir is absent or holds no node export. Population = node-export files scanned. The cmd is the REAL run over the tracked uploads/ exports (0.7 s, corpus-free \u2014 a fresh clone carries them); --verdict-sample is the 2026-08-03 sweep from the header."
-  },
-  "tools/verdict-adoption.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "the gate itself: the verdict words occur in its header, its bin vocabulary and its red messages; its own result is the exit code + the summary line, read by npm run check / CI \u2014 it names producers, it is not one (a gate-verdict object for the gate is a wave-2 question, not an omission)"
-  },
-  "tools/verdict-emit.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "the shared make-and-validate helper for tepna.verdict/1 objects (Verdict.make + Verdict.validate + producedBy.commit) and, since \u00a73d, the one RUNNER aggregation rule (aggregateChildren) every runner projects its children through; the words occur in comments and in the aggregation's status strings \u2014 it decides nothing of its own, it refuses to print an invalid object"
-  },
-  "tools/verdict-undeclared.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/verdict-undeclared.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the ONE builder the eight band-less analysis tools share: tepna.verdict/1 with status UNKNOWN (NOT_RUN when nothing contributed), the statistic verbatim in result, the \u00a71 sentence and the route to a band as the reason; selftest pins the shape against verdict.js"
-  },
-  "tools/verify-drafts.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
-  },
-  "tools/verify-fixtures.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/verify-fixtures.mjs",
-     "--check",
-     "--json"
-    ]
-   },
-   "note": "wave-2 adopter: --check --json prints ONE tepna.verdict/1 over the corpus-backed fixtures (PASS = every verifiedUnder \u2261 the current computeHash; FAIL names the UNVERIFIED fixtures); stamp mode emits PASS/FAIL/NOT_RUN(corpus absent) too. --check reads only the ledgers and the built bundles \u2014 corpus-free, CI-runnable."
-  },
-  "tools/verify-seals.mjs": {
-   "bin": "already-json",
-   "status": "adopted",
-   "note": "born emitting tepna.verdict/1 (#2796); scope + verdict.js validation of every emitted object in #2800 \u2014 the first adoption this manifest records. `--vectors --json` prints the verdict for the committed vector to stdout, prose to stderr.",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/verify-seals.mjs",
-     "--vectors",
-     "--json"
-    ]
-   }
-  },
-  "tools/wt-done.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest printer; its own verdict() is a pure PR-state decision consumed by the tool itself, exit-coded \u2014 a wave-2 candidate, listed here by reason not by omission"
-  },
-  "tools/adev-curve.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/adev-curve.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "the CONSUMER the ADEV-curve residue said was owed before the curve shipped (2026-09-21-adev-curve-not-exported-by-either-node): it RE-DERIVES the published slope from the published curve (log-log OLS over exactly those points) and looks for a KNEE by fitting each half of the ladder. Criterion: the published slope must be the fit over the published curve within 1.96\u00b7slopeSE \u2014 FAIL names both numbers; a KNEE is SHORTFALL (the headline held, a named sub-population \u2014 one half of the ladder \u2014 did not), never FAIL; an export carrying no curve (pre-2026-09-22) is NOT_RUN, never a pass. 19 plants; the cmd is a scratch \u03c4\u207b\u00b9 ladder, corpus-free."
-  },
-  "tools/corpus-census.mjs": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "node",
-     "tools/corpus-census.mjs",
-     "--verdict-sample"
-    ]
-   },
-   "note": "a census commits its file list (residue 2026-09-20-census-file-list-not-retained): --write records one row per file (name, bytes, sha256 of the first 8 MB \u2014 the digest the ECG census itself used) into analysis/census/<id>.json; --diff NAMES every added/removed/CHANGED file against that manifest instead of reconstructing by elimination. Criterion: no unexplained population change. A moved population is SHORTFALL \u2014 a corpus grows, and the finding is that numbers computed over the recorded set need re-running or re-stating; an EMPTY census is NOT_RUN, never a clean bill. Both dedupe keys are published with their definitions (604 by basename, 549 by content on the real ECG corpus \u2014 a 10 % gap, and the published 597/602 used the basename key). 27 plants incl. the row's own 597\u2192602 case with all five additions named; the cmd is three scratch rows, corpus-free."
+  "schema": "tepna.verdict-adoption/1",
+  "enumeratedWith": "git grep -lE <WORDS> -- tools/*.mjs capture-host/*.py (tools non-recursive)",
+  "producers": {
+    "capture-host/adapter_hci.py": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/adapter_hci.py",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the adapter-hci night verdict (residue 2026-09-11-dead-adapter-goes-unnoticed, REPORT half): the watchdog probes every enumerated radio each poll (capture._adapter_responds, the HCI round trip) and appends a row per radio to <root>/ADAPTERHCI.csv; nightqc writes ADAPTERHCI-VERDICT.json beside the other two from the rows in the night's session window — pre-stated rule: longest run of unanswered polls >= 2 FAIL · an isolated miss SHORTFALL · every determinable probe answered PASS · all undeterminable UNKNOWN · no rows NOT_RUN; population = radios, all-None radios excluded; nothing here resets a radio"
+    },
+    "capture-host/ble_sniff.py": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/ble_sniff.py",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave 2: verdict_object() over summarise() — PASS a data-channel packet (a link was followed) · FAIL none (the prose VERDICT lines are the reason) · NOT_RUN a capture with zero records; population = records, CRC-bad excluded; the object is printed after the report, the sample is a synthetic summary"
+    },
+    "capture-host/capture.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
+    },
+    "capture-host/checkverdict.py": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/checkverdict.py",
+          "--verdict-sample"
+        ]
+      },
+      "note": "check.sh's runner-level object (VERDICT-CONTRACT §3d, #2672's advisory token one level up): population = the four blocking children ruff · shellcheck · pytest · unwired; the three EXTERNAL tools are read off their PUBLISHED exit-code contract (mapping beside the tool versions in the module: 0 PASS · issues code FAIL · 127 NOT_RUN = a missing TOOL, excluded, and the run UNKNOWN · abnormal codes and pytest 5 UNKNOWN); unwired is OURS and unadopted, so it is UNKNOWN by provenance and the object reads UNKNOWN on a green run until find_unwired emits its own object (§3d's lever); aggregation by precedence FAIL > UNKNOWN > PASS, never a vote; advisory-state tokens ride in result.advisory; written to capture-host/.check-verdict.json; the shell exit code STAYS"
+    },
+    "capture-host/loss_audit.py": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/night_verdicts.py",
+          "--sample-json",
+          "night-loss"
+        ]
+      },
+      "note": "night-loss (CAPTURE-LOSS-PRECEDENCE-AUDIT R4): the §0 metric per settled night — worn-but-not-recorded minutes, each gap attributed to the journal line before it; UNKNOWN with the number until the owner sets a bar (none ruled 2026-09-22), NOT_RUN when no primary stream exists; the sample audits a synthetic torn night with a planted daemon drop"
+    },
+    "capture-host/mutation_diff.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "the PURE builder (verdict_object, VERDICT_STATUSES) and the classifier vocabulary; the emitting producer is capture-host/tools/mutate_diff.py (adopted)"
+    },
+    "capture-host/night_report.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "relays night-backcheck (now read from BACKCHECK-VERDICT.json — the first consumer of a verdict object on the box) and the sniffer; decides nothing of its own"
+    },
+    "capture-host/night_verdicts.py": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/night_verdicts.py",
+          "--sample-json",
+          "night-backcheck"
+        ]
+      },
+      "note": "the emitter CLI for both nightly gates; this row validates night-backcheck (BACKCHECK-VERDICT.json): population = every PPG/PPG2W/ECG file, checked = files with a class-B block, excluded = files the check skipped — eligible>0 with checked==0 is UNKNOWN, never an empty-list ok"
+    },
+    "capture-host/nightqc.py": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/night_verdicts.py",
+          "--sample-json",
+          "night-qc"
+        ]
+      },
+      "note": "night-qc: summarize()'s own `ok` as one object per night (QC-VERDICT.json beside QC-SUMMARY.json) — PASS / FAIL (missing or degraded) / SHORTFALL (a session excluded inside the night) / UNDERPOWERED (span under 300 s) / NOT_RUN (no device configured); the cmd emits the object from synthetic input"
+    },
+    "capture-host/o2ring.py": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/o2ring.py",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave 2: the selftest's three known-answer vectors (two captured auth frames byte-for-byte, AES-128 FIPS-197 C.1) as selftest_verdict() — PASS all reproduce · FAIL naming the mismatched; the pull path's self-consistency is parse_dat's decision and prints parse_dat's object, never a second builder"
+    },
+    "capture-host/oxy_transfer.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
+    },
+    "capture-host/parse_dat.py": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/parse_dat.py",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave 2: consistency_verdict() over self_consistency()'s two pre-stated bands (|mean SpO2 - trailer avg| <= 1, |n - total_seconds| <= max(2, 2 %)) — criterion = bands violated <= 0 with each band and value in result · PASS · FAIL (the notes are the reason) · NOT_RUN no valid trailer; population = samples, None SpO2 excluded; the sample is the synthetic .dat"
+    },
+    "capture-host/probe_oxyii_0x03.py": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/probe_oxyii_0x03.py",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave 2: verdict_object() over summarise() — the 2 % band the prose has always applied: PASS the unsaturated rate is within 2 % of exactly one of 112.9 / 125.0 Hz (which one is the result) · FAIL neither (a third answer) · UNDERPOWERED no unsaturated pair (0 of N, minimum 1) · UNKNOWN no records (empty reply and wrong argument indistinguishable); rides the --json log at the top level; bleak import guarded so the sample runs without a radio stack"
+    },
+    "capture-host/probe_polar_usb.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "capture-host/probe_rtc_read.py": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/probe_rtc_read.py",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave 2: classify() per opcode from clock_candidates() (the CLOCK CANDIDATE band diff() prints: a LE window advanced by the gap, +-max(2 s, 20 %)) then verdict_object() — PASS an opcode carries a candidate · FAIL every readable reply byte-identical (the prose VERDICT) · UNKNOWN bytes moved but no window tracked the gap (the prose said nothing there; the object says so) · NOT_RUN nothing readable on both sides; population = opcodes, unreadable excluded; bleak import guarded"
+    },
+    "capture-host/probe_verity_survey.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "capture-host/pull_session.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "capture-host/sealbox.py": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/night_verdicts.py",
+          "--sample-json",
+          "night-seal"
+        ]
+      },
+      "note": "night-seal (CAPTURE-NIGHT-SEAL phase B): one object per settled night beside its seal in outbox/ — PASS (written and verified with unseal) / NOT_APPLICABLE (the seal still matches the directory) / FAIL (the written seal did not verify; previous kept) / NOT_RUN / UNKNOWN. The sample seals a synthetic night under a fresh key; where cryptography is not importable it emits NOT_RUN naming it"
+    },
+    "capture-host/tests/_srcscan.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/ecg_parity_harness.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_acq_evidence_cpap.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_adapter_hci.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_ax210_postinstall.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_ble_discovery.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_ble_sniff.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_capture.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_capture_runners.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_check_script.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_checkverdict.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_clock_resync_on_reconnect.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_coverage_gap_fill_ii.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_failover_planted_wedge.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_find_unwired.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_host_clock_and_helper_path.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_loss_audit.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_monitor_apply_restart.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_monitor_ecg_bandpass.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_mutation_diff.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_night_report.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_night_verdicts_cli.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_nightqc_verdicts.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_offline_lock.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_parse_dat.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_pmd_arrival_writer.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_polar_pmd.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_polar_psftp_client.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_probe_oxyii_0x03.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_probe_read_char.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_psftp_protocol.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_pull_once_contract.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_pull_session.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_qc_poller_verdicts.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_run_polar_bounded_awaits.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_run_polar_writer_contract.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_scan_coexistence.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_seal.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_seal_poller.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_sealbox.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_status_union.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_storage_targets.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_tepna_sniff_sh.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_timeline.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_verdict.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_verdict_wave2.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_webmon_state_contract.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_writers.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tests/test_writers_sidecars.py": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "capture-host/tools/ax210_postinstall.py": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/tools/ax210_postinstall.py",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave 2: verdict_object() over assess() — PASS every check OK · FAIL any check FAILED (named) · UNKNOWN no failure but a check could not be read (never folded into a pass); population = checks, UNKNOWN excluded; the module gained a __main__ for the sample only, the decisions stay library calls"
+    },
+    "capture-host/tools/find_blindspots.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "an audit stamp in a docstring (VERDICT: KEEP AS IS), not an emitted verdict"
+    },
+    "capture-host/tools/find_unwired.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "capture-host/tools/mutate.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "capture-host/tools/mutate_diff.py": {
+      "bin": "decides",
+      "status": "adopted",
+      "note": "the diff-scoped mutation gate: every exit emits tepna.verdict/1 — PASS all killed · FAIL survivors or a REFUTED entry · UNKNOWN undecided (timeout/suspicious/not checked, never a kill) or budget-refused · NOT_RUN preflight/all-invocations-failed · NOT_APPLICABLE nothing behavioural (step 5, closes the residue mapping of 2026-09-05-mutate-diff-timeout-reads-as-kill one level up)",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/tools/mutate_diff.py",
+          "--verdict-sample"
+        ]
+      }
+    },
+    "capture-host/tools/mutate_pure.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "capture-host/tools/scan_coexistence.py": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "python3",
+          "capture-host/tools/scan_coexistence.py",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave 2: verdict_object() over verdict()'s per-stream record — criterion = streams outside a band <= 0 with both pre-stated bands and every ratio in result · PASS · FAIL naming the stream and the band · UNDERPOWERED any INCONCLUSIVE stream (the prose overall; minimum and counts as numbers) · NOT_RUN no stream; population = streams, INCONCLUSIVE excluded; printed after the matrix"
+    },
+    "capture-host/unseal.py": {
+      "bin": "already-json",
+      "status": "adopted",
+      "emits": {
+        "file": "capture-host/tests/vectors/tepna-seal-1/verdict-sample.json"
+      },
+      "note": "wave 2: verdict() converged onto verdict.make / verdict.unknown (#2803) — PASS · FAIL <kind>: <detail> · NOT_RUN unreadable (excluded) · UNKNOWN a crash; `python3 capture-host/unseal.py --verdict-sample` judges the committed vector, but the reader needs `cryptography`, which the static CI runner's python3 does not carry, so the gate reads the COMMITTED sample file and tests/test_seal.py pins it equal to the live object (everything but at/producedBy) — regenerate with that command when it drifts"
+    },
+    "capture-host/verdict.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "the contract library — the Python half of tepna.verdict/1 (make/validate/write); names the enum, decides nothing"
+    },
+    "capture-host/webmon.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
+    },
+    "tests/browser-gates.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tests/browser-gates.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the four browser legs as ONE object (§3d): children = the legs run (provenance 'leg'), each from its own FAILS delta — clean ⇒ PASS, ≥ 1 failure ⇒ FAIL, a leg that THREW ⇒ UNKNOWN (it decided nothing); NN_ONLY / SEAL_ONLY are declared exclusions ⇒ filtered (the no-network workflow's own gate, not this one's); a leg missing with no selector is an unplanned NOT_RUN ⇒ UNKNOWN. The night-seal leg already reads verify-seals' object, so this is a consumer one level up. The playwright import is dynamic so the cmd runs where no browser is installed. Measured against a scratch server: full run PASS over 4/4 (9151 assertions, 9 bundles, 38 fixtures); SEAL_ONLY=1 ⇒ PASS over {1, 4, 3} filtered. The exit code stays."
+    },
+    "tests/build-core-tests.mjs": {
+      "bin": "test",
+      "status": "exempt"
+    },
+    "tests/check-dex.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tests/check-dex.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the scoped runner as ONE object (§3d): children = the two lanes, each read from its OWN object under --json (run-tests' under `verdict`, verify-manifest's whole stdout); a lane with no valid object is exit-code only (0 ⇒ UNKNOWN by provenance, ≠ 0 ⇒ FAIL). Filtered BY CONSTRUCTION — the dex filter is the declared exclusion and the object always carries the consumer rule: check-dex is never the gate. Measured: `oxydex --json` ⇒ PASS over {2, 3, 1} filtered, lanes {81/641} and {6/14}. The exit code stays (0 iff both lanes exited 0)."
+    },
+    "tests/run-tests.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tests/run-tests.mjs",
+          "--group=docs-ledger",
+          "--json"
+        ],
+        "key": "verdict"
+      },
+      "note": "the test RUNNER (VERDICT-CONTRACT §3d, adopted #2835 through tools/run-tests-verdict.mjs, which holds the pure builders and their 35 plants): one object per process — a group is a child, an assertion is not; --group=/--shard= are declared exclusions ⇒ filtered; the --jobs union aggregates the shard objects, a dead shard ⇒ UNKNOWN. The cmd is a real, corpus-free filtered run; the object it emits carries filtered:true and the consumer rule, and validity is all this gate asserts of it. The --json payload wraps the object under `verdict` (emits.key), a superset of the shape verify-shard-union reads."
+    },
+    "tests/verify-manifest.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tests/verify-manifest.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "GATE A + GATE B as ONE object (VERDICT-CONTRACT §3d, Magpie 2026-09-22): population = the bundles GATE A hashes + the page-wiring guard + the fixtures GATE B audits; a matching bundle / reproducible fixture is PASS, drift is FAIL, an absent fixture input (uploads/ gitignored — the header's declared skip class) is NOT_APPLICABLE, checked and never green evidence; --bundle= is a declared exclusion ⇒ filtered; a setup error (exit 2) is NOT_RUN with the reason. Measured on this tree: PASS over 48/48 (9 bundles, 24 fixtures reproducible, 14 absent ⇒ NOT_APPLICABLE); --bundle=oxydex ⇒ PASS over {6, 14, 8} filtered. --json; the exit code stays."
+    },
+    "tests/verify-shard-union.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tests/verify-shard-union.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the partition proof as ONE object (§3d): children = its named checks (provenance 'check'), criterion = the union equals the plan; --deep adds the empirical checks AND, since the shards emit objects (#2835), a CONSUMER check — the shard objects aggregated through aggregateChildren must reach the full run's object (a shard with no or an invalid object fails it). Not filtered: the non-deep run IS the CI plan. Measured: PASS over 12/12 checks; --json; the exit code stays."
+    },
+    "tools/acc-acc-control.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/acc-acc-control.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs — no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT §1); ACC↔ACC alignment recovery per leg rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
+    },
+    "tools/acc-select-compare.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/acc-shared-movement.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/aperiodic-method-compare.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/aperiodic-offset.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/beat-capture-recapture.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/beat-correspondence.mjs": {
+      "bin": "decides",
+      "status": "pending",
+      "note": "BAND-LESS (Magpie, 2026-09-22, read before flipping): it REFUSES (anchor unidentifiable · band-edge contact · every mod-RR plane refused → exit 1) or prints an indel rate and a residual with NO threshold anywhere in the file; its PASS/FAIL words are selftest-only. No brief states the indel rate the audit passes at, so a verdict here would be a post-hoc band. Residue 2026-09-22-beat-correspondence-has-no-band."
+    },
+    "tools/beat-error-recovery.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/beat-injection-recovery.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/beat-leg-closure.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
+    },
+    "tools/box-sample.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/box-sample.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "a peak read off a memory trace is a claim about that trace's WINDOW, and the tool now decides which: PASS the span reaches saturation (the peak is the cap) · SHORTFALL past the onset only (a lower bound) · UNDERPOWERED short of the 665 s at which this tool's own 2026-09-15 traces first saw the startup step · UNKNOWN a restart inside the trace or no elapsed_s. Residue 2026-09-22-startup-transient-refutation-underpowered: a ten-minute trace was read as \"no startup transient\" and that window ends before the step. `--verdict-sample` emits that exact trace, corpus-free; the selftest validates it against verdict.js."
+    },
+    "tools/build-docs.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "tools/buzz-fiducial-correlate.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/buzz-onset-extract.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/check-stranded.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "tools/cohort-fit.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/cohort-fit.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "synthetic cohort vs a real reference: verdictObject() decides on COVERAGE (unreachable_real_share ≤ 0 %, every real stratum weighted), never on KS resemblance — PASS · SHORTFALL unweighted stratum · FAIL records above the generator ceiling · UNDERPOWERED < 100 real records · NOT_RUN no scored record; --json emits the object at the top level"
+    },
+    "tools/commit-shape.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/commit-shape.mjs",
+          "--json"
+        ]
+      },
+      "note": "wave-2 adopter: --json prints ONE tepna.verdict/1 (PASS = every changeset-deleting commit in range is a release or declared exempt; FAIL names the flagged shas; NOT_RUN on a shallow clone). Was binned word-only/exempt because its rows' `verdict` field is a classification, not an emitted verdict; the CLI now emits one. Needs full history (fetch-depth: 0), which the static job has."
+    },
+    "tools/corpus-tier.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/corpus-tier.mjs",
+          "--selftest",
+          "--json"
+        ]
+      },
+      "note": "wave-2 adopter: --json prints ONE tepna.verdict/1 (PASS = 0 refused and 0 sync failures; FAIL names the refusals; NOT_RUN when the NAS is not mounted). The manifest reads --selftest: the refusal plant on a scratch src/nas pair (control tiered, one-byte plant REFUSED by sha256 and its NAS twin untouched, zero-byte marker kept local) — no NAS, no corpus, runs in CI."
+    },
+    "tools/cpap-oxy-couple.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/cpap-oxy-couple.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs — no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT §1); event → desat coupling lift per class × window (the UNDERPOWERED/SATURATED flags ride as fields) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
+    },
+    "tools/deep-desat-falsifier.mjs": {
+      "bin": "already-json",
+      "status": "pending",
+      "note": "BAND-LESS (Magpie, 2026-09-22, read before flipping): it reports a per-stage desat-rate table with 95 % CIs, a one-sided exact sign-test p-value and a dose-response correlation — and states NO alpha and NO decision rule anywhere in the file; the only decision it makes is the testability rider (xAxisHasRange). A 'falsified / survives' verdict needs a pre-stated alpha and a direction; adding one after seeing the p-values is the post-hoc threshold the contract's UNKNOWN clause names. Not flipped; the alpha belongs in the parent brief (DEEP-STAGE-DESAT-CONFOUND §6 / REM-STAGING-REDESIGN §5) before this tool can decide."
+    },
+    "tools/deep-vlf-probe.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/device-stability.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/ecg-apnea-correlate.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/ecg-physionet-differential.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/ecg-physionet-differential.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave-2 adopter (Magpie): the PRE-STATED BANDS as one object — PASS CONSISTENT (min(Se,PPV) >= 99.0 %) · FAIL SHORTFALL/DEFECT (the band and the min in reason; the contract's SHORTFALL status is not this) · NOT_RUN no record scored. Population = records scored of records expected, so a partial corpus is visible in the object. scope is internal and STAYS internal (P5 gates publication, not measurement). --json prints the object with the old summary/records riding beside it; the absent-records skip is a NOT_RUN object."
+    },
+    "tools/ecg-rate-transfer.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/ecg-rate-transfer.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave-2 adopter (Magpie): E3's two pre-stated bands (median |delta| <= 4 ms AND correspondence >= 99 %) as a conjunction counted in bands missed — PASS 0 · FAIL names which band (and a non-zero same-rate control) · UNKNOWN no matched beats · NOT_RUN no record found. --json prints the object after the report."
+    },
+    "tools/extreme-mutate.mjs": {
+      "bin": "already-json",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/extreme-mutate.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave-2 adopter (Magpie): the decision is the --baseline RATCHET — gateVerdict(): PASS 0 newly pseudo-tested functions vs tools/pseudo-tested-baseline.json · FAIL names the new ones · NOT_APPLICABLE file absent from the baseline (unmeasured, deliberately not gated) · UNKNOWN canary survived · population = function bodies scored, excluded = declined (trivial / no operator / not reached). Emitted at every --baseline exit (--json prints it); the pseudo-tested COUNT itself is a measurement, not the gate. Sample = a synthetic ratchet through the real decision, no git."
+    },
+    "tools/formula-constant-audit.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/gap-s-sweep.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "a MEASUREMENT sweep for an owner ruling (GAP_S, measure-before-ruling): it reports where the CVHR index moves and decides nothing — no bands by design; its only verdict word is the selftest printer's FAIL"
+    },
+    "tools/geometry-scan.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "tools/guide-anchor-audit.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/guide-directive-audit.mjs": {
+      "bin": "already-json",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/guide-directive-audit.mjs",
+          "--json"
+        ]
+      },
+      "note": "wave-2 adopter (Magpie, group C; read before flipping — exact): FAIL iff ≥ 1 lower-tier band issues a clinical directive with no declared disclaimer (the same `undeclared` list the exit code keys on) · the two REFUSE paths (< 7 guides; 0 lower cards or 0 bands) are the examined-nothing shape → UNDERPOWERED with the counts, still exit 2. Population = lower-tier cards, checked = those carrying a band, band-less cards excluded. --json prints { …verdict, census, hits } — a superset of the old shape; the cmd is the real run over the seven reference guides in the tree."
+    },
+    "tools/integrator-block-precision.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/known-clock-recovery.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/land-pr.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "a QUEUE decision (update · wait · merge · stop) about a PR's state, in its own vocabulary — not a gate over data; its 'VERDICT' is the gh checks exit it reads, i.e. it is a CONSUMER of CI's verdicts, and the contract's status enum does not describe queue actions"
+    },
+    "tools/make-synthetic-inputs.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "tools/measurement-walk.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/measurement-walk.mjs",
+          "--json",
+          "--fixture",
+          "synthetic_oxydex_golden.node-export.json"
+        ]
+      },
+      "note": "wave-1 adopter (#2798): --json emits one tepna.verdict/1 per fixture (✗ hop ⇒ FAIL naming the hop; ∘ hop ⇒ NOT_RUN naming the hop, result null; all ✓ ⇒ PASS); the manifest reads the committed synthetic fixture, whose input is committed too, so the check is corpus-free and runs in CI"
+    },
+    "tools/mutate.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/mutate.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the JS diff gate (pair of capture-host/tools/mutate_diff.py): diffVerdict() decides ONE tepna.verdict/1 at every --diff exit — PASS all killed · FAIL survivors · UNKNOWN canary survived or mutants never ran (never a kill) · NOT_APPLICABLE no mutable source / no mutant on the changed lines (was \"all 0 killed\") · NOT_RUN diff unreadable or no file measured; exit codes unchanged"
+    },
+    "tools/mutation-adoption-delta.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "tools/mutation-ai-probe.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "tools/mutation-crawl.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
+    },
+    "tools/mutation-reach.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "a fail-closed CLASSIFICATION (which files/functions are in scope) that feeds the mutation gates, not a decision over a criterion; 'FAIL CLOSED' names the direction of the default, not a verdict"
+    },
+    "tools/mutation-suite.mjs": {
+      "bin": "already-json",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/mutation-suite.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave-2 adopter (Magpie): canaryVerdictObject() over canaryVerdict(), the driver's one decision per file — PASS the canary mutant died (kills detected, 1 of 1) · UNKNOWN canary failed / sweep voided / no machine-readable result (the counts measure NOTHING) · NOT_RUN no canary available (unverified is not disproved, and not a pass). Logged per parsed file beside the prose; the mutant counts ride in result and are what UNKNOWN refuses to vouch for."
+    },
+    "tools/mutation-summary.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "CONSUMER, not a producer — renders the tepna.verdict/1 object mutate.mjs --diff emits into the CI job summary (the first CI reader of the contract); its status words are the object's fields quoted back, validated by verdict.js before rendering, and it produces no verdict of its own"
+    },
+    "tools/mutation-worklist.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "a fail-closed CLASSIFICATION (which files/functions are in scope) that feeds the mutation gates, not a decision over a criterion; 'FAIL CLOSED' names the direction of the default, not a verdict"
+    },
+    "tools/nearest-advocate.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/nsrr-effort-typing.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/nsrr-effort-typing.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave-2 adopter (Magpie): the three bands over the fraction of central apneas whose effort falls below half baseline — PASS TRANSFERS (>= 0.7) · FAIL PARTIAL / ARTIFACT (named in reason; a graded miss is still a miss under the closed enum) · NOT_RUN no central apnea scored. Population = central apneas; the obstructive control rides in result."
+    },
+    "tools/nsrr-score-pool.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/nsrr-score-pool.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the EMITTER for every pool scorer (nsrr-oxydex-odi · nsrr-aai-validate · nsrr-ahiest-validate · nsrr-oxstat-validate · nsrr-resprate-validate · nsrr-stage-validate): poolVerdict() wraps the scorer's liveStat into one tepna.verdict/1, written into the results file and printed; a scorer decides only through its own pre-stated `CRITERION` + `verdict()` exports — a scorer that declares none is UNKNOWN with the statistic in result, never PASS (four 2026-09-15 scorers ran before any band was stated, so they are UNKNOWN until one is declared before a fresh run; stage-validate has a pre-stated κ band and declares in its own PR)"
+    },
+    "tools/nsrr-stage-validate.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/nsrr-stage-validate.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "a DECLARED pool scorer: exports CRITERION (cohen_kappa_4class_pooled ≥ 0.60, the E1 band pre-stated in SHHS-EXTERNAL-VALIDATION-2026-09-04 before #2423 ran) + verdict() — PASS ≥ 0.60 · FAIL naming the partial / does-not-transfer band and per-stage recall · UNKNOWN when populationMisalignment says suspect-shift (pipeline, not detector) · UNDERPOWERED < 10 records · NOT_RUN; --dir emits the same object via poolVerdict, --json puts it at the top level"
+    },
+    "tools/o2ring-dat-timefit.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/o2ring-finger-roundtrip.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/o2ring-finger-roundtrip.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave-2 adopter (Magpie, group C; read before flipping — exact): PASS iff |PPI-HR − ring 1 Hz| ≤ 3 bpm AND |PPI-HR − H10 ECG| ≤ 3 bpm AND > 10 feet on the foot spine (the three chk lines) · FAIL names which check missed and by how much · NOT_RUN when no window holds all three sources (the old ❌ over an empty window was a FAIL about nothing). Population = the one pair named. --json prints the object (report → stderr); the sample is the documented 2026-07-19 session (docs/O2RING-FINGER-ROUNDTRIP-2026-07-20.md)."
+    },
+    "tools/o2ring-finger-validate-batch.mjs": {
+      "bin": "decides",
+      "status": "pending",
+      "note": "BAND-LESS at the level it emits (Magpie + Kestrel, 2026-09-22, read before flipping): the per-pair rule is exact (both Δ ≤ 3 bpm, > 10 feet) but the tool prints `N/M pairs PASS` with NO aggregate criterion, and the documented run was accepted at 88/92 with four reference-side non-passes (docs/O2RING-FINGER-ROUNDTRIP-2026-07-20.md) — an all-pairs rule would convict a run the brief ratified. The aggregate bar belongs in that doc first. Residue 2026-09-22-finger-validate-batch-has-no-aggregate-bar."
+    },
+    "tools/o2ring-frame-cadence.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/odi4-shhs-recut.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "a re-cut AGGREGATOR, not a gate: it computes the paper's Table 3/4 statistics from a pool run into a tepna.published-number-record/1 (analysis/published-numbers/odi4-shhs-*.json) whose values the table-provenance gate compares as sourced CLAIMs; its only verdict word is the selftest printer's FAIL"
+    },
+    "tools/oracle-ecg-firmware-rr.mjs": {
+      "bin": "already-json",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/oracle-ecg-firmware-rr.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "pooled bands CONSISTENT/SHORTFALL/INVESTIGATE/UNDERPOWERED → verdictObject(); --json emits the object at the top level, --verdict-sample the synthetic-shape object the gate reads"
+    },
+    "tools/pat-axis-leg-audit.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/pat-buzz-stability.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/pat-drift-attribution.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/pat-ecg-axis-residual.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/pat-fiducial-compare.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/pat-fiducial-jitter.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/pat-fiducial.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/pat-per-led.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/pat-ppg-ppg-control.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/pat-ppg-ppg-control.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs — no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT §1); finger↔ankle PPG coupling control; the in-code ≥50 %-of-nights rule is reported as result.inCodeRulePasses, never a status rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
+    },
+    "tools/pat-residual-structure.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/pat-window-oracle.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/pat-window-oracle.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the PAT window oracle decides per unit and per run: the row's previous reason (\"selftest assertion printer … not a verdict about data\") was copy-pasted and false — the tool prints a per-unit verdict table and a TALLY over real nights. The run object uses the tool's OWN pre-stated bands (BAND_RECOVERED 20 ms, BAND_PARTIAL 60, null must be beaten), so no threshold is invented: PASS every scored unit inside the band · SHORTFALL some inside, some not · FAIL none · UNDERPOWERED units offered and none scorable · NOT_RUN no units · UNKNOWN an UNDEFINED band. Named refusals are EXCLUDED from the population, never averaged into the data verdict. Found by residue 2026-09-22-word-only-claims-go-stale; `--verdict-sample` emits the SHORTFALL arm corpus-free."
+    },
+    "tools/pb-agreement.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/pb-agreement.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "night-level agreement between the device PB flag and OxyDex, as a tepna.verdict/1. The criterion binds on whether kappa is DEFINED (no zero margin), NEVER on its magnitude: OXYDEX-PB-OVERCALL-2026-07-31 states the device is not ground truth, that disagreement does not mean OxyDex is wrong, and names \"a threshold chosen to make kappa look better on 39 nights of one subject\" as the error to avoid. A degenerate table is NOT_APPLICABLE (a property of the data, not a failure); no paired nights is NOT_RUN. Power is NOT assessed and criterion.name says so on every status, because n = 1 subject and the brief states no supported night count. scope: internal."
+    },
+    "tools/pb-fusion-blast.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/per-group-coverage.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "tools/pin-coverage.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/pletha-marker-oracle.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/pletha-marker-oracle.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave-2 adopter (Magpie): the #2758 heuristic (a lone 156 is a beat marker, a run of 156s is signal) — PASS holds with >= 1 discriminating run row · UNDERPOWERED holds but VACUOUS (no run of 156s seen; minimum 1) · FAIL names which of the three counts is non-zero · NOT_RUN nothing scored. Population = rows scored. --json prints the object after the report; the sample is the #2758 corpus counts."
+    },
+    "tools/ppg-bridge-hrv-validate.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/ppg-foot-consensus-e1.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/ppg-foot-residual-sweep.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/ppg-fusion-e3.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/ppg-gap-bridge-scan.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/ppg2w-rate.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/ppg2w-spo2-fit.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/ppi-jitter-vs-ecg.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/probe-clock-equivalence.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/probe-equivalence.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/pulse-agreement.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/pulse-agreement.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs — no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT §1); PPG−vendor pulse Bland–Altman (bias/SD/LoA, per-night medians) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
+    },
+    "tools/queue-doctor.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "tools/qwen-mypy-fix.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "tools/rebase-safe.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
+    },
+    "tools/release-land.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/release.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "tools/residue-ids.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/resp-acc-headless.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "tools/resp-cardiac-suppression-e8.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/run-check.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/run-check.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the FIRST RUNNER adopter (Magpie, 2026-09-22, VERDICT-CONTRACT §3d): the object is a projection of ran/notRun/failedIdx + each step's exit code through the shared aggregateChildren — population = STEPS (checked = ran to an exit, excluded = never asked after an abort + a --steps= exclusion), status by precedence FAIL > SHORTFALL > UNKNOWN > PASS. Every step is still an exit code, so a real run reads UNKNOWN by provenance until the steps adopt — that is the point; a red step is FAIL; a --steps= subset is filtered:true with the consumer rule. --json prints the object (children → stderr); the exit code stays for the shell/CI. Fifteen §3d plants in --selftest; the cmd is a scratch step list."
+    },
+    "tools/run-tests-verdict.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/run-tests-verdict.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the THIRD RUNNER adopter and the largest (Magpie, 2026-09-22, VERDICT-CONTRACT §3d) — the test runner's object, built here (pure) and called by tests/run-tests.mjs, which sits outside this gate's enumeration (tests/). A group is a child, an assertion is not (provenance 'assertions': a failing assertion ⇒ FAIL, passes ⇒ PASS, declared skips only ⇒ NOT_APPLICABLE, none ⇒ UNKNOWN); --group= and --shard= are declared exclusions ⇒ filtered with the consumer rule; the skip budget is the runner's one own criterion (undeclared skip ⇒ FAIL by name); the --jobs union aggregates the SHARD OBJECTS, a dead shard is an undeclared NOT_RUN ⇒ UNKNOWN (§4c made structural). --json payload carries `verdict` (a superset verify-shard-union still reads); the exit code stays. 32 plants; the cmd is three scratch shards, one dead."
+    },
+    "tools/selftest-all.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/selftest-all.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the second RUNNER adopter (Magpie, 2026-09-22, VERDICT-CONTRACT §3d), through the same aggregateChildren as run-check: children = the per-tool selftests read from the summary line the script already parses (provenance 'summary' with n) — a parsed count is PASS, green-but-unparseable is UNKNOWN never a tool failure, a failing selftest is FAIL, a timeout/kill is UNKNOWN (the tool decided nothing), a near-miss tool discovery cannot run is NOT_RUN/excluded and unplanned ⇒ UNKNOWN; the ratchet is the runner's one criterion of its own (an unratcheted unparseable tool or a paid debt left in the map ⇒ FAIL by name). Measured on the real sweep: UNKNOWN over 121/121 — 26 ratcheted-unparseable children, 1666 assertions counted. --json prints the object (report → stderr); the exit code stays. Ten §3d plants in --selftest; the cmd is a scratch result set."
+    },
+    "tools/stmt-delete.mjs": {
+      "bin": "already-json",
+      "status": "pending",
+      "note": "BAND-LESS (Magpie, 2026-09-22, read before flipping): Level B reports pseudo-tested STATEMENTS and an invalid rate as a MEASUREMENT 'reported separately' from Level A, with no pre-stated threshold and no ratchet — the only decisions it makes are refusals (baseline suite red, no eligible statement). A PASS needs a criterion; adopting it means first giving it the ratchet extreme-mutate has (a committed pseudo-tested-statement baseline, growth-gated), which is a design change, not a wrapper. Not flipped."
+    },
+    "tools/tch-degeneracy-stats.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+    },
+    "tools/tch-estimator-bakeoff.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/tch-estimator-bakeoff.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs — no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT §1); quiet-corner σ MAE per estimator on planted truth; the in-code \"beat BASE by > 0.10 bpm\" rule is result.inCodeRuleWinner, never a status rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
+    },
+    "tools/tch-multinight.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/tch-multinight.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs — no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT §1); multi-night σ medians classic vs ρ-on, emitted on both the --dir and the known-answer branch (the checks decide the SELF-TEST exit, not the verdict) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
+    },
+    "tools/tch-per-epoch-rho.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/tch-per-epoch-rho.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs — no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT §1); pooled and per-night residual rho(ECG,PPG) rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
+    },
+    "tools/tch-third-corner.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/tch-third-corner.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "UNKNOWN BY DESIGN via tools/verdict-undeclared.mjs — no band was ever pre-stated and the numbers are on record, so a threshold derived from the data it judges is UNKNOWN, not PASS (VERDICT-CONTRACT §1); one-night three-cornered hat σ per corner on the O2Ring's own clock rides in result. Route to a decided status: a band pre-stated in a brief BEFORE the next run on unseen records (RESIDUE 2026-09-22-bandless-analysis-tools-emit-unknown)"
+    },
+    "tools/treatment-response-recut.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "a re-cut AGGREGATOR, not a gate: it reads the captured treatment-response result global and writes a tepna.published-number-record/1 with Wilson / Hanley–McNeil intervals; its only verdict word is the selftest printer's FAIL"
+    },
+    "tools/trio-batch.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/trio-batch.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the corpus fold's per-night gate (VERDICT-CONTRACT §3b #7): every night the plan DECIDES on emits one tepna.verdict/1 — PASS entered the fold · FAIL rejected (no concurrent leg / not nocturnal / overlap < MIN_OVERLAP, hours in reason) · NOT_APPLICABLE not a trio night (no anchor or too few legs; judged nothing) — plus one run-level object over the night population (SHORTFALL when any judged night was rejected; NOT_RUN over zero nights); written to <out>/trio-batch-verdicts.json, never into a night directory; a dry run computes but does not write"
+    },
+    "tools/validate-exports.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/validate-exports.mjs",
+          "--json"
+        ]
+      },
+      "note": "wave-2 adopter (Magpie, group C; read before flipping — exact): FAIL iff any ganglior.node-export fails validateNodeExport (the count --strict keys its exit on; warnings never fail, they ride in the result) · NOT_RUN when the dir is absent or holds no node export. Population = node-export files scanned. The cmd is the REAL run over the tracked uploads/ exports (0.7 s, corpus-free — a fresh clone carries them); --verdict-sample is the 2026-08-03 sweep from the header."
+    },
+    "tools/verdict-adoption.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "the gate itself: the verdict words occur in its header, its bin vocabulary and its red messages; its own result is the exit code + the summary line, read by npm run check / CI — it names producers, it is not one (a gate-verdict object for the gate is a wave-2 question, not an omission)"
+    },
+    "tools/verdict-emit.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "the shared make-and-validate helper for tepna.verdict/1 objects (Verdict.make + Verdict.validate + producedBy.commit) and, since §3d, the one RUNNER aggregation rule (aggregateChildren) every runner projects its children through; the words occur in comments and in the aggregation's status strings — it decides nothing of its own, it refuses to print an invalid object"
+    },
+    "tools/verdict-undeclared.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/verdict-undeclared.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the ONE builder the eight band-less analysis tools share: tepna.verdict/1 with status UNKNOWN (NOT_RUN when nothing contributed), the statistic verbatim in result, the §1 sentence and the route to a band as the reason; selftest pins the shape against verdict.js"
+    },
+    "tools/verify-drafts.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "verdict words appear only in comments"
+    },
+    "tools/verify-fixtures.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/verify-fixtures.mjs",
+          "--check",
+          "--json"
+        ]
+      },
+      "note": "wave-2 adopter: --check --json prints ONE tepna.verdict/1 over the corpus-backed fixtures (PASS = every verifiedUnder ≡ the current computeHash; FAIL names the UNVERIFIED fixtures); stamp mode emits PASS/FAIL/NOT_RUN(corpus absent) too. --check reads only the ledgers and the built bundles — corpus-free, CI-runnable."
+    },
+    "tools/verify-seals.mjs": {
+      "bin": "already-json",
+      "status": "adopted",
+      "note": "born emitting tepna.verdict/1 (#2796); scope + verdict.js validation of every emitted object in #2800 — the first adoption this manifest records. `--vectors --json` prints the verdict for the committed vector to stdout, prose to stderr.",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/verify-seals.mjs",
+          "--vectors",
+          "--json"
+        ]
+      }
+    },
+    "tools/wt-done.mjs": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "selftest printer; its own verdict() is a pure PR-state decision consumed by the tool itself, exit-coded — a wave-2 candidate, listed here by reason not by omission"
+    },
+    "tools/adev-curve.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/adev-curve.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the CONSUMER the ADEV-curve residue said was owed before the curve shipped (2026-09-21-adev-curve-not-exported-by-either-node): it RE-DERIVES the published slope from the published curve (log-log OLS over exactly those points) and looks for a KNEE by fitting each half of the ladder. Criterion: the published slope must be the fit over the published curve within 1.96·slopeSE — FAIL names both numbers; a KNEE is SHORTFALL (the headline held, a named sub-population — one half of the ladder — did not), never FAIL; an export carrying no curve (pre-2026-09-22) is NOT_RUN, never a pass. 19 plants; the cmd is a scratch τ⁻¹ ladder, corpus-free."
+    },
+    "tools/corpus-census.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/corpus-census.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "a census commits its file list (residue 2026-09-20-census-file-list-not-retained): --write records one row per file (name, bytes, sha256 of the first 8 MB — the digest the ECG census itself used) into analysis/census/<id>.json; --diff NAMES every added/removed/CHANGED file against that manifest instead of reconstructing by elimination. Criterion: no unexplained population change. A moved population is SHORTFALL — a corpus grows, and the finding is that numbers computed over the recorded set need re-running or re-stating; an EMPTY census is NOT_RUN, never a clean bill. Both dedupe keys are published with their definitions (604 by basename, 549 by content on the real ECG corpus — a 10 % gap, and the published 597/602 used the basename key). 27 plants incl. the row's own 597→602 case with all five additions named; the cmd is three scratch rows, corpus-free."
+    }
   }
- }
 }
