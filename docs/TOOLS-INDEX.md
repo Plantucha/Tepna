@@ -10,13 +10,14 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**211 tools** · 209 with a purpose line · **2 without**
+**212 tools** · 210 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
 | [`acc-acc-control.mjs`](../tools/acc-acc-control.mjs) | the CALIBRATION CONTROL for wide-range clock alignment. Backs CROSS-DEVICE-CLOCK-SKEW-2026-07-29-BRIEF §2c. |
 | [`acc-select-compare.mjs`](../tools/acc-select-compare.mjs) | EXTERNAL-METHODS-SURVEY-FOLLOWUPS §2. Two tools pick a night's ACC fragments by different rules and disagree about which nights are alignable: |
 | [`acc-shared-movement.mjs`](../tools/acc-shared-movement.mjs) | EXTERNAL-METHODS-SURVEY §3's question, in our own units. §3: Brønd et al. |
+| [`adev-curve.mjs`](../tools/adev-curve.mjs) | ════════════════════════════════════════════════════════════════════════════════════════════════ READ THE ADEV CURVE A NODE EXPORT NOW CARRIES — the consumer residue… |
 | [`analysis-rerun.mjs`](../tools/analysis-rerun.mjs) | Built for `briefs/COHORT-GEN-2.0-PAPER-RERUN-2026-09-15-BRIEF.md`: the six cohort-gen-pinned papers are re-cut under 2.0, and each paper's numbers come from one browser tool. |
 | [`aperiodic-method-compare.mjs`](../tools/aperiodic-method-compare.mjs) | EXTERNAL-METHODS-SURVEY §2's measurement. The question: our aperiodic alignment failed with a correlation/argmax method, and Schranz et al. |
 | [`aperiodic-offset.mjs`](../tools/aperiodic-offset.mjs) | aperiodic-offset — target 1 of KNOWN-CLOCK-ADVERSARIAL-CAPTURE, finally testable. |

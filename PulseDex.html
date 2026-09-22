@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="ac9a7c97e4b6" data-compute-hash="c1b5d26d1546"><head>
+<html lang="en" data-manifest-hash="38b83527bab3" data-compute-hash="234b0bd0db0a"><head>
 <!--
   PulseDex.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3OFGZyAYmpNjgdIo8HIK3mH80DZJcnoVZHx/nLdDpa4=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-YmI37lcKl30XtmpX7ggJsjrArPEJ7hkRwJ+NsvI2tmw=' 'sha256-ZOZrXVPboAP+8At/P4MiABzCGh99952BRym6mgp2xpc=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l7+aJgsMD55W+OVW3ZgKnu0aySX2YViv57Gwk5Dhu+M=' 'sha256-n4iELeLN4xR2wiFU5lenc+GD6lzf0vrweipgHN0rplc=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3OFGZyAYmpNjgdIo8HIK3mH80DZJcnoVZHx/nLdDpa4=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-ZOZrXVPboAP+8At/P4MiABzCGh99952BRym6mgp2xpc=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-l7+aJgsMD55W+OVW3ZgKnu0aySX2YViv57Gwk5Dhu+M=' 'sha256-n4iELeLN4xR2wiFU5lenc+GD6lzf0vrweipgHN0rplc=' 'sha256-nghmP9jMX0rAyZ78QklkJKcGr9ZiroYj+56iLDFYjLY=' 'sha256-sH2zcem3XO98hxUUreAPps78dztWHR1+8dPrGCperK0='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PulseDex — Raw RR Analyzer · v2.13.0</title>
@@ -6682,6 +6682,18 @@ body.light .ctx-note{border-top-color:rgba(0,0,0,.06)}
              place of one chosen by intuition. On a pure-jitter clock it is simply the longest τ
              measured, and saying so is more honest than implying a minimum was found. */
           optimalTauSec: curve[bestI].tau,
+          /* THE CURVE ITSELF (residue 2026-09-21-adev-curve-not-exported-by-either-node). Every scalar
+             above is a projection of it, and the projections cannot show WHERE the floor sits or
+             whether the slope was fitted over a straight run or across a KNEE — which is §7's whole
+             point: the slope names the mechanism, and one number cannot show a slope that changes.
+             `adevPpm` deliberately, NOT the `…Ms` misnomer above: the estimator is handed phase in ms
+             and τ in seconds, so `adev` is ms/s = 1e-3 dimensionless, and ×1000 is ppm. `n` is the
+             term count at that τ — a reader needs it to see the estimate widening as τ grows. The
+             ladder is octave-spaced and ends where `CK_ALLAN_MIN_TERMS` bites, so this is short
+             (≤ ~20 points) and bounded by construction. */
+          curve: curve.map(function (pt) {
+            return { tauSec: pt.tau, adevPpm: pt.adev * 1000, n: pt.n };
+          }),
           /* THE POINT OF THE EXERCISE: how much of the `ppm` above is real. σ_y at the recording's own
              span, expressed in ppm — quote the ppm WITH this or not at all. */
           ppmUncertainty: curve[curve.length - 1].adev * 1000,
