@@ -567,9 +567,16 @@
    "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
   },
   "tools/box-sample.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/box-sample.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "a peak read off a memory trace is a claim about that trace's WINDOW, and the tool now decides which: PASS the span reaches saturation (the peak is the cap) \u00b7 SHORTFALL past the onset only (a lower bound) \u00b7 UNDERPOWERED short of the 665 s at which this tool's own 2026-09-15 traces first saw the startup step \u00b7 UNKNOWN a restart inside the trace or no elapsed_s. Residue 2026-09-22-startup-transient-refutation-underpowered: a ten-minute trace was read as \"no startup transient\" and that window ends before the step. `--verdict-sample` emits that exact trace, corpus-free; the selftest validates it against verdict.js."
   },
   "tools/build-docs.mjs": {
    "bin": "word-only",
