@@ -460,6 +460,11 @@
    "status": "pending",
    "note": "canaryVerdict \u2014 already refuses to vouch without a machine-readable result; align its object"
   },
+  "tools/mutation-summary.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "CONSUMER, not a producer \u2014 renders the tepna.verdict/1 object mutate.mjs --diff emits into the CI job summary (the first CI reader of the contract); its status words are the object's fields quoted back, validated by verdict.js before rendering, and it produces no verdict of its own"
+  },
   "tools/mutation-worklist.mjs": {
    "bin": "already-json",
    "status": "pending",
