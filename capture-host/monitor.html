@@ -774,6 +774,15 @@ tr.ndrawer td{background:var(--surface2)!important;padding:0!important;}
         <div id="stDisk" class="hint">—</div>
       </div>
 
+      <div class="card" id="sealCard">
+        <div class="section-title">Night seal</div>
+        <div id="stSeal" class="hint">—</div>
+        <div class="row" style="margin-top:8px;gap:8px;display:flex;flex-wrap:wrap">
+          <button type="button" class="btn" id="sealShowCard">Show card</button>
+          <button type="button" class="btn danger" id="sealRotate">Rotate card (stolen)</button>
+        </div>
+      </div>
+
       <div class="card">
         <div class="section-title">Offload target</div>
         <p class="hint">Where finished nights go. A night is only released to the retention guard once a
@@ -1496,7 +1505,30 @@ function renderRingIdentity(status) {
   return out;
 }
 
+// NIGHT SEAL (CAPTURE-NIGHT-SEAL §13): what the box sealed, under which card key, and the two operator
+// actions — re-display (lost card) and rotate (stolen card). Reads STATUS.seal as the daemon publishes
+// it; "off" and "not armed because…" are different states and both are said.
+function renderSealStatus(){
+  const s = (STATE&&STATE.seal)||null; const el = $('#stSeal'); if(!el) return;
+  const on = !!(s&&s.armed);
+  $('#sealShowCard').disabled = !on; $('#sealRotate').disabled = !on;
+  if(!s){ el.innerHTML = 'off — <code>seal.enabled</code> is false (the owner\'s switch: a night written into a folder a sync client may watch)'; return; }
+  if(!on){ el.innerHTML = `<span class="bad">not armed</span> — ${esc(s.error||'')}`; return; }
+  const nights = Object.entries(s.nights||{}).sort().reverse().slice(0,7)
+    .map(([n,v])=>`${esc(n)} <span class="${v.status==='PASS'?'ok':(v.status==='NOT_APPLICABLE'?'':'bad')}">${esc(v.status)}</span>${v.revision?' r'+v.revision:''}`).join(' · ');
+  el.innerHTML = `box <b>${esc(s.box_id)}</b> · card key <b>${s.key_id}</b> · consent <b>${s.consent==null?'not asked':esc(String(s.consent))}</b><br>`
+    + `fingerprint <code>${esc(s.fingerprint||'')}</code><br>outbox <code>${esc(s.outbox||'')}</code>`
+    + (nights ? `<br>${nights}` : '<br>no settled night sealed yet');
+}
+$('#sealShowCard').addEventListener('click', ()=>{ window.open('/api/seal/card', '_blank'); });
+$('#sealRotate').addEventListener('click', async ()=>{
+  if(!confirm('Rotate the card key? Nights sealed from now on need the NEW card; old nights stay readable with the old one.')) return;
+  try{ const r = await fetch('/api/seal/rotate', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'}); const j = await r.json();
+    if(!j.ok) throw new Error(j.error||r.status); alert('Card rotated to key '+j.keyId+' — open Show card and print or photograph it.'); if(STATE&&STATE.seal){ STATE.seal.key_id=j.keyId; renderSealStatus(); } }
+  catch(e){ alert('rotate failed: '+e.message); }
+});
 function renderStorageStatus(){
+  renderSealStatus();
   const st = (STATE&&STATE.storage)||{}, r = (STORAGE&&STORAGE.ready)||null;
   const held = (st.retention_held||[]).length;
   $('#stDisk').innerHTML = st.free_gb==null ? '—' :

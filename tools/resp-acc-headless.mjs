@@ -254,13 +254,85 @@ if (FIGDIR) {
         verdict: r.verdict || null,
         scored: !!hit,
         hours: hit ? hit.hours : null,
-        epochs: hit ? hit.epochs : null
+        epochs: hit ? hit.epochs : null,
+        /* additive 2026-09-22 — the per-night agreement columns the page renders beside hours/epochs, so
+           the paper's section-5 range ("per-night bias …") can be a sourced CLAIM instead of prose read
+           off a screen (residue 2026-09-20-respacc-cohort-description-survived-correction) */
+        mae: hit && hit.MAE != null ? hit.MAE : null,
+        bias: hit && hit.bias != null ? hit.bias : null,
+        within2: hit && hit['\u22642 brpm'] != null ? hit['\u22642 brpm'] : null,
+        r: hit && hit.r != null ? hit.r : null
       };
     }),
     scoredNights
   };
   fs.mkdirSync(FIGDIR, { recursive: true });
   fs.writeFileSync(path.join(FIGDIR, 'cohort-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  /* PUBLISHED-NUMBER RECORD (tepna.published-number-record/1) — the cohort numbers the paper's prose states,
+     at the precision it states them, so every one is a `CLAIM … FROM analysis/published-numbers/<this>#claims/<key>`
+     the table-provenance gate compares. Derived from the SAME dom tables as the manifest; nothing hand-typed. */
+  const num = (v) => {
+    const x = parseFloat(
+      String(v == null ? '' : v)
+        .replace(/[^0-9.+\u2212-]/g, '')
+        .replace('\u2212', '-')
+    );
+    return Number.isFinite(x) ? x : null;
+  };
+  const scoredRows = manifest.nights.filter((n) => n.scored);
+  const hoursSum = scoredRows.reduce((a, n) => a + (num(n.hours) || 0), 0);
+  const epochsSum = scoredRows.reduce((a, n) => a + (num(n.epochs) || 0), 0);
+  const biases = scoredRows.map((n) => num(n.bias)).filter((v) => v != null);
+  const maes = scoredRows.map((n) => num(n.mae)).filter((v) => v != null);
+  // the paper's median: the mean of the two middle values when n is even (14 scored nights)
+  const med = (a) => {
+    const s = [...a].sort((x, y) => x - y);
+    if (!s.length) return null;
+    return s.length % 2 ? s[s.length >> 1] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+  };
+  const day = manifest.generatedAt.slice(0, 10);
+  const record = {
+    schema: 'tepna.published-number-record/1',
+    producer: 'tools/resp-acc-headless.mjs',
+    producerCommit: (() => {
+      try {
+        return createRequire(import.meta.url)('node:child_process')
+          .execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: REPO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+          .trim();
+      } catch {
+        return null;
+      }
+    })(),
+    invocation: `node tools/resp-acc-headless.mjs <staged-dir> --figures ${path.relative(REPO, FIGDIR) || FIGDIR}`,
+    generated: day,
+    inputs: {
+      path: path.resolve(DIR),
+      committed: false,
+      files: stagedAcc.length,
+      digest: null,
+      note: 'the staged ACC + CPAP corpus is gitignored (real recordings); the cohort manifest beside this record lists every staged file and every night verdict'
+    },
+    publishedIn: 'papers/acc-respiratory-rate.html (cohort description re-cut, correction block)',
+    claims: {
+      note: 'values EXACTLY as the prose states them, so CLAIM … FROM … #claims/<key> compares equal',
+      pairedNights: manifest.counts.inClockTable,
+      scoredNights: manifest.counts.scoredNights,
+      stagedAccFiles: manifest.counts.stagedAccFiles,
+      hours: +hoursSum.toFixed(1),
+      epochs: epochsSum,
+      perNightBiasMin: biases.length ? +Math.min(...biases).toFixed(2) : null,
+      perNightBiasMax: biases.length ? +Math.max(...biases).toFixed(2) : null,
+      perNightMaeMin: maes.length ? +Math.min(...maes).toFixed(2) : null,
+      perNightMaeMax: maes.length ? +Math.max(...maes).toFixed(2) : null,
+      perNightMaeMedian: maes.length ? +med(maes).toFixed(2) : null
+    },
+    result: { perNight: scoredRows }
+  };
+  const recDir = path.join(REPO, 'analysis', 'published-numbers');
+  fs.mkdirSync(recDir, { recursive: true });
+  const recPath = path.join(recDir, `acc-resp-cohort-${day}.json`);
+  fs.writeFileSync(recPath, `${JSON.stringify(record, null, 2)}\n`);
+  console.log(`▸ RECORD → ${recPath}`);
   console.log(
     `\n▸ COHORT → ${path.join(FIGDIR, 'cohort-manifest.json')}` +
       `\n    staged ${manifest.counts.stagedAccFiles} ACC file(s) · ${manifest.counts.inClockTable} night(s) in the clock table · ${manifest.counts.scoredNights} scored`

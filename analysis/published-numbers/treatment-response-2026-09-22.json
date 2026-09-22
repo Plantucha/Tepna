@@ -1,0 +1,182 @@
+{
+  "schema": "tepna.published-number-record/1",
+  "producer": "tools/treatment-response-recut.mjs",
+  "producerCommit": "008b3194",
+  "invocation": "node tools/analysis-rerun.mjs --only treatment-response-analysis.html --paper-scale --out <rerun.json> · node tools/treatment-response-recut.mjs --rerun <rerun.json>",
+  "generated": "2026-09-22",
+  "inputs": {
+    "path": "treatment-response-analysis.html at nSubj 900 / minN 10 (synthetic cohort, cohort-gen as inlined; deterministic seed)",
+    "committed": true,
+    "files": 1,
+    "digest": "3b4885943c0c",
+    "note": "digest = sha256[0:12] over the captured rerun results file; the page and the generator it inlines are committed, so the run is reproducible from producerCommit"
+  },
+  "publishedIn": "papers/treatment-response.html Table 1 (re-cut correction block, 2026-09-22)",
+  "claims": {
+    "note": "values EXACTLY as the prose states them, so CLAIM … FROM … #claims/<key> compares equal; intervals: Wilson 95 % for proportions, Hanley–McNeil 95 % for AUC",
+    "nIntervention": 233,
+    "nFlatControl": 239,
+    "minNights": 10,
+    "nOdi": 233,
+    "exactOdi": 99,
+    "exactLoOdi": 96.9,
+    "exactHiOdi": 99.8,
+    "within1Odi": 99,
+    "within1LoOdi": 96.9,
+    "within1HiOdi": 99.8,
+    "medErrOdi": 0,
+    "aucOdi": 1,
+    "aucLoOdi": 0.991,
+    "aucHiOdi": 1,
+    "txR2Odi": 0.98,
+    "flatR2Odi": 0.31,
+    "nRmssd": 233,
+    "exactRmssd": 88,
+    "exactLoRmssd": 83.7,
+    "exactHiRmssd": 91.9,
+    "within1Rmssd": 95,
+    "within1LoRmssd": 91.7,
+    "within1HiRmssd": 97.3,
+    "medErrRmssd": 0,
+    "aucRmssd": 0.97,
+    "aucLoRmssd": 0.954,
+    "aucHiRmssd": 0.986,
+    "txR2Rmssd": 0.77,
+    "flatR2Rmssd": 0.23,
+    "nFused": 233,
+    "exactFused": 99,
+    "exactLoFused": 96.9,
+    "exactHiFused": 99.8,
+    "within1Fused": 100,
+    "within1LoFused": 98.4,
+    "within1HiFused": 100,
+    "medErrFused": 0,
+    "aucFused": 1,
+    "aucLoFused": 0.994,
+    "aucHiFused": 1,
+    "txR2Fused": 0.93,
+    "flatR2Fused": 0.28
+  },
+  "result": {
+    "recut": {
+      "nIntervention": 233,
+      "nFlatControl": 239,
+      "minNights": 10,
+      "detectors": {
+        "odi": {
+          "n": 233,
+          "exactPct": 99.14163090128756,
+          "exactCi95Pct": [
+            96.92486502322879,
+            99.7642877465884
+          ],
+          "within1Pct": 99.14163090128756,
+          "within1Ci95Pct": [
+            96.92486502322879,
+            99.7642877465884
+          ],
+          "medAbsErrNights": 0,
+          "auc": 0.996408497494927,
+          "aucCi95": [
+            0.9909517891125904,
+            1
+          ],
+          "aucSe": 0.002784086025221143,
+          "txMedR2": 0.9815592903828197,
+          "flatMedR2": 0.30744424352019284
+        },
+        "rmssd": {
+          "n": 233,
+          "exactPct": 88.41201716738198,
+          "exactCi95Pct": [
+            83.66523753918239,
+            91.91274650360045
+          ],
+          "within1Pct": 95.27896995708154,
+          "within1Ci95Pct": [
+            91.7454342953085,
+            97.34369773277632
+          ],
+          "medAbsErrNights": 0,
+          "auc": 0.9699211665200137,
+          "aucCi95": [
+            0.9540630697225213,
+            0.9857792633175061
+          ],
+          "aucSe": 0.008091014323473512,
+          "txMedR2": 0.774646792951839,
+          "flatMedR2": 0.2299634365712504
+        },
+        "fused": {
+          "n": 233,
+          "exactPct": 99.14163090128756,
+          "exactCi95Pct": [
+            96.92486502322879,
+            99.7642877465884
+          ],
+          "within1Pct": 100,
+          "within1Ci95Pct": [
+            98.37804626797991,
+            99.99999999999999
+          ],
+          "medAbsErrNights": 0,
+          "auc": 0.9981683337224128,
+          "aucCi95": [
+            0.994272895739849,
+            1
+          ],
+          "aucSe": 0.001987504863642285,
+          "txMedR2": 0.9285601379840058,
+          "flatMedR2": 0.2833103449706995
+        }
+      }
+    },
+    "pageResult": {
+      "generated": "2026-09-22T06:14:59.135Z",
+      "minNights": 10,
+      "nIntervention": 233,
+      "nFlatControl": 239,
+      "framing": "Intervention-arc synthetic patients (planted CPAP-start night = first treated night, 0-based index; restricted to ≥2 pre- and ≥2 post-treatment nights). Per-night ODI-4 (OxyDex) and rMSSD (PulseDex) measured by the REAL detectors. Single change-point by minimum within-segment SSE; FUSED = z-scored ODI-4 (sign-flipped) + rMSSD averaged. Localization scored vs the planted night; detection = step-R² AUC vs flat-arc controls. Synthetic ground truth — certifies pipeline + change-point recovery, not real-world CPAP-response detection.",
+      "localization": {
+        "odi": {
+          "n": 233,
+          "exactPct": 99.14163090128756,
+          "within1Pct": 99.14163090128756,
+          "medAbsErr": 0
+        },
+        "rmssd": {
+          "n": 233,
+          "exactPct": 88.41201716738198,
+          "within1Pct": 95.27896995708154,
+          "medAbsErr": 0
+        },
+        "fused": {
+          "n": 233,
+          "exactPct": 99.14163090128756,
+          "within1Pct": 100,
+          "medAbsErr": 0
+        }
+      },
+      "detection": {
+        "odi": {
+          "auc": 0.996408497494927,
+          "txMedR2": 0.9815592903828197,
+          "flatMedR2": 0.30744424352019284
+        },
+        "rmssd": {
+          "auc": 0.9699211665200137,
+          "txMedR2": 0.774646792951839,
+          "flatMedR2": 0.2299634365712504
+        },
+        "fused": {
+          "auc": 0.9981683337224128,
+          "txMedR2": 0.9285601379840058,
+          "flatMedR2": 0.2833103449706995
+        }
+      }
+    },
+    "rerunMeta": {
+      "ms": 838654
+    }
+  }
+}

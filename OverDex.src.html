@@ -59,6 +59,17 @@
   #drop .big{font-size:16px;font-weight:600;}
   #drop .small{color:var(--text3);font-size:12px;margin-top:7px;font-family:var(--mono);}
   .pickrow{display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap;}
+  /* CAPTURE-NIGHT-SEAL phase C — the provenance badge, inline before the label (the evidence-badge
+     placement); disc-free on purpose: this is provenance, not an evidence tier, and must not read as one */
+  .seal{display:inline-block;font:600 10px/1.5 ui-monospace,monospace;letter-spacing:.02em;padding:0 6px;border-radius:3px;margin-right:6px;vertical-align:middle;white-space:nowrap;max-width:32ch;overflow:hidden;text-overflow:ellipsis;}
+  .seal.seal-ok{background:rgba(57,217,138,.14);color:#39d98a;border:1px solid rgba(57,217,138,.35);}
+  .seal.seal-bad{background:rgba(255,92,92,.14);color:#ff5c5c;border:1px solid rgba(255,92,92,.4);}
+  .seal.seal-unknown{background:rgba(255,255,255,.05);color:#8a90a0;border:1px dashed rgba(255,255,255,.18);}
+  #cardPrompt{display:none;margin:12px 0;padding:12px 14px;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:rgba(255,255,255,.03);}
+  #cardPrompt label{display:block;font-size:12px;margin:6px 0 2px;color:#8a90a0;}
+  #cardPrompt input{width:100%;max-width:520px;font:13px ui-monospace,monospace;padding:6px 8px;background:#0e1118;color:inherit;border:1px solid rgba(255,255,255,.18);border-radius:4px;}
+  #cardPrompt .cp-err{color:#ff5c5c;font-size:12px;min-height:1.2em;margin-top:4px;}
+  #cardPrompt .cp-row{display:flex;gap:8px;margin-top:8px;}
   .ghost{font-family:var(--sans);font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text2);cursor:pointer;}
   .ghost:hover{border-color:var(--teal);color:var(--text);}
 
@@ -149,7 +160,19 @@
 
   <!-- webkitdirectory = folder pick; the plain input = loose files -->
   <input type="file" id="dir" webkitdirectory directory multiple style="display:none">
-  <input type="file" id="files" multiple style="display:none">
+  <input type="file" id="files" multiple accept=".tepna,*/*" style="display:none">
+
+  <!-- CAPTURE-NIGHT-SEAL phase C — the card prompt, shown on the FIRST sight of a (boxId, keyId); the
+       card key and the box-key fingerprint are what is printed on the patient's card. Never window.prompt. -->
+  <div id="cardPrompt" role="dialog" aria-label="Card key for a sealed night">
+    <div class="small"><b>Sealed night</b> — box <span class="cp-box"></span>. Enter the card printed at setup; it stays on this device (IndexedDB) and is never uploaded.</div>
+    <label for="cpCode">Card code (26 symbols, e.g. XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XX)</label>
+    <input class="cp-code" id="cpCode" autocomplete="off" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XX">
+    <label for="cpFp">Box key fingerprint (sha256/…)</label>
+    <input class="cp-fp" id="cpFp" autocomplete="off" spellcheck="false" placeholder="sha256/…">
+    <div class="cp-err" aria-live="polite"></div>
+    <div class="cp-row"><button class="primary cp-ok">Open night</button><button class="ghost cp-cancel">Not now</button></div>
+  </div>
 
   <div id="manifest"></div>
 
@@ -220,6 +243,9 @@
 <script src="dex-ingest.js"></script>
 <!-- shared node orchestration (co-loaded compute() hosts + node-export emit), reused from the Unifier -->
 <script src="signal-orchestrate.js"></script>
+<!-- CAPTURE-NIGHT-SEAL phase C — the verdict contract + the sealed-night reader (WebCrypto + DecompressionStream, no vendored code) -->
+<script src="verdict.js"></script>
+<script src="night-seal.js"></script>
 <!-- the capstone tool -->
 <script src="overdex-walk.js"></script>
 <script src="overdex-app.js"></script>

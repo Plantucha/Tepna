@@ -47,6 +47,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { makeVerdict } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -113,6 +114,49 @@ export function displacement(refMs, detMs, matchBeats, windowMs) {
     nRef: refMs.length,
     nDet: detMs.length
   };
+}
+
+/* ── tepna.verdict/1 (VERDICT-CONTRACT §1; wave-2 adopter) — E3's decision as ONE object ─────────
+   The bands are the constants above, pre-stated in the brief: PASS = it transfers (both bands met over
+   the pooled records) · FAIL = a band missed (which one, by how much, in `reason`) · UNKNOWN = no
+   matched beats, so the bands could not be evaluated · NOT_RUN = no record found. Population = records
+   measured, as an equality. The control row (same-rate identity) rides in `result` — a non-zero control
+   means the number is the resampler, not the detector, and the reason says so. */
+export function verdictObject(pooled, { records, found, dir, commit, commitReason, at } = {}) {
+  const v = verdict(pooled);
+  const status = !found ? 'NOT_RUN' : v.transfers === null ? 'UNKNOWN' : v.transfers ? 'PASS' : 'FAIL';
+  const ctrlNote = pooled && pooled.ctrlMedianAbsMs != null && pooled.ctrlMedianAbsMs !== 0 ? ' (⚠ control median |Δ| ' + pooled.ctrlMedianAbsMs + ' ms ≠ 0 — the resampler displaces beats)' : '';
+  return makeVerdict({
+    gate: 'ecg-rate-transfer',
+    status,
+    population: { checked: status === 'NOT_RUN' ? 0 : records || 0, eligible: found || records || 0, excluded: status === 'NOT_RUN' ? found || 0 : (found || records || 0) - (records || 0) },
+    // a CONJUNCTION of two pre-stated bands — counted as "bands missed", each band and its value in result
+    criterion: { name: 'e3_bands_missed (median |Δ| ≤ ' + BAND_MEDIAN_ABS_MS + ' ms AND correspondence ≥ ' + 100 * BAND_CORRESPONDENCE + ' %)', threshold: 0, unit: 'bands missed', direction: 'eq' },
+    result:
+      status === 'NOT_RUN'
+        ? null
+        : {
+            medianAbsMs: pooled.medianAbsMs,
+            correspondence: pooled.correspondence,
+            ctrlMedianAbsMs: pooled.ctrlMedianAbsMs,
+            records: records || 0,
+            bands: { medianAbsMs: BAND_MEDIAN_ABS_MS, correspondence: BAND_CORRESPONDENCE },
+            bandsMissed: v.transfers === null ? null : (pooled.medianAbsMs <= BAND_MEDIAN_ABS_MS ? 0 : 1) + (pooled.correspondence >= BAND_CORRESPONDENCE ? 0 : 1)
+          },
+    evidence: ['tools/ecg-rate-transfer.mjs'].concat(dir ? [String(dir)] : []),
+    reason: status === 'PASS' ? null : status === 'NOT_RUN' ? 'no H10 ECG record found under ' + dir : v.why + ctrlNote,
+    tool: 'tools/ecg-rate-transfer.mjs',
+    commit,
+    commitReason,
+    at
+  });
+}
+/* What the adoption gate runs: pooled numbers of the shape E3 measured, through the real bands. */
+export function verdictSample() {
+  return verdictObject(
+    { medianAbsMs: 1.2, correspondence: 0.998, ctrlMedianAbsMs: 0 },
+    { records: 6, found: 6, commit: null, commitReason: '--verdict-sample: synthetic pooled numbers, no code identity claimed', at: '2026-09-22T00:00:00Z' }
+  );
 }
 
 export function verdict(stat) {
@@ -214,12 +258,33 @@ async function selftest() {
   A('verdict: poor correspondence fails even at zero displacement', verdict({ medianAbsMs: 0, correspondence: 0.5 }).transfers === false);
   A('verdict: it names WHICH band failed', /correspondence/.test(verdict({ medianAbsMs: 0, correspondence: 0.5 }).why));
   A('verdict: no matched beats refuses rather than passing', verdict({ medianAbsMs: null }).transfers === null);
+  // ── the object: every status through the real bands ──
+  const vo = (p, o) => verdictObject(p, { records: 6, found: 6, commit: null, commitReason: 'selftest', at: '2026-09-22T00:00:00Z', ...o });
+  A(
+    'object: inside both bands ⇒ PASS, reason null',
+    vo({ medianAbsMs: 1.2, correspondence: 0.998, ctrlMedianAbsMs: 0 }).status === 'PASS' && vo({ medianAbsMs: 1.2, correspondence: 0.998, ctrlMedianAbsMs: 0 }).reason === null
+  );
+  A(
+    'object: a missed band ⇒ FAIL naming it',
+    vo({ medianAbsMs: 9, correspondence: 1, ctrlMedianAbsMs: 0 }).status === 'FAIL' && /median/.test(vo({ medianAbsMs: 9, correspondence: 1, ctrlMedianAbsMs: 0 }).reason)
+  );
+  A('object: a non-zero control is named in the FAIL reason', /resampler/.test(vo({ medianAbsMs: 9, correspondence: 1, ctrlMedianAbsMs: 3 }).reason));
+  A('object: no matched beats ⇒ UNKNOWN, never PASS', vo({ medianAbsMs: null }).status === 'UNKNOWN');
+  A(
+    'object: no record found ⇒ NOT_RUN with result null',
+    vo({ medianAbsMs: null }, { records: 0, found: 0 }).status === 'NOT_RUN' && vo({ medianAbsMs: null }, { records: 0, found: 0 }).result === null
+  );
+  A('object: the sample validates (makeVerdict throws otherwise)', verdictSample().status === 'PASS');
 
   console.log('\n' + (bad ? '✕ ' + bad + ' failed, ' : '✓ ') + good + ' assertions passed');
   return bad ? 1 : 0;
 }
 
 if (process.argv.includes('--selftest')) process.exit(await selftest());
+if (process.argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
 
 /* ── the run ══════════════════════════════════════════════════════════════════════════════════ */
 async function main(argv) {
@@ -350,6 +415,8 @@ async function main(argv) {
   );
   console.log('  measured              median |Δ| ' + pooled.medianAbsMs + ' ms   correspondence ' + (100 * pooled.correspondence).toFixed(2) + ' %');
   console.log('  VERDICT               ' + (v.transfers === true ? 'TRANSFERS — ' : v.transfers === false ? 'DOES NOT TRANSFER — ' : 'INCONCLUSIVE — ') + v.why);
+  // the object IS the verdict (stdout under --json; the report above is its explanation)
+  if (argv.includes('--json')) console.log(JSON.stringify(verdictObject(pooled, { records: rows.length, found: files.length, dir })));
   return 0;
 }
 

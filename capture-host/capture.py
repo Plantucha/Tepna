@@ -38,7 +38,11 @@ import sdnotify
 import alerts
 import nightqc
 import nightarchive
+import seal
+import sealbox
+import sealfmt
 import storage_targets
+import verdict
 from telemetry import (TelemetryBus, calibrated_for, hr_beats, note_flat_battery, on_body,
                        ppi_contact, sd_calibrated_for, worn_verdict)
 
@@ -7609,6 +7613,94 @@ async def _archive_transfer(captures: str, target: dict, settle: float, schedule
             return
 
 
+async def seal_poller(cfg: dict, root: str):
+    """CAPTURE-NIGHT-SEAL phase B (§13): seal each SETTLED night into `outbox/`, re-issue when a post-close
+    writer changed the directory, and emit one `tepna.verdict/1` (`night-seal`) per attempt. Default OFF —
+    `seal.enabled: true` is the owner's switch (a patient's night written into a folder a sync client may
+    watch). Keys live under `<root>/keys/` (generated once), the card under the outbox. Never touches
+    `captures/`; never runs on an active night (diskguard.active_nights)."""
+    scfg = cfg.get("seal") or {}
+    if not scfg.get("enabled"):
+        log.info("seal: OFF — seal.enabled is false")
+        return
+    key_dir = scfg.get("key_dir") or os.path.join(root, "keys")
+    outbox = scfg.get("outbox") or os.path.join(root, "outbox")
+    box_id = sealbox.box_id_of(cfg)
+    try:
+        signing_key, made_key = await asyncio.to_thread(sealbox.load_or_create_signing_key, key_dir)
+        store, made_card = await asyncio.to_thread(sealbox.load_or_create_card_store, key_dir)
+        card_path = os.path.join(outbox, f"{box_id}-card-k{store['keyId']}.html")
+        if made_card or not os.path.exists(card_path):
+            card_path = await asyncio.to_thread(sealbox.write_card, outbox, box_id=box_id, store=store,
+                                                signing_key=signing_key)
+    except sealbox.SealBoxError as e:
+        log.error("seal: REFUSED — %s; sealing is OFF until an operator fixes it", e)
+        STATUS["seal"] = {"armed": False, "error": str(e)}
+        return
+    fp = sealfmt.fingerprint(seal.public_raw(signing_key))
+    version = _suite_version(root)
+    commit = verdict.commit_sha()
+    log.info("seal: ARMED — box %s, keyId %d, fingerprint %s, outbox %s%s%s", box_id, store["keyId"], fp, outbox,
+             " (signing key generated)" if made_key else "", f", card at {card_path}" if made_card else "")
+    STATUS["seal"] = {"armed": True, "box_id": box_id, "key_id": store["keyId"], "fingerprint": fp,
+                      "outbox": outbox, "card": card_path, "consent": sealbox.consent_value(cfg),
+                      "nights": {}}
+    interval = float(scfg.get("poll_sec", 600))
+    settle = float(scfg.get("settle_sec", (cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S)))
+    retry_sec = float(scfg.get("retry_sec", 6 * 3600))
+    captures = os.path.join(root, "captures")
+    # NO RE-SEAL LOOP. A night whose attempt ended FAIL or UNKNOWN (a child killed at the 30-minute
+    # timeout, a seal that did not verify) is HELD: not tried again until its directory changes
+    # (files/bytes signature) or `retry_sec` passes — otherwise a night that times out would burn a
+    # 30-minute child every tick, forever. The hold is published (STATUS.seal.nights[n].held_until)
+    # and the night stays unsealed and visible as such; QC's own verdicts are untouched.
+    held: dict[str, tuple[tuple[int, int], float]] = {}     # night -> (signature at the failed attempt, monotonic when)
+    while not _STOP.is_set():
+        await asyncio.sleep(interval)
+        try:
+            # the store is re-read every tick: a rotation from the monitor (POST /api/seal/rotate) lands
+            # in the file, and the next night sealed must use the key the patient now holds
+            store, _ = await asyncio.to_thread(sealbox.load_or_create_card_store, key_dir)
+            STATUS["seal"]["key_id"] = store["keyId"]
+            active = await asyncio.to_thread(diskguard.active_nights, captures, settle)
+            nights = [n for n in await asyncio.to_thread(diskguard.list_nights, captures) if n not in active]
+            for night in nights[-int(scfg.get("max_nights", 60)):]:
+                night_dir = os.path.join(captures, night)
+                sig = await asyncio.to_thread(sealbox.night_signature, night_dir)
+                h = held.get(night)
+                if h is not None and h[0] == sig and _time.monotonic() - h[1] < retry_sec:
+                    continue                                   # held: same bytes, window not elapsed
+                # IN A CHILD, never in this process: a 916 MB night measured +1 971 MB peak RSS in the
+                # sealer (sealbox.seal_in_subprocess); the daemon holding every BLE link must not carry it
+                obj = await asyncio.to_thread(
+                    sealbox.seal_in_subprocess, night_dir, outbox=outbox, box_id=box_id,
+                    night=night, key_dir=key_dir, cfg=cfg, version=version, commit=commit)
+                entry = {"status": obj["status"], "at": obj["at"],
+                         "revision": (obj.get("result") or {}).get("revision")}
+                if obj["status"] in ("FAIL", "UNKNOWN"):
+                    held[night] = (sig, _time.monotonic())
+                    entry["held_until"] = (_now() + _dt.timedelta(seconds=retry_sec)).isoformat(timespec="seconds")
+                    entry["reason"] = obj.get("reason")
+                    log.warning("seal: %s → %s — %s; held for %.0f h unless the night changes", night,
+                                obj["status"], obj["reason"], retry_sec / 3600)
+                else:
+                    held.pop(night, None)
+                STATUS["seal"]["nights"][night] = entry
+        except Exception:  # noqa: BLE001 — one bad night must not stop the poller
+            log.warning("seal: poll failed", exc_info=True)
+
+
+def _suite_version(root: str) -> str | None:
+    """`suite.manifest.json` `version` from the code tree (the repo root above capture-host/), or None."""
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        with open(os.path.join(here, "suite.manifest.json"), encoding="utf-8") as fh:
+            v = json.load(fh).get("version")
+        return str(v) if v else None
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
 async def archive_poller(cfg: dict, root: str):
     """Mirror each COMPLETED night (not tonight — still being written) to a configured destination: a NAS
     mount, the served dir, a backup disk. Idempotent + resumable (a `.archived` marker per night). MIRROR,
@@ -10703,6 +10795,7 @@ async def main():
                    ("alert_poller", lambda: alert_poller(cfg, notifier)),
                    ("qc_poller", lambda: qc_poller(cfg, root, notifier)),
                    ("archive_poller", lambda: archive_poller(cfg, root)),
+                   ("seal_poller", lambda: seal_poller(cfg, root)),
                    ("autopull_poller", lambda: autopull_poller(cfg, root)),
                    ("cpap_poller", lambda: cpap_poller(cfg, root, notifier)),
                    ("charger_pull_poller", lambda: charger_pull_poller(cfg, root)),

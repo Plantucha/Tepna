@@ -26,12 +26,21 @@
  * with a new instrument. A number whose tool is not committed is a citation, not a measurement.
  *
  *   node tools/guide-directive-audit.mjs            census + verdict (exit 1 on an undeclared hit)
- *   node tools/guide-directive-audit.mjs --json     machine-readable
+ *   node tools/guide-directive-audit.mjs --json     the tepna.verdict/1 object, plus census + hits
+ *   node tools/guide-directive-audit.mjs --selftest
  *   node tools/guide-directive-audit.mjs --help
+ *
+ * VERDICT (tepna.verdict/1, wave 2 group C — read before flipping, the rule is exact): FAIL iff >= 1
+ * lower-tier band issues a clinical directive with no declared disclaimer — the same `undeclared`
+ * list the exit code keys on. Population = lower-tier cards; checked = those carrying a band (the only
+ * place a band directive can sit), the band-less rest excluded. The two REFUSE paths (fewer than 7
+ * guides; 0 lower cards or 0 bands) are the examined-nothing shape → UNDERPOWERED with the counts, and
+ * still exit 2. `--json` prints `{ …verdict, census, hits }` — a superset of the old shape.
  * ============================================================================================== */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { makeVerdict } from './verdict-emit.mjs';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const LOWER = ['emerging', 'experimental', 'heuristic'];
@@ -97,7 +106,83 @@ export function auditGuides(root = REPO) {
   return { census, hits, guides };
 }
 
+/* ── the verdict object — pure over { census, hits, guides }, so the selftest can drive it ───────── */
+export const MIN_GUIDES = 7;
+export function verdictObject({ census, hits, guides }, { commit, commitReason, at } = {}) {
+  const criterion = {
+    name: 'undeclared_directive_bands (lower-tier bands issuing a clinical directive with no declared disclaimer)',
+    threshold: 0,
+    unit: 'undeclared directive bands',
+    direction: 'eq'
+  };
+  const base = { gate: 'guide-directive-audit', criterion, evidence: guides.slice(), tool: 'tools/guide-directive-audit.mjs', commit, commitReason, at };
+  const population = { checked: census.withBand, eligible: census.lowerCards, excluded: census.lowerCards - census.withBand };
+  const undeclared = hits.filter((h) => !h.declared);
+  const result = { ...census, undeclared: undeclared.length, declared: hits.length - undeclared.length };
+  if (census.guides < MIN_GUIDES) {
+    return makeVerdict({
+      ...base,
+      status: 'UNDERPOWERED',
+      population,
+      result,
+      reason: `found ${census.guides} reference guides, expected >= ${MIN_GUIDES} — wrong cwd, or a guide was renamed; the scan examined too little to decide`
+    });
+  }
+  if (census.lowerCards === 0 || census.withBand === 0) {
+    return makeVerdict({
+      ...base,
+      status: 'UNDERPOWERED',
+      population,
+      result,
+      reason: `${census.lowerCards} lower-tier cards / ${census.withBand} with bands — the card or band markup changed, so this scan proves nothing`
+    });
+  }
+  if (undeclared.length) {
+    const named = undeclared.map((h) => `${h.node} ${h.name} [${h.tier}] "${h.phrase}"`);
+    return makeVerdict({ ...base, status: 'FAIL', population, result, reason: `${undeclared.length} lower-tier band(s) issue a clinical directive with no declared disclaimer: ${named.join('; ')}` });
+  }
+  return makeVerdict({ ...base, status: 'PASS', population, result, reason: null });
+}
+
+function selftest() {
+  let n = 0;
+  const eq = (a, b, msg) => {
+    n++;
+    if (a !== b) {
+      console.log(`✗ ${msg}: expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`);
+      process.exit(1);
+    }
+    console.log(`✓ ${msg}`);
+  };
+  const o = { commit: null, commitReason: 'selftest', at: '2026-09-22T00:00:00Z' };
+  const guides = ['A Reference.html', 'B Reference.html', 'C Reference.html', 'D Reference.html', 'E Reference.html', 'F Reference.html', 'G Reference.html'];
+  const census = { guides: 7, lowerCards: 186, withBand: 76, verdictBands: 53, directives: 1 };
+  const mos = { node: 'OxyDex', name: 'MOS', tier: 'experimental', phrase: 'urgent', band: '…', declared: 'card states "is not validated"' };
+  const clean = verdictObject({ census, hits: [mos], guides }, o);
+  eq(clean.status, 'PASS', 'PASS: the one directive is declared (the #1529 MOS record)');
+  eq(clean.population.checked, 76, 'checked = lower-tier cards carrying a band');
+  eq(clean.population.excluded, 110, 'excluded = lower-tier cards with no band (186 − 76)');
+  eq(clean.result.declared, 1, 'PASS result counts the declared hit');
+  const bad = verdictObject({ census: { ...census, directives: 2 }, hits: [mos, { ...mos, node: 'PpgDex', name: 'X', declared: null, phrase: 'seek ' }], guides }, o);
+  eq(bad.status, 'FAIL', 'FAIL: one undeclared directive');
+  eq(/PpgDex X \[experimental\] "seek "/.test(bad.reason), true, 'FAIL reason names node, card, tier and phrase');
+  eq(bad.result.undeclared, 1, 'FAIL result counts the undeclared hit');
+  const few = verdictObject({ census: { ...census, guides: 3 }, hits: [], guides: guides.slice(0, 3) }, o);
+  eq(few.status, 'UNDERPOWERED', 'UNDERPOWERED: 3 guides found, 7 expected (the REFUSE path)');
+  eq(/found 3 reference guides, expected >= 7/.test(few.reason), true, 'UNDERPOWERED reason carries the counts');
+  const noBand = verdictObject({ census: { ...census, withBand: 0, directives: 0 }, hits: [], guides }, o);
+  eq(noBand.status, 'UNDERPOWERED', 'UNDERPOWERED: 0 bands — the markup changed, the scan proves nothing');
+  eq(noBand.population.checked, 0, 'UNDERPOWERED over 0 bands examined nothing');
+  const live = verdictObject(auditGuides(), o);
+  eq(live.status === 'PASS' || live.status === 'FAIL', true, 'the real guides decide (never UNDERPOWERED in this checkout)');
+  console.log(`all ${n} selftests passed`);
+}
+
 function main(argv) {
+  if (argv.includes('--selftest')) {
+    selftest();
+    return 0;
+  }
   if (argv.includes('--help') || argv.includes('-h')) {
     const src = readFileSync(fileURLToPath(import.meta.url), 'utf8');
     const banner = src.slice(src.indexOf('/*'), src.indexOf('*/'));
@@ -111,20 +196,19 @@ function main(argv) {
     return 0;
   }
   const { census, hits, guides } = auditGuides();
+  const verdict = verdictObject({ census, hits, guides });
+  const json = argv.includes('--json');
 
   /* ANTI-VACUITY. A scan that examined nothing reports "0 directives", which is indistinguishable
-     from a clean fleet. Refuse rather than emit a well-formed zero. */
-  if (census.guides < 7) {
-    console.error(`REFUSE: found ${census.guides} reference guides, expected >= 7 - wrong cwd, or a guide was renamed.`);
-    return 2;
-  }
-  if (census.lowerCards === 0 || census.withBand === 0) {
-    console.error(`REFUSE: ${census.lowerCards} lower-tier cards / ${census.withBand} with bands - the card or band markup changed, so this scan proves nothing.`);
+     from a clean fleet. Refuse rather than emit a well-formed zero — the object says UNDERPOWERED. */
+  if (verdict.status === 'UNDERPOWERED') {
+    console.error(`REFUSE: ${verdict.reason}`);
+    if (json) console.log(JSON.stringify({ ...verdict, census, hits }, null, 2));
     return 2;
   }
 
-  if (argv.includes('--json')) {
-    console.log(JSON.stringify({ census, hits }, null, 2));
+  if (json) {
+    console.log(JSON.stringify({ ...verdict, census, hits }, null, 2));
   } else {
     console.log(`  guides scanned           ${census.guides}   (${guides.map((g) => g.replace(' Reference.html', '')).join(' ')})`);
     console.log(`  lower-tier cards         ${census.lowerCards}`);
@@ -144,7 +228,7 @@ function main(argv) {
     console.error('  Fix the guide (drop the directive, add a no-norm-note), or DECLARE it above with its disclaiming text quoted.');
     return 1;
   }
-  console.log(`\nOK: every directive-bearing lower-tier band is declared (${hits.length} hit(s), each with a recorded disclaimer)`);
+  (json ? console.error : console.log)(`\nOK: every directive-bearing lower-tier band is declared (${hits.length} hit(s), each with a recorded disclaimer)`);
   return 0;
 }
 

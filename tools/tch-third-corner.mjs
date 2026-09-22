@@ -44,6 +44,7 @@ import vm from 'node:vm';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -232,6 +233,13 @@ const arg = (k) => {
   return i > 0 ? argv[i + 1] : null;
 };
 
+/* VERDICT-CONTRACT §3b — the hat's σ per corner never had a pre-stated band (one-night numbers are on
+   record), so the object is UNKNOWN by design with the σ / weights / method in `result`; `--verdict-sample`
+   is what the adoption gate reads. */
+if (argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample('tools/tch-third-corner.mjs'), null, 1));
+  process.exit(0);
+}
 if (argv.includes('--selftest')) selftest();
 else {
   const ecg = arg('--ecg'),
@@ -297,6 +305,25 @@ else {
   }
   for (const k of ['H10', 'Verity', 'O2Ring']) console.log(`  σ ${k.padEnd(7)} ${r.sigma[k].toFixed(3).padStart(7)} bpm   weight ${r.weights[k].toFixed(3)}`);
   console.log('  method=%s  rho=%s  negativeVariance=%s  culprit=%s', r.method, r.rho, r.negative, r.culprit);
+  /* The object — UNKNOWN, one night: σ per corner, weights, method, the negative-variance flag verbatim.
+     Population = common minutes the hat solved over; eligible = the minutes any corner produced. */
+  printVerdict(
+    undeclaredVerdict({
+      tool: 'tools/tch-third-corner.mjs',
+      stat: {
+        label: 'three-cornered hat σ per corner (bpm), O2Ring on its own clock, one night',
+        sigmaBpm: { H10: +r.sigma.H10.toFixed(3), Verity: +r.sigma.Verity.toFixed(3), O2Ring: +r.sigma.O2Ring.toFixed(3) },
+        weights: r.weights,
+        method: r.method,
+        rho: r.rho,
+        negativeVariance: !!r.negative,
+        culprit: r.culprit == null ? null : r.culprit,
+        commonMinutes: common.length
+      },
+      population: { checked: common.length, eligible: new Set([...mA.keys(), ...mB.keys(), ...mC.keys()].filter((k) => k >= 0)).size },
+      evidence: [ecg, vppg, oxy, o2p]
+    })
+  );
   if (r.negative)
     console.log(
       '\n  ⚠ NEGATIVE VARIANCE with three real device clocks — the classic hat still fails.\n' +

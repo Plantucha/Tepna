@@ -1478,7 +1478,11 @@ import { PPGUI } from './ppgdex-render.js';
     const _ts = list.map((x) => x.t0Ms).filter((v) => v != null);
     const _aT0 = _ts.length ? Math.min.apply(null, _ts) : null;
     const _aSpan = _ts.length > 1 ? Math.round((Math.max.apply(null, _ts) - Math.min.apply(null, _ts)) / 864e5) : null;
-    const stamp = { kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null, provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null };
+    // MEASUREMENT-PROVENANCE-ROADMAP §12 — the running bundle's code identity, read off the <html>
+    // stamp HERE (the app layer) and passed in, because the born-clean DSP may not touch `document`.
+    const ds = document.documentElement.dataset;
+    const code = /^[0-9a-f]{12}$/.test(ds.manifestHash || '') && /^[0-9a-f]{12}$/.test(ds.computeHash || '') ? { manifestHash: ds.manifestHash, computeHash: ds.computeHash } : null;
+    const stamp = { kernel: window.DexKernel ? { version: DexKernel.VERSION, hash: DexKernel.HASH } : null, provenance: window.GangliorProvenance ? GangliorProvenance.stamp() : null, code };
     let out;
     if (list.length === 1) {
       // ONE shared builder (ppgdex-dsp.js) — the SAME node-export compute() emits, so the app

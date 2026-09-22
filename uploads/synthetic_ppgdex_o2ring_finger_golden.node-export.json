@@ -2,7 +2,7 @@
   "kernel": null,
   "schema": {
     "name": "ganglior.node-export",
-    "version": "2.0",
+    "version": "2.1",
     "node": "PpgDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
@@ -37,6 +37,68 @@
   "ganglior_events": [],
   "reserved": {
     "doc": "Awaiting other fleet nodes; null until available."
+  },
+  "measurement": {
+    "hr": {
+      "metricId": "hr",
+      "value": 48,
+      "window": {
+        "startTMs": 1784340847000,
+        "endTMs": 1784340886995,
+        "clockDomain": "device",
+        "timingSource": "host",
+        "spreadMs": 0.7504489999992074
+      },
+      "sourceChannel": "O2Ring:ppg",
+      "code": {
+        "manifestHash": "c7880fa1a3aa",
+        "computeHash": "190082a2933f"
+      },
+      "evidence": {
+        "envelopeRef": null,
+        "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
+        "inputHash": "eb6b340f0acd"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 33,
+        "durationMin": 0.7,
+        "analyzablePct": 97,
+        "coveragePct": 97
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the device-PPI cross-check in `validation` is a comparison, not an interval)"
+    },
+    "rmssd": {
+      "metricId": "rmssd",
+      "value": 13.5,
+      "window": {
+        "startTMs": 1784340847000,
+        "endTMs": 1784340886995,
+        "clockDomain": "device",
+        "timingSource": "host",
+        "spreadMs": 0.7504489999992074
+      },
+      "sourceChannel": "O2Ring:ppg",
+      "code": {
+        "manifestHash": "c7880fa1a3aa",
+        "computeHash": "190082a2933f"
+      },
+      "evidence": {
+        "envelopeRef": null,
+        "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
+        "inputHash": "eb6b340f0acd"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 33,
+        "durationMin": 0.7,
+        "analyzablePct": 97,
+        "coveragePct": 97
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the device-PPI cross-check in `validation` is a comparison, not an interval)"
+    }
   },
   "quality": {
     "analyzablePct": 97,
