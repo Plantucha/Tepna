@@ -1,0 +1,3 @@
+# TEST card key — 16 bytes hex, and its printed Crockford code
+000102030405060708090a0b0c0d0e0f
+000G-40R4-0M30-E209-185G-R38E-1W

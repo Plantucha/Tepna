@@ -75,3 +75,4 @@ tests/changes-list.txt      merge=union
 # shape union duplicated. So not installing it is strictly better than today, and installing it is
 # better still.  Install:  node tools/residue-merge.mjs --install
 briefs/RESIDUE.md           merge=residue
+*.tepna binary
