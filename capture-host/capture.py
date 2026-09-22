@@ -25,6 +25,7 @@ import bonding
 import devcaps
 import gattmap
 import helper_path
+import adapter_hci as _ahci   # the module; `adapter_hci()` below is the resolver function
 import bluez_wedge
 import link_distress
 import wifi_uplink
@@ -2335,7 +2336,8 @@ _NOT_WORN_RECHECK_S = 90.0          # how often to reconnect-and-check once drop
 _WORN_SINCE: dict[str, float] = {}  # addr -> monotonic ts contact went False (absent = worn/unknown)
 
 
-def should_drop_not_worn(worn_since, now, grace, pull_in_flight: bool = False) -> bool:
+def should_drop_not_worn(worn_since, now, grace, pull_in_flight: bool = False,
+                         can_charge: bool | None = True) -> bool:
     """PURE: has a strap been continuously not-worn long enough to drop for power? False when the feature
     is off (grace<=0), the strap is worn/unknown (worn_since None), or the grace has not yet elapsed.
 
@@ -2354,6 +2356,15 @@ def should_drop_not_worn(worn_since, now, grace, pull_in_flight: bool = False) -
     NOT what bounds this today: it is pure and has no caller yet, awaiting the held-link path. Citing it
     as the bound would be citing something unwired.)"""
     if pull_in_flight:
+        return False
+    # ⚠️ ONLY A DEVICE OBSERVED TO CHARGE IS DROPPED (CAPTURE-LOSS-PRECEDENCE-AUDIT R1, owner ruling
+    # 2026-09-22). The drop protects a dock's charge budget; a coin cell has none to protect, and on the
+    # H10 this rule cost 557 minutes over 33 nights (61 % of every lost minute on the box was this drop,
+    # across both Polars) for a battery that read 100 % after 14 nights of streaming. `can_charge` is the
+    # per-unit devcaps record — a battery that ROSE or a PMD IN_CHARGER seen on THIS address. None means
+    # nobody has measured it, and an unmeasured unit is never dropped: absence is null, not "assume a
+    # dock" (the coercion devcaps.get's own docstring forbids).
+    if can_charge is not True:
         return False
     return bool(grace and grace > 0 and worn_since is not None and (now - worn_since) >= grace)
 
@@ -3451,6 +3462,7 @@ async def run_polar(dev: dict, root: str):
                             prev = STATUS["devices"].get(name, {}).get("battery")
                             if isinstance(prev, int) and lvl > prev:
                                 _set(name, charging=True, charging_why="rising")     # a cell that ROSE: measured
+                                devcaps.record(addr, "can_charge", True, source="battery-rose")
                             elif isinstance(prev, int) and lvl < prev:
                                 _set(name, charging=False, charging_why=None)   # discharging again -> off the dock
                             _set(name, battery=lvl)
@@ -3461,7 +3473,10 @@ async def run_polar(dev: dict, root: str):
                             # from a wrist. Streaming drains ~9 %/h, so 45 min of no movement at full
                             # is a charger.
                             # store is module-level, so a reconnect does not restart the clock
-                            if note_flat_battery(_BATT_FLAT_SINCE, name, prev, lvl, _time.monotonic()):
+                            # R2: the flat-at-full INFERENCE fires only on a unit observed to charge — a coin
+                            # cell at 100 % for 45 min is a fresh cell, not a dock (2026-09-22, 140 drops)
+                            if note_flat_battery(_BATT_FLAT_SINCE, name, prev, lvl, _time.monotonic()) \
+                                    and devcaps.get(addr, "can_charge") is True:
                                 # the INFERENCE, named so worn_verdict can weigh it against a heartbeat. It
                                 # cannot fire on the read that measured a rise (lvl > prev resets the clock),
                                 # so it never overwrites `rising` within a session.
@@ -3728,6 +3743,7 @@ async def run_polar(dev: dict, root: str):
                                 # firing the on-charger auto-pull each time. A wrong flag was not
                                 # cosmetic: it cost the recording.
                                 if st == pmd.IN_CHARGER:
+                                    devcaps.record(addr, "can_charge", True, source="pmd-in-charger")
                                     _set(name, charging=True, charging_why="pmd-in-charger",
                                          last_error="charging — PMD streams unavailable until off the charger")
                                     _CHARGING.add(name)
@@ -3862,7 +3878,8 @@ async def run_polar(dev: dict, root: str):
                                     name, _STREAM_STALL_S)
                         break
                     if should_drop_not_worn(_WORN_SINCE.get(addr), _time.monotonic(), _DROP_NOT_WORN_SEC,
-                                        pull_in_flight=_OXYII_PAUSE.is_set()):
+                                        pull_in_flight=_OXYII_PAUSE.is_set(),
+                                        can_charge=devcaps.get(addr, "can_charge")):
                         drop_for_power = True
                         _set(name, last_error="not worn — link dropped to save battery (re-checking)")
                         log.info("%s: not worn for %.0fs — dropping the link to save battery; "
@@ -6242,6 +6259,43 @@ async def _restart_radio() -> bool:
     return False
 
 
+async def _record_adapter_hci(cfg: dict, pinned_hci, pinned_up, pinned_responds) -> list[dict]:
+    """Probe every enumerated radio but the pinned one (whose verdict the caller already holds), append
+    one `ADAPTERHCI.csv` row per radio, publish the roster on STATUS["adapter_hci"]. Returns the rows
+    as dicts. Never raises: a record about the radios must not disturb the watchdog."""
+    try:
+        adapters = await list_adapters()
+    except Exception:  # noqa: BLE001 — list_adapters already returns [] on failure; belt to that brace
+        adapters = []
+    t_ms = _now().timestamp() * 1000.0
+    rows: list[dict] = []
+    for a in adapters:
+        hci, mac = a.get("hci") or "", (a.get("mac") or "").upper()
+        if not hci or not mac:
+            continue
+        t0 = _time.monotonic()
+        if hci == pinned_hci:
+            up, responds = pinned_up, pinned_responds
+        else:
+            up, responds = bool(a.get("up")), await _adapter_responds(hci)
+        rows.append({"probed_ms": t_ms, "hci": hci, "mac": mac, "pinned": hci == pinned_hci, "up": up,
+                     "responds": responds, "probe_ms": (_time.monotonic() - t0) * 1000.0})
+    if pinned_hci and not any(r["pinned"] for r in rows):
+        # The enumeration failed or omitted the pinned radio: its measured verdict is still a row.
+        rows.append({"probed_ms": t_ms, "hci": pinned_hci, "mac": (ADAPTER or "").upper(), "pinned": True,
+                     "up": pinned_up, "responds": pinned_responds, "probe_ms": 0.0})
+    _ahci.append_rows(cfg.get("root") or "",
+                            [_ahci.row(r["probed_ms"], r["hci"], r["mac"], r["pinned"], r["up"], r["responds"], r["probe_ms"])
+                             for r in rows], log=log)
+    STATUS["adapter_hci"] = {r["mac"]: {"hci": r["hci"], "pinned": r["pinned"], "up": r["up"], "responds": r["responds"]}
+                             for r in rows}
+    for r in rows:
+        if r["responds"] is False and not r["pinned"]:
+            log.warning("watchdog: radio %s (%s) reads %s and did not answer an HCI round trip — REPORTED, not reset "
+                        "(a non-pinned reset is the owner's action)", r["hci"], r["mac"], "UP" if r["up"] else "DOWN")
+    return rows
+
+
 def _wedge_fire_record(root, device, reason, error_class) -> None:
     """Append one line to the wedge-fire journal. NEVER raises — a record about a recovery must not
     become a second failure during one.
@@ -6354,6 +6408,15 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
         # what licenses the InProgress suppression, so probing only on suspicion would leave the suppression
         # resting on the flag it was introduced to replace. One bounded subprocess per `interval_sec`.
         adapter_responds = (await _adapter_responds(_hci_now)) if _hci_now else None
+        # ── EVERY RADIO, AND A ROW A READER CAN FIND (adapter_hci, residue 2026-09-11) ──────────
+        # The round trip above answers for the PINNED radio and feeds a classifier; on 2026-09-11 a
+        # wedge was invisible for nineteen minutes because its result reached no artifact. Now every
+        # enumerated radio is probed each poll — the pinned one reuses the verdict just taken — and
+        # one row per radio lands in ADAPTERHCI.csv at the root, which the nightly QC tick turns into
+        # the `adapter-hci` verdict. REPORT only: nothing here resets a non-pinned radio; the ladder
+        # below acts on the pinned one exactly as before. A failed enumeration records nothing rather
+        # than a fabricated roster (§∅), and the pinned row is still written from what was measured.
+        await _record_adapter_hci(cfg, _hci_now, adapter_up, adapter_responds)
         h = classify_adapter_health(devs, adapter_up=adapter_up, adapter_responds=adapter_responds)
         if not h["wedged"]:
             # ── IS THE RADIO DEAF? ───────────────────────────────────────────────────────────
