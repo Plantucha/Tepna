@@ -154,6 +154,10 @@ ALLOW_PROVENANCE: dict[str, str] = {
 }
 
 ALLOW_FUNCS = {
+    "precedence_table_md": "telemetry — CAPTURE-LOSS-PRECEDENCE-AUDIT R3's doc gate is its consumer: the "
+                           "worn-precedence test renders it and diffs the brief's §2a against the output, so a "
+                           "vote added in code without a brief line reds by name. A production caller would be "
+                           "the wrong wiring — this renders documentation, not a decision",
     "card_code_decode": "sealfmt — the read half of the card code pair whose write half (card_code_encode) "
                         "tools/seal_vectors.py uses to print the test card. Its consumer is the Dex's code entry "
                         "(phase C, browser) and the box's card re-display (phase B); the seal tests exercise both "
