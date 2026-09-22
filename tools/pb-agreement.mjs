@@ -34,6 +34,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { makeVerdict } from './verdict-emit.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -44,6 +45,7 @@ const opt = (f, d) => {
 };
 const AS_JSON = argv.includes('--json');
 const SELFTEST = argv.includes('--selftest');
+const VERDICT_SAMPLE = argv.includes('--verdict-sample');
 const DIR = opt('--dir', join(ROOT, 'uploads', 'trio'));
 const CPAP = opt('--cpap', null);
 
@@ -136,8 +138,123 @@ if (SELFTEST) {
   if (!okLive) bad++;
   console.log(`${okLive ? 'ok  ' : 'FAIL'} and a NON-degenerate table still returns a number (guard is not blanket): k=${live.k == null ? null : live.k.toFixed(3)}`);
 
+  /* ── the verdict, all three reachable statuses ─────────────────────────────────── */
+  const AT = { at: '2026-09-22T00:00:00Z', commit: null, commitReason: 'selftest' };
+  const T = { both: 4, deviceOnly: 1, oxyOnly: 32, neither: 2 };
+  const vPass = pbVerdict({ n: 39, table: T, kr: { k: -0.039, why: null }, burdenR: null, bothN: 4, multiSpanNights: 0, ...AT });
+  const vNA = pbVerdict({ n: 39, table: { both: 0, deviceOnly: 0, oxyOnly: 30, neither: 9 }, kr: kappaOrRefusal(0, 0, 30, 9), burdenR: null, bothN: 0, multiSpanNights: 0, ...AT });
+  const vNR = pbVerdict({ n: 0, table: { both: 0, deviceOnly: 0, oxyOnly: 0, neither: 0 }, kr: kappaOrRefusal(0, 0, 0, 0), burdenR: null, bothN: 0, multiSpanNights: 0, ...AT });
+  const vck = (l, cond, d) => {
+    if (cond) console.log(`ok   ${l}`);
+    else {
+      bad++;
+      console.log(`FAIL ${l}${d ? ' — ' + d : ''}`);
+    }
+  };
+  /* κ = -0.039 is WORSE than chance and still PASSES: the criterion is definedness, not agreement.
+     A measurement of "no agreement" is a valid measurement, and that is the whole design. */
+  vck('verdict: a NEGATIVE κ still PASSES — the criterion is definedness, not a quality bar', vPass.status === 'PASS' && vPass.result.kappa === -0.039, vPass.status);
+  vck('verdict: population is an equality (39 = 39 + 0)', vPass.population.eligible === vPass.population.checked + vPass.population.excluded, JSON.stringify(vPass.population));
+  /* The degenerate table: κ UNDEFINED, not 0. NOT_APPLICABLE rather than FAIL — it is a property of
+     the data, and the criterion cannot bind. `result` must be null or the refusal is not a refusal. */
+  vck('verdict: a zero margin is NOT_APPLICABLE, not FAIL', vNA.status === 'NOT_APPLICABLE', vNA.status);
+  vck('verdict: …with result null and the refusal reason carried', vNA.result === null && /never varied/.test(vNA.reason || ''), JSON.stringify(vNA.reason));
+  vck('verdict: …and every one of its 39 nights is EXCLUDED, not silently dropped', vNA.population.excluded === 39 && vNA.population.checked === 0, JSON.stringify(vNA.population));
+  vck('verdict: no paired nights is NOT_RUN with result null', vNR.status === 'NOT_RUN' && vNR.result === null, vNR.status);
+  /* The caveat must be IN the object, not beside it: criterion.name travels with every status, so a
+     reader cannot take PASS as "κ is trustworthy" without deleting the sentence that says otherwise. */
+  for (const [l, v] of [
+    ['PASS', vPass],
+    ['NOT_APPLICABLE', vNA],
+    ['NOT_RUN', vNR]
+  ])
+    vck(`verdict: ${l} carries "power is NOT assessed" in criterion.name`, /power is NOT assessed/.test(v.criterion.name));
+  vck('verdict: scope is internal — n = 1 subject does not clear the P5 bar', vPass.scope === 'internal');
+
   console.log(bad ? `\n${bad} FAILED` : '\nall selftests pass');
   process.exit(bad ? 1 : 0);
+}
+
+/* ── THE VERDICT ─ what this tool DECIDES, and deliberately what it does NOT ───────────────
+   ⚠ AN ADOPTION MUST NOT CHANGE WHAT A TOOL DECIDES. This is a MEASUREMENT, not a gate, and the
+   brief that commissioned it — `OXYDEX-PB-OVERCALL-2026-07-31` — forbids the obvious adoption:
+
+     · *"Disagreement means they do not measure the same thing — NOT that OxyDex is wrong."*
+     · *"A threshold chosen to make κ look better on 39 nights of one [subject]"* — named there as
+       the error to avoid.
+     · *"n = 1 subject. Same bar as everywhere else in this suite: nothing here supports a
+       population claim."*
+
+   So the criterion binds on whether κ is DEFINED, never on its magnitude. A κ band would treat the
+   device as ground truth, which that brief refuses in terms, and would be the tuned-to-κ move it
+   exists to prevent. The measured κ travels as RESULT, never as a pass/fail input.
+
+   ⚠ AND PASS DOES NOT MEAN κ IS TRUSTWORTHY — `defined-is-not-informative`. Every margin non-zero
+   makes κ computable; it does not make it meaningful, and κ over two paired nights satisfies this
+   criterion exactly while carrying nothing. The brief states n = 1 SUBJECT and no supported night
+   count, so there is no honest `UNDERPOWERED` threshold to apply and inventing one would be the same
+   error one field over. Power is therefore NOT ASSESSED, and that is said in `criterion.name` — which
+   travels with every status — rather than in a caveat a reader can drop. `population.checked` carries
+   n; a reader who wants power must look at it. */
+export function pbVerdict({ n, table, kr, burdenR, bothN, multiSpanNights, at, commit, commitReason }) {
+  const base = {
+    tool: 'tools/pb-agreement.mjs',
+    gate: 'pb-agreement',
+    scope: 'internal', // n = 1 subject, and the device is not ground truth — P5 bar not cleared
+    criterion: {
+      name: 'κ is DEFINED for the paired-night table: no zero margin. NOT a quality bar — PASS means κ was computable and is reported, never that it is trustworthy; power is NOT assessed (n = 1 subject, see OXYDEX-PB-OVERCALL-2026-07-31)',
+      direction: 'eq',
+      threshold: 0,
+      unit: 'degenerate margins'
+    },
+    evidence: ['tools/pb-agreement.mjs', 'briefs/OXYDEX-PB-OVERCALL-2026-07-31-BRIEF.md'],
+    at,
+    commit,
+    commitReason
+  };
+  if (!n) {
+    return makeVerdict({
+      ...base,
+      status: 'NOT_RUN',
+      population: { eligible: 0, checked: 0, excluded: 0 },
+      result: null,
+      reason: 'no paired nights: no night has both an OxyDex export and a device PB record'
+    });
+  }
+  if (kr.k == null) {
+    // A degenerate table is a property of the DATA, not a failure: the criterion cannot bind, so the
+    // honest status is NOT_APPLICABLE. Returning κ = 0 here is the fabrication the refusal prevents.
+    return makeVerdict({ ...base, status: 'NOT_APPLICABLE', population: { eligible: n, checked: 0, excluded: n }, result: null, reason: kr.why });
+  }
+  return makeVerdict({
+    ...base,
+    status: 'PASS',
+    population: { eligible: n, checked: n, excluded: 0 },
+    result: { kappa: kr.k, pairedNights: n, table, burdenR, burdenN: bothN, multiSpanNights, degenerateMargins: 0 }
+  });
+}
+
+if (VERDICT_SAMPLE) {
+  /* The shape, from a table that is deliberately NON-degenerate so the PASS path is the one shown.
+     Numbers are illustrative; the real run needs the corpus, which this checkout may not hold. */
+  console.log(
+    JSON.stringify(
+      pbVerdict({
+        n: 39,
+        table: { both: 4, deviceOnly: 1, oxyOnly: 32, neither: 2 },
+        kr: { k: -0.039, why: null },
+        burdenR: null,
+        bothN: 4,
+        multiSpanNights: 0,
+        at: '2026-09-22T00:00:00Z',
+        commit: null,
+        commitReason: '--verdict-sample: illustrative table, no corpus read, no measurement claimed'
+      }),
+      null,
+      2
+    )
+  );
+  process.exit(0);
 }
 
 if (!CPAP || !existsSync(CPAP)) {
@@ -197,9 +314,22 @@ const r =
       )
     : null;
 
+const VERDICT = pbVerdict({
+  n: rows.length,
+  table: { both: a, deviceOnly: b, oxyOnly: c, neither: d },
+  kr,
+  burdenR: r,
+  bothN: both.length,
+  multiSpanNights: multiSpan
+});
+
 if (AS_JSON) {
   console.log(
-    JSON.stringify({ dir: DIR, cpap: CPAP, nights: rows.length, table: { both: a, deviceOnly: b, oxyOnly: c, neither: d }, kappa: k, burdenR: r, multiSpanNights: multiSpan, rows }, null, 2)
+    JSON.stringify(
+      { dir: DIR, cpap: CPAP, nights: rows.length, table: { both: a, deviceOnly: b, oxyOnly: c, neither: d }, kappa: k, burdenR: r, multiSpanNights: multiSpan, rows, verdict: VERDICT },
+      null,
+      2
+    )
   );
   process.exit(0);
 }
