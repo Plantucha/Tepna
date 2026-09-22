@@ -60,15 +60,34 @@
  * oversampled snorers by design. A different target cohort is a different weight vector, so the
  * weights are COMPUTED here from whatever reference is supplied, never hardcoded into a caller.
  *
+ * ── THE VERDICT (tepna.verdict/1, VERDICT-CONTRACT §1; `verdict.js` is the authority) ────────
+ * ONE object per run, and its criterion is the finding that survives every definitional argument:
+ * COVERAGE, not resemblance. KS "different" is EXPECTED (the header above says why) and is reported
+ * in `result`, never in `status`. Pre-stated bands, in `BANDS`, before any run under this header:
+ *   headline   unreachable_real_share — real records above the generator's max AHI — ≤ 0 %:
+ *              a region the generator cannot emit is a hole exactly where a detector saturates
+ *   tail       every real severity stratum has a defined post-stratification weight (a null weight
+ *              is a stratum the generator never emits — the same hole, one level up)
+ *   PASS       headline met and every stratum weighted · SHORTFALL headline met, a stratum unweighted ·
+ *   FAIL       records above the ceiling (the reason names how many, the ceiling and the real max) ·
+ *   UNDERPOWERED fewer than BANDS.minReal scored real records (the KS critical value scales with n
+ *              and a share over a handful of records is a number, not a share) · NOT_RUN no scored
+ *              real record at all. Population = real records: eligible = parsed, checked = carrying
+ *              scoredAHI, excluded = the rest. scope: internal — the reference is SHHS1 under a DUA
+ *              and P5 gates every number here from quotation.
+ *
  * USAGE
  *   node tools/cohort-fit.mjs --selftest
- *   node tools/cohort-fit.mjs --real <scored.json> [--n 50000]
+ *   node tools/cohort-fit.mjs --real <scored.json> [--n 50000] [--json]
+ *   node tools/cohort-fit.mjs --verdict-sample     # the object over a SYNTHETIC reference (no file,
+ *                                                  # no corpus) — what verdict-adoption reads in CI
  */
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createContext, runInContext } from 'node:vm';
-import { spawnSync } from 'node:child_process';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -158,6 +177,98 @@ export function unreachableShare(synValues, realValues) {
   const above = real.filter((v) => v > hi).length;
   const below = real.filter((v) => v < lo).length;
   return { synMin: +lo.toFixed(2), synMax: +hi.toFixed(2), realMax: +Math.max(...real).toFixed(2), above, below, pctAbove: +((100 * above) / real.length).toFixed(2) };
+}
+
+/* ── the verdict ══════════════════════════════════════════════════════════════════════════════
+   Pure: `fit` = { nParsed, nReal, nSyn, ks, weights, unreachable }, `meta` = { real, commit, at }.
+   The selftest pins every status without a reference file. */
+export const BANDS = Object.freeze({ minReal: 100, unreachablePct: 0 });
+export function verdictObject(fit, meta) {
+  meta = meta || {};
+  const un = fit.unreachable || null;
+  const w = fit.weights || {};
+  const unweighted = SEVERITY_BANDS.filter((b) => w[b] && w[b].realShare > 0 && w[b].weight == null);
+  const result =
+    fit.nReal > 0
+      ? {
+          unreachablePct: un ? un.pctAbove : null,
+          above: un ? un.above : null,
+          synMaxAhi: un ? un.synMax : null,
+          realMaxAhi: un ? un.realMax : null,
+          ksD: fit.ks ? fit.ks.D : null,
+          ksCrit: fit.ks ? fit.ks.crit : null,
+          ksDifferent: fit.ks ? fit.ks.different : null,
+          weights: w,
+          nSyn: fit.nSyn
+        }
+      : null;
+  let status;
+  let reason = null;
+  if (!fit.nReal) {
+    status = 'NOT_RUN';
+    reason = 'no real record carries scoredAHI (' + fit.nParsed + ' parsed) — nothing to compare against';
+  } else if (fit.nReal < BANDS.minReal) {
+    status = 'UNDERPOWERED';
+    reason = fit.nReal + ' scored real record(s) < the pre-stated minimum of ' + BANDS.minReal;
+  } else if (un.pctAbove > BANDS.unreachablePct) {
+    status = 'FAIL';
+    reason = un.above + ' real record(s) (' + un.pctAbove + ' %) lie above the generator ceiling of AHI ' + un.synMax + ' (real max ' + un.realMax + ') — unreachable, not under-sampled';
+  } else if (unweighted.length) {
+    status = 'SHORTFALL';
+    reason = 'no real record above the ceiling, but the generator never emits stratum ' + unweighted.join(', ') + ' (weight null) — a hole one level up';
+  } else status = 'PASS';
+  const producedBy = { tool: 'tools/cohort-fit.mjs', commit: meta.commit == null ? null : meta.commit };
+  if (meta.commit == null) producedBy.commitReason = meta.commitReason || 'not run inside a git checkout';
+  return {
+    schema: 'tepna.verdict/1',
+    gate: 'cohort-fit',
+    scope: 'internal',
+    status,
+    population: { checked: fit.nReal, eligible: fit.nParsed, excluded: fit.nParsed - fit.nReal },
+    criterion: { name: 'unreachable_real_share', threshold: BANDS.unreachablePct, unit: '%', direction: 'lte' },
+    result,
+    evidence: ['tools/cohort-fit.mjs', 'cohort-gen.js', ...(meta.real ? [meta.real] : [])],
+    reason,
+    producedBy,
+    at: (meta.at || new Date().toISOString()).replace(/\.\d{3}Z$/, 'Z')
+  };
+}
+/* The comparison itself, shared by main() and --verdict-sample: real = [{ scoredAHI }] already filtered. */
+export function fitCohort(cg, N, real) {
+  const syn = [];
+  for (let i = 0; i < N; i++) syn.push(cg.sampleProfile(i));
+  const sAhi = syn.map((p) => p.baseAHI);
+  const rAhi = real.map((r) => r.scoredAHI);
+  return {
+    syn,
+    sAhi,
+    rAhi,
+    ks: ksTest(sAhi, rAhi),
+    weights: postStratWeights(
+      syn.map((p) => p.osaSeverity),
+      rAhi.map(ahiBand)
+    ),
+    unreachable: unreachableShare(sAhi, rAhi)
+  };
+}
+/* --verdict-sample: a synthetic REFERENCE drawn from the generator itself (seeds disjoint from the
+   synthetic side), so the object's shape is exercised with no file and no corpus. It asserts the
+   SHAPE the tool emits, never a number about SHHS1. */
+export function verdictSample(root) {
+  const cg = loadCohortGen(root || ROOT);
+  const real = Array.from({ length: 400 }, (_, i) => ({ scoredAHI: cg.sampleProfile(1000000 + i).baseAHI }));
+  const f = fitCohort(cg, 2000, real);
+  return verdictObject(
+    { nParsed: 400, nReal: 400, nSyn: 2000, ks: f.ks, weights: f.weights, unreachable: f.unreachable },
+    { commit: null, commitReason: '--verdict-sample: synthetic reference, no code identity claimed', at: '2026-09-22T00:00:00Z' }
+  );
+}
+function headCommit() {
+  try {
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return null;
+  }
 }
 
 /* ── selftest ═════════════════════════════════════════════════════════════════════════════════ */
@@ -278,6 +389,54 @@ function selftest() {
     A('generator: its median tracks the real cohort (SHHS1 severe median 50.7)', Math.abs(sevMed - 50.7) < 6, 'median ' + sevMed.toFixed(1));
   }
 
+  /* the verdict — every status, pinned against verdict.js, no reference file */
+  {
+    const V = createRequire(import.meta.url)('../verdict.js');
+    const val = (v) => V.validate(v).ok || V.validate(v).errors.join(' | ');
+    const w4 = (over) => ({
+      none: { synShare: 0.25, realShare: 0.05, weight: 0.2 },
+      mild: { synShare: 0.25, realShare: 0.15, weight: 0.6 },
+      mod: { synShare: 0.25, realShare: 0.3, weight: 1.2 },
+      severe: { synShare: 0.25, realShare: 0.5, weight: 2 },
+      ...over
+    });
+    const fit = (over) => ({
+      nParsed: 520,
+      nReal: 500,
+      nSyn: 2000,
+      ks: { D: 0.3, crit: 0.06, different: true },
+      weights: w4(),
+      unreachable: { synMin: 0.5, synMax: 290, realMax: 286.9, above: 0, below: 0, pctAbove: 0 },
+      ...over
+    });
+    const meta = { real: '/ref/scored.json', commit: 'ec4e2d93', at: '2026-09-22T00:00:00Z' };
+    const p = verdictObject(fit(), meta);
+    A('verdict: coverage met, every stratum weighted → PASS with reason null', p.status === 'PASS' && p.reason === null, JSON.stringify(p));
+    A('verdict: …valid under verdict.js', val(p) === true, String(val(p)));
+    A('verdict: KS "different" is in result, never in status', p.result.ksDifferent === true && p.status === 'PASS');
+    A('verdict: population is real records, checked + excluded = eligible', p.population.checked === 500 && p.population.excluded === 20 && p.population.eligible === 520);
+    A('verdict: scope internal (SHHS1 under a DUA; P5)', p.scope === 'internal');
+    const f = verdictObject(fit({ unreachable: { synMin: 0.5, synMax: 80, realMax: 286.9, above: 406, below: 0, pctAbove: 7.9 } }), meta);
+    A('verdict: records above the ceiling → FAIL naming count, ceiling and real max', f.status === 'FAIL' && /406/.test(f.reason) && /AHI 80/.test(f.reason) && /286.9/.test(f.reason), f.reason);
+    A('verdict: …valid', val(f) === true, String(val(f)));
+    const sf = verdictObject(fit({ weights: w4({ mod: { synShare: 0, realShare: 0.3, weight: null } }) }), meta);
+    A('verdict: ceiling met but a real stratum unweighted → SHORTFALL naming it', sf.status === 'SHORTFALL' && /stratum mod/.test(sf.reason), sf.reason);
+    A('verdict: …valid', val(sf) === true, String(val(sf)));
+    const up = verdictObject(fit({ nParsed: 60, nReal: 40 }), meta);
+    A('verdict: 40 real records → UNDERPOWERED naming both numbers', up.status === 'UNDERPOWERED' && /40/.test(up.reason) && /100/.test(up.reason), up.reason);
+    A('verdict: …valid', val(up) === true, String(val(up)));
+    const nr = verdictObject(fit({ nParsed: 12, nReal: 0, ks: null, unreachable: null }), meta);
+    A('verdict: no scored record → NOT_RUN, result null', nr.status === 'NOT_RUN' && nr.result === null && /12 parsed/.test(nr.reason), nr.reason);
+    A('verdict: …valid', val(nr) === true, String(val(nr)));
+    const smp = verdictSample(ROOT);
+    A(
+      'verdict: --verdict-sample builds from the generator alone, claims no commit, validates',
+      smp.producedBy.commit === null && /synthetic/.test(smp.producedBy.commitReason) && val(smp) === true,
+      String(val(smp))
+    );
+    A('verdict: …a null status is impossible (the sample landed on a real enum value)', ['PASS', 'SHORTFALL', 'FAIL'].includes(smp.status), smp.status);
+  }
+
   console.log('\n' + (bad ? '✕ ' + bad + ' failed, ' : '✓ ') + good + ' assertions passed');
   return bad ? 1 : 0;
 }
@@ -296,23 +455,40 @@ function main(argv) {
     return 2;
   }
   const cg = loadCohortGen(ROOT);
-  const syn = [];
-  for (let i = 0; i < N; i++) syn.push(cg.sampleProfile(i));
   const parsed = JSON.parse(readFileSync(realPath, 'utf8'));
-  const real = (parsed.records || parsed).filter((r) => !r.err && r.scoredAHI != null);
+  const records = parsed.records || parsed;
+  const real = records.filter((r) => !r.err && r.scoredAHI != null);
+  const AS_JSON = argv.includes('--json');
+  const verdictFor = (f) =>
+    verdictObject(
+      { nParsed: records.length, nReal: real.length, nSyn: N, ks: f ? f.ks : null, weights: f ? f.weights : null, unreachable: f ? f.unreachable : null },
+      { real: realPath, commit: headCommit() }
+    );
   if (!real.length) {
+    // NOT_RUN, said as an object too — an empty reference is not a comparison and never reads as one
+    const v = verdictFor(null);
     console.error('✕ no records with scoredAHI in ' + realPath);
+    console.log(AS_JSON ? JSON.stringify(v, null, 1) : 'VERDICT (tepna.verdict/1): ' + JSON.stringify(v));
     return 2;
   }
-
-  const sAhi = syn.map((p) => p.baseAHI),
-    rAhi = real.map((r) => r.scoredAHI);
-  const ks = ksTest(sAhi, rAhi);
-  const w = postStratWeights(
-    syn.map((p) => p.osaSeverity),
-    rAhi.map(ahiBand)
-  );
-  const un = unreachableShare(sAhi, rAhi);
+  const fit = fitCohort(cg, N, real);
+  const { sAhi, rAhi, ks, unreachable: un } = fit;
+  const w = fit.weights;
+  const verdict = verdictFor(fit);
+  if (AS_JSON) {
+    // VERDICT-CONTRACT §1: the object IS the API; the report's detail rides under `detail`.
+    console.log(
+      JSON.stringify(
+        {
+          ...verdict,
+          detail: { bands: BANDS, quantiles: { synthetic: [0.05, 0.25, 0.5, 0.75, 0.95].map((q) => quantile(sAhi, q)), real: [0.05, 0.25, 0.5, 0.75, 0.95].map((q) => quantile(rAhi, q)) } }
+        },
+        null,
+        1
+      )
+    );
+    return 0;
+  }
 
   const row = (label, v) => '    ' + label.padEnd(12) + [0.05, 0.25, 0.5, 0.75, 0.95].map((f) => quantile(v, f).toFixed(1).padStart(7)).join('');
   console.log('▸ cohort-fit — synthetic (n=' + N + ') vs real (n=' + real.length + ')\n');
@@ -340,6 +516,8 @@ function main(argv) {
   console.log('  ⚠️ Part of the AHI gap is DEFINITIONAL, not sampling: SHHS scored hypopneas without');
   console.log('     requiring a desaturation. The uniform covariates and the hard AHI ceiling are immune');
   console.log('     to that; the size of the severity gap is not. Quote it with its definition.');
+  console.log('');
+  console.log('VERDICT (tepna.verdict/1): ' + JSON.stringify({ status: verdict.status, population: verdict.population, reason: verdict.reason }));
   return 0;
 }
 
@@ -352,5 +530,8 @@ function main(argv) {
 const IS_CLI = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
 if (IS_CLI) {
   if (process.argv.includes('--selftest')) process.exit(selftest());
-  else process.exit(main(process.argv.slice(2)));
+  else if (process.argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(verdictSample(ROOT), null, 1));
+    process.exit(0);
+  } else process.exit(main(process.argv.slice(2)));
 }
