@@ -7,7 +7,7 @@
  "corpus": {
   "tree": "/srv/data/tepna-corpus/uploads/vigil-archive/captures (box captures; the largest non-stub H10 _ECG.txt and Verity _PPG.txt per date)",
   "nights": 23,
-  "notMeasured": "phone-tree nights (Polar Sensor Logger, dropout-heavy): the local copies of their _ECG.txt are 84-byte stubs, so they were NOT swept \u2014 a limitation of the local volume, not a finding about those nights"
+  "notMeasured": "CORRECTED 2026-09-22: this note first read \"the phone-tree nights were NOT swept - their local _ECG.txt copies are 84-byte stubs\". That was the SYMLINK length (ls -la on a link); the targets resolve over NFS and the phone half is swept in audits/GAP-S-SWEEP-PHONE-2026-09-22.json"
  },
  "nullControl": "tools/gap-s-sweep.mjs --selftest: a planted 20 s gap on a synthetic night is excluded at GAP_S 10 and counted at 30 (denominator differs by ~20 s) and is an absence under both 3 and 10 \u2014 the patched constant reaches the index; a flat curve on the corpus is therefore a property of the corpus",
  "report": {
