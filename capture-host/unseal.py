@@ -21,6 +21,8 @@ they cannot drift unseen. Order of checks, and the plant each one is the guard f
     manifest:<path>   a `data/` file's SHA-256 disagrees with `manifest-sha256.txt` — one flipped byte
                       in one stream reds THAT stream's name (plant 1); tag files likewise via
                       `tagmanifest-sha256.txt`
+    consent           the clear header and `bag-info.txt` answer the consent question differently — the
+                      header MIRRORS the bag (format §2), and a reader must not pick either (plant 8)
 
 `consent` is never a refusal: absent from the header it reads `None` — not asked — and NEVER "no" (plant
 7 asserts exactly that). `read_header` needs no key at all (§2: the clear header is deliberately readable).
@@ -48,7 +50,7 @@ import sealfmt as F
 __all__ = ["SealRefused", "KINDS", "read_header", "unseal", "verdict"]
 
 KINDS = ("magic", "version", "header", "fingerprint", "signature", "revision", "card-key", "payload",
-         "zip", "oxum", "manifest")
+         "zip", "oxum", "manifest", "consent")
 
 
 class SealRefused(Exception):
@@ -171,7 +173,12 @@ def unseal(path: str, *, card_key: bytes, pinned_fingerprint: str, known_revisio
                                   "complete, checked before any hashing" % (oxum, got))
     _check_manifest(entries, "tagmanifest-sha256.txt")
     _check_manifest(entries, "manifest-sha256.txt")
-    return {"header": header, "consent": _consent(header), "bag_info": info, "files": data}
+    consent = _consent(header)
+    in_bag = info.get("Tepna-Research-Consent")
+    in_bag = in_bag if in_bag in ("yes", "no") else None
+    if in_bag != consent:
+        raise SealRefused("consent", "clear header says %r but bag-info.txt says %r" % (consent, in_bag))
+    return {"header": header, "consent": consent, "bag_info": info, "files": data}
 
 
 def _bag_info(entries: dict[str, bytes]) -> dict[str, str]:
@@ -232,9 +239,12 @@ def verdict(path: str, *, card_key: bytes, pinned_fingerprint: str, known_revisi
         result = {"kind": e.kind, "files": None, "consent": None, "revision": None}
     except OSError as e:
         status, reason, result = "NOT_RUN", "cannot read %s: %s" % (path, e), None
+    except Exception as e:  # noqa: BLE001 — a crash is not a verdict: UNKNOWN with the error as the reason
+        status, reason, result = "UNKNOWN", "reader failed: %r" % (e,), None
     not_run = status == "NOT_RUN"
     return {
         "schema": "tepna.verdict/1", "gate": "verify-seals", "status": status,
+        "scope": "internal",     # P5: not quotable outside the repo until a producer WRITES publishable
         "population": {"checked": 0 if not_run else 1, "eligible": 1, "excluded": 1 if not_run else 0},
         "criterion": {"name": "tepna-seal/1 verifies end to end", "threshold": 0, "unit": "refusals", "direction": "eq"},
         "result": result, "evidence": evidence if not not_run else ["capture-host/unseal.py"], "reason": reason,
