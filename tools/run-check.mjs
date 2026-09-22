@@ -44,6 +44,7 @@ export const STEPS = [
   'typecheck',
   'verify:commit-shape',
   'verify:residue-ids',
+  'verify:seals',
   'test:guards',
   'test:tools',
   'lint',
@@ -54,6 +55,7 @@ export const STEPS = [
   'verify:analysis',
   'verify:docs',
   'verify:tools-index',
+  'verify:verdict-adoption',
   'verify:manifest',
   'test:hooks'
 ];

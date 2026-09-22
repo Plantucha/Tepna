@@ -18310,9 +18310,29 @@
         }
         delete c.provenance;
         if (c.recording) delete c.recording.contentId;
+        /* MEASUREMENT-PROVENANCE-ROADMAP §12 — `measurement.<id>.code` is the SHIPPED BUNDLE's identity
+           (the regenerator passes ECGDex.html's hashes as opts.code); this headless run passes none and
+           says so (`code:null` + `codeReason`). Code IDENTITY, not a computed number — volatile HERE,
+           pinned instead by `measurement · fixture code identity — committed ECGDex blocks`. The VALUES,
+           window, evidence and basis stay in the comparison. Same rule as the OxyDex deep-diff's
+           MEAS_PATH_RE. */
+        if (c.measurement && typeof c.measurement === 'object') {
+          Object.keys(c.measurement).forEach(function (k) {
+            var b = c.measurement[k];
+            if (b && typeof b === 'object') {
+              delete b.code;
+              delete b.codeReason;
+            }
+          });
+        }
         return c;
       }
       T.eq('compute({rich:true}) reproduces the committed golden byte-for-byte (volatile keys aside)', JSON.stringify(strip(rich)), JSON.stringify(strip(eq.fixture)));
+      T.ok(
+        '…and the golden carries the measurement block with a REAL code identity (the strip above did not hide an absence)',
+        !!(eq.fixture.measurement && eq.fixture.measurement.rmssd && eq.fixture.measurement.rmssd.code && eq.fixture.measurement.rmssd.code.computeHash),
+        eq.fixture.measurement ? JSON.stringify(eq.fixture.measurement.rmssd && eq.fixture.measurement.rmssd.code) : 'no measurement on the golden — regenerate'
+      );
 
       /* ANTI-VACUITY — the equality would pass just as happily if BOTH sides lost the rich block, which
          is exactly how the light-export fixture managed to look like coverage. Assert the fields are
@@ -49661,6 +49681,203 @@
       );
     });
 
+    /* ═══ VERDICT-CONTRACT §2 — `tepna.verdict/1`: a gate answers in a fixed shape ═══
+       Owner standing requirement (CLAUDE.md §🧾): every gate/oracle/study emits ONE JSON verdict object;
+       prose is explanation, not the API. `verdict.js` is the only definition of the shape. This group
+       is the brief's ten plants, each asserted to red BY NAME (the message names the rule, not just
+       `ok:false`), the enum asserted as an EQUALITY of seven, the `checked[]` denominator published, and
+       the anti-vacuity leg in both directions: a well-formed verdict passes with every leg run, and the
+       plant runner counts that every plant was seen. */
+    group('Verdict contract — tepna.verdict/1: the validator rejects what the brief names', 'verdict · schema · provenance · verdict-contract · plant', function (T) {
+      var V = env.Verdict;
+      if (!V || typeof V.validate !== 'function') {
+        T.skip('Verdict.validate available', 'verdict.js not co-loaded in this runner');
+        return;
+      }
+      var ok = function () {
+        return {
+          schema: 'tepna.verdict/1',
+          gate: 'oracle-ecg-firmware-rr',
+          status: 'PASS',
+          scope: 'internal',
+          population: { checked: 52, eligible: 52, excluded: 0 },
+          criterion: { name: 'rr_delta_median', threshold: 8, unit: 'ms', direction: 'lte' },
+          result: { median: 0.45, medianFull: 0.4512 },
+          evidence: ['tools/oracle-ecg-firmware-rr.mjs', 'uploads/trio/**/ECGDex_*.node-export.json'],
+          reason: null,
+          producedBy: { tool: 'tools/oracle-ecg-firmware-rr.mjs', commit: '3c0dbdec' },
+          at: '2026-09-21T18:40:12Z'
+        };
+      };
+      // ANTI-VACUITY, BOTH DIRECTIONS
+      var good = V.validate(ok());
+      T.ok('a well-formed verdict PASSES the validator', good.ok, good.errors.join(' | '));
+      T.eq(
+        '…with all eight legs RUN (the checked denominator)',
+        good.checked.slice().sort().join(','),
+        ['schema', 'status enum', 'scope', 'population equality', 'criterion', 'result/reason per status', 'evidence', 'provenance'].sort().join(',')
+      );
+      T.eq('scope is EXACTLY two values, as an equality (P5 rides in the object)', V.SCOPES.slice().sort().join(','), 'internal,publishable');
+      T.eq('the enum is EXACTLY seven, as an equality', V.STATUSES.slice().sort().join(','), ['PASS', 'FAIL', 'SHORTFALL', 'UNDERPOWERED', 'NOT_RUN', 'NOT_APPLICABLE', 'UNKNOWN'].sort().join(','));
+      var seen = 0;
+      var fires = function (name, mut, needle) {
+        seen++;
+        var b = ok();
+        var r = mut(b) || b;
+        var v = V.validate(r);
+        T.ok(
+          name,
+          !v.ok &&
+            v.errors.some(function (e) {
+              return e.indexOf(needle) >= 0;
+            }),
+          v.ok ? 'ACCEPTED — the check never fired' : v.errors.join(' | ').slice(0, 160)
+        );
+      };
+      // THE TEN PLANTS OF §2
+      fires(
+        'PLANT 1 · an eighth status',
+        function (b) {
+          b.status = 'PASSED';
+        },
+        'no eighth value'
+      );
+      fires(
+        'PLANT 2 · a lowercase status',
+        function (b) {
+          b.status = 'pass';
+        },
+        'capitalisation variant'
+      );
+      fires(
+        'PLANT 3 · PASS with reason set',
+        function (b) {
+          b.reason = 'all good';
+        },
+        'PASS must carry reason: null'
+      );
+      fires(
+        'PLANT 4 · FAIL with reason null',
+        function (b) {
+          b.status = 'FAIL';
+        },
+        'FAIL requires reason'
+      );
+      fires(
+        'PLANT 5 · population not summing',
+        function (b) {
+          b.population.excluded = 3;
+        },
+        'checked + excluded = eligible'
+      );
+      fires(
+        'PLANT 6 · checked: 0 under PASS',
+        function (b) {
+          b.population = { checked: 0, eligible: 0, excluded: 0 };
+        },
+        'examined-nothing'
+      );
+      fires(
+        'PLANT 7 · PASS with empty evidence',
+        function (b) {
+          b.evidence = [];
+        },
+        'empty evidence'
+      );
+      fires(
+        'PLANT 8 · NOT_RUN carrying a result',
+        function (b) {
+          b.status = 'NOT_RUN';
+          b.reason = 'corpus absent in this lane';
+        },
+        'NOT_RUN must carry result: null'
+      );
+      fires(
+        'PLANT 9 · a prose-only verdict (a string where the object should be)',
+        function () {
+          return 'POOLED VERDICT: CONSISTENT';
+        },
+        'OBJECT, not prose'
+      );
+      fires(
+        'PLANT 10 · UNDERPOWERED without the minimum named',
+        function (b) {
+          b.status = 'UNDERPOWERED';
+          b.reason = 'too few nights';
+        },
+        'name the minimum and the count as NUMBERS'
+      );
+      fires(
+        'PLANT 11 · a scope outside internal|publishable',
+        function (b) {
+          b.scope = 'public';
+        },
+        'scope must be one of internal|publishable'
+      );
+      fires(
+        'PLANT 11b · scope ABSENT does not default (a verdict that has not decided whether it may be quoted)',
+        function (b) {
+          delete b.scope;
+        },
+        'scope must be one of'
+      );
+      T.eq('every plant was SEEN by the runner (anti-vacuity denominator)', seen, 12);
+      T.eq('make() fills the RESTRICTIVE scope when the producer gives none', V.make({ gate: 'g' }).scope, 'internal');
+      // the states that read as green to a regex, each valid in its honest form
+      var nr = V.validate(
+        V.make({
+          gate: 'g',
+          status: 'NOT_RUN',
+          population: { checked: 0, eligible: 52, excluded: 52 },
+          criterion: { name: 'x', threshold: 1, unit: '', direction: 'lte' },
+          result: null,
+          evidence: [],
+          reason: 'the raw recordings are absent in this lane',
+          producedBy: { tool: 't', commit: 'abcdef1' }
+        })
+      );
+      T.ok('NOT_RUN is valid with result null, reason set, checked 0', nr.ok, nr.errors.join(' | '));
+      var na = V.validate(
+        V.make({
+          gate: 'g',
+          status: 'NOT_APPLICABLE',
+          population: { checked: 1, eligible: 1, excluded: 0 },
+          criterion: { name: 'x', threshold: 1, unit: '', direction: 'lte' },
+          result: null,
+          evidence: ['a'],
+          reason: 'reference stratum n = 4 < 30',
+          producedBy: { tool: 't', commit: 'abcdef1' }
+        })
+      );
+      T.ok('NOT_APPLICABLE is valid — distinct from NOT_RUN by construction (checked 1, a property named)', na.ok, na.errors.join(' | '));
+      var up = V.validate(
+        V.make({
+          gate: 'g',
+          status: 'UNDERPOWERED',
+          population: { checked: 3, eligible: 3, excluded: 0 },
+          criterion: { name: 'x', threshold: 1, unit: '', direction: 'lte' },
+          result: { n: 3 },
+          evidence: ['a'],
+          reason: '3 nights < the pre-stated minimum of 10',
+          producedBy: { tool: 't', commit: 'abcdef1' }
+        })
+      );
+      T.ok('UNDERPOWERED is valid when the reason carries the minimum and the count', up.ok, up.errors.join(' | '));
+      T.ok('a floating recording time is NOT a run instant (no Z → rejected)', !V.validate(Object.assign(ok(), { at: '2026-09-21T18:40:12' })).ok);
+      T.ok(
+        'a null commit needs a commitReason (∅)',
+        !V.validate(Object.assign(ok(), { producedBy: { tool: 't', commit: null } })).ok &&
+          V.validate(Object.assign(ok(), { producedBy: { tool: 't', commit: null, commitReason: 'not a git checkout' } })).ok
+      );
+      T.ok(
+        'make() fills schema + at, and does NOT validate (a caller cannot mistake it for a pass)',
+        (function () {
+          var m = V.make({ gate: 'g', status: 'PASSED' });
+          return m.schema === 'tepna.verdict/1' && /Z$/.test(m.at) && !V.validate(m).ok;
+        })()
+      );
+    });
+
     /* ═══ MEASUREMENT-PROVENANCE-ROADMAP §3 — OxyDex is the FIRST EMITTER of the measurement block ═══
        The reference path, executed 2026-09-21: every OxyDex night element carries `measurement.<id>`
        blocks for the four headline metrics, and this group is the roadmap's done-when made into a gate:
@@ -49832,6 +50049,269 @@
       });
       T.ok('at least one committed OxyDex fixture was examined (denominator)', seen >= 1, 'seen=' + seen);
     });
+
+    /* MEASUREMENT-PROVENANCE-ROADMAP §12 — ECGDex is the SECOND emitter. Same contract as the OxyDex group
+       above, one recording instead of one night element: the three whole-record HRV numbers gain lineage,
+       the display (epoch-median) numbers deliberately do not, the H10's second clock lets `window.spreadMs`
+       be a NUMBER on a box night, and the envelope hop states its own absence. */
+    group('ECGDex emits measurement blocks — roadmap §12 second emitter (plant-backed)', 'ecgdex-dsp · measurement-block · provenance · roadmap-§12 · plant', function (T) {
+      var ED = env.ECGDex;
+      var MB = env.MeasurementBlock;
+      var REG = env.ECG_REGISTRY;
+      var eq = env.equiv || {};
+      var input = (eq.ecgdex_synth && eq.ecgdex_synth.input) || null;
+      if (!ED || typeof ED.compute !== 'function' || !MB || !REG) {
+        T.skip('ECGDex + MeasurementBlock + ECG_REGISTRY co-loaded', 'not available in this runner');
+        return;
+      }
+      if (!input) {
+        T.skip('a committed H10 input is reachable (env.equiv.ecgdex_synth)', 'uploads/synthetic_ecgdex_h10.txt not reachable in this lane');
+        return;
+      }
+      var CODE = { manifestHash: '0123456789ab', computeHash: 'ba9876543210' };
+      var resolve = function (id) {
+        return !!REG[id];
+      };
+      var res = ED.compute({ text: input }, { code: CODE, rich: true });
+      var m = res && res.measurement;
+      T.ok('the export carries a recording-level `measurement` map', !!m && typeof m === 'object', m ? Object.keys(m).join(',') : 'absent');
+      if (!m) return;
+      var IDS = ['hr', 'rmssd', 'sdnn'];
+      T.eq('exactly the three whole-record HRV metrics, keyed by registry id', Object.keys(m).sort().join(','), IDS.slice().sort().join(','));
+      var LEGS = ['metricId resolves', 'window', 'code identity', 'evidence join', 'basis'];
+      IDS.forEach(function (id) {
+        var b = m[id];
+        var v = MB.validateMeasurement(b, { resolveMetric: resolve });
+        T.ok(id + ' · validates under measurement-block.js', v.ok, v.errors.join(' | '));
+        T.eq(id + ' · all five legs RAN (checked denominator)', v.checked.slice().sort().join(','), LEGS.slice().sort().join(','));
+        T.eq(id + ' · metricId is the registry key', b.metricId, id);
+        T.eq(id + ' · basis is derived (a statistic over a detected beat train — LEXICON §4b, not the ladder)', b.basis, 'derived');
+        T.eq(id + ' · sourceChannel is the capture name', b.sourceChannel, 'H10:ecg');
+      });
+      // numerical invariance — the WHOLE-RECORD numbers, never the epoch-median display values
+      var ht = res.hrv && res.hrv.time;
+      T.eq('hr block value ≡ hrv.time.wholeRecordHR', m.hr.value, ht && ht.wholeRecordHR);
+      T.eq('rmssd block value ≡ hrv.time.wholeRecordRMSSD', m.rmssd.value, ht && ht.wholeRecordRMSSD);
+      T.eq('sdnn block value ≡ hrv.time.wholeRecordSDNN', m.sdnn.value, ht && ht.wholeRecordSDNN);
+      // the joins
+      T.eq('evidence.inputHash IS recording.contentId', m.rmssd.evidence.inputHash, res.recording.contentId);
+      T.ok('contentId is a 12-hex content address', /^[0-9a-f]{12}$/.test(String(res.recording.contentId)), String(res.recording.contentId));
+      T.ok(
+        'no envelope on the ECG path: envelopeRef null WITH a reason naming the .dat join',
+        m.rmssd.evidence.envelopeRef === null && /session_id/.test(String(m.rmssd.evidence.envelopeReason)),
+        m.rmssd.evidence.envelopeReason
+      );
+      T.eq('code identity is the supplied bundle identity', JSON.stringify(m.rmssd.code), JSON.stringify(CODE));
+      T.ok(
+        'window spans t0Ms → the parsed clock end (positive, finite)',
+        m.rmssd.window.startTMs === res.recording.startEpochMs && m.rmssd.window.endTMs === res.recording.endEpochMs && m.rmssd.window.endTMs > m.rmssd.window.startTMs,
+        m.rmssd.window.startTMs + '→' + m.rmssd.window.endTMs + ' vs end ' + res.recording.endEpochMs
+      );
+      T.eq('window.clockDomain is device (the axis is the counter, even when host-disciplined)', m.rmssd.window.clockDomain, 'device');
+      /* The synthetic H10 file carries a phone-stamp column DERIVED from the device stamp, so the host axis is
+         present but not independent: spreadMs is a NUMBER (one quantum) and timingSource stays 'device'. The
+         invariant is the ∅ one — a number OR null-with-reason, never null-without or a number beside a reason. */
+      var _w = m.rmssd.window;
+      T.ok(
+        'spreadMs is a finite number XOR null-with-reason (∅ — never a silent null)',
+        (typeof _w.spreadMs === 'number' && isFinite(_w.spreadMs) && !('spreadReason' in _w)) || (_w.spreadMs === null && typeof _w.spreadReason === 'string'),
+        JSON.stringify({ spreadMs: _w.spreadMs, spreadReason: _w.spreadReason, timingSource: _w.timingSource })
+      );
+      T.ok(
+        'a derived (non-independent) host column never claims device+host',
+        _w.timingSource !== 'device+host' || (res.recording.hostAxis && res.recording.hostAxis.independent === true),
+        _w.timingSource
+      );
+      T.ok('uncertainty null WITH a reason', m.rmssd.uncertainty === null && typeof m.rmssd.uncertaintyReason === 'string', m.rmssd.uncertaintyReason);
+      T.eq('schema.version bumped to 2.1 with the block', res.schema && res.schema.version, '2.1');
+      // the LIGHT export carries it too — lineage is not rich-only, and the Integrator reads the light one
+      var light = ED.compute({ text: input }, { code: CODE });
+      T.ok(
+        'the LIGHT export carries the same three blocks',
+        !!light.measurement && Object.keys(light.measurement).sort().join(',') === IDS.slice().sort().join(','),
+        light.measurement ? Object.keys(light.measurement).join(',') : 'absent'
+      );
+      T.eq('…with identical values (one computation, two carriers)', light.measurement && light.measurement.rmssd.value, m.rmssd.value);
+      T.ok('…and the light export still has NO hrv block (the block adds lineage, not a rich payload)', !('hrv' in light));
+      // headless without a bundle identity — honest, and loud
+      var res0 = ED.compute({ text: input });
+      var b0 = res0 && res0.measurement && res0.measurement.rmssd;
+      T.ok('no bundle identity → code:null WITH a reason', !!b0 && b0.code === null && typeof b0.codeReason === 'string', b0 ? b0.codeReason : 'no block');
+      var v0 = b0 ? MB.validateMeasurement(b0, { resolveMetric: resolve }) : { ok: true, errors: [] };
+      T.ok(
+        'no bundle identity → the block FAILS validation, naming code',
+        !v0.ok &&
+          v0.errors.some(function (e) {
+            return e.indexOf('code') >= 0;
+          }),
+        v0.ok ? 'ACCEPTED — a block with no code identity passed' : v0.errors.join(' | ')
+      );
+      T.eq('…and the numbers are identical with or without the identity (invariance)', b0 && b0.value, m.rmssd.value);
+      // PLANTS — through the builder seam on the analyzed record
+      if (typeof ED.buildMeasurementBlocks !== 'function' || typeof ED.analyze !== 'function' || typeof ED.parseECG !== 'function') {
+        T.skip('plants via ECGDex.buildMeasurementBlocks', 'builder seam not exposed');
+        return;
+      }
+      var r = ED.analyze(ED.parseECG(input), null);
+      var clone = function (o) {
+        var c = {};
+        Object.keys(o).forEach(function (k) {
+          c[k] = o[k];
+        });
+        return c;
+      };
+      var p1 = clone(r);
+      p1.rmssd = null; // ∅ — an unmeasured rMSSD
+      var m1 = ED.buildMeasurementBlocks(p1, { code: CODE, contentId: res.recording.contentId });
+      T.ok('PLANT · null rmssd → NO rmssd block, hr + sdnn present', !!m1 && !('rmssd' in m1) && !!m1.hr && !!m1.sdnn, m1 ? Object.keys(m1).join(',') : 'null');
+      var p2 = clone(r);
+      p2.endEpochMs = p2.t0Ms;
+      p2.spanMin = 0; // no clock end AND no beat span → nothing to place a window on
+      T.eq('PLANT · zero-length window → no measurement at all (never a fabricated window)', ED.buildMeasurementBlocks(p2, { code: CODE }), null);
+      var p3 = clone(r);
+      p3.endEpochMs = null; // no parsed clock end → the beat span stands in AND is named
+      var m3 = ED.buildMeasurementBlocks(p3, { code: CODE, contentId: res.recording.contentId });
+      T.ok(
+        'PLANT · no parsed clock end → endTMs = t0 + beat span, and window.windowReason says so',
+        !!m3 && m3.rmssd.window.endTMs === r.t0Ms + Math.round(r.spanMin * 60000) && /beat-train span/.test(String(m3.rmssd.window.windowReason)),
+        m3 ? JSON.stringify(m3.rmssd.window) : 'null'
+      );
+      var p4 = clone(r);
+      p4.hostAxis = { ok: true, spreadMs: 137.25, timingSource: 'device+host' };
+      var m4 = ED.buildMeasurementBlocks(p4, { code: CODE, contentId: res.recording.contentId });
+      T.ok(
+        'PLANT · host axis present → window.spreadMs is the MEASURED spread, timingSource device+host, no reason field',
+        !!m4 && m4.rmssd.window.spreadMs === 137.25 && m4.rmssd.window.timingSource === 'device+host' && !('spreadReason' in m4.rmssd.window),
+        m4 ? JSON.stringify(m4.rmssd.window) : 'null'
+      );
+      T.ok('…and it still validates', MB.validateMeasurement(m4.rmssd, { resolveMetric: resolve }).ok, MB.validateMeasurement(m4.rmssd, { resolveMetric: resolve }).errors.join(' | '));
+      var p5 = clone(r);
+      p5.hostAxis = { ok: false, reason: 'device axis has zero span', spreadMs: 49000 };
+      var m5 = ED.buildMeasurementBlocks(p5, { code: CODE, contentId: res.recording.contentId });
+      T.ok(
+        'PLANT · a REFUSED host axis publishes no spread (a refusal is not a measurement)',
+        !!m5 && m5.rmssd.window.spreadMs === null && m5.rmssd.window.timingSource === 'device',
+        m5 ? JSON.stringify(m5.rmssd.window) : 'null'
+      );
+      var p6 = clone(r);
+      p6.acquisitionEvidence = { session_id: 'H10-01-20260921' };
+      var m6 = ED.buildMeasurementBlocks(p6, { code: CODE, contentId: res.recording.contentId });
+      T.ok(
+        'PLANT · envelope attached → evidence.envelopeRef is its session_id, no reason field',
+        !!m6 && m6.rmssd.evidence.envelopeRef === 'H10-01-20260921' && !('envelopeReason' in m6.rmssd.evidence),
+        m6 ? JSON.stringify(m6.rmssd.evidence) : 'null'
+      );
+    });
+
+    group('measurement · fixture code identity — committed ECGDex blocks name the SHIPPED bundle', 'ecgdex-dsp · measurement-block · provenance · roadmap-§12 · fixture', function (T) {
+      var ident = env.bundleCodeIdentity && env.bundleCodeIdentity['ECGDex.html'];
+      var eq = env.equiv || {};
+      if (!ident || !ident.computeHash) {
+        T.skip('ECGDex.html code identity readable', 'env.bundleCodeIdentity not wired (browser lane) or ECGDex.html unbuilt');
+        return;
+      }
+      var CASES = [
+        ['ecgdex', 'ECGDex_2026-06-27_equiv.node-export.json'],
+        ['ecgdex_synth', 'synthetic_ecgdex_golden.node-export.json'],
+        ['ecgdex_gapped', 'synthetic_ecgdex_gapped_golden.node-export.json'],
+        ['ecgdex_rich', 'synthetic_ecgdex_rich_golden.node-export.json']
+      ];
+      var seen = 0;
+      CASES.forEach(function (c) {
+        var rec = eq[c[0]];
+        var el = rec && rec.fixture;
+        if (!el) {
+          T.skip(c[1] + ' committed fixture reachable', 'absent in this lane');
+          return;
+        }
+        seen++;
+        var m = el.measurement;
+        T.ok(c[1] + ' carries measurement blocks', !!m && !!m.rmssd, m ? Object.keys(m).join(',') : 'absent — regenerate: node tools/regen-ecgdex-goldens.mjs');
+        if (!m || !m.rmssd) return;
+        T.eq(c[1] + ' · code.computeHash ≡ shipped ECGDex.html computeHash', m.rmssd.code && m.rmssd.code.computeHash, ident.computeHash);
+        T.eq(c[1] + ' · code.manifestHash ≡ shipped ECGDex.html manifestHash', m.rmssd.code && m.rmssd.code.manifestHash, ident.manifestHash);
+        T.eq(c[1] + ' · evidence.inputHash ≡ the fixture’s own recording.contentId', m.rmssd.evidence && m.rmssd.evidence.inputHash, el.recording && el.recording.contentId);
+        ['hr', 'sdnn'].forEach(function (id) {
+          T.ok(c[1] + ' · ' + id + ' block shares the same code identity', !!m[id] && m[id].code && m[id].code.computeHash === ident.computeHash, m[id] ? JSON.stringify(m[id].code) : 'absent');
+        });
+      });
+      T.ok('at least one committed ECGDex fixture was examined (denominator)', seen >= 1, 'seen=' + seen);
+    });
+
+    group(
+      'Integrator consumes ECGDex measurement blocks — the generic envelope adapter (roadmap §12, plant-backed)',
+      'integrator-dsp · measurement-block · provenance · roadmap-§12 · plant',
+      function (T) {
+        var ED = env.ECGDex;
+        var NF = env.normalizeFile;
+        var RF = env.runFusion;
+        var BE = env.buildFusionExport;
+        var CM = env.IntegratorDSP && env.IntegratorDSP.consumeMeasurements;
+        var eq = env.equiv || {};
+        var input = (eq.ecgdex_synth && eq.ecgdex_synth.input) || null;
+        if (!ED || typeof ED.compute !== 'function' || typeof NF !== 'function' || typeof RF !== 'function' || typeof BE !== 'function' || typeof CM !== 'function') {
+          T.skip('ECGDex + Integrator (normalizeFile/runFusion/buildFusionExport/consumeMeasurements) co-loaded', 'not available in this runner');
+          return;
+        }
+        if (!input) {
+          T.skip('a committed H10 input is reachable (env.equiv.ecgdex_synth)', 'uploads/synthetic_ecgdex_h10.txt not reachable in this lane');
+          return;
+        }
+        var CODE = { manifestHash: '0123456789ab', computeHash: 'ba9876543210' };
+        var rich = ED.compute({ text: input }, { code: CODE, rich: true });
+        var r = NF(JSON.parse(JSON.stringify(rich)), 'ecg.json');
+        var rec = r && r.recs && r.recs[0];
+        T.ok('a real ECGDex 2.1 RICH export adapts to a rec', !!rec, r && r.warnings ? r.warnings.join('|') : 'no rec');
+        if (!rec) return;
+        var M = rec.measurements;
+        T.ok('rec.measurements present', !!M && !!M.blocks, M ? Object.keys(M.blocks || {}).join(',') : 'absent');
+        if (!M) return;
+        T.eq('three blocks consumed, all RESOLVED, none unresolved', M.resolved + '/' + M.unresolved, '3/0');
+        T.eq('summary.rmssd (the consensus axis) ≡ the rmssd block value — the scalar walks back', rec.summary.rmssd, M.blocks.rmssd.value);
+        T.eq('summary.sdnn ≡ the sdnn block value', rec.summary.sdnn, M.blocks.sdnn.value);
+        T.eq('the ref carries the input join (= recording.contentId)', M.blocks.rmssd.evidence.inputHash, rec.contentId);
+        T.ok('the ref is a REF, not a copy', !('quality' in M.blocks.rmssd) && !('uncertainty' in M.blocks.rmssd), Object.keys(M.blocks.rmssd).join(','));
+        var card = BE(r.recs, RF(r.recs, {})).nodes[0];
+        T.ok(
+          'fusion export node card carries the consumed refs',
+          !!card && !!card.measurements && card.measurements.resolved === 3,
+          card ? JSON.stringify(card.measurements && { resolved: card.measurements.resolved }) : 'no card'
+        );
+        // the LIGHT export: no hrv block → no scalars to disagree with; the block's own legs still resolve
+        var light = ED.compute({ text: input }, { code: CODE });
+        var rl = NF(JSON.parse(JSON.stringify(light)), 'ecg-light.json');
+        var recL = rl && rl.recs && rl.recs[0];
+        T.ok(
+          'the LIGHT export also adapts with its blocks resolved 3/0',
+          !!recL && !!recL.measurements && recL.measurements.resolved === 3 && recL.measurements.unresolved === 0,
+          recL && recL.measurements ? JSON.stringify(recL.measurements.blocks.rmssd) : 'no measurements'
+        );
+        // legacy tolerance
+        var legacy = JSON.parse(JSON.stringify(rich));
+        delete legacy.measurement;
+        var rg = NF(legacy, 'ecg-legacy.json');
+        var recG = rg && rg.recs && rg.recs[0];
+        T.ok('LEGACY export (no block) → rec has NO measurements key', !!recG && !('measurements' in recG), recG ? Object.keys(recG).join(',') : 'no rec');
+        T.eq('…while the summary scalar is the same number either way', recG && recG.summary.rmssd, rec.summary.rmssd);
+        // PLANTS — fail closed through the adapter, naming the reason
+        var p1 = JSON.parse(JSON.stringify(rich));
+        p1.measurement.rmssd.evidence.inputHash = 'deadbeef0000';
+        var m1 = NF(p1, 'ecg-p1.json').recs[0].measurements;
+        T.ok(
+          'PLANT · inputHash ≠ recording.contentId → rmssd unresolved naming the contentId, the other two resolved',
+          m1.blocks.rmssd.provenance === 'unresolved' && /different input/.test(m1.blocks.rmssd.unresolvedReason) && m1.resolved === 2,
+          m1.blocks.rmssd.unresolvedReason
+        );
+        var p2 = JSON.parse(JSON.stringify(rich));
+        p2.measurement.sdnn.value = p2.measurement.sdnn.value + 1;
+        var m2 = NF(p2, 'ecg-p2.json').recs[0].measurements;
+        T.ok(
+          'PLANT · block value ≠ hrv.time.wholeRecordSDNN → unresolved: "disagrees with the element scalar"',
+          m2.blocks.sdnn.provenance === 'unresolved' && /disagrees/.test(m2.blocks.sdnn.unresolvedReason),
+          m2.blocks.sdnn.unresolvedReason
+        );
+      }
+    );
 
     group('Property / metamorphic — HRV + SignalFrame', 'property-metamorphic · signal-adapters · signal-spec', function (T) {
       // seeded RNG (mulberry32) — deterministic counterexample hunt, zero deps.

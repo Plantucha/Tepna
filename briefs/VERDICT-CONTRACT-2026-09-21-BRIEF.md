@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED · **Created:** 2026-09-21 · **Interlocks:** `MEASUREMENT-INSTANCE-CONTRACT-2026-09-17-BRIEF.md` (the sibling contract for a *number*; this one is for a *verdict*) · `CAPTURE-NIGHT-SEAL-2026-09-21-BRIEF.md` (phase A's `verify-seals` is a first adopter; phase C gives the suite an independent reader) · `PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md` (adoption is counted, not assumed) · CLAUDE.md §🧾
+**Status:** IN-PROGRESS — 2026-09-22 (steps 1 and 2 of §3b landed: `verdict.js` #2797, the adoption gate + manifest with 152 producers binned; 38 adoptions pending across the waves) · **Created:** 2026-09-21 · **Interlocks:** `MEASUREMENT-INSTANCE-CONTRACT-2026-09-17-BRIEF.md` (the sibling contract for a *number*; this one is for a *verdict*) · `CAPTURE-NIGHT-SEAL-2026-09-21-BRIEF.md` (phase A's `verify-seals` is a first adopter; phase C gives the suite an independent reader) · `PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md` (adoption is counted, not assumed) · CLAUDE.md §🧾
 
 # VERDICT-CONTRACT — a gate answers in a fixed shape; prose is explanation, not the API
 
@@ -185,11 +185,24 @@ in the same PR, and a unit landing before 2 is re-checked against the manifest w
 
 ## 5 · Done when
 
-- [ ] Step 0: `tools/verdict-adoption.mjs` enumerates and bins EVERY producer into a committed manifest (equality);
-      the §3 waves are re-cut from that manifest, not from this text.
-- [ ] `verdict.js` + `docs/VERDICT-CONTRACT.md` (schema frozen at `tepna.verdict/1`, with `scope`); gate group with the
-      ten plants + a `scope` plant, denominator published, anti-vacuity leg.
+- [x] `verdict.js` + `docs/VERDICT-CONTRACT.md` (schema frozen at `tepna.verdict/1`); gate group with the
+      ten plants, denominator published, anti-vacuity leg.
+      ✅ **DONE 2026-09-22 (Osprey, #2797)** — plus `scope: internal|publishable` (required on read, no
+      default; `make()` fills the restrictive `internal`) and its two plants; 24 assertions, eight legs,
+      enum equalities of seven and two; registered in both lanes + the mutation fleet.
 - [ ] Wave 1 adopters emit valid objects (oracle · measurement-walk · verify-seals · n1-cohort-track).
-- [ ] `tools/verdict-adoption.mjs` names the set as an equality and reds on a producer outside it.
+- [x] `tools/verdict-adoption.mjs` names the set as an equality and reds on a producer outside it.
+      ✅ **DONE 2026-09-22 (Osprey).** The population is COMPUTED (`git grep` for the verdict words over
+      `tools/*.mjs` + `capture-host/*.py`, on the tree) and every member is binned in the committed
+      `tools/verdict-adoption.json`: **152 producers — decides 25 · already-json 13 · word-only 75 (each
+      with its reason; 60 are selftest assertion printers whose machine-readable result is the exit code +
+      the `all N selftests passed` line) · test 39 (readers, not producers); 38 pending adoptions, 0
+      adopted.** The gate holds the partition as an EQUALITY both ways (an unbinned producer, or a stale
+      row, is a red with its name), demands a reason on every exemption, and READS an adoption — runs
+      `emits.cmd` or reads `emits.file` and validates under `verdict.js` — never believes the row.
+      Measured on its first run against main: it caught #2796's three new files (`verify-seals.mjs`,
+      `unseal.py`, `test_seal.py`) by name. `verify:verdict-adoption` in `npm run check` and the CI
+      `static` job. 13 selftests. `emits.cmd` must be cheap and corpus-free (CI runs it): a
+      `--vectors --json` / selftest emission or a committed record, not the tool's real run.
 - [ ] CLAUDE.md §🧾 states the rule (landed with this brief); DOCS-INDEX row; header → DONE with the
       adopter count measured, wave 2/3 as residue rows if not done in the same unit.

@@ -1,0 +1,752 @@
+{
+ "schema": "tepna.verdict-adoption/1",
+ "enumeratedWith": "git grep -lE <WORDS> -- tools/*.mjs capture-host/*.py (tools non-recursive)",
+ "producers": {
+  "capture-host/ble_sniff.py": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "VERDICT line: was a connection followed / is GATT present"
+  },
+  "capture-host/capture.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
+  },
+  "capture-host/mutation_diff.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the PURE builder (verdict_object, VERDICT_STATUSES) and the classifier vocabulary; the emitting producer is capture-host/tools/mutate_diff.py (adopted)"
+  },
+  "capture-host/nightqc.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "capture-host/o2ring.py": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "probe: header self-consistency and auth variant PASS/FAIL over a real device response"
+  },
+  "capture-host/oxy_transfer.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
+  },
+  "capture-host/parse_dat.py": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "probe: n_samples / trailer / self-consistency OK-FAIL over a real .dat"
+  },
+  "capture-host/probe_oxyii_0x03.py": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "VERDICT lines over the 0x03 probe: records returned, unsaturated rate"
+  },
+  "capture-host/probe_polar_usb.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "capture-host/probe_rtc_read.py": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "VERDICT line: which opcode carries the RTC"
+  },
+  "capture-host/probe_verity_survey.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "capture-host/pull_session.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "capture-host/tests/_srcscan.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/ecg_parity_harness.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_acq_evidence_cpap.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_ax210_postinstall.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_ble_discovery.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_ble_sniff.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_capture.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_capture_runners.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_check_script.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_clock_resync_on_reconnect.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_coverage_gap_fill_ii.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_failover_planted_wedge.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_find_unwired.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_host_clock_and_helper_path.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_monitor_apply_restart.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_monitor_ecg_bandpass.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_mutation_diff.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_night_report.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_offline_lock.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_parse_dat.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_pmd_arrival_writer.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_polar_pmd.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_polar_psftp_client.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_probe_oxyii_0x03.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_probe_read_char.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_psftp_protocol.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_pull_once_contract.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_pull_session.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_run_polar_bounded_awaits.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_run_polar_writer_contract.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_scan_coexistence.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_seal.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_status_union.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_storage_targets.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_tepna_sniff_sh.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_timeline.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_webmon_state_contract.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_writers.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_writers_sidecars.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tools/ax210_postinstall.py": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "PASS/FAIL/UNKNOWN post-install state machine"
+  },
+  "capture-host/tools/find_blindspots.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "an audit stamp in a docstring (VERDICT: KEEP AS IS), not an emitted verdict"
+  },
+  "capture-host/tools/find_unwired.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "capture-host/tools/mutate.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "capture-host/tools/mutate_diff.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "note": "the diff-scoped mutation gate: every exit emits tepna.verdict/1 \u2014 PASS all killed \u00b7 FAIL survivors or a REFUTED entry \u00b7 UNKNOWN undecided (timeout/suspicious/not checked, never a kill) or budget-refused \u00b7 NOT_RUN preflight/all-invocations-failed \u00b7 NOT_APPLICABLE nothing behavioural (step 5, closes the residue mapping of 2026-09-05-mutate-diff-timeout-reads-as-kill one level up)",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/tools/mutate_diff.py",
+     "--verdict-sample"
+    ]
+   }
+  },
+  "capture-host/tools/mutate_pure.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "capture-host/tools/scan_coexistence.py": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "per-stream PASS / FAIL / INCONCLUSIVE against pre-stated bands"
+  },
+  "capture-host/unseal.py": {
+   "bin": "already-json",
+   "status": "pending",
+   "note": "the Python reader of a sealed night: one JSON object per file, PASS/FAIL with the refusal kind as reason (#2796); converge to the schema (scope, population equality) \u2014 step 4"
+  },
+  "capture-host/webmon.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
+  },
+  "tools/acc-acc-control.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "VERDICT block over the ACC control experiment"
+  },
+  "tools/acc-select-compare.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/acc-shared-movement.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/aperiodic-method-compare.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/aperiodic-offset.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/beat-capture-recapture.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/beat-correspondence.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "PASS/FAIL per correspondence check over real beats"
+  },
+  "tools/beat-error-recovery.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/beat-injection-recovery.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/beat-leg-closure.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
+  },
+  "tools/box-sample.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/build-docs.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "tools/buzz-fiducial-correlate.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/buzz-onset-extract.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/check-stranded.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "tools/commit-shape.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "tools/cpap-oxy-couple.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "UNDERPOWERED flag on the coupling lift"
+  },
+  "tools/deep-desat-falsifier.mjs": {
+   "bin": "already-json",
+   "status": "pending",
+   "note": "falsifier verdict over the corpus"
+  },
+  "tools/deep-vlf-probe.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/device-stability.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/ecg-apnea-correlate.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/ecg-physionet-differential.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "CONSISTENT/SHORTFALL bands over PhysioNet records (P5-gated doc: scope must be internal)"
+  },
+  "tools/ecg-rate-transfer.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "VERDICT: does the rate transfer"
+  },
+  "tools/extreme-mutate.mjs": {
+   "bin": "already-json",
+   "status": "pending",
+   "note": "per-function verdict rule in the JSON record"
+  },
+  "tools/formula-constant-audit.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/geometry-scan.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "tools/guide-anchor-audit.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/guide-directive-audit.mjs": {
+   "bin": "already-json",
+   "status": "pending",
+   "note": "audit verdict per guide (the VERDICT regex is its word list)"
+  },
+  "tools/integrator-block-precision.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/known-clock-recovery.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/land-pr.mjs": {
+   "bin": "already-json",
+   "status": "pending",
+   "note": "a decision about a PR (update / wait / stop); FAIL-CLOSED on an unreadable ruleset"
+  },
+  "tools/make-synthetic-inputs.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "tools/mutate.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "MUTATION GATE INCONCLUSIVE when mutants never ran \u2014 killed \u00b7 survived \u00b7 timeout as its own state (step 5)"
+  },
+  "tools/mutation-adoption-delta.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "tools/mutation-ai-probe.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "tools/mutation-crawl.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
+  },
+  "tools/mutation-reach.mjs": {
+   "bin": "already-json",
+   "status": "pending",
+   "note": "unresolved files FAIL CLOSED in the reach report"
+  },
+  "tools/mutation-suite.mjs": {
+   "bin": "already-json",
+   "status": "pending",
+   "note": "canaryVerdict \u2014 already refuses to vouch without a machine-readable result; align its object"
+  },
+  "tools/mutation-worklist.mjs": {
+   "bin": "already-json",
+   "status": "pending",
+   "note": "FAIL-CLOSED production/aside classification per function"
+  },
+  "tools/nearest-advocate.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/nsrr-effort-typing.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "VERDICT over central-apnea effort typing on NSRR records"
+  },
+  "tools/o2ring-dat-timefit.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/o2ring-finger-roundtrip.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "PASS/FAIL per metric over a real round-trip"
+  },
+  "tools/o2ring-finger-validate-batch.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "pairs PASS count over a batch of real nights"
+  },
+  "tools/o2ring-frame-cadence.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/oracle-ecg-firmware-rr.mjs": {
+   "bin": "already-json",
+   "status": "pending",
+   "note": "pooled bands CONSISTENT/SHORTFALL/INVESTIGATE/UNDERPOWERED \u2014 object written, patched aside for the adoption wave"
+  },
+  "tools/pat-axis-leg-audit.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/pat-buzz-stability.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/pat-drift-attribution.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/pat-ecg-axis-residual.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/pat-fiducial-compare.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/pat-fiducial-jitter.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/pat-fiducial.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/pat-per-led.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/pat-ppg-ppg-control.mjs": {
+   "bin": "already-json",
+   "status": "pending",
+   "note": "control-experiment verdict in the JSON record"
+  },
+  "tools/pat-residual-structure.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/pat-window-oracle.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/pb-agreement.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/pb-fusion-blast.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/per-group-coverage.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "tools/pin-coverage.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/pletha-marker-oracle.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "VERDICT: the marker heuristic holds / vacuous"
+  },
+  "tools/ppg-bridge-hrv-validate.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/ppg-foot-consensus-e1.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/ppg-foot-residual-sweep.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/ppg-fusion-e3.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/ppg-gap-bridge-scan.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/ppg2w-rate.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/ppg2w-spo2-fit.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/ppi-jitter-vs-ecg.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/probe-clock-equivalence.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/probe-equivalence.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/pulse-agreement.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "per-stream FAIL over real recordings (debug print)"
+  },
+  "tools/queue-doctor.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "tools/qwen-mypy-fix.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "tools/rebase-safe.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
+  },
+  "tools/release-land.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/release.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "tools/residue-ids.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/resp-acc-headless.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "tools/resp-cardiac-suppression-e8.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/run-check.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "the check runner: a step that must FAIL through the default"
+  },
+  "tools/selftest-all.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "the runner that reads every selftest verdict and exits on it"
+  },
+  "tools/stmt-delete.mjs": {
+   "bin": "already-json",
+   "status": "pending",
+   "note": "KILLED / SURVIVED / INCONCLUSIVE per mutant"
+  },
+  "tools/tch-degeneracy-stats.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+  },
+  "tools/tch-estimator-bakeoff.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "VERDICT: which estimator wins"
+  },
+  "tools/tch-multinight.mjs": {
+   "bin": "already-json",
+   "status": "pending",
+   "note": "multinight verdict keyed in the record"
+  },
+  "tools/tch-per-epoch-rho.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "VERDICT block over per-epoch rho"
+  },
+  "tools/tch-third-corner.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "per-corner FAIL over real nights (O2Ring axis)"
+  },
+  "tools/validate-exports.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "per-export warn/FAIL over real exports"
+  },
+  "tools/verdict-adoption.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the gate itself: the verdict words occur in its header, its bin vocabulary and its red messages; its own result is the exit code + the summary line, read by npm run check / CI \u2014 it names producers, it is not one (a gate-verdict object for the gate is a wave-2 question, not an omission)"
+  },
+  "tools/verify-drafts.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "verdict words appear only in comments"
+  },
+  "tools/verify-seals.mjs": {
+   "bin": "already-json",
+   "status": "adopted",
+   "note": "born emitting tepna.verdict/1 (#2796); scope + verdict.js validation of every emitted object in #2800 \u2014 the first adoption this manifest records. `--vectors --json` prints the verdict for the committed vector to stdout, prose to stderr.",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/verify-seals.mjs",
+     "--vectors",
+     "--json"
+    ]
+   }
+  },
+  "tools/wt-done.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "selftest printer; its own verdict() is a pure PR-state decision consumed by the tool itself, exit-coded \u2014 a wave-2 candidate, listed here by reason not by omission"
+  }
+ }
+}
