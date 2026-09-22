@@ -29,6 +29,12 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-ruff.sh\"",
             "timeout": 15,
             "statusMessage": "checking staged capture-host Python is ruff-clean"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-memory-stale.sh\" pre",
+            "timeout": 10,
+            "statusMessage": "checking a Bash write to memory was read this session"
           }
         ]
       },
@@ -76,6 +82,17 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-memory-stale.sh\" post",
             "timeout": 10,
             "statusMessage": "re-recording the memory file's mtime after this session's own write"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-memory-stale.sh\" post",
+            "timeout": 10,
+            "statusMessage": "checking whether a memory file moved during that command"
           }
         ]
       }
