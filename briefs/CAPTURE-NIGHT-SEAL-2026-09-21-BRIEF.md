@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS (phase A landed 2026-09-21 — format frozen, vectors on main; B and C may proceed) · **Created:** 2026-09-21 · **Interlocks:** `CORPUS-TIER-30-NIGHTS-2026-09-20-BRIEF.md` (dev-only tiering this brief scopes out of deployment) · `SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md` (sidecars travel inside the seal) · `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md` (§10 citations) · owner design session 2026-09-21 (this brief is its transcript, condensed)
+**Status:** IN-PROGRESS (phase A landed 2026-09-21 — format frozen, vectors on main; **phase C landed #PRNUM 2026-09-22** — `night-seal.js`, the in-page reader (WebCrypto + `DecompressionStream`, no vendored code), wired into OverDex's file input with the card prompt, IndexedDB per (boxId, keyId), the provenance badge and one `tepna.verdict/1` per seal; judged on the SAME vector and seven plants as the Python and Node readers in the node lane AND a `browser-gates` leg; the four sealer-built plants are now committed vectors under `plants/`. B may proceed; D follows C) · **Created:** 2026-09-21 · **Interlocks:** `CORPUS-TIER-30-NIGHTS-2026-09-20-BRIEF.md` (dev-only tiering this brief scopes out of deployment) · `SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md` (sidecars travel inside the seal) · `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md` (§10 citations) · owner design session 2026-09-21 (this brief is its transcript, condensed)
 
 # CAPTURE-NIGHT-SEAL — one self-protecting file per night, carrier-agnostic
 
@@ -154,7 +154,7 @@ medical devices pair with **cards**, and so does this:
 |---|---|---|---|
 | **A** | format spec (this §2 frozen into `docs/NIGHT-SEAL-FORMAT.md`), committed test vectors, `capture-host/seal.py` + `unseal.py`, Node `tools/verify-seals.mjs`, the seven plants | Kestrel (spec, vectors, Node) + Heron (Python) | `check.sh` · `npm run check` |
 | **B** | box integration: seal at night close, atomic outbox write, revision re-issue, card PDF + consent question at setup, key generation at first boot | Wren (box-local), **deploy owner-authorized** | box night with a real seal, verified on the rig |
-| **C** | OverDex reader + provenance badge, `browser-gates` leg | Magpie | `Dex-Test-Suite.html?full` |
+| **C** | OverDex reader + provenance badge, `browser-gates` leg — **LANDED #PRNUM (2026-09-22)**: `night-seal.js` + OverDex wiring; node-lane group `night-seal` (36 assertions on the vector + seven plants + vocabulary parity + verdict validity) and the `gateNightSeal` browser leg (drives the real `ingest()` in the served bundle; seven plants red by name in-page, equality on seven) | Magpie | `Dex-Test-Suite.html?full` · `browser-gates` |
 | **D** | per-node Dex readers (each node's file input accepts `.tepna`) | Magpie | per-node equiv legs unchanged (the payload is the same bytes) |
 | **E** | optional outbound push of sealed files + RFC 3161 / OTS anchor when online; clinic-key recipient | later, on first external box | — |
 | **F** | `tools/dataset-export.mjs`: de-identification profile → bag + datasheet → deposit (§8) | Osprey | committed synthetic run |

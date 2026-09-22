@@ -217,14 +217,153 @@ async function gateNoNetwork() {
   await page.close();
 }
 
+/* ── CAPTURE-NIGHT-SEAL phase C — the in-page reader, on the committed vector and the SEVEN plants ──
+   WebCrypto and DecompressionStream are browser-only in the sense that matters: a Node co-load runs
+   the same reader (the node lane does, on the same vector) but cannot see OverDex's WIRING of it —
+   the file input, the IndexedDB card store, the badge, the verdict object on `OverDex.seals`. This
+   leg drives the real `ingest()` path in the served OverDex.html with File objects built from the
+   committed bytes, and reads the page's own verdicts, never its prose.
+
+   The seven plants (brief §6, capture-host/tests/vectors/tepna-seal-1/plants/expected.json + the
+   three a reader builds itself): each must red BY NAME in-page, and the denominator is an equality
+   — seven enumerated, seven seen. `consent absent` is the one that must NOT refuse (reads null). */
+async function gateNightSeal() {
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => console.log('   [overdex page error]', e.message));
+  console.log('▸ OverDex.html · sealed night (tepna-seal/1) …');
+  await page.goto(BASE + '/OverDex.html', { waitUntil: 'load', timeout: 60000 });
+  const { readFileSync } = await import('node:fs');
+  const { join, dirname } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const here = dirname(fileURLToPath(import.meta.url));
+  const vdir = join(here, '..', 'capture-host', 'tests', 'vectors', 'tepna-seal-1');
+  const exp = JSON.parse(readFileSync(join(vdir, 'expected.json'), 'utf8'));
+  const plantsExp = JSON.parse(readFileSync(join(vdir, 'plants', 'expected.json'), 'utf8'));
+  const b64 = (p) => readFileSync(p).toString('base64');
+  const vector = b64(join(vdir, exp.seal));
+  const plants = {};
+  for (const [name, rec] of Object.entries(plantsExp)) plants[name] = { b64: b64(join(vdir, 'plants', rec.file)), expect: rec.expect };
+  const r = await page.evaluate(
+    async ({ exp, vector, plants }) => {
+      const O = window.OverDex;
+      if (!O || !O.seals) return { error: 'OverDex.seals surface absent — night-seal not wired' };
+      if (!window.NightSeal) return { error: 'NightSeal not loaded' };
+      const toU8 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+      const fileOf = (s, name) => new File([toU8(s)], name);
+      const ingestOne = async (file, card) => {
+        await O.seals.setCard(exp.boxId, exp.keyId, card);
+        await O.seals.ingestFiles([file]);
+        // ingest is async and un-awaited by design; poll the page's own list
+        for (let i = 0; i < 200; i++) {
+          const L = O.seals.list();
+          if (L.length && L[L.length - 1].verdict) return L[L.length - 1];
+          await new Promise((res) => setTimeout(res, 50));
+        }
+        return { status: 'TIMEOUT' };
+      };
+      const good = { cardKeyHex: exp.cardKeyHex, fingerprint: exp.boxKeyFingerprint, knownRevision: null };
+      const out = { vector: null, plants: {}, badges: {} };
+      // the vector opens, verified, three streams, badge reads sealed·verified, verdict PASS and VALID
+      const v = await ingestOne(fileOf(vector, exp.seal), good);
+      out.vector = {
+        status: v.status,
+        kind: v.kind || null,
+        streams: v.streams,
+        badge: v.badge && v.badge.text,
+        verdictValid: v.verdict && v.verdict.valid,
+        verdictStatus: v.verdict && v.verdict.status,
+        items: (O.items() || []).map((it) => ({ rel: it.relPath, klass: it.klass }))
+      };
+      // the four sealer-built plants
+      for (const [name, pl] of Object.entries(plants)) {
+        const o = await ingestOne(fileOf(pl.b64, 'plant.tepna'), good);
+        out.plants[name] = {
+          status: o.status,
+          kind: o.kind || null,
+          consent: o.consent,
+          badge: o.badge && o.badge.text,
+          expect: pl.expect,
+          verdictValid: o.verdict && o.verdict.valid,
+          tampered: o.streams && o.streams.tampered,
+          opened: o.streams && o.streams.opened
+        };
+      }
+      // the three a reader builds from the base vector (the sealer-built four are above)
+      const wrong = await ingestOne(fileOf(vector, exp.seal), { cardKeyHex: '101112131415161718191a1b1c1d1e1f', fingerprint: exp.boxKeyFingerprint, knownRevision: null });
+      out.plants['wrong card key'] = { status: wrong.status, kind: wrong.kind || null, expect: 'card-key', verdictValid: wrong.verdict && wrong.verdict.valid };
+      const stale = await ingestOne(fileOf(vector, exp.seal), { cardKeyHex: exp.cardKeyHex, fingerprint: exp.boxKeyFingerprint, knownRevision: 2 });
+      out.plants['stale revision'] = { status: stale.status, kind: stale.kind || null, expect: 'revision', verdictValid: stale.verdict && stale.verdict.valid };
+      // a forged header: change one clear-header field, keep the box's signature and payload
+      const blob = toU8(vector);
+      const n = 10,
+        dv = new DataView(blob.buffer);
+      const hlen = dv.getUint32(n);
+      const hdr = JSON.parse(new TextDecoder().decode(blob.subarray(n + 4, n + 4 + hlen)));
+      hdr.night = '2026-09-21';
+      const nh = new TextEncoder().encode(JSON.stringify(hdr, Object.keys(hdr).sort()));
+      const forged = new Uint8Array(n + 4 + nh.length + (blob.length - (n + 4 + hlen)));
+      forged.set(blob.subarray(0, n), 0);
+      new DataView(forged.buffer).setUint32(n, nh.length);
+      forged.set(nh, n + 4);
+      forged.set(blob.subarray(n + 4 + hlen), n + 4 + nh.length);
+      const fg = await ingestOne(new File([forged], exp.seal), good);
+      out.plants['forged header'] = { status: fg.status, kind: fg.kind || null, expect: 'signature', verdictValid: fg.verdict && fg.verdict.valid };
+      // legacy: a loose file that came from no seal carries the honest default badge
+      await O.seals.ingestFiles([new File(['Time,Oxygen Level,Pulse Rate,Motion\n2026-09-20T22:00:00,97,60,0\n'], 'loose.csv')]);
+      await new Promise((res) => setTimeout(res, 300));
+      out.badges.legacy = (document.querySelector('#manifest .seal') || {}).textContent || null;
+      return out;
+    },
+    { exp, vector, plants }
+  );
+  if (r.error) {
+    FAILS.push('night-seal: ' + r.error);
+    await page.close();
+    return;
+  }
+  const v = r.vector;
+  console.log('   vector:', v.status, v.badge, '· streams', JSON.stringify(v.streams), '· verdict', v.verdictStatus, v.verdictValid ? 'valid' : 'INVALID');
+  if (v.status !== 'PASS') FAILS.push('night-seal: the committed vector did not open as PASS — ' + v.status + ' ' + (v.kind || ''));
+  if (!(v.streams && v.streams.opened === 3 && v.streams.verified === 3 && v.streams.tampered.length === 0))
+    FAILS.push('night-seal: vector streams ' + JSON.stringify(v.streams) + ', want 3 opened / 3 verified / 0 tampered');
+  if (!/^sealed · box TESTBOX0 · closed \d\d:\d\d · verified$/.test(v.badge || '')) FAILS.push('night-seal: vector badge reads ' + JSON.stringify(v.badge));
+  if (!v.verdictValid) FAILS.push("night-seal: the vector's tepna.verdict/1 does not validate under verdict.js");
+  if (!v.items.some((it) => /^TESTBOX0-2026-09-20\//.test(it.rel))) FAILS.push('night-seal: the unsealed streams did not enter the manifest under <boxId>-<night>/');
+  // the SEVEN plants — an equality on the count, each by name
+  const names = Object.keys(r.plants);
+  console.log('   plants seen:', names.length, '—', names.join(' · '));
+  if (names.length !== 7) FAILS.push('night-seal: ' + names.length + ' plants seen, the denominator is SEVEN');
+  for (const [name, o] of Object.entries(r.plants)) {
+    const tag = '   plant ' + name + ': ' + o.status + ' ' + (o.kind || '') + (o.badge ? ' — ' + o.badge : '');
+    console.log(tag);
+    if (o.expect === null) {
+      if (o.status !== 'PASS' || o.consent !== null) FAILS.push('night-seal plant "' + name + '": must OPEN with consent null, got ' + o.status + ' consent=' + JSON.stringify(o.consent));
+    } else if (o.expect.indexOf('manifest:') === 0) {
+      // a tampered stream reds BY NAME and the night still opens (PASS is not available: status FAIL, but streams opened)
+      if (!(o.status === 'FAIL' && o.kind === o.expect && o.opened === 3 && o.tampered && o.tampered.length === 1))
+        FAILS.push('night-seal plant "' + name + '": want FAIL ' + o.expect + ' with the other streams open, got ' + JSON.stringify(o));
+      if (!/^TAMPERED: synthetic_oxydex_o2ring\.csv$/.test(o.badge || '')) FAILS.push('night-seal plant "' + name + '": badge must name the stream, got ' + JSON.stringify(o.badge));
+    } else if (!(o.status === 'FAIL' && o.kind === o.expect)) FAILS.push('night-seal plant "' + name + '": want FAIL ' + o.expect + ', got ' + o.status + ' ' + (o.kind || ''));
+    if (o.verdictValid === false) FAILS.push('night-seal plant "' + name + '": its tepna.verdict/1 does not validate');
+  }
+  if (r.plants['unknown signing key'] && !/unknown key/.test(r.plants['unknown signing key'].badge || ''))
+    FAILS.push('night-seal: the unknown-key badge must say so, got ' + JSON.stringify(r.plants['unknown signing key'].badge));
+  if (r.badges.legacy !== 'unsealed folder — provenance unknown') FAILS.push('night-seal: a loose file must carry "unsealed folder — provenance unknown", got ' + JSON.stringify(r.badges.legacy));
+  await page.close();
+}
+
 // NN_ONLY=1 → run just the fast no-network gate (its own lightweight workflow, on every push);
 // default → run all three (rides the on-demand browser-gates workflow).
 if (process.env.NN_ONLY) {
   await gateNoNetwork();
+} else if (process.env.SEAL_ONLY) {
+  // SEAL_ONLY=1 → just the sealed-night leg (seconds; for iterating on the reader)
+  await gateNightSeal();
 } else {
   await gateTestSuite();
   await gateProvenance();
   await gateNoNetwork();
+  await gateNightSeal();
 }
 await browser.close();
 
@@ -232,4 +371,4 @@ if (FAILS.length) {
   console.error('\n✕ BROWSER GATES FAILED:\n' + FAILS.map((f) => '  ' + f).join('\n'));
   process.exit(1);
 }
-console.log('\n✓ browser gates passed (render-coverage + provenance)');
+console.log('\n✓ browser gates passed (render-coverage + provenance + no-network + night-seal)');

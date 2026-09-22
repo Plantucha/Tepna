@@ -13,6 +13,7 @@ The plants are built here by the sealer's own hooks, written to a temp dir, and 
 reader refuses and the other accepts is a drift, which is the whole reason the Node twin exists.
 """
 
+import hashlib
 import json
 import os
 import shutil
@@ -122,55 +123,33 @@ def test_the_clear_header_reads_WITHOUT_a_key():
 
 
 # ── the seven plants — each red BY NAME, in both readers, and each SEEN ──────────────────────────
-def _flip_one_byte_in_one_stream(bag):
-    name = "data/synthetic_oxydex_o2ring.csv"
-    b = bytearray(bag[name]); b[1000] ^= 0x01; bag[name] = bytes(b)
-    return bag                        # manifest was computed on the good bytes: THAT stream's hash
-
-
-def _truncate_payload(bag):
-    name = "data/synthetic_motiondex_acc.txt"
-    bag[name] = bag[name][:-4096]     # Oxum was computed on the full bytes: caught BEFORE any hashing
-    return bag
-
-
-def _drop_consent(header):
-    h = dict(header); del h["consent"]; return h
-
-
-PLANTS = {
-    "flipped byte in one stream": dict(mutate_bag=_flip_one_byte_in_one_stream, expect="manifest:data/synthetic_oxydex_o2ring.csv"),
-    "truncated payload":          dict(mutate_bag=_truncate_payload, expect="oxum"),
-    "wrong card key":             dict(read_card_key=bytes(range(16, 32)), expect="card-key"),
-    "unknown signing key":        dict(signing_key="OTHER", expect="fingerprint"),
-    "forged header":              dict(forge=True, expect="signature"),
-    "stale revision":             dict(known_revision=2, expect="revision"),
-    "consent absent":             dict(mutate_header=_drop_consent, expect=None),   # NOT a refusal: reads null
-}
+# Built by tools/seal_vectors.py (PLANTS / build_plant), so the committed plant vectors and this test
+# build the SAME bytes; the "unknown signing key" plant signs with the SECOND committed test key.
+PLANTS = V.PLANTS
 
 
 def _build_plant(name, spec, night, key, tmp_path):
-    out = str(tmp_path / ("plant-%s.tepna" % name.replace(" ", "_")))
-    kw = V.seal_kwargs(key)
-    if spec.get("signing_key") == "OTHER":
-        kw["signing_key"] = seal.generate_signing_key()
-    if spec.get("mutate_bag"):
-        kw["mutate_bag"] = spec["mutate_bag"]
-    if spec.get("mutate_header"):
-        kw["mutate_header"] = spec["mutate_header"]
-    seal.seal_night(night, out, **kw)
-    if spec.get("forge"):
-        # keep the box's signature and payload, change one header field: the signature covers
-        # header ‖ SHA-256(payload), so a header that was not signed cannot pass
-        blob = bytearray(open(out, "rb").read())
-        n = len(F.MAGIC) + 1
-        hlen = int.from_bytes(blob[n:n + 4], "big")
-        header = json.loads(bytes(blob[n + 4:n + 4 + hlen]))
-        header["night"] = "2026-09-21"
-        nh = F.canonical_header_bytes(header)
-        blob[n:n + 4 + hlen] = len(nh).to_bytes(4, "big") + nh
-        open(out, "wb").write(bytes(blob))
-    return out
+    """ONE set of plant bytes for every reader: the four sealer-built plants are the COMMITTED vectors
+    under plants/ (what the browser reader is judged on too); the three reader-side plants are built
+    here from a fresh (byte-identical) seal of the same night."""
+    if spec.get("sealed"):
+        return os.path.join(V.VECTOR_DIR, "plants", "plant-%s.tepna" % V.plant_slug(name))
+    return V.build_plant(name, spec, night, key, str(tmp_path / ("plant-%s.tepna" % V.plant_slug(name))))
+
+
+def test_the_committed_plant_vectors_are_byte_identical_to_a_regeneration(night, key, tmp_path):
+    """The four sealed plants under vectors/tepna-seal-1/plants/ are what the browser reader is judged
+    on (phase C); they must be exactly what the generator writes today, or the three readers drift."""
+    index = json.load(open(os.path.join(V.VECTOR_DIR, "plants", "expected.json")))
+    sealed = {n for n, s in PLANTS.items() if s.get("sealed")}
+    assert set(index) == sealed, (set(index), sealed)
+    fresh = V.write_plants(key, str(tmp_path / "plants"))
+    for name, rec in index.items():
+        committed = open(os.path.join(V.VECTOR_DIR, "plants", rec["file"]), "rb").read()
+        regenerated = open(os.path.join(str(tmp_path / "plants"), rec["file"]), "rb").read()
+        assert committed == regenerated, (name, "committed plant differs from a regeneration")
+        assert rec["sha256"] == fresh[name]["sha256"] == hashlib.sha256(committed).hexdigest(), name
+        assert rec["expect"] == PLANTS[name]["expect"], name
 
 
 def test_the_SEVEN_plants_red_by_name_in_BOTH_readers_and_each_is_SEEN(night, key, tmp_path):
@@ -462,10 +441,13 @@ def test_the_generator_REPRODUCES_the_committed_vectors_byte_for_byte(tmp_path, 
     committed seal exactly — the generator is the vectors' provenance, not a one-time act."""
     out = tmp_path / "vec"; out.mkdir()
     shutil.copy(os.path.join(V.VECTOR_DIR, "test-signing-key.pem"), out / "test-signing-key.pem")
+    shutil.copy(os.path.join(V.VECTOR_DIR, V.OTHER_KEY_PEM), out / V.OTHER_KEY_PEM)   # both committed keys ⇒ plants reproduce too
     monkeypatch.setattr(V, "VECTOR_DIR", str(out))
     assert V.main() == 0
     committed = os.path.join(HERE, "tests", "vectors", "tepna-seal-1", EXPECTED["seal"])   # not V.VECTOR_DIR: that is patched
     assert (out / EXPECTED["seal"]).read_bytes() == open(committed, "rb").read()
+    for rec in json.load(open(os.path.join(HERE, "tests", "vectors", "tepna-seal-1", "plants", "expected.json"))).values():
+        assert (out / "plants" / rec["file"]).read_bytes() == open(os.path.join(HERE, "tests", "vectors", "tepna-seal-1", "plants", rec["file"]), "rb").read(), rec["file"]
     exp = json.load(open(out / "expected.json"))
     assert exp["sha256"] == EXPECTED["sha256"] and exp["header"] == EXPECTED["header"]
     assert (out / "test-card-key.txt").read_text().strip().endswith(F.card_code_encode(V.TEST_CARD_KEY))

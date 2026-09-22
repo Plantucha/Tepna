@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="5bee448467f3" data-compute-hash="fb8a3f7122df"><head>
+<html lang="en" data-manifest-hash="cc188e915126" data-compute-hash="55a61f2684b7"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2/P17dUL1JcPYpJM85bGXVsn9M5fCoEX2o8B54PqGAs=' 'sha256-4R3kehgFdc/KaWun6609qOe4U/p9ClI7Hjdgb9Da4YQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-D0B0J1xG4/p01mgy+EoHt3o1R2vIWeP2YsT44GDIVrs=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-QshaTLdxBF5FYcqc5eUJLiB2QIHN/UbTWGgRiDMZjck=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-YmI37lcKl30XtmpX7ggJsjrArPEJ7hkRwJ+NsvI2tmw=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bcL7l63Nwzz/ZYRXDOuIJObcPq4EY33N5TA5aViVeaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-2/P17dUL1JcPYpJM85bGXVsn9M5fCoEX2o8B54PqGAs=' 'sha256-4R3kehgFdc/KaWun6609qOe4U/p9ClI7Hjdgb9Da4YQ=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-D0B0J1xG4/p01mgy+EoHt3o1R2vIWeP2YsT44GDIVrs=' 'sha256-DiTFOjjRe5vAMNXxkGgxYTzkC4+Kz2/105ZwEXGiwBA=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LrqAcX6EYrn1FDGC8701ZGVNduowoV0XozhXnBk2ai8=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-Ug9M2CjGf27F8wIsTdwfXCBDtEqL25R7wp5ra83HN+8=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-YmI37lcKl30XtmpX7ggJsjrArPEJ7hkRwJ+NsvI2tmw=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bcL7l63Nwzz/ZYRXDOuIJObcPq4EY33N5TA5aViVeaI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -59,6 +59,17 @@
   #drop .big{font-size:16px;font-weight:600;}
   #drop .small{color:var(--text3);font-size:12px;margin-top:7px;font-family:var(--mono);}
   .pickrow{display:flex;gap:12px;align-items:center;margin-top:12px;flex-wrap:wrap;}
+  /* CAPTURE-NIGHT-SEAL phase C — the provenance badge, inline before the label (the evidence-badge
+     placement); disc-free on purpose: this is provenance, not an evidence tier, and must not read as one */
+  .seal{display:inline-block;font:600 10px/1.5 ui-monospace,monospace;letter-spacing:.02em;padding:0 6px;border-radius:3px;margin-right:6px;vertical-align:middle;white-space:nowrap;max-width:32ch;overflow:hidden;text-overflow:ellipsis;}
+  .seal.seal-ok{background:rgba(57,217,138,.14);color:#39d98a;border:1px solid rgba(57,217,138,.35);}
+  .seal.seal-bad{background:rgba(255,92,92,.14);color:#ff5c5c;border:1px solid rgba(255,92,92,.4);}
+  .seal.seal-unknown{background:rgba(255,255,255,.05);color:#8a90a0;border:1px dashed rgba(255,255,255,.18);}
+  #cardPrompt{display:none;margin:12px 0;padding:12px 14px;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:rgba(255,255,255,.03);}
+  #cardPrompt label{display:block;font-size:12px;margin:6px 0 2px;color:#8a90a0;}
+  #cardPrompt input{width:100%;max-width:520px;font:13px ui-monospace,monospace;padding:6px 8px;background:#0e1118;color:inherit;border:1px solid rgba(255,255,255,.18);border-radius:4px;}
+  #cardPrompt .cp-err{color:#ff5c5c;font-size:12px;min-height:1.2em;margin-top:4px;}
+  #cardPrompt .cp-row{display:flex;gap:8px;margin-top:8px;}
   .ghost{font-family:var(--sans);font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text2);cursor:pointer;}
   .ghost:hover{border-color:var(--teal);color:var(--text);}
 
@@ -149,7 +160,19 @@
 
   <!-- webkitdirectory = folder pick; the plain input = loose files -->
   <input type="file" id="dir" webkitdirectory directory multiple style="display:none">
-  <input type="file" id="files" multiple style="display:none">
+  <input type="file" id="files" multiple accept=".tepna,*/*" style="display:none">
+
+  <!-- CAPTURE-NIGHT-SEAL phase C — the card prompt, shown on the FIRST sight of a (boxId, keyId); the
+       card key and the box-key fingerprint are what is printed on the patient's card. Never window.prompt. -->
+  <div id="cardPrompt" role="dialog" aria-label="Card key for a sealed night">
+    <div class="small"><b>Sealed night</b> — box <span class="cp-box"></span>. Enter the card printed at setup; it stays on this device (IndexedDB) and is never uploaded.</div>
+    <label for="cpCode">Card code (26 symbols, e.g. XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XX)</label>
+    <input class="cp-code" id="cpCode" autocomplete="off" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XX">
+    <label for="cpFp">Box key fingerprint (sha256/…)</label>
+    <input class="cp-fp" id="cpFp" autocomplete="off" spellcheck="false" placeholder="sha256/…">
+    <div class="cp-err" aria-live="polite"></div>
+    <div class="cp-row"><button class="primary cp-ok">Open night</button><button class="ghost cp-cancel">Not now</button></div>
+  </div>
 
   <div id="manifest"></div>
 
@@ -43319,6 +43342,733 @@ __exports.CPAPDex = window.CPAPDex;
   };
 })(typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this);
 </script>
+<!-- CAPTURE-NIGHT-SEAL phase C — the verdict contract + the sealed-night reader (WebCrypto + DecompressionStream, no vendored code) -->
+<script data-inline-src="verdict.js">/*
+ * verdict.js — the VERDICT contract (CORE): `tepna.verdict/1`
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not
+ * use this file except in compliance with the License. See the LICENSE and
+ * NOTICE files at the project root, or http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * ────────────────────────────────────────────────────────────────────────
+ * Executes `VERDICT-CONTRACT-2026-09-21-BRIEF.md` §2 (owner standing requirement, CLAUDE.md §🧾):
+ * every gate, oracle, audit, harness or study that DECIDES something emits ONE JSON object of a fixed
+ * shape beside its prose. Prose is explanation; the object is the API. This module is the ONLY
+ * definition of that shape — the enum, the field rules, the invariants — the way `measurement-block.js`
+ * is the only definition of a measurement instance. A tool that hand-writes `"status": "PASSED"` reds
+ * HERE, not in a reader's regex.
+ *
+ * THE FAILURE CLASS: three of the seven states a gate can be in — NOT_RUN, NOT_APPLICABLE, UNDERPOWERED —
+ * read as green to a regex looking for "FAIL". A reader that must parse a paragraph to learn whether
+ * evidence is trustworthy is §4b's "reported success about something it never examined" one layer up.
+ *
+ * `validate(obj) → { ok, errors[], checked[] }` — `checked` publishes which legs RAN (the denominator),
+ * so a leg that could not run says so instead of passing silently. No dependencies; classic script;
+ * loads in Node (vm co-load, `require`) and the browser suite alike.
+ * ──────────────────────────────────────────────────────────────────────── */
+(function (root) {
+  'use strict';
+
+  var SCHEMA = 'tepna.verdict/1';
+  /* THE closed enum — exactly seven, stated once. Asserted as an equality by the gate group. */
+  var STATUSES = ['PASS', 'FAIL', 'SHORTFALL', 'UNDERPOWERED', 'NOT_RUN', 'NOT_APPLICABLE', 'UNKNOWN'];
+  var DIRECTIONS = ['lte', 'gte', 'eq', 'within'];
+  /* P5 rides in the object: only a `publishable` verdict may be quoted outside the repo. Two values, closed. */
+  var SCOPES = ['internal', 'publishable'];
+  var SHA_RE = /^[0-9a-f]{7,40}$/;
+  var ISO_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
+
+  function _isObj(v) {
+    return !!v && typeof v === 'object' && !Array.isArray(v);
+  }
+  function _isInt(v) {
+    return typeof v === 'number' && Number.isFinite(v) && Math.floor(v) === v && v >= 0;
+  }
+  function _nonEmpty(s) {
+    return typeof s === 'string' && s.trim().length > 0;
+  }
+
+  /**
+   * validate(obj) → { ok, errors[], checked[] }
+   *
+   * Each leg pushes its name onto `checked` when it RAN; a leg that cannot run (the object is not
+   * even an object, a sub-field is absent) records the absence as an error rather than skipping
+   * silently. The invariants, in order: shape · status enum · population equality · criterion
+   * pre-stated · result/reason rules per status · evidence · provenance.
+   */
+  function validate(obj) {
+    var errors = [];
+    var checked = [];
+    var push = function (m) {
+      errors.push(m);
+    };
+    if (!_isObj(obj)) {
+      return {
+        ok: false,
+        errors: [typeof obj === 'string' ? 'a verdict is an OBJECT, not prose — a status word in a string is exactly what this contract forbids' : 'verdict is not an object'],
+        checked: []
+      };
+    }
+
+    // ── schema + gate ────────────────────────────────────────────────────────────────────────
+    checked.push('schema');
+    if (obj.schema !== SCHEMA) push('schema must be exactly "' + SCHEMA + '", got ' + JSON.stringify(obj.schema));
+    if (!_nonEmpty(obj.gate)) push('gate must name the gate (non-empty string)');
+
+    // ── status: the closed enum, case-exact ──────────────────────────────────────────────────
+    checked.push('status enum');
+    var st = obj.status;
+    if (STATUSES.indexOf(st) < 0) {
+      if (typeof st === 'string' && STATUSES.indexOf(st.toUpperCase()) >= 0) push('status "' + st + '" is a capitalisation variant — the enum is case-exact: ' + STATUSES.join('|'));
+      else push('status must be one of ' + STATUSES.join('|') + ', got ' + JSON.stringify(st) + ' (no eighth value, no synonyms)');
+    }
+
+    // ── scope: internal | publishable — required; absence does not default (a verdict that has not
+    //    said whether it may be quoted has not decided) ─────────────────────────────────────────
+    checked.push('scope');
+    if (SCOPES.indexOf(obj.scope) < 0) push('scope must be one of ' + SCOPES.join('|') + ' (P5: only publishable may be quoted outside the repo), got ' + JSON.stringify(obj.scope));
+
+    // ── population: three integers, checked + excluded = eligible, an EQUALITY ──────────────
+    var pop = obj.population;
+    if (!_isObj(pop)) push('population missing — a verdict states what it examined: {checked, eligible, excluded}');
+    else {
+      checked.push('population equality');
+      ['checked', 'eligible', 'excluded'].forEach(function (k) {
+        if (!_isInt(pop[k])) push('population.' + k + ' must be a non-negative integer, got ' + JSON.stringify(pop[k]));
+      });
+      if (_isInt(pop.checked) && _isInt(pop.eligible) && _isInt(pop.excluded) && pop.checked + pop.excluded !== pop.eligible)
+        push('population must satisfy checked + excluded = eligible (an equality, not a floor): ' + pop.checked + ' + ' + pop.excluded + ' ≠ ' + pop.eligible);
+      if (st === 'PASS' && pop.checked === 0) push('PASS over population.checked = 0 is the examined-nothing shape — refused at the type level');
+    }
+
+    // ── criterion: named, pre-stated, with unit + direction ──────────────────────────────────
+    var cr = obj.criterion;
+    if (!_isObj(cr)) push('criterion missing — the rule the verdict applied, written BEFORE the measurement');
+    else {
+      checked.push('criterion');
+      if (!_nonEmpty(cr.name)) push('criterion.name must be a non-empty string');
+      if (DIRECTIONS.indexOf(cr.direction) < 0) push('criterion.direction must be one of ' + DIRECTIONS.join('|') + ', got ' + JSON.stringify(cr.direction));
+      if (cr.direction === 'within') {
+        if (!Array.isArray(cr.threshold) || cr.threshold.length !== 2 || !cr.threshold.every(Number.isFinite)) push('criterion.threshold for direction "within" must be a finite [lo, hi] pair');
+      } else if (typeof cr.threshold !== 'number' || !Number.isFinite(cr.threshold)) push('criterion.threshold must be a finite number, got ' + JSON.stringify(cr.threshold));
+      if (typeof cr.unit !== 'string') push('criterion.unit must be a string (use "" for a dimensionless count, never omit it)');
+    }
+
+    // ── result / reason, per status ──────────────────────────────────────────────────────────
+    checked.push('result/reason per status');
+    var hasResult = obj.result !== null && obj.result !== undefined;
+    if (hasResult && !_isObj(obj.result)) push('result must be an object of measured quantities, or null');
+    var reasonOk = _nonEmpty(obj.reason);
+    if (st === 'PASS') {
+      if (!hasResult) push('PASS requires result — the measured quantities the criterion was applied to');
+      if (obj.reason !== null && obj.reason !== undefined) push('PASS must carry reason: null — a PASS that needs explaining is not a PASS');
+    } else if (st === 'FAIL' || st === 'SHORTFALL') {
+      if (!hasResult) push(st + ' requires result — what was measured');
+      if (!reasonOk) push(st + ' requires reason — ' + (st === 'FAIL' ? 'what missed, by how much' : 'which sub-population or tail missed'));
+    } else if (st === 'UNDERPOWERED') {
+      if (!reasonOk) push('UNDERPOWERED requires reason naming the pre-stated minimum and the count');
+      else if (!/\d/.test(obj.reason)) push('UNDERPOWERED reason must name the minimum and the count as NUMBERS, got "' + obj.reason + '"');
+    } else if (st === 'NOT_RUN' || st === 'NOT_APPLICABLE') {
+      if (hasResult) push(st + ' must carry result: null — ' + (st === 'NOT_RUN' ? 'nothing was examined, so nothing was measured' : 'the criterion does not bind, so no result exists'));
+      if (!reasonOk) push(st + ' requires reason — ' + (st === 'NOT_RUN' ? 'why it did not run' : 'the property that makes the criterion inapplicable'));
+    } else if (st === 'UNKNOWN') {
+      if (!reasonOk) push('UNKNOWN requires reason — what could not be decided, and why');
+    }
+
+    // ── evidence: what a reader opens to re-derive the verdict ───────────────────────────────
+    checked.push('evidence');
+    if (!Array.isArray(obj.evidence)) push('evidence must be an array of paths/globs/records a reader would open');
+    else {
+      if (!obj.evidence.every(_nonEmpty)) push('evidence entries must be non-empty strings');
+      if ((st === 'PASS' || st === 'FAIL' || st === 'SHORTFALL') && obj.evidence.length === 0) push(st + ' with empty evidence is a claim with nothing to open');
+    }
+
+    // ── provenance of the RUN (a real UTC instant — not a floating recording time) ───────────
+    checked.push('provenance');
+    var pb = obj.producedBy;
+    if (!_isObj(pb)) push('producedBy missing — {tool, commit}');
+    else {
+      if (!_nonEmpty(pb.tool)) push('producedBy.tool must name the tool');
+      if (pb.commit !== null && !SHA_RE.test(String(pb.commit || ''))) push('producedBy.commit must be a 7–40 hex sha, or null with the reason in `commitReason` when the tree is not a checkout');
+      if (pb.commit === null && !_nonEmpty(pb.commitReason)) push('producedBy.commit is null without producedBy.commitReason (∅: say why)');
+    }
+    if (!ISO_UTC_RE.test(String(obj.at || ''))) push('at must be a real UTC instant, ISO-8601 with Z — this is provenance of the RUN, not a floating recording time');
+
+    return { ok: errors.length === 0, errors: errors, checked: checked };
+  }
+
+  /**
+   * make(fields) → a verdict object with the schema, `at`, and null defaults filled — a convenience for
+   * producers so the shape is written once, here. Does NOT validate; call validate() on the result.
+   */
+  function make(f) {
+    f = f || {};
+    return {
+      schema: SCHEMA,
+      gate: f.gate,
+      status: f.status,
+      scope: f.scope === undefined ? 'internal' : f.scope, // the restrictive default; a producer WRITES publishable to lift it
+      population: f.population,
+      criterion: f.criterion,
+      result: f.result === undefined ? null : f.result,
+      evidence: f.evidence || [],
+      reason: f.reason === undefined ? null : f.reason,
+      producedBy: f.producedBy,
+      at: f.at || new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+    };
+  }
+
+  var API = { SCHEMA: SCHEMA, STATUSES: STATUSES.slice(), SCOPES: SCOPES.slice(), DIRECTIONS: DIRECTIONS.slice(), validate: validate, make: make };
+  root.Verdict = API;
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
+<script data-inline-src="night-seal.js">/*
+ * night-seal.js — Tepna
+ * Copyright 2026 Michal Planicka
+ * SPDX-License-Identifier: Apache-2.0
+ * Licensed under the Apache License, Version 2.0. See LICENSE and NOTICE at the
+ * project root, or http://www.apache.org/licenses/LICENSE-2.0
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * READ A `tepna-seal/1` NIGHT IN THE PAGE — CAPTURE-NIGHT-SEAL phase C (brief §5; format frozen in
+ * docs/NIGHT-SEAL-FORMAT.md). The browser twin of tools/verify-seals.mjs and capture-host/unseal.py:
+ * the same recipe, the same refusal vocabulary, the same order — and judged on the same committed
+ * vector and the same seven plants, so the three readers cannot drift unseen.
+ *
+ * WebCrypto (`crypto.subtle`) and the browser-native `DecompressionStream('deflate-raw')` only. No
+ * vendored crypto, no vendored zip: the ~40-line central-directory parser below IS the zip reader.
+ * No network anywhere (CLAUDE.md §📚 hard line 1) — the box's public key travels in the clear header
+ * and is PINNED to the fingerprint printed on the patient's card.
+ *
+ * ORDER, and the two things carried over from the Node twin EXACTLY:
+ *   1. the FINGERPRINT is checked BEFORE the key is imported — a reader that imported first would
+ *      run WebCrypto on attacker-chosen bytes before deciding whether it trusts them;
+ *   2. the AAD of the GCM decrypt is the clear-header BYTES AS READ, never a re-serialisation — the
+ *      header on disk is the signed and the authenticated thing.
+ *
+ * VERIFY ONLY WHAT IS OPENED (brief §5): `unseal()` verifies the framing, fingerprint, signature,
+ * revision, key unwrap, GCM tag, zip structure, Payload-Oxum and the tagmanifest — everything that is
+ * cheap and global — and returns each `data/` file with a `verify()` that checks THAT file's
+ * manifest-sha256 line on demand. A 4 GB night is not hashed to open one stream. `verifyAll()` is the
+ * Node twin's behaviour (every listed file, in manifest order).
+ *
+ * RESULT IS A PROVENANCE BADGE, NOT A GATE. The night opens on a tampered stream — that stream reds by
+ * name (`TAMPERED: <stream>`) and the others open; nothing refuses silently and nothing fabricates
+ * "verified". `verdict()` renders the outcome as ONE `tepna.verdict/1` object (VERDICT-CONTRACT §1)
+ * through verdict.js when it is loaded, so a machine reads the same thing the badge shows.
+ *
+ * Node co-load: `crypto.subtle` and `DecompressionStream` are globals in Node ≥ 18, so the node lane
+ * runs this reader on the committed vector for real. What Node CANNOT see is OverDex's wiring of it
+ * (the file input, IndexedDB, the badge) — that is the browser-gates leg's job.
+ */
+(function (root) {
+  'use strict';
+
+  var FORMAT = 'tepna-seal/1';
+  var MAGIC = 'TEPNASEAL';
+  var VERSION = 1;
+  var KEK_INFO = 'tepna-seal/1 card-kek';
+  var GCM_NONCE_BYTES = 12;
+  var P256_SIG_BYTES = 64;
+  // The refusal vocabulary — echo unseal.KINDS / verify-seals KINDS exactly. A kind outside this
+  // list is a bug in the reader, not a new refusal.
+  var KINDS = ['magic', 'version', 'header', 'fingerprint', 'signature', 'revision', 'card-key', 'payload', 'zip', 'oxum', 'manifest'];
+  var CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+  /* Web APIs are resolved LAZILY from the host realm, never at load: a Node vm co-load (the test
+     runner) evaluates this file in a sandbox that carries them only if the runner injects them, and
+     a module that touched `TextEncoder` at evaluation time would throw there and take every other
+     co-loaded module down with it (CLAUDE.md §👥.3's module-evaluation-time crash). */
+  function host(name) {
+    if (root && typeof root[name] !== 'undefined') return root[name];
+    if (typeof globalThis !== 'undefined' && typeof globalThis[name] !== 'undefined') return globalThis[name];
+    return undefined;
+  }
+  var _enc = null,
+    _dec = null;
+  function enc() {
+    if (!_enc) {
+      var TE = host('TextEncoder');
+      if (!TE) throw new Error('TextEncoder is not available in this runtime');
+      _enc = new TE();
+    }
+    return _enc;
+  }
+  function dec() {
+    if (!_dec) {
+      var TD = host('TextDecoder');
+      if (!TD) throw new Error('TextDecoder is not available in this runtime');
+      _dec = new TD('utf-8', { fatal: true });
+    }
+    return _dec;
+  }
+  function subtleOf() {
+    var c = host('crypto');
+    return (c && c.subtle) || null;
+  }
+
+  function SealRefused(kind, detail) {
+    var e = new Error(kind + ': ' + detail);
+    e.name = 'SealRefused';
+    if (KINDS.indexOf(String(kind).split(':')[0]) < 0) throw new Error('unknown refusal kind ' + kind);
+    e.kind = kind;
+    e.detail = detail;
+    e.refused = true;
+    return e;
+  }
+
+  function hex(u8) {
+    var s = '';
+    for (var i = 0; i < u8.length; i++) s += (u8[i] < 16 ? '0' : '') + u8[i].toString(16);
+    return s;
+  }
+  function fromHex(s) {
+    var m = String(s || '').match(/../g) || [];
+    var out = new Uint8Array(m.length);
+    for (var i = 0; i < m.length; i++) out[i] = parseInt(m[i], 16);
+    return out;
+  }
+  function b64(s) {
+    var A = host('atob'),
+      B = host('Buffer');
+    var bin = typeof A === 'function' ? A(s) : B.from(s, 'base64').toString('binary');
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function eq(a, b) {
+    if (a.length !== b.length) return false;
+    for (var i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+  function sha256(u8) {
+    return subtleOf()
+      .digest('SHA-256', u8)
+      .then(function (d) {
+        return new Uint8Array(d);
+      });
+  }
+
+  /* ── the card code (format §3): 26 Crockford symbols, 2 zero padding bits → 16 bytes ────────── */
+  function decodeCardCode(code) {
+    var s = String(code || '')
+      .toUpperCase()
+      .replace(/[\s-]/g, '')
+      .replace(/[IL]/g, '1')
+      .replace(/O/g, '0');
+    if (s.length !== 26) throw new Error('card code has ' + s.length + ' symbols, not 26');
+    var bits = 0,
+      nbits = 0,
+      out = [];
+    for (var i = 0; i < s.length; i++) {
+      var v = CROCKFORD.indexOf(s[i]);
+      if (v < 0) throw new Error('card code symbol ' + JSON.stringify(s[i]) + ' is not Crockford base32');
+      bits = (bits << 5) | v;
+      nbits += 5;
+      while (nbits >= 8) {
+        out.push((bits >> (nbits - 8)) & 0xff);
+        nbits -= 8;
+        bits &= (1 << nbits) - 1;
+      }
+    }
+    // 130 bits → 16 bytes + 2 padding bits, which must be zero
+    if (nbits !== 2 || bits !== 0) throw new Error('card code padding is not two zero bits');
+    if (out.length !== 16) throw new Error('card code decodes to ' + out.length + ' bytes, not 16');
+    return Uint8Array.from(out);
+  }
+
+  /* ── framing (format §1) ───────────────────────────────────────────────────────────────────── */
+  function split(blob) {
+    var magic = enc().encode(MAGIC);
+    if (!eq(blob.subarray(0, magic.length), magic)) throw SealRefused('magic', 'not a tepna seal');
+    var p = magic.length;
+    if (blob[p] !== VERSION) throw SealRefused('version', 'seal version ' + blob[p] + '; this reader knows ' + VERSION);
+    p += 1;
+    var dv = new DataView(blob.buffer, blob.byteOffset, blob.byteLength);
+    var header, headerBytes, sig, payload;
+    try {
+      var hlen = dv.getUint32(p);
+      p += 4;
+      headerBytes = blob.subarray(p, p + hlen);
+      p += hlen;
+      if (headerBytes.length !== hlen) throw SealRefused('header', 'header truncated: ' + headerBytes.length + ' of ' + hlen + ' bytes');
+      header = JSON.parse(dec().decode(headerBytes));
+      var slen = dv.getUint16(p);
+      p += 2;
+      sig = blob.subarray(p, p + slen);
+      p += slen;
+      if (sig.length !== P256_SIG_BYTES) throw SealRefused('signature', 'signature is ' + sig.length + ' bytes, not ' + P256_SIG_BYTES);
+      // u64 payload length; a browser DataView reads it as a BigInt
+      var plen = Number(dv.getBigUint64(p));
+      p += 8;
+      payload = blob.subarray(p, p + plen);
+      if (payload.length !== plen) throw SealRefused('payload', 'payload truncated: ' + payload.length + ' of ' + plen + ' bytes');
+    } catch (e) {
+      if (e && e.refused) throw e;
+      throw SealRefused('header', 'cannot parse the clear header: ' + (e && e.message));
+    }
+    if (!header || typeof header !== 'object' || header.format !== FORMAT) throw SealRefused('header', 'format is ' + JSON.stringify(header && header.format) + ', not ' + FORMAT);
+    return { header: header, headerBytes: headerBytes, sig: sig, payload: payload };
+  }
+
+  /** The clear header alone — what the page needs BEFORE it has a key (boxId, keyId, fingerprint). */
+  function readHeader(blob) {
+    return split(blob).header;
+  }
+
+  /* ── the zip's central directory, no library (format §4) ───────────────────────────────────── */
+  function inflateRaw(raw) {
+    var DS = host('DecompressionStream'),
+      R = host('Response');
+    if (!DS || !R) return Promise.reject(new Error('DecompressionStream is not available in this runtime'));
+    var ds = new DS('deflate-raw');
+    var writer = ds.writable.getWriter();
+    writer.write(raw);
+    writer.close();
+    return new R(ds.readable).arrayBuffer().then(function (ab) {
+      return new Uint8Array(ab);
+    });
+  }
+  function unzip(u8) {
+    var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    var eocd = -1;
+    for (var i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) {
+        eocd = i;
+        break;
+      }
+    }
+    if (eocd < 0) return Promise.reject(SealRefused('zip', 'no end-of-central-directory record'));
+    var count = dv.getUint16(eocd + 10, true);
+    var p = dv.getUint32(eocd + 16, true);
+    var entries = {};
+    var chain = Promise.resolve();
+    var _loop = function () {
+      if (dv.getUint32(p, true) !== 0x02014b50) throw SealRefused('zip', 'bad central-directory entry');
+      var method = dv.getUint16(p + 10, true);
+      var csize = dv.getUint32(p + 20, true);
+      var usize = dv.getUint32(p + 24, true);
+      var nlen = dv.getUint16(p + 28, true),
+        xlen = dv.getUint16(p + 30, true),
+        clen = dv.getUint16(p + 32, true);
+      var off = dv.getUint32(p + 42, true);
+      var name = dec().decode(u8.subarray(p + 46, p + 46 + nlen));
+      p += 46 + nlen + xlen + clen;
+      if (dv.getUint32(off, true) !== 0x04034b50) throw SealRefused('zip', 'bad local header for ' + name);
+      var lnlen = dv.getUint16(off + 26, true),
+        lxlen = dv.getUint16(off + 28, true);
+      var start = off + 30 + lnlen + lxlen;
+      var raw = u8.subarray(start, start + csize);
+      var dataP;
+      if (method === 0) dataP = Promise.resolve(raw);
+      else if (method === 8) dataP = inflateRaw(raw);
+      else throw SealRefused('zip', 'unsupported compression ' + method + ' for ' + name);
+      return dataP.then(function (data) {
+        if (data.length !== usize) throw SealRefused('zip', name + ': inflated ' + data.length + ', expected ' + usize);
+        entries[name] = data;
+      });
+    };
+    for (var k = 0; k < count; k++) chain = chain.then(_loop);
+    return chain.then(function () {
+      return entries;
+    });
+  }
+
+  function bagInfo(entries) {
+    if (!entries['bag-info.txt']) throw SealRefused('zip', 'bag-info.txt missing');
+    var text;
+    try {
+      text = dec().decode(entries['bag-info.txt']);
+    } catch (e) {
+      throw SealRefused('zip', 'bag-info.txt is not UTF-8');
+    }
+    var info = {};
+    text.split('\n').forEach(function (line) {
+      var i = line.indexOf(': ');
+      if (i > 0) info[line.slice(0, i)] = line.slice(i + 2);
+    });
+    return info;
+  }
+  function parseManifest(entries, name) {
+    if (!entries[name]) throw SealRefused('zip', name + ' missing');
+    var text;
+    try {
+      text = dec().decode(entries[name]);
+    } catch (e) {
+      throw SealRefused('zip', name + ' is not UTF-8');
+    }
+    var want = {};
+    text.split('\n').forEach(function (line) {
+      if (!line.trim()) return;
+      var i = line.indexOf('  ');
+      if (i < 0) throw SealRefused('zip', name + ': unparseable line');
+      want[line.slice(i + 2)] = line.slice(0, i);
+    });
+    return want;
+  }
+  function checkOne(entries, path, want, listedIn) {
+    if (!entries[path]) return Promise.reject(SealRefused('manifest:' + path, 'listed in ' + listedIn + ' but absent from the bag'));
+    return sha256(entries[path]).then(function (d) {
+      var got = hex(d);
+      if (got !== want) throw SealRefused('manifest:' + path, 'SHA-256 ' + got.slice(0, 12) + '… does not match ' + want.slice(0, 12) + '…');
+      return true;
+    });
+  }
+  function checkManifest(entries, name) {
+    var want = parseManifest(entries, name);
+    var chain = Promise.resolve();
+    Object.keys(want).forEach(function (path) {
+      chain = chain.then(function () {
+        return checkOne(entries, path, want[path], name);
+      });
+    });
+    return chain;
+  }
+
+  /* ── the verifier (format §5 order) ─────────────────────────────────────────────────────────── */
+  function unseal(blob, opts) {
+    opts = opts || {};
+    var subtle = subtleOf();
+    if (!subtle) return Promise.reject(new Error('crypto.subtle is not available in this runtime'));
+    var parts;
+    try {
+      parts = split(blob);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+    var header = parts.header,
+      headerBytes = parts.headerBytes,
+      sig = parts.sig,
+      payload = parts.payload;
+    var rawPub = b64(header.boxKey || '');
+    var pinned = opts.pinnedFingerprint;
+    return sha256(rawPub)
+      .then(function (d) {
+        // 1 · FINGERPRINT BEFORE KEY IMPORT — the pin decides whether these bytes are trusted at all.
+        var fp = 'sha256/' + hex(d);
+        if (!pinned || header.boxKeyFingerprint !== pinned || fp !== pinned) throw SealRefused('fingerprint', 'box key ' + header.boxKeyFingerprint + ' is not the pinned ' + (pinned || '(no pin)'));
+        return subtle.importKey('raw', rawPub, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']).catch(function (e) {
+          throw SealRefused('header', 'boxKey is not a P-256 point: ' + (e && e.message));
+        });
+      })
+      .then(function (pub) {
+        return sha256(payload).then(function (ph) {
+          var msg = new Uint8Array(headerBytes.length + 32);
+          msg.set(headerBytes, 0);
+          msg.set(ph, headerBytes.length);
+          return subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, sig, msg);
+        });
+      })
+      .then(function (ok) {
+        if (!ok) throw SealRefused('signature', 'ECDSA over header ‖ SHA-256(payload) does not verify');
+        var rev = header.revision;
+        if (!(typeof rev === 'number' && isFinite(rev) && Math.floor(rev) === rev) || rev < 1) throw SealRefused('header', 'revision is ' + JSON.stringify(rev));
+        var known = opts.knownRevision == null ? null : opts.knownRevision;
+        if (known !== null && rev < known) throw SealRefused('revision', 'revision ' + rev + ' presented after revision ' + known + ' was already seen');
+        var recip = (header.recipients || []).filter(function (r) {
+          return r && r.kind === 'card' && r.keyId === header.keyId;
+        })[0];
+        if (!recip || recip.wrap !== 'AES-KW') throw SealRefused('header', 'no AES-KW card recipient for keyId ' + header.keyId);
+        var salt = enc().encode(String(header.boxId) + String(header.keyId));
+        return subtle
+          .importKey('raw', opts.cardKey, 'HKDF', false, ['deriveKey'])
+          .then(function (ikm) {
+            return subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: salt, info: enc().encode(KEK_INFO) }, ikm, { name: 'AES-KW', length: 256 }, false, ['unwrapKey']);
+          })
+          .then(function (kek) {
+            return subtle.unwrapKey('raw', b64(recip.wrapped), kek, 'AES-KW', { name: 'AES-GCM' }, false, ['decrypt']).catch(function () {
+              throw SealRefused('card-key', "the card key does not unwrap this seal's data key (keyId " + header.keyId + ')');
+            });
+          });
+      })
+      .then(function (dataKey) {
+        // 2 · AAD = the clear-header BYTES AS READ.
+        return subtle.decrypt({ name: 'AES-GCM', iv: payload.subarray(0, GCM_NONCE_BYTES), additionalData: headerBytes }, dataKey, payload.subarray(GCM_NONCE_BYTES)).catch(function () {
+          throw SealRefused('payload', 'AES-GCM tag does not verify');
+        });
+      })
+      .then(function (plainAb) {
+        return unzip(new Uint8Array(plainAb));
+      })
+      .then(function (entries) {
+        var info = bagInfo(entries);
+        var files = {};
+        var bytes = 0,
+          n = 0;
+        Object.keys(entries).forEach(function (k) {
+          if (k.indexOf('data/') === 0) {
+            files[k.slice(5)] = entries[k];
+            bytes += entries[k].length;
+            n++;
+          }
+        });
+        var got = bytes + '.' + n;
+        // Payload-Oxum BEFORE any hashing — a truncated payload is caught by arithmetic, not by a digest.
+        if ((info['Payload-Oxum'] || '') !== got) throw SealRefused('oxum', 'Payload-Oxum says ' + info['Payload-Oxum'] + ', data/ holds ' + got + ' — checked before any hashing');
+        return checkManifest(entries, 'tagmanifest-sha256.txt').then(function () {
+          var want = parseManifest(entries, 'manifest-sha256.txt');
+          var consent = header.consent === 'yes' || header.consent === 'no' ? header.consent : null; // absent ⇒ null, never "no"
+          var out = {
+            header: header,
+            consent: consent,
+            bagInfo: info,
+            files: files,
+            manifest: want,
+            /** Verify ONE data file against manifest-sha256 — the per-stream check, on open. */
+            verify: function (name) {
+              var path = 'data/' + name;
+              if (!(path in want)) return Promise.reject(SealRefused('manifest:' + path, 'not listed in manifest-sha256.txt'));
+              return checkOne(entries, path, want[path], 'manifest-sha256.txt');
+            },
+            /** Every listed file, manifest order — the Node twin's behaviour. */
+            verifyAll: function () {
+              return checkManifest(entries, 'manifest-sha256.txt');
+            }
+          };
+          return out;
+        });
+      });
+  }
+
+  /* ── ONE tepna.verdict/1 per opened seal (VERDICT-CONTRACT §1) ─────────────────────────────── */
+  function verdict(outcome) {
+    // outcome: { status:'PASS'|'FAIL'|'NOT_RUN', kind?, detail?, header?, streams:{opened,verified,tampered[]}, file }
+    var V = root.Verdict || null;
+    var tampered = (outcome.streams && outcome.streams.tampered) || [];
+    var opened = (outcome.streams && outcome.streams.opened) || 0;
+    var verified = (outcome.streams && outcome.streams.verified) || 0;
+    var status = outcome.status;
+    var reason = status === 'PASS' ? null : outcome.kind ? outcome.kind + ': ' + outcome.detail : outcome.detail || 'not run';
+    var obj = {
+      schema: 'tepna.verdict/1',
+      gate: 'night-seal-open',
+      status: status,
+      scope: 'internal', // P5 — a page's own provenance check is never a publishable claim
+      // population = the streams the page OPENED (the ones it verified), as an equality
+      population: { checked: verified + tampered.length, eligible: opened, excluded: opened - verified - tampered.length },
+      criterion: { name: 'seal-verifies-and-every-opened-stream-matches-its-manifest', threshold: 0, unit: 'tampered streams', direction: 'eq' },
+      result:
+        status === 'NOT_RUN'
+          ? null
+          : {
+              boxId: outcome.header ? outcome.header.boxId : null,
+              night: outcome.header ? outcome.header.night : null,
+              revision: outcome.header ? outcome.header.revision : null,
+              consent: outcome.consent === undefined ? null : outcome.consent,
+              tampered: tampered.slice(),
+              kind: outcome.kind || null
+            },
+      evidence: ['night-seal.js'].concat(outcome.file ? [String(outcome.file)] : []),
+      reason: reason,
+      producedBy: outcome.commit
+        ? { tool: 'night-seal.js', commit: outcome.commit }
+        : { tool: 'night-seal.js', commit: null, commitReason: 'in-page reader — the bundle carries manifestHash, not a git sha' },
+      at: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+    };
+    // Validated by verdict.js when it is loaded (OverDex bundles it); the validator's own errors ride
+    // along so a malformed object cannot pass as a verdict. `valid` is the page's tell, not part of §1.
+    if (V && typeof V.validate === 'function') {
+      var v = V.validate(obj);
+      obj.valid = !!(v && v.ok);
+      if (!obj.valid) obj.validationErrors = v && v.errors;
+    }
+    return obj;
+  }
+
+  /* ── the badge text (brief §5) — one string per outcome, the page sites it like an evidence badge ── */
+  function badge(outcome) {
+    if (!outcome || outcome.status === 'NOT_RUN' || outcome.legacy) return { cls: 'seal-unknown', text: 'unsealed folder — provenance unknown' };
+    if (outcome.status === 'FAIL') {
+      if (outcome.kind === 'fingerprint') return { cls: 'seal-bad', text: 'signature: unknown key — not on card' };
+      if (outcome.kind && outcome.kind.indexOf('manifest:') === 0) return { cls: 'seal-bad', text: 'TAMPERED: ' + outcome.kind.slice('manifest:data/'.length) };
+      return { cls: 'seal-bad', text: 'REFUSED: ' + outcome.kind + (outcome.detail ? ' — ' + outcome.detail : '') };
+    }
+    var t = (outcome.streams && outcome.streams.tampered) || [];
+    if (t.length) return { cls: 'seal-bad', text: 'TAMPERED: ' + t.join(', ') };
+    var h = outcome.header || {};
+    var closed = h.closedAt != null ? fmtClock(h.closedAt) : '?';
+    return { cls: 'seal-ok', text: 'sealed · box ' + h.boxId + ' · closed ' + closed + ' · verified' };
+  }
+  function fmtClock(ms) {
+    var d = new Date(ms); // floating tMs → UTC getters (Clock Contract §5)
+    var p2 = function (x) {
+      return x < 10 ? '0' + x : '' + x;
+    };
+    return p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes());
+  }
+
+  /* ── the card-key store: IndexedDB per (boxId, keyId), browser only ─────────────────────────── */
+  var DB_NAME = 'tepna-night-seal',
+    STORE = 'cards';
+  function openDb() {
+    return new Promise(function (resolve, reject) {
+      var IDB = host('indexedDB');
+      if (!IDB) return reject(new Error('IndexedDB is not available'));
+      var req = IDB.open(DB_NAME, 1);
+      req.onupgradeneeded = function () {
+        req.result.createObjectStore(STORE);
+      };
+      req.onsuccess = function () {
+        resolve(req.result);
+      };
+      req.onerror = function () {
+        reject(req.error);
+      };
+    });
+  }
+  function keyOf(boxId, keyId) {
+    return String(boxId) + '\u0000' + String(keyId);
+  }
+  function getCard(boxId, keyId) {
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(STORE, 'readonly');
+        var r = tx.objectStore(STORE).get(keyOf(boxId, keyId));
+        r.onsuccess = function () {
+          resolve(r.result || null);
+        };
+        r.onerror = function () {
+          reject(r.error);
+        };
+      });
+    });
+  }
+  function putCard(boxId, keyId, card) {
+    // card: { cardKeyHex, fingerprint, knownRevision? }
+    return openDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).put(card, keyOf(boxId, keyId));
+        tx.oncomplete = function () {
+          resolve(card);
+        };
+        tx.onerror = function () {
+          reject(tx.error);
+        };
+      });
+    });
+  }
+
+  var API = {
+    FORMAT: FORMAT,
+    KINDS: KINDS.slice(),
+    decodeCardCode: decodeCardCode,
+    readHeader: readHeader,
+    split: split,
+    unzip: unzip,
+    unseal: unseal,
+    verdict: verdict,
+    badge: badge,
+    fromHex: fromHex,
+    hex: hex,
+    cards: { get: getCard, put: putCard }
+  };
+  root.NightSeal = API;
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
 <!-- the capstone tool -->
 <script data-inline-src="overdex-walk.js">/*
  * overdex-walk.js — Tepna folder walker (recursive, fully local, UI-free)
@@ -43635,11 +44385,156 @@ __exports.CPAPDex = window.CPAPDex;
     FUSED_EXPORT = null;
 
   // ── walk + classify a dropped/picked pile ───────────────────────────────
+  /* ── SEALED NIGHTS (CAPTURE-NIGHT-SEAL phase C, brief §5) ──────────────────────────────────────
+     A `.tepna` in the drop is one self-protecting night. It is opened HERE, before classification:
+     read the clear header → recall (or ask for) the card key and pinned fingerprint for its
+     (boxId, keyId) → NightSeal.unseal → every `data/` stream becomes a File tagged
+     `<boxId>-<night>/<name>` and goes down the SAME path a folder's files take. The outcome is a
+     PROVENANCE BADGE on each stream, never a gate: a tampered stream reds by name and the rest of the
+     night still opens; a refused seal (wrong card, unknown key, forged header, …) lists the file under
+     `error` with the refusal kind — nothing refuses silently and nothing fabricates "verified". Files
+     that did not come out of a seal carry `unsealed folder — provenance unknown`. One tepna.verdict/1
+     per seal is kept on `SEALS` for the verifier / a machine reader. */
+  var SEALS = [];
+  var CARD_PROMPT = null; // set by the page: function(header) → Promise<{cardKeyHex, fingerprint}|null>
+  function isSeal(f) {
+    return /\.tepna$/i.test(WALK.relOf(f) || f.name || '');
+  }
+  function openSeal(file) {
+    var NS = window.NightSeal;
+    var rel = WALK.relOf(file);
+    var outcome = { file: rel, status: 'NOT_RUN', streams: { opened: 0, verified: 0, tampered: [] } };
+    if (!NS) {
+      outcome.detail = 'night-seal.js not loaded';
+      return Promise.resolve({ files: [], outcome: outcome });
+    }
+    return readBuffer(file)
+      .then(function (buf) {
+        var blob = new Uint8Array(buf);
+        var header = NS.readHeader(blob); // throws SealRefused on framing — caught below
+        outcome.header = header;
+        return NS.cards
+          .get(header.boxId, header.keyId)
+          .catch(function () {
+            return null;
+          })
+          .then(function (card) {
+            if (card) return card;
+            if (typeof CARD_PROMPT !== 'function') return null;
+            return CARD_PROMPT(header).then(function (entered) {
+              if (!entered) return null;
+              var rec = { cardKeyHex: entered.cardKeyHex, fingerprint: entered.fingerprint, knownRevision: null };
+              return NS.cards.put(header.boxId, header.keyId, rec).catch(function () {
+                return rec; // no IndexedDB (private window) — use it for this session only
+              });
+            });
+          })
+          .then(function (card) {
+            if (!card) {
+              outcome.status = 'NOT_RUN';
+              outcome.detail = 'no card key for box ' + header.boxId + ' (keyId ' + header.keyId + ') — not opened';
+              return { files: [], outcome: outcome };
+            }
+            return NS.unseal(blob, { cardKey: NS.fromHex(card.cardKeyHex), pinnedFingerprint: card.fingerprint, knownRevision: card.knownRevision == null ? null : card.knownRevision }).then(
+              function (r) {
+                outcome.consent = r.consent;
+                var names = Object.keys(r.files);
+                outcome.streams.opened = names.length;
+                // verify per stream — only what is opened; here every stream in the night is opened
+                return Promise.all(
+                  names.map(function (name) {
+                    return r
+                      .verify(name)
+                      .then(function () {
+                        outcome.streams.verified++;
+                        return { name: name, ok: true };
+                      })
+                      .catch(function (e) {
+                        outcome.streams.tampered.push(name);
+                        return { name: name, ok: false, kind: e && e.kind, detail: e && e.detail };
+                      });
+                  })
+                ).then(function (checks) {
+                  outcome.status = 'PASS';
+                  if (outcome.streams.tampered.length) {
+                    outcome.status = 'FAIL';
+                    outcome.kind = 'manifest:data/' + outcome.streams.tampered[0];
+                    outcome.detail = outcome.streams.tampered.length + ' stream(s) do not match manifest-sha256.txt';
+                  }
+                  // a newer revision seen ⇒ remember it, so a stale re-issue is refused next time
+                  if (card.knownRevision == null || r.header.revision > card.knownRevision) {
+                    card.knownRevision = r.header.revision;
+                    NS.cards.put(header.boxId, header.keyId, card).catch(function () {});
+                  }
+                  var prefix = header.boxId + '-' + header.night + '/';
+                  var files = checks.map(function (c) {
+                    var f = new File([r.files[c.name]], c.name);
+                    try {
+                      Object.defineProperty(f, 'relPath', { value: prefix + c.name, configurable: true });
+                    } catch (e) {
+                      f._relPath = prefix + c.name;
+                    }
+                    f.__seal = {
+                      boxId: header.boxId,
+                      night: header.night,
+                      closedAt: header.closedAt,
+                      revision: header.revision,
+                      consent: r.consent,
+                      verified: c.ok,
+                      tampered: !c.ok,
+                      kind: c.kind || null
+                    };
+                    return f;
+                  });
+                  return { files: files, outcome: outcome };
+                });
+              }
+            );
+          });
+      })
+      .catch(function (e) {
+        outcome.status = e && e.refused ? 'FAIL' : 'NOT_RUN';
+        outcome.kind = e && e.refused ? e.kind : undefined;
+        outcome.detail = e && e.refused ? e.detail : String((e && e.message) || e);
+        return { files: [], outcome: outcome };
+      })
+      .then(function (res) {
+        res.outcome.verdict = NS ? NS.verdict(res.outcome) : null;
+        res.outcome.badge = NS ? NS.badge(res.outcome) : null;
+        SEALS.push(res.outcome);
+        return res;
+      });
+  }
+  function expandSeals(files) {
+    var seals = files.filter(isSeal),
+      plain = files.filter(function (f) {
+        return !isSeal(f);
+      });
+    if (!seals.length) return Promise.resolve({ files: plain, refused: [] });
+    return Promise.all(seals.map(openSeal)).then(function (results) {
+      var out = plain.slice(),
+        refused = [];
+      results.forEach(function (r, i) {
+        out = out.concat(r.files);
+        if (!r.files.length) refused.push({ file: seals[i], outcome: r.outcome });
+      });
+      return { files: out, refused: refused };
+    });
+  }
+
   function ingest(files) {
     if (!files || !files.length) return;
     setStatus('reading ' + files.length + ' file' + (files.length === 1 ? '' : 's') + '…', 'run');
     FUSION = null;
     FUSED_EXPORT = null;
+    SEALS = [];
+    expandSeals(files).then(function (ex) {
+      return ingestFiles(ex.files, ex.refused);
+    });
+  }
+  function ingestFiles(files, refused) {
+    refused = refused || [];
+    if (!files.length && !refused.length) return;
     Promise.all(
       files.map(function (f) {
         return readText(f).then(
@@ -43657,6 +44552,17 @@ __exports.CPAPDex = window.CPAPDex;
         );
       })
     ).then(function (items) {
+      // a refused seal is an item too: listed under `error` with its refusal kind, never dropped silently
+      refused.forEach(function (rf) {
+        var b = rf.outcome.badge || {};
+        items.push({
+          file: rf.file,
+          relPath: WALK.relOf(rf.file),
+          klass: 'error',
+          note: b.text || (rf.outcome.kind ? rf.outcome.kind + ': ' + rf.outcome.detail : rf.outcome.detail || 'seal not opened'),
+          seal: rf.outcome
+        });
+      });
       ITEMS = items;
       renderManifest();
       var counts = tally();
@@ -43888,11 +44794,31 @@ __exports.CPAPDex = window.CPAPDex;
         else if (k === 'export') right = '<b>' + esc(it.node) + '</b> <span class="muted">' + (it.nRecs > 1 ? it.nRecs + ' recs' : '1 rec') + '</span>';
         else if (k === 'ambiguous') right = ambiguousControl(it);
         else right = '<span class="muted">' + esc(it.note || '') + '</span>';
-        html += '<div class="row"><span class="path">' + esc(it.relPath) + '</span><span class="rt">' + right + '</span></div>';
+        html += '<div class="row">' + sealBadge(it) + '<span class="path">' + esc(it.relPath) + '</span><span class="rt">' + right + '</span></div>';
       });
       html += '</div>';
     });
     manifestEl.innerHTML = html;
+  }
+
+  /* The provenance badge — inline, immediately BEFORE the label, the evidence-badge placement
+     (CLAUDE.md §🎫 placement 2). Three texts, none fabricated: a verified sealed stream, a tampered
+     stream by name, and the honest default for everything that did not come out of a seal. */
+  function sealBadge(it) {
+    var NS = window.NightSeal;
+    var f = it.file || {};
+    var s = f.__seal;
+    var b;
+    if (it.seal) b = it.seal.badge || (NS ? NS.badge(it.seal) : null);
+    else if (s)
+      b = s.tampered
+        ? { cls: 'seal-bad', text: 'TAMPERED: ' + f.name }
+        : NS
+          ? NS.badge({ status: 'PASS', header: { boxId: s.boxId, closedAt: s.closedAt }, streams: { opened: 1, verified: 1, tampered: [] } })
+          : null;
+    else b = { cls: 'seal-unknown', text: 'unsealed folder — provenance unknown' };
+    if (!b) return '';
+    return '<span class="seal ' + esc(b.cls) + '" title="' + esc(b.text) + '">' + esc(b.text) + '</span> ';
   }
 
   function ambiguousControl(it) {
@@ -44114,11 +45040,48 @@ __exports.CPAPDex = window.CPAPDex;
       ingest(WALK.fromInput(dirInput.files));
       dirInput.value = '';
     });
-    if (fileInput)
+    if (fileInput) {
+      // a sealed night is one file — the loose-file picker accepts it beside anything else
+      var acc = fileInput.getAttribute('accept');
+      if (!acc || acc.indexOf('.tepna') < 0) fileInput.setAttribute('accept', (acc ? acc + ',' : '') + '.tepna,*/*');
       fileInput.addEventListener('change', function () {
         ingest(WALK.fromInput(fileInput.files));
         fileInput.value = '';
       });
+    }
+    // The card prompt: an inline form (never window.prompt), shown on the FIRST sight of a
+    // (boxId, keyId) and remembered in IndexedDB. The verifier bypasses it through OverDex.seals.setCard.
+    var cardEl = document.getElementById('cardPrompt');
+    CARD_PROMPT = function (header) {
+      if (!cardEl) return Promise.resolve(null);
+      return new Promise(function (resolve) {
+        cardEl.style.display = 'block';
+        cardEl.querySelector('.cp-box').textContent = header.boxId + ' · key ' + header.keyId + ' · night ' + header.night;
+        var code = cardEl.querySelector('.cp-code'),
+          fp = cardEl.querySelector('.cp-fp'),
+          err = cardEl.querySelector('.cp-err');
+        var done = function (val) {
+          cardEl.style.display = 'none';
+          ok.onclick = cancel.onclick = null;
+          resolve(val);
+        };
+        var ok = cardEl.querySelector('.cp-ok'),
+          cancel = cardEl.querySelector('.cp-cancel');
+        ok.onclick = function () {
+          try {
+            var key = window.NightSeal.decodeCardCode(code.value);
+            var f = String(fp.value || '').trim();
+            if (!/^sha256\/[0-9a-f]{64}$/.test(f)) throw new Error('the fingerprint is the sha256/… line printed on the card');
+            done({ cardKeyHex: window.NightSeal.hex(key), fingerprint: f });
+          } catch (e) {
+            err.textContent = String((e && e.message) || e);
+          }
+        };
+        cancel.onclick = function () {
+          done(null);
+        };
+      });
+    };
     runBtn.addEventListener('click', runAndFuse);
 
     // ambiguous-route confirmation
@@ -44163,6 +45126,18 @@ __exports.CPAPDex = window.CPAPDex;
       },
       fusedExport: function () {
         return FUSED_EXPORT;
+      },
+      // CAPTURE-NIGHT-SEAL phase C — what the browser-gates leg reads and drives
+      seals: {
+        list: function () {
+          return SEALS;
+        },
+        setCard: function (boxId, keyId, card) {
+          return window.NightSeal.cards.put(boxId, keyId, card);
+        },
+        ingestFiles: function (files) {
+          return ingest(files);
+        }
       }
     };
   }
