@@ -21,6 +21,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inflateRawSync } from 'node:zlib';
 import { webcrypto } from 'node:crypto';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+// THE contract's only definition (VERDICT-CONTRACT §2): every object this tool emits is validated by it
+// before it is printed, so a hand-written shape reds here, not in a reader's regex.
+const Verdict = require('../verdict.js');
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 const subtle = webcrypto.subtle;
 const enc = new TextEncoder();
@@ -33,7 +40,7 @@ const VERSION = 1;
 const KEK_INFO = enc.encode('tepna-seal/1 card-kek');
 const GCM_NONCE_BYTES = 12;
 const P256_SIG_BYTES = 64;
-export const KINDS = ['magic', 'version', 'header', 'fingerprint', 'signature', 'revision', 'card-key', 'payload', 'zip', 'oxum', 'manifest'];
+export const KINDS = ['magic', 'version', 'header', 'fingerprint', 'signature', 'revision', 'card-key', 'payload', 'zip', 'oxum', 'manifest', 'consent'];
 
 export class SealRefused extends Error {
   constructor(kind, detail) {
@@ -213,6 +220,10 @@ export async function unseal(blob, { cardKey, pinnedFingerprint, knownRevision =
   await checkManifest(entries, 'tagmanifest-sha256.txt');
   await checkManifest(entries, 'manifest-sha256.txt');
   const consent = header.consent === 'yes' || header.consent === 'no' ? header.consent : null; // absent ⇒ null, never "no"
+  // The header MIRRORS bag-info's consent (format §2). Two answers to one question is a seal that was
+  // assembled wrong, and a reader must not pick either: refuse by name (plant 8).
+  const inBag = info['Tepna-Research-Consent'] === 'yes' || info['Tepna-Research-Consent'] === 'no' ? info['Tepna-Research-Consent'] : null;
+  if (inBag !== consent) throw new SealRefused('consent', `clear header says ${JSON.stringify(consent)} but bag-info.txt says ${JSON.stringify(inBag)}`);
   return { header, consent, bagInfo: info, files };
 }
 
@@ -221,7 +232,8 @@ import { execFileSync } from 'node:child_process';
 
 function commitShort() {
   try {
-    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { stdio: ['ignore', 'pipe', 'ignore'] })
+    // `cwd: HERE` — the tree the TOOL lives in, not whatever directory the caller happened to be in
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: HERE, stdio: ['ignore', 'pipe', 'ignore'] })
       .toString()
       .trim();
   } catch {
@@ -232,11 +244,13 @@ function commitShort() {
 export function verdict({ status, result, reason, evidence }) {
   if (status === 'PASS' && reason !== null) throw new Error('PASS carries no reason');
   if (status !== 'PASS' && !reason) throw new Error(`${status} requires a reason`);
-  return {
+  const notRun = status === 'NOT_RUN';
+  const v = {
     schema: 'tepna.verdict/1',
     gate: 'verify-seals',
     status,
-    population: { checked: status === 'NOT_RUN' ? 0 : 1, eligible: 1, excluded: status === 'NOT_RUN' ? 1 : 0 },
+    scope: 'internal', // P5: nothing this tool says is quotable outside the repo until a producer WRITES publishable
+    population: { checked: notRun ? 0 : 1, eligible: 1, excluded: notRun ? 1 : 0 },
     criterion: { name: 'tepna-seal/1 verifies end to end', threshold: 0, unit: 'refusals', direction: 'eq' },
     result,
     evidence,
@@ -244,9 +258,12 @@ export function verdict({ status, result, reason, evidence }) {
     producedBy: { tool: 'tools/verify-seals.mjs', commit: commitShort() },
     at: new Date().toISOString()
   };
+  const check = Verdict.validate(v);
+  if (!check.ok) throw new Error(`verify-seals produced an invalid verdict: ${check.errors.join('; ')}`); // a producer bug, never emitted
+  return v;
 }
 
-async function judge(file, opts) {
+export async function judge(file, opts) {
   let blob;
   try {
     blob = new Uint8Array(readFileSync(file));
@@ -264,15 +281,16 @@ async function judge(file, opts) {
   } catch (e) {
     if (e instanceof SealRefused)
       return verdict({ status: 'FAIL', reason: `${e.kind}: ${e.detail}`, evidence: ['tools/verify-seals.mjs', file], result: { kind: e.kind, files: null, consent: null, revision: null } });
-    throw e;
+    // A crash is not a verdict. Anything that is not a named refusal — a bug here, an OS error mid-read —
+    // is UNKNOWN with the error as the reason, so a consumer never mistakes an exception for green.
+    return verdict({ status: 'UNKNOWN', reason: `reader failed: ${e && e.message ? e.message : String(e)}`, evidence: ['tools/verify-seals.mjs', file], result: null });
   }
 }
 
 // ── CLI ─────────────────────────────────────────────────────────────────────────────────────────────
 async function main(argv) {
-  const here = dirname(fileURLToPath(import.meta.url));
   if (argv[0] === '--vectors') {
-    const dir = join(here, '..', 'capture-host', 'tests', 'vectors', 'tepna-seal-1');
+    const dir = join(HERE, '..', 'capture-host', 'tests', 'vectors', 'tepna-seal-1');
     const exp = JSON.parse(readFileSync(join(dir, 'expected.json'), 'utf-8'));
     const v = await judge(join(dir, exp.seal), { cardKey: fromHex(exp.cardKeyHex), pinnedFingerprint: exp.boxKeyFingerprint });
     const drift = v.status === 'PASS' && (JSON.stringify(v.result.files) !== JSON.stringify([...exp.inputs].sort()) || v.result.consent !== null);
