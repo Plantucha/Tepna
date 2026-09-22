@@ -9,6 +9,17 @@
  *
  * THE IDEA. The box fires 0x83 on an aperiodic schedule (e.g. gaps [1,4,2,6,3] s); each buzz lands a
  * ~1.1 s spike in the ring's motion column (step 1, measured 2026-08-19: peak 22, motion is the detector).
+ *
+ * ⚠️⚠️ THAT PREMISE HOLDS FOR THE PROBE'S CAPTURE AND NOT FOR THE DAEMON'S — measured 2026-09-21, residue
+ * `2026-09-21-buzz-motion-byte-sparse-in-daemon-stream`. The 0 → 22 rise is §3.1's probe with the ring AT
+ * REST. In the daemon's `PPG2W` stream — the same `parse_rt_ppg` byte — only **6 of 39** daemon-commanded
+ * fires register at all (08-19 3/15 · 08-20 0/12 · 09-05 3/12), at amplitude **1–9**, with the other 33 at
+ * exactly 0. Run on the worn 09-05 set this tool found 7 onsets (hand movements) and 0 alignment, while the
+ * H10/Verity ACC legs detect 15/15. So: THIS TOOL NEEDS THE PROBE'S CAPTURE (`probe_buzz_fiducial.py`),
+ * NOT A DAEMON CAPTURE, and it now says so at runtime rather than reporting a null that reads as "the buzz
+ * did not fire" — see `motionSparsity` / the refusal below. Why the byte differs ~10× between rest-on-desk
+ * and worn, and whether the 125 Hz pleth path (`0x03` / `pletha`) carries the buzz on a worn finger, is the
+ * open question the residue names; it is NOT answered here and this tool cannot answer it.
  * Because the schedule is aperiodic, the alignment between the detected spikes and the commanded gaps is
  * UNIQUE — the mod-one-beat ambiguity that defeats a rhythmic tap cannot occur. Once aligned, the spread
  * of (onset gap − commanded gap) IS the host-axis residual: how faithfully the ring's motion timeline
@@ -50,6 +61,47 @@ export function readMotion(path) {
     if (t != null && Number.isFinite(mo)) out.push({ t, motion: mo });
   }
   return out;
+}
+
+/** How much of the motion column is non-zero — the discriminator between a PROBE capture (ring at rest,
+ *  the buzz is the only motion, so the spikes stand alone above ~0) and a DAEMON capture (worn, the byte
+ *  is mostly 0 with occasional 1–9 runs that are hand movements). PURE. Measured basis in the header. */
+export function motionSparsity(series) {
+  const n = series.length;
+  if (!n) return { n: 0, nonZero: 0, nonZeroFrac: null, max: null };
+  let nz = 0;
+  let max = 0;
+  for (const r of series) {
+    if (r.motion > 0) nz++;
+    if (r.motion > max) max = r.motion;
+  }
+  return { n, nonZero: nz, nonZeroFrac: nz / n, max };
+}
+
+/** The probe-capture cut. PURE, and stated rather than tuned: the two measured populations are the
+ *  PROBE's (ring at rest, the buzz peaks ~22) and the DAEMON's (worn, 6 of 39 commanded fires visible
+ *  at amplitude 1-9, the other 33 at exactly 0). `PROBE_MIN_PEAK` sits between them. Returns null when
+ *  the capture looks like a probe capture, or `{ reason, sparsity }` when it does not.
+ *  ⚠️ This is a REFUSAL, not a detector tweak: a null alignment from a daemon capture is
+ *  uninformative about whether the schedule fired, so the tool must not report one. */
+export const PROBE_MIN_PEAK = 12;
+export const REFUSAL_EXPLAIN = [
+  'The probe capture this tool needs peaks ~22 with the ring at rest; a DAEMON PPG2W stream carries the',
+  'buzz on only 6 of 39 commanded fires at amplitude 1-9 (measured 2026-09-21: 08-19 3/15, 08-20 0/12,',
+  '09-05 3/12 — the other 33 at exactly 0), so an absent alignment here would say nothing about whether',
+  'the schedule fired. Residue 2026-09-21-buzz-motion-byte-sparse-in-daemon-stream. Re-run against',
+  "probe_buzz_fiducial.py's output, or use the H10/Verity ACC legs, which detect 15/15 on the same fires."
+];
+export function refuseIfNotProbeCapture(series) {
+  const sp = motionSparsity(series);
+  if (!sp.n) return { reason: 'the capture has no rows', sparsity: sp };
+  if (sp.max < PROBE_MIN_PEAK) {
+    return {
+      reason: `this capture's motion column peaks at ${sp.max} over ${sp.n} samples (${(100 * sp.nonZeroFrac).toFixed(1)} % non-zero) — below the probe capture's ~22`,
+      sparsity: sp
+    };
+  }
+  return null;
 }
 
 /** Motion-spike onsets: the leading edge of each run where motion rises above `thr` after being quiet
@@ -105,6 +157,7 @@ export function matchSchedule(onsets, gaps, tolS = 1.5) {
 }
 
 function selftest() {
+  // (plants for motionSparsity + the daemon refusal are at the end of this function)
   let pass = 0,
     fail = 0;
   const ok = (nm, c, d = '') => {
@@ -150,6 +203,32 @@ function selftest() {
   // too few onsets → null, never a partial claim
   ok('fewer onsets than the schedule → null', matchSchedule([1, 2], [1, 1, 1]) === null);
 
+  // ── The probe-vs-daemon refusal (residue 2026-09-21-buzz-motion-byte-sparse-in-daemon-stream) ──
+  // PLANT 1: the probe capture synthesised above — ring at rest, peak 20 — must pass.
+  ok('probe capture: peak is the buzz amplitude', motionSparsity(series).max >= PROBE_MIN_PEAK);
+  ok('probe capture is NOT refused', refuseIfNotProbeCapture(series) === null);
+
+  // PLANT 2: a daemon-shaped capture of the SAME commanded schedule — 3 of the 5 fires register, at
+  // amplitude 9, and the other 2 sit at exactly 0 (the measured 6-of-39 / 1-9 shape).
+  const visible = new Set([cmd[0], cmd[2], cmd[4]]);
+  const daemon = [];
+  for (let t = 0; t < 40; t += 0.01) {
+    let m = 0;
+    for (const c of cmd) if (visible.has(c) && t >= c + LAT && t < c + LAT + 1.1) m = 9;
+    daemon.push({ t, motion: m });
+  }
+  const spD = motionSparsity(daemon);
+  ok('daemon-shaped capture peaks in 1-9', spD.max > 0 && spD.max <= 9, `max=${spD.max}`);
+  const rd = refuseIfNotProbeCapture(daemon);
+  ok('daemon-shaped capture IS refused', rd !== null && /peaks at 9/.test(rd.reason), rd ? rd.reason : 'not refused');
+
+  // PLANT 3: the refusal is load-bearing — unrefused, this capture reports a bare null, which is
+  // exactly the uninformative answer the residue is about (3 onsets for a 5-fire schedule).
+  ok('…and unrefused it would report a bare null', matchSchedule(detectOnsets(daemon), gaps, 1.5) === null);
+
+  // PLANT 4: an empty capture is refused, never scored.
+  ok('empty capture is refused', refuseIfNotProbeCapture([]) !== null);
+
   console.log(fail ? `\n${fail} FAILURE(S)` : `\n${pass} assertions — all green`);
   return fail ? 1 : 0;
 }
@@ -165,6 +244,18 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const gaps = gapsRaw.split(',').map(Number);
   const tol = Number(arg('--tol') || 1.5);
   const series = readMotion(p);
+  /* ⚠️ REFUSE A DAEMON CAPTURE RATHER THAN REPORT ITS NULL. A daemon PPG2W stream carries the buzz on 6 of
+     39 fires at amplitude 1-9 (residue 2026-09-21-buzz-motion-byte-sparse-in-daemon-stream), so "no
+     alignment" from such a file says nothing about whether the schedule fired — and a reader cannot tell
+     that refusal apart from a real null unless the tool names it. The probe's capture has the ring at rest
+     and a peak of ~22; the cut is on the MAXIMUM, which separates the two populations measured so far
+     (probe 22 vs daemon 1-9) and is stated rather than tuned. */
+  const refusal = refuseIfNotProbeCapture(series);
+  if (refusal) {
+    console.log(`  ✗ REFUSED — ${refusal.reason}`);
+    for (const l of REFUSAL_EXPLAIN) console.log(`    ${l}`);
+    process.exit(2);
+  }
   const onsets = detectOnsets(series);
   console.log(`  ${series.length} motion samples, ${onsets.length} spike onset(s) detected`);
   const m = matchSchedule(onsets, gaps, tol);
