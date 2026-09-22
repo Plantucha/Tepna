@@ -85,7 +85,7 @@ decisions about numbers; the two compose (a verdict's `evidence[]` may name bloc
 
 The set is not this table — it is **`tools/verdict-adoption.json`**, held equal to the enumerated
 population by `tools/verdict-adoption.mjs --check` (`npm run check` · CI `static`): every file in
-`tools/*.mjs` and `capture-host/*.py` that prints a verdict word is binned as `decides` (adopt) ·
+`tools/*.mjs`, `capture-host/*.py` and `tests/*.mjs` (non-recursive; `tests/` joined 2026-09-22 when the test runner adopted §3d from outside the population) that prints a verdict word is binned as `decides` (adopt) ·
 `already-json` (converge) · `word-only` (exempt, with the reason) · `test` (a reader). An adoption is
 READ by the gate — `emits: { cmd: […] }` printing the object, or `emits: { file }` — and validated here;
 a row is never believed. Because CI runs `emits.cmd`, it must be cheap and corpus-free (a
