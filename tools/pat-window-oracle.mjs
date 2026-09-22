@@ -439,12 +439,50 @@ function selftest() {
   /* ── Root-layout refusals (2026-09-02). Anti-vacuity: these four assertions cannot pass against
      the pre-fix tool, which exports no `rootLayoutVerdict` at all — verified by running this exact
      selftest against origin/main's copy before the fix landed. */
+  /* 2026-09-22: a flat root is ACCEPTED AS SESSIONS, not refused. The assertion below used to
+     require `ok === false`; it was changed deliberately with the decision (residue
+     `2026-09-02-oracle-flat-root-policy`), not edited to match a regression. What must NOT weaken
+     is the part #2106 bought: the mode says `sessions`, never `nights`, so no caller can tally a
+     flat root as nights. */
   const vFlat = rootLayoutVerdict([], ['Polar_H10_02849638_20260627_235834_ECG.txt']);
-  ok(vFlat.ok === false && /ZERO night directories/.test(vFlat.reason) && /_ECG\.txt/.test(vFlat.reason), `a flat root refuses and names what it looked for, got ${JSON.stringify(vFlat)}`);
+  ok(
+    vFlat.ok === true && vFlat.mode === 'sessions' && /NEVER[\s\S]*as nights/.test(vFlat.note) && /_ECG\.txt/.test(vFlat.note),
+    `a flat root is accepted AS SESSIONS and says so, got ${JSON.stringify(vFlat)}`
+  );
+  ok(rootLayoutVerdict([], ['x_ECG.txt']).mode !== 'nights', 'PLANT: a flat root is never scored as nights');
   const vMixed = rootLayoutVerdict(['2026-07-24'], ['a_ECG.txt', 'b_PPG.txt']);
   ok(vMixed.ok === false && /MIXED layout/.test(vMixed.reason) && /silently drop/.test(vMixed.reason), `a MIXED root refuses rather than scoring the dirs, got ${JSON.stringify(vMixed)}`);
   ok(rootLayoutVerdict(['2026-07-24', '2026-08-17'], []).ok === true, 'a well-formed root passes');
   ok(rootLayoutVerdict([], []).ok === true, 'a genuinely empty root is NOT a layout refusal');
+  ok(rootLayoutVerdict(['2026-07-24'], []).mode === 'nights', 'a root with night dirs and nothing loose stays in NIGHTS mode');
+
+  /* ── sessionUnits: the flat-root grouper (2026-09-22) ─────────────────────────────────────────
+     The session key is the recording's OWN token. The census in rootLayoutVerdict is why it cannot
+     be a date: on the measured tree a raw-date key fuses 06-16's 01:06 tail with 06-17's 22:23
+     start, and a noon-shift fuses six evening recordings with daytime ones. These plants pin the
+     key at full YYYYMMDD_HHMMSS so a later reader cannot quietly truncate it to a date. */
+  const flatFiles = [
+    'Polar_H10_02849638_20260616_223000_ECG.txt',
+    'Polar_Sense_0C301E3F_20260616_223004_PPG.txt',
+    'Polar_H10_02849638_20260617_010615_ECG.txt',
+    'Polar_Sense_0C301E3F_20260617_010620_PPG.txt',
+    'Polar_H10_02849638_20260617_222300_ECG.txt',
+    'README.txt'
+  ];
+  const su = sessionUnits(flatFiles);
+  ok(su.units.length === 3 && su.unkeyed.length === 0, `one unit per keyed _ECG.txt, got ${su.units.length}/${su.unkeyed.length}`);
+  ok(su.units.map((u) => u.key).join(',') === '20260616_223000,20260617_010615,20260617_222300', `keys are the full YYYYMMDD_HHMMSS token, in order, got ${su.units.map((u) => u.key).join(',')}`);
+  /* PLANT — the whole point of the decision: the 01:06 tail of the 06-16 night and the 22:23 start
+     of the 06-17 night share a DATE and must remain two units. A date key would fuse them. */
+  const sameDate = su.units.filter((u) => u.key.startsWith('20260617'));
+  ok(sameDate.length === 2, `two recordings on one calendar date stay two sessions, got ${sameDate.length}`);
+  ok(
+    su.units.every((u) => u.files.filter((f) => /_PPG\.txt$/.test(f)).length === 2),
+    'every unit is offered EVERY loose PPG — pairing is pickPair\u2019s measured overlap, not a token join'
+  );
+  /* PLANT — an ECG whose name carries no token is reported, never dropped. */
+  const noTok = sessionUnits(['weird_ECG.txt', 'a_20260617_010620_PPG.txt']);
+  ok(noTok.units.length === 0 && noTok.unkeyed.length === 1, `an unkeyed _ECG.txt is reported, got ${JSON.stringify(noTok)}`);
 
   /* The SPLIT must travel with the result (2026-09-02). Without this, a consumer has no way to score
      the same half the mode was fitted against except by recomputing it — which is the defect that
@@ -467,7 +505,7 @@ function selftest() {
   const vNone = pickPair('/nowhere', []);
   ok(vNone.missing !== undefined && /_ECG\.txt/.test(vNone.missing), 'an empty directory names the ECG too');
 
-  const TOTAL = 27;
+  const TOTAL = 34;
   console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${TOTAL})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${TOTAL}/${TOTAL})`);
   return fails.length === 0;
 }
@@ -486,21 +524,48 @@ function selftest() {
    only in the wrong direction. `uploads/Ecg nightly` is in fact mixed (3 subdirectories beside its
    flat files), so this is the live case, not a hypothetical.
 
-   NOT decided here: whether a flat root should be ACCEPTED as a corpus. It holds 36 distinct dates,
-   so "flat root = one night" would fuse 36 nights' beat trains and manufacture a cross-night overlap
-   that never existed — a fabricated timebase, not a lenient reader. Accepting the layout is a
-   separate change keyed off the YYYYMMDD token; refusing is a correctness fix and stands alone. */
+   DECIDED 2026-09-22 (residue `2026-09-02-oracle-flat-root-policy`), by census rather than by
+   argument: a flat root is ACCEPTED as **SESSIONS, and refused as nights**. Two measurements, both
+   on the root this tool refuses (`.../uploads/Ecg nightly`, 50 flat `_ECG.txt`, 33 distinct date
+   tokens; filename token vs each file's FIRST data row, `head -2` per file):
+
+   (1) **The filename stamp is FAITHFUL here** — first row minus filename stamp: min 1 s, median
+   2 s, **max 2 s**; 0 of 50 over 60 s; 0 whose filename date differs from its first-row date. The
+   sibling finding on the BOX tree (`2026-09-22-capture-filename-stamp-disagrees-with-content`:
+   39 files on 14 nights up to **18.7 h** out, 8 far enough to move the night key) therefore does
+   NOT transfer — same token, opposite reliability, because PSL names the file at recording start
+   on the same device that writes the timestamps and the capture daemon does not. This author came
+   in carrying that box-tree objection; the census inverted it.
+
+   (2) **But no DATE-derived key is a NIGHT key on this tree**, which is the real obstacle and the
+   reason a later reader must not "improve" sessions into nights. 42 of 50 recordings are nocturnal
+   (4 of them starting after midnight) and **8 are daytime** (08, 09, 09, 11, 12, 17, 18, 19 h).
+     · raw date fuses TWO different nights under one key, twice:
+       `2026-06-17` = 01:06 (tail of the 06-16 night) + 22:23 (start of the 06-17 night);
+       `2026-06-20` = 02:52 + 03:08 + 03:16 (tail of 06-19) + 18:13 (daytime) + 22:44 + 22:55.
+     · a noon-shift (start − 12 h) fixes those two and fuses an evening recording with a DAYTIME
+       one in **six** other keys (06-11, 06-12, 06-13, 06-20, 07-04, 07-10).
+   Each rule mis-assigns a different set; the night-DIRECTORY layout carries the grouping as data
+   and a filename cannot reconstruct it.
+
+   So the session key is the recording's own full `YYYYMMDD_HHMMSS` token — an IDENTIFIER, not a
+   night — and the pairing stays `pickPair`'s measured temporal overlap. Nothing is fused, no
+   cross-night overlap is manufactured, and 50 scorable recordings stop being refused for a
+   grouping the filenames were never able to carry. The MIXED case still refuses: two conventions
+   in one tree means a recording may be reachable twice, and a plausible partial tally is the more
+   dangerous half. */
 export function rootLayoutVerdict(nightDirs, looseRecordings) {
-  if (looseRecordings.length === 0) return { ok: true };
+  if (looseRecordings.length === 0) return { ok: true, mode: 'nights' };
   const shown = looseRecordings.slice(0, 3).join(', ');
   const more = looseRecordings.length > 3 ? `, +${looseRecordings.length - 3} more` : '';
   if (nightDirs.length === 0)
     return {
-      ok: false,
-      reason:
-        `root holds ${looseRecordings.length} recording file(s) at depth 1 and ZERO night ` +
-        `directories — looked for entries matching /^2026-/ containing *_ECG.txt/*_PPG.txt. ` +
-        `Found loose: ${shown}${more}. This layout is not scored; it is not an empty corpus.`
+      ok: true,
+      mode: 'sessions',
+      note:
+        `flat root — ${looseRecordings.length} recording file(s) at depth 1, ZERO night directories ` +
+        `(/^2026-/). Scored as SESSIONS keyed on each recording's own YYYYMMDD_HHMMSS token, NEVER ` +
+        `as nights. Found loose: ${shown}${more}.`
     };
   return {
     ok: false,
@@ -509,6 +574,27 @@ export function rootLayoutVerdict(nightDirs, looseRecordings) {
       `recording file(s) at depth 1. Scoring the directories would silently drop the loose files ` +
       `and report a plausible tally over part of the tree. Found loose: ${shown}${more}.`
   };
+}
+
+/** Group a FLAT root's loose recordings into SESSIONS. PURE (names only, no fs).
+ *  One unit per `_ECG.txt` carrying a `YYYYMMDD_HHMMSS` token, keyed on that token and offered
+ *  EVERY loose `_PPG.txt` as a candidate — `pickPair` then chooses by measured temporal overlap,
+ *  because the PPG's own token trails the ECG's by seconds (the streams start separately inside one
+ *  PSL session: 4 s on 2026-06-10, 4 s on 06-11, 3 s on 06-12), so an exact-token join would pair
+ *  nothing. An ECG with no token is REPORTED, never silently dropped — an unparseable name is an
+ *  absence of a key, not an absence of a recording. */
+export function sessionUnits(looseFiles) {
+  const tok = (f) => (/_(\d{8}_\d{6})_(?:ECG|PPG)\.txt$/i.exec(f) || [])[1] || null;
+  const ppg = looseFiles.filter((f) => /_PPG\.txt$/i.test(f)).sort();
+  const units = [];
+  const unkeyed = [];
+  for (const f of looseFiles.filter((x) => /_ECG\.txt$/i.test(x)).sort()) {
+    const k = tok(f);
+    if (k === null) unkeyed.push(f);
+    else units.push({ key: k, ecg: f, files: [f, ...ppg] });
+  }
+  units.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  return { units, unkeyed };
 }
 
 /* ── ONE PICKER, EXPORTED — three tools were choosing their input files three ways ────────────
@@ -667,7 +753,12 @@ async function main() {
   console.log(
     `half-width ±${HW} ms · fiducial ${FID} · ecg-axis ${AXIS}${REFINE ? '+refine' : ' (whole-sample R)'} · mode search 0–${MODE_SEARCH_MAX} ms · bands: <=${BAND_RECOVERED} RECOVERED, <${BAND_PARTIAL} PARTIAL, else NO RECOVERY; null must be beaten\n`
   );
-  console.log('night        mode    n     narrowSD    fullSD     nullSD   verdict');
+  /* A SESSION IS NOT A NIGHT, and the output must not let a reader spend it as one: the banner
+     says so, the column is headed `session`, and the JSON row carries `session` instead of
+     `night`. See rootLayoutVerdict's census for why no date-derived night key exists here. */
+  const SESSIONS = layout.mode === 'sessions';
+  if (SESSIONS) console.log(`\u26a0 SESSIONS MODE \u2014 ${layout.note}`);
+  console.log(`${SESSIONS ? 'session' : 'night  '}      mode    n     narrowSD    fullSD     nullSD   verdict`);
   const tally = {};
   /* EVERY skip path is NAMED and TALLIED. The bare `continue`s this replaces are the silent-swallow
      class in this tool's own report: a refusal eaten by a catch (2026-08-18's 8.6 s mid-file step
@@ -678,14 +769,27 @@ async function main() {
     console.log(`${n}  ⊘ REFUSED — ${reason}`);
     tally.REFUSED = (tally.REFUSED || 0) + 1;
   };
-  for (const n of nights) {
-    const dir = join(DIR, n);
-    let files;
-    try {
-      files = readdirSync(dir);
-    } catch (e) {
-      refuse(n, `unreadable night dir (${String(e.message).slice(0, 60)})`);
-      continue;
+  /* One iteration list for both layouts: a night unit reads its directory, a session unit carries
+     its own file list (its ECG plus every loose PPG, paired by overlap below). */
+  let units;
+  if (SESSIONS) {
+    const g = sessionUnits(loose);
+    for (const f of g.unkeyed) refuse(f, 'loose _ECG.txt with no YYYYMMDD_HHMMSS token \u2014 no session key');
+    units = g.units.map((u) => ({ label: u.key, dir: DIR, files: u.files }));
+  } else {
+    units = nights.map((n) => ({ label: n, dir: join(DIR, n), files: null }));
+  }
+  for (const u of units) {
+    const n = u.label;
+    const dir = u.dir;
+    let files = u.files;
+    if (files === null) {
+      try {
+        files = readdirSync(dir);
+      } catch (e) {
+        refuse(n, `unreadable night dir (${String(e.message).slice(0, 60)})`);
+        continue;
+      }
     }
     const paired = pickPair(dir, files);
     if (paired.missing) {
@@ -721,7 +825,7 @@ async function main() {
     tally[v.tallyKey] = (tally[v.tallyKey] || 0) + 1;
     if (JSON_OUT)
       jsonRows.push({
-        night: n,
+        [SESSIONS ? 'session' : 'night']: n,
         searchMax: SMAX,
         mode: res.mode ?? null,
         modeB: res.modeB ?? null,
