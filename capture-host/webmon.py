@@ -468,6 +468,13 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
             "loop": status.get("loop"),
             "gates": status.get("gates"),
             "tasks": status.get("tasks"),
+            # THE LIVE LOSS GUARD (residue 2026-09-20-no-loss-guard-during-live-capture): the files
+            # the daemon holds open, stat'd each status round against the last look — `findings` is
+            # THIS round, `last`/`last_at` the most recent event. Forwarded on the day it was written
+            # for the reason every block above it records: a guard whose only channel is a log line
+            # reaches nobody looking at the monitor, and this one exists precisely because a night was
+            # lost while every visible surface read healthy.
+            "live_loss": status.get("live_loss"),
         })
 
     # ── CPAP manual pull ────────────────────────────────────────────────────────────────────────
