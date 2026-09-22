@@ -5783,6 +5783,15 @@
               atLongestPpm: _v.stability.atLongestPpm,
               tauMaxSec: _v.stability.tauMaxSec,
               optimalTauSec: _v.stability.optimalTauSec,
+              /* THE CURVE (residue 2026-09-21-adev-curve-not-exported-by-either-node). The DSP has
+                 computed it all along; the EXPORT dropped it, so every reader got projections —
+                 `optimalTauSec` and `atLongest*` cannot show WHERE the floor sits or whether the
+                 slope was fitted across a KNEE, and §7's point is that the slope names the mechanism.
+                 Republished as `{tauSec, adevPpm, n}`: `adev` here is ms/s (phase in ms over τ in
+                 seconds), so ×1000 is ppm — the same unit as `atShortestPpm`, and never the `…Ms`
+                 misnomer the block above is stuck with. `n` is the term count at that τ, so a reader
+                 can see the estimate widen as τ grows. Octave ladder ⇒ ≤ ~20 points. */
+              curve: (_v.stability.curve || []).map((pt) => ({ tauSec: pt.tau, adevPpm: pt.adev * 1000, n: pt.n })),
               /* KEPT, with corrected text rather than deleted: a consumer may key on its presence, and
                  removing a published field is a contract change for a string that only needed to stop
                  lying. Before 2026-08-16 it warned that the label was unreliable near a boundary;
@@ -5978,7 +5987,13 @@
                 candidates: r.hostAxis.stability.candidates || null,
                 optimalTauSec: nz(r.hostAxis.stability.optimalTauSec),
                 atLongestPpm: nz(r.hostAxis.stability.atLongestPpm),
-                ppmUncertainty: nz(r.hostAxis.stability.ppmUncertainty)
+                ppmUncertainty: nz(r.hostAxis.stability.ppmUncertainty),
+                /* THE CURVE (residue 2026-09-21-adev-curve-not-exported-by-either-node) — every field
+                   above is a projection of exactly these points, and none of them can show a KNEE,
+                   which is the shape that makes `slope` unreadable (§7: the slope names the
+                   mechanism). Straight from the spine as `{tauSec, adevPpm, n}`; `[]` only if a spine
+                   older than the curve ever reaches here. */
+                curve: r.hostAxis.stability.curve || []
               }
             : null
         };
