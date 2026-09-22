@@ -20,6 +20,7 @@ import subprocess
 
 import allan
 import clock_offset
+import polar_pmd
 import writers
 from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
@@ -537,6 +538,51 @@ def stream_file_tags(stream: str) -> tuple[str, ...]:
     return _STREAM_FILE_TAGS.get(stream, (stream.upper(),))
 
 
+def pmd_negotiations(night_dir: str) -> dict:
+    """`(device, stream) -> {"chosen": hz|None, "offered": str|None, "starts": n}` from `PMDNEG.csv`.
+
+    The middle term `rate_reality` never had. Until this sidecar existed it compared the CONFIG against
+    the FILE, so "the device refused the rate" and "the link dropped packets" arrived at the reader as
+    the same disagreement. What the device agreed to sits between them.
+
+    ⚠️ ONLY STARTED negotiations count toward `chosen`, and the vocabulary is DERIVED from
+    `polar_pmd`, never restated here — a second copy of "which ack means started" is how the sidecar
+    and the daemon would come to disagree about the same night. Refused starts still raise `starts`,
+    so a stream that negotiated five times and began none reports its count with a null rate.
+
+    ⚠️ Disagreeing starts give **None**, not a first or a majority: a session that began at 55 Hz and
+    reconnected at 176 was not captured at either, and averaging them would invent a rate no sample
+    was taken at (§∅). The count is published beside it so the reader sees the denominator."""
+    started = {polar_pmd.CTRL_STATUS[c] for c in polar_pmd.CTRL_STATUS if polar_pmd.is_started(c)}
+    out: dict = {}
+    path = os.path.join(night_dir, writers.PMDNEG_NAME)
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            rows = fh.read().splitlines()
+    except OSError:
+        return out
+    for line in rows[1:]:
+        p = line.split(";")
+        if len(p) < 9:
+            continue                      # a torn row is skipped, exactly as every sidecar reader does
+        key = (p[1], p[3])
+        rec = out.setdefault(key, {"chosen": None, "offered": None, "starts": 0, "_seen": set(), "_menus": set()})
+        if p[7] not in started:
+            rec["starts"] += 1
+            continue
+        rec["starts"] += 1
+        try:
+            rec["_seen"].add(int(p[6]))
+        except ValueError:
+            pass                          # a blank or torn rate is an ABSENCE, not a zero
+        rec["_menus"].add(p[5])
+    for rec in out.values():
+        rec["chosen"] = next(iter(rec["_seen"])) if len(rec["_seen"]) == 1 else None
+        rec["offered"] = next(iter(rec["_menus"])) if len(rec["_menus"]) == 1 else None
+        del rec["_seen"], rec["_menus"]
+    return out
+
+
 def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
     """Per stream: the rate ASKED FOR against the rate the file actually carries.
 
@@ -570,6 +616,7 @@ def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
         names = sorted(os.listdir(night_dir))
     except OSError:
         return out
+    negotiated = pmd_negotiations(night_dir)
     for dev in devices or []:
         for stream in sorted((dev.get("streams") or [])):
             want = _expected_hz(dev, stream)
@@ -598,8 +645,20 @@ def rate_reality(night_dir: str, devices: list[dict]) -> list[dict]:
                 # measurement: 1.0 (or None) means every record is its own measurement.
                 "measurement_hz": meas,
                 "held_ratio": None if not (meas and want) else round(want / meas, 3),
+                # THE MIDDLE TERM (PMDNEG.csv). `requested_hz` is what the config asked for and
+                # `measured_hz` what the file carries; between them is what the DEVICE agreed to and
+                # the menu it agreed from. Null where the night has no sidecar — an older night, or a
+                # stream that never negotiated — which is an absence, not an agreement.
+                **_negotiated_fields(negotiated.get((dev.get("name"), stream))),
             })
     return out
+
+
+def _negotiated_fields(rec) -> dict:
+    """The three sidecar fields, null-shaped when the night has no negotiation for this stream."""
+    if not rec:
+        return {"negotiated_hz": None, "offered_hz": None, "negotiated_starts": 0}
+    return {"negotiated_hz": rec["chosen"], "offered_hz": rec["offered"], "negotiated_starts": rec["starts"]}
 
 
 def _size(p: str) -> int:

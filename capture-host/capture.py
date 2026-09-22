@@ -11,8 +11,8 @@
 from __future__ import annotations
 import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
 from writers import (ContactLedger, StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
-                     HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, capture_filename, missing_identity,
-                     night_dir, open_sample_writers)
+                     HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, append_pmd_negotiation,
+                     capture_filename, missing_identity, night_dir, open_sample_writers)
 import writers                       # the MODULE too: the live loss guard asks it for the open set
 from typing import Any, Iterable
 
@@ -3700,6 +3700,16 @@ async def run_polar(dev: dict, root: str):
                                     break
                                 if transient:
                                     break                 # retrying the fixed cmd cannot help while charging
+                            # WRITE THE NEGOTIATION INTO THE NIGHT, refused or not (residue
+                            # 2026-09-22-negotiated-pmd-rate-not-written). The warning above fires
+                            # only when the config and the device disagree, and STATUS forgets; this
+                            # is the durable answer to "what was this stream captured at", beside the
+                            # stream rather than in a journal that rotates. A REFUSED start is logged
+                            # too — it is exactly the case a rate inferred from rows cannot see.
+                            append_pmd_negotiation(
+                                root, _now(), name, addr, pmd.MEAS_NAME.get(meas, str(meas)),
+                                requested=_prefer, offered=settings.get(0x00) if settings else None,
+                                chosen=used_fs, ack=pmd.CTRL_STATUS.get(st, hex(st)), how=how)
                             if pmd_started:                  # record + re-register at the ACTUAL negotiated rate
                                 stream_fs[meas] = used_fs
                                 if (meas == pmd.PPG and not calibrated_for(used_fs)
