@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**201 tools** · 199 with a purpose line · **2 without**
+**202 tools** · 200 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -212,6 +212,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`verify-draft-kills.mjs`](../tools/verify-draft-kills.mjs) | // // verify-draft-kills.mjs — does a drafted assertion, AS WRITTEN, actually kill its mutant? |
 | [`verify-drafts.mjs`](../tools/verify-drafts.mjs) | // // verify-drafts.mjs — re-verify qwen mutation drafts IN THE REALM THAT WILL RUN THEM. |
 | [`verify-fixtures.mjs`](../tools/verify-fixtures.mjs) | WHY IT EXISTS. `build.mjs` re-stamps a fixture's `manifestHash` whenever the bundle moves. |
+| [`verify-seals.mjs`](../tools/verify-seals.mjs) | // // VERIFY A `tepna-seal/1` FILE — the Node twin of capture-host/unseal.py (CAPTURE-NIGHT-SEAL §5, §6). |
 | [`wearable-sync.mjs`](../tools/wearable-sync.mjs) | wearable-sync — ARE THE WEARABLES ON THE SAME TIMELINE? Two accelerometers strapped to one body see the same turn at the same instant — physics, no physiology in between — so ACC-vs-ACC is… |
 | [`witness-baseline.mjs`](../tools/witness-baseline.mjs) | THE CLASSICAL BASELINE FOR `survivor-witness.mjs` A peer's framing, and it is structurally exact: the model is a HEURISTIC PROPOSER working because searching is expensive and checking is… |
 | [`wt-done.mjs`](../tools/wt-done.mjs) | CLOSE THE WORKTREE LOOP. `git worktree add` is cheap and correct, and the REMOVAL is the half that gets skipped — the PR merging feels like the end of the work-unit, and it is not. |

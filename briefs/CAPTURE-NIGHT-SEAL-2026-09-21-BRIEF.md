@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** PROPOSED · **Created:** 2026-09-21 · **Interlocks:** `CORPUS-TIER-30-NIGHTS-2026-09-20-BRIEF.md` (dev-only tiering this brief scopes out of deployment) · `SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md` (sidecars travel inside the seal) · `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md` (§10 citations) · owner design session 2026-09-21 (this brief is its transcript, condensed)
+**Status:** IN-PROGRESS (phase A landed 2026-09-21 — format frozen, vectors on main; B and C may proceed) · **Created:** 2026-09-21 · **Interlocks:** `CORPUS-TIER-30-NIGHTS-2026-09-20-BRIEF.md` (dev-only tiering this brief scopes out of deployment) · `SAMPLE-VALIDITY-ENVELOPE-2026-09-17-BRIEF.md` (sidecars travel inside the seal) · `LITERATURE-USE-POLICY-2026-07-11-BRIEF.md` (§10 citations) · owner design session 2026-09-21 (this brief is its transcript, condensed)
 
 # CAPTURE-NIGHT-SEAL — one self-protecting file per night, carrier-agnostic
 
@@ -230,8 +230,17 @@ for §8 releases.
 
 ## 12 · Done when
 
-- [ ] `docs/NIGHT-SEAL-FORMAT.md` frozen at `tepna-seal/1`; committed test vectors; Python sealer and Node
+- [x] `docs/NIGHT-SEAL-FORMAT.md` frozen at `tepna-seal/1`; committed test vectors; Python sealer and Node
       verifier agree byte-for-byte on them; all seven plants red by name with the denominator published (A).
+      **DONE 2026-09-21 (Heron).** `sealfmt.py` · `seal.py` · `unseal.py` · `tools/verify-seals.mjs` ·
+      `tests/vectors/tepna-seal-1/` (a 126 457-byte seal of three tracked `uploads/synthetic_*` files under a
+      committed TEST key pair and card key). 40 tests at the 100 % floor; the seven plants judged in BOTH readers
+      by the same files, seven verdicts each, denominator an equality; the re-seal byte-identical (RFC 6979
+      signatures, deterministic zip). Both readers emit `tepna.verdict/1` (§🧾), validated against its §1 table in
+      the test until `verdict.js` lands. The shared plants caught one drift before it shipped: the Node reader
+      CRASHED on non-UTF-8 `bag-info.txt` where Python refused `zip` — now both refuse. Encodings §2 left open
+      are fixed and reasoned in the format doc (u32 header length, raw `r‖s`, AES-KW wrap, header as GCM AAD,
+      `boxKey` and `revision` in the clear).
 - [ ] A real box night arrives in `outbox/` as a seal, verified on the rig with `verify-seals.mjs`; card PDF
       and consent question exist at setup; deploy owner-authorized (B).
 - [ ] OverDex opens a `.tepna` from its file input, shows the provenance badge, reds the tampered plant by
