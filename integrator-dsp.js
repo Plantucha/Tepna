@@ -5968,6 +5968,20 @@ function readDetectorStability(nodeExport) {
     atShortestPpm: num(s.atShortestPpm),
     atLongestPpm: num(s.atLongestPpm),
     optimalTauSec: num(s.optimalTauSec),
+    /* THE CURVE, carried through UNCHANGED when the source shipped one (2026-09-22). The block above
+       forwards a detector's stability so a reader weighing an attribution has the fact that settles
+       it — and the scalars alone cannot show a KNEE, which is the one shape that makes `slope`
+       unreadable. Filtered to finite points so a malformed source cannot inject NaN into a consumer;
+       `[]` when the source carried none, never a fabricated default. */
+    curve: Array.isArray(s.curve)
+      ? s.curve
+          .filter(function (pt) {
+            return pt && isFinite(pt.tauSec) && isFinite(pt.adevPpm);
+          })
+          .map(function (pt) {
+            return { tauSec: pt.tauSec, adevPpm: pt.adevPpm, n: num(pt.n) };
+          })
+      : [],
     /* The one derived field, and it is a THRESHOLD RESTATEMENT rather than a fresh inference: a slope
        below the white/flicker-phase boundary (the same −0.75 midpoint `capture-host/allan.py` and
        `ppgdex-dsp.js` use) means averaging keeps paying, so a persistent divergence cannot be noise. */
@@ -7272,7 +7286,7 @@ function buildFusionExport(recs, fusion) {
         nullModel:
           'confirmedApneaIndex is published (reportable=true) only when the confirmed count exceeds a per-night Poisson chance expectation; otherwise findings carry belowChance=true + pSpurious and the index is withheld (R5).',
         apneaCoupling:
-          'apneaCoupling is the EventCoupling shuffled-null verdict for desat⟷surge: circular time-shift surrogates vs a coverage-aware baseline (coverage = the recording overlap, so a desat outside the cardiac window is excluded, not a miss). Read real/lift ONLY when usable (neither underpowered=expectedHits<3 nor saturated=maxLift<1.5). Additive to the Poisson nullModel; does not change reportability (§P7).',
+          'apneaCoupling is the EventCoupling shuffled-null verdict for desat⟷surge: circular time-shift surrogates vs a coverage-aware baseline (coverage = the recording overlap, so a desat outside the cardiac window is excluded, not a miss). Read real/lift ONLY when usable (neither underpowered=expectedHits<3 nor saturated=maxLift<1.5). Additive to the Poisson nullModel; does not change reportability (§P7). ⚠️ SCALE STATEMENT (docs/COUPLING-BOUT-FPR-2026-09-20.md, 400 SHHS1 records): the circular-shift null cannot see SHARED MODULATION — two independent streams whose rates are both driven by one process FINER than the ±5–17 min shifts read as coupled, at 30 % of nights at the 5-min bout scale (87.6 % at 90 s, 13 % at 10 min, 4.4 % with none), and real OSA streams are bouted (median Fano 3.73). For desat⟷surge this is mostly moot — both are driven by the same apneas — but a significant lift on a pair whose only link is a shared bout process is the inherited kind about a third of the time. No per-record flag ships: the diagnostic was measured and rejected (AUC ≤ 0.76 vs a pre-registered 0.8).',
         window:
           'window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = N-way all-node overlap; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping nothing (R3).',
         hrvConsensus: 'HRV consensus compares whole-record SDNN/RMSSD/LF-HF across nodes (window-normalized; epoch-scoped variants kept separately); same-window only (R8).',
