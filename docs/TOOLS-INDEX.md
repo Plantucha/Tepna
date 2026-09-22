@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**213 tools** · 211 with a purpose line · **2 without**
+**214 tools** · 212 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -43,7 +43,8 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`closure-tol-hac.mjs`](../tools/closure-tol-hac.mjs) | derive the 3-source clock-closure tolerance from the legs' own PRECISION instead of their MAGNITUDE. |
 | [`cohort-fit.mjs`](../tools/cohort-fit.mjs) | `cohort-gen.js` samples synthetic patients; the SHHS1 corpus holds 5136 scored real ones. |
 | [`commit-shape.mjs`](../tools/commit-shape.mjs) | the AGENT-NEUTRAL half of the shared-tree guards. WHY THIS EXISTS. |
-| [`corpus-census.mjs`](../tools/corpus-census.mjs) | // // corpus-census.mjs — count a file pattern across EVERY corpus root, and say which roots were searched. |
+| [`corpus-census.mjs`](../tools/corpus-census.mjs) | ════════════════════════════════════════════════════════════════════════════════════════════════ A CENSUS COMMITS ITS FILE LIST, OR IT CANNOT BE DIFFED — residue… |
+| [`corpus-scope.mjs`](../tools/corpus-scope.mjs) | // // corpus-scope.mjs — count a file pattern across EVERY corpus root, and say which roots were searched. |
 | [`corpus-tier.mjs`](../tools/corpus-tier.mjs) | KEEP THE LAST 30 NIGHTS LOCAL; EVERYTHING OLDER BECOMES A SYMLINK INTO THE NAS. |
 | [`cpap-corpus.mjs`](../tools/cpap-corpus.mjs) | drive a WHOLE ResMed SD card through the REAL CPAPDex. Walks a day-foldered SD-card tree, groups each night's EDF files into session sets, and runs the real headless surface —… |
 | [`cpap-oxy-couple.mjs`](../tools/cpap-oxy-couple.mjs) | cross-node event↔event coupling with a SHUFFLED NULL. Folds O2Ring (OxyDex) into a CPAP corpus and asks the question the Integrator cannot currently ask: is a co-occurrence between two… |

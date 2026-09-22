@@ -1,0 +1,292 @@
+{
+ "schema": "tepna.audit-record/1",
+ "title": "Verity PPI-jitter: is the box-vs-PSL difference corpus-dependent?",
+ "residue": "2026-09-03-verity-jitter-corpus-vs-apparatus",
+ "date": "2026-09-22",
+ "scope": "internal",
+ "instrument": {
+  "tool": "tools/ppi-jitter-vs-ecg.mjs",
+  "flags": [
+   "--device",
+   "verity",
+   "--sleep-only"
+  ],
+  "unit": "per-night jitter_sd (ms)"
+ },
+ "bandsPreStated": {
+  "writtenBeforeAnyNumber": true,
+  "statistic": "unpaired difference of medians (box - psl), 95% percentile bootstrap CI, B=10000, seed 20260922",
+  "underpowered": "n < 5 scoring nights on either side",
+  "supported": "95% CI of the difference excludes 0",
+  "notEstablished": "95% CI includes 0"
+ },
+ "corpora": {
+  "box": {
+   "dir": "/home/michal/tepna-smoketest/captures",
+   "nights": 14,
+   "medianJitterMs": 5.1
+  },
+  "psl": {
+   "dir": "/srv/data/tepna-corpus/uploads/Ecg nightly",
+   "filesWalked": 1980,
+   "matchedVerityPpg": 54,
+   "pairedH10Ecg": 50,
+   "nights": 19,
+   "medianJitterMs": 6.28
+  }
+ },
+ "result": {
+  "deltaMs": -1.18,
+  "ci95Ms": [
+   -2.46,
+   0.44
+  ],
+  "ciExcludesZero": false,
+  "probBoxNightLower": 0.59,
+  "pairs": 266,
+  "sharedNightDates": 0
+ },
+ "verdict": "NOT ESTABLISHED \u2014 the two corpora are not distinguishable at this n; the word 'corpus-dependent' is withdrawn as unsupported",
+ "limits": [
+  "unpaired and observational: device naming, capture host, fragmentation and date range differ simultaneously, so even a CI excluding 0 would identify 'these two collections differ', never 'the corpus is the cause'",
+  "zero night dates are shared between the two corpora, so nothing in this comparison is paired",
+  "the recorded 2026-08-18 medians are NOT reproduced exactly: box 4.71 -> 5.10 ms at n 11 -> 14, psl 6.09 -> 6.28 ms; ppgdex-dsp.js has moved since and more nights are on disk, so any citation of 4.71/6.09 should carry its date"
+ ],
+ "perNight": {
+  "box": [
+   {
+    "night": "2026-08-13",
+    "sessions": 3,
+    "epochs": 90,
+    "jitterSdMs": 4.87,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-08-02",
+    "sessions": 1,
+    "epochs": 118,
+    "jitterSdMs": 5.56,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-08-01",
+    "sessions": 1,
+    "epochs": 112,
+    "jitterSdMs": 4.79,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-08-07",
+    "sessions": 1,
+    "epochs": 108,
+    "jitterSdMs": 5.17,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-08-05",
+    "sessions": 1,
+    "epochs": 111,
+    "jitterSdMs": 4.92,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-08-26",
+    "sessions": 1,
+    "epochs": 104,
+    "jitterSdMs": 41.11,
+    "matchPct": 22.8
+   },
+   {
+    "night": "2026-08-04",
+    "sessions": 1,
+    "epochs": 93,
+    "jitterSdMs": 5.53,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-08-14",
+    "sessions": 1,
+    "epochs": 90,
+    "jitterSdMs": 5.03,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-08-17",
+    "sessions": 1,
+    "epochs": 86,
+    "jitterSdMs": 4.57,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-08-03",
+    "sessions": 1,
+    "epochs": 89,
+    "jitterSdMs": 5.93,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-07-20",
+    "sessions": 1,
+    "epochs": 90,
+    "jitterSdMs": 9.27,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-08-12",
+    "sessions": 2,
+    "epochs": 77,
+    "jitterSdMs": 4.63,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-08-16",
+    "sessions": 1,
+    "epochs": 72,
+    "jitterSdMs": 4.96,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-08-15",
+    "sessions": 1,
+    "epochs": 73,
+    "jitterSdMs": 5.45,
+    "matchPct": 100.0
+   }
+  ],
+  "psl": [
+   {
+    "night": "2026-07-09",
+    "sessions": 1,
+    "epochs": 82,
+    "jitterSdMs": 4.61,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-06-11",
+    "sessions": 1,
+    "epochs": 92,
+    "jitterSdMs": 11.2,
+    "matchPct": 99.6
+   },
+   {
+    "night": "2026-06-15",
+    "sessions": 1,
+    "epochs": 89,
+    "jitterSdMs": 7.46,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-06-12",
+    "sessions": 1,
+    "epochs": 85,
+    "jitterSdMs": 7.4,
+    "matchPct": 99.6
+   },
+   {
+    "night": "2026-06-10",
+    "sessions": 1,
+    "epochs": 85,
+    "jitterSdMs": 6.28,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-06-20",
+    "sessions": 1,
+    "epochs": 85,
+    "jitterSdMs": 10.9,
+    "matchPct": 99.6
+   },
+   {
+    "night": "2026-06-28",
+    "sessions": 1,
+    "epochs": 83,
+    "jitterSdMs": 6.47,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-07-13",
+    "sessions": 1,
+    "epochs": 78,
+    "jitterSdMs": 4.73,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-07-12",
+    "sessions": 1,
+    "epochs": 81,
+    "jitterSdMs": 4.3,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-07-01",
+    "sessions": 1,
+    "epochs": 86,
+    "jitterSdMs": 15.13,
+    "matchPct": 94.5
+   },
+   {
+    "night": "2026-07-07",
+    "sessions": 1,
+    "epochs": 84,
+    "jitterSdMs": 3.74,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-07-06",
+    "sessions": 1,
+    "epochs": 80,
+    "jitterSdMs": 3.9,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-06-25",
+    "sessions": 1,
+    "epochs": 83,
+    "jitterSdMs": 6.81,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-06-27",
+    "sessions": 1,
+    "epochs": 82,
+    "jitterSdMs": 4.61,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-06-16",
+    "sessions": 1,
+    "epochs": 70,
+    "jitterSdMs": 5.12,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-06-24",
+    "sessions": 1,
+    "epochs": 72,
+    "jitterSdMs": 7.58,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-06-30",
+    "sessions": 1,
+    "epochs": 67,
+    "jitterSdMs": 5.91,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-06-29",
+    "sessions": 1,
+    "epochs": 66,
+    "jitterSdMs": 6.03,
+    "matchPct": 100.0
+   },
+   {
+    "night": "2026-07-02",
+    "sessions": 1,
+    "epochs": 66,
+    "jitterSdMs": 8.75,
+    "matchPct": 100.0
+   }
+  ]
+ }
+}

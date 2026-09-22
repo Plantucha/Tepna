@@ -278,6 +278,26 @@ function legEvidence(pick) {
   }
   return out;
 }
+/* WHAT A FINISHED CHILD PRINTS — pure, so `--selftest` can pin the rule that was broken. The bug it
+   exists to prevent: the failure tail used to be emitted only when `body` was EMPTY, so a child that
+   died after printing its per-node results had its abort message discarded — the one case where it was
+   the only evidence. The rule now: a non-zero exit ALWAYS contributes the child's last `tailLines`
+   lines, whatever else it said. `body` is the filtered result lines, `out` the child's raw stdout+stderr. */
+function childReport(code, body, out, tailLines = 12) {
+  const parts = [];
+  if (body) parts.push(body);
+  if (code !== 0) {
+    const tail = String(out || '')
+      .trim()
+      .split('\n')
+      .slice(-tailLines)
+      .map((l) => '    ! ' + l)
+      .join('\n');
+    if (tail) parts.push(tail);
+  }
+  return parts.join('\n');
+}
+
 function nightVerdict(key, status, { offered, judged, result, reason, evidence }) {
   const v = Verdict.make({
     gate: 'trio-batch-night',
@@ -470,6 +490,15 @@ if (flag('--selftest')) {
     eq('…the night key rides as an extension field', pass.night, '2026-01-01');
     const f = nightVerdict('2026-01-02', 'FAIL', { offered: 8, judged: 3, result: { overlapH: 0.4 }, reason: 'three-way merged overlap 0.4 h < 1 h', evidence: ['synthetic'] });
     eq('FAIL night validates, reason names the hours', val(f) === true && /0\.4 h/.test(f.reason), true);
+    // THE FAILURE TAIL IS NOT CONDITIONAL ON SILENCE (2026-09-22). `childReport` used to be an
+    // `if (!body)` at the call site, so a child that died AFTER printing results said nothing about why.
+    const withBoth = childReport(1, '    ✓ ECGDex 80 epochs', 'noise\nFATAL ERROR: Reached heap limit', 12);
+    eq('a failed child that ALSO printed results still shows its tail', /Reached heap limit/.test(withBoth) && /✓ ECGDex/.test(withBoth), true);
+    eq('…the tail is marked so it cannot be read as a result line', /^ {4}! /m.test(withBoth), true);
+    eq('a failed child that said nothing else still shows its tail', /heap/.test(childReport(null, '', 'boom: heap', 12)), true);
+    eq('a SUCCESSFUL child shows its results and no tail', childReport(0, '    ✓ ok', 'chatter\nmore chatter', 12), '    ✓ ok');
+    eq('a successful silent child prints nothing at all', childReport(0, '', 'chatter', 12), '');
+    eq('the tail is bounded to the requested number of lines', childReport(1, '', 'a\nb\nc\nd', 2).split('\n').length, 2);
     const na = nightVerdict('2026-01-03', 'NOT_APPLICABLE', { offered: 2, judged: 0, reason: 'not a trio night — no O2Ring anchor' });
     eq('NOT_APPLICABLE night: checked 0, result null, reason present', val(na) === true && na.population.checked === 0 && na.result === null, true);
     // …AND THE SHAPE THE REAL CALL SITE USED TO PASS IS REFUSED. It handed a `result` with the legs in
@@ -1331,19 +1360,9 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
           .filter((l) => /^\s{4,}[✓✗⊘·⏱⚖]/.test(l)) // `{4,}`, ⏱ and ⚖: deeper-indented fit/agreement lines — an exact-4 filter silently ate the first, and a missing ⚖ ate the second
           .join('\n');
         console.log(`\n▸ ${p.key}${node ? ` · ${node}` : ''}  [${done}/${queue0}]${code === 0 ? '' : `  ✗ child exit ${code}`}`);
-        if (body) console.log(body);
-        if (code !== 0) {
-          failed++;
-          if (!body)
-            console.log(
-              out
-                .trim()
-                .split('\n')
-                .slice(-3)
-                .map((l) => '    ' + l)
-                .join('\n')
-            );
-        }
+        const report = childReport(code, body, out);
+        if (report) console.log(report);
+        if (code !== 0) failed++;
         // A split night is only STAMPED once every one of its nodes has come back 0 — the same rule the
         // in-child path uses (all three exports landed), enforced here because no single child can see
         // its siblings. A night with one failed node stays unstamped and is redone next run.

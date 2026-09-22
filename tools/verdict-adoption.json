@@ -1308,6 +1308,18 @@
     ]
    },
    "note": "the CONSUMER the ADEV-curve residue said was owed before the curve shipped (2026-09-21-adev-curve-not-exported-by-either-node): it RE-DERIVES the published slope from the published curve (log-log OLS over exactly those points) and looks for a KNEE by fitting each half of the ladder. Criterion: the published slope must be the fit over the published curve within 1.96\u00b7slopeSE \u2014 FAIL names both numbers; a KNEE is SHORTFALL (the headline held, a named sub-population \u2014 one half of the ladder \u2014 did not), never FAIL; an export carrying no curve (pre-2026-09-22) is NOT_RUN, never a pass. 19 plants; the cmd is a scratch \u03c4\u207b\u00b9 ladder, corpus-free."
+  },
+  "tools/corpus-census.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/corpus-census.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "a census commits its file list (residue 2026-09-20-census-file-list-not-retained): --write records one row per file (name, bytes, sha256 of the first 8 MB \u2014 the digest the ECG census itself used) into analysis/census/<id>.json; --diff NAMES every added/removed/CHANGED file against that manifest instead of reconstructing by elimination. Criterion: no unexplained population change. A moved population is SHORTFALL \u2014 a corpus grows, and the finding is that numbers computed over the recorded set need re-running or re-stating; an EMPTY census is NOT_RUN, never a clean bill. Both dedupe keys are published with their definitions (604 by basename, 549 by content on the real ECG corpus \u2014 a 10 % gap, and the published 597/602 used the basename key). 27 plants incl. the row's own 597\u2192602 case with all five additions named; the cmd is three scratch rows, corpus-free."
   }
  }
 }
