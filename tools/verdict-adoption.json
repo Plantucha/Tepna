@@ -4,8 +4,15 @@
  "producers": {
   "capture-host/ble_sniff.py": {
    "bin": "decides",
-   "status": "pending",
-   "note": "VERDICT line: was a connection followed / is GATT present"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/ble_sniff.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "wave 2: verdict_object() over summarise() \u2014 PASS a data-channel packet (a link was followed) \u00b7 FAIL none (the prose VERDICT lines are the reason) \u00b7 NOT_RUN a capture with zero records; population = records, CRC-bad excluded; the object is printed after the report, the sample is a synthetic summary"
   },
   "capture-host/capture.py": {
    "bin": "word-only",
@@ -50,8 +57,15 @@
   },
   "capture-host/o2ring.py": {
    "bin": "decides",
-   "status": "pending",
-   "note": "probe: header self-consistency and auth variant PASS/FAIL over a real device response"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/o2ring.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "wave 2: the selftest's three known-answer vectors (two captured auth frames byte-for-byte, AES-128 FIPS-197 C.1) as selftest_verdict() \u2014 PASS all reproduce \u00b7 FAIL naming the mismatched; the pull path's self-consistency is parse_dat's decision and prints parse_dat's object, never a second builder"
   },
   "capture-host/oxy_transfer.py": {
    "bin": "word-only",
@@ -60,13 +74,27 @@
   },
   "capture-host/parse_dat.py": {
    "bin": "decides",
-   "status": "pending",
-   "note": "probe: n_samples / trailer / self-consistency OK-FAIL over a real .dat"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/parse_dat.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "wave 2: consistency_verdict() over self_consistency()'s two pre-stated bands (|mean SpO2 - trailer avg| <= 1, |n - total_seconds| <= max(2, 2 %)) \u2014 criterion = bands violated <= 0 with each band and value in result \u00b7 PASS \u00b7 FAIL (the notes are the reason) \u00b7 NOT_RUN no valid trailer; population = samples, None SpO2 excluded; the sample is the synthetic .dat"
   },
   "capture-host/probe_oxyii_0x03.py": {
    "bin": "decides",
-   "status": "pending",
-   "note": "VERDICT lines over the 0x03 probe: records returned, unsaturated rate"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/probe_oxyii_0x03.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "wave 2: verdict_object() over summarise() \u2014 the 2 % band the prose has always applied: PASS the unsaturated rate is within 2 % of exactly one of 112.9 / 125.0 Hz (which one is the result) \u00b7 FAIL neither (a third answer) \u00b7 UNDERPOWERED no unsaturated pair (0 of N, minimum 1) \u00b7 UNKNOWN no records (empty reply and wrong argument indistinguishable); rides the --json log at the top level; bleak import guarded so the sample runs without a radio stack"
   },
   "capture-host/probe_polar_usb.py": {
    "bin": "word-only",
@@ -75,8 +103,15 @@
   },
   "capture-host/probe_rtc_read.py": {
    "bin": "decides",
-   "status": "pending",
-   "note": "VERDICT line: which opcode carries the RTC"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/probe_rtc_read.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "wave 2: classify() per opcode from clock_candidates() (the CLOCK CANDIDATE band diff() prints: a LE window advanced by the gap, +-max(2 s, 20 %)) then verdict_object() \u2014 PASS an opcode carries a candidate \u00b7 FAIL every readable reply byte-identical (the prose VERDICT) \u00b7 UNKNOWN bytes moved but no window tracked the gap (the prose said nothing there; the object says so) \u00b7 NOT_RUN nothing readable on both sides; population = opcodes, unreadable excluded; bleak import guarded"
   },
   "capture-host/probe_verity_survey.py": {
    "bin": "word-only",
@@ -283,8 +318,15 @@
   },
   "capture-host/tools/ax210_postinstall.py": {
    "bin": "decides",
-   "status": "pending",
-   "note": "PASS/FAIL/UNKNOWN post-install state machine"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/tools/ax210_postinstall.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "wave 2: verdict_object() over assess() \u2014 PASS every check OK \u00b7 FAIL any check FAILED (named) \u00b7 UNKNOWN no failure but a check could not be read (never folded into a pass); population = checks, UNKNOWN excluded; the module gained a __main__ for the sample only, the decisions stay library calls"
   },
   "capture-host/tools/find_blindspots.py": {
    "bin": "word-only",
@@ -320,13 +362,23 @@
   },
   "capture-host/tools/scan_coexistence.py": {
    "bin": "decides",
-   "status": "pending",
-   "note": "per-stream PASS / FAIL / INCONCLUSIVE against pre-stated bands"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/tools/scan_coexistence.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "wave 2: verdict_object() over verdict()'s per-stream record \u2014 criterion = streams outside a band <= 0 with both pre-stated bands and every ratio in result \u00b7 PASS \u00b7 FAIL naming the stream and the band \u00b7 UNDERPOWERED any INCONCLUSIVE stream (the prose overall; minimum and counts as numbers) \u00b7 NOT_RUN no stream; population = streams, INCONCLUSIVE excluded; printed after the matrix"
   },
   "capture-host/unseal.py": {
    "bin": "already-json",
-   "status": "pending",
-   "note": "the Python reader of a sealed night: one JSON object per file, PASS/FAIL with the refusal kind as reason (#2796); converge to the schema (scope, population equality) \u2014 step 4"
+   "status": "adopted",
+   "emits": {
+    "file": "capture-host/tests/vectors/tepna-seal-1/verdict-sample.json"
+   },
+   "note": "wave 2: verdict() converged onto verdict.make / verdict.unknown (#2803) \u2014 PASS \u00b7 FAIL <kind>: <detail> \u00b7 NOT_RUN unreadable (excluded) \u00b7 UNKNOWN a crash; `python3 capture-host/unseal.py --verdict-sample` judges the committed vector, but the reader needs `cryptography`, which the static CI runner's python3 does not carry, so the gate reads the COMMITTED sample file and tests/test_seal.py pins it equal to the live object (everything but at/producedBy) \u2014 regenerate with that command when it drifts"
   },
   "capture-host/verdict.py": {
    "bin": "word-only",
@@ -1089,6 +1141,10 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "selftest printer; its own verdict() is a pure PR-state decision consumed by the tool itself, exit-coded \u2014 a wave-2 candidate, listed here by reason not by omission"
+  },
+  "capture-host/tests/test_verdict_wave2.py": {
+   "bin": "test",
+   "status": "exempt"
   }
  }
 }
