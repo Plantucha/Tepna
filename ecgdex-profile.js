@@ -75,7 +75,7 @@
         hrmax: num(man.hrMax) > 0 ? num(man.hrMax) : 0,
         rhr: detOr0('hrRest'),
         vo2gt: detOr0('vo2'),
-        elev: clamp(num(p.elevation) || 0, 0, 6000),
+        elev: p.elevation != null && isFinite(num(p.elevation)) ? clamp(num(p.elevation), 0, 6000) : null, // §∅ — absent ≠ sea level
         cpap: p.cpap === 'yes',
         _origins: { age: org('age'), sex: org('sex'), weight: org('weight'), height: org('height'), elevation: org('elevation'), cpap: org('cpap') }
       };

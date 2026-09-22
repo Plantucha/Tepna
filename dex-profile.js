@@ -207,7 +207,15 @@
       sbp: 120,
       dbp: 80, // ACC/AHA guideline-normal (type-only override)
       vo2: vo2Norm(age, sex),
-      elevation: 0,
+      /* §∅ — an ABSENT elevation is null, never 0 m. 0 m is a LEGAL elevation (a night at the coast),
+         so coercing "nobody typed one" to sea level makes the two indistinguishable, and every
+         consumer that grades on altitude then grades a 2500 m night as if it were at sea — inventing
+         ~4.5 % of desaturation that never happened. The norms this feeds (OxyDex's SpO₂ threshold
+         shift, HRVDex/ECGDex's Uth–Sørensen altitude factor) must see the null and decline to adjust,
+         which is what "no adjustment" already means numerically — the difference is that an absent
+         value can now SAY so instead of asserting sea level. `geo.py` already records a measured
+         elevation or nothing; this is that null surviving the profile layer. */
+      elevation: null,
       activity: 'light',
       betablk: 'no',
       afib: 'no',
