@@ -1336,6 +1336,18 @@
         ]
       },
       "note": "a census commits its file list (residue 2026-09-20-census-file-list-not-retained): --write records one row per file (name, bytes, sha256 of the first 8 MB — the digest the ECG census itself used) into analysis/census/<id>.json; --diff NAMES every added/removed/CHANGED file against that manifest instead of reconstructing by elimination. Criterion: no unexplained population change. A moved population is SHORTFALL — a corpus grows, and the finding is that numbers computed over the recorded set need re-running or re-stating; an EMPTY census is NOT_RUN, never a clean bill. Both dedupe keys are published with their definitions (604 by basename, 549 by content on the real ECG corpus — a 10 % gap, and the published 597/602 used the basename key). 27 plants incl. the row's own 597→602 case with all five additions named; the cmd is three scratch rows, corpus-free."
+    },
+    "tools/corpus-scope.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/corpus-scope.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "counts a file pattern across EVERY documented corpus root and names the scope it searched. Residue 2026-09-05-triage-stamps-searched-the-repo-tree-only: two triage stamps asserted this machine held zero _ECG.txt and two _PPG.txt after counting only the repo's uploads/ tree, which licensed a \"blocked on data locality\" verdict across four briefs. `population` is ROOTS (checked + excluded = documented), a root that is not on this machine counts null and never 0, and every root unreachable emits UNDERPOWERED rather than a zero-file PASS — which is exactly the stamp that shipped."
     }
   }
 }
