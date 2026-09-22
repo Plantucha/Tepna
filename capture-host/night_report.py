@@ -205,8 +205,16 @@ def build(night: str, summary: dict | None, verdict_text: str | None, backcheck_
     # and "a stream was pinned all night" are different findings and call for different actions. It is
     # shown only when there is one, so a clean night's line does not grow a permanent "(0 held)".
     held_note = "" if not held else " (%d held)" % held
+    # §2.4's discipline: this goes in the FILE, not in `line` — the one-line digest stays what it is.
+    # A count with no harm term beside it is exactly what sent a reader after fragmentation that was
+    # not there, so the pair is rendered as one field or not at all.
+    _d = (summary or {}).get("daemon") if isinstance(summary, dict) else None
+    _starts = (_d or {}).get("starts")
+    restarts = UNKNOWN if _starts is None else "%d (%s inside a capture)" % (
+        _starts, (_d or {}).get("inside_capture"))
     return {
         "night": night,
+        "restarts": restarts,
         "ring_hours": hours,
         "spans": spans,
         "held": held,
@@ -231,7 +239,7 @@ def build(night: str, summary: dict | None, verdict_text: str | None, backcheck_
 def render(report: dict) -> str:
     """The file beside the night: the line, then the numbers it compressed, one per row."""
     out = [report["line"], ""]
-    for k in ("night", "ring_hours", "spans", "held", "back_check", "sniffer", "coverage"):
+    for k in ("night", "restarts", "ring_hours", "spans", "held", "back_check", "sniffer", "coverage"):
         v = report.get(k)
         out.append("%-12s %s" % (k, UNKNOWN if v is None else v))
     for c in report.get("clock") or []:

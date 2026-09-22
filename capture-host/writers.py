@@ -2072,6 +2072,20 @@ class HostClockLogWriter:
         return self._health.fsync_max_ms
 
 
+STARTS_NAME = "STARTS.csv"
+# WHEN THE DAEMON CAME UP, in the night it came up in. Columns:
+#   Phone timestamp · pid · git · dirty · adapter
+# `dirty` is the TRISTATE build_id.probe returns — blank when git could not tell us, which is not the
+# same as a clean tree (§∅). `pid` is what separates two starts inside one second.
+_STARTS_HEADER = "Phone timestamp;pid;git;dirty;adapter\n"
+PMDNEG_NAME = "PMDNEG.csv"
+# WHAT THE DEVICE AGREED TO, in the night it agreed to it. Columns, in order:
+#   Phone timestamp · device · address · stream · requested_hz · offered_hz · chosen_hz · ack · how
+# `offered_hz` is the device's OWN menu, comma-joined; `none` when the device reported a settings
+# block with no rate list (a real answer — `build_start` then sends no rate TLV and the vendor default
+# stands); BLANK when no settings were read at all. Those are different facts and the file keeps them
+# apart. `requested_hz` is blank when the config asks for nothing, never 0.
+_PMDNEG_HEADER = "Phone timestamp;device;address;stream;requested_hz;offered_hz;chosen_hz;ack;how\n"
 CLOCKSYNC_NAME = "CLOCKSYNC.csv"
 _CLOCKSYNC_HEADER = "Phone timestamp;device;address;event;skew_sec;detail\n"
 
@@ -2133,6 +2147,99 @@ def append_clock_sync_event(root, when: _dt.datetime, device, address, event: st
         return True
     except OSError as e:
         _log.debug("CLOCKSYNC append failed (%s): %r", event, e)
+        return False
+
+
+def append_daemon_start(root, when: _dt.datetime, *, pid: int, git: str | None,
+                        dirty: bool | None, adapter: str | None) -> bool:
+    """Append ONE daemon start to the night's own `STARTS.csv` sidecar.
+
+    OBSERVABILITY, NOT A FIX, and the distinction is the whole point of the row this closes
+    (2026-09-10-daemon-restarts-are-idle-gated). An earlier row read a high restart COUNT as evidence
+    of harm; the harm was then measured and was not there — 9 restarts fell in capture hours over four
+    nights and **0** of them landed inside a live capture, because the deploy path gates on idleness
+    and the gate works. What remained true is the bookkeeping half: nothing reported the count, so the
+    next person to suspect fragmentation had to re-derive it from `journalctl`, and that derivation is
+    what this replaces.
+
+    ⚠️ THE COUNT ALONE IS WHAT MISLED, so it never travels alone: `nightqc.daemon_starts` pairs it
+    with how many starts fell INSIDE a signal-carrying file's span, which is the predicate the row
+    measured by hand. A number whose harm has to be re-derived is the thing being retired, and
+    shipping the count by itself would reproduce the error this row corrects.
+
+    Same disciplines as `append_clock_sync_event`: open-append-close, fixed name, keyed by the event's
+    wall date, a sidecar rather than a column, telemetry rather than a node-export metric, never
+    raises."""
+    if not root:
+        return False
+    try:
+        path = os.path.join(night_dir(root, when), STARTS_NAME)
+        fresh = not os.path.exists(path) or os.path.getsize(path) == 0
+        with open(path, "a", encoding="utf-8", newline="\n") as fh:
+            if fresh:
+                fh.write(_STARTS_HEADER)
+            fh.write(";".join((
+                _phone_ts(when),
+                str(int(pid)),
+                str(git or ""),
+                "" if dirty is None else ("yes" if dirty else "no"),
+                str(adapter or ""),
+            )) + "\n")
+        return True
+    except (OSError, TypeError, ValueError) as e:
+        _log.debug("STARTS append failed: %r", e)
+        return False
+
+
+def append_pmd_negotiation(root, when: _dt.datetime, device, address, stream: str, *,
+                           requested: int | None, offered, chosen: int | None,
+                           ack: str, how: str) -> bool:
+    """Append ONE PMD START negotiation to the night's own `PMDNEG.csv` sidecar.
+
+    THE RATE A STREAM WAS ACTUALLY CAPTURED AT (residue 2026-09-22-negotiated-pmd-rate-not-written).
+    The daemon logs `START ppg (negotiated) → ok` and nothing else: not the menu the device reported,
+    not the rate `polar_pmd.chosen_rate` picked from it. So what a night was captured at existed only
+    in journald and in live STATUS, and after the fact it had to be INFERRED — rows divided by a stamp
+    span. Measured on vigil 2026-09-22: three days of journal carry three `START ppg (negotiated) → ok`
+    lines for the Verity and **zero** naming a PPG menu or a rate. The same absence has already cost a
+    mis-stated rate once, where a night captured at four times the configured rate left only a warning
+    line as its trace.
+
+    Same disciplines and the same shape as `append_clock_sync_event` above — open-append-close per
+    event (a handful per night), a FIXED name so the append is idempotent across calls, keyed by the
+    EVENT's wall date, a SIDECAR rather than a column in a vendor layout, TELEMETRY rather than a
+    `ganglior.node-export` metric, and it NEVER RAISES: evidence must not take capture down.
+
+    ⚠️ It records the negotiation, INCLUDING a failed one. A START that was refused is exactly the case
+    the inference-from-rows cannot see — there are no rows to divide — so `ack` carries the device's
+    own status word and `chosen_hz` the rate we would have used. A row is not a claim that data flowed.
+    """
+    if not root:
+        return False
+    try:
+        if offered is None:
+            offered_s = ""                       # nothing was read — not an empty menu (§∅)
+        else:
+            offered_s = ",".join(str(int(r)) for r in offered) or "none"
+        path = os.path.join(night_dir(root, when), PMDNEG_NAME)
+        fresh = not os.path.exists(path) or os.path.getsize(path) == 0
+        with open(path, "a", encoding="utf-8", newline="\n") as fh:
+            if fresh:
+                fh.write(_PMDNEG_HEADER)
+            fh.write(";".join((
+                _phone_ts(when),
+                str(device or ""),
+                str(address or ""),
+                str(stream or ""),
+                "" if requested is None else str(int(requested)),
+                offered_s,
+                "" if chosen is None else str(int(chosen)),
+                str(ack or "").replace(";", ",").replace("\n", " "),
+                str(how or "").replace(";", ",").replace("\n", " "),
+            )) + "\n")
+        return True
+    except (OSError, TypeError, ValueError) as e:
+        _log.debug("PMDNEG append failed (%s %s): %r", device, stream, e)
         return False
 
 

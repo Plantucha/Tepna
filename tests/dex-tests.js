@@ -29965,6 +29965,7 @@
       }
       var statusMismatch = [];
       var statusBlind = [];
+      var sharedDocRows = [];
       /*  DOCS-LEDGER-CHECK3B-BLIND-ROW — check3b used to report "in sync" about rows it never read.
           Two separate holes, both measured before either was touched:
 
@@ -29988,7 +29989,33 @@
         if (hs !== 'DONE' && hs !== 'PROPOSED' && hs !== 'IN-PROGRESS') return;
         idxLines.forEach(function (line) {
           if (line.indexOf('](briefs/' + n + ')') < 0) return;
-          if ((line.match(/\]\(briefs\//g) || []).length > 1) return; // multi-brief row → shared status cell, skip
+          /* ── A ROW BELONGS TO THE BRIEF IN ITS **Doc** CELL, NOT TO EVERY BRIEF IT MENTIONS.
+             This used to SKIP any row linking more than one brief, reasoning that a shared status
+             cell has nothing to compare. Measured 2026-09-22: 5 such rows, and through them **8
+             briefs whose status this check never compared at all** — a silent skip, invisible
+             because `statusBlind` reports rows that say nothing and cannot report a brief the loop
+             never reached.
+             The rows are not actually shared: their second link is a CROSS-REFERENCE in the
+             description (`PPG-FOOT-PLACEMENT`'s row links its own FOLLOWUPS; `HOSTAXIS-STABILITY`'s
+             links `ALLAN-DEVIATION`), while the Role cell states the status of the Doc-cell brief.
+             Keying on the Doc cell removes the skip: all 5 rows become comparable and all 5 agree.
+             ⚠️ THIS IS RESIDUE `2026-09-06-link-substring-is-not-a-row-match` ITSELF. That row
+             reported `PPG-FOOT-PLACEMENT-FOLLOWUPS` as `*(DONE)*` in the index against an
+             IN-PROGRESS header — but the `*(DONE)*` it read belongs to the PARENT's row, which
+             merely links the followups in its prose. The followups brief has its own row, and that
+             row says IN-PROGRESS. The reported mismatch was the substring artifact the row's own key
+             names; the durable fix is that this gate now keys on ownership too, instead of on "the
+             line mentions the file". */
+          var docCell = (line.split('|')[1] || '').trim();
+          if (docCell.indexOf('](briefs/' + n + ')') < 0) return; // a cross-reference, not this brief's row
+          /* A Doc cell that names SEVERAL docs (`A-BRIEF.md · B-FINDINGS.md`) really does share one
+             Role cell — `Audit / Brief`, an ARCHIVED note — and there is nothing per-brief to
+             compare. That skip stays, but it is COUNTED and NAMED below instead of being silent:
+             a skip nobody can see is the same shape as the blindness this check was fixing. */
+          if ((docCell.match(/\]\(briefs\//g) || []).length > 1) {
+            sharedDocRows.push(n);
+            return;
+          }
           var cells = line
             .split('|')
             .map(function (c) {
@@ -30066,7 +30093,13 @@
       T.ok(
         'check3b · …and every such row STATES a status (a silent row is not "in sync")',
         statusBlind.length === 0,
-        statusBlind.length ? 'blind rows (' + statusBlind.length + '): ' + statusBlind.slice(0, 8).join('; ') : 'all rows state one'
+        statusBlind.length
+          ? 'blind rows (' + statusBlind.length + '): ' + statusBlind.slice(0, 8).join('; ')
+          : /* PUBLISH THE SKIP. A row whose Doc cell names several docs shares one Role cell and has
+               nothing per-brief to compare — a real exemption, but one nobody could see until it was
+               counted here. The number is the denominator this check does NOT cover, printed beside
+               the one it does. */
+            'all rows state one (' + sharedDocRows.length + ' brief(s) exempt: their Doc cell groups several docs — ' + (sharedDocRows.slice(0, 4).join(', ') || 'none') + ')'
       );
 
       /* ── check3d · a ROUTED item's target must actually ACCEPT it ──────────────────────────────
@@ -50288,6 +50321,93 @@
          · desat events carry the §2 refs; schema.version is 2.1 — the MINOR bump lands with the emitter.
        PLANTS: a null meanSpo2 → its block absent, the other three present; a window that cannot be
        placed (tEndMs ≤ t0Ms) → no measurement at all. */
+    /* ── HOISTING: THE CAPABILITY, ITS INVARIANT, AND WHAT IT MUST REFUSE ──────────────────
+       Residue 2026-09-21-measurement-block-serialises-shared-parts-per-block. Nothing emits a hoisted
+       document — the consumer is §12 question 5, open and unscheduled — so these assertions ARE the
+       contract for it, and the round trip is the one that matters: a hoist that loses a field is a
+       provenance loss no reader could detect, because the block still validates while describing a
+       window or an input hash that is not its own. */
+    group('Measurement blocks hoist their shared parts — only where it saves bytes, and reversibly', 'measurement-block · hoist · export-size', function (T) {
+      var MB = env.MeasurementBlock;
+      if (!MB || typeof MB.hoist !== 'function' || typeof MB.resolve !== 'function') {
+        T.skip('MeasurementBlock.hoist + .resolve available', 'measurement-block.js not co-loaded in this runner');
+        return;
+      }
+      var mk = function (id, v) {
+        return {
+          metricId: id,
+          value: v,
+          window: { startTMs: 1000, endTMs: 2000, clockDomain: 'host-corrected', spreadMs: 12.5 },
+          code: { manifestHash: 'aaaaaaaaaaaa', computeHash: 'bbbbbbbbbbbb' },
+          evidence: { envelopeRef: 'env-1', inputHash: 'cccccccccccc' },
+          basis: 'derived',
+          sourceChannel: 'H10:ecg',
+          quality: { n: 3 },
+          uncertainty: null,
+          uncertaintyReason: 'not estimated — a long string that repeats verbatim in every block'
+        };
+      };
+      var three = { hr: mk('hr', 60), rmssd: mk('rmssd', 30), sdnn: mk('sdnn', 40) };
+      var h = MB.hoist(three);
+      T.ok('the shared parts are lifted out', Object.keys(h.shared).length >= 5, Object.keys(h.shared).join(','));
+      T.eq('…and every block keeps its identity', Object.keys(h.blocks).sort().join(','), 'hr,rmssd,sdnn');
+      T.ok(
+        'metricId and value are NEVER hoisted — identity and payload are not shared parts',
+        !('metricId' in h.shared) && !('value' in h.shared) && h.blocks.hr.metricId === 'hr' && h.blocks.hr.value === 60
+      );
+      /* THE ROUND TRIP. Deep equality, not byte equality: `resolve` returns the shared keys first, so
+         key ORDER differs — invisible to a reader of the object, visible to a fixture byte-compare. */
+      var deepEq = function (a, b) {
+        var ka = Object.keys(a).sort(),
+          kb = Object.keys(b).sort();
+        if (ka.join(',') !== kb.join(',')) return false;
+        for (var i = 0; i < ka.length; i++) if (JSON.stringify(a[ka[i]]) !== JSON.stringify(b[ka[i]])) return false;
+        return true;
+      };
+      var ids = Object.keys(three);
+      var allBack = ids.every(function (id) {
+        return deepEq(MB.resolve(h.shared, h.blocks[id]), three[id]);
+      });
+      T.ok('resolve(hoist(x)) IS x, key for key — the invariant a lost field would break', allBack);
+      T.ok(
+        '…and the key ORDER differs, which is why the invariant is deep equality and not a byte compare',
+        Object.keys(MB.resolve(h.shared, h.blocks.hr)).join(',') !== Object.keys(three.hr).join(','),
+        Object.keys(MB.resolve(h.shared, h.blocks.hr)).join(',')
+      );
+      /* A per-block key OVERRIDES the shared one — the whole reason a shared section is safe to add
+         later: a per-window emitter hoists what it can and states what differs. */
+      var over = MB.resolve({ sourceChannel: 'shared:ch', quality: { n: 1 } }, { metricId: 'hr', value: 7, sourceChannel: 'block:ch' });
+      T.eq('a key on the block WINS over the shared one', over.sourceChannel, 'block:ch');
+      T.eq('…while a key only in shared is inherited', over.quality.n, 1);
+      /* HOIST ONLY WHERE IT SAVES BYTES — one principle, and both refusals fall out of it. */
+      var one = { hr: mk('hr', 60) };
+      T.eq('a ONE-BLOCK document is returned UNCHANGED (every key is trivially shared; saving nothing)', JSON.stringify(MB.hoist(one)), JSON.stringify({ shared: {}, blocks: one }));
+      var unshared = {
+        a: { metricId: 'a', value: 1, window: { startTMs: 1, endTMs: 2, clockDomain: 'host', spreadMs: 2 } },
+        b: { metricId: 'b', value: 2, window: { startTMs: 9, endTMs: 10, clockDomain: 'device', spreadMs: 1 } }
+      };
+      T.eq('two blocks sharing NOTHING are returned unchanged, not wrapped in an empty `shared`', JSON.stringify(MB.hoist(unshared)), JSON.stringify({ shared: {}, blocks: unshared }));
+      T.eq('an empty map is returned unchanged', JSON.stringify(MB.hoist({})), JSON.stringify({ shared: {}, blocks: {} }));
+      /* THE SAVING IS REAL AND IS THE QUANTITY THE RULE IS STATED IN — the rule and its instrument are
+         the same thing, so they cannot drift apart. */
+      var sv = MB.hoistSaving(three);
+      T.ok('hoisting three whole-night blocks saves a substantial fraction', sv.savedBytes > 0 && sv.savedPct > 30, JSON.stringify({ before: sv.beforeBytes, after: sv.afterBytes, pct: sv.savedPct }));
+      T.eq('…and reports NO saving for the one-block case the rule refuses', MB.hoistSaving(one).savedBytes, 0);
+      /* ANTI-VACUITY: a hoisted block must NOT still carry what was lifted out, or the "saving" is a
+         copy and the round trip would pass over a document that shrank by nothing. */
+      T.ok('a hoisted block no longer carries the lifted keys', !('window' in h.blocks.hr) && !('evidence' in h.blocks.hr), JSON.stringify(Object.keys(h.blocks.hr)));
+      /* AND THE RESOLVED BLOCK STILL VALIDATES — hoisting must not produce something the contract
+         would reject once reassembled. */
+      if (typeof MB.validateMeasurement === 'function') {
+        var v = MB.validateMeasurement(MB.resolve(h.shared, h.blocks.hr), {
+          resolveMetric: function () {
+            return { id: 'hr' };
+          }
+        });
+        T.ok('a resolved block still validates under the contract', v.ok === true, (v.errors || []).slice(0, 3).join(' | '));
+      }
+    });
+
     group('OxyDex emits measurement blocks — roadmap §3 reference path (plant-backed)', 'oxydex-dsp · measurement-block · provenance · roadmap-§3 · plant', function (T) {
       var OD = env.OxyDex;
       var MB = env.MeasurementBlock;
