@@ -244,12 +244,15 @@ export function verdictFor(fixture, hops, opts = {}) {
     schema: 'tepna.verdict/1',
     gate: 'measurement-walk',
     status,
+    scope: 'internal', // P5 — a walk over committed fixtures is repo-internal evidence, never a publishable claim
     population: { checked: walked.length + broken.length, eligible: hops.length, excluded: notDerived.length },
     criterion: { name: 'every-derived-hop-walks-back', threshold: 0, unit: 'broken hops', direction: 'eq' },
     result: status === 'NOT_RUN' ? null : { broken: broken.length, walked: walked.length, hops: hops.map((h) => ({ hop: name(h), ok: h.ok })) },
     evidence: ['tools/measurement-walk.mjs', 'uploads/' + fixture, 'provenance/OxyDex.json'].concat(opts.inputs || []),
     reason,
-    producedBy: { tool: 'tools/measurement-walk.mjs', commit: opts.commit || null },
+    producedBy: opts.commit
+      ? { tool: 'tools/measurement-walk.mjs', commit: opts.commit }
+      : { tool: 'tools/measurement-walk.mjs', commit: null, commitReason: 'git unavailable in this checkout (tarball or no .git)' },
     at: opts.at || new Date().toISOString()
   };
 }
@@ -426,6 +429,21 @@ function selftest() {
   );
   // 4 · the verdict object — FAIL names the hop, NOT_RUN names the hop, PASS carries no reason
   const vPass = verdictFor('x.json', envClean, { commit: 'abc1234', at: '2026-09-21T00:00:00Z' });
+  try {
+    const Verdict = req(path.join(REPO, 'verdict.js'));
+    const vv = Verdict.validate(vPass);
+    check('VERDICT the PASS object validates under verdict.js: ' + (vv.errors || []).join(' | '), vv.ok);
+    const vn = Verdict.validate(
+      verdictFor(
+        'x.json',
+        envClean.map((h) => (h.hop === 'envelope' ? { ...h, ok: false, detail: 'input absent — not re-derived' } : h)),
+        { commit: null }
+      )
+    );
+    check('VERDICT a NOT_RUN object validates under verdict.js (commit null carries commitReason): ' + (vn.errors || []).join(' | '), vn.ok);
+  } catch (e) {
+    check('verdict.js loadable for the selftest: ' + e.message, false);
+  }
   check(
     'VERDICT clean walk → PASS with reason null and an equality population',
     vPass.status === 'PASS' && vPass.reason === null && vPass.population.checked + vPass.population.excluded === vPass.population.eligible && vPass.population.excluded === 0
@@ -452,7 +470,7 @@ function selftest() {
       .filter((x) => x.hop === 'window' || x.hop === 'inputHash')
       .every((x) => x.ok === false && /absent/.test(x.detail))
   );
-  const N = 23;
+  const N = 25;
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
     console.log(`${fails.length} failed of ${N}`);
@@ -492,7 +510,8 @@ async function main() {
       /* no git ⇒ commit null, stated as such */
     }
     const verdicts = report.map((r) => verdictFor(r.fixture, r.hops, { inputs: r.inputs, commit }));
-    console.log(JSON.stringify(verdicts, null, 2));
+    // ONE fixture ⇒ ONE object (what a manifest `emits.cmd` reads); several ⇒ an array of objects.
+    console.log(JSON.stringify(only && verdicts.length === 1 ? verdicts[0] : verdicts, null, 2));
     bad = verdicts.filter((v) => v.status === 'FAIL').length;
   }
   // Under --json stdout is ONE parseable document (the verdicts); the human line goes to stderr.

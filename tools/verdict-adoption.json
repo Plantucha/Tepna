@@ -418,6 +418,20 @@
    "status": "exempt",
    "reason": "verdict words appear only in comments"
   },
+  "tools/measurement-walk.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/measurement-walk.mjs",
+     "--json",
+     "--fixture",
+     "synthetic_oxydex_golden.node-export.json"
+    ]
+   },
+   "note": "wave-1 adopter (#2798): --json emits one tepna.verdict/1 per fixture (\u2717 hop \u21d2 FAIL naming the hop; \u2218 hop \u21d2 NOT_RUN naming the hop, result null; all \u2713 \u21d2 PASS); the manifest reads the committed synthetic fixture, whose input is committed too, so the check is corpus-free and runs in CI"
+  },
   "tools/mutate.mjs": {
    "bin": "decides",
    "status": "pending",
