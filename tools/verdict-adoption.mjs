@@ -50,7 +50,10 @@ export const STATUSES = ['pending', 'adopted', 'exempt'];
 export function enumerate(root) {
   let out;
   try {
-    out = execFileSync('git', ['grep', '-lE', WORDS.source, '--', 'tools/*.mjs', 'capture-host/*.py'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    /* tests/*.mjs joined 2026-09-22 (Kestrel): a RUNNER that emits the object but sits outside the
+       population is the one-of-N shape from the other side — tests/run-tests.mjs adopted §3d (#2835)
+       and the gate could not see it. Non-recursive, like tools/. */
+    out = execFileSync('git', ['grep', '-lE', WORDS.source, '--', 'tools/*.mjs', 'capture-host/*.py', 'tests/*.mjs'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   } catch (e) {
     if (e.status === 1) return [];
     throw e;
@@ -59,6 +62,7 @@ export function enumerate(root) {
     .split('\n')
     .filter(Boolean)
     .filter((p) => !p.startsWith('tools/') || !p.slice(6).includes('/')) // tools/*.mjs non-recursive, like the two tool gates
+    .filter((p) => !p.startsWith('tests/') || !p.slice(6).includes('/')) // tests/*.mjs non-recursive too
     .sort();
 }
 
@@ -110,8 +114,18 @@ export function check(enumerated, manifest, validator, runner) {
   return { ok: errors.length === 0, errors, counts };
 }
 
-/* Read what an adopted producer emits: run its cmd (stdout must be the object, or an object with the
-   verdict at the top level) or read its file. */
+/* An emitter whose stdout is a LARGER payload carrying the object under a key (tests/run-tests.mjs
+   --json: `{ totalGroups, groups, verdict, … }`) names it as `emits.key`; the gate then validates
+   THAT object. Absent key ⇒ the whole payload is the object. A named key that is missing is a read
+   failure, never a silent pass over the wrapper. */
+export function pickEmitted(payload, emits) {
+  if (!emits || !emits.key) return payload;
+  if (!payload || typeof payload !== 'object' || !(emits.key in payload)) throw new Error(`emits.key "${emits.key}" is not in the payload`);
+  return payload[emits.key];
+}
+
+/* Read what an adopted producer emits: run its cmd (stdout must be the object, or a payload carrying
+   it under `emits.key`) or read its file. */
 function runEmits(emits, root) {
   let text;
   if (Array.isArray(emits.cmd)) {
@@ -120,7 +134,7 @@ function runEmits(emits, root) {
     text = r.stdout;
   } else text = fs.readFileSync(path.join(root, emits.file), 'utf8');
   const first = text.indexOf('{');
-  return JSON.parse(text.slice(first));
+  return pickEmitted(JSON.parse(text.slice(first)), emits);
 }
 
 /* First-pass triage: for each unbinned file, where the words occur (code vs comment lines) and a sample,
@@ -197,6 +211,16 @@ function selftest() {
     check([], M({}), V.validate, runner).ok && check([], M({}), V.validate, runner).counts.enumerated === 0,
     'an empty population against an empty manifest is trivially equal (and says enumerated 0)'
   );
+  // emits.key — the object under a key of a larger payload
+  ok(pickEmitted({ a: 1 }, {}).a === 1 && pickEmitted({ a: 1 }, { cmd: ['x'] }).a === 1, 'no key ⇒ the payload is the object');
+  ok(pickEmitted({ verdict: good, groups: [] }, { key: 'verdict' }) === good, 'a key picks the object out of the payload');
+  let threw = false;
+  try {
+    pickEmitted({ groups: [] }, { key: 'verdict' });
+  } catch (_) {
+    threw = true;
+  }
+  ok(threw, 'a named key missing from the payload is a read failure, not a pass over the wrapper');
   // triage helper on a synthetic file
   const tmp = fs.mkdtempSync('/tmp/verdict-adoption-');
   fs.mkdirSync(path.join(tmp, 'tools'));
@@ -207,8 +231,9 @@ function selftest() {
   fs.rmSync(tmp, { recursive: true, force: true });
   // the real tree: the enumeration runs and is non-empty
   const en = enumerate(ROOT);
-  ok(en.length > 50 && en.every((p) => p.startsWith('tools/') || p.startsWith('capture-host/')), 'enumerate() finds the population on the real tree (' + en.length + ')');
-  const N = 13;
+  ok(en.length > 50 && en.every((p) => p.startsWith('tools/') || p.startsWith('capture-host/') || p.startsWith('tests/')), 'enumerate() finds the population on the real tree (' + en.length + ')');
+  ok(en.includes('tests/run-tests.mjs') && !en.some((p) => /^tests\/.+\//.test(p)), 'tests/*.mjs is in the population, non-recursive (the runner is no longer outside the gate)');
+  const N = 17;
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
     console.log(`${fails.length} failed of ${N}`);
