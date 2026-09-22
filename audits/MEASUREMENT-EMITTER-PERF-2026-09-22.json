@@ -1,0 +1,91 @@
+{
+ "schema": "tepna.verdict/1",
+ "gate": "measurement-emitter-perf",
+ "status": "PASS",
+ "population": {
+  "checked": 2,
+  "eligible": 2,
+  "excluded": 0
+ },
+ "criterion": {
+  "name": "emitter_overhead",
+  "threshold": {
+   "runtimePct": 5,
+   "runtimeAbsMs": 50,
+   "peakRssMB": 50,
+   "exportBytes": 4096
+  },
+  "unit": "mixed",
+  "direction": "lte",
+  "preStated": "bands written 2026-09-22 before any run (scratchpad s10/BANDS.md; reproduced in the PR body)"
+ },
+ "result": {
+  "real-clip": {
+   "wallLightMs": {
+    "baseline": 227.8,
+    "branch": 207.3,
+    "delta": -20.5
+   },
+   "wallRichMs": {
+    "baseline": 225.3,
+    "branch": 204.3,
+    "delta": -21.0
+   },
+   "peakMB": {
+    "baseline": 107.8,
+    "branch": 107.4,
+    "delta": -0.4
+   },
+   "bytesLight": {
+    "baseline": 1061,
+    "branch": 3395,
+    "delta": 2334
+   },
+   "bytesRich": {
+    "baseline": 9422,
+    "branch": 11756,
+    "delta": 2334
+   }
+  },
+  "synthetic": {
+   "wallLightMs": {
+    "baseline": 43,
+    "branch": 41.6,
+    "delta": -1.4
+   },
+   "wallRichMs": {
+    "baseline": 41.2,
+    "branch": 40.6,
+    "delta": -0.6
+   },
+   "peakMB": {
+    "baseline": 68.7,
+    "branch": 69.4,
+    "delta": 0.7
+   },
+   "bytesLight": {
+    "baseline": 1063,
+    "branch": 3399,
+    "delta": 2336
+   },
+   "bytesRich": {
+    "baseline": 4484,
+    "branch": 6820,
+    "delta": 2336
+   }
+  }
+ },
+ "evidence": [
+  "tools/regen-ecgdex-goldens.mjs (headless realm recipe)",
+  "uploads/synthetic_ecgdex_h10.txt",
+  "uploads/Polar_H10_AAAAAAAA_20260617_010615_ECG_clip.txt (corpus, gitignored)",
+  "ecgdex-dsp.js ecgBuildMeasurementBlocks",
+  "integrator-dsp.js adaptEnvelopeNode"
+ ],
+ "reason": null,
+ "producedBy": {
+  "tool": "scratch measure.mjs \u2014 3 runs per tree per input, medians; /usr/bin/time peak RSS",
+  "commit": "origin/main 3c0dbdec vs claude/ecgdex-measurement-emitter-k9g"
+ },
+ "at": "2026-09-22T00:23:26Z"
+}

@@ -2,7 +2,7 @@
   "kernel": null,
   "schema": {
     "name": "ganglior.node-export",
-    "version": "2.0",
+    "version": "2.1",
     "node": "ECGDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
@@ -36,6 +36,98 @@
     "deviceEpoch": {
       "offsetMs": -235343518661,
       "plausible": false
+    }
+  },
+  "measurement": {
+    "hr": {
+      "metricId": "hr",
+      "value": 59.6,
+      "window": {
+        "startTMs": 1781658377723,
+        "endTMs": 1781658437715,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": 0.9232177734375
+      },
+      "sourceChannel": "H10:ecg",
+      "code": {
+        "manifestHash": "6c6494ba9c04",
+        "computeHash": "306300e55ee6"
+      },
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": "efacf3c08839",
+        "envelopeReason": "no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 60,
+        "durationMin": 1,
+        "analyzablePct": 100,
+        "coveragePct": 100
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)"
+    },
+    "rmssd": {
+      "metricId": "rmssd",
+      "value": 35.9,
+      "window": {
+        "startTMs": 1781658377723,
+        "endTMs": 1781658437715,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": 0.9232177734375
+      },
+      "sourceChannel": "H10:ecg",
+      "code": {
+        "manifestHash": "6c6494ba9c04",
+        "computeHash": "306300e55ee6"
+      },
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": "efacf3c08839",
+        "envelopeReason": "no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 60,
+        "durationMin": 1,
+        "analyzablePct": 100,
+        "coveragePct": 100
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)"
+    },
+    "sdnn": {
+      "metricId": "sdnn",
+      "value": 28.2,
+      "window": {
+        "startTMs": 1781658377723,
+        "endTMs": 1781658437715,
+        "clockDomain": "device",
+        "timingSource": "device",
+        "spreadMs": 0.9232177734375
+      },
+      "sourceChannel": "H10:ecg",
+      "code": {
+        "manifestHash": "6c6494ba9c04",
+        "computeHash": "306300e55ee6"
+      },
+      "evidence": {
+        "envelopeRef": null,
+        "inputHash": "efacf3c08839",
+        "envelopeReason": "no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 60,
+        "durationMin": 1,
+        "analyzablePct": 100,
+        "coveragePct": 100
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)"
     }
   },
   "ganglior_events": [],
