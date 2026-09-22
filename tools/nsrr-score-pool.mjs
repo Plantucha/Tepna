@@ -56,8 +56,26 @@
  *     ⚠️ And it is invalid without (1). Stopping early on directory order would report a precise
  *     estimate of the wrong population — the tool refuses `--precision` if shuffling is disabled.
  *
+ * ── THE VERDICT (tepna.verdict/1, VERDICT-CONTRACT §1; `verdict.js` is the authority) ────────
+ * The pool is the EMITTER for every scorer it drives, so the object is built here, once, from the
+ * scorer's own `liveStat` and — when the scorer declares one — its own criterion:
+ *     export const CRITERION = { name, threshold, unit, direction }   // pre-stated, in the scorer
+ *     export function verdict(stat, rows) -> { status, reason }      // the scorer's decision
+ * Population = paired records: eligible = every EDF↔annotation pair in the run, checked = the records
+ * that contributed to the statistic (`stat.n`), excluded = the rest (errored, or missing a term).
+ * `result` always carries the statistic (value · halfWidth · n · label) so the number survives the
+ * status. ⚠️ A scorer that declares NO criterion gets **UNKNOWN**, with the reason saying so — never a
+ * PASS. Four scorers (`nsrr-aai-validate`, `nsrr-ahiest-validate`, `nsrr-oxstat-validate`,
+ * `nsrr-resprate-validate`) never pre-stated a band and their numbers are already on record (RESIDUE
+ * 2026-09-15-* · 2026-09-22-nsrr-pool-scorers-have-no-prestated-band), so
+ * a band written now would be a number, not a test; UNKNOWN is the truthful status for a statistic
+ * with no rule to apply, and it is what makes the missing rule visible. The object is written into
+ * the results file under `verdict` and printed as one labelled line.
+ *
  * USAGE
  *   node tools/nsrr-score-pool.mjs --selftest
+ *   node tools/nsrr-score-pool.mjs --verdict-sample                   # the object over a synthetic
+ *                                                                     # scorer — no corpus; CI reads it
  *   node tools/nsrr-score-pool.mjs --dir <psg-dir>                    # full corpus, all cores
  *   node tools/nsrr-score-pool.mjs --dir <d> --workers 8              # cap the pool
  *   node tools/nsrr-score-pool.mjs --dir <d> --precision 0.25         # stop at +/-0.25 events/h
@@ -67,7 +85,9 @@
  * A SCORER is any module exporting `makeRealm()` and `scoreRecord(ctx, rec)` (or `poolScoreRecord`
  * when its own CLI needs a different signature), with `rec = { id, edf, xml }`.
  */
-import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, renameSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
 import { cpus } from 'node:os';
@@ -157,6 +177,77 @@ export function saveCheckpoint(path, obj) {
 }
 
 /* ── selftest ═════════════════════════════════════════════════════════════════════════════════ */
+/* ── the verdict object ───────────────────────────────────────────────────────────────────────
+   Pure. `scorer` is the imported scorer module (or any object with liveStat/CRITERION/verdict);
+   `stat` its liveStat over `rows`; `pop` = { total }; `meta` = { scorerSpec, commit, at, evidence }. */
+export function poolVerdict(scorer, stat, rows, pop, meta) {
+  meta = meta || {};
+  const name = String(meta.scorerSpec || 'scorer')
+    .replace(/^.*\//, '')
+    .replace(/\.mjs$/, '');
+  const n = stat && Number.isFinite(stat.n) ? stat.n : 0;
+  const total = pop && Number.isFinite(pop.total) ? pop.total : n;
+  const result = n > 0 ? { label: stat.label, value: stat.value, halfWidth: stat.halfWidth == null ? null : stat.halfWidth, n } : null;
+  const declared = scorer && scorer.CRITERION && typeof scorer.verdict === 'function';
+  let status;
+  let reason;
+  if (!n) {
+    status = 'NOT_RUN';
+    reason = 'no record contributed to the statistic (' + (rows || []).length + ' scored, ' + total + ' paired) — nothing to decide on';
+  } else if (!declared) {
+    status = 'UNKNOWN';
+    reason =
+      name +
+      ' declares no pre-stated criterion (no `CRITERION` + `verdict()` export) — the statistic is reported bare and no rule can be applied to it; a band written after the number is a number, not a test';
+  } else {
+    const d = scorer.verdict(stat, rows) || {};
+    status = d.status;
+    reason = d.reason == null ? null : d.reason;
+  }
+  const producedBy = { tool: 'tools/nsrr-score-pool.mjs', commit: meta.commit == null ? null : meta.commit };
+  if (meta.commit == null) producedBy.commitReason = meta.commitReason || 'not run inside a git checkout';
+  return {
+    schema: 'tepna.verdict/1',
+    gate: 'nsrr-score-pool:' + name,
+    scope: 'internal',
+    status,
+    population: { checked: n, eligible: total, excluded: total - n },
+    criterion: declared ? scorer.CRITERION : { name: 'undeclared', threshold: 0, unit: '', direction: 'lte' },
+    result: status === 'NOT_RUN' || status === 'NOT_APPLICABLE' ? null : result,
+    evidence: ['tools/nsrr-score-pool.mjs', ...(meta.scorerSpec ? ['tools/' + String(meta.scorerSpec).replace(/^\.\//, '')] : []), ...(meta.evidence || [])],
+    reason,
+    producedBy,
+    at: (meta.at || new Date().toISOString()).replace(/\.\d{3}Z$/, 'Z')
+  };
+}
+/* A scorer that DOES declare — the shape every real scorer can copy, and what --verdict-sample runs.
+   Synthetic rows, a pre-stated band on the median, no corpus. */
+export const SAMPLE_SCORER = Object.freeze({
+  CRITERION: Object.freeze({ name: 'median_abs_delta', threshold: 1, unit: 'events/h', direction: 'lte' }),
+  liveStat: (rows) => {
+    const d = rows.filter((r) => r && !r.err && r.delta != null).map((r) => r.delta);
+    return { label: 'median delta (synthetic)', value: median(d), halfWidth: medianHalfWidth(d), n: d.length };
+  },
+  verdict: (stat) => (Math.abs(stat.value) <= 1 ? { status: 'PASS', reason: null } : { status: 'FAIL', reason: 'median |delta| ' + stat.value + ' > 1 events/h' })
+});
+export function verdictSample() {
+  const rows = Array.from({ length: 40 }, (_, i) => (i % 8 === 7 ? { err: 'synthetic failure' } : { delta: ((i * 7) % 11) / 10 - 0.5 }));
+  return poolVerdict(
+    SAMPLE_SCORER,
+    SAMPLE_SCORER.liveStat(rows),
+    rows,
+    { total: 44 },
+    { scorerSpec: './sample-scorer.mjs', commit: null, commitReason: '--verdict-sample: synthetic scorer and rows, no code identity claimed', at: '2026-09-22T00:00:00Z' }
+  );
+}
+function headCommit() {
+  try {
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return null;
+  }
+}
+
 function selftest() {
   let bad = 0,
     good = 0;
@@ -220,11 +311,48 @@ function selftest() {
   A('checkpoint: unreadable is discarded, never half-trusted', loadCheckpoint(ck) === null);
   A('checkpoint: absent returns null, not a crash', loadCheckpoint(ck + '.nope') === null);
 
+  /* the verdict — declared and undeclared scorers, pinned against verdict.js */
+  {
+    const V = createRequire(import.meta.url)('../verdict.js');
+    const val = (v) => (V.validate(v).ok ? true : V.validate(v).errors.join(' | '));
+    const meta = { scorerSpec: './nsrr-aai-validate.mjs', commit: 'ec4e2d93', at: '2026-09-22T00:00:00Z' };
+    const rows = Array.from({ length: 30 }, (_, i) => ({ odi4: 10 + (i % 5), expertDesat4Idx: 11 }));
+    const undeclared = { liveStat: defaultLiveStat };
+    const u = poolVerdict(undeclared, defaultLiveStat(rows), rows, { total: 32 }, meta);
+    A('verdict: a scorer with no CRITERION → UNKNOWN naming the missing rule, never PASS', u.status === 'UNKNOWN' && /no pre-stated criterion/.test(u.reason), u.reason);
+    A('verdict: …the statistic still rides in result (value, halfWidth, n)', u.result && u.result.n === 30 && u.result.value != null && 'halfWidth' in u.result, JSON.stringify(u.result));
+    A('verdict: …population is paired records, checked + excluded = eligible', u.population.checked === 30 && u.population.excluded === 2 && u.population.eligible === 32);
+    A('verdict: …gate names the scorer', u.gate === 'nsrr-score-pool:nsrr-aai-validate', u.gate);
+    A('verdict: …valid under verdict.js', val(u) === true, String(val(u)));
+    const smp = verdictSample();
+    A(
+      'verdict: a declared scorer decides — the sample lands on its own enum value with the declared criterion',
+      smp.status === 'PASS' && smp.criterion.name === 'median_abs_delta' && smp.population.checked === 35 && smp.population.eligible === 44,
+      JSON.stringify({ s: smp.status, p: smp.population })
+    );
+    A('verdict: …valid, commit null WITH a reason', val(smp) === true && smp.producedBy.commit === null && /synthetic/.test(smp.producedBy.commitReason), String(val(smp)));
+    const failing = { ...SAMPLE_SCORER, verdict: (st) => ({ status: 'FAIL', reason: 'median |delta| ' + st.value + ' > 1' }) };
+    const f = poolVerdict(failing, SAMPLE_SCORER.liveStat([{ delta: 3 }, { delta: 4 }, { delta: 5 }]), [{ delta: 3 }, { delta: 4 }, { delta: 5 }], { total: 3 }, meta);
+    A('verdict: a declared FAIL passes through with its reason', f.status === 'FAIL' && /> 1/.test(f.reason) && val(f) === true, String(val(f)));
+    const nr = poolVerdict(SAMPLE_SCORER, SAMPLE_SCORER.liveStat([{ err: 'x' }]), [{ err: 'x' }], { total: 5 }, meta);
+    A('verdict: nothing contributed → NOT_RUN, result null, even for a declared scorer', nr.status === 'NOT_RUN' && nr.result === null && val(nr) === true, String(val(nr)));
+    const bad = { ...SAMPLE_SCORER, verdict: () => ({ status: 'PASS', reason: null }) };
+    const b = poolVerdict(bad, { label: 'x', value: 0, halfWidth: null, n: 0 }, [], { total: 0 }, meta);
+    A('verdict: a scorer cannot smuggle PASS over checked 0 — the pool decides NOT_RUN first', b.status === 'NOT_RUN', b.status);
+  }
+
   console.log('\n' + (bad ? '✕ ' + bad + ' failed, ' : '✓ ') + good + ' assertions passed');
   return bad ? 1 : 0;
 }
 
-if (process.argv.includes('--selftest')) process.exit(selftest());
+/* Keyed on argv[1], like the main guard below: a scorer may `import()` this module for `poolVerdict`
+   while running its OWN --selftest / --verdict-sample, and a bare argv check would hijack that run. */
+const POOL_IS_CLI = !!(process.argv[1] && process.argv[1].endsWith('nsrr-score-pool.mjs'));
+if (POOL_IS_CLI && process.argv.includes('--selftest')) process.exit(selftest());
+if (POOL_IS_CLI && process.argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample(), null, 1));
+  process.exit(0);
+}
 
 /* Probe whether a scorer can support early stopping AT ALL, before a run starts — an unsupported
    `--precision` must fail loudly at second 0, not run to the end pretending to watch. */
@@ -441,7 +569,8 @@ async function main(argv) {
   beat(true);
   saveCheckpoint(CKPT, { done, n: fin, total });
   mkdirSync(dirname(outPath), { recursive: true });
-  writeFileSync(outPath, JSON.stringify({ generated: new Date().toISOString(), total, scored: fin, stopped, records: done }, null, 1));
+  const verdict = poolVerdict(scorerMod, liveStat(done), done, { total }, { scorerSpec, commit: headCommit(), evidence: [edfDir, xmlDir, outPath] });
+  writeFileSync(outPath, JSON.stringify({ generated: new Date().toISOString(), total, scored: fin, stopped, verdict, records: done }, null, 1));
 
   const mins = ((Date.now() - t0) / 60000).toFixed(1);
   const rps = (fin - done0) / Math.max(1e-9, (Date.now() - t0) / 1000);
@@ -459,8 +588,10 @@ async function main(argv) {
     if (stopped.floor) console.log('       decide, the floor did — read this as provisional and re-run with a tighter target.');
   }
   console.log('  results   ' + outPath);
+  console.log('VERDICT (tepna.verdict/1): ' + JSON.stringify({ gate: verdict.gate, status: verdict.status, population: verdict.population, reason: verdict.reason }));
   return 0;
 }
 
 if (process.argv.includes('--worker-child')) workerMain();
-else if (process.argv[1] && process.argv[1].endsWith('nsrr-score-pool.mjs') && !process.argv.includes('--selftest')) main(process.argv.slice(2)).then((c) => process.exit(c));
+else if (process.argv[1] && process.argv[1].endsWith('nsrr-score-pool.mjs') && !process.argv.includes('--selftest') && !process.argv.includes('--verdict-sample'))
+  main(process.argv.slice(2)).then((c) => process.exit(c));
