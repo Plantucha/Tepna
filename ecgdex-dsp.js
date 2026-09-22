@@ -5815,8 +5815,121 @@
   //  signal-spec.ecg declares — NOT PpgDex's packed multi-channel `samples` object
   //  (PPGDEX-FOLLOWUPS §8); compute() reads samples+fs straight off the frame.
   // ════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  MEASUREMENT BLOCKS — the SECOND emitter of the roadmap §1 `measurement` block (roadmap §12, ECGDex
+  //  row; OxyDex is the first, `oxyBuildMeasurementBlocks`). Same discipline, one recording instead of
+  //  one night element: three headline metrics, one block each, keyed by the ECG registry id (`hr` ·
+  //  `rmssd` · `sdnn`), values = the WHOLE-RECORD numbers the rich export already publishes as
+  //  hrv.time.wholeRecordHR/RMSSD/SDNN and the Integrator already reads as its consensus axis (R8) — the
+  //  block adds LINEAGE, never a second computation, so numerical invariance is by construction. The
+  //  epoch-median DISPLAY values (hrv.time.hr/rmssd/sdnn) are deliberately NOT blocks: two numbers under
+  //  one metric id would be the "one name, two populations" defect with lineage attached.
+  //
+  //  basis: all three are 'derived' (LEXICON §4b) — a statistic over a beat train that a detector
+  //  produced and Malik-corrected, not a reading off the sampled signal; the `measured` basis is for
+  //  numbers read straight off samples (OxyDex's meanSpo2). Not the evidence ladder.
+  //
+  //  window: [t0Ms, endEpochMs] — the recording's CLOCK span (the parser's last stamped row), not the
+  //  active-seconds duration; when the parsed end is absent (a `{int16,fs}` rec with no stamps) the beat
+  //  span stands in and is named. clockDomain stays 'device': a host-disciplined night still expresses
+  //  its axis in the device's counter (hostAxis interpolates onto it, §7), and its measured `spreadMs`
+  //  is the one thing this emitter can publish that OxyDex cannot — the H10 has a second clock.
+  //
+  //  evidence: `inputHash` is the export's `recording.contentId` (SignalFrame content address of the NN
+  //  train + t0Ms). No acquisition envelope joins the ECG path today — the capture-host envelope keys on
+  //  the O2Ring .dat session_id — so `envelopeRef` is null WITH that reason, never a fabricated ref.
+  //  code identity: identical recipe to OxyDex (bundle stamp, else opts.code, else null + reason).
+  // ═══════════════════════════════════════════════════════════════════════════
+  function ecgBundleCodeIdentity() {
+    try {
+      var ds = typeof document !== 'undefined' && document && document.documentElement && document.documentElement.dataset;
+      if (ds && /^[0-9a-f]{12}$/.test(String(ds.manifestHash || '')) && /^[0-9a-f]{12}$/.test(String(ds.computeHash || '')))
+        return { manifestHash: String(ds.manifestHash), computeHash: String(ds.computeHash) };
+    } catch (_e) {}
+    return null;
+  }
+  function ecgBuildMeasurementBlocks(r, opts) {
+    opts = opts || {};
+    if (!r || typeof r !== 'object') return null;
+    var t0 = r.t0Ms != null && isFinite(r.t0Ms) ? r.t0Ms : null;
+    var tEnd = r.endEpochMs != null && isFinite(r.endEpochMs) ? r.endEpochMs : null;
+    var windowNote = null;
+    if (tEnd == null && t0 != null && r.spanMin != null && isFinite(r.spanMin) && r.spanMin > 0) {
+      tEnd = t0 + Math.round(r.spanMin * 60000);
+      windowNote = 'no parsed clock end on this input — endTMs is t0Ms + the beat-train span';
+    }
+    if (t0 == null || tEnd == null || tEnd <= t0) return null; // no placeable window → no block (never fabricate one)
+    var code = opts.code && typeof opts.code === 'object' ? { manifestHash: opts.code.manifestHash, computeHash: opts.code.computeHash } : ecgBundleCodeIdentity();
+    var contentId = opts.contentId != null ? opts.contentId : null;
+    var acq = r.acquisitionEvidence || null;
+    var envelopeRef = acq && acq.session_id ? String(acq.session_id) : null;
+    var evidence = { envelopeRef: envelopeRef, inputHash: contentId };
+    if (envelopeRef == null)
+      evidence.envelopeReason = acq
+        ? 'acquisition envelope attached without a session_id'
+        : 'no acquisition envelope joins the ECG path — the capture-host envelope keys on the O2Ring .dat session_id; the H10 stream carries none';
+    if (evidence.inputHash == null) evidence.inputReason = 'contentId unavailable (SignalFrame not co-loaded, or no NN train)';
+    var ha = r.hostAxis && r.hostAxis.ok ? r.hostAxis : null;
+    var window = {
+      startTMs: t0,
+      endTMs: tEnd,
+      clockDomain: 'device',
+      timingSource: ha && ha.timingSource ? ha.timingSource : 'device',
+      spreadMs: ha && ha.spreadMs != null && isFinite(ha.spreadMs) ? ha.spreadMs : null
+    };
+    if (window.spreadMs == null)
+      window.spreadReason = ha
+        ? 'host axis present but published no spread'
+        : 'single device clock — no host stamp column on this input (phone export or parsed rec), nothing to measure spread against';
+    if (windowNote) window.windowReason = windowNote;
+    var quality = {
+      n: r.nBeats != null ? r.nBeats : null,
+      durationMin: r.spanMin != null ? r.spanMin : null,
+      analyzablePct: r.analyzablePct != null ? r.analyzablePct : null,
+      coveragePct: r.coveragePct != null ? r.coveragePct : null
+    };
+    var mk = function (metricId, value) {
+      if (value == null || typeof value !== 'number' || !isFinite(value)) return null; // unmeasured ⇒ no block
+      var b = {
+        metricId: metricId,
+        value: value,
+        window: window,
+        sourceChannel: 'H10:ecg',
+        code: code,
+        evidence: evidence,
+        basis: 'derived',
+        quality: quality,
+        uncertainty: null,
+        uncertaintyReason: 'not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)'
+      };
+      if (code == null) b.codeReason = 'no bundle identity in this runtime (headless source-module run) — the shipped bundle stamps data-manifest-hash/data-compute-hash; pass opts.code';
+      return b;
+    };
+    var out = {};
+    var blocks = [
+      ['hr', r.hr],
+      ['rmssd', r.rmssd],
+      ['sdnn', r.sdnn]
+    ];
+    var any = false;
+    for (var i = 0; i < blocks.length; i++) {
+      var b = mk(blocks[i][0], blocks[i][1]);
+      if (b) {
+        out[blocks[i][0]] = b;
+        any = true;
+      }
+    }
+    return any ? out : null;
+  }
+
   function ecgBuildNodeExport(r, opts) {
     opts = opts || {};
+    // EXPORT-IDENTITY §2.1: computed ONCE here and shared by recording.contentId and the measurement
+    // blocks' evidence.inputHash — one content address, two readers, no drift between them.
+    var _contentId =
+      typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.computeContentId && r.nn && r.nn.length
+        ? SignalFrame.computeContentId({ signalType: 'ecg', kind: 'intervals', intervals: r.nn, t0Ms: r.t0Ms != null ? r.t0Ms : null, usable: true })
+        : null;
     // strip the internal _sec helper (surge events carry it for late-ACC re-stamp) —
     // mirrors buildV2's event map so the LIGHT Ganglior stream matches the rich one.
     var events = (r.events || []).map(function (ev) {
@@ -5835,7 +5948,8 @@
         : null,
       schema: {
         name: 'ganglior.node-export',
-        version: '2.0',
+        // 2.1 — the MINOR bump lands with the `measurement` block (docs/EXPORT-SHAPES.md); OxyDex bumped first.
+        version: '2.1',
         node: 'ECGDex',
         nodeVersion: '1.0',
         bus: 'ganglior',
@@ -5847,10 +5961,7 @@
       // shared builder (both app exportGanglior + headless compute reach it). Folds the NN beat series.
       recording: {
         source: 'ecg',
-        contentId:
-          typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.computeContentId && r.nn && r.nn.length
-            ? SignalFrame.computeContentId({ signalType: 'ecg', kind: 'intervals', intervals: r.nn, t0Ms: r.t0Ms != null ? r.t0Ms : null, usable: true })
-            : null,
+        contentId: _contentId,
         startEpochMs: r.t0Ms != null ? r.t0Ms : null,
         // Declare the recording LENGTH so the Integrator can place a real window on this leg.
         // CAPTURE-HOST-INTEGRATOR-FOLD §2: without a duration key, integrator-dsp adaptEnvelopeNode
@@ -5868,6 +5979,10 @@
         offsetMin: r.offsetMin != null ? r.offsetMin : opts.offsetMin != null ? opts.offsetMin : null,
         events: events.length
       },
+      // roadmap §12 — per-instance lineage for the three headline HRV metrics (keyed by registry id); null
+      // when no window can be placed. Present on BOTH the light and the rich export: lineage is not a
+      // rich-only luxury, and the Integrator reads the light one.
+      measurement: ecgBuildMeasurementBlocks(r, { code: opts.code, contentId: _contentId }),
       ganglior_events: events,
       reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
     };
@@ -6412,6 +6527,7 @@
     analyze: analyze,
     genSynthetic: genSynthetic,
     buildNodeExport: ecgBuildNodeExport,
+    buildMeasurementBlocks: ecgBuildMeasurementBlocks, // roadmap §12 — the builder seam, so the plants can reach it
     _build: ecgBuildNodeExport,
     parseDeviceRR: parseDeviceRR,
     parseDeviceHR: parseDeviceHR,

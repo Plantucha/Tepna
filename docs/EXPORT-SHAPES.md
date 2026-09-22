@@ -39,7 +39,7 @@
 | **PpgDex** | Wrist PPG | `ppgBuildNodeExport` — **LIGHT** (recording + events; `opts.rich` orchestrate-only) | **`buildV2`/`exportSummary`** — RICH (recording + `hrv{time,frequency,nonlinear}` + `personalization` + `apnea`) | **`sessions[]`** | rich `buildV2` **or** light — reads whatever's present |
 | **EEGDex** *(planned)* | EEG | — decide at build time — | — decide at build time — | — | — |
 
-## The `measurement` block — per-instance lineage (additive, MINOR; OxyDex emits it since 2026-09-21)
+## The `measurement` block — per-instance lineage (additive, MINOR; OxyDex emits it since 2026-09-21, ECGDex since 2026-09-22)
 
 Specified by `MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26` §1 and validated by **`measurement-block.js`**
 (`validateMeasurement(block, opts) → {ok, errors[], checked[]}`), which is the schema authority the way
@@ -59,9 +59,16 @@ data-manifest-hash data-compute-hash>` stamp (build-time, outside every inline b
 source-module run has none and emits `code: null` + `codeReason`. `evidence.inputHash` is the
 recording's `contentId`; `evidence.envelopeRef` is the attached acquisition envelope's `session_id` or
 `null` + reason on a CSV. Desat events carry `inputHash` + `evidenceRef` (§2). Walk-through + tool:
-`docs/MEASUREMENT-WALKTHROUGH-OXYDEX-2026-09-21.md`, `tools/measurement-walk.mjs`. Emission is still
-staged per node — the other seven do not emit it yet, and a missing block on THEIR exports is not a
-defect. **The Integrator consumes it (roadmap §8, 2026-09-21):** `adaptOxyDex` turns each block into a
+`docs/MEASUREMENT-WALKTHROUGH-OXYDEX-2026-09-21.md`, `tools/measurement-walk.mjs`. **ECGDex is the second
+emitter (roadmap §12, 2026-09-22):** the export carries a recording-level `measurement: { hr, rmssd, sdnn }`
+— the WHOLE-RECORD numbers (`hrv.time.wholeRecordHR/RMSSD/SDNN`, the Integrator's consensus axis), not the
+epoch-median display values; `basis: derived` on all three (a statistic over a detected, Malik-corrected beat
+train — LEXICON §4b); `sourceChannel: H10:ecg`; `window.spreadMs` is the host axis's measured spread on a box
+night (the H10 has a second clock, so this emitter can publish what OxyDex cannot) and null-with-reason on a
+phone export; `evidence.envelopeRef` is null with the reason that no acquisition envelope joins the ECG path
+yet. Present on BOTH the light and the rich export; `schema.version` 2.1. Emission is still staged per node —
+the other six do not emit it yet, and a missing block on THEIR exports is not a defect. **The Integrator consumes it (roadmap §8, 2026-09-21; the generic `adaptEnvelopeNode` too since
+2026-09-22, so an ECGDex export's recording-level map is consumed the same way):** `adaptOxyDex` turns each block into a
 REF on the rec (`measurements.blocks.<id>` = metricId · value · basis · window · code · evidence join ·
 `provenance: resolved | unresolved` + reason) and the fusion export's `nodes[].measurements` carries
 those refs forward — never the payload. Absence adds no key (a legacy export fuses byte-identically);
