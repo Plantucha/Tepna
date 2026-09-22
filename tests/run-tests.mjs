@@ -668,6 +668,7 @@ function readSources() {
     'ganglior-provenance.js',
     'signal-frame.js',
     'measurement-block.js',
+    'verdict.js',
     'glucodex-render.js',
     'glucodex-app.js',
     'cpapdex-render.js',
@@ -1987,6 +1988,7 @@ async function main() {
       'signal-spec.js',
       'signal-frame.js',
       'measurement-block.js',
+      'verdict.js',
       'dex-export.js',
       'signal-adapters.js',
       'adapters/polar-rr.js',
@@ -2292,6 +2294,7 @@ async function main() {
     MOTIONDSP: ctx.MOTIONDSP,
     SignalFrame: ctx.SignalFrame,
     MeasurementBlock: ctx.MeasurementBlock,
+    Verdict: ctx.Verdict, // VERDICT-CONTRACT §2 — the tepna.verdict/1 validator
     DexExport: ctx.DexExport,
     exportName: ctx.exportName,
     EXPORT_KINDS: ctx.EXPORT_KINDS,

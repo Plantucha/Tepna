@@ -49661,6 +49661,203 @@
       );
     });
 
+    /* ═══ VERDICT-CONTRACT §2 — `tepna.verdict/1`: a gate answers in a fixed shape ═══
+       Owner standing requirement (CLAUDE.md §🧾): every gate/oracle/study emits ONE JSON verdict object;
+       prose is explanation, not the API. `verdict.js` is the only definition of the shape. This group
+       is the brief's ten plants, each asserted to red BY NAME (the message names the rule, not just
+       `ok:false`), the enum asserted as an EQUALITY of seven, the `checked[]` denominator published, and
+       the anti-vacuity leg in both directions: a well-formed verdict passes with every leg run, and the
+       plant runner counts that every plant was seen. */
+    group('Verdict contract — tepna.verdict/1: the validator rejects what the brief names', 'verdict · schema · provenance · verdict-contract · plant', function (T) {
+      var V = env.Verdict;
+      if (!V || typeof V.validate !== 'function') {
+        T.skip('Verdict.validate available', 'verdict.js not co-loaded in this runner');
+        return;
+      }
+      var ok = function () {
+        return {
+          schema: 'tepna.verdict/1',
+          gate: 'oracle-ecg-firmware-rr',
+          status: 'PASS',
+          scope: 'internal',
+          population: { checked: 52, eligible: 52, excluded: 0 },
+          criterion: { name: 'rr_delta_median', threshold: 8, unit: 'ms', direction: 'lte' },
+          result: { median: 0.45, medianFull: 0.4512 },
+          evidence: ['tools/oracle-ecg-firmware-rr.mjs', 'uploads/trio/**/ECGDex_*.node-export.json'],
+          reason: null,
+          producedBy: { tool: 'tools/oracle-ecg-firmware-rr.mjs', commit: '3c0dbdec' },
+          at: '2026-09-21T18:40:12Z'
+        };
+      };
+      // ANTI-VACUITY, BOTH DIRECTIONS
+      var good = V.validate(ok());
+      T.ok('a well-formed verdict PASSES the validator', good.ok, good.errors.join(' | '));
+      T.eq(
+        '…with all eight legs RUN (the checked denominator)',
+        good.checked.slice().sort().join(','),
+        ['schema', 'status enum', 'scope', 'population equality', 'criterion', 'result/reason per status', 'evidence', 'provenance'].sort().join(',')
+      );
+      T.eq('scope is EXACTLY two values, as an equality (P5 rides in the object)', V.SCOPES.slice().sort().join(','), 'internal,publishable');
+      T.eq('the enum is EXACTLY seven, as an equality', V.STATUSES.slice().sort().join(','), ['PASS', 'FAIL', 'SHORTFALL', 'UNDERPOWERED', 'NOT_RUN', 'NOT_APPLICABLE', 'UNKNOWN'].sort().join(','));
+      var seen = 0;
+      var fires = function (name, mut, needle) {
+        seen++;
+        var b = ok();
+        var r = mut(b) || b;
+        var v = V.validate(r);
+        T.ok(
+          name,
+          !v.ok &&
+            v.errors.some(function (e) {
+              return e.indexOf(needle) >= 0;
+            }),
+          v.ok ? 'ACCEPTED — the check never fired' : v.errors.join(' | ').slice(0, 160)
+        );
+      };
+      // THE TEN PLANTS OF §2
+      fires(
+        'PLANT 1 · an eighth status',
+        function (b) {
+          b.status = 'PASSED';
+        },
+        'no eighth value'
+      );
+      fires(
+        'PLANT 2 · a lowercase status',
+        function (b) {
+          b.status = 'pass';
+        },
+        'capitalisation variant'
+      );
+      fires(
+        'PLANT 3 · PASS with reason set',
+        function (b) {
+          b.reason = 'all good';
+        },
+        'PASS must carry reason: null'
+      );
+      fires(
+        'PLANT 4 · FAIL with reason null',
+        function (b) {
+          b.status = 'FAIL';
+        },
+        'FAIL requires reason'
+      );
+      fires(
+        'PLANT 5 · population not summing',
+        function (b) {
+          b.population.excluded = 3;
+        },
+        'checked + excluded = eligible'
+      );
+      fires(
+        'PLANT 6 · checked: 0 under PASS',
+        function (b) {
+          b.population = { checked: 0, eligible: 0, excluded: 0 };
+        },
+        'examined-nothing'
+      );
+      fires(
+        'PLANT 7 · PASS with empty evidence',
+        function (b) {
+          b.evidence = [];
+        },
+        'empty evidence'
+      );
+      fires(
+        'PLANT 8 · NOT_RUN carrying a result',
+        function (b) {
+          b.status = 'NOT_RUN';
+          b.reason = 'corpus absent in this lane';
+        },
+        'NOT_RUN must carry result: null'
+      );
+      fires(
+        'PLANT 9 · a prose-only verdict (a string where the object should be)',
+        function () {
+          return 'POOLED VERDICT: CONSISTENT';
+        },
+        'OBJECT, not prose'
+      );
+      fires(
+        'PLANT 10 · UNDERPOWERED without the minimum named',
+        function (b) {
+          b.status = 'UNDERPOWERED';
+          b.reason = 'too few nights';
+        },
+        'name the minimum and the count as NUMBERS'
+      );
+      fires(
+        'PLANT 11 · a scope outside internal|publishable',
+        function (b) {
+          b.scope = 'public';
+        },
+        'scope must be one of internal|publishable'
+      );
+      fires(
+        'PLANT 11b · scope ABSENT does not default (a verdict that has not decided whether it may be quoted)',
+        function (b) {
+          delete b.scope;
+        },
+        'scope must be one of'
+      );
+      T.eq('every plant was SEEN by the runner (anti-vacuity denominator)', seen, 12);
+      T.eq('make() fills the RESTRICTIVE scope when the producer gives none', V.make({ gate: 'g' }).scope, 'internal');
+      // the states that read as green to a regex, each valid in its honest form
+      var nr = V.validate(
+        V.make({
+          gate: 'g',
+          status: 'NOT_RUN',
+          population: { checked: 0, eligible: 52, excluded: 52 },
+          criterion: { name: 'x', threshold: 1, unit: '', direction: 'lte' },
+          result: null,
+          evidence: [],
+          reason: 'the raw recordings are absent in this lane',
+          producedBy: { tool: 't', commit: 'abcdef1' }
+        })
+      );
+      T.ok('NOT_RUN is valid with result null, reason set, checked 0', nr.ok, nr.errors.join(' | '));
+      var na = V.validate(
+        V.make({
+          gate: 'g',
+          status: 'NOT_APPLICABLE',
+          population: { checked: 1, eligible: 1, excluded: 0 },
+          criterion: { name: 'x', threshold: 1, unit: '', direction: 'lte' },
+          result: null,
+          evidence: ['a'],
+          reason: 'reference stratum n = 4 < 30',
+          producedBy: { tool: 't', commit: 'abcdef1' }
+        })
+      );
+      T.ok('NOT_APPLICABLE is valid — distinct from NOT_RUN by construction (checked 1, a property named)', na.ok, na.errors.join(' | '));
+      var up = V.validate(
+        V.make({
+          gate: 'g',
+          status: 'UNDERPOWERED',
+          population: { checked: 3, eligible: 3, excluded: 0 },
+          criterion: { name: 'x', threshold: 1, unit: '', direction: 'lte' },
+          result: { n: 3 },
+          evidence: ['a'],
+          reason: '3 nights < the pre-stated minimum of 10',
+          producedBy: { tool: 't', commit: 'abcdef1' }
+        })
+      );
+      T.ok('UNDERPOWERED is valid when the reason carries the minimum and the count', up.ok, up.errors.join(' | '));
+      T.ok('a floating recording time is NOT a run instant (no Z → rejected)', !V.validate(Object.assign(ok(), { at: '2026-09-21T18:40:12' })).ok);
+      T.ok(
+        'a null commit needs a commitReason (∅)',
+        !V.validate(Object.assign(ok(), { producedBy: { tool: 't', commit: null } })).ok &&
+          V.validate(Object.assign(ok(), { producedBy: { tool: 't', commit: null, commitReason: 'not a git checkout' } })).ok
+      );
+      T.ok(
+        'make() fills schema + at, and does NOT validate (a caller cannot mistake it for a pass)',
+        (function () {
+          var m = V.make({ gate: 'g', status: 'PASSED' });
+          return m.schema === 'tepna.verdict/1' && /Z$/.test(m.at) && !V.validate(m).ok;
+        })()
+      );
+    });
+
     /* ═══ MEASUREMENT-PROVENANCE-ROADMAP §3 — OxyDex is the FIRST EMITTER of the measurement block ═══
        The reference path, executed 2026-09-21: every OxyDex night element carries `measurement.<id>`
        blocks for the four headline metrics, and this group is the roadmap's done-when made into a gate:
