@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="ebefba1600e9" data-compute-hash="fef89e997b28"><head>
+<html lang="en" data-manifest-hash="96d17cfa479d" data-compute-hash="a3f86c6acef5"><head>
 <!--
   Integrator.src.html — Tepna
   Copyright 2026 Michal Planicka
@@ -9,7 +9,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'self' (NOT 'none') — this bundle fetches committed LOCAL sample files; 'self' still blocks every REMOTE origin. object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-7+eJzHo6uHFMnBX7oAHHSaZcVyrrs2VWiwzX499ATyc=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-psM3aunj9e1TvFhZrm4v4a0jGUjbtxlewEXeHiQ879o=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4sn4Sqq6q0OCwTNDDeHkwCXHqiOcvaV/8WwxOI4V5Kw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UnDjkxbZdNVn1uNPG6xpXS5/UFRj9AQZ3htYQqYz4Xg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-YmI37lcKl30XtmpX7ggJsjrArPEJ7hkRwJ+NsvI2tmw=' 'sha256-aUdm/7EmRqa2iiXr8zBekMiJhlqW7z51cZBG+7OCko8=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fGkqo1InzXusfon2RDMp9a98flNCFaw3TSbxCC/xJUA=' 'sha256-k+FV7AZrEGGuFvXlh73TfpK+yAoc1Q7YRwHKGyqH0NY=' 'sha256-uaydxyqwdghvUm9MHuo5Dp/k4MkITKFsi2IsDXuPd60='; connect-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>Integrator · Fusion Layer · v2.13.0</title>
@@ -5233,18 +5233,6 @@ body.light .cov-grid td.cg-node{ background:#fff; }
              place of one chosen by intuition. On a pure-jitter clock it is simply the longest τ
              measured, and saying so is more honest than implying a minimum was found. */
           optimalTauSec: curve[bestI].tau,
-          /* THE CURVE ITSELF (residue 2026-09-21-adev-curve-not-exported-by-either-node). Every scalar
-             above is a projection of it, and the projections cannot show WHERE the floor sits or
-             whether the slope was fitted over a straight run or across a KNEE — which is §7's whole
-             point: the slope names the mechanism, and one number cannot show a slope that changes.
-             `adevPpm` deliberately, NOT the `…Ms` misnomer above: the estimator is handed phase in ms
-             and τ in seconds, so `adev` is ms/s = 1e-3 dimensionless, and ×1000 is ppm. `n` is the
-             term count at that τ — a reader needs it to see the estimate widening as τ grows. The
-             ladder is octave-spaced and ends where `CK_ALLAN_MIN_TERMS` bites, so this is short
-             (≤ ~20 points) and bounded by construction. */
-          curve: curve.map(function (pt) {
-            return { tauSec: pt.tau, adevPpm: pt.adev * 1000, n: pt.n };
-          }),
           /* THE POINT OF THE EXERCISE: how much of the `ppm` above is real. σ_y at the recording's own
              span, expressed in ppm — quote the ppm WITH this or not at all. */
           ppmUncertainty: curve[curve.length - 1].adev * 1000,
@@ -5376,6 +5364,30 @@ body.light .cov-grid td.cg-node{ background:#fff; }
  * At chancePct = 90%, maxLift = 1.11 — the window cannot demonstrate a coupling however real it
  * is. `saturated` (maxLift < 1.5) flags such a window as UNINFORMATIVE, not as a negative result.
  * Read a lift of 1.0 as evidence of absence ONLY on an unsaturated window.
+ *
+ * ⚠️⚠️ SHARED-MODULATION CAVEAT — the FIFTH, and the one this null cannot see at all. The four
+ * above are properties of the shift (wrap), the observation (coverage), the window (saturation) and
+ * B's periodicity (resonance). This one is a property of the WORLD: two INDEPENDENT streams whose
+ * RATES are both modulated by one shared process at a scale FINER than the shifts are reported as
+ * coupled, because the shift carries A's events out of the bouts B's events sit in and the null hit
+ * rate drops. The surrogates preserve each stream's marginal rate but not the shared modulation, so
+ * there is no shift that destroys the alignment without also destroying the thing being tested.
+ *
+ * MEASURED, not argued (`docs/COUPLING-BOUT-FPR-2026-09-20.md`, 400 SHHS1 records, Integrator
+ * config, bands registered before the run): the false-positive rate is a CURVE in the scale of the
+ * shared feature — 87.6 % at 90 s · 57.7 % at 3 min · 30.0 % at the 5-min bout scale · 13 % at
+ * 10 min · 4.4 % with no shared modulation. Real OSA event streams are bouted (median Fano factor
+ * of 10-min counts 3.73 against Poisson's 1, 390 records), so this is not a hypothetical regime.
+ *
+ * WHAT IT MEANS FOR A VERDICT. `real: true` at this window does not distinguish "A drives B" from
+ * "A and B share a rate process finer than ±5–17 min". For the Integrator's desat ⟷ HR-surge pair
+ * that distinction is mostly moot — both are driven by the same apneas, and that IS a coupling —
+ * but for any pair whose only link is a shared bout process (position, REM), a significant lift is
+ * the inherited kind about 30 % of the time. A consumer owes itself the SCALE STATEMENT, not a
+ * flag: a per-record diagnostic was measured and REJECTED (fano10 / rateLift AUC ≤ 0.76 against a
+ * pre-registered 0.8), because the vulnerability is roughly uniform over nights and a flag ranking
+ * them would tell a reader that THIS night is safe when the next one at the same statistic is not.
+ * The p-value is untouched; what changes is what a significant one licenses you to say.
  *
  * ── Duration stratification — useful, but NOT a proof on its own ─────────────────────────
  * A long event ought to couple if the coupling is real, so stratifying A by duration is a genuine
@@ -11982,20 +11994,6 @@ function readDetectorStability(nodeExport) {
     atShortestPpm: num(s.atShortestPpm),
     atLongestPpm: num(s.atLongestPpm),
     optimalTauSec: num(s.optimalTauSec),
-    /* THE CURVE, carried through UNCHANGED when the source shipped one (2026-09-22). The block above
-       forwards a detector's stability so a reader weighing an attribution has the fact that settles
-       it — and the scalars alone cannot show a KNEE, which is the one shape that makes `slope`
-       unreadable. Filtered to finite points so a malformed source cannot inject NaN into a consumer;
-       `[]` when the source carried none, never a fabricated default. */
-    curve: Array.isArray(s.curve)
-      ? s.curve
-          .filter(function (pt) {
-            return pt && isFinite(pt.tauSec) && isFinite(pt.adevPpm);
-          })
-          .map(function (pt) {
-            return { tauSec: pt.tauSec, adevPpm: pt.adevPpm, n: num(pt.n) };
-          })
-      : [],
     /* The one derived field, and it is a THRESHOLD RESTATEMENT rather than a fresh inference: a slope
        below the white/flicker-phase boundary (the same −0.75 midpoint `capture-host/allan.py` and
        `ppgdex-dsp.js` use) means averaging keeps paying, so a persistent divergence cannot be noise. */
@@ -13300,7 +13298,7 @@ function buildFusionExport(recs, fusion) {
         nullModel:
           'confirmedApneaIndex is published (reportable=true) only when the confirmed count exceeds a per-night Poisson chance expectation; otherwise findings carry belowChance=true + pSpurious and the index is withheld (R5).',
         apneaCoupling:
-          'apneaCoupling is the EventCoupling shuffled-null verdict for desat⟷surge: circular time-shift surrogates vs a coverage-aware baseline (coverage = the recording overlap, so a desat outside the cardiac window is excluded, not a miss). Read real/lift ONLY when usable (neither underpowered=expectedHits<3 nor saturated=maxLift<1.5). Additive to the Poisson nullModel; does not change reportability (§P7).',
+          'apneaCoupling is the EventCoupling shuffled-null verdict for desat⟷surge: circular time-shift surrogates vs a coverage-aware baseline (coverage = the recording overlap, so a desat outside the cardiac window is excluded, not a miss). Read real/lift ONLY when usable (neither underpowered=expectedHits<3 nor saturated=maxLift<1.5). Additive to the Poisson nullModel; does not change reportability (§P7). ⚠️ SCALE STATEMENT (docs/COUPLING-BOUT-FPR-2026-09-20.md, 400 SHHS1 records): the circular-shift null cannot see SHARED MODULATION — two independent streams whose rates are both driven by one process FINER than the ±5–17 min shifts read as coupled, at 30 % of nights at the 5-min bout scale (87.6 % at 90 s, 13 % at 10 min, 4.4 % with none), and real OSA streams are bouted (median Fano 3.73). For desat⟷surge this is mostly moot — both are driven by the same apneas — but a significant lift on a pair whose only link is a shared bout process is the inherited kind about a third of the time. No per-record flag ships: the diagnostic was measured and rejected (AUC ≤ 0.76 vs a pre-registered 0.8).',
         window:
           'window.overlapMin / overlapUnionMin = merged-union minutes where ≥2 nodes coincide (NOT a sum of pairwise overlaps); intersectionMin = N-way all-node overlap; pairwiseSumMin retained for transparency; nodesExcluded = dated nodes overlapping nothing (R3).',
         hrvConsensus: 'HRV consensus compares whole-record SDNN/RMSSD/LF-HF across nodes (window-normalized; epoch-scoped variants kept separately); same-window only (R8).',
