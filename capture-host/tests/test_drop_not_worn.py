@@ -18,7 +18,7 @@ G = 180.0
 
 
 def test_a_worn_or_unknown_strap_is_never_dropped():
-    assert capture.should_drop_not_worn(None, 1000.0, G) is False   # worn / no contact bit
+    assert capture.should_drop_not_worn(None, 1000.0, G) is False  # worn / no contact bit
 
 
 def test_not_worn_under_the_grace_is_not_dropped():
