@@ -1520,7 +1520,7 @@ let UP = {
   vo2GT: 0,
   hrmaxOverride: 0,
   hrRestOverride: 0,
-  elevation: 0, // metres above sea level; adjusts SpO₂ normal thresholds
+  elevation: null, // metres above sea level, or null = NOT MEASURED (§∅); adjusts SpO₂ normal thresholds
   cpap: 'no' // CPAP/BiPAP therapy — reframes apnea read as residual on therapy
 };
 // ESM-MIGRATION deep-3: profile is now an ES module, so this `let` is module-scoped — but
@@ -1560,7 +1560,7 @@ function upLoad() {
       UP.vo2GT = man.vo2 > 0 ? man.vo2 : 0;
       UP.hrmaxOverride = man.hrMax > 0 ? man.hrMax : 0;
       UP.hrRestOverride = man.hrRest > 0 ? man.hrRest : 0;
-      UP.elevation = p.elevation || 0;
+      UP.elevation = p.elevation != null && isFinite(p.elevation) ? p.elevation : null; // §∅ — absent stays absent
       UP.cpap = p.cpap || 'no';
     } catch (e) {}
     return;
@@ -1621,16 +1621,23 @@ function upToDOM() {
   sv('profVO2', UP.vo2GT || '');
   sv('profHRmax', UP.hrmaxOverride || 0);
   sv('profHRrest', UP.hrRestOverride || 0);
-  sv('profElevation', UP.elevation || 0);
+  sv('profElevation', UP.elevation != null ? UP.elevation : '');
   sv('profCPAP', UP.cpap || 'no');
 }
 
 // SpO₂ altitude correction — returns adjustment to subtract from normal thresholds
 // Formula: ~1.8% per 1000m (Roach 1998 / AMS guidelines), capped at 7%
 // e.g. Asheville 650m → adj≈1; Denver 1600m → adj≈3; La Paz 3600m → adj≈6 (cap 7)
+/* §∅ — NO elevation means NO adjustment, and that is a different state from "at sea level", even
+   though both yield 0. `upSpo2Adj()` returns the number (0 either way, so no shipped threshold moves
+   on this change); `upElevState()` says WHICH state produced it, and the disclosure below uses it so
+   a reader can tell an unmeasured profile from a measured coast. */
+function upElevState() {
+  return UP.elevation == null || !isFinite(UP.elevation) ? 'unmeasured' : 'measured';
+}
 function upSpo2Adj() {
-  var elv = UP.elevation || 0;
-  return Math.min(7, Math.round((elv / 1000) * 1.8));
+  if (upElevState() === 'unmeasured') return 0; // not measured ⇒ nothing to adjust by
+  return Math.min(7, Math.round((UP.elevation / 1000) * 1.8));
 }
 
 // Human-readable disclosure of the SpO₂ altitude adjustment, rendered next to the
@@ -1643,7 +1650,7 @@ function upSpo2Adj() {
 function spo2ElevNote() {
   var adj = upSpo2Adj();
   if (!adj) return '';
-  var elv = UP.elevation || 0;
+  var elv = UP.elevation;
   return (
     '<div class="srb-note mt-sm">Elevation ' +
     elv +
@@ -1898,9 +1905,17 @@ function profileDerivedUpdate() {
   // profileElevSub sub still needs them, so they are declared locally here (the #43
   // removal dropped the shared declarations and left this line referencing undefined
   // names → a ReferenceError that broke profileDerivedUpdate — regression hotfix).
-  var _elv = UP.elevation || 0;
+  var _elv = UP.elevation;
   var _adj = upSpo2Adj();
-  _sub('profileElevSub', _elv > 0 ? '∼ Roach 1998: −1.8%/1000m · adj −' + _adj + '% (norm ≥' + (95 - _adj) + '%)' : '0 = sea level · −1.8% SpO₂ per 1000m (Roach 1998), cap 7%');
+  /* Three states, three messages — an unmeasured profile must not read as a measured coast (§∅). */
+  _sub(
+    'profileElevSub',
+    _elv == null
+      ? '∼ not set — no altitude adjustment applied (enter your elevation; −1.8% SpO₂ per 1000 m, Roach 1998)'
+      : _elv > 0
+        ? '∼ Roach 1998: −1.8%/1000m · adj −' + _adj + '% (norm ≥' + (95 - _adj) + '%)'
+        : '0 m = sea level (measured) · −1.8% SpO₂ per 1000m (Roach 1998)'
+  );
 }
 
 function profileAutoDetectUpdate(allNights) {
