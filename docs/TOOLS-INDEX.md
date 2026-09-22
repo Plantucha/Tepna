@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**205 tools** · 203 with a purpose line · **2 without**
+**206 tools** · 204 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
