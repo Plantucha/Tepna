@@ -34228,7 +34228,10 @@
       [1, 2, 7].forEach(function (d) {
         var r = G.genSynthetic({ days: d, cadence: 5 });
         var ideal = Math.round((d * 1440) / 5);
-        T.ok('days ' + d + ' ⇒ sample count ' + r.tMs.length + ' is ≤ the gapless ideal ' + ideal, r.tMs.length <= ideal, String(r.tMs.length));
+        /* The count stays in the DETAIL, never the NAME: the generator's gaps are unseeded, so a name
+           carrying the count differs run to run and verify-shard-union --deep (which keys assertions by
+           name) reported it as LOST by one run and INVENTED by the other. Measured 2026-09-22. */
+        T.ok('days ' + d + ' ⇒ sample count is ≤ the gapless ideal ' + ideal, r.tMs.length <= ideal, String(r.tMs.length));
         T.ok('…and within 10 % of it (gaps are simulated, not wholesale loss)', r.tMs.length >= ideal * 0.9, String(r.tMs.length) + ' vs ' + ideal);
       });
 
