@@ -68,6 +68,30 @@
  * is. `saturated` (maxLift < 1.5) flags such a window as UNINFORMATIVE, not as a negative result.
  * Read a lift of 1.0 as evidence of absence ONLY on an unsaturated window.
  *
+ * ⚠️⚠️ SHARED-MODULATION CAVEAT — the FIFTH, and the one this null cannot see at all. The four
+ * above are properties of the shift (wrap), the observation (coverage), the window (saturation) and
+ * B's periodicity (resonance). This one is a property of the WORLD: two INDEPENDENT streams whose
+ * RATES are both modulated by one shared process at a scale FINER than the shifts are reported as
+ * coupled, because the shift carries A's events out of the bouts B's events sit in and the null hit
+ * rate drops. The surrogates preserve each stream's marginal rate but not the shared modulation, so
+ * there is no shift that destroys the alignment without also destroying the thing being tested.
+ *
+ * MEASURED, not argued (`docs/COUPLING-BOUT-FPR-2026-09-20.md`, 400 SHHS1 records, Integrator
+ * config, bands registered before the run): the false-positive rate is a CURVE in the scale of the
+ * shared feature — 87.6 % at 90 s · 57.7 % at 3 min · 30.0 % at the 5-min bout scale · 13 % at
+ * 10 min · 4.4 % with no shared modulation. Real OSA event streams are bouted (median Fano factor
+ * of 10-min counts 3.73 against Poisson's 1, 390 records), so this is not a hypothetical regime.
+ *
+ * WHAT IT MEANS FOR A VERDICT. `real: true` at this window does not distinguish "A drives B" from
+ * "A and B share a rate process finer than ±5–17 min". For the Integrator's desat ⟷ HR-surge pair
+ * that distinction is mostly moot — both are driven by the same apneas, and that IS a coupling —
+ * but for any pair whose only link is a shared bout process (position, REM), a significant lift is
+ * the inherited kind about 30 % of the time. A consumer owes itself the SCALE STATEMENT, not a
+ * flag: a per-record diagnostic was measured and REJECTED (fano10 / rateLift AUC ≤ 0.76 against a
+ * pre-registered 0.8), because the vulnerability is roughly uniform over nights and a flag ranking
+ * them would tell a reader that THIS night is safe when the next one at the same statistic is not.
+ * The p-value is untouched; what changes is what a significant one licenses you to say.
+ *
  * ── Duration stratification — useful, but NOT a proof on its own ─────────────────────────
  * A long event ought to couple if the coupling is real, so stratifying A by duration is a genuine
  * check. ⚠️ But the parent brief over-read it: the longest bucket came back ×0.0 and was called
