@@ -1194,6 +1194,44 @@
   "capture-host/tests/test_adapter_hci.py": {
    "bin": "test",
    "status": "exempt"
+  },
+  "tests/run-tests.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tests/run-tests.mjs",
+     "--group=docs-ledger",
+     "--json"
+    ],
+    "key": "verdict"
+   },
+   "note": "the test RUNNER (VERDICT-CONTRACT \u00a73d, adopted #2835 through tools/run-tests-verdict.mjs, which holds the pure builders and their 35 plants): one object per process \u2014 a group is a child, an assertion is not; --group=/--shard= are declared exclusions \u21d2 filtered; the --jobs union aggregates the shard objects, a dead shard \u21d2 UNKNOWN. The cmd is a real, corpus-free filtered run; the object it emits carries filtered:true and the consumer rule, and validity is all this gate asserts of it. The --json payload wraps the object under `verdict` (emits.key), a superset of the shape verify-shard-union reads."
+  },
+  "tests/browser-gates.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "the headless-browser CI gate (render-coverage + no-network + night-seal): it READS verify-seals' objects for the seal leg and decides its own pass/fail by an exit code over FAILS[] \u2014 a runner over browser legs, \u00a73d shape; adopt after the three Node runners, population = the browser legs"
+  },
+  "tests/check-dex.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "the SCOPED runner (`SCOPED GREEN` / `SCOPED FAIL` over the groups a diff touches): a runner by construction filtered \u2014 under \u00a73d its object is filtered:true with excludedBy = the diff scope, never the gate; adopt by projecting run-tests' object"
+  },
+  "tests/verify-manifest.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "the Node sibling of verify-provenance.html: GATE A (bundle identity) + GATE B (fixture ledger) PASS/FAIL words over the shared manifest-gate core \u2014 a two-gate decision, population = bundles + fixtures; wave 4"
+  },
+  "tests/verify-shard-union.mjs": {
+   "bin": "decides",
+   "status": "pending",
+   "note": "the partition proof (every group in exactly one shard; --deep diffs full-run vs shard-union verdicts): decides ok/not-ok by exit code; population = groups (and assertions under --deep); it consumes run-tests' --json and will read its `verdict` too once adopted"
+  },
+  "tests/build-core-tests.mjs": {
+   "bin": "test",
+   "status": "exempt"
   }
  }
 }
