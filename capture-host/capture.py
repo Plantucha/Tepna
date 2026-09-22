@@ -39,6 +39,7 @@ import sdnotify
 import alerts
 import nightqc
 import nightarchive
+import loss_audit
 import seal
 import sealbox
 import sealfmt
@@ -7679,6 +7680,51 @@ async def _archive_transfer(captures: str, target: dict, settle: float, schedule
             return
 
 
+async def loss_poller(cfg: dict, root: str):
+    """CAPTURE-LOSS-PRECEDENCE-AUDIT R4: for each SETTLED night, once, the §0 loss ledger beside its
+    summary (`LOSS-AUDIT.json` + `LOSS-VERDICT.json`, gate `night-loss`). Re-run only when the night's
+    primary files are newer than the last audit. Reads the journal (a subprocess) — hence per settled
+    night, never per QC tick. Always on: it writes nothing but two files beside the night and never
+    touches a link."""
+    lcfg = cfg.get("loss_audit") or {}
+    interval = float(lcfg.get("poll_sec", 1800))
+    settle = float((cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S))
+    captures = os.path.join(root, "captures")
+    commit = verdict.commit_sha()
+    while not _STOP.is_set():
+        await asyncio.sleep(interval)
+        try:
+            active = await asyncio.to_thread(diskguard.active_nights, captures, settle)
+            nights = [n for n in await asyncio.to_thread(diskguard.list_nights, captures) if n not in active]
+            for night in nights[-int(lcfg.get("max_nights", 14)):]:
+                nd = os.path.join(captures, night)
+                vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
+                newest = await asyncio.to_thread(_newest_mtime, nd)
+                if os.path.exists(vpath) and os.path.getmtime(vpath) >= newest:
+                    continue                                   # audited since the night last changed
+                obj = await asyncio.to_thread(loss_audit.write_night, nd, cfg.get("devices", []), commit=commit)
+                STATUS.setdefault("loss", {})[night] = {"status": obj["status"], "at": obj["at"],
+                                                        "daemon_caused_min": (obj.get("result") or {}).get("daemon_caused_min")}
+                dc = (obj.get("result") or {}).get("daemon_caused_min") or 0
+                if dc:
+                    log.warning("loss-audit: %s — %.0f min of the night's gaps were the daemon's own doing (%s)",
+                                night, dc, obj.get("reason"))
+        except Exception:  # noqa: BLE001 — one bad night must not stop the poller
+            log.warning("loss-audit: poll failed", exc_info=True)
+
+
+def _newest_mtime(night_dir: str) -> float:
+    newest = 0.0
+    for n in os.listdir(night_dir):
+        if n in (loss_audit.AUDIT_NAME, loss_audit.VERDICT_NAME):
+            continue
+        try:
+            newest = max(newest, os.path.getmtime(os.path.join(night_dir, n)))
+        except OSError:
+            continue  # a file that vanished between listdir and stat is not newer than anything
+    return newest
+
+
 async def seal_poller(cfg: dict, root: str):
     """CAPTURE-NIGHT-SEAL phase B (§13): seal each SETTLED night into `outbox/`, re-issue when a post-close
     writer changed the directory, and emit one `tepna.verdict/1` (`night-seal`) per attempt. Default OFF —
@@ -10862,6 +10908,7 @@ async def main():
                    ("qc_poller", lambda: qc_poller(cfg, root, notifier)),
                    ("archive_poller", lambda: archive_poller(cfg, root)),
                    ("seal_poller", lambda: seal_poller(cfg, root)),
+                   ("loss_poller", lambda: loss_poller(cfg, root)),
                    ("autopull_poller", lambda: autopull_poller(cfg, root)),
                    ("cpap_poller", lambda: cpap_poller(cfg, root, notifier)),
                    ("charger_pull_poller", lambda: charger_pull_poller(cfg, root)),
