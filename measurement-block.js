@@ -164,8 +164,136 @@
     return { ok: errors.length === 0, errors: errors, checked: checked };
   }
 
+  /* ── HOISTING THE SHARED PARTS — residue 2026-09-21-measurement-block-serialises-shared-parts-per-block
+     ────────────────────────────────────────────────────────────────────────────
+     Four whole-night blocks cost **+11–17 % of a summary export** because `window`, `code`, `evidence`,
+     `quality` and the long `uncertaintyReason` strings are IDENTICAL across them and serialise once
+     per block. Measured at #2760 → #2769: 37717→42067, 32232→36580, 24819→28919 bytes.
+
+     ⚠️ THIS CHANGES NOTHING ANY NODE EMITS, AND THAT IS THE POINT. The contract puts these per block
+     DELIBERATELY — a block must be readable ALONE, which is what the measurement walk needs — so
+     "stop repeating them" is the wrong fix: it would move every committed fixture and every
+     `computeHash` for a saving nobody has asked for yet. What the row asks for is that the shared
+     parts be HOISTABLE *before* the thing that multiplies the repeat exists.
+
+     THE CONSUMER IS NAMED AND IS NOT YET STARTED, which is a different claim from "there is one".
+     `MEASUREMENT-PROVENANCE-ROADMAP` §12 question 5 ("Window-level lineage under the export
+     boundary") is an OPEN, UNSCHEDULED scientific question, and it states the ordering itself:
+     *"Hoisting the shared parts is a contract change; it must precede any per-window emission."*
+     So this is a prerequisite with a stated dependant, not speculative generality — and nothing in
+     the tree emits a hoisted document today, which is why landing it moves no fixture at all.
+     ⚠️ AND q5's WORDING IS NOT INHERITED: read literally, "hoisting is a contract change" is the
+     shape ruled out above. What lands here is the CAPABILITY and its invariant. The contract change
+     remains q5's to make, by whoever does per-window emission; this landing has not made it.
+
+     `hoist(blocks)` lifts every key DEEP-EQUAL across ALL blocks into `shared`; `resolve(shared,
+     block)` puts it back. The invariant is a ROUND TRIP, gate-asserted, because a hoist that loses a
+     field is a provenance loss no reader could detect: the block still validates, and it now
+     describes a window, a code identity or an input hash that is not its own.
+
+     ⚠️ THE ROUND TRIP IS DEEP-EQUAL, NOT BYTE-EQUAL. `resolve` returns the shared keys first, then
+     the block's, so key ORDER differs from the original. That is invisible to every reader of the
+     object and visible to a FIXTURE BYTE-COMPARE — precisely the reader that would find it at the
+     worst moment — so it is asserted as deep equality and stated here. An emitter that ever ships a
+     hoisted document owes its own key order.
+
+     ⚠️ HOIST ONLY WHERE IT REDUCES BYTES; OTHERWISE RETURN THE INPUT UNCHANGED. Hoisting is a SIZE
+     optimisation, so where it does not reduce size it must not change shape. That one principle
+     replaces a block-count threshold and its exceptions: a ONE-BLOCK document falls out (every key is
+     trivially "shared", yielding a `shared` section plus an empty block — saving nothing, readable
+     alone by nobody), and so does a many-block document with nothing actually shared, which a
+     count-based rule would hoist into an empty `shared` for no reason. The rule and its instrument
+     are the same quantity: `hoistSaving` computes exactly what the invariant is stated in.
+     ⚠️ `metricId` and `value` are NEVER hoisted even when equal: they are the identity and the
+     payload of the instance. Two blocks that happen to carry the same value are two measurements. */
+  var NEVER_HOIST = ['metricId', 'value'];
+  function _deepEq(a, b) {
+    if (a === b) return true;
+    if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
+    var ka = Object.keys(a).sort(),
+      kb = Object.keys(b).sort();
+    if (ka.length !== kb.length) return false;
+    for (var i = 0; i < ka.length; i++) if (ka[i] !== kb[i] || !_deepEq(a[ka[i]], b[ka[i]])) return false;
+    return true;
+  }
+  /* blocks: the `measurement` map a node emits ({ metricId: block }). Returns { shared, blocks } with
+     the same keys; `shared` is {} when nothing is common (or fewer than two blocks). */
+  function hoist(blocks) {
+    var ids = blocks && typeof blocks === 'object' ? Object.keys(blocks) : [];
+    if (!ids.length) return { shared: {}, blocks: blocks || {} };
+    var first = blocks[ids[0]],
+      shared = {},
+      k;
+    for (k in first) {
+      if (!Object.prototype.hasOwnProperty.call(first, k)) continue;
+      if (NEVER_HOIST.indexOf(k) >= 0) continue;
+      var all = true;
+      for (var i = 1; i < ids.length; i++) {
+        var b = blocks[ids[i]];
+        if (!b || !Object.prototype.hasOwnProperty.call(b, k) || !_deepEq(b[k], first[k])) {
+          all = false;
+          break;
+        }
+      }
+      if (all) shared[k] = first[k];
+    }
+    var out = {};
+    for (var j = 0; j < ids.length; j++) {
+      var src = blocks[ids[j]],
+        cp = {};
+      for (k in src) {
+        if (!Object.prototype.hasOwnProperty.call(src, k)) continue;
+        if (Object.prototype.hasOwnProperty.call(shared, k)) continue;
+        cp[k] = src[k];
+      }
+      out[ids[j]] = cp;
+    }
+    /* THE INVARIANT, APPLIED: a hoist that does not reduce bytes returns the input unchanged. This is
+       where the one-block case and the nothing-shared case are both refused, without either being
+       named as a rule. */
+    var before = JSON.stringify(blocks).length;
+    var after = JSON.stringify({ shared: shared, blocks: out }).length;
+    if (after >= before) return { shared: {}, blocks: blocks };
+    return { shared: shared, blocks: out };
+  }
+  /* The inverse. ⚠️ THE ROUND TRIP IS DEEP-EQUAL, NOT BYTE-EQUAL: `resolve` returns the shared keys
+     first, then the block's, so key ORDER differs from the original. That is invisible to every
+     reader of the object and visible to a fixture byte-compare, which is why it is stated here and
+     asserted as deep equality rather than string equality. An emitter that ever ships a hoisted
+     document owes its own key order — and since no node emits one, nothing in the tree depends on
+     this yet, which is exactly when the caveat is cheap to record.
+     A key present on the block WINS over `shared` — a per-block override is the whole
+     reason a shared section is safe to add later (a per-window emitter hoists what it can and states
+     what differs), and silently preferring `shared` would overwrite the specific with the general. */
+  function resolve(shared, block) {
+    var out = {},
+      k;
+    for (k in shared || {}) if (Object.prototype.hasOwnProperty.call(shared, k)) out[k] = shared[k];
+    for (k in block || {}) if (Object.prototype.hasOwnProperty.call(block, k)) out[k] = block[k];
+    return out;
+  }
+  /* What hoisting would SAVE on a given map, in serialised bytes — the number the row is about, so a
+     future emitter can state it rather than assert an improvement. Never called by the emitters. */
+  function hoistSaving(blocks) {
+    /* ⚠️ THIS MUST MEASURE WHAT `hoist` ACTUALLY RETURNS, not what a hoist would have produced.
+       The first cut computed its own `after` from the lifted form even where `hoist` had REFUSED and
+       returned the input unchanged, so a one-block document reported a NEGATIVE saving (-23 bytes:
+       the `{shared,blocks}` wrapper it never got). The rule is stated in this quantity, so the rule
+       and its instrument drifting apart is the one failure that makes both meaningless — caught by
+       the plant asserting the refused case saves exactly 0. `hoist` is now the single source: if it
+       returned the input, the saving IS zero, by construction and not by agreement. */
+    var before = JSON.stringify(blocks || {}).length;
+    var h = hoist(blocks);
+    var refused = !Object.keys(h.shared).length;
+    var after = refused ? before : JSON.stringify({ shared: h.shared, blocks: h.blocks }).length;
+    return { beforeBytes: before, afterBytes: after, savedBytes: before - after, savedPct: before ? Math.round((1000 * (before - after)) / before) / 10 : 0, sharedKeys: Object.keys(h.shared) };
+  }
+
   var API = {
     validateMeasurement: validateMeasurement,
+    hoist: hoist,
+    resolve: resolve,
+    hoistSaving: hoistSaving,
     BASIS: BASIS.slice(),
     CLOCK_DOMAINS: CLOCK_DOMAINS.slice(),
     LADDER_ONLY: LADDER_ONLY.slice()

@@ -29,12 +29,24 @@ v(){ local o; o=$(jq -Rn --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}
      [[ "$o" == *'"deny"'* ]] && echo DENY || echo allow; }
 
 fail=0
-chk(){ # chk <expected> <command>
+# AN INTENDED RELAXATION IS NAMED, NOT EXEMPTED WHOLESALE. The comparison against `origin/main` is
+# the harness's whole value: any command main DENIED and this copy ALLOWS is a regression until
+# somebody says otherwise, in writing, per case. `chk allowNEW` is that statement — it asserts allow
+# AND asserts main denied it, so a relaxation that main already allowed (i.e. one that is not the
+# change being made) fails as loudly as an unintended one. Weakening the comparison instead would
+# have bought silence on every future relaxation.
+chk(){ # chk <expected|allowNEW> <command>
+  local want="$1"; local newly=0
+  [ "$want" = allowNEW ] && { want=allow; newly=1; }
   local got; got=$(v "$2" "$H")
   local base; base=$(v "$2" "$BASE")
   local flag=""
-  [ "$got" != "$1" ] && { flag=" <-- EXPECTED $1"; fail=$((fail+1)); }
-  [ "$got" = allow ] && [ "$base" = DENY ] && { flag="$flag <-- REGRESSION vs origin/main"; fail=$((fail+1)); }
+  [ "$got" != "$want" ] && { flag=" <-- EXPECTED $want"; fail=$((fail+1)); }
+  if [ "$newly" = 1 ]; then
+    [ "$base" = DENY ] || { flag="$flag <-- NOT A RELAXATION: origin/main already allows it"; fail=$((fail+1)); }
+  else
+    [ "$got" = allow ] && [ "$base" = DENY ] && { flag="$flag <-- REGRESSION vs origin/main"; fail=$((fail+1)); }
+  fi
   printf '  %-5s %-5s %s%s\n' "$got" "$base" "$2" "$flag"
 }
 
@@ -230,9 +242,108 @@ DENY3
 # 3 · blanket staging by glob. These go through chk directly rather than a heredoc: the add rule
 # matches $cmdn RAW (deliberately — so `bash -c "git add -A"` cannot hide), which means a heredoc
 # listing the glob denies the very command that writes this matrix. Noted rather than worked around.
+# ── DATA vs CODE: the heredoc split, planted BOTH ways (residue
+#    2026-09-20-guard-strips-quotes-for-one-rule-only). A heredoc BODY is data and is stripped for
+#    EVERY rule; a heredoc feeding an interpreter is a PROGRAM and stays raw; quotes stay raw always,
+#    which is what keeps the `-c` bypass closed. Delete either half and the split silently becomes
+#    "strip everything" or "strip nothing".
+# Documentation heredocs — the artifact whose whole job is to describe what was done — must pass.
+chk allowNEW "git commit -F - <<'MSG'
+a message describing git add -A in prose
+MSG"
+chk allowNEW "gh pr create --body-file - <<'BODY'
+the PR explains why git clean -f is forbidden here
+BODY"
+# An INTERPRETER heredoc is a PROGRAM, not a description — still read raw, still denied.
+chk DENY "python3 - <<'PY'
+import os
+os.system('git add -A')
+PY"
+chk DENY "bash <<'EOF'
+git clean -f
+EOF"
+# FAIL CLOSED when the terminator appears twice: a greedy strip would swallow the real command after
+# the heredoc (measured 2026-08-05 on the rebase rule), so the full text is kept and the rule runs.
+chk DENY "git commit -F - <<'A'
+body mentioning git add -A
+A
+git clean -f
+A"
+# The quote bypass the raw match exists for stays closed — this is what the row's own remedy
+# (strip quotes for every rule) would have reopened.
+chk DENY 'bash -c "git add -A"'
+chk DENY "bash -c 'git clean -f'"
+
 chk DENY 'git add *'
 chk DENY "git add '*'"
 chk DENY 'git add ./*'
+
+echo
+echo "### THE DENIAL NAMES WHAT IT CANCELLED (residue 2026-09-20-guard-denial-takes-the-whole-invocation)"
+# A denial cancels the whole Bash call — the harness cannot run half of one. So the report must say
+# what went with it. This replays the row's own measured instance: a PR creation chained ahead of a
+# forced removal, where the removal was rightly denied and the PR silently never happened.
+reason(){ jq -Rn --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}' | bash "$H" 2>/dev/null \
+  | jq -r '.hookSpecificOutput.permissionDecisionReason // ""'; }
+_r="$(reason 'gh pr create --title x --body-file /tmp/pr.md && git worktree remove ../wt-x --force && npm run check')"
+case "$_r" in
+  *"CANCELLED THE WHOLE INVOCATION"*) : ;;
+  *) echo "  FAIL  a multi-clause denial does not report the cancellation"; fail=$((fail+1)) ;;
+esac
+case "$_r" in
+  *"gh pr create --title x"*) echo "  ok    the cancelled PR-creation clause is NAMED" ;;
+  *) echo "  FAIL  the cancelled clause is not named — the silence is the defect"; fail=$((fail+1)) ;;
+esac
+case "$_r" in
+  *"npm run check"*) echo "  ok    …and so is the clause AFTER the denied one" ;;
+  *) echo "  FAIL  a later clause is not named"; fail=$((fail+1)) ;;
+esac
+# A SINGLE-CLAUSE denial cancelled nothing else, so it must NOT grow the section — a report that
+# fires on every denial is noise, and noise is how a real one gets skipped.
+_r1="$(reason 'git clean -f')"
+case "$_r1" in
+  *"CANCELLED THE WHOLE INVOCATION"*) echo "  FAIL  a single-clause denial claims it cancelled other work"; fail=$((fail+1)) ;;
+  *) echo "  ok    a single-clause denial says nothing about cancellation" ;;
+esac
+# A clause inside a QUOTED STRING is not a command: reporting it would invent work that never existed.
+_r2="$(reason 'git clean -f && echo "a && b ; c"')"
+case "$_r2" in
+  *'"a && b ; c"'*) echo "  FAIL  a quoted string was split into clauses"; fail=$((fail+1)) ;;
+  *) echo "  ok    quoted text is not mistaken for clauses" ;;
+esac
+
+echo
+echo "### A FAIL-CLOSED DENIAL NAMES THE WAY OUT"
+# Prose composed inside an INTERPRETER heredoc is read raw and denied — correct, and indistinguishable
+# from a broken guard unless the message says what to do instead. #2088: a session that had done
+# everything right was denied twice by a documented hatch and could not tell it from a bug.
+_rp="$(reason "python3 - <<'PZ'
+body = 'explains why git add -A is forbidden'
+open('/tmp/b.md','w').write(body)
+PZ")"
+case "$_rp" in
+  *"WRITING PROSE"*) echo "  ok    an interpreter-heredoc denial names the plain-file remedy" ;;
+  *) echo "  FAIL  the denial does not tell a prose author what to do instead"; fail=$((fail+1)) ;;
+esac
+# The obvious shortcut is the WRONG tool and the paragraph must say so: the hatch disables the whole
+# guard, so using it to write a PR body turns off the protection against a blanket add to describe one.
+case "$_rp" in
+  *"NOT THE REMEDY HERE"*) echo "  ok    …and names what the escape hatch would actually cost" ;;
+  *) echo "  FAIL  the remedy does not warn that the hatch disables the whole guard"; fail=$((fail+1)) ;;
+esac
+# The failure signal for this paragraph cannot be observed — nothing records hatch usage — so the
+# denial asks for a self-report. Without it the "worth watching" is a caveat, not a check.
+case "$_rp" in
+  *"SAY SO"*) echo "  ok    …and asks for a self-report, the only evidence hatch use can leave" ;;
+  *) echo "  FAIL  no self-report asked for, so the stated failure signal is unobservable"; fail=$((fail+1)) ;;
+esac
+# …and NOT on an ordinary denial: advice that appears on every denial is noise, and noise is how the
+# one paragraph that mattered gets skipped.
+_rq="$(reason 'git add -A')"
+case "$_rq" in
+  *"WRITING PROSE"*) echo "  FAIL  the prose remedy appears on a denial that has nothing to do with heredocs"; fail=$((fail+1)) ;;
+  *) echo "  ok    an ordinary denial does not carry the prose paragraph" ;;
+esac
 
 echo
 echo "### MUST ALLOW — ordinary work"
