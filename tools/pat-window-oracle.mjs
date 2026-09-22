@@ -53,6 +53,8 @@
  *   node tools/pat-window-oracle.mjs --dir <captures root> [--half-width 100] [--fiducial foot|cfd|half] [--ecg-axis linear|piecewise] [--no-ecg-refine]
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -505,7 +507,29 @@ function selftest() {
   const vNone = pickPair('/nowhere', []);
   ok(vNone.missing !== undefined && /_ECG\.txt/.test(vNone.missing), 'an empty directory names the ECG too');
 
-  const TOTAL = 34;
+  /* ── the run as ONE tepna.verdict/1 object (2026-09-22) ──────────────────────────────────────
+     Every arm, because a status nobody has seen emitted is a status nobody has checked. The
+     criterion is the tool's own BAND_RECOVERED, so these pin a mapping, never a new threshold. */
+  {
+    const V = createRequire(import.meta.url)(join(HERE, '..', 'verdict.js'));
+    const arm = (t) => runVerdict(t);
+    ok(arm({ 'SIGNAL RECOVERED': 3 }).status === 'PASS', 'every scored unit inside the band → PASS');
+    ok(arm({ 'SIGNAL RECOVERED': 3 }).reason === null, 'a PASS carries no reason — a PASS that needs explaining is not one');
+    ok(arm({ PARTIAL: 2 }).status === 'FAIL', 'no unit inside the band → FAIL');
+    const sh = arm(sampleTally());
+    ok(sh.status === 'SHORTFALL' && /2 of 3/.test(sh.reason), `a mixed corpus → SHORTFALL naming the sub-population, got ${sh.status}: ${sh.reason}`);
+    ok(sh.population.checked + sh.population.excluded === sh.population.eligible, 'population is an EQUALITY, refusals excluded not averaged');
+    ok(sh.population.excluded === 1, 'a named refusal is EXCLUDED, never folded into the data verdict');
+    ok(arm({ REFUSED: 4 }).status === 'UNDERPOWERED', 'units offered and none scorable → UNDERPOWERED, not FAIL');
+    ok(arm({}).status === 'NOT_RUN', 'no units at all → NOT_RUN, not an empty PASS');
+    /* PLANT — the validator caught this on the NOT_RUN arm's first run, and it is pinned so the
+       next edit cannot quietly attach a result to a verdict that examined nothing. */
+    ok(arm({}).result === null, 'PLANT: NOT_RUN carries result null — nothing examined, nothing measured');
+    ok(arm({ UNDEFINED: 1, 'SIGNAL RECOVERED': 1 }).status === 'UNKNOWN', 'an UNDEFINED band → UNKNOWN, never a quotable band');
+    ok(V.validate(sh).ok && V.validate(arm({})).ok, 'every emitted arm validates under verdict.js');
+  }
+
+  const TOTAL = 45;
   console.log(fails.length ? `SELFTEST FAIL (${fails.length}/${TOTAL})\n  ${fails.join('\n  ')}` : `SELFTEST PASS (${TOTAL}/${TOTAL})`);
   return fails.length === 0;
 }
@@ -574,6 +598,87 @@ export function rootLayoutVerdict(nightDirs, looseRecordings) {
       `recording file(s) at depth 1. Scoring the directories would silently drop the loose files ` +
       `and report a plausible tally over part of the tree. Found loose: ${shown}${more}.`
   };
+}
+
+/* ── THE RUN AS ONE tepna.verdict/1 OBJECT (docs/VERDICT-CONTRACT.md) ─────────────────────────
+   The table above is the prose; this is the API. Nothing here invents a threshold: the criterion
+   is the tool's OWN pre-stated band (`BAND_RECOVERED`, printed in the header of every run), and the
+   status comes from how the checked population sits against it.
+
+     PASS          every checked unit meets SD <= BAND_RECOVERED
+     SHORTFALL     some meet it, some do not — the reason names the sub-population that missed
+     FAIL          none meet it
+     UNDERPOWERED  units were offered and NONE could be scored (all refused)
+     NOT_RUN       no units at all — an empty root, not an empty result
+     UNKNOWN       a unit scored to an UNDEFINED band: the instrument could not decide
+
+   `population` is UNITS: `excluded` are the named refusals (`REFUSED`, `ARTIFACT REFUSAL`), which
+   is why they have their own tally buckets in the first place — a refusal is not a data verdict and
+   must not be averaged into one. PURE. */
+export function runVerdict(tally, { commit = null, evidence = [] } = {}) {
+  const Verdict = createRequire(import.meta.url)(join(HERE, '..', 'verdict.js'));
+  const n = (k) => tally[k] || 0;
+  const excluded = n('REFUSED') + n('ARTIFACT REFUSAL');
+  const recovered = n('SIGNAL RECOVERED');
+  const undef = n('UNDEFINED');
+  const eligible = Object.values(tally).reduce((a, b) => a + b, 0);
+  const checked = eligible - excluded;
+  const missed = checked - recovered;
+  let status;
+  let reason;
+  if (eligible === 0) {
+    status = 'NOT_RUN';
+    reason = 'no units — the root offered nothing to score';
+  } else if (checked === 0) {
+    status = 'UNDERPOWERED';
+    reason = `all ${eligible} unit(s) refused before scoring (minimum to decide: 1 scored unit) — ${JSON.stringify(tally)}`;
+  } else if (undef > 0) {
+    status = 'UNKNOWN';
+    reason = `${undef} of ${checked} scored unit(s) landed in the UNDEFINED band — the instrument could not decide`;
+  } else if (missed === 0) {
+    status = 'PASS';
+    reason = null;
+  } else if (recovered === 0) {
+    status = 'FAIL';
+    reason = `0 of ${checked} scored unit(s) reach SD <= ${BAND_RECOVERED} ms — ${JSON.stringify(tally)}`;
+  } else {
+    status = 'SHORTFALL';
+    reason = `${recovered} of ${checked} scored unit(s) reach SD <= ${BAND_RECOVERED} ms; ${missed} did not — ${JSON.stringify(tally)}`;
+  }
+  const v = Verdict.make({
+    gate: 'pat-window-oracle',
+    status,
+    scope: 'internal',
+    population: { checked, eligible, excluded },
+    criterion: { name: 'narrow_out_of_sample_sd_ms', threshold: BAND_RECOVERED, unit: 'ms', direction: 'lte' },
+    /* NOT_RUN carries result: null by contract — nothing was examined, so nothing was measured.
+       The validator caught this on the first run of the NOT_RUN arm; it is not a style choice. */
+    result: status === 'NOT_RUN' ? null : { tally, recovered, scored: checked, refused: excluded },
+    evidence: ['tools/pat-window-oracle.mjs', ...evidence],
+    reason,
+    producedBy: { tool: 'tools/pat-window-oracle.mjs', commit, ...(commit ? {} : { commitReason: 'not read from a git tree' }) }
+  });
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error(`pat-window-oracle: verdict invalid under verdict.js — ${chk.errors.join(' | ')}`);
+  return v;
+}
+
+function gitCommitShort() {
+  try {
+    return (
+      execSync('git rev-parse --short HEAD', { cwd: join(HERE, '..'), stdio: ['ignore', 'pipe', 'ignore'] })
+        .toString()
+        .trim() || null
+    );
+  } catch {
+    return null; // \u00a7\u2205: not in a git tree is an ABSENCE; the verdict says so in commitReason
+  }
+}
+
+/** The corpus-free sample the adoption gate runs: a mixed corpus — two recovered, one partial, one
+ *  refused — which is the SHORTFALL arm, the one a real run most often lands in. */
+export function sampleTally() {
+  return { 'SIGNAL RECOVERED': 2, PARTIAL: 1, REFUSED: 1 };
 }
 
 /** Group a FLAT root's loose recordings into SESSIONS. PURE (names only, no fs).
@@ -733,6 +838,10 @@ async function main() {
      which the human table does not print and which is the only way to ask whether a circularly-shifted
      train reaches PHYS as readily as a real one. */
   const SMAX = Number(argv.includes('--search-max') ? argv[argv.indexOf('--search-max') + 1] : MODE_SEARCH_MAX);
+  if (argv.includes('--verdict-sample')) {
+    console.log(JSON.stringify(runVerdict(sampleTally(), { commit: gitCommitShort(), evidence: ['<sample>'] }), null, 2));
+    return;
+  }
   const JSON_OUT = argv.includes('--json');
   const jsonRows = [];
   if (!DIR || !existsSync(DIR) || !['foot', 'cfd', 'half'].includes(FID) || !['linear', 'piecewise'].includes(AXIS)) {
@@ -845,6 +954,8 @@ async function main() {
     );
   }
   console.log('\nTALLY:', JSON.stringify(tally));
+  /* One object beside the prose — the reader above is a human, this one is a machine. */
+  console.log('VERDICT ' + JSON.stringify(runVerdict(tally, { commit: gitCommitShort(), evidence: [DIR] })));
   if (JSON_OUT) console.log('JSONROWS ' + JSON.stringify({ searchMax: SMAX, rows: jsonRows }));
 }
 

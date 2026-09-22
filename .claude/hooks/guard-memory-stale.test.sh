@@ -92,4 +92,63 @@ msg="$(printf '{"session_id":"%s","tool_name":"Write","tool_input":{"file_path":
 case "$msg" in *"CHANGED since this session read it"*) n=named ;; *) n=unnamed ;; esac
 ok named "$n"                                 'the changed-since-read denial says so, with both mtimes'
 
+# ── 8 · THE Bash ARMS. HOME is redirected so `mem_dirs`' glob finds the throwaway project, which is
+#        also how the SECOND-SLUG case is evidence rather than argument.
+runb() { # runb <command> <phase> [session_id] ; echoes DENY or ALLOW
+  local c="$1" phase="${2-pre}" sid="${3-$SID}" js
+  js="$(printf '{"session_id":"%s","tool_name":"Bash","tool_input":{"command":%s}}' "$sid" "$(printf '%s' "$c" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')")"
+  printf '%s' "$js" | env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_ALLOW_STALE_MEMORY HOME="$TMP" bash "$H" "$phase" >/dev/null 2>&1
+  [ $? -eq 2 ] && echo DENY || echo ALLOW
+}
+# the guard globs $HOME/.claude/projects/*/memory, so the fixture must live there
+F2="$MEM/second-fact.md"
+printf 'body by session A\n' > "$F2"
+
+# 8a · PREVENTION — the two forms whose path is IN the command string
+ok DENY  "$(runb "cat > $F2 <<'EOF'
+new body
+EOF")"                                        'pre-Bash · a HEREDOC write to an unread memory file is DENIED'
+ok DENY  "$(runb "sed -i 's/a/b/' $F2")"     'pre-Bash · an in-place sed likewise'
+ok ALLOW "$(runb "cat $F2")"                 'pre-Bash · a READ of the same file is allowed (a guard that denies its own remedy is worse than the gap)'
+ok ALLOW "$(runb "grep -n '>>>>>>>' $F2")"   'pre-Bash · a conflict-marker grep is a READ, not a redirect (≥3 ">" stripped)'
+ok ALLOW "$(runb "echo writing $F2 by hand")" 'pre-Bash · a command that merely NAMES the file is not write-shaped'
+ok DENY  "$(runb "cp /tmp/x $F2")"           'pre-Bash · cp onto a memory file is a write'
+ok ALLOW "$(runb "cat > $MEM/brand-new.md <<'EOF'
+x
+EOF")"                                        'pre-Bash · writing a NEW memory file is not an overwrite'
+
+# 8b · THE CASE PREVENTION CANNOT SEE — a python heredoc whose path is computed.
+PYW="python3 - <<'PY'
+import os
+p = os.path.join(os.environ['M'], 'second' + '-fact.md')
+open(p, 'w').write('rewritten by a program\n')
+PY"
+ok ALLOW "$(runb "$PYW")"                    'pre-Bash · a PYTHON program with a COMPUTED path walks past prevention — stated, not hidden'
+
+# 8c · DETECTION catches exactly that. First post establishes the baseline (no finding is possible),
+#      then the write happens, then the next post reports it.
+ok ALLOW "$(runb "true" post)"               'post-Bash · the FIRST invocation has no baseline, so it reports nothing and snapshots'
+sleep 1; M="$MEM" python3 -c "
+import os
+p = os.path.join(os.environ['M'], 'second-fact.md')
+open(p, 'w').write('rewritten by a program\n')
+"
+ok DENY  "$(runb "true" post)"               'post-Bash · a memory file that MOVED in a session that never read it IS reported — the write form is irrelevant'
+ok ALLOW "$(runb "true" post)"               'post-Bash · …and reported ONCE: the snapshot is refreshed, so the same move does not re-fire'
+
+# 8d · a file this session READ at its current state is its own accounted write, not a finding
+ok ALLOW "$(run Read "$F2")"                 'a Read records the post-write state'
+sleep 1; printf 'again\n' > "$F2"
+ok DENY  "$(runb "true" post)"               'post-Bash · a LATER move after that read is reported again'
+
+# 8e · SECOND PROJECT SLUG — "in scope by construction" is an argument; this is the evidence.
+PROJ2="$TMP/.claude/projects/-opt-tepna"; MEM2="$PROJ2/memory"
+mkdir -p "$MEM2"; printf 'box body\n' > "$MEM2/box-fact.md"
+ok DENY  "$(runb "cat > $MEM2/box-fact.md <<'EOF'
+x
+EOF")"                                        'pre-Bash · a DIFFERENT project slug is in scope (the box'"'"'s own -opt-tepna)'
+ok ALLOW "$(runb "cat > $TMP/elsewhere/x.md <<'EOF'
+x
+EOF")"                                        'pre-Bash · a path outside any memory dir is allowed'
+
 if [ "$fail" -eq 0 ]; then echo "guard-memory-stale: all checks passed"; else echo "guard-memory-stale: $fail FAILED"; exit 1; fi

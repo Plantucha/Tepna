@@ -220,12 +220,16 @@ export function emittedDecisionLines(src, isPy) {
    approval: each is owed an adoption with its own criterion, and the ratchet may only SHRINK — a
    row that stops emitting, or that leaves `word-only`, reds until it is removed here. */
 export const WO_CLAIM_RATCHET = new Set([
+  /* ⚠️ `beat-leg-closure` carries the "prose inside code" reason, NOT the copy-pasted one — which
+     is why this check keys on EMISSION and never on the reason text. A sweep keyed on the 47
+     duplicated strings would have found eight of these nine and left this one behind, still
+     asserting in the manifest something its source had stopped supporting. */
   'tools/beat-leg-closure.mjs',
   'tools/buzz-fiducial-correlate.mjs',
   'tools/formula-constant-audit.mjs',
   'tools/pat-fiducial-jitter.mjs',
   'tools/pat-residual-structure.mjs',
-  'tools/pat-window-oracle.mjs',
+  /* `tools/pat-window-oracle.mjs` was the ninth; it ADOPTED, so the ratchet shrank by one. */
   'tools/pb-agreement.mjs',
   'tools/probe-clock-equivalence.mjs',
   'tools/probe-equivalence.mjs'
