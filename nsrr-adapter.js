@@ -437,6 +437,12 @@
     out.ahiKulkas = night.ahiEst && night.ahiEst.ahiKulkas != null ? night.ahiEst.ahiKulkas : null;
     out.minSpo2 = night.stats ? night.stats.minSpo2 : null;
     out.t90 = night.stats ? night.stats.t90pct : null;
+    /* Additive (2026-09-22): the two saturation summaries the NSRR lane had reported through this adapter
+       but never surfaced per record, so `2026-09-21-nsrr-t90-counted-dropouts-as-desaturation` could not be
+       measured on the cohort. Both come from `computeStats`, which since that fix rates over MEASURED
+       seconds only; null-safe like every other stats field here. */
+    out.meanSpo2 = night.stats && night.stats.meanSpo2 != null ? night.stats.meanSpo2 : null;
+    out.t95 = night.stats && night.stats.t95pct != null ? night.stats.t95pct : null;
     out.durMin = night.stats ? night.stats.durationMin : null;
 
     if (opts.scoredAHI != null && isFinite(opts.scoredAHI)) {

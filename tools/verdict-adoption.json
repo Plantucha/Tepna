@@ -708,6 +708,11 @@
    "status": "exempt",
    "reason": "selftest assertion printer \u2014 the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
   },
+  "tools/odi4-shhs-recut.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "a re-cut AGGREGATOR, not a gate: it computes the paper's Table 3/4 statistics from a pool run into a tepna.published-number-record/1 (analysis/published-numbers/odi4-shhs-*.json) whose values the table-provenance gate compares as sourced CLAIMs; its only verdict word is the selftest printer's FAIL"
+  },
   "tools/oracle-ecg-firmware-rr.mjs": {
    "bin": "already-json",
    "status": "adopted",

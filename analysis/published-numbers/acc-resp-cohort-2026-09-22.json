@@ -1,0 +1,186 @@
+{
+  "schema": "tepna.published-number-record/1",
+  "producer": "tools/resp-acc-headless.mjs",
+  "producerCommit": "2d5405b2",
+  "invocation": "node tools/resp-acc-headless.mjs <staged-dir> --figures papers/figures",
+  "generated": "2026-09-22",
+  "inputs": {
+    "path": "/srv/data/tepna-stage-respacc-mg",
+    "committed": false,
+    "files": 50,
+    "digest": null,
+    "note": "the staged ACC + CPAP corpus is gitignored (real recordings); the cohort manifest beside this record lists every staged file and every night verdict"
+  },
+  "publishedIn": "papers/acc-respiratory-rate.html (cohort description re-cut, correction block)",
+  "claims": {
+    "note": "values EXACTLY as the prose states them, so CLAIM … FROM … #claims/<key> compares equal",
+    "pairedNights": 49,
+    "scoredNights": 14,
+    "stagedAccFiles": 50,
+    "hours": 71.5,
+    "epochs": 8057,
+    "perNightBiasMin": -1.63,
+    "perNightBiasMax": -0.11,
+    "perNightMaeMin": 0.76,
+    "perNightMaeMax": 3.31,
+    "perNightMaeMedian": 1.04
+  },
+  "result": {
+    "perNight": [
+      {
+        "night": "20260612_225447",
+        "verdict": "drift-consistent · pooled: not confident",
+        "scored": true,
+        "hours": "7.1",
+        "epochs": "748",
+        "mae": "0.83",
+        "bias": "-0.35",
+        "within2": "95.2%",
+        "r": "0.474"
+      },
+      {
+        "night": "20260615_215323",
+        "verdict": "drift-consistent · pooled -120.0s (z=12.2, p=0.032)",
+        "scored": true,
+        "hours": "7.4",
+        "epochs": "725",
+        "mae": "1.27",
+        "bias": "-0.57",
+        "within2": "89.0%",
+        "r": "0.446"
+      },
+      {
+        "night": "20260617_010616",
+        "verdict": "drift-consistent · pooled: not confident",
+        "scored": true,
+        "hours": "3.0",
+        "epochs": "343",
+        "mae": "0.97",
+        "bias": "-0.51",
+        "within2": "87.2%",
+        "r": "0.752"
+      },
+      {
+        "night": "20260618_214253",
+        "verdict": "drift-consistent · pooled: not confident",
+        "scored": true,
+        "hours": "0.8",
+        "epochs": "89",
+        "mae": "3.31",
+        "bias": "-1.63",
+        "within2": "69.7%",
+        "r": "0.516"
+      },
+      {
+        "night": "20260619_221400",
+        "verdict": "drift-consistent · pooled: ambiguous",
+        "scored": true,
+        "hours": "4.5",
+        "epochs": "525",
+        "mae": "0.83",
+        "bias": "-0.27",
+        "within2": "95.4%",
+        "r": "0.373"
+      },
+      {
+        "night": "20260624_222534",
+        "verdict": "drift-consistent · pooled -2072.5s (z=8.1, p=0.032)",
+        "scored": true,
+        "hours": "6.1",
+        "epochs": "701",
+        "mae": "0.76",
+        "bias": "-0.27",
+        "within2": "92.6%",
+        "r": "0.666"
+      },
+      {
+        "night": "20260625_215302",
+        "verdict": "drift-consistent · pooled -1577.5s (z=8.2, p=0.032)",
+        "scored": true,
+        "hours": "7.0",
+        "epochs": "806",
+        "mae": "0.91",
+        "bias": "-0.47",
+        "within2": "91.8%",
+        "r": "0.350"
+      },
+      {
+        "night": "20260626_214332",
+        "verdict": "drift-consistent · pooled: not confident",
+        "scored": true,
+        "hours": "0.8",
+        "epochs": "81",
+        "mae": "2.00",
+        "bias": "-0.11",
+        "within2": "70.4%",
+        "r": "0.341"
+      },
+      {
+        "night": "20260701_214337",
+        "verdict": "drift-consistent · pooled: not confident",
+        "scored": true,
+        "hours": "7.2",
+        "epochs": "818",
+        "mae": "1.09",
+        "bias": "-0.52",
+        "within2": "91.9%",
+        "r": "0.286"
+      },
+      {
+        "night": "20260702_221100",
+        "verdict": "drift-consistent · pooled: not confident",
+        "scored": true,
+        "hours": "5.5",
+        "epochs": "649",
+        "mae": "1.52",
+        "bias": "-0.79",
+        "within2": "88.9%",
+        "r": "0.027"
+      },
+      {
+        "night": "20260703_224150",
+        "verdict": "drift-consistent · pooled: not confident",
+        "scored": true,
+        "hours": "0.7",
+        "epochs": "77",
+        "mae": "2.36",
+        "bias": "-1.54",
+        "within2": "87.0%",
+        "r": "0.361"
+      },
+      {
+        "night": "20260704_225627",
+        "verdict": "drift-consistent · pooled: not confident",
+        "scored": true,
+        "hours": "7.9",
+        "epochs": "909",
+        "mae": "0.93",
+        "bias": "-0.42",
+        "within2": "92.3%",
+        "r": "0.466"
+      },
+      {
+        "night": "20260706_224325",
+        "verdict": "drift-consistent · pooled: not confident",
+        "scored": true,
+        "hours": "6.7",
+        "epochs": "784",
+        "mae": "1.42",
+        "bias": "-0.86",
+        "within2": "88.1%",
+        "r": "0.088"
+      },
+      {
+        "night": "20260709_211628",
+        "verdict": "drift-consistent · pooled: not confident",
+        "scored": true,
+        "hours": "6.8",
+        "epochs": "802",
+        "mae": "1.00",
+        "bias": "-0.52",
+        "within2": "90.4%",
+        "r": "0.298"
+      }
+    ]
+  }
+}
