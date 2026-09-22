@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**209 tools** · 207 with a purpose line · **2 without**
+**210 tools** · 208 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -188,6 +188,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`rho-overlap-power.mjs`](../tools/rho-overlap-power.mjs) | `INTEGRATOR-TCH-FU-IV-FOLLOWUPS` §4 asks for a minimum aligned-overlap rule and is explicit that it must come "from how rho's stability varies with n on the corpus, not from a round number". |
 | [`run-check.mjs`](../tools/run-check.mjs) | `npm run check` used to be a 16-step `&&` chain. That is fine when a step fails on its merits and useless when one fails for an unrelated reason: the shell stops, npm prints the failure,… |
 | [`run-progress.mjs`](../tools/run-progress.mjs) | SHARED PROGRESS, ETA AND RESUME FOR THE MULTI-HOUR TOOLS Every long-runner here had the same two holes, and both cost real time: |
+| [`run-tests-verdict.mjs`](../tools/run-tests-verdict.mjs) | THE TEST RUNNER'S tepna.verdict/1 OBJECT — VERDICT-CONTRACT §3d, the third and largest runner adopter, through the same `aggregateChildren` as run-check (#2827) and selftest-all (#2828). |
 | [`screen-draft-inputs.mjs`](../tools/screen-draft-inputs.mjs) | ADVISORY screen over drafted assertion INPUTS. WHY THIS EXISTS. |
 | [`selftest-all.mjs`](../tools/selftest-all.mjs) | ⚠️ THIS IS NOT THE GATE, and an earlier draft of this header wrongly said it was. |
 | [`served-link-check.mjs`](../tools/served-link-check.mjs) | which local links are DEAD on a deployed box? `CAPTURE-HOST-DEEP-AUDIT-FOLLOWUPS` §1.2 records two dead-link residues on the served tree and says plainly what is missing: *"A link-checker… |
