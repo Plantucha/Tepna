@@ -360,6 +360,39 @@ unbracketed string. Necessary, not sufficient. Do not reach for it and assume yo
    by a no-op loop, in the one place you were trying not to block. (This section shipped without the `&`
    in #825 and was caught in review; with it, the same test polls 3 times and reports the same `EXIT=7`.)
 
+⚠️ **THE SAME SELF-MATCH KILLS, and none of the three remedies above apply to it** (residues
+`2026-09-05-pgrep-selfmatch-kills-too` · `2026-09-13-kill-selfmatch-needs-no-process-tool`). Everything
+above is the WAITING consequence — a shell that hangs on itself. The identical premise has a second
+consequence that is **immediate rather than eventual, and destroys the acting process instead of hanging
+it**: any LIST-THEN-ACT command whose own text contains the pattern it matches will act on itself.
+Measured five times on two machines, in five forms that each read as a different bug:
+
+```sh
+pkill -f storm-watch.sh                                        # ← killed the shell running it
+for p in $(pgrep -f nrf_sniffer_ble); do kill $p; done          # ← same
+case "$cmd" in *"timeout -s INT"*) kill …;; esac                # ← a shell CASE LABEL — no process tool at all
+grep -l <worktree-path> /proc/*/cmdline | … | xargs -r kill     # ← a /proc scan, rig-x870, exit 144
+pgrep -f 'SLOT FREE' >/dev/null && echo alive                   # ← list-then-REPORT: "alive: yes" about nothing
+```
+
+The tell is **exit 144 (128 + SIGTERM) on your own tool call**, ending before the kill list was applied
+— on vigil it left an O2Ring capture stopped and four `storm-watch.sh` instances racing one serial port.
+The third and fourth forms are the instructive ones: **the invariant is not about `pgrep`/`pkill`.** The
+text need only APPEAR in the command line — as a case label, a grep argument, anything — for the
+scanning shell to be in its own result set. The bracket trick, owning the PID and the sentinel file are
+all remedies for *waiting*; a kill list has no PID to own and no sentinel to wait on.
+
+**The discipline is two commands, and the second contains NO pattern:**
+
+```sh
+pgrep -af '<pattern>'            # 1 · LIST. Read the output. Decide. (This command may match itself — harmless.)
+kill 41233 41240                 # 2 · ACT on NUMERIC PIDs, in a command line that carries no pattern at all.
+```
+
+Never fuse them. A one-liner that lists and kills is in its own list by construction; the recoveries
+both rows record were exactly this split, and worked first time. Cross-session (§1) makes it worse, not different: the
+list may also contain a peer's gate, which is why `kill-only-owned-pids` (§4c) is read BEFORE step 2.
+
 ### 4b · The general form: TRUNCATING A RESULT AND READING THE REMAINDER AS THE WHOLE
 
 `| tail -N` is how a long gate is made readable, and it is how a long gate is made to lie. This is **not
