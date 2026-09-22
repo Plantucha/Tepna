@@ -4222,6 +4222,374 @@
     "ppgResyncs": 0
    }
   ],
-  "verdict": "INDETERMINATE by the bands (rho_fold 0.379 over 18 nights, between 0.2 and 0.4) \u2014 and it is the LARGEST of the three box figures: the sweep's selection gave 0.05, restricting that selection to shared hours gave 0.26, the fold's own merged view gives 0.38 against the phone's 0.63. So most of the box/phone gap was the SWEEP, not the box: merging every concurrent session (what trio-batch does and the sweep did not) recovers the bulk of it. ZERO PpgDex clock-seam refusals across the 23 nights \u2014 the predicted refusal cost did not materialise on this corpus, which is itself the finding (the prediction was mine, and it was wrong). Two nights have no Verity export at all in the fold (2026-08-24, 2026-08-28 \u2014 the fold found no concurrent Verity session; the sweep scored a Verity file on both, another instance of the sweep pairing files the fold would not), and three nights lose the ECG side (08-29, 09-11, 09-19 \u2014 one is a PARTIAL night by the fold's own gate). What remains unexplained between 0.38 and 0.63 is the 55 Hz grid (worth about 0.12 on the phone nights) plus a residual"
+  "verdict": "INDETERMINATE by the bands (rho_fold 0.379 over 18 nights, between 0.2 and 0.4) \u2014 and it is the LARGEST of the three box figures: the sweep's selection gave 0.05, restricting that selection to shared hours gave 0.26, the fold's own merged view gives 0.38 against the phone's 0.63. So most of the box/phone gap was the SWEEP, not the box: merging every concurrent session (what trio-batch does and the sweep did not) recovers the bulk of it. ZERO PpgDex clock-seam refusals across the 23 nights \u2014 the predicted refusal cost did not materialise on this corpus, which is itself the finding (the prediction was mine, and it was wrong). Two nights have no Verity export at all in the fold (2026-08-24, 2026-08-28 \u2014 the fold found no concurrent Verity session; the sweep scored a Verity file on both, another instance of the sweep pairing files the fold would not), and three nights lose the ECG side (08-29, 09-11, 09-19 \u2014 one is a PARTIAL night by the fold's own gate). What remains unexplained between 0.38 and 0.63 is the 55 Hz grid (worth about 0.12 on the phone nights) plus a residual",
+  "missingVerityExplained": {
+   "question": "why the fold found no concurrent Verity session on 2026-08-24 and 2026-08-28 while the sweep scored a Verity file on both",
+   "answer": "the fold groups and judges concurrency by the FILENAME STAMP (trio-batch's scan sets t0 = parse14(<the 14-digit stamp in Polar_<dev>_<id>_<stamp>_<stream>.txt>) and derives the night key from it), and on those two nights the Verity filename stamp disagrees with the file's own first data row by 17.0 h (2026-08-24: name 05:23:58, content starts 22:22:32) and 13.3 h (2026-08-28: name 10:02:04, content 23:22:28). The session IS concurrent with the ECG; the NAME says it is not, so concurrentSet drops it and the night folds without a Verity leg.",
+   "census": {
+    "method": "every Polar_<H10|VeritySense>_*_<stamp>_<ECG|PPG|ACC>.txt > 5 kB under vigil-archive/captures: filename stamp vs the first data row",
+    "filesChecked": 2689,
+    "disagreeingOver5Min": 39,
+    "nightsAffected": 14,
+    "maxDeltaMin": 1123,
+    "wouldChangeNightGrouping": 8,
+    "rows": [
+     {
+      "night": "2026-08-12",
+      "file": "Polar_VeritySense_0C301E3F_20260812190815_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260812190815",
+      "firstRow": "2026-08-12T20:10:57.100",
+      "deltaMin": 63
+     },
+     {
+      "night": "2026-08-12",
+      "file": "Polar_VeritySense_0C301E3F_20260812190815_PPG.txt",
+      "device": "VeritySense",
+      "stream": "PPG",
+      "filenameStamp": "20260812190815",
+      "firstRow": "2026-08-12T20:10:57.513",
+      "deltaMin": 63
+     },
+     {
+      "night": "2026-08-20",
+      "file": "Polar_VeritySense_0C301E3F_20260820005459_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260820005459",
+      "firstRow": "2026-08-20T04:36:12.624",
+      "deltaMin": 221
+     },
+     {
+      "night": "2026-08-20",
+      "file": "Polar_VeritySense_0C301E3F_20260820005459_PPG.txt",
+      "device": "VeritySense",
+      "stream": "PPG",
+      "filenameStamp": "20260820005459",
+      "firstRow": "2026-08-20T04:36:13.256",
+      "deltaMin": 221
+     },
+     {
+      "night": "2026-08-20",
+      "file": "Polar_VeritySense_0C301E3F_20260820051713_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260820051713",
+      "firstRow": "2026-08-20T23:59:53.152",
+      "deltaMin": 1123
+     },
+     {
+      "night": "2026-08-20",
+      "file": "Polar_VeritySense_0C301E3F_20260820051713_PPG.txt",
+      "device": "VeritySense",
+      "stream": "PPG",
+      "filenameStamp": "20260820051713",
+      "firstRow": "2026-08-20T23:59:54.260",
+      "deltaMin": 1123
+     },
+     {
+      "night": "2026-08-21",
+      "file": "Polar_VeritySense_0C301E3F_20260821052129_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260821052129",
+      "firstRow": "2026-08-21T21:47:10.833",
+      "deltaMin": 986
+     },
+     {
+      "night": "2026-08-21",
+      "file": "Polar_VeritySense_0C301E3F_20260821052129_PPG.txt",
+      "device": "VeritySense",
+      "stream": "PPG",
+      "filenameStamp": "20260821052129",
+      "firstRow": "2026-08-21T21:47:11.351",
+      "deltaMin": 986
+     },
+     {
+      "night": "2026-08-23",
+      "file": "Polar_H10_02849638_20260823034259_ACC.txt",
+      "device": "H10",
+      "stream": "ACC",
+      "filenameStamp": "20260823034259",
+      "firstRow": "2026-08-23T06:07:34.381",
+      "deltaMin": 145
+     },
+     {
+      "night": "2026-08-23",
+      "file": "Polar_H10_02849638_20260823034259_ECG.txt",
+      "device": "H10",
+      "stream": "ECG",
+      "filenameStamp": "20260823034259",
+      "firstRow": "2026-08-23T06:07:34.845",
+      "deltaMin": 145
+     },
+     {
+      "night": "2026-08-23",
+      "file": "Polar_VeritySense_0C301E3F_20260823193433_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260823193433",
+      "firstRow": "2026-08-23T23:28:37.147",
+      "deltaMin": 234
+     },
+     {
+      "night": "2026-08-23",
+      "file": "Polar_VeritySense_0C301E3F_20260823193433_PPG.txt",
+      "device": "VeritySense",
+      "stream": "PPG",
+      "filenameStamp": "20260823193433",
+      "firstRow": "2026-08-23T23:28:38.413",
+      "deltaMin": 234
+     },
+     {
+      "night": "2026-08-24",
+      "file": "Polar_VeritySense_0C301E3F_20260824000010_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260824000010",
+      "firstRow": "2026-08-24T00:06:46.681",
+      "deltaMin": 7
+     },
+     {
+      "night": "2026-08-24",
+      "file": "Polar_VeritySense_0C301E3F_20260824000010_PPG.txt",
+      "device": "VeritySense",
+      "stream": "PPG",
+      "filenameStamp": "20260824000010",
+      "firstRow": "2026-08-24T00:06:46.845",
+      "deltaMin": 7
+     },
+     {
+      "night": "2026-08-24",
+      "file": "Polar_VeritySense_0C301E3F_20260824052358_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260824052358",
+      "firstRow": "2026-08-24T22:47:12.622",
+      "deltaMin": 1043
+     },
+     {
+      "night": "2026-08-24",
+      "file": "Polar_VeritySense_0C301E3F_20260824052358_PPG.txt",
+      "device": "VeritySense",
+      "stream": "PPG",
+      "filenameStamp": "20260824052358",
+      "firstRow": "2026-08-24T22:22:32.810",
+      "deltaMin": 1019
+     },
+     {
+      "night": "2026-08-25",
+      "file": "Polar_VeritySense_0C301E3F_20260825175314_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260825175314",
+      "firstRow": "2026-08-25T19:37:39.523",
+      "deltaMin": 104
+     },
+     {
+      "night": "2026-08-25",
+      "file": "Polar_VeritySense_0C301E3F_20260825175314_PPG.txt",
+      "device": "VeritySense",
+      "stream": "PPG",
+      "filenameStamp": "20260825175314",
+      "firstRow": "2026-08-25T19:37:40.006",
+      "deltaMin": 104
+     },
+     {
+      "night": "2026-08-27",
+      "file": "Polar_VeritySense_0C301E3F_20260827211113_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260827211113",
+      "firstRow": "2026-08-27T23:25:02.826",
+      "deltaMin": 134
+     },
+     {
+      "night": "2026-08-27",
+      "file": "Polar_VeritySense_0C301E3F_20260827211113_PPG.txt",
+      "device": "VeritySense",
+      "stream": "PPG",
+      "filenameStamp": "20260827211113",
+      "firstRow": "2026-08-27T23:25:03.846",
+      "deltaMin": 134
+     },
+     {
+      "night": "2026-08-28",
+      "file": "Polar_VeritySense_0C301E3F_20260828000104_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260828000104",
+      "firstRow": "2026-08-28T03:31:53.385",
+      "deltaMin": 211
+     },
+     {
+      "night": "2026-08-28",
+      "file": "Polar_VeritySense_0C301E3F_20260828100204_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260828100204",
+      "firstRow": "2026-08-28T23:22:27.792",
+      "deltaMin": 800
+     },
+     {
+      "night": "2026-08-28",
+      "file": "Polar_VeritySense_0C301E3F_20260828100204_PPG.txt",
+      "device": "VeritySense",
+      "stream": "PPG",
+      "filenameStamp": "20260828100204",
+      "firstRow": "2026-08-28T23:22:28.232",
+      "deltaMin": 800
+     },
+     {
+      "night": "2026-08-30",
+      "file": "Polar_H10_02849638_20260830002916_ACC.txt",
+      "device": "H10",
+      "stream": "ACC",
+      "filenameStamp": "20260830002916",
+      "firstRow": "2026-08-30T01:03:31.528",
+      "deltaMin": 34
+     },
+     {
+      "night": "2026-08-30",
+      "file": "Polar_H10_02849638_20260830002916_ECG.txt",
+      "device": "H10",
+      "stream": "ECG",
+      "filenameStamp": "20260830002916",
+      "firstRow": "2026-08-30T01:03:31.975",
+      "deltaMin": 34
+     },
+     {
+      "night": "2026-09-03",
+      "file": "Polar_H10_02849638_20260903191901_ACC.txt",
+      "device": "H10",
+      "stream": "ACC",
+      "filenameStamp": "20260903191901",
+      "firstRow": "2026-09-03T20:45:26.272",
+      "deltaMin": 86
+     },
+     {
+      "night": "2026-09-03",
+      "file": "Polar_H10_02849638_20260903191901_ECG.txt",
+      "device": "H10",
+      "stream": "ECG",
+      "filenameStamp": "20260903191901",
+      "firstRow": "2026-09-03T20:45:26.668",
+      "deltaMin": 86
+     },
+     {
+      "night": "2026-09-04",
+      "file": "Polar_H10_02849638_20260904044029_ACC.txt",
+      "device": "H10",
+      "stream": "ACC",
+      "filenameStamp": "20260904044029",
+      "firstRow": "2026-09-04T04:48:00.898",
+      "deltaMin": 8
+     },
+     {
+      "night": "2026-09-04",
+      "file": "Polar_H10_02849638_20260904044029_ECG.txt",
+      "device": "H10",
+      "stream": "ECG",
+      "filenameStamp": "20260904044029",
+      "firstRow": "2026-09-04T04:48:01.440",
+      "deltaMin": 8
+     },
+     {
+      "night": "2026-09-04",
+      "file": "Polar_VeritySense_0C301E3F_20260904203315_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260904203315",
+      "firstRow": "2026-09-04T20:40:26.919",
+      "deltaMin": 7
+     },
+     {
+      "night": "2026-09-04",
+      "file": "Polar_VeritySense_0C301E3F_20260904203315_PPG.txt",
+      "device": "VeritySense",
+      "stream": "PPG",
+      "filenameStamp": "20260904203315",
+      "firstRow": "2026-09-04T20:40:27.125",
+      "deltaMin": 7
+     },
+     {
+      "night": "2026-09-09",
+      "file": "Polar_VeritySense_0C301E3F_20260909211932_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260909211932",
+      "firstRow": "2026-09-09T21:29:39.690",
+      "deltaMin": 10
+     },
+     {
+      "night": "2026-09-09",
+      "file": "Polar_VeritySense_0C301E3F_20260909211932_PPG.txt",
+      "device": "VeritySense",
+      "stream": "PPG",
+      "filenameStamp": "20260909211932",
+      "firstRow": "2026-09-09T21:29:40.395",
+      "deltaMin": 10
+     },
+     {
+      "night": "2026-09-10",
+      "file": "Polar_VeritySense_0C301E3F_20260910185455_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260910185455",
+      "firstRow": "2026-09-10T19:16:07.902",
+      "deltaMin": 21
+     },
+     {
+      "night": "2026-09-10",
+      "file": "Polar_VeritySense_0C301E3F_20260910185455_PPG.txt",
+      "device": "VeritySense",
+      "stream": "PPG",
+      "filenameStamp": "20260910185455",
+      "firstRow": "2026-09-10T19:16:08.135",
+      "deltaMin": 21
+     },
+     {
+      "night": "2026-09-19",
+      "file": "Polar_VeritySense_0C301E3F_20260919183724_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260919183724",
+      "firstRow": "2026-09-19T18:55:29.041",
+      "deltaMin": 18
+     },
+     {
+      "night": "2026-09-19",
+      "file": "Polar_VeritySense_0C301E3F_20260919183724_PPG.txt",
+      "device": "VeritySense",
+      "stream": "PPG",
+      "filenameStamp": "20260919183724",
+      "firstRow": "2026-09-19T18:55:29.798",
+      "deltaMin": 18
+     },
+     {
+      "night": "2026-09-19",
+      "file": "Polar_VeritySense_0C301E3F_20260919190458_ACC.txt",
+      "device": "VeritySense",
+      "stream": "ACC",
+      "filenameStamp": "20260919190458",
+      "firstRow": "2026-09-19T19:16:18.135",
+      "deltaMin": 11
+     },
+     {
+      "night": "2026-09-19",
+      "file": "Polar_VeritySense_0C301E3F_20260919190458_PPG.txt",
+      "device": "VeritySense",
+      "stream": "PPG",
+      "filenameStamp": "20260919190458",
+      "firstRow": "2026-09-19T19:16:18.850",
+      "deltaMin": 11
+     }
+    ]
+   },
+   "verdict": "NOT a trio-batch defect in isolation and NOT a sweep defect: the two instruments disagree because the FILENAME is wrong. 39 files on 14 nights carry a stamp more than 5 min from their first row; 8 of them (four sessions, both streams) are 13-19 h out and that is enough to move the night key. The fold trusting the name is the amplifier; the capture-host writing it is the source. Logged as its own row for the capture-host lane \u2014 not fixed here",
+   "committedCorpusImpact": "8 of the 14 disagreeing nights are already in the committed corpus (uploads/trio, 119 nights): 2026-08-12, -20, -21, -23, -24, -25, -27, 2026-09-10. Three of the four night-key-moving nights are committed (-20, -21, -24), and on 2026-08-24 the consequence is visible in the tree: that night's committed fold carries ECGDex, OxyDex and PpgDexFinger but NO PpgDex (Verity) leg, because the 22:22 Verity session is named 05:23. 2026-08-20 and -21 kept their Verity leg (a second, correctly-named session covered the night), so the damage is per-session, not per-night.",
+   "notMeasuredHere": "whether the filename stamp is the capture host clock at session START or at file CREATE \u2014 the second is the fixable one. Box-side; Heron reads it off the writer."
+  }
  }
 }
