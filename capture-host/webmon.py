@@ -30,6 +30,9 @@ import alerts
 import timeline as _timeline
 import nights_index as _nights
 import build_id
+import seal
+import sealbox
+import sealfmt
 import settings_schema
 import wifi_join
 import wifi_uplink
@@ -1346,6 +1349,50 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
                 out["ready"] = {"ready": False, "path": None, "reason": str(e)}
         return out
 
+    async def seal_card_get(_req):
+        """GET /api/seal/card — RE-DISPLAY the patient card (CAPTURE-NIGHT-SEAL §13 (2), "lost card").
+        The box already holds the plaintext; showing it again adds no exposure. 404 until the seal
+        poller is armed (no keys exist before then, and none are minted here)."""
+        st = status.get("seal") or {}
+        if not st.get("armed"):
+            return web.json_response({"ok": False, "error": "night seal is not armed on this box"}, status=404)
+        scfg = cfg.get("seal") or {}
+        root = cfg.get("root", "/srv/tepna")
+        key_dir = scfg.get("key_dir") or os.path.join(root, "keys")
+        try:
+            signing_key, _ = await asyncio.to_thread(sealbox.load_or_create_signing_key, key_dir)
+            store, _ = await asyncio.to_thread(sealbox.load_or_create_card_store, key_dir)
+        except sealbox.SealBoxError as e:
+            return web.json_response({"ok": False, "error": str(e)}, status=500)
+        kid, key = sealbox.current_card_key(store)
+        page = sealbox.render_card_html(box_id=st.get("box_id") or sealbox.box_id_of(cfg), key_id=kid, card_key=key,
+                                        fingerprint=sealfmt.fingerprint(seal.public_raw(signing_key)),
+                                        qr=sealbox.qr_svg(sealfmt.card_code_encode(key)))
+        return web.Response(text=page, content_type="text/html")
+
+    async def seal_rotate_h(_req):
+        """POST /api/seal/rotate — STOLEN card: mint keyId+1 and write the new card to the outbox. Old
+        keys stay in the store so old nights remain readable and re-issuable under their own keyId. The
+        seal poller re-reads the store on its next tick, so nights sealed from then on use the new key."""
+        st = status.get("seal") or {}
+        if not st.get("armed"):
+            return web.json_response({"ok": False, "error": "night seal is not armed on this box"}, status=404)
+        scfg = cfg.get("seal") or {}
+        root = cfg.get("root", "/srv/tepna")
+        key_dir = scfg.get("key_dir") or os.path.join(root, "keys")
+        outbox = scfg.get("outbox") or os.path.join(root, "outbox")
+        try:
+            signing_key, _ = await asyncio.to_thread(sealbox.load_or_create_signing_key, key_dir)
+            store, _ = await asyncio.to_thread(sealbox.load_or_create_card_store, key_dir)
+            store = await asyncio.to_thread(sealbox.rotate_card, key_dir, store)
+            card = await asyncio.to_thread(sealbox.write_card, outbox, box_id=st.get("box_id") or sealbox.box_id_of(cfg),
+                                           store=store, signing_key=signing_key)
+        except (sealbox.SealBoxError, OSError) as e:
+            return web.json_response({"ok": False, "error": str(e)}, status=500)
+        st["key_id"] = store["keyId"]
+        st["card"] = card
+        return web.json_response({"ok": True, "keyId": store["keyId"], "card": card})
+
     async def storage_get(_req):
         return web.json_response(_storage_cfg())
 
@@ -1755,6 +1802,8 @@ def make_app(bus, cfg: dict, cfg_path: str, adapter_mac, status: dict, spawn_dev
         web.post("/api/daemon", daemon_post),
         web.get("/api/timeline", timeline_get),
         web.get("/api/nights", nights_get),
+        web.get("/api/seal/card", seal_card_get),
+        web.post("/api/seal/rotate", seal_rotate_h),
         web.get("/api/storage", storage_get),
         web.get("/api/alerts", alerts_get),
         web.post("/api/alerts", alerts_post),
