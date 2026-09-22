@@ -2,6 +2,18 @@
  "schema": "tepna.verdict-adoption/1",
  "enumeratedWith": "git grep -lE <WORDS> -- tools/*.mjs capture-host/*.py (tools non-recursive)",
  "producers": {
+  "capture-host/adapter_hci.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/adapter_hci.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the adapter-hci night verdict (residue 2026-09-11-dead-adapter-goes-unnoticed, REPORT half): the watchdog probes every enumerated radio each poll (capture._adapter_responds, the HCI round trip) and appends a row per radio to <root>/ADAPTERHCI.csv; nightqc writes ADAPTERHCI-VERDICT.json beside the other two from the rows in the night's session window \u2014 pre-stated rule: longest run of unanswered polls >= 2 FAIL \u00b7 an isolated miss SHORTFALL \u00b7 every determinable probe answered PASS \u00b7 all undeterminable UNKNOWN \u00b7 no rows NOT_RUN; population = radios, all-None radios excluded; nothing here resets a radio"
+  },
   "capture-host/ble_sniff.py": {
    "bin": "decides",
    "status": "adopted",
@@ -170,6 +182,10 @@
    "status": "exempt"
   },
   "capture-host/tests/test_acq_evidence_cpap.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_adapter_hci.py": {
    "bin": "test",
    "status": "exempt"
   },
@@ -426,6 +442,72 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
+  },
+  "tests/browser-gates.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tests/browser-gates.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the four browser legs as ONE object (\u00a73d): children = the legs run (provenance 'leg'), each from its own FAILS delta \u2014 clean \u21d2 PASS, \u2265 1 failure \u21d2 FAIL, a leg that THREW \u21d2 UNKNOWN (it decided nothing); NN_ONLY / SEAL_ONLY are declared exclusions \u21d2 filtered (the no-network workflow's own gate, not this one's); a leg missing with no selector is an unplanned NOT_RUN \u21d2 UNKNOWN. The night-seal leg already reads verify-seals' object, so this is a consumer one level up. The playwright import is dynamic so the cmd runs where no browser is installed. Measured against a scratch server: full run PASS over 4/4 (9151 assertions, 9 bundles, 38 fixtures); SEAL_ONLY=1 \u21d2 PASS over {1, 4, 3} filtered. The exit code stays."
+  },
+  "tests/build-core-tests.mjs": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "tests/check-dex.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tests/check-dex.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the scoped runner as ONE object (\u00a73d): children = the two lanes, each read from its OWN object under --json (run-tests' under `verdict`, verify-manifest's whole stdout); a lane with no valid object is exit-code only (0 \u21d2 UNKNOWN by provenance, \u2260 0 \u21d2 FAIL). Filtered BY CONSTRUCTION \u2014 the dex filter is the declared exclusion and the object always carries the consumer rule: check-dex is never the gate. Measured: `oxydex --json` \u21d2 PASS over {2, 3, 1} filtered, lanes {81/641} and {6/14}. The exit code stays (0 iff both lanes exited 0)."
+  },
+  "tests/run-tests.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tests/run-tests.mjs",
+     "--group=docs-ledger",
+     "--json"
+    ],
+    "key": "verdict"
+   },
+   "note": "the test RUNNER (VERDICT-CONTRACT \u00a73d, adopted #2835 through tools/run-tests-verdict.mjs, which holds the pure builders and their 35 plants): one object per process \u2014 a group is a child, an assertion is not; --group=/--shard= are declared exclusions \u21d2 filtered; the --jobs union aggregates the shard objects, a dead shard \u21d2 UNKNOWN. The cmd is a real, corpus-free filtered run; the object it emits carries filtered:true and the consumer rule, and validity is all this gate asserts of it. The --json payload wraps the object under `verdict` (emits.key), a superset of the shape verify-shard-union reads."
+  },
+  "tests/verify-manifest.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tests/verify-manifest.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "GATE A + GATE B as ONE object (VERDICT-CONTRACT \u00a73d, Magpie 2026-09-22): population = the bundles GATE A hashes + the page-wiring guard + the fixtures GATE B audits; a matching bundle / reproducible fixture is PASS, drift is FAIL, an absent fixture input (uploads/ gitignored \u2014 the header's declared skip class) is NOT_APPLICABLE, checked and never green evidence; --bundle= is a declared exclusion \u21d2 filtered; a setup error (exit 2) is NOT_RUN with the reason. Measured on this tree: PASS over 48/48 (9 bundles, 24 fixtures reproducible, 14 absent \u21d2 NOT_APPLICABLE); --bundle=oxydex \u21d2 PASS over {6, 14, 8} filtered. --json; the exit code stays."
+  },
+  "tests/verify-shard-union.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tests/verify-shard-union.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the partition proof as ONE object (\u00a73d): children = its named checks (provenance 'check'), criterion = the union equals the plan; --deep adds the empirical checks AND, since the shards emit objects (#2835), a CONSUMER check \u2014 the shard objects aggregated through aggregateChildren must reach the full run's object (a shard with no or an invalid object fails it). Not filtered: the non-deep run IS the CI plan. Measured: PASS over 12/12 checks; --json; the exit code stays."
   },
   "tools/acc-acc-control.mjs": {
    "bin": "decides",

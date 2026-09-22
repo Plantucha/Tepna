@@ -307,7 +307,7 @@ contract does not name is UNKNOWN.**
   groups (`docs-ledger`, `release-ledger`, `verdict-adoption`, the equiv legs) become children; a group is a
   child, an assertion is not. A shard emits its own object over the groups it ran; the union runner
   aggregates the shard objects by the table above, so a shard that died (§4c) is a NOT_RUN child and the
-  union is UNKNOWN, never a pass over the shards that finished. **Adopted #2835 (2026-09-22)** — `tools/run-tests-verdict.mjs` (pure, 35 plants) called by `tests/run-tests.mjs`; measured on a real full run `PASS` over 8/8 shards (641 groups, 10091 assertions, 13 declared skips) and on a real `--group=docs-ledger` run `PASS` over `{1, 641, 640}` filtered — not the gate; a dead shard is an undeclared NOT_RUN ⇒ UNKNOWN (plant). **All three runners now adopt §3d through one `aggregateChildren`.**
+  union is UNKNOWN, never a pass over the shards that finished. **Adopted #2835 (2026-09-22)** — `tools/run-tests-verdict.mjs` (pure, 35 plants) called by `tests/run-tests.mjs`; measured on a real full run `PASS` over 8/8 shards (641 groups, 10091 assertions, 13 declared skips) and on a real `--group=docs-ledger` run `PASS` over `{1, 641, 640}` filtered — not the gate; a dead shard is an undeclared NOT_RUN ⇒ UNKNOWN (plant). **All three runners now adopt §3d through one `aggregateChildren`.** **And the four remaining `tests/` gates — #2841:** `verify-manifest` (GATE A + B over bundles + fixtures, an absent input NOT_APPLICABLE), `verify-shard-union` (its checks; `--deep` consumes the shard OBJECTS and requires their aggregate to reach the full run's — measured PASS), `check-dex` (the two lanes from their own objects, filtered by construction), `browser-gates` (the four legs, a leg that threw is UNKNOWN). Every `decides` row under `tests/` is adopted.
 
 **Done when** (for a runner row to flip): the object is printed under `--json`; a plant per table row
 (a planted FAIL child, a planted UNKNOWN child, a planted abort) is asserted by a test that READS the
@@ -333,7 +333,7 @@ object; the manifest row's `emits.cmd` is the runner over a scratch step list, c
 - [ ] Wave 1 adopters emit valid objects (oracle · measurement-walk · verify-seals · n1-cohort-track).
 - [x] `tools/verdict-adoption.mjs` names the set as an equality and reds on a producer outside it.
       ✅ **DONE 2026-09-22 (Osprey).** The population is COMPUTED (`git grep` for the verdict words over
-      `tools/*.mjs` + `capture-host/*.py`, on the tree) and every member is binned in the committed
+      `tools/*.mjs` + `capture-host/*.py`, on the tree — **+ `tests/*.mjs` since #2839**, because the test runner adopted §3d from OUTSIDE the population, the one-of-N shape from the other side) and every member is binned in the committed
       `tools/verdict-adoption.json`: **152 producers — decides 25 · already-json 13 · word-only 75 (each
       with its reason; 60 are selftest assertion printers whose machine-readable result is the exit code +
       the `all N selftests passed` line) · test 39 (readers, not producers); 38 pending adoptions, 0

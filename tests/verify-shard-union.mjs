@@ -38,6 +38,113 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
+import { aggregateChildren, makeVerdict, Verdict } from '../tools/verdict-emit.mjs';
+
+/* ── VERDICT-CONTRACT §3d — the partition proof as ONE object ─────────────────────────────────────
+   Children = the named checks this run makes (provenance `check`: each is a pre-stated equality —
+   every group in exactly one shard, no assertion lost or invented, no verdict flipped); the criterion
+   is "the union equals the plan". `--deep` adds the empirical checks, and since #2835 the shards emit
+   their own objects, so --deep also CONSUMES them: the union of the shard objects through
+   aggregateChildren must reach the full run's status. Not filtered — the non-deep run IS the CI
+   gate's plan; --deep is a larger plan, not a wider one. Pure, so --selftest plants every row. */
+export function shardUnionVerdict(checks, { deep = false, ciShards = 6, commit, commitReason, at } = {}) {
+  const children = checks.map((c) => ({ name: c.name, provenance: 'check', status: c.pass ? 'PASS' : 'FAIL', ...(c.detail ? { why: String(c.detail).slice(0, 160) } : {}) }));
+  const agg = aggregateChildren(children, { eligible: children.length });
+  let { result } = agg;
+  if (result) result = { ...result, deep, ciShards, children: result.children.map((c, i) => ({ ...c, ...(children[i].why ? { why: children[i].why } : {}) })) };
+  return makeVerdict({
+    gate: 'verify-shard-union',
+    status: agg.status,
+    population: agg.population,
+    criterion: {
+      name: 'checks_failing (the union equals the plan: every group in exactly one shard at every N; under --deep no assertion lost, invented or flipped, and the shard OBJECTS aggregate to the full run)',
+      threshold: 0,
+      unit: 'failing checks',
+      direction: 'eq'
+    },
+    result,
+    evidence: ['tests/shard-plan.mjs', 'tests/group-timings.json', ...(deep ? ['tests/run-tests.mjs --json', 'tests/run-tests.mjs --shard=i/N --json'] : [])],
+    reason: agg.reason,
+    tool: 'tests/verify-shard-union.mjs',
+    commit,
+    commitReason,
+    at
+  });
+}
+
+/* --deep's consumer check, pure: do the shard objects, aggregated, reach the full run's status? */
+export function shardObjectsAgree(fullVerdict, shardVerdicts, ciShards) {
+  const valid = shardVerdicts.every((v) => v && Verdict.validate(v).ok) && !!fullVerdict && Verdict.validate(fullVerdict).ok;
+  if (!valid) return { pass: false, detail: 'a shard or the full run emitted no valid tepna.verdict/1' };
+  const u = aggregateChildren(
+    shardVerdicts.map((v, i) => ({ name: `shard ${i + 1}/${ciShards}`, provenance: 'object', status: v.status })),
+    { eligible: ciShards }
+  );
+  return { pass: u.status === fullVerdict.status, detail: `union of ${shardVerdicts.length} shard objects → ${u.status}; full run → ${fullVerdict.status}` };
+}
+
+export function verdictSample() {
+  const checks = ['declaration inventory is non-empty', 'every group has a unique declaration index', 'N=6: every group in exactly one shard (union = the full suite)'].map((name) => ({
+    name,
+    pass: true
+  }));
+  return shardUnionVerdict(checks, {
+    deep: false,
+    ciShards: 6,
+    commit: null,
+    commitReason: '--verdict-sample: three scratch checks, no suite run, no code identity claimed',
+    at: '2026-09-22T00:00:00Z'
+  });
+}
+
+function selftest() {
+  let n = 0;
+  const eq = (a, b, msg) => {
+    n++;
+    if (a !== b) {
+      console.log(`✗ ${msg}: expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`);
+      process.exit(1);
+    }
+    console.log(`✓ ${msg}`);
+  };
+  const AT = { commit: null, commitReason: 'selftest', at: '2026-09-22T00:00:00Z' };
+  const P = (name) => ({ name, pass: true });
+  const green = shardUnionVerdict([P('a'), P('b'), P('c')], AT);
+  eq(green.status === 'PASS' && green.population.checked === 3 && green.result.filtered === false, true, '§3d · every check holds ⇒ PASS over the checks, never filtered');
+  const red = shardUnionVerdict([P('a'), { name: 'N=6: every group in exactly one shard', pass: false, detail: 'group 12 ran in BOTH shard 1 and 2' }], AT);
+  eq(red.status === 'FAIL' && /N=6: every group in exactly one shard/.test(red.reason), true, '§3d plant · a partition violation ⇒ FAIL, named');
+  eq(shardUnionVerdict([], AT).status, 'NOT_RUN', '§3d plant · no checks ⇒ NOT_RUN');
+  const V = (status) =>
+    makeVerdict({
+      gate: 'run-tests',
+      status,
+      population: { checked: 1, eligible: 1, excluded: 0 },
+      criterion: { name: 'x', threshold: 0, unit: '', direction: 'eq' },
+      result: status === 'NOT_RUN' ? null : { x: 0 },
+      evidence: ['e'],
+      reason: status === 'PASS' ? null : 'planted',
+      tool: 't',
+      ...AT
+    });
+  eq(shardObjectsAgree(V('PASS'), [V('PASS'), V('PASS')], 2).pass, true, '§3d consumer · two PASS shard objects aggregate to the full run PASS');
+  eq(shardObjectsAgree(V('PASS'), [V('PASS'), V('FAIL')], 2).pass, false, '§3d consumer plant · a FAIL shard object cannot agree with a PASS full run');
+  eq(shardObjectsAgree(V('FAIL'), [V('PASS'), V('FAIL')], 2).pass, true, '§3d consumer · …and does agree with a FAIL full run');
+  eq(shardObjectsAgree(V('PASS'), [V('PASS'), null], 2).pass, false, '§3d consumer plant · a shard with no object ⇒ the check fails (never a pass over what it could not read)');
+  eq(shardObjectsAgree(V('PASS'), [V('PASS'), { schema: 'tepna.verdict/1', status: 'PASSED' }], 2).pass, false, '§3d consumer plant · an invalid shard object ⇒ the check fails');
+  eq(verdictSample().status === 'PASS' && verdictSample().producedBy.commit === null, true, '§3d · --verdict-sample: three scratch checks ⇒ PASS, no commit');
+  console.log(`all ${n} selftests passed`);
+}
+
+const ARGV = process.argv.slice(2);
+if (ARGV.includes('--selftest')) {
+  selftest();
+  process.exit(0);
+}
+if (ARGV.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
+const JSON_OUT = ARGV.includes('--json');
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const RUNNER = join(__dirname, 'run-tests.mjs');
@@ -48,11 +155,14 @@ const CI_SHARDS = 6;
 
 const C = { reset: '\x1b[0m', red: '\x1b[31m', green: '\x1b[32m', dim: '\x1b[2m', cyan: '\x1b[36m', yellow: '\x1b[33m' };
 const paint = (s, c) => (process.stdout.isTTY ? c + s + C.reset : s);
+const out = (...a) => (JSON_OUT ? console.error(...a) : console.log(...a)); // --json: stdout carries ONE object
 const fails = [];
+const checks = []; // §3d: every check, pass or fail, is a child of the object
 const ok = (name, cond, detail) => {
-  if (cond) console.log(paint('  ✓ ', C.green) + name + (detail ? paint('  — ' + detail, C.dim) : ''));
+  checks.push({ name, pass: !!cond, detail });
+  if (cond) out(paint('  ✓ ', C.green) + name + (detail ? paint('  — ' + detail, C.dim) : ''));
   else {
-    console.log(paint('  ✕ ', C.red) + name + (detail ? paint('  — ' + detail, C.yellow) : ''));
+    out(paint('  ✕ ', C.red) + name + (detail ? paint('  — ' + detail, C.yellow) : ''));
     fails.push(name);
   }
 };
@@ -73,7 +183,7 @@ function runJson(args) {
   }
 }
 
-console.log(paint('\n▸ shard-union — the shards must PARTITION the suite', C.cyan));
+out(paint('\n▸ shard-union — the shards must PARTITION the suite', C.cyan));
 
 /* ── 1 · the inventory is free, and complete ───────────────────────────────── */
 const inv = runJson(['--list']).groups.map((g) => ({ index: g.index, title: g.title }));
@@ -106,7 +216,7 @@ for (const N of [1, 2, 3, 4, 5, 6, 8, 12]) {
   );
   // A HINT going stale must never red the gate — it costs speed, not coverage. So this is a warn.
   if (unknown.length)
-    console.log(
+    out(
       paint(
         '  ⚠ ' +
           unknown.length +
@@ -114,12 +224,12 @@ for (const N of [1, 2, 3, 4, 5, 6, 8, 12]) {
         C.yellow
       )
     );
-  if (total) console.log(paint(`  · planned makespan ${(makespan / 1000).toFixed(1)} s of ${(total / 1000).toFixed(1)} s total → ${speedup.toFixed(2)}x`, C.dim));
+  if (total) out(paint(`  · planned makespan ${(makespan / 1000).toFixed(1)} s of ${(total / 1000).toFixed(1)} s total → ${speedup.toFixed(2)}x`, C.dim));
 }
 
 /* ── 4 · --deep: the union really does equal the unsharded run ─────────────── */
 if (DEEP) {
-  console.log(paint('\n▸ --deep: running the FULL suite + all ' + CI_SHARDS + ' shards for real (~2.5 min)…', C.cyan));
+  out(paint('\n▸ --deep: running the FULL suite + all ' + CI_SHARDS + ' shards for real (~2.5 min)…', C.cyan));
   // Key on (group index, ORDINAL, name) — not (group, name). A handful of groups assert the same NAME
   // twice, so a name-keyed map silently collapses them and the count under-reports (2097 vs the real
   // 2109). That collapse was identical on both sides, so the verdict compare was still valid — but this
@@ -128,20 +238,22 @@ if (DEEP) {
   const verdict = (t) => (t.skip ? 'skip' : t.pass ? 'pass' : 'FAIL');
 
   const full = runJson(['--json']);
+  const shardVerdicts = [];
   const fullMap = new Map();
   for (const g of full.groups) g.tests.forEach((t, i) => fullMap.set(key(g.index, i, t), verdict(t)));
-  console.log(paint(`  · full run: ${full.groups.length} groups, ${fullMap.size} assertions`, C.dim));
+  out(paint(`  · full run: ${full.groups.length} groups, ${fullMap.size} assertions`, C.dim));
 
   const unionMap = new Map();
   const claimedBy = new Map();
   for (let i = 1; i <= CI_SHARDS; i++) {
     const s = runJson([`--shard=${i}/${CI_SHARDS}`, '--json']);
+    shardVerdicts.push(s.verdict || null);
     for (const g of s.groups) {
       if (claimedBy.has(g.index)) fails.push(`group ${g.index} ran in BOTH shard ${claimedBy.get(g.index)} and ${i}`);
       claimedBy.set(g.index, i);
       g.tests.forEach((t, i) => unionMap.set(key(g.index, i, t), verdict(t)));
     }
-    console.log(paint(`  · shard ${i}/${CI_SHARDS}: ${s.groups.length} groups, ${s.groups.reduce((a, g) => a + g.tests.length, 0)} assertions`, C.dim));
+    out(paint(`  · shard ${i}/${CI_SHARDS}: ${s.groups.length} groups, ${s.groups.reduce((a, g) => a + g.tests.length, 0)} assertions`, C.dim));
   }
 
   ok('shard-union assertion COUNT == full-run assertion count', unionMap.size === fullMap.size, `union ${unionMap.size} · full ${fullMap.size}`);
@@ -160,10 +272,22 @@ if (DEEP) {
     flipped.length ? `${flipped.length} flipped, e.g. ${flipped[0][0].replace(' ', ' :: ')}: full=${flipped[0][1]} union=${unionMap.get(flipped[0][0])}` : `${fullMap.size} verdicts identical`
   );
   ok('the full run itself is green (no pre-existing red)', ![...fullMap.values()].includes('FAIL'), [...fullMap.values()].filter((v) => v === 'FAIL').length + ' failing');
+  /* §3d — the CONSUMER check: the shards' own objects, aggregated, reach the full run's object. */
+  const agree = shardObjectsAgree(full.verdict || null, shardVerdicts, CI_SHARDS);
+  ok("the shard OBJECTS aggregate to the full run's object (tepna.verdict/1, §3d)", agree.pass, agree.detail);
 }
 
 const bad = fails.length;
-console.log(
+const verdict = shardUnionVerdict(checks, { deep: DEEP, ciShards: CI_SHARDS });
+if (JSON_OUT) console.log(JSON.stringify(verdict));
+else
+  out(
+    paint(
+      `  tepna.verdict/1: ${verdict.status}  ·  ${verdict.population.checked} checked / ${verdict.population.eligible} eligible / ${verdict.population.excluded} excluded`,
+      verdict.status === 'PASS' ? C.green : C.red
+    )
+  );
+out(
   bad
     ? paint(`\n✕ shard-union UNSOUND — ${bad} check(s) failed. Do NOT ship a sharded gate on this plan.\n`, C.red)
     : paint(`\n✓ shard-union sound — the ${CI_SHARDS} shards partition the suite; their union is the full gate.${DEEP ? ' (proven empirically)' : ''}\n`, C.green)

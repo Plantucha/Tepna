@@ -7,7 +7,7 @@
  "corpus": {
   "tree": "/srv/data/tepna-corpus/uploads/vigil-archive/captures (box captures; the largest non-stub H10 _ECG.txt and Verity _PPG.txt per date)",
   "nights": 23,
-  "notMeasured": "phone-tree nights (Polar Sensor Logger, dropout-heavy): the local copies of their _ECG.txt are 84-byte stubs, so they were NOT swept \u2014 a limitation of the local volume, not a finding about those nights"
+  "notMeasured": "CORRECTED 2026-09-22: this note first read \"the phone-tree nights were NOT swept - their local _ECG.txt copies are 84-byte stubs\". That was the SYMLINK length (ls -la on a link); the targets resolve over NFS and the phone half is swept in audits/GAP-S-SWEEP-PHONE-2026-09-22.json"
  },
  "nullControl": "tools/gap-s-sweep.mjs --selftest: a planted 20 s gap on a synthetic night is excluded at GAP_S 10 and counted at 30 (denominator differs by ~20 s) and is an absence under both 3 and 10 \u2014 the patched constant reaches the index; a flat curve on the corpus is therefore a property of the corpus",
  "report": {
@@ -3160,5 +3160,62 @@
     }
    }
   }
- ]
+ ],
+ "fragmentStratification": {
+  "preStated": "scratchpad gaps/PRESTATED.md 2026-09-22T10:09Z: strata at the median H10 session-file count (LOW \u2264 median, HIGH > median); Spearman ECG vs PPG CVHR at the shipped cut per stratum; bands HOLDS (LOW \u2265 0.4 AND HIGH < 0.2) / FAILS (both \u2264 0.2) / INDETERMINATE (otherwise, or a stratum n < 8)",
+  "fragmentMeasure": "number of Polar_H10_*_ECG.txt session files on the date in vigil-archive/captures (each reconnect opens a file; stubs count)",
+  "medianFragments": 2,
+  "counts": {
+   "2026-08-24": 2,
+   "2026-08-25": 1,
+   "2026-08-26": 1,
+   "2026-08-28": 2,
+   "2026-08-29": 3,
+   "2026-08-30": 2,
+   "2026-08-31": 2,
+   "2026-09-03": 2,
+   "2026-09-04": 2,
+   "2026-09-05": 2,
+   "2026-09-06": 2,
+   "2026-09-07": 2,
+   "2026-09-08": 1,
+   "2026-09-09": 2,
+   "2026-09-10": 4,
+   "2026-09-11": 3,
+   "2026-09-12": 3,
+   "2026-09-13": 1,
+   "2026-09-15": 2,
+   "2026-09-16": 2,
+   "2026-09-17": 1,
+   "2026-09-19": 2,
+   "2026-09-20": 1
+  },
+  "low": {
+   "n": 19,
+   "fragments": "<= 2",
+   "spearman": 0.07894736842105263
+  },
+  "high": {
+   "n": 4,
+   "fragments": "> 2",
+   "spearman": 0.0
+  },
+  "all": {
+   "n": 23,
+   "spearman": 0.05237154150197629
+  },
+  "rhoFragmentsVsAbsDelta": 0.07905138339920949,
+  "rhoFragmentsVsEcgIndex": -0.11363636363636363,
+  "candidateVerdict": "INDETERMINATE",
+  "nextCandidatesFromTheData": [
+   {
+    "candidate": "PPG sampling rate \u2014 the box captures the SAME Verity unit (0C301E3F) at \u2248 52 Hz; the phone tree at \u2248 176 Hz (measured: rows / sensor-timestamp span on one night each: 1,140,789 rows / 22,128 s vs 4,529,093 / 25,675 s). A 3.4\u00d7 coarser sample grid on the box nights means \u2248 19 ms vs 6 ms beat-timing resolution for the PPG CVHR; the ECG side is 130 Hz on both",
+    "status": "NOT verified \u2014 named from a measured difference, testable by decimating a phone night to 52 Hz and re-scoring both indices"
+   },
+   {
+    "candidate": "Verity wear site \u2014 the ppgdex-dsp.js site note records the deployment Verity as ankle-worn while the site defaults to wrist; whether the box and phone nights differ in site is documentation, not a measurement here",
+    "status": "NOT verified"
+   }
+  ]
+ }
 }

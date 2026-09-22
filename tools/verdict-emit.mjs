@@ -122,7 +122,7 @@ export function aggregateChildren(children, opts = {}) {
   } else if (tally.fail) {
     status = 'FAIL';
     reason =
-      `${tally.fail} of ${checked} children FAIL — first: ${first.name}${first.code != null ? ` (exit ${first.code})` : ''}` +
+      `${tally.fail} of ${checked} children FAIL — first: ${first.name}${first.code != null ? ` (exit ${first.code})` : first.why ? ` (${first.why})` : ''}` +
       (tally.notRun ? `; ${tally.notRun} never ran after it: ${names('NOT_RUN').join(' · ')}` : '');
   } else if (tally.shortfall) {
     status = 'SHORTFALL';
@@ -134,7 +134,7 @@ export function aggregateChildren(children, opts = {}) {
     if (exitGreen.length)
       parts.push(`${exitGreen.length} of ${checked} children are exit-code only, no tepna.verdict/1 object — UNKNOWN by provenance (§3d): ${exitGreen.map((r) => r.name).join(' · ')}`);
     const objUnknown = rows.filter((r) => r.provenance !== 'exit-code' && r.status === 'UNKNOWN');
-    if (objUnknown.length) parts.push(`${objUnknown.length} UNKNOWN: ${objUnknown.map((r) => r.name).join(' · ')}`);
+    if (objUnknown.length) parts.push(`${objUnknown.length} UNKNOWN: ${objUnknown.map((r) => r.name + (r.why ? ' (' + r.why + ')' : '')).join(' · ')}`);
     if (tally.underpowered) parts.push(`${tally.underpowered} UNDERPOWERED: ${names('UNDERPOWERED').join(' · ')}`);
     if (tally.notRun) parts.push(`${tally.notRun} NOT_RUN without a declared exclusion (never asked): ${names('NOT_RUN').join(' · ')}`);
     reason = parts.join('; ');

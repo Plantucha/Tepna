@@ -116,7 +116,11 @@ run_advisory() {                    # run_advisory <label> <note-on-fail> <cmd..
 # ⚠️ WRITTEN BY REDIRECT AND THEN ECHOED, NEVER `| tee`. A pipe would hand `run_advisory` tee's exit
 # status instead of mypy's, and mypy's is the number the advisory reports (CLAUDE.md §4b — the check
 # that ran and reported about something it never examined).
-MYPY_OUT=".mypy-latest.txt"
+# `MYPY_OUT` is an OVERRIDE for the same reason `CHECK_VERDICT_OUT` is: tests/test_check_script.py runs
+# this script in a sandbox under pytest-xdist, and eight sandboxes writing and re-reading ONE relative
+# `.mypy-latest.txt` in the checkout read each other's lines — a RISEN count came back AT_BASELINE and
+# a scripted abort came back with a number (measured 2026-09-22, 2–4 red of 35 per round at -n 8).
+MYPY_OUT="${MYPY_OUT:-.mypy-latest.txt}"
 # THE BASELINE IS COMPARED, NOT NARRATED. It used to live only inside the advisory's note string —
 # "count may only go DOWN" — where nothing read it, so the count was free to rise and nobody would
 # know. It did: the brief recorded 102 on 2026-09-03 and the tree measured 103 three days later,
