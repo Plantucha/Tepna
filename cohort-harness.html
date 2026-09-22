@@ -604,7 +604,23 @@
       if (st > maxStep) maxStep = st;
     }
     var span = pts[n - 1].d - pts[0].d;
-    var ppm = span > 0 ? (sm[n - 1] / span) * 1e6 : 0;
+    /* A ZERO DEVICE SPAN IS NOT A CLOCK, AND A RATE OVER IT IS NOT 0 — refuse. This line used to read
+       `span > 0 ? … : 0`, which is the fabricated zero of CLAUDE.md §∅ at the rate: every anchor's
+       device stamp identical (the 50 `inapplicable` streams of `known-clock-recovery blindScore`, a
+       device column that was never a counter) came back `ok:true, ppm:0, independent:true` — the
+       spread gate is inert here because the HOST wanders, so the axis read as two agreeing clocks
+       and a caller reading `hostAxis` alone spent it as a second clock (residue
+       2026-09-02-hostaxis-accepts-drawn-axis). Same shape as the ±CK_AXIS_MAX_PPM refusal below and
+       the ≥3-anchor one above: when the input cannot be a rate, the answer is no rate, never 0.
+       ⚠ Deliberately NARROW. The general drawn case (a uniform counter with span > 0) is still
+       admitted and published as `deviceDrawn` — gating on it was tried and reverted (a synthetic
+       fixture's `devMs = i * 1000` is a legitimate uniform axis), and consumer migration is its own
+       row. Zero span has no such legitimate reading: no fixture, synthetic or real, is a clock that
+       never ticks. */
+    if (!(span > 0)) {
+      return { ok: false, reason: 'device axis has zero span across ' + n + ' anchors — the device column is not a clock, so there is no rate to measure', n: n, spanMs: span };
+    }
+    var ppm = (sm[n - 1] / span) * 1e6;
     /* IS THERE ACTUALLY A SECOND CLOCK HERE? (PAT-NO-VALID-ANCHOR §10, last item.)
        A ppm of ~0 has two completely different meanings and this function used to report them
        identically: (a) two INDEPENDENT clocks that happen to agree — the good case, and (b) the host

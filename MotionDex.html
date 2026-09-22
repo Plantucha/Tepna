@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="086a8d08438c" data-compute-hash="835d9a5b8b34">
+<html lang="en" data-manifest-hash="e883d88e3bda" data-compute-hash="8de2981896bd">
 <head>
 <!--
   MotionDex.src.html — Tepna
@@ -12,7 +12,7 @@
 <!-- CSP: browser-enforces the no-network invariant. connect-src 'none' blocks every outbound request;
      script-src is STRICT ('self' + per-inline-script sha256, NO 'unsafe-inline'). MotionDex ships zero
      inline scripts (all init lives in motiondex-app.js), so the hash list is empty by construction. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A5IOHO4TVAjxMeWYBbqHuYMVdTRsVI1H8TBxvzdcv4w=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-LK5VOOBa0EEy7ufo1WyQm1kSFnDsFWmUvZ1fThFN8ws=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-n7SzsQyEB9pmLFHctxNuc1sxRxqezpc6CiO6+II6/KM=' 'sha256-s/Nk1bqiBjE0ZX5O987aEfmh+0ye89VWIlc+r/sLjXo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-A5IOHO4TVAjxMeWYBbqHuYMVdTRsVI1H8TBxvzdcv4w=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-LK5VOOBa0EEy7ufo1WyQm1kSFnDsFWmUvZ1fThFN8ws=' 'sha256-LNL2HIbq1MolWykSbNRcVM1IXWPE1b23gr8wWMcU+sA=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-YmI37lcKl30XtmpX7ggJsjrArPEJ7hkRwJ+NsvI2tmw=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-s/Nk1bqiBjE0ZX5O987aEfmh+0ye89VWIlc+r/sLjXo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>MotionDex — Motion / IMU Analyzer · v2.13.0</title>
@@ -5005,7 +5005,23 @@ body.light .eb-div{background:rgba(0,0,0,.10)}
       if (st > maxStep) maxStep = st;
     }
     var span = pts[n - 1].d - pts[0].d;
-    var ppm = span > 0 ? (sm[n - 1] / span) * 1e6 : 0;
+    /* A ZERO DEVICE SPAN IS NOT A CLOCK, AND A RATE OVER IT IS NOT 0 — refuse. This line used to read
+       `span > 0 ? … : 0`, which is the fabricated zero of CLAUDE.md §∅ at the rate: every anchor's
+       device stamp identical (the 50 `inapplicable` streams of `known-clock-recovery blindScore`, a
+       device column that was never a counter) came back `ok:true, ppm:0, independent:true` — the
+       spread gate is inert here because the HOST wanders, so the axis read as two agreeing clocks
+       and a caller reading `hostAxis` alone spent it as a second clock (residue
+       2026-09-02-hostaxis-accepts-drawn-axis). Same shape as the ±CK_AXIS_MAX_PPM refusal below and
+       the ≥3-anchor one above: when the input cannot be a rate, the answer is no rate, never 0.
+       ⚠ Deliberately NARROW. The general drawn case (a uniform counter with span > 0) is still
+       admitted and published as `deviceDrawn` — gating on it was tried and reverted (a synthetic
+       fixture's `devMs = i * 1000` is a legitimate uniform axis), and consumer migration is its own
+       row. Zero span has no such legitimate reading: no fixture, synthetic or real, is a clock that
+       never ticks. */
+    if (!(span > 0)) {
+      return { ok: false, reason: 'device axis has zero span across ' + n + ' anchors — the device column is not a clock, so there is no rate to measure', n: n, spanMs: span };
+    }
+    var ppm = (sm[n - 1] / span) * 1e6;
     /* IS THERE ACTUALLY A SECOND CLOCK HERE? (PAT-NO-VALID-ANCHOR §10, last item.)
        A ppm of ~0 has two completely different meanings and this function used to report them
        identically: (a) two INDEPENDENT clocks that happen to agree — the good case, and (b) the host
