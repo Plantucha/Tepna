@@ -60,6 +60,8 @@
  *   node tools/mutate.mjs --json                    # NDJSON, one line per file, streamed
  *   node tools/mutate.mjs --file X --dry-run       # list the mutants; run nothing, write nothing
  *   node tools/mutate.mjs --selftest                # known-answer, no repo mutation
+ *   node tools/mutate.mjs --verdict-sample          # the tepna.verdict/1 object over a SYNTHETIC result set — no
+ *                                                    # suite, no git; what tools/verdict-adoption.mjs reads in CI
  *   node tools/mutate.mjs --diff                    # GATE: only the lines changed vs origin/main
  *   node tools/mutate.mjs --diff <ref> --dry-run    # what the gate would test, running nothing
  *   node tools/mutate.mjs --file X --bail           # stop each suite run at its first failure
@@ -100,6 +102,7 @@
 import { readFileSync, writeFileSync, appendFileSync, existsSync, rmSync, readdirSync, mkdirSync, symlinkSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { execFileSync, execSync, spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, basename } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -1795,6 +1798,131 @@ async function runFile(file) {
 /* ── selftest: known answers, and it does NOT touch the repo ────────────────────────────────
    Mutant GENERATION is the part with a right answer; whether a given mutant survives depends on
    the suite and is not a fixed fact. So the selftest pins generation + thinning determinism. */
+/* ── THE VERDICT OBJECT — tepna.verdict/1 (VERDICT-CONTRACT §1; `verdict.js` is the authority) ────────
+   The JS half of the pair `capture-host/tools/mutate_diff.py` closed in #2802: the diff gate emits ONE
+   object at every exit, and the object — not the "✕ MUTATION GATE …" prose, which stays as explanation
+   — is the API. Statuses, in the order the gate already decides them:
+     · NOT_RUN         the diff could not be read, or no file could be measured — nothing examined
+     · NOT_APPLICABLE  no mutable source changed, or the changed lines carry no mutable operator — the
+                       criterion does not bind. ⚠️ This is the case that used to print "all 0 mutant(s)
+                       … were killed": a PASS over checked = 0 is the examined-nothing shape and the
+                       validator refuses it at the type level, so the gate now says what it is
+     · UNKNOWN         the canary survived (kills were not being detected) or mutants never ran — the
+                       run could not prove anything either way; never a kill, never a pass
+     · FAIL            a mutant on a changed line survived
+     · PASS            every mutant on the changed lines was killed, over checked > 0
+   Population is MUTANTS on the changed lines: eligible = tested, checked = tested − invalid,
+   excluded = invalid. Exit codes are unchanged (VOID/INCONCLUSIVE 3 · survivors 1 · else 0); the
+   object is added beside them, never instead. Pure — the selftest pins every status without a sweep. */
+export const VERDICT_STATUSES = Object.freeze(['PASS', 'FAIL', 'SHORTFALL', 'UNDERPOWERED', 'NOT_RUN', 'NOT_APPLICABLE', 'UNKNOWN']);
+export function verdictObject(status, { checked, eligible, result, reason, evidence, commit, commitReason, at, base }) {
+  if (!VERDICT_STATUSES.includes(status)) throw new Error('status ' + JSON.stringify(status) + ' is not in the closed enum');
+  if (status === 'PASS' && reason != null) throw new Error('PASS carries reason: null');
+  if (status !== 'PASS' && !(typeof reason === 'string' && reason.trim())) throw new Error(status + ' requires a reason');
+  const excluded = eligible - checked;
+  if (excluded < 0) throw new Error('checked ' + checked + ' > eligible ' + eligible);
+  const producedBy = { tool: 'tools/mutate.mjs', commit: commit == null ? null : commit };
+  if (commit == null) producedBy.commitReason = commitReason || 'not run inside a git checkout'; // ∅: a null commit says why
+  return {
+    schema: 'tepna.verdict/1',
+    gate: 'mutate-diff-js',
+    status,
+    scope: 'internal',
+    population: { checked, eligible, excluded },
+    criterion: { name: 'survivors_on_changed_lines', threshold: 0, unit: 'mutants', direction: 'lte' },
+    result: status === 'NOT_RUN' || status === 'NOT_APPLICABLE' ? null : result,
+    evidence,
+    reason: reason == null ? null : reason,
+    producedBy,
+    at: (at || new Date().toISOString()).replace(/\.\d{3}Z$/, 'Z'),
+    base: base == null ? null : base
+  };
+}
+/* The decision over a finished run: the SAME order as the exit block below, so the code and the status
+   cannot disagree. `results` are runFile() rows; `meta` = { base, commit, at }. Returns { verdict, code }. */
+export function diffVerdict(results, meta) {
+  meta = meta || {};
+  const ok = results.filter((r) => !r.error);
+  const files = results.map((r) => r.file);
+  const evidence = ['tools/mutate.mjs', ...files];
+  const mk = (status, fields) => verdictObject(status, { evidence, commit: meta.commit, commitReason: meta.commitReason, at: meta.at, base: meta.base, ...fields });
+  if (!ok.length) {
+    const why = results
+      .map(
+        (r) =>
+          r.file +
+          ': ' +
+          String(r.error || 'unknown')
+            .split('\n')[0]
+            .slice(0, 80)
+      )
+      .join('; ');
+    return { code: 0, verdict: mk('NOT_RUN', { checked: 0, eligible: 0, result: null, reason: results.length + ' file(s), none measured — ' + (why || 'no files') }) };
+  }
+  const surv = ok.flatMap((r) => r.survivors.map((s) => ({ file: r.file, ...s })));
+  const voided = ok.filter((r) => r.voided);
+  const unrun = ok.reduce((a, r) => a + r.invalid, 0);
+  const tested = ok.reduce((a, r) => a + r.tested, 0);
+  const killed = ok.reduce((a, r) => a + r.killed, 0);
+  const lines = ok.reduce((a, r) => a + (r.touchedLines || 0), 0);
+  const result = { tested, killed, survivors: surv.length, invalid: unrun, changedLines: lines, files: ok.length, skipped: results.length - ok.length };
+  const pop = { checked: tested - unrun, eligible: tested, result };
+  if (voided.length)
+    return {
+      code: 3,
+      verdict: mk('UNKNOWN', { ...pop, reason: 'canary survived on ' + voided.map((r) => r.file).join(', ') + ' — kills were not being detected, so "all killed" would prove nothing' })
+    };
+  if (unrun)
+    return { code: 3, verdict: mk('UNKNOWN', { ...pop, reason: unrun + ' of ' + tested + ' mutant(s) never ran (did not compile, or timed out under load) — nothing was proven about them' }) };
+  if (surv.length)
+    return {
+      code: 1,
+      verdict: mk('FAIL', {
+        ...pop,
+        reason:
+          surv.length +
+          ' of ' +
+          tested +
+          ' mutant(s) on ' +
+          lines +
+          ' changed line(s) survived: ' +
+          surv
+            .slice(0, 5)
+            .map((s) => s.file + ':' + s.line + ' [' + s.op + ']')
+            .join(', ') +
+          (surv.length > 5 ? ', …' : '')
+      })
+    };
+  if (!tested)
+    return {
+      code: 0,
+      verdict: mk('NOT_APPLICABLE', { ...pop, result: null, reason: lines + ' changed line(s) in ' + ok.length + ' file(s) carry no mutable operator — nothing to gate, not a pass over nothing' })
+    };
+  return { code: 0, verdict: mk('PASS', { ...pop, reason: null }) };
+}
+/* What the adoption gate runs: a synthetic result set through the real decision. Fixed `at`, no git. */
+export function verdictSample() {
+  return diffVerdict(
+    [
+      { file: 'clock.js', tested: 12, invalid: 0, killed: 12, survivors: [], voided: false, touchedLines: 4 },
+      { file: 'oxydex-dsp.js', tested: 3, invalid: 0, killed: 3, survivors: [], voided: false, touchedLines: 1 }
+    ],
+    { base: 'origin/main', commit: null, commitReason: '--verdict-sample: synthetic result set, no code identity claimed', at: '2026-09-22T00:00:00Z' }
+  ).verdict;
+}
+function emitVerdict(v) {
+  // VERDICT-CONTRACT §1: under --json the object is the last NDJSON line (it has no `file`, so the
+  // per-file readers skip it by shape); otherwise one labelled line on stdout beside the prose.
+  console.log(AS_JSON ? JSON.stringify(v) : 'VERDICT (tepna.verdict/1): ' + JSON.stringify(v));
+}
+function headCommit() {
+  try {
+    return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return null;
+  }
+}
+
 function selftest() {
   let fail = 0;
   const ok = (n, c, d) => {
@@ -2129,6 +2257,55 @@ function selftest() {
   ck('NULL CONTROL · …and refuses nothing', _full.ok, true);
   ck('E4b · a duplicated entry does not double-count its mutant', selectRecorded(_collide, [_collide[0], _collide[0]]).picked.length, 1);
 
+  console.log('\nverdict — tepna.verdict/1 at every diff-gate exit, pinned against verdict.js');
+  {
+    const V = createRequire(import.meta.url)('../verdict.js');
+    const row = (over) => ({ file: 'a.js', tested: 10, invalid: 0, killed: 10, survivors: [], voided: false, touchedLines: 3, ...over });
+    const meta = { base: 'origin/main', commit: 'ec4e2d93', at: '2026-09-22T00:00:00Z' };
+    const val = (v) => V.validate(v).ok || V.validate(v).errors.join(' | ');
+    const pass = diffVerdict([row()], meta);
+    ck('all killed → PASS, exit 0', pass.verdict.status + ':' + pass.code, 'PASS:0');
+    ck('…valid under verdict.js', val(pass.verdict), true);
+    ck('…population is an equality over mutants', JSON.stringify(pass.verdict.population), '{"checked":10,"eligible":10,"excluded":0}');
+    ck('…scope internal (P5)', pass.verdict.scope, 'internal');
+    const f = diffVerdict([row({ killed: 9, survivors: [{ line: 7, op: 'num → 0', before: 'x' }] })], meta);
+    ck('a survivor → FAIL, exit 1, reason names it', f.verdict.status + ':' + f.code + ':' + /a\.js:7/.test(f.verdict.reason), 'FAIL:1:true');
+    ck('…valid', val(f.verdict), true);
+    const u = diffVerdict([row({ invalid: 2, killed: 8 })], meta);
+    ck('never-ran mutants → UNKNOWN (not a kill, not a pass), exit 3', u.verdict.status + ':' + u.code, 'UNKNOWN:3');
+    ck('…excluded = the invalid ones', u.verdict.population.excluded, 2);
+    ck('…valid', val(u.verdict), true);
+    const vd = diffVerdict([row({ voided: true, killed: 10, survivors: [{ line: 1, op: 'x', before: 'y' }] })], meta);
+    ck('canary survived outranks survivors → UNKNOWN, exit 3', vd.verdict.status + ':' + vd.code + ':' + /canary/.test(vd.verdict.reason), 'UNKNOWN:3:true');
+    const na = diffVerdict([row({ tested: 0, killed: 0 })], meta);
+    ck('changed lines with no mutant → NOT_APPLICABLE, exit 0 — never PASS over checked 0', na.verdict.status + ':' + na.code + ':' + na.verdict.result, 'NOT_APPLICABLE:0:null');
+    ck('…valid', val(na.verdict), true);
+    const nr = diffVerdict([{ file: 'a.js', error: 'ENOENT' }], meta);
+    ck('every file errored → NOT_RUN with the error in the reason', nr.verdict.status + ':' + /ENOENT/.test(nr.verdict.reason), 'NOT_RUN:true');
+    ck('…valid', val(nr.verdict), true);
+    const smp = verdictSample();
+    ck(
+      '--verdict-sample: PASS over the synthetic set, no commit claimed, reason says synthetic',
+      smp.status + ':' + smp.producedBy.commit + ':' + /synthetic/.test(smp.producedBy.commitReason),
+      'PASS:null:true'
+    );
+    ck('…valid', val(smp), true);
+    let threw = null;
+    try {
+      verdictObject('GREEN', { checked: 1, eligible: 1, result: {}, reason: null, evidence: [] });
+    } catch (e) {
+      threw = e.message;
+    }
+    ck('an eighth status word is refused by the builder, not just the validator', /closed enum/.test(threw), true);
+    threw = null;
+    try {
+      verdictObject('PASS', { checked: 1, eligible: 1, result: {}, reason: 'fine', evidence: [] });
+    } catch (e) {
+      threw = e.message;
+    }
+    ck('PASS with a reason is refused', /reason: null/.test(threw), true);
+  }
+
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }
@@ -2216,6 +2393,10 @@ function recoverStale() {
 recoverStale();
 
 if (has('--selftest')) process.exit(selftest());
+if (has('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample(), null, 1));
+  process.exit(0);
+}
 
 /* DIFF_LINES is read ONCE, here, and consulted per file inside runFile. Empty when --diff is off. */
 const DIFF_LINES = new Map();
@@ -2237,6 +2418,23 @@ if (DIFF) {
     // FAIL CLOSED. A gate that cannot see the diff must never report "nothing to test".
     console.error('--diff: cannot diff against ' + DIFF_BASE + ' — ' + String(e.message || e).split('\n')[0]);
     console.error('  Is the base fetched?   git fetch origin main');
+    emitVerdict(
+      verdictObject('NOT_RUN', {
+        checked: 0,
+        eligible: 0,
+        result: null,
+        reason:
+          'cannot diff against ' +
+          DIFF_BASE +
+          ': ' +
+          String(e.message || e)
+            .split('\n')[0]
+            .slice(0, 120),
+        evidence: ['tools/mutate.mjs'],
+        commit: headCommit(),
+        base: DIFF_BASE
+      })
+    );
     process.exit(2);
   }
   if (names.length) {
@@ -2261,6 +2459,17 @@ if (DIFF && !files.length) {
   if (!files.length) {
     // A real, honest pass: the change touched no mutable source. Say which, so it is not read as a skip.
     console.error('--diff: no mutable JS source changed vs ' + DIFF_BASE + ' (' + DIFF_LINES.size + ' file(s) in the diff) — nothing to gate.');
+    emitVerdict(
+      verdictObject('NOT_APPLICABLE', {
+        checked: 0,
+        eligible: 0,
+        result: null,
+        reason: 'no mutable JS source changed vs ' + DIFF_BASE + ' (' + DIFF_LINES.size + ' file(s) in the diff) — the criterion does not bind',
+        evidence: ['tools/mutate.mjs'],
+        commit: headCommit(),
+        base: DIFF_BASE
+      })
+    );
     process.exit(0);
   }
 }
@@ -2436,22 +2645,22 @@ if (DIFF) {
   const unrun = ok.reduce((a, r) => a + r.invalid, 0);
   const tested = ok.reduce((a, r) => a + r.tested, 0);
   const lines = ok.reduce((a, r) => a + (r.touchedLines || 0), 0);
+  /* ONE decision, made by diffVerdict (pure, selftest-pinned); the prose below explains it and the
+     process exits with the code it chose — status and exit code cannot drift apart. */
+  const { verdict, code } = diffVerdict(results, { base: DIFF_BASE, commit: headCommit() });
   if (voided.length) {
     console.error('\n✕ MUTATION GATE VOID — the canary survived on: ' + voided.map((r) => r.file).join(', '));
     console.error('  Kills are not being detected, so "all killed" would prove nothing. Not a pass.');
-    process.exit(3);
-  }
-  if (unrun) {
+  } else if (unrun) {
     console.error('\n✕ MUTATION GATE INCONCLUSIVE — ' + unrun + ' of ' + tested + ' mutants never ran.');
     console.error('  They did not compile, or timed out under load. Nothing was proven about them.');
-    process.exit(3);
-  }
-  if (surv.length) {
+  } else if (surv.length) {
     console.error('\n✕ MUTATION GATE — ' + surv.length + ' of ' + tested + ' mutants on your ' + lines + ' changed line(s) SURVIVED.');
     console.error('  Each is an edit you made that no test can see. Add an assertion, or explain why it is unobservable:\n');
     for (const s of surv.slice(0, 20)) console.error('    ' + s.file + ':' + s.line + '  [' + s.op + ']\n      ' + String(s.before).trim().slice(0, 100));
     if (surv.length > 20) console.error('    … and ' + (surv.length - 20) + ' more');
-    process.exit(1);
-  }
-  if (!AS_JSON) console.log('\n✓ mutation gate: all ' + tested + ' mutant(s) on ' + lines + ' changed line(s) were killed.');
+  } else if (verdict.status === 'PASS' && !AS_JSON) console.log('\n✓ mutation gate: all ' + tested + ' mutant(s) on ' + lines + ' changed line(s) were killed.');
+  else if (!AS_JSON) console.log('\n○ mutation gate ' + verdict.status + ' — ' + verdict.reason);
+  emitVerdict(verdict);
+  if (code) process.exit(code);
 }
