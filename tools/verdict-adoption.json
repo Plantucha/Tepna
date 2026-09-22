@@ -732,8 +732,16 @@
   },
   "tools/verify-seals.mjs": {
    "bin": "already-json",
-   "status": "pending",
-   "note": "born emitting tepna.verdict/1 (#2796, `--vectors --json` prints the object); measured 2026-09-22 it lacks only `scope`, which landed in #2797 after it \u2014 flips to adopted with emits {cmd:[node, tools/verify-seals.mjs, --vectors, --json]} when Heron adds scope (step 4)"
+   "status": "adopted",
+   "note": "born emitting tepna.verdict/1 (#2796); scope + verdict.js validation of every emitted object in #2800 \u2014 the first adoption this manifest records. `--vectors --json` prints the verdict for the committed vector to stdout, prose to stderr.",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/verify-seals.mjs",
+     "--vectors",
+     "--json"
+    ]
+   }
   },
   "tools/wt-done.mjs": {
    "bin": "word-only",

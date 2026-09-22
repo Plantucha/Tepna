@@ -193,7 +193,9 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     names tests merely MENTION as literals (over-flagged by design; each costs one small copy). If this
     changes, the scratch already carries the new file — the assertion exists so the author sees it.
     2026-09-20: two more real reads — `pat-feasibility.js` + `sensor-trio-power-analysis.js`, the
-    Nights-page tripwire that reds the day a fused tool's classifier accepts a box filename."""
+    Nights-page tripwire that reds the day a fused tool's classifier accepts a box filename.
+    2026-09-21: `verdict.js` — a REAL read: test_seal.py validates both sealed-night readers' verdict
+    objects through the contract's own validator rather than a hand-written copy of its rules."""
     from pathlib import Path
     import pytest
     here = Path(__file__).resolve().parent.parent
@@ -207,4 +209,4 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     assert "ecgdex-dsp.js" in got                                 # the read that broke writers.py's lane
     assert not any(n.startswith(".") for n in got), got           # never a dotfile (`.git` is a FILE in a worktree)
     assert got == ["Dex-Test-Suite.html", "README.md", "dex-badges.css", "ecgdex-dsp.js", "index.html",
-                   "pat-feasibility.js", "sensor-trio-power-analysis.js"], got
+                   "pat-feasibility.js", "sensor-trio-power-analysis.js", "verdict.js"], got

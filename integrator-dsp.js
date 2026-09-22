@@ -715,7 +715,7 @@ function adaptEnvelopeNode(json, node, filename) {
       })
     };
   }
-  return [
+  var _envRecs = [
     {
       node: node,
       label: node + (t0Ms != null ? ' · ' + fmtDayShort(t0Ms) : ' · date unknown'),
@@ -780,6 +780,19 @@ function adaptEnvelopeNode(json, node, filename) {
       _src: filename
     }
   ];
+  /* §8 / §12 — the SECOND emitter lands here: a recording-level `measurement` map (ECGDex today) is consumed
+     exactly as adaptOxyDex consumes a night's, into REFS on the rec. The join is the export's
+     recording.contentId; the scalars are the consensus-axis numbers this adapter already read
+     (summary.rmssd/sdnn = wholeRecordRMSSD/SDNN — a light export has no hrv block, so the scalars are null
+     and only the block's own legs are checked). Conditional: a node without the block adds no key. */
+  if (json.measurement && typeof json.measurement === 'object') {
+    var _measEnv = consumeMeasurements(
+      { measurement: json.measurement, contentId: (json.recording && json.recording.contentId) || null },
+      { rmssd: summary.rmssd != null ? summary.rmssd : null, sdnn: summary.sdnn != null ? summary.sdnn : null }
+    );
+    if (_measEnv) _envRecs[0].measurements = _measEnv;
+  }
+  return _envRecs;
 }
 
 /* Absolute beat instants from the node-export's interval series (WEARABLE-HOST-AXIS-FOLLOWUPS §F6).
