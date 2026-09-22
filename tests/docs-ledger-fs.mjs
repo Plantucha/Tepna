@@ -12,6 +12,7 @@
  * reads the tree straight from fs. Deterministic: sorted, forward-slash relative paths, no timestamps,
  * no absolute paths.
  */
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -100,6 +101,33 @@ export function walkRepoPaths(root, opts) {
    repo path exist?" rather than "is this a link target?". `.git`, the dependency/data dirs and
    nested repos stay excluded exactly as above; the only difference is that `.claude/`, `.github/`
    and friends are walked. Used by check8d (residue source cells); check4b keeps `walkRepoPaths`. */
+/* The repo ROOT's own TRACKED files, names only — a DIFFERENT question from either walk above, and
+   the reason it gets its own export rather than a filter over one of them: both walks deliberately
+   answer "is this a link target / does this path exist", where file-vs-directory is irrelevant, and
+   the root-set invariant is exactly a statement about FILES.
+
+   Measured 2026-09-22: `#2854` landed a 0-byte file named `Data` at the repo root — the signature of
+   an unquoted path with a space (`Data Unifier.html`) reaching `git add` or a redirect. CLAUDE.md
+   §📁 states what the root may hold, in prose, with nothing deriving it from the tree, so it sat on
+   main unnoticed. See the docs-ledger group's root-set check.
+
+   ⚠️ TRACKED, NOT `readdir`, for two measured reasons. (1) An untracked scratch file at root is a
+   session's business and must not red a shared gate — an invariant that convicts working practice is
+   the wrong invariant. (2) In a linked worktree `.git` is a FILE, not a directory, so a readdir-based
+   set counts 222 in a worktree and 221 in the primary checkout: the same gate, two answers, decided
+   by where it ran. The defect this catches is a COMMITTED stray, which is exactly what `git ls-files`
+   sees. Returns null when git cannot be read, so the caller SKIPS rather than guessing (§∅). */
+export function rootTrackedFiles(root) {
+  try {
+    return execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8', maxBuffer: 64 << 20, stdio: ['ignore', 'pipe', 'ignore'] })
+      .split('\0')
+      .filter((p) => p && !p.includes('/'))
+      .sort();
+  } catch {
+    return null;
+  }
+}
+
 export function walkRepoPathsAll(root) {
   return walkRepoPaths(root, { includeDotEntries: true });
 }
