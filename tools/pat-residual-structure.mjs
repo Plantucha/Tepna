@@ -270,7 +270,10 @@ function selftest() {
   };
   /* WHITE series -> rho1 ~ 0. */
   let s = 3;
-  const rnd = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff - 0.5) * 2;
+  const rnd = () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return (s / 0x7fffffff - 0.5) * 2;
+  };
   const white = Array.from({ length: 2000 }, () => rnd() * 30);
   ok(Math.abs(autocorr1(white)) < 0.1, `white series rho1 ~ 0, got ${autocorr1(white).toFixed(3)}`);
   ok(band(autocorr1(white)) === 'UNSTRUCTURED', 'white reads UNSTRUCTURED');
