@@ -2335,7 +2335,8 @@ _NOT_WORN_RECHECK_S = 90.0          # how often to reconnect-and-check once drop
 _WORN_SINCE: dict[str, float] = {}  # addr -> monotonic ts contact went False (absent = worn/unknown)
 
 
-def should_drop_not_worn(worn_since, now, grace, pull_in_flight: bool = False) -> bool:
+def should_drop_not_worn(worn_since, now, grace, pull_in_flight: bool = False,
+                         can_charge: bool | None = True) -> bool:
     """PURE: has a strap been continuously not-worn long enough to drop for power? False when the feature
     is off (grace<=0), the strap is worn/unknown (worn_since None), or the grace has not yet elapsed.
 
@@ -2354,6 +2355,15 @@ def should_drop_not_worn(worn_since, now, grace, pull_in_flight: bool = False) -
     NOT what bounds this today: it is pure and has no caller yet, awaiting the held-link path. Citing it
     as the bound would be citing something unwired.)"""
     if pull_in_flight:
+        return False
+    # ⚠️ ONLY A DEVICE OBSERVED TO CHARGE IS DROPPED (CAPTURE-LOSS-PRECEDENCE-AUDIT R1, owner ruling
+    # 2026-09-22). The drop protects a dock's charge budget; a coin cell has none to protect, and on the
+    # H10 this rule cost 557 minutes over 33 nights (61 % of every lost minute on the box was this drop,
+    # across both Polars) for a battery that read 100 % after 14 nights of streaming. `can_charge` is the
+    # per-unit devcaps record — a battery that ROSE or a PMD IN_CHARGER seen on THIS address. None means
+    # nobody has measured it, and an unmeasured unit is never dropped: absence is null, not "assume a
+    # dock" (the coercion devcaps.get's own docstring forbids).
+    if can_charge is not True:
         return False
     return bool(grace and grace > 0 and worn_since is not None and (now - worn_since) >= grace)
 
@@ -3451,6 +3461,7 @@ async def run_polar(dev: dict, root: str):
                             prev = STATUS["devices"].get(name, {}).get("battery")
                             if isinstance(prev, int) and lvl > prev:
                                 _set(name, charging=True, charging_why="rising")     # a cell that ROSE: measured
+                                devcaps.record(addr, "can_charge", True, source="battery-rose")
                             elif isinstance(prev, int) and lvl < prev:
                                 _set(name, charging=False, charging_why=None)   # discharging again -> off the dock
                             _set(name, battery=lvl)
@@ -3461,7 +3472,10 @@ async def run_polar(dev: dict, root: str):
                             # from a wrist. Streaming drains ~9 %/h, so 45 min of no movement at full
                             # is a charger.
                             # store is module-level, so a reconnect does not restart the clock
-                            if note_flat_battery(_BATT_FLAT_SINCE, name, prev, lvl, _time.monotonic()):
+                            # R2: the flat-at-full INFERENCE fires only on a unit observed to charge — a coin
+                            # cell at 100 % for 45 min is a fresh cell, not a dock (2026-09-22, 140 drops)
+                            if note_flat_battery(_BATT_FLAT_SINCE, name, prev, lvl, _time.monotonic()) \
+                                    and devcaps.get(addr, "can_charge") is True:
                                 # the INFERENCE, named so worn_verdict can weigh it against a heartbeat. It
                                 # cannot fire on the read that measured a rise (lvl > prev resets the clock),
                                 # so it never overwrites `rising` within a session.
@@ -3728,6 +3742,7 @@ async def run_polar(dev: dict, root: str):
                                 # firing the on-charger auto-pull each time. A wrong flag was not
                                 # cosmetic: it cost the recording.
                                 if st == pmd.IN_CHARGER:
+                                    devcaps.record(addr, "can_charge", True, source="pmd-in-charger")
                                     _set(name, charging=True, charging_why="pmd-in-charger",
                                          last_error="charging — PMD streams unavailable until off the charger")
                                     _CHARGING.add(name)
@@ -3862,7 +3877,8 @@ async def run_polar(dev: dict, root: str):
                                     name, _STREAM_STALL_S)
                         break
                     if should_drop_not_worn(_WORN_SINCE.get(addr), _time.monotonic(), _DROP_NOT_WORN_SEC,
-                                        pull_in_flight=_OXYII_PAUSE.is_set()):
+                                        pull_in_flight=_OXYII_PAUSE.is_set(),
+                                        can_charge=devcaps.get(addr, "can_charge")):
                         drop_for_power = True
                         _set(name, last_error="not worn — link dropped to save battery (re-checking)")
                         log.info("%s: not worn for %.0fs — dropping the link to save battery; "
