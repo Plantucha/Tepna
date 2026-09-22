@@ -313,6 +313,27 @@ case "$_r2" in
 esac
 
 echo
+echo "### A FAIL-CLOSED DENIAL NAMES THE WAY OUT"
+# Prose composed inside an INTERPRETER heredoc is read raw and denied — correct, and indistinguishable
+# from a broken guard unless the message says what to do instead. #2088: a session that had done
+# everything right was denied twice by a documented hatch and could not tell it from a bug.
+_rp="$(reason "python3 - <<'PZ'
+body = 'explains why git add -A is forbidden'
+open('/tmp/b.md','w').write(body)
+PZ")"
+case "$_rp" in
+  *"WRITING PROSE"*) echo "  ok    an interpreter-heredoc denial names the plain-file remedy" ;;
+  *) echo "  FAIL  the denial does not tell a prose author what to do instead"; fail=$((fail+1)) ;;
+esac
+# …and NOT on an ordinary denial: advice that appears on every denial is noise, and noise is how the
+# one paragraph that mattered gets skipped.
+_rq="$(reason 'git add -A')"
+case "$_rq" in
+  *"WRITING PROSE"*) echo "  FAIL  the prose remedy appears on a denial that has nothing to do with heredocs"; fail=$((fail+1)) ;;
+  *) echo "  ok    an ordinary denial does not carry the prose paragraph" ;;
+esac
+
+echo
 echo "### MUST ALLOW — ordinary work"
 while IFS= read -r c; do [ -n "$c" ] && [[ "$c" != \#* ]] && chk allow "$c"; done <<'ALLOW'
 # creating a BRANCH is not a ref-checkout of a path; main allows it too, it was mis-filed as DENY

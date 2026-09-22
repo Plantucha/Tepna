@@ -132,6 +132,23 @@ _other_clauses() {
     | tr ';' '\n' | sed -E 's/[[:space:]]*(&&|\|\|)[[:space:]]*/\n/g' \
     | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | grep -vE '^$' | head -8
 }
+# ── A FAIL-CLOSED GUARD OWES ITS USER THE WAY OUT, IN THE DENIAL ITSELF ─────────────────────────
+#    A heredoc feeding an interpreter is read RAW, deliberately: the body is a program, and "this is
+#    documentation" is a claim the guard cannot check — accepting it would reopen the `-c` bypass
+#    through a different door. So prose composed inside `python3 - <<'PY'` that MENTIONS a forbidden
+#    form is denied, and that is correct rather than regrettable ([[guards-read-prose-as-code]],
+#    accepted deliberately as fail-closed).
+#    But a session that did everything right and cannot tell a correct denial from a broken guard
+#    reaches for the escape hatch — measured in #2088, where exactly that happened twice with
+#    CLAUDE_ALLOW_STALE_BRIEF. So when the denied command carries an interpreter heredoc, the message
+#    names the remedy: prose belongs in a plain file. It is one extra paragraph, shown only to the
+#    sessions who need it.
+_prose_remedy() {
+  printf '%s' "$cmdn" | grep -qE "<<-?'?[A-Za-z_]" || return 0
+  _pre1="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?[A-Za-z_].*//")"
+  printf '%s' "$_pre1" | grep -qE '(^|[;&|[:space:]])(bash|sh|zsh|python3?|node|perl|ruby|php)([[:space:]]|$)' || return 0
+  printf '\n\nWRITING PROSE THAT MENTIONS A FORBIDDEN FORM? The body of an INTERPRETER heredoc\n(`python3 - <<PY`, `bash <<EOF`) is a PROGRAM, so every rule reads it raw — the guard cannot tell\na quoted command inside a program from one about to run. A heredoc fed to anything else (a commit\nmessage, a PR body) IS treated as prose and is stripped. So:\n\n    cat > /tmp/body.md <<\x27EOF\x27      # prose in a plain file, no interpreter\n    ...\n    EOF\n    gh pr create --body-file /tmp/body.md\n    git commit -F /tmp/msg.txt\n\nThis is fail-closed on purpose: "it is only documentation" is a claim nothing can verify.'
+}
 deny() {
   local _n _list _extra=""
   _list="$(_other_clauses)"
@@ -139,6 +156,7 @@ deny() {
   if [ "${_n:-0}" -gt 1 ]; then
     _extra="$(printf '\n\n⚠ THIS DENIAL CANCELLED THE WHOLE INVOCATION — %s clause(s), none of which ran:\n%s\n\nOnly the clause named above was objected to; the rest were cancelled to enforce it and left NO\ntrace. Re-issue the ones you still want, separately, and check whether anything they were going to\nwrite is missing.' "$_n" "$(printf '%s\n' "$_list" | sed 's/^/    /')")"
   fi
+  _extra="$_extra$(_prose_remedy)"
   jq -nc --arg r "$1$_extra" \
     '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
   exit 0
