@@ -4,7 +4,7 @@
 
     night_verdicts.py <captures_root> <night>        # from the night's QC-SUMMARY.json, beside it
     night_verdicts.py --sample <out_dir>             # both objects from synthetic input, into a directory
-    night_verdicts.py --sample-json night-qc|night-backcheck
+    night_verdicts.py --sample-json night-qc|night-backcheck|night-seal
                                                      # ONE object from synthetic input, to stdout — the
                                                      # corpus-free `emits.cmd` the adoption gate
                                                      # (tools/verdict-adoption.mjs) runs in CI
@@ -49,6 +49,8 @@ def sample_object(gate: str) -> dict:
     """The synthetic-input object for one gate, built by the same functions the daemon runs."""
     if gate == nightqc._QC_GATE:
         return nightqc.qc_verdict(SAMPLE_SUMMARY, SAMPLE_DEVICES, night_dir="<sample>")
+    if gate == "night-seal":
+        return seal_sample()
     if gate == nightqc._BACKCHECK_GATE:
         # the back-check reads the directory: a scratch one holding the file the sample summary names
         import tempfile
@@ -56,7 +58,49 @@ def sample_object(gate: str) -> dict:
         with tempfile.TemporaryDirectory() as d:
             open(os.path.join(d, "Wellue_O2Ring-S_S8AW_sample_PPG.txt"), "a", encoding="utf-8").close()
             return nightqc.backcheck_verdict(d, SAMPLE_SUMMARY)
-    raise ValueError(f"unknown gate {gate!r}: {nightqc._QC_GATE} | {nightqc._BACKCHECK_GATE}")
+    raise ValueError(f"unknown gate {gate!r}: {nightqc._QC_GATE} | {nightqc._BACKCHECK_GATE} | night-seal")
+
+
+def seal_sample() -> dict:
+    """The `night-seal` object from a synthetic night sealed under a fresh key in a scratch directory.
+    `sealbox` needs `cryptography`; where it is not importable (the JS lane's system python) the honest
+    emission is NOT_RUN naming the library — a canned PASS would be a claim about a seal nobody wrote."""
+    import tempfile
+
+    import verdict
+
+    crit = {"name": "seal_verifies_after_write", "threshold": 0, "unit": "refusals", "direction": "eq"}
+    try:
+        import sealbox
+    except ImportError as exc:
+        return verdict.make(
+            gate="night-seal",
+            status="NOT_RUN",
+            population={"checked": 0, "eligible": 1, "excluded": 1},
+            criterion=crit,
+            result=None,
+            evidence=["capture-host/sealbox.py"],
+            reason=f"sealbox is not importable here ({exc}) — the sample seal did not run",
+            tool="capture-host/night_verdicts.py",
+        )
+    with tempfile.TemporaryDirectory() as d:
+        night = os.path.join(d, "captures", "2026-01-01")
+        os.makedirs(night)
+        with open(os.path.join(night, "Sample_X_20260101_ECG.txt"), "w", encoding="utf-8") as fh:
+            fh.write("a;b\n1;2\n")
+        key, _ = sealbox.load_or_create_signing_key(os.path.join(d, "keys"))
+        store, _ = sealbox.load_or_create_card_store(os.path.join(d, "keys"))
+        return sealbox.seal_or_reissue(
+            night,
+            outbox=os.path.join(d, "outbox"),
+            box_id="sample",
+            night="2026-01-01",
+            store=store,
+            signing_key=key,
+            cfg={"seal": {"research_consent": None}},
+            version=None,
+            commit=None,
+        )
 
 
 def main(argv: list[str]) -> int:

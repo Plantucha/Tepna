@@ -54,6 +54,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { printVerdict, undeclaredVerdict, verdictSample } from './verdict-undeclared.mjs';
 
 const R = new URL('..', import.meta.url).pathname;
 const require = createRequire(import.meta.url);
@@ -64,6 +65,12 @@ const opt = (n, d) => {
   const i = argv.indexOf(n);
   return i >= 0 && argv[i + 1] ? argv[i + 1] : d;
 };
+/* VERDICT-CONTRACT §3b — no agreement band was ever pre-stated (the numbers are on record), so the object is
+   UNKNOWN by design with bias / SD / LoA in `result`; `--verdict-sample` is what the adoption gate reads. */
+if (argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample('tools/pulse-agreement.mjs'), null, 1));
+  process.exit(0);
+}
 const SRC = opt('--src', '/run/media/michal/647A504F7A50205A');
 /* AN ABSENT INPUT PATH IS NOT A MEASUREMENT. The default below points at a removable volume that
    is not always mounted (and is no longer where the primary checkout lives), so the common failure
@@ -295,3 +302,23 @@ for (const n of nights) {
   const dn = pairs.filter((p) => p.night === n).map((p) => p.d);
   console.log(`    ${n}  ${med(dn).toFixed(2)} bpm  (n=${dn.length})`);
 }
+
+/* The object — UNKNOWN, carrying the Bland–Altman summary and the per-night medians verbatim (the
+   table above is explanation; the object is the API). Population = epochs with a finite PPG HR; excluded = the `thin`
+   ones whose vendor window fell under MIN_COV coverage. */
+printVerdict(
+  undeclaredVerdict({
+    tool: 'tools/pulse-agreement.mjs',
+    stat: {
+      label: 'PPG-derived pulse − vendor pulse, per paired epoch (bpm)',
+      biasBpm: +bias.toFixed(3),
+      sdBpm: +sd.toFixed(3),
+      loaBpm: [+(bias - 1.96 * sd).toFixed(2), +(bias + 1.96 * sd).toFixed(2)],
+      medianBpm: +med(ds).toFixed(3),
+      nights: nights.length,
+      perNightMedianBpm: Object.fromEntries(nights.map((n) => [n, +med(pairs.filter((p) => p.night === n).map((p) => p.d)).toFixed(2)]))
+    },
+    population: { checked: pairs.length, eligible: pairs.length + thin }, // `thin` = epochs whose vendor window fell under MIN_COV coverage
+    evidence: [SRC]
+  })
+);

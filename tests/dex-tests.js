@@ -18483,6 +18483,19 @@
         }
         delete c.provenance;
         if (c.recording) delete c.recording.contentId;
+        /* MEASUREMENT-PROVENANCE-ROADMAP §12 — `measurement.<id>.code` is the SHIPPED BUNDLE's identity
+           (the regenerator passes PpgDex.html's hashes as opts.code); this headless run passes none and
+           says so. Code IDENTITY, not a computed number — volatile HERE, pinned by
+           `measurement · fixture code identity — committed PpgDex blocks`. Same rule as the ECGDex leg. */
+        if (c.measurement && typeof c.measurement === 'object') {
+          Object.keys(c.measurement).forEach(function (k) {
+            var b = c.measurement[k];
+            if (b && typeof b === 'object') {
+              delete b.code;
+              delete b.codeReason;
+            }
+          });
+        }
         return c;
       }
       T.eq('compute({rich:true}) reproduces the committed golden byte-for-byte (volatile keys aside)', JSON.stringify(strip(rich)), JSON.stringify(strip(eq.fixture)));
@@ -18545,6 +18558,19 @@
         }
         delete c.provenance;
         if (c.recording) delete c.recording.contentId;
+        /* MEASUREMENT-PROVENANCE-ROADMAP §12 — `measurement.<id>.code` is the SHIPPED BUNDLE's identity
+           (the regenerator passes PpgDex.html's hashes as opts.code); this headless run passes none and
+           says so. Code IDENTITY, not a computed number — volatile HERE, pinned by
+           `measurement · fixture code identity — committed PpgDex blocks`. Same rule as the ECGDex leg. */
+        if (c.measurement && typeof c.measurement === 'object') {
+          Object.keys(c.measurement).forEach(function (k) {
+            var b = c.measurement[k];
+            if (b && typeof b === 'object') {
+              delete b.code;
+              delete b.codeReason;
+            }
+          });
+        }
         return c;
       }
       var out = P.compute({ text: eq.input }, { rich: true }); // rich, but NO timebase opt ⇒ the DEFAULT path
@@ -50387,6 +50413,270 @@
       });
       T.ok('at least one committed ECGDex fixture was examined (denominator)', seen >= 1, 'seen=' + seen);
     });
+
+    /* MEASUREMENT-PROVENANCE-ROADMAP §12 — PpgDex is the THIRD emitter. Mirror of the ECGDex group above:
+       the committed PpgDex fixtures' blocks name the SHIPPED PpgDex.html. */
+    group('measurement · fixture code identity — committed PpgDex blocks name the SHIPPED bundle', 'ppgdex-dsp · measurement-block · provenance · roadmap-§12 · fixture', function (T) {
+      var ident = env.bundleCodeIdentity && env.bundleCodeIdentity['PpgDex.html'];
+      var eq = env.equiv || {};
+      if (!ident || !ident.computeHash) {
+        T.skip('PpgDex.html code identity readable', 'env.bundleCodeIdentity not wired (browser lane) or PpgDex.html unbuilt');
+        return;
+      }
+      var CASES = [
+        ['ppgdex', 'PpgDex_2026-06-27_equiv.node-export.json'],
+        ['ppgdex_synth', 'synthetic_ppgdex_golden.node-export.json'],
+        ['ppgdex_finger', 'synthetic_ppgdex_o2ring_finger_golden.node-export.json'],
+        ['ppgdex_inverted', 'synthetic_ppgdex_inverted_golden.node-export.json'],
+        ['ppgdex_gapped', 'synthetic_ppgdex_gapped_golden.node-export.json'],
+        ['ppgdex_rich', 'synthetic_ppgdex_rich_golden.node-export.json']
+      ];
+      var seen = 0;
+      CASES.forEach(function (c) {
+        var rec = eq[c[0]];
+        var el = rec && rec.fixture;
+        if (!el) {
+          T.skip(c[1] + ' committed fixture reachable', 'absent in this lane');
+          return;
+        }
+        seen++;
+        var m = el.measurement;
+        T.ok(
+          c[1] + ' carries measurement blocks',
+          !!m && !!m.rmssd,
+          m ? Object.keys(m).join(',') : 'absent — regenerate: node tools/regen-ppgdex-goldens.mjs' + (el.measurementReason ? ' (' + el.measurementReason + ')' : '')
+        );
+        if (!m || !m.rmssd) return;
+        T.eq(c[1] + ' · code.computeHash ≡ shipped PpgDex.html computeHash', m.rmssd.code && m.rmssd.code.computeHash, ident.computeHash);
+        T.eq(c[1] + ' · code.manifestHash ≡ shipped PpgDex.html manifestHash', m.rmssd.code && m.rmssd.code.manifestHash, ident.manifestHash);
+        T.eq(c[1] + ' · evidence.inputHash ≡ the fixture’s own recording.contentId', m.rmssd.evidence && m.rmssd.evidence.inputHash, el.recording && el.recording.contentId);
+        T.ok(c[1] + ' · hr block shares the same code identity', !!m.hr && m.hr.code && m.hr.code.computeHash === ident.computeHash, m.hr ? JSON.stringify(m.hr.code) : 'absent');
+      });
+      T.ok('at least one committed PpgDex fixture was examined (denominator)', seen >= 1, 'seen=' + seen);
+    });
+
+    /* MEASUREMENT-PROVENANCE-ROADMAP §12 — the PpgDex row, and THE RULE it carries: a `clock-seam` refusal
+       ⇒ NO block (§∅ owner ruling 2026-09-17, a discontinuity refuses); reduced coverage annotates. Two
+       whole-record metrics (Pulse HR · rMSSD) gain lineage; PpgDex ships without clock.js, so its window
+       spread is whatever its node-local axis produced — a number in a co-loaded realm, null WITH the
+       bundle reason where DexClock is undefined. */
+    group(
+      'PpgDex emits measurement blocks — roadmap §12 third emitter, clock-seam ⇒ no block (plant-backed)',
+      'ppgdex-dsp · measurement-block · provenance · roadmap-§12 · clock-seam · plant',
+      function (T) {
+        var PD = env.PpgDex;
+        var P = env.PPGDSP;
+        var MB = env.MeasurementBlock;
+        var REG = env.PPG_REGISTRY;
+        var eq = env.equiv || {};
+        var input = (eq.ppgdex_synth && eq.ppgdex_synth.input) || null;
+        if (!PD || typeof PD.compute !== 'function' || !P || !MB || !REG) {
+          T.skip('PpgDex + PPGDSP + MeasurementBlock + PPG_REGISTRY co-loaded', 'not available in this runner');
+          return;
+        }
+        if (!input) {
+          T.skip('a committed Verity input is reachable (env.equiv.ppgdex_synth)', 'uploads/synthetic_ppgdex_verity.txt not reachable in this lane');
+          return;
+        }
+        var CODE = { manifestHash: '0123456789ab', computeHash: 'ba9876543210' };
+        var resolve = function (id) {
+          return !!REG[id];
+        };
+        var res = PD.compute({ text: input }, { code: CODE, rich: true });
+        var m = res && res.measurement;
+        T.ok(
+          'the export carries a recording-level `measurement` map',
+          !!m && typeof m === 'object',
+          m ? Object.keys(m).join(',') : 'absent' + (res && res.measurementReason ? ' — ' + res.measurementReason : '')
+        );
+        if (!m) return;
+        var IDS = ['hr', 'rmssd'];
+        T.eq('exactly the two whole-record metrics the §12 row names, keyed by registry id', Object.keys(m).sort().join(','), IDS.slice().sort().join(','));
+        var LEGS = ['metricId resolves', 'window', 'code identity', 'evidence join', 'basis'];
+        IDS.forEach(function (id) {
+          var b = m[id];
+          var v = MB.validateMeasurement(b, { resolveMetric: resolve });
+          T.ok(id + ' · validates under measurement-block.js', v.ok, v.errors.join(' | '));
+          T.eq(id + ' · all five legs RAN (checked denominator)', v.checked.slice().sort().join(','), LEGS.slice().sort().join(','));
+          T.eq(id + ' · metricId is the registry key', b.metricId, id);
+          T.eq(id + ' · basis is derived (a statistic over a detected, corrected beat train — LEXICON §4b)', b.basis, 'derived');
+          T.eq(id + ' · sourceChannel names the optical site the export declares', b.sourceChannel, (res.recording.site === 'finger' ? 'O2Ring' : 'Verity') + ':ppg');
+        });
+        var ht = res.hrv && res.hrv.time;
+        T.eq('rmssd block value ≡ hrv.time.rmssd (single-site PPG: the rich value IS whole-record)', m.rmssd.value, ht && ht.rmssd);
+        T.eq('hr block value ≡ hrv.time.hr', m.hr.value, ht && ht.hr);
+        T.eq('evidence.inputHash IS recording.contentId (computed once, two readers)', m.rmssd.evidence.inputHash, res.recording.contentId);
+        T.ok('contentId is a 12-hex content address', /^[0-9a-f]{12}$/.test(String(res.recording.contentId)), String(res.recording.contentId));
+        T.ok(
+          'no envelope on the PPG path: envelopeRef null WITH a reason naming the .dat join',
+          m.rmssd.evidence.envelopeRef === null && /session_id/.test(String(m.rmssd.evidence.envelopeReason)),
+          m.rmssd.evidence.envelopeReason
+        );
+        T.eq('code identity is the supplied bundle identity', JSON.stringify(m.rmssd.code), JSON.stringify(CODE));
+        T.ok(
+          'window spans t0Ms → the parsed clock end (positive, finite)',
+          m.rmssd.window.startTMs === res.recording.startEpochMs && m.rmssd.window.endTMs === res.recording.endEpochMs && m.rmssd.window.endTMs > m.rmssd.window.startTMs,
+          m.rmssd.window.startTMs + '→' + m.rmssd.window.endTMs + ' vs end ' + res.recording.endEpochMs
+        );
+        T.eq('window.clockDomain is device', m.rmssd.window.clockDomain, 'device');
+        var _w = m.rmssd.window;
+        T.ok(
+          'spreadMs is a finite number XOR null-with-reason (∅ — never a silent null)',
+          (typeof _w.spreadMs === 'number' && isFinite(_w.spreadMs) && !('spreadReason' in _w)) || (_w.spreadMs === null && typeof _w.spreadReason === 'string'),
+          JSON.stringify({ spreadMs: _w.spreadMs, spreadReason: _w.spreadReason, timingSource: _w.timingSource })
+        );
+        T.ok(
+          'a derived (non-independent) host column never claims device+host',
+          _w.timingSource !== 'device+host' || (res.recording.hostAxis && res.recording.hostAxis.independent === true),
+          _w.timingSource
+        );
+        T.ok('uncertainty null WITH a reason', m.rmssd.uncertainty === null && typeof m.rmssd.uncertaintyReason === 'string', m.rmssd.uncertaintyReason);
+        T.eq('schema.version bumped to 2.1 with the block', res.schema && res.schema.version, '2.1');
+        var light = PD.compute({ text: input }, { code: CODE });
+        T.ok(
+          'the LIGHT export carries the same two blocks',
+          !!light.measurement && Object.keys(light.measurement).sort().join(',') === IDS.slice().sort().join(','),
+          light.measurement ? Object.keys(light.measurement).join(',') : 'absent'
+        );
+        T.eq('…with identical values (one computation, two carriers)', light.measurement && light.measurement.rmssd.value, m.rmssd.value);
+        T.ok('…and the light export still has NO hrv block (the block adds lineage, not a rich payload)', !('hrv' in light));
+        var res0 = PD.compute({ text: input });
+        var b0 = res0 && res0.measurement && res0.measurement.rmssd;
+        T.ok('no bundle identity → code:null WITH a reason', !!b0 && b0.code === null && typeof b0.codeReason === 'string', b0 ? b0.codeReason : 'no block');
+        var v0 = b0 ? MB.validateMeasurement(b0, { resolveMetric: resolve }) : { ok: true, errors: [] };
+        T.ok(
+          'no bundle identity → the block FAILS validation, naming code',
+          !v0.ok &&
+            v0.errors.some(function (e) {
+              return e.indexOf('code') >= 0;
+            }),
+          v0.ok ? 'ACCEPTED — a block with no code identity passed' : v0.errors.join(' | ')
+        );
+        T.eq('…and the numbers are identical with or without the identity (invariance)', b0 && b0.value, m.rmssd.value);
+
+        /* ── THE RULE: a clock seam ⇒ NO block, named. Plant a real in-file sensor-clock rebase (the F10
+         synthesiser: the sensor column jumps 2792 days at the midpoint, the phone column keeps cadence)
+         through parsePPG → analyze → the export, and assert the whole path refuses with the seam named. */
+        var p2 = function (x) {
+          return String(x).padStart(2, '0');
+        };
+        var seamText = function (sec, jumpDays) {
+          var fs = 135;
+          var out = ['Phone timestamp;sensor timestamp [ns];channel 0;channel 1;channel 2;ambient'];
+          var n = Math.round(sec * fs),
+            step = 1000 / fs,
+            devMs = 0,
+            hostMs = 0,
+            ph = 0,
+            rr = 1000,
+            half = Math.floor(n / 2);
+          for (var i = 0; i < n; i++) {
+            devMs += step;
+            hostMs += step;
+            if (jumpDays && i === half) devMs += jumpDays * 86400000;
+            ph += step / rr;
+            if (ph >= 1) ph -= 1;
+            var w = Math.exp(-Math.pow((ph - 0.15) / 0.07, 2)) + 0.35 * Math.exp(-Math.pow((ph - 0.42) / 0.1, 2)) - 0.15 * Math.exp(-Math.pow((ph - 0.75) / 0.25, 2));
+            var v = 20000 + 800 * w;
+            var t = new Date(Date.UTC(2026, 6, 1, 0, 0, 0) + Math.round(hostMs));
+            var ts =
+              t.getUTCFullYear() +
+              '-' +
+              p2(t.getUTCMonth() + 1) +
+              '-' +
+              p2(t.getUTCDate()) +
+              ' ' +
+              p2(t.getUTCHours()) +
+              ':' +
+              p2(t.getUTCMinutes()) +
+              ':' +
+              p2(t.getUTCSeconds()) +
+              '.' +
+              String(t.getUTCMilliseconds()).padStart(3, '0');
+            out.push(ts + ';' + Math.round(devMs * 1e6) + ';' + Math.round(v) + ';' + Math.round(v * 0.95 + 30) + ';' + Math.round(v * 1.03 - 25) + ';400');
+          }
+          return out.join('\n');
+        };
+        var ctl = PD.compute({ text: seamText(300, 0) }, { code: CODE });
+        T.ok(
+          'CONTROL · the same synthesiser WITHOUT a seam emits the blocks (the plant is not vacuous)',
+          !!ctl.measurement && !!ctl.measurement.rmssd,
+          ctl.measurementReason || (ctl.measurement ? Object.keys(ctl.measurement).join(',') : 'absent')
+        );
+        var seam = PD.compute({ text: seamText(300, 2792) }, { code: CODE });
+        T.eq('SEAM · a capture-side sensor-clock rebase ⇒ measurement is null — NO block over a discontinuity', seam.measurement, null);
+        T.ok(
+          'SEAM · …and the absence is NAMED: measurementReason opens with clock-seam and counts the resync',
+          /^clock-seam: 1 capture-side resync/.test(String(seam.measurementReason)),
+          String(seam.measurementReason)
+        );
+        T.ok(
+          'SEAM · the whole-record numbers are still COMPUTED for display (refusal is of the lineage claim, not the arithmetic)',
+          seam.recording && typeof seam.recording.durSec === 'number',
+          JSON.stringify(seam.recording && { durSec: seam.recording.durSec })
+        );
+        T.eq(
+          'SEAM · the seam is also visible on the analysis result (r.clockSeam) so no consumer re-derives it from ppiConfReason',
+          P.analyze(P.parsePPG(seamText(300, 2792), undefined), null).clockSeam,
+          true
+        );
+        T.eq('CONTROL · …and false without one', P.analyze(P.parsePPG(seamText(300, 0), undefined), null).clockSeam, false);
+
+        if (typeof PD.buildMeasurementBlocks !== 'function' || typeof PD.analyze !== 'function' || typeof PD.parsePPG !== 'function') {
+          T.skip('plants via PpgDex.buildMeasurementBlocks', 'builder seam not exposed');
+          return;
+        }
+        var r = PD.analyze(PD.parsePPG(input), null);
+        var clone = function (o) {
+          var c = {};
+          Object.keys(o).forEach(function (k) {
+            c[k] = o[k];
+          });
+          return c;
+        };
+        var rSeam = clone(r);
+        rSeam.clockSeam = true;
+        T.eq('PLANT · r.clockSeam = true → the builder returns null (the rule lives in ONE place)', PD.buildMeasurementBlocks(rSeam, { code: CODE }), null);
+        var rNull = clone(r);
+        rNull.rmssd = null;
+        var mNull = PD.buildMeasurementBlocks(rNull, { code: CODE });
+        T.ok('PLANT · an unmeasured metric (rmssd null) → no rmssd block, the hr block survives', !!mNull && !mNull.rmssd && !!mNull.hr, mNull ? Object.keys(mNull).join(',') : 'null');
+        var rBoth = clone(rNull);
+        rBoth.hr = NaN;
+        T.eq('PLANT · every metric unmeasured → no map at all', PD.buildMeasurementBlocks(rBoth, { code: CODE }), null);
+        var rWin = clone(r);
+        rWin.endEpochMs = rWin.t0Ms;
+        rWin.durSec = 0;
+        T.eq('PLANT · a zero-length window → no map (never a fabricated window)', PD.buildMeasurementBlocks(rWin, { code: CODE }), null);
+        var rNoEnd = clone(r);
+        rNoEnd.endEpochMs = null;
+        var mNoEnd = PD.buildMeasurementBlocks(rNoEnd, { code: CODE });
+        T.ok(
+          'PLANT · no parsed clock end → the sample span stands in AND is named',
+          !!mNoEnd && mNoEnd.rmssd.window.endTMs === r.t0Ms + Math.round(r.durSec * 1000) && /durSec/.test(String(mNoEnd.rmssd.window.windowReason)),
+          mNoEnd ? JSON.stringify(mNoEnd.rmssd.window) : 'null'
+        );
+        var rNoAxis = clone(r);
+        rNoAxis.hostAxis = null;
+        var mNoAxis = PD.buildMeasurementBlocks(rNoAxis, { code: CODE });
+        T.ok(
+          'PLANT · no host axis → spreadMs null WITH a reason, timingSource device',
+          !!mNoAxis && mNoAxis.rmssd.window.spreadMs === null && typeof mNoAxis.rmssd.window.spreadReason === 'string' && mNoAxis.rmssd.window.timingSource === 'device',
+          mNoAxis ? JSON.stringify(mNoAxis.rmssd.window) : 'null'
+        );
+        var rAxis = clone(r);
+        rAxis.hostAxis = { ok: true, timingSource: 'device+host', spreadMs: 123.4, independent: true };
+        var mAxis = PD.buildMeasurementBlocks(rAxis, { code: CODE });
+        T.ok(
+          'PLANT · a host axis with a measured spread → spreadMs is that number and no reason rides beside it',
+          !!mAxis && mAxis.rmssd.window.spreadMs === 123.4 && !('spreadReason' in mAxis.rmssd.window) && mAxis.rmssd.window.timingSource === 'device+host',
+          mAxis ? JSON.stringify(mAxis.rmssd.window) : 'null'
+        );
+        var rFinger = clone(r);
+        rFinger.site = 'finger';
+        T.eq('PLANT · site finger → sourceChannel O2Ring:ppg', PD.buildMeasurementBlocks(rFinger, { code: CODE }).rmssd.sourceChannel, 'O2Ring:ppg');
+      }
+    );
 
     group(
       'Integrator consumes ECGDex measurement blocks — the generic envelope adapter (roadmap §12, plant-backed)',

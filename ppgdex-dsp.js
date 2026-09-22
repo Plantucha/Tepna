@@ -5109,6 +5109,12 @@
          0.001-0.088 measured), reported as a number so a reader can judge the borderline rather than
          inherit a verdict. */
       timingSource: (rec.hostAxis && rec.hostAxis.timingSource) || null,
+      /* The seam flag itself, so a consumer of `r` (the measurement emitter below) can refuse over a
+         discontinuity without re-deriving it from `ppiConfReason` — §∅ owner ruling 2026-09-17: a
+         DISCONTINUITY refuses, reduced coverage annotates. `clockResyncs` rides beside it so the
+         refusal can name the seam(s). */
+      clockSeam: _clockSeam,
+      clockResyncs: rec.clockResyncs || null,
       /* ── THE AXIS OBJECT ITSELF, and why one scalar was not enough ──────────────────────────────
          `ppgBuildNodeExport` has a whole `recording.hostAxis` block gated on `r.hostAxis && .ok`,
          mirroring ECGDex field for field — and `analyze` never forwarded the object, so `r.hostAxis`
@@ -5533,8 +5539,118 @@
   //  and self-contained — kernel/provenance arrive via opts (typeof-guarded by the
   //  caller), never reached off window here (CONTRIBUTING.md §6 / brief §1B).
   // ════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  MEASUREMENT BLOCKS — the THIRD emitter of the roadmap §1 `measurement` block (roadmap §12, PpgDex
+  //  row; OxyDex first, ECGDex second — `ecgBuildMeasurementBlocks` is the recipe this mirrors). Two
+  //  headline metrics, one block each, keyed by the PPG registry id (`hr` = Pulse HR · `rmssd`), values =
+  //  the WHOLE-RECORD numbers `r.hr` / `r.rmssd` — `timeDomain(nn, cleanMask, spansOmit, adj)` over the
+  //  entire Malik-corrected NN train, the numbers the rich export already publishes as hrv.time.{hr,rmssd}
+  //  and the Integrator reads as its consensus axis. The block adds LINEAGE, never a second computation.
+  //
+  //  ⚠️ THE RULE THIS ROW EXISTS FOR (§12 PpgDex row; §∅ owner ruling 2026-09-17): a `clock-seam` refusal
+  //  ⇒ NO BLOCK. A capture-side resync (`rec.clockResyncs`) means the NN train spans two clocks; the
+  //  whole-record rMSSD/HR are still COMPUTED over it (the display path has always shown them), but a
+  //  number over a discontinuity describes no single stretch of signal, so it gets no lineage-bearing
+  //  measurement block — `measurement: null` with `measurementReason` naming the seam(s). Reduced
+  //  coverage (dropouts, pinned spans) is NOT a seam: it annotates through `quality`, never refuses.
+  //
+  //  basis: 'derived' (LEXICON §4b) — a statistic over a detected, corrected beat train.
+  //  window: [t0Ms, endEpochMs] (the parser's last stamped row); when absent the beat span stands in and
+  //  is named. clockDomain 'device'. spreadMs: PpgDex ships WITHOUT clock.js (CLAUDE.md §✅ — DexClock is
+  //  undefined in the bundle), so `r.hostAxis` is `{ok:false}` there and the spread is null WITH that
+  //  reason; a headless co-loaded run may carry a measured spread — the block reports whichever the
+  //  node-local axis actually produced, never a value the bundle could not have measured.
+  //  evidence: inputHash = the export's recording.contentId (SignalFrame content address of the NN train),
+  //  computed ONCE in ppgBuildNodeExport and shared. No acquisition envelope joins the PPG path today
+  //  (the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt) — null
+  //  with that reason. code: `opts.code` ONLY — this DSP is born-clean (no `document`); the APP layer and
+  //  the regen tool read the <html data-manifest-hash/data-compute-hash> stamp and pass it in.
+  // ═══════════════════════════════════════════════════════════════════════════
+  function ppgBuildMeasurementBlocks(r, opts) {
+    opts = opts || {};
+    if (!r || typeof r !== 'object') return null;
+    if (r.clockSeam === true) return null; // a discontinuity refuses — the caller names the seam (§∅ 2026-09-17)
+    var t0 = r.t0Ms != null && isFinite(r.t0Ms) ? r.t0Ms : null;
+    var tEnd = r.endEpochMs != null && isFinite(r.endEpochMs) ? r.endEpochMs : null;
+    var windowNote = null;
+    if (tEnd == null && t0 != null && r.durSec != null && isFinite(r.durSec) && r.durSec > 0) {
+      tEnd = t0 + Math.round(r.durSec * 1000);
+      windowNote = 'no parsed clock end on this input — endTMs is t0Ms + durSec (the sample span)';
+    }
+    if (t0 == null || tEnd == null || tEnd <= t0) return null; // no placeable window → no block (never fabricate one)
+    var code = opts.code && typeof opts.code === 'object' ? { manifestHash: opts.code.manifestHash, computeHash: opts.code.computeHash } : null;
+    var contentId = opts.contentId != null ? opts.contentId : null;
+    var evidence = {
+      envelopeRef: null,
+      envelopeReason: 'no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream',
+      inputHash: contentId
+    };
+    if (evidence.inputHash == null) evidence.inputReason = 'contentId unavailable (SignalFrame not co-loaded, or no NN train)';
+    var ha = r.hostAxis && r.hostAxis.ok ? r.hostAxis : null;
+    var window = {
+      startTMs: t0,
+      endTMs: tEnd,
+      clockDomain: 'device',
+      timingSource: ha && ha.timingSource ? ha.timingSource : 'device',
+      spreadMs: ha && ha.spreadMs != null && isFinite(ha.spreadMs) ? ha.spreadMs : null
+    };
+    if (window.spreadMs == null)
+      window.spreadReason = ha
+        ? 'host axis present but published no spread'
+        : typeof DexClock === 'undefined'
+          ? 'no DexClock in this bundle (PpgDex ships without clock.js — CLAUDE.md §✅) — the node-local axis measures no host spread'
+          : 'no host axis on this input (single device clock, or hostAxis refused) — nothing to measure spread against';
+    if (windowNote) window.windowReason = windowNote;
+    var quality = {
+      n: r.nBeats != null ? r.nBeats : null,
+      durationMin: r.durMin != null ? r.durMin : null,
+      analyzablePct: r.analyzablePct != null ? r.analyzablePct : null,
+      coveragePct: r.coveragePct != null ? r.coveragePct : null
+    };
+    var channel = (r.site === 'finger' ? 'O2Ring' : 'Verity') + ':ppg'; // the optical site the export already declares
+    var mk = function (metricId, value) {
+      if (value == null || typeof value !== 'number' || !isFinite(value)) return null; // unmeasured ⇒ no block
+      var b = {
+        metricId: metricId,
+        value: value,
+        window: window,
+        sourceChannel: channel,
+        code: code,
+        evidence: evidence,
+        basis: 'derived',
+        quality: quality,
+        uncertainty: null,
+        uncertaintyReason: 'not estimated — this node carries no uncertainty model for whole-record HRV summaries (the device-PPI cross-check in `validation` is a comparison, not an interval)'
+      };
+      if (code == null)
+        b.codeReason =
+          'no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle’s';
+      return b;
+    };
+    var out = {};
+    var blocks = [
+      ['hr', r.hr],
+      ['rmssd', r.rmssd]
+    ];
+    var any = false;
+    for (var i = 0; i < blocks.length; i++) {
+      var b = mk(blocks[i][0], blocks[i][1]);
+      if (b) {
+        out[blocks[i][0]] = b;
+        any = true;
+      }
+    }
+    return any ? out : null;
+  }
+
   function ppgBuildNodeExport(r, opts) {
     opts = opts || {};
+    // EXPORT-IDENTITY §2.1: computed ONCE here and shared by recording.contentId and the measurement
+    // blocks' evidence.inputHash — one content address, two readers, no drift between them.
+    var _contentId =
+      typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.computeContentId && r.nn && r.nn.length
+        ? SignalFrame.computeContentId({ signalType: 'ppg', kind: 'intervals', intervals: r.nn, t0Ms: r.t0Ms != null ? r.t0Ms : null, usable: true })
+        : null;
     // PPGDEX-FOLLOWUPS §3: preserve the per-event sqi axis (R7 — "SQI rides ALONGSIDE conf", a SEPARATE
     // quality axis, not folded into conf). buildEvents stamps sqi on EVERY event (a number for the per-beat-
     // quality impulses e.g. motion_artifact_segment via sqiAt(); null where it doesn't apply). The old
@@ -5561,7 +5677,7 @@
         : null,
       schema: {
         name: 'ganglior.node-export',
-        version: '2.0',
+        version: '2.1', // 2.1 — the MINOR bump lands with the `measurement` block (docs/EXPORT-SHAPES.md); OxyDex and ECGDex bumped first.
         node: 'PpgDex',
         nodeVersion: '1.0',
         bus: 'ganglior',
@@ -5573,10 +5689,7 @@
       // shared builder (both app exportGanglior + headless compute reach it). Folds the NN beat series.
       recording: {
         source: 'ppg',
-        contentId:
-          typeof SignalFrame !== 'undefined' && SignalFrame && SignalFrame.computeContentId && r.nn && r.nn.length
-            ? SignalFrame.computeContentId({ signalType: 'ppg', kind: 'intervals', intervals: r.nn, t0Ms: r.t0Ms != null ? r.t0Ms : null, usable: true })
-            : null,
+        contentId: _contentId,
         startEpochMs: r.t0Ms != null ? r.t0Ms : null,
         /* NODE-EXPORT-DURATION-SEMANTICS §3 — where the recording ENDS on the clock, beside how much
            signal it holds. `integrator-dsp normalizeFile` already prefers `endEpochMs` over every
@@ -5610,8 +5723,17 @@
         siteSource: r.siteSource || 'device-default'
       },
       ganglior_events: events,
-      reserved: { doc: 'Awaiting other fleet nodes; null until available.' }
+      reserved: { doc: 'Awaiting other fleet nodes; null until available.' },
+      // MEASUREMENT-PROVENANCE-ROADMAP §12 — the third emitter. On BOTH light and rich (the block adds
+      // lineage, not a rich payload). null ⇒ either no placeable window/metric, or a clock seam — the
+      // seam case is NAMED below, never silent (§∅ 2026-09-17: a discontinuity refuses).
+      measurement: ppgBuildMeasurementBlocks(r, { code: opts.code, contentId: _contentId })
     };
+    if (out.measurement == null && r.clockSeam === true)
+      out.measurementReason =
+        'clock-seam: ' +
+        (r.clockResyncs ? r.clockResyncs.length : 0) +
+        ' capture-side resync(s) — the NN train spans two clocks, so no whole-record number describes one continuous stretch of signal; no measurement block is emitted over a discontinuity (§∅ owner ruling 2026-09-17)';
     /* SPARSE COVERAGE — INTEGRATOR-GAP-AWARE-OVERLAP part 2. `durSec` above is the ENVELOPE this node
        records over; it does not say where inside that envelope the signal is. The Verity is the
        fleet's most fragmented stream — 24 segments in one night against the H10's 3 — and its envelope
@@ -6150,7 +6272,15 @@
     };
   }
 
-  global.PpgDex = global.PpgDex || { compute: compute, parsePPG: parsePPG, analyze: analyze, buildNodeExport: ppgBuildNodeExport, _build: ppgBuildNodeExport, coverage: ppgCoverage };
+  global.PpgDex = global.PpgDex || {
+    compute: compute,
+    parsePPG: parsePPG,
+    analyze: analyze,
+    buildNodeExport: ppgBuildNodeExport,
+    _build: ppgBuildNodeExport,
+    coverage: ppgCoverage,
+    buildMeasurementBlocks: ppgBuildMeasurementBlocks
+  };
   global.PpgDex.loadOwnExport = ppgLoadOwnExport; // SELF-INGEST reload (review-mode clinical view)
   // scrub-for-sharing → the SHARED dexScrubExport (D1); lazy delegate, co-load order irrelevant.
   global.PpgDex.scrubExport = function (env) {

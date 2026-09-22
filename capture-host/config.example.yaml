@@ -246,6 +246,23 @@ qc:
 # MIRROR each completed night (not tonight) to a destination — a NAS mount, the tepna-web served dir, a
 # backup disk — so finished nights land where they get analysed. Idempotent + resumable; never moves the
 # source (the storage guard prunes it on its own schedule).
+# NIGHT SEAL (CAPTURE-NIGHT-SEAL phase B, §13). Each SETTLED night is bagged, signed with the box's own
+# P-256 key and encrypted to the patient's card key, then written to `outbox/<boxId>-<night>.tepna`
+# (atomic); a post-close writer (back-check sidecar, late pull) gets a verified re-issue at revision+1.
+# Keys are generated once under `<root>/keys/` (0600, never exported); the card is written to the outbox
+# as a self-contained HTML the browser prints. DEFAULT OFF: a patient's night written into a folder a
+# sync client may watch is the owner's switch. Nothing here touches captures/ or any network.
+seal:
+  enabled: false
+  box_id: ""                 # empty ⇒ the hostname; appears on the card, in every seal header and file name
+  outbox: ""                 # empty ⇒ <root>/outbox
+  key_dir: ""                # empty ⇒ <root>/keys
+  poll_sec: 600
+  # Research consent, as ANSWERED at setup: true | false | null. null = NOT ASKED — never a default no
+  # (§∅ applies to consent); it is written as the literal `null` into bag-info and the seal header. The
+  # wording of the question is the owner's (brief §11); this field records the answer, nothing else.
+  research_consent: null
+
 archive:
   enabled: false
   dest: ""                # e.g. /mnt/nas/tepna  or  /srv/tepna/app/captures
