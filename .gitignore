@@ -35,6 +35,7 @@ uploads/*
 # verify-provenance GATE B fixtures (== FIXTURE-PROVENANCE.json "fixtures" keys):
 !uploads/OxyDex_2026-06-13_1056_summary.json
 !uploads/OxyDex_2026-06-25_0439_summary.json
+!uploads/OxyDex_2026-09-19_2245_stored_summary.json
 !uploads/PulseDex_2026-06-25_equiv.node-export.json
 !uploads/PulseDex_2026-06-25_events.node-export.json
 !uploads/HRVDex_2026-06-25_equiv.node-export.json

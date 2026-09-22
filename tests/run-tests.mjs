@@ -910,6 +910,34 @@ function readEquiv() {
   // an equiv leg, but _0439 shares the same code"), which is an instruction to a human, not a gate.
   // It has a leg now, so the claim is checked rather than asserted.
   pair('oxydex_0439', 'O2Ring S 2100_20260624222730.csv', 'OxyDex_2026-06-25_0439_summary.json');
+  /* The stored .dat night WITH its acquisition envelope (residue 2026-09-21-measurement-envelope-hop-
+     unexercised). A .dat is BYTES, not text, and the fixture's envelopeRef is joined from the sidecar,
+     so this pair carries both halves: `input = { bytes, fname, meta }`. Corpus-backed like the two
+     CSV summaries (real recording, gitignored) — ⊘ in CI, real locally. */
+  {
+    const datFile = 'Wellue_O2Ring-S_20260919224526_STORED.dat',
+      metaFile = datFile + '.meta.json';
+    const datP = join(UPLOADS, datFile),
+      metaP = join(UPLOADS, metaFile),
+      fxP = join(ROOT, 'uploads', 'OxyDex_2026-09-19_2245_stored_summary.json');
+    const rec = {};
+    if (existsSync(datP) && existsSync(metaP)) {
+      try {
+        rec.input = { bytes: new Uint8Array(readFileSync(datP)), fname: datFile, meta: JSON.parse(readFileSync(metaP, 'utf8')) };
+      } catch {
+        /* unreadable → absent */
+      }
+    }
+    if (existsSync(fxP)) {
+      try {
+        rec.fixture = JSON.parse(readFileSync(fxP, 'utf8'));
+      } catch {
+        /* unreadable → absent */
+      }
+    }
+    rec.fixtureFile = 'OxyDex_2026-09-19_2245_stored_summary.json';
+    if (rec.input !== undefined || rec.fixture !== undefined) out.oxydex_stored = rec;
+  }
   pair('pulsedex', 'Polar_H10_AAAAAAAA_20260613_204448_RR.txt', 'PulseDex_2026-06-25_equiv.node-export.json');
   pair('hrvdex', 'WELLTORY_HRV_DATA_EXPORT_20_May_2026_12_00_AM-17_Jun_2026_11_59_PM.csv', 'HRVDex_2026-06-25_equiv.node-export.json');
   // VII §2: event-byte-coverage cases (purpose-built inputs that emit ≥1 event of each impulse;

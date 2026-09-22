@@ -41985,6 +41985,33 @@
             return Array.isArray(fx) ? fx[0] : fx;
           }
         },
+        /* The stored .dat night WITH its acquisition envelope — the fixture that makes the envelope hop
+           REAL (residue 2026-09-21-measurement-envelope-hop-unexercised). Reproduced through the SAME
+           functions the app's drop path and the regenerator run, in the same order: decode → computeNight
+           → _attachAcqEvidence (the real session_id join) → buildNightElement. `compute()` has no envelope
+           input, so this leg reproduces that seam rather than a shortcut around it. */
+        {
+          key: 'oxydex_stored',
+          label: 'OxyDex (stored .dat + acquisition envelope — the envelope hop, for real)',
+          node: env.OxyDex,
+          run: function (n, input) {
+            var csv = n.decodeO2RingBinToCSV(input.bytes, input.fname, null);
+            var night = n.computeNight({ text: csv }, input.fname);
+            if (!night) return null;
+            night.fname = night.fname || input.fname;
+            var acq = input.meta && input.meta.acquisition_evidence;
+            var bag = {};
+            if (acq && acq.session_id) bag[acq.session_id] = acq;
+            n._attachAcqEvidence(night, bag);
+            return { nights: [n.buildNightElement(night, { provenance: null, kernel: null, ecgFusion: null, ansAge: null, code: null })] };
+          },
+          pick: function (res) {
+            return res && res.nights && res.nights[0];
+          },
+          fixPick: function (fx) {
+            return Array.isArray(fx) ? fx[0] : fx;
+          }
+        },
         {
           key: 'cpapdex_real_0612',
           label: 'CPAPDex (real EDF, 2 sessions — was code-gated with no leg)',
@@ -49760,8 +49787,16 @@
       var CASES = [
         ['oxydex', 'OxyDex_2026-06-13_1056_summary.json'],
         ['oxydex_0439', 'OxyDex_2026-06-25_0439_summary.json'],
-        ['oxydex_synth', 'synthetic_oxydex_golden.node-export.json']
+        ['oxydex_synth', 'synthetic_oxydex_golden.node-export.json'],
+        ['oxydex_stored', 'OxyDex_2026-09-19_2245_stored_summary.json']
       ];
+      /* THE ENVELOPE HOP, PINNED ON COMMITTED BYTES (residue 2026-09-21-measurement-envelope-hop-
+         unexercised). Three fixtures are CSV nights and must say WHY their envelope is null; the
+         fourth is a stored .dat night WITH its acquisition envelope and must carry the REAL session_id
+         the DSP joined. Both directions asserted, so a regression that nulls the join reds here and a
+         fixture that fabricates a ref where no envelope exists reds too. The committed fixture is a repo
+         artifact, so this runs in CI without the corpus; the equiv leg re-derives it locally. */
+      var ENVELOPE = { oxydex: null, oxydex_0439: null, oxydex_synth: null, oxydex_stored: '20260919224526' };
       var seen = 0;
       CASES.forEach(function (c) {
         var rec = eq[c[0]];
@@ -49781,8 +49816,22 @@
         ['meanSpo2', 't90', 'hypoxicBurden'].forEach(function (id) {
           T.ok(c[1] + ' · ' + id + ' block shares the same code identity', !!m[id] && m[id].code && m[id].code.computeHash === ident.computeHash, m[id] ? JSON.stringify(m[id].code) : 'absent');
         });
+        var ev = m.odi4.evidence || {};
+        var want = ENVELOPE[c[0]];
+        if (want == null)
+          T.ok(
+            c[1] + ' · evidence.envelopeRef is null WITH a reason (a CSV night has no envelope)',
+            ev.envelopeRef == null && typeof ev.envelopeReason === 'string' && ev.envelopeReason.length > 0,
+            JSON.stringify({ envelopeRef: ev.envelopeRef, envelopeReason: ev.envelopeReason })
+          );
+        else T.eq(c[1] + ' · evidence.envelopeRef is the REAL session_id the DSP joined from the .dat envelope', ev.envelopeRef, want);
       });
-      T.ok('at least one committed OxyDex fixture was examined (denominator)', seen >= 1, 'seen=' + seen);
+      T.eq('every committed OxyDex fixture was examined (denominator, an equality)', seen, CASES.length);
+      T.ok(
+        'the stored-.dat fixture — the one with a real envelope hop — was among them (anti-vacuity)',
+        !!(eq.oxydex_stored && eq.oxydex_stored.fixture),
+        'oxydex_stored fixture ' + (eq.oxydex_stored && eq.oxydex_stored.fixture ? 'present' : 'ABSENT — the envelope hop is unexercised again')
+      );
     });
 
     group('Property / metamorphic — HRV + SignalFrame', 'property-metamorphic · signal-adapters · signal-spec', function (T) {
