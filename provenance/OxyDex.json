@@ -64,6 +64,22 @@
       },
       "outputHash": "dd6da902ef2cf03d",
       "note": "ADDED 2026-07-12 (CPAP-REAL-CORPUS-2026-07-11-BRIEF §P9, resolving §M5) — a COMMITTED, content-addressed equivalence input for OxyDex. Before P9, every node's equivalence input was a REAL recording, hence gitignored, hence absent on a fresh clone: ALL EIGHT compute()-equivalence legs SKIPPED in CI. The suite's strongest correctness gate — the GATE-C surface that catches a code change which moved a fixture's OUTPUT — therefore ran only on the maintainer's machine, and a regression that moved an export would have gone green through CI. This input is SYNTHETIC (tools/make-synthetic-inputs.mjs): the vendor FORMAT is reproduced exactly, the DATA never is — closed-form, physiologically plausible waveforms containing no recording of any person and no device identifier. Deterministic (no RNG, no Date.now()), so re-running the generator reproduces it byte-for-byte and inputHashes stay stable. It ADDS to the real-recording leg (which still runs locally and exercises genuine vendor quirks); it does not replace it. REGENERATE the input and this golden together whenever the export shape changes."
+    },
+    "OxyDex_2026-09-19_2245_stored_summary.json": {
+      "bundle": "OxyDex.html",
+      "manifestHash": "e7b827f5e951",
+      "added": "2026-09-21",
+      "note": "MEASUREMENT-PROVENANCE-ROADMAP / residue 2026-09-21-measurement-envelope-hop-unexercised — the FIRST OxyDex fixture whose input is a stored O2Ring .dat night WITH its acquisition envelope (capture-host pull_session sidecar, ganglior.acquisition-evidence 1.1.0), so measurement.*.evidence.envelopeRef is a REAL session_id joined by the DSP (_attachAcqEvidence) rather than null-with-reason. 7.1 h box night 2026-09-19 (25,670 samples, device summary VALID/COMPLETE). Inputs are corpus-backed (gitignored, like the two CSV summaries): the .gitignore excludes real recordings by policy and the pair sits in the canonical corpus under smoketest-captures/stored/.",
+      "inputs": [
+        "Wellue_O2Ring-S_20260919224526_STORED.dat",
+        "Wellue_O2Ring-S_20260919224526_STORED.dat.meta.json"
+      ],
+      "outputHash": "b4bfb88d14366c9a",
+      "inputHashes": {
+        "Wellue_O2Ring-S_20260919224526_STORED.dat": "6435de3812edd7c1",
+        "Wellue_O2Ring-S_20260919224526_STORED.dat.meta.json": "618f9a39c7546002"
+      },
+      "verifiedUnder": "729cdbe6b14f"
     }
   }
 }
