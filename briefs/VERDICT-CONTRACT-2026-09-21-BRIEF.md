@@ -219,6 +219,12 @@ contract as written. They are rules now.
   empty evidence and a NOT_APPLICABLE carrying a result; building the oracle's, five stale plants failed
   on `scope`; building PpgDex's, an asymmetric +27 % on one leg of one input was caught by the pre-stated
   band and re-measured interleaved. That is what the contract is for.
+- **The object says what the prose's parenthesis means.** `selftest-all` prints `✓ 121 tools, 1666+
+  assertions — all green (26 green but unparseable)`; its `tepna.verdict/1` object over the same run is
+  **`UNKNOWN` over `{checked 121, eligible 121, excluded 0}`** — 26 children whose selftest printed no
+  count the runner can read are UNKNOWN, and one UNKNOWN among 95 PASSes is UNKNOWN by precedence, not
+  a vote (#2828, §3d). Same run, same numbers; the word said green and the object says undecided. The
+  day's cleanest example of the whole contract: prose is explanation, the object is the API.
 
 ## 3d · Wave 3 — the RUNNER-LEVEL object (design, Magpie 2026-09-22, reviewed Kestrel; §3b #9 — a note, not code)
 
@@ -288,7 +294,7 @@ emits an object.
 - `selftest-all.mjs` reads a parseable `all N selftests passed` line per tool and already refuses an
   unparseable one (`nearMiss → exit 1`); its children are per-tool verdicts, so `checked` = tools with a
   parsed summary, `excluded` = tools discovery found and did not run, and an unparseable summary is UNKNOWN,
-  never a failure of the tool under test.
+  never a failure of the tool under test. **Adopted #2828 (2026-09-22)** — children read from the summary line (provenance `summary`); measured on the real sweep `UNKNOWN` over 121/121, 26 ratcheted-unparseable children, where the prose says "all green".
 - `tests/run-tests.mjs` is the largest and is the one §3 named for "design first": the corpus-deciding
   groups (`docs-ledger`, `release-ledger`, `verdict-adoption`, the equiv legs) become children; a group is a
   child, an assertion is not. A shard emits its own object over the groups it ran; the union runner

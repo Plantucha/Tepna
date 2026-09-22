@@ -25,9 +25,12 @@ Usage:
 import argparse
 import csv
 import datetime
+import json
 import os
 import re
 import sys
+
+import verdict as VD
 
 HEADER_LEN = 10
 _TRAILER_LEN = 48
@@ -111,6 +114,53 @@ def self_consistency(samples, trailer):
         notes.append(f"the sample count is 1/{n} of total_seconds — this reads as a ring set to "
                      f"storage_interval={n}s, NOT a shifted header offset")
     return ok, notes
+
+
+# ── tepna.verdict/1 — self-consistency as ONE object (VERDICT-CONTRACT wave 2) ───────────────────
+# `self_consistency` applies two pre-stated bands (|mean SpO₂ − trailer avg| ≤ 1 %, |n − total_seconds|
+# ≤ max(2, 2 %)); the object's criterion is the COUNT of bands violated, ≤ 0, with each band and its
+# measured value in `result` — one criterion cannot carry two thresholds, and picking one would hide
+# the other. Population: the samples the mean was taken over (a `None` SpO₂ is excluded, §∅). No
+# trailer ⇒ NOT_RUN: there is no witness to compare against, which is not a disagreement.
+VERDICT_GATE = "parse-dat-self-consistency"
+VERDICT_CRITERION = {"name": "bands_violated", "threshold": 0, "unit": "bands", "direction": "lte"}
+SPO2_MEAN_TOL = 1  # % SpO₂ — the band `self_consistency` applies to |mean − trailer avg|
+
+
+def _count_tol(total_seconds: int) -> int:
+    return max(2, round(0.02 * total_seconds))
+
+
+def consistency_verdict(samples, trailer, path: str = "<dat>") -> dict:
+    """PURE over what `parse_oxy_dat` returned: PASS both bands hold · FAIL a band is violated (the
+    consistency notes are the reason) · NOT_RUN no valid trailer."""
+    n = len(samples)
+    valid = [x["spo2"] for x in samples if x["spo2"] is not None]
+    pop = {"checked": len(valid), "eligible": n, "excluded": n - len(valid)}
+    ev = ["capture-host/parse_dat.py", path]
+    if not trailer:
+        return VD.make(gate=VERDICT_GATE, status="NOT_RUN", population=pop, criterion=VERDICT_CRITERION,
+                       result=None, evidence=ev, tool="capture-host/parse_dat.py",
+                       reason="no valid 48-byte trailer — nothing to compare the samples against")
+    ok, notes = self_consistency(samples, trailer)
+    mean = round(sum(valid) / len(valid), 2) if valid else None
+    result = {
+        "spo2_mean": mean, "trailer_avg_spo2": trailer["avg_spo2"], "spo2_mean_tol": SPO2_MEAN_TOL,
+        "n_samples": n, "trailer_total_seconds": trailer["total_seconds"],
+        "n_tol": _count_tol(trailer["total_seconds"]),
+        "bands_violated": (0 if mean is not None and abs(mean - trailer["avg_spo2"]) <= SPO2_MEAN_TOL else 1)
+        + (0 if abs(n - trailer["total_seconds"]) <= _count_tol(trailer["total_seconds"]) else 1),
+    }
+    return VD.make(gate=VERDICT_GATE, status="PASS" if ok else "FAIL", population=pop,
+                   criterion=VERDICT_CRITERION, result=result, evidence=ev, tool="capture-host/parse_dat.py",
+                   reason=None if ok else "; ".join(notes))
+
+
+def verdict_sample() -> dict:
+    """The object the adoption gate reads (`--verdict-sample`): the synthetic .dat, no corpus."""
+    data, _n, _avg = _build_synthetic_dat()
+    _meta, samples, trailer = parse_oxy_dat(data)
+    return consistency_verdict(samples, trailer, "<synthetic .dat>")
 
 
 # The largest ratio still read as a recording cadence. The ring's `storage_interval` byte can hold
@@ -226,7 +276,12 @@ def main():
     ap.add_argument("dat", nargs="?", help="path to a .dat recording")
     ap.add_argument("-o", "--out", help="output CSV path (default: <dat>.csv)")
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--verdict-sample", action="store_true",
+                    help="print one tepna.verdict/1 object over the synthetic .dat and exit (the adoption gate reads this)")
     a = ap.parse_args()
+    if a.verdict_sample:
+        print(json.dumps(verdict_sample(), indent=1))
+        sys.exit(0)
     if a.selftest:
         sys.exit(selftest())
     if not a.dat:
@@ -267,6 +322,8 @@ def main():
     else:
         print("no valid 48-byte trailer (file may be unfinalized, or an over-read USB pull "
               "scrambled it). Sample decode still written.")
+    # One line, the object, after the prose — the verdict a machine reads (VERDICT-CONTRACT §1).
+    print(json.dumps(consistency_verdict(samples, trailer, a.dat)))
 
 if __name__ == "__main__":  # pragma: no cover
     main()

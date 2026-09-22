@@ -41,10 +41,13 @@
 
 from __future__ import annotations
 
+import json
 import struct
 import sys
 from collections import Counter
 from datetime import datetime, timezone
+
+import verdict as VD
 
 #: Advertising-channel access address (BLE core spec) — constant on every advertising PDU.
 ADV_ACCESS_ADDRESS = bytes.fromhex("d6be898e")
@@ -189,6 +192,41 @@ def summarise(data: bytes, follow: str | None = None) -> dict:
         "follow_adv_packets": advertisers.get(want, 0) if want else 0,
         "follow_connects": followed,
     }
+
+
+# ── tepna.verdict/1 — the VERDICT line as ONE object (VERDICT-CONTRACT wave 2) ───────────────────
+# The rule is the one `_verdict` has always applied: a data-channel packet is the only witness that a
+# connection was followed, so PASS ⇔ data_channel ≥ 1. The population is the records the capture
+# carried: CRC-bad records are EXCLUDED (their bytes are noise — the 262-vs-12 over-count above),
+# everything else was classified. A capture with no records at all examined nothing: NOT_RUN, never
+# a FAIL that reads like "the ring was silent".
+VERDICT_GATE = "ble-sniff-follow"
+VERDICT_CRITERION = {"name": "data_channel_packets", "threshold": 1, "unit": "packets", "direction": "gte"}
+
+
+def verdict_object(s: dict, path: str = "<capture>") -> dict:
+    """PURE over `summarise()`'s dict: PASS a link was followed · FAIL no data channel (the prose
+    `_verdict` lines are the reason, joined) · NOT_RUN the capture carried zero records."""
+    result = {k: s[k] for k in ("total", "crc_bad", "adv_channel", "data_channel",
+                                "follow", "follow_adv_packets", "follow_connects")}
+    pop = {"checked": s["total"] - s["crc_bad"], "eligible": s["total"], "excluded": s["crc_bad"]}
+    if s["total"] == 0:
+        return VD.make(gate=VERDICT_GATE, status="NOT_RUN", population=pop, criterion=VERDICT_CRITERION,
+                       result=None, evidence=["capture-host/ble_sniff.py", path],
+                       reason="the capture carried 0 records — nothing was classified",
+                       tool="capture-host/ble_sniff.py")
+    lines = _verdict(s)
+    status = "PASS" if s["data_channel"] else "FAIL"
+    return VD.make(gate=VERDICT_GATE, status=status, population=pop, criterion=VERDICT_CRITERION,
+                   result=result, evidence=["capture-host/ble_sniff.py", path],
+                   reason=None if status == "PASS" else " ".join(ln.strip() for ln in lines),
+                   tool="capture-host/ble_sniff.py")
+
+
+def verdict_sample() -> dict:
+    """The object the adoption gate reads (`--verdict-sample`): a synthetic summary, no capture file."""
+    return verdict_object({"total": 3, "crc_bad": 1, "adv_channel": 1, "data_channel": 1, "follow": None,
+                           "follow_adv_packets": 0, "follow_connects": 0}, "<synthetic summary>")
 
 
 def _verdict(s: dict) -> list[str]:
@@ -425,6 +463,9 @@ def _parse_argv(argv: list[str]) -> tuple[str, str | None, float | None, set[str
 
 
 def main(argv: list[str]) -> int:
+    if argv == ["--verdict-sample"]:
+        print(json.dumps(verdict_sample(), indent=1))
+        return 0
     try:
         parsed = _parse_argv(argv)
     except (StopIteration, ValueError, OSError) as exc:
@@ -446,6 +487,8 @@ def main(argv: list[str]) -> int:
         print("ble_sniff: cannot read %s: %s" % (path, exc), file=sys.stderr)
         return 1
     print(format_report(s))
+    # One line, the object, after the prose — the verdict a machine reads (VERDICT-CONTRACT §1).
+    print(json.dumps(verdict_object(s, path)))
     if expect is None and not ours and not adapters:
         return 0
     a = audit(s, expect, ours, adapters, ran_full_window=ran_full)

@@ -20,7 +20,13 @@ and pins, never superiority.
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import verdict as VD  # noqa: E402
 
 __all__ = [
     "OK",
@@ -160,3 +166,70 @@ def assess(*, hciconfig="", status_cpap=None, hci_versions="", devices=None, wan
         }
     )
     return {"ok": all(c["state"] == OK for c in checks), "checks": checks}
+
+
+# ── tepna.verdict/1 — the checklist as ONE object (VERDICT-CONTRACT wave 2) ──────────────────────
+# The rule is `assess()`'s: `ok` only when EVERY check is OK. PASS ⇔ 0 checks not OK · FAIL any check
+# FAILED · UNKNOWN no check failed but one could not be read (the docstring's "an install verified by
+# a probe that did not run is not verified" — and it is not FAILED either). Population: the checks;
+# an UNKNOWN check is excluded — nothing was read for it.
+VERDICT_GATE = "ax210-postinstall"
+VERDICT_CRITERION = {"name": "checks_not_ok", "threshold": 0, "unit": "checks", "direction": "eq"}
+
+
+def verdict_object(assessment: dict) -> dict:
+    """PURE over `assess()`'s record."""
+    checks = assessment["checks"]
+    failed = [c for c in checks if c["state"] == FAIL]
+    unknown = [c for c in checks if c["state"] == UNKNOWN]
+    n = len(checks)
+    pop = {"checked": n - len(unknown), "eligible": n, "excluded": len(unknown)}
+    result = {
+        "checks": n,
+        "failed": len(failed),
+        "unknown": len(unknown),
+        "states": {c["name"]: c["state"] for c in checks},
+    }
+    ev = ["capture-host/tools/ax210_postinstall.py"] + [c["name"] for c in checks]
+    tool = "capture-host/tools/ax210_postinstall.py"
+    if failed:
+        status, reason = FAIL.upper(), "; ".join(f"{c['name']}: {c['detail']}" for c in failed)
+    elif unknown:
+        status, reason = UNKNOWN.upper(), "; ".join(f"{c['name']}: {c['detail']}" for c in unknown)
+    else:
+        status, reason = "PASS", None
+    return VD.make(
+        gate=VERDICT_GATE,
+        status=status,
+        population=pop,
+        criterion=VERDICT_CRITERION,
+        result=result,
+        evidence=ev,
+        reason=reason,
+        tool=tool,
+    )
+
+
+def verdict_sample() -> dict:
+    """The object the adoption gate reads (`--verdict-sample`): synthetic probe text, no box."""
+    hciconfig = (
+        f"hci0:\tType: Primary  Bus: USB\n\tBD Address: {SENA_MAC}  ACL MTU: 1021:6\n"
+        f"hci1:\tType: Primary  Bus: USB\n\tBD Address: {UB500_MAC}  ACL MTU: 1021:6\n"
+    )
+    return verdict_object(
+        assess(
+            hciconfig=hciconfig,
+            status_cpap={"wifi_iface": "wlp1s0"},
+            hci_versions="\tHCI Version: 5.3 (0xc)  Revision: 0x0\n",
+            devices=[{}, {}],
+        )
+    )
+
+
+if __name__ == "__main__":  # the adoption gate's cmd; the decisions above are library calls
+    if sys.argv[1:] == ["--verdict-sample"]:
+        print(json.dumps(verdict_sample(), indent=1))
+        sys.exit(0)
+    sys.exit(
+        "ax210_postinstall: a library of decisions — call assess() / verdict_object(); --verdict-sample prints a sample"
+    )
