@@ -378,7 +378,7 @@
   "tools/beat-correspondence.mjs": {
    "bin": "decides",
    "status": "pending",
-   "note": "PASS/FAIL per correspondence check over real beats"
+   "note": "BAND-LESS (Magpie, 2026-09-22, read before flipping): it REFUSES (anchor unidentifiable \u00b7 band-edge contact \u00b7 every mod-RR plane refused \u2192 exit 1) or prints an indel rate and a residual with NO threshold anywhere in the file; its PASS/FAIL words are selftest-only. No brief states the indel rate the audit passes at, so a verdict here would be a post-hoc band. Residue 2026-09-22-beat-correspondence-has-no-band."
   },
   "tools/beat-error-recovery.mjs": {
    "bin": "word-only",
@@ -542,8 +542,15 @@
   },
   "tools/guide-directive-audit.mjs": {
    "bin": "already-json",
-   "status": "pending",
-   "note": "audit verdict per guide (the VERDICT regex is its word list)"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/guide-directive-audit.mjs",
+     "--json"
+    ]
+   },
+   "note": "wave-2 adopter (Magpie, group C; read before flipping \u2014 exact): FAIL iff \u2265 1 lower-tier band issues a clinical directive with no declared disclaimer (the same `undeclared` list the exit code keys on) \u00b7 the two REFUSE paths (< 7 guides; 0 lower cards or 0 bands) are the examined-nothing shape \u2192 UNDERPOWERED with the counts, still exit 2. Population = lower-tier cards, checked = those carrying a band, band-less cards excluded. --json prints { \u2026verdict, census, hits } \u2014 a superset of the old shape; the cmd is the real run over the seven reference guides in the tree."
   },
   "tools/integrator-block-precision.mjs": {
    "bin": "word-only",
@@ -681,13 +688,20 @@
   },
   "tools/o2ring-finger-roundtrip.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "PASS/FAIL per metric over a real round-trip"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/o2ring-finger-roundtrip.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "wave-2 adopter (Magpie, group C; read before flipping \u2014 exact): PASS iff |PPI-HR \u2212 ring 1 Hz| \u2264 3 bpm AND |PPI-HR \u2212 H10 ECG| \u2264 3 bpm AND > 10 feet on the foot spine (the three chk lines) \u00b7 FAIL names which check missed and by how much \u00b7 NOT_RUN when no window holds all three sources (the old \u274c over an empty window was a FAIL about nothing). Population = the one pair named. --json prints the object (report \u2192 stderr); the sample is the documented 2026-07-19 session (docs/O2RING-FINGER-ROUNDTRIP-2026-07-20.md)."
   },
   "tools/o2ring-finger-validate-batch.mjs": {
    "bin": "decides",
    "status": "pending",
-   "note": "pairs PASS count over a batch of real nights"
+   "note": "BAND-LESS at the level it emits (Magpie + Kestrel, 2026-09-22, read before flipping): the per-pair rule is exact (both \u0394 \u2264 3 bpm, > 10 feet) but the tool prints `N/M pairs PASS` with NO aggregate criterion, and the documented run was accepted at 88/92 with four reference-side non-passes (docs/O2RING-FINGER-ROUNDTRIP-2026-07-20.md) \u2014 an all-pairs rule would convict a run the brief ratified. The aggregate bar belongs in that doc first. Residue 2026-09-22-finger-validate-batch-has-no-aggregate-bar."
   },
   "tools/o2ring-frame-cadence.mjs": {
    "bin": "word-only",
@@ -989,8 +1003,15 @@
   },
   "tools/validate-exports.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "per-export warn/FAIL over real exports"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/validate-exports.mjs",
+     "--json"
+    ]
+   },
+   "note": "wave-2 adopter (Magpie, group C; read before flipping \u2014 exact): FAIL iff any ganglior.node-export fails validateNodeExport (the count --strict keys its exit on; warnings never fail, they ride in the result) \u00b7 NOT_RUN when the dir is absent or holds no node export. Population = node-export files scanned. The cmd is the REAL run over the tracked uploads/ exports (0.7 s, corpus-free \u2014 a fresh clone carries them); --verdict-sample is the 2026-08-03 sweep from the header."
   },
   "tools/verdict-adoption.mjs": {
    "bin": "word-only",
@@ -1049,6 +1070,11 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "selftest printer; its own verdict() is a pure PR-state decision consumed by the tool itself, exit-coded \u2014 a wave-2 candidate, listed here by reason not by omission"
+  },
+  "tools/verdict-emit.mjs": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the shared make-and-validate helper for tepna.verdict/1 objects (Verdict.make + Verdict.validate + producedBy.commit); the words occur only in its header comment \u2014 it decides nothing, it refuses to print an invalid object"
   }
  }
 }
