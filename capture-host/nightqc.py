@@ -11,6 +11,7 @@
 # every writer emits exactly one header line, so rows = newlines − 1.
 from __future__ import annotations
 
+from array import array as _array
 import json
 import cmath
 import math
@@ -1719,8 +1720,52 @@ def held_stream(values, *, near_delta: float = _HELD_NEAR_DELTA):
     `None` when not held. Otherwise the ratio, which is the number a consumer needs: the record rate
     OVERSTATES the measurement rate by exactly this factor.
     """
-    runs = [n for _i, n, _v in constant_runs(values, min_run=2)]
-    singles = _count_singletons(values)
+    return _held_shape([n for _i, n, _v in constant_runs(values, min_run=2)],
+                       _count_singletons(values), near_delta=near_delta)
+
+
+def held_columns(columns, *, near_delta: float = _HELD_NEAR_DELTA):
+    """`held_stream` over PER-CHANNEL columns instead of materialised records — the same rule, read
+    the other way round.
+
+    A record repeats iff EVERY channel repeats on that tick, which is a property this can test
+    column by column without ever building the tuple. That matters because building it is what the
+    back-check's memory was: a night's 5.26 M two-channel rows cost 755 MB as tuples of ints and
+    84 MB as two `array('q')` (measured on vigil, the 2026-09-21 night).
+
+    ⚠️ THE RULE IS NOT DUPLICATED HERE, deliberately — both paths end in `_held_shape`, and
+    `test_held_columns_matches_held_stream_exactly` asserts the two agree on the same data. A second
+    copy of the shape logic is how the two would drift into answering differently about one night."""
+    n = len(columns[0]) if columns else 0
+    if n <= 1:
+        return _held_shape([], n, near_delta=near_delta)
+    # One pass building the record-level change mask: same[i] is True when record i repeats i-1.
+    same = bytearray(n)
+    for col in columns:
+        if len(col) != n:
+            raise ValueError("columns must be the same length — they are one stream's channels")
+    for i in range(1, n):
+        same[i] = 1 if all(col[i] == col[i - 1] for col in columns) else 0
+    runs = []
+    singles = 0
+    i = 1
+    run = 1
+    while i <= n:
+        if i < n and same[i]:
+            run += 1
+        else:
+            if run >= 2:
+                runs.append(run)
+            else:
+                singles += 1     # `run` starts at 1 and resets to 1, so the only other case IS 1 —
+            run = 1              # an `elif run == 1` here reads as a guard and is an unreachable branch
+        i += 1
+    return _held_shape(runs, singles, near_delta=near_delta)
+
+
+def _held_shape(runs, singles, *, near_delta: float = _HELD_NEAR_DELTA):
+    """THE hold rule, in one place: is the run-length distribution a near-delta at two adjacent
+    integers? Called with run lengths and a singleton count, however they were counted."""
     total = len(runs) + singles
     if total < 20:
         return None                      # too few transitions to have a shape at all
@@ -1900,6 +1945,9 @@ def _rail_runs(values, rail, *, toward_high, max_spread, min_run, annotations, a
     return out
 
 
+_NO_SAMPLE = object()   # "the filtered column is empty" — distinct from every value a column can hold
+
+
 def clip_regions(values, *, min_run: int = _CLIP_MIN_RUN, max_spread: int = _PLATEAU_LSB,
                  ramp: int = _RAMP_SAMPLES, annotations=()):
     """Plateaus PINNED AT AN OBSERVED EXTREME, at BOTH rails, with their approach shape measured.
@@ -1922,15 +1970,20 @@ def clip_regions(values, *, min_run: int = _CLIP_MIN_RUN, max_spread: int = _PLA
     `test_clip_clean_night_reports_the_signals_own_turning_points` first — an earlier draft of this
     docstring claimed the separation and the test falsified it.
     """
-    if not values:
+    if len(values) == 0:
         return []
     skip = frozenset(annotations)
-    real = [v for v in values if v not in skip]
-    if not real:
+    # A GENERATOR, NOT A COPY. `rail_value` only iterates, and this list was a second full copy of the
+    # column — 5.26 M samples of it on the real 2026-09-21 ring file. Rebuilt per rail because an
+    # exhausted iterator would silently hand the second call an empty distribution, which reads as
+    # "no rail on this side" — a clean verdict from an examination that never happened (§4b).
+    def _real():
+        return (v for v in values if v not in skip)
+    if next(_real(), _NO_SAMPLE) is _NO_SAMPLE:
         return []
     out = []
     for toward_high in (False, True):
-        rail = rail_value(real, toward_high=toward_high)
+        rail = rail_value(_real(), toward_high=toward_high)
         if rail is None:
             continue                     # no rail on this side — a clean stream has none on either
         for first, n in _rail_runs(values, rail, toward_high=toward_high, max_spread=max_spread, min_run=min_run,
@@ -1944,7 +1997,7 @@ def clip_regions(values, *, min_run: int = _CLIP_MIN_RUN, max_spread: int = _PLA
     return out
 
 
-def class_b_runs(records, *, stream: str, min_run: int = _CLIP_MIN_RUN,
+def class_b_runs(records=None, *, columns=None, stream: str, min_run: int = _CLIP_MIN_RUN,
                  tick_ms: float | None = None, annotations=(), emit=None) -> dict:
     """Class-B (QUALITY) signatures for one stream: `clip` regions, or a `held` mark, never both.
 
@@ -1966,25 +2019,46 @@ def class_b_runs(records, *, stream: str, min_run: int = _CLIP_MIN_RUN,
     `emit` is the seam the sidecar writer fills — `emit(stream, value, first_index, n, dur_ms, closed,
     rule)`. It defaults to collecting the rows, so a test sees the real rows rather than a no-op that
     would pass while writing nothing.
+
+    ⚠️ `columns=` IS THE SAME INPUT READ THE OTHER WAY ROUND — one sequence per channel instead of one
+    record per row — and it exists for memory, not for expressiveness. The caller that reads a night
+    off disk (`class_b_quality`) fills `array('q')` columns, which cost 8 bytes a sample against the
+    ~143 the equivalent tuple-of-ints record cost: measured on vigil's 2026-09-21 night, the ring's
+    5.26 M-row two-channel file alone took **755 MB** as records, inside the daemon that holds every
+    BLE link. Run against each other on that night the two readers peak at **1116 MB and 245 MB** and
+    produce byte-identical blocks. Records stay the documented input and every existing caller works;
+    `test_class_b_runs_columns_equals_records` pins that the two produce the identical dict, so the
+    cheap path can never quietly become a different rule.
     """
+    if (records is None) == (columns is None):
+        raise TypeError("class_b_runs takes exactly one of records= or columns=")
+    if columns is not None:
+        columns = list(columns)
+        if not columns:
+            raise ValueError("columns= must name at least one channel")
     rows = []
     if emit is None:
         def emit(stream, value, first_index, n, dur_ms, closed, rule):
             rows.append({"stream": stream, "value": value, "first_index": first_index,
                          "n_samples": n, "dur_ms": dur_ms, "closed": closed, "rule": rule})
-    held = held_stream(records)
+    n_records = len(columns[0]) if columns is not None else len(records)
+    held = held_columns(columns) if columns is not None else held_stream(records)
     if held is not None:
         # Reported ONCE, as what it is. Emitting its runs would bury a real finding under thousands of
         # rows describing the device working as designed.
-        emit(stream, None, 0, len(records), None, True, "held ratio=%.2f" % held["ratio"])
+        emit(stream, None, 0, n_records, None, True, "held ratio=%.2f" % held["ratio"])
         return {"stream": stream, "held": held, "rows": rows, "clips": {}}
-    wide = bool(records) and isinstance(records[0], tuple)
-    channels = list(zip(*records)) if wide else [list(records)]
-    last = len(records) - 1
+    if columns is not None:
+        wide = len(columns) > 1
+        channels = columns
+    else:
+        wide = bool(records) and isinstance(records[0], tuple)
+        channels = list(zip(*records)) if wide else [records]
+    last = n_records - 1
     clips = {}
     for c, col in enumerate(channels):
         name = "%s:ch%d" % (stream, c) if wide else stream
-        found = clip_regions(list(col), min_run=min_run, annotations=annotations)
+        found = clip_regions(col, min_run=min_run, annotations=annotations)
         clips[name] = len(found)
         for r in found:
             dur_ms = None if tick_ms is None else r["n_samples"] * tick_ms
@@ -2694,7 +2768,12 @@ def class_b_quality(night_dir: str, *, emit=None) -> list:
         if parsed is None or parsed[0] not in _CLASS_B_TAGS:
             continue
         tag = parsed[0]
-        records = []
+        # ONE ARRAY PER CHANNEL, NOT ONE TUPLE PER ROW. `array('q')` holds a sample in 8 bytes; the
+        # tuple-of-ints record it replaces cost ~143 (measured: 755 MB for the 5.26 M-row two-channel
+        # PPG2W of vigil's 2026-09-21 night, inside the daemon that holds every BLE link). The rows
+        # are the same rows and `class_b_runs(columns=…)` computes the same verdict from them — see
+        # its note, and `test_class_b_runs_columns_equals_records`.
+        chans: list = []
         columns: tuple = ()
         width = 0
         try:
@@ -2709,13 +2788,16 @@ def class_b_quality(night_dir: str, *, emit=None) -> list:
                     if len(parts) != width:
                         continue
                     try:
-                        cols = tuple(int(float(parts[i])) for i, _ in columns)
+                        cols = [int(float(parts[i])) for i, _ in columns]
                     except ValueError:
                         continue      # a torn row is expected at a live file's tail and a repeated
                                       # mid-file header is a real rotation artifact; the spans are
                                       # built from the rows that parsed, and `_CLIP_MIN_RUN` plus the
                                       # rail qualification refuse a verdict built from too few
-                    records.append(cols[0] if len(cols) == 1 else cols)
+                    if not chans:
+                        chans = [_array("q") for _ in cols]
+                    for ch, v in zip(chans, cols):
+                        ch.append(v)
         except OSError:
             log.warning("night-QC: %s is unreadable, so its class-B quality is ABSENT rather than "
                         "clean — the two must not read alike", name, exc_info=True)
@@ -2724,11 +2806,11 @@ def class_b_quality(night_dir: str, *, emit=None) -> list:
             log.warning("night-QC: %s names no waveform column in its header, so its class-B quality "
                         "is ABSENT rather than clean", name)
             continue
-        if len(records) < _CLIP_MIN_RUN:
+        if not chans or len(chans[0]) < _CLIP_MIN_RUN:
             continue        # includes a file with no header yet — a 0-byte open capture (seen on
                             # the box: a Verity session file 30 s old), which is too few rows, not
                             # a malformed header, and is not worth a warning per scan
-        block = class_b_runs(records, stream=tag.lower(),
+        block = class_b_runs(columns=chans, stream=tag.lower(),
                              annotations=_STREAM_ANNOTATIONS.get(tag, ()), emit=emit)
         block["file"] = name
         block["columns"] = [n for _, n in columns]

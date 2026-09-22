@@ -21190,6 +21190,20 @@
       T.ok('2100 m ⇒ factor 0.98, so 42.8647 × 0.98 = 42.01', near(alt.d_vo2_base, 42.0074), 'got ' + alt.d_vo2_base);
       var everest = withProfile({ age: 49, hrmax_manual: 0, hrrest_manual: 0, elev: 40000 });
       T.ok('an absurd elevation is FLOORED at 0.55, never driven negative ⇒ 23.58', near(everest.d_vo2_base, 23.5756), 'got ' + everest.d_vo2_base);
+      /* §∅ (2026-09-22) — an UNMEASURED elevation is null, and null is not sea level. Numerically the
+         factor is 1 either way, so no shipped number moves; what the plants pin is that the null
+         SURVIVES to the consumer and is handled as "cannot adjust", not coerced to 0 m on the way.
+         The pair below is the whole point: 0 m and null must agree in the number and differ in kind. */
+      var unmeasured = withProfile({ age: 49, hrmax_manual: 0, hrrest_manual: 0, elev: null });
+      T.ok('PLANT · a NULL elevation applies no altitude factor (1), never NaN', near(unmeasured.d_vo2_base, 42.8647), 'got ' + unmeasured.d_vo2_base);
+      var atSea = withProfile({ age: 49, hrmax_manual: 0, hrrest_manual: 0, elev: 0 });
+      T.ok(
+        'PLANT · a MEASURED 0 m agrees numerically with null — the states differ in kind, not in the number',
+        near(atSea.d_vo2_base, unmeasured.d_vo2_base),
+        atSea.d_vo2_base + ' vs ' + unmeasured.d_vo2_base
+      );
+      var undef = withProfile({ age: 49, hrmax_manual: 0, hrrest_manual: 0, elev: undefined });
+      T.ok('PLANT · an ABSENT elevation key is the same state as null (no adjustment, no NaN)', near(undef.d_vo2_base, 42.8647), 'got ' + undef.d_vo2_base);
 
       /* ── ANTI-VACUITY, and the reason getHooks had to exist ───────────────────────────────────
          The DSP's own `_ui.getProfile` default returns `{}`, and the module header says the
@@ -29951,6 +29965,7 @@
       }
       var statusMismatch = [];
       var statusBlind = [];
+      var sharedDocRows = [];
       /*  DOCS-LEDGER-CHECK3B-BLIND-ROW — check3b used to report "in sync" about rows it never read.
           Two separate holes, both measured before either was touched:
 
@@ -29974,7 +29989,33 @@
         if (hs !== 'DONE' && hs !== 'PROPOSED' && hs !== 'IN-PROGRESS') return;
         idxLines.forEach(function (line) {
           if (line.indexOf('](briefs/' + n + ')') < 0) return;
-          if ((line.match(/\]\(briefs\//g) || []).length > 1) return; // multi-brief row → shared status cell, skip
+          /* ── A ROW BELONGS TO THE BRIEF IN ITS **Doc** CELL, NOT TO EVERY BRIEF IT MENTIONS.
+             This used to SKIP any row linking more than one brief, reasoning that a shared status
+             cell has nothing to compare. Measured 2026-09-22: 5 such rows, and through them **8
+             briefs whose status this check never compared at all** — a silent skip, invisible
+             because `statusBlind` reports rows that say nothing and cannot report a brief the loop
+             never reached.
+             The rows are not actually shared: their second link is a CROSS-REFERENCE in the
+             description (`PPG-FOOT-PLACEMENT`'s row links its own FOLLOWUPS; `HOSTAXIS-STABILITY`'s
+             links `ALLAN-DEVIATION`), while the Role cell states the status of the Doc-cell brief.
+             Keying on the Doc cell removes the skip: all 5 rows become comparable and all 5 agree.
+             ⚠️ THIS IS RESIDUE `2026-09-06-link-substring-is-not-a-row-match` ITSELF. That row
+             reported `PPG-FOOT-PLACEMENT-FOLLOWUPS` as `*(DONE)*` in the index against an
+             IN-PROGRESS header — but the `*(DONE)*` it read belongs to the PARENT's row, which
+             merely links the followups in its prose. The followups brief has its own row, and that
+             row says IN-PROGRESS. The reported mismatch was the substring artifact the row's own key
+             names; the durable fix is that this gate now keys on ownership too, instead of on "the
+             line mentions the file". */
+          var docCell = (line.split('|')[1] || '').trim();
+          if (docCell.indexOf('](briefs/' + n + ')') < 0) return; // a cross-reference, not this brief's row
+          /* A Doc cell that names SEVERAL docs (`A-BRIEF.md · B-FINDINGS.md`) really does share one
+             Role cell — `Audit / Brief`, an ARCHIVED note — and there is nothing per-brief to
+             compare. That skip stays, but it is COUNTED and NAMED below instead of being silent:
+             a skip nobody can see is the same shape as the blindness this check was fixing. */
+          if ((docCell.match(/\]\(briefs\//g) || []).length > 1) {
+            sharedDocRows.push(n);
+            return;
+          }
           var cells = line
             .split('|')
             .map(function (c) {
@@ -30052,7 +30093,13 @@
       T.ok(
         'check3b · …and every such row STATES a status (a silent row is not "in sync")',
         statusBlind.length === 0,
-        statusBlind.length ? 'blind rows (' + statusBlind.length + '): ' + statusBlind.slice(0, 8).join('; ') : 'all rows state one'
+        statusBlind.length
+          ? 'blind rows (' + statusBlind.length + '): ' + statusBlind.slice(0, 8).join('; ')
+          : /* PUBLISH THE SKIP. A row whose Doc cell names several docs shares one Role cell and has
+               nothing per-brief to compare — a real exemption, but one nobody could see until it was
+               counted here. The number is the denominator this check does NOT cover, printed beside
+               the one it does. */
+            'all rows state one (' + sharedDocRows.length + ' brief(s) exempt: their Doc cell groups several docs — ' + (sharedDocRows.slice(0, 4).join(', ') || 'none') + ')'
       );
 
       /* ── check3d · a ROUTED item's target must actually ACCEPT it ──────────────────────────────
@@ -47276,6 +47323,13 @@
     group('Dex-Profile engine — unified contracts', 'dex-profile', function (T) {
       var DP = env.DexProfile;
       T.ok('DexProfile present', !!DP);
+      /* §∅ (2026-09-22) — the ENGINE's default for an untyped elevation is null, never 0 m: 0 m is a
+         legal elevation, so a default of 0 makes "nobody said" indistinguishable from "at the coast",
+         and the altitude-graded norms downstream then grade a 2500 m night as sea level. */
+      if (DP && typeof DP.popDefaults === 'function') {
+        var _d = DP.popDefaults({ age: 49, sex: 'M' });
+        T.ok('PLANT · the population default carries elevation NULL, not 0 m (§∅)', !!_d && _d.elevation === null, _d ? JSON.stringify(_d.elevation) : 'no popDefaults()');
+      } else T.skip('DexProfile.popDefaults() reachable', 'not exposed in this runner');
       if (!DP || !DP._setStore) {
         T.ok('DexProfile._setStore (isolatable)', false);
         return;
