@@ -43,11 +43,20 @@
  * Both fixes above touch modules that are inlined into several bundles, so they serialize against
  * in-flight bundle work (`CLAUDE.md` §👥.3). The sweep itself touches nothing and can run any time.
  *
- * USAGE  node tools/validate-exports.mjs [--dir uploads] [--strict]
+ * USAGE  node tools/validate-exports.mjs [--dir uploads] [--strict] [--json]
  *        --strict → exit 1 if any export FAILS (warnings never fail)
+ *        --json   → the tepna.verdict/1 object on stdout (report → stderr)
+ *        --verdict-sample | --selftest
+ *
+ * VERDICT (tepna.verdict/1, wave 2 group C — read before flipping, the rule is exact): FAIL iff any
+ * `ganglior.node-export` fails `validateNodeExport` — the same `failing` count `--strict` keys its exit
+ * code on; warnings are reported in the result and never fail, exactly as before. Population = the
+ * node-export files scanned (other JSON in the tree is not eligible). NOT_RUN when the directory is
+ * absent or holds no node export — a sweep over nothing is not a clean bill.
  * ════════════════════════════════════════════════════════════════════════════ */
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { makeVerdict } from './verdict-emit.mjs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
@@ -58,11 +67,93 @@ const opt = (n, d) => {
   const i = argv.indexOf(n);
   return i >= 0 && argv[i + 1] ? argv[i + 1] : d;
 };
+
+/* ── the verdict object — pure over the counts, so the selftest can drive it ─────────────────────── */
+export function verdictObject(c, { dir = 'uploads', failingRows = [], commit, commitReason, at } = {}) {
+  const criterion = { name: 'node_export_validation_failures (validateNodeExport ok on every ganglior.node-export; warnings never fail)', threshold: 0, unit: 'failing exports', direction: 'eq' };
+  const base = { gate: 'validate-exports', criterion, tool: 'tools/validate-exports.mjs', commit, commitReason, at };
+  if (!(c.scanned > 0)) {
+    return makeVerdict({
+      ...base,
+      status: 'NOT_RUN',
+      population: { checked: 0, eligible: 0, excluded: 0 },
+      result: null,
+      evidence: [`${dir}/**/*.json`],
+      reason: c.dirMissing ? `no such directory: ${dir} (uploads/ is gitignored — pass --dir)` : `${dir} holds no ganglior.node-export — a sweep over 0 exports is not a clean bill`
+    });
+  }
+  const named = failingRows.slice(0, 5).map((r) => `${r.f} [${r.node}]: ${(r.e && r.e[0]) || 'invalid'}`);
+  return makeVerdict({
+    ...base,
+    status: c.failing > 0 ? 'FAIL' : 'PASS',
+    population: { checked: c.scanned, eligible: c.scanned, excluded: 0 },
+    result: { scanned: c.scanned, failing: c.failing, warned: c.warned, byNode: c.byNode || {} },
+    evidence: [`${dir}/**/*.json`, ...failingRows.map((r) => r.f)],
+    reason: c.failing > 0 ? `${c.failing} of ${c.scanned} exports fail validateNodeExport: ${named.join('; ')}${failingRows.length > 5 ? '; …' : ''}` : null
+  });
+}
+
+/* The documented sweep (header, 2026-08-03): 98 exports · 0 failing · 2 warnings. No code identity claimed. */
+export function verdictSample() {
+  return verdictObject(
+    { scanned: 98, failing: 0, warned: 2, byNode: { CPAPDex: 9, ECGDex: 12, GlucoDex: 6, HRVDex: 8, Integrator: 3, MotionDex: 4, OxyDex: 27, PpgDex: 29 } },
+    { commit: null, commitReason: '--verdict-sample: the 2026-08-03 sweep counts from the header, no code identity claimed', at: '2026-09-22T00:00:00Z' }
+  );
+}
+
+function selftest() {
+  let n = 0;
+  const eq = (a, b, msg) => {
+    n++;
+    if (a !== b) {
+      console.log(`✗ ${msg}: expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`);
+      process.exit(1);
+    }
+    console.log(`✓ ${msg}`);
+  };
+  const o = { commit: null, commitReason: 'selftest', at: '2026-09-22T00:00:00Z' };
+  const clean = verdictObject({ scanned: 98, failing: 0, warned: 2 }, o);
+  eq(clean.status, 'PASS', 'PASS: 0 failing over 98 scanned (warnings never fail)');
+  eq(clean.population.checked, 98, 'population = the node exports scanned');
+  eq(clean.result.warned, 2, 'PASS carries the warning count in the result');
+  const bad = verdictObject(
+    { scanned: 98, failing: 2, warned: 2 },
+    {
+      ...o,
+      failingRows: [
+        { f: 'uploads/a.json', node: 'OxyDex', e: ['schema.name missing'] },
+        { f: 'uploads/b.json', node: 'PpgDex', e: [] }
+      ]
+    }
+  );
+  eq(bad.status, 'FAIL', 'FAIL: 2 failing exports');
+  eq(/uploads\/a\.json \[OxyDex\]: schema\.name missing/.test(bad.reason), true, 'FAIL reason names the file, node and first error');
+  eq(bad.evidence.includes('uploads/b.json'), true, 'FAIL evidence lists the failing files');
+  eq(verdictObject({ scanned: 0, failing: 0, warned: 0 }, o).status, 'NOT_RUN', 'NOT_RUN: no node export in the tree');
+  eq(verdictObject({ scanned: 0, dirMissing: true }, { ...o, dir: 'nope' }).status, 'NOT_RUN', 'NOT_RUN: directory absent');
+  eq(/no such directory: nope/.test(verdictObject({ scanned: 0, dirMissing: true }, { ...o, dir: 'nope' }).reason), true, 'NOT_RUN reason names the missing directory');
+  eq(verdictSample().status, 'PASS', 'the documented 2026-08-03 sweep is a PASS');
+  eq(verdictSample().producedBy.commit, null, 'the sample claims no code identity');
+  console.log(`all ${n} selftests passed`);
+}
+
+if (argv.includes('--selftest')) {
+  selftest();
+  process.exit(0);
+}
+if (argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
+const JSON_OUT = argv.includes('--json');
+const out = JSON_OUT ? (...a) => console.error(...a) : (...a) => console.log(...a);
 const DIR = path.resolve(ROOT, opt('--dir', 'uploads'));
+const DIR_REL = path.relative(ROOT, DIR) || DIR;
 const STRICT = argv.includes('--strict');
 
 if (!fs.existsSync(DIR)) {
-  console.log(`no such directory: ${DIR}  (uploads/ is gitignored — pass --dir)`);
+  out(`no such directory: ${DIR}  (uploads/ is gitignored — pass --dir)`);
+  if (JSON_OUT) console.log(JSON.stringify(verdictObject({ scanned: 0, dirMissing: true }, { dir: DIR_REL })));
   process.exit(0);
 }
 
@@ -112,11 +203,11 @@ for (const f of files.sort()) {
   if (!r.ok || (r.warnings || []).length) rows.push({ f: path.relative(ROOT, f), node, ok: r.ok, e: r.errors || [], w: r.warnings || [] });
 }
 
-console.log(`validateNodeExport over ${path.relative(ROOT, DIR) || DIR}\n`);
-console.log(`  ganglior.node-export files : ${scanned}`);
-console.log(`  FAILING                    : ${failing}`);
-console.log(`  with warnings              : ${warned}`);
-console.log(
+out(`validateNodeExport over ${path.relative(ROOT, DIR) || DIR}\n`);
+out(`  ganglior.node-export files : ${scanned}`);
+out(`  FAILING                    : ${failing}`);
+out(`  with warnings              : ${warned}`);
+out(
   `  by node                    : ${[...byNode.entries()]
     .sort()
     .map(([k, v]) => `${k}×${v}`)
@@ -124,10 +215,12 @@ console.log(
 );
 
 for (const r of rows) {
-  console.log(`  ${r.ok ? 'warn' : 'FAIL'}  ${r.f}   [${r.node}]`);
-  for (const e of r.e) console.log(`        error:   ${e}`);
-  for (const w of r.w) console.log(`        warning: ${w}`);
+  out(`  ${r.ok ? 'warn' : 'FAIL'}  ${r.f}   [${r.node}]`);
+  for (const e of r.e) out(`        error:   ${e}`);
+  for (const w of r.w) out(`        warning: ${w}`);
 }
-if (!rows.length) console.log('  every export validates clean, warnings included.');
+if (!rows.length) out('  every export validates clean, warnings included.');
 
+const verdict = verdictObject({ scanned, failing, warned, byNode: Object.fromEntries([...byNode.entries()].sort()) }, { dir: DIR_REL, failingRows: rows.filter((r) => !r.ok) });
+if (JSON_OUT) console.log(JSON.stringify(verdict));
 if (STRICT && failing) process.exitCode = 1;
