@@ -47,6 +47,39 @@ import { fileURLToPath } from 'node:url';
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ManifestGate = createRequire(import.meta.url)(path.join(REPO, 'manifest-gate.js'));
 const CHECK = process.argv.includes('--check');
+const JSON_OUT = process.argv.includes('--json');
+/* ── tepna.verdict/1 (VERDICT-CONTRACT §1; wave-2 adopter) ───────────────────────────────────────
+   `--json` prints ONE object on stdout and moves every human line to stderr. The decision this tool
+   makes is whether every corpus-backed fixture is verified under the current compute closure:
+   PASS = all verifiedUnder ≡ computeHash (in --check) or all stamped after a green run; FAIL names the
+   UNVERIFIED fixtures, or "the suite is RED"; NOT_RUN when the corpus is absent (a verification you did
+   not run is the false claim this gate abolishes — it is not a pass). Population = the corpus-backed
+   fixtures owing a stamp, as an equality. */
+const Verdict = createRequire(import.meta.url)(path.join(REPO, 'verdict.js'));
+function emitVerdict({ status, owing, unverified, stamped, reason }) {
+  let commit = null;
+  try {
+    commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim();
+  } catch {
+    /* no git */
+  }
+  const n = (owing || []).length;
+  const v = Verdict.make({
+    gate: 'verify-fixtures',
+    status,
+    population: { checked: status === 'NOT_RUN' ? 0 : n, eligible: n, excluded: status === 'NOT_RUN' ? n : 0 },
+    criterion: { name: 'every-corpus-backed-fixture-verified-under-the-current-compute-closure', threshold: 0, unit: 'unverified fixtures', direction: 'eq' },
+    result: status === 'NOT_RUN' ? null : { owing: n, unverified: (unverified || []).slice(), stamped: stamped == null ? null : stamped, mode: CHECK ? 'check' : 'stamp' },
+    evidence: ['tools/verify-fixtures.mjs', 'provenance/*.json'].concat(CHECK ? [] : ['tests/run-tests.mjs']),
+    reason: reason === undefined ? null : reason,
+    producedBy: commit ? { tool: 'tools/verify-fixtures.mjs', commit } : { tool: 'tools/verify-fixtures.mjs', commit: null, commitReason: 'git rev-parse unavailable' }
+  });
+  const check = Verdict.validate(v);
+  if (!check.ok) throw new Error(`verify-fixtures produced an invalid verdict: ${check.errors.join('; ')}`);
+  process.stdout.write(JSON.stringify(v, null, 1) + '\n');
+}
+// under --json the human report goes to stderr so stdout is one parseable document
+const out = (line) => (JSON_OUT ? console.error(line) : console.log(line));
 // P3 — fixtures live as per-app provenance/<App>.json fragments; verify-fixtures reads them directly
 // (keeping the fragment objects as write targets) and only rewrites the fragment(s) it stamps.
 const PROV_DIR = path.join(REPO, 'provenance');
@@ -192,11 +225,11 @@ const stale = owing.filter((k) => {
 });
 
 if (CHECK) {
-  console.log(`▸ fixture verification — ${owing.length} corpus-backed fixture(s) owe a verifiedUnder`);
+  out(`▸ fixture verification — ${owing.length} corpus-backed fixture(s) owe a verifiedUnder`);
   for (const k of owing) {
     const ch = computeHashes[fixtures[k].bundle];
     const ok = ch && fixtures[k].verifiedUnder === ch;
-    console.log(
+    out(
       ok
         ? paint('  ✓', C.green) + ' ' + k + paint('  verified under ' + ch, C.dim)
         : paint('  ✕', C.red) + ' ' + k + paint('  UNVERIFIED — verifiedUnder=' + (fixtures[k].verifiedUnder || '(none)') + ' but the compute closure is now ' + ch, C.yellow)
@@ -211,9 +244,11 @@ if (CHECK) {
         '   DEX_UPLOADS=<corpus> overrides — see docs/CORPUS-LOCATIONS.md)\n' +
         '  (or, if the change genuinely moved an export, regenerate first: tools/regen-<node>-goldens.mjs)'
     );
+    if (JSON_OUT) emitVerdict({ status: 'FAIL', owing, unverified: stale, reason: `${stale.length} fixture(s) UNVERIFIED under the current compute closure: ${stale.join(', ')}` });
     process.exit(1);
   }
-  console.log(paint('✓ every corpus-backed fixture is verified under the current compute closure', C.green));
+  out(paint('✓ every corpus-backed fixture is verified under the current compute closure', C.green));
+  if (JSON_OUT) emitVerdict({ status: 'PASS', owing, unverified: [] });
   process.exit(0);
 }
 
@@ -238,6 +273,7 @@ if (missing.length) {
       '    DEX_UPLOADS=<corpus> node tools/verify-fixtures.mjs\n' +
       '  Refusing to stamp: a verification you did not run is exactly the false claim this gate exists to abolish.'
   );
+  if (JSON_OUT) emitVerdict({ status: 'NOT_RUN', owing, reason: `${[...new Set(missing)].length} corpus input(s) absent — nothing was verified` });
   process.exit(2);
 }
 
@@ -283,6 +319,7 @@ try {
       '\n  A fixture that does not reproduce is a live stale-fixture finding, not a stamping problem:\n' +
         '  regenerate it (tools/regen-<node>-goldens.mjs) and re-run this. Partial credit is how false claims are born.'
     );
+    if (JSON_OUT) emitVerdict({ status: 'FAIL', owing, unverified: owing, reason: 'the suite is RED under the current compute closure — nothing stamped' });
     process.exit(1);
   }
 }
@@ -303,4 +340,5 @@ for (const k of owing) {
   console.log(paint('  ↻ ', C.green) + k + paint('  verifiedUnder → ' + ch, C.dim));
 }
 if (stamped) for (const app of _touchedApps) fs.writeFileSync(path.join(PROV_DIR, app + '.json'), JSON.stringify(_frags[app], null, 2) + '\n');
-console.log(paint(`\n✓ suite green — ${stamped} fixture(s) stamped, ${owing.length - stamped} already current`, C.green));
+out(paint(`\n✓ suite green — ${stamped} fixture(s) stamped, ${owing.length - stamped} already current`, C.green));
+if (JSON_OUT) emitVerdict({ status: 'PASS', owing, unverified: [], stamped });

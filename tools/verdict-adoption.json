@@ -405,9 +405,29 @@
    "note": "synthetic cohort vs a real reference: verdictObject() decides on COVERAGE (unreachable_real_share \u2264 0 %, every real stratum weighted), never on KS resemblance \u2014 PASS \u00b7 SHORTFALL unweighted stratum \u00b7 FAIL records above the generator ceiling \u00b7 UNDERPOWERED < 100 real records \u00b7 NOT_RUN no scored record; --json emits the object at the top level"
   },
   "tools/commit-shape.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "verdict words appear only in comments"
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/commit-shape.mjs",
+     "--json"
+    ]
+   },
+   "note": "wave-2 adopter: --json prints ONE tepna.verdict/1 (PASS = every changeset-deleting commit in range is a release or declared exempt; FAIL names the flagged shas; NOT_RUN on a shallow clone). Was binned word-only/exempt because its rows' `verdict` field is a classification, not an emitted verdict; the CLI now emits one. Needs full history (fetch-depth: 0), which the static job has."
+  },
+  "tools/corpus-tier.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/corpus-tier.mjs",
+     "--selftest",
+     "--json"
+    ]
+   },
+   "note": "wave-2 adopter: --json prints ONE tepna.verdict/1 (PASS = 0 refused and 0 sync failures; FAIL names the refusals; NOT_RUN when the NAS is not mounted). The manifest reads --selftest: the refusal plant on a scratch src/nas pair (control tiered, one-byte plant REFUSED by sha256 and its NAS twin untouched, zero-byte marker kept local) \u2014 no NAS, no corpus, runs in CI."
   },
   "tools/cpap-oxy-couple.mjs": {
    "bin": "decides",
@@ -845,6 +865,19 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "verdict words appear only in comments"
+  },
+  "tools/verify-fixtures.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/verify-fixtures.mjs",
+     "--check",
+     "--json"
+    ]
+   },
+   "note": "wave-2 adopter: --check --json prints ONE tepna.verdict/1 over the corpus-backed fixtures (PASS = every verifiedUnder \u2261 the current computeHash; FAIL names the UNVERIFIED fixtures); stamp mode emits PASS/FAIL/NOT_RUN(corpus absent) too. --check reads only the ledgers and the built bundles \u2014 corpus-free, CI-runnable."
   },
   "tools/verify-seals.mjs": {
    "bin": "already-json",
