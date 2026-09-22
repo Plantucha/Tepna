@@ -50,9 +50,11 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realp
 import { cpus, uptime as osUptime } from 'node:os';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { buildIdentity, mapCandidates, resolveMapPath, stateDirs, verifyFor } from './mutation-map.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const opt = (f, d) => {
@@ -527,7 +529,11 @@ async function runFile(file, ident, loaded, lane) {
             mmss(el) +
             (stalls.length ? '  (auto-resumed after ' + stalls.length + ' stall(s))' : '')
         );
-      if (spec.parsed) log('   canary ' + cv.canary + ' — ' + cv.why);
+      if (spec.parsed) {
+        log('   canary ' + cv.canary + ' — ' + cv.why);
+        // the object is the API; the two lines above are its explanation
+        log('   verdict (tepna.verdict/1): ' + JSON.stringify(canaryVerdictObject(file, parseSweepResult(out))));
+      }
       if (!cv.publishable) log('   ⚠ VOID — this file measured NOTHING. Do not quote these counts; they are kept only for debugging.');
       /* An invalid mutant leaves the denominator SILENTLY, and a rate over a shrunken denominator
          looks healthy. ecgdex once ran 73 % invalid. Report it as a proportion, not just a count. */
@@ -770,6 +776,58 @@ export function canaryVerdict(resultJson) {
   /* NONE / STALE / PENDING: a file that has never learned a canary. Not a failure — but not proof
      either, and the difference between "proved" and "not disproved" is the whole point of a canary. */
   return { publishable: true, canary: String(c || 'NONE'), why: 'no canary was available for this file — kills are unverified, not disproved' };
+}
+
+/* ── THE VERDICT OBJECT — tepna.verdict/1 (VERDICT-CONTRACT §1; wave-2 adopter) ──────────────────
+   `canaryVerdict` above is this driver's one DECISION: may a file's sweep counts be vouched for? The
+   criterion is exact and pre-stated — the canary mutant (a function the suite is known to notice,
+   emptied) must DIE: kills detected = 1 of 1. So, per file:
+     · PASS      canary PASSED — the harness detects kills; the counts describe something
+     · UNKNOWN   canary FAILED / the sweep voided / no machine-readable result — the harness detected
+                 nothing (or nothing can be read), so the counts measure NOTHING and must not be quoted
+     · NOT_RUN   no canary was available (NONE / STALE / PENDING) — the check did not run; the counts
+                 are unverified, not disproved. The old `publishable: true` here stays for the driver's
+                 own bookkeeping, but a reader gets the honest state: not run is not a pass.
+   Population is the canary check itself (1 of 1), never the mutant counts — those are the sweep's
+   result, carried in `result`, and are what the object refuses to vouch for on UNKNOWN. */
+export function canaryVerdictObject(file, resultJson, { commit, commitReason, at } = {}) {
+  const cv = canaryVerdict(resultJson);
+  const status = cv.canary === 'PASSED' ? 'PASS' : cv.publishable ? 'NOT_RUN' : 'UNKNOWN';
+  const r = resultJson && typeof resultJson === 'object' ? resultJson : null;
+  const producedBy = { tool: 'tools/mutation-suite.mjs', commit: commit == null ? null : commit };
+  if (commit == null) producedBy.commitReason = commitReason || 'not run inside a git checkout';
+  const v = Verdict.make({
+    gate: 'mutation-suite-canary',
+    status,
+    population: { checked: status === 'PASS' || status === 'UNKNOWN' ? 1 : 0, eligible: 1, excluded: status === 'NOT_RUN' ? 1 : 0 },
+    criterion: { name: 'canary_mutant_killed', threshold: 1, unit: 'kills of 1', direction: 'gte' },
+    result:
+      status === 'NOT_RUN'
+        ? null
+        : {
+            canary: cv.canary,
+            publishable: cv.publishable,
+            tested: r ? (r.tested ?? null) : null,
+            killed: r ? (r.killed ?? null) : null,
+            survived: r ? (r.survived ?? null) : null,
+            voided: r ? r.voided === true : null
+          },
+    evidence: ['tools/mutation-suite.mjs', 'tools/mutate.mjs', file],
+    reason: status === 'PASS' ? null : cv.why,
+    producedBy,
+    at: (at || new Date().toISOString()).replace(/\.\d{3}Z$/, 'Z')
+  });
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error('mutation-suite produced an invalid verdict: ' + chk.errors.join('; '));
+  return v;
+}
+/* What the adoption gate runs: a synthetic sweep result through the real decision. Fixed `at`, no git. */
+export function verdictSample() {
+  return canaryVerdictObject(
+    'clock.js',
+    { canary: 'PASSED', tested: 75, killed: 44, survived: 31, voided: false },
+    { commit: null, commitReason: '--verdict-sample: synthetic result set, no code identity claimed', at: '2026-09-22T00:00:00Z' }
+  );
 }
 
 /** The last JSON object mutate.mjs printed on stdout, or null. */
@@ -1286,6 +1344,14 @@ function selftest() {
   ck('a SURVIVING canary voids the file', canaryVerdict({ canary: 'FAILED' }).publishable, false);
   ck('…and `voided` alone is enough, whatever the canary field says', canaryVerdict({ canary: 'PASSED', voided: true }).publishable, false);
   ck('no machine-readable result ⇒ nothing may be vouched for', canaryVerdict(null).publishable, false);
+  // ── the verdict OBJECT over the same decision, every status pinned and validated ──
+  const cvo = (r) => canaryVerdictObject('f.js', r, { commit: null, at: '2026-09-22T00:00:00Z' });
+  ck('verdict · a killed canary ⇒ PASS over 1 of 1, reason null', cvo({ canary: 'PASSED', tested: 3, killed: 3 }).status + '/' + cvo({ canary: 'PASSED' }).reason, 'PASS/null');
+  ck('verdict · a surviving canary ⇒ UNKNOWN (counts measure nothing), never FAIL or PASS', cvo({ canary: 'FAILED' }).status, 'UNKNOWN');
+  ck('verdict · voided alone ⇒ UNKNOWN', cvo({ canary: 'PASSED', voided: true }).status, 'UNKNOWN');
+  ck('verdict · no machine-readable result ⇒ UNKNOWN', cvo(null).status, 'UNKNOWN');
+  ck('verdict · no canary available ⇒ NOT_RUN (unverified is not disproved, and not a pass), result null', cvo({ canary: 'NONE' }).status + '/' + cvo({ canary: 'NONE' }).result, 'NOT_RUN/null');
+  ck('verdict · the sample the adoption gate reads validates under verdict.js', Verdict.validate(verdictSample()).ok, true);
   /* NONE/STALE is not a failure, but it is not proof either — "not disproved" is not "proved". */
   ck('a file with no canary is publishable but says kills are UNVERIFIED', /unverified/.test(canaryVerdict({ canary: 'NONE' }).why), true);
   ck('parseSweepResult takes the LAST JSON line, past the progress stream', parseSweepResult('noise\n{"canary":"PASSED"}\ntrailing').canary, 'PASSED');
@@ -2354,6 +2420,7 @@ async function cmdDraft(file) {
  */
 export const CLI_FLAGS = {
   '--selftest': 0,
+  '--verdict-sample': 0,
   '--kill': 0,
   '--status': 0,
   '--build-map': 0,
@@ -2436,6 +2503,7 @@ if (INVOKED_DIRECTLY) {
     process.exit(2);
   }
   if (has('--selftest')) process.exit(selftest());
+  else if (has('--verdict-sample')) console.log(JSON.stringify(verdictSample()));
   else if (has('--kill')) cmdKill();
   else if (has('--status')) cmdStatus();
   else if (has('--build-map')) cmdBuildMap();
