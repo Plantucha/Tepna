@@ -61,6 +61,9 @@
  *     --force            recompute everything, stamp or no stamp (beats --skip-existing)
  *     --jobs <n>         nights to compute in parallel (default: AUTO — probed from the host)
  *     --dry-run          plan only: print the night/file plan, compute nothing, write nothing
+ *     --json             also print the run-level tepna.verdict/1 object (the per-night ones are always
+ *                        written to <out>/trio-batch-verdicts.json on a real run — VERDICT-CONTRACT §3b #7)
+ *     --verdict-sample   emit one synthetic run-level verdict and exit (the adoption gate's corpus-free probe)
  *     --selftest         known-answer checks for the nocturnal gate (no corpus, no I/O)
  *
  * PARALLELISM + MEMORY. Nights run as CHILD PROCESSES, pool-capped. The cap is PROBED, not assumed:
@@ -76,7 +79,7 @@ import { join, dirname, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import os from 'node:os';
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { fitDatToSpo2Csv, readDat, readSpo2Csv, timefitDisagrees } from './o2ring-dat-timefit.mjs';
@@ -231,6 +234,124 @@ function redoReason(stamp, nJson, inputsDigest, codeDigest) {
  * Known answers for the nocturnal gate, on hand-built windows — no corpus, no I/O, CI-safe. The gate
  * decides whether a window is a night, and it got that wrong on real data once (2026-07-26); every
  * case below is either that bug or a window it must NOT reject. */
+/* ── 2b · GATE VERDICTS — tepna.verdict/1 for every night the plan DECIDES on (VERDICT-CONTRACT §3b #7) ──
+   Every `⊘`/`✗`/`✓` line above is a decision about what enters the corpus, and until now it existed only as
+   prose. One object per night, plus one run-level object over the night population, written to
+   `<out>/trio-batch-verdicts.json` (never into a night directory — the committed exports are the DSPs'
+   bytes, and the gate's opinion about a night is not part of the night). Statuses, mapped from the gate as
+   it stands — nothing here changes which nights fold:
+     PASS            the night entered the fold (three-way overlap ≥ MIN_OVERLAP h, majority-nocturnal)
+     NOT_APPLICABLE  not a trio night — no O2Ring anchor, or fewer legs than the run requires (the rule
+                     does not bind; nothing was judged)
+     FAIL            judged and rejected — a leg had no concurrent recording, no block was majority-nocturnal,
+                     or the three-way overlap fell under MIN_OVERLAP (reason names which, with the hours)
+     NOT_RUN         no nights under --src (a dry run still runs the gate; it only skips the write)
+   The population is LEGS for a night (ECG · PPG · SpO2 · H10 ACC · Verity ACC · GYRO · MAGN · O2Ring PPG:
+   checked = legs judged against the anchor, excluded = legs the night did not offer) and NIGHTS for the
+   run. `criterion` is the run's own gate: three-way overlap ≥ MIN_OVERLAP h, direction gte. */
+const Verdict = createRequire(import.meta.url)('../verdict.js');
+const GATE_LEGS = ['oxy', 'ecg', 'ppg', 'accH10', 'accVer', 'gyro', 'magn', 'o2ppg'];
+const nightVerdicts = [];
+let _gitCommit = null;
+try {
+  _gitCommit =
+    execSync('git rev-parse --short HEAD', { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim() || null;
+} catch (_e) {
+  _gitCommit = null;
+}
+const gateCriterion = () => ({ name: 'three_way_nocturnal_overlap_h', threshold: MIN_OVERLAP, unit: 'h', direction: 'gte' });
+const gateProducer = () => ({ tool: 'tools/trio-batch.mjs', commit: _gitCommit, ...(_gitCommit ? {} : { commitReason: 'not run inside a git tree' }) });
+// The files a night's verdict was read from — every session of every judged leg, by name; the capture
+// root is on the run-level object, so a reader can open each one. Capped per leg so an O2Ring night of
+// 300 fragments does not make the verdict larger than the night's own export.
+function legEvidence(pick) {
+  const out = ['tools/trio-batch.mjs'];
+  for (const l of GATE_LEGS) {
+    const list = pick[l];
+    if (!list || !list.length) continue;
+    for (const f of list.slice(0, 6)) out.push(f.name);
+    if (list.length > 6) out.push(`… +${list.length - 6} more ${l} session(s)`);
+  }
+  return out;
+}
+function nightVerdict(key, status, { offered, judged, result, reason, evidence }) {
+  const v = Verdict.make({
+    gate: 'trio-batch-night',
+    status,
+    population: { checked: judged, eligible: offered, excluded: offered - judged },
+    criterion: gateCriterion(),
+    result: result === undefined ? null : result,
+    evidence: evidence || [],
+    reason: reason === undefined ? null : reason,
+    producedBy: gateProducer()
+  });
+  v.night = key; // an extension field — the contract allows extras, the validator ignores them
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error(`trio-batch: night verdict for ${key} is invalid under verdict.js — ${chk.errors.join(' | ')}`);
+  nightVerdicts.push(v);
+  return v;
+}
+function runVerdict(list, { dry }) {
+  const nights = list.length;
+  const folded = list.filter((v) => v.status === 'PASS').length;
+  const failed = list.filter((v) => v.status === 'FAIL').length;
+  const na = list.filter((v) => v.status === 'NOT_APPLICABLE').length;
+  const judged = folded + failed;
+  let status, reason;
+  // A dry run still RUNS the gate — the plan stage decides every night; only the fold is skipped — so
+  // the verdict is the same as a real run's and simply is not written (see writeVerdicts).
+  if (!nights) {
+    status = 'NOT_RUN';
+    reason = 'no nights under --src (no date-keyed capture directories found)';
+  } else if (!judged) {
+    status = 'NOT_APPLICABLE';
+    reason = `${nights} night(s), none a trio night (no O2Ring anchor or too few legs) — the gate judged nothing`;
+  } else if (failed) {
+    status = 'SHORTFALL';
+    reason = `${folded} of ${judged} judged night(s) entered the fold; ${failed} rejected (see per-night verdicts)`;
+  } else {
+    status = 'PASS';
+    reason = null;
+  }
+  const v = Verdict.make({
+    gate: 'trio-batch',
+    status,
+    population: { checked: judged, eligible: nights, excluded: nights - judged },
+    criterion: gateCriterion(),
+    // NOT_RUN examined nothing and NOT_APPLICABLE judged nothing — neither measured anything (validator rules);
+    // the per-night list still travels in `reason` for the second, so the reader can see which nights were not trio
+    result: status === 'NOT_RUN' || status === 'NOT_APPLICABLE' ? null : { folded, rejected: failed, notTrio: na, nights: list.map((n) => ({ night: n.night, status: n.status })) },
+    evidence: ['tools/trio-batch.mjs', SRC ? `${SRC} (capture root)` : 'no --src'],
+    reason,
+    producedBy: gateProducer()
+  });
+  const chk = Verdict.validate(v);
+  if (!chk.ok) throw new Error(`trio-batch: run verdict is invalid under verdict.js — ${chk.errors.join(' | ')}`);
+  return v;
+}
+function writeVerdicts(list, { dry }) {
+  const run = runVerdict(list, { dry });
+  if (!dry && !DRY) {
+    mkdirSync(OUT, { recursive: true });
+    writeFileSync(join(OUT, 'trio-batch-verdicts.json'), JSON.stringify({ run, nights: list }, null, 1) + '\n');
+  }
+  if (flag('--json')) console.log(JSON.stringify(run));
+  return run;
+}
+/* --verdict-sample: the manifest's corpus-free emission (VERDICT-CONTRACT §3, `emits.cmd`) — one PASS night
+   and one FAIL night from synthetic decisions, through the same builder the real run uses, no --src. */
+if (flag('--verdict-sample')) {
+  nightVerdict('2026-01-01', 'PASS', { offered: 8, judged: 5, result: { overlapH: 7.2, nocturnalFrac: 0.98, legs: ['ECG', 'PPG', 'SpO2'] }, evidence: ['synthetic'] });
+  nightVerdict('2026-01-02', 'FAIL', { offered: 8, judged: 3, result: { overlapH: 0.4 }, reason: 'three-way merged overlap 0.4 h < 1 h', evidence: ['synthetic'] });
+  const run = runVerdict(nightVerdicts, { dry: false });
+  run.producedBy.commit = null;
+  run.producedBy.commitReason = 'synthetic sample for the adoption gate — no tree claimed';
+  console.log(JSON.stringify(run));
+  process.exit(0);
+}
+
 if (flag('--selftest')) {
   const D = Date.UTC(2026, 6, 25); // floating wall-clock midnight, per the Clock Contract
   const at = (day, h, m = 0) => D + day * 86400e3 + h * 3600e3 + m * 60e3;
@@ -330,6 +451,45 @@ if (flag('--selftest')) {
   eq('more nights than slots ⇒ do not split', shouldSplitNodes(8, 11), false);
   eq('2 slots, 1 night ⇒ split (the modest-host win)', shouldSplitNodes(2, 1), true);
 
+  // ── gate verdicts (VERDICT-CONTRACT §3b #7) — the builder, pinned against verdict.js, corpus-free ──
+  {
+    const V = createRequire(import.meta.url)('../verdict.js');
+    const eq = (name, got, want) => {
+      const good = got === want;
+      if (!good) fail++;
+      console.log(`  ${good ? '✓' : '✗'} ${name}  got=${JSON.stringify(got)} want=${JSON.stringify(want)}`);
+    };
+    const val = (v) => (V.validate(v).ok ? true : V.validate(v).errors.join(' | '));
+    const before = nightVerdicts.length;
+    const pass = nightVerdict('2026-01-01', 'PASS', { offered: 8, judged: 5, result: { overlapH: 7.2 }, evidence: ['synthetic'] });
+    eq('PASS night validates', val(pass), true);
+    eq('…population is an equality over legs', JSON.stringify(pass.population), '{"checked":5,"eligible":8,"excluded":3}');
+    eq('…scope internal (P5)', pass.scope, 'internal');
+    eq('…the night key rides as an extension field', pass.night, '2026-01-01');
+    const f = nightVerdict('2026-01-02', 'FAIL', { offered: 8, judged: 3, result: { overlapH: 0.4 }, reason: 'three-way merged overlap 0.4 h < 1 h', evidence: ['synthetic'] });
+    eq('FAIL night validates, reason names the hours', val(f) === true && /0\.4 h/.test(f.reason), true);
+    const na = nightVerdict('2026-01-03', 'NOT_APPLICABLE', { offered: 2, judged: 0, reason: 'not a trio night — no O2Ring anchor' });
+    eq('NOT_APPLICABLE night: checked 0, result null, reason present', val(na) === true && na.population.checked === 0 && na.result === null, true);
+    let threw = null;
+    try {
+      nightVerdict('2026-01-04', 'PASS', { offered: 8, judged: 5, result: {} }); // no evidence
+    } catch (e) {
+      threw = e.message;
+    }
+    eq('PASS with no evidence is REFUSED by the builder (a claim with nothing to open)', /empty evidence/.test(threw), true);
+    const run = runVerdict(nightVerdicts.slice(before, before + 3), { dry: false });
+    eq('run: one rejected among judged ⇒ SHORTFALL, population = nights', run.status + ':' + JSON.stringify(run.population), 'SHORTFALL:{"checked":2,"eligible":3,"excluded":1}');
+    eq('…valid', val(run), true);
+    eq('…result counts folded/rejected/notTrio', JSON.stringify([run.result.folded, run.result.rejected, run.result.notTrio]), '[1,1,1]');
+    const runNa = runVerdict([na], { dry: false });
+    eq('run over nights the gate never judged ⇒ NOT_APPLICABLE, never PASS over checked 0', runNa.status + ':' + runNa.population.checked, 'NOT_APPLICABLE:0');
+    const runNone = runVerdict([], { dry: false });
+    eq('run over zero nights ⇒ NOT_RUN with result null', runNone.status + ':' + runNone.result, 'NOT_RUN:null');
+    eq('…valid', val(runNone), true);
+    const allPass = runVerdict([pass], { dry: false });
+    eq('run with every judged night folded ⇒ PASS, reason null', allPass.status + ':' + allPass.reason, 'PASS:null');
+    nightVerdicts.length = before;
+  }
   console.log(fail ? `\n  ${fail} FAILED` : '\n  all green');
   process.exit(fail ? 1 : 0);
 }
@@ -781,6 +941,11 @@ for (const n of plan) {
   const anchorIv = mergeIv(n.oxy);
   if (!anchorIv.length) {
     console.log(`  ⊘ ${n.key} — not a trio night (no O2Ring anchor)`);
+    nightVerdict(n.key, 'NOT_APPLICABLE', {
+      offered: GATE_LEGS.filter((l) => n[{ oxy: 'oxy', ecg: 'ecg', ppg: 'ppg', accH10: 'acc_h10', accVer: 'acc_ver', gyro: 'gyro', magn: 'magn', o2ppg: 'o2ppg' }[l]]?.length).length,
+      judged: 0,
+      reason: 'not a trio night — no O2Ring anchor; the gate judges nothing without one'
+    });
     continue;
   }
   const pick = {
@@ -800,6 +965,10 @@ for (const n of plan) {
     o2ppg: concurrentSet(n.o2ppg, anchorIv, 'O2Ring PPG', n.key, 0)
   };
   const have = [pick.ecg && 'ECG', pick.ppg && 'PPG', pick.oxy.length && 'SpO2'].filter(Boolean);
+  const offeredLegs = GATE_LEGS.filter(
+    (l) => (l === 'oxy' ? n.oxy : n[{ ecg: 'ecg', ppg: 'ppg', accH10: 'acc_h10', accVer: 'acc_ver', gyro: 'gyro', magn: 'magn', o2ppg: 'o2ppg' }[l]])?.length
+  ).length;
+  const judgedLegs = GATE_LEGS.filter((l) => pick[l] && pick[l].length).length;
   /* THREE IS A FUSION PRECONDITION, NOT A DATA ONE (POOLED-CLOCK-FIT-FOLLOWUPS §4).
      `tch-multinight` needs a genuine three-way overlap, so this tool has always required one. The
      CLOCK FIT needs no such thing — it consumes CPAP anchors plus whatever wearable channels exist,
@@ -810,6 +979,12 @@ for (const n of plan) {
      `--allow-partial` admits them; default OFF, so every existing analysis is byte-unchanged. */
   if (have.length < (ALLOW_PARTIAL ? 1 : 3)) {
     console.log(`  ⊘ ${n.key} — not a concurrent trio night (have: ${have.join('+') || 'none'})`);
+    nightVerdict(n.key, 'NOT_APPLICABLE', {
+      offered: offeredLegs,
+      judged: judgedLegs,
+      result: { legs: have },
+      reason: `not a concurrent trio night — have ${have.join('+') || 'none'}, the run requires ${ALLOW_PARTIAL ? 1 : 3}`
+    });
     continue;
   }
   if (ALLOW_PARTIAL && have.length < 3) console.log(`    · ${n.key}: PARTIAL night — ${have.join('+')} only; fittable for the clock, NOT a fusion trio`);
@@ -866,6 +1041,12 @@ for (const n of plan) {
         `${chosenH.toFixed(1)} h (${chosenH > 0 ? ((chosenNoct / chosenH) * 100).toFixed(0) : 0}%) inside ${bh(BAND_A)}–${bh(BAND_B)} — ` +
         `no block is majority-nocturnal (pass --keep-daytime to fold it anyway)`
     );
+    nightVerdict(n.key, 'FAIL', {
+      offered: offeredLegs,
+      judged: judgedLegs,
+      result: { spanH: +chosenH.toFixed(2), nocturnalH: +chosenNoct.toFixed(2), legs: have },
+      reason: `NOT NOCTURNAL — only ${chosenNoct.toFixed(1)} h of ${chosenH.toFixed(1)} h inside ${bh(BAND_A)}–${bh(BAND_B)}; no block is majority-nocturnal`
+    });
     continue;
   }
   const ov = ivSpan(threeIv) / 3600e3;
@@ -883,6 +1064,12 @@ for (const n of plan) {
   }
   if (ov < MIN_OVERLAP) {
     console.log(`  ⊘ ${n.key} — three-way merged overlap ${ov.toFixed(1)} h < ${MIN_OVERLAP} h${trimmed.length ? ' (after the nocturnal trim above)' : ''}`);
+    nightVerdict(n.key, 'FAIL', {
+      offered: offeredLegs,
+      judged: judgedLegs,
+      result: { overlapH: +ov.toFixed(2), nocturnalFrac: +noctFrac.toFixed(3), legs: have },
+      reason: `three-way merged overlap ${ov.toFixed(1)} h < ${MIN_OVERLAP} h${trimmed.length ? ' after the nocturnal trim' : ''}`
+    });
     continue;
   }
   if (clusters.length > 1) {
@@ -904,8 +1091,20 @@ for (const n of plan) {
     `  ✓ ${n.key} — ${have.length < 3 ? 'PARTIAL (' + have.join('+') + ')' : 'concurrent trio'}, ${ov.toFixed(1)} h ${have.length < 3 ? 'overlap' : 'three-way overlap'} (merged sessions)` +
       (KEEP_DAYTIME ? '' : `, ${(noctFrac * 100).toFixed(0)}% nocturnal`)
   );
+  nightVerdict(n.key, 'PASS', {
+    offered: offeredLegs,
+    judged: judgedLegs,
+    result: { overlapH: +ov.toFixed(2), nocturnalFrac: +noctFrac.toFixed(3), legs: have, partial: have.length < 3 },
+    evidence: legEvidence(pick)
+  });
   trio.push(pick);
 }
+// the run-level object; on a dry run it is computed and printed under --json but not written
+const gateRun = writeVerdicts(nightVerdicts, { dry: DRY });
+if (!DRY)
+  console.log(
+    `gate verdict  : ${gateRun.status} — ${gateRun.result.folded} folded · ${gateRun.result.rejected} rejected · ${gateRun.result.notTrio} not trio → ${join(OUT, 'trio-batch-verdicts.json')}`
+  );
 
 console.log(`\ntrio nights: ${trio.length}${LIMIT ? ` (limiting to ${LIMIT})` : ''}`);
 let work = LIMIT ? trio.slice(0, LIMIT) : trio;
