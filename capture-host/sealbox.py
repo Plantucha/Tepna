@@ -409,3 +409,139 @@ def _sha256_file(path: str) -> str:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+# ── THE SEAL RUNS IN A CHILD PROCESS ─────────────────────────────────────────────────────────────────
+# Measured 2026-09-22 on rig with the real 2026-09-17 night: 916 MB of captures → peak RSS +1 971 MB
+# (2.15× the night) for 22.6 s, because phase A's `seal_night` holds the bag, its zip and the ciphertext
+# as bytes. Inside the daemon — the process holding every BLE link, on a 15 GB box whose 09:00 QC digest
+# already peaks at 1.3 GB — a 2 GB night is ≥ 4 GB resident. So the daemon never seals in-process: it
+# spawns this module as a child with the job on stdin, reads ONE verdict object from stdout, and the
+# child's peak returns to the box when it exits. The child is the same code path (`seal_or_reissue`);
+# the parent never sees the night's bytes. A child that dies, times out, or prints something that is
+# not a verdict is UNKNOWN with that as the reason — never a silent skip and never a fabricated PASS.
+
+SEAL_SUBPROCESS_TIMEOUT_S = 1800.0
+
+
+def seal_job_main(stdin_text: str) -> str:
+    """The child's whole life: parse the job, seal, print the verdict. Pure of I/O beyond the seal."""
+    job = json.loads(stdin_text)
+    signing_key, _ = load_or_create_signing_key(job["key_dir"])
+    store, _ = load_or_create_card_store(job["key_dir"])
+    obj = seal_or_reissue(
+        job["night_dir"],
+        outbox=job["outbox"],
+        box_id=job["box_id"],
+        night=job["night"],
+        store=store,
+        signing_key=signing_key,
+        cfg=job.get("cfg") or {},
+        version=job.get("version"),
+        commit=job.get("commit"),
+    )
+    return json.dumps(obj)
+
+
+def seal_in_subprocess(
+    night_dir: str,
+    *,
+    outbox: str,
+    box_id: str,
+    night: str,
+    key_dir: str,
+    cfg: dict,
+    version: str | None,
+    commit: str | None,
+    python: str | None = None,
+    timeout_s: float = SEAL_SUBPROCESS_TIMEOUT_S,
+    run=None,
+) -> dict:
+    """Run `seal_or_reissue` for one night in a child interpreter and return its verdict object."""
+    import subprocess
+    import sys
+
+    job = {
+        "night_dir": night_dir,
+        "outbox": outbox,
+        "box_id": box_id,
+        "night": night,
+        "key_dir": key_dir,
+        "cfg": {"devices": cfg.get("devices") or [], "seal": cfg.get("seal") or {}},
+        "version": version,
+        "commit": commit,
+    }
+    evidence = [TOOL, "capture-host/seal.py", "capture-host/unseal.py", os.path.join(outbox, f"{box_id}-{night}.tepna")]
+    argv = [python or sys.executable, os.path.abspath(__file__), "--seal-job"]
+    try:
+        r = (run or subprocess.run)(
+            argv,
+            input=json.dumps(job),
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+        )
+    except subprocess.TimeoutExpired:
+        return _verdict.make(
+            gate=GATE,
+            status="UNKNOWN",
+            population={"checked": 0, "eligible": 1, "excluded": 1},
+            criterion=CRITERION,
+            result=None,
+            evidence=evidence,
+            tool=TOOL,
+            commit=commit,
+            reason=f"the seal child exceeded {timeout_s:.0f} s and was killed — nothing swapped in",
+        )
+    except OSError as exc:
+        return _verdict.make(
+            gate=GATE,
+            status="UNKNOWN",
+            population={"checked": 0, "eligible": 1, "excluded": 1},
+            criterion=CRITERION,
+            result=None,
+            evidence=evidence,
+            tool=TOOL,
+            commit=commit,
+            reason=f"the seal child could not be started: {exc!r}",
+        )
+    if r.returncode != 0:
+        tail = (r.stderr or "").strip().splitlines()[-1:] or ["(no stderr)"]
+        return _verdict.make(
+            gate=GATE,
+            status="UNKNOWN",
+            population={"checked": 0, "eligible": 1, "excluded": 1},
+            criterion=CRITERION,
+            result=None,
+            evidence=evidence,
+            tool=TOOL,
+            commit=commit,
+            reason=f"the seal child exited {r.returncode}: {tail[0][:200]}",
+        )
+    try:
+        obj = json.loads(r.stdout)
+        _verdict.validate(obj)
+    except (ValueError, TypeError) as exc:
+        return _verdict.make(
+            gate=GATE,
+            status="UNKNOWN",
+            population={"checked": 0, "eligible": 1, "excluded": 1},
+            criterion=CRITERION,
+            result=None,
+            evidence=evidence,
+            tool=TOOL,
+            commit=commit,
+            reason=f"the seal child printed something that is not a verdict: {exc}",
+        )
+    return obj
+
+
+if __name__ == "__main__":  # pragma: no cover — the child seam; seal_job_main is tested directly
+    import sys as _sys
+
+    if _sys.argv[1:] == ["--seal-job"]:
+        _sys.stdout.write(seal_job_main(_sys.stdin.read()))
+        raise SystemExit(0)
+    _sys.stderr.write("usage: sealbox.py --seal-job  (job JSON on stdin; the daemon's seal child)\n")
+    raise SystemExit(2)
