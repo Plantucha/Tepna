@@ -1,0 +1,27 @@
+{
+  "consent absent": {
+    "expect": null,
+    "file": "plant-consent_absent.tepna",
+    "sha256": "6e4ce1fa10191c8749f1b2cc73e8e53c917ef04d3fd82c389b12473a844cf891"
+  },
+  "consent disagrees": {
+    "expect": "consent",
+    "file": "plant-consent_disagrees.tepna",
+    "sha256": "27f46535d5ee40a633696a741408e3803b47421aed30f2d6c29112193894371c"
+  },
+  "flipped byte in one stream": {
+    "expect": "manifest:data/synthetic_oxydex_o2ring.csv",
+    "file": "plant-flipped_byte_in_one_stream.tepna",
+    "sha256": "fbfa045b7680171b4aeadc1439d4cddb97ca8fd9d8956e71d2a5d9ea6e88ad4c"
+  },
+  "truncated payload": {
+    "expect": "oxum",
+    "file": "plant-truncated_payload.tepna",
+    "sha256": "2411e433a92de87d275318d95e325b80fbf13c4b0af357f4104942a8fd3685b9"
+  },
+  "unknown signing key": {
+    "expect": "fingerprint",
+    "file": "plant-unknown_signing_key.tepna",
+    "sha256": "122b92479703fae9147337750a9cd2a0e704b8df76c00178d48c41d43996d0aa"
+  }
+}

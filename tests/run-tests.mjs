@@ -503,6 +503,12 @@ function makeSandbox() {
   sandbox.clearTimeout = clearTimeout;
   sandbox.addEventListener = noop; // RENDER-HARNESS §RN: ECGScope._bindEvents calls window.addEventListener
   sandbox.removeEventListener = noop;
+  /* CAPTURE-NIGHT-SEAL phase C — the Web APIs the in-page seal reader uses, lent from the host realm so
+     the node lane runs night-seal.js for REAL on the committed vector (WebCrypto, DecompressionStream,
+     TextEncoder/Decoder, atob, Response). Node ≥ 18 has them all as globals. Lent, not stubbed: a stub
+     would make the reader's green a vacuous one. */
+  for (const w of ['TextEncoder', 'TextDecoder', 'crypto', 'DecompressionStream', 'CompressionStream', 'Response', 'atob', 'btoa', 'Blob'])
+    if (typeof globalThis[w] !== 'undefined' && sandbox[w] === undefined) sandbox[w] = globalThis[w];
   return vm.createContext(sandbox);
 }
 
@@ -669,6 +675,7 @@ function readSources() {
     'signal-frame.js',
     'measurement-block.js',
     'verdict.js',
+    'night-seal.js',
     'glucodex-render.js',
     'glucodex-app.js',
     'cpapdex-render.js',
@@ -1333,6 +1340,81 @@ function readNodeSurfaces() {
    precision comes from NHST's rigid convention, not from the checking, and discursive prose has
    nothing for a parser to grip. The marker is not the cheaper option — it is the only one that works,
    because it CREATES the stereotypy the method depends on. */
+/* CAPTURE-NIGHT-SEAL phase C — the committed tepna-seal/1 vector and its four sealer-built plants, as
+   bytes, so the node lane judges the in-page reader on the SAME bytes the Python and Node readers are
+   judged on. Node-lane only (fs); the browser lane runs the same reader through browser-gates. */
+function readSealVectors() {
+  try {
+    const dir = join(ROOT, 'capture-host', 'tests', 'vectors', 'tepna-seal-1');
+    const exp = JSON.parse(readFileSync(join(dir, 'expected.json'), 'utf8'));
+    const plantsExp = JSON.parse(readFileSync(join(dir, 'plants', 'expected.json'), 'utf8'));
+    const plants = {};
+    for (const [name, rec] of Object.entries(plantsExp)) plants[name] = { expect: rec.expect, bytes: new Uint8Array(readFileSync(join(dir, 'plants', rec.file))) };
+    return { expected: exp, vector: new Uint8Array(readFileSync(join(dir, exp.seal))), plants, kindsSource: readFileSync(join(ROOT, 'tools', 'verify-seals.mjs'), 'utf8') };
+  } catch (_) {
+    return null;
+  }
+}
+
+/* The harness is synchronous and WebCrypto is promise-only, so the reader RUNS HERE, in the same
+   co-loaded realm the suite tests (ctx.NightSeal), and the group asserts on what it returned. The
+   seven plants: four sealer-built (committed under plants/), three built here from the base vector
+   exactly as the browser-gates leg builds them (a wrong card key · a stale known revision · a forged
+   header). Nothing is stubbed: a failure to run is a result with `error`, not a skip. */
+async function runSealReader(ctx) {
+  const V = readSealVectors();
+  const NS = ctx.NightSeal;
+  if (!V || !NS) return null;
+  const exp = V.expected;
+  const good = { cardKey: NS.fromHex(exp.cardKeyHex), pinnedFingerprint: exp.boxKeyFingerprint };
+  const run = async (bytes, opts) => {
+    try {
+      const r = await NS.unseal(bytes, opts);
+      const tampered = [];
+      for (const name of Object.keys(r.files)) {
+        try {
+          await r.verify(name);
+        } catch (e) {
+          tampered.push({ name, kind: e.kind });
+        }
+      }
+      return { ok: true, consent: r.consent, files: Object.keys(r.files).sort(), oxum: r.bagInfo['Payload-Oxum'], tampered, header: r.header };
+    } catch (e) {
+      return { ok: false, kind: e && e.kind ? e.kind : null, detail: e && e.detail ? e.detail : String((e && e.message) || e), refused: !!(e && e.refused) };
+    }
+  };
+  const out = { expected: exp, kinds: NS.KINDS, kindsSource: V.kindsSource, vector: await run(V.vector, good), plants: {} };
+  for (const [name, pl] of Object.entries(V.plants)) out.plants[name] = { expect: pl.expect, ...(await run(pl.bytes, good)) };
+  out.plants['wrong card key'] = { expect: 'card-key', ...(await run(V.vector, { cardKey: NS.fromHex('101112131415161718191a1b1c1d1e1f'), pinnedFingerprint: exp.boxKeyFingerprint })) };
+  out.plants['stale revision'] = { expect: 'revision', ...(await run(V.vector, { ...good, knownRevision: 2 })) };
+  const blob = V.vector;
+  const n = 10,
+    dv = new DataView(blob.buffer, blob.byteOffset, blob.byteLength);
+  const hlen = dv.getUint32(n);
+  const hdr = JSON.parse(new TextDecoder().decode(blob.subarray(n + 4, n + 4 + hlen)));
+  hdr.night = '2026-09-21';
+  const nh = new TextEncoder().encode(JSON.stringify(hdr, Object.keys(hdr).sort()));
+  const forged = new Uint8Array(n + 4 + nh.length + (blob.length - (n + 4 + hlen)));
+  forged.set(blob.subarray(0, n), 0);
+  new DataView(forged.buffer).setUint32(n, nh.length);
+  forged.set(nh, n + 4);
+  forged.set(blob.subarray(n + 4 + hlen), n + 4 + nh.length);
+  out.plants['forged header'] = { expect: 'signature', ...(await run(forged, good)) };
+  // the verdict objects the page would emit, validated by the co-loaded verdict.js
+  out.verdicts = {
+    pass: NS.verdict({ status: 'PASS', header: out.vector.header || exp.header, consent: null, streams: { opened: 3, verified: 3, tampered: [] }, file: exp.seal }),
+    fail: NS.verdict({ status: 'FAIL', kind: 'manifest:data/x.csv', detail: '1 stream', header: exp.header, streams: { opened: 3, verified: 2, tampered: ['x.csv'] }, file: exp.seal }),
+    notRun: NS.verdict({ status: 'NOT_RUN', detail: 'no card key', streams: { opened: 0, verified: 0, tampered: [] }, file: exp.seal })
+  };
+  out.badges = {
+    pass: NS.badge({ status: 'PASS', header: exp.header, streams: { opened: 3, verified: 3, tampered: [] } }),
+    tampered: NS.badge({ status: 'FAIL', kind: 'manifest:data/a.csv', streams: { opened: 3, verified: 2, tampered: ['a.csv'] } }),
+    unknownKey: NS.badge({ status: 'FAIL', kind: 'fingerprint' }),
+    legacy: NS.badge(null)
+  };
+  return out;
+}
+
 function readTableProvenance() {
   const crypto = require('node:crypto');
   const sha12 = (t) => crypto.createHash('sha256').update(t, 'utf8').digest('hex').slice(0, 12);
@@ -2017,6 +2099,7 @@ async function main() {
       'signal-frame.js',
       'measurement-block.js',
       'verdict.js',
+      'night-seal.js',
       'dex-export.js',
       'signal-adapters.js',
       'adapters/polar-rr.js',
@@ -2323,6 +2406,8 @@ async function main() {
     SignalFrame: ctx.SignalFrame,
     MeasurementBlock: ctx.MeasurementBlock,
     Verdict: ctx.Verdict, // VERDICT-CONTRACT §2 — the tepna.verdict/1 validator
+    NightSeal: ctx.NightSeal, // CAPTURE-NIGHT-SEAL phase C — the in-page tepna-seal/1 reader (Node runs it for real: crypto.subtle + DecompressionStream are globals)
+    sealRun: await runSealReader(ctx), // the in-page reader RUN on the committed vector + all seven plants, results for the (synchronous) group (Node-lane only)
     DexExport: ctx.DexExport,
     exportName: ctx.exportName,
     EXPORT_KINDS: ctx.EXPORT_KINDS,
