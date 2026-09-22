@@ -114,6 +114,82 @@ export function check(enumerated, manifest, validator, runner) {
   return { ok: errors.length === 0, errors, counts };
 }
 
+/* ── EVERY CHECK IS GATED — a static population equality over the `decides` set ──────────────────
+   Residue `2026-09-12-fix-for-ungated-check-lands-ungated`: a CHECK shipped with no test (#2321), its
+   fix shipped with no test (#2402), and the test arrived two PRs later (#2404) — the repair's own
+   boundary survived only as a comment. The row's candidate rule (a tool change with no test hunk)
+   was measured to death by its sibling `2026-09-12-ungated-tool-fix-rule-not-viable`: 41–68 % of
+   commits flagged at every narrowing, an invariant convicting working practice. So the gate is NOT a
+   diff rule. It is a property of the tree: every producer this manifest bins as `decides` — the
+   repo's enumerated set of checks — is GATED, meaning it declares `--selftest` (in a call position,
+   the same predicate selftest-all.mjs discovers by) OR a file under tests/ or capture-host/tests/
+   names it. A check with no test is caught the day it is binned, not by guessing which PRs fix it.
+   `UNGATED_RATCHET` names the decides producers that were ungated when this landed — DEBT, not
+   approval, and it may only SHRINK: a new decides producer with no test reds by name; a ratchet
+   entry that gains a test reds until it is removed; a producer whose test disappears reds.
+   ⚠️ The population is the manifest's decides set, not every tool: the row's own instance
+   (`tools/wt-done.mjs`, a queue action, `word-only`) sits outside it by design. Widening to every
+   tools/*.mjs that declares a check is the owner's call, with a measured count (see the PR body). */
+export const UNGATED_RATCHET = new Set(['tools/pat-ppg-ppg-control.mjs', 'tools/pulse-agreement.mjs', 'tools/tch-estimator-bakeoff.mjs', 'tools/tch-per-epoch-rho.mjs']);
+const SELFTEST_CALL = /\(\s*['"]--selftest['"]\s*\)/;
+
+/* What gates a producer, or null. `readSource(p)` returns the file text; `testRefs(stem)` the list of
+   test files naming it — injected so the invariant is testable without a tree. */
+export function gatedBy(p, readSource, testRefs) {
+  const src = readSource(p);
+  if (src != null && SELFTEST_CALL.test(src)) return 'selftest';
+  const stem = path.basename(p).replace(/\.(mjs|py)$/, '');
+  const refs = (testRefs(stem) || []).filter((f) => f !== p);
+  return refs.length ? 'tests:' + refs.slice(0, 2).join(',') : null;
+}
+
+/* Pure: judge the decides set against the ratchet. Returns { ok, errors[], gated, ungated }. */
+export function checkGated(manifest, readSource, testRefs, ratchet = UNGATED_RATCHET) {
+  const errors = [];
+  const rows = (manifest && manifest.producers) || {};
+  const decides = Object.keys(rows)
+    .filter((p) => rows[p] && rows[p].bin === 'decides')
+    .sort();
+  const gated = {};
+  const ungated = [];
+  for (const p of decides) {
+    const g = gatedBy(p, readSource, testRefs);
+    if (g) {
+      gated[p] = g;
+      if (ratchet.has(p)) errors.push(`${p}: now GATED (${g}) — REMOVE it from UNGATED_RATCHET (the ratchet may only go down)`);
+    } else {
+      ungated.push(p);
+      if (!ratchet.has(p))
+        errors.push(
+          `${p}: a \`decides\` producer with NO test — no --selftest and nothing under tests/ or capture-host/tests/ names it. A check with no test is the #2321 shape; add its selftest (or a test) in the same PR that bins it`
+        );
+    }
+  }
+  for (const p of ratchet) if (!decides.includes(p)) errors.push(`${p}: in UNGATED_RATCHET but not a \`decides\` producer — remove the stale entry`);
+  return { ok: errors.length === 0, errors, gated, ungated, decides: decides.length };
+}
+
+function treeReaders(root) {
+  const readSource = (p) => {
+    try {
+      return fs.readFileSync(path.join(root, p), 'utf8');
+    } catch (_) {
+      return null;
+    }
+  };
+  const testRefs = (stem) => {
+    try {
+      return execFileSync('git', ['grep', '-l', '-e', stem, '--', 'tests/', 'capture-host/tests/'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+        .split('\n')
+        .filter(Boolean);
+    } catch (e) {
+      if (e.status === 1) return [];
+      throw e;
+    }
+  };
+  return { readSource, testRefs };
+}
+
 /* An emitter whose stdout is a LARGER payload carrying the object under a key (tests/run-tests.mjs
    --json: `{ totalGroups, groups, verdict, … }`) names it as `emits.key`; the gate then validates
    THAT object. Absent key ⇒ the whole payload is the object. A named key that is missing is a read
@@ -211,6 +287,43 @@ function selftest() {
     check([], M({}), V.validate, runner).ok && check([], M({}), V.validate, runner).counts.enumerated === 0,
     'an empty population against an empty manifest is trivially equal (and says enumerated 0)'
   );
+  // every check is gated — a static population equality over the decides set, ratcheted
+  {
+    const M2 = M({ 'tools/a.mjs': { bin: 'decides', status: 'pending' }, 'tools/b.mjs': { bin: 'decides', status: 'pending' }, 'tools/c.mjs': { bin: 'word-only', status: 'exempt', reason: 'x' } });
+    const src = { 'tools/a.mjs': "if (argv.includes('--selftest')) selftest();", 'tools/b.mjs': '// a check with no test at all' };
+    const refs = () => [];
+    let g = checkGated(M2, (p) => src[p], refs, new Set());
+    ok(!g.ok && g.errors.length === 1 && /tools\/b.mjs: a `decides` producer with NO test/.test(g.errors[0]), 'a decides producer with no selftest and no test reference is a red WITH ITS NAME');
+    ok(g.gated['tools/a.mjs'] === 'selftest' && g.ungated.length === 1, 'the gated map names what gates each producer; the ungated list names the rest');
+    g = checkGated(M2, (p) => src[p], refs, new Set(['tools/b.mjs']));
+    ok(g.ok, 'the same producer in the ratchet is debt, not a red');
+    g = checkGated(
+      M2,
+      (p) => src[p],
+      (stem) => (stem === 'b' ? ['tests/dex-tests.js'] : []),
+      new Set(['tools/b.mjs'])
+    );
+    ok(!g.ok && /now GATED \(tests:tests\/dex-tests.js\) — REMOVE it from UNGATED_RATCHET/.test(g.errors[0]), 'a ratchet entry that gains a test reds until removed — the ratchet only goes down');
+    g = checkGated(
+      M2,
+      (p) => src[p],
+      (stem) => (stem === 'b' ? ['tests/dex-tests.js'] : []),
+      new Set()
+    );
+    ok(g.ok && g.gated['tools/b.mjs'] === 'tests:tests/dex-tests.js', 'a test file naming the producer gates it');
+    g = checkGated(M2, (p) => (p === 'tools/a.mjs' ? '/* usage: node tools/a.mjs --selftest */' : src[p]), refs, new Set(['tools/b.mjs']));
+    ok(
+      !g.ok && /tools\/a.mjs: a `decides` producer with NO test/.test(g.errors[0]),
+      "a --selftest that appears only in a usage COMMENT does not gate (the call-position predicate, like selftest-all's)"
+    );
+    g = checkGated(M2, (p) => src[p], refs, new Set(['tools/b.mjs', 'tools/c.mjs']));
+    ok(!g.ok && /tools\/c.mjs: in UNGATED_RATCHET but not a `decides` producer/.test(g.errors[0]), 'a stale ratchet entry (not decides) is a red');
+    ok(checkGated(M({}), () => null, refs, new Set()).ok, 'an empty decides set is trivially gated');
+    // the real tree: the ratchet is exact today
+    const { readSource, testRefs } = treeReaders(ROOT);
+    const real = checkGated(JSON.parse(fs.readFileSync(MANIFEST, 'utf8')), readSource, testRefs);
+    ok(real.ok, 'the committed manifest: every decides producer is gated or in the ratchet, and nothing in the ratchet is gated (' + real.errors.join(' | ') + ')');
+  }
   // emits.key — the object under a key of a larger payload
   ok(pickEmitted({ a: 1 }, {}).a === 1 && pickEmitted({ a: 1 }, { cmd: ['x'] }).a === 1, 'no key ⇒ the payload is the object');
   ok(pickEmitted({ verdict: good, groups: [] }, { key: 'verdict' }) === good, 'a key picks the object out of the payload');
@@ -233,7 +346,7 @@ function selftest() {
   const en = enumerate(ROOT);
   ok(en.length > 50 && en.every((p) => p.startsWith('tools/') || p.startsWith('capture-host/') || p.startsWith('tests/')), 'enumerate() finds the population on the real tree (' + en.length + ')');
   ok(en.includes('tests/run-tests.mjs') && !en.some((p) => /^tests\/.+\//.test(p)), 'tests/*.mjs is in the population, non-recursive (the runner is no longer outside the gate)');
-  const N = 17;
+  const N = 26;
   if (fails.length) {
     console.log(fails.map((f) => '  ✗ ' + f).join('\n'));
     console.log(`${fails.length} failed of ${N}`);
@@ -258,11 +371,17 @@ function main() {
   console.log(
     `verdict-adoption: ${c.enumerated} producer(s) enumerated · ${c.named} binned — decides ${c.decides} · already-json ${c['already-json']} · word-only ${c['word-only']} · test ${c.test} · adopted ${c.adopted} (validated ${c.validated}) · pending ${c.pending}`
   );
-  if (!r.ok) {
-    console.log(r.errors.map((e) => '  ✗ ' + e).join('\n'));
-    console.log(`\n✗ ${r.errors.length} red(s) — the population and the manifest are not equal, or an adoption does not hold`);
+  const { readSource, testRefs } = treeReaders(ROOT);
+  const g = checkGated(manifest, readSource, testRefs);
+  console.log(
+    `verdict-adoption: ${g.decides} \`decides\` producer(s) — ${Object.keys(g.gated).length} gated (a selftest or a test names them) · ${g.ungated.length} ungated, all in UNGATED_RATCHET (debt, may only shrink)`
+  );
+  const errors = [...r.errors, ...g.errors];
+  if (errors.length) {
+    console.log(errors.map((e) => '  ✗ ' + e).join('\n'));
+    console.log(`\n✗ ${errors.length} red(s) — the population and the manifest are not equal, an adoption does not hold, or a check has no test`);
     process.exit(1);
   }
-  console.log('✓ the manifest partitions the enumerated population; every adoption read and valid');
+  console.log('✓ the manifest partitions the enumerated population; every adoption read and valid; every check is gated or in the ratchet');
 }
 main();
