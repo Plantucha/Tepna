@@ -28,7 +28,7 @@
  * run resumes. Full-night ECG + PPG through two detectors × 8 values is the cost; it is sized on the
  * first night and printed before the rest run.
  *
- *   node tools/gap-s-sweep.mjs --nights <list.txt: "<date> <ecg> <ppg>" per line> [--values 3,5,7.5,10,15,20,30,60]
+ *   node tools/gap-s-sweep.mjs --nights <list.txt: "<date> <ecg> <ppg>" per line, TAB-separated if a path has a space> [--values 3,5,7.5,10,15,20,30,60]
  *                              [--out <json>] [--limit N] [--resume]
  *   node tools/gap-s-sweep.mjs --selftest
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -321,7 +321,10 @@ function main(argv) {
     .map((l) => l.trim())
     .filter(Boolean)
     .map((l) => {
-      const [night, ecg, ppg] = l.split(/\s+/);
+      /* TAB-separated when a path carries a space (`Ecg nightly`); whitespace-split otherwise. A path
+         split on its own space read as ENOENT on the first phone night — the list format is stated. */
+      const parts = l.includes('\t') ? l.split('\t') : l.split(/\s+/);
+      const [night, ecg, ppg] = parts.map((x) => x.trim());
       return { night, ecg, ppg };
     })
     .slice(0, limit > 0 ? limit : undefined);
