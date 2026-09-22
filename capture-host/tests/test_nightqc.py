@@ -2425,6 +2425,105 @@ def test_class_b_runs_multichannel_reports_per_channel_and_held_once():
     assert len(held) == 1 and held[0][6].startswith("held ratio=")
 
 
+# ── THE BOUNDED BACK-CHECK (residue 2026-09-21-capture-daemon-qc-digest-peaks-1-3gb) ──────────────
+# `class_b_quality` materialised one Python tuple per waveform ROW. Measured on vigil against the
+# real 2026-09-21 night (765 MB, four class-B files): VmHWM **1141 MB**, of which the ring's 5.26 M
+# two-channel PPG2W alone was 755 MB — inside the daemon that holds every BLE link, at 09:00. The
+# columns path costs 8 bytes a sample instead of ~143. These tests pin the two things that makes
+# safe: the cheap path must answer IDENTICALLY, and it must stay cheap. On that real night the two
+# readers were run against each other: **1116 MB -> 245 MB, and the four blocks compared byte for
+# byte identical** (2026-09-22, box-local, same 34 s runtime).
+
+def _stream_with_a_rail():
+    """A column the clip rule fires on: baseline, a ramp into a floor plateau, a ramp out."""
+    return _baseline() + _RAMP_DOWN + [0] * 30 + _RAMP_UP + _baseline()
+
+
+def test_class_b_runs_columns_equals_records():
+    """The SAME rows read the other way round give the same dict — rows, clips, held, everything.
+
+    This is the whole licence for the columns path. Without it "cheaper" would be a claim about a
+    second implementation of the rule rather than about the same rule's input shape."""
+    from array import array
+    col0 = _stream_with_a_rail()
+    col1 = [50] * len(col0)
+    recs = list(zip(col0, col1))
+    a = nightqc.class_b_runs(recs, stream="ppg", tick_ms=8.0, annotations=(_MK,))
+    b = nightqc.class_b_runs(columns=[array("q", col0), array("q", col1)],
+                             stream="ppg", tick_ms=8.0, annotations=(_MK,))
+    assert a == b and a["clips"] == {"ppg:ch0": 1, "ppg:ch1": 0}
+    assert [r["rule"] for r in a["rows"]] == ["clip"], "the fixture must actually fire, or this passes vacuously"
+    # single channel: the name has no :chN, and both paths still agree
+    one_r = nightqc.class_b_runs(col0, stream="ecg", annotations=(_MK,))
+    one_c = nightqc.class_b_runs(columns=[array("q", col0)], stream="ecg", annotations=(_MK,))
+    assert one_r == one_c and set(one_c["clips"]) == {"ecg"}
+
+
+def test_held_columns_matches_held_stream_exactly():
+    """A HOLD is a property of the RECORD — every channel freezing on the same tick — and the columns
+    path must not quietly become the per-column read that `test_held_stream_wants_records_not_columns`
+    measures as WRONG (it splices runs across record changes and overstates the ratio)."""
+    from array import array
+    recs = []
+    for k in range(120):
+        recs += [(k, k // 2)] * 6
+    cols = [array("q", [r[0] for r in recs]), array("q", [r[1] for r in recs])]
+    assert nightqc.held_columns(cols) == nightqc.held_stream(recs)
+    assert nightqc.held_columns(cols)["lengths"] == (6, 7)
+    # and it must still REFUSE what held_stream refuses
+    ragged = [array("q", list(range(400)))]
+    assert nightqc.held_columns(ragged) is nightqc.held_stream(list(range(400))) is None
+    assert nightqc.held_columns([array("q", [1, 2, 3])]) is None      # too few transitions
+    assert nightqc.held_columns([array("q", [])]) is None and nightqc.held_columns([]) is None
+
+
+def test_class_b_runs_refuses_an_ambiguous_or_ragged_call():
+    from array import array
+    import pytest as _pytest
+    with _pytest.raises(TypeError):
+        nightqc.class_b_runs(stream="ppg")                                   # neither
+    with _pytest.raises(TypeError):
+        nightqc.class_b_runs([1, 2], columns=[array("q", [1, 2])], stream="ppg")   # both
+    with _pytest.raises(ValueError):
+        nightqc.class_b_runs(columns=[], stream="ppg")                       # no channel at all
+    with _pytest.raises(ValueError):
+        nightqc.held_columns([array("q", [1, 2, 3]), array("q", [1, 2])])    # not one stream's channels
+
+
+def test_the_back_check_reads_a_night_without_HOLDING_it(tmp_path):
+    """The property the row is about, as a bound rather than a hope.
+
+    Measured here at ~40 000 rows x 2 channels: the records reader traced **5.8 MB** of live Python objects at its peak,
+    the columns reader **0.9 MB** (6.7x). The bound is 3 MB — comfortably above what
+    the bounded reader needs (it also holds the line buffer and the emitted rows) and far below what
+    one tuple per row costs, so this fails on the implementation it replaced rather than on noise.
+    """
+    import tracemalloc
+    night = tmp_path / "2026-09-21"
+    night.mkdir()
+    p = night / "Wellue_O2Ring-S_S8AW2100_20260921212350_PPG2W.txt"
+    tile = _stream_with_a_rail()          # the SAME shape the clip tests use, so the rule really fires
+    tiles = 40000 // len(tile)
+    ch0 = tile * tiles
+    rows = ["timestamp [ms];sensor timestamp [ns];channel 0;channel 1;motion"]
+    for i, v in enumerate(ch0):
+        rows.append("%d;%d;%d;%d;0" % (i * 8, i * 8000000, v, 120 + (i % 11)))
+    p.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+    tracemalloc.start()
+    blocks = nightqc.class_b_quality(str(night))
+    _cur, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert len(blocks) == 1 and blocks[0]["clips"], "the fixture must produce a real block"
+    assert blocks[0]["clips"].get("ppg2w:ch0") == tiles, "every planted floor must be found"
+    # ⚠️ 3 MB IS NOT A ROUND NUMBER, IT IS A SEPARATION. Run against origin/main's reader on this very
+    # fixture the peak is 5.8 MB and this assertion FAILS; on the columns reader it is 0.9 MB. A bound
+    # that passes on the implementation it replaced would be worth nothing — so before relaxing this
+    # threshold, re-measure both readers on the same fixture and keep the gap, or the test stops being
+    # able to tell the two apart and goes on reporting green about a reader it never examined.
+    assert peak < 3_000_000, f"the back-check held {peak / 1e6:.1f} MB of a 40 000-row file"
+
+
 def test_clip_regions_handles_empty_and_all_annotation_input():
     assert nightqc.clip_regions([]) == []
     assert nightqc.clip_regions([_MK] * 50, annotations=(_MK,)) == []
