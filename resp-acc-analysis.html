@@ -59,12 +59,16 @@
     <div class="note">Two independent estimators derived from the <em>same</em> flow signal: <code>60/median(period)</code> versus a plain breath count. Their disagreement bounds the reference's own precision.</div>
     <table id="tblRef"><thead><tr><th>Night</th><th>breaths</th><th>median period (s)</th><th>MAE med-vs-count</th><th>r</th></tr></thead><tbody></tbody></table>
     <div id="refSummary" class="note"></div>
+    <figure style="margin:14px 0 0"><canvas id="figRefFloor" width="820" height="330"></canvas>
+      <figcaption class="note">The floor, and the spread it was taken from — the figure <code>papers/cpap-flow-reference.html</code> §3.1 owes. <a href="#" id="dlRefFloor">&#10515; cpap-reference-self-noise.png</a></figcaption></figure>
   </div>
 
   <div class="card"><h2>2 · Clock — offset and drift</h2>
     <div class="note">Offset recovered by cross-correlating band-passed ACC against band-passed flow (±90 min, 1 s). Validity is <b>drift-model consistency</b>, not correlation magnitude.</div>
     <table id="tblClock"><thead><tr><th>Night</th><th>recovered (s)</th><th>predicted (s)</th><th>Δ (s)</th><th>peak |r|</th><th>sharpness</th><th>verdict</th></tr></thead><tbody></tbody></table>
     <div id="driftSummary" class="note"></div>
+    <figure style="margin:14px 0 0"><canvas id="figDrift" width="820" height="330"></canvas>
+      <figcaption class="note">What “on-model” looks like — the figure <code>papers/cpap-flow-reference.html</code> §3.2 owes. <a href="#" id="dlDrift">&#10515; cpap-clock-drift.png</a></figcaption></figure>
   </div>
 
   <div class="card"><h2>3 · Estimator agreement <span class="pill idle" id="nPill">0 epochs</span></h2>
@@ -11735,6 +11739,144 @@ const MotionDex = window.MotionDex;
     ctx.fillText(d[d.length - 1].mae.toFixed(2), sc.X(d.length - 1) - 8, sc.Y(d[d.length - 1].mae) - 6);
   }
 
+  /* ── THE TWO FIGURES `papers/cpap-flow-reference.html` OWES (residue
+     2026-09-20-sibling-papers-have-no-figure-source) ─────────────────────────────────────────────
+     That paper carried ZERO images while its own status callout said it stays a DRAFT "until the
+     figures are emitted into papers/figures/". The row correctly refused to call the item done for
+     three papers when the tool drew for one — and named the gap as a missing CHART LAYER rather than
+     a regeneration left undone. It is narrower than that: this page ALREADY COMPUTES both of the
+     paper's plottable claims (§3.1 the reference's self-noise per night, §3.2 the clock offset and
+     its drift model) and rendered them as TABLES ONLY, which is the same defect the page's own §1
+     comment records about itself before 2026-08-06. So the figures are drawn from the data already
+     on screen; nothing here re-derives a number the tables do not show.
+     ⚠ The sibling `papers/effort-typing-null.html` gets NO figure and that is deliberate — see the
+     note in this file's header table and the paper's own §Status: it is a negative result with two
+     tables and no figure reference anywhere in its text, and its DRAFT condition is the corpus
+     regeneration, not a missing image. Drawing one to fill a slot would be the fabricated close the
+     row warned about. */
+  function drawRefFloor(rows) {
+    var cv = $('figRefFloor');
+    if (!cv) return;
+    var ctx = figBase(
+      cv,
+      'Reference self-noise — the floor no algorithm may claim to beat',
+      rows.length + ' night(s): two estimators on the SAME flow signal, 60/median(period) vs a plain breath count'
+    );
+    if (!rows.length) return;
+    var box = { l: 54, r: cv.width - 34, t: 52, b: cv.height - 52 };
+    var d = rows.slice().sort(function (a, b) {
+      return a.mae - b.mae;
+    });
+    var ymax =
+      Math.max.apply(
+        null,
+        d.map(function (r) {
+          return r.mae;
+        })
+      ) * 1.2;
+    box.xticks = [];
+    for (var xi = 0; xi < d.length; xi++) box.xticks.push(xi);
+    var sc = figAxes(ctx, box, -0.5, d.length - 0.5, 0, ymax, 'night (sorted by self-noise)', 'MAE med-vs-count (br/min)', function (v) {
+      var rec = d[Math.round(v)];
+      if (!rec) return '';
+      var m = /(\d{4})(\d{2})(\d{2})/.exec(String(rec.name || ''));
+      return m ? m[2] + '-' + m[3] : String(Math.round(v) + 1);
+    });
+    var med = A.median(
+      d.map(function (r) {
+        return r.mae;
+      })
+    );
+    /* THE MEDIAN IS THE FLOOR THE PAPER QUOTES — drawn as the rule, so a reader sees the claim and
+       the spread it was taken from in one object instead of a single number in prose. */
+    var my = Math.round(sc.Y(med)) + 0.5;
+    ctx.strokeStyle = FIG.warn;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(box.l, my);
+    ctx.lineTo(box.r, my);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = FIG.ink2;
+    ctx.font = FIG.mono;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('median floor ' + med.toFixed(2) + ' br/min', box.r, my - 4);
+    for (var i = 0; i < d.length; i++) figDot(ctx, sc.X(i), sc.Y(d[i].mae), 4.5, FIG.series);
+    ctx.fillStyle = FIG.ink;
+    ctx.textBaseline = 'bottom';
+    ctx.textAlign = 'left';
+    ctx.fillText(d[0].mae.toFixed(2), sc.X(0) + 8, sc.Y(d[0].mae) - 6);
+    ctx.textAlign = 'right';
+    ctx.fillText(d[d.length - 1].mae.toFixed(2), sc.X(d.length - 1) - 8, sc.Y(d[d.length - 1].mae) - 6);
+  }
+
+  /* §3.2 — the recovered offsets against the fitted drift model. The TABLE says which nights are
+     on-model; the figure says what "on-model" looks like, which is the whole validity argument
+     (consistency with a LINEAR drift, never correlation magnitude). Nights with no lock are absent
+     rather than plotted at zero — a fabricated point here would read as a perfect alignment. */
+  function drawDrift(done, drift) {
+    var cv = $('figDrift');
+    if (!cv) return;
+    var pts = [];
+    for (var i = 0; i < done.length; i++) {
+      var d = done[i];
+      if (!d.lock || !isFinite(d.dayNum)) continue;
+      var pred = drift ? drift.predict(d.dayNum) : Number.NaN;
+      pts.push({ day: d.dayNum, off: d.lock.off, pred: pred, onModel: isFinite(pred) ? Math.abs(d.lock.off - pred) < 5 : false, name: d.name });
+    }
+    var ctx = figBase(
+      cv,
+      'Clock offset and drift',
+      pts.length +
+        ' locked night(s)' +
+        (drift ? ' · fitted ' + drift.slopePerDay.toFixed(3) + ' s/day, residual SD ' + (isFinite(drift.residSD) ? drift.residSD.toFixed(2) + ' s' : '—') : ' · no drift fit')
+    );
+    if (!pts.length) return;
+    var box = { l: 62, r: cv.width - 34, t: 52, b: cv.height - 52 };
+    var xs = pts.map(function (p) {
+      return p.day;
+    });
+    var on = pts.filter(function (p) {
+      return p.onModel;
+    });
+    /* SCALE TO THE ON-MODEL NIGHTS, and say so: an off-model argmax can sit 80 minutes away (the
+       comment in the clock table records −5163 … +4804 s on the real corpus), and letting one set the
+       y-range collapses the 9-second spread the figure exists to show into a flat line. Off-model
+       points outside the range are drawn clamped at the edge, in the warn colour, so they are still
+       visible as "off the scale" rather than silently dropped. */
+    var base = (on.length ? on : pts).map(function (p) {
+      return p.off;
+    });
+    var lo = Math.min.apply(null, base);
+    var hi = Math.max.apply(null, base);
+    var pad = Math.max(2, (hi - lo) * 0.35);
+    var xmin = Math.min.apply(null, xs) - 0.5;
+    var xmax = Math.max.apply(null, xs) + 0.5;
+    var sc = figAxes(ctx, box, xmin, xmax, lo - pad, hi + pad, 'day number', 'recovered offset (s)', null, function (v) {
+      return v.toFixed(0);
+    });
+    if (drift) {
+      ctx.strokeStyle = FIG.warn;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(sc.X(xmin), sc.Y(drift.predict(xmin)));
+      ctx.lineTo(sc.X(xmax), sc.Y(drift.predict(xmax)));
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+    var clampY = function (v) {
+      var y = sc.Y(v);
+      return Math.max(box.t, Math.min(box.b, y));
+    };
+    for (var k = 0; k < pts.length; k++) figDot(ctx, sc.X(pts[k].day), clampY(pts[k].off), 4.5, pts[k].onModel ? FIG.series : FIG.warn);
+    ctx.fillStyle = FIG.ink2;
+    ctx.font = FIG.mono;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(on.length + ' on-model (|Δ| < 5 s) · ' + (pts.length - on.length) + ' off-model, clamped to the axis', box.l, box.t - 16);
+  }
+
   function pngFrom(cv, name) {
     cv.toBlob(function (bl) {
       var u = URL.createObjectURL(bl),
@@ -11822,6 +11964,17 @@ const MotionDex = window.MotionDex;
       maes.push(n.selfAg.mae);
       row(tb, [n.name.replace(/Polar_H10_\d+_/, '').replace('_ACC.txt', ''), n.ref.nBreaths, fmt(A.median(n.ref.periods)), '<b>' + fmt(n.selfAg.mae) + '</b>', fmt(n.selfR, 3)]);
     }
+    /* The figure is drawn from the SAME rows the table just rendered (residue
+       2026-09-20-sibling-papers-have-no-figure-source) — one dataset, two renderings. */
+    drawRefFloor(
+      done
+        .filter(function (nn) {
+          return nn.selfAg;
+        })
+        .map(function (nn) {
+          return { name: nn.name, mae: nn.selfAg.mae };
+        })
+    );
     $('refSummary').innerHTML = maes.length
       ? 'Median self-noise across nights: <b>' + fmt(A.median(maes)) + ' br/min</b>. Treat this as the floor — an estimator scoring below it is not more accurate than the reference.'
       : '';
@@ -11902,6 +12055,7 @@ const MotionDex = window.MotionDex;
         })()
       ]);
     }
+    drawDrift(done, drift);
     $('driftSummary').innerHTML = drift
       ? 'Drift fit on ' +
         drift.n +
@@ -12049,7 +12203,11 @@ const MotionDex = window.MotionDex;
   [
     ['dlBA', 'figBA', 'acc-resp-bland-altman.png'],
     ['dlCov', 'figCov', 'acc-resp-coverage.png'],
-    ['dlNights', 'figNights', 'acc-resp-per-night.png']
+    ['dlNights', 'figNights', 'acc-resp-per-night.png'],
+    /* The two `papers/cpap-flow-reference.html` embeds — named for the paper that uses them, the same
+       convention `papers/figures/` already follows for the ACC paper's three. */
+    ['dlRefFloor', 'figRefFloor', 'cpap-reference-self-noise.png'],
+    ['dlDrift', 'figDrift', 'cpap-clock-drift.png']
   ].forEach(function (t) {
     var el = $(t[0]);
     if (el)
