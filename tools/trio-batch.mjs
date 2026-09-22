@@ -1501,21 +1501,13 @@ if (!CHILD && work.length >= 1 && (work.length > 1 || planConcurrency().jobs > 1
   const oomRetry = []; // nights that died of heap exhaustion, retried ALONE after the pool drains
   const runOne = ({ p, node }, opts = {}) =>
     new Promise((res) => {
-      const args = [
-        `--max-old-space-size=${opts.heapMB || heapMB}`,
-        __filename,
-        '--src',
-        SRC,
-        '--out',
-        OUT,
-        '--night',
-        p.key,
-        '--child',
-        '--min-hours',
-        String(MIN_HOURS),
-        '--min-overlap',
-        String(MIN_OVERLAP)
-      ];
+      /* `cap` is hoisted rather than inlined so the array below stays ONE line. That is not
+         cosmetic: the `trio-batch forwards its night-selection flags to the child` gate anchors on
+         the head of this array as a single string, and inlining `opts.heapMB || heapMB` pushed the
+         line past Biome's width, which wrapped the array and blinded the gate. It said so rather
+         than passing — "the dispatch shape changed — this gate is reading nothing". */
+      const cap = opts.heapMB || heapMB;
+      const args = [`--max-old-space-size=${cap}`, __filename, '--src', SRC, '--out', OUT, '--night', p.key, '--child', '--min-hours', String(MIN_HOURS), '--min-overlap', String(MIN_OVERLAP)];
       if (node) args.push('--only-node', node);
       if (KEEP_DAYTIME) args.push('--keep-daytime');
       if (ALLOW_PARTIAL) args.push('--allow-partial');
