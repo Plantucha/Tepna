@@ -219,6 +219,12 @@ contract as written. They are rules now.
   empty evidence and a NOT_APPLICABLE carrying a result; building the oracle's, five stale plants failed
   on `scope`; building PpgDex's, an asymmetric +27 % on one leg of one input was caught by the pre-stated
   band and re-measured interleaved. That is what the contract is for.
+- **The object says what the prose's parenthesis means.** `selftest-all` prints `✓ 121 tools, 1666+
+  assertions — all green (26 green but unparseable)`; its `tepna.verdict/1` object over the same run is
+  **`UNKNOWN` over `{checked 121, eligible 121, excluded 0}`** — 26 children whose selftest printed no
+  count the runner can read are UNKNOWN, and one UNKNOWN among 95 PASSes is UNKNOWN by precedence, not
+  a vote (#2828, §3d). Same run, same numbers; the word said green and the object says undecided. The
+  day's cleanest example of the whole contract: prose is explanation, the object is the API.
 
 ## 3d · Wave 3 — the RUNNER-LEVEL object (design, Magpie 2026-09-22, reviewed Kestrel; §3b #9 — a note, not code)
 
