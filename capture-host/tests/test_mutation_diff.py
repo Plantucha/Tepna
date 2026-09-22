@@ -656,3 +656,37 @@ def test_budget_refusal_names_every_number_it_used():
     # the trace factor reaches the estimate: at 0.5 the same clean run fits where the default does not
     assert budget_refusal("m.py", 10.0, 1, 16.0, trace_factor=0.5) is None
     assert budget_refusal("m.py", 10.0, 1, 16.0) is not None
+
+
+# ── tepna.verdict/1 — VERDICT-CONTRACT §3b step 5: the gate's ONE object ────────────────────────────
+def test_verdict_object_maps_every_gate_outcome_onto_the_closed_enum():
+    from mutation_diff import VERDICT_STATUSES, verdict_object
+
+    common = dict(result={"generated": 1, "decided": 1, "killed": 1, "survived": 0, "undecided": 0, "excused": 0},
+                  evidence=["capture-host/tools/mutate_diff.py"], commit="abcdef1", at="2026-09-22T00:00:00Z", base="origin/main")
+    o = verdict_object("PASS", checked=3, eligible=4, reason=None, **common)
+    assert o["schema"] == "tepna.verdict/1" and o["gate"] == "mutate-diff" and o["scope"] == "internal"
+    assert o["population"] == {"checked": 3, "eligible": 4, "excluded": 1}, "population is an equality — excluded is derived, never guessed"
+    assert o["criterion"] == {"name": "survivors_on_changed_lines", "threshold": 0, "unit": "mutants", "direction": "lte"}
+    assert o["result"]["killed"] == 1 and o["reason"] is None and o["producedBy"] == {"tool": "capture-host/tools/mutate_diff.py", "commit": "abcdef1"}
+    # the states that read as green to a regex carry result: null and a reason
+    for st in ("NOT_RUN", "NOT_APPLICABLE"):
+        n = verdict_object(st, checked=0, eligible=0, reason="why", **common)
+        assert n["result"] is None and n["reason"] == "why"
+    u = verdict_object("UNKNOWN", checked=1, eligible=2, reason="1 undecided", **common)
+    assert u["result"] is not None and u["population"]["excluded"] == 1
+    # outside a checkout: commit None WITH a reason (∅)
+    nc = verdict_object("FAIL", checked=1, eligible=1, reason="2 survived", **{**common, "commit": None})
+    assert nc["producedBy"]["commit"] is None and nc["producedBy"]["commitReason"]
+    # the enum is closed and the reason rules bind at construction — a wrong object cannot be built
+    import pytest
+
+    with pytest.raises(ValueError, match="closed enum"):
+        verdict_object("PASSED", checked=1, eligible=1, reason=None, **common)
+    with pytest.raises(ValueError, match="PASS carries reason: null"):
+        verdict_object("PASS", checked=1, eligible=1, reason="but", **common)
+    with pytest.raises(ValueError, match="requires a reason"):
+        verdict_object("FAIL", checked=1, eligible=1, reason=None, **common)
+    with pytest.raises(ValueError, match="checked 2 > eligible 1"):
+        verdict_object("PASS", checked=2, eligible=1, reason=None, **common)
+    assert len(VERDICT_STATUSES) == 7 and "PASS" in VERDICT_STATUSES and "NOT_APPLICABLE" in VERDICT_STATUSES

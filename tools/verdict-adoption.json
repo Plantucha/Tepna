@@ -13,14 +13,40 @@
    "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
   },
   "capture-host/mutation_diff.py": {
-   "bin": "decides",
-   "status": "pending",
-   "note": "the diff-scoped mutation gate: killed \u00b7 survived \u00b7 undecided \u00b7 refused (step 5)"
-  },
-  "capture-host/nightqc.py": {
    "bin": "word-only",
    "status": "exempt",
-   "reason": "verdict words appear only in comments"
+   "reason": "the PURE builder (verdict_object, VERDICT_STATUSES) and the classifier vocabulary; the emitting producer is capture-host/tools/mutate_diff.py (adopted)"
+  },
+  "capture-host/night_report.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "relays night-backcheck (now read from BACKCHECK-VERDICT.json \u2014 the first consumer of a verdict object on the box) and the sniffer; decides nothing of its own"
+  },
+  "capture-host/night_verdicts.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/night_verdicts.py",
+     "--sample-json",
+     "night-backcheck"
+    ]
+   },
+   "note": "the emitter CLI for both nightly gates; this row validates night-backcheck (BACKCHECK-VERDICT.json): population = every PPG/PPG2W/ECG file, checked = files with a class-B block, excluded = files the check skipped \u2014 eligible>0 with checked==0 is UNKNOWN, never an empty-list ok"
+  },
+  "capture-host/nightqc.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/night_verdicts.py",
+     "--sample-json",
+     "night-qc"
+    ]
+   },
+   "note": "night-qc: summarize()'s own `ok` as one object per night (QC-VERDICT.json beside QC-SUMMARY.json) \u2014 PASS / FAIL (missing or degraded) / SHORTFALL (a session excluded inside the night) / UNDERPOWERED (span under 300 s) / NOT_RUN (no device configured); the cmd emits the object from synthetic input"
   },
   "capture-host/o2ring.py": {
    "bin": "decides",
@@ -134,6 +160,14 @@
    "bin": "test",
    "status": "exempt"
   },
+  "capture-host/tests/test_night_verdicts_cli.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_nightqc_verdicts.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
   "capture-host/tests/test_offline_lock.py": {
    "bin": "test",
    "status": "exempt"
@@ -174,6 +208,10 @@
    "bin": "test",
    "status": "exempt"
   },
+  "capture-host/tests/test_qc_poller_verdicts.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
   "capture-host/tests/test_run_polar_bounded_awaits.py": {
    "bin": "test",
    "status": "exempt"
@@ -203,6 +241,10 @@
    "status": "exempt"
   },
   "capture-host/tests/test_timeline.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_verdict.py": {
    "bin": "test",
    "status": "exempt"
   },
@@ -238,6 +280,18 @@
    "status": "exempt",
    "reason": "verdict words appear only in comments"
   },
+  "capture-host/tools/mutate_diff.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "note": "the diff-scoped mutation gate: every exit emits tepna.verdict/1 \u2014 PASS all killed \u00b7 FAIL survivors or a REFUTED entry \u00b7 UNKNOWN undecided (timeout/suspicious/not checked, never a kill) or budget-refused \u00b7 NOT_RUN preflight/all-invocations-failed \u00b7 NOT_APPLICABLE nothing behavioural (step 5, closes the residue mapping of 2026-09-05-mutate-diff-timeout-reads-as-kill one level up)",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/tools/mutate_diff.py",
+     "--verdict-sample"
+    ]
+   }
+  },
   "capture-host/tools/mutate_pure.py": {
    "bin": "word-only",
    "status": "exempt",
@@ -252,6 +306,11 @@
    "bin": "already-json",
    "status": "pending",
    "note": "the Python reader of a sealed night: one JSON object per file, PASS/FAIL with the refusal kind as reason (#2796); converge to the schema (scope, population equality) \u2014 step 4"
+  },
+  "capture-host/verdict.py": {
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the contract library \u2014 the Python half of tepna.verdict/1 (make/validate/write); names the enum, decides nothing"
   },
   "capture-host/webmon.py": {
    "bin": "word-only",
@@ -499,8 +558,15 @@
   },
   "tools/oracle-ecg-firmware-rr.mjs": {
    "bin": "already-json",
-   "status": "pending",
-   "note": "pooled bands CONSISTENT/SHORTFALL/INVESTIGATE/UNDERPOWERED \u2014 object written, patched aside for the adoption wave"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/oracle-ecg-firmware-rr.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "pooled bands CONSISTENT/SHORTFALL/INVESTIGATE/UNDERPOWERED \u2192 verdictObject(); --json emits the object at the top level, --verdict-sample the synthetic-shape object the gate reads"
   },
   "tools/pat-axis-leg-audit.mjs": {
    "bin": "word-only",
@@ -734,8 +800,16 @@
   },
   "tools/verify-seals.mjs": {
    "bin": "already-json",
-   "status": "pending",
-   "note": "born emitting tepna.verdict/1 (#2796, `--vectors --json` prints the object); measured 2026-09-22 it lacks only `scope`, which landed in #2797 after it \u2014 flips to adopted with emits {cmd:[node, tools/verify-seals.mjs, --vectors, --json]} when Heron adds scope (step 4)"
+   "status": "adopted",
+   "note": "born emitting tepna.verdict/1 (#2796); scope + verdict.js validation of every emitted object in #2800 \u2014 the first adoption this manifest records. `--vectors --json` prints the verdict for the committed vector to stdout, prose to stderr.",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/verify-seals.mjs",
+     "--vectors",
+     "--json"
+    ]
+   }
   },
   "tools/wt-done.mjs": {
    "bin": "word-only",
