@@ -1128,10 +1128,9 @@
    "status": "exempt",
    "reason": "selftest printer; its own verdict() is a pure PR-state decision consumed by the tool itself, exit-coded \u2014 a wave-2 candidate, listed here by reason not by omission"
   },
-  "tools/verdict-emit.mjs": {
-   "bin": "word-only",
-   "status": "exempt",
-   "reason": "the shared make-and-validate helper for tepna.verdict/1 objects (Verdict.make + Verdict.validate + producedBy.commit); the words occur only in its header comment \u2014 it decides nothing, it refuses to print an invalid object"
+  "capture-host/tests/test_verdict_wave2.py": {
+   "bin": "test",
+   "status": "exempt"
   }
  }
 }
