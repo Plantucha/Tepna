@@ -54,9 +54,73 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileS
 import { dirname, join, resolve } from 'node:path';
 import { resolveStatePath, stateDirs } from './mutation-map.mjs';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { stripNonCode } from './probe-equivalence.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const Verdict = createRequire(import.meta.url)(join(ROOT, 'verdict.js'));
+
+/* ── THE VERDICT OBJECT — tepna.verdict/1 (VERDICT-CONTRACT §1; wave-2 adopter, same mapping as
+   mutate.mjs's diff gate) ─────────────────────────────────────────────────────────────────────────
+   The decision this tool makes is the `--baseline` RATCHET: no function may be NEWLY pseudo-tested
+   against tools/pseudo-tested-baseline.json. The count itself is a measurement, not a gate — a file
+   with N known pseudo-tested functions passes; a file with one NEW one fails. So:
+     · NOT_RUN         usage / the group's baseline run is red — nothing measured
+     · UNKNOWN         the canary survived (an emptied function the suite is known to notice was NOT
+                       noticed) — the harness detects nothing, so "no new pseudo-tested" proves nothing
+     · NOT_APPLICABLE  the file is not in the baseline — unmeasured, deliberately not gated
+     · FAIL            ≥ 1 function newly pseudo-tested (named)
+     · PASS            0 new, over checked > 0 scored functions
+   Population = function bodies SCORED (noticed + partial + pseudo); excluded = trivial / no applicable
+   operator / not reached — the bodies the run declined to score, never silently credited. Pure. */
+export function gateVerdict({ file, known, now, scored, excluded, voided, fixed, commit, at }) {
+  const mk = (status, fields) => {
+    const producedBy = { tool: 'tools/extreme-mutate.mjs', commit: commit == null ? null : commit };
+    if (commit == null) producedBy.commitReason = fields.commitReason || 'not run inside a git checkout';
+    const v = Verdict.make({
+      gate: 'extreme-mutate-baseline',
+      status,
+      population: {
+        checked: status === 'NOT_RUN' || status === 'NOT_APPLICABLE' ? 0 : scored,
+        eligible: scored + excluded,
+        excluded: status === 'NOT_RUN' || status === 'NOT_APPLICABLE' ? scored + excluded : excluded
+      },
+      criterion: { name: 'newly_pseudo_tested_functions_vs_baseline', threshold: 0, unit: 'functions', direction: 'lte' },
+      result: status === 'NOT_RUN' || status === 'NOT_APPLICABLE' ? null : fields.result,
+      evidence: ['tools/extreme-mutate.mjs', 'tools/pseudo-tested-baseline.json', file],
+      reason: fields.reason == null ? null : fields.reason,
+      producedBy,
+      at: (at || new Date().toISOString()).replace(/\.\d{3}Z$/, 'Z')
+    });
+    const chk = Verdict.validate(v);
+    if (!chk.ok) throw new Error('extreme-mutate produced an invalid verdict: ' + chk.errors.join('; '));
+    return v;
+  };
+  if (voided)
+    return mk('UNKNOWN', {
+      result: { scored, pseudoTested: now ? now.length : null, known: known ? known.length : null },
+      reason: 'the canary survived on ' + file + ' — the harness detected nothing, so a clean ratchet would prove nothing'
+    });
+  if (!known) return mk('NOT_APPLICABLE', { reason: file + ' is not in tools/pseudo-tested-baseline.json — unmeasured, deliberately not gated (add it with --write-baseline)' });
+  const added = now.filter((f) => !known.includes(f));
+  const result = { scored, pseudoTested: now.length, known: known.length, added, fixed: fixed || known.filter((f) => !now.includes(f)) };
+  if (added.length) return mk('FAIL', { result, reason: added.length + ' function(s) NEWLY pseudo-tested in ' + file + ': ' + added.join(', ') });
+  return mk('PASS', { result, reason: null });
+}
+/* What the adoption gate runs: a synthetic ratchet through the real decision. Fixed `at`, no git. */
+export function verdictSample() {
+  return gateVerdict({
+    file: 'glucodex-dsp.js',
+    known: ['_ckParse', 'gapLabel'],
+    now: ['_ckParse'],
+    scored: 41,
+    excluded: 6,
+    voided: false,
+    commit: null,
+    at: '2026-09-22T00:00:00Z',
+    commitReason: '--verdict-sample: synthetic result set, no code identity claimed'
+  });
+}
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const opt = (f, d) => {
@@ -235,6 +299,10 @@ export function emptyBody(src, b) {
 }
 
 // ── selftest ────────────────────────────────────────────────────────────────────────────────
+if (IS_MAIN && has('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
 if (IS_MAIN && has('--selftest')) {
   let pass = 0,
     fail = 0;
@@ -267,6 +335,17 @@ if (IS_MAIN && has('--selftest')) {
   eq('every declaration is found', B.map((x) => x.fn).join(','), 'a,b,noop');
   eq('…with its line number', B[0].line, 1);
   const ea = emptyBody(SRC, B[0]);
+  // ── the verdict object: every status pinned through the REAL decision, and validated ──
+  const gv = (f) => gateVerdict({ file: 'x.js', known: ['p'], now: ['p'], scored: 10, excluded: 2, voided: false, commit: null, at: '2026-09-22T00:00:00Z', ...f });
+  ok(
+    'verdict · no new pseudo-tested ⇒ PASS, reason null, population an equality',
+    gv({}).status === 'PASS' && gv({}).reason === null && gv({}).population.checked + gv({}).population.excluded === gv({}).population.eligible
+  );
+  ok('verdict · a NEW pseudo-tested function ⇒ FAIL naming it', gv({ now: ['p', 'q'] }).status === 'FAIL' && /q/.test(gv({ now: ['p', 'q'] }).reason));
+  ok('verdict · a file absent from the baseline ⇒ NOT_APPLICABLE (unmeasured, not a pass), result null', gv({ known: null }).status === 'NOT_APPLICABLE' && gv({ known: null }).result === null);
+  ok('verdict · a surviving canary ⇒ UNKNOWN, never PASS', gv({ voided: true }).status === 'UNKNOWN');
+  ok('verdict · a fixed function is reported, not counted against', gv({ known: ['p', 'r'] }).status === 'PASS' && gv({ known: ['p', 'r'] }).result.fixed.join(',') === 'r');
+  ok('verdict · the sample the adoption gate reads validates under verdict.js', Verdict.validate(verdictSample()).ok);
   ok('a multi-line body is emptied', ea.includes('function a(x) {}'), JSON.stringify(ea.split('\n')[0]));
   ok('…and the REST of the file is untouched', ea.includes('function b() { return 3; }'));
   ok('a one-line body is emptied without corrupting the line', emptyBody(SRC, B[1]).includes('function b() {}'));
@@ -433,6 +512,7 @@ if (IS_MAIN && !has('--selftest')) {
       console.error('  The harness is not detecting mutations, so every "pseudo-tested" verdict this run');
       console.error('  would produce is meaningless. Refusing to report a number. (Check that workers run');
       console.error('  their OWN tests/run-tests.mjs — resolving back to the repo is how this breaks.)');
+      if (has('--json')) console.log(JSON.stringify(gateVerdict({ file, known: null, now: [], scored: 0, excluded: 0, voided: true, commit: null, commitReason: 'refused before scoring' })));
       process.exit(3);
     }
     process.stderr.write(`  canary PASSED — emptying ${canaryName} is noticed, so the harness detects mutations\n`);
@@ -717,13 +797,27 @@ if (IS_MAIN && !has('--selftest')) {
       baseline = JSON.parse(readFileSync(BFILE, 'utf8'));
     } catch (_) {}
     const known = baseline[file];
+    const gitShort = (() => {
+      try {
+        return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim();
+      } catch (_) {
+        return null;
+      }
+    })();
+    const scoredN = noticed + partial.length + pseudo.length;
+    const emitGate = (v) => {
+      if (has('--json')) console.log(JSON.stringify(v));
+      else process.stderr.write('  verdict (tepna.verdict/1): ' + v.status + (v.reason ? ' — ' + v.reason : '') + '\n');
+    };
     if (!known) {
-      console.log(`  ${file} is not in the baseline — not gated. Add it deliberately with --write-baseline.`);
+      emitGate(gateVerdict({ file, known: null, now: pseudo.map((p) => p.fn), scored: scoredN, excluded: trivial.length, voided: false, commit: gitShort }));
+      (has('--json') ? console.error : console.log)(`  ${file} is not in the baseline — not gated. Add it deliberately with --write-baseline.`);
       process.exit(0);
     }
     const now = pseudo.map((p) => p.fn);
     const added = now.filter((f) => !known.includes(f));
     const fixed = known.filter((f) => !now.includes(f));
+    emitGate(gateVerdict({ file, known, now, scored: scoredN, excluded: trivial.length, voided: false, fixed, commit: gitShort }));
     if (fixed.length) console.log(`  ✓ ${fixed.length} function(s) NO LONGER pseudo-tested: ${fixed.join(', ')}\n    …update the baseline so the ratchet tightens: --write-baseline`);
     if (added.length) {
       console.error(`\n✗ ${added.length} NEWLY pseudo-tested function(s) in ${file}:`);
