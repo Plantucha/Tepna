@@ -150,10 +150,50 @@ const fromCSV = (file, wrap) => {
   return wrap ? [night] : night;
 };
 
+/* A STORED O2Ring `.dat` night WITH its acquisition envelope — the fixture that makes the envelope hop
+   REAL (residue 2026-09-21-measurement-envelope-hop-unexercised: every other OxyDex fixture is a CSV,
+   so `evidence.envelopeRef` was null-with-reason on all of them and the Phase C session_id join had
+   only ever been exercised by a plant). Built through the SAME functions the app's drop path runs, in
+   the same order — `decodeO2RingBinToCSV` → `computeNight` → `_attachAcqEvidence` (the real join,
+   keyed on the envelope's session_id against the filename) → `buildNightElement` with the bundle's
+   code identity — so nothing in oxydex-dsp.js changes and `computeHash` stays put. `compute()` itself
+   has no envelope input (the app attaches the envelope between night and element, from its batch bag),
+   which is why this reproduces that seam by hand rather than adding an opt to the compute path.
+   ⚠ A malformed envelope, or one whose session_id does not sit in the filename, attaches NOTHING —
+   the join is the DSP's, and this tool does not paper over a miss: the fixture would then carry
+   envelopeRef null + reason, and the walk's envelope hop would read ∘/null, which is the row re-opening. */
+const fromDatWithEnvelope = (datFile, metaFile) => {
+  const dp = path.join(CORPUS, datFile),
+    mp = path.join(CORPUS, metaFile);
+  if (!fs.existsSync(dp) || !fs.existsSync(mp)) return null;
+  const bytes = new Uint8Array(fs.readFileSync(dp));
+  const csv = OxyDex.decodeO2RingBinToCSV(bytes, datFile, null);
+  const night = OxyDex.computeNight({ text: csv }, datFile);
+  if (!night) return null;
+  night.fname = night.fname || datFile;
+  const meta = JSON.parse(fs.readFileSync(mp, 'utf8'));
+  const acq = meta && meta.acquisition_evidence;
+  const bag = {};
+  if (acq && acq.session_id) bag[acq.session_id] = acq;
+  OxyDex._attachAcqEvidence(night, bag);
+  const el = OxyDex.buildNightElement(night, { provenance: null, kernel: null, ecgFusion: null, ansAge: null, code: CODE });
+  return [el];
+};
+
 const FIXTURES = [
   { name: 'OxyDex_2026-06-13_1056_summary.json', real: true, build: () => fromCSV('O2Ring S 2100_20260612230016.csv', true) },
   { name: 'OxyDex_2026-06-25_0439_summary.json', real: true, build: () => fromCSV('O2Ring S 2100_20260624222730.csv', true) },
-  { name: 'synthetic_oxydex_golden.node-export.json', build: () => fromCSV('synthetic_oxydex_o2ring.csv', false) }
+  { name: 'synthetic_oxydex_golden.node-export.json', build: () => fromCSV('synthetic_oxydex_o2ring.csv', false) },
+  {
+    name: 'OxyDex_2026-09-19_2245_stored_summary.json',
+    real: true,
+    build: () => fromDatWithEnvelope('Wellue_O2Ring-S_20260919224526_STORED.dat', 'Wellue_O2Ring-S_20260919224526_STORED.dat.meta.json'),
+    newRecord: {
+      added: '2026-09-21',
+      inputs: ['Wellue_O2Ring-S_20260919224526_STORED.dat', 'Wellue_O2Ring-S_20260919224526_STORED.dat.meta.json'],
+      note: 'MEASUREMENT-PROVENANCE-ROADMAP / residue 2026-09-21-measurement-envelope-hop-unexercised — the FIRST OxyDex fixture whose input is a stored O2Ring .dat night WITH its acquisition envelope (capture-host pull_session sidecar, ganglior.acquisition-evidence 1.1.0), so measurement.*.evidence.envelopeRef is a REAL session_id joined by the DSP (_attachAcqEvidence) rather than null-with-reason. 7.1 h box night 2026-09-19 (25,670 samples, device summary VALID/COMPLETE). Inputs are corpus-backed (gitignored, like the two CSV summaries): the .gitignore excludes real recordings by policy and the pair sits in the canonical corpus under smoketest-captures/stored/.'
+    }
+  }
 ];
 
 const rerecord = makeRerecord({ repo: REPO, node: 'OxyDex', bundle: 'OxyDex.html', fixturesDir: UP, corpusDir: CORPUS, ManifestGate });
