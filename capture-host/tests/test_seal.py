@@ -559,3 +559,105 @@ def test_the_consent_plant_is_symmetric_a_bag_that_disagrees_with_a_null_header_
         bag["tagmanifest-sha256.txt"] = ("\n".join(sorted(lines)) + "\n").encode(); return bag
     p = str(tmp_path / "cd.tepna"); seal.seal_night(night, p, **V.seal_kwargs(key), mutate_bag=m)
     assert _python(p)["kind"] == "consent" and _node(p)["kind"] == "consent"
+
+
+# ── THE SEALER DOES NOT HOLD THE NIGHT (residue 2026-09-22-seal-bags-the-whole-night-in-memory) ────
+# `build_bag` returns every file's bytes in a dict, so sealing cost the night plus three copies of the
+# zip. Measured on vigil 2026-09-22 against the real 2026-09-12 night (2067 MB): peak **3475 MB**,
+# 1.68x the night, in a child the daemon spawns while it holds every BLE link. Streaming the same
+# entries one file at a time and writing the payload without concatenating it: **1057 MB**, 0.51x,
+# same 95 s, and the sealed file's SHA-256 is the SAME on both implementations.
+#
+# These two tests are what make that safe: the zip must be byte-identical to the bag's, and the peak
+# must stay small enough that the old reader FAILS the bound. A bound the previous implementation
+# would also pass measures nothing.
+
+def _tree(root, sizes=(3000, 40000, 17)):
+    """A night of CAPTURE-SHAPED rows, which matters for the memory bound below: the cost of the bag
+    is the night, the cost of everything after it is the ZIP, so a fixture of incompressible noise
+    makes the two readers look alike. Measured — with random bytes the old reader traces 1.1x the
+    night and the new one 0.5x (no separation at any bound worth writing); with these rows, 1.69x and
+    0.94x, and the 1.69 is the same ratio the real 2067 MB night gives."""
+    os.makedirs(os.path.join(root, "sub"), exist_ok=True)
+    names = ["a_PPG.txt", "sub/b_ECG.txt", "z.json"]
+    for name, n in zip(names, sizes):
+        out = bytearray()
+        i = 0
+        while len(out) < n:
+            out += b"%d;%d;%d;%d;0\n" % (i * 8, i * 8000000, 100 + i % 37, 120 + i % 11)
+            i += 1
+        with open(os.path.join(root, name), "wb") as fh:
+            fh.write(bytes(out[:n]))
+    return names
+
+
+ZIP_KW = dict(box_id="B1", night="2026-09-12", consent=None, revision=2,
+              bagging_date="2026-09-22", extra_info={"Tepna-Capture-Host-Sha": "0000000"})
+
+
+def test_zip_night_bytes_is_the_same_zip_as_the_bag(tmp_path):
+    """The licence for the streaming path: identical bytes, not merely an equivalent bag."""
+    d = str(tmp_path / "night")
+    os.makedirs(d)
+    _tree(d)
+    for consent in (None, "yes", "no"):
+        kw = dict(ZIP_KW, consent=consent)
+        want = seal.bag_zip_bytes(seal.build_bag(d, **kw))
+        got, n_files, n_bytes = seal.zip_night_bytes(d, **kw)
+        assert got == want, f"the streamed zip differs from the bag's for consent={consent!r}"
+        assert n_files == 3 and n_bytes == 3000 + 40000 + 17
+    # …and BOTH refuse the same empty night, rather than sealing nothing. Asserted on both readers
+    # on purpose: `seal_night` no longer reaches `build_bag` on the production path, so its own
+    # refusal would otherwise lose its last caller and stop being exercised at all.
+    empty = str(tmp_path / "empty")
+    os.makedirs(empty)
+    for call in (lambda: seal.zip_night_bytes(empty, **ZIP_KW), lambda: seal.build_bag(empty, **ZIP_KW)):
+        with pytest.raises(seal.SealError) as e:
+            call()
+        assert "holds no files" in str(e.value)
+
+
+def test_a_file_that_MOVES_under_the_sealer_is_refused_not_sealed(tmp_path, monkeypatch):
+    """`bag-info.txt` sorts before `data/`, so the Oxum is counted from `stat` before a byte is read.
+    A night still being written would make that count a lie; the streamer verifies each file against
+    the size it counted and raises. `build_bag` cannot see this case at all — it reports what it read."""
+    d = str(tmp_path / "night")
+    os.makedirs(d)
+    _tree(d)
+    real_getsize = os.path.getsize
+    monkeypatch.setattr(seal.os.path, "getsize",
+                        lambda p: real_getsize(p) + 1 if p.endswith("z.json") else real_getsize(p))
+    with pytest.raises(seal.SealError) as e:
+        seal.zip_night_bytes(d, **ZIP_KW)
+    assert "changed size under the sealer" in str(e.value) and "z.json" in str(e.value)
+
+
+def test_sealing_does_not_hold_the_night_in_memory(tmp_path, key):
+    """The bound, with the separation MEASURED rather than assumed.
+
+    ⚠️ 1.25x THE NIGHT IS NOT A ROUND NUMBER, IT IS A SEPARATION. On this fixture the streaming
+    sealer traces **0.94x** the night at its peak and `origin/main`'s bag reader **1.69x**, so this
+    assertion fails there and passes here; on vigil's real 2067 MB night the same pair is 1057 MB and
+    3475 MB (0.51x / 1.68x — the old ratio reproduces exactly). Before relaxing this threshold,
+    re-measure BOTH readers on the same fixture and keep the gap, or the test stops being able to
+    tell them apart and goes on reporting green about a sealer it never examined.
+
+    ⚠️ And keep the fixture COMPRESSIBLE. The first version of this test used random bytes, where the
+    two readers trace 1.1x and 0.5x — no bound separates them, and the one I had written (2.5x) passed
+    on BOTH. The fixture is part of the instrument.
+    """
+    import tracemalloc
+    d = str(tmp_path / "night")
+    os.makedirs(d)
+    sizes = (8_000_000, 12_000_000, 4_000_000)
+    _tree(d, sizes=sizes)
+    night_bytes = sum(sizes)
+    out = str(tmp_path / "sealed.tepna")
+    tracemalloc.start()
+    seal.seal_night(d, out, **V.seal_kwargs(key, night="2026-09-12"))
+    _cur, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert os.path.getsize(out) > 0, "the fixture must actually seal, or the bound is vacuous"
+    assert peak < 1.25 * night_bytes, (
+        f"the sealer held {peak / night_bytes:.2f}x the night ({peak / 1e6:.1f} MB of "
+        f"{night_bytes / 1e6:.1f} MB)")
