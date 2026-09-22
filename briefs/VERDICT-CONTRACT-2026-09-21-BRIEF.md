@@ -160,11 +160,11 @@ wrong green*. Not a proposal; change it by editing this section with a reason.
 
 | # | unit | owner | gate to start |
 |---|---|---|---|
-| 1 | `verdict.js` + `docs/VERDICT-CONTRACT.md` + ten plants (**landed 2026-09-22**, Osprey) — add `scope` + its plant | Osprey | — |
-| 2 | `tools/verdict-adoption.mjs` + committed manifest: every producer binned (decides / already-json / word-only-with-reason), equality gate | Osprey | after 1 — **the fleet's critical path**; nothing in wave 1 is "done" until it is in the manifest |
-| 3 | box nightly verdicts: `nightqc.summarize`, `night_report.py`, end-of-night back-check → one object per night beside the report; deploy owner-authorized | Wren (box), Heron reviews | after 1; can build against the shape now |
-| 4 | `verify-seals.mjs` + `unseal.py` — built (#2796); validator call + `scope` when 1 is on main | Heron | after 1 |
-| 5 | `mutate.mjs` / `mutation_diff.py`: killed · survived · **timeout as its own state** (closes `2026-09-05-mutate-diff-timeout-reads-as-kill`) | Osprey | after 2 |
+| 1 | `verdict.js` + `docs/VERDICT-CONTRACT.md` + ten plants + `scope` and its two plants — **landed #2797** | Osprey | — |
+| 2 | `tools/verdict-adoption.mjs` + committed manifest: every producer binned (decides / already-json / word-only-with-reason), equality gate — **landed #2799** (153 binned; adoptions READ, never believed) | Osprey | after 1 — **the fleet's critical path**; nothing in wave 1 is "done" until its row reads `adopted` |
+| 3 | box nightly verdicts: `night-qc` + `night-backcheck` objects beside each night's summary; `night_report` decides nothing and becomes the first CONSUMER — **#2803 (relayed)**; the unit's finding: `class_b_quality` skipped files silently and "ok" over an empty list is now `UNKNOWN` with eligible/checked/excluded visible | Wren (box), Heron reviews | after 1; deploy owner-authorized |
+| 4 | `verify-seals.mjs` + `unseal.py` — validator call, `scope`, crash → UNKNOWN, consent-agreement plant — **landed #2800**, the manifest's first `adopted` row | Heron | after 1 |
+| 5 | `mutation_diff.py`: killed · survived · **timeout/suspicious as `UNKNOWN`, never a kill** — **landed #2802** (the residue row was already `fixed #2403`; this makes that state machine-readable one level up); `mutate.mjs` (JS side) still open | Osprey | after 2 |
 | 6 | `oracle-ecg-firmware-rr --json` (landed with 1) · `measurement-walk --json` (Magpie, in the envelope-hop unit) · `n1-cohort-track` (local, done) | Osprey · Magpie | converge to 1 |
 | 7 | `trio-batch` per-night gates (NOT NOCTURNAL · overlap · no anchor) — decides what enters the corpus | Kestrel | after the ECGDex emitter PR |
 | 8 | wave 2 sweep, one PR per lane: `nsrr-*-validate`, `cohort-fit`, `land-pr`/`queue-doctor`, `corpus-tier`, byte audit, `verify-fixtures`, `commit-shape`, `check.sh` token, `canaryVerdict` | by lane, from the manifest | after 2 |
