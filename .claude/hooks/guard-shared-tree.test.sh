@@ -325,6 +325,18 @@ case "$_rp" in
   *"WRITING PROSE"*) echo "  ok    an interpreter-heredoc denial names the plain-file remedy" ;;
   *) echo "  FAIL  the denial does not tell a prose author what to do instead"; fail=$((fail+1)) ;;
 esac
+# The obvious shortcut is the WRONG tool and the paragraph must say so: the hatch disables the whole
+# guard, so using it to write a PR body turns off the protection against a blanket add to describe one.
+case "$_rp" in
+  *"NOT THE REMEDY HERE"*) echo "  ok    …and names what the escape hatch would actually cost" ;;
+  *) echo "  FAIL  the remedy does not warn that the hatch disables the whole guard"; fail=$((fail+1)) ;;
+esac
+# The failure signal for this paragraph cannot be observed — nothing records hatch usage — so the
+# denial asks for a self-report. Without it the "worth watching" is a caveat, not a check.
+case "$_rp" in
+  *"SAY SO"*) echo "  ok    …and asks for a self-report, the only evidence hatch use can leave" ;;
+  *) echo "  FAIL  no self-report asked for, so the stated failure signal is unobservable"; fail=$((fail+1)) ;;
+esac
 # …and NOT on an ordinary denial: advice that appears on every denial is noise, and noise is how the
 # one paragraph that mattered gets skipped.
 _rq="$(reason 'git add -A')"

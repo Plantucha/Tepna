@@ -143,11 +143,20 @@ _other_clauses() {
 #    CLAUDE_ALLOW_STALE_BRIEF. So when the denied command carries an interpreter heredoc, the message
 #    names the remedy: prose belongs in a plain file. It is one extra paragraph, shown only to the
 #    sessions who need it.
+#    ⚠ IT ALSO NAMES WHAT THE SHORTCUT COSTS, because the obvious shortcut is the wrong tool: the
+#    hatch disables THIS WHOLE GUARD (`:32`, before every rule), so using it to write a PR body turns
+#    off the protection against a blanket add in order to DESCRIBE one. Naming that is a stronger
+#    deterrent than the advice alone.
+#    ⚠ AND IT ASKS FOR A SELF-REPORT, because the obvious failure signal cannot be observed: nothing
+#    records hatch usage — no telemetry, no log, an env var leaves no trace — so "sessions reached for
+#    the hatch instead of moving to plain files" is unfalsifiable as a metric. A self-report is weak
+#    evidence and it is the only evidence available; asking for it in the denial costs nothing and is
+#    the difference between a check and a caveat.
 _prose_remedy() {
   printf '%s' "$cmdn" | grep -qE "<<-?'?[A-Za-z_]" || return 0
   _pre1="$(printf '%s' "$cmdn" | sed -E "s/<<-?'?[A-Za-z_].*//")"
   printf '%s' "$_pre1" | grep -qE '(^|[;&|[:space:]])(bash|sh|zsh|python3?|node|perl|ruby|php)([[:space:]]|$)' || return 0
-  printf '\n\nWRITING PROSE THAT MENTIONS A FORBIDDEN FORM? The body of an INTERPRETER heredoc\n(`python3 - <<PY`, `bash <<EOF`) is a PROGRAM, so every rule reads it raw — the guard cannot tell\na quoted command inside a program from one about to run. A heredoc fed to anything else (a commit\nmessage, a PR body) IS treated as prose and is stripped. So:\n\n    cat > /tmp/body.md <<\x27EOF\x27      # prose in a plain file, no interpreter\n    ...\n    EOF\n    gh pr create --body-file /tmp/body.md\n    git commit -F /tmp/msg.txt\n\nThis is fail-closed on purpose: "it is only documentation" is a claim nothing can verify.'
+  printf '\n\nWRITING PROSE THAT MENTIONS A FORBIDDEN FORM? The body of an INTERPRETER heredoc\n(`python3 - <<PY`, `bash <<EOF`) is a PROGRAM, so every rule reads it raw — the guard cannot tell\na quoted command inside a program from one about to run. A heredoc fed to anything else (a commit\nmessage, a PR body) IS treated as prose and is stripped. So:\n\n    cat > /tmp/body.md <<\x27EOF\x27      # prose in a plain file, no interpreter\n    ...\n    EOF\n    gh pr create --body-file /tmp/body.md\n    git commit -F /tmp/msg.txt\n\nThis is fail-closed on purpose: "it is only documentation" is a claim nothing can verify.\n\nTHE ESCAPE HATCH IS NOT THE REMEDY HERE. CLAUDE_ALLOW_BLANKET_GIT=1 disables THIS WHOLE GUARD,\nevery rule, for the rest of the command — so reaching for it to write a PR body means turning\noff the protection against a blanket add in order to describe one. The plain file costs a line.\nIf you do use the hatch on a prose denial, SAY SO in the PR or the commit: nothing records hatch\nuse, so a self-report is the only evidence that this paragraph is not working.'
 }
 deny() {
   local _n _list _extra=""
