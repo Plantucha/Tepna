@@ -392,6 +392,18 @@
    "status": "exempt",
    "reason": "verdict words appear only in comments"
   },
+  "tools/cohort-fit.mjs": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/cohort-fit.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "synthetic cohort vs a real reference: verdictObject() decides on COVERAGE (unreachable_real_share \u2264 0 %, every real stratum weighted), never on KS resemblance \u2014 PASS \u00b7 SHORTFALL unweighted stratum \u00b7 FAIL records above the generator ceiling \u00b7 UNDERPOWERED < 100 real records \u00b7 NOT_RUN no scored record; --json emits the object at the top level"
+  },
   "tools/commit-shape.mjs": {
    "bin": "word-only",
    "status": "exempt",
