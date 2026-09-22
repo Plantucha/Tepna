@@ -37,12 +37,24 @@
  * USAGE
  *   node tools/selftest-all.mjs          # every tool; non-zero if any fails
  *   node tools/selftest-all.mjs --list   # just show what would run
+ *   node tools/selftest-all.mjs --json   # the sweep, plus ONE tepna.verdict/1 object on stdout (report → stderr)
+ *   node tools/selftest-all.mjs --verdict-sample   # the object over a scratch result set, no sweep
+ *
+ * VERDICT — the second RUNNER adopter of VERDICT-CONTRACT §3d, through the same `aggregateChildren` as
+ * run-check. Children are the per-tool selftests, read from the summary line this script already
+ * parses: a parsed count ⇒ PASS (provenance 'summary', with n); green but UNPARSEABLE ⇒ UNKNOWN, never
+ * a tool failure; a failing selftest ⇒ FAIL; a TIMEOUT or a kill ⇒ UNKNOWN (the tool decided nothing —
+ * §3c's timeout rule); a tool discovery found but could not run (the `--self-test` near miss) ⇒ NOT_RUN,
+ * excluded, unplanned ⇒ the run is UNKNOWN. The ratchet is this runner's ONE pre-stated criterion of its
+ * own: an unratcheted unparseable tool, or a paid debt left in the map, is FAIL by name. The EXIT CODE
+ * STAYS for the shell and CI.
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
 import { execFile } from 'node:child_process';
 import os from 'node:os';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { aggregateChildren, makeVerdict } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TOOLS = join(ROOT, 'tools');
@@ -197,6 +209,92 @@ export function failureLines(out) {
   return all.filter((l) => l.trim()).slice(-6);
 }
 
+/* ── the §3d object — pure over the per-tool results, so the selftest can plant every row ───────────
+   results: [{ f, ok, readable, n, why }] as `run` produces them; nearMiss: tools discovery could not run;
+   ratchet: the UNPARSEABLE_RATCHET set in force. */
+export function childrenFrom(results, nearMiss, ratchet) {
+  const kids = results.map((r) => {
+    if (!r.ok) {
+      const killed = /TIMED OUT|killed by/.test(r.why || '');
+      return { name: 'tools/' + r.f, provenance: 'summary', status: killed ? 'UNKNOWN' : 'FAIL', why: r.why || 'failed' };
+    }
+    if (!r.readable)
+      return {
+        name: 'tools/' + r.f,
+        provenance: 'summary',
+        status: 'UNKNOWN',
+        why: ratchet.has(r.f) ? 'no parseable summary (ratcheted debt)' : 'no parseable summary and NOT in UNPARSEABLE_RATCHET'
+      };
+    return { name: 'tools/' + r.f, provenance: 'summary', status: 'PASS', n: r.n };
+  });
+  for (const f of nearMiss) kids.push({ name: 'tools/' + f, provenance: 'not-run', why: 'has a selftest discovery cannot reach' });
+  return kids;
+}
+
+export function sweepVerdict(results, nearMiss, ratchet, { commit, commitReason, at } = {}) {
+  const children = childrenFrom(results, nearMiss, ratchet);
+  const agg = aggregateChildren(children, { eligible: children.length });
+  const unratcheted = results.filter((r) => r.ok && !r.readable && !ratchet.has(r.f)).map((r) => r.f);
+  const paid = [...ratchet].filter((f) => results.some((r) => r.f === f && r.readable));
+  let { status, reason, result } = agg;
+  const assertions = results.reduce((a, r) => a + (r.ok && r.readable && r.n ? r.n : 0), 0);
+  if (result)
+    result = {
+      ...result,
+      assertions,
+      unratcheted,
+      paid,
+      children: result.children.map((c, i) => ({ ...c, ...(children[i].n ? { n: children[i].n } : {}), ...(children[i].why ? { why: children[i].why } : {}) }))
+    };
+  /* THE RATCHET is the runner's own pre-stated criterion; a violation is FAIL by name even when every
+     child is green — it is the only thing this script adds over the CI loop (see UNPARSEABLE_RATCHET). */
+  if ((unratcheted.length || paid.length) && status !== 'FAIL') {
+    status = 'FAIL';
+    reason =
+      `ratchet violated: ${unratcheted.length} tool(s) green but unparseable and NOT in UNPARSEABLE_RATCHET (${unratcheted.join(' · ') || '—'}); ${paid.length} paid debt(s) still in the map (${paid.join(' · ') || '—'})` +
+      (agg.reason ? `; also ${agg.reason}` : '');
+  }
+  return makeVerdict({
+    gate: 'selftest-all',
+    status,
+    population: agg.population,
+    criterion: {
+      name: 'children_failing (any failing selftest ⇒ FAIL; a timeout or an unparseable summary ⇒ UNKNOWN, never green; a near-miss tool is NOT_RUN ⇒ UNKNOWN; the UNPARSEABLE_RATCHET may only go down — a violation is FAIL)',
+      threshold: 0,
+      unit: 'failing children',
+      direction: 'eq'
+    },
+    result,
+    evidence: children.filter((c) => c.provenance !== 'not-run').map((c) => `node ${c.name} --selftest`),
+    reason,
+    tool: 'tools/selftest-all.mjs',
+    commit,
+    commitReason,
+    at
+  });
+}
+
+/* A scratch result set: three parsed counts, one ratcheted-unparseable, one near miss — the honest
+   shape of a real sweep today (UNKNOWN: the ratchet debt and the unreachable tool), no code identity. */
+export function verdictSample() {
+  const R = [
+    { f: 'scratch-a.mjs', ok: true, readable: true, n: 12 },
+    { f: 'scratch-b.mjs', ok: true, readable: true, n: 7 },
+    { f: 'scratch-c.mjs', ok: true, readable: true, n: 30 },
+    { f: 'scratch-d.mjs', ok: true, readable: false, n: null }
+  ];
+  return sweepVerdict(R, ['scratch-e.mjs'], new Set(['scratch-d.mjs']), {
+    commit: null,
+    commitReason: '--verdict-sample: a scratch result set, no sweep run, no code identity claimed',
+    at: '2026-09-22T00:00:00Z'
+  });
+}
+
+if (argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(verdictSample()));
+  process.exit(0);
+}
+
 if (argv.includes('--selftest')) {
   let n = 0;
   const eq = (c, m) => {
@@ -255,6 +353,37 @@ if (argv.includes('--selftest')) {
     eq(peak > 1, `…and it is actually CONCURRENT, not serialised (peak ${peak})`);
     eq(seen.join(',') === '50,40,30,20,10,0,60,70', 'results stay in INPUT order, not completion order');
   }
+  /* ── §3d PLANTS, one per table row, each object built through makeVerdict (an invalid one THROWS) */
+  {
+    const AT = { commit: null, commitReason: 'selftest', at: '2026-09-22T00:00:00Z' };
+    const ok = (f, cnt) => ({ f, ok: true, readable: true, n: cnt });
+    const R3 = [ok('a.mjs', 3), ok('b.mjs', 4), ok('c.mjs', 5)];
+    const green = sweepVerdict(R3, [], new Set(), AT);
+    eq(green.status === 'PASS' && green.result.assertions === 12 && green.population.checked === 3, '§3d · every tool parsed ⇒ PASS, assertions summed');
+    eq(
+      green.result.children.every((c) => c.provenance === 'summary' && c.n),
+      '§3d · children carry provenance summary and their count'
+    );
+    const fail = sweepVerdict([ok('a.mjs', 3), { f: 'b.mjs', ok: false, readable: false, why: 'exited 1' }, ok('c.mjs', 5)], [], new Set(), AT);
+    eq(fail.status === 'FAIL' && fail.result.firstFailure === 'tools/b.mjs', '§3d plant · a failing selftest ⇒ FAIL, named');
+    const to = sweepVerdict([ok('a.mjs', 3), { f: 'b.mjs', ok: false, readable: false, why: 'TIMED OUT after 120s (killed, SIGTERM)' }], [], new Set(), AT);
+    eq(to.status === 'UNKNOWN' && /b\.mjs/.test(to.reason), '§3d plant · a TIMEOUT ⇒ UNKNOWN, never a tool failure');
+    const unp = sweepVerdict([ok('a.mjs', 3), { f: 'b.mjs', ok: true, readable: false, n: null }], [], new Set(['b.mjs']), AT);
+    eq(unp.status === 'UNKNOWN' && unp.population.checked === 2, '§3d plant · green but unparseable (ratcheted) ⇒ UNKNOWN, still checked');
+    const unr = sweepVerdict([ok('a.mjs', 3), { f: 'b.mjs', ok: true, readable: false, n: null }], [], new Set(), AT);
+    eq(unr.status === 'FAIL' && /NOT in UNPARSEABLE_RATCHET \(b\.mjs\)/.test(unr.reason), '§3d plant · unparseable and NOT ratcheted ⇒ FAIL by the ratchet, named');
+    const paid = sweepVerdict(R3, [], new Set(['a.mjs']), AT);
+    eq(paid.status === 'FAIL' && /paid debt\(s\) still in the map \(a\.mjs\)/.test(paid.reason), '§3d plant · a paid debt left in the map ⇒ FAIL (the ratchet only goes down)');
+    const nm = sweepVerdict(R3, ['z.mjs'], new Set(), AT);
+    eq(
+      nm.status === 'UNKNOWN' && JSON.stringify(nm.population) === JSON.stringify({ checked: 3, eligible: 4, excluded: 1 }),
+      '§3d plant · a near-miss tool is NOT_RUN, excluded, and the run is UNKNOWN'
+    );
+    const none = sweepVerdict([], ['z.mjs'], new Set(), AT);
+    eq(none.status === 'NOT_RUN' && none.result === null, '§3d plant · nothing ran ⇒ NOT_RUN with result null');
+    const sample = verdictSample();
+    eq(sample.status === 'UNKNOWN' && sample.population.eligible === 5 && sample.producedBy.commit === null, '§3d · --verdict-sample is the honest shape: UNKNOWN over 4 checked of 5, no commit');
+  }
   console.log(`all ${n} selftests passed`);
   process.exit(0);
 }
@@ -294,8 +423,10 @@ const nearMiss = readdirSync(TOOLS)
    invisible from inside any single session. Printing the 1-minute load average is what turns that from a
    narrative into something falsifiable: a kill at LOW load refutes it outright, and a kill at high load
    with no other gate running refutes it differently. Costs one syscall. */
+const JSON_OUT = argv.includes('--json');
+const out = JSON_OUT ? (...a) => console.error(...a) : (...a) => console.log(...a);
 const load0 = os.loadavg()[0];
-console.log(`  load average at sweep start: ${load0.toFixed(2)} (${os.cpus().length} cores)`);
+out(`  load average at sweep start: ${load0.toFixed(2)} (${os.cpus().length} cores)`);
 /* 🔴 BOUNDED, NOT `Promise.all(files.map(run))` — which spawned EVERY tool at once: measured 84 node
    subprocesses on 24 cores, against a fixed 120 s per-tool timeout. A tool that needs real CPU is then
    starved by its 83 siblings and killed at the cap, so `test:tools` reds the LOCAL `npm run check` for
@@ -332,7 +463,7 @@ let failed = 0,
 for (const r of results) {
   if (!r.ok) {
     failed++;
-    console.log(`  ✗ tools/${r.f}  FAILED${r.why ? '  — ' + r.why : ''}${slow(r)}${r.load != null ? `  [load ${r.load.toFixed(2)} at the kill, ${load0.toFixed(2)} at start]` : ''}`);
+    out(`  ✗ tools/${r.f}  FAILED${r.why ? '  — ' + r.why : ''}${slow(r)}${r.load != null ? `  [load ${r.load.toFixed(2)} at the kill, ${load0.toFixed(2)} at start]` : ''}`);
     /* PRINT THE EVIDENCE THAT EXISTS, not only the evidence of one failure shape. This filtered the
        tool's output to lines containing `✗` or `FAILED` — the signature of an ASSERTION failure — so a
        timeout, a crash or any non-zero exit whose output carries neither token printed a BLANK LINE and
@@ -343,7 +474,7 @@ for (const r of results) {
        lead when present; otherwise the tail of whatever the tool did say, and `(no output at all)` when
        it said nothing, which is itself the tell for a timeout. */
     const shown = failureLines(r.out);
-    console.log(shown.length ? shown.map((l) => '      ' + l.trim()).join('\n') : '      (no output at all — consistent with a timeout or a kill before the tool printed)');
+    out(shown.length ? shown.map((l) => '      ' + l.trim()).join('\n') : '      (no output at all — consistent with a timeout or a kill before the tool printed)');
   } else if (!r.readable) {
     /* Exited 0 but printed nothing this script recognises. WARN, do not fail.
        The EXIT CODE is the contract a tool actually declares; "must also print a summary I can parse"
@@ -353,32 +484,34 @@ for (const r of results) {
        coverage threshold out of #1163. */
     warned++;
     if (UNPARSEABLE_RATCHET.has(r.f)) {
-      console.log(`  ⚠ tools/${r.f}  green (exit 0), but no parseable summary — cannot report an assertion count${slow(r)}`);
+      out(`  ⚠ tools/${r.f}  green (exit 0), but no parseable summary — cannot report an assertion count${slow(r)}`);
     } else {
       /* NOT grandfathered. The warn-don't-fail argument above is about the 48 tools that predate the
          rule; it is not a licence for the next one. A tool nobody can count assertions for is a tool
          whose suite can shrink to nothing unnoticed, and that is the only thing this script adds. */
       unratcheted.push(r.f);
-      console.log(`  ✗ tools/${r.f}  green, but prints NO PARSEABLE ASSERTION COUNT and is not in UNPARSEABLE_RATCHET${slow(r)}`);
+      out(`  ✗ tools/${r.f}  green, but prints NO PARSEABLE ASSERTION COUNT and is not in UNPARSEABLE_RATCHET${slow(r)}`);
     }
   } else {
     total += r.n || 0;
-    console.log(`  ✓ tools/${r.f}${r.n ? '  ' + r.n + ' assertions' : '  green'}${slow(r)}`);
+    out(`  ✓ tools/${r.f}${r.n ? '  ' + r.n + ' assertions' : '  green'}${slow(r)}`);
   }
 }
 for (const f of nearMiss) {
-  console.log(`  ✗ tools/${f}  HAS a selftest that discovery cannot reach — spell the flag \`--selftest\` and read it from a CALL, e.g. \`flag('--selftest')\` or \`argv.includes('--selftest')\``);
+  out(`  ✗ tools/${f}  HAS a selftest that discovery cannot reach — spell the flag \`--selftest\` and read it from a CALL, e.g. \`flag('--selftest')\` or \`argv.includes('--selftest')\``);
 }
 /* A tool that has PAID its debt must leave the map, or the ratchet stops being one: a stale entry is
    a standing permission nobody re-earned, and the count would drift up again behind it. */
 const paid = [...UNPARSEABLE_RATCHET].filter((f) => results.some((r) => r.f === f && r.readable));
 for (const f of paid) {
-  console.log(`  ✗ tools/${f}  now reports a count — REMOVE it from UNPARSEABLE_RATCHET (the ratchet may only go down)`);
+  out(`  ✗ tools/${f}  now reports a count — REMOVE it from UNPARSEABLE_RATCHET (the ratchet may only go down)`);
 }
 for (const f of unratcheted) {
-  console.log(`  → tools/${f}: end its selftest with \`all <N> selftests passed\` (see box-sample.mjs)`);
+  out(`  → tools/${f}: end its selftest with \`all <N> selftests passed\` (see box-sample.mjs)`);
 }
-console.log(
+out(
   `\n${failed || nearMiss.length ? `✗ ${failed} tool selftest(s) FAILED${nearMiss.length ? `, ${nearMiss.length} unreachable` : ''}` : `✓ ${results.length} tools, ${total}+ assertions — all green`}${warned ? `  (${warned} green but unparseable)` : ''}`
 );
+if (JSON_OUT) console.log(JSON.stringify(sweepVerdict(results, nearMiss, UNPARSEABLE_RATCHET)));
+/* THE EXIT CODE STAYS — the shell and CI read it until the consumer reads the object (§3d). */
 process.exit(failed || nearMiss.length || unratcheted.length || paid.length ? 1 : 0);

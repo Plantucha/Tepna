@@ -987,8 +987,15 @@
   },
   "tools/selftest-all.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "the runner that reads every selftest verdict and exits on it \u2014 RUNNER over N gates: decides (every step/suite green), so it stays `decides`, but its object is a run-level summary over the population of steps, which is the wave-3 design question (VERDICT-CONTRACT \u00a73b #9: a runner's verdict must not restate its children's, it aggregates them); pending until that design lands, deliberately not wrapped now"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/selftest-all.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the second RUNNER adopter (Magpie, 2026-09-22, VERDICT-CONTRACT \u00a73d), through the same aggregateChildren as run-check: children = the per-tool selftests read from the summary line the script already parses (provenance 'summary' with n) \u2014 a parsed count is PASS, green-but-unparseable is UNKNOWN never a tool failure, a failing selftest is FAIL, a timeout/kill is UNKNOWN (the tool decided nothing), a near-miss tool discovery cannot run is NOT_RUN/excluded and unplanned \u21d2 UNKNOWN; the ratchet is the runner's one criterion of its own (an unratcheted unparseable tool or a paid debt left in the map \u21d2 FAIL by name). Measured on the real sweep: UNKNOWN over 121/121 \u2014 26 ratcheted-unparseable children, 1666 assertions counted. --json prints the object (report \u2192 stderr); the exit code stays. Ten \u00a73d plants in --selftest; the cmd is a scratch result set."
   },
   "tools/stmt-delete.mjs": {
    "bin": "already-json",
