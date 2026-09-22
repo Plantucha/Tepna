@@ -29,6 +29,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
+import { makeVerdict } from './verdict-emit.mjs';
 
 export function scoreRows(vals, beats) {
   const t = { rows: vals.length, loneB1: 0, loneB0: 0, runB1: 0, runB0: 0, beatOff156: 0, runs: 0, longest: 0 };
@@ -57,6 +58,68 @@ export function verdict(t) {
   const holds = t.loneB0 === 0 && t.runB1 === 0 && t.beatOff156 === 0;
   const runRows = t.runB1 + t.runB0;
   return { holds, vacuous: runRows === 0, runRows, label: !holds ? 'FALSIFIED' : runRows === 0 ? 'HOLDS (vacuous — no run of 156s seen)' : 'HOLDS' };
+}
+
+/* ── tepna.verdict/1 (VERDICT-CONTRACT §1; wave-2 adopter) — the same decision as ONE object ──────
+   The heuristic "a lone 156 is a beat marker, a run of 156s is signal" holds when three counts are all
+   zero: lone-156 with beat=0, run-156 with beat=1, beat=1 off a 156. Pre-stated (#2758). Statuses:
+     · PASS          holds, and ≥ 1 discriminating run row was seen (the pass is not vacuous)
+     · UNDERPOWERED  holds but NO run of 156s occurred — the discriminating case never happened, so the
+                     pass is vacuous; minimum 1 run row (memory: verify-the-plant-was-seen)
+     · FAIL          falsified — names which count is non-zero
+     · NOT_RUN       no PLETHA file could be scored
+   Population = rows scored, as an equality. */
+export function verdictObject(tot, { files, scored, root, commit, commitReason, at } = {}) {
+  const v = verdict(tot);
+  const bad = [
+    ['loneB0', tot.loneB0, 'lone 156 with beat=0'],
+    ['runB1', tot.runB1, 'run 156 with beat=1'],
+    ['beatOff156', tot.beatOff156, 'beat=1 off a 156']
+  ].filter((x) => x[1] > 0);
+  const status = !scored ? 'NOT_RUN' : !v.holds ? 'FAIL' : v.vacuous ? 'UNDERPOWERED' : 'PASS';
+  const reason =
+    status === 'PASS'
+      ? null
+      : status === 'NOT_RUN'
+        ? (files || 0) + ' PLETHA file(s) found, none scored'
+        : status === 'FAIL'
+          ? 'FALSIFIED — ' + bad.map((x) => x[2] + ': ' + x[1]).join(', ')
+          : 'vacuous — 0 run rows of 156 seen, minimum 1 for a non-vacuous verdict (' + tot.rows + ' rows, ' + tot.runs + ' runs)';
+  return makeVerdict({
+    gate: 'pletha-marker-oracle',
+    status,
+    population: { checked: status === 'NOT_RUN' ? 0 : tot.rows, eligible: tot.rows, excluded: status === 'NOT_RUN' ? tot.rows : 0 },
+    criterion: { name: 'lone_156_is_beat_and_run_156_is_signal', threshold: 0, unit: 'disagreeing rows', direction: 'eq' },
+    result:
+      status === 'NOT_RUN'
+        ? null
+        : {
+            rows: tot.rows,
+            loneB1: tot.loneB1,
+            loneB0: tot.loneB0,
+            runB1: tot.runB1,
+            runB0: tot.runB0,
+            beatOff156: tot.beatOff156,
+            runs: tot.runs,
+            longest: tot.longest,
+            runRows: v.runRows,
+            files: files ?? null,
+            scored: scored ?? null
+          },
+    evidence: ['tools/pletha-marker-oracle.mjs'].concat(root ? [String(root)] : []),
+    reason,
+    tool: 'tools/pletha-marker-oracle.mjs',
+    commit,
+    commitReason,
+    at
+  });
+}
+/* What the adoption gate runs: the corpus-measured counts of #2758 through the real decision. */
+export function verdictSample() {
+  return verdictObject(
+    { rows: 4361226, loneB1: 5455, loneB0: 0, runB1: 0, runB0: 4, beatOff156: 0, runs: 5407, longest: 3 },
+    { files: 4, scored: 4, commit: null, commitReason: '--verdict-sample: the #2758 corpus counts, no code identity claimed', at: '2026-09-22T00:00:00Z' }
+  );
 }
 
 async function scoreFile(p) {
@@ -100,13 +163,26 @@ function selftest() {
   const vac = scoreRows([97, 156, 98], [false, true, false]);
   eq(verdict(vac).vacuous, true, 'no run of 156s → the pass is VACUOUS and says so');
   eq(verdict(scoreRows([156, 156], [true, false])).holds, false, 'a beat inside a run falsifies');
+  // ── the object: every status through the real decision ──
+  const base = { rows: 10, loneB1: 2, loneB0: 0, runB1: 0, runB0: 3, beatOff156: 0, runs: 3, longest: 2 };
+  const vo = (t, o) => verdictObject({ ...base, ...t }, { files: 1, scored: 1, commit: null, commitReason: 'selftest', at: '2026-09-22T00:00:00Z', ...o });
+  eq(vo({}).status, 'PASS', 'object: holds + run rows seen ⇒ PASS');
+  eq(vo({}).reason, null, 'object: PASS carries no reason');
+  eq(vo({ runB0: 0, runs: 0 }).status, 'UNDERPOWERED', 'object: holds but no run of 156s ⇒ UNDERPOWERED (vacuous), never PASS');
+  eq(vo({ loneB0: 1 }).status, 'FAIL', 'object: a lone 156 with beat=0 ⇒ FAIL');
+  eq(/beat=1 off a 156: 2/.test(vo({ beatOff156: 2 }).reason), true, 'object: FAIL names WHICH count');
+  eq(vo({}, { scored: 0, files: 0 }).status, 'NOT_RUN', 'object: nothing scored ⇒ NOT_RUN');
+  eq(verdictSample().status, 'PASS', 'object: the #2758 corpus sample is a non-vacuous PASS');
   console.log('✓ all ' + ok + ' assertions passed');
 }
 
 const arg = process.argv[2];
+const JSON_OUT = process.argv.includes('--json');
+const out = (line) => (JSON_OUT ? console.error(line) : console.log(line));
 if (arg === '--selftest') selftest();
+else if (arg === '--verdict-sample') console.log(JSON.stringify(verdictSample()));
 else if (!arg || !fs.existsSync(arg)) {
-  console.error('usage: node tools/pletha-marker-oracle.mjs <captures-root> | --selftest');
+  console.error('usage: node tools/pletha-marker-oracle.mjs <captures-root> [--json] | --selftest | --verdict-sample');
   process.exit(2);
 } else {
   const files = [];
@@ -126,13 +202,15 @@ else if (!arg || !fs.existsSync(arg)) {
     scored++;
     for (const k of Object.keys(tot)) tot[k] = k === 'longest' ? Math.max(tot[k], t[k]) : tot[k] + t[k];
     const v = verdict(t);
-    console.log(`${path.basename(f).slice(-24, -11)}  rows ${String(t.rows).padStart(6)}  runs≥2 ${String(t.runB1 + t.runB0).padStart(3)}  ${v.label}`);
+    out(`${path.basename(f).slice(-24, -11)}  rows ${String(t.rows).padStart(6)}  runs≥2 ${String(t.runB1 + t.runB0).padStart(3)}  ${v.label}`);
   }
   const v = verdict(tot);
-  console.log(`\n${scored} of ${files.length} PLETHA file(s) scored · ${tot.rows} rows`);
-  console.log(`  lone 156 · beat=1 ${tot.loneB1}   beat=0 ${tot.loneB0}`);
-  console.log(`  run  156 · beat=1 ${tot.runB1}   beat=0 ${tot.runB0}   (runs ${tot.runs}, longest ${tot.longest})`);
-  console.log(`  beat=1 on a non-156 row: ${tot.beatOff156}`);
-  console.log(`VERDICT: ${v.label}${v.holds && !v.vacuous ? ` — discriminating run rows: ${v.runRows}` : ''}`);
+  out(`\n${scored} of ${files.length} PLETHA file(s) scored · ${tot.rows} rows`);
+  out(`  lone 156 · beat=1 ${tot.loneB1}   beat=0 ${tot.loneB0}`);
+  out(`  run  156 · beat=1 ${tot.runB1}   beat=0 ${tot.runB0}   (runs ${tot.runs}, longest ${tot.longest})`);
+  out(`  beat=1 on a non-156 row: ${tot.beatOff156}`);
+  out(`VERDICT: ${v.label}${v.holds && !v.vacuous ? ` — discriminating run rows: ${v.runRows}` : ''}`);
+  // the object IS the verdict; the lines above are its explanation
+  if (JSON_OUT) console.log(JSON.stringify(verdictObject(tot, { files: files.length, scored, root: arg })));
   process.exit(v.holds ? 0 : 1);
 }
