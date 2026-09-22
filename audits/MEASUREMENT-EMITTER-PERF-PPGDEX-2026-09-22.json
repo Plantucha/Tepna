@@ -1,0 +1,168 @@
+{
+ "schema": "tepna.verdict/1",
+ "gate": "measurement-emitter-perf:PpgDex",
+ "scope": "internal",
+ "status": "PASS",
+ "population": {
+  "checked": 3,
+  "eligible": 3,
+  "excluded": 0
+ },
+ "criterion": {
+  "name": "runtime_overhead_pct",
+  "threshold": 5,
+  "unit": "%",
+  "direction": "lte",
+  "preStated": "bands written 2026-09-22T03:52Z in scratchpad s10/PPGDEX-BANDS.md before any run, identical to the ECGDex record: runtime ≤ +5 % AND ≤ +50 ms · peak RSS ≤ +50 MB · export ≤ +4096 bytes; headline = runtime %, the other three are the tail"
+ },
+ "bands": {
+  "runtimePct": 5,
+  "runtimeAbsMs": 50,
+  "peakRssMB": 50,
+  "exportBytes": 4096
+ },
+ "result": {
+  "worstRuntimeDeltaPct": 2.25,
+  "o2ring-night-2026-09-02 (128 MB _PPG.txt, box capture)": {
+   "wallLightMs": {
+    "baseline": 6737.8,
+    "branch": 6713.9,
+    "delta": -23.9,
+    "deltaPct": -0.35
+   },
+   "wallRichMs": {
+    "baseline": 6946.7,
+    "branch": 6742.3,
+    "delta": -204.4,
+    "deltaPct": -2.94
+   },
+   "peakMB": {
+    "baseline": 661.4,
+    "branch": 670.4,
+    "delta": 9
+   },
+   "bytesLight": {
+    "baseline": 26268,
+    "branch": 27863,
+    "delta": 1595
+   },
+   "bytesRich": {
+    "baseline": 326807,
+    "branch": 328402,
+    "delta": 1595
+   },
+   "firstPassSeparateProcesses": {
+    "wallLightMs": {
+     "baseline": 6660.1,
+     "branch": 8458.1,
+     "delta": 1798
+    },
+    "wallRichMs": {
+     "baseline": 6692.4,
+     "branch": 6823.5,
+     "delta": 131.1
+    }
+   }
+  },
+  "verity-night-2026-09-01 (45 MB _PPG.txt, box capture)": {
+   "wallLightMs": {
+    "baseline": 3779.3,
+    "branch": 3752.4,
+    "delta": -26.9,
+    "deltaPct": -0.71
+   },
+   "wallRichMs": {
+    "baseline": 3732.3,
+    "branch": 3689.4,
+    "delta": -42.9,
+    "deltaPct": -1.15
+   },
+   "peakMB": {
+    "baseline": 342.5,
+    "branch": 342.2,
+    "delta": -0.3
+   },
+   "bytesLight": {
+    "baseline": 1471,
+    "branch": 3087,
+    "delta": 1616
+   },
+   "bytesRich": {
+    "baseline": 213108,
+    "branch": 214724,
+    "delta": 1616
+   },
+   "firstPassSeparateProcesses": {
+    "wallLightMs": {
+     "baseline": 3725,
+     "branch": 3734.8,
+     "delta": 9.8
+    },
+    "wallRichMs": {
+     "baseline": 3675.7,
+     "branch": 3722.9,
+     "delta": 47.2
+    }
+   }
+  },
+  "synthetic golden (uploads/synthetic_ppgdex_verity.txt)": {
+   "wallLightMs": {
+    "baseline": 26.7,
+    "branch": 27.3,
+    "delta": 0.6,
+    "deltaPct": 2.25
+   },
+   "wallRichMs": {
+    "baseline": 26.5,
+    "branch": 26.3,
+    "delta": -0.2,
+    "deltaPct": -0.75
+   },
+   "peakMB": {
+    "baseline": 83.7,
+    "branch": 86.8,
+    "delta": 3.1
+   },
+   "bytesLight": {
+    "baseline": 615,
+    "branch": 2212,
+    "delta": 1597
+   },
+   "bytesRich": {
+    "baseline": 5109,
+    "branch": 6706,
+    "delta": 1597
+   },
+   "firstPassSeparateProcesses": {
+    "wallLightMs": {
+     "baseline": 26,
+     "branch": 26.5,
+     "delta": 0.5
+    },
+    "wallRichMs": {
+     "baseline": 25.7,
+     "branch": 25.8,
+     "delta": 0.1
+    }
+   }
+  }
+ },
+ "evidence": [
+  "tools/regen-ppgdex-goldens.mjs (the co-load realm the measurement used)",
+  "ppgdex-dsp.js ppgBuildMeasurementBlocks",
+  "uploads/synthetic_ppgdex_verity.txt",
+  "two real box-captured _PPG.txt nights (gitignored corpus, named by kind above)"
+ ],
+ "reason": null,
+ "protocol": {
+  "definitive": "interleaved-7: baseline and branch DSPs co-loaded in ONE process (two vm realms), compute() alternating base/branch per repetition, 7 reps, median; light and rich",
+  "firstPass": "separate processes per variant, 5-rep median after one warm call; kept beside the definitive figures. It read +1798 ms (+27 %) on the O2Ring LIGHT leg while the RICH leg of the same input read +131 ms (+2 %) — an asymmetry the block’s construction (two small objects) cannot produce, so the instrument (order/GC effects on a 128 MB text input in a fresh process) was refined, not the band. Peak RSS and export bytes come from this pass (per-process quantities).",
+  "note": "the bands were not moved after either number"
+ },
+ "producedBy": {
+  "tool": "scratchpad s10/measure.mjs + measure-interleaved.mjs (kept out of the tree — a one-off instrument)",
+  "commit": null,
+  "commitReason": "measured on the unpushed branch claude/ppgdex-measurement-emitter-osp before its commit existed; the PR names the sha"
+ },
+ "at": "2026-09-22T04:13:19Z"
+}

@@ -39,7 +39,7 @@
 | **PpgDex** | Wrist PPG | `ppgBuildNodeExport` — **LIGHT** (recording + events; `opts.rich` orchestrate-only) | **`buildV2`/`exportSummary`** — RICH (recording + `hrv{time,frequency,nonlinear}` + `personalization` + `apnea`) | **`sessions[]`** | rich `buildV2` **or** light — reads whatever's present |
 | **EEGDex** *(planned)* | EEG | — decide at build time — | — decide at build time — | — | — |
 
-## The `measurement` block — per-instance lineage (additive, MINOR; OxyDex emits it since 2026-09-21, ECGDex since 2026-09-22)
+## The `measurement` block — per-instance lineage (additive, MINOR; OxyDex emits it since 2026-09-21, ECGDex and PpgDex since 2026-09-22)
 
 Specified by `MEASUREMENT-PROVENANCE-ROADMAP-2026-08-26` §1 and validated by **`measurement-block.js`**
 (`validateMeasurement(block, opts) → {ok, errors[], checked[]}`), which is the schema authority the way
@@ -66,8 +66,22 @@ epoch-median display values; `basis: derived` on all three (a statistic over a d
 train — LEXICON §4b); `sourceChannel: H10:ecg`; `window.spreadMs` is the host axis's measured spread on a box
 night (the H10 has a second clock, so this emitter can publish what OxyDex cannot) and null-with-reason on a
 phone export; `evidence.envelopeRef` is null with the reason that no acquisition envelope joins the ECG path
-yet. Present on BOTH the light and the rich export; `schema.version` 2.1. Emission is still staged per node —
-the other six do not emit it yet, and a missing block on THEIR exports is not a defect. **The Integrator consumes it (roadmap §8, 2026-09-21; the generic `adaptEnvelopeNode` too since
+yet. Present on BOTH the light and the rich export; `schema.version` 2.1. **PpgDex is the third emitter (roadmap
+§12, 2026-09-22):** `measurement: { hr, rmssd }` — the WHOLE-RECORD Pulse HR and rMSSD (`hrv.time.hr/rmssd`;
+single-site PPG, so the rich values ARE whole-record), `basis: derived`, `sourceChannel` `O2Ring:ppg` or
+`Verity:ppg` from the optical `site` the export already declares, `evidence.envelopeRef` null with the reason
+that no envelope joins the PPG path. **The rule the PpgDex row carries (§∅ owner ruling 2026-09-17): a
+`clock-seam` refusal ⇒ NO block.** A capture-side sensor-clock resync means the NN train spans two clocks, so
+the export carries `measurement: null` and a `measurementReason` that opens with `clock-seam:` and counts the
+resyncs — the whole-record numbers are still computed for display, but a number over a discontinuity gets no
+lineage claim. Reduced coverage (dropouts, pinned spans) is not a seam and annotates through `quality`.
+`window.spreadMs`: PpgDex ships WITHOUT `clock.js` (CLAUDE.md §✅), so in the bundle the node-local axis
+publishes null with that reason; a headless co-loaded run (the fixtures) carries the measured spread — a
+known headless/bundle divergence, the same one `recording.hostAxis` already has, recorded rather than hidden:
+**a PpgDex `spreadMs` NUMBER means "co-loaded run", never "the app"** — residue
+`2026-09-22-ppgdex-fixture-spread-not-bundle-reproducible` holds the two remedies.
+Emission is still staged per node — the other five do not emit it yet, and a missing block on THEIR exports is
+not a defect. **The Integrator consumes it (roadmap §8, 2026-09-21; the generic `adaptEnvelopeNode` too since
 2026-09-22, so an ECGDex export's recording-level map is consumed the same way):** `adaptOxyDex` turns each block into a
 REF on the rec (`measurements.blocks.<id>` = metricId · value · basis · window · code · evidence join ·
 `provenance: resolved | unresolved` + reason) and the fusion export's `nodes[].measurements` carries
