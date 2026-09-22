@@ -15,7 +15,8 @@
  *   const v = makeVerdict({ gate, status, population, criterion, result, evidence, reason, tool, commit?, at? });
  *
  * `commit: null` (a --verdict-sample, a tarball) needs `commitReason`; omit `commit` to read git HEAD.
- * Not a gate itself — no verdict word is decided here.
+ * Not a gate itself — no verdict word is decided here. `aggregateChildren` (below) is the §3d RUNNER
+ * rule — a runner's status over its children — used by run-check first, then selftest-all + the test runner.
  *
  * THIS IS THE ONE SHARED HELPER FOR JS ADOPTERS (wave 2 group B onward, Kestrel 2026-09-22): a tool
  * that decides builds its object here, never by hand — a hand-written `{ schema: 'tepna.verdict/1', … }`
@@ -58,6 +59,84 @@ export function makeVerdict(f) {
   const check = Verdict.validate(v);
   if (!check.ok) throw new Error(f.tool + ' produced an invalid tepna.verdict/1: ' + check.errors.join('; '));
   return v;
+}
+
+/* ── RUNNER AGGREGATION — VERDICT-CONTRACT §3d, one function for every runner ──────────────────────
+   A runner decides nothing of its own; its status is an aggregation of its CHILDREN, and the rule is
+   written once here so run-check, selftest-all and the test runner cannot drift apart on it.
+
+   children: [{ name, status?, provenance: 'object' | 'exit-code' | 'not-run', code?, evidence? }]
+     'object'    — the child emitted its own tepna.verdict/1; `status` is its status.
+     'exit-code' — the child is still a word-and-exit-code: code 0 ⇒ UNKNOWN BY PROVENANCE (a green
+                   exit is not an object — the runner can never read greener than its least-adopted
+                   child), code ≠ 0 ⇒ FAIL (a red exit is never made greener).
+     'not-run'   — never asked (an abort upstream). Counted EXCLUDED, never green; unplanned ⇒ UNKNOWN.
+   opts: { eligible, declaredExcluded: [names], excludedBy: '--steps=…' | null }
+   Precedence, NOT a vote: FAIL > SHORTFALL > UNKNOWN > PASS; checked = 0 ⇒ NOT_RUN.
+   Returns { status, reason, population, result } — the caller adds gate/criterion/evidence/producedBy. */
+export function aggregateChildren(children, opts = {}) {
+  const declared = opts.declaredExcluded || [];
+  const eligible = Number.isInteger(opts.eligible) ? opts.eligible : children.length + declared.length;
+  const rows = children.map((c) => {
+    if (c.provenance === 'not-run') return { ...c, status: 'NOT_RUN' };
+    if (c.provenance === 'exit-code') return { ...c, status: c.code === 0 ? 'UNKNOWN' : 'FAIL' };
+    return { ...c, provenance: 'object' };
+  });
+  const by = (st) => rows.filter((r) => r.status === st);
+  const tally = {
+    children: rows.length,
+    pass: by('PASS').length,
+    fail: by('FAIL').length,
+    shortfall: by('SHORTFALL').length,
+    underpowered: by('UNDERPOWERED').length,
+    unknown: by('UNKNOWN').length,
+    notApplicable: by('NOT_APPLICABLE').length,
+    notRun: by('NOT_RUN').length,
+    exitCodeOnly: rows.filter((r) => r.provenance === 'exit-code').length,
+    declaredExcluded: declared.length
+  };
+  const checked = rows.length - tally.notRun;
+  const excluded = tally.notRun + declared.length;
+  const population = { checked, eligible, excluded };
+  const names = (st) => by(st).map((r) => r.name);
+  const first = by('FAIL')[0] || null;
+  const result = {
+    ...tally,
+    firstFailure: first ? first.name : null,
+    filtered: declared.length > 0,
+    excludedBy: declared.length ? opts.excludedBy || 'declared' : null,
+    children: rows.map((r) => ({ name: r.name, status: r.status, provenance: r.provenance, ...(r.code == null ? {} : { code: r.code }) }))
+  };
+  let status;
+  let reason = null;
+  if (checked === 0) {
+    status = 'NOT_RUN';
+    reason = `no child ran to a verdict (${eligible} eligible, ${excluded} excluded)`;
+  } else if (tally.fail) {
+    status = 'FAIL';
+    reason =
+      `${tally.fail} of ${checked} children FAIL — first: ${first.name}${first.code != null ? ` (exit ${first.code})` : ''}` +
+      (tally.notRun ? `; ${tally.notRun} never ran after it: ${names('NOT_RUN').join(' · ')}` : '');
+  } else if (tally.shortfall) {
+    status = 'SHORTFALL';
+    reason = `${tally.shortfall} of ${checked} children SHORTFALL: ${names('SHORTFALL').join(' · ')} — the headline held and a named sub-population missed`;
+  } else if (tally.unknown || tally.underpowered || tally.notRun) {
+    status = 'UNKNOWN';
+    const parts = [];
+    const exitGreen = rows.filter((r) => r.provenance === 'exit-code' && r.status === 'UNKNOWN');
+    if (exitGreen.length)
+      parts.push(`${exitGreen.length} of ${checked} children are exit-code only, no tepna.verdict/1 object — UNKNOWN by provenance (§3d): ${exitGreen.map((r) => r.name).join(' · ')}`);
+    const objUnknown = rows.filter((r) => r.provenance === 'object' && r.status === 'UNKNOWN');
+    if (objUnknown.length) parts.push(`${objUnknown.length} UNKNOWN: ${objUnknown.map((r) => r.name).join(' · ')}`);
+    if (tally.underpowered) parts.push(`${tally.underpowered} UNDERPOWERED: ${names('UNDERPOWERED').join(' · ')}`);
+    if (tally.notRun) parts.push(`${tally.notRun} NOT_RUN without a declared exclusion (an abort): ${names('NOT_RUN').join(' · ')}`);
+    reason = parts.join('; ');
+  } else {
+    status = 'PASS';
+  }
+  if (status === 'PASS' && result.filtered) result.consumerRule = 'a filtered PASS is NOT the gate — the CI summary and any merge decision must not read it as the full run (§3d)';
+  /* NOT_RUN carries result: null by contract (§1) — nothing was examined, so the tally is not a result. */
+  return { status, reason, population, result: status === 'NOT_RUN' ? null : result };
 }
 
 export { Verdict };

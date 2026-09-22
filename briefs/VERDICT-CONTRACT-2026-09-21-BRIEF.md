@@ -284,7 +284,7 @@ emits an object.
 **Where each runner sits today, so the two rows can be costed:**
 - `run-check.mjs` already computes `ran` / `notRun` / `failedIdx` (`planAfterFailure`); the object is a
   projection of that plus the child exit codes — the smallest of the three. Children are exit codes for now,
-  so the first adopted object is honestly `UNKNOWN` on every run until the steps adopt; that is the point.
+  so the first adopted object is honestly `UNKNOWN` on every run until the steps adopt; that is the point. **Adopted #2827 (2026-09-22)** — `aggregateChildren` in `tools/verdict-emit.mjs` is the shared rule, fifteen plants, `--steps=` is the declared exclusion; measured `UNKNOWN` over 2/18 filtered on a real subset run.
 - `selftest-all.mjs` reads a parseable `all N selftests passed` line per tool and already refuses an
   unparseable one (`nearMiss → exit 1`); its children are per-tool verdicts, so `checked` = tools with a
   parsed summary, `excluded` = tools discovery found and did not run, and an unparseable summary is UNKNOWN,
