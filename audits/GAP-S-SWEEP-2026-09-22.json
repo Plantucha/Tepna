@@ -3585,6 +3585,246 @@
     "reason": null
    }
   ],
-  "verdict": "INDETERMINATE by the bands (b = 0.255 over 17 nights, between 0.2 and 0.4; a = -0.08) \u2014 but the direction is the candidate's: restricting both nodes to the hours they BOTH covered lifts the cross-node rho from 0.05 to 0.26, and 6 of 23 box nights had the two scored streams overlapping for LESS THAN 2 h (the largest ECG fragment and the largest PPG fragment sit in different parts of the night), which is the mechanism in its clearest form: two indices over disjoint hours. Partial support, not a ruling. Combined with the 55 Hz grid (about a fifth), where the drop cut and how it cut are the two named terms; what remains is unexplained"
+  "verdict": "INDETERMINATE by the bands (b = 0.255 over 17 nights, between 0.2 and 0.4; a = -0.08) \u2014 but the direction is the candidate's: restricting both nodes to the hours they BOTH covered lifts the cross-node rho from 0.05 to 0.26, and 6 of 23 box nights had the two scored streams overlapping for LESS THAN 2 h (the largest ECG fragment and the largest PPG fragment sit in different parts of the night), which is the mechanism in its clearest form: two indices over disjoint hours. Partial support, not a ruling. Combined with the 55 Hz grid (about a fifth), where the drop cut and how it cut are the two named terms; what remains is unexplained",
+  "mergedSessionsView": {
+   "method": "per night, the UNION of every Polar_H10 _ECG.txt fragment's host window and of every Polar_VeritySense _PPG.txt fragment's (the fold merges all concurrent sessions \u2014 trio-batch); overlap = hours both / hours either over those unions; windows only, no re-score",
+   "rows": [
+    {
+     "night": "2026-08-24",
+     "ecgFragments": 2,
+     "ppgFragments": 2,
+     "ecgHours": 8.791403888888889,
+     "ppgHours": 10.641146388888888,
+     "bothHours": 8.704361944444445,
+     "eitherHours": 10.728188333333334,
+     "fraction": 0.8113543194799536
+    },
+    {
+     "night": "2026-08-25",
+     "ecgFragments": 1,
+     "ppgFragments": 1,
+     "ecgHours": 10.6911975,
+     "ppgHours": 9.068682222222222,
+     "bothHours": 8.7014925,
+     "eitherHours": 11.058387222222223,
+     "fraction": 0.7868681323180691
+    },
+    {
+     "night": "2026-08-26",
+     "ecgFragments": 1,
+     "ppgFragments": 2,
+     "ecgHours": 8.775478055555556,
+     "ppgHours": 10.686055833333333,
+     "bothHours": 8.739580833333333,
+     "eitherHours": 10.721953055555556,
+     "fraction": 0.8151109026545251
+    },
+    {
+     "night": "2026-08-28",
+     "ecgFragments": 2,
+     "ppgFragments": 2,
+     "ecgHours": 6.945534722222222,
+     "ppgHours": 13.486085277777779,
+     "bothHours": 6.932796944444444,
+     "eitherHours": 13.498823055555556,
+     "fraction": 0.51358528931833
+    },
+    {
+     "night": "2026-08-29",
+     "ecgFragments": 3,
+     "ppgFragments": 1,
+     "ecgHours": 7.202641944444444,
+     "ppgHours": 6.186601944444444,
+     "bothHours": 0.7123669444444445,
+     "eitherHours": 12.676876944444444,
+     "fraction": 0.05619419889980351
+    },
+    {
+     "night": "2026-08-30",
+     "ecgFragments": 2,
+     "ppgFragments": 2,
+     "ecgHours": 8.330621944444445,
+     "ppgHours": 3.3220633333333334,
+     "bothHours": 2.9805647222222222,
+     "eitherHours": 8.672120555555555,
+     "fraction": 0.34369502858361506
+    },
+    {
+     "night": "2026-08-31",
+     "ecgFragments": 2,
+     "ppgFragments": 3,
+     "ecgHours": 7.333858333333334,
+     "ppgHours": 8.044853611111112,
+     "bothHours": 7.3134041666666665,
+     "eitherHours": 8.065307777777777,
+     "fraction": 0.9067731037886961
+    },
+    {
+     "night": "2026-09-03",
+     "ecgFragments": 2,
+     "ppgFragments": 2,
+     "ecgHours": 8.177875,
+     "ppgHours": 10.605507777777778,
+     "bothHours": 7.814868888888889,
+     "eitherHours": 10.96851388888889,
+     "fraction": 0.712482016073787
+    },
+    {
+     "night": "2026-09-04",
+     "ecgFragments": 2,
+     "ppgFragments": 1,
+     "ecgHours": 3.4484447222222223,
+     "ppgHours": 6.263438888888889,
+     "bothHours": 3.3971283333333333,
+     "eitherHours": 6.314755277777778,
+     "fraction": 0.5379667435867468
+    },
+    {
+     "night": "2026-09-05",
+     "ecgFragments": 2,
+     "ppgFragments": 3,
+     "ecgHours": 10.423684166666666,
+     "ppgHours": 7.440208055555556,
+     "bothHours": 7.435205833333334,
+     "eitherHours": 10.428686388888888,
+     "fraction": 0.7129570835743109
+    },
+    {
+     "night": "2026-09-06",
+     "ecgFragments": 2,
+     "ppgFragments": 2,
+     "ecgHours": 11.3477225,
+     "ppgHours": 12.856371944444444,
+     "bothHours": 11.3477225,
+     "eitherHours": 12.856371944444444,
+     "fraction": 0.882653562687538
+    },
+    {
+     "night": "2026-09-07",
+     "ecgFragments": 2,
+     "ppgFragments": 2,
+     "ecgHours": 7.425596111111111,
+     "ppgHours": 6.261096111111111,
+     "bothHours": 6.261096111111111,
+     "eitherHours": 7.425596111111111,
+     "fraction": 0.8431775735475932
+    },
+    {
+     "night": "2026-09-08",
+     "ecgFragments": 1,
+     "ppgFragments": 1,
+     "ecgHours": 5.300721666666667,
+     "ppgHours": 5.350008055555556,
+     "bothHours": 5.300721666666667,
+     "eitherHours": 5.350008055555556,
+     "fraction": 0.9907876047330978
+    },
+    {
+     "night": "2026-09-09",
+     "ecgFragments": 2,
+     "ppgFragments": 1,
+     "ecgHours": 3.262178611111111,
+     "ppgHours": 6.962625833333333,
+     "bothHours": 3.2462730555555557,
+     "eitherHours": 6.9785313888888885,
+     "fraction": 0.4651799747901431
+    },
+    {
+     "night": "2026-09-10",
+     "ecgFragments": 4,
+     "ppgFragments": 3,
+     "ecgHours": 8.054285,
+     "ppgHours": 6.760329722222222,
+     "bothHours": 4.323248055555555,
+     "eitherHours": 10.491366666666666,
+     "fraction": 0.41207672869650497
+    },
+    {
+     "night": "2026-09-11",
+     "ecgFragments": 3,
+     "ppgFragments": 3,
+     "ecgHours": 9.942545833333334,
+     "ppgHours": 7.7468691666666665,
+     "bothHours": 7.5312238888888885,
+     "eitherHours": 10.158191111111112,
+     "fraction": 0.7413941917918019
+    },
+    {
+     "night": "2026-09-12",
+     "ecgFragments": 3,
+     "ppgFragments": 2,
+     "ecgHours": 18.64743,
+     "ppgHours": 16.284365555555556,
+     "bothHours": 15.619251944444445,
+     "eitherHours": 19.31254361111111,
+     "fraction": 0.8087620283978647
+    },
+    {
+     "night": "2026-09-13",
+     "ecgFragments": 1,
+     "ppgFragments": 1,
+     "ecgHours": 6.745993888888889,
+     "ppgHours": 6.791289166666667,
+     "bothHours": 6.7374913888888885,
+     "eitherHours": 6.799791666666667,
+     "fraction": 0.9908379137432723
+    },
+    {
+     "night": "2026-09-15",
+     "ecgFragments": 2,
+     "ppgFragments": 2,
+     "ecgHours": 10.394344166666666,
+     "ppgHours": 10.392592777777777,
+     "bothHours": 10.352953055555556,
+     "eitherHours": 10.43398388888889,
+     "fraction": 0.9922339506945547
+    },
+    {
+     "night": "2026-09-16",
+     "ecgFragments": 2,
+     "ppgFragments": 1,
+     "ecgHours": 6.942466111111111,
+     "ppgHours": 5.885138888888889,
+     "bothHours": 5.883244166666667,
+     "eitherHours": 6.9443608333333335,
+     "fraction": 0.8471973602562175
+    },
+    {
+     "night": "2026-09-17",
+     "ecgFragments": 1,
+     "ppgFragments": 1,
+     "ecgHours": 6.142475,
+     "ppgHours": 6.175456111111111,
+     "bothHours": 6.120916944444445,
+     "eitherHours": 6.1970141666666665,
+     "fraction": 0.9877203407680518
+    },
+    {
+     "night": "2026-09-19",
+     "ecgFragments": 2,
+     "ppgFragments": 5,
+     "ecgHours": 1.1616608333333334,
+     "ppgHours": 16.10595111111111,
+     "bothHours": 1.1085447222222222,
+     "eitherHours": 16.159067222222223,
+     "fraction": 0.06860202429863851
+    },
+    {
+     "night": "2026-09-20",
+     "ecgFragments": 1,
+     "ppgFragments": 2,
+     "ecgHours": 6.1186002777777775,
+     "ppgHours": 6.161260555555556,
+     "bothHours": 6.1186002777777775,
+     "eitherHours": 6.161260555555556,
+     "fraction": 0.9930760471184242
+    }
+   ],
+   "nightsUnder2h": [
+    "2026-08-29",
+    "2026-09-19"
+   ],
+   "finding": "the sweep scored the LARGEST fragment per stream; on the fold's view four of the six < 2 h nights (2026-08-28, 08-30, 09-06, 09-10) overlap 3.0-11.3 h \u2014 those four were the SWEEP'S SELECTION, not the drop. Two nights (2026-08-29: 0.7 h, 2026-09-19: 1.1 h) stay under 2 h on the merged view: the mechanism (two indices over disjoint hours) is real there. The restricted-window rho of 0.255 was computed over the selected fragments and is a statement about the sweep's scoring; the fold's number needs the merged-session re-score (next step, not run: PpgDex refuses CVHR on a clock seam, so merged multi-fragment nights will partly refuse \u2014 that count is itself the finding to record)"
+  }
  }
 }
