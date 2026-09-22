@@ -352,3 +352,47 @@ def test_clock_line_skips_streams_without_a_stability_verdict_and_tolerates_junk
     assert nr.clock_lines({"arrival": "junk"}) == []
     assert nr.build("n", None, None)["clock"] == []
 
+
+
+# ── THE FIRST CONSUMER OF A VERDICT OBJECT ON THE BOX (VERDICT-CONTRACT §3b) ────────────────────────
+
+def _bc(status, clips=3, held=1, reason="x"):
+    return {"schema": "tepna.verdict/1", "gate": "night-backcheck", "status": status,
+            "population": {"checked": 2, "eligible": 2, "excluded": 0},
+            "criterion": {"name": "clip_regions_plus_held_streams", "threshold": 0, "unit": "count", "direction": "lte"},
+            "result": {"clip_regions": clips, "held_streams": held, "files": {}},
+            "evidence": ["capture-host/nightqc.py"], "reason": None if status == "PASS" else reason,
+            "producedBy": {"tool": "capture-host/nightqc.py", "commit": "abc"}, "at": "2026-09-21T09:00:00Z",
+            "scope": "internal"}
+
+
+def test_the_back_check_field_reads_the_verdict_object_before_the_prose():
+    assert nr.back_check_from_verdict(_bc("PASS", 0, 0)) == ("ok", 0, 0)
+    assert nr.back_check_from_verdict(_bc("FAIL", 25, 1)) == ("fail", 25, 1)
+    for st in ("NOT_RUN", "UNKNOWN", "UNDERPOWERED", "SHORTFALL", "NOT_APPLICABLE"):
+        assert nr.back_check_from_verdict(_bc(st))[0] == nr.UNKNOWN, st
+    # not the object at all → None, so the caller falls back; never a fabricated ok
+    assert nr.back_check_from_verdict(None) is None
+    assert nr.back_check_from_verdict({"schema": "tepna.verdict/1", "gate": "night-qc", "status": "PASS"}) is None
+    assert nr.back_check_from_verdict({"schema": "other", "gate": "night-backcheck", "status": "PASS"}) is None
+
+
+def test_build_prefers_the_object_and_falls_back_to_class_b_when_it_is_absent():
+    # the summary's class_b says 25 clips; the object says the check was NOT_RUN → the line says unknown
+    r = nr.build("2026-09-08", {"class_b": REAL_CLASS_B}, None, _bc("NOT_RUN", None, None, "no file"))
+    assert r["back_check"] == nr.UNKNOWN and r["spans"] is None
+    r = nr.build("2026-09-08", {"class_b": REAL_CLASS_B}, None, None)      # no object: the old path
+    assert r["back_check"] == "fail" and r["spans"] == 25
+    r = nr.build("2026-09-08", {"class_b": REAL_CLASS_B}, None, _bc("PASS", 0, 0))
+    assert r["back_check"] == "ok" and "back-check ok" in r["line"]
+
+
+def test_read_night_picks_up_the_verdict_file_beside_the_summary(tmp_path):
+    d = tmp_path / "2026-09-19"; d.mkdir()
+    (d / "QC-SUMMARY.json").write_text(json.dumps({"class_b": REAL_CLASS_B}))
+    (d / "BACKCHECK-VERDICT.json").write_text(json.dumps(_bc("PASS", 0, 0)))
+    r = nr.read_night(str(tmp_path), "2026-09-19")
+    assert r["back_check"] == "ok" and r["spans"] == 0
+    (d / "BACKCHECK-VERDICT.json").write_text("{not json")
+    r = nr.read_night(str(tmp_path), "2026-09-19")
+    assert r["back_check"] == "fail" and r["spans"] == 25                    # unreadable object → the fallback, honestly

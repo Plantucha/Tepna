@@ -7473,6 +7473,9 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             with open(_qc + ".tmp", "w") as fh:
                 json.dump(summ, fh, indent=2)
             os.replace(_qc + ".tmp", _qc)   # atomic
+            # VERDICT-CONTRACT §3b wave 1: the two `tepna.verdict/1` objects beside the summary —
+            # QC-VERDICT.json (night-qc) and BACKCHECK-VERDICT.json (the end-of-night back-check).
+            await asyncio.to_thread(nightqc.write_verdicts, night, summ, cfg.get("devices", []))
             n = summ["night"]
             first_seen.setdefault(n, _time.monotonic())
             # ── morning digest — once per LOCAL day, unconditional (§P2.4) ──────────────────────
