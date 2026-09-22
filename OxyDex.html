@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="d6720a3cdc4f" data-compute-hash="4fc348784c50">
+<html lang="en" data-manifest-hash="2d05d8c0a76d" data-compute-hash="b9e102d30bc7">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-4R3kehgFdc/KaWun6609qOe4U/p9ClI7Hjdgb9Da4YQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-CNOVvL0rgtW4HsMGf9KUI693quAn6scT+2m6vEtOyG8=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-G4i3QHMM/2Ak3OxCpfEAPt4mPoMaWYjQOGkOdrFmb2g=' 'sha256-MbHU8jZBJf4O3RfbOvC2ZAV4FOwwYs82DVbKnZ7G/lk=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-pmkM4GTQroQlb4GaUI6RBETJs7WVTR03G7v/A4s2QzA=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-sizWiT3YsIqT8ZSLjA162kEa+vCnpbZ+dyOHmzQ/KlI=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-4R3kehgFdc/KaWun6609qOe4U/p9ClI7Hjdgb9Da4YQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-G4i3QHMM/2Ak3OxCpfEAPt4mPoMaWYjQOGkOdrFmb2g=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bwxxukjkbs0nkO3G9uCq7MyYlhNC6VN3RFwbf1JFHQI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-pmkM4GTQroQlb4GaUI6RBETJs7WVTR03G7v/A4s2QzA=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-sizWiT3YsIqT8ZSLjA162kEa+vCnpbZ+dyOHmzQ/KlI=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.13.0</title>
@@ -8613,7 +8613,15 @@ function computeCeilingBaselineArr(spo2, WIN, pct) {
       sbp: 120,
       dbp: 80, // ACC/AHA guideline-normal (type-only override)
       vo2: vo2Norm(age, sex),
-      elevation: 0,
+      /* §∅ — an ABSENT elevation is null, never 0 m. 0 m is a LEGAL elevation (a night at the coast),
+         so coercing "nobody typed one" to sea level makes the two indistinguishable, and every
+         consumer that grades on altitude then grades a 2500 m night as if it were at sea — inventing
+         ~4.5 % of desaturation that never happened. The norms this feeds (OxyDex's SpO₂ threshold
+         shift, HRVDex/ECGDex's Uth–Sørensen altitude factor) must see the null and decline to adjust,
+         which is what "no adjustment" already means numerically — the difference is that an absent
+         value can now SAY so instead of asserting sea level. `geo.py` already records a measured
+         elevation or nothing; this is that null surviving the profile layer. */
+      elevation: null,
       activity: 'light',
       betablk: 'no',
       afib: 'no',
@@ -12140,7 +12148,7 @@ let UP = {
   vo2GT: 0,
   hrmaxOverride: 0,
   hrRestOverride: 0,
-  elevation: 0, // metres above sea level; adjusts SpO₂ normal thresholds
+  elevation: null, // metres above sea level, or null = NOT MEASURED (§∅); adjusts SpO₂ normal thresholds
   cpap: 'no' // CPAP/BiPAP therapy — reframes apnea read as residual on therapy
 };
 // ESM-MIGRATION deep-3: profile is now an ES module, so this `let` is module-scoped — but
@@ -12180,7 +12188,7 @@ function upLoad() {
       UP.vo2GT = man.vo2 > 0 ? man.vo2 : 0;
       UP.hrmaxOverride = man.hrMax > 0 ? man.hrMax : 0;
       UP.hrRestOverride = man.hrRest > 0 ? man.hrRest : 0;
-      UP.elevation = p.elevation || 0;
+      UP.elevation = p.elevation != null && isFinite(p.elevation) ? p.elevation : null; // §∅ — absent stays absent
       UP.cpap = p.cpap || 'no';
     } catch (e) {}
     return;
@@ -12241,16 +12249,23 @@ function upToDOM() {
   sv('profVO2', UP.vo2GT || '');
   sv('profHRmax', UP.hrmaxOverride || 0);
   sv('profHRrest', UP.hrRestOverride || 0);
-  sv('profElevation', UP.elevation || 0);
+  sv('profElevation', UP.elevation != null ? UP.elevation : '');
   sv('profCPAP', UP.cpap || 'no');
 }
 
 // SpO₂ altitude correction — returns adjustment to subtract from normal thresholds
 // Formula: ~1.8% per 1000m (Roach 1998 / AMS guidelines), capped at 7%
 // e.g. Asheville 650m → adj≈1; Denver 1600m → adj≈3; La Paz 3600m → adj≈6 (cap 7)
+/* §∅ — NO elevation means NO adjustment, and that is a different state from "at sea level", even
+   though both yield 0. `upSpo2Adj()` returns the number (0 either way, so no shipped threshold moves
+   on this change); `upElevState()` says WHICH state produced it, and the disclosure below uses it so
+   a reader can tell an unmeasured profile from a measured coast. */
+function upElevState() {
+  return UP.elevation == null || !isFinite(UP.elevation) ? 'unmeasured' : 'measured';
+}
 function upSpo2Adj() {
-  var elv = UP.elevation || 0;
-  return Math.min(7, Math.round((elv / 1000) * 1.8));
+  if (upElevState() === 'unmeasured') return 0; // not measured ⇒ nothing to adjust by
+  return Math.min(7, Math.round((UP.elevation / 1000) * 1.8));
 }
 
 // Human-readable disclosure of the SpO₂ altitude adjustment, rendered next to the
@@ -12263,7 +12278,7 @@ function upSpo2Adj() {
 function spo2ElevNote() {
   var adj = upSpo2Adj();
   if (!adj) return '';
-  var elv = UP.elevation || 0;
+  var elv = UP.elevation;
   return (
     '<div class="srb-note mt-sm">Elevation ' +
     elv +
@@ -12518,9 +12533,17 @@ function profileDerivedUpdate() {
   // profileElevSub sub still needs them, so they are declared locally here (the #43
   // removal dropped the shared declarations and left this line referencing undefined
   // names → a ReferenceError that broke profileDerivedUpdate — regression hotfix).
-  var _elv = UP.elevation || 0;
+  var _elv = UP.elevation;
   var _adj = upSpo2Adj();
-  _sub('profileElevSub', _elv > 0 ? '∼ Roach 1998: −1.8%/1000m · adj −' + _adj + '% (norm ≥' + (95 - _adj) + '%)' : '0 = sea level · −1.8% SpO₂ per 1000m (Roach 1998), cap 7%');
+  /* Three states, three messages — an unmeasured profile must not read as a measured coast (§∅). */
+  _sub(
+    'profileElevSub',
+    _elv == null
+      ? '∼ not set — no altitude adjustment applied (enter your elevation; −1.8% SpO₂ per 1000 m, Roach 1998)'
+      : _elv > 0
+        ? '∼ Roach 1998: −1.8%/1000m · adj −' + _adj + '% (norm ≥' + (95 - _adj) + '%)'
+        : '0 m = sea level (measured) · −1.8% SpO₂ per 1000m (Roach 1998)'
+  );
 }
 
 function profileAutoDetectUpdate(allNights) {
