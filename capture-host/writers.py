@@ -2072,6 +2072,12 @@ class HostClockLogWriter:
         return self._health.fsync_max_ms
 
 
+STARTS_NAME = "STARTS.csv"
+# WHEN THE DAEMON CAME UP, in the night it came up in. Columns:
+#   Phone timestamp · pid · git · dirty · adapter
+# `dirty` is the TRISTATE build_id.probe returns — blank when git could not tell us, which is not the
+# same as a clean tree (§∅). `pid` is what separates two starts inside one second.
+_STARTS_HEADER = "Phone timestamp;pid;git;dirty;adapter\n"
 PMDNEG_NAME = "PMDNEG.csv"
 # WHAT THE DEVICE AGREED TO, in the night it agreed to it. Columns, in order:
 #   Phone timestamp · device · address · stream · requested_hz · offered_hz · chosen_hz · ack · how
@@ -2141,6 +2147,47 @@ def append_clock_sync_event(root, when: _dt.datetime, device, address, event: st
         return True
     except OSError as e:
         _log.debug("CLOCKSYNC append failed (%s): %r", event, e)
+        return False
+
+
+def append_daemon_start(root, when: _dt.datetime, *, pid: int, git: str | None,
+                        dirty: bool | None, adapter: str | None) -> bool:
+    """Append ONE daemon start to the night's own `STARTS.csv` sidecar.
+
+    OBSERVABILITY, NOT A FIX, and the distinction is the whole point of the row this closes
+    (2026-09-10-daemon-restarts-are-idle-gated). An earlier row read a high restart COUNT as evidence
+    of harm; the harm was then measured and was not there — 9 restarts fell in capture hours over four
+    nights and **0** of them landed inside a live capture, because the deploy path gates on idleness
+    and the gate works. What remained true is the bookkeeping half: nothing reported the count, so the
+    next person to suspect fragmentation had to re-derive it from `journalctl`, and that derivation is
+    what this replaces.
+
+    ⚠️ THE COUNT ALONE IS WHAT MISLED, so it never travels alone: `nightqc.daemon_starts` pairs it
+    with how many starts fell INSIDE a signal-carrying file's span, which is the predicate the row
+    measured by hand. A number whose harm has to be re-derived is the thing being retired, and
+    shipping the count by itself would reproduce the error this row corrects.
+
+    Same disciplines as `append_clock_sync_event`: open-append-close, fixed name, keyed by the event's
+    wall date, a sidecar rather than a column, telemetry rather than a node-export metric, never
+    raises."""
+    if not root:
+        return False
+    try:
+        path = os.path.join(night_dir(root, when), STARTS_NAME)
+        fresh = not os.path.exists(path) or os.path.getsize(path) == 0
+        with open(path, "a", encoding="utf-8", newline="\n") as fh:
+            if fresh:
+                fh.write(_STARTS_HEADER)
+            fh.write(";".join((
+                _phone_ts(when),
+                str(int(pid)),
+                str(git or ""),
+                "" if dirty is None else ("yes" if dirty else "no"),
+                str(adapter or ""),
+            )) + "\n")
+        return True
+    except (OSError, TypeError, ValueError) as e:
+        _log.debug("STARTS append failed: %r", e)
         return False
 
 
