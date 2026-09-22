@@ -30,6 +30,8 @@
  *
  *   node tools/gap-s-sweep.mjs --nights <list.txt: "<date> <ecg> <ppg>" per line, TAB-separated if a path has a space> [--values 3,5,7.5,10,15,20,30,60]
  *                              [--out <json>] [--limit N] [--resume] [--ppg-keep-hz <hz>] [--ppg-only]
+ *   --restrict-overlap  cut BOTH streams to the intersection of their host-clock windows before scoring (the
+ *                  within-night active-window overlap candidate); nights with < 2 h of overlap are excluded
  *   --ppg-keep-hz  ROW-KEEPING decimation of the PPG to a coarser grid (a row is kept iff its sensor timestamp
  *                  advanced ≥ 1/hz since the last kept row; nothing is resampled or invented)
  *   node tools/gap-s-sweep.mjs --selftest
@@ -149,10 +151,67 @@ export function decimatePpgText(text, hz) {
   return out.join('\n') + '\n';
 }
 
+/* The host-clock window of a Polar Sensor Logger / capture-host text: [first, last] `Phone timestamp` (column 0,
+   ISO local wall-clock, Clock Contract floating ms). Pure. */
+export function hostWindowMs(text) {
+  const parse = (l) => {
+    const j = l.indexOf(';');
+    if (j < 0) return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?/.exec(l.slice(0, j));
+    if (!m) return null;
+    return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6], m[7] ? +m[7].padEnd(3, '0') : 0);
+  };
+  let first = null;
+  let last = null;
+  let i = text.indexOf('\n') + 1;
+  while (i < text.length && first === null) {
+    const e = text.indexOf('\n', i);
+    first = parse(text.slice(i, e < 0 ? text.length : e));
+    i = e < 0 ? text.length : e + 1;
+  }
+  let e = text.length;
+  while (e > 0 && last === null) {
+    const b = text.lastIndexOf('\n', e - 2);
+    last = parse(text.slice(b + 1, e));
+    e = b + 1;
+    if (b < 0) break;
+  }
+  return first != null && last != null ? [first, last] : null;
+}
+/* Keep only rows whose host timestamp lies inside [lo, hi] ms. Pure; header kept. */
+export function cutToWindow(text, lo, hi) {
+  const lines = text.split('\n');
+  const out = [lines[0]];
+  for (let i = 1; i < lines.length; i++) {
+    const l = lines[i];
+    if (!l) continue;
+    const w = hostWindowMs(lines[0] + '\n' + l + '\n');
+    if (w && w[0] >= lo && w[0] <= hi) out.push(l);
+  }
+  return out.join('\n') + '\n';
+}
+/* The overlap of the two streams' windows: hours both / hours either. Pure. */
+export function overlapOf(wE, wP) {
+  if (!wE || !wP) return null;
+  const lo = Math.max(wE[0], wP[0]);
+  const hi = Math.min(wE[1], wP[1]);
+  const both = Math.max(0, hi - lo) / 3.6e6;
+  const either = (Math.max(wE[1], wP[1]) - Math.min(wE[0], wP[0])) / 3.6e6;
+  return { ecgHours: (wE[1] - wE[0]) / 3.6e6, ppgHours: (wP[1] - wP[0]) / 3.6e6, bothHours: both, eitherHours: either, fraction: either > 0 ? both / either : null, lo, hi };
+}
+
 /* One night under one value on both nodes → scalars only. opts.ppgKeepHz decimates the PPG text by rows;
    opts.ppgOnly skips the ECG (its index is then null WITH the reason). */
 export function scoreNight(realms, ecgText, ppgText, opts) {
   opts = opts || {};
+  let overlap = null;
+  if (opts.restrictOverlap) {
+    overlap = overlapOf(hostWindowMs(ecgText), hostWindowMs(ppgText));
+    if (overlap && overlap.bothHours >= 2) {
+      ecgText = cutToWindow(ecgText, overlap.lo, overlap.hi);
+      ppgText = cutToWindow(ppgText, overlap.lo, overlap.hi);
+    } else return { ecg: { index: null, reason: 'overlap < 2 h' }, ppg: { index: null, reason: 'overlap < 2 h' }, overlap };
+  }
   if (opts.ppgKeepHz) ppgText = decimatePpgText(ppgText, opts.ppgKeepHz);
   const E = realms.ecg;
   const P = realms.ppg;
@@ -185,7 +244,7 @@ export function scoreNight(realms, ecgText, ppgText, opts) {
   } catch (e) {
     ppg = { index: null, reason: 'threw: ' + String(e && e.message).slice(0, 80) };
   }
-  return { ecg, ppg };
+  return overlap ? { ecg, ppg, overlap } : { ecg, ppg };
 }
 
 /* The report over the checkpoint's rows, pure — the pre-stated three sections, no bands. */
@@ -371,9 +430,23 @@ function selftest() {
     );
     ok('decimatePpgText: the header survives and hz ≤ 0 is a no-op', dec.startsWith(hdr) && decimatePpgText('h\na;1;\n', 0) === 'h\na;1;\n');
   }
+  {
+    const hdr = 'Phone timestamp;sensor timestamp [ns];x';
+    const mk = (h0, h1) => hdr + '\n' + ['2026-08-24T' + h0 + ':00:00.000;1;1', '2026-08-24T' + h1 + ':00:00.000;2;1'].join('\n') + '\n';
+    const wE = hostWindowMs(mk('22', '23'));
+    ok('hostWindowMs: first/last host timestamps parsed to floating ms', wE && wE[1] - wE[0] === 3.6e6, JSON.stringify(wE));
+    const ov = overlapOf(hostWindowMs(mk('20', '23')), hostWindowMs(mk('22', '23')));
+    ok(
+      'overlapOf: 20–23 vs 22–23 → both 1 h, either 3 h, fraction 1/3',
+      Math.abs(ov.bothHours - 1) < 1e-9 && Math.abs(ov.eitherHours - 3) < 1e-9 && Math.abs(ov.fraction - 1 / 3) < 1e-9,
+      JSON.stringify(ov)
+    );
+    const cut = cutToWindow(hdr + '\n' + ['2026-08-24T20:30:00.000;1;1', '2026-08-24T22:30:00.000;2;1', '2026-08-24T23:30:00.000;3;1'].join('\n') + '\n', ov.lo, ov.hi);
+    ok('cutToWindow: keeps only rows inside the intersection (1 of 3), header kept', cut.split('\n').filter(Boolean).length === 2 && cut.includes('22:30'), JSON.stringify(cut));
+  }
   const R0 = report([{ night: 'x', byValue: { 10: { ecg: { index: null, reason: 'threw' }, ppg: { index: null } } } }], [10], 10);
   ok('report: refused nights count as refused and yield nulls, never zeros', R0.perValue['10'].ecg.refused === 1 && R0.perValue['10'].ecg.medianIndex === null);
-  console.log(fail ? fail + ' failed of 16' : 'all 16 selftests passed');
+  console.log(fail ? fail + ' failed of 19' : 'all 19 selftests passed');
   return fail ? 1 : 0;
 }
 
@@ -399,6 +472,7 @@ function main(argv) {
   const limit = Number(arg('--limit', '0'));
   const ppgKeepHz = Number(arg('--ppg-keep-hz', '0')) || 0;
   const ppgOnly = argv.includes('--ppg-only');
+  const restrictOverlap = argv.includes('--restrict-overlap');
   const nights = readFileSync(list, 'utf8')
     .split('\n')
     .map((l) => l.trim())
@@ -425,9 +499,12 @@ function main(argv) {
     const ecgText = ppgOnly ? '' : readFileSync(n.ecg, 'utf8');
     const ppgText = readFileSync(n.ppg, 'utf8');
     const byValue = {};
-    for (const v of values) byValue[String(v)] = scoreNight(realms[String(v)], ecgText, ppgText, { ppgKeepHz, ppgOnly });
+    for (const v of values) byValue[String(v)] = scoreNight(realms[String(v)], ecgText, ppgText, { ppgKeepHz, ppgOnly, restrictOverlap });
     rows.push({ night: n.night, ecg: n.ecg, ppg: n.ppg, byValue, ms: Date.now() - tn });
-    writeFileSync(out, JSON.stringify({ generated: new Date().toISOString(), values, shipped: SHIPPED, ppgKeepHz: ppgKeepHz || null, ppgOnly, rows, report: report(rows, values, SHIPPED) }, null, 1));
+    writeFileSync(
+      out,
+      JSON.stringify({ generated: new Date().toISOString(), values, shipped: SHIPPED, ppgKeepHz: ppgKeepHz || null, ppgOnly, restrictOverlap, rows, report: report(rows, values, SHIPPED) }, null, 1)
+    );
     console.error(
       `  ${n.night}  ${((Date.now() - tn) / 1000).toFixed(0)} s  ecg@10 ${byValue[String(SHIPPED)].ecg.index}  ppg@10 ${byValue[String(SHIPPED)].ppg.index}  (${rows.length}/${nights.length}, ${((Date.now() - t0) / 60000).toFixed(1)} min)`
     );
