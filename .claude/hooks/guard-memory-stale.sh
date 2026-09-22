@@ -36,9 +36,19 @@
 #   read-then-someone-else-writes-then-you-write race this closes. Say that in any design that
 #   leans on this guard; do not describe the memory dir as "protected".
 #
-# ⚠ FAILS OPEN on every leg where it cannot know: `jq` missing, no session id in the payload, a path
-#   outside a `.claude/projects/*/memory/` directory. Each fail-open leg is pinned in the self-test
-#   beside the DENY it differs from by one property.
+# ⚠ FAILS OPEN on every leg where it cannot know: `jq` missing (ANNOUNCED once per session — see the
+#   block at the jq test, and note that the sibling guards' fail-open reasoning does NOT transfer to
+#   this directory), no session id in the payload, a path outside a `.claude/projects/*/memory/`
+#   directory. Each fail-open leg is pinned in the self-test beside the DENY it differs from by one
+#   property.
+#
+# ⚠ A MOVE IS REPORTED ONCE, BY DESIGN — and a later exit 0 means "already told you", NOT "nothing
+#   happened". The sequence is: post #1 finds no snapshot and writes one (silent — there is no
+#   baseline, so no finding is possible); a file then moves with no Read recorded; post #2 exits 2 and
+#   names it, AND RE-SNAPSHOTS; post #3 exits 0 because the move is now the baseline. Repeating the
+#   same finding on every subsequent command would be the noise that gets a guard ripped out. The
+#   cost of the choice is real and is stated here rather than discovered: a session that misses or
+#   dismisses the one report gets no second chance, on a directory that keeps no other record.
 #
 # ── WHY THERE ARE TWO ARMS, AND WHY THE SECOND ONE IS THE REAL GUARD ────────────────────────────
 #   This shipped with `Edit|Write` + `Read` only, and its header said a Bash-side write "is NOT seen".
@@ -91,7 +101,43 @@ case "${1:-pre}" in
   post) : ;;
   *) case "$payload" in *"/memory/"*) : ;; *) exit 0 ;; esac ;;
 esac
-command -v jq >/dev/null 2>&1 || exit 0
+# ── WITHOUT jq THIS GUARD IS INERT, AND IT SAYS SO ONCE ─────────────────────────────────────────
+#    It still FAILS OPEN — a hook that errors on every tool call breaks the session, which is worse
+#    than the gap. What changes is the silence.
+#    ⚠ AND THE SIBLINGS' REASONING DOES NOT TRANSFER HERE. `guard-format.sh` fails open where Biome
+#    cannot run because `biome` is a REQUIRED check: it degrades to an existing safety net. THIS
+#    directory has none — it is not in git, no gate reads it, no CI job can see it, and this hook is
+#    the only thing watching. So the same behaviour degrades to NOTHING, and doing that without a word
+#    is the fail-open-and-say-nothing shape. Do not re-inherit the other guards' argument here.
+#    Announced ONCE PER SESSION, never per call (a line on every call is how a guard gets ripped out),
+#    and only on the pre phase of a WRITE — never on Read, which is the hot path. `$CLAUDE_CODE_SESSION_ID`
+#    is readable WITHOUT jq, which is what makes the marker possible at all; without it the notice is
+#    once per boot, which is still not silence.
+if ! command -v jq >/dev/null 2>&1; then
+  # Never on Read — the hot path. The tool name cannot be PARSED here (that is what jq was for), so
+  # this is a raw substring test on the payload. It can only OVER-match, and over-matching costs a
+  # suppressed notice, never a suppressed denial: this block does not deny anything.
+  case "$payload" in *'"tool_name":"Read"'*) exit 0 ;; esac
+  if [ "${1:-pre}" = "pre" ]; then
+    _sid_env="${CLAUDE_CODE_SESSION_ID:-nosession}"
+    case "$_sid_env" in *[!A-Za-z0-9._-]*) _sid_env=nosession ;; esac
+    # Named for what it is, and session-scoped: /tmp here is a 30 GB tmpfs and §4c's orphan sweep is
+    # a live concern even for one tiny file.
+    _inert_marker="${TMPDIR:-/tmp}/tepna-memory-guard-inert.$_sid_env"
+    if [ ! -f "$_inert_marker" ]; then
+      : > "$_inert_marker" 2>/dev/null
+      cat >&2 <<'EOF0'
+⚠ THE MEMORY GUARD IS INERT THIS SESSION: `jq` is not on PATH, so it cannot read a tool payload and
+is allowing every memory write unchecked. It is failing OPEN deliberately — erroring on every tool
+call would be worse — but unlike the format/ruff guards, NOTHING backstops this one: the memory
+directory is not in git, no CI job reads it, and this hook is the only thing watching. Until `jq` is
+available, read a memory file before you overwrite it; nothing else will tell you that someone else
+already did. (Shown once per session.)
+EOF0
+    fi
+  fi
+  exit 0
+fi
 f="$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty' 2>/dev/null)"
 tool="$(printf '%s' "$payload" | jq -r '.tool_name // empty' 2>/dev/null)"
 sid="$(printf '%s' "$payload" | jq -r '.session_id // empty' 2>/dev/null)"
@@ -115,10 +161,18 @@ if [ "$tool" = "Bash" ]; then
   # ── POST-Bash · DETECTION. The command is IGNORED: a file that moved is a property of the result.
   if [ "$phase" = "post" ]; then
     # ⚠ TWO PROCESSES PER DIRECTORY, NOT TWO PER FILE. The first cut forked `stat` and `grep` per
-    #   memory file and cost **3277 ms per Bash command** over the 511 files this box holds — a guard
+    #   memory file and cost **3277 ms per Bash command** over the 511 files rig-x870 holds — a guard
     #   that expensive on the hottest tool is a guard somebody rips out, which is the same outcome as
     #   not having one. `find -printf` reads every mtime in one process and `awk` does the compare in
-    #   another; measured after: single-digit ms. Cost is a property of a hook, not an afterthought.
+    #   another. Measured after, ON TWO MACHINES, because a figure taken in one place is an anecdote:
+    #       rig-x870  43.6 ms  over 511 memory files
+    #       vigil     48   ms  over 320 memory files   (Wren, 2026-09-22, warm, 5 calls)
+    #   60 % more files for 9 % less time, so the cost is NOT file-count-dominated — which is what
+    #   makes the number travel to a third machine instead of being true only where it was taken.
+    #   ⚠ THIS COMMENT SAID "single-digit ms", A FIGURE NOBODY EVER MEASURED. The PR that landed this
+    #   arm carried 43.6 ms correctly in its body while the header asserted an order of magnitude less,
+    #   inside a sentence reading "Cost is a property of a hook, not an afterthought". An assertion
+    #   where a measurement was available, in the artifact written to argue against exactly that.
     for memdir in $(mem_dirs); do
       proj="${memdir%/memory}"
       snap="$proj/.memory-guard/$sid.snap"
