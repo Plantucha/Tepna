@@ -129,7 +129,7 @@ sample had missed):**
 | `tools/measurement-walk.mjs` | one object per fixture; a hop ✗ ⇒ `FAIL` naming the hop, ∘ ⇒ `NOT_RUN` | Magpie |
 | `mutate.mjs` / `mutation_diff.py` (killed · survived · timeout) | residue `2026-09-05-mutate-diff-timeout-reads-as-kill` IS this defect: a timeout read as a pass because the verdict was a word | Osprey |
 | `trio-batch.mjs` per-night gates ("NOT NOCTURNAL", "overlap 0 < 12") | verdicts that decide what enters the corpus | Kestrel |
-| `n1-cohort-track` (local) | the study's verdict vocabulary maps onto the enum (§1) | Osprey |
+| `n1-cohort-track` (local) | the study's verdict vocabulary maps onto the enum (§1); done — 9/9 valid. **Mapping correction:** a criterion that could not be evaluated at all (no ICC ⇒ no noise band) is `UNKNOWN`, not `SHORTFALL`; SHORTFALL is a headline MET with a tail missed | Osprey |
 
 Wave 2: `nsrr-*-validate`, `cohort-fit`, `land-pr` / `queue-doctor` (decisions about PRs), `corpus-tier`,
 the byte audit, `verify-fixtures`, `commit-shape`, `check.sh`'s advisory token (#2672), `canaryVerdict`.
@@ -152,6 +152,26 @@ a group-level verdict is the summary).
 Adoption gate: the manifest's three bins partition the enumerated set (an equality — a producer in no bin is
 a red with its name); every `decides` and `already-json` entry validates under `verdict.js`; every `word-only`
 entry carries a reason.
+
+## 3b · Sequence — DECIDED (Kestrel, team lead, 2026-09-22; owner: "adoption sequence is in your hands")
+
+Ordered by the one dependency that binds (the schema) and then by *who reads the verdict first × cost of a
+wrong green*. Not a proposal; change it by editing this section with a reason.
+
+| # | unit | owner | gate to start |
+|---|---|---|---|
+| 1 | `verdict.js` + `docs/VERDICT-CONTRACT.md` + ten plants (**landed 2026-09-22**, Osprey) — add `scope` + its plant | Osprey | — |
+| 2 | `tools/verdict-adoption.mjs` + committed manifest: every producer binned (decides / already-json / word-only-with-reason), equality gate | Osprey | after 1 — **the fleet's critical path**; nothing in wave 1 is "done" until it is in the manifest |
+| 3 | box nightly verdicts: `nightqc.summarize`, `night_report.py`, end-of-night back-check → one object per night beside the report; deploy owner-authorized | Wren (box), Heron reviews | after 1; can build against the shape now |
+| 4 | `verify-seals.mjs` + `unseal.py` — built (#2796); validator call + `scope` when 1 is on main | Heron | after 1 |
+| 5 | `mutate.mjs` / `mutation_diff.py`: killed · survived · **timeout as its own state** (closes `2026-09-05-mutate-diff-timeout-reads-as-kill`) | Osprey | after 2 |
+| 6 | `oracle-ecg-firmware-rr --json` (landed with 1) · `measurement-walk --json` (Magpie, in the envelope-hop unit) · `n1-cohort-track` (local, done) | Osprey · Magpie | converge to 1 |
+| 7 | `trio-batch` per-night gates (NOT NOCTURNAL · overlap · no anchor) — decides what enters the corpus | Kestrel | after the ECGDex emitter PR |
+| 8 | wave 2 sweep, one PR per lane: `nsrr-*-validate`, `cohort-fit`, `land-pr`/`queue-doctor`, `corpus-tier`, byte audit, `verify-fixtures`, `commit-shape`, `check.sh` token, `canaryVerdict` | by lane, from the manifest | after 2 |
+| 9 | wave 3: test-runner group-level verdicts — design first | Magpie | after 8 has held the shape unchanged |
+
+Rule for every unit: the object is asserted by a test that READS it (never the prose), the manifest row flips
+in the same PR, and a unit landing before 2 is re-checked against the manifest when 2 lands.
 
 ## 4 · What this does NOT do
 
