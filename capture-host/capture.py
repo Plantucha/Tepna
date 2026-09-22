@@ -10,9 +10,11 @@
 
 from __future__ import annotations
 import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
+import build_id
 from writers import (ContactLedger, StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
-                     HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, append_pmd_negotiation,
-                     capture_filename, missing_identity, night_dir, open_sample_writers)
+                     HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, append_daemon_start,
+                     append_pmd_negotiation, capture_filename, missing_identity, night_dir,
+                     open_sample_writers)
 import writers                       # the MODULE too: the live loss guard asks it for the open set
 from typing import Any, Iterable
 
@@ -11067,6 +11069,13 @@ async def main():
         "adapter_resolved": _hci,
         "adapter_ok": ADAPTER is None or bool(_hci),   # a pinned-but-unresolved adapter is the failure
     }
+    # …AND INTO THE NIGHT, not only into a status field the next write erases and a journal that
+    # rotates (residue 2026-09-10-daemon-restarts-are-idle-gated). `started_at` above makes THIS start
+    # visible; the sidecar makes the night's starts COUNTABLE afterwards, which is what the count was
+    # being re-derived from `journalctl` for.
+    _bid = build_id.probe(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    append_daemon_start(root, _now(), pid=os.getpid(), git=_bid.get("git"),
+                        dirty=_bid.get("dirty"), adapter=ADAPTER)
     await startup_defense_check(_hci, cfg)    # LOUD-warn if a wedge defense is disarmed (§P1.4)
     log.info("tepna-capture up: %d device(s), root=%s", len(cfg.get("devices", [])), root)
     sdnotify.sd_notify("READY=1")             # Type=notify: `systemctl start` unblocks once capture is up
