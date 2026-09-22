@@ -36,7 +36,7 @@
  *   node tools/corpus-census.mjs --selftest | --verdict-sample
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, openSync, readSync, closeSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { makeVerdict } from './verdict-emit.mjs';
@@ -305,10 +305,14 @@ function selftest() {
   const h2 = digestPrefix(tmp, false);
   eq(h1 !== h2, true, 'the prefix digest changes when a byte changes (it is not a stub)');
   eq(h1, digestPrefix(tmp, true) === h2 ? h1 : h1, 'control · the same reader is used for --full');
+  /* ⚠️ `require` is not defined in an ES module — the first spelling of this line THREW and left
+     `tools/.census-selftest.tmp` behind on every run, caught by `git status` before the push. The
+     removal is still best-effort (the file is ours and a failure to unlink must not red a selftest),
+     but it now actually runs. */
   try {
-    require('node:fs').unlinkSync(tmp);
+    unlinkSync(tmp);
   } catch (_) {
-    /* the temp file is ours; a failure to remove it must not red the selftest */
+    /* best effort */
   }
   console.log(`all ${n} selftests passed`);
 }
