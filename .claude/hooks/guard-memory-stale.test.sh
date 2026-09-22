@@ -151,4 +151,43 @@ ok ALLOW "$(runb "cat > $TMP/elsewhere/x.md <<'EOF'
 x
 EOF")"                                        'pre-Bash · a path outside any memory dir is allowed'
 
+# ── 9 · WITHOUT jq THE GUARD IS INERT, AND SAYS SO ONCE ─────────────────────────────────────────
+#    Fail-open is kept: a hook that errors on every tool call breaks the session. What is planted is
+#    that the absence is ANNOUNCED rather than silent, exactly once, and never on the hot path.
+NOJQ="$TMP/nojq"; mkdir -p "$NOJQ"
+for _b in sed grep awk find stat cat printf mkdir mv tail cut head sort wc date env bash sh; do
+  _p="$(command -v "$_b" 2>/dev/null)" && ln -sf "$_p" "$NOJQ/$_b" 2>/dev/null
+done
+nojq_run() { # nojq_run <tool> <phase> <marker-dir> ; echoes the stderr
+  printf '{"session_id":"%s","tool_name":"%s","tool_input":{"file_path":"%s"}}' "$SID" "$1" "$F" \
+    | env -i PATH="$NOJQ" HOME="$TMP" TMPDIR="$3" CLAUDE_CODE_SESSION_ID="$SID" bash "$H" "$2" 2>&1 >/dev/null
+}
+MK="$TMP/mk1"; mkdir -p "$MK"
+_first="$(nojq_run Write pre "$MK")"
+case "$_first" in
+  *"MEMORY GUARD IS INERT"*) echo "  ✓ without jq the guard ANNOUNCES that it is inert" ;;
+  *) echo "  ✗ without jq the guard is silently inert — the fail-open-and-say-nothing shape"; fail=$((fail + 1)) ;;
+esac
+case "$_first" in
+  *"NOTHING backstops"*) echo "  ✓ …and says WHY this differs from the format/ruff guards (no safety net behind it)" ;;
+  *) echo "  ✗ the notice does not say why this guard's fail-open is different"; fail=$((fail + 1)) ;;
+esac
+_second="$(nojq_run Write pre "$MK")"
+[ -z "$_second" ] && echo "  ✓ …ONCE per session: the second write says nothing" || { echo "  ✗ the notice repeats — a line per call is how a guard gets ripped out"; fail=$((fail + 1)); }
+_read="$(nojq_run Read pre "$TMP/mk2")"
+[ -z "$_read" ] && echo "  ✓ …and never on Read, which is the hot path" || { echo "  ✗ the notice fires on Read"; fail=$((fail + 1)); }
+# A DIFFERENT session gets its own notice — the marker is session-scoped, not global.
+MK2="$TMP/mk3"; mkdir -p "$MK2"
+_other="$(printf '{"session_id":"%s","tool_name":"Write","tool_input":{"file_path":"%s"}}' "$SID2" "$F" \
+  | env -i PATH="$NOJQ" HOME="$TMP" TMPDIR="$MK2" CLAUDE_CODE_SESSION_ID="$SID2" bash "$H" pre 2>&1 >/dev/null)"
+case "$_other" in
+  *"MEMORY GUARD IS INERT"*) echo "  ✓ …and a second session gets its own notice (marker is session-scoped)" ;;
+  *) echo "  ✗ a second session is silently inert"; fail=$((fail + 1)) ;;
+esac
+ls "$MK"/tepna-memory-guard-inert.* >/dev/null 2>&1 && echo "  ✓ the marker is NAMED for what it is, under TMPDIR" || { echo "  ✗ marker missing or unnamed"; fail=$((fail + 1)); }
+# AND IT STILL FAILS OPEN: announcing is not denying.
+printf '{"session_id":"%s","tool_name":"Write","tool_input":{"file_path":"%s"}}' "$SID" "$F" \
+  | env -i PATH="$NOJQ" HOME="$TMP" TMPDIR="$MK" CLAUDE_CODE_SESSION_ID="$SID" bash "$H" pre >/dev/null 2>&1
+[ $? -eq 2 ] && { echo "  ✗ without jq the guard DENIES — it must fail open"; fail=$((fail + 1)); } || echo "  ✓ …while still failing OPEN: announcing is not denying"
+
 if [ "$fail" -eq 0 ]; then echo "guard-memory-stale: all checks passed"; else echo "guard-memory-stale: $fail FAILED"; exit 1; fi
