@@ -154,7 +154,9 @@ def summarise(samples: list[dict], cap: int = REC_CAP) -> dict:
 
 
 # ── tepna.verdict/1 — the VERDICT lines as ONE object (VERDICT-CONTRACT wave 2) ──────────────────
-# The question is §7.4's: 112.9 Hz or 125.000 Hz. The band is the one `verdict()` has always applied
+# The question is §7.4's: 112.9 Hz or 125.000 Hz — a two-hypothesis MEASUREMENT, not a health gate:
+# PASS means DECIDED (the rate sits inside exactly one candidate's band), never "good".
+# The band is the one `verdict()` has always applied
 # (within 2 % of a candidate), pre-stated here as the criterion; the candidates are 10 % apart so at
 # most one can match. PASS ⇔ the unsaturated rate sits within 2 % of exactly one candidate (which one
 # is the RESULT, not the criterion) · FAIL neither (a third answer) · UNDERPOWERED no unsaturated
