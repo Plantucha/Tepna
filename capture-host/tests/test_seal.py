@@ -69,22 +69,26 @@ def _flat(v):
     return {"ok": False, "kind": v["result"]["kind"], "detail": v["reason"]}
 
 
-STATUSES = ("PASS", "FAIL", "SHORTFALL", "UNDERPOWERED", "NOT_RUN", "NOT_APPLICABLE", "UNKNOWN")
+VERDICT_JS = os.path.join(os.path.dirname(HERE), "verdict.js")
+
+
+def validate_verdict(v):
+    """`{ok, errors, checked}` from THE contract's own validator, `verdict.js` (VERDICT-CONTRACT §2) —
+    never a hand-written copy of its rules, which would drift the day the contract moved."""
+    node = shutil.which("node")
+    if not node:  # pragma: no cover
+        pytest.skip("node is not installed")
+    prog = "const V=require(process.argv[1]);const v=JSON.parse(require('fs').readFileSync(0,'utf8'));console.log(JSON.stringify(V.validate(v)))"
+    r = subprocess.run([node, "-e", prog, VERDICT_JS], input=json.dumps(v), capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    return json.loads(r.stdout.strip())
 
 
 def assert_valid_verdict(v):
-    """VERDICT-CONTRACT §1, checked here until Osprey's `verdict.js` is on main; then this delegates."""
-    assert v["schema"] == "tepna.verdict/1" and v["gate"] == "verify-seals"
-    assert v["status"] in STATUSES, v["status"]
-    p = v["population"]
-    assert p["checked"] + p["excluded"] == p["eligible"], p            # an equality, never a floor
-    assert set(v["criterion"]) == {"name", "threshold", "unit", "direction"} and v["criterion"]["direction"] in ("lte", "gte", "eq", "within")
-    if v["status"] == "PASS":
-        assert v["reason"] is None and p["checked"] > 0 and v["evidence"], v   # PASS over nothing is invalid
-    else:
-        assert isinstance(v["reason"], str) and v["reason"], v             # never an adjective, never empty
-    assert v["producedBy"]["tool"] and "commit" in v["producedBy"]
-    assert v["at"].endswith("Z")
+    out = validate_verdict(v)
+    assert out["ok"], (out["errors"], v)
+    assert v["gate"] == "verify-seals" and v["scope"] == "internal"
+    assert "status enum" in out["checked"] and "population equality" in out["checked"], out["checked"]   # the legs RAN
 
 
 # ── the committed vector ──────────────────────────────────────────────────────────────────────────
@@ -138,6 +142,10 @@ def _drop_consent(header):
     h = dict(header); del h["consent"]; return h
 
 
+def _disagree_consent(header):
+    return {**header, "consent": "yes"}    # the bag says null (not asked); the header now claims an answer
+
+
 PLANTS = {
     "flipped byte in one stream": dict(mutate_bag=_flip_one_byte_in_one_stream, expect="manifest:data/synthetic_oxydex_o2ring.csv"),
     "truncated payload":          dict(mutate_bag=_truncate_payload, expect="oxum"),
@@ -146,6 +154,7 @@ PLANTS = {
     "forged header":              dict(forge=True, expect="signature"),
     "stale revision":             dict(known_revision=2, expect="revision"),
     "consent absent":             dict(mutate_header=_drop_consent, expect=None),   # NOT a refusal: reads null
+    "consent disagrees":          dict(mutate_header=_disagree_consent, expect="consent"),
 }
 
 
@@ -173,11 +182,12 @@ def _build_plant(name, spec, night, key, tmp_path):
     return out
 
 
-def test_the_SEVEN_plants_red_by_name_in_BOTH_readers_and_each_is_SEEN(night, key, tmp_path):
-    """The denominator is an EQUALITY: seven plants enumerated, seven verdicts from each reader, and
-    every plant that must refuse DID refuse — a plant that came back `ok` is the vacuous green
-    `verify-the-plant-was-seen` records, and reds here by the plant's name."""
-    assert len(PLANTS) == 7, "the denominator is seven, not ≥ seven"
+def test_the_EIGHT_plants_red_by_name_in_BOTH_readers_and_each_is_SEEN(night, key, tmp_path):
+    """The denominator is an EQUALITY: eight plants enumerated (§6's seven plus the consent-agreement
+    plant from the #2796 review), eight verdicts from each reader, and every plant that must refuse DID
+    refuse — a plant that came back `ok` is the vacuous green `verify-the-plant-was-seen` records, and
+    reds here by the plant's name."""
+    assert len(PLANTS) == 8, "the denominator is eight, not ≥ eight"
     seen = {}
     for name, spec in PLANTS.items():
         path = _build_plant(name, spec, night, key, tmp_path)
@@ -206,7 +216,7 @@ def test_the_plants_are_DISTINCT_defects_not_one_defect_seven_times(night, key, 
         path = _build_plant(name, spec, night, key, tmp_path)
         kinds.add(_python(path, card_key=spec.get("read_card_key", V.TEST_CARD_KEY),
                           known_revision=spec.get("known_revision"))["kind"])
-    assert len(kinds) == 6, kinds
+    assert len(kinds) == 7, kinds
 
 
 # ── the framing refusals a plant does not reach ───────────────────────────────────────────────────
@@ -497,5 +507,41 @@ def test_the_validator_REFUSES_a_pass_over_nothing_and_a_broken_denominator():
         lambda v: v.update(evidence=[]),                                    # PASS with nothing to open
     ):
         v = json.loads(json.dumps(good)); mutate(v)
-        with pytest.raises(AssertionError):
-            assert_valid_verdict(v)
+        out = validate_verdict(v)
+        assert not out["ok"], (mutate, v)
+
+
+def test_a_reader_CRASH_is_an_UNKNOWN_verdict_not_an_exception(monkeypatch, tmp_path):
+    """A crash is not a verdict. Both readers turn a non-refusal exception into UNKNOWN with the error as
+    the reason, so a consumer never mistakes a stack trace for green — or for red."""
+    path = os.path.join(V.VECTOR_DIR, EXPECTED["seal"])
+    monkeypatch.setattr(unseal, "_split", lambda blob: (_ for _ in ()).throw(RuntimeError("boom")))
+    v = unseal.verdict(path, card_key=V.TEST_CARD_KEY, pinned_fingerprint=PIN)
+    assert_valid_verdict(v)
+    assert v["status"] == "UNKNOWN" and "boom" in v["reason"] and v["result"] is None
+    # the Node reader, through its exported `judge` with a key WebCrypto's importKey rejects outright
+    # (a TypeError, not a SealRefused) — a first draft used a 2-byte card key, which HKDF accepts and
+    # AES-KW then refuses by name: a FAIL, not a crash. The trigger has to be outside the vocabulary.
+    node = shutil.which("node")
+    if not node:  # pragma: no cover
+        pytest.skip("node is not installed")
+    # argv[1] is a placeholder: the module runs its CLI when argv[1] is its own path, and this must
+    # import it as a library
+    prog = ("import(process.argv[2]).then(m => m.judge(process.argv[3], {cardKey: undefined, pinnedFingerprint: process.argv[4]}))"
+            ".then(v => console.log(JSON.stringify(v)))")
+    r = subprocess.run([node, "--input-type=module", "-e", prog, "-", NODE_VERIFIER, path, PIN], capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    js = json.loads(r.stdout.strip())
+    assert_valid_verdict(js)
+    assert js["status"] == "UNKNOWN" and "reader failed" in js["reason"] and js["result"] is None
+
+
+def test_the_consent_plant_is_symmetric_a_bag_that_disagrees_with_a_null_header_is_refused_too(night, key, tmp_path):
+    def m(bag):
+        bag["bag-info.txt"] = bag["bag-info.txt"].replace(b"Tepna-Research-Consent: null", b"Tepna-Research-Consent: no")
+        import hashlib
+        lines = [l for l in bag["tagmanifest-sha256.txt"].decode().splitlines() if not l.endswith("bag-info.txt")]
+        lines.append("%s  bag-info.txt" % hashlib.sha256(bag["bag-info.txt"]).hexdigest())
+        bag["tagmanifest-sha256.txt"] = ("\n".join(sorted(lines)) + "\n").encode(); return bag
+    p = str(tmp_path / "cd.tepna"); seal.seal_night(night, p, **V.seal_kwargs(key), mutate_bag=m)
+    assert _python(p)["kind"] == "consent" and _node(p)["kind"] == "consent"

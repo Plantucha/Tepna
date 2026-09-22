@@ -13,9 +13,9 @@
    "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
   },
   "capture-host/mutation_diff.py": {
-   "bin": "decides",
-   "status": "pending",
-   "note": "the diff-scoped mutation gate: killed \u00b7 survived \u00b7 undecided \u00b7 refused (step 5)"
+   "bin": "word-only",
+   "status": "exempt",
+   "reason": "the PURE builder (verdict_object, VERDICT_STATUSES) and the classifier vocabulary; the emitting producer is capture-host/tools/mutate_diff.py (adopted)"
   },
   "capture-host/nightqc.py": {
    "bin": "word-only",
@@ -237,6 +237,18 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "verdict words appear only in comments"
+  },
+  "capture-host/tools/mutate_diff.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "note": "the diff-scoped mutation gate: every exit emits tepna.verdict/1 \u2014 PASS all killed \u00b7 FAIL survivors or a REFUTED entry \u00b7 UNKNOWN undecided (timeout/suspicious/not checked, never a kill) or budget-refused \u00b7 NOT_RUN preflight/all-invocations-failed \u00b7 NOT_APPLICABLE nothing behavioural (step 5, closes the residue mapping of 2026-09-05-mutate-diff-timeout-reads-as-kill one level up)",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/tools/mutate_diff.py",
+     "--verdict-sample"
+    ]
+   }
   },
   "capture-host/tools/mutate_pure.py": {
    "bin": "word-only",
@@ -727,8 +739,16 @@
   },
   "tools/verify-seals.mjs": {
    "bin": "already-json",
-   "status": "pending",
-   "note": "born emitting tepna.verdict/1 (#2796, `--vectors --json` prints the object); measured 2026-09-22 it lacks only `scope`, which landed in #2797 after it \u2014 flips to adopted with emits {cmd:[node, tools/verify-seals.mjs, --vectors, --json]} when Heron adds scope (step 4)"
+   "status": "adopted",
+   "note": "born emitting tepna.verdict/1 (#2796); scope + verdict.js validation of every emitted object in #2800 \u2014 the first adoption this manifest records. `--vectors --json` prints the verdict for the committed vector to stdout, prose to stderr.",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/verify-seals.mjs",
+     "--vectors",
+     "--json"
+    ]
+   }
   },
   "tools/wt-done.mjs": {
    "bin": "word-only",
