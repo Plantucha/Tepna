@@ -544,8 +544,15 @@
   },
   "tools/oracle-ecg-firmware-rr.mjs": {
    "bin": "already-json",
-   "status": "pending",
-   "note": "pooled bands CONSISTENT/SHORTFALL/INVESTIGATE/UNDERPOWERED \u2014 object written, patched aside for the adoption wave"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/oracle-ecg-firmware-rr.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "pooled bands CONSISTENT/SHORTFALL/INVESTIGATE/UNDERPOWERED \u2192 verdictObject(); --json emits the object at the top level, --verdict-sample the synthetic-shape object the gate reads"
   },
   "tools/pat-axis-leg-audit.mjs": {
    "bin": "word-only",
