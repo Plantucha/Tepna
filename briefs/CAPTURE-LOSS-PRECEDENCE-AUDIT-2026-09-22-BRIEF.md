@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS (owner-ordered 2026-09-22 — *"do deep audit of logic for all devices how data is captured, this data loss is unacceptable"*; §1–§4 are the audit, measured on the box. **Owner rulings 2026-09-22 (relayed by Kestrel, option labels verbatim): R1 = "Per-unit can-charge capability"; R2–R4 = "Yes, all three".** R1 + R2 BUILT the same day (`should_drop_not_worn(can_charge=)` reads devcaps `can_charge`, recorded where a charge is MEASURED — `battery-rose`, `pmd-in-charger`; absent ⇒ never dropped, and the flat-at-full inference never fires); R4 BUILT (`loss_audit.py` + `capture.loss_poller`: LOSS-AUDIT.json + LOSS-VERDICT.json per settled night, gate `night-loss`; UNKNOWN with the number until the owner sets a bar — none ruled; re-run on the box's 09-20 / 09-21 nights: 210 / 244 daemon-caused minutes, `daemon:not-worn drop` named); R3 next) · **Created:** 2026-09-22
+**Status:** IN-PROGRESS (owner-ordered 2026-09-22 — *"do deep audit of logic for all devices how data is captured, this data loss is unacceptable"*; §1–§4 are the audit, measured on the box. **Owner rulings 2026-09-22 (relayed by Kestrel, option labels verbatim): R1 = "Per-unit can-charge capability"; R2–R4 = "Yes, all three".** R1 + R2 BUILT the same day (`should_drop_not_worn(can_charge=)` reads devcaps `can_charge`, recorded where a charge is MEASURED — `battery-rose`, `pmd-in-charger`; absent ⇒ never dropped, and the flat-at-full inference never fires); R4 BUILT (`loss_audit.py` + `capture.loss_poller`: LOSS-AUDIT.json + LOSS-VERDICT.json per settled night, gate `night-loss`; UNKNOWN with the number until the owner sets a bar — none ruled; re-run on the box's 09-20 / 09-21 nights: 210 / 244 daemon-caused minutes, `daemon:not-worn drop` named); R3 BUILT (`telemetry.WORN_VOTES` — every vote, its rank and whether it MEASURES wear or INFERS it; `worn_verdict` reads the table instead of naming `flat-at-full` inline; §2a is rendered from it and diffed by `test_worn_precedence`). All four rulings executed 2026-09-22) · **Created:** 2026-09-22
 
 # CAPTURE-LOSS-PRECEDENCE-AUDIT — where the box loses a night it was wearing, measured
 
@@ -89,6 +89,29 @@ Two structural facts the table makes visible:
    (2026-08-11, *"91 events in 7 days"*, `POLAR-ONBOARD-BACKUP-FOLLOWUPS` §1), restored, and has cost
    **698 minutes** since — it is the single most expensive mechanism on the box.
 
+### 2a · The same table, as DATA — `telemetry.WORN_VOTES` (R3)
+
+§2 above is the audit's reading, per device. This is the machine's copy: every vote `worn_verdict` can
+emit, its rank, and whether it MEASURES wear or INFERS it. It is rendered from the code by
+`telemetry.precedence_table_md()` and diffed against this block by
+`tests/test_worn_precedence.py::test_the_brief_carries_the_table_the_code_renders` — a vote added in
+code without a line here, or a line here with no vote, reds by name. The rule it exists to enforce,
+the general form of #2781 and #2831: **an inferred vote never outranks a measured vote of the opposite
+sign** (today that binds at `charging`, where an inferred dock yields to a heartbeat and a measured
+charge does not; an UNATTRIBUTED charging flag is not an inference and keeps its authority).
+
+| rank | vote | source | means |
+|---|---|---|---|
+| 0 | `charging:rising` | measured | the battery ROSE — cells do not self-charge, so the device is on a charger |
+| 0 | `charging:pmd-in-charger` | measured | the device's own PMD answered IN_CHARGER to a stream START |
+| 0 | `charging:flat-at-full` | inferred | a battery flat at 100 % for 45 min — a dock, OR a fresh coin cell (2026-09-22: 140 drops) |
+| 1 | `hr-contact-bit` | measured | the HR characteristic's skin-contact bit — electrode CONTACT, not wear (2026-09-20: 131 drops) |
+| 1 | `hr-beats` | measured | a plausible rate or any RR interval in the HR packet — a beat |
+| 1 | `ppi-contact` | measured | the PPI frame's contact flag (absent in SDK mode) |
+| 2 | `pulse-prominence` | measured | a pulse in the PPG — perfused tissue |
+| 2 | `ambient-level` | inferred | ambient light dark enough to look like skin (55 Hz domain) |
+| 2 | `ambient-stability` | inferred | ambient light steady enough to look like skin (176 Hz domain) |
+
 ## 3 · What the drop buys, measured against what it costs
 
 The drop's charter (`capture.py` "POWER: drop a not-worn Polar so it stops draining"): a strap off the
@@ -150,7 +173,9 @@ the tripwire that would have caught 09-03 (25 fragments) eighteen nights before 
 - [x] Owner ruling on R1 (capability-gated drop vs config-off on the H10) — **"Per-unit can-charge capability"**, 2026-09-22.
 - [x] R1–R2 built and gate-tested with the 09-21/22 shape as the plant (a full flat battery + a beat
       on a unit with no observed charge ⇒ worn, no drop, no inference) — 2026-09-22, the Verity-in-SDK-mode plant too.
-- [ ] R3: the precedence table is code + a printed test artefact; this brief's §2 is diffed against it.
+- [x] R3: the precedence table is code (`telemetry.WORN_VOTES`) and §2a is its rendering, diffed by
+      `test_worn_precedence.py` — a vote added in code without a brief line reds by name; the rule
+      "an inferred vote never outranks a measured vote of the opposite sign" is a test, not a comment — 2026-09-22.
 - [x] R4: `LOSS-AUDIT.json` beside every night's QC summary; the 09-20 and 09-21 nights re-audited
       name `daemon:not-worn drop` as the cause (210 / 244 daemon-caused min) — 2026-09-22. They read UNKNOWN,
       not FAIL: no bar has been set (owner), so the object carries the number and refuses to judge it.
