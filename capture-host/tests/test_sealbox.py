@@ -354,3 +354,99 @@ def test_closed_at_is_the_newest_file_as_floating_ms(tmp_path):
     e = tmp_path / "empty"
     e.mkdir()
     assert abs(sealbox.closed_at_ms(str(e)) / 1000 - dt.datetime.now().replace(tzinfo=dt.timezone.utc).timestamp()) < 5
+
+
+# ── the seal runs in a child ─────────────────────────────────────────────────────────────────────────
+
+
+def _job(tmp_path):
+    kd, ob, k, store, night = _box(tmp_path)
+    return {
+        "night_dir": night,
+        "outbox": ob,
+        "box_id": "box1",
+        "night": "2026-09-19",
+        "key_dir": kd,
+        "cfg": {"seal": {"research_consent": None}},
+        "version": "2.6.0",
+        "commit": "abc1234",
+    }
+
+
+def test_the_child_seals_from_a_job_on_stdin_and_prints_one_verdict(tmp_path):
+    job = _job(tmp_path)
+    out = sealbox.seal_job_main(json.dumps(job))
+    o = json.loads(out)
+    _both(o)
+    assert o["status"] == "PASS" and o["result"]["revision"] == 1
+    assert os.path.exists(os.path.join(job["outbox"], "box1-2026-09-19.tepna"))
+
+
+def test_seal_in_subprocess_spawns_the_real_child_and_the_parent_gets_the_verdict(tmp_path):
+    """The integration: a real interpreter, the real sealer, the object back over stdout — the daemon's
+    path, minus the daemon. (RSS: measured 2026-09-22 on the real 09-17 night, 916 MB → +1 971 MB peak
+    in the sealing process; that peak now belongs to a child that exits.)"""
+    job = _job(tmp_path)
+    o = sealbox.seal_in_subprocess(
+        job["night_dir"],
+        outbox=job["outbox"],
+        box_id="box1",
+        night="2026-09-19",
+        key_dir=job["key_dir"],
+        cfg=job["cfg"],
+        version="2.6.0",
+        commit="abc1234",
+    )
+    _both(o)
+    assert o["status"] == "PASS" and o["producedBy"]["commit"] == "abc1234"
+    o = sealbox.seal_in_subprocess(
+        job["night_dir"],
+        outbox=job["outbox"],
+        box_id="box1",
+        night="2026-09-19",
+        key_dir=job["key_dir"],
+        cfg=job["cfg"],
+        version="2.6.0",
+        commit="abc1234",
+    )
+    assert o["status"] == "NOT_APPLICABLE"  # the second run sees the seal it wrote
+
+
+def test_a_child_that_dies_times_out_or_babbles_is_UNKNOWN_naming_it(tmp_path):
+    import subprocess
+
+    job = _job(tmp_path)
+    kw = dict(
+        outbox=job["outbox"],
+        box_id="box1",
+        night="2026-09-19",
+        key_dir=job["key_dir"],
+        cfg={},
+        version=None,
+        commit=None,
+    )
+
+    class _R:
+        def __init__(self, rc, out="", err=""):
+            self.returncode, self.stdout, self.stderr = rc, out, err
+
+    o = sealbox.seal_in_subprocess(
+        job["night_dir"], run=lambda *a, **k: _R(1, "", "Traceback\nMemoryError: boom"), **kw
+    )
+    _both(o)
+    assert o["status"] == "UNKNOWN" and "exited 1: MemoryError: boom" in o["reason"]
+    o = sealbox.seal_in_subprocess(job["night_dir"], run=lambda *a, **k: _R(0, "not json"), **kw)
+    assert o["status"] == "UNKNOWN" and "not a verdict" in o["reason"]
+    o = sealbox.seal_in_subprocess(job["night_dir"], run=lambda *a, **k: _R(0, json.dumps({"schema": "x"})), **kw)
+    assert o["status"] == "UNKNOWN" and "not a verdict" in o["reason"]
+    o = sealbox.seal_in_subprocess(job["night_dir"], run=lambda *a, **k: _R(1, "", ""), **kw)
+    assert "(no stderr)" in o["reason"]
+
+    def _timeout(*a, **k):
+        raise subprocess.TimeoutExpired(cmd="x", timeout=k.get("timeout"))
+
+    o = sealbox.seal_in_subprocess(job["night_dir"], run=_timeout, timeout_s=7, **kw)
+    assert o["status"] == "UNKNOWN" and "exceeded 7 s" in o["reason"]
+    o = sealbox.seal_in_subprocess(job["night_dir"], python="/nonexistent/python", **kw)
+    assert o["status"] == "UNKNOWN" and "could not be started" in o["reason"]
+    assert o["population"] == {"checked": 0, "eligible": 1, "excluded": 1}

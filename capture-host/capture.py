@@ -7647,7 +7647,14 @@ async def seal_poller(cfg: dict, root: str):
                       "nights": {}}
     interval = float(scfg.get("poll_sec", 600))
     settle = float(scfg.get("settle_sec", (cfg.get("storage") or {}).get("settle_sec", _NIGHT_SETTLE_S)))
+    retry_sec = float(scfg.get("retry_sec", 6 * 3600))
     captures = os.path.join(root, "captures")
+    # NO RE-SEAL LOOP. A night whose attempt ended FAIL or UNKNOWN (a child killed at the 30-minute
+    # timeout, a seal that did not verify) is HELD: not tried again until its directory changes
+    # (files/bytes signature) or `retry_sec` passes — otherwise a night that times out would burn a
+    # 30-minute child every tick, forever. The hold is published (STATUS.seal.nights[n].held_until)
+    # and the night stays unsealed and visible as such; QC's own verdicts are untouched.
+    held: dict[str, tuple[tuple[int, int], float]] = {}     # night -> (signature at the failed attempt, monotonic when)
     while not _STOP.is_set():
         await asyncio.sleep(interval)
         try:
@@ -7658,13 +7665,27 @@ async def seal_poller(cfg: dict, root: str):
             active = await asyncio.to_thread(diskguard.active_nights, captures, settle)
             nights = [n for n in await asyncio.to_thread(diskguard.list_nights, captures) if n not in active]
             for night in nights[-int(scfg.get("max_nights", 60)):]:
+                night_dir = os.path.join(captures, night)
+                sig = await asyncio.to_thread(sealbox.night_signature, night_dir)
+                h = held.get(night)
+                if h is not None and h[0] == sig and _time.monotonic() - h[1] < retry_sec:
+                    continue                                   # held: same bytes, window not elapsed
+                # IN A CHILD, never in this process: a 916 MB night measured +1 971 MB peak RSS in the
+                # sealer (sealbox.seal_in_subprocess); the daemon holding every BLE link must not carry it
                 obj = await asyncio.to_thread(
-                    sealbox.seal_or_reissue, os.path.join(captures, night), outbox=outbox, box_id=box_id,
-                    night=night, store=store, signing_key=signing_key, cfg=cfg, version=version, commit=commit)
-                STATUS["seal"]["nights"][night] = {"status": obj["status"], "at": obj["at"],
-                                                    "revision": (obj.get("result") or {}).get("revision")}
+                    sealbox.seal_in_subprocess, night_dir, outbox=outbox, box_id=box_id,
+                    night=night, key_dir=key_dir, cfg=cfg, version=version, commit=commit)
+                entry = {"status": obj["status"], "at": obj["at"],
+                         "revision": (obj.get("result") or {}).get("revision")}
                 if obj["status"] in ("FAIL", "UNKNOWN"):
-                    log.warning("seal: %s → %s — %s", night, obj["status"], obj["reason"])
+                    held[night] = (sig, _time.monotonic())
+                    entry["held_until"] = (_now() + _dt.timedelta(seconds=retry_sec)).isoformat(timespec="seconds")
+                    entry["reason"] = obj.get("reason")
+                    log.warning("seal: %s → %s — %s; held for %.0f h unless the night changes", night,
+                                obj["status"], obj["reason"], retry_sec / 3600)
+                else:
+                    held.pop(night, None)
+                STATUS["seal"]["nights"][night] = entry
         except Exception:  # noqa: BLE001 — one bad night must not stop the poller
             log.warning("seal: poll failed", exc_info=True)
 

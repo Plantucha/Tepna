@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS — 2026-09-22 (steps 1 and 2 of §3b landed: `verdict.js` #2797, the adoption gate + manifest with 152 producers binned; 38 adoptions pending across the waves) · **Created:** 2026-09-21 · **Interlocks:** `MEASUREMENT-INSTANCE-CONTRACT-2026-09-17-BRIEF.md` (the sibling contract for a *number*; this one is for a *verdict*) · `CAPTURE-NIGHT-SEAL-2026-09-21-BRIEF.md` (phase A's `verify-seals` is a first adopter; phase C gives the suite an independent reader) · `PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md` (adoption is counted, not assumed) · CLAUDE.md §🧾
+**Status:** IN-PROGRESS — 2026-09-22 (§3b steps 1–7 landed and wave 2 mostly drained in one day — 24 rows adopted, 23 pending (12 of them UNKNOWN-by-design awaiting the owner's held-out decision, 2 runners awaiting the wave-3 design, 2 decide-nothing tools with residue rows); §3c records the rules the adopters found. Earlier: steps 1 and 2 of §3b landed: `verdict.js` #2797, the adoption gate + manifest with 152 producers binned; 38 adoptions pending across the waves) · **Created:** 2026-09-21 · **Interlocks:** `MEASUREMENT-INSTANCE-CONTRACT-2026-09-17-BRIEF.md` (the sibling contract for a *number*; this one is for a *verdict*) · `CAPTURE-NIGHT-SEAL-2026-09-21-BRIEF.md` (phase A's `verify-seals` is a first adopter; phase C gives the suite an independent reader) · `PARTIAL-ADOPTION-DETECTION-2026-09-20-BRIEF.md` (adoption is counted, not assumed) · CLAUDE.md §🧾
 
 # VERDICT-CONTRACT — a gate answers in a fixed shape; prose is explanation, not the API
 
@@ -167,11 +167,58 @@ wrong green*. Not a proposal; change it by editing this section with a reason.
 | 5 | `mutation_diff.py`: killed · survived · **timeout/suspicious as `UNKNOWN`, never a kill** — **landed #2802**; `mutate.mjs` — **landed #2806**: "✓ all 0 mutant(s) killed" over changed lines with no mutable operator is now `NOT_APPLICABLE`, and the count is measured — **9 of the 36 commits the gate ran on in the last 300 took that path, and 273 of 300 read PASS in the CI summary** (264 never-ran + 9 zero-mutant), because the summary mapped exit 0 → PASS; the summary CONSUMER reads the verdict object instead (#2807, residue `2026-09-22-mutation-summary-parsed-exit-code`) | Osprey | after 2 |
 | 6 | `oracle-ecg-firmware-rr --json` (landed with 1) · `measurement-walk --json` (Magpie, in the envelope-hop unit) · `n1-cohort-track` (local, done) | Osprey · Magpie | converge to 1 |
 | 7 | `trio-batch` per-night gates (NOT NOCTURNAL · overlap · no anchor) — decides what enters the corpus — **landed (this PR)**: one object per night decided + one run-level object, `<out>/trio-batch-verdicts.json`, `--verdict-sample`; measured on the 67-night box tree: 67 PASS under `--allow-partial` | Kestrel | after the ECGDex emitter PR |
-| 8 | wave 2 sweep, one PR per lane: `nsrr-*-validate`, `cohort-fit`, `land-pr`/`queue-doctor`, `corpus-tier`, byte audit, `verify-fixtures`, `commit-shape`, `check.sh` token, `canaryVerdict` | by lane, from the manifest | after 2 |
+| 8 | wave 2 sweep, one PR per lane: `nsrr-*-validate`, `cohort-fit`, `land-pr`/`queue-doctor`, `corpus-tier`, byte audit, `verify-fixtures`, `commit-shape`, `check.sh` token, `canaryVerdict` — **`verify-fixtures` · `commit-shape` · `corpus-tier` adopted #2818 (Magpie, 2026-09-22)**: each prints ONE object under `--json`, rows flipped in the same PR, every `emits.cmd` corpus-free (`--check`, full-history scan, `--selftest` = the refusal plant on a scratch pair) | by lane, from the manifest | after 2 |
 | 9 | wave 3: test-runner group-level verdicts — design first | Magpie | after 8 has held the shape unchanged |
 
 Rule for every unit: the object is asserted by a test that READS it (never the prose), the manifest row flips
 in the same PR, and a unit landing before 2 is re-checked against the manifest when 2 lands.
+
+## 3c · Rules the adopters found (2026-09-22, the first day of adoption — 24 rows adopted, 8 PRs in one lane)
+
+Each of these was discovered by a lane owner reading a tool before flipping its row; none was in the
+contract as written. They are rules now.
+
+- **A Python adopter guards every wheel import at module level.** The static CI runner that executes
+  `emits.cmd` has neither `bleak` nor `cryptography`; a tool that imports one at the top reds the static
+  job on `origin/main` the moment its row flips (Heron, #2815 — `ble_sniff.py`, `probe_*.py` guard the
+  import and a real run refuses by name; `unseal.py` uses `emits.file`, a committed sample pinned equal
+  to the live reader on every field but `at`/`producedBy`).
+- **PASS means DECIDED, never GOOD.** A two-hypothesis measurement with a pre-stated band (the 0x03
+  probe's 112.9 vs 125.0 Hz at 2 %) is a criterion, and its PASS says which hypothesis held — a reader
+  must not take it as a health gate. Written into the tool's own comment (#2815).
+- **A tool that reports a statistic "separately", with no ratchet and no alpha, decides nothing** and
+  is NOT wrapped — wrapping it would manufacture a verdict. Two found on day one: `stmt-delete.mjs`
+  (Level B is a measurement; the ratchet `extreme-mutate` has is a design change, residue
+  `2026-09-22-stmt-delete-has-no-ratchet`) and `deep-desat-falsifier.mjs` (a sign-test p-value with no
+  stated alpha; the alpha belongs in the parent brief first, residue
+  `2026-09-22-deep-desat-falsifier-states-no-alpha`). Both rows stay `pending` with the reason.
+- **A tool's own SHORTFALL band maps to FAIL** when it is a headline miss; the contract's `SHORTFALL`
+  is a met headline with a failed sub-population (`ecg-physionet-differential`). A graded miss (PARTIAL)
+  is FAIL with the grade in the reason — the enum is closed (`nsrr-effort-typing`).
+- **A band written after the numbers are on record is post-hoc ⇒ `UNKNOWN` by design**, with the §1
+  sentence as the reason and ONE residue row per family naming the only route to a band (a held-out run
+  on unseen records, or a brief that pre-states one before the next run). Twelve tools sit here — the
+  four NSRR pool scorers (#2811) and eight analysis tools (#2817, `tools/verdict-undeclared.mjs`); the
+  campaign is the owner's call.
+- **A consumer never picks a side.** `mutation-summary.mjs` (#2807): status and exit code disagree ⇒
+  `UNKNOWN`; no object ⇒ `UNKNOWN`, never PASS. Measured before it existed: **273 of the last 300
+  commits read PASS on the JS mutation gate's CI summary** — 264 where no mutable source changed and 9
+  where the gate ran on zero mutants and printed "✓ all 0 mutant(s) killed" — because the summary mapped
+  exit 0 → PASS.
+- **A runner's verdict aggregates its children's; it never restates them.** `run-check.mjs` and
+  `selftest-all.mjs` decide (every step/suite green) and stay `decides`/`pending` until the wave-3
+  design (§3b #9) says what a run-level object over a population of gates looks like. Not wrapped now.
+- **Queue actions and fail-closed classifications are not verdicts.** `land-pr` (update · wait · merge ·
+  stop — a queue decision in its own vocabulary, consuming CI's verdicts), `mutation-reach` and
+  `mutation-worklist` (which files/functions are in scope) are `word-only` with those reasons.
+- **One shared builder per lane, not per tool.** JS: `tools/verdict-emit.mjs` (make + validate +
+  commit, throws on an invalid object) for declared tools and `tools/verdict-undeclared.mjs` for
+  band-less ones; Python: `capture-host/verdict.py`. A tool that builds its own object by hand reds the
+  validator the day the schema moves.
+- **The validator catches its authors.** Building `trio-batch`'s emitter (#2810) it refused a PASS with
+  empty evidence and a NOT_APPLICABLE carrying a result; building the oracle's, five stale plants failed
+  on `scope`; building PpgDex's, an asymmetric +27 % on one leg of one input was caught by the pre-stated
+  band and re-measured interleaved. That is what the contract is for.
 
 ## 4 · What this does NOT do
 
