@@ -704,6 +704,57 @@ def refresh_scratch(tree, work, extras) -> int:
     return n
 
 
+def _subdir_index(root, tree_name):
+    """`({basename: relpath}, {ambiguous basenames})` for files in SUBDIRECTORIES of the repo root.
+
+    Tracked files only where git can be read — an untracked scratch file is nobody's fixture, and in
+    the real checkout `uploads/` also holds gitignored corpus recordings that no test names. Falls
+    back to a pruned walk (no dot-dirs, no `node_modules`, not the tree itself) when git is absent,
+    which is the case in the synthetic trees the tests build.
+
+    A basename mapping to MORE THAN ONE path is ambiguous and is dropped from the index: staging the
+    wrong `README.md` is worse than staging none, and the caller publishes the dropped names."""
+    import subprocess
+    from collections import defaultdict
+    from pathlib import Path
+
+    root = Path(root)
+    rels: list[str] = []
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "-z"], cwd=str(root), capture_output=True, text=True, timeout=60, check=True
+        ).stdout
+        rels = [r for r in out.split("\0") if r]
+    except (OSError, subprocess.SubprocessError):
+        for p in root.rglob("*"):
+            # `relative_to` cannot raise here: rglob yields only paths under `root`. The defensive
+            # try/except that stood here was unreachable, so it was dead code AND an unexplained
+            # swallow AND two uncovered lines — three costs for a branch that cannot be taken.
+            rel = p.relative_to(root).as_posix()
+            if not p.is_file():
+                continue
+            parts = rel.split("/")
+            if any(seg.startswith(".") or seg == "node_modules" for seg in parts):
+                continue
+            rels.append(rel)
+    by_base: dict[str, list[str]] = defaultdict(list)
+    for rel in rels:
+        parts = rel.split("/")
+        if len(parts) < 2 or parts[0] == tree_name:
+            continue  # root-level files are `names`; the tree is the scratch copy itself
+        # DOT SEGMENTS STAY OUT, matching the root-level rule above. `.github/workflows/capture-host-ci.yml`
+        # IS a genuine read — test_dev_requirements.py reaches it through a root anchor — but staging it
+        # would make a test that has never executed inside a scratch start executing there, which is a
+        # behaviour change this widening should not smuggle in. Recorded as residue instead; the test
+        # skips on `.exists()` today, which is why nobody has noticed it.
+        if any(seg.startswith(".") for seg in parts):
+            continue
+        by_base[rel.rsplit("/", 1)[-1]].append(rel)
+    index = {b: v[0] for b, v in by_base.items() if len(v) == 1}
+    dups = {b for b, v in by_base.items() if len(v) > 1}
+    return index, dups
+
+
 def root_reads(tree) -> list[str]:
     """The REPO-ROOT files the test suite names — the reads the scratch copy cannot satisfy on its own.
 
@@ -716,10 +767,31 @@ def root_reads(tree) -> list[str]:
     not exist yet. Every writers.py PR since 09-16 has carried it.
 
     Keyed on WHAT is read, not on how the path is spelled (`test_mutation_hygiene.py` records why a
-    path-idiom anchor is a losing game): a test file that contains, as a string literal, the NAME of a
-    regular file in the repo root is taken to read it. Over-flags by design — a literal that merely
-    mentions the name costs one spurious copy of a small file; a miss costs a module's whole
-    measurement. Derived from the tree every run, so a new root read needs no list edited.
+    path-idiom anchor is a losing game): a `.py` file under the tree that contains, as a string
+    literal, either the NAME of a regular file in the repo root or a repo-relative PATH to one, is
+    taken to read it. Over-flags by design — a literal that merely mentions the name costs one
+    spurious copy of a small file; a miss costs a module's whole measurement. Derived from the tree
+    every run, so a new root read needs no list edited.
+
+    ⚠️ WIDENED 2026-09-22 (#2864), because the docstring above was BROADER THAN THE CODE in two
+    independent ways, either of them fatal on its own:
+
+      1. the candidate set was `root.iterdir()` filtered by `p.is_file()` — repo-root REGULAR FILES
+         only. `uploads/synthetic_ecgdex_h10.txt` lives in a DIRECTORY, so no spelling of that literal
+         in any test could ever have matched it;
+      2. the scan was `(tree / "tests").glob("*.py")` — test files, non-recursive. That read is named
+         in a HELPER module (`test_seal.py` calls `V.stage_night(...)`), so even a directory-aware
+         version keyed on test files would still have missed it.
+
+    Three conjunctive conditions — a literal, in a test file, naming a root-level regular file — were
+    presented as one general rule. The result: the fixture was absent from the scratch, the test
+    ERRORED at setup, `-x` aborted collection, and five globs recorded 0 tested mutants. The gate's
+    0-tested refusal caught it ("a gate that cannot see must not report green"); without that refusal
+    it is a silent green, as it was on #2581.
+
+    ⚠️ The widening is bounded explicitly, because a PATH literal can reach further than a NAME:
+    an absolute path, and any literal containing `..`, is never a candidate — the target must resolve
+    to a regular file INSIDE the root. Over-flagging is kept; escaping the root is not.
     """
     from pathlib import Path
 
@@ -728,11 +800,41 @@ def root_reads(tree) -> list[str]:
     # Dotfiles are never reads: in a git WORKTREE `.git` is a regular FILE (a gitdir pointer), and a
     # test that mentions ".git" would otherwise stage it into the scratch.
     names = {p.name for p in root.iterdir() if p.is_file() and not p.name.startswith(".")}
+    # BASENAME → its one path, for files in SUBDIRECTORIES of the root. The read that broke #2864 is
+    # assembled from parts — `UPLOADS = join(dirname(HERE), "uploads")` then `join(UPLOADS, n)` with
+    # `n = "synthetic_ecgdex_h10.txt"` — so the full path is a literal NOWHERE and no path-matching
+    # rule can see it. The basename IS a literal, and it is enough when it is UNIQUE.
+    # AMBIGUOUS basenames are skipped, because staging the wrong `README.md` is worse than staging
+    # none; `ambiguous_basenames` publishes them so the miss is a named set, not a silence.
+    sub, dup = _subdir_index(root, tree.name)
     found: set[str] = set()
-    for t in sorted((tree / "tests").glob("*.py")):
+    # rglob, not glob("tests/*.py"): the read that broke #2864 is named in a HELPER module, and a
+    # non-recursive scan of tests/ sees neither a helper beside the tests nor one a directory down.
+    for t in sorted(tree.rglob("*.py")):
         for lit in re.findall(r"""["']([^"'\n]+)["']""", t.read_text(encoding="utf-8", errors="replace")):
             if lit in names:
                 found.add(lit)
+                continue
+            if lit in sub:
+                found.add(sub[lit])
+                continue
+            # a repo-relative PATH into a subdirectory — the miss that cost #2864 its measurement
+            if "/" not in lit or lit.startswith("/") or ".." in lit or lit.startswith("."):
+                continue
+            # A literal under the TREE's own directory is not a ROOT read: this function is defined as
+            # "the reads the scratch copy cannot satisfy on its own", and the tree IS that copy, so
+            # `capture-host/seal.py` already exists inside the scratch under its own name. Measured
+            # 2026-09-22: without this the widened scan added 23 such self-references — noise that
+            # would shadow the real reads in the plan's list rather than reveal them. This is the
+            # function's own definition applied, NOT a carve-out for any particular directory.
+            if lit.split("/", 1)[0] == tree.name:
+                continue
+            try:
+                target = (root / lit).resolve()
+                if target.is_file() and target.is_relative_to(root.resolve()):
+                    found.add(lit)
+            except (OSError, ValueError):
+                continue  # an unresolvable literal is not a read, and never an exception
     return sorted(found)
 
 
@@ -753,8 +855,12 @@ def stage_root_reads(tree, work, names) -> int:
         if not src.is_file():
             continue
         for dest in (work, work.parent):
-            dest.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dest / name)
+            # `name` may now be a repo-relative PATH (`uploads/x.txt`), so the SUBDIRECTORY has to
+            # exist at the destination or the copy fails — a read staged into a missing parent is as
+            # absent as no copy at all, and it would fail the same way (#2864).
+            out = dest / name
+            out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, out)
             n += 1
     return n
 
