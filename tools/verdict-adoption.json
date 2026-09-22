@@ -19,6 +19,31 @@
    "status": "exempt",
    "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
   },
+  "capture-host/checkverdict.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/checkverdict.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "check.sh's runner-level object (VERDICT-CONTRACT \u00a73d, #2672's advisory token one level up): population = the four blocking children ruff \u00b7 shellcheck \u00b7 pytest \u00b7 unwired; the three EXTERNAL tools are read off their PUBLISHED exit-code contract (mapping beside the tool versions in the module: 0 PASS \u00b7 issues code FAIL \u00b7 127 NOT_RUN = a missing TOOL, excluded, and the run UNKNOWN \u00b7 abnormal codes and pytest 5 UNKNOWN); unwired is OURS and unadopted, so it is UNKNOWN by provenance and the object reads UNKNOWN on a green run until find_unwired emits its own object (\u00a73d's lever); aggregation by precedence FAIL > UNKNOWN > PASS, never a vote; advisory-state tokens ride in result.advisory; written to capture-host/.check-verdict.json; the shell exit code STAYS"
+  },
+  "capture-host/loss_audit.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/night_verdicts.py",
+     "--sample-json",
+     "night-loss"
+    ]
+   },
+   "note": "night-loss (CAPTURE-LOSS-PRECEDENCE-AUDIT R4): the \u00a70 metric per settled night \u2014 worn-but-not-recorded minutes, each gap attributed to the journal line before it; UNKNOWN with the number until the owner sets a bar (none ruled 2026-09-22), NOT_RUN when no primary stream exists; the sample audits a synthetic torn night with a planted daemon drop"
+  },
   "capture-host/mutation_diff.py": {
    "bin": "word-only",
    "status": "exempt",
@@ -172,6 +197,10 @@
    "bin": "test",
    "status": "exempt"
   },
+  "capture-host/tests/test_checkverdict.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
   "capture-host/tests/test_clock_resync_on_reconnect.py": {
    "bin": "test",
    "status": "exempt"
@@ -189,6 +218,10 @@
    "status": "exempt"
   },
   "capture-host/tests/test_host_clock_and_helper_path.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_loss_audit.py": {
    "bin": "test",
    "status": "exempt"
   },
@@ -301,6 +334,10 @@
    "status": "exempt"
   },
   "capture-host/tests/test_verdict.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_verdict_wave2.py": {
    "bin": "test",
    "status": "exempt"
   },
@@ -1146,26 +1183,6 @@
    "bin": "word-only",
    "status": "exempt",
    "reason": "selftest printer; its own verdict() is a pure PR-state decision consumed by the tool itself, exit-coded \u2014 a wave-2 candidate, listed here by reason not by omission"
-  },
-  "capture-host/tests/test_verdict_wave2.py": {
-   "bin": "test",
-   "status": "exempt"
-  },
-  "capture-host/checkverdict.py": {
-   "bin": "decides",
-   "status": "adopted",
-   "emits": {
-    "cmd": [
-     "python3",
-     "capture-host/checkverdict.py",
-     "--verdict-sample"
-    ]
-   },
-   "note": "check.sh's runner-level object (VERDICT-CONTRACT \u00a73d, #2672's advisory token one level up): population = the four blocking children ruff \u00b7 shellcheck \u00b7 pytest \u00b7 unwired; the three EXTERNAL tools are read off their PUBLISHED exit-code contract (mapping beside the tool versions in the module: 0 PASS \u00b7 issues code FAIL \u00b7 127 NOT_RUN = a missing TOOL, excluded, and the run UNKNOWN \u00b7 abnormal codes and pytest 5 UNKNOWN); unwired is OURS and unadopted, so it is UNKNOWN by provenance and the object reads UNKNOWN on a green run until find_unwired emits its own object (\u00a73d's lever); aggregation by precedence FAIL > UNKNOWN > PASS, never a vote; advisory-state tokens ride in result.advisory; written to capture-host/.check-verdict.json; the shell exit code STAYS"
-  },
-  "capture-host/tests/test_checkverdict.py": {
-   "bin": "test",
-   "status": "exempt"
   }
  }
 }

@@ -92,3 +92,11 @@ def test_sample_json_night_seal_seals_a_synthetic_night_or_says_it_could_not(cap
     monkeypatch.setattr(builtins, "__import__", real)
     verdict.validate(o)
     assert o["status"] == "NOT_RUN" and "cryptography" in o["reason"] and js_validate(o)["ok"]
+
+
+def test_sample_json_night_loss_is_UNKNOWN_with_the_number(capsys):
+    assert night_verdicts.main(["--sample-json", "night-loss"]) == 0
+    o = json.loads(capsys.readouterr().out)
+    verdict.validate(o)
+    assert js_validate(o)["ok"] and o["gate"] == "night-loss" and o["status"] == "UNKNOWN"
+    assert o["result"]["daemon_caused_min"] == 2.0 and "no bar has been set" in o["reason"]

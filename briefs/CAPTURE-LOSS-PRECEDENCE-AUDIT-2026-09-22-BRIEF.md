@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 · Copyright 2026 Michal Planicka -->
-**Status:** IN-PROGRESS (owner-ordered 2026-09-22 — *"do deep audit of logic for all devices how data is captured, this data loss is unacceptable"*; §1–§4 are the audit, measured on the box. **Owner rulings 2026-09-22 (relayed by Kestrel, option labels verbatim): R1 = "Per-unit can-charge capability"; R2–R4 = "Yes, all three".** R1 + R2 BUILT the same day (`should_drop_not_worn(can_charge=)` reads devcaps `can_charge`, recorded where a charge is MEASURED — `battery-rose`, `pmd-in-charger`; absent ⇒ never dropped, and the flat-at-full inference never fires); R4 and R3 next, in that order) · **Created:** 2026-09-22
+**Status:** IN-PROGRESS (owner-ordered 2026-09-22 — *"do deep audit of logic for all devices how data is captured, this data loss is unacceptable"*; §1–§4 are the audit, measured on the box. **Owner rulings 2026-09-22 (relayed by Kestrel, option labels verbatim): R1 = "Per-unit can-charge capability"; R2–R4 = "Yes, all three".** R1 + R2 BUILT the same day (`should_drop_not_worn(can_charge=)` reads devcaps `can_charge`, recorded where a charge is MEASURED — `battery-rose`, `pmd-in-charger`; absent ⇒ never dropped, and the flat-at-full inference never fires); R4 BUILT (`loss_audit.py` + `capture.loss_poller`: LOSS-AUDIT.json + LOSS-VERDICT.json per settled night, gate `night-loss`; UNKNOWN with the number until the owner sets a bar — none ruled; re-run on the box's 09-20 / 09-21 nights: 210 / 244 daemon-caused minutes, `daemon:not-worn drop` named); R3 next) · **Created:** 2026-09-22
 
 # CAPTURE-LOSS-PRECEDENCE-AUDIT — where the box loses a night it was wearing, measured
 
@@ -151,8 +151,9 @@ the tripwire that would have caught 09-03 (25 fragments) eighteen nights before 
 - [x] R1–R2 built and gate-tested with the 09-21/22 shape as the plant (a full flat battery + a beat
       on a unit with no observed charge ⇒ worn, no drop, no inference) — 2026-09-22, the Verity-in-SDK-mode plant too.
 - [ ] R3: the precedence table is code + a printed test artefact; this brief's §2 is diffed against it.
-- [ ] R4: `LOSS-AUDIT.json` beside every night's QC summary; the 09-20 and 09-21 nights re-audited
-      read FAIL with `daemon:not-worn drop` as the named cause.
+- [x] R4: `LOSS-AUDIT.json` beside every night's QC summary; the 09-20 and 09-21 nights re-audited
+      name `daemon:not-worn drop` as the cause (210 / 244 daemon-caused min) — 2026-09-22. They read UNKNOWN,
+      not FAIL: no bar has been set (owner), so the object carries the number and refuses to judge it.
 - [ ] Re-measured after 14 nights: daemon-caused gap minutes on both Polars = 0.
 
 The general half of #2831's row (`2026-09-22-inferred-dock-outranked-the-heartbeat`, sourced to
