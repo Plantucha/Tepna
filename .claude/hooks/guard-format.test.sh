@@ -103,7 +103,7 @@ echo "### FAILS OPEN without Biome — the fresh-worktree case that decides usab
 # would be switched off within a day, and it guards formatting, not an invariant.
 rm node_modules
 expect ALLOW "no node_modules ⇒ ALLOW (CI is the backstop)"    "git commit -m wip"
-ln -s "$REPO/node_modules" node_modules
+ln -s "$NM" node_modules
 expect DENY  "…and it comes straight back when Biome returns"  "git commit -m wip"
 
 echo
