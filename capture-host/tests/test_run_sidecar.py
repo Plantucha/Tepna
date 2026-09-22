@@ -18,7 +18,7 @@ import os
 import pytest
 
 import writers
-from writers import (HELD_TOP2_SHARE, HELD_WARMUP_RUNS, RUN_MIN_BY_STREAM, T_STUCK, StreamWriter,
+from writers import (HELD_CONFIRM_WINDOWS, HELD_EXIT_SHARE, HELD_TOP2_SHARE, HELD_WARMUP_RUNS, RUN_MIN_BY_STREAM, T_STUCK, StreamWriter,
                      _RunSidecar)
 
 T0 = _dt.datetime(2026, 9, 6, 4, 53, 0)
@@ -519,7 +519,8 @@ def test_the_comment_line_publishes_EVERY_parameter_that_shaped_the_rows(tmp_pat
 
     body = open(_sidecar(p)).read()
     for token in (f"t_stuck={T_STUCK}", f"merge_gap_max={_ANNOTATION_GAP_MAX}",
-                  f"held_warmup={HELD_WARMUP_RUNS}", f"held_top2_share={HELD_TOP2_SHARE}"):
+                  f"held_warmup={HELD_WARMUP_RUNS}", f"held_top2_share={HELD_TOP2_SHARE}",
+                  f"held_exit_share={HELD_EXIT_SHARE}", f"held_confirm={HELD_CONFIRM_WINDOWS}"):
         assert token in body, f"missing {token}"
     assert "merges=1" in body, "the merge count is not reported"
 
@@ -994,3 +995,219 @@ def test_a_row_whose_after_window_completes_BEFORE_the_warm_up_verdict_waits_in_
     assert body.index("class=variable") < body.index(";100;20;30;")
     sc.close()
 
+
+
+# ── THE CLASS IS PER WINDOW (residue 2026-09-06-warmup-verdict-goes-stale, 2026-09-22) ──────────────
+# Plants: a stream that HOLDS for one window and then VARIES, and the reverse. Under the old
+# once-per-night verdict the first keeps `held` and suppresses every sub-T_STUCK row for the rest of the
+# recording; the second keeps `variable` and over-reports. Both were verified red on the old code.
+
+def _hold_runs(sc, ch, n_runs, r0=0, t0=0, hz=10.0):
+    """`n_runs` runs of the 6/7 zero-order-hold cadence; returns (next run value, next sample index)."""
+    t = t0
+    for r in range(n_runs):
+        for _ in range(6 + (r % 2)):
+            sc.feed(ch, r0 + r, _phone(t, hz=hz))
+            t += 1
+    return r0 + n_runs, t
+
+
+def _varied_runs(sc, sc_ch, n_runs, r0, t0, hz=10.0, stuck_every=0, stuck_len=0):
+    """`n_runs` runs of varied lengths 1..5 (never a hold); every `stuck_every`-th run is `stuck_len`
+    long instead — a sub-T_STUCK run the sidecar should REPORT on a variable channel."""
+    t = t0
+    for r in range(n_runs):
+        n = stuck_len if (stuck_every and r % stuck_every == 0) else 1 + (r % 5)
+        for _ in range(n):
+            sc.feed(sc_ch, r0 + r, _phone(t, hz=hz))
+            t += 1
+    return r0 + n_runs, t
+
+
+def test_a_hold_that_later_varies_TRANSITIONS_and_its_later_sub_T_STUCK_rows_are_REPORTED(tmp_path):
+    """The residue's case. Window 0 is a hold (rows dropped — cadence, not absence); window 1 onward is
+    variable, so a 20-sample run there is a reportable span. Under the once-per-night verdict it was
+    suppressed to the end of the recording."""
+    sc = _RunSidecar(str(tmp_path / "H_ACC.txt"), "accraw", 10)
+    ch = "X [raw]"
+    r, t = _hold_runs(sc, ch, HELD_WARMUP_RUNS)                       # window 0: held
+    r, t = _varied_runs(sc, ch, 3 * HELD_WARMUP_RUNS, r, t, stuck_every=16, stuck_len=20)   # windows 1-3: variable
+    sc.close()
+    body = open(sc.path).read()
+    assert sc.klass[ch] == "variable" and sc.transitions[ch] == 1
+    lines = [ln for ln in body.splitlines() if ln.startswith(f"# stream=accraw channel={ch} class=")]
+    assert [ln.split("class=")[1].split()[0] for ln in lines] == ["held", "variable"], lines
+    assert "window=0 confirmed=1 at=" in lines[0]
+    # HYSTERESIS: window 1 measured variable but the class in force stayed held (confirm 2); the
+    # transition lands on window 2, confirmed=2, and is stamped with that window's instant.
+    assert f"window={HELD_CONFIRM_WINDOWS} confirmed={HELD_CONFIRM_WINDOWS} at=" in lines[1]
+    assert "class=variable windows=4 transitions=1 partial=0" in body
+    rows = _rows(sc.path)
+    assert rows and all(r_[4] == "20" for r_ in rows), rows
+    assert len(rows) == 8, "the 20-sample runs of the windows judged variable (2 of the 3: the first paid the confirm lag)"
+
+
+def test_a_variable_stream_that_becomes_a_hold_TRANSITIONS_and_stops_over_reporting(tmp_path):
+    """The reverse: window 0 variable (its 20-sample runs reported), windows 1+ a hold — whose 6/7
+    cadence must not be reported as spans. Under the once-per-night verdict the hold's rows kept
+    coming (min_run=6 makes every held run a 'span')."""
+    sc = _RunSidecar(str(tmp_path / "V_ACC.txt"), "accraw", 6)
+    ch = "X [raw]"
+    r, t = _varied_runs(sc, ch, HELD_WARMUP_RUNS, 0, 0, stuck_every=16, stuck_len=20)      # window 0: variable
+    r, t = _hold_runs(sc, ch, 3 * HELD_WARMUP_RUNS, r, t)                                 # windows 1-3: held
+    sc.close()
+    body = open(sc.path).read()
+    assert sc.klass[ch] == "held" and sc.transitions[ch] == 1
+    assert "class=held windows=4 transitions=1 partial=0" in body
+    rows = _rows(sc.path)
+    spans = [r_ for r_ in rows if r_[4] == "20"]
+    cadence = [r_ for r_ in rows if r_[4] in ("6", "7")]
+    assert len(spans) == 4, "window 0's spans"
+    # THE COST OF THE CONFIRM LAG, stated: window 1's cadence rows were judged by the class in force
+    # (variable) and written; from window 2 the hold is in force and the cadence is silent again.
+    assert len(cadence) == HELD_WARMUP_RUNS, "exactly one window of cadence over-reported, never more"
+
+
+def test_a_stable_hold_writes_ONE_class_line_and_zero_transitions_across_many_windows(tmp_path):
+    """The ring's real ACC: a 6/7 hold all night. Re-deciding per window must not produce a line per
+    window — only a change of class is a transition."""
+    sc = _RunSidecar(str(tmp_path / "S_ACC.txt"), "accraw", T_STUCK)
+    ch = "X [raw]"
+    _hold_runs(sc, ch, 5 * HELD_WARMUP_RUNS + 3)                      # five windows and a partial tail
+    sc.close()
+    body = open(sc.path).read()
+    assert body.count(f"# stream=accraw channel={ch} class=") == 1
+    assert "windows=5 transitions=0 partial=1" in body and sc.transitions.get(ch, 0) == 0
+    assert _rows(sc.path) == []
+
+
+def test_a_trailing_partial_window_keeps_the_class_in_force_and_says_so(tmp_path):
+    """Fewer than HELD_WARMUP_RUNS runs after the last decision: too little to re-decide, so the class
+    in force judges those rows — variable here, so the tail's 20-sample run IS written."""
+    sc = _RunSidecar(str(tmp_path / "P_PPG.txt"), "ppg1", 10)
+    ch = "channel 0"
+    r, t = _varied_runs(sc, ch, HELD_WARMUP_RUNS, 0, 0)               # window 0: variable
+    _varied_runs(sc, ch, 5, r, t, stuck_every=1, stuck_len=20)        # a partial tail with spans
+    sc.close()
+    body = open(sc.path).read()
+    assert "class=variable windows=1 transitions=0 partial=1" in body
+    assert len(_rows(sc.path)) == 5
+
+
+def test_a_stuck_run_is_written_unconditionally_in_a_held_window_still(tmp_path):
+    """Per-window classing changes nothing about T_STUCK: a run at or over it is written in every
+    window, held or not — the row least safe to suppress."""
+    sc = _RunSidecar(str(tmp_path / "T_ACC.txt"), "accraw", T_STUCK)
+    ch = "X [raw]"
+    r, t = _hold_runs(sc, ch, HELD_WARMUP_RUNS + 10)
+    for _ in range(T_STUCK + 5):
+        sc.feed(ch, 999, _phone(t, hz=10.0))
+        t += 1
+    _hold_runs(sc, ch, 10, r + 1, t)
+    sc.close()
+    rows = _rows(sc.path)
+    assert len(rows) == 1 and rows[0][2] == "999" and int(rows[0][4]) >= T_STUCK
+    assert sc.klass[ch] == "held"
+
+
+def test_an_external_emitter_that_names_no_window_is_judged_by_the_class_in_force(tmp_path):
+    """`emit_run` is the seam a back-check writes through; it names no window, so the class currently
+    in force decides — held drops it, variable writes it, undecided buffers it until close."""
+    sc = _RunSidecar(str(tmp_path / "E_ACC.txt"), "accraw", 10)
+    ch = "X [raw]"
+    sc.emit_run(ch, 1, 0, 12, 100.0, 1, "rail-run")                   # undecided: buffered
+    _hold_runs(sc, ch, HELD_WARMUP_RUNS)                              # held now
+    sc.emit_run(ch, 2, 0, 12, 100.0, 1, "rail-run")                   # held: dropped
+    sc.close()
+    assert _rows(sc.path) == [], "the undecided row waited for a verdict; the verdict was held, so it was dropped with the rest"
+    sc2 = _RunSidecar(str(tmp_path / "E2_PPG.txt"), "ppg1", 10)
+    _varied_runs(sc2, "channel 0", HELD_WARMUP_RUNS, 0, 0)           # variable now
+    sc2.emit_run("channel 0", 3, 0, 12, 100.0, 1, "rail-run")
+    sc2.close()
+    assert [r_[7] for r_ in _rows(sc2.path)] == ["rail-run"]
+
+
+def test_the_exit_band_a_held_window_whose_share_dips_under_the_entry_threshold_stays_held(tmp_path):
+    """The measured jitter of a real hold: windows at share 0.80–0.85 (p1–p5 on the ring's ACC) must not
+    flip the class. One window of the 6/7 cadence with 12 of 64 runs of other lengths scores ≈ 0.81 —
+    below entry (0.85), above exit (0.70): no transition. Then two windows at share ≈ 0.5 DO leave."""
+    sc = _RunSidecar(str(tmp_path / "B_ACC.txt"), "accraw", T_STUCK)
+    ch = "X [raw]"
+    r, t = _hold_runs(sc, ch, HELD_WARMUP_RUNS)                       # window 0: held, share 1.0
+    for i in range(HELD_WARMUP_RUNS):                                 # window 1: 52 cadence runs + 12 of length 3
+        n = 3 if i % 5 == 0 else 6 + (i % 2)
+        for _ in range(n):
+            sc.feed(ch, r, _phone(t, hz=10.0)); t += 1
+        r += 1
+    for i in range(2 * HELD_WARMUP_RUNS):                             # windows 2-3: half the runs are odd lengths
+        n = 3 if i % 2 == 0 else 6
+        for _ in range(n):
+            sc.feed(ch, r, _phone(t, hz=10.0)); t += 1
+        r += 1
+    sc.close()
+    body = open(sc.path).read()
+    lines = [ln for ln in body.splitlines() if ln.startswith(f"# stream=accraw channel={ch} class=")]
+    assert len(lines) == 2 and "window=3 confirmed=2" in lines[1], lines
+    assert sc.transitions[ch] == 1 and "windows=4 transitions=1" in body
+    w1 = [ln for ln in lines if "window=1 " in ln]
+    assert w1 == [], "the dip under 0.85 but over 0.70 wrote no transition"
+
+
+def _window_with_share(sc, ch, r, t, share, hz=10.0):
+    """One 64-run window of the 6/7 cadence in which `share` of the runs are cadence and the rest are
+    length 3 — a run-length histogram with a KNOWN top-2 share, independent of any corpus."""
+    n_odd = round(HELD_WARMUP_RUNS * (1 - share))
+    for i in range(HELD_WARMUP_RUNS):
+        n = 3 if i < n_odd else 6 + (i % 2)
+        for _ in range(n):
+            sc.feed(ch, r, _phone(t, hz=hz)); t += 1
+        r += 1
+    return r, t
+
+
+def test_a_pleth_that_dithers_at_the_band_s_edge_never_flips(tmp_path):
+    """The plant the band was NOT fitted on: 200 windows alternating share 0.83 / 0.87 — just under and
+    just over the 0.85 entry, inside p1–p5 of the real hold's jitter. Once held, none of the 0.83 windows
+    (above the 0.70 exit) may flip it: ONE class line, ZERO transitions, the cadence silent."""
+    sc = _RunSidecar(str(tmp_path / "D_ACC.txt"), "accraw", T_STUCK)
+    ch = "X [raw]"
+    r, t = _window_with_share(sc, ch, 0, 0, 0.90)                       # enter: held
+    for i in range(200):
+        r, t = _window_with_share(sc, ch, r, t, 0.83 if i % 2 == 0 else 0.87)
+    sc.close()
+    body = open(sc.path).read()
+    assert body.count(f"# stream=accraw channel={ch} class=") == 1 and "class=held windows=201 transitions=0" in body
+    assert _rows(sc.path) == []
+
+
+def test_a_variable_stream_dithering_just_under_entry_never_enters_held(tmp_path):
+    """The mirror: share 0.80 / 0.84 for 100 windows never reaches 0.85, so the class stays variable and
+    every window's rows are written — hysteresis must not manufacture a hold either."""
+    sc = _RunSidecar(str(tmp_path / "U_ACC.txt"), "accraw", T_STUCK)
+    ch = "X [raw]"
+    r, t = 0, 0
+    for i in range(100):
+        r, t = _window_with_share(sc, ch, r, t, 0.80 if i % 2 == 0 else 0.84)
+    sc.close()
+    body = open(sc.path).read()
+    assert sc.klass[ch] == "variable" and "class=variable windows=100 transitions=0" in body
+    assert body.count(f"# stream=accraw channel={ch} class=") == 1
+
+
+def test_a_transition_at_a_KNOWN_instant_is_stamped_at_that_instant_plus_the_confirm_lag_never_earlier(tmp_path):
+    """The hold ends at sample index 64×6.5 (the first varied run); the transition may only be declared
+    once HELD_CONFIRM_WINDOWS variable windows have closed after it — its `at=` stamp is the host time
+    of the run that closed that window, later than the change and within the stated lag."""
+    sc = _RunSidecar(str(tmp_path / "K_ACC.txt"), "accraw", 10)
+    ch = "X [raw]"
+    r, t_change = _hold_runs(sc, ch, HELD_WARMUP_RUNS)
+    r, t_end = _varied_runs(sc, ch, 3 * HELD_WARMUP_RUNS, r, t_change)
+    sc.close()
+    body = open(sc.path).read()
+    line = [ln for ln in body.splitlines() if f"channel={ch} class=variable" in ln][0]
+    at = line.rsplit(" at=", 1)[1].strip()
+    change_ts = _phone(t_change, hz=10.0).isoformat(timespec="milliseconds")
+    # the varied windows average 3 samples/run: window k closes at ≈ t_change + k·64·3 samples
+    lag_hi = _phone(t_change + (HELD_CONFIRM_WINDOWS + 1) * HELD_WARMUP_RUNS * 3, hz=10.0).isoformat(timespec="milliseconds")
+    assert change_ts < at <= lag_hi, (change_ts, at, lag_hi)
+    assert f"confirmed={HELD_CONFIRM_WINDOWS}" in line

@@ -243,12 +243,57 @@ ANNOTATIONS_BY_STREAM = {
     "acc":    frozenset(),                            # Polar: none
 }
 
-HELD_WARMUP_RUNS = 64          # runs observed before the class is decided
+HELD_WARMUP_RUNS = 64          # runs per WINDOW: the class is decided per window at this grain (below)
+# ── THE CLASS IS PER WINDOW, NOT PER NIGHT (residue 2026-09-06-warmup-verdict-goes-stale, 2026-09-22) ──
+# It used to be decided ONCE per channel over the first HELD_WARMUP_RUNS runs and never revisited, so a
+# channel that changed character mid-night kept its opening verdict: a hold that later varied stayed
+# `held` with its sub-T_STUCK rows suppressed to the end of the recording. Now every HELD_WARMUP_RUNS
+# runs close a WINDOW; the same rule (HELD_MIN_RUN + HELD_TOP2_SHARE over that window's run-length
+# histogram) decides THAT window's class; the window's own buffered rows are released (variable) or
+# dropped (held) by that verdict, so a row is judged by the class of the window its run closed in —
+# never by the night's. A `# stream=… channel=… class=… window=N at=<host stamp>` line is written at
+# the first decision and at every TRANSITION (a window whose class differs from the one before it),
+# so the sidecar carries the transition list with its instants; the whole-night `# final` line stays
+# for the back-check. A trailing window with fewer than HELD_WARMUP_RUNS runs keeps the class in
+# force (too little evidence to re-decide, said so on the final line as `partial=1`); a channel that
+# never completes one window is `undecided` and its rows are released, as before. Runs >= T_STUCK are
+# written unconditionally in every window, as before. Pre-stated 2026-09-22 before the corpus was
+# measured for transitions.
+#
+# MEASURED 2026-09-22, after stating the above: on the one TRUE hold in the corpus (the ring's ACC, 15
+# smoketest nights, 45 channels) a bare per-window re-decision FLAPS — 32–132 transitions per channel
+# per night over ~500 windows, because a real hold's top-2 share jitters around HELD_TOP2_SHARE at the
+# 64-run grain (0.891/0.906 whole-night; a single window dips below 0.85 often). Every `variable`
+# window then RELEASES the 6/7 cadence as spans — the over-reporting the class exists to prevent — and
+# writes a transition line per flip. On the 309 optical channels (ppg1 · ppg2w · ppg, 155 files) the
+# rule found 0 transitions and 0 holds. So a transition needs HYSTERESIS: a new class takes force only
+# after HELD_CONFIRM_WINDOWS consecutive windows agree on it; windows inside a shorter streak are judged
+# by the class in force. The lag for a genuine change is HELD_CONFIRM_WINDOWS windows. The value is set
+# from the measurement below the constant, never from the plant.
 # A HOLD REPEATS VALUES, so its runs are LONG. Both constants below exist because the share test
 # alone is INVERTED: it measures run-length CONCENTRATION, and a stream where no sample ever repeats
 # has every run of length 1 — perfectly concentrated, share 1.000. Measured on the 2026-09-15 night,
 # that scored the Verity PPG (mean_run 1.00) `held` and the O2Ring accraw (mean_run 7.03, which the
 # design brief says "repeats each sample 6-7x BY DESIGN") `variable`. Exactly backwards.
+# THE TWO HYSTERESIS CONSTANTS, SET FROM THE MEASUREMENT (2026-09-22, the ring's ACC — the one true hold —
+# over 15 smoketest nights, 45 channels, 64-run windows): the per-window top-2 share on a real hold runs
+# median 0.938, p5 0.859, p1 0.828, MINIMUM 0.797 — so 5 % of windows sit under the 0.85 entry threshold
+# and a bare re-decision flapped 32–164 times per channel per night. Sweep (transitions per channel):
+#   exit 0.85 · confirm 1 → mean 81.8, max 164      exit 0.80 · confirm 2 → mean 0.67, max 6
+#   exit 0.75 · confirm 1 → mean 0.44, max 4        exit 0.75 · confirm 2 → 0 on all 45
+#   exit 0.70 · confirm 1 → mean 0.04, max 2        exit 0.70 · confirm 2 → 0 on all 45
+#   exit 0.65 · confirm 1 → 0 on all 45
+# 0.70 is set from the measured FLOOR of a real hold's per-window share (0.797) with a 0.10 margin;
+# confirm 2 costs one extra window of lag (≈ 128 runs ≈ 80 s on the ACC cadence) on a genuine change.
+# ⚠️ The sweep above is what the band was CHECKED AGAINST, not what validates it — a band fitted on the
+# corpus it judges is the post-hoc shape one level down. The validation is the synthetic plants in
+# tests/test_run_sidecar.py that the band was never fitted to: a hold with a real transition at a KNOWN
+# instant (the transition lands at that instant + the confirm lag, never earlier), a pleth that dithers
+# at the band's edge (share alternating just under and just over 0.85 — inside p1–p5 of the real hold —
+# never flips), and a variable stream dithering just under entry that never enters. On the 309 optical
+# channels (ppg1 · ppg2w · ppg, 155 files) the rule found 0 holds, so the exit band never engages there.
+HELD_CONFIRM_WINDOWS = 2       # consecutive windows that must agree before the class in force changes
+HELD_EXIT_SHARE = 0.70         # a HELD channel leaves the class only when a window's share falls below this
 HELD_MIN_RUN = 2               # the dominant run length must be an actual REPETITION, never 1
 # 0.95 rejected the one true hold in the corpus: accraw measured 0.891/0.891/0.906 — its 6,7 structure
 # was found correctly and then failed the threshold by 0.044, because a real hold's ratio jitters.
@@ -942,10 +987,15 @@ class _RunSidecar:
         # Verity test: one noisy channel's singleton runs dominated the histogram and classified the
         # whole stream `held`, suppressing two genuinely stuck channels. A hold is a property of a
         # signal path, not of a file.
-        self.klass: dict[str, str] = {}      # channel -> "held" | "variable" | "undecided"
+        self.klass: dict[str, str] = {}      # channel -> class IN FORCE: "held" | "variable" | "undecided"
         self._hist: dict[str, dict[int, int]] = {}   # channel -> {run length: count}, whole stream
-        self._warm: dict[str, int] = {}      # channel -> runs seen in its warm-up window
-        self._buf: dict[str, list[str]] = {}  # channel -> warm-up rows, held until its verdict
+        self._whist: dict[str, dict[int, int]] = {}  # channel -> {run length: count}, CURRENT window
+        self._warm: dict[str, int] = {}      # channel -> runs seen in the current window
+        self._win: dict[str, int] = {}       # channel -> index of the current (open) window
+        self._wclass: dict[str, dict[int, str]] = {}   # channel -> {window: class}, decided windows
+        self._buf: dict[str, dict[int, list[str]]] = {}  # channel -> {window: rows awaiting that window's verdict}
+        self.transitions: dict[str, int] = {}          # channel -> class changes written (the residue's measurand)
+        self._streak: dict[str, tuple[str, int]] = {}  # channel -> (candidate class, consecutive windows it has held)
         # BRACKETING (D5). `_recent` is the last samples of each channel, annotations excluded — long
         # enough that when a run reaches `min_run` (or a merge carries a span past it) the samples BEFORE
         # the span are still there to classify. `_pending` holds emitted-but-unwritten rows until
@@ -965,7 +1015,8 @@ class _RunSidecar:
                                f"t_stuck={T_STUCK} merge_gap_max={_ANNOTATION_GAP_MAX} "
                                f"annotations={','.join(str(a) for a in sorted(annotations)) or 'none'} "
                                f"held_warmup={HELD_WARMUP_RUNS} "
-                               f"held_top2_share={HELD_TOP2_SHARE} unit=unknown "
+                               f"held_top2_share={HELD_TOP2_SHARE} held_exit_share={HELD_EXIT_SHARE} "
+                               f"held_confirm={HELD_CONFIRM_WINDOWS} unit=unknown "
                                f"bracket_window={BRACKET_WINDOW} bracket_varied_min={BRACKET_VARIED_MIN} "
                                f"contact_source={'oxyframe' if contact is not None else 'none'} "
                                f"contact_tol_s={CONTACT_TOL_S:g} contact_rule=majority\n")
@@ -1036,12 +1087,12 @@ class _RunSidecar:
         return bracket_side(seq[avail - BRACKET_WINDOW:avail])
 
     def _write_bracketed(self, row: list, after: str) -> None:
-        args, before, _after_samples = row
+        args, before, _after_samples, window = row
         # args = (channel, value, first_index, n, dur_ms, closed, rule, first_phone)
         contact = CONTACT_NONE
         if self._contact is not None:          # rows reach here from _emit only, always stamped
             contact = self._contact.majority(args[7], args[7] + _dt.timedelta(milliseconds=args[4]))
-        self.emit_run(*args, bracket=f"{before}/{after}", contact=contact)
+        self.emit_run(*args, bracket=f"{before}/{after}", contact=contact, window=window)
 
     def _close_run(self, channel: str, run: list) -> None:
         """A run just ended. Decide whether it EXTENDS a held span across a short interruption.
@@ -1101,10 +1152,12 @@ class _RunSidecar:
         value, first_index, n, first_phone, last_phone, _eof, before = run
         h = self._hist.setdefault(channel, {})
         h[n] = h.get(n, 0) + 1                       # EVERY run, threshold or not — the shape needs all
-        if channel not in self.klass:
-            self._warm[channel] = self._warm.get(channel, 0) + 1
-            if self._warm[channel] >= HELD_WARMUP_RUNS:
-                self._decide(channel)
+        wh = self._whist.setdefault(channel, {})
+        wh[n] = wh.get(n, 0) + 1                     # …and the CURRENT window's share of it
+        window = self._win.setdefault(channel, 0)
+        self._warm[channel] = self._warm.get(channel, 0) + 1
+        if self._warm[channel] >= HELD_WARMUP_RUNS:
+            self._decide(channel, first_phone)       # closes this window; the row below belongs to it
         if n < self.min_run:
             return
         # dur_ms rides the HOST stamps the rows already carry (Clock Contract §7): the span is
@@ -1118,16 +1171,17 @@ class _RunSidecar:
         # flushed there as after=unavailable. Never written early with a guessed class.
         args = (channel, value, first_index, n, dur_ms, closed, "stuck", first_phone)
         seed = list(after_seed or [])
-        row = [args, before or BRACKET_UNAVAILABLE, seed[:BRACKET_WINDOW]]
-        if len(row[2]) >= BRACKET_WINDOW:
-            self._write_bracketed(row, bracket_side(row[2]))
+        after: list = seed[:BRACKET_WINDOW]
+        row = [args, before or BRACKET_UNAVAILABLE, after, window]
+        if len(after) >= BRACKET_WINDOW:
+            self._write_bracketed(row, bracket_side(after))
         else:
             self._pending.setdefault(channel, []).append(row)
 
     def emit_run(self, stream: str, value, first_index: int, n: int, dur_ms: float,
                  closed: int, rule: str, stamp: _dt.datetime | None = None, *,
                  bracket: str = f"{BRACKET_UNAVAILABLE}/{BRACKET_UNAVAILABLE}",
-                 contact: str = CONTACT_NONE) -> None:
+                 contact: str = CONTACT_NONE, window: int | None = None) -> None:
         """THE seam. Any detector that finds a span writes it through here — `constant-run` from this
         accumulator, `rail-run`/`held` from a back-check — so every span in the corpus lands in one
         file shape with the rule that found it named in its own column. A second writer would be a
@@ -1136,7 +1190,6 @@ class _RunSidecar:
             return
         line = (f"{_phone_ts(stamp) if stamp is not None else ''};{stream};{value};{first_index};{n};"
                 f"{dur_ms:.1f};{closed};{rule};{bracket};{contact}\n")
-        k = self.klass.get(stream)
         if n >= T_STUCK:
             # A `held` channel can still get STUCK, and the hold class must never hide that. The ring's
             # ACC repeats each sample 6-7 times BY DESIGN; 200 identical samples is 20 s of one triplet,
@@ -1144,17 +1197,26 @@ class _RunSidecar:
             # non-sentinel run >= 200 was the failure mode, and every one was the LAST run in its file —
             # so this is the single row least safe to suppress, and it is emitted unconditionally.
             self._fh.write(line)
-        elif k is None:                               # verdict pending — hold it, do not guess
-            self._buf.setdefault(stream, []).append(line)
-        elif k != "held":
-            self._fh.write(line)
+        else:
+            # Judged by the class of the WINDOW the run closed in. A row for a window already decided
+            # (the after-side arrived late) is written or dropped by that window's verdict now; a row
+            # for the open window waits for it. An external emitter (a back-check) names no window and
+            # is judged by the class in force.
+            k = (self._wclass.get(stream, {}).get(window) if window is not None
+                 else self.klass.get(stream))
+            if k is None:
+                self._buf.setdefault(stream, {}).setdefault(-1 if window is None else window, []).append(line)
+            elif k != "held":
+                self._fh.write(line)
         self.runs += 1
 
-    def _decide(self, channel: str) -> None:
-        """Close ONE channel's warm-up window: a near-delta on two ADJACENT run lengths is a hold."""
+    def _decide(self, channel: str, at: _dt.datetime | None = None) -> None:
+        """Close ONE channel's current WINDOW: a near-delta on two ADJACENT run lengths is a hold. The
+        window's class is recorded, its buffered rows are released or dropped by it, a transition line
+        is written when it differs from the class in force, and the next window opens."""
         fh = self._fh
         assert fh is not None    # only reachable from feed(), which returns early on a closed handle
-        hist = self._hist.get(channel, {})
+        hist = self._whist.get(channel, {})
         tot = sum(hist.values()) or 1
         best, share = 0, 0.0
         for ln in hist:
@@ -1166,19 +1228,42 @@ class _RunSidecar:
         # matter how concentrated its run lengths are. Without it the most variable possible signal
         # scores share=1.000 and classifies `held`, which suppresses exactly the spans the sidecar exists
         # to record.
-        self.klass[channel] = ("held" if (best >= HELD_MIN_RUN and share >= HELD_TOP2_SHARE)
-                               else "variable")
+        # A SCHMITT BAND: a channel ENTERS `held` at HELD_TOP2_SHARE and LEAVES it only below the lower
+        # HELD_EXIT_SHARE, so the ordinary jitter of a real hold's share around the entry threshold
+        # cannot flip it; a genuine change to a varied signal drops the share far below both.
+        threshold = HELD_EXIT_SHARE if self.klass.get(channel) == "held" else HELD_TOP2_SHARE
+        measured = "held" if (best >= HELD_MIN_RUN and share >= threshold) else "variable"
+        window = self._win.setdefault(channel, 0)
         mean = sum(k * v for k, v in hist.items()) / tot
-        fh.write(f"# stream={self.stream} channel={channel} class={self.klass[channel]} "
-                 f"ratio={mean:.1f} top2={best},{best + 1} share={share:.3f} "
-                 f"decided_at={self._warm.get(channel, 0)}runs\n")
-        if self.klass[channel] == "held":
+        # HYSTERESIS: the window's MEASURED class becomes the class in force only once
+        # HELD_CONFIRM_WINDOWS consecutive windows agree; the first decision takes force at once.
+        cand, streak = self._streak.get(channel, (None, 0))
+        streak = streak + 1 if cand == measured else 1
+        self._streak[channel] = (measured, streak)
+        in_force = self.klass.get(channel)
+        if in_force is None or (measured != in_force and streak >= HELD_CONFIRM_WINDOWS):
+            klass = measured
+            if in_force is not None:
+                self.transitions[channel] = self.transitions.get(channel, 0) + 1
+            fh.write(f"# stream={self.stream} channel={channel} class={klass} "
+                     f"ratio={mean:.1f} top2={best},{best + 1} share={share:.3f} "
+                     f"decided_at={sum(self._hist.get(channel, {}).values())}runs window={window} "
+                     f"confirmed={streak} at={_phone_ts(at) if at is not None else ''}\n")
+        else:
+            klass = in_force
+        self._wclass.setdefault(channel, {})[window] = klass
+        self.klass[channel] = klass
+        buf = self._buf.get(channel, {}).pop(window, [])
+        if klass == "held":
             # Its runs ARE the sampling cadence, not absence. Drop what the window buffered rather
             # than publishing spans that describe the device's clock.
-            self._buf.pop(channel, None)
+            pass
         else:
-            for line in self._buf.pop(channel, []):
+            for line in buf:
                 fh.write(line)
+        self._whist[channel] = {}
+        self._warm[channel] = 0
+        self._win[channel] = window + 1
 
     def close(self) -> None:
         """Flush every still-open run with `closed=0` — a run cut short by the recording ending is a
@@ -1211,28 +1296,42 @@ class _RunSidecar:
                 for row in pend:
                     self._write_bracketed(row, BRACKET_UNAVAILABLE)
             self._pending.clear()
+            # A trailing PARTIAL window (fewer than HELD_WARMUP_RUNS runs since the last decision):
+            # too little evidence to re-decide, so the class in force stands for it and its rows are
+            # judged by that class. Named on the final line, whether or not it buffered a row.
+            partial = {c for c in self._hist if c in self.klass and self._warm.get(c, 0)}
             for channel in list(self._buf) + [c for c in self._hist if c not in self.klass]:
+                waiting: dict[int, list[str]] = self._buf.get(channel, {})
                 if channel in self.klass:
+                    for w in sorted(waiting):
+                        rows = waiting.pop(w)
+                        if self.klass[channel] != "held":
+                            for line in rows:
+                                self._fh.write(line)
                     continue
-                # This channel's warm-up never closed — fewer than HELD_WARMUP_RUNS runs in the whole
-                # recording. RELEASE its buffer and mark it undecided. Suppressing would be the worst
-                # possible default: a quiet night with a single long stuck run is exactly the case
-                # that produces too few runs to classify, and it is the case the sidecar exists for.
-                # On weak evidence, emit and say so; never withhold.
+                # This channel never completed ONE window — fewer than HELD_WARMUP_RUNS runs in the
+                # whole recording. RELEASE its buffer and mark it undecided. Suppressing would be the
+                # worst possible default: a quiet night with a single long stuck run is exactly the
+                # case that produces too few runs to classify, and it is the case the sidecar exists
+                # for. On weak evidence, emit and say so; never withhold.
                 self.klass[channel] = "undecided"
                 self._fh.write(f"# stream={self.stream} channel={channel} class=undecided "
                                f"decided_at={self._warm.get(channel, 0)}runs reason=too-few-runs\n")
-                for line in self._buf.pop(channel, []):
-                    self._fh.write(line)
-            # The whole-stream distribution per channel, so a warm-up verdict that no longer
-            # describes the night is VISIBLE rather than silently stale.
+                for w in sorted(waiting):
+                    for line in waiting.pop(w):
+                        self._fh.write(line)
+            # The whole-stream distribution per channel, so a verdict that no longer describes the
+            # night is VISIBLE rather than silently stale — and how many windows and transitions it took.
             for channel, hist in self._hist.items():
                 tot = sum(hist.values()) or 1
                 mean = sum(k * v for k, v in hist.items()) / tot
                 self._fh.write(f"# final channel={channel} total_runs={tot} mean_run={mean:.2f} "
                                f"merges={self._merges.get(channel, 0)} "
                                f"examined={self._idx.get(channel, 0)} "
-                               f"class={self.klass.get(channel, 'undecided')}\n")
+                               f"class={self.klass.get(channel, 'undecided')} "
+                               f"windows={len(self._wclass.get(channel, {}))} "
+                               f"transitions={self.transitions.get(channel, 0)} "
+                               f"partial={1 if channel in partial else 0}\n")
             # WHAT WAS EXAMINED, ALWAYS — the mechanism, not a comment.
             #
             # `runs=0` alone cannot distinguish "read 66,535 samples and found no qualifying span" from
