@@ -66,7 +66,10 @@ export function makeVerdict(f) {
    written once here so run-check, selftest-all and the test runner cannot drift apart on it.
 
    children: [{ name, status?, provenance: 'object' | 'exit-code' | 'not-run', code?, evidence? }]
-     'object'    — the child emitted its own tepna.verdict/1; `status` is its status.
+     'object'    — the child emitted its own tepna.verdict/1; `status` is its status. Any other label
+                   ('summary' — selftest-all's parsed count line) is a structured read the caller vouches
+                   for and likewise carries `status`; the label is kept in the result so a reader can
+                   tell an object from a parsed line.
      'exit-code' — the child is still a word-and-exit-code: code 0 ⇒ UNKNOWN BY PROVENANCE (a green
                    exit is not an object — the runner can never read greener than its least-adopted
                    child), code ≠ 0 ⇒ FAIL (a red exit is never made greener).
@@ -80,7 +83,9 @@ export function aggregateChildren(children, opts = {}) {
   const rows = children.map((c) => {
     if (c.provenance === 'not-run') return { ...c, status: 'NOT_RUN' };
     if (c.provenance === 'exit-code') return { ...c, status: c.code === 0 ? 'UNKNOWN' : 'FAIL' };
-    return { ...c, provenance: 'object' };
+    /* any other provenance ('object', or a runner's own structured read such as selftest-all's parsed
+       summary line) carries the child's own status — the caller vouches for how it was read. */
+    return { ...c, provenance: c.provenance || 'object' };
   });
   const by = (st) => rows.filter((r) => r.status === st);
   const tally = {
@@ -126,10 +131,10 @@ export function aggregateChildren(children, opts = {}) {
     const exitGreen = rows.filter((r) => r.provenance === 'exit-code' && r.status === 'UNKNOWN');
     if (exitGreen.length)
       parts.push(`${exitGreen.length} of ${checked} children are exit-code only, no tepna.verdict/1 object — UNKNOWN by provenance (§3d): ${exitGreen.map((r) => r.name).join(' · ')}`);
-    const objUnknown = rows.filter((r) => r.provenance === 'object' && r.status === 'UNKNOWN');
+    const objUnknown = rows.filter((r) => r.provenance !== 'exit-code' && r.status === 'UNKNOWN');
     if (objUnknown.length) parts.push(`${objUnknown.length} UNKNOWN: ${objUnknown.map((r) => r.name).join(' · ')}`);
     if (tally.underpowered) parts.push(`${tally.underpowered} UNDERPOWERED: ${names('UNDERPOWERED').join(' · ')}`);
-    if (tally.notRun) parts.push(`${tally.notRun} NOT_RUN without a declared exclusion (an abort): ${names('NOT_RUN').join(' · ')}`);
+    if (tally.notRun) parts.push(`${tally.notRun} NOT_RUN without a declared exclusion (never asked): ${names('NOT_RUN').join(' · ')}`);
     reason = parts.join('; ');
   } else {
     status = 'PASS';
