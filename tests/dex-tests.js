@@ -18310,9 +18310,29 @@
         }
         delete c.provenance;
         if (c.recording) delete c.recording.contentId;
+        /* MEASUREMENT-PROVENANCE-ROADMAP §12 — `measurement.<id>.code` is the SHIPPED BUNDLE's identity
+           (the regenerator passes ECGDex.html's hashes as opts.code); this headless run passes none and
+           says so (`code:null` + `codeReason`). Code IDENTITY, not a computed number — volatile HERE,
+           pinned instead by `measurement · fixture code identity — committed ECGDex blocks`. The VALUES,
+           window, evidence and basis stay in the comparison. Same rule as the OxyDex deep-diff's
+           MEAS_PATH_RE. */
+        if (c.measurement && typeof c.measurement === 'object') {
+          Object.keys(c.measurement).forEach(function (k) {
+            var b = c.measurement[k];
+            if (b && typeof b === 'object') {
+              delete b.code;
+              delete b.codeReason;
+            }
+          });
+        }
         return c;
       }
       T.eq('compute({rich:true}) reproduces the committed golden byte-for-byte (volatile keys aside)', JSON.stringify(strip(rich)), JSON.stringify(strip(eq.fixture)));
+      T.ok(
+        '…and the golden carries the measurement block with a REAL code identity (the strip above did not hide an absence)',
+        !!(eq.fixture.measurement && eq.fixture.measurement.rmssd && eq.fixture.measurement.rmssd.code && eq.fixture.measurement.rmssd.code.computeHash),
+        eq.fixture.measurement ? JSON.stringify(eq.fixture.measurement.rmssd && eq.fixture.measurement.rmssd.code) : 'no measurement on the golden — regenerate'
+      );
 
       /* ANTI-VACUITY — the equality would pass just as happily if BOTH sides lost the rich block, which
          is exactly how the light-export fixture managed to look like coverage. Assert the fields are

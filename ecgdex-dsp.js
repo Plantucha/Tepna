@@ -5838,16 +5838,11 @@
   //  evidence: `inputHash` is the export's `recording.contentId` (SignalFrame content address of the NN
   //  train + t0Ms). No acquisition envelope joins the ECG path today — the capture-host envelope keys on
   //  the O2Ring .dat session_id — so `envelopeRef` is null WITH that reason, never a fabricated ref.
-  //  code identity: identical recipe to OxyDex (bundle stamp, else opts.code, else null + reason).
+  //  code identity: `opts.code` ONLY. This DSP is BORN-CLEAN (the purity gate holds it DOM-free, unlike
+  //  OxyDex's allow-listed file), so it never reads the bundle's <html data-manifest-hash> stamp itself —
+  //  the APP layer (ecgdex-app.js exportGanglior) and the regen tool read the stamp and pass it in; a
+  //  headless source-module run passes nothing and gets `code: null` + reason, loudly.
   // ═══════════════════════════════════════════════════════════════════════════
-  function ecgBundleCodeIdentity() {
-    try {
-      var ds = typeof document !== 'undefined' && document && document.documentElement && document.documentElement.dataset;
-      if (ds && /^[0-9a-f]{12}$/.test(String(ds.manifestHash || '')) && /^[0-9a-f]{12}$/.test(String(ds.computeHash || '')))
-        return { manifestHash: String(ds.manifestHash), computeHash: String(ds.computeHash) };
-    } catch (_e) {}
-    return null;
-  }
   function ecgBuildMeasurementBlocks(r, opts) {
     opts = opts || {};
     if (!r || typeof r !== 'object') return null;
@@ -5859,7 +5854,7 @@
       windowNote = 'no parsed clock end on this input — endTMs is t0Ms + the beat-train span';
     }
     if (t0 == null || tEnd == null || tEnd <= t0) return null; // no placeable window → no block (never fabricate one)
-    var code = opts.code && typeof opts.code === 'object' ? { manifestHash: opts.code.manifestHash, computeHash: opts.code.computeHash } : ecgBundleCodeIdentity();
+    var code = opts.code && typeof opts.code === 'object' ? { manifestHash: opts.code.manifestHash, computeHash: opts.code.computeHash } : null;
     var contentId = opts.contentId != null ? opts.contentId : null;
     var acq = r.acquisitionEvidence || null;
     var envelopeRef = acq && acq.session_id ? String(acq.session_id) : null;
@@ -5902,7 +5897,9 @@
         uncertainty: null,
         uncertaintyReason: 'not estimated — this node carries no uncertainty model for whole-record HRV summaries (the firmware cross-check in `validation` is a comparison, not an interval)'
       };
-      if (code == null) b.codeReason = 'no bundle identity in this runtime (headless source-module run) — the shipped bundle stamps data-manifest-hash/data-compute-hash; pass opts.code';
+      if (code == null)
+        b.codeReason =
+          'no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle\u2019s';
       return b;
     };
     var out = {};
