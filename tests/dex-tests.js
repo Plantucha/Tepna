@@ -29951,6 +29951,7 @@
       }
       var statusMismatch = [];
       var statusBlind = [];
+      var sharedDocRows = [];
       /*  DOCS-LEDGER-CHECK3B-BLIND-ROW — check3b used to report "in sync" about rows it never read.
           Two separate holes, both measured before either was touched:
 
@@ -29974,7 +29975,33 @@
         if (hs !== 'DONE' && hs !== 'PROPOSED' && hs !== 'IN-PROGRESS') return;
         idxLines.forEach(function (line) {
           if (line.indexOf('](briefs/' + n + ')') < 0) return;
-          if ((line.match(/\]\(briefs\//g) || []).length > 1) return; // multi-brief row → shared status cell, skip
+          /* ── A ROW BELONGS TO THE BRIEF IN ITS **Doc** CELL, NOT TO EVERY BRIEF IT MENTIONS.
+             This used to SKIP any row linking more than one brief, reasoning that a shared status
+             cell has nothing to compare. Measured 2026-09-22: 5 such rows, and through them **8
+             briefs whose status this check never compared at all** — a silent skip, invisible
+             because `statusBlind` reports rows that say nothing and cannot report a brief the loop
+             never reached.
+             The rows are not actually shared: their second link is a CROSS-REFERENCE in the
+             description (`PPG-FOOT-PLACEMENT`'s row links its own FOLLOWUPS; `HOSTAXIS-STABILITY`'s
+             links `ALLAN-DEVIATION`), while the Role cell states the status of the Doc-cell brief.
+             Keying on the Doc cell removes the skip: all 5 rows become comparable and all 5 agree.
+             ⚠️ THIS IS RESIDUE `2026-09-06-link-substring-is-not-a-row-match` ITSELF. That row
+             reported `PPG-FOOT-PLACEMENT-FOLLOWUPS` as `*(DONE)*` in the index against an
+             IN-PROGRESS header — but the `*(DONE)*` it read belongs to the PARENT's row, which
+             merely links the followups in its prose. The followups brief has its own row, and that
+             row says IN-PROGRESS. The reported mismatch was the substring artifact the row's own key
+             names; the durable fix is that this gate now keys on ownership too, instead of on "the
+             line mentions the file". */
+          var docCell = (line.split('|')[1] || '').trim();
+          if (docCell.indexOf('](briefs/' + n + ')') < 0) return; // a cross-reference, not this brief's row
+          /* A Doc cell that names SEVERAL docs (`A-BRIEF.md · B-FINDINGS.md`) really does share one
+             Role cell — `Audit / Brief`, an ARCHIVED note — and there is nothing per-brief to
+             compare. That skip stays, but it is COUNTED and NAMED below instead of being silent:
+             a skip nobody can see is the same shape as the blindness this check was fixing. */
+          if ((docCell.match(/\]\(briefs\//g) || []).length > 1) {
+            sharedDocRows.push(n);
+            return;
+          }
           var cells = line
             .split('|')
             .map(function (c) {
@@ -30052,7 +30079,13 @@
       T.ok(
         'check3b · …and every such row STATES a status (a silent row is not "in sync")',
         statusBlind.length === 0,
-        statusBlind.length ? 'blind rows (' + statusBlind.length + '): ' + statusBlind.slice(0, 8).join('; ') : 'all rows state one'
+        statusBlind.length
+          ? 'blind rows (' + statusBlind.length + '): ' + statusBlind.slice(0, 8).join('; ')
+          : /* PUBLISH THE SKIP. A row whose Doc cell names several docs shares one Role cell and has
+               nothing per-brief to compare — a real exemption, but one nobody could see until it was
+               counted here. The number is the denominator this check does NOT cover, printed beside
+               the one it does. */
+            'all rows state one (' + sharedDocRows.length + ' brief(s) exempt: their Doc cell groups several docs — ' + (sharedDocRows.slice(0, 4).join(', ') || 'none') + ')'
       );
 
       /* ── check3d · a ROUTED item's target must actually ACCEPT it ──────────────────────────────
