@@ -189,6 +189,30 @@ def test_a_recycled_pid_running_something_else_is_not_our_daemon(box):
         other.kill()
 
 
+def test_a_stranger_whose_cwd_cannot_be_read_is_NOT_our_daemon(box, tmp_path):
+    """THE CONCURRENCY HOLE (2026-09-22). `is_vigil` accepted an EMPTY cwd — "unreadable, so do not
+    convict" — and under pytest-xdist that is exactly what a neighbour's stub looks like for a moment:
+    `capture.py` in its argv, its box directory already torn down, `readlink -f /proc/<pid>/cwd` failing.
+    `running()`'s pgrep fallback then claimed it: `start` said "already running" and started nothing,
+    `status` said RUNNING on a cold box — 3 of 6 rounds red at -n 8, red across worktrees too.
+
+    Deterministic plant: a stranger with `capture.py` in argv whose cwd tree is removed under it, so the
+    readlink fails the way a torn-down neighbour's does. Verified red on the old script."""
+    nest = tmp_path / "gone" / "capture-host"
+    nest.mkdir(parents=True)
+    other = subprocess.Popen(["bash", "-c", "exec -a 'python capture.py --config x' sleep 300"], cwd=str(nest))
+    try:
+        nest.rmdir()
+        nest.parent.rmdir()
+        assert subprocess.run(["readlink", "-f", f"/proc/{other.pid}/cwd"], capture_output=True, text=True).stdout.strip() == "", \
+            "the plant did not reproduce: the stranger's cwd still resolves"
+        box["pid"].write_text(str(other.pid))
+        r = _run(box, "status")
+        assert r.returncode == 3 and "not running" in r.stdout.lower(), f"an unreadable cwd was accepted as ours: {r.stdout}"
+    finally:
+        other.kill()
+
+
 # ── read-only verbs must not start anything ──────────────────────────────────────────────────────────
 
 def test_url_prints_an_address_without_launching_a_daemon(box):
