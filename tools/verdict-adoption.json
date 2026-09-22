@@ -432,8 +432,15 @@
   },
   "tools/mutate.mjs": {
    "bin": "decides",
-   "status": "pending",
-   "note": "MUTATION GATE INCONCLUSIVE when mutants never ran \u2014 killed \u00b7 survived \u00b7 timeout as its own state (step 5)"
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "node",
+     "tools/mutate.mjs",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the JS diff gate (pair of capture-host/tools/mutate_diff.py): diffVerdict() decides ONE tepna.verdict/1 at every --diff exit \u2014 PASS all killed \u00b7 FAIL survivors \u00b7 UNKNOWN canary survived or mutants never ran (never a kill) \u00b7 NOT_APPLICABLE no mutable source / no mutant on the changed lines (was \"all 0 killed\") \u00b7 NOT_RUN diff unreadable or no file measured; exit codes unchanged"
   },
   "tools/mutation-adoption-delta.mjs": {
    "bin": "word-only",
