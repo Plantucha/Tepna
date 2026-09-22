@@ -1166,6 +1166,22 @@
   "capture-host/tests/test_checkverdict.py": {
    "bin": "test",
    "status": "exempt"
+  },
+  "capture-host/adapter_hci.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/adapter_hci.py",
+     "--verdict-sample"
+    ]
+   },
+   "note": "the adapter-hci night verdict (residue 2026-09-11-dead-adapter-goes-unnoticed, REPORT half): the watchdog probes every enumerated radio each poll (capture._adapter_responds, the HCI round trip) and appends a row per radio to <root>/ADAPTERHCI.csv; nightqc writes ADAPTERHCI-VERDICT.json beside the other two from the rows in the night's session window \u2014 pre-stated rule: longest run of unanswered polls >= 2 FAIL \u00b7 an isolated miss SHORTFALL \u00b7 every determinable probe answered PASS \u00b7 all undeterminable UNKNOWN \u00b7 no rows NOT_RUN; population = radios, all-None radios excluded; nothing here resets a radio"
+  },
+  "capture-host/tests/test_adapter_hci.py": {
+   "bin": "test",
+   "status": "exempt"
   }
  }
 }

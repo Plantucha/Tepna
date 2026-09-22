@@ -180,7 +180,7 @@ def test_a_crash_inside_backcheck_is_UNKNOWN_naming_the_exception(tmp_path):
     assert o["status"] == "UNKNOWN" and "the gate raised TypeError" in o["reason"]
 
 
-def test_write_verdicts_puts_both_objects_beside_the_summary_and_survives_a_read_only_dir(
+def test_write_verdicts_puts_the_objects_beside_the_summary_and_survives_a_read_only_dir(
     tmp_path, monkeypatch, caplog
 ):
     d = _night(tmp_path, ["A_1_PPG.txt"])
@@ -190,9 +190,12 @@ def test_write_verdicts_puts_both_objects_beside_the_summary_and_survives_a_read
     bc = json.load(open(os.path.join(d, "BACKCHECK-VERDICT.json")))
     verdict.validate(qc)
     verdict.validate(bc)
-    assert qc["gate"] == "night-qc" and bc["gate"] == "night-backcheck"
+    ah = json.load(open(os.path.join(d, "ADAPTERHCI-VERDICT.json")))   # the third object (adapter_hci, 2026-09-22)
+    verdict.validate(ah)
+    assert qc["gate"] == "night-qc" and bc["gate"] == "night-backcheck" and ah["gate"] == "adapter-hci"
+    assert ah["status"] == "NOT_RUN", "a night with no ADAPTERHCI.csv rows in its window is NOT_RUN, never PASS"
     assert not os.path.exists(os.path.join(d, "QC-VERDICT.json.tmp"))
     monkeypatch.setattr(verdict, "write", lambda p, o: (_ for _ in ()).throw(OSError("read-only")))
     with caplog.at_level("WARNING"):
         nightqc.write_verdicts(d, summ, DEV)  # logged, not raised — the summary write is not lost to it
-    assert sum("could not write" in r.getMessage() for r in caplog.records) == 2
+    assert sum("could not write" in r.getMessage() for r in caplog.records) == 3

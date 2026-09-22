@@ -2541,12 +2541,37 @@ def backcheck_verdict(night_dir: str, summary: dict) -> dict:
         return _v.unknown(gate=_BACKCHECK_GATE, criterion=_BACKCHECK_CRITERION, evidence=ev, tool=_TOOL, exc=exc)
 
 
+def adapter_hci_verdict(night_dir: str, summary: dict) -> dict:
+    """The `adapter-hci` verdict (adapter_hci.py — the pre-stated rule lives there) over the rows of
+    `<root>/ADAPTERHCI.csv` that fall inside the night's session window. The root is the night dir's
+    grandparent (`<root>/captures/<night>`); a night with no session window has no rows to read and
+    is NOT_RUN by the builder's own rule."""
+    import adapter_hci
+    root = os.path.dirname(os.path.dirname(os.path.abspath(night_dir)))
+    night = os.path.basename(night_dir.rstrip("/"))
+    sessions = [s for s in (summary.get("sessions") or []) if isinstance(s, dict)]
+    try:
+        if not sessions:
+            rows: list[dict] = []
+        else:
+            start = min(int(s["start"]) for s in sessions) * 1000
+            end = max(int(s["end"]) for s in sessions) * 1000
+            rows = adapter_hci.read_rows(root, start, end)
+        return adapter_hci.verdict_object(rows, night=night, root=root)
+    except Exception as exc:  # noqa: BLE001 — a crash is not a verdict
+        import verdict as _v
+        return _v.unknown(gate=adapter_hci.GATE, criterion=adapter_hci.CRITERION,
+                          evidence=[adapter_hci.TOOL, os.path.join(root, adapter_hci.FILE_NAME)], tool=adapter_hci.TOOL, exc=exc)
+
+
 def write_verdicts(night_dir: str, summary: dict, devices: list[dict]) -> None:
-    """Both objects beside QC-SUMMARY.json. Never raises: a verdict that cannot be written is logged,
-    and the summary write it accompanies must not be lost to it."""
+    """The three objects beside QC-SUMMARY.json. Never raises: a verdict that cannot be written is
+    logged, and the summary write it accompanies must not be lost to it."""
+    import adapter_hci
     import verdict as _v
     for name, obj in ((_QC_VERDICT_NAME, qc_verdict(summary, devices, night_dir=night_dir)),
-                      (_BACKCHECK_VERDICT_NAME, backcheck_verdict(night_dir, summary))):
+                      (_BACKCHECK_VERDICT_NAME, backcheck_verdict(night_dir, summary)),
+                      (adapter_hci.VERDICT_NAME, adapter_hci_verdict(night_dir, summary))):
         try:
             _v.write(os.path.join(night_dir, name), obj)
         except (OSError, ValueError):

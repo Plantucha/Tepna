@@ -25,6 +25,7 @@ import bonding
 import devcaps
 import gattmap
 import helper_path
+import adapter_hci as _ahci   # the module; `adapter_hci()` below is the resolver function
 import bluez_wedge
 import link_distress
 import wifi_uplink
@@ -6242,6 +6243,43 @@ async def _restart_radio() -> bool:
     return False
 
 
+async def _record_adapter_hci(cfg: dict, pinned_hci, pinned_up, pinned_responds) -> list[dict]:
+    """Probe every enumerated radio but the pinned one (whose verdict the caller already holds), append
+    one `ADAPTERHCI.csv` row per radio, publish the roster on STATUS["adapter_hci"]. Returns the rows
+    as dicts. Never raises: a record about the radios must not disturb the watchdog."""
+    try:
+        adapters = await list_adapters()
+    except Exception:  # noqa: BLE001 — list_adapters already returns [] on failure; belt to that brace
+        adapters = []
+    t_ms = _now().timestamp() * 1000.0
+    rows: list[dict] = []
+    for a in adapters:
+        hci, mac = a.get("hci") or "", (a.get("mac") or "").upper()
+        if not hci or not mac:
+            continue
+        t0 = _time.monotonic()
+        if hci == pinned_hci:
+            up, responds = pinned_up, pinned_responds
+        else:
+            up, responds = bool(a.get("up")), await _adapter_responds(hci)
+        rows.append({"probed_ms": t_ms, "hci": hci, "mac": mac, "pinned": hci == pinned_hci, "up": up,
+                     "responds": responds, "probe_ms": (_time.monotonic() - t0) * 1000.0})
+    if pinned_hci and not any(r["pinned"] for r in rows):
+        # The enumeration failed or omitted the pinned radio: its measured verdict is still a row.
+        rows.append({"probed_ms": t_ms, "hci": pinned_hci, "mac": (ADAPTER or "").upper(), "pinned": True,
+                     "up": pinned_up, "responds": pinned_responds, "probe_ms": 0.0})
+    _ahci.append_rows(cfg.get("root") or "",
+                            [_ahci.row(r["probed_ms"], r["hci"], r["mac"], r["pinned"], r["up"], r["responds"], r["probe_ms"])
+                             for r in rows], log=log)
+    STATUS["adapter_hci"] = {r["mac"]: {"hci": r["hci"], "pinned": r["pinned"], "up": r["up"], "responds": r["responds"]}
+                             for r in rows}
+    for r in rows:
+        if r["responds"] is False and not r["pinned"]:
+            log.warning("watchdog: radio %s (%s) reads %s and did not answer an HCI round trip — REPORTED, not reset "
+                        "(a non-pinned reset is the owner's action)", r["hci"], r["mac"], "UP" if r["up"] else "DOWN")
+    return rows
+
+
 def _wedge_fire_record(root, device, reason, error_class) -> None:
     """Append one line to the wedge-fire journal. NEVER raises — a record about a recovery must not
     become a second failure during one.
@@ -6354,6 +6392,15 @@ async def adapter_watchdog(adapter_mac, cfg: dict):
         # what licenses the InProgress suppression, so probing only on suspicion would leave the suppression
         # resting on the flag it was introduced to replace. One bounded subprocess per `interval_sec`.
         adapter_responds = (await _adapter_responds(_hci_now)) if _hci_now else None
+        # ── EVERY RADIO, AND A ROW A READER CAN FIND (adapter_hci, residue 2026-09-11) ──────────
+        # The round trip above answers for the PINNED radio and feeds a classifier; on 2026-09-11 a
+        # wedge was invisible for nineteen minutes because its result reached no artifact. Now every
+        # enumerated radio is probed each poll — the pinned one reuses the verdict just taken — and
+        # one row per radio lands in ADAPTERHCI.csv at the root, which the nightly QC tick turns into
+        # the `adapter-hci` verdict. REPORT only: nothing here resets a non-pinned radio; the ladder
+        # below acts on the pinned one exactly as before. A failed enumeration records nothing rather
+        # than a fabricated roster (§∅), and the pinned row is still written from what was measured.
+        await _record_adapter_hci(cfg, _hci_now, adapter_up, adapter_responds)
         h = classify_adapter_health(devs, adapter_up=adapter_up, adapter_responds=adapter_responds)
         if not h["wedged"]:
             # ── IS THE RADIO DEAF? ───────────────────────────────────────────────────────────
