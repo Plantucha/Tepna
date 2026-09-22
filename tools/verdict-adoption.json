@@ -88,6 +88,19 @@
    "status": "exempt",
    "reason": "verdict words appear only in comments"
   },
+  "capture-host/sealbox.py": {
+   "bin": "decides",
+   "status": "adopted",
+   "emits": {
+    "cmd": [
+     "python3",
+     "capture-host/night_verdicts.py",
+     "--sample-json",
+     "night-seal"
+    ]
+   },
+   "note": "night-seal (CAPTURE-NIGHT-SEAL phase B): one object per settled night beside its seal in outbox/ \u2014 PASS (written and verified with unseal) / NOT_APPLICABLE (the seal still matches the directory) / FAIL (the written seal did not verify; previous kept) / NOT_RUN / UNKNOWN. The sample seals a synthetic night under a fresh key; where cryptography is not importable it emits NOT_RUN naming it"
+  },
   "capture-host/tests/_srcscan.py": {
    "bin": "test",
    "status": "exempt"
@@ -225,6 +238,14 @@
    "status": "exempt"
   },
   "capture-host/tests/test_seal.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_seal_poller.py": {
+   "bin": "test",
+   "status": "exempt"
+  },
+  "capture-host/tests/test_sealbox.py": {
    "bin": "test",
    "status": "exempt"
   },

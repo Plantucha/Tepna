@@ -69,3 +69,26 @@ def test_sample_json_prints_one_validated_object_per_gate_and_refuses_an_unknown
         assert js_validate(o)["ok"] and o["gate"] == gate and o["status"] == "PASS"
     assert night_verdicts.main(["--sample-json", "night-sniffer"]) == 2
     assert "unknown gate" in capsys.readouterr().err
+
+
+def test_sample_json_night_seal_seals_a_synthetic_night_or_says_it_could_not(capsys, monkeypatch):
+    assert night_verdicts.main(["--sample-json", "night-seal"]) == 0
+    o = json.loads(capsys.readouterr().out)
+    verdict.validate(o)
+    assert js_validate(o)["ok"] and o["gate"] == "night-seal" and o["status"] == "PASS"  # cryptography is here
+    assert o["result"]["revision"] == 1 and o["population"] == {"checked": 1, "eligible": 1, "excluded": 0}
+    # where sealbox cannot import (the JS lane's system python), the emission is NOT_RUN naming it
+    import builtins
+
+    real = builtins.__import__
+
+    def no_sealbox(name, *a, **k):
+        if name == "sealbox":
+            raise ImportError("No module named cryptography")
+        return real(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", no_sealbox)
+    o = night_verdicts.seal_sample()
+    monkeypatch.setattr(builtins, "__import__", real)
+    verdict.validate(o)
+    assert o["status"] == "NOT_RUN" and "cryptography" in o["reason"] and js_validate(o)["ok"]
