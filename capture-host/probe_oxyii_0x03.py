@@ -46,10 +46,14 @@ import json
 import struct
 import time
 
-from bleak import BleakClient, BleakScanner
-
 import oxy_presence
 import oxyii
+import verdict as VD
+
+try:
+    from bleak import BleakClient, BleakScanner
+except ImportError:  # no radio stack (the adoption gate's runner): the pure halves still import
+    BleakClient = BleakScanner = None  # type: ignore[assignment,misc]
 
 OP_SAMPLES_A = 0x03
 #: Same shape as RT_PPG_ARG — the 0x05 sibling takes (0x07, 0x01); 0x03 is documented as taking the
@@ -147,6 +151,57 @@ def summarise(samples: list[dict], cap: int = REC_CAP) -> dict:
         out["marker_rate_hz"] = round(mk / span, 3)
         out["rate_minus_markers_hz"] = round(out["rate_all_hz"] - mk / span, 3)
     return out
+
+
+# ── tepna.verdict/1 — the VERDICT lines as ONE object (VERDICT-CONTRACT wave 2) ──────────────────
+# The question is §7.4's: 112.9 Hz or 125.000 Hz. The band is the one `verdict()` has always applied
+# (within 2 % of a candidate), pre-stated here as the criterion; the candidates are 10 % apart so at
+# most one can match. PASS ⇔ the unsaturated rate sits within 2 % of exactly one candidate (which one
+# is the RESULT, not the criterion) · FAIL neither (a third answer) · UNDERPOWERED no unsaturated
+# interval (0 usable pairs, minimum 1 — the run measured the polling) · UNKNOWN the ring returned no
+# records (an empty reply and a wrong argument are indistinguishable here, so nothing was decided).
+# Population: the replies — those carrying records were examined, empty ones excluded.
+VERDICT_GATE = "oxyii-0x03-record-rate"
+RATE_CANDIDATES_HZ = (112.9, 125.0)
+RATE_BAND = 0.02
+VERDICT_CRITERION = {"name": "rate_within_candidate", "threshold": RATE_BAND, "unit": "fraction", "direction": "lte"}
+
+
+def verdict_object(s: dict) -> dict:
+    """PURE over `summarise()`'s dict."""
+    r = s.get("rate_unsaturated_hz")
+    pop = {"checked": s["replies_with_records"], "eligible": s["replies"],
+           "excluded": s["replies"] - s["replies_with_records"]}
+    ev = ["capture-host/probe_oxyii_0x03.py"]
+    tool = "capture-host/probe_oxyii_0x03.py"
+    keep = ("replies", "replies_with_records", "saturated_replies", "saturated_fraction", "cap",
+            "total_records", "rate_all_hz", "rate_unsaturated_hz", "span_s", "unsaturated_span_s")
+    result = {k: s.get(k) for k in keep}
+    if s["replies_with_records"] == 0:
+        return VD.make(gate=VERDICT_GATE, status="UNKNOWN", population=pop, criterion=VERDICT_CRITERION,
+                       result=result, evidence=ev, tool=tool,
+                       reason="the ring returned no 0x03 records — an empty reply and a wrong request "
+                              "argument are indistinguishable, so nothing was decided")
+    if r is None:
+        return VD.make(gate=VERDICT_GATE, status="UNDERPOWERED", population=pop, criterion=VERDICT_CRITERION,
+                       result=result, evidence=ev, tool=tool,
+                       reason=f"0 unsaturated reply pairs, minimum 1: {s['saturated_replies']} of "
+                              f"{s['replies_with_records']} replies pinned at the {s['cap']}-record cap — "
+                              "this run measured the polling, not the device")
+    matched = [hz for hz in RATE_CANDIDATES_HZ if abs(r - hz) / hz <= RATE_BAND]
+    result["matched_hz"] = matched
+    result["closest_fraction"] = round(min(abs(r - hz) / hz for hz in RATE_CANDIDATES_HZ), 4)
+    ok = len(matched) == 1
+    return VD.make(gate=VERDICT_GATE, status="PASS" if ok else "FAIL", population=pop,
+                   criterion=VERDICT_CRITERION, result=result, evidence=ev, tool=tool,
+                   reason=None if ok else f"{r} Hz is within {RATE_BAND:.0%} of neither "
+                                          f"{RATE_CANDIDATES_HZ[0]} nor {RATE_CANDIDATES_HZ[1]} Hz — a third answer")
+
+
+def verdict_sample() -> dict:
+    """The object the adoption gate reads (`--verdict-sample`): synthetic replies at 125 Hz, no ring."""
+    rows = [{"t": i * 0.2, "count": 25, "markers": 0, "isolated": 0} for i in range(51)]
+    return verdict_object(summarise(rows))
 
 
 def verdict(s: dict) -> list[str]:
@@ -257,13 +312,23 @@ def main(argv=None) -> int:
     ap.add_argument("--hz", type=float, default=5.0, help="poll rate; higher = less saturation risk")
     ap.add_argument("--arg", default=None, help="request-argument hex override, e.g. 0701")
     ap.add_argument("--json", default=None, help="write the full per-reply log here")
+    ap.add_argument("--verdict-sample", action="store_true",
+                    help="print one tepna.verdict/1 object over synthetic replies and exit (the adoption gate reads this)")
     a = ap.parse_args(argv)
+    if a.verdict_sample:
+        print(json.dumps(verdict_sample(), indent=1))
+        return 0
+    if BleakScanner is None:
+        raise SystemExit("probe_oxyii_0x03: bleak is not installed — this probe needs a radio stack")
     res = asyncio.run(run(a.address, a.seconds, a.hz, a.arg))
     for line in verdict(res["summary"]):
         print(line)
     print()
     for k, v in res["summary"].items():
         print(f"  {k:24} {v}")
+    # One line, the object, after the prose; the same object rides the JSON log at the top level.
+    res["verdict"] = verdict_object(res["summary"])
+    print(json.dumps(res["verdict"]))
     if a.json:
         with open(a.json, "w", encoding="utf-8") as fh:
             json.dump(res, fh, indent=1)

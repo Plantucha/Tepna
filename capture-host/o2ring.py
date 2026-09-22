@@ -58,9 +58,12 @@ the vendor BLE codec + the USB [len] wrapper; confirm on your first live pull.
 """
 import argparse
 import hashlib
+import json
 import struct
 import sys
 import time
+
+import verdict as VD
 
 VID = 0x1915
 PID = 0xF33C
@@ -529,6 +532,9 @@ def _emit_csv(dat_path: str):
         print(f"  trailer: avg_spo2={trailer['avg_spo2']} min={trailer['min_spo2']} "
               f"avg_hr={trailer['avg_hr']} dur={trailer['total_seconds']}s  "
               f"self-consistency={'PASS' if ok else 'CHECK header offset'}")
+    # The decision is parse_dat's, so the object is parse_dat's too — printed here, never rebuilt
+    # (a second builder over the same bands is the drift §🎫 forbids). One line, after the prose.
+    print("  " + json.dumps(parse_dat.consistency_verdict(samples, trailer, dat_path)))
 
 
 def pull_session(dev, session_id: str, max_bytes=8 * 1024 * 1024):
@@ -590,34 +596,60 @@ def cmd_probe(dev, sweep=False):
             _probe_one(dev, 0xA5, op, b"", quiet_empty=True)
 
 
-def cmd_selftest():  # pragma: no cover  (offline self-demo; see tests/ for coverage)
-    ok = True
-    # auth generator: reproduce a captured frame exactly (aa-variant, ts=1788096060)
-    got = build_auth(b"0000", ts=1788096060, magic=0xAA)
-    want = bytes.fromhex("18aaff00000010000068158872091cb098c8c7daf86da199b4")
-    a = got[:len(want)] == want
-    ok &= a
-    print(f"auth aa-variant ts=1788096060 -> {'OK' if a else 'FAIL'}")
-    print(f"   got : {got[:25].hex(' ')}")
-    print(f"   want: {want.hex(' ')}")
-    # a5-variant frame 157 (ts=1788095920)
-    got2 = build_auth(b"0000", ts=1788095920, magic=0xA5)
-    want2 = bytes.fromhex("18a5ff00000010000068158872091cb098c8c7da746ea19925")
-    b = got2[:len(want2)] == want2
-    ok &= b
-    print(f"auth a5-variant ts=1788095920 -> {'OK' if b else 'FAIL'}")
-    print(f"   got : {got2[:25].hex(' ')}")
-    print(f"   want: {want2.hex(' ')}")
-    # AES-128 against FIPS-197 Appendix C.1
-    ct = aes_encrypt_block(bytes(range(16)), bytes.fromhex("00112233445566778899aabbccddeeff"))
-    c = ct == bytes.fromhex("69c4e0d86a7b0430d8cdb78070b4c55a")
-    ok &= c
-    print(f"AES-128 FIPS-197 C.1 -> {'OK' if c else 'FAIL'}  ({ct.hex()})")
-    print("SELFTEST", "PASS" if ok else "FAIL")
-    return 0 if ok else 1
+# ── the selftest's vectors, PURE, and its tepna.verdict/1 object (VERDICT-CONTRACT wave 2) ───────
+# Three known-answer vectors: two captured auth frames reproduced byte-for-byte (the aa- and a5-
+# variants, real device responses) and AES-128 against FIPS-197 C.1. The rule is byte equality, so
+# PASS ⇔ 0 vectors mismatched; there is no band to state.
+SELFTEST_VECTORS = (
+    ("auth aa-variant ts=1788096060", lambda: build_auth(b"0000", ts=1788096060, magic=0xAA),
+     bytes.fromhex("18aaff00000010000068158872091cb098c8c7daf86da199b4")),
+    ("auth a5-variant ts=1788095920", lambda: build_auth(b"0000", ts=1788095920, magic=0xA5),
+     bytes.fromhex("18a5ff00000010000068158872091cb098c8c7da746ea19925")),
+    ("AES-128 FIPS-197 C.1",
+     lambda: aes_encrypt_block(bytes(range(16)), bytes.fromhex("00112233445566778899aabbccddeeff")),
+     bytes.fromhex("69c4e0d86a7b0430d8cdb78070b4c55a")),
+)
+VERDICT_GATE = "o2ring-selftest"
+VERDICT_CRITERION = {"name": "vectors_mismatched", "threshold": 0, "unit": "vectors", "direction": "eq"}
+
+
+def selftest_checks() -> list[dict]:
+    """`[{name, ok, got, want}]` — every vector run, compared over the captured prefix. PURE."""
+    out = []
+    for name, fn, want in SELFTEST_VECTORS:
+        got = fn()
+        out.append({"name": name, "ok": got[:len(want)] == want, "got": got[:len(want)].hex(), "want": want.hex()})
+    return out
+
+
+def selftest_verdict(checks: list[dict]) -> dict:
+    """PASS every vector reproduced · FAIL naming the mismatched ones. Population = the vectors."""
+    bad = [c["name"] for c in checks if not c["ok"]]
+    return VD.make(gate=VERDICT_GATE, status="FAIL" if bad else "PASS",
+                   population={"checked": len(checks), "eligible": len(checks), "excluded": 0},
+                   criterion=VERDICT_CRITERION,
+                   result={"vectors": len(checks), "mismatched": len(bad),
+                           "checks": [{k: c[k] for k in ("name", "ok")} for c in checks]},
+                   evidence=["capture-host/o2ring.py"] + [c["name"] for c in checks],
+                   reason=None if not bad else "mismatched: " + ", ".join(bad), tool="capture-host/o2ring.py")
+
+
+def cmd_selftest():  # pragma: no cover  (offline self-demo; the pure halves above are tested)
+    checks = selftest_checks()
+    for c in checks:
+        print(f"{c['name']} -> {'OK' if c['ok'] else 'FAIL'}")
+        print(f"   got : {c['got']}")
+        print(f"   want: {c['want']}")
+    v = selftest_verdict(checks)
+    print("SELFTEST", v["status"])
+    print(json.dumps(v))
+    return 0 if v["status"] == "PASS" else 1
 
 
 def main():
+    if sys.argv[1:] == ["--verdict-sample"]:  # the adoption gate's cmd — no device, no argparse
+        print(json.dumps(selftest_verdict(selftest_checks()), indent=1))
+        return
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("selftest")

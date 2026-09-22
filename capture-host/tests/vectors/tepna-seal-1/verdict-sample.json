@@ -1,0 +1,39 @@
+{
+ "schema": "tepna.verdict/1",
+ "gate": "verify-seals",
+ "status": "PASS",
+ "population": {
+  "checked": 1,
+  "eligible": 1,
+  "excluded": 0
+ },
+ "criterion": {
+  "name": "tepna-seal/1 verifies end to end",
+  "threshold": 0,
+  "unit": "refusals",
+  "direction": "eq"
+ },
+ "result": {
+  "kind": null,
+  "files": [
+   "synthetic_ecgdex_h10.txt",
+   "synthetic_motiondex_acc.txt",
+   "synthetic_oxydex_o2ring.csv"
+  ],
+  "consent": null,
+  "revision": 1,
+  "boxId": "TESTBOX0",
+  "night": "2026-09-20"
+ },
+ "evidence": [
+  "capture-host/unseal.py",
+  "/home/michal/wt-verdict-w2-hrn/capture-host/tests/vectors/tepna-seal-1/TESTBOX0-2026-09-20.tepna"
+ ],
+ "reason": null,
+ "producedBy": {
+  "tool": "capture-host/unseal.py",
+  "commit": "e9c2ba18"
+ },
+ "at": "2026-09-22T04:07:52Z",
+ "scope": "internal"
+}

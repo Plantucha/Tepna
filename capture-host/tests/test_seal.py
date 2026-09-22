@@ -372,11 +372,35 @@ def test_the_vector_selftest_emits_a_PASS_verdict_on_stdout_and_prose_on_stderr(
 
 
 def test_the_commit_field_is_null_outside_a_git_tree_not_a_guess(monkeypatch):
-    import subprocess as sp
-    def boom(*a, **k):
-        raise OSError("no git")
-    monkeypatch.setattr(sp, "run", boom)
-    assert unseal._commit_short() is None
+    """Since wave 2 the object is built by `verdict.make`, so the commit comes from `verdict.commit_sha`
+    and a null carries `commitReason` (verdict.js refuses a bare null)."""
+    import verdict as VD
+    monkeypatch.setattr(VD, "commit_sha", lambda: None)
+    v = unseal.verdict(os.path.join(V.VECTOR_DIR, EXPECTED["seal"]), card_key=V.TEST_CARD_KEY, pinned_fingerprint=PIN)
+    assert_valid_verdict(v)
+    assert v["producedBy"]["commit"] is None and v["producedBy"]["commitReason"] == VD.NO_GIT_REASON
+
+
+def test_the_committed_verdict_sample_is_the_live_object_modulo_provenance():
+    """`tools/verdict-adoption.json` reads `verdict-sample.json` as a FILE, because the static CI runner's
+    python3 has no `cryptography` and cannot run this reader. A committed object is a claim unless
+    something holds it equal to the builder: this does, on every field but the run's own provenance
+    (`at`, `producedBy`). Regenerate: `python3 capture-host/unseal.py --verdict-sample > <file>`."""
+    with open(os.path.join(V.VECTOR_DIR, "verdict-sample.json"), encoding="utf-8") as fh:
+        committed = json.load(fh)
+    assert_valid_verdict(committed)
+    live = unseal.verdict_sample()
+    strip = lambda v: {k: x for k, x in v.items() if k not in ("at", "producedBy")}  # noqa: E731
+    assert strip(committed) == strip(live), "the committed sample drifted from the reader — regenerate it ON PURPOSE"
+
+
+def test_the_verdict_sample_is_the_committed_vector_judged_PASS_and_needs_no_corpus():
+    """`--verdict-sample` is what `tools/verdict-adoption.json` names for this producer: the committed
+    vector under the committed test card key and fingerprint — PASS, with the three synthetic files."""
+    v = unseal.verdict_sample()
+    assert_valid_verdict(v)
+    assert v["status"] == "PASS" and v["result"]["files"] == sorted(V.NIGHT_INPUTS)
+    assert v["scope"] == "internal" and v["population"] == {"checked": 1, "eligible": 1, "excluded": 0}
 
 
 # ── the refusals a plant cannot reach without the box's key — re-signed by the TEST key ─────────

@@ -46,6 +46,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.keywrap import InvalidUnwrap, aes_key_unwrap
 
 import sealfmt as F
+import verdict as VD
 
 __all__ = ["SealRefused", "KINDS", "read_header", "unseal", "verdict"]
 
@@ -214,40 +215,52 @@ def _check_manifest(entries: dict[str, bytes], manifest_name: str) -> None:
 
 
 # ── tepna.verdict/1 — the same object the Node twin emits (VERDICT-CONTRACT §1) ──────────────────
-def _commit_short() -> str | None:
-    import subprocess
-    try:
-        return subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True,
-                              timeout=5, cwd=os.path.dirname(os.path.abspath(__file__))).stdout.strip() or None
-    except Exception:  # noqa: BLE001 — not in a git tree: absence is null
-        return None
+# Built by `verdict.make` (the Python half of the contract, #2803) since wave 2 — one builder, one
+# validator, the same rules `verdict.js` applies; this module no longer hand-writes the shape.
+VERDICT_GATE = "verify-seals"
+VERDICT_CRITERION = {"name": "tepna-seal/1 verifies end to end", "threshold": 0, "unit": "refusals", "direction": "eq"}
+_TOOL = "capture-host/unseal.py"
 
 
 def verdict(path: str, *, card_key: bytes, pinned_fingerprint: str, known_revision: int | None = None) -> dict:
     """One JSON object per file: PASS with what is inside, FAIL with the refusal's kind as the reason,
-    NOT_RUN when the file cannot be read. Prose is explanation; this is the API. A refusal is never an
-    adjective — `reason` is `<kind>: <detail>`, the same string the exception carries."""
-    from datetime import datetime, timezone
-    evidence = ["capture-host/unseal.py", path]
+    NOT_RUN when the file cannot be read, UNKNOWN when the reader itself crashed. Prose is explanation;
+    this is the API. A refusal is never an adjective — `reason` is `<kind>: <detail>`, the same string
+    the exception carries. Population: the one file; NOT_RUN excludes it (nothing was opened)."""
+    evidence = [_TOOL, path]
+    one = {"checked": 1, "eligible": 1, "excluded": 0}
     try:
         r = unseal(path, card_key=card_key, pinned_fingerprint=pinned_fingerprint, known_revision=known_revision)
-        status, reason = "PASS", None
-        result = {"kind": None, "files": sorted(r["files"]), "consent": r["consent"],
-                  "revision": r["header"]["revision"], "boxId": r["header"]["boxId"], "night": r["header"]["night"]}
     except SealRefused as e:
-        status, reason = "FAIL", "%s: %s" % (e.kind, e.detail)
-        result = {"kind": e.kind, "files": None, "consent": None, "revision": None}
+        return VD.make(gate=VERDICT_GATE, status="FAIL", population=one, criterion=VERDICT_CRITERION,
+                       result={"kind": e.kind, "files": None, "consent": None, "revision": None},
+                       evidence=evidence, reason="%s: %s" % (e.kind, e.detail), tool=_TOOL)
     except OSError as e:
-        status, reason, result = "NOT_RUN", "cannot read %s: %s" % (path, e), None
+        return VD.make(gate=VERDICT_GATE, status="NOT_RUN", population={"checked": 0, "eligible": 1, "excluded": 1},
+                       criterion=VERDICT_CRITERION, result=None, evidence=[_TOOL],
+                       reason="cannot read %s: %s" % (path, e), tool=_TOOL)
     except Exception as e:  # noqa: BLE001 — a crash is not a verdict: UNKNOWN with the error as the reason
-        status, reason, result = "UNKNOWN", "reader failed: %r" % (e,), None
-    not_run = status == "NOT_RUN"
-    return {
-        "schema": "tepna.verdict/1", "gate": "verify-seals", "status": status,
-        "scope": "internal",     # P5: not quotable outside the repo until a producer WRITES publishable
-        "population": {"checked": 0 if not_run else 1, "eligible": 1, "excluded": 1 if not_run else 0},
-        "criterion": {"name": "tepna-seal/1 verifies end to end", "threshold": 0, "unit": "refusals", "direction": "eq"},
-        "result": result, "evidence": evidence if not not_run else ["capture-host/unseal.py"], "reason": reason,
-        "producedBy": {"tool": "capture-host/unseal.py", "commit": _commit_short()},
-        "at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
-    }
+        return VD.unknown(gate=VERDICT_GATE, criterion=VERDICT_CRITERION, evidence=evidence, tool=_TOOL, exc=e)
+    return VD.make(gate=VERDICT_GATE, status="PASS", population=one, criterion=VERDICT_CRITERION,
+                   result={"kind": None, "files": sorted(r["files"]), "consent": r["consent"],
+                           "revision": r["header"]["revision"], "boxId": r["header"]["boxId"], "night": r["header"]["night"]},
+                   evidence=evidence, reason=None, tool=_TOOL)
+
+
+def verdict_sample() -> dict:
+    """The object over the COMMITTED vector (`tests/vectors/tepna-seal-1/`, #2796): the test card key and
+    the test box key's fingerprint from `expected.json`. No corpus, no box key — `--verdict-sample`."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    vec = os.path.join(here, "tests", "vectors", "tepna-seal-1")
+    with open(os.path.join(vec, "expected.json"), encoding="utf-8") as fh:
+        exp = json.load(fh)
+    return verdict(os.path.join(vec, exp["seal"]), card_key=bytes.fromhex(exp["cardKeyHex"]),
+                   pinned_fingerprint=exp["boxKeyFingerprint"])
+
+
+if __name__ == "__main__":  # `verdict_sample` is tested; this only prints it
+    import sys
+    if sys.argv[1:] == ["--verdict-sample"]:
+        print(json.dumps(verdict_sample(), indent=1))
+        sys.exit(0)
+    sys.exit("unseal: a library — call unseal() / verdict(); --verdict-sample prints the committed vector's object")

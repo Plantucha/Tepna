@@ -23,13 +23,19 @@ Usage (on the box, daemon stopped per link_guard):
 from __future__ import annotations
 import argparse
 import asyncio
+import json
 import sys
 from time import monotonic
 
 sys.path.insert(0, ".")
 from link_guard import require_free_link   # noqa: E402
 import oxyii                                # noqa: E402
-from bleak import BleakClient               # noqa: E402
+import verdict as VD                        # noqa: E402
+
+try:
+    from bleak import BleakClient
+except ImportError:  # no radio stack (the adoption gate's runner): the pure halves still import
+    BleakClient = None  # type: ignore[assignment,misc]
 
 READS = {"GET_INFO": oxyii.OP_GET_INFO, "GET_CONFIG": oxyii.OP_GET_CONFIG,
          "GET_BATTERY": oxyii.OP_GET_BATTERY}
@@ -59,20 +65,92 @@ class Chan:
             return None
 
 
+# The candidate band: a u16/u32 LE window that advanced by the gap, ±max(2 s, 20 %). Pre-stated; it
+# is the ONE rule both the prose (`diff`) and the object (`classify` → `verdict_object`) read.
+GAP_TOL_FLOOR_S = 2.0
+GAP_TOL_FRACTION = 0.2
+
+
+def clock_candidates(a: bytes, b: bytes, gap_s: float) -> list[tuple[int, int, int, int, int]]:
+    """`[(width_bytes, offset, before, after, delta)]` for every LE window that advanced by ≈ gap. PURE."""
+    out = []
+    for w in (2, 4):
+        for i in range(0, min(len(a), len(b)) - w + 1):
+            va = int.from_bytes(a[i:i+w], "little")
+            vb = int.from_bytes(b[i:i+w], "little")
+            d = vb - va
+            if 0 < d and abs(d - gap_s) <= max(GAP_TOL_FLOOR_S, gap_s * GAP_TOL_FRACTION):
+                out.append((w, i, va, vb, d))
+    return out
+
+
 def diff(a: bytes, b: bytes, gap_s: float) -> list[str]:
     out = []
     for i in range(min(len(a), len(b))):
         if a[i] != b[i]:
             out.append(f"    byte[{i:2d}]  {a[i]:02X} -> {b[i]:02X}  (Δ={b[i]-a[i]:+d})")
     # multi-byte candidates: does any u16/u32 LE window advance by ~gap?
-    for w in (2, 4):
-        for i in range(0, min(len(a), len(b)) - w + 1):
-            va = int.from_bytes(a[i:i+w], "little")
-            vb = int.from_bytes(b[i:i+w], "little")
-            d = vb - va
-            if 0 < d and abs(d - gap_s) <= max(2, gap_s * 0.2):
-                out.append(f"    *** u{w*8} LE @{i}: {va} -> {vb}  Δ={d}  ≈ the {gap_s:.0f}s gap — CLOCK CANDIDATE")
+    for w, i, va, vb, d in clock_candidates(a, b, gap_s):
+        out.append(f"    *** u{w*8} LE @{i}: {va} -> {vb}  Δ={d}  ≈ the {gap_s:.0f}s gap — CLOCK CANDIDATE")
     return out
+
+
+# ── tepna.verdict/1 — the VERDICT line as ONE object (VERDICT-CONTRACT wave 2) ───────────────────
+# The rule `diff()` applies is a multi-byte LE window that advanced by ≈ the gap (|Δ − gap| ≤
+# max(2 s, 20 %)) — the "CLOCK CANDIDATE" it prints. PASS ⇔ at least one opcode carries one · FAIL
+# every readable reply was byte-identical (the prose VERDICT: no read opcode carries the RTC) · UNKNOWN
+# bytes moved but no window tracked the gap (the probe has never claimed either way there, so the object
+# does not either). Population: the opcodes read; one unreadable on either side is excluded — it was
+# not compared. `outcome` per opcode ∈ {unreadable, identical, changed, candidate}, from `classify()`.
+VERDICT_GATE = "oxyii-rtc-read-opcode"
+VERDICT_CRITERION = {"name": "opcodes_with_clock_candidate", "threshold": 1, "unit": "opcodes", "direction": "gte"}
+
+
+def classify(first: bytes | None, second: bytes | None, gap_s: float) -> str:
+    """One opcode's outcome from its two reads. PURE. The candidate rule is `clock_candidates`, the
+    same function `diff()` prints from, so prose and object cannot disagree."""
+    if first is None or second is None:
+        return "unreadable"
+    if not diff(first, second, gap_s):   # the prose's BYTE-IDENTICAL, by the same comparison
+        return "identical"
+    return "candidate" if clock_candidates(first, second, gap_s) else "changed"
+
+
+def verdict_object(outcomes: dict[str, str], gap_s: float) -> dict:
+    """PURE over `{opcode_name: outcome}`."""
+    n = len(outcomes)
+    unread = [k for k, v in outcomes.items() if v == "unreadable"]
+    cands = [k for k, v in outcomes.items() if v == "candidate"]
+    changed = [k for k, v in outcomes.items() if v == "changed"]
+    pop = {"checked": n - len(unread), "eligible": n, "excluded": len(unread)}
+    result = {"gap_s": gap_s, "outcomes": dict(outcomes), "candidates": cands}
+    ev = ["capture-host/probe_rtc_read.py"] + sorted(outcomes)
+    tool = "capture-host/probe_rtc_read.py"
+    if pop["checked"] == 0:
+        return VD.make(gate=VERDICT_GATE, status="NOT_RUN", population=pop, criterion=VERDICT_CRITERION,
+                       result=None, evidence=ev, tool=tool,
+                       reason=f"no opcode was readable on both sides of the {gap_s:.0f} s gap — nothing compared")
+    if cands:
+        return VD.make(gate=VERDICT_GATE, status="PASS", population=pop, criterion=VERDICT_CRITERION,
+                       result=result, evidence=ev, tool=tool, reason=None)
+    if changed:
+        return VD.make(gate=VERDICT_GATE, status="UNKNOWN", population=pop, criterion=VERDICT_CRITERION,
+                       result=result, evidence=ev, tool=tool,
+                       reason=f"bytes moved in {', '.join(changed)} but no u16/u32 window tracked the "
+                              f"{gap_s:.0f} s gap — neither an RTC nor its absence was shown")
+    return VD.make(gate=VERDICT_GATE, status="FAIL", population=pop, criterion=VERDICT_CRITERION,
+                   result=result, evidence=ev, tool=tool,
+                   reason="no read opcode carries the RTC — every readable reply was byte-identical "
+                          f"across {gap_s:.0f} s; pull-time does not exist on this surface")
+
+
+def verdict_sample() -> dict:
+    """The object the adoption gate reads (`--verdict-sample`): synthetic reads, no ring."""
+    a = bytearray(60); b = bytearray(60)
+    a[4:8] = (1000).to_bytes(4, "little"); b[4:8] = (1010).to_bytes(4, "little")
+    outcomes = {"GET_INFO": classify(bytes(a), bytes(b), 10.0), "GET_CONFIG": classify(bytes(40), bytes(40), 10.0),
+                "GET_BATTERY": classify(None, bytes([80]), 10.0)}
+    return verdict_object(outcomes, 10.0)
 
 
 def clock_offset_s(rtc: dict, host) -> float:
@@ -126,12 +204,14 @@ async def main(address: str, gap: float) -> int:
         await asyncio.sleep(gap)
         actual = monotonic() - t0
         changed_any = False
+        outcomes: dict[str, str] = {}
         for name, op in READS.items():
-            second = await ch.ask(op, 2)
-            if first[name] is None or second is None:
+            a, b = first[name], await ch.ask(op, 2)
+            outcomes[name] = classify(a, b, actual)
+            if a is None or b is None:   # == outcomes[name] == "unreadable", spelled so mypy narrows
                 print(f"  {name}: unreadable on one side — inconclusive")
                 continue
-            d = diff(first[name], second, actual)
+            d = diff(a, b, actual)
             if d:
                 changed_any = True
                 print(f"  {name}: {len(d)} change(s) across {actual:.1f}s")
@@ -141,10 +221,17 @@ async def main(address: str, gap: float) -> int:
                 print(f"  {name}: BYTE-IDENTICAL across {actual:.1f}s — no clock in this reply")
         if not changed_any:
             print("\n  VERDICT: no read opcode carries the RTC — pull-time does not exist on this surface.")
+        # One line, the object, after the prose — the verdict a machine reads (VERDICT-CONTRACT §1).
+        print(json.dumps(verdict_object(outcomes, actual)))
         return 0
 
 
 if __name__ == "__main__":
+    if sys.argv[1:] == ["--verdict-sample"]:  # the adoption gate's cmd — no ring, no link guard
+        print(json.dumps(verdict_sample(), indent=1))
+        sys.exit(0)
+    if BleakClient is None:
+        sys.exit("probe_rtc_read: bleak is not installed — this probe needs a radio stack")
     ap = argparse.ArgumentParser()
     ap.add_argument("--address", required=True)
     ap.add_argument("--gap", type=float, default=10.0)
