@@ -4104,8 +4104,23 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // Intra-night HR descent: (night mean - night floor) / night mean × 100
     // NOTE: true nocturnal dip requires daytime HR (unavailable here)
     // This measures how much HR drops from nightly mean to its lowest — NOT standard clinical dip
-    var refHR = stats.meanHr || 60;
-    var floor = hrv.hrFloor || refHR;
+    /* §∅ — TWO FABRICATED CONSTANTS PRODUCED A CLINICAL-SOUNDING VERDICT. `stats.meanHr || 60`
+       invented a reference heart rate and `hrv.hrFloor || refHR` then invented a floor EQUAL to it,
+       so a night with no HR data at all computed `dip = (60 - 60) / 60 = 0` and was labelled
+       "Low (intra-night)" — not a missing metric but a stated finding, manufactured from nothing.
+       BOTH fallbacks became REACHABLE by the §∅ passes that preceded this one: `stats.meanHr` is
+       null since the stats block was repaired, and `hrv.hrFloor` since #2937 stopped the JSONL
+       re-load synthesising a 0. Fixing a producer moved the fabrication one function downstream —
+       which is the half-wired shape in reverse, and the reason this sweep has to follow the value.
+       Absent INPUT refuses (§∅ 2026-09-17): there is no dip without a reference and a floor. Every
+       consumer already guards with `if (n.hrnDip)` — the CSV, the KPI, the score push and the
+       narrative line — so returning null needs no consumer change; it gives those guards back the
+       absence they were written for. `refHR <= 0` is refused too: `|| 60` had been masking a
+       division by zero. */
+    var refHR = stats.meanHr;
+    var floor = hrv.hrFloor;
+    if (refHR == null || !isFinite(refHR) || refHR <= 0) return null;
+    if (floor == null || !isFinite(floor)) return null;
     var dip = +(((refHR - floor) / refHR) * 100).toFixed(1);
     var label = dip > 10 ? 'Good (intra-night)' : dip > 5 ? 'Moderate (intra-night)' : 'Low (intra-night)';
     return { hrnDip: dip, hrnDipLabel: label };

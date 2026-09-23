@@ -25489,7 +25489,10 @@
       out = B.computeSleepPressure(null, 1);
       T.eq('B.computeSleepPressure(null,1) → "null"', JSON.stringify(out), 'null');
       out = B.computeHRNoctDip(1, 1);
-      T.eq('B.computeHRNoctDip(1,1) → "0"', JSON.stringify(out.hrnDip), '0');
+      /* §∅ RECONCILED — this was the ODD ONE OUT in a group whose own title is "every guard refuses".
+         `(1, 1)` carries no meanHr and no hrFloor, so the old code invented both and returned a dip of
+         0 labelled "Low (intra-night)". It now refuses, like every sibling above it. */
+      T.eq('B.computeHRNoctDip(1,1) → refuses, like its siblings', JSON.stringify(out), 'null');
       out = B.computeMotionProfile(0);
       T.eq('B.computeMotionProfile(0) → "0"', JSON.stringify(out.arousalIndex), '0');
       out = B.oxyDesatConf(null);
@@ -60189,8 +60192,15 @@
       /* mutant: cmp > → >=  @ var label = dip > 10 ? 'Good (intra-night)' : dip > 5 ? 'Moderate (intra-night)' : 'Lo
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The function correctly formats the intra-night dip label to include the full phrase "intra-night" rather than */
       {
-        var out = NS._bare.computeHRNoctDip(1, 1);
-        T.eq('OxyDex._bare.computeHRNoctDip(1,1) → out.hrnDipLabel', JSON.stringify(out.hrnDipLabel), '"Low (intra-night)"');
+        /* §∅ RECONCILED 2026-09-23 — the property above is real but its INPUT was not: `(1, 1)` reached
+           the label ternary only because the function fabricated `refHR = 60` and `floor = 60`. With the
+           fabrication removed the call refuses, so the mutant would have SURVIVED here. Replaced with a
+           real pair that still discriminates it: floor 54 against a reference of 60 gives dip = 10, so
+           `dip > 10` is false and the label is "Moderate"; under the `>=` mutant it becomes "Good". The
+           property is now tested on a night that could exist. */
+        var out = NS._bare.computeHRNoctDip({ hrFloor: 54 }, { meanHr: 60 });
+        T.eq('OxyDex._bare.computeHRNoctDip(floor 54, ref 60) → out.hrnDipLabel', JSON.stringify(out.hrnDipLabel), '"Moderate (intra-night)"');
+        T.eq('…and refuses outright when the reference and floor are absent', JSON.stringify(NS._bare.computeHRNoctDip(1, 1)), 'null');
       }
       /* mutant: cmp > → >=  @ out[t] = { secs: s, pct: n > 0 ? +((s / n) * 100).toFixed(2) : 0 };
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The percentage value for the 80th percentile is correctly calculated as 0 instead of null when the numerator i */
@@ -60795,8 +60805,15 @@
         /* mutant: cmp > → >=  @ var label = dip > 10 ? 'Good (intra-night)' : dip > 5 ? 'Moderate (intra-night)' :
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The intra-night dip level label is correctly formatted with a trailing parenthesis. */
         {
-          var out = NS._bare.computeHRNoctDip(1, 1);
-          T.eq('NS._bare.computeHRNoctDip(1,1) → out.hrnDipLabel', JSON.stringify(out.hrnDipLabel), '"Low (intra-night)"');
+          /* §∅ RECONCILED 2026-09-23 — the property above is real but its INPUT was not: `(1, 1)` reached
+           the label ternary only because the function fabricated `refHR = 60` and `floor = 60`. With the
+           fabrication removed the call refuses, so the mutant would have SURVIVED here. Replaced with a
+           real pair that still discriminates it: floor 54 against a reference of 60 gives dip = 10, so
+           `dip > 10` is false and the label is "Moderate"; under the `>=` mutant it becomes "Good". The
+           property is now tested on a night that could exist. */
+          var out = NS._bare.computeHRNoctDip({ hrFloor: 54 }, { meanHr: 60 });
+          T.eq('NS._bare.computeHRNoctDip(floor 54, ref 60) → out.hrnDipLabel', JSON.stringify(out.hrnDipLabel), '"Moderate (intra-night)"');
+          T.eq('…and refuses outright when the reference and floor are absent', JSON.stringify(NS._bare.computeHRNoctDip(1, 1)), 'null');
         }
         /* mutant: cmp > → >=  @ out[t] = { secs: s, pct: n > 0 ? +((s / n) * 100).toFixed(2) : 0 };
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The percentage value should be 0 instead of null when the numerator is 0 and the denominator is greater than 0 */

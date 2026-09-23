@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="dcb593334486" data-compute-hash="14e74ddd1c46">
+<html lang="en" data-manifest-hash="9367da53b0a0" data-compute-hash="64aa3f80bf37">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5DETw+3Srbdn2ZDWQw6tF/u5BFjNYN8WvJHQwtgatPw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-B8Nib+3whGreeCAiUl1L8T5q+BE2N1/ZMY5zaQXnfKc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-G7f4DMMovpp3BU9/gffLZqGMDWShwsnQaOas/NDgRN4=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bwxxukjkbs0nkO3G9uCq7MyYlhNC6VN3RFwbf1JFHQI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-tyAgnfNFOTeVcNlJ02wwkhNdrboC2hjRoPCRq3h3xgk=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0y+MEnyI7bWqCaNbZ8ztCY81i8wbyVAqsncyYeU4FJM=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5DETw+3Srbdn2ZDWQw6tF/u5BFjNYN8WvJHQwtgatPw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-B8Nib+3whGreeCAiUl1L8T5q+BE2N1/ZMY5zaQXnfKc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bwxxukjkbs0nkO3G9uCq7MyYlhNC6VN3RFwbf1JFHQI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-tyAgnfNFOTeVcNlJ02wwkhNdrboC2hjRoPCRq3h3xgk=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.13.0</title>
@@ -15177,8 +15177,23 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // Intra-night HR descent: (night mean - night floor) / night mean × 100
     // NOTE: true nocturnal dip requires daytime HR (unavailable here)
     // This measures how much HR drops from nightly mean to its lowest — NOT standard clinical dip
-    var refHR = stats.meanHr || 60;
-    var floor = hrv.hrFloor || refHR;
+    /* §∅ — TWO FABRICATED CONSTANTS PRODUCED A CLINICAL-SOUNDING VERDICT. `stats.meanHr || 60`
+       invented a reference heart rate and `hrv.hrFloor || refHR` then invented a floor EQUAL to it,
+       so a night with no HR data at all computed `dip = (60 - 60) / 60 = 0` and was labelled
+       "Low (intra-night)" — not a missing metric but a stated finding, manufactured from nothing.
+       BOTH fallbacks became REACHABLE by the §∅ passes that preceded this one: `stats.meanHr` is
+       null since the stats block was repaired, and `hrv.hrFloor` since #2937 stopped the JSONL
+       re-load synthesising a 0. Fixing a producer moved the fabrication one function downstream —
+       which is the half-wired shape in reverse, and the reason this sweep has to follow the value.
+       Absent INPUT refuses (§∅ 2026-09-17): there is no dip without a reference and a floor. Every
+       consumer already guards with `if (n.hrnDip)` — the CSV, the KPI, the score push and the
+       narrative line — so returning null needs no consumer change; it gives those guards back the
+       absence they were written for. `refHR <= 0` is refused too: `|| 60` had been masking a
+       division by zero. */
+    var refHR = stats.meanHr;
+    var floor = hrv.hrFloor;
+    if (refHR == null || !isFinite(refHR) || refHR <= 0) return null;
+    if (floor == null || !isFinite(floor)) return null;
     var dip = +(((refHR - floor) / refHR) * 100).toFixed(1);
     var label = dip > 10 ? 'Good (intra-night)' : dip > 5 ? 'Moderate (intra-night)' : 'Low (intra-night)';
     return { hrnDip: dip, hrnDipLabel: label };
