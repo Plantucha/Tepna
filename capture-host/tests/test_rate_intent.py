@@ -11,6 +11,7 @@ error and a config that still read 176; it took a file-by-file audit across six 
 These tests drive the REAL `run_polar` against the fake device, so what is asserted is what the daemon
 actually negotiated and published — not which function it called.
 """
+import datetime as dt
 import os
 import sys
 
@@ -94,3 +95,121 @@ def test_a_configured_rate_the_device_DOES_offer_is_actually_USED(tmp_path, monk
     assert not [r for r in caplog.records if "was NOT offered" in r.getMessage()], \
         "176 IS offered here — warning about it would be the false-positive that gets warnings muted"
     assert "rate_unmet" not in capture.STATUS["devices"]["H10"]
+
+
+# ── …AND INTO THE ARTIFACT (2026-09-22) ─────────────────────────────────────────────────────────
+# The tests above prove the daemon SAYS it. Residue 2026-09-22-negotiated-pmd-rate-not-written is the
+# same defect one layer out: a log line and a STATUS key are not the recording. Measured on vigil, 3
+# days of journal carried 3 `START ppg (negotiated)` lines for the Verity and 0 naming a menu or rate.
+# It lands in the SEAMS sidecar, not the stream file: a comment after the stream's header breaks the
+# `_rows()` contract (one header line, then only rows) that five writer-contract tests pin.
+def _seams_text(tmp_path):
+    hits = [os.path.join(r, f) for r, _, fs in os.walk(str(tmp_path)) for f in fs if f.endswith("ECGSEAMS.txt")]
+    assert len(hits) == 1, hits
+    return open(hits[0]).read()
+
+
+def _pmd_lines(text):
+    return [ln for ln in text.splitlines() if ln.startswith("# pmd ")]
+
+
+def test_the_negotiated_rate_is_written_beside_the_stream(tmp_path, monkeypatch):
+    """The fake offers ECG at 130 only; the config asks 176. The ARTIFACT must carry both."""
+    _drive(tmp_path, monkeypatch, T._pdev(rates={"ecg": 176}))
+    lines = _pmd_lines(_seams_text(tmp_path))
+    assert len(lines) == 1, lines
+    assert "stream=ecg" in lines[0] and "negotiated=yes" in lines[0]
+    assert "rate=130" in lines[0], "what it was ACTUALLY captured at"
+    assert "offered=130" in lines[0], "the menu the device reported"
+    assert "configured=176" in lines[0], "and what the config asked for, so the gap is in the file"
+
+
+def test_CONTROL_the_stream_file_still_holds_only_a_header_and_rows(tmp_path, monkeypatch):
+    """Why the note is NOT in the stream file. `_rows()` takes lines[1:]; a comment there broke five
+    writer-contract tests. This is the control that keeps it out."""
+    _drive(tmp_path, monkeypatch, T._pdev(rates={"ecg": 130}))
+    hits = [os.path.join(r, f) for r, _, fs in os.walk(str(tmp_path))
+            for f in fs if f.endswith("_ECG.txt") and "SEAMS" not in f]
+    lines = [ln for ln in open(hits[0]).read().splitlines() if ln.strip()]
+    assert lines[0].startswith("Phone timestamp"), lines[0]
+    assert all(len(ln.split(";")) == 4 for ln in lines[1:]), lines[1:4]
+    assert not any(ln.startswith("#") for ln in lines[1:]), "no comment may follow the header"
+
+
+def test_PLANT_an_EMPTY_menu_is_not_a_negotiation_and_says_so(tmp_path):
+    """§∅ at the rate. With no menu `build_start` sends no rate TLV, so the device runs at its own
+    default and the table value is an ASSUMPTION. `negotiated` is derived from the menu, so a caller
+    cannot assert one: passing a rate alongside an empty menu must still write `rate=` EMPTY."""
+    import writers
+    sc = writers._SeamSidecar(str(tmp_path / "X_ACC.txt"), "acc")
+    sc.note_pmd(rate=200, offered=[], configured=52, default=200)   # a rate passed with NO menu
+    sc.feed(dt.datetime(2026, 9, 21, 21, 0, 0), 1_000_000_000)      # opens the file
+    sc.close()
+    line = _pmd_lines(open(str(tmp_path / "X_ACCSEAMS.txt")).read())[0]
+    assert "negotiated=no" in line
+    assert "rate= " in line + " ", f"the rate field must be EMPTY, not a claim: {line}"
+    assert "offered= " in line + " ", f"no menu is an empty field: {line}"
+    assert "assumed=200" in line, "the vendor default is named where it reads as an assumption"
+    assert "configured=52" in line
+
+
+def test_the_note_sits_under_the_sidecar_header_not_above_it(tmp_path):
+    import writers
+    sc = writers._SeamSidecar(str(tmp_path / "X_ECG.txt"), "ecg")
+    sc.note_pmd(rate=130, offered=[130], configured=130, default=130)
+    sc.feed(dt.datetime(2026, 9, 21, 21, 0, 0), 1_000_000_000)
+    sc.close()
+    lines = open(str(tmp_path / "X_ECGSEAMS.txt")).read().splitlines()
+    assert lines[0].startswith("# stream=ecg rule=clock-seam")
+    assert lines[1].startswith("phone_ts;")
+    assert lines[2].startswith("# pmd "), lines[:4]
+
+
+def test_a_RE_negotiation_while_open_is_recorded_too(tmp_path):
+    """A rate that changed mid-set is the event this exists to surface."""
+    import writers
+    sc = writers._SeamSidecar(str(tmp_path / "X_ECG.txt"), "ecg")
+    sc.note_pmd(rate=130, offered=[130], configured=130, default=130)
+    sc.feed(dt.datetime(2026, 9, 21, 21, 0, 0), 1_000_000_000)      # opens + flushes the first note
+    sc.note_pmd(rate=176, offered=[130, 176], configured=176, default=130)   # already open
+    sc.close()
+    lines = _pmd_lines(open(str(tmp_path / "X_ECGSEAMS.txt")).read())
+    assert len(lines) == 2, lines
+    assert "rate=130" in lines[0] and "rate=176" in lines[1]
+
+
+def test_a_stream_that_negotiated_but_delivered_NOTHING_gets_no_file(tmp_path):
+    """The note never FORCES a sidecar: `_ensure` opens only for a stream that carries a device clock,
+    and a stream with no samples has no clock fact to report."""
+    import writers
+    sc = writers._SeamSidecar(str(tmp_path / "X_ECG.txt"), "ecg")
+    sc.note_pmd(rate=130, offered=[130], configured=130, default=130)
+    sc.close()
+    assert not os.path.exists(str(tmp_path / "X_ECGSEAMS.txt"))
+
+
+def test_an_absent_configured_rate_is_an_empty_field_not_a_zero(tmp_path):
+    import writers
+    sc = writers._SeamSidecar(str(tmp_path / "X_ECG.txt"), "ecg")
+    sc.note_pmd(rate=130, offered=[130], configured=None, default=130)
+    sc.feed(dt.datetime(2026, 9, 21, 21, 0, 0), 1_000_000_000)
+    sc.close()
+    line = _pmd_lines(open(str(tmp_path / "X_ECGSEAMS.txt")).read())[0]
+    assert "configured= " in line + " ", line
+    assert "configured=0" not in line, "absence is empty, never a zero (§∅)"
+
+
+def test_a_write_failure_on_the_note_does_not_end_the_recording(tmp_path):
+    """An annotation must never end a recording — the same rule `feed` and `close` already follow."""
+    import writers
+    sc = writers._SeamSidecar(str(tmp_path / "X_ECG.txt"), "ecg")
+    sc.note_pmd(rate=130, offered=[130], configured=130, default=130)
+    sc.feed(dt.datetime(2026, 9, 21, 21, 0, 0), 1_000_000_000)      # opens + flushes the first note
+
+    class _Boom:
+        def write(self, *a):
+            raise OSError("disk full")
+
+    sc._fh = _Boom()                       # type: ignore[assignment]
+    sc.note_pmd(rate=176, offered=[130, 176], configured=176, default=130)   # must not raise
+    sc._fh = None

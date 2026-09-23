@@ -965,6 +965,7 @@ class _SeamSidecar:
                 self._first_ns = seed[0]  # the resumed axis starts at the last pre-seam sample
         self._resumed = resumed
         self._opened = False
+        self._pmd_note: str | None = None
         # Annotated, not inferred: a bare `= None` types the attribute as `None`, so every later
         # assignment of a real handle is a mypy [assignment] error — and that count may only go DOWN.
         # `_RunSidecar` carries the same annotation for the same reason.
@@ -998,9 +999,66 @@ class _SeamSidecar:
                                f"unit=ms basis=device-minus-host\n")
                 self._fh.write("phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;"
                                "host_offset_ms;at_rel_ms\n")
+            self._flush_pmd_note()     # negotiated before the first sample; write it under the header
         except OSError:            # a sidecar that cannot open must not stop the recording it annotates
             self._fh = None
         return self._fh is not None
+
+    def note_pmd(self, *, rate=None, offered=None, configured=None, default=None) -> None:
+        """What this stream was NEGOTIATED at — a clock fact, recorded beside the stream.
+
+        The daemon logs `START ppg (negotiated) -> ok` and publishes the menu to STATUS, but neither
+        reaches an artifact: what a stream was captured at had to be inferred afterwards from rows over
+        a stamp span. Measured on vigil 2026-09-22 — 3 days of journal carried 3
+        `START ppg (negotiated)` lines for the Verity and 0 naming a PPG menu or rate, while the files
+        measured 55.14 / 55.15 / 55.14 Hz. The same absence already cost a mis-stated rate once: a
+        night captured at four times its configured rate, whose only trace was one warning line.
+
+        ⚠️ IT LIVES HERE AND NOT IN THE STREAM FILE, and that is a measured constraint rather than a
+        preference. A `# pmd` comment written into `<base>.txt` after the header breaks the Polar
+        stream contract — `_rows()` takes `lines[1:]`, i.e. one header line and then only rows — and
+        five writer-contract tests pinned it. `# timebase=` gets away with a comment only by sitting
+        BEFORE line 0, which needs the value at construction; the negotiated rate is not known then
+        (writers open per requested stream, negotiation happens later). The sample rate IS a property
+        of the device clock, so the sidecar that already records device-clock facts is its home, and
+        `#` is this file's own format.
+
+        ⚠️ AN EMPTY MENU IS NOT A NEGOTIATION AND THIS MUST NOT CLAIM ONE. `build_start` emits a rate
+        TLV only when the device reported a menu, so with none the device runs at its OWN default and
+        `chosen_rate` returns the table value — an assumption, not an agreement. `chosen_rate`'s own
+        docstring: *"Returning the configured value there would be a claim about the wire that is not
+        true."* So `negotiated` is DERIVED from the menu rather than passed — a caller cannot assert
+        it — and when false `rate=` is written EMPTY however this was called, with the table value
+        under `assumed=` where it reads as the assumption it is.
+
+        Absence is an empty field, the convention `_ns_col` sets for this module: `offered=` empty
+        means the device reported no menu, `configured=` empty means the config expressed no
+        preference. Written per successful negotiation, not once per file: a reconnect RE-negotiates,
+        and a rate that changed mid-set is exactly the event this exists to make visible.
+
+        Deferred until the sidecar opens on its own first clocked sample — it never FORCES a file.
+        `_ensure` opens only for a stream that actually carries a device clock, and a stream that
+        negotiated but delivered nothing has no clock fact to report."""
+        negotiated = bool(offered)
+        rate_s = f"{rate:g}" if negotiated and rate else ""
+        offered_s = ",".join(f"{r:g}" for r in offered) if negotiated else ""
+        cfg_s = f"{configured:g}" if configured is not None else ""
+        assumed_s = "" if negotiated else (f"{default:g}" if default else "")
+        self._pmd_note = (
+            f"# pmd stream={self.stream} negotiated={'yes' if negotiated else 'no'} "
+            f"rate={rate_s} offered={offered_s} configured={cfg_s} assumed={assumed_s}\n"
+        )
+        if self._fh is not None:            # already open: this is a re-negotiation, record it now
+            self._flush_pmd_note()
+
+    def _flush_pmd_note(self) -> None:
+        note, self._pmd_note = self._pmd_note, None
+        if note is None or self._fh is None:
+            return
+        try:
+            self._fh.write(note)
+        except Exception:  # noqa: BLE001 - an annotation must never end a recording
+            pass
 
     def feed(self, phone, sensor_ns: int | None) -> None:
         """One sample's two clocks. A seam is where they DISAGREE — not where either jumps alone.
@@ -1766,6 +1824,13 @@ class StreamWriter:
         # never comes. `rows` stays an honest count of rows actually written; flushing is time-based
         # and cheap to ask about.
         self._maybe_flush()
+
+    def note_pmd(self, **kw) -> None:
+        """Record what this stream was negotiated at. Delegates to the seam sidecar, which is where a
+        device-clock fact belongs and which owns the `#` format — see `_SeamSidecar.note_pmd` for why
+        it cannot go into the stream file. Public so the caller states its intent ("tell the writer
+        the rate") instead of reaching through to a private attribute."""
+        self._seams.note_pmd(**kw)
 
     def _row(self, text: str) -> None:
         """One sample row: counted in `rows` ONLY if it was actually written (a lost row is counted in
