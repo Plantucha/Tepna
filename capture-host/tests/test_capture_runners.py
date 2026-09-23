@@ -6254,13 +6254,67 @@ def test_the_check_is_OPT_IN_so_user_pulls_are_unchanged(monkeypatch):
     assert ran["op"] is True, "without presence_check_s the behaviour must be exactly as before"
 
 
-def test_only_the_clock_sync_call_site_opts_in():
-    """Pins the wiring: if a future edit passes presence_check_s from the pull path, a user-clicked pull
-    starts silently skipping on a bad scan."""
+def test_only_AUTOMATICALLY_RETRIED_call_sites_opt_in():
+    """A caller may skip on a bad scan ONLY if something will try again by itself.
+
+    ⚠️ Replaces an assertion that `len(sites) == 1` (2026-09-03), which named the right hazard in its
+    docstring and then asserted a COUNT of source lines containing `presence_check_s=`. A count cannot
+    tell the caller that must opt in from the one that must not; it blocks both alike while claiming to
+    protect one. It came apart the moment a second legitimate caller needed the guard.
+
+    ⚠️ And the obvious replacement — "only UNATTENDED callers" — is ALSO wrong, which is worth recording
+    because it is the intuitive one. `sync_device_time` is wired to the monitor UI (`sync_time=` at the
+    webmon construction), so it IS user-triggerable, and it has always opted in. A rule phrased on who
+    pressed the button would have to call the existing, deliberate wiring a violation.
+
+    The property that actually separates them is **whether a false 'absent' is retried automatically**:
+
+      • `sync_device_time`      — re-fires on the next reconnect. A skip costs one cycle of skew.
+      • `pull_polar_offline_all` — re-fires on the next poller trigger. A skip leaves the onboard
+        backup on the device for another cycle. Sole caller is `charger_pull_poller`.
+      • `pull_oxyii_session` / `_pull` — the monitor's "Pull stored session". NOTHING retries it. A
+        person asked for a specific artifact and is waiting; a silent skip reads as a completed pull.
+
+    That last one is also structurally out of reach — it holds `_CONNECT_LOCK` itself and never routes
+    through `polar_offline_op`, so it cannot see this parameter today. Asserted anyway: the protection
+    should survive someone rewiring it through the shared helper."""
+    import re
     src = module_source("capture.py")
-    sites = [l for l in src.splitlines() if "presence_check_s=" in l and "def " not in l]
-    assert len(sites) == 1, f"exactly one caller may opt in, found: {sites}"
-    assert "_CLOCK_SYNC_PRESENCE_S" in sites[0]
+
+    RETRIED = {
+        # re-fires on the next reconnect; a skipped sync costs one cycle of skew
+        "sync_device_time": "_CLOCK_SYNC_PRESENCE_S",
+        # re-fires on the next `charger_pull_poller` trigger. Added 2026-09-03: without it an absent
+        # device cost the GLOBAL connect lock for the full op timeout every cycle — 108 min of a 10 h
+        # night in which no other sensor could reconnect.
+        "pull_polar_offline_all": "_AUTOPULL_PRESENCE_S",
+    }
+    # A person asked for this and nothing will try again. These must NEVER opt in.
+    NOT_RETRIED = ("pull_oxyii_session", "_pull")
+
+    # Walk the source tracking the innermost top-level `async def` / `def`, so each opt-in site is
+    # attributed to the function that actually contains it rather than matched by a bare line.
+    enclosing, sites = None, {}
+    for line in src.splitlines():
+        m = re.match(r"^(?:async )?def (\w+)", line)
+        if m:
+            enclosing = m.group(1)
+        if "presence_check_s=" in line and not line.lstrip().startswith(("#", "def ", "async def ")):
+            sites.setdefault(enclosing, []).append(line.strip())
+
+    assert sites, "no caller opts in at all — the guard has been disconnected entirely"
+    unexpected = set(sites) - set(RETRIED)
+    assert not unexpected, (
+        f"these callers opt into presence_check_s but are not declared automatically-retried: {sorted(unexpected)}. "
+        "If a false absent is retried automatically, add it to RETRIED by name with what retries it. "
+        "If nothing retries it, it must not opt in — a silent skip reads as a completed operation "
+        "to whoever asked for it.")
+    for fn in NOT_RETRIED:
+        assert fn not in sites, f"{fn} is never retried automatically and must never opt into the presence guard"
+    for fn, const in RETRIED.items():
+        assert fn in sites, f"{fn} is declared automatically-retried but no longer opts in — the guard was dropped"
+        assert any(const in s for s in sites[fn]), (
+            f"{fn} must pass its own budget constant {const}, not a literal or another caller's")
 
 
 # ── the arrival sidecar's failure paths (PAT-PACKET-ARRIVAL §3) ─────────────────────────────────────
