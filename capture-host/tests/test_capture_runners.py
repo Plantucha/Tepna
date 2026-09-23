@@ -3641,6 +3641,9 @@ def _qc_night(tmp_path, monkeypatch, missing=True):
     }
 
 
+_real_summarize = capture.nightqc.summarize   # bound BEFORE any test patches the module attribute
+
+
 def test_qc_poller_alerts_once_on_a_gap_past_the_grace(tmp_path, monkeypatch):
     """A stream still missing after alert_after_sec fires exactly one alert for the night."""
     sent = []
@@ -3653,6 +3656,13 @@ def test_qc_poller_alerts_once_on_a_gap_past_the_grace(tmp_path, monkeypatch):
     cfg = _qc_night(tmp_path, monkeypatch, missing=True)
     clock = {"t": 0.0}
     monkeypatch.setattr(capture._time, "monotonic", lambda: clock["t"])
+    # A frozen global clock and a spawned child cannot coexist: `multiprocessing` reads `time.monotonic`
+    # for its deadlines, so the child's result never arrives (measured 2026-09-23: a spawn pool under a
+    # constant monotonic times out at 12 s; under the real clock it answers in 0.03 s). This test is
+    # about the alert grace, not about isolation — route the REAL scan through a wrapper the child cannot
+    # import by name, so it runs on a thread with the same computation; the isolation legs live in
+    # tests/test_qc_offload.py.
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda n, d: _real_summarize(n, d))
     calls = {"n": 0}
 
     async def fake_sleep(_s):
@@ -3676,6 +3686,13 @@ def test_qc_poller_holds_the_alert_during_the_grace(tmp_path, monkeypatch):
 
     cfg = _qc_night(tmp_path, monkeypatch, missing=True)
     monkeypatch.setattr(capture._time, "monotonic", lambda: 100.0)  # never advances past grace
+    # A frozen global clock and a spawned child cannot coexist: `multiprocessing` reads `time.monotonic`
+    # for its deadlines, so the child's result never arrives (measured 2026-09-23: a spawn pool under a
+    # constant monotonic times out at 12 s; under the real clock it answers in 0.03 s). This test is
+    # about the alert grace, not about isolation — route the REAL scan through a wrapper the child cannot
+    # import by name, so it runs on a thread with the same computation; the isolation legs live in
+    # tests/test_qc_offload.py.
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda n, d: _real_summarize(n, d))
     _stop_after(monkeypatch, 1)
     _run(capture.qc_poller(cfg, str(tmp_path), _N()))
     assert sent == []
@@ -3690,6 +3707,13 @@ def test_qc_poller_no_alert_when_complete(tmp_path, monkeypatch):
 
     cfg = _qc_night(tmp_path, monkeypatch, missing=False)  # every declared stream present
     monkeypatch.setattr(capture._time, "monotonic", lambda: 999999.0)
+    # A frozen global clock and a spawned child cannot coexist: `multiprocessing` reads `time.monotonic`
+    # for its deadlines, so the child's result never arrives (measured 2026-09-23: a spawn pool under a
+    # constant monotonic times out at 12 s; under the real clock it answers in 0.03 s). This test is
+    # about the alert grace, not about isolation — route the REAL scan through a wrapper the child cannot
+    # import by name, so it runs on a thread with the same computation; the isolation legs live in
+    # tests/test_qc_offload.py.
+    monkeypatch.setattr(capture.nightqc, "summarize", lambda n, d: _real_summarize(n, d))
     _stop_after(monkeypatch, 1)
     _run(capture.qc_poller(cfg, str(tmp_path), _N()))
     assert sent == [] and capture.STATUS["qc"]["ok"] is True

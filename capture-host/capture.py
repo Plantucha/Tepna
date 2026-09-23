@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 import argparse, asyncio, calendar, contextlib, glob, json, logging, math, os, random, signal, time as _time, datetime as _dt
+import concurrent.futures, multiprocessing, sys as _sys
 import build_id
 from writers import (ContactLedger, StreamWriter, Spo2CsvWriter, LinkLogWriter, OxyFrameLogWriter, OxyLifeLogWriter, RingClockLogWriter, resumable_set,
                      HostClockLogWriter, PmdArrivalLogWriter, append_clock_sync_event, append_daemon_start,
@@ -7523,6 +7524,60 @@ def _cpap_stream_watch_row(cfg, root, night_name):
     return out
 
 
+# ── THE NIGHT-QC SCAN RUNS IN A CHILD PROCESS ────────────────────────────────────────────────────
+# A thread is the wrong isolation for CPU-bound Python: it shares the interpreter lock with the
+# event loop, and `nightqc.summarize` holds that lock for seconds at a time by the end of a night.
+# Measured on vigil 2026-09-23 (Python 3.14, 4 cores, the whole night in page cache):
+#   · summarize(2026-09-22): 51 s wall, 51 s CPU — pure Python, no I/O wait.
+#   · beside a 100 ms heartbeat in a clean process: 84 lags > 50 ms, max 866 ms, per poll.
+#   · in the daemon: 24 `event loop stalled` warnings a night, 1.1–4.8 s, spaced 628–693 s
+#     (= poll_sec + summarize's wall), the last one 8.3 s before QC-SUMMARY.json was written.
+#   · NOT garbage collection (zero gen-2 passes; gc.disable() changed nothing) and NOT the disk
+#     (fsync is on its own worker in writers.py; the read is a cache hit on an SSD).
+# A fresh one-worker pool PER SCAN, shut down when the scan returns: the worker's working set —
+# hundreds of MB of per-sample lists — goes back to the OS with the process instead of being held
+# between polls, and nothing idles between them. A module-level pool was the first draft and it
+# hung the gate: every test that drives the poller with the real scan spawned a worker into a pool
+# nobody shut down, and an xdist worker sat on that child at interpreter exit for 28 minutes.
+# Spawn cost is ~0.3 s against a 600 s cadence. `spawn`, never `fork`: the daemon is multi-threaded
+# (BLE, fsync worker, HTTP) and a forked child of a threaded process inherits locks in whatever
+# state the other threads left them. ⚠ A test that freezes the GLOBAL `time.monotonic` cannot drive
+# this path: `multiprocessing` reads that clock for its deadlines and the child's result never
+# arrives (measured: 12 s timeout under a constant clock, 0.03 s under the real one) — such a test
+# routes the scan through a wrapper, which takes the thread path below.
+# Which path ran is recorded on the SUMMARY (`qc.isolation`), not as a STATUS key of its own: the
+# summary reaches QC-SUMMARY.json and status.json `qc`, both read; a key nobody reads is §∅'s
+# "reported and examined by nothing", and `tools/find_unwired.py` reds it.
+_QC_ISOLATION: str | None = None      # "process" | "thread" — the path the LAST scan took
+
+
+def _importable_by_reference(fn: Any) -> bool:
+    """True when `fn` can be sent to a spawned child BY NAME — a module-level function whose module
+    still binds that name to this very object. A test's lambda or a monkeypatched local cannot be
+    pickled by reference, and a child that could not import it would fail every poll; those run on a
+    thread instead and the summary says so (`qc.isolation`), so the degraded shape is visible, not silent."""
+    mod = _sys.modules.get(getattr(fn, "__module__", None) or "")
+    return mod is not None and getattr(mod, getattr(fn, "__qualname__", ""), None) is fn
+
+
+async def _qc_offload(fn: Any, *args: Any) -> Any:
+    """Run one night-QC scan off the interpreter: in a spawned child when `fn` is importable by
+    reference (the production case), on a thread otherwise. The pool lives exactly as long as the
+    scan; a worker that died under us raises `BrokenProcessPool` and that error PROPAGATES — the
+    poller's own `except` logs it, and a scan that did not run is not a scan that ran.
+    `_QC_ISOLATION` names the path taken on every call; the poller copies it onto the summary."""
+    global _QC_ISOLATION
+    if not _importable_by_reference(fn):
+        _QC_ISOLATION = "thread"
+        return await asyncio.to_thread(fn, *args)
+    _QC_ISOLATION = "process"
+    pool = concurrent.futures.ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn"))
+    try:
+        return await asyncio.get_running_loop().run_in_executor(pool, fn, *args)
+    finally:
+        pool.shutdown(wait=False)
+
+
 async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = None):
     """Summarise the CURRENT night's capture completeness — rows per configured stream, which declared
     streams produced nothing (the header-only files a rejected START / never-worn sensor leaves). Turns
@@ -7571,14 +7626,17 @@ async def qc_poller(cfg: dict, root: str, notifier: "alerts.Notifier | None" = N
             night = os.path.join(captures, current)
             if not os.path.isdir(night):
                 continue                                   # raced away between listing and stat — skip
-            # OFF THE LOOP, same reason as archive_night below. summarize() reads EVERY file in
-            # the night to count newlines — by dawn that is ~2 GB, and at the default poll_sec=600
-            # it re-reads the growing night ~48 times a night (~48 GB total). On this dev box the
-            # page cache hides it (0.36 s for a 1.44 GB night); on the target hardware — a Pi/N100
-            # with too little RAM to cache a whole night — it is a real multi-second stall of every
-            # capture task, recurring every 10 minutes, and on slow storage it approaches the 60 s
-            # watchdog heartbeat. QC is a REPORT: it must never cost the recording it reports on.
-            summ = await asyncio.to_thread(nightqc.summarize, night, cfg.get("devices", []))
+            # OFF THE PROCESS, not merely off the loop. This line was `asyncio.to_thread` until
+            # 2026-09-23, with a comment predicting an I/O stall on a Pi. The stall it actually
+            # produced was measured on vigil (15 GB RAM, SATA SSD, the night fully page-cached, so
+            # NOT I/O): `summarize` is 51 s of pure-Python CPU per poll by dawn (280 M calls), and a
+            # thread shares the interpreter lock with every capture task — 24 `event loop stalled`
+            # warnings a night at exactly the poll cadence, 1.1–4.8 s each, every live stream's host
+            # stamps gapping in lockstep, and the monitor's "fragments" column rising for three
+            # nodes at once. A child process shares no lock. QC is a REPORT: it must never cost the
+            # recording it reports on — and a thread cannot keep that promise for CPU-bound work.
+            summ = await _qc_offload(nightqc.summarize, night, cfg.get("devices", []))
+            summ["isolation"] = _QC_ISOLATION      # how this scan was produced, beside what it found
             # ── DID THE LIVE CPAP STREAM RECORD THE SESSION? ─────────────────────────────────────
             # On 2026-08-26 the machine ran a full night, `edf_dir` stayed empty, and NOTHING said so
             # — the stream is operator-initiated (`POST /api/cpap/stream`; there is no scheduled
