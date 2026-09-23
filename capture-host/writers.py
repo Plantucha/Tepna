@@ -830,6 +830,36 @@ def night_dir(root: str, started: _dt.datetime) -> str:
     return d
 
 
+def _last_row_clocks(path: str, tail_bytes: int = 4096) -> "tuple[int, float] | None":
+    """(sensor_ns, phone_ms) of the last COMPLETE data row of a stream file, or None.
+
+    Every stream row this module writes starts `phone_ts;sensor_ns;…` (`_phone_ts`, then `_ns_col`),
+    so columns 0 and 1 are the same for every stream and no per-stream parser is needed. Reads only
+    the tail, skips `#` comments and the header, and returns None — never a fabricated clock — when
+    the file is absent, empty, header-only, torn, or its last row carries no device clock (`_ns_col`
+    writes absence as an empty field, and an empty field is not 0)."""
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(0, 2)
+            size = fh.tell()
+            fh.seek(max(0, size - tail_bytes))
+            chunk = fh.read().decode("utf-8", "replace")
+    except OSError:
+        return None
+    for line in reversed(chunk.split("\n")):
+        if not line or line.startswith("#") or line.startswith("Phone"):
+            continue
+        cols = line.split(";")
+        if len(cols) < 2 or not cols[1].strip().lstrip("-").isdigit():
+            return None  # a row without a device clock cannot seed one
+        try:
+            when = _dt.datetime.strptime(cols[0], "%Y-%m-%dT%H:%M:%S.%f")
+        except ValueError:
+            return None
+        return int(cols[1]), when.timestamp() * 1000.0
+    return None
+
+
 def _ns_col(sensor_ns: int | None) -> str:
     """The `sensor timestamp [ns]` field, with ABSENCE written as absence.
 
@@ -900,7 +930,26 @@ class _SeamSidecar:
     describing the stream better is not worth dropping the notifications that ARE the stream.
     """
 
-    def __init__(self, path: str, stream: str, resumed: bool = False) -> None:
+    def __init__(self, path: str, stream: str, resumed: bool = False,
+                 seed: "tuple[int, float] | None" = None, first_ns: "int | None" = None) -> None:
+        """`seed` = (sensor_ns, phone_ms) of the LAST row already on disk when this sidecar resumes.
+
+        ⚠️ WITHOUT IT, A RESUMED SIDECAR EXAMINES EVERY INTERVAL EXCEPT THE ONE A SEAM CAN OCCUPY.
+        `feed` judges the interval between the previous sample and this one, so a fresh instance
+        stores its first sample and judges nothing — correct for a first connect, where there is no
+        previous sample, and wrong for a reconnect, where the previous sample is the last row of the
+        file this instance appends to. Measured 2026-09-21 (H10 ECG, the owner's night): the device
+        clock stepped +243,739,222 s at the FIRST row of writer session 2, `ECGSEAMS.txt` carried 178
+        `# final … seams=0` lines — one per reconnect — and 0 seam rows. 177 boundaries, 177 skipped.
+        `examined=12117` on session 1 was true and reported on the wrong population: every interval
+        but the boundary. ECGDex saw the step (`clockResyncs[0].deviceStepMs`); the box did not.
+
+        The writer hands the seed over because it already owns the row format and already reads its
+        own tail on resume. An absent or unparseable last row hands over NOTHING (§∅) — the boundary
+        then goes unexamined and `examined` says so by not counting it, rather than a zero being
+        invented for the previous clock. `first_ns` keeps `at_rel_ms` on the file's own axis where the
+        writer knows it (ECG); otherwise the resumed axis starts at the seed, which is stated here so a
+        reader of a resumed SEAMS row knows what `at_rel_ms` is relative to."""
         # `<base>.txt` -> `<base>SEAMS.txt`, by the same rule `_RunSidecar` uses for `RUNS`.
         base = path[:-4] if path.endswith(".txt") else path
         self.path = base + "SEAMS.txt"
@@ -909,9 +958,14 @@ class _SeamSidecar:
         self.examined = 0
         self._prev_ns: int | None = None
         self._prev_phone_ms: float | None = None
-        self._first_ns: int | None = None
+        self._first_ns: int | None = first_ns
+        if seed is not None:
+            self._prev_ns, self._prev_phone_ms = seed
+            if self._first_ns is None:
+                self._first_ns = seed[0]  # the resumed axis starts at the last pre-seam sample
         self._resumed = resumed
         self._opened = False
+        self._pmd_note: str | None = None
         # Annotated, not inferred: a bare `= None` types the attribute as `None`, so every later
         # assignment of a real handle is a mypy [assignment] error — and that count may only go DOWN.
         # `_RunSidecar` carries the same annotation for the same reason.
@@ -945,9 +999,66 @@ class _SeamSidecar:
                                f"unit=ms basis=device-minus-host\n")
                 self._fh.write("phone_ts;idx;device_step_ms;phone_delta_ms;residual_ms;"
                                "host_offset_ms;at_rel_ms\n")
+            self._flush_pmd_note()     # negotiated before the first sample; write it under the header
         except OSError:            # a sidecar that cannot open must not stop the recording it annotates
             self._fh = None
         return self._fh is not None
+
+    def note_pmd(self, *, rate=None, offered=None, configured=None, default=None) -> None:
+        """What this stream was NEGOTIATED at — a clock fact, recorded beside the stream.
+
+        The daemon logs `START ppg (negotiated) -> ok` and publishes the menu to STATUS, but neither
+        reaches an artifact: what a stream was captured at had to be inferred afterwards from rows over
+        a stamp span. Measured on vigil 2026-09-22 — 3 days of journal carried 3
+        `START ppg (negotiated)` lines for the Verity and 0 naming a PPG menu or rate, while the files
+        measured 55.14 / 55.15 / 55.14 Hz. The same absence already cost a mis-stated rate once: a
+        night captured at four times its configured rate, whose only trace was one warning line.
+
+        ⚠️ IT LIVES HERE AND NOT IN THE STREAM FILE, and that is a measured constraint rather than a
+        preference. A `# pmd` comment written into `<base>.txt` after the header breaks the Polar
+        stream contract — `_rows()` takes `lines[1:]`, i.e. one header line and then only rows — and
+        five writer-contract tests pinned it. `# timebase=` gets away with a comment only by sitting
+        BEFORE line 0, which needs the value at construction; the negotiated rate is not known then
+        (writers open per requested stream, negotiation happens later). The sample rate IS a property
+        of the device clock, so the sidecar that already records device-clock facts is its home, and
+        `#` is this file's own format.
+
+        ⚠️ AN EMPTY MENU IS NOT A NEGOTIATION AND THIS MUST NOT CLAIM ONE. `build_start` emits a rate
+        TLV only when the device reported a menu, so with none the device runs at its OWN default and
+        `chosen_rate` returns the table value — an assumption, not an agreement. `chosen_rate`'s own
+        docstring: *"Returning the configured value there would be a claim about the wire that is not
+        true."* So `negotiated` is DERIVED from the menu rather than passed — a caller cannot assert
+        it — and when false `rate=` is written EMPTY however this was called, with the table value
+        under `assumed=` where it reads as the assumption it is.
+
+        Absence is an empty field, the convention `_ns_col` sets for this module: `offered=` empty
+        means the device reported no menu, `configured=` empty means the config expressed no
+        preference. Written per successful negotiation, not once per file: a reconnect RE-negotiates,
+        and a rate that changed mid-set is exactly the event this exists to make visible.
+
+        Deferred until the sidecar opens on its own first clocked sample — it never FORCES a file.
+        `_ensure` opens only for a stream that actually carries a device clock, and a stream that
+        negotiated but delivered nothing has no clock fact to report."""
+        negotiated = bool(offered)
+        rate_s = f"{rate:g}" if negotiated and rate else ""
+        offered_s = ",".join(f"{r:g}" for r in offered) if negotiated else ""
+        cfg_s = f"{configured:g}" if configured is not None else ""
+        assumed_s = "" if negotiated else (f"{default:g}" if default else "")
+        self._pmd_note = (
+            f"# pmd stream={self.stream} negotiated={'yes' if negotiated else 'no'} "
+            f"rate={rate_s} offered={offered_s} configured={cfg_s} assumed={assumed_s}\n"
+        )
+        if self._fh is not None:            # already open: this is a re-negotiation, record it now
+            self._flush_pmd_note()
+
+    def _flush_pmd_note(self) -> None:
+        note, self._pmd_note = self._pmd_note, None
+        if note is None or self._fh is None:
+            return
+        try:
+            self._fh.write(note)
+        except Exception:  # noqa: BLE001 - an annotation must never end a recording
+            pass
 
     def feed(self, phone, sensor_ns: int | None) -> None:
         """One sample's two clocks. A seam is where they DISAGREE — not where either jumps alone.
@@ -1556,7 +1667,17 @@ class StreamWriter:
         # §1.4: seams are emitted where the clocks ARRIVE. Every device-clocked writer already
         # receives `phone` and `sensor_ns` taken at the notification, so recording here costs no
         # timing quality — the stamps are passed in, not re-taken.
-        self._seams = _SeamSidecar(path, stream, resumed=self.resumed)
+        # CAPTURE-FILESET-RESUME §3.2 says a resumed writer continues on the same axis; the seam
+        # sidecar must inherit that, or the reconnect interval — the only one a seam can occupy — is
+        # the one interval it never judges (see `_SeamSidecar.__init__`). The tail read is bounded so
+        # resume stays O(1) in file size; only the last COMPLETE data row is used.
+        self._seams = _SeamSidecar(
+            path,
+            stream,
+            resumed=self.resumed,
+            seed=_last_row_clocks(path) if self.resumed else None,
+            first_ns=self._first_ns,
+        )
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()
@@ -1703,6 +1824,13 @@ class StreamWriter:
         # never comes. `rows` stays an honest count of rows actually written; flushing is time-based
         # and cheap to ask about.
         self._maybe_flush()
+
+    def note_pmd(self, **kw) -> None:
+        """Record what this stream was negotiated at. Delegates to the seam sidecar, which is where a
+        device-clock fact belongs and which owns the `#` format — see `_SeamSidecar.note_pmd` for why
+        it cannot go into the stream file. Public so the caller states its intent ("tell the writer
+        the rate") instead of reaching through to a private attribute."""
+        self._seams.note_pmd(**kw)
 
     def _row(self, text: str) -> None:
         """One sample row: counted in `rows` ONLY if it was actually written (a lost row is counted in
