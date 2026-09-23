@@ -1,9 +1,9 @@
 {
- "schema": "tepna.audit/t-stuck-per-stream/1",
+ "schema": "tepna.audit/t-stuck-per-stream/2",
  "measured": "2026-09-23",
- "question": "residue 2026-09-06-t-stuck-validated-on-ring-only: writers.RUN_MIN_BY_STREAM applies T_STUCK=200 SAMPLES to five streams; the plateau distribution behind it was measured on O2Ring 8-bit pleth only.",
+ "question": "residue 2026-09-06-t-stuck-validated-on-ring-only: writers.RUN_MIN_BY_STREAM applies T_STUCK=200 SAMPLES to five streams; the plateau distribution behind it was measured on O2Ring 8-bit pleth only. Its closing condition is 'the same query as the ring's, per stream' - and the ring's figures are a LADDER (p50 1 / p90 4 / p99 14 / p99.9 31 / p99.99 48), not a single quantile.",
  "criterion": "PRE-REGISTERED before any stream was read. Over non-sentinel run lengths: P=p99.99, N=#{runs>=200}, [a,b]=widest MULTIPLICATIVE gap above P taken between CONSECUTIVE OBSERVED lengths (bracketed by construction). UNDERPOWERED <1e6 samples; no gap (b/a<4): NOT-EXERCISED if N=0 else NO GAP; gap: FAIL-LOW if 200<a, FAIL-HIGH if 200>b (tested BEFORE N), else HOLD. Factor 4 inherited from the shipped constant, not invented.",
- "answer": "NOT-EXERCISED on all four streams. Zero runs reach 200 samples in ~550M samples per stream, so this corpus cannot validate 200 in either direction for any stream it was silently extended to.",
+ "answer": "NOT-EXERCISED on all four streams. Zero runs reach 200 samples in ~550M samples per stream, so this corpus cannot validate 200 in either direction on any stream it was silently extended to.",
  "asymmetry": {
   "falsePositives": "excluded by 1-2 orders of magnitude on every stream: 200/p99.99 = 100x (verity-ppg) 33x (verity-acc) 12x (h10-acc) 100x (ppg2w) against the 4.17x the constant was designed at on the ring. 200 will never flag real signal there.",
   "falseNegatives": "UNTESTABLE from this corpus: a stream with no stuck spans cannot show what a stuck span looks like. The first must not be read as reassurance about the second."
@@ -12,7 +12,7 @@
  "corroboration": "The shipped detector's own sidecars agree from the other side: of 68 flagged 'stuck' spans in the corpus, 66 are O2Ring PPGRUNS and 2 O2Ring PPG2WRUNS - ZERO Verity, ZERO H10 (flagged values 100 x62, 99 x4, 0 x2, all ring pleth). Two instruments, one conclusion, no shared blind spot.",
  "correction": "An earlier statement of mine pooled all *RUNS* sidecars without splitting by device and implied those flagged spans belonged to the streams under test. They did not. Found by chasing the apparent contradiction against this run's N=0 rather than explaining it away. The censoring point it supported (min=200 exactly = the threshold) is unaffected.",
  "rates": "MEASURED from the corpus, not the declared table: verity-ppg 55.13 Hz, verity-acc/h10-acc 51.68 Hz, ppg2w 127.76 Hz, ring ppg1 ~127.76 Hz. So 200 samples is 1.57 s where it was derived, 3.63 s on Verity PPG, 3.87 s on ACC. The 200>=4*p99.99 test is unit-invariant within a stream; the rate matters for what the threshold MEANS.",
- "proposes": "no constant for any stream - NOT-EXERCISED means the corpus cannot validate 200 in either direction",
+ "proposes": "no constant for any stream",
  "tool": "tools/stuck-run-lengths.mjs (selftest 12/12)",
  "streams": [
   {
@@ -25,6 +25,13 @@
      "channel": "ch0",
      "report": "all-runs",
      "P": 2,
+     "ladder": {
+      "p50": 1,
+      "p90": 1,
+      "p99": 1,
+      "p999": 2,
+      "p9999": 2
+     },
      "N": 0,
      "gap": {
       "a": 29,
@@ -41,6 +48,13 @@
      "channel": "ch0",
      "report": "top1-values-excluded",
      "P": 2,
+     "ladder": {
+      "p50": 1,
+      "p90": 1,
+      "p99": 1,
+      "p999": 2,
+      "p9999": 2
+     },
      "N": 0,
      "gap": {
       "a": 12,
@@ -57,6 +71,13 @@
      "channel": "ch1",
      "report": "all-runs",
      "P": 2,
+     "ladder": {
+      "p50": 1,
+      "p90": 1,
+      "p99": 1,
+      "p999": 2,
+      "p9999": 2
+     },
      "N": 0,
      "gap": {
       "a": 29,
@@ -73,6 +94,13 @@
      "channel": "ch1",
      "report": "top1-values-excluded",
      "P": 2,
+     "ladder": {
+      "p50": 1,
+      "p90": 1,
+      "p99": 1,
+      "p999": 2,
+      "p9999": 2
+     },
      "N": 0,
      "gap": {
       "a": 13,
@@ -89,6 +117,13 @@
      "channel": "ch2",
      "report": "all-runs",
      "P": 2,
+     "ladder": {
+      "p50": 1,
+      "p90": 1,
+      "p99": 1,
+      "p999": 2,
+      "p9999": 2
+     },
      "N": 0,
      "gap": {
       "a": 29,
@@ -105,6 +140,13 @@
      "channel": "ch2",
      "report": "top1-values-excluded",
      "P": 2,
+     "ladder": {
+      "p50": 1,
+      "p90": 1,
+      "p99": 1,
+      "p999": 2,
+      "p9999": 2
+     },
      "N": 0,
      "gap": {
       "a": 16,
@@ -129,6 +171,13 @@
      "channel": "x",
      "report": "all-runs",
      "P": 6,
+     "ladder": {
+      "p50": 1,
+      "p90": 2,
+      "p99": 3,
+      "p999": 4,
+      "p9999": 6
+     },
      "N": 0,
      "gap": {
       "a": 17,
@@ -145,6 +194,13 @@
      "channel": "x",
      "report": "top1-values-excluded",
      "P": 6,
+     "ladder": {
+      "p50": 1,
+      "p90": 2,
+      "p99": 3,
+      "p999": 4,
+      "p9999": 6
+     },
      "N": 0,
      "gap": null,
      "samples": 85160411,
@@ -155,6 +211,13 @@
      "channel": "y",
      "report": "all-runs",
      "P": 6,
+     "ladder": {
+      "p50": 1,
+      "p90": 2,
+      "p99": 3,
+      "p999": 4,
+      "p9999": 6
+     },
      "N": 0,
      "gap": {
       "a": 17,
@@ -171,6 +234,13 @@
      "channel": "y",
      "report": "top0-values-excluded",
      "P": 6,
+     "ladder": {
+      "p50": 1,
+      "p90": 2,
+      "p99": 3,
+      "p999": 4,
+      "p9999": 6
+     },
      "N": 0,
      "gap": {
       "a": 17,
@@ -187,6 +257,13 @@
      "channel": "z",
      "report": "all-runs",
      "P": 6,
+     "ladder": {
+      "p50": 1,
+      "p90": 2,
+      "p99": 3,
+      "p999": 4,
+      "p9999": 6
+     },
      "N": 0,
      "gap": {
       "a": 14,
@@ -203,6 +280,13 @@
      "channel": "z",
      "report": "top0-values-excluded",
      "P": 6,
+     "ladder": {
+      "p50": 1,
+      "p90": 2,
+      "p99": 3,
+      "p999": 4,
+      "p9999": 6
+     },
      "N": 0,
      "gap": {
       "a": 14,
@@ -227,6 +311,13 @@
      "channel": "x",
      "report": "all-runs",
      "P": 17,
+     "ladder": {
+      "p50": 1,
+      "p90": 2,
+      "p99": 4,
+      "p999": 9,
+      "p9999": 17
+     },
      "N": 0,
      "gap": {
       "a": 127,
@@ -243,6 +334,13 @@
      "channel": "x",
      "report": "top3-values-excluded",
      "P": 16,
+     "ladder": {
+      "p50": 1,
+      "p90": 2,
+      "p99": 4,
+      "p999": 9,
+      "p9999": 16
+     },
      "N": 0,
      "gap": {
       "a": 127,
@@ -259,6 +357,13 @@
      "channel": "y",
      "report": "all-runs",
      "P": 11,
+     "ladder": {
+      "p50": 1,
+      "p90": 2,
+      "p99": 4,
+      "p999": 7,
+      "p9999": 11
+     },
      "N": 0,
      "gap": {
       "a": 33,
@@ -275,6 +380,13 @@
      "channel": "y",
      "report": "top3-values-excluded",
      "P": 11,
+     "ladder": {
+      "p50": 1,
+      "p90": 2,
+      "p99": 4,
+      "p999": 7,
+      "p9999": 11
+     },
      "N": 0,
      "gap": {
       "a": 33,
@@ -291,6 +403,13 @@
      "channel": "z",
      "report": "all-runs",
      "P": 7,
+     "ladder": {
+      "p50": 1,
+      "p90": 2,
+      "p99": 3,
+      "p999": 5,
+      "p9999": 7
+     },
      "N": 0,
      "gap": null,
      "samples": 124738345,
@@ -301,6 +420,13 @@
      "channel": "z",
      "report": "top0-values-excluded",
      "P": 7,
+     "ladder": {
+      "p50": 1,
+      "p90": 2,
+      "p99": 3,
+      "p999": 5,
+      "p9999": 7
+     },
      "N": 0,
      "gap": null,
      "samples": 124738345,
@@ -319,6 +445,13 @@
      "channel": "ch0",
      "report": "all-runs",
      "P": 2,
+     "ladder": {
+      "p50": 1,
+      "p90": 1,
+      "p99": 1,
+      "p999": 1,
+      "p9999": 2
+     },
      "N": 1,
      "gap": {
       "a": 84,
@@ -335,6 +468,13 @@
      "channel": "ch0",
      "report": "top1-values-excluded",
      "P": 2,
+     "ladder": {
+      "p50": 1,
+      "p90": 1,
+      "p99": 1,
+      "p999": 1,
+      "p9999": 2
+     },
      "N": 0,
      "gap": {
       "a": 6,
@@ -351,6 +491,13 @@
      "channel": "ch1",
      "report": "all-runs",
      "P": 2,
+     "ladder": {
+      "p50": 1,
+      "p90": 1,
+      "p99": 1,
+      "p999": 2,
+      "p9999": 2
+     },
      "N": 1,
      "gap": {
       "a": 82,
@@ -367,6 +514,13 @@
      "channel": "ch1",
      "report": "top1-values-excluded",
      "P": 2,
+     "ladder": {
+      "p50": 1,
+      "p90": 1,
+      "p99": 1,
+      "p999": 2,
+      "p9999": 2
+     },
      "N": 0,
      "gap": {
       "a": 6,
@@ -381,5 +535,54 @@
     }
    ]
   }
- ]
+ ],
+ "supersedes": "tepna.audit/t-stuck-per-stream/1 (#2924) - same verdicts, now with the full percentile LADDER so the comparison with the ring is like-for-like and the parent row's stated closing condition is literally met",
+ "ladderComparison": {
+  "o2ring-ppg1 (quoted, PPG-ABSENCE-AS-VALUE)": {
+   "p50": 1,
+   "p90": 4,
+   "p99": 14,
+   "p999": 31,
+   "p9999": 48
+  },
+  "verity-ppg": {
+   "p50": 1,
+   "p90": 1,
+   "p99": 1,
+   "p999": 2,
+   "p9999": 2
+  },
+  "verity-acc": {
+   "p50": 1,
+   "p90": 2,
+   "p99": 3,
+   "p999": 4,
+   "p9999": 6
+  },
+  "h10-acc (x/y/z)": {
+   "p99": [
+    4,
+    4,
+    3
+   ],
+   "p999": [
+    9,
+    7,
+    5
+   ],
+   "p9999": [
+    17,
+    11,
+    7
+   ]
+  },
+  "ppg2w": {
+   "p50": 1,
+   "p90": 1,
+   "p99": 1,
+   "p999": "1-2",
+   "p9999": 2
+  },
+  "reading": "The RING's legitimate plateaus are 3.5-14x longer at p99 than any other stream's. That is the 8-bit quantisation: a coarse ADC holds one code across many samples, while the Verity's fine-grained values almost never repeat. A constant derived from the coarsest stream is therefore FAR above the plateau scale of every finer one - which is why 200 sits at 12-100x p99.99 elsewhere against the 4.17x it was designed at."
+ }
 }
