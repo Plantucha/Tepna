@@ -109,6 +109,28 @@
 #   session, which has no baseline — the snapshot is written then, silently, and the limit is stated
 #   rather than papered over.
 #
+# ⚠ THE WINDOW — what the excuse costs, stated because it is NOT closable ────────────────────────
+#   The POST arm forgives the exact path the PRE arm just allowed, once. A peer overwriting THAT path
+#   between the two calls is forgiven with it. That is not a weakness of the patch — it is the
+#   boundary of what an mtime can decide: after a write the pre arm allowed, your bytes and a peer's
+#   bytes produce the SAME observable, a newer mtime on a path you had read. Separating them needs
+#   CONTENT, which is the limit this arm's own "DETECTION CANNOT ATTRIBUTE" already declares. A rule
+#   that appeared to close the window would be closing it by assumption.
+#
+#   So it is bounded on the axis that IS decidable — time and path, not identity:
+#     · ONE command   — spent by the very next post-check, whether or not anything moved
+#     · ONE path      — a peer touching a DIFFERENT memory file in that window still reports
+#     · ONLY a path the pre arm actually allowed — a DENIED command leaves no licence behind
+#     · ONLY the parseable forms — an unparseable write (a heredoc-fed interpreter) never reaches the
+#       pre arm's allow, so it writes no expectation and still reports. That is the population the
+#       POST arm was built for, and the excuse does not touch it.
+#   Each of those four is a self-test leg with a positive control, because an excuse that reaches too
+#   far is this guard with its finding removed, and that failure is silent.
+#
+#   The trade it buys: a 100 % false-positive rate on every sanctioned edit, gone. Before this, the
+#   real report and the cry-wolf printed IDENTICALLY — so the case the arm exists for was the one a
+#   session learns to scroll past. A bounded blind window beats a finding nobody reads.
+#
 # Escape hatch: CLAUDE_ALLOW_STALE_MEMORY=1 — EXPORTED (an Edit/Write carries no command text, so an
 # inline prefix cannot reach this process). Use it when you have read the file in another session
 # and are deliberately writing over it; say so in the memory's own body.
@@ -212,6 +234,16 @@ if [ "$tool" = "Bash" ]; then
       #   error instead of a finding. The `-f` test is the difference between "no reads recorded" and
       #   "the comparison did not run".
       [ -f "$ledger" ] || ledger=/dev/null
+      # ⚠ THE PRE ARM'S OWN ALLOW, EXCUSED ONCE. Measured 2026-09-23 (Wren found it; Kestrel and I
+      #   reproduced it independently, each with a control): after a write this hook's PRE arm ALLOWED,
+      #   the POST arm reported anyway — 100 % of the time, by construction. A `Read` necessarily
+      #   records the PRE-write mtime, so once the write lands the ledger can never hold the current
+      #   one and `rd[$1]!=$2` holds for every sanctioned edit. The false report and the real one print
+      #   IDENTICALLY, which makes the case this arm exists for the one people learn to scroll past.
+      #   So the PRE arm leaves the paths it allowed here and the POST arm forgives exactly those,
+      #   exactly once — see THE WINDOW in the header for what that costs and why it is not closable.
+      pending="$proj/.memory-guard/$sid.pending"
+      [ -f "$pending" ] || pending=/dev/null
       # `%T@` (float seconds) — `%.9T@` is not a find format and printed a truncated integer, which
       # compares equal across writes inside the same second. Caught by the plant, not by review.
       cur="$(find "$memdir" -maxdepth 1 -type f -printf '%p\t%T@\n' 2>/dev/null | sort)"
@@ -223,8 +255,9 @@ if [ "$tool" = "Bash" ]; then
         moved="$(awk -F'\t' '
           FILENAME==ARGV[1] { was[$1]=$2; next }
           FILENAME==ARGV[2] { rd[$1]=$2; next }
-          { if (($1 in was) && was[$1]!=$2 && rd[$1]!=$2) printf "  %s   %s → %s\n", $1, was[$1], $2 }
-        ' "$snap" "$ledger" /dev/stdin <<EOF4
+          FILENAME==ARGV[3] { pend[$1]=1; next }
+          { if (($1 in was) && was[$1]!=$2 && rd[$1]!=$2 && !($1 in pend)) printf "  %s   %s → %s\n", $1, was[$1], $2 }
+        ' "$snap" "$ledger" "$pending" /dev/stdin <<EOF4
 $cur
 EOF4
 )"
@@ -246,6 +279,9 @@ EOF5
           exit 2
         fi
       fi
+      # ONCE means once: the expectation is spent whether or not anything moved, so a command that
+      # was allowed but wrote nothing cannot leave a licence lying around for the next one.
+      rm -f "$proj/.memory-guard/$sid.pending" 2>/dev/null
       mkdir -p "$proj/.memory-guard" 2>/dev/null && printf '%s\n' "$cur" > "$snap" 2>/dev/null
     done
     exit 0
@@ -260,6 +296,9 @@ EOF5
   printf '%s' "$probe" | grep -qE "(>>?|\btee\b|\bcp\b|\bmv\b|\btruncate\b)[^|;&]*${MEM_RE}" && write_shaped=0
   printf '%s' "$cmd" | grep -qE '\bsed\b[^|;&]*(-[A-Za-z]*i\b|--in-place)' && printf '%s' "$cmd" | grep -qE "$MEM_RE" && write_shaped=0
   [ "$write_shaped" = "0" ] || exit 0
+  # Collected, not written yet: a command DENIED on its second path must not leave an expectation
+  # behind for its first — that licence would outlive a command that never ran.
+  _allowed=''
   for cand in $(printf '%s' "$cmd" | grep -oE "$MEM_RE" | sort -u); do
     [ -f "$cand" ] || continue                                   # a NEW memory file is not an overwrite
     memdir="${cand%/memory/*}/memory"
@@ -268,7 +307,11 @@ EOF5
     now_mt="$(mtime_of "$cand")"
     seen_mt=""
     [ -f "$ledger" ] && seen_mt="$(grep -F -- "$cand	" "$ledger" 2>/dev/null | tail -1 | cut -f2)"
-    [ -n "$seen_mt" ] && [ "$seen_mt" = "$now_mt" ] && continue
+    if [ -n "$seen_mt" ] && [ "$seen_mt" = "$now_mt" ]; then
+      _allowed="$_allowed$proj	$cand
+"
+      continue
+    fi
     if [ -z "$seen_mt" ]; then
       why="this session has NOT read it (no Read recorded for it in this session's ledger)"
     else
@@ -294,6 +337,14 @@ is an unwatched one.
 EOF6
     exit 2
   done
+  # The whole command is allowed, so the expectation is safe to leave: one line per (project, path),
+  # spent by the very next post-check. Written HERE and not in the loop for the reason above.
+  if [ -n "$_allowed" ]; then
+    printf '%s' "$_allowed" | while IFS='	' read -r _p _c; do
+      [ -n "$_p" ] || continue
+      mkdir -p "$_p/.memory-guard" 2>/dev/null && printf '%s\n' "$_c" >> "$_p/.memory-guard/$sid.pending" 2>/dev/null
+    done
+  fi
   exit 0
 fi
 

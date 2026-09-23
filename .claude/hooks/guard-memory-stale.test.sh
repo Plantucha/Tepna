@@ -190,4 +190,49 @@ printf '{"session_id":"%s","tool_name":"Write","tool_input":{"file_path":"%s"}}'
   | env -i PATH="$NOJQ" HOME="$TMP" TMPDIR="$MK" CLAUDE_CODE_SESSION_ID="$SID" bash "$H" pre >/dev/null 2>&1
 [ $? -eq 2 ] && { echo "  ✗ without jq the guard DENIES — it must fail open"; fail=$((fail + 1)); } || echo "  ✓ …while still failing OPEN: announcing is not denying"
 
+echo
+echo "### THE PRE ARM'S OWN ALLOW IS EXCUSED ONCE — and the bound is where the value is"
+# Wren found this and it was 100 % reproducible: a `Read` records the PRE-write mtime, so after ANY
+# write the pre arm allowed, the ledger cannot hold the current one and the post arm reported —
+# identically to a real foreign overwrite. The case the arm exists for became the one people scroll
+# past. Every leg below is a CONTROL on how far the excuse reaches, because an excuse that reaches
+# too far is the same guard with the finding removed.
+W="$TMP/.claude/projects/-home-x-Repo2"; WMEM="$W/memory"; mkdir -p "$WMEM"
+WSID="77777777-2222-3333-4444-555555555555"
+wa="$WMEM/a.md"; wb="$WMEM/b.md"
+bash_run() { # bash_run <phase> <command> ; echoes DENY or ALLOW
+  printf '{"session_id":"%s","tool_name":"Bash","tool_input":{"command":"%s"}}' "$WSID" "$1" \
+    | env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_ALLOW_STALE_MEMORY HOME="$TMP" bash "$H" "$2" >/dev/null 2>&1
+  [ $? -eq 2 ] && echo DENY || echo ALLOW
+}
+read_run() { printf '{"session_id":"%s","tool_name":"Read","tool_input":{"file_path":"%s"}}' "$WSID" "$1" \
+    | env -u CLAUDE_CODE_SESSION_ID HOME="$TMP" bash "$H" pre >/dev/null 2>&1; }
+
+printf 'a\n' > "$wa"; printf 'b\n' > "$wb"
+bash_run true post >/dev/null                                    # snapshot
+# ⚠ POSITIVE CONTROL FIRST. A harness whose memory dir the hook cannot see returns quiet for
+#   EVERYTHING, which reads exactly like a pass — it happened to two of us building this. Prove the
+#   instrument can make the hook report before trusting any quiet below.
+printf 'foreign\n' > "$wb"; sleep 0.02
+ok DENY "$(bash_run true post)" "control: the harness CAN make the post arm report (else every quiet below is vacuous)"
+
+bash_run true post >/dev/null
+read_run "$wa"
+ok ALLOW "$(bash_run "printf x > $wa" pre)" "the pre arm ALLOWS a write to a file this session read"
+printf 'x\n' > "$wa"; sleep 0.02
+ok ALLOW "$(bash_run "printf x > $wa" post)" "…and the post arm no longer cries wolf over that same write"
+printf 'y\n' > "$wa"; sleep 0.02
+ok DENY "$(bash_run true post)" "the excuse is SPENT: a second write with no new read reports"
+
+bash_run true post >/dev/null; read_run "$wa"
+bash_run "printf z > $wa" pre >/dev/null
+printf 'z\n' > "$wa"; printf 'peer\n' > "$wb"; sleep 0.02
+ok DENY "$(bash_run "printf z > $wa" post)" "the excuse is PER-PATH: a peer touching ANOTHER file in the window still reports"
+
+bash_run true post >/dev/null
+printf 'foreign\n' > "$wa"; sleep 0.02
+ok DENY "$(bash_run "printf q > $wa" pre)" "a stale read is still DENIED at the pre arm"
+printf 'q\n' > "$wa"; sleep 0.02
+ok DENY "$(bash_run true post)" "…and a DENIED command leaves no licence behind for the next one"
+
 if [ "$fail" -eq 0 ]; then echo "guard-memory-stale: all checks passed"; else echo "guard-memory-stale: $fail FAILED"; exit 1; fi
