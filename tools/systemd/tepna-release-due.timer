@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+[Unit]
+Description=Tepna — check hourly whether a release is due (7 days or 100 commits since the last)
+
+[Timer]
+# Hourly: the commits bound can be crossed at any hour of a busy day, and a due release costs
+# 45–90 min of chain, so an hour of latency is noise against the week/100-commit bounds. Persistent
+# so a tick missed while the rig was off fires at boot rather than waiting for the next hour.
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

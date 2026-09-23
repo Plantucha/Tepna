@@ -1407,6 +1407,18 @@
         ]
       },
       "note": "residue 2026-09-06-t-stuck-validated-on-ring-only: does writers.T_STUCK = 200 SAMPLES transfer to the four streams RUN_MIN_BY_STREAM extends it to? Criterion pre-registered in the tool header before any stream was read - a bracketed multiplicative gap of >= 4x above p99.99 containing 200. The per-channel words (HOLD/FAIL-LOW/FAIL-HIGH/NO GAP/NOT-EXERCISED) are the tool's own reading and live in result; the contract's closed vocabulary is reached by an explicit map, precedence FAIL > UNKNOWN > UNDERPOWERED > PASS, never a vote. NOT-EXERCISED maps to UNKNOWN and not NOT_APPLICABLE: the contract refused that on the first attempt because NOT_APPLICABLE must carry result: null, and here the result (550M samples, p99.99, N = 0) IS the finding. Population = channel-reports; checked = those the criterion bound on."
+    },
+    "tools/release-due.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/release-due.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "release cadence (owner ruling 2026-09-23): DUE at 7 days since the last v* tag OR 100 commits on main since it, whichever first — PASS not due, or due and release.mjs --full launched · FAIL due and NOT launched (--report, or hold over an unfinished release-land run) · UNKNOWN the distance could not be read (no tag / no fetch / no count), result null; population = the one release distance; the sample is the planted due-by-commits state the tool was written in"
     }
   }
 }
