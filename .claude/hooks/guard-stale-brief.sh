@@ -154,9 +154,23 @@ if [ -z "$f" ] && [ -n "$cmd" ]; then
   #      message: a denial that cannot explain itself teaches the reader to reach for the escape
   #      hatch reflexively, and a guard whose hatch is reflex is the guard that fails the day it is
   #      right. `cd_missing` carries that fact into the report.
-  if [ -n "$cd_dir" ] && [ ! -d "$cd_dir" ]; then
-    cd_missing="$cd_dir"
-  fi
+  #      ⚠ AND `cd_missing` IS SCANNED OVER EVERY `cd`, NOT ONLY THE FIRST. The first-cd rule above
+  #      is right for choosing the BASE (later ones are subdirectory hops), and wrong for detecting a
+  #      not-yet-created tree: measured 2026-09-23 on
+  #          cd <root> && git worktree add <wt> && cd <wt> && <edit>
+  #      the first `cd` was the ROOT — which exists, so `cd_missing` stayed empty — and the denial
+  #      reported 91 commits with no tree named beside them, against a worktree that was AT
+  #      origin/main with 0 behind. The root must be the first `cd`: it is where `git worktree add`
+  #      runs. A missing DIRECTORY is never a subdirectory hop, so the head -1 rule has no claim on
+  #      it; take the first cd that does NOT exist, wherever it sits in the command.
+  for _cdd in $(printf '%s' "$cmd" \
+    | grep -oE '(^|[;&|][[:space:]]*)cd[[:space:]]+([^[:space:];&|]+)' \
+    | sed -E 's/^.*cd[[:space:]]+//' | tr -d '\042\047'); do
+    if [ ! -d "$_cdd" ]; then
+      cd_missing="$_cdd"
+      break
+    fi
+  done
   [ -n "$cd_dir" ] && [ -d "$cd_dir" ] && edit_dir="$cd_dir"
 fi
 
@@ -165,6 +179,20 @@ fi
 # Repo-relative, so an absolute path from the tool matches the same rule as a relative one.
 root="$(git -C "$edit_dir" rev-parse --show-toplevel 2>/dev/null)" || exit 0
 [ -z "$root" ] && exit 0
+
+# ⚠ NAME THE TREE THAT CONVICTED YOU, ALWAYS. A denial that reports only a commit COUNT cannot be
+#   told apart from one measured against a checkout the author is not editing — and the fallback tree
+#   is the shared root, which §👥.2b-bis names as the one most likely to be stale. Measured
+#   2026-09-23: "91 commit(s) you do not have" against a worktree that was AT origin/main, 0 behind,
+#   because the base had fallen back to a root 168 commits behind on a feature branch. The verdict
+#   was fail-closed and defensible; the REPORT was unreadable. One line makes a real staleness and a
+#   misresolved one differ by inspection instead of by re-derivation. Same shape as #2896 teaching
+#   guard-format to say which tree it read.
+base_dir_label="$root"
+[ "$root" = "$(git rev-parse --show-toplevel 2>/dev/null)" ] && base_dir_label="$root (this hook's cwd — NOT necessarily the tree you are editing)"
+_bhd="$(git -C "$root" rev-list --count HEAD..origin/main 2>/dev/null)"
+_brn="$(git -C "$root" branch --show-current 2>/dev/null)"
+behind_label="on ${_brn:-detached}, $( [ -n "$_bhd" ] && echo "$_bhd commit(s) behind origin/main" || echo 'distance from origin/main unknown' )"
 
 # ⚠ ANCHOR EVERY LATER QUERY AT `$root`, NOT AT `$edit_dir`. `git -C <dir>` also makes PATHSPECS
 #   relative to <dir>, so `-- briefs/X.md` from inside `briefs/` looks for `briefs/briefs/X.md` and
@@ -341,6 +369,8 @@ ${cd_missing:+
   you already have and this denial is spurious. CREATE THE WORKTREE IN ITS OWN CALL FIRST, then edit
   from it, and the guard measures your branch instead.
 }
+MEASURED AGAINST: $base_dir_label ($behind_label)
+
 READ those commits first — they may already answer what you are about to write:
 
     git log -p $base..origin/main -- '$first'
