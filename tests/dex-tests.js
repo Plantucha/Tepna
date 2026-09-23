@@ -31389,9 +31389,26 @@
             stale.forEach(function (s) {
               bad.push(m[1] + ' → ' + s + ' (retired id scheme — keys are date-slugs since 2026-09-02)');
             });
-            var refs = body.match(/\b\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\b/g) || [];
+            /* ⚠️ A ROW KEY AND A CHANGESET FILENAME ARE THE SAME SHAPE BY CONSTRUCTION — both are
+               date-plus-slug, which §📌 mandates for both, for the same anti-collision reason. So a
+               row that cites its changeset by name was reported as pointing at a row that does not
+               exist (row 2026-09-23-check8h-reads-a-changeset-filename-as-a-row-key), and the message
+               named the CHANGESET, which is what cost the time: it reads as "your pointer is broken"
+               when the truth is "your row quotes a file".
+               And it is not merely noisy — `changes/` is PRUNED at every release (§📦), so a citation
+               that resolves today is guaranteed to dangle after the next one. There is no state in
+               which flagging it is right.
+               The discriminator is structural, not a heuristic, and matches the `R\d+\b(?!-)` fix
+               above: a ROW reference appears bare, a FILE citation carries `changes/` or `.md`. */
+            var refs = [];
+            var REF_RE = /(changes\/)?\b(\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*)\b(\.md)?/g;
+            var mm;
+            while ((mm = REF_RE.exec(body)) !== null) {
+              if (mm[1] || mm[3]) continue; // a changeset FILE citation, not a row→row reference
+              refs.push(mm[2]);
+            }
             refs.forEach(function (k) {
-              if (!ids[k] && !RR.seen[k]) bad.push(m[1] + ' → ' + k + ' (no such row)');
+              if (!ids[k] && !RR.seen[k]) bad.push(m[1] + ' → ' + k + ' (no such row — seen BARE, i.e. as a row key; a changeset is cited as `changes/<key>.md`)');
             });
           });
         return bad;
@@ -31416,8 +31433,16 @@
           var b = rowRefs(two).length === 1 && rowRefs(two)[0].indexOf('no such row') > 0;
           var c = rowRefs(prose).length === 0;
           var d = rowRefs('| 2026-09-02-a | 2026-09-02 | `X-BRIEF.md` | see 2026-09-02-a | e | OPEN |').length === 0;
+          /* A CHANGESET CITED BY NAME IS NOT A ROW REFERENCE. Both the `changes/` path form and the
+             bare `.md` suffix must pass, and the same slug WITHOUT either must still fire — otherwise
+             the exclusion would have been a blanket silencing of check8h rather than a narrowing. */
+          var chPath = rowRefs('| 2026-09-02-a | 2026-09-02 | `X-BRIEF.md` | see changes/2026-09-02-nope.md | e | OPEN |').length === 0;
+          var chSuffix = rowRefs('| 2026-09-02-a | 2026-09-02 | `X-BRIEF.md` | see 2026-09-02-nope.md | e | OPEN |').length === 0;
+          var stillFires = rowRefs('| 2026-09-02-a | 2026-09-02 | `X-BRIEF.md` | see changes/2026-09-02-nope.md and bare 2026-09-02-alsonope | e | OPEN |');
+          var mixed = stillFires.length === 1 && stillFires[0].indexOf('2026-09-02-alsonope') > 0;
+          var saysBare = stillFires.length === 1 && stillFires[0].indexOf('seen BARE') > 0;
           RR.rows = saveRows;
-          return a && b && c && d;
+          return a && b && c && d && chPath && chSuffix && mixed && saysBare;
         })()
       );
       var plantOk = residueRows('| 2026-09-02-k9 | 2026-09-02 | `' + names[0] + '` | a defect | line 1 | OPEN |');
