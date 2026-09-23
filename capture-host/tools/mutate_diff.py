@@ -74,7 +74,7 @@ HERE = Path(__file__).resolve().parent.parent
 VENV_PY = HERE / ".venv" / "bin" / "python"
 sys.path.insert(0, str(HERE))
 from mutation_diff import (  # noqa: E402
-    EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, classify, diff_key,
+    EMPTY_DIFF, STRING_ONLY, SURVIVED, UNDECIDABLE, UNDECIDED, annotation_only, clean_run_failures, classify, diff_key,
     in_glob_scope, source_function_of_glob, undecided_by_function, unmutatable_decorator,
     functions_covering, refusal_reason, selftest, split_results, string_only_verdict,
     GATE_BUDGET_SEC, budget_refusal, verdict_object,
@@ -410,10 +410,24 @@ def main(argv=None) -> int:
                     _ran -= 1
                     _nothing_to_mutate.append(g)
                     continue
-                print(f"    ! {g}: mutants were generated but 0 tested — a crash after generation, not "
-                      f"a clean run (the meta's exit codes are all null under this glob)  [{_secs:.0f}s]", flush=True)
+                # NAME THE TEST THAT BROKE THE CLEAN RUN, when that is what happened. mutmut's baseline
+                # failing is the population's failure, not this diff's: an order-dependent test that
+                # passes alone and under xdist and fails in one sequential process (#2718's clock leak,
+                # `2026-09-09-alert-poller-test-order-dependent`). Left unnamed, the refusal reads as a
+                # verdict on the change — and it cost a full investigation cycle on #2715 to learn it
+                # was not. The name is in `tail` the whole time; say it, and say whose failure it is.
+                _cf = clean_run_failures(r.get("tail", ""))
+                if _cf:
+                    print(f"    ! {g}: mutmut's CLEAN RUN failed before any mutant was tested — on "
+                          f"{', '.join(_cf)}  [{_secs:.0f}s]"
+                          f"\n      (that test is the covering set's, not this diff's: it passed alone or under"
+                          f" xdist and failed in mutmut's one sequential process. Fix or quarantine THAT test;"
+                          f" this glob was never examined — CLAUDE.md §4b.)", flush=True)
+                else:
+                    print(f"    ! {g}: mutants were generated but 0 tested — a crash after generation, not "
+                          f"a clean run (the meta's exit codes are all null under this glob)  [{_secs:.0f}s]", flush=True)
                 _ran -= 1
-                _crashed.append(g)
+                _crashed.append(f"{g} (clean run failed on {', '.join(_cf)})" if _cf else g)
                 continue
             # THE SUCCESS PATH, which printed nothing whatsoever before this. A function whose
             # mutants were all killed is the COMMON case, so the common case was the silent one — and
