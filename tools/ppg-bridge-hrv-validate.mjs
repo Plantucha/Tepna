@@ -42,7 +42,7 @@
  *   node tools/ppg-bridge-hrv-validate.mjs --selftest
  * ════════════════════════════════════════════════════════════════════════════════════════════════ */
 import vm from 'node:vm';
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -57,7 +57,19 @@ const opt = (f, d) => {
 const SELFTEST = has('--selftest');
 const DIR = opt('--dir', null);
 const OLD_REF = opt('--old', 'origin/main');
+/* `--new <ref>`: the NEW realm from a git ref instead of the working tree, so OLD/NEW can bracket ONE
+   commit (`--old X~1 --new X`) and the delta is that commit's alone. Default: the tree, as before. */
+const NEW_REF = opt('--new', null);
 const TOP = +opt('--top', 20);
+/* `--device o2ring|verity`: WHICH optical arm. This tool was written for the O2Ring finger PPG (§4) and
+   its file filter said so; pointed at a Verity corpus it scored nothing and said nothing (2026-09-22:
+   13 min pinned at an 8 GB cap, 0 rows). Default stays o2ring — byte-identical behaviour. */
+const DEVICE = opt('--device', 'o2ring');
+/* `--fires gap|any`: which files are validation cases. `gap` (default, §4's rule) scores only files
+   where §4's gap-bridging fired; `any` scores every file whose epoch HRV differs between OLD and NEW —
+   the right predicate for a change that acts elsewhere (the correctRR fill removal, #2333). */
+const FIRES = opt('--fires', 'gap');
+export const PPG_PATTERN = { o2ring: /O2Ring.*_PPG\.txt$/i, verity: /(VeritySense|Polar_Sense).*_PPG\.txt$/i };
 const EPOCH_SEC = 300;
 
 const B = await import(join(ROOT, 'tools/build-core.js'));
@@ -134,6 +146,49 @@ function fingerEpochs(PD, text) {
   }
   return { epochs: out, lenMs: lenMin * 60000, t0Ms: rec.t0Ms, durSec: rec.durSec, nGapBeats: res.nGapBeats, nGapSpanIntervals: res.nGapSpanIntervals };
 }
+/* First/last wall-clock stamp of a capture file from an 8 KB read at each end — never a parse.
+   The ECG for a PPG file is chosen by SPAN OVERLAP from this index, and only the winner is parsed
+   (once — memoised by path), which is what keeps a 30-night tree under the 8 GB rule. */
+export function fileSpan(p) {
+  const sz = statSync(p).size;
+  if (!sz) return null;
+  const fd = openSync(p, 'r');
+  const CH = 8192;
+  const head = Buffer.alloc(Math.min(CH, sz));
+  readSync(fd, head, 0, head.length, 0);
+  const tail = Buffer.alloc(Math.min(CH, sz));
+  readSync(fd, tail, 0, tail.length, Math.max(0, sz - tail.length));
+  closeSync(fd);
+  const stamp = (l) => {
+    const m = l.match(/(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) : null;
+  };
+  const first = head
+    .toString('latin1')
+    .split('\n')
+    .map(stamp)
+    .find((t) => t != null);
+  const last = tail
+    .toString('latin1')
+    .split('\n')
+    .map(stamp)
+    .filter((t) => t != null)
+    .pop();
+  return first != null && last != null ? [first, last] : null;
+}
+/* Pure: the index entry whose span overlaps [lo, hi] the most, or null when none overlaps by more than
+   `minSec`. Spans are [firstMs, lastMs]; a file with no readable stamps is skipped, not treated as 0. */
+export function bestBySpan(index, lo, hi, minSec) {
+  let best = null;
+  for (const e of index) {
+    if (!e.span) continue;
+    const a = Math.max(lo, e.span[0]);
+    const b = Math.min(hi, e.span[1]);
+    const ov = b > a ? (b - a) / 1000 : 0;
+    if (ov > minSec && (!best || ov > best.ov)) best = { ov, e };
+  }
+  return best;
+}
 function ecgPairs(ED, text) {
   const rec = ED.parseECG(text);
   const res = ED.analyze(rec);
@@ -188,6 +243,19 @@ function selftest() {
      self would put both series' first sample in epoch 0 and hide a real time offset. */
   const late = epochsOf([[O + 310_000, 800]], O);
   ok('a series that starts late does NOT get re-based to epoch 0', !late.has(0) && late.has(1), [...late.keys()].join(','));
+  ok(
+    'device filter: a Verity file matches under verity and NOT under o2ring',
+    PPG_PATTERN.verity.test('/x/Polar_VeritySense_0C301E3F_20260726_010000_PPG.txt') && !PPG_PATTERN.o2ring.test('/x/Polar_VeritySense_0C301E3F_20260726_010000_PPG.txt')
+  );
+  ok("device filter: the paper's Polar_Sense_* naming is Verity too", PPG_PATTERN.verity.test('Polar_Sense_0C301E3F_20260616_221114_PPG.txt'));
+  const idx = [
+    { p: 'a', span: [O, O + 3_600_000] },
+    { p: 'b', span: [O + 1_800_000, O + 9_000_000] },
+    { p: 'c', span: null }
+  ];
+  ok('bestBySpan picks the LARGEST overlap, not the first', bestBySpan(idx, O + 1_500_000, O + 7_200_000, 300).e.p === 'b');
+  ok('bestBySpan returns null when nothing overlaps by more than minSec', bestBySpan(idx, O + 20_000_000, O + 21_000_000, 300) === null);
+  ok('a file with no readable span is skipped, never scored as 0 overlap', bestBySpan([{ p: 'c', span: null }], O, O + 1000, 0) === null);
   console.log(fail ? '\nselftest: ' + fail + ' FAILED' : '\nselftest: all green');
   return fail;
 }
@@ -195,17 +263,17 @@ if (SELFTEST) process.exit(selftest());
 
 /* ════════════════════════════════════ CORPUS RUN ════════════════════════════════════ */
 if (!DIR) {
-  console.error('usage: node tools/ppg-bridge-hrv-validate.mjs --dir <captures> [--old <ref>] [--top N]  |  --selftest');
+  console.error('usage: node tools/ppg-bridge-hrv-validate.mjs --dir <captures> [--old <ref>] [--new <ref>] [--device o2ring|verity] [--fires gap|any] [--top N]  |  --selftest');
   process.exit(2);
 }
 const oldSrc = execFileSync('git', ['-C', ROOT, 'show', OLD_REF + ':ppgdex-dsp.js'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-const newSrc = readFileSync(join(ROOT, 'ppgdex-dsp.js'), 'utf8');
+const newSrc = NEW_REF ? execFileSync('git', ['-C', ROOT, 'show', NEW_REF + ':ppgdex-dsp.js'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }) : readFileSync(join(ROOT, 'ppgdex-dsp.js'), 'utf8');
 if (oldSrc === newSrc) {
   console.error('OLD (' + OLD_REF + ') and NEW ppgdex-dsp.js are identical — nothing to compare.');
   process.exit(2);
 }
 const OLD = realm(PPG_FILES, { file: 'ppgdex-dsp.js', text: oldSrc }).PPGDSP;
-const NEW = realm(PPG_FILES).PPGDSP;
+const NEW = realm(PPG_FILES, NEW_REF ? { file: 'ppgdex-dsp.js', text: newSrc } : undefined).PPGDSP;
 const ECG = realm(ECG_FILES).ECGDSP;
 
 const walk = (d, out = []) => {
@@ -218,13 +286,24 @@ const walk = (d, out = []) => {
   return out;
 };
 const all = walk(DIR);
+if (!PPG_PATTERN[DEVICE] || !['gap', 'any'].includes(FIRES)) {
+  console.error('--device must be o2ring|verity and --fires gap|any');
+  process.exit(2);
+}
 const ppgFiles = all
-  .filter((f) => /O2Ring.*_PPG\.txt$/i.test(f.p))
+  .filter((f) => PPG_PATTERN[DEVICE].test(f.p))
   .sort((a, b) => b.size - a.size)
   .slice(0, TOP);
 const ecgFiles = all.filter((f) => /H10.*_ECG\.txt$/i.test(f.p));
+const ecgIndex = ecgFiles.map((f) => ({ p: f.p, span: fileSpan(f.p) }));
+const ecgCache = new Map(); // path → parsed pairs, parsed ONCE
+const ecgParsed = (p) => {
+  if (!ecgCache.has(p)) ecgCache.set(p, ecgPairs(ECG, readFileSync(p, 'utf8')));
+  return ecgCache.get(p);
+};
+const skipped = { 'parse-error': 0, 'not-a-validation-case (no gap beats)': 0, 'no-ecg-overlap': 0, 'ecg-parse-error': 0 };
 
-console.log('O2RING-PPG-GAP §4 — per-epoch finger HRV vs chest ECG, OLD (' + OLD_REF + ') vs NEW\n');
+console.log('per-epoch ' + DEVICE + ' PPG HRV vs chest ECG, OLD (' + OLD_REF + ') vs NEW (' + (NEW_REF || 'working tree') + ') · fires=' + FIRES + ' · top ' + TOP + '\n');
 console.log('file                                              eps  ΔRMSSD_old ΔRMSSD_new    ΔSDNN_old  ΔSDNN_new  verdict');
 
 let better = 0,
@@ -241,27 +320,26 @@ for (const f of ppgFiles) {
     fo = fingerEpochs(OLD, text);
     fn = fingerEpochs(NEW, text);
   } catch (_e) {
+    skipped['parse-error']++;
     continue;
   }
-  if (!fn.nGapBeats) continue; // §4 cannot act here — not a validation case
-  // best-overlapping ECG by absolute time
-  const fw = [fn.t0Ms, fn.t0Ms + (fn.durSec || 0) * 1000];
-  let best = null;
-  for (const e of ecgFiles) {
-    let er;
-    try {
-      er = ecgPairs(ECG, readFileSync(e.p, 'utf8'));
-    } catch (_e) {
-      continue;
-    }
-    const ew = [er.t0Ms, er.t0Ms + (er.durSec || 0) * 1000];
-    const lo = Math.max(fw[0], ew[0]),
-      hi = Math.min(fw[1], ew[1]);
-    const ov = hi > lo ? (hi - lo) / 1000 : 0;
-    if (ov > EPOCH_SEC && (!best || ov > best.ov)) best = { ov, er };
+  if (FIRES === 'gap' && !fn.nGapBeats) {
+    skipped['not-a-validation-case (no gap beats)']++; // §4 cannot act here
+    continue;
   }
-  if (!best) {
+  // best-overlapping ECG by absolute time — chosen from the SPAN INDEX, parsed only if it wins
+  const fw = [fn.t0Ms, fn.t0Ms + (fn.durSec || 0) * 1000];
+  const pick = bestBySpan(ecgIndex, fw[0], fw[1], EPOCH_SEC);
+  if (!pick) {
     noEcg++;
+    skipped['no-ecg-overlap']++;
+    continue;
+  }
+  let best;
+  try {
+    best = { ov: pick.ov, er: ecgParsed(pick.e.p) };
+  } catch (_e) {
+    skipped['ecg-parse-error']++;
     continue;
   }
   /* Match each finger epoch to the ECG R-R falling in the SAME absolute window. Only epochs where §4
@@ -316,6 +394,7 @@ for (const f of ppgFiles) {
   );
 }
 console.log(`\n${rows} scored file(s)  ·  BETTER ${better} · unchanged ${same} · mixed ${mixed} · WORSE ${worse}`);
+console.log('SKIPPED (named): ' + JSON.stringify(skipped) + ` · candidates ${ppgFiles.length} · ecg files indexed ${ecgIndex.length}, parsed ${ecgCache.size}`);
 if (inert) console.log(`${inert} firing file(s) where §4 moved NO epoch HRV — accounting only (nGapSpanIntervals), nothing to score.`);
 if (noEcg) console.log(`${noEcg} firing file(s) had no overlapping ECG epoch — not counted either way.`);
 console.log(
