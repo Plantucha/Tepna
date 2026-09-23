@@ -640,6 +640,10 @@ function readSources() {
     'manifest-gate.js',
     'sensor-trio-worker.js',
     'sensor-trio-power-analysis.js',
+    /* The monitor's per-night landing page (2026-09-22). Added with the file itself, as eegdex-dsp.js
+       was: the `no NEW unscannable source layer` ratchet reds a runtime source no lane can read, and it
+       caught this one on its first build too. */
+    'sensor-trio-night.js',
     'sensor-trio-gpu.js',
     'hrvdex-render.js',
     'pat-gate.js',
@@ -1645,6 +1649,7 @@ function readNonBundleCsp() {
     'hrv-confound-analysis.html',
     'nights-icc-analysis.html',
     'sensor-trio-power-analysis.html',
+    'sensor-trio-night.html',
     'treatment-response-analysis.html',
     'sigma-no-reference-analysis.html',
     'qrs-equiv-analysis.html',
@@ -1760,6 +1765,7 @@ function readAnalysisTools() {
     'qrs-equiv-analysis.html',
     'qrs-yield-analysis.html',
     'sensor-trio-power-analysis.html',
+    'sensor-trio-night.html',
     'sigma-no-reference-analysis.html',
     'treatment-response-analysis.html'
   ];
