@@ -244,7 +244,6 @@ export const WO_CLAIM_RATCHET = new Set([
      asserting in the manifest something its source had stopped supporting. */
   'tools/beat-leg-closure.mjs',
   /* `tools/pat-window-oracle.mjs` was the ninth; it ADOPTED, so the ratchet shrank by one. */
-  'tools/probe-clock-equivalence.mjs',
   'tools/probe-equivalence.mjs'
 ]);
 
