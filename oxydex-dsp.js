@@ -4225,7 +4225,15 @@
     // drifting on a private trailing-MEAN loop. The recovery look-forward (secs back to the
     // onset baseline − 1) + the oximeter self-gate are preserved on top of the shared set.
     var nadirEvents = detectDesatEvents(spo2, { dropPct: DexKernel.K.ODI_DROP, exitPct: DexKernel.K.ODI_DROP, blArr: blArr }).map(function (e) {
-      var recov = 0;
+      /* §∅ — AN IN-BAND SENTINEL THE FILE ITSELF READS TWO OPPOSITE WAYS. When the look-forward
+         window expires without SpO2 returning to baseline-1, recovery was NOT OBSERVED — but `0`
+         is a legal recovery time, so `meanRecovery` averaged it in as "recovered instantly" (and
+         `nadirRecov` is goodDirection:'down', so that is the FLATTERING direction), while
+         `oxyDesatConf` twenty lines down reads the SAME 0 as "no clean recovery" and withholds its
+         bonus. One value, two contradictory meanings, in one file — which is the argument for the
+         sentinel being the defect rather than its handling. Null is out of band and cannot be read
+         either way by accident. */
+      var recov = null;
       for (var k = e.endIdx; k < Math.min(e.endIdx + 120, n); k++) {
         if (spo2[k] >= e.baseline - 1) {
           recov = k - e.endIdx;
@@ -4240,7 +4248,7 @@
         nadirIdx: e.nadirIdx,
         endIdx: e.endIdx,
         nadir: e.nadir,
-        recoverySlope: recov > 0 ? +((e.baseline - e.nadir) / recov).toFixed(3) : 0
+        recoverySlope: recov != null && recov > 0 ? +((e.baseline - e.nadir) / recov).toFixed(3) : null
       };
     });
     // ── OXIMETER SELF-GATE (Part A): flag optical/mechanical-artifact desats so
@@ -4262,13 +4270,25 @@
     var realEvents = nadirEvents.filter(function (e) {
       return !(/** @type {any} */ (e).artifact);
     });
-    var meanRecovery = realEvents.length
+    /* §∅ — the mean is over the events that RECOVERED, and the count of them is published beside it.
+       Averaging the unobserved ones in as 0 dragged the night toward "recovers instantly"; leaving
+       them null without filtering would have been worse still, because `s + null` coerces to `s`
+       and the divisor would have kept counting them (the same coercion that made a 7-night SpO2
+       window read 83 % in #2941). Reduced coverage ANNOTATES (§∅ 2026-09-17): these are real events
+       whose recovery was not seen, not missing measurements, so the subset mean is meaningful — but
+       only beside its denominator. No event recovered ⇒ null, never 0. */
+    var recoveredSecs = [];
+    for (var _re = 0; _re < realEvents.length; _re++) {
+      var _rv = realEvents[_re].recovery;
+      if (_rv != null && isFinite(_rv)) recoveredSecs.push(_rv);
+    }
+    var meanRecovery = recoveredSecs.length
       ? +(
-          realEvents.reduce(function (s, e) {
-            return s + e.recovery;
-          }, 0) / realEvents.length
+          recoveredSecs.reduce(function (s, v) {
+            return s + v;
+          }, 0) / recoveredSecs.length
         ).toFixed(0)
-      : 0;
+      : null;
     var meanDepth = realEvents.length
       ? +(
           realEvents.reduce(function (s, e) {
@@ -4319,7 +4339,10 @@
       tAucWeighted: tAucWeighted,
       auc90Total: auc90Total,
       auc90Rate: auc90Rate,
-      nadir: { count: realEvents.length, meanDepth: meanDepth, meanDuration: meanDuration, meanRecovery: meanRecovery },
+      /* §∅ — `recoveredCount` is meanRecovery's DENOMINATOR, published beside it: a mean over 2 of
+         11 events is a different statement from a mean over 11, and without the count a reader
+         cannot tell them apart. */
+      nadir: { count: realEvents.length, recoveredCount: recoveredSecs.length, meanDepth: meanDepth, meanDuration: meanDuration, meanRecovery: meanRecovery },
       events: realEvents, // SURVIVING desats only — feeds O2HR efficiency, nadir trend, IEI, recovery-CV, Integrator emit
       eventsAll: nadirEvents, // full set incl. self-gated artifacts (UI shows artifacts struck-through with .reason)
       artifactCount: artifactCount,
