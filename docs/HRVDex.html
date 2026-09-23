@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="6d7378c839d6" data-compute-hash="909db498d480">
+<html lang="en" data-manifest-hash="cfe779c53c99" data-compute-hash="5919dcbf8a8d">
 <head>
 <!--
   HRVDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0sBgsT0FUUGnrESWUupXxRjP+ZNL/bPHjx7y4A2kzYQ=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ipb0GdWaCKvjd/h6uLR78a3da/TQxiDGge8Gzma5I+4=' 'sha256-mhIYIr/bW5ayeQ6ftKGinw9IBDfanHJPWPKd17ySd0A=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0sBgsT0FUUGnrESWUupXxRjP+ZNL/bPHjx7y4A2kzYQ=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y57Wci7rsH2yIS8Q7HgWMIVwQfWAIuh8CvkvAnw04yA=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ipb0GdWaCKvjd/h6uLR78a3da/TQxiDGge8Gzma5I+4=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>HRVDex — Heart Rate Variability Analyzer · v2.14.0</title>
@@ -9635,7 +9635,18 @@ body.light .topbar::after{ opacity:.25; }
       }
       const rmssd7 = window7.map((x) => x._rmssd).filter((v) => !isNaN(v) && v > 0);
       const sdnn7 = window7.map((x) => x._sdnn).filter((v) => !isNaN(v) && v > 0); // Finding 1: symmetric w/ rmssd7 — drop null/≤0 (absent SDNN) so a fabricated 0 never biases meanSDNN7/stdSDNN7
-      const stress7 = window7.map((x) => x._stress).filter((v) => !isNaN(v));
+      /* §∅ — `!isNaN(null)` is TRUE (null coerces to 0), so an ABSENT subjective Stress survived this
+         filter and entered the window as a real 0. The sibling one line below was repaired for
+         exactly this and names the mechanism — "§2 (FOLLOWUPS): drop absent (null), KEEP a real 0 …
+         `!isNaN(null)` was true → a blank pNN50 polluted the slope as 0". `rmssd7`/`sdnn7` above are
+         safe only because `v > 0` happens to exclude null; this one was the sibling that pass did
+         not reach.
+         The visible cost is the all-absent window: `stress7.length` counted seven absent days, so
+         `d_stress_auc` summed them to **0** — "no stress" — for a week carrying no subjective data
+         at all. Every ECGDex/Ganglior-ingested row lacks that column, so this is the COMMON case,
+         not an edge. `Number.isFinite` drops absent and keeps a real 0, which is a legitimate
+         Stress reading. */
+      const stress7 = window7.map((x) => x._stress).filter((v) => Number.isFinite(v));
       const pnn507 = window7.map((x) => x._pnn50).filter((v) => Number.isFinite(v)); // §2 (FOLLOWUPS): drop absent (null), KEEP a real 0 (pNN50=0 is physiological); !isNaN(null) was true → a blank pNN50 polluted the slope as 0
 
       const mean7rmssd = rmssd7.length ? rmssd7.reduce((a, b) => a + b, 0) / rmssd7.length : NaN;
@@ -9665,7 +9676,10 @@ body.light .topbar::after{ opacity:.25; }
       const ac_raw = _win14ac.map((x) => x._stress);
       const ac_pairs = [];
       for (let j = 0; j < ac_raw.length - 1; j++) {
-        if (!isNaN(ac_raw[j]) && !isNaN(ac_raw[j + 1])) ac_pairs.push([ac_raw[j], ac_raw[j + 1]]);
+        /* §∅ — the same coercion in the 14-day autocorrelation: `!isNaN(null)` admitted absent days
+           as 0, so a run of them correlated fabricated zeros against each other. A pair is used
+           only when BOTH days actually carry a reading. */
+        if (Number.isFinite(ac_raw[j]) && Number.isFinite(ac_raw[j + 1])) ac_pairs.push([ac_raw[j], ac_raw[j + 1]]);
       }
       r.d_stress_ac =
         ac_pairs.length > 3

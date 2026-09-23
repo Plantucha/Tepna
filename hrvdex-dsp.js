@@ -876,7 +876,18 @@
       }
       const rmssd7 = window7.map((x) => x._rmssd).filter((v) => !isNaN(v) && v > 0);
       const sdnn7 = window7.map((x) => x._sdnn).filter((v) => !isNaN(v) && v > 0); // Finding 1: symmetric w/ rmssd7 — drop null/≤0 (absent SDNN) so a fabricated 0 never biases meanSDNN7/stdSDNN7
-      const stress7 = window7.map((x) => x._stress).filter((v) => !isNaN(v));
+      /* §∅ — `!isNaN(null)` is TRUE (null coerces to 0), so an ABSENT subjective Stress survived this
+         filter and entered the window as a real 0. The sibling one line below was repaired for
+         exactly this and names the mechanism — "§2 (FOLLOWUPS): drop absent (null), KEEP a real 0 …
+         `!isNaN(null)` was true → a blank pNN50 polluted the slope as 0". `rmssd7`/`sdnn7` above are
+         safe only because `v > 0` happens to exclude null; this one was the sibling that pass did
+         not reach.
+         The visible cost is the all-absent window: `stress7.length` counted seven absent days, so
+         `d_stress_auc` summed them to **0** — "no stress" — for a week carrying no subjective data
+         at all. Every ECGDex/Ganglior-ingested row lacks that column, so this is the COMMON case,
+         not an edge. `Number.isFinite` drops absent and keeps a real 0, which is a legitimate
+         Stress reading. */
+      const stress7 = window7.map((x) => x._stress).filter((v) => Number.isFinite(v));
       const pnn507 = window7.map((x) => x._pnn50).filter((v) => Number.isFinite(v)); // §2 (FOLLOWUPS): drop absent (null), KEEP a real 0 (pNN50=0 is physiological); !isNaN(null) was true → a blank pNN50 polluted the slope as 0
 
       const mean7rmssd = rmssd7.length ? rmssd7.reduce((a, b) => a + b, 0) / rmssd7.length : NaN;
@@ -906,7 +917,10 @@
       const ac_raw = _win14ac.map((x) => x._stress);
       const ac_pairs = [];
       for (let j = 0; j < ac_raw.length - 1; j++) {
-        if (!isNaN(ac_raw[j]) && !isNaN(ac_raw[j + 1])) ac_pairs.push([ac_raw[j], ac_raw[j + 1]]);
+        /* §∅ — the same coercion in the 14-day autocorrelation: `!isNaN(null)` admitted absent days
+           as 0, so a run of them correlated fabricated zeros against each other. A pair is used
+           only when BOTH days actually carry a reading. */
+        if (Number.isFinite(ac_raw[j]) && Number.isFinite(ac_raw[j + 1])) ac_pairs.push([ac_raw[j], ac_raw[j + 1]]);
       }
       r.d_stress_ac =
         ac_pairs.length > 3
