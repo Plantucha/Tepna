@@ -50053,6 +50053,44 @@
      and loads headless — so this is a test-only wiring, NO re-bundle (the OxyDex sibling DOES owe one: its
      exports are blocked by a top-level DOM-touching initProfile()). Pins the ACSM/NHANES VO₂-category
      classifier (calcVo2Cat) + the age-band cut points (getAgeBand). Values observed from the real module. */
+    /* ── §∅ · AN UNSET VO₂ IS NOT A LOW ONE ─────────────────────────────────────────────────────
+       `p.vo2gt` is 0 when no ground truth was entered and none was detected. That 0 is a documented
+       PROTOCOL value from `detOr0` ("else 0 ⇒ node auto"), NOT a measurement, and it is deliberately
+       left alone. What was wrong is the display layer that ranked it: `vo2Percentile` had no unset
+       branch, so 0 fell below the first Cooper point, the interpolation loop never matched, and the
+       tail `: 1` published the 1st percentile — the worst possible fitness ranking, from no data.
+       ⚠️ LIMIT, STATED: `vo2Percentile` is nested inside the DOM-touching `updateProfile`, so it is
+       not reachable headless and is asserted against the SOURCE. Hoisting it is a refactor larger
+       than the fix. The leaked sibling `calcVo2Cat` is exercised directly and shows the class. */
+    group('HRVDex §∅ — an unset VO₂ is refused, not ranked', 'hrvdex-profile · vo2 · in-band-sentinel', function (T) {
+      var R = String((env.sources || {})['hrvdex-profile.js'] || '');
+      var vo2Cat = env.HrvCalcVo2Cat;
+      if (!R) {
+        T.skip('hrvdex-profile.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      T.ok('ANTI-VACUITY · the profile source loaded', R.length > 5000, R.length + ' chars');
+
+      /* THE CLASS, shown on the kernel that IS reachable: calcVo2Cat ranks a 0 just as happily, which
+         is why ITS call site guards with `p.vo2gt > 0 ? … : '(enter VO₂ GT)'`. The percentile's call
+         site had no such guard — same input, same node, one protected and one not. */
+      if (typeof vo2Cat === 'function') {
+        T.ok('a 0 VO₂ still yields a CATEGORY from the raw kernel', typeof vo2Cat(0, 42, 'M') === 'string' && vo2Cat(0, 42, 'M').length > 0, JSON.stringify(vo2Cat(0, 42, 'M')));
+        T.ok('…which is why its call site guards on `p.vo2gt > 0`', /p\.vo2gt > 0 \? calcVo2Cat/.test(R));
+      }
+
+      /* THE FIX, against the source. */
+      T.ok('vo2Percentile refuses an unset value before binning', /if \(!\(vo2 > 0\) \|\| !isFinite\(vo2\)\) return null;/.test(R));
+      T.ok('the absolute refuses too, rather than printing 0.00 L/min', /p\.vo2gt > 0 \? \(\(p\.vo2gt \* p\.weight\) \/ 1000\)/.test(R));
+      T.ok('…and the percentile display carries the refusal through', /vo2Perc != null \? '~' \+ vo2Perc \+ 'th' : '—'/.test(R));
+      T.ok("no unguarded `vo2_abs + ' L/min'` survives", !/vo2_abs \+ ' L\/min'/.test(R));
+
+      /* WHY THE OLD TAIL RANKED IT, as arithmetic: 0 is below every Cooper entry point, so the
+         interpolation never matched and the function fell through to its floor. */
+      T.eq('…because 0 is below the lowest male 40-49 cut point (26)', 0 >= 26, false);
+      T.eq('…so the loop never matched and the tail returned the 1st percentile', 0 >= 40 ? 99 : 1, 1);
+    });
+
     group('HRVDex profile personalization — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b)', 'hrvdex-profile · profile · known-answer', function (T) {
       var vo2Cat = env.HrvCalcVo2Cat,
         ageBand = env.HrvGetAgeBand;
