@@ -193,7 +193,15 @@
   // three ECGDex surfaces (KPI tile, full-metrics row, profile lbl_ecgAge annotation) are deleted.
   // Do not reinstate.
   // HRV score — Welltory-calibrated, linear in rMSSD (family-consistent)
+  /* CALIBRATED RANGE, and a REFUSAL outside it (§∅ one layer up: a score computable from broken input
+     carries no information). The linear map saturates at 100 for rm ≥ 75.9 ms, so every input above
+     that reads "Primed" — including 10,608.5 ms, which is what it read on 2026-09-21 when the epoch
+     median carried 176 gap-straddling intervals (fixed in ecgdex-dsp epochEngine). Nothing sinus rhythm
+     produces exceeds HRV_SCORE_RMSSD_MAX; past it the input is artifact, or an arrhythmia this map was
+     never fitted to, and the honest score is none. A refusal bound, not a clamp (§🔒 §7's rule). */
+  var HRV_SCORE_RMSSD_MAX = 250;
   function hrvScore(rm) {
+    if (!Number.isFinite(rm) || rm <= 0 || rm > HRV_SCORE_RMSSD_MAX) return null;
     return Math.round(Math.max(0, Math.min(100, 1.494 * rm - 13.37)));
   }
   // age-expected rMSSD (ms) — declines ~with age (Umetani 1998 / Nunan 2010 trend)
@@ -293,7 +301,10 @@
     const score = r.hrvScore,
       p = r.profile;
     let color, tier;
-    if (score >= 55) {
+    if (score == null) {
+      color = 'warn';
+      tier = 'Not scored · rMSSD outside the calibrated range (0–' + HRV_SCORE_RMSSD_MAX + ' ms)';
+    } else if (score >= 55) {
       color = 'good';
       tier = 'Primed · strong autonomic reserve';
     } else if (score >= 45) {
@@ -365,7 +376,7 @@
       qualBadge +
       `<div class="readiness-hero-label">ANS Readiness</div>` +
       `<div class="readiness-date-badge">${r.source === 'synthetic' ? 'synthetic' : 'recorded'} · ${r.durMin >= 90 ? (r.durSec / 3600).toFixed(1) + ' h overnight' : r.durMin + ' min'}</div>` +
-      `<div class="readiness-score" style="color:${css}">${score}</div>` +
+      `<div class="readiness-score" style="color:${css}">${score == null ? '—' : score}</div>` +
       `<div class="readiness-tier">${tier}</div>` +
       (subsHtml ? `<div class="readiness-scores-grid">${subsHtml}</div>` : '') +
       `<div class="readiness-note">${ageNote}</div>` +
@@ -557,6 +568,6 @@
     }
   }
 
-  global.ECGProfile = { init, render, hide, getProfile, personalize, renderHero, onInput, toggle, applyNorms };
+  global.ECGProfile = { init, render, hide, getProfile, personalize, renderHero, onInput, toggle, applyNorms, hrvScore };
   Object.assign(global, { ecgProfileInput: onInput, ecgProfileToggle: toggle, ecgApplyNorms: applyNorms });
 })(window);

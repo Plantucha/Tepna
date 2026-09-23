@@ -5,11 +5,11 @@
   },
   "schema": {
     "name": "ganglior.node-export",
-    "version": "2.0",
+    "version": "2.1",
     "node": "PpgDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-16T09:20:05.504Z",
+    "generated": "2026-09-22T22:38:11.553Z",
     "provenance": null,
     "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -44,7 +44,64 @@
         "candidates": null,
         "optimalTauSec": 9286.259861221833,
         "atLongestPpm": 27.29832473480732,
-        "ppmUncertainty": 27.29832473480732
+        "ppmUncertainty": 27.29832473480732,
+        "curve": [
+          {
+            "tauSec": 9.068613145724447,
+            "adevPpm": 24727.298122423883,
+            "n": 2572
+          },
+          {
+            "tauSec": 18.137226291448894,
+            "adevPpm": 12418.749319920818,
+            "n": 2570
+          },
+          {
+            "tauSec": 36.27445258289779,
+            "adevPpm": 6470.269921291748,
+            "n": 2566
+          },
+          {
+            "tauSec": 72.54890516579557,
+            "adevPpm": 3161.2272732559077,
+            "n": 2558
+          },
+          {
+            "tauSec": 145.09781033159115,
+            "adevPpm": 1617.2479546388001,
+            "n": 2542
+          },
+          {
+            "tauSec": 290.1956206631823,
+            "adevPpm": 801.7779108426396,
+            "n": 2510
+          },
+          {
+            "tauSec": 580.3912413263646,
+            "adevPpm": 409.3213458265136,
+            "n": 2446
+          },
+          {
+            "tauSec": 1160.7824826527292,
+            "adevPpm": 199.07140794664605,
+            "n": 2318
+          },
+          {
+            "tauSec": 2321.5649653054584,
+            "adevPpm": 101.80359698021036,
+            "n": 2062
+          },
+          {
+            "tauSec": 4643.129930610917,
+            "adevPpm": 51.2873092408369,
+            "n": 1550
+          },
+          {
+            "tauSec": 9286.259861221833,
+            "adevPpm": 27.29832473480732,
+            "n": 526
+          }
+        ]
       }
     }
   },
@@ -693,6 +750,66 @@
   "reserved": {
     "doc": "Awaiting other fleet nodes; null until available."
   },
+  "measurement": {
+    "hr": {
+      "metricId": "hr",
+      "value": 52,
+      "window": {
+        "startTMs": 1789510129446,
+        "endTMs": 1789533467537,
+        "clockDomain": "device",
+        "timingSource": "device+host",
+        "spreadMs": 3082.1299749985337
+      },
+      "sourceChannel": "Verity:ppg",
+      "code": null,
+      "evidence": {
+        "envelopeRef": null,
+        "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
+        "inputHash": null,
+        "inputReason": "contentId unavailable (SignalFrame not co-loaded, or no NN train)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 20086,
+        "durationMin": 388.9,
+        "analyzablePct": 99,
+        "coveragePct": 99
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the device-PPI cross-check in `validation` is a comparison, not an interval)",
+      "codeReason": "no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle’s"
+    },
+    "rmssd": {
+      "metricId": "rmssd",
+      "value": 36.9,
+      "window": {
+        "startTMs": 1789510129446,
+        "endTMs": 1789533467537,
+        "clockDomain": "device",
+        "timingSource": "device+host",
+        "spreadMs": 3082.1299749985337
+      },
+      "sourceChannel": "Verity:ppg",
+      "code": null,
+      "evidence": {
+        "envelopeRef": null,
+        "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
+        "inputHash": null,
+        "inputReason": "contentId unavailable (SignalFrame not co-loaded, or no NN train)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 20086,
+        "durationMin": 388.9,
+        "analyzablePct": 99,
+        "coveragePct": 99
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the device-PPI cross-check in `validation` is a comparison, not an interval)",
+      "codeReason": "no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle’s"
+    }
+  },
   "validation": {
     "source": "channel-tch",
     "channelStability": {
@@ -738,19 +855,25 @@
         "channel": 0,
         "rail": null,
         "spans": 0,
-        "samplesUnmeasured": 0
+        "samplesUnmeasured": 0,
+        "samplesAbsent": 0,
+        "samplesSaturated": 0
       },
       {
         "channel": 1,
         "rail": null,
         "spans": 0,
-        "samplesUnmeasured": 0
+        "samplesUnmeasured": 0,
+        "samplesAbsent": 0,
+        "samplesSaturated": 0
       },
       {
         "channel": 2,
         "rail": null,
         "spans": 0,
-        "samplesUnmeasured": 0
+        "samplesUnmeasured": 0,
+        "samplesAbsent": 0,
+        "samplesSaturated": 0
       }
     ],
     "timingSource": "device+host",

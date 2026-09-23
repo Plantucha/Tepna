@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="3603a936bd1e" data-compute-hash="dc931e016331"><head>
+<html lang="en" data-manifest-hash="1f5ebd5e7f7c" data-compute-hash="2fcb2ea4a1da"><head>
 <!--
   OverDex.html — Tepna
   Copyright 2026 Michal Planicka
@@ -20,7 +20,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+XTrnryA88ZZB664WebTYrkdG57dUOaumGtqYQcVcEE=' 'sha256-+wwK4R0C4NW2fgchPCvkcaYqquEx4zvjELT5rJruVYs=' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4R3kehgFdc/KaWun6609qOe4U/p9ClI7Hjdgb9Da4YQ=' 'sha256-4xITUsBFYVOe0y9N/Voac0yCqAXaYfwByaSGx3qy9Jg=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LrqAcX6EYrn1FDGC8701ZGVNduowoV0XozhXnBk2ai8=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ=' 'sha256-x19UVHYXG6QSm4M04+v3Wf04skFnA8PuhCpFrXkYH/Q='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+XTrnryA88ZZB664WebTYrkdG57dUOaumGtqYQcVcEE=' 'sha256-+wwK4R0C4NW2fgchPCvkcaYqquEx4zvjELT5rJruVYs=' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-4R3kehgFdc/KaWun6609qOe4U/p9ClI7Hjdgb9Da4YQ=' 'sha256-4xITUsBFYVOe0y9N/Voac0yCqAXaYfwByaSGx3qy9Jg=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-9WaCrDz3f0KubHoR9bMqd5Cv56Yw5D/QDtwKL/1glyU=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-F9TXJSy0mHcn0TwCkSS6qnHqvXSPokwzh7hnOgJWTiY=' 'sha256-FmQG5rH/4/Ng1cQg1DRo/+6Xk1rX2bKZ4DfwcE1kPek=' 'sha256-Gq5uHKNqFD7tp5tAgSTi/HUHT+PwG8ZBv1UmoPBgpjs=' 'sha256-GxKS1kDdGS9ahv8SnzOBcd7Jp7r6MuvRZajqVM3eZIc=' 'sha256-HOjuVhWw+/T57QChwIU3inJ7Ur59TKGIn4/PIWEvRJQ=' 'sha256-ImXhwPIaDzYWwBLhYV5EP9qZSwmnbfkURTE4m6HTvqU=' 'sha256-JyKq7QvJtL+FntNZ3/NJ50KcddG6Yh8mjdhcpNOFJRg=' 'sha256-LrqAcX6EYrn1FDGC8701ZGVNduowoV0XozhXnBk2ai8=' 'sha256-OVOjZQ/xowZZ3Gl+FGInIqYzTXHb0KQNZxz5L1t5Cxw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UME8VYhb3EL93FBUhAxmE9XnGv0E3R3oBybqyYIaWA0=' 'sha256-W139voYeNGnN7nPG2XWX3y7ommipOg01nEFUMeuFPl4=' 'sha256-W37P8aKsg0L2neAX6kMjNtmJ7Qp3/MwWE7U36NYeKJw=' 'sha256-X7slrDpgX5Esbtr3HuxhWugLi1NKTWDvb+K060kXk9U=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-cemiQMQwTXR+318vY1wXwQgOyMRh2KLdUGfPVh4TQjE=' 'sha256-dzp8+s1D1nkRowH2/KbOGLb8RXC4IVXvSMboDSApNGI=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-i9ISEGEbjWKDIab8VNLnqZSq/hpEbuetNpvE0NKg1wU=' 'sha256-iCSf3K1IJj6tjJ3e1DyHUh2VMdhQ3N5rVXRLZkc+prA=' 'sha256-kJb5WAa9Nr/xBtnxGvM6n2wYR6Ml0iNAe0wqEDTev1g=' 'sha256-kvcQ1yIoyy5ZuCoSj6NtF6Q0JRokRO4UQB5Wen6ij3E=' 'sha256-oVmY59CU4vRX4sd1kQGqtiKO30UP60Z1ASwiib+Y+pE=' 'sha256-pfVw3qdxSOcEevkQphMQYFJq+Yl2gOC9Z9dQ6/1X4F0=' 'sha256-q5GJLlDxZx1ls779jIdfHXfaehbeTpAda+57VLFGp1w=' 'sha256-wyF7HHlHA9cxaHiltiGWQbcxsu9Ab7IiY4qcFzLo2CQ='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OverDex — one-drop folder → fused result</title>
 <style data-inline-src="inline:style:0">
@@ -34064,25 +34064,63 @@ __exports.PpgDex = window.PpgDex;
   // ════════════════════════════════════════════════════════════════════════
   //  5-MIN EPOCH ENGINE — window the NN series; per-epoch short-term suite.
   // ════════════════════════════════════════════════════════════════════════
-  function epochEngine(nn, tt, winSec, sqiPerBeat) {
+  /* §∅ — THE EPOCH IS NOT EXEMPT. `spansGap` is the kept-frame mask analyze() builds (1 where interval i
+     straddles a dropout or a filtered-out beat); `seamSec` the beat-axis positions of device-clock
+     resyncs; `refusedOut` receives the windows this engine declines to score. The whole-record
+     statistics honoured that mask since the §∅ block in analyze(); this engine sliced the SAME `nn`
+     without it, so an epoch containing a dropout carried the dropout as an RR interval. Measured on the
+     owner's 2026-09-21 H10 night — 177 reconnects in 68 epochs: whole-record rMSSD 28.1 ms (masked),
+     per-epoch median 10,608.5 ms (unmasked), and it is the median that is DISPLAYED and SCORED. The
+     score read it as "Primed · strong autonomic reserve". Same defect two consumers along, and the
+     fixture corpus could not see it: its nights carry ≤5 dropouts, so the median epoch was clean.
+
+     Owner ruling 2026-09-17 (CLAUDE.md §∅): a DISCONTINUITY refuses, reduced COVERAGE annotates.
+       · dropout inside the window  ⇒ the straddling interval leaves every statistic (rMSSD/pNN50 via
+         the pair mask, mean/SDNN/spectrum via the kept set) and the epoch says `gaps: <n>`.
+       · clock seam inside the window ⇒ the window does not describe ONE stretch of signal: refused,
+         `reason: 'clock-seam'`, the epoch is absent from the series and present in `refusedOut`.
+       · fewer than 20 scorable beats  ⇒ refused, `reason: 'too-few-beats'` (was a silent skip).
+     A window with no beats at all is a dropout hole, already counted in gapSec, and stays silent. */
+  function epochEngine(nn, tt, winSec, sqiPerBeat, spansGap, seamSec, refusedOut) {
     winSec = winSec || 300;
     const N = nn.length,
       tEnd = tt[N - 1];
     const epochs = [];
+    const _seams = Array.isArray(seamSec) ? seamSec.filter((v) => Number.isFinite(v)) : [];
     let i = 0;
     for (let w0 = 0; w0 <= tEnd; w0 += winSec) {
       const w1 = w0 + winSec,
         seg = [],
         segT = [],
-        segQ = [];
+        segQ = [],
+        /* pair mask in the KEPT frame: 1 on the first survivor after a removed interval, so the
+           difference (previous survivor, this) — which spans the absence — is not a successive
+           difference. Same widening rule as analyze()'s `_gapPair`. */
+        segSkip = [];
+      let nAll = 0,
+        gaps = 0,
+        dropped = false;
       while (i < N && tt[i] < w1) {
+        nAll++;
+        if (spansGap && spansGap[i]) {
+          gaps++;
+          dropped = true;
+          i++;
+          continue;
+        }
         seg.push(nn[i]);
         segT.push(tt[i]);
+        segSkip.push(dropped ? 1 : 0);
+        dropped = false;
         if (sqiPerBeat && Number.isFinite(sqiPerBeat[i])) segQ.push(sqiPerBeat[i]);
         i++;
       }
-      // back up i so windows that share a boundary still see beats (non-overlap, simple advance is fine)
-      if (seg.length >= 20) {
+      const seamHere = _seams.some((v) => v >= w0 && v < w1);
+      if (seamHere || seg.length < 20) {
+        if (refusedOut && nAll > 0) refusedOut.push({ tMin: +(w0 / 60).toFixed(1), n: nAll, reason: seamHere ? 'clock-seam' : 'too-few-beats' });
+        continue;
+      }
+      {
         const m = mean(seg);
         const ls = lombScargle(seg, segT, 160);
         epochs.push({
@@ -34106,11 +34144,11 @@ __exports.PpgDex = window.PpgDex;
              `rate-of-mean` = 60000 / mean(RR); the alternatives are `median-rate` and `mean-rate`. */
           hrStat: 'rate-of-mean',
           meanRR: +m.toFixed(1),
-          rmssd: +rmssd(seg).toFixed(1),
+          rmssd: +rmssd(seg, segSkip).toFixed(1),
           sdnn: +std(seg).toFixed(1),
           // vlf/tp carried too (DEEP-AUDIT §10): the exported spectrum is the 5-min epoch median, and it
           // must report ALL FOUR bands on that one scale — see the spec block in analyze().
-          pnn: +pnn50(seg).toFixed(1),
+          pnn: +pnn50(seg, segSkip).toFixed(1),
           lf: ls.lf,
           hf: ls.hf,
           vlf: ls.vlf,
@@ -34118,6 +34156,8 @@ __exports.PpgDex = window.PpgDex;
           lfhf: ls.lfhf,
           resp: ls.respRate
         });
+        // present only when drawn (the `anchorsDroppedPreResync` discipline): a clean epoch keeps its bytes
+        if (gaps) Object.assign(epochs[epochs.length - 1], { gaps });
       }
     }
     return epochs;
@@ -35170,7 +35210,10 @@ __exports.PpgDex = window.PpgDex;
          PpgDex for a fortnight (#2333 → the kept-frame fix). Rebuilt here in the kept frame instead:
          a pair is a non-measurement if it straddled a gap OR if the filter removed a beat between its
          endpoints, since the survivors are then adjacent in the array and not in time. */
-      nnSpansGap = [];
+      nnSpansGap = [],
+      /* sample index of each KEPT beat, same frame — the only way to place a clock seam (a SAMPLE
+         index, `rec.clockResyncs[].idx`) on the beat axis after the filter has thinned it. */
+      nnPeak = [];
     let _lastKept = -1;
     let artifactSec = 0,
       _pSec = null;
@@ -35182,6 +35225,7 @@ __exports.PpgDex = window.PpgDex;
         tt.push(nnRes.tt[i]);
         nnCorr.push(nnRes.corrected[i] ? 1 : 0);
         nnSqi.push(Number.isFinite(sqi[i]) ? sqi[i] : null);
+        nnPeak.push(peaks[i]);
         nnConf.push(Number.isFinite(c) ? +c.toFixed(3) : 1);
         // straddled a dropout in the source frame, OR the filter dropped a beat between this one and
         // the previous survivor (first survivor has no predecessor, so its pair is vacuous)
@@ -35233,7 +35277,17 @@ __exports.PpgDex = window.PpgDex;
     const lowCoverage = nnRes.coveragePct != null && nnRes.coveragePct < 80;
 
     prog(72, '5-min epoch engine…');
-    const epochs = epochEngine(nn, tt, 300, nnSqi);
+    /* A clock seam on the beat axis: the first kept beat at or after the resync's sample index. §7
+       "ONE DEVICE CLOCK PER AXIS" re-anchors the axis across it, which makes the axis continuous —
+       not the same clock; the epoch containing it is refused, not annotated (see epochEngine). */
+    const _seamSec = [];
+    for (const c of rec.clockResyncs || []) {
+      let k = 0;
+      while (k < N && nnPeak[k] < c.idx) k++;
+      if (k < N) _seamSec.push(tt[k]);
+    }
+    const epochsRefused = [];
+    const epochs = epochEngine(nn, tt, 300, nnSqi, nnSpansGap, _seamSec, epochsRefused);
 
     // representative window for advanced metrics (epoch with rmssd closest to median)
     let repSeg = nn,
@@ -35258,6 +35312,7 @@ __exports.PpgDex = window.PpgDex;
         seg = [],
         segT = [];
       for (let i = 0; i < N; i++) {
+        if (nnSpansGap[i]) continue; // §∅ — not an RR interval (see epochEngine)
         if (tt[i] >= w0 && tt[i] < w1) {
           seg.push(nn[i]);
           segT.push(tt[i]);
@@ -35360,7 +35415,7 @@ __exports.PpgDex = window.PpgDex;
     // Poincaré — geometric SD1/SD2 from the exact array that gets plotted.
     // Overnight: use the representative 5-min window (standard short-term Poincaré, norms apply);
     // shorter records: use the whole NN series. Guarantees ellipse == cloud.
-    const poincareNN = longRec && repSeg.length >= 20 ? repSeg : nn;
+    const poincareNN = longRec && repSeg.length >= 20 ? repSeg : _rrOnly; // §∅ — `_rrOnly`, never the gap-carrying `nn`
     const pg = poincareGeo(poincareNN);
     /* `.toFixed` on a refusal would throw, and `+null` would silently become 0 — the fabrication
        re-entering one line after the guard that removed it. Carry the null through. */
@@ -35604,6 +35659,7 @@ __exports.PpgDex = window.PpgDex;
       lnrmssd: +Math.log(longRec ? dispRm : rm).toFixed(3),
       // epochs + sleep + cvhr + events
       epochs,
+      epochsRefused,
       stages,
       stageMin,
       totSleep: +totSleep.toFixed(0),
@@ -36999,6 +37055,7 @@ __exports.PpgDex = window.PpgDex;
     /* Exported so their refusal guards are directly assertable. Additive only — no existing caller
        reaches them through this surface, and the internal call sites are unchanged. */
     poincareGeo,
+    epochEngine, // §∅ epoch gap-exclusion + seam refusal, gated directly
     detectCVHR,
     cardiorespCoupling,
     dfaAlpha1,
@@ -38463,6 +38520,14 @@ __exports.PpgDex = window.PpgDex;
            past the seam (a resync inside the last 500 rows). */
         if (c.hostOffsetMs != null) rs.hostOffsetMs = c.hostOffsetMs;
         return rs;
+      });
+    /* §∅ — 5-min windows the epoch engine REFUSED to score (a clock seam inside the window, or too
+       few scorable beats). Attached only when one exists, same no-null-key discipline, so clean
+       fixtures keep today's bytes. A consumer counting `timeseries.epochs` against the span now has
+       the holes named rather than inferred. */
+    if (Array.isArray(r.epochsRefused) && r.epochsRefused.length)
+      out.recording.epochsRefused = r.epochsRefused.map(function (e) {
+        return { tMin: e.tMin, n: e.n, reason: e.reason };
       });
     if (r.deviceRR && r.deviceRR.length) {
       /* AN OUTPUT COMPUTED OVER ABSENT INPUT REPORTS THE ABSENCE (§∅). The self train handed to the

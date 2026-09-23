@@ -41,7 +41,7 @@ import * as _nodeFs from 'node:fs';
 import * as _nodeOs from 'node:os';
 import * as _nodePath from 'node:path';
 import * as _wtDone from '../tools/wt-done.mjs';
-import { walkRepoPaths, walkRepoPathsAll } from './docs-ledger-fs.mjs';
+import { rootTrackedFiles, walkRepoPaths, walkRepoPathsAll } from './docs-ledger-fs.mjs';
 import { planShards, partitionViolations, readTimings } from './shard-plan.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1945,7 +1945,10 @@ function readDocsLedger() {
   const crossSpec = existsSync(csP) ? readFileSync(csP, 'utf8') : '';
   const longP = join(ROOT, 'integrator-longitudinal.js');
   const longHeader = existsSync(longP) ? readFileSync(longP, 'utf8').slice(0, 1600) : '';
-  return { briefs, indexText, rootBriefNames, fsBriefNames, fsPaths, fsPathsAll, rootDocs, crossSpec, longHeader };
+  /* The root's tracked file names — the population for the root-set check. null when git is
+     unreadable, which the check SKIPs on rather than reading as a clean root. */
+  const rootFiles = rootTrackedFiles(ROOT);
+  return { briefs, indexText, rootBriefNames, fsBriefNames, fsPaths, fsPathsAll, rootDocs, rootFiles, crossSpec, longHeader };
 }
 
 // release-ledger gate (CONTROLLED-RELEASES-2026-07-05): controlled releases machine-checked. Node-lane

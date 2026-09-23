@@ -5,11 +5,11 @@
   },
   "schema": {
     "name": "ganglior.node-export",
-    "version": "2.0",
+    "version": "2.1",
     "node": "PpgDex",
     "nodeVersion": "1.0",
     "bus": "ganglior",
-    "generated": "2026-09-16T09:20:17.801Z",
+    "generated": "2026-09-22T22:38:25.297Z",
     "provenance": null,
     "doc": "PpgDex PPG-derived events → Ganglior bus. t/tMs = floating wall-clock ms (UTC getters). null = unknown, never fabricated.",
     "scrubbed": true
@@ -350,13 +350,73 @@
   "reserved": {
     "doc": "Awaiting other fleet nodes; null until available."
   },
+  "measurement": {
+    "hr": {
+      "metricId": "hr",
+      "value": 51,
+      "window": {
+        "startTMs": 1789510296166,
+        "endTMs": 1789533478633,
+        "clockDomain": "device",
+        "timingSource": "host",
+        "spreadMs": 38873.81399900094
+      },
+      "sourceChannel": "O2Ring:ppg",
+      "code": null,
+      "evidence": {
+        "envelopeRef": null,
+        "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
+        "inputHash": null,
+        "inputReason": "contentId unavailable (SignalFrame not co-loaded, or no NN train)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 19793,
+        "durationMin": 385.5,
+        "analyzablePct": 99,
+        "coveragePct": 99
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the device-PPI cross-check in `validation` is a comparison, not an interval)",
+      "codeReason": "no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle’s"
+    },
+    "rmssd": {
+      "metricId": "rmssd",
+      "value": 42.7,
+      "window": {
+        "startTMs": 1789510296166,
+        "endTMs": 1789533478633,
+        "clockDomain": "device",
+        "timingSource": "host",
+        "spreadMs": 38873.81399900094
+      },
+      "sourceChannel": "O2Ring:ppg",
+      "code": null,
+      "evidence": {
+        "envelopeRef": null,
+        "envelopeReason": "no acquisition envelope joins the PPG path — the capture-host envelope keys on the O2Ring .dat session_id; PpgDex reads the _PPG.txt stream",
+        "inputHash": null,
+        "inputReason": "contentId unavailable (SignalFrame not co-loaded, or no NN train)"
+      },
+      "basis": "derived",
+      "quality": {
+        "n": 19793,
+        "durationMin": 385.5,
+        "analyzablePct": 99,
+        "coveragePct": 99
+      },
+      "uncertainty": null,
+      "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-record HRV summaries (the device-PPI cross-check in `validation` is a comparison, not an interval)",
+      "codeReason": "no bundle identity passed (headless source-module run) — the app reads <html data-manifest-hash/data-compute-hash> and passes opts.code; the regen tool passes the shipped bundle’s"
+    }
+  },
   "validation": {
     "source": "o2ring-marker",
-    "beatsCompared": 19426,
+    "beatsCompared": 19456,
     "nDevice": 19004,
     "dMeanPct": 0.18,
     "dRMSSDPct": 12.2,
-    "dSDNNPct": 8.9,
+    "dSDNNPct": 9.4,
     "devEctopyCorrected": 221,
     "devRawRMSSD": 85.7,
     "deviceAgreementPct": 99.8,
@@ -375,6 +435,78 @@
       "atLongestPpm": 4.135034550553368,
       "tauMaxSec": 9857,
       "optimalTauSec": 9857,
+      "curve": [
+        {
+          "tauSec": 1.2,
+          "adevPpm": 29718.9130982738,
+          "n": 19227
+        },
+        {
+          "tauSec": 2.41,
+          "adevPpm": 15272.815859300938,
+          "n": 19225
+        },
+        {
+          "tauSec": 4.81,
+          "adevPpm": 7763.236153777449,
+          "n": 19221
+        },
+        {
+          "tauSec": 9.63,
+          "adevPpm": 4002.650492534282,
+          "n": 19213
+        },
+        {
+          "tauSec": 19.25,
+          "adevPpm": 2076.6669043864285,
+          "n": 19197
+        },
+        {
+          "tauSec": 38.5,
+          "adevPpm": 1045.5692222700511,
+          "n": 19165
+        },
+        {
+          "tauSec": 77,
+          "adevPpm": 524.6604938582973,
+          "n": 19101
+        },
+        {
+          "tauSec": 154.01,
+          "adevPpm": 262.89337094965094,
+          "n": 18973
+        },
+        {
+          "tauSec": 308.02,
+          "adevPpm": 129.91622779986287,
+          "n": 18717
+        },
+        {
+          "tauSec": 616.03,
+          "adevPpm": 64.66318156502402,
+          "n": 18205
+        },
+        {
+          "tauSec": 1232.07,
+          "adevPpm": 31.92426773224063,
+          "n": 17181
+        },
+        {
+          "tauSec": 2464.14,
+          "adevPpm": 17.098081873442716,
+          "n": 15133
+        },
+        {
+          "tauSec": 4928.27,
+          "adevPpm": 8.48265050007511,
+          "n": 11037
+        },
+        {
+          "tauSec": 9856.55,
+          "adevPpm": 4.135034550553368,
+          "n": 2845
+        }
+      ],
       "knownLimitation": "noise is null when a category boundary (±0.75, ±0.25) lies within 1.96·slopeSE — `candidates` then names what the fit cannot separate. slope is unrounded; the SE is a LOWER bound (overlapping ADEV points are correlated), so branch on slope when noise is null"
     },
     "note": "self-PPI vs firmware PPI; both sides artifact-corrected. Validation lane only — PPI is never handed to PulseDex"
@@ -398,7 +530,9 @@
           "hi": 199
         },
         "spans": 119,
-        "samplesUnmeasured": 3637
+        "samplesUnmeasured": 3637,
+        "samplesAbsent": 1844,
+        "samplesSaturated": 1793
       }
     ],
     "timingSource": "host",

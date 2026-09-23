@@ -55,6 +55,14 @@ expect() { # expect <want> <label> <command>
   if [ "$got" = "$1" ]; then printf '  ok    %-58s %s\n' "$2" "$got"
   else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi
 }
+run_from() { # run_from <cwd> <command> ; like run, but with the hook's cwd set explicitly
+  ( cd "$1" && jq -nc --arg c "$2" '{tool_input:{command:$c}}' | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW )
+}
+expect_from() { # expect_from <cwd> <want> <label> <command>
+  local got; got="$(run_from "$1" "$4")"
+  if [ "$got" = "$2" ]; then printf '  ok    %-58s %s\n' "$3" "$got"
+  else printf '  FAIL  %-58s got %s, want %s\n' "$3" "$got" "$2"; fail=$((fail+1)); fi
+}
 
 echo "guard-ruff.sh"
 
@@ -90,6 +98,24 @@ expect ALLOW "git commit-tree is a different command"            'git commit-tre
 # "improvement" to either matcher has to change this line deliberately.
 expect DENY  "…including a string that merely mentions committing (over-trigger, safe)" 'echo git commit'
 expect DENY  "…and a commit later in a compound command"         'npm test && git commit -m x'
+
+# ── THE TREE IS THE COMMAND'S, NOT THE HOOK'S — driven from OUTSIDE the repo ──────
+# Same defect guard-format.sh had, same measurement (2026-09-22): the repo was resolved
+# from the hook's cwd (the session root), so `cd <wt> && git commit` was examined against
+# the root's index and allowed. W2 holds only a CLEAN staged file, so each pair differs
+# in the TREE alone. dirty.py is still staged in W at this point.
+W2="$TMP/w2"; mkdir -p "$W2/capture-host/.venv/bin"
+( cd "$W2" && git init -q . && git config user.email t@t && git config user.name t \
+  && ln -s "$RUFF" capture-host/.venv/bin/ruff \
+  && printf 'import os\n\n\ndef f():\n    return os.sep\n' > capture-host/tidy.py \
+  && git add capture-host/tidy.py ) >/dev/null 2>&1
+expect_from "$TMP" DENY  "cd <dirty repo> && git commit — cwd OUTSIDE any repo"  "cd $W && git commit -m x"
+expect_from "$TMP" ALLOW "cd <clean repo> && git commit — same cwd"             "cd $W2 && git commit -m x"
+expect_from "$TMP" DENY  "git -C <dirty repo> commit — cwd OUTSIDE"              "git -C $W commit -m x"
+expect_from "$W2"  DENY  "git -C <dirty repo> commit — cwd inside the CLEAN repo" "git -C $W commit -m x"
+expect_from "$W2"  ALLOW "…and the clean repo's own plain commit stays clean"    "git commit -m x"
+expect_from "$W"   DENY  "anti-vacuity: cwd IS the dirty repo, no cd, no -C"     "git commit -m x"
+expect_from "$TMP" ALLOW "RESIDUAL: no cd, no -C, cwd outside ⇒ nothing to examine" "git commit -m x"
 
 # ── escape hatch, and the fail-open cases ─────────────────────────────────────────
 got="$(jq -nc --arg c 'git commit -m wip' '{tool_input:{command:$c}}' | CLAUDE_ALLOW_UNFORMATTED=1 bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW)"
