@@ -67,6 +67,27 @@
  *   node tools/probe-equivalence.mjs --file ppgdex-dsp.js --sweep /tmp/sweep.json
  *   node tools/probe-equivalence.mjs --file ppgdex-dsp.js --sweep /tmp/sweep.json --emit
  *   node tools/probe-equivalence.mjs --selftest        # known-answer; runs no sweep, writes nothing
+ *   node tools/probe-equivalence.mjs --verdict-sample  # the emitted object, no sweep, no realms
+ *
+ * ── THE VERDICT (VERDICT-CONTRACT adoption, 2026-09-22) ───────────────────────────────────────────
+ * Keyed on the CONTROLS, not the survivors — the survivors are what this tool exists to adjudicate,
+ * so scoring one would convict the `if (lo < 0) lo = 0` -> `<=` case above, which is correct code.
+ * The criterion is RULE 1 made machine-readable: every declared family's battery must be PROVEN to
+ * reach its function by separating the same-function mutants a test already killed.
+ *   PASS           every evaluated family separated all its controls.
+ *   FAIL           >=1 family is BLIND — a control a test killed read as equivalent, so that family's
+ *                  verdicts are void. It convicts the BATTERY, never the subject file.
+ *   UNDERPOWERED   no family could be evaluated at all (all skipped / degenerate / uncontrolled).
+ *   NOT_RUN        the baseline realm did not build; nothing was examined.
+ * Population is in FAMILIES: checked = families whose controls RAN (clean or blind — both were
+ * evaluated) · excluded = families withheld before that point, each counted BY REASON in `result`.
+ *
+ * ⚠️ A CONTROL WHOSE REALM FAILS TO LOAD USED TO VANISH IN THE PARTIAL CASE. `if (r.err) continue;`
+ * skipped it before `ctlRan` counted it, and the only guard was the all-or-nothing `if (!ctlRan)`.
+ * So 12 sampled controls of which 8 failed to load printed `controls: 4/4 killed mutants separated`
+ * — no mention that two thirds of the reach evidence never ran. (The sibling
+ * `probe-clock-equivalence.mjs` had the same line with NO floor at all; residue
+ * `2026-09-22-probe-control-realm-failures-vanished`.) Now counted, printed and carried.
  *
  * --emit writes `no-distinguishing-input` entries into tools/mutate-equivalence.json, keyed
  * `(line, op, before)` exactly as `classifySurvivors` reads them. It NEVER writes a DISTINGUISHABLE
@@ -82,6 +103,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { gitShort, makeVerdict } from './verdict-emit.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -347,6 +369,86 @@ export function newEntries(existing, emit) {
 }
 
 // ── selftest ────────────────────────────────────────────────────────────────────────────────
+/* ── THE VERDICT, PURE ─────────────────────────────────────────────────────────────────────────
+   `families` is one `{ name, outcome }` per DECLARED family. `outcome` is the reason it ended:
+   'clean' | 'blind' (both EVALUATED — the controls ran) or one of the withheld reasons
+   'fn-not-found' | 'baseline-threw' | 'probe-not-array' | 'degenerate-battery' | 'no-controls' |
+   'no-control-ran' (excluded — the criterion never bound). */
+export const EVALUATED = new Set(['clean', 'blind']);
+
+export function probeEquivalenceVerdict({ file, families = [], controlRealmFailures = 0, survivors, baseErr = null, commit, at } = {}) {
+  const evaluated = families.filter((f) => EVALUATED.has(f.outcome));
+  const blind = families.filter((f) => f.outcome === 'blind');
+  const excludedBy = {};
+  for (const f of families) if (!EVALUATED.has(f.outcome)) excludedBy[f.outcome] = (excludedBy[f.outcome] || 0) + 1;
+  const base = {
+    gate: 'probe-equivalence',
+    tool: 'tools/probe-equivalence.mjs',
+    criterion: {
+      name: 'every_declared_family_separates_the_same_function_mutants_a_test_already_killed (RULE 1; the SURVIVORS are the population under adjudication and are NOT scored)',
+      threshold: 0,
+      unit: 'blind families',
+      direction: 'lte'
+    },
+    evidence: [file || '<file>', 'tools/probe-batteries/'],
+    commit,
+    at
+  };
+  if (baseErr) {
+    return makeVerdict({
+      ...base,
+      status: 'NOT_RUN',
+      population: { eligible: families.length, checked: 0, excluded: families.length },
+      result: null,
+      reason: `the BASELINE realm did not build (${String(baseErr).slice(0, 80)}) — every verdict would be an artefact, so nothing was examined`
+    });
+  }
+  if (!evaluated.length) {
+    return makeVerdict({
+      ...base,
+      status: 'UNDERPOWERED',
+      population: { eligible: families.length, checked: 0, excluded: families.length },
+      result: { blindFamilies: [], excludedBy, controlRealmFailures, survivors },
+      reason: `no declared family could be evaluated (${JSON.stringify(excludedBy)}) — with no proven reach anywhere, an unreached mutant is indistinguishable from an unkillable one`
+    });
+  }
+  const ok = blind.length === 0;
+  return makeVerdict({
+    ...base,
+    status: ok ? 'PASS' : 'FAIL',
+    population: { eligible: families.length, checked: evaluated.length, excluded: families.length - evaluated.length },
+    result: { blindFamilies: blind.map((f) => f.name), excludedBy, controlRealmFailures, survivors },
+    reason: ok
+      ? null
+      : `${blind.length} famil${blind.length === 1 ? 'y' : 'ies'} BLIND (${blind.map((f) => f.name).join(', ')}): a control mutant a test already killed read as equivalent, so every verdict there is void and nothing is emitted from it. This convicts the BATTERY, not ${file || 'the subject'}.`
+  });
+}
+
+if (IS_MAIN && has('--verdict-sample')) {
+  /* The measured SHAPE of a real run rather than a green one: one family blind (the #1052 case this
+     tool was built for), one withheld for a degenerate battery, two clean. A PASS sample would
+     exercise neither the blind reason nor the exclusion census. */
+  console.log(
+    JSON.stringify(
+      probeEquivalenceVerdict({
+        file: 'ppgdex-dsp.js',
+        families: [
+          { name: 'parsePPG', outcome: 'clean' },
+          { name: 'detectChannel', outcome: 'clean' },
+          { name: 'loadOwnExport', outcome: 'degenerate-battery' },
+          { name: 'buildPPI', outcome: 'blind' }
+        ],
+        controlRealmFailures: 2,
+        survivors: { distinguishable: 11, noDistinguishing: 28, realmFail: 1, hung: 0 },
+        commit: gitShort()
+      }),
+      null,
+      2
+    )
+  );
+  process.exit(0);
+}
+
 if (IS_MAIN && has('--selftest')) {
   let pass = 0,
     fail = 0;
@@ -545,6 +647,32 @@ if (IS_MAIN && has('--selftest')) {
     'suppression is the unrecoverable direction; duplication is not'
   );
 
+  // ── the verdict: every reachable status, the population equality, and what FAIL convicts ──────
+  const _F = (o) => ({ name: 'f_' + o, outcome: o });
+  const _sv = { distinguishable: 3, noDistinguishing: 5, realmFail: 0, hung: 0 };
+  const _eq = (v) => v.population.checked + v.population.excluded === v.population.eligible;
+  const _clean = probeEquivalenceVerdict({ file: 'x.js', families: [_F('clean'), _F('clean')], survivors: _sv, commit: 'abc1234' });
+  ok('verdict · all families clean ⇒ PASS carrying reason null', _clean.status === 'PASS' && _clean.reason === null, _clean.status);
+  ok('verdict · population is an equality', _eq(_clean) && _clean.population.checked === 2, JSON.stringify(_clean.population));
+  const _blind = probeEquivalenceVerdict({ file: 'x.js', families: [_F('clean'), _F('blind'), _F('degenerate-battery')], survivors: _sv, commit: 'abc1234' });
+  ok('verdict · one blind family ⇒ FAIL, naming it and convicting the BATTERY', _blind.status === 'FAIL' && /f_blind/.test(_blind.reason) && /convicts the BATTERY/.test(_blind.reason), _blind.status);
+  ok(
+    'verdict · a BLIND family is CHECKED (its controls ran); a degenerate one is EXCLUDED',
+    _blind.population.checked === 2 && _blind.population.excluded === 1 && _eq(_blind),
+    JSON.stringify(_blind.population)
+  );
+  ok('verdict · the withheld families are counted BY REASON, not lumped', _blind.result.excludedBy['degenerate-battery'] === 1, JSON.stringify(_blind.result.excludedBy));
+  const _none = probeEquivalenceVerdict({ file: 'x.js', families: [_F('no-controls'), _F('fn-not-found')], survivors: _sv, commit: 'abc1234' });
+  ok('verdict · nothing evaluable ⇒ UNDERPOWERED, never PASS', _none.status === 'UNDERPOWERED' && _eq(_none) && _none.population.checked === 0, _none.status);
+  const _nr = probeEquivalenceVerdict({ file: 'x.js', families: [_F('clean')], survivors: _sv, baseErr: 'SyntaxError', commit: 'abc1234' });
+  ok('verdict · baseline realm failed ⇒ NOT_RUN with result null', _nr.status === 'NOT_RUN' && _nr.result === null, _nr.status);
+  ok('verdict · the survivor findings ride in result, never as a status', _clean.result.survivors.noDistinguishing === 5);
+  ok(
+    'verdict · controls that failed to LOAD are carried, so a partial drop is visible',
+    probeEquivalenceVerdict({ file: 'x.js', families: [_F('clean')], controlRealmFailures: 8, survivors: _sv, commit: 'abc1234' }).result.controlRealmFailures === 8
+  );
+  ok('verdict · criterion.name says the survivors are NOT scored', /NOT scored/.test(_clean.criterion.name));
+
   console.log('\n' + (fail ? `✗ ${fail} failed, ${pass} passed` : `✓ all ${pass} selftests passed`));
   process.exit(fail ? 1 : 0);
 }
@@ -719,11 +847,17 @@ async function main() {
 
   const emit = [];
   const blindFamilies = [];
+  /* One row per DECLARED family, for the verdict's population. A family that ends before its controls
+     run is EXCLUDED by a named reason; only 'clean' and 'blind' were actually evaluated. */
+  const famRows = [];
+  let ctlLoadFailTotal = 0;
+  const svTotal = { distinguishable: 0, noDistinguishing: 0, realmFail: 0, hung: 0 };
 
   for (const [famIdx, fam] of battery.families.entries()) {
     const range = functionRange(SRC, fam.fn);
     if (!range) {
       console.log(`▸ ${fam.name}\n  ✗ SKIPPED — function \`${fam.fn}\` not found in ${FILE}\n`);
+      famRows.push({ name: fam.name, outcome: 'fn-not-found' });
       continue;
     }
     const inRange = (m) => m.line >= range.start && m.line <= range.end;
@@ -737,10 +871,12 @@ async function main() {
       baseFp = fam.probe(base.s);
     } catch (e) {
       console.log(`▸ ${fam.name}\n  ✗ SKIPPED — baseline battery threw: ${String(e && e.message).slice(0, 70)}\n`);
+      famRows.push({ name: fam.name, outcome: 'baseline-threw' });
       continue;
     }
     if (!Array.isArray(baseFp)) {
       console.log(`▸ ${fam.name}\n  ✗ SKIPPED — probe() must return an ARRAY (one entry per input) so variety can be checked\n`);
+      famRows.push({ name: fam.name, outcome: 'probe-not-array' });
       continue;
     }
     const minDistinct = fam.minDistinct || 2;
@@ -752,6 +888,7 @@ async function main() {
       console.log(`  ⚠ DEGENERATE BATTERY — ${new Set(baseFp).size} distinct answer(s) over ${baseFp.length} inputs.`);
       console.log('    The subject almost certainly never ran (cf. #1052: PPGDSP.loadOwnExport is undefined).');
       console.log('    Every verdict in this family is void and nothing is emitted.\n');
+      famRows.push({ name: fam.name, outcome: 'degenerate-battery' });
       continue;
     }
 
@@ -762,6 +899,7 @@ async function main() {
       blindFamilies.push(fam.name);
       console.log(`  ⚠ NO CONTROLS — the sweep killed nothing in ${fam.fn}, so the battery's reach is UNPROVEN.`);
       console.log('    Verdicts withheld: an unreached mutant is indistinguishable from an unkillable one.\n');
+      famRows.push({ name: fam.name, outcome: 'no-controls' });
       continue;
     }
     const joined = (a) => a.join('');
@@ -769,6 +907,7 @@ async function main() {
     let blind = 0,
       ctlRan = 0;
     let ctlHang = 0;
+    let ctlLoadFail = 0;
     for (const m of controls) {
       const r = probeInChild(m, famIdx);
       if (r.hang) {
@@ -778,7 +917,15 @@ async function main() {
         console.log(`  ⊘ control HUNG (>${PROBE_MS} ms, skipped)  L${m.line} [${m.op}]`);
         continue;
       }
-      if (r.err) continue;
+      if (r.err) {
+        /* NAMED, NOT DROPPED. A control that does not LOAD is one the battery never proved reach
+           with. Skipping it silently shrank the evidence: 12 sampled, 8 dead, 4 run printed
+           `4/4 separated` with no sign that two thirds never ran. The `!ctlRan` guard below only
+           ever caught the all-or-nothing case. See the header. */
+        ctlLoadFail++;
+        console.log(`  ⊘ control REALM-FAIL (skipped)  L${m.line} [${m.op}] ${r.err}`);
+        continue;
+      }
       ctlRan++;
       if (joined(r.fp) === B) {
         blind++;
@@ -788,13 +935,19 @@ async function main() {
     if (!ctlRan) {
       blindFamilies.push(fam.name);
       console.log(`  ⚠ NO CONTROL RAN — every sampled control failed to load. Reach UNPROVEN; verdicts withheld.\n`);
+      famRows.push({ name: fam.name, outcome: 'no-control-ran' });
+      ctlLoadFailTotal += ctlLoadFail;
       continue;
     }
-    console.log(`  controls: ${ctlRan - blind}/${ctlRan} killed mutants separated${ctlHang ? ` (${ctlHang} hung, skipped)` : ''}${blind ? '  ← BATTERY IS PARTIALLY BLIND' : ''}`);
+    console.log(
+      `  controls: ${ctlRan - blind}/${ctlRan} killed mutants separated${ctlLoadFail ? ` (${ctlLoadFail} of ${controls.length} sampled did not load — excluded, not scored)` : ''}${ctlHang ? ` (${ctlHang} hung, skipped)` : ''}${blind ? '  ← BATTERY IS PARTIALLY BLIND' : ''}`
+    );
     if (blind) {
       blindFamilies.push(fam.name);
       console.log(`  ⚠ ${blind} control(s) read as equivalent. Every verdict in ${fam.name} is VOID and nothing is emitted.`);
       console.log('    Widen the battery until all controls separate, then re-run.\n');
+      famRows.push({ name: fam.name, outcome: 'blind' });
+      ctlLoadFailTotal += ctlLoadFail;
       continue;
     }
 
@@ -843,6 +996,12 @@ async function main() {
       }
     }
     console.log(`  → ${dist} distinguishable (real gaps), ${same} no-distinguishing-input${dead ? `, ${dead} realm-fail` : ''}${hung ? `, ${hung} HUNG` : ''} of ${survivors.length} survivor(s)\n`);
+    famRows.push({ name: fam.name, outcome: 'clean' });
+    ctlLoadFailTotal += ctlLoadFail;
+    svTotal.distinguishable += dist;
+    svTotal.noDistinguishing += same;
+    svTotal.realmFail += dead;
+    svTotal.hung += hung;
   }
 
   if (EMIT) {
@@ -887,6 +1046,22 @@ async function main() {
   } else if (emit.length) {
     console.log(`${emit.length} classifiable survivor(s). Re-run with --emit to record them.`);
   }
+
+  /* One object beside the prose — the reader above is a human, this one is a machine. A family that
+     never reached its controls is EXCLUDED by name; only a BLIND one is a failure, and it is a
+     failure of the battery. */
+  console.log(
+    '\nVERDICT ' +
+      JSON.stringify(
+        probeEquivalenceVerdict({
+          file: FILE,
+          families: famRows,
+          controlRealmFailures: ctlLoadFailTotal,
+          survivors: svTotal,
+          commit: gitShort()
+        })
+      )
+  );
 }
 
 if (IS_MAIN) await main();

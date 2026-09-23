@@ -1090,9 +1090,16 @@
       "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
     },
     "tools/probe-equivalence.mjs": {
-      "bin": "word-only",
-      "status": "exempt",
-      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/probe-equivalence.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave-2 adopter (residue 2026-09-22-word-only-claims-go-stale), sibling of probe-clock-equivalence and keyed the same way: on the CONTROLS, never the survivors — the survivors are the population this tool adjudicates, so scoring one would convict the `if (lo < 0) lo = 0` -> `<=` case the header names as correct code. The criterion is RULE 1 made machine-readable: every declared family's battery must separate the same-function mutants a test already killed. PASS all evaluated families separated their controls; FAIL >=1 family BLIND (convicts the BATTERY, not the subject file); UNDERPOWERED no family evaluable; NOT_RUN the baseline realm did not build. Population in FAMILIES (checked = controls ran, clean or blind; excluded = withheld, counted by named reason); survivor findings are counts in `result`. Adoption also named the partial control-load drop the all-or-nothing `!ctlRan` guard could not see."
     },
     "tools/pulse-agreement.mjs": {
       "bin": "decides",
