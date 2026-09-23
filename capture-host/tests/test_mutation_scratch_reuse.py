@@ -223,10 +223,30 @@ def test_root_reads_stages_a_SUBDIRECTORY_read_into_both_run_locations(tmp_path)
     absent as no copy at all."""
     root, tree = _tree_with_subdir_read_via_helper(tmp_path)
     scratch = tmp_path / "scratch"; work = scratch / "work"; (work / "mutants" / "tests").mkdir(parents=True)
+    # NEITHER destination has an `uploads/` yet — the copy must create it, at both places. Without
+    # that, `shutil.copy2` raises FileNotFoundError and a read staged into a missing parent is as
+    # absent as no copy at all.
+    assert not (work / "uploads").exists() and not (scratch / "uploads").exists()
     n = mutation_diff.stage_root_reads(tree, work, mutation_diff.root_reads(tree))
     assert n == 2, n
     assert (work / "uploads" / "synthetic_ecgdex_h10.txt").read_text() == "t,v\n0,1\n"
     assert (scratch / "uploads" / "synthetic_ecgdex_h10.txt").read_text() == "t,v\n0,1\n"
+    # `parents=True` needs a TWO-level destination, and `exist_ok=True` needs a SECOND name landing in
+    # a directory the first call already made — neither is observable with one name one level down.
+    (root / "docs").mkdir(exist_ok=True); (root / "docs" / "deep").mkdir(exist_ok=True)
+    (root / "docs" / "deep" / "two_levels.txt").write_text("2\n")
+    (root / "uploads" / "second_in_dir.txt").write_text("s\n")
+    deep = tmp_path / "scratch2"; w2 = deep / "work"; w2.mkdir(parents=True)
+    n2 = mutation_diff.stage_root_reads(tree, w2, ["docs/deep/two_levels.txt", "uploads/synthetic_ecgdex_h10.txt", "uploads/second_in_dir.txt"])
+    assert n2 == 6, n2
+    assert (w2 / "docs" / "deep" / "two_levels.txt").read_text() == "2\n"
+    assert (w2 / "uploads" / "second_in_dir.txt").read_text() == "s\n"
+    # A name that is NOT a file is SKIPPED, not a stopping point: the skip is a `continue`, and it
+    # comes FIRST here so a `break` would lose every real read after it.
+    w3 = tmp_path / "scratch3" / "work"; w3.mkdir(parents=True)
+    n3 = mutation_diff.stage_root_reads(tree, w3, ["absent_from_the_root.txt", "uploads/synthetic_ecgdex_h10.txt"])
+    assert n3 == 2, n3
+    assert (w3 / "uploads" / "synthetic_ecgdex_h10.txt").is_file()
 
 
 def test_root_reads_refuses_to_escape_the_root(tmp_path):
@@ -236,6 +256,10 @@ def test_root_reads_refuses_to_escape_the_root(tmp_path):
     (tree / "tests" / "test_escape.py").write_text(
         'A = "/etc/passwd"\nB = "../../outside.txt"\nC = "uploads/../uploads/synthetic_ecgdex_h10.txt"\n'
     )
+    # ⚠️ An ABSOLUTE literal that points INSIDE the root is the input that separates
+    # `A or B or C or D` from `(A and B) or C or D`: under the mutant the "no slash" and "absolute"
+    # guards are dropped, the path resolves to a real file under the root, and it is ADDED.
+    (tree / "tests" / "test_abs_inside.py").write_text(f'E = "{root / "uploads" / "synthetic_ecgdex_h10.txt"}"\n')
     got = mutation_diff.root_reads(tree)
     assert not any(g.startswith("/") or ".." in g for g in got), got
 
@@ -291,10 +315,148 @@ def test_root_reads_never_raises_on_an_UNRESOLVABLE_literal(tmp_path):
     skipped rather than crash the staging step. A `root_reads` that raises takes the whole mutation
     run down with it, which would be a worse failure than the miss this widening fixes."""
     root, tree = _tree_with_subdir_read_via_helper(tmp_path)
-    (tree / "tests" / "test_junk.py").write_text('BAD = "up\x00loads/x.txt"\n')
+    # the unresolvable literal is FIRST and a real read follows it: a `continue` mutated to `break`
+    # would stop scanning this file and lose the second, so the order is the assertion
+    (root / "only_here.js").write_text("x\n")
+    # ⚠️ The second literal must be one NO OTHER FILE names. An earlier version used the helper's own
+    # fixture path, so a `continue`→`break` lost nothing: the expected value was still supplied by
+    # `tests/vectors.py`. A test whose answer is available from a second source cannot fail.
+    (tree / "tests" / "test_junk.py").write_text('BAD = "up\x00loads/x.txt"\nGOOD = "only_here.js"\n')
     got = mutation_diff.root_reads(tree)                      # must not raise
     assert "uploads/synthetic_ecgdex_h10.txt" in got, got     # and the real read still lands
+    assert "only_here.js" in got, got                         # ...including the literal AFTER the junk one
     assert not any("\x00" in g for g in got), got
+
+
+def test_subdir_index_reads_GIT_when_the_root_is_a_checkout(tmp_path):
+    """⚠️ THE PRODUCTION PATH, and every other test in this file exercises the FALLBACK.
+
+    `_subdir_index` prefers `git ls-files` and walks the tree only when git cannot be read. The
+    synthetic trees the other tests build are not repositories, so until this test existed the branch
+    that actually runs in the real checkout was never executed — 21 mutants survived on that one
+    `subprocess.run` call (`cwd=None`, `check=False`, `text=None`, each argument dropped in turn),
+    which is mutmut saying precisely that: no test can see this call.
+
+    The discriminator is TRACKED vs PRESENT: an untracked file in a subdirectory is in the walk and
+    is NOT in `git ls-files`, so this asserts the semantic difference rather than the mechanism."""
+    import subprocess
+
+    root = tmp_path / "repo"; tree = root / "capture-host"; tree.mkdir(parents=True)
+    _fake_tree(tree)
+    (root / "uploads").mkdir()
+    (root / "uploads" / "tracked_fixture.txt").write_text("t\n")
+    (root / "uploads" / "untracked_fixture.txt").write_text("u\n")
+    run = lambda *a: subprocess.run(["git", *a], cwd=str(root), capture_output=True, text=True, check=True)
+    run("init", "-q")
+    run("config", "user.email", "t@e.st"); run("config", "user.name", "t")
+    # AAA_root.txt sorts FIRST and is skipped (root-level files are `names`), so a `continue`
+    # mutated to `break` loses everything after it — including the two fixtures below.
+    (root / "AAA_root.txt").write_text("r\n")
+    # a THREE-segment path: `rsplit("/", 1)[-1]` is the basename, `split("/", 1)[-1]` is `deep/x.txt`
+    (root / "docs").mkdir(); (root / "docs" / "deep").mkdir()
+    (root / "docs" / "deep" / "deep_fixture.txt").write_text("d\n")
+    # parts[0] is the tree name, parts[1] is not — a `parts[0]`→`parts[1]` mutant skips the wrong row
+    (root / "docs" / "capture-host").mkdir()
+    (root / "docs" / "capture-host" / "nested_fixture.txt").write_text("n\n")
+    (root / ".hidden").mkdir(exist_ok=True); (root / ".hidden" / "ignored.txt").write_text("h\n")
+    run("add", "uploads/tracked_fixture.txt", "AAA_root.txt", "docs", ".hidden")
+    run("commit", "-qm", "fixture")
+    index, dups = mutation_diff._subdir_index(root, tree.name)
+    assert index.get("tracked_fixture.txt") == "uploads/tracked_fixture.txt", index
+    # the whole point of preferring git: an untracked file is not somebody's fixture
+    assert "untracked_fixture.txt" not in index, index
+    assert index.get("deep_fixture.txt") == "docs/deep/deep_fixture.txt", index      # basename, not a tail
+    assert index.get("nested_fixture.txt") == "docs/capture-host/nested_fixture.txt", index
+    assert "AAA_root.txt" not in index, index                                        # root files are `names`
+    assert "tracked_fixture.txt" not in dups, dups                                   # unique ⇒ NOT ambiguous
+
+
+def test_root_reads_keeps_SCANNING_after_a_match_and_after_a_skip(tmp_path):
+    """Both `continue`s in the literal loop are loop CONTINUATIONS, not exits.
+
+    Mutated to `break` they survived, because no test had a file whose SECOND literal was the one
+    that mattered. One file, four literals: a root name, a skipped junk literal, a subdirectory path
+    and a bare basename — all four reads must be found from the same file."""
+    root, tree = _tree_with_subdir_read_via_helper(tmp_path)
+    (root / "sibling.js").write_text("x\n")
+    (tree / "tests" / "test_many.py").write_text(
+        'A = "sibling.js"\nB = "/etc/passwd"\nC = "uploads/synthetic_ecgdex_h10.txt"\n'
+    )
+    # a BARE BASENAME resolved through the index is a fourth branch with its own `continue`, and it
+    # must be followed by a literal that still has to be found
+    (root / "uploads" / "only_by_basename.txt").write_text("b\n")
+    (tree / "tests" / "test_basename_first.py").write_text('P = "only_by_basename.txt"\nQ = "sibling.js"\n')
+    got = mutation_diff.root_reads(tree)
+    assert "sibling.js" in got and "uploads/synthetic_ecgdex_h10.txt" in got, got
+    assert "/etc/passwd" not in got, got
+    assert "uploads/only_by_basename.txt" in got, got
+    # ⚠️ and the tree's OWN files are never reachable by bare basename either — `_subdir_index` is
+    # given `tree.name` so it can exclude them; passing None would admit every module in the scratch
+    (tree / "tools").mkdir(exist_ok=True)
+    (tree / "tools" / "inside_only.py").write_text("# inside the tree\n")
+    (tree / "tests" / "test_bare_selfref.py").write_text('R = "inside_only.py"\n')
+    got2 = mutation_diff.root_reads(tree)
+    assert not any("inside_only.py" in g for g in got2), got2
+
+
+def test_root_reads_excludes_the_TREE_ITSELF_by_its_first_segment(tmp_path):
+    """The self-reference rule is `lit.split("/", 1)[0] == tree.name`, and three mutants of it lived.
+
+    `_subdir_index(root, None)` never matches the tree name at all; `split(None, 1)` splits on
+    whitespace so a path never matches; `rsplit("/", 1)[0]` compares the DIRECTORY part, which is
+    `capture-host` for a two-segment path — identical — and `capture-host/tools` for a three-segment
+    one, which is not. So the killing input is a THREE-segment path under the tree that a test names:
+    the original skips it (it is the scratch copy itself), every mutant admits it."""
+    root, tree = _tree_with_subdir_read_via_helper(tmp_path)
+    (tree / "tools").mkdir(exist_ok=True)
+    (tree / "tools" / "deep_selfref.py").write_text("# a file inside the tree\n")
+    (tree / "tests" / "test_names_self.py").write_text('S = "capture-host/tools/deep_selfref.py"\n')
+    got = mutation_diff.root_reads(tree)
+    assert not any(g.startswith("capture-host/") for g in got), got
+    index, _d = mutation_diff._subdir_index(root, tree.name)
+    assert "deep_selfref.py" not in index, index      # the tree IS the scratch copy
+
+
+def test_every_SKIP_in_the_literal_loop_is_a_continue_not_a_break(tmp_path):
+    """Four branches of the literal loop end in `continue`, and each needs its OWN following literal.
+
+    ⚠️ I wrote this test three times before it could fail. Each earlier version put the "must still be
+    found" literal AFTER the skip — correctly — but chose one that ANOTHER file in the fixture also
+    named, so a `break` lost it from this file and the fixture supplied it anyway. Three branches,
+    three silent passes, one cause: **the expected value was obtainable from a source other than the
+    one under test.** Here every follower is a file named in exactly one place, so losing it is
+    observable. **The `only_*` names are LOAD-BEARING, not decoration**: the invariant lives in the
+    filename, so the next person cannot pick a follower without meeting the requirement. A rule in
+    this docstring would have been the fourth thing I had in view while making the error."""
+    root, tree = _tree_with_subdir_read_via_helper(tmp_path)
+    for n in ("only_after_name.js", "only_after_index.js", "only_after_self.js"):
+        (root / n).write_text("x\n")
+    (root / "uploads" / "only_indexed.txt").write_text("i\n")
+    (tree / "tools").mkdir(exist_ok=True)
+    (tree / "tools" / "selfref_only.py").write_text("# inside the tree\n")
+    # 1 · a names hit, then a literal nothing else names
+    (tree / "tests" / "t_after_name.py").write_text('A = "sibling_one.js"\nB = "only_after_name.js"\n')
+    (root / "sibling_one.js").write_text("s\n")
+    # 2 · an INDEX hit (bare basename of a subdirectory file), then another
+    (tree / "tests" / "t_after_index.py").write_text('C = "only_indexed.txt"\nD = "only_after_index.js"\n')
+    # 3 · a tree self-reference skip, then another
+    (tree / "tests" / "t_after_self.py").write_text('E = "capture-host/tools/selfref_only.py"\nF = "only_after_self.js"\n')
+    got = mutation_diff.root_reads(tree)
+    assert "only_after_name.js" in got, got
+    assert "only_after_index.js" in got, got
+    assert "only_after_self.js" in got, got
+    assert "uploads/only_indexed.txt" in got, got
+    assert not any(g.startswith("capture-host/") for g in got), got
+
+
+def test_root_reads_wants_a_FILE_and_containment_BOTH(tmp_path):
+    """`target.is_file() and target.is_relative_to(root)` — mutated to `or` it survived, because no
+    test named a path that is inside the root but is NOT a file. A DIRECTORY is that case."""
+    root, tree = _tree_with_subdir_read_via_helper(tmp_path)
+    (root / "docs").mkdir(exist_ok=True); (root / "docs" / "sub").mkdir()
+    (tree / "tests" / "test_dir_literal.py").write_text('D = "docs/sub"\n')
+    got = mutation_diff.root_reads(tree)
+    assert "docs/sub" not in got, got
 
 
 def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
@@ -306,7 +468,10 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     Nights-page tripwire that reds the day a fused tool's classifier accepts a box filename.
     2026-09-21: `verdict.js` — a REAL read, from two suites: test_seal.py validates both sealed-night
     readers' verdict objects through the contract's own validator rather than a hand-written copy of its
-    rules, and test_verdict cross-validates the Python half (verdict.py) against the same JS contract."""
+    rules, and test_verdict cross-validates the Python half (verdict.py) against the same JS contract.
+    2026-09-22: `sensor-trio-night.js` — a MENTION, not a read: test_webmon_nights.py names it as the
+    classifier-gate key for the monitor's per-night landing page, the same over-flag the power tool's
+    entry already costs (one small copy each)."""
     from pathlib import Path
     import pytest
     here = Path(__file__).resolve().parent.parent
@@ -340,7 +505,8 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     assert got == ["Dex-Test-Suite.html", "README.md",
                    "briefs/CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md", "dex-badges.css",
                    "ecgdex-dsp.js", "index.html", "pat-feasibility.js", "provenance/_meta.json",
-                   "provenance/index.json", "sensor-trio-power-analysis.js", "suite.manifest.json",
+                   "provenance/index.json", "sensor-trio-night.js", "sensor-trio-power-analysis.js",
+                   "suite.manifest.json",
                    "tests/dex-tests.js", "tools/mutate-equivalence.json", "tools/o2ring-dat-timefit.mjs",
                    "tools/verdict-adoption.json", "tools/verify-seals.mjs",
                    "uploads/synthetic_ecgdex_h10.txt", "uploads/synthetic_motiondex_acc.txt",

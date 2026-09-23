@@ -51,6 +51,26 @@
 # make. A guard that blocked every commit there would be switched off within a day,
 # and it guards a FORMATTING nit, not an invariant — CI is the backstop.
 #
+# ⚠ BUT FAILING OPEN SILENTLY WAS THE WHOLE DEFECT, AND IT IS NOW TWO FIXES, NOT ONE
+# (residue 2026-09-22-fresh-worktree-silences-both-format-checks, Heron). In a fresh
+# worktree this guard was silent AND the local `./node_modules/.bin/biome` exits 127,
+# which under the usual `> /dev/null 2>&1` reads as no output and a recorded exit —
+# i.e. CLEAN. Two mechanisms sharing one blind spot, in the environment §👥.1
+# MANDATES. Measured cost on #2882: the file reached CI unformatted, CI's Biome
+# reflowed an array across 14 lines, a source-scanning gate anchored on the
+# single-line literal then matched nothing, and it surfaced as SIX broken features
+# that were one blind gate. So: (1) look harder for Biome before giving up, and
+# (2) if it is still absent, SAY SO — absent and clean are different states.
+#
+# ⚠ THE BINARY IS RELOCATABLE; THE CWD IS NOT. Biome discovers `biome.json` by
+# walking up from the CWD, never from the path it is handed. Measured 2026-09-22 on
+# one file with one binary: `tools/rebase-safe.mjs` is CLEAN checked from inside its
+# worktree, and raises `lint/style/useTemplate` checked by ABSOLUTE PATH from a
+# directory outside the project — because out there Biome falls back to DEFAULT
+# rules. Borrowing another checkout's binary is safe; borrowing it without the `cd`
+# invents violations in clean files, which is strictly worse than the silence being
+# closed here. The `cd "$root"` on the run line is load-bearing, not tidiness.
+#
 # Escape hatch: CLAUDE_ALLOW_UNFORMATTED=1 — for a deliberate WIP commit.
 # ═══════════════════════════════════════════════════════════════════════════════
 set -uo pipefail
@@ -66,7 +86,35 @@ cmd="$(printf '%s' "$payload" | jq -r '.tool_input.command // empty' 2>/dev/null
 printf '%s' "$cmd" | grep -qE '(^|[;&|]|\s)git\s+(-[^ ]+\s+|-C\s+\S+\s+)*commit(\s|$)' || exit 0
 printf '%s' "$cmd" | grep -qE '\-\-help|\-h\b' && exit 0
 
-root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+# ── WHICH TREE? THE COMMAND'S, NOT THE HOOK'S. ──────────────────────────────────
+# The hook runs with the SESSION's cwd — the shared root, for nearly every session —
+# while the commit runs wherever the command sends it: CLAUDE.md §👥.1 mandates a
+# worktree, so the fleet's normal form is `cd <worktree> && git commit` or
+# `git -C <worktree> commit`. Resolving the repo from the hook's own cwd therefore
+# examined the ROOT's index for a commit happening in a worktree, found nothing
+# staged there, and ALLOWED. Measured 2026-09-22 with an unformatted staged plant:
+# run with its cwd inside the worktree this guard denies (exit 2); the live
+# `cd <wt> && git commit` from the root went straight through. The guard had been
+# inert for every worktree commit since it was written, and read as compliance.
+# Same defect and same fix as guard-stale-brief.sh
+# (STALE-BRIEF-GUARD-MEASURES-THE-WRONG-TREE-2026-08-18-BRIEF §4), one guard over.
+#   1. `git -C <dir> … commit` names the tree exactly — take it.
+#   2. else the FIRST `cd <dir>` in the command — later ones are subdirectory hops,
+#      and the toplevel resolves the same from either.
+#   3. else the hook's cwd — the pre-fix behaviour, now the fallback, not the rule.
+# A dir that does not exist yet (`git worktree add X && cd X && git commit`) keeps
+# the fallback: at PreToolUse time there is no tree to ask. That residual is the
+# same one the stale-brief guard documents, and it is narrow — a commit in the
+# same command that creates the tree.
+tree="$(printf '%s' "$cmd" \
+  | grep -oE '(^|[;&|]|\s)git\s+(-[^ ]+\s+)*-C\s+\S+\s+(-[^ ]+\s+)*commit(\s|$)' \
+  | head -1 | sed -E 's/^.*-C[[:space:]]+([^[:space:]]+).*$/\1/' | tr -d '\042\047')"
+[ -z "$tree" ] && tree="$(printf '%s' "$cmd" \
+  | grep -oE '(^|[;&|][[:space:]]*)cd[[:space:]]+([^[:space:];&|]+)' \
+  | head -1 | sed -E 's/^.*cd[[:space:]]+//' | tr -d '\042\047')"
+tree="${tree/#\~/$HOME}"
+{ [ -n "$tree" ] && [ -d "$tree" ]; } || tree="."
+root="$(git -C "$tree" rev-parse --show-toplevel 2>/dev/null)" || exit 0
 [ -z "$root" ] && exit 0
 
 # Only what is actually going into the commit. A file edited but not staged is not
@@ -77,9 +125,59 @@ staged="$(git -C "$root" diff --cached --name-only --diff-filter=ACM 2>/dev/null
 # Biome's own config owns the exclusions (node_modules, uploads/, docs/, *fixture*,
 # …), so paths are passed through rather than re-filtered here — a second copy of
 # that list is a second thing to drift.
-biome="$root/node_modules/.bin/biome"
-[ -x "$biome" ] || exit 0                 # no Biome ⇒ FAIL OPEN (see the header)
+# The PRIMARY checkout is DERIVED from git, never hardcoded: a worktree's
+# `--git-common-dir` points into the primary's `.git`, so its parent is that checkout.
+_common="$(cd "$root" && git rev-parse --git-common-dir 2>/dev/null)"
+case "${_common:-}" in
+  '') _primary='' ;;
+  /*) _primary="$(dirname "$_common")" ;;
+  *)  _primary="$(cd "$root" && cd "$(dirname "$_common")" 2>/dev/null && pwd)" ;;
+esac
 
+# Order: this checkout first (definitionally the right version for this tree), then an
+# explicit override, then the primary's. Same search-and-print-what-you-looked-at shape
+# as tools/verify-fixtures.mjs, so "absent" is a conclusion someone can check.
+biome=''
+_searched=''
+for _cand in "$root/node_modules/.bin/biome" "${DEX_BIOME:-}" "${_primary:+$_primary/node_modules/.bin/biome}"; do
+  [ -n "$_cand" ] || continue
+  _searched="$_searched    $_cand
+"
+  if [ -x "$_cand" ]; then biome="$_cand"; break; fi
+done
+
+_announce_absent() {
+  # jq is known good by now: a payload it could not parse returned at the `cmd` check.
+  _sid="$(printf '%s' "$payload" | jq -r '.session_id // empty' 2>/dev/null)"
+  case "${_sid:-}" in '' | *[!A-Za-z0-9._-]*) _sid=nosession ;; esac
+  _marker="${TMPDIR:-/tmp}/tepna-format-guard-absent.$_sid"
+  [ -f "$_marker" ] && return 0
+  : > "$_marker" 2>/dev/null
+  cat >&2 <<EOF1
+NOTE: this commit was NOT format-checked — Biome was not found in this checkout.
+This is not a pass. Absent and clean are different states, and here they look identical.
+
+Looked for it at:
+$_searched
+Either of these fixes it for the rest of this worktree's life:
+
+    ln -s "$_primary/node_modules" "$root/node_modules"
+    export DEX_BIOME=/path/to/a/pinned/biome
+
+'biome' is a REQUIRED check, so an unformatted file still reds CI — later, and with
+output that does not name formatting anywhere (residue
+2026-09-22-fresh-worktree-silences-both-format-checks).
+
+(Said ONCE per session. This guard denies nothing when Biome is absent.)
+EOF1
+}
+
+# FAIL OPEN when Biome is absent — but audibly, and never as a denial (see the header).
+[ -n "$biome" ] || { _announce_absent; exit 0; }
+
+# ⚠ The `cd "$root"` is load-bearing — see "THE BINARY IS RELOCATABLE" in the header.
+# Biome reads biome.json by walking up from the CWD, so a borrowed binary run from
+# anywhere else silently applies DEFAULT rules and reports violations that are not real.
 out="$(cd "$root" && printf '%s\n' "$staged" | xargs -r "$biome" ci --no-errors-on-unmatched 2>&1)" && exit 0
 
 # Non-zero ⇒ something is wrong with what is being committed. Name the files and the

@@ -1,6 +1,12 @@
 {
   "night": "2026-08-22",
   "tolBpm": 15,
+  "quality": {
+    "tolBpm": 3,
+    "flagged": 3,
+    "compared": 67,
+    "flaggedPct": 4.5
+  },
   "nodes": [
     "ECGDex",
     "OxyDex"
@@ -8,11 +14,29 @@
   "compared": 67,
   "adjudicable": 0,
   "droppedFragments": 0,
-  "flagged": 0,
-  "flaggedPct": 0,
+  "flagged": 1,
+  "flaggedPct": 1.5,
   "fault": {
     "ECGDex": 0,
     "OxyDex": 0
   },
-  "epochs": []
+  "epochs": [
+    {
+      "tMs": 1787465359816,
+      "sources": [
+        {
+          "node": "ECGDex",
+          "hr": 1.6
+        },
+        {
+          "node": "OxyDex",
+          "hr": 54.1
+        }
+      ],
+      "median": 27.85,
+      "spreadBpm": 52.5,
+      "adjudicated": false,
+      "outlier": null
+    }
+  ]
 }

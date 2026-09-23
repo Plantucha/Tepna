@@ -60,6 +60,11 @@
 #   same finding on every subsequent command would be the noise that gets a guard ripped out. The
 #   cost of the choice is real and is stated here rather than discovered: a session that misses or
 #   dismisses the one report gets no second chance, on a directory that keeps no other record.
+#   ⚠ AND A SECOND MOVE IN THE SAME COMMAND FOLDS INTO THE FIRST REPORT. The report names every
+#   file that pass found, and re-snapshots all of them — so a command that moves two files reports
+#   both at once, and the NEXT command exits 0. Not a defect, but a later exit 0 must not be read as
+#   "only one thing moved": it means "nothing has moved since the last report", which is a different
+#   claim (Wren, 2026-09-22, live on the box).
 #
 # ── WHY THERE ARE TWO ARMS, AND WHY THE SECOND ONE IS THE REAL GUARD ────────────────────────────
 #   This shipped with `Edit|Write` + `Read` only, and its header said a Bash-side write "is NOT seen".
@@ -79,6 +84,20 @@
 #   population that actually writes these files walks past it — the vacuous plant.
 #
 #   So: PREVENTION is best-effort on the two parseable forms (the pre-Bash arm below), and DETECTION
+#   ⚠ "BEST-EFFORT" IS TRUE AND UNINFORMATIVE, so here is exactly what it does not see: prevention
+#   matches an ABSOLUTE `…/.claude/projects/*/memory/*` IN THE COMMAND TEXT. So
+#       cd <memdir> && sed -i 's/…/…/' foo.md
+#   — prevention's own named form, written after a `cd` — carries only a bare filename and walks
+#   straight past it. Measured 2026-09-22 (Wren, live on a checkout carrying this guard): they wrote
+#   that form by reflex, which is the point — it is the natural way to type the command, not an
+#   exotic evasion. DETECTION fired on it, because detection never looks at the command.
+#   ⚠ AND THE MATCHING IS DELIBERATELY NOT EXTENDED TO COVER IT (ruling, 2026-09-22). Matching a
+#   bare `*.md` after a `cd` buys partial coverage at the price of making prevention LOOK complete
+#   while staying partial: a `cd` in an EARLIER command, a `pushd`, a variable, a subshell, a
+#   `$HOME`-relative path or a symlink each defeats it again, and each extension invites the next
+#   reader to assume the gap is closed. A partial mechanism must not be dressed as a complete one.
+#   The boundary is stated instead — here, and in the denial text where it is actually read — so
+#   nobody infers protection they do not have.
 #   is the complete half (the post-Bash arm). Detection ignores the command entirely and reads a
 #   PROPERTY OF THE RESULT — a memory file whose mtime moved during a command, in a session that
 #   never read it — which no write form can evade. That is CLAUDE.md §2b-bis's own argument one level
@@ -266,6 +285,12 @@ file first, then edit it so the other author's text survives:
 If you have read it in another session and are deliberately writing over it, say so in the file and:
 
     export CLAUDE_ALLOW_STALE_MEMORY=1
+
+WHAT THIS CHECK DOES NOT SEE: it matches an ABSOLUTE memory path in the command text, so the same
+edit written after a 'cd' into the memory directory (cd <memdir> && sed -i ... foo.md) carries only a
+bare filename and walks past it. That is not a hole to use: the POST-command check catches it, because
+it ignores the command and reads the directory. Do not infer from this denial that an unmatched form
+is an unwatched one.
 EOF6
     exit 2
   done

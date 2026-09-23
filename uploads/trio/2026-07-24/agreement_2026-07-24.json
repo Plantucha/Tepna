@@ -1,6 +1,12 @@
 {
   "night": "2026-07-24",
   "tolBpm": 15,
+  "quality": {
+    "tolBpm": 3,
+    "flagged": 9,
+    "compared": 88,
+    "flaggedPct": 10.2
+  },
   "nodes": [
     "PpgDex",
     "ECGDex",
@@ -9,12 +15,97 @@
   "compared": 88,
   "adjudicable": 69,
   "droppedFragments": 1,
-  "flagged": 0,
-  "flaggedPct": 0,
+  "flagged": 4,
+  "flaggedPct": 4.5,
   "fault": {
     "PpgDex": 0,
-    "ECGDex": 0,
+    "ECGDex": 4,
     "OxyDex": 0
   },
-  "epochs": []
+  "epochs": [
+    {
+      "tMs": 1784928902913,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 62
+        },
+        {
+          "node": "ECGDex",
+          "hr": 37.1
+        },
+        {
+          "node": "OxyDex",
+          "hr": 66.3
+        }
+      ],
+      "median": 62,
+      "spreadBpm": 29.2,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1784938202913,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 48
+        },
+        {
+          "node": "ECGDex",
+          "hr": 27
+        },
+        {
+          "node": "OxyDex",
+          "hr": 46.8
+        }
+      ],
+      "median": 46.8,
+      "spreadBpm": 21,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1784938502913,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 47
+        },
+        {
+          "node": "ECGDex",
+          "hr": 20.1
+        },
+        {
+          "node": "OxyDex",
+          "hr": 46.9
+        }
+      ],
+      "median": 46.9,
+      "spreadBpm": 26.9,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    },
+    {
+      "tMs": 1784954102913,
+      "sources": [
+        {
+          "node": "PpgDex",
+          "hr": 59
+        },
+        {
+          "node": "ECGDex",
+          "hr": 11.7
+        },
+        {
+          "node": "OxyDex",
+          "hr": 52.6
+        }
+      ],
+      "median": 52.6,
+      "spreadBpm": 47.3,
+      "adjudicated": true,
+      "outlier": "ECGDex"
+    }
+  ]
 }

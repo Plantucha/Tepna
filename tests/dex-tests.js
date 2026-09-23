@@ -13520,6 +13520,104 @@
        ("per hour of analyzable recording"). Both the unit surface (the optional `activeSec` arg) and
        the analyze() wiring are pinned, and the DEFECT direction is asserted alongside the fix so a
        future "simplification" back to the span cannot pass. */
+    group('ECGDex epoch engine — a gap-straddling interval leaves every EPOCH statistic too, and a clock seam REFUSES the epoch (§∅)', 'ecgdex-dsp · epochs · gap-exclusion', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.epochEngine === 'function')) {
+        T.skip('ECGDSP.epochEngine available', 'not loaded');
+        return;
+      }
+      /* 30 min at 60 bpm with a 0.25 Hz ±40 ms respiratory modulation — rMSSD is a known, epoch-stable
+         number. A dropout is planted the way analyze() sees one: the beat after it carries the whole
+         elapsed time as its interval and the kept-frame mask flags exactly that interval. */
+      function plant(gaps, endSec) {
+        var nn = [],
+          tt = [],
+          mask = [],
+          t = 0,
+          prev = 0;
+        while (t < (endSec || 1800)) {
+          var rr = 1000 + 40 * Math.sin(2 * Math.PI * 0.25 * t);
+          t += rr / 1000;
+          for (var g = 0; g < gaps.length; g++) if (prev < gaps[g].at && t >= gaps[g].at) t += gaps[g].sec;
+          nn.push((t - prev) * 1000);
+          tt.push(t);
+          mask.push(t - prev > 10 ? 1 : 0);
+          prev = t;
+        }
+        // the loop overshoots by one beat; a lone beat past the end would open a 7th window
+        while (tt.length && tt[tt.length - 1] >= (endSec || 1800)) {
+          nn.pop();
+          tt.pop();
+          mask.pop();
+        }
+        return { nn: nn, tt: tt, mask: mask };
+      }
+      var ctrl = plant([]),
+        refC = [],
+        eC = D.epochEngine(ctrl.nn, ctrl.tt, 300, null, ctrl.mask, [], refC);
+      var R0 = eC.length > 2 ? eC[2].rmssd : NaN;
+      T.ok(
+        'control · gap-free: 6 epochs, none refused, rMSSD epoch-stable',
+        eC.length === 6 && refC.length === 0 && R0 > 5 && Math.abs(eC[5].rmssd - R0) < 0.15 * R0,
+        'epochs ' + eC.length + ' refused ' + refC.length + ' R0 ' + R0
+      );
+      var gp = plant([
+        { at: 700, sec: 100 },
+        { at: 1300, sec: 125 }
+      ]);
+      T.ok('the plant is REAL: exactly two straddling intervals flagged', gp.mask.filter(Boolean).length === 2, String(gp.mask.filter(Boolean).length));
+      var old = D.epochEngine(gp.nn, gp.tt, 300, null); // no mask ⇒ the pre-fix path, byte-for-byte
+      T.ok(
+        'the plant is SEEN: without the mask the two gap epochs read as thousands of ms (the 2026-09-21 shape)',
+        old[2].rmssd > 1000 && old[4].rmssd > 1000 && Math.abs(old[0].rmssd - R0) < 0.15 * R0,
+        'ep2 ' + old[2].rmssd + ' ep4 ' + old[4].rmssd
+      );
+      var ref = [],
+        e = D.epochEngine(gp.nn, gp.tt, 300, null, gp.mask, [], ref);
+      T.ok(
+        'with the mask: the two gap epochs are within 15 % of the control',
+        e.length === 6 && Math.abs(e[2].rmssd - R0) < 0.15 * R0 && Math.abs(e[4].rmssd - R0) < 0.15 * R0,
+        'ep2 ' + e[2].rmssd + ' ep4 ' + e[4].rmssd + ' R0 ' + R0
+      );
+      T.ok('…and they SAY so: gaps=1 on those two, the key absent on a clean epoch', e[2].gaps === 1 && e[4].gaps === 1 && e[0].gaps === undefined && e[3].gaps === undefined);
+      T.ok(
+        'mean/SDNN/pNN50 exclude it too — SDNN within 15 % of the control epoch',
+        Math.abs(e[2].sdnn - eC[2].sdnn) < 0.15 * eC[2].sdnn + 1 && Math.abs(e[2].meanRR - eC[2].meanRR) < 5,
+        'sdnn ' + e[2].sdnn + ' vs ' + eC[2].sdnn + ' meanRR ' + e[2].meanRR + ' vs ' + eC[2].meanRR
+      );
+      T.ok('nothing refused: a dropout is reduced COVERAGE, not a discontinuity', ref.length === 0, String(ref.length));
+      var ref2 = [],
+        e2 = D.epochEngine(ctrl.nn, ctrl.tt, 300, null, ctrl.mask, [1000], ref2);
+      T.ok(
+        'a clock seam at 1000 s REFUSES the epoch at tMin 15 with a named reason — absent from the series, present in the refusals',
+        e2.length === 5 &&
+          ref2.length === 1 &&
+          ref2[0].reason === 'clock-seam' &&
+          ref2[0].tMin === 15 &&
+          ref2[0].n > 250 &&
+          !e2.some(function (x) {
+            return x.tMin === 15;
+          }),
+        JSON.stringify(ref2)
+      );
+      var thin = plant([], 1515),
+        ref3 = [],
+        e3 = D.epochEngine(thin.nn, thin.tt, 300, null, thin.mask, [], ref3);
+      T.ok(
+        'a window with fewer than 20 scorable beats is refused by NAME, not skipped silently',
+        e3.length === 5 && ref3.length === 1 && ref3[0].reason === 'too-few-beats' && ref3[0].tMin === 25,
+        JSON.stringify(ref3)
+      );
+      var P = env.ECGProfile;
+      if (P && typeof P.hrvScore === 'function') {
+        T.eq('hrvScore(60) is the calibrated 76', P.hrvScore(60), 76);
+        T.eq('hrvScore(250) is still scored (the bound is inclusive)', P.hrvScore(250), 100);
+        T.eq('hrvScore(10608.5) — the 2026-09-21 value — REFUSES (null), it does not read Primed', P.hrvScore(10608.5), null);
+        T.eq('hrvScore(251) refuses: outside the calibrated range', P.hrvScore(251), null);
+        T.eq('hrvScore(NaN) refuses', P.hrvScore(NaN), null);
+      } else T.skip('ECGProfile.hrvScore exported', 'not loaded');
+    });
+
     group('ECGDex cvhrIndex divides by OBSERVED time — a dropout no longer halves the index (DEEP-AUDIT-VI F3)', 'ecgdex-dsp · cvhr · denominator', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.detectCVHR === 'function')) {
@@ -31017,6 +31115,94 @@
       );
       T.ok('F1 · STATUS_RE accepts PROPOSED (deferred \u2026) — the in-vocab way to park a brief', STATUS_RE.test('**Status:** PROPOSED (consciously deferred 2026-06-24 \u2014 optional polish)'));
       T.ok('F1 · STATUS_RE REJECTS a bare **Status:** DEFERRED header (not first-class — decision a)', !STATUS_RE.test('**Status:** DEFERRED \u2014 2026-06-24'));
+      /* ══ check9 · THE REPO ROOT HOLDS EXACTLY THE DOCUMENTED CLASSES ═════════════════════════
+         CLAUDE.md §📁 states what the root may contain — base/entry docs, standard OSS files, and
+         runtime/build files — in PROSE, with nothing deriving it from the tree. Measured 2026-09-22:
+         `#2854` landed a **0-byte file named `Data`** at the repo root and it sat on main unnoticed.
+         The tell was `A Data` beside `M "Data Unifier.html"`: an unquoted path with a space reaching
+         a redirect or `git add`, the same hazard `docs/CORPUS-LOCATIONS.md` warns about for
+         `Ecg nightly`.
+
+         ⚠️ AN EQUALITY, NOT A FLOOR AND NOT A DENYLIST. "at least N expected files" and "no file
+         matching <bad pattern>" both fail OPEN on the next stray — and a 0-byte `Data` matches no bad
+         pattern anyone would write. So every root file must fall in a NAMED class or a runtime
+         EXTENSION class, the classes are exhaustive, and `classified + unclassified = total` is
+         published. Adding a root doc means moving the list, deliberately; adding `foo-dsp.js` does
+         not, because a rule that convicts working practice is the wrong rule.
+
+         Node-lane only: `rootFiles` is git's tracked list (see docs-ledger-fs.mjs on why tracked and
+         not `readdir`). Absent ⇒ SKIP, never a green over an unexamined root. */
+      var ROOT_NAMED_DOCS = [
+        'AGENTS.md',
+        'ARCHITECTURE-PRINCIPLES.md',
+        'AUDIT-PROMPT.md',
+        'CHANGELOG.md',
+        'CLAUDE.md',
+        'CONTRIBUTING.md',
+        'DOCS-INDEX.md',
+        'ORIENTATION.md',
+        'README.md',
+        'THIRD-PARTY.md'
+      ];
+      var ROOT_NAMED_OSS = ['CITATION.cff', 'LICENSE', 'NOTICE'];
+      var ROOT_NAMED_CONFIG = ['.c8rc.json', '.gitattributes', '.gitignore', '.kodiak.toml', '.secrets-exclude', '.secrets.baseline', '.zenodo.json'];
+      var ROOT_RUNTIME_EXT = ['css', 'html', 'js', 'json', 'jsx', 'ts'];
+      function rootClassOf(name) {
+        if (ROOT_NAMED_DOCS.indexOf(name) >= 0) return 'doc';
+        if (ROOT_NAMED_OSS.indexOf(name) >= 0) return 'oss';
+        if (ROOT_NAMED_CONFIG.indexOf(name) >= 0) return 'config';
+        /* A dotfile that is not NAMED is unclassified on purpose: `.env` at root is exactly the shape
+           nobody means to commit, and an extension rule would wave it through. */
+        if (name.charAt(0) === '.') return null;
+        var dot = name.lastIndexOf('.');
+        if (dot <= 0) return null; // extensionless and unnamed — the `Data` shape
+        return ROOT_RUNTIME_EXT.indexOf(name.slice(dot + 1)) >= 0 ? 'runtime' : null;
+      }
+      function rootSetVerdict(names) {
+        var byClass = { doc: 0, oss: 0, config: 0, runtime: 0 };
+        var unclassified = [];
+        names.forEach(function (n) {
+          var c = rootClassOf(n);
+          if (c) byClass[c]++;
+          else unclassified.push(n);
+        });
+        var classified = byClass.doc + byClass.oss + byClass.config + byClass.runtime;
+        return { total: names.length, classified: classified, unclassified: unclassified, byClass: byClass };
+      }
+      /* PLANTS FIRST, and the plant is the ACTUAL defect: an extensionless zero-byte `Data`, not a
+         tidy `stray.txt`. Both numbers, so the check is shown to fire AND to pass on the same set. */
+      var cleanRoot = ['CLAUDE.md', 'LICENSE', 'NOTICE', '.gitignore', 'oxydex-dsp.js', 'OxyDex.html', 'OxyDex.src.html', 'dex-globals.d.ts', 'package.json'];
+      var withStray = cleanRoot.concat(['Data']);
+      var vClean = rootSetVerdict(cleanRoot);
+      var vStray = rootSetVerdict(withStray);
+      T.ok(
+        'self-test · check9 PASSES a root of only documented classes (' + vClean.classified + '/' + vClean.total + ')',
+        vClean.unclassified.length === 0 && vClean.classified === vClean.total,
+        JSON.stringify(vClean.unclassified)
+      );
+      T.ok(
+        'self-test · check9 FIRES on the MEASURED defect — an extensionless `Data` (' + vStray.classified + '/' + vStray.total + ')',
+        vStray.unclassified.length === 1 && vStray.unclassified[0] === 'Data',
+        JSON.stringify(vStray.unclassified)
+      );
+      T.ok(
+        'self-test · check9 does NOT convict a new runtime file, and DOES fire on a stray doc or dotfile',
+        rootClassOf('newnode-dsp.js') === 'runtime' && rootClassOf('OxyDex Reference.html') === 'runtime' && rootClassOf('NOTES.md') === null && rootClassOf('.env') === null,
+        [rootClassOf('newnode-dsp.js'), rootClassOf('NOTES.md'), rootClassOf('.env')].join('/')
+      );
+      T.ok('self-test · check9 publishes an EQUALITY, so a class going missing moves the numbers', vStray.classified + vStray.unclassified.length === vStray.total);
+      if (!DL.rootFiles) {
+        T.skip('check9 · the repo root holds exactly the documented classes', 'no rootFiles wired (browser lane, or git unreadable)');
+      } else {
+        var rootV = rootSetVerdict(DL.rootFiles);
+        T.ok(
+          'check9 · the repo root holds exactly the documented classes (' + rootV.classified + ' classified + ' + rootV.unclassified.length + ' unclassified = ' + rootV.total + ')',
+          rootV.unclassified.length === 0,
+          rootV.unclassified.length
+            ? 'UNCLASSIFIED at root: ' + rootV.unclassified.join(', ') + ' — a root file must be a named doc/OSS/config entry or a runtime ' + ROOT_RUNTIME_EXT.join('/') + ' file (CLAUDE.md §📁)'
+            : 'ok'
+        );
+      }
     });
 
     /* ════ RELEASE-LEDGER — controlled releases, machine-checked (CONTROLLED-RELEASES-2026-07-05) ════

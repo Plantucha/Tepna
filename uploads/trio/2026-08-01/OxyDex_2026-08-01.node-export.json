@@ -5,11 +5,11 @@
   },
   "schema": {
     "name": "ganglior.node-export",
-    "version": "2.0",
+    "version": "2.1",
     "node": "OxyDex",
     "nodeVersion": "1.0",
     "multiNight": false,
-    "generated": "2026-09-01T09:33:51.740Z",
+    "generated": "2026-09-22T22:10:02.120Z",
     "provenance": null,
     "doc": "OxyDex single-night SpO₂/oximetry summary computed headless from a SignalFrame(spo2). Emits ganglior_events[] (desat_event from desatProfile + periodic_breathing from oscillation episodes); OxyDex infers respiration from an SpO₂ proxy, not airflow. tMs = floating wall-clock ms (UTC getters); null = unknown, never fabricated.",
     "scrubbed": true
@@ -29,6 +29,8 @@
       "impulse": "desat_event",
       "node": "OxyDex",
       "conf": 0.84,
+      "evidenceRef": null,
+      "inputHash": null,
       "meta": {
         "depth": 8,
         "duration": 31,
@@ -44,6 +46,8 @@
       "impulse": "desat_event",
       "node": "OxyDex",
       "conf": 0.74,
+      "evidenceRef": null,
+      "inputHash": null,
       "meta": {
         "depth": 6,
         "duration": 18,
@@ -59,6 +63,8 @@
       "impulse": "desat_event",
       "node": "OxyDex",
       "conf": 0.66,
+      "evidenceRef": null,
+      "inputHash": null,
       "meta": {
         "depth": 4,
         "duration": 13,
@@ -74,674 +80,674 @@
     "epochs": [
       {
         "tMin": 0,
-        "hr": 61,
-        "hrStat": "median-rate",
+        "hr": 63.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0.037
       },
       {
         "tMin": 5,
-        "hr": 59,
-        "hrStat": "median-rate",
+        "hr": 59.4,
+        "hrStat": "mean-rate",
         "motionIndex": 0.04
       },
       {
         "tMin": 10,
-        "hr": 59,
-        "hrStat": "median-rate",
+        "hr": 59.7,
+        "hrStat": "mean-rate",
         "motionIndex": 0.027
       },
       {
         "tMin": 15,
-        "hr": 58,
-        "hrStat": "median-rate",
+        "hr": 58.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0.107
       },
       {
         "tMin": 20,
-        "hr": 60,
-        "hrStat": "median-rate",
+        "hr": 59.6,
+        "hrStat": "mean-rate",
         "motionIndex": 0.09
       },
       {
         "tMin": 25,
-        "hr": 58,
-        "hrStat": "median-rate",
+        "hr": 58.5,
+        "hrStat": "mean-rate",
         "motionIndex": 0.033
       },
       {
         "tMin": 30,
-        "hr": 57,
-        "hrStat": "median-rate",
+        "hr": 57.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0.02
       },
       {
         "tMin": 35,
-        "hr": 56,
-        "hrStat": "median-rate",
+        "hr": 55.7,
+        "hrStat": "mean-rate",
         "motionIndex": 0.007
       },
       {
         "tMin": 40,
-        "hr": 56,
-        "hrStat": "median-rate",
+        "hr": 55.7,
+        "hrStat": "mean-rate",
         "motionIndex": 0.087
       },
       {
         "tMin": 45,
-        "hr": 55,
-        "hrStat": "median-rate",
+        "hr": 55.3,
+        "hrStat": "mean-rate",
         "motionIndex": 0.06
       },
       {
         "tMin": 50,
-        "hr": 55,
-        "hrStat": "median-rate",
+        "hr": 55.8,
+        "hrStat": "mean-rate",
         "motionIndex": 0.013
       },
       {
         "tMin": 55,
         "hr": 56,
-        "hrStat": "median-rate",
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 60,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 52.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 65,
         "hr": 50,
-        "hrStat": "median-rate",
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 70,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 49.8,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 75,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 49.8,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 80,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 50.3,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 85,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 50.6,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 90,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 50.6,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 95,
         "hr": 51,
-        "hrStat": "median-rate",
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 100,
-        "hr": 56,
-        "hrStat": "median-rate",
+        "hr": 55.6,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 105,
-        "hr": 55,
-        "hrStat": "median-rate",
+        "hr": 55.4,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 110,
-        "hr": 55,
-        "hrStat": "median-rate",
+        "hr": 54.5,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 115,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 52.4,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 120,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 53.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0.033
       },
       {
         "tMin": 125,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 51.3,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 130,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 51.4,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 135,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 51.6,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 140,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 51.9,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 145,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 52.9,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 150,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 52.7,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 155,
         "hr": 53,
-        "hrStat": "median-rate",
+        "hrStat": "mean-rate",
         "motionIndex": 0.003
       },
       {
         "tMin": 160,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 50.8,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 165,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 51.8,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 170,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 51.8,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 175,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 51.5,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 180,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 52,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 185,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 51.3,
+        "hrStat": "mean-rate",
         "motionIndex": 0.023
       },
       {
         "tMin": 190,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 49.7,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 195,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 49.9,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 200,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 50.4,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 205,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 50.9,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 210,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 52.9,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 215,
-        "hr": 55,
-        "hrStat": "median-rate",
+        "hr": 54.7,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 220,
-        "hr": 55,
-        "hrStat": "median-rate",
+        "hr": 54.5,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 225,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 52.8,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 230,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 52.7,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 235,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 53.7,
+        "hrStat": "mean-rate",
         "motionIndex": 0.003
       },
       {
         "tMin": 240,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 51.5,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 245,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 51.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 250,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 51.6,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 255,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 51.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 260,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 50.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0.003
       },
       {
         "tMin": 265,
-        "hr": 49,
-        "hrStat": "median-rate",
+        "hr": 49.5,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 270,
         "hr": 50,
-        "hrStat": "median-rate",
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 275,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 50.6,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 280,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 50.6,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 285,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 50.8,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 290,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 51.7,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 295,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 51.5,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 300,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 51.8,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 305,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 51.7,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 310,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 50.9,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 315,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 51.6,
+        "hrStat": "mean-rate",
         "motionIndex": 0.07
       },
       {
         "tMin": 320,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 50.1,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 325,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 52.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 330,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 52.8,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 335,
-        "hr": 56,
-        "hrStat": "median-rate",
+        "hr": 57.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 340,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 52.1,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 345,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 50.9,
+        "hrStat": "mean-rate",
         "motionIndex": 0.033
       },
       {
         "tMin": 350,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 50.5,
+        "hrStat": "mean-rate",
         "motionIndex": 0.03
       },
       {
         "tMin": 355,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 50.6,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 360,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 49.8,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 365,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 50.1,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 370,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 51.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 375,
-        "hr": 49,
-        "hrStat": "median-rate",
+        "hr": 49.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 380,
-        "hr": 49,
-        "hrStat": "median-rate",
+        "hr": 49.4,
+        "hrStat": "mean-rate",
         "motionIndex": 0.03
       },
       {
         "tMin": 385,
-        "hr": 50,
-        "hrStat": "median-rate",
+        "hr": 51.4,
+        "hrStat": "mean-rate",
         "motionIndex": 0.003
       },
       {
         "tMin": 390,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 54.3,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 395,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 52.3,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 400,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 52.1,
+        "hrStat": "mean-rate",
         "motionIndex": 0.05
       },
       {
         "tMin": 405,
-        "hr": 54,
-        "hrStat": "median-rate",
+        "hr": 53.9,
+        "hrStat": "mean-rate",
         "motionIndex": 0.023
       },
       {
         "tMin": 410,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 53.7,
+        "hrStat": "mean-rate",
         "motionIndex": 0.033
       },
       {
         "tMin": 415,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 53.7,
+        "hrStat": "mean-rate",
         "motionIndex": 0.023
       },
       {
         "tMin": 420,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 53.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0.003
       },
       {
         "tMin": 425,
-        "hr": 54,
-        "hrStat": "median-rate",
+        "hr": 53.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0.077
       },
       {
         "tMin": 430,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 52.5,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 435,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 53.6,
+        "hrStat": "mean-rate",
         "motionIndex": 0.037
       },
       {
         "tMin": 440,
-        "hr": 54,
-        "hrStat": "median-rate",
+        "hr": 54.6,
+        "hrStat": "mean-rate",
         "motionIndex": 0.013
       },
       {
         "tMin": 445,
-        "hr": 58,
-        "hrStat": "median-rate",
+        "hr": 58.1,
+        "hrStat": "mean-rate",
         "motionIndex": 0.515
       },
       {
         "tMin": 450,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 52.4,
+        "hrStat": "mean-rate",
         "motionIndex": 0.033
       },
       {
         "tMin": 455,
-        "hr": 51,
-        "hrStat": "median-rate",
+        "hr": 51.8,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 460,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 52.7,
+        "hrStat": "mean-rate",
         "motionIndex": 0.047
       },
       {
         "tMin": 465,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 53.3,
+        "hrStat": "mean-rate",
         "motionIndex": 0
       },
       {
         "tMin": 470,
-        "hr": 52,
-        "hrStat": "median-rate",
+        "hr": 51.9,
+        "hrStat": "mean-rate",
         "motionIndex": 0.104
       },
       {
         "tMin": 475,
-        "hr": 54,
-        "hrStat": "median-rate",
+        "hr": 53.3,
+        "hrStat": "mean-rate",
         "motionIndex": 0.067
       },
       {
         "tMin": 480,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 53.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0.03
       },
       {
         "tMin": 485,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 53.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0.047
       },
       {
         "tMin": 490,
-        "hr": 54,
-        "hrStat": "median-rate",
+        "hr": 54.9,
+        "hrStat": "mean-rate",
         "motionIndex": 0.02
       },
       {
         "tMin": 495,
-        "hr": 54,
-        "hrStat": "median-rate",
+        "hr": 55.3,
+        "hrStat": "mean-rate",
         "motionIndex": 0.023
       },
       {
         "tMin": 500,
-        "hr": 54,
-        "hrStat": "median-rate",
+        "hr": 54.9,
+        "hrStat": "mean-rate",
         "motionIndex": 0.064
       },
       {
         "tMin": 505,
-        "hr": 56,
-        "hrStat": "median-rate",
+        "hr": 57,
+        "hrStat": "mean-rate",
         "motionIndex": 0.07
       },
       {
         "tMin": 510,
-        "hr": 55,
-        "hrStat": "median-rate",
+        "hr": 56.4,
+        "hrStat": "mean-rate",
         "motionIndex": 0.06
       },
       {
         "tMin": 515,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 53.1,
+        "hrStat": "mean-rate",
         "motionIndex": 0.06
       },
       {
         "tMin": 520,
-        "hr": 54,
-        "hrStat": "median-rate",
+        "hr": 54.5,
+        "hrStat": "mean-rate",
         "motionIndex": 0.03
       },
       {
         "tMin": 525,
-        "hr": 54,
-        "hrStat": "median-rate",
+        "hr": 54.7,
+        "hrStat": "mean-rate",
         "motionIndex": 0.057
       },
       {
         "tMin": 530,
-        "hr": 56,
-        "hrStat": "median-rate",
+        "hr": 56.6,
+        "hrStat": "mean-rate",
         "motionIndex": 0.023
       },
       {
         "tMin": 535,
-        "hr": 55,
-        "hrStat": "median-rate",
+        "hr": 55.5,
+        "hrStat": "mean-rate",
         "motionIndex": 0.01
       },
       {
         "tMin": 540,
         "hr": 52,
-        "hrStat": "median-rate",
+        "hrStat": "mean-rate",
         "motionIndex": 0.003
       },
       {
         "tMin": 545,
-        "hr": 53,
-        "hrStat": "median-rate",
+        "hr": 53.2,
+        "hrStat": "mean-rate",
         "motionIndex": 0.027
       },
       {
         "tMin": 550,
-        "hr": 55,
-        "hrStat": "median-rate",
+        "hr": 54.7,
+        "hrStat": "mean-rate",
         "motionIndex": 0.023
       },
       {
         "tMin": 555,
-        "hr": 55,
-        "hrStat": "median-rate",
+        "hr": 55.1,
+        "hrStat": "mean-rate",
         "motionIndex": 0.201
       }
     ],
@@ -67735,7 +67741,6 @@
       "date": "2026-08-01",
       "t0Ms": 1785624452000,
       "contentId": null,
-      "file": null,
       "provenance": null,
       "kernel": {
         "version": "1.0.0",
@@ -68071,6 +68076,120 @@
       "hypoxicBurden": {
         "total": 2.1,
         "rate": 0.2
+      },
+      "measurement": {
+        "meanSpo2": {
+          "metricId": "meanSpo2",
+          "value": 96.8,
+          "window": {
+            "startTMs": 1785624452000,
+            "endTMs": 1785657936000,
+            "clockDomain": "device",
+            "timingSource": "device",
+            "spreadMs": null,
+            "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+          },
+          "sourceChannel": "O2Ring:spo2",
+          "code": null,
+          "evidence": {
+            "envelopeRef": null,
+            "inputHash": null,
+            "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)",
+            "inputReason": "contentId unavailable (SignalFrame not co-loaded)"
+          },
+          "basis": "measured",
+          "quality": {
+            "n": 33392,
+            "durationMin": 558.1
+          },
+          "uncertainty": null,
+          "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries",
+          "codeReason": "no bundle identity in this runtime (headless source-module run) — the shipped bundle stamps data-manifest-hash/data-compute-hash; pass opts.code"
+        },
+        "t90": {
+          "metricId": "t90",
+          "value": 0,
+          "window": {
+            "startTMs": 1785624452000,
+            "endTMs": 1785657936000,
+            "clockDomain": "device",
+            "timingSource": "device",
+            "spreadMs": null,
+            "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+          },
+          "sourceChannel": "O2Ring:spo2",
+          "code": null,
+          "evidence": {
+            "envelopeRef": null,
+            "inputHash": null,
+            "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)",
+            "inputReason": "contentId unavailable (SignalFrame not co-loaded)"
+          },
+          "basis": "measured",
+          "quality": {
+            "n": 33392,
+            "durationMin": 558.1
+          },
+          "uncertainty": null,
+          "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries",
+          "codeReason": "no bundle identity in this runtime (headless source-module run) — the shipped bundle stamps data-manifest-hash/data-compute-hash; pass opts.code"
+        },
+        "odi4": {
+          "metricId": "odi4",
+          "value": 0.3,
+          "window": {
+            "startTMs": 1785624452000,
+            "endTMs": 1785657936000,
+            "clockDomain": "device",
+            "timingSource": "device",
+            "spreadMs": null,
+            "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+          },
+          "sourceChannel": "O2Ring:spo2",
+          "code": null,
+          "evidence": {
+            "envelopeRef": null,
+            "inputHash": null,
+            "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)",
+            "inputReason": "contentId unavailable (SignalFrame not co-loaded)"
+          },
+          "basis": "derived",
+          "quality": {
+            "n": 33392,
+            "durationMin": 558.1
+          },
+          "uncertainty": null,
+          "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries",
+          "codeReason": "no bundle identity in this runtime (headless source-module run) — the shipped bundle stamps data-manifest-hash/data-compute-hash; pass opts.code"
+        },
+        "hypoxicBurden": {
+          "metricId": "hypoxicBurden",
+          "value": 0.2,
+          "window": {
+            "startTMs": 1785624452000,
+            "endTMs": 1785657936000,
+            "clockDomain": "device",
+            "timingSource": "device",
+            "spreadMs": null,
+            "spreadReason": "single device clock — the O2Ring RTC is the only timebase on this input; no host stamp to measure spread against"
+          },
+          "sourceChannel": "O2Ring:spo2",
+          "code": null,
+          "evidence": {
+            "envelopeRef": null,
+            "inputHash": null,
+            "envelopeReason": "no acquisition envelope for this input (CSV / legacy path — the envelope joins on the .dat session_id)",
+            "inputReason": "contentId unavailable (SignalFrame not co-loaded)"
+          },
+          "basis": "derived",
+          "quality": {
+            "n": 33392,
+            "durationMin": 558.1
+          },
+          "uncertainty": null,
+          "uncertaintyReason": "not estimated — this node carries no uncertainty model for whole-night oximetry summaries",
+          "codeReason": "no bundle identity in this runtime (headless source-module run) — the shipped bundle stamps data-manifest-hash/data-compute-hash; pass opts.code"
+        }
       },
       "motionProfile": {
         "motionPct": 0.9,
@@ -68461,14 +68580,7 @@
           "basis": "medianOf30minWindows",
           "windowsUsed": 18
         },
-        "respRate": {
-          "respRateBpm": 12.6,
-          "rsaPeakFreq": 0.21,
-          "rsaPeakPow": 0.3,
-          "respRateLabel": "Normal (10-20)",
-          "basis": "medianOf30minWindows",
-          "windowsUsed": 18
-        },
+        "respRate": null,
         "hrAsymmetry": {
           "hrAccelAsym": 1.006,
           "meanUpBpm": 1.1,

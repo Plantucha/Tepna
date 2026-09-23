@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**213 tools** · 211 with a purpose line · **2 without**
+**216 tools** · 214 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -44,6 +44,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`cohort-fit.mjs`](../tools/cohort-fit.mjs) | `cohort-gen.js` samples synthetic patients; the SHHS1 corpus holds 5136 scored real ones. |
 | [`commit-shape.mjs`](../tools/commit-shape.mjs) | the AGENT-NEUTRAL half of the shared-tree guards. WHY THIS EXISTS. |
 | [`corpus-census.mjs`](../tools/corpus-census.mjs) | ════════════════════════════════════════════════════════════════════════════════════════════════ A CENSUS COMMITS ITS FILE LIST, OR IT CANNOT BE DIFFED — residue… |
+| [`corpus-scope.mjs`](../tools/corpus-scope.mjs) | // // corpus-scope.mjs — count a file pattern across EVERY corpus root, and say which roots were searched. |
 | [`corpus-tier.mjs`](../tools/corpus-tier.mjs) | KEEP THE LAST 30 NIGHTS LOCAL; EVERYTHING OLDER BECOMES A SYMLINK INTO THE NAS. |
 | [`cpap-corpus.mjs`](../tools/cpap-corpus.mjs) | drive a WHOLE ResMed SD card through the REAL CPAPDex. Walks a day-foldered SD-card tree, groups each night's EDF files into session sets, and runs the real headless surface —… |
 | [`cpap-oxy-couple.mjs`](../tools/cpap-oxy-couple.mjs) | cross-node event↔event coupling with a SHUFFLED NULL. Folds O2Ring (OxyDex) into a CPAP corpus and asks the question the Integrator cannot currently ask: is a co-occurrence between two… |
@@ -66,6 +67,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`find-copied-bodies.mjs`](../tools/find-copied-bodies.mjs) | FIND TESTS THAT EXERCISE A PRIVATE COPY INSTEAD OF THE SHIPPED SYMBOL. |
 | [`find-unwired-js.mjs`](../tools/find-unwired-js.mjs) | THE JS SIBLING OF `capture-host/tools/find_unwired.py`. Finds machinery that exists, is tested, and is connected to NOTHING — on the JS side, which that tool does not reach. |
 | [`findings-ledger.mjs`](../tools/findings-ledger.mjs) | THE FINDINGS LEDGER — C1 of the qwen engineering program (QWEN-ENGINEERING-PROGRAM 2026-08-27 §4). |
+| [`fold-provenance.mjs`](../tools/fold-provenance.mjs) | // // Run-level provenance for a trio fold: WHICH nights, from WHICH files, on WHICH volumes. |
 | [`formula-constant-audit.mjs`](../tools/formula-constant-audit.mjs) | REFERENCE-GUIDE-AUDIT dimension 2, made repeatable — the sibling of `severity-ladder-audit.mjs` (dimension 3). |
 | [`frozen-timeline-check.mjs`](../tools/frozen-timeline-check.mjs) | do the shipped bundles render BLANK when the document timeline never advances (print · PDF export · headless capture · a throttled background tab)? |
 | [`gap-s-sweep.mjs`](../tools/gap-s-sweep.mjs) | ECG-SATURATION-ABSENCE §"GAP_S": the cut that turns an inter-beat interval into an ABSENCE (`spansGap`, excluded, never median-filled) is `GAP_S = 10 s` in ecgdex-dsp.js and… |
@@ -135,6 +137,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`pat-hrv-windows.mjs`](../tools/pat-hrv-windows.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ PAT THE WAY HRV IS DONE — 5-minute windows, artifact segments discarded, report the… |
 | [`pat-literature-spec.mjs`](../tools/pat-literature-spec.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ PAT MEASURED TO THE PUBLISHED SPEC, PLUS AN ERROR BUDGET THAT WORKS BACKWARDS FROM IT. |
 | [`pat-matchrate-strict.mjs`](../tools/pat-matchrate-strict.mjs) | WHY THE SHIPPED matchRate HAS A 60 % FLOOR — two independent reasons, and only the first is the one the brief names: |
+| [`pat-mode-posture.mjs`](../tools/pat-mode-posture.mjs) | // // pat-mode-posture.mjs — does the PAT lag mode follow the BODY or the CLOCK-ON-THE-WALL? |
 | [`pat-per-led.mjs`](../tools/pat-per-led.mjs) | ═══════════════════════════════════════════════════════════════════════════════════════════════ EACH LED AS AN INDEPENDENT DETECTOR — and a three-cornered hat that measures FIDUCIAL JITTER… |
 | [`pat-ppg-ppg-control.mjs`](../tools/pat-ppg-ppg-control.mjs) | ⚠️ SENSOR PLACEMENT IS PART OF THE RESULT AND MUST BE STATED. |
 | [`pat-residual-structure.mjs`](../tools/pat-residual-structure.mjs) | PAT-ROOT-CAUSE-FORENSICS §14: is the leftover 20–40 ms ERROR or SIGNAL? |

@@ -205,6 +205,43 @@ export function readDat(buf, nsig, format) {
   return out;
 }
 
+/* ── WFDB's invalid-sample sentinel ────────────────────────────────────────────────────
+   `wfdb.h` (wfdblib 10.7.0) defines `WFDB_INVALID_SAMPLE (-32768)` — the minimum 16-bit sample,
+   returned by `getvec`/`getframe` wherever an amplitude is UNDEFINED. It is a LIBRARY constant, not a
+   file-format one: `SIGNAL(5)` never mentions it, so a reader written from the format spec alone —
+   which this one was — meets it as signal. CLAUDE.md §∅: a value that was not measured is null, and
+   *a consumer cannot null what it cannot distinguish*. The defect is that INABILITY, which is why this
+   is fixed before the first real run rather than after numbers have been computed from one.
+
+   ⚠ FORMAT 212 IS NOT CLAIMED, and this is the load-bearing limit. Its lowest expressible value is
+   -2048; whether WFDB maps that to the same sentinel is UNVERIFIED (the library NEWS mentions such a
+   repair for formats 80 and 160, which makes it plausible and no more). Nulling -2048 on that guess
+   would null legitimate full-scale-negative samples — a rule that convicts working code. So 212
+   returns `checked:false` WITH ITS REASON rather than an empty run list: an unexamined stream and a
+   clean one must not read alike (∑§4b — a check that reports success about what it never examined).
+   ⚠ CONSEQUENCE, STATED SO IT IS NOT INFERRED AWAY: MIT-BIH is format 212 throughout, so on the one
+   corpus this tool names, this guard checks NOTHING. It protects the format-16 path before a corpus
+   that uses it arrives. It has never run on real data — see the selftest's NOT_RUN note. */
+export const WFDB_INVALID_SAMPLE = -32768;
+
+export function invalidSpans(samples, format) {
+  if (format !== '16')
+    return {
+      checked: false,
+      sentinel: null,
+      runs: [],
+      reason: 'format ' + format + ": the sentinel value for this format is unverified — only format 16's -32768 is claimed"
+    };
+  const runs = [];
+  for (let i = 0; i < samples.length; i++) {
+    if (samples[i] !== WFDB_INVALID_SAMPLE) continue;
+    const start = i;
+    while (i < samples.length && samples[i] === WFDB_INVALID_SAMPLE) i++;
+    runs.push({ start, len: i - start });
+  }
+  return { checked: true, sentinel: WFDB_INVALID_SAMPLE, runs, reason: null };
+}
+
 /* ── .atr ─────────────────────────────────────────────────────────────────────────────────────
    A stream of little-endian u16 words: `code = word >> 10`, `delta = word & 0x3FF`, time accumulates
    by delta. AUX(63) carries `delta` bytes of payload padded to even; SKIP(59) is followed by a
@@ -408,18 +445,68 @@ export function scoreRecord(ctx, rec) {
   const chans = readDat(dat, head.nsig, head.signals[0].format);
   const sig = chans[0];
   const s0 = head.signals[0];
+  const msPerSample = 1000 / head.fs;
+
+  /* ⚠ AN UNDEFINED SAMPLE IS EXCISED, NOT SCALED (CLAUDE.md §∅). Scaled, it is -163.84 mV at a
+     typical gain of 200 ADU/mV, and Pan–Tompkins' thresholds are ADAPTIVE — one such sample poisons
+     detection well outside its own span. So excluding it from SCORING alone would be a caveat beside a
+     claim: the number would still be computed from a detector that had already been corrupted.
+     The run leaves the buffer entirely, and its wall-clock dead time is declared through `analyze()`'s
+     EXISTING `gaps` channel (`ecgdex-dsp.js`: "fold raw-sample gaps … into the beat clock"), which is
+     what keeps detected beat times on the ORIGINAL axis the reference train is built on. Inventing a
+     second absence mechanism beside that one would be the half-wired kind. */
+  const inv = invalidSpans(sig, s0.format);
+  const kept = [];
+  const gaps = [];
+  let ri = 0;
+  for (let i = 0; i < sig.length; ) {
+    if (ri < inv.runs.length && i === inv.runs[ri].start) {
+      const len = inv.runs[ri].len;
+      ri++;
+      i += len;
+      /* `gaps[].idx` is the FIRST SAMPLE AFTER the hole, in the EXCISED buffer's index space; `ms` is
+         the full delta between the two surviving samples bracketing it, from which the DSP subtracts
+         one nominal step to recover the excess dead time. A run touching either END of the record has
+         no bracketing pair, so it contributes no gap — there is no interval for it to lengthen, and
+         inventing one would fabricate time rather than report absence. */
+      if (kept.length > 0 && i < sig.length) {
+        const atRelMs = (inv.runs[ri - 1].start - 1) * msPerSample;
+        gaps.push({ idx: kept.length, ms: (len + 1) * msPerSample, atRelMs, endRelMs: atRelMs + (len + 1) * msPerSample });
+      }
+      continue;
+    }
+    kept.push(sig[i]);
+    i++;
+  }
   // physical µV — Pan–Tompkins is adaptive and largely scale-free, but a consistent unit keeps the
   // amplitude in the range the shipped thresholds were written against.
-  const int16 = new Int16Array(sig.length);
-  for (let i = 0; i < sig.length; i++) {
-    const uv = ((sig[i] - s0.zero) / s0.gain) * 1000;
+  /* ⚠ THE CLAMP BELOW MANUFACTURES -32768, and that is a DIFFERENT meaning from the one excised
+     above: here it is a real sample driven to saturation, there it was "undefined". Within this file
+     the constant therefore means two opposite things, on two paths — which is why the excision happens
+     at the PARSE boundary, before any scaling, and never as a `=== -32768` test on this buffer. The
+     clamp is latent: reaching it needs a physical amplitude ≤ -32.768 mV where real ECG is ±5 mV. It
+     is a trap for whoever changes gain handling or adds a database, not a defect producing a wrong
+     number today. */
+  const int16 = new Int16Array(kept.length);
+  for (let i = 0; i < kept.length; i++) {
+    const uv = ((kept[i] - s0.zero) / s0.gain) * 1000;
     int16[i] = Math.max(-32768, Math.min(32767, Math.round(uv)));
   }
-  const anns = readAtr(atr).filter((a) => BEAT_CODES.has(a.code));
-  const msPerSample = 1000 / head.fs;
+  /* A beat annotated INSIDE an excised run annotates a sample that was never a measurement, so it
+     leaves the reference train too — and is COUNTED, not silently dropped. Scoring it would charge the
+     detector a miss for not finding a beat in data that does not exist. */
+  const annsAll = readAtr(atr).filter((a) => BEAT_CODES.has(a.code));
+  const inRun = (smp) => {
+    for (const r of inv.runs) if (smp >= r.start && smp < r.start + r.len) return true;
+    return false;
+  };
+  const anns = inv.runs.length ? annsAll.filter((a) => !inRun(a.sample)) : annsAll;
   const refMs = anns.map((a) => a.sample * msPerSample);
+  let samplesExcluded = 0;
+  for (const r of inv.runs) samplesExcluded += r.len;
 
-  const out = ctx.ECGDSP.analyze({ int16, fs: head.fs, t0Ms: 0, durSec: sig.length / head.fs, gaps: [] });
+  /* `durSec` stays the ORIGINAL wall-clock span: excising undefined samples removes data, not time. */
+  const out = ctx.ECGDSP.analyze({ int16, fs: head.fs, t0Ms: 0, durSec: sig.length / head.fs, gaps });
   /* ⚠️ `analyze().times` is in SECONDS (sub-sample-refined, relative to t0Ms). The reference train is
      built in milliseconds from annotation sample indices, so this conversion is load-bearing: without
      it every comparison is off by 1000× and the matcher returns tp=0 while both trains look healthy.
@@ -436,6 +523,20 @@ export function scoreRecord(ctx, rec) {
     lead: s0.desc,
     refBeats: refMs.length,
     detBeats: detMs.length,
+    /* THE POPULATION AS AN EQUALITY, never a floor: refBeats + absence.refBeatsExcluded =
+       absence.refBeatsTotal, always. And `checked` travels with the counts, because a stream that was
+       never examined for absence and one that was examined and found clean both report 0 runs — the
+       distinction is the whole point of the guard and it must not live only in this comment. */
+    absence: {
+      checked: inv.checked,
+      reason: inv.reason,
+      sentinel: inv.sentinel,
+      runs: inv.runs.length,
+      samplesExcluded,
+      secExcluded: samplesExcluded / head.fs,
+      refBeatsTotal: annsAll.length,
+      refBeatsExcluded: annsAll.length - anns.length
+    },
     /* published so a unit or timebase mismatch is visible in the output rather than only in a rate */
     detSpanMs: detMs.length > 1 ? detMs[detMs.length - 1] - detMs[0] : null,
     refSpanMs: refMs.length > 1 ? refMs[refMs.length - 1] - refMs[0] : null,
@@ -498,6 +599,12 @@ function pack212(samples) {
     buf[(i / 2) * 3 + 1] = ((a >> 8) & 0x0f) | ((b >> 4) & 0xf0);
     buf[(i / 2) * 3 + 2] = b & 0xff;
   }
+  return buf;
+}
+
+function pack16(samples) {
+  const buf = Buffer.alloc(samples.length * 2);
+  for (let i = 0; i < samples.length; i++) buf.writeInt16LE(samples[i], i * 2);
   return buf;
 }
 
@@ -661,6 +768,121 @@ function selftest() {
   } catch (e) {
     ok('end-to-end: reader → ECGDSP.analyze → matcher runs', false, String((e && e.message) || e));
   }
+
+  // 11 · WFDB's invalid-sample sentinel — the unit rules, then the PLANT, then the control that makes
+  //      the plant non-vacuous. CLAUDE.md §∅.
+  {
+    const iv = invalidSpans([0, 5, WFDB_INVALID_SAMPLE, WFDB_INVALID_SAMPLE, 7, WFDB_INVALID_SAMPLE, 9], '16');
+    ok(
+      'sentinel: runs of -32768 are found, and adjacent samples form ONE run',
+      iv.checked && iv.runs.length === 2 && iv.runs[0].start === 2 && iv.runs[0].len === 2 && iv.runs[1].len === 1,
+      JSON.stringify(iv.runs)
+    );
+    const clean = invalidSpans([0, 5, -32767, 32767, 9], '16');
+    ok('sentinel: a value ONE OFF the sentinel is not one — no invented sentinels', clean.checked && clean.runs.length === 0, JSON.stringify(clean.runs));
+    /* ⚠ THE DISTINCTION THIS WHOLE GUARD TURNS ON: format 212 is NOT examined, and must not report
+       the same empty run list a clean format-16 stream reports. An unexamined stream reading as a
+       clean one is §4b's family — a check reporting success about what it never looked at. */
+    const f212 = invalidSpans([0, -2048, 5], '212');
+    ok('sentinel: format 212 reports checked:FALSE with a reason — not an empty run list', f212.checked === false && typeof f212.reason === 'string' && f212.reason.length > 0, JSON.stringify(f212));
+    ok('sentinel: format 212 does NOT null -2048 on an unverified equivalence', f212.runs.length === 0 && f212.sentinel === null);
+  }
+
+  try {
+    const fsHz = 360,
+      secs = 30,
+      n = fsHz * secs;
+    const mkSig = (mut) => {
+      const sig = new Array(n).fill(0);
+      const anns = [];
+      for (let b = 0; b < secs; b++) {
+        const c = Math.round((b + 0.5) * fsHz);
+        for (let k = -5; k <= 5; k++) if (c + k >= 0 && c + k < n) sig[c + k] = Math.round(600 * Math.exp(-(k * k) / 2));
+        anns.push({ sample: c, code: 1 });
+      }
+      if (mut) mut(sig);
+      return { sig, anns };
+    };
+    const score16 = (mut) => {
+      const { sig, anns } = mkSig(mut);
+      const dir = mkdtempSync(join(tmpdir(), 'physionet-self16-'));
+      writeFileSync(join(dir, 's.hea'), 'selftest 1 360 ' + n + '\nselftest.dat 16 200 16 0 0 0 0 MLII\n');
+      writeFileSync(join(dir, 's.dat'), pack16(sig));
+      writeFileSync(join(dir, 's.atr'), packAtr(anns));
+      const ctx2 = makeRealm();
+      try {
+        return scoreRecord(ctx2, { hea: readFileSync(join(dir, 's.hea'), 'utf8'), dat: readFileSync(join(dir, 's.dat')), atr: readFileSync(join(dir, 's.atr')) });
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    };
+    /* 540 samples = 1.5 s starting 40 before beat #10, so the run straddles TWO annotated beats. */
+    const S = 3780 - 40,
+      L = 540;
+
+    const base = score16(null);
+    ok(
+      'sentinel e2e: a CLEAN format-16 record is examined and found clean (checked, 0 runs)',
+      base.absence.checked === true && base.absence.runs === 0 && base.refBeats === 30,
+      JSON.stringify(base.absence)
+    );
+
+    const planted = score16((sig) => {
+      for (let i = S; i < S + L; i++) sig[i] = WFDB_INVALID_SAMPLE;
+    });
+    ok(
+      'sentinel e2e: the planted run is SEEN — 1 run, 540 samples, 1.5 s',
+      planted.absence.runs === 1 && planted.absence.samplesExcluded === L && Math.abs(planted.absence.secExcluded - 1.5) < 1e-9,
+      JSON.stringify(planted.absence)
+    );
+    /* The population as an EQUALITY, which is the assertion a floor cannot make. */
+    ok(
+      'sentinel e2e: every reference beat is either scored or excluded — 28 + 2 = 30',
+      planted.refBeats + planted.absence.refBeatsExcluded === planted.absence.refBeatsTotal && planted.absence.refBeatsTotal === 30 && planted.absence.refBeatsExcluded === 2,
+      'ref=' + planted.refBeats + ' ex=' + planted.absence.refBeatsExcluded + ' tot=' + planted.absence.refBeatsTotal
+    );
+    ok(
+      'sentinel e2e: the surviving beats still score perfectly — the absence did not leak into detection',
+      planted.tp === 28 && planted.fn === 0 && planted.fp === 0,
+      'tp=' + planted.tp + ' fn=' + planted.fn + ' fp=' + planted.fp
+    );
+    /* The excised samples are GONE from the buffer but their wall-clock time is not: the gap is
+       declared, the DSP folds it, and the detected train still spans the ORIGINAL record. Without the
+       fold this reads ~1.5 s short and every later beat is time-shifted early. */
+    ok(
+      'sentinel e2e: the dead time is declared, so the detected train still spans the ORIGINAL record',
+      Math.abs(planted.detSpanMs - base.detSpanMs) < 2 * (1000 / fsHz),
+      'planted=' + planted.detSpanMs.toFixed(0) + ' clean=' + base.detSpanMs.toFixed(0)
+    );
+
+    /* ⚠ THE CONTROL THAT MAKES THE PLANT NON-VACUOUS (memory: a plant that would pass anyway proves
+       nothing). Same magnitude, same length, same position — value -32767, which is NOT the documented
+       sentinel and so is NOT excised. Measured: the detector does not merely score worse, it refuses
+       ("Too few R-peaks detected"), because one -163.8 mV sample wrecks an ADAPTIVE threshold far
+       outside its own span. That is what the excision above is buying, demonstrated rather than
+       asserted — and it is also why a scoring-level exclusion would not have been enough. */
+    let unguarded = 'did not run';
+    try {
+      const r = score16((sig) => {
+        for (let i = S; i < S + L; i++) sig[i] = -32767;
+      });
+      unguarded = 'tp=' + r.tp + ' of ref=' + r.refBeats + ' runs=' + r.absence.runs;
+      ok('sentinel e2e CONTROL: an unrecognised extreme is NOT excised — and detection collapses', r.absence.runs === 0 && r.tp < base.tp - 5, unguarded);
+    } catch (e) {
+      unguarded = 'threw: ' + String((e && e.message) || e).slice(0, 60);
+      ok('sentinel e2e CONTROL: an unrecognised extreme is NOT excised — and detection collapses', true, unguarded);
+    }
+  } catch (e) {
+    ok('sentinel e2e: the format-16 chain runs', false, String((e && e.message) || e));
+  }
+
+  /* ⚠ NOT_RUN, stated as a population fact rather than a hedge: this guard has never seen a real
+     record. MIT-BIH is format 212 throughout, so on the one corpus this tool names it checks NOTHING
+     (`invalidSpans` reports checked:false there, by design). The manifest carries sha256:null for all
+     48 records — not one has ever been hashed, let alone scored. This is preparatory correctness: the
+     right moment to fix a parser is before the corpus arrives. */
+  console.log('\n  ⊘ NOT_RUN — the invalid-sample guard has never run on a real record: MIT-BIH is format');
+  console.log('    212 throughout (reported as checked:false), and 0 of 48 records in the manifest are pinned.');
 
   console.log("\n  ⚠️ NO Se/PPV is reported here by design — synthetic input scored by the detector's own");
   console.log('     assumptions is a circular oracle. Only --dir over real annotated records yields a rate.');
