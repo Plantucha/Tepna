@@ -372,6 +372,89 @@ expectr DENY  "an INTERPRETER heredoc that writes a guarded path is still seen" 
 expectr DENY  "…and a plain in-place edit is unaffected by the strip" \
   "{\"tool_input\":{\"command\":\"cd $STALE && sed -i s/a/b/ briefs/SHARED-BRIEF.md\"}}"
 
+# THE REPORTED CASE, and it is a COMPOUND neither block reproduces alone: the guarded path is quoted
+# as PROSE in a `cat <<MD` body, and the write verb (`open(p,'w').write(`) lives in a SECOND,
+# interpreter heredoc whose own path is a different file entirely. The hook ANDs "a guarded path
+# appears anywhere" with "looks_like_write sees a verb anywhere", so the two blocks together denied
+# while either alone allowed — which is why the first reconstruction of this report passed on both
+# copies and proved nothing. Measured against the real command, 2026-09-22 (Osprey).
+expectr ALLOW "two heredocs: path as prose in one, write verb in the other (the reported case)" \
+  "{\"tool_input\":{\"command\":\"cd $STALE && cat > /tmp/note.md <<'MD'\nthe row lives in briefs/SHARED-BRIEF.md\nMD\npython3 - <<'PY'\nopen('/tmp/other.md','w').write('x')\nPY\"}}"
+# The same command with the python block swapped for a plain append — the discriminator that proves
+# the write verb came from the interpreter block and not from the prose one.
+expectr ALLOW "…and with the second block a plain append instead" \
+  "{\"tool_input\":{\"command\":\"cd $STALE && cat > /tmp/note.md <<'MD'\nthe row lives in briefs/SHARED-BRIEF.md\nMD\nprintf x >> /tmp/other.md\"}}"
+# ⚠ KNOWN GAP, PINNED RATHER THAN HIDDEN (row 2026-09-23-heredoc-strip-is-decided-once-for-many).
+# The anti-vacuity leg for this pair SHOULD be a DENY — a guarded path inside an INTERPRETER body is
+# code, and the strip is about which body is data, never about how many bodies there are. It is an
+# ALLOW today, in BOTH copies, because the rule decides interpreter-vs-data ONCE for the FIRST
+# heredoc and then applies `sed … /g`, which blanks every later body including an interpreter's.
+# Measured on the sibling with a positive control, so this is a false NEGATIVE in the blanket-git
+# guard and not merely cosmetic here: `git add -A` DENIES inside one interpreter heredoc and ALLOWS
+# when a plain heredoc precedes it. Pre-existing on main, inherited by this port rather than
+# introduced by it, and fixed in its own unit — this line asserts what the hook DOES so the day it
+# starts denying, the suite says so.
+expectr ALLOW "⚠ KNOWN GAP: a path in a SECOND, interpreter heredoc is stripped too" \
+  "{\"tool_input\":{\"command\":\"cd $STALE && cat > /tmp/note.md <<'MD'\nharmless prose\nMD\npython3 - <<'PY'\nopen('briefs/SHARED-BRIEF.md','w').write('x')\nPY\"}}"
+
+echo
+echo "### A MERGE IN PROGRESS IS THE REMEDY BEING PERFORMED, NOT A STALE TREE"
+# Mid-merge, HEAD is the PRE-merge commit while the working tree already carries the upstream text —
+# so measured against HEAD alone every upstream commit reads as one the author does not have, and the
+# guard denies the resolution edit while pointing at the very commits they are looking at. Reported
+# 2026-09-23 by a session resolving a ledger conflict; reproduced here with both controls, because a
+# false positive whose only way out is the escape hatch is how a hatch becomes reflex.
+MM="$TMP/midmerge"
+mkdir -p "$MM/up/briefs"
+( cd "$MM/up" && git init -q . && git config user.email t@t && git config user.name t \
+  && printf 'base\n' > briefs/SHARED-BRIEF.md && git add -A && git commit -qm base && git branch -M main ) >/dev/null 2>&1
+( git clone -q "$MM/up" "$MM/work" && cd "$MM/work" && git config user.email t@t && git config user.name t \
+  && git checkout -qb feature && printf 'base\nmine\n' > briefs/SHARED-BRIEF.md && git commit -qam mine ) >/dev/null 2>&1
+( cd "$MM/up" && printf 'base\nUPSTREAM\n' > briefs/SHARED-BRIEF.md && git commit -qam upstream ) >/dev/null 2>&1
+( cd "$MM/work" && git fetch -q origin main ) >/dev/null 2>&1
+
+# The paired DENY: same tree, same branch, same upstream — differing ONLY in that no merge is running.
+expectr DENY  "stale branch, no merge running → denies (the case it exists for)" \
+  "{\"tool_input\":{\"command\":\"cd $MM/work && sed -i s/a/b/ briefs/SHARED-BRIEF.md\"}}"
+
+( cd "$MM/work" && git merge origin/main >/dev/null 2>&1; printf 'base\nmine\nUPSTREAM\n' > briefs/SHARED-BRIEF.md; git add briefs/SHARED-BRIEF.md ) >/dev/null 2>&1
+if [ -f "$MM/work/.git/MERGE_HEAD" ]; then
+  echo "  ok    fixture is non-vacuous — MERGE_HEAD is set and the upstream text is in the tree"
+else
+  echo "  FAIL  fixture did not leave a merge in progress; the leg below would prove nothing"
+  fail=$((fail + 1))
+fi
+expectr ALLOW "…and mid-merge, with the upstream commits already in the tree, it does not" \
+  "{\"tool_input\":{\"command\":\"cd $MM/work && sed -i s/a/b/ briefs/SHARED-BRIEF.md\"}}"
+
+# ANTI-VACUITY: the relaxation is keyed on the merge being IN PROGRESS, not on the file. Finish the
+# merge and the answer must stay ALLOW for the right reason — the commits are genuinely in HEAD now.
+( cd "$MM/work" && git commit -qm merge ) >/dev/null 2>&1
+expectr ALLOW "…and after the merge commit, for the ordinary reason" \
+  "{\"tool_input\":{\"command\":\"cd $MM/work && sed -i s/a/b/ briefs/SHARED-BRIEF.md\"}}"
+
+# A conflicted CHERRY-PICK of an upstream commit is the same situation by a different command, and it
+# is in the fix on its own measurement rather than by analogy with the merge case: DENY before the
+# change, ALLOW after, stale control unchanged. (`REVERT_HEAD` is deliberately not covered — see the
+# hook's header: measuring it showed it is either a no-op or a false allow.)
+CP="$TMP/cherrypick"
+mkdir -p "$CP/up/briefs"
+( cd "$CP/up" && git init -q . && git config user.email t@t && git config user.name t \
+  && printf 'base\n' > briefs/SHARED-BRIEF.md && git add -A && git commit -qm base && git branch -M main ) >/dev/null 2>&1
+( git clone -q "$CP/up" "$CP/work" && cd "$CP/work" && git config user.email t@t && git config user.name t \
+  && git checkout -qb feature && printf 'base\nmine\n' > briefs/SHARED-BRIEF.md && git commit -qam mine ) >/dev/null 2>&1
+( cd "$CP/up" && printf 'base\nUPSTREAM\n' > briefs/SHARED-BRIEF.md && git commit -qam upstream ) >/dev/null 2>&1
+( cd "$CP/work" && git fetch -q origin main && git cherry-pick "$(git rev-parse origin/main)" >/dev/null 2>&1
+  printf 'base\nmine\nUPSTREAM\n' > briefs/SHARED-BRIEF.md; git add briefs/SHARED-BRIEF.md ) >/dev/null 2>&1
+if [ -f "$CP/work/.git/CHERRY_PICK_HEAD" ]; then
+  echo "  ok    fixture is non-vacuous — CHERRY_PICK_HEAD is set"
+else
+  echo "  FAIL  no cherry-pick in progress; the leg below would prove nothing"
+  fail=$((fail + 1))
+fi
+expectr ALLOW "…and a conflicted cherry-pick of the upstream commit, likewise" \
+  "{\"tool_input\":{\"command\":\"cd $CP/work && sed -i s/a/b/ briefs/SHARED-BRIEF.md\"}}"
+
 echo
 echo "### THE TWO COPIES OF THE STRIPPER STAY BYTE-IDENTICAL"
 # The rule lives in two hooks because each is invoked standalone and must work from a checkout that

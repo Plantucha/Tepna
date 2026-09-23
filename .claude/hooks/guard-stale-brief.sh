@@ -272,13 +272,48 @@ fi
 G rev-parse --verify -q HEAD >/dev/null 2>&1 || exit 0
 G rev-parse --verify -q origin/main >/dev/null 2>&1 || exit 0
 base="$(G merge-base HEAD origin/main 2>/dev/null)" || exit 0
+# ── MID-MERGE, HEAD IS THE PRE-MERGE COMMIT AND THE TREE IS NOT ────────────────────────────────
+#    A session that is DOING what this guard asks — merging the upstream edits in — has `MERGE_HEAD`
+#    set, the upstream text already in its working tree, and a HEAD that still predates all of it.
+#    Measured against HEAD alone, every upstream commit reads as "one you do not have", so the guard
+#    denies the resolution edit and points at commits the author is looking at. Measured 2026-09-23
+#    with both controls: DENY before the merge (correct), DENY mid-merge (this false positive),
+#    allow after the merge commit (correct).
+#
+#    A false positive here is not merely noise: this hook's only way out is an escape hatch, and a
+#    guard whose hatch becomes reflex is the guard that fails the day it is right. So the "commits
+#    you do not have" set excludes anything already reachable from the merge in progress. Nothing
+#    else is relaxed — a genuinely stale branch still denies, because `MERGE_HEAD` is absent there.
+#    `CHERRY_PICK_HEAD` is covered for the same reason and on its own measurement, not by analogy:
+#    a conflicted cherry-pick of an upstream commit reads DENY before this change and allow after,
+#    with the stale control still denying.
+#
+#    ⚠ `REVERT_HEAD` is DELIBERATELY ABSENT, and it was in an earlier draft of this fix by derivation
+#    ("the commit is in the tree before it is in HEAD") until a peer asked which of the three had
+#    actually been measured. Measuring it removed it: you revert a commit you ALREADY HAVE, so
+#    `REVERT_HEAD` is an ancestor of HEAD and excluding it changes nothing — and in the one case
+#    where it would not be an ancestor (reverting a commit this branch lacks), the tree carries the
+#    NEGATION of the upstream edit rather than the edit, so suppressing the denial would be wrong.
+#    An unmeasured ref that is either a no-op or a false allow is not defence in depth.
+_gitdir="$(G rev-parse --git-dir 2>/dev/null)"
+_have_too=""
+if [ -n "$_gitdir" ]; then
+  case "$_gitdir" in /*) : ;; *) _gitdir="$root/$_gitdir" ;; esac
+  for _p in MERGE_HEAD CHERRY_PICK_HEAD; do
+    [ -f "$_gitdir/$_p" ] || continue
+    while read -r _sha _rest; do
+      [ -n "$_sha" ] && _have_too="$_have_too --not $_sha"
+    done < "$_gitdir/$_p"
+  done
+fi
 [ -z "$base" ] && exit 0
 
 # Commits on origin/main touching EACH candidate that your branch does not have.
 report=""; first=""; n=0
 while IFS= read -r rel; do
   [ -z "$rel" ] && continue
-  missed="$(G log --oneline --no-decorate "$base"..origin/main -- "$rel" 2>/dev/null)" || continue
+  # shellcheck disable=SC2086 # $_have_too is a deliberately word-split "--not <sha>" list
+  missed="$(G log --oneline --no-decorate "$base"..origin/main $_have_too -- "$rel" 2>/dev/null)" || continue
   [ -z "$missed" ] && continue
   [ -z "$first" ] && first="$rel"
   n=$((n + $(printf '%s\n' "$missed" | grep -c .)))
