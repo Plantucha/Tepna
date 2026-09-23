@@ -54,6 +54,10 @@ KINDS: tuple[tuple[str, str], ...] = (
     ("daemon:not-worn drop", "not worn for"),
     ("daemon:pull paused live", "live capture paused"),
     ("daemon:charging hold", "charging — PMD streams unavailable"),
+    # the clock watchdog re-sync runs an offline op that PAUSES live capture — the box tearing its own
+    # recording. Without this bin 147 min of H10 loss over 28 corpus nights (2026-08-25 → 09-21, the
+    # 2026-09-04/05/12 resync storms #2459 fixed) read as `unattributed`.
+    ("daemon:clock re-sync", "off host (tolerance"),
     ("daemon:stream stall re-negotiate", "silent for"),
     ("device:powered off", "powered off"),
     ("link:timeout / not found", "TimeoutError"),
@@ -78,9 +82,15 @@ WORN_EVIDENCE_BY_MODEL: dict[str, tuple[str, int]] = {
 
 
 def read_journal(
-    name: str, since: _dt.datetime, until: _dt.datetime, run=subprocess.run
+    name: str | tuple[str, ...], since: _dt.datetime, until: _dt.datetime, run=subprocess.run
 ) -> list[tuple[_dt.datetime, str]] | None:
-    """[(local stamp, cause)] for one device's lines in the window, or None when journalctl is unavailable."""
+    """[(local stamp, cause)] for one device's lines in the window, or None when journalctl is unavailable.
+
+    `name` is the device name, or every string that identifies the device in a log line — its name AND
+    its address. The offline-op lines (`Polar <address>: offline-recording op — live capture paused`)
+    carry ONLY the address: 8,369 of the 8,956 such lines on the box 2026-08-24 → 09-23, all invisible
+    to a name-only match, so `daemon:pull paused live` could almost never fire."""
+    keys = (name,) if isinstance(name, str) else tuple(k for k in name if k)
     try:
         r = run(
             [
@@ -106,7 +116,7 @@ def read_journal(
     out: list[tuple[_dt.datetime, str]] = []
     for ln in r.stdout.split("\n"):
         m = re.match(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})", ln)
-        if not m or (name not in ln and "Starting tepna-capture" not in ln):
+        if not m or (not any(k in ln for k in keys) and "Starting tepna-capture" not in ln):
             continue
         for cause, needle in KINDS:
             if needle in ln:
@@ -215,7 +225,8 @@ def audit_night(night_dir: str, devices: list[dict], *, journal=read_journal) ->
         except OSError as exc:
             out["devices"][name] = {"primary": pat, "file": os.path.basename(f), "reason": f"unreadable: {exc!r}"}
             continue
-        ev = journal(name, since, until)
+        address = str(d.get("address") or "")
+        ev = journal((name, address) if address else name, since, until)
         if ev is None:
             journal_missing = True
         by_cause = attribute(gaps, ev)
