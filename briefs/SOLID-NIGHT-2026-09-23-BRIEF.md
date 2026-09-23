@@ -120,11 +120,24 @@ Night-absent class (not gaps — the audit cannot count them): H10 missing 09-01
 short on 08-27 (50 min), 09-18 (24), 09-19 (68); Verity missing 09-14, 09-18, short 08-27 (34); ring
 missing 09-14, 09-18.
 
-**Work order this yields, top-down:**
-1. H10 unattributed losses (09-04 40.8 · 09-05 44.9 · 09-12 40.3 min; 40–53 fragments each, zero
-   daemon-attributed) — the largest class nobody has explained; Wren attributes, then Heron fixes
-   whatever it names.
-2. Verity 09-12 not-worn drop (127 min daemon-caused, 74 fragments) and Verity unattributed 106 min.
+**Attribution of the "unattributed" H10 class (Wren, same evening, 28 nights):** 147.3 of the 214.8
+min (69 %) are gaps preceded within 15 s by a journal line `device clock is −29.2 s off host —
+re-syncing`: the daemon paused live capture for an offline op every ~5.5 min, the ECG gapped 55–100 s
+each time, the resync never held, and the storm repeated (resync lines per night: 09-05 73 · 09-06
+74 · 09-11 55 · 09-12 55 · zero on every night since #2459 merged on 09-13). Corrected: **H10
+daemon-caused 714 of 782 min (91 %)**, both mechanisms already fixed (#2833, #2459); the H10's own
+remaining loss is ~67 min in 28 nights (09-12 19.7 in 67 short gaps · 09-03 8.5 · 08-25 6.8). The
+resync storm and the 09-22 stall are one shape a layer apart: the box tearing its own recording. An
+instrument defect made it invisible — `loss_audit.py` matches journal lines by device NAME and a
+fixed KIND list; the resync line matches no KIND, and 8,369 of 8,956 `live capture paused` lines
+carry only the device ADDRESS — Wren's unit, go given 2026-09-23 ~19:50.
+
+**Work order this yields, top-down (corrected):**
+1. The `loss_audit.py` instrument: the resync KIND, and match on name OR address, with plants run
+   with and without the fix; re-auditing re-labels the old nights (Wren).
+2. Verity 09-12 (133 min, 127 daemon not-worn drop, 74 fragments) and Verity unattributed 106 min —
+   the same attribution method; Heron's first daemon unit is whatever it names, NOT an H10 link or
+   wear fix.
 3. The night-absent class: why an expected device produced no file on six nights.
 4. The 09-19 → 09-22 stall (fixed #2936, live since 06:52 on 09-23) — tonight is its acceptance.
 5. The ring is effectively solid on every night; its in-band blanking is a validity-sidecar matter
