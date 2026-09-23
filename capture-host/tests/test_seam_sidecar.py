@@ -212,7 +212,7 @@ def test_CONTROL_the_unseeded_sidecar_is_blind_to_the_same_boundary(tmp_path):
     nothing: an unseeded instance stores the first sample and judges no interval."""
     import writers
 
-    sc = writers._SeamSidecar(str(tmp_path / "X_ECG.txt"), "ecg", resumed=True)  # no seed
+    sc = writers._SeamSidecar(str(tmp_path / "X_ECG.txt"), "ecg")  # no seed
     sc.feed(_S2_FIRST_PHONE, _S2_FIRST_NS)
     sc.close()
     assert sc.seams == 0 and sc.examined == 0
@@ -270,3 +270,47 @@ def test_a_torn_last_row_is_skipped_for_the_seed_too(tmp_path):
     w2 = writers.StreamWriter(p, "ecg", fsync=False)
     assert w2._seams._prev_ns == _S1_LAST_NS
     w2.close()
+
+
+# ── RESUME IS THE SIDECAR'S OWN PROPERTY, NOT THE PARENT'S (2026-09-23) ─────────────────────────
+# Wren, on the box: last night's H10 `ECGSEAMS.txt` carried NO header while the Verity's did. The
+# sidecar INHERITED `resumed` from its parent StreamWriter — the only resumable writer here that did
+# — and #2902 made it open LAZILY, so "the parent is resuming a file-set" stopped implying "my own
+# file exists with a header". On that path it opened "a" on a path that did not exist and skipped the
+# header by design, leaving a sidecar that never says what it is.
+def test_PLANT_a_resumed_PARENT_with_no_sidecar_file_still_writes_the_header(tmp_path):
+    import writers
+    p = str(tmp_path / "Polar_H10_x_20260922223818_ECG.txt")
+    w1 = writers.StreamWriter(p, "ecg", fsync=False)
+    w1.write_ecg(dt.datetime(2026, 9, 22, 22, 38, 18), 1_000_000_000, 0.0, -20000)
+    w1.close()
+    seams = p[:-4] + "SEAMS.txt"
+    os.remove(seams)                      # the observed state: parent resumable, sidecar absent
+
+    w2 = writers.StreamWriter(p, "ecg", fsync=False)
+    assert w2.resumed, "the PARENT is resuming — that is the whole setup"
+    w2.write_ecg(dt.datetime(2026, 9, 22, 22, 38, 26), 1_008_000_000, 0.0, -20001)
+    w2.close()
+
+    body = open(seams).read()
+    assert body.startswith("# stream=ecg rule=clock-seam"), f"a sidecar that cannot say what it is: {body!r}"
+    assert "phone_ts;idx;device_step_ms" in body, body
+
+
+def test_a_sidecar_resuming_its_OWN_non_empty_file_does_not_re_emit_the_header(tmp_path):
+    """The other half: self-detection must still APPEND rather than truncate or duplicate."""
+    import writers
+    p = str(tmp_path / "X_ECG.txt")
+    sc = writers._SeamSidecar(p, "ecg")
+    sc.feed(dt.datetime(2026, 9, 22, 22, 0, 0), 1_000_000_000)
+    sc.close()
+    first = open(p[:-4] + "SEAMS.txt").read()
+    assert first.count("rule=clock-seam") == 1
+
+    sc2 = writers._SeamSidecar(p, "ecg")          # same path, now non-empty
+    sc2.feed(dt.datetime(2026, 9, 22, 23, 0, 0), 2_000_000_000)
+    sc2.close()
+    body = open(p[:-4] + "SEAMS.txt").read()
+    assert body.count("rule=clock-seam") == 1, "the header must not be re-emitted on resume"
+    assert body.startswith(first), "the earlier session's bytes must survive verbatim"
+    assert body.count("# final") == 2, "one per session"

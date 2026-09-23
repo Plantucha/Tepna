@@ -930,7 +930,7 @@ class _SeamSidecar:
     describing the stream better is not worth dropping the notifications that ARE the stream.
     """
 
-    def __init__(self, path: str, stream: str, resumed: bool = False,
+    def __init__(self, path: str, stream: str,
                  seed: "tuple[int, float] | None" = None, first_ns: "int | None" = None) -> None:
         """`seed` = (sensor_ns, phone_ms) of the LAST row already on disk when this sidecar resumes.
 
@@ -963,7 +963,6 @@ class _SeamSidecar:
             self._prev_ns, self._prev_phone_ms = seed
             if self._first_ns is None:
                 self._first_ns = seed[0]  # the resumed axis starts at the last pre-seam sample
-        self._resumed = resumed
         self._opened = False
         self._pmd_note: str | None = None
         # Annotated, not inferred: a bare `= None` types the attribute as `None`, so every later
@@ -990,8 +989,20 @@ class _SeamSidecar:
             return False       # tried once and failed; do not retry per sample on the notify path
         self._opened = True
         try:
-            self._fh = open(self.path, "a" if self._resumed else "w", buffering=1 << 16, newline="\n")
-            if not self._resumed:
+            # RESUME IS THIS FILE'S OWN PROPERTY, self-detected at OPEN time — the idiom the three
+            # other resumable writers here already use ("a non-empty file means resume, append, and
+            # do not re-emit the header"). It was INHERITED from the parent StreamWriter until
+            # 2026-09-23, which is wrong for a reason #2902 created: the sidecar now opens LAZILY, on
+            # the first clocked sample, so "the parent is resuming a file-set" stopped implying "my
+            # own file exists with a header in it". On the resume path the parent is resumed, the
+            # sidecar's path does not exist, and this opened "a" on a new file and SKIPPED the header
+            # by design — leaving a sidecar that never says what it is. Measured on the box: last
+            # night's H10 ECGSEAMS carried no header while the Verity's did.
+            # Detected HERE and not in __init__ because open time is the only moment the answer is
+            # knowable: the file may be created between construction and the first sample.
+            resumed = os.path.exists(self.path) and os.path.getsize(self.path) > 0
+            self._fh = open(self.path, "a" if resumed else "w", buffering=1 << 16, newline="\n")
+            if not resumed:
 
                 # The file reproduces itself: a consumer reads the bound that PRODUCED these rows
                 # rather than whatever the default has moved to since.
@@ -1674,7 +1685,6 @@ class StreamWriter:
         self._seams = _SeamSidecar(
             path,
             stream,
-            resumed=self.resumed,
             seed=_last_row_clocks(path) if self.resumed else None,
             first_ns=self._first_ns,
         )
