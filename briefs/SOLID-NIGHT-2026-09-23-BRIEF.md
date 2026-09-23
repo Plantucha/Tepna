@@ -66,8 +66,8 @@ Two facts measured on the box the night this was written, both binding on the ve
   acceptance (Wren): the audit lands ≤ 55 min after the next night's first ECG write.
 - **Expected streams come from a declared list, not from what was captured.** The COOSPO 808S has
   zero files on every night and the audit reports `no primary stream known for model 'HRM808S'`;
-  whether it is expected is the owner's call (§6). Until then it is NOT expected, stated here so it
-  cannot make every night UNKNOWN by construction.
+  the owner ruled it a manual-only backup (§6): NOT expected unless entered into that night's
+  capture, so it cannot make every night UNKNOWN by construction.
 
 **Exit criterion: fourteen consecutive SOLID nights** — the owner's own P5 bar ("not until we have
 some 2 weeks without errors"). When it holds, the fleet refocuses on processing with a corpus worth
@@ -157,8 +157,14 @@ correct behaviour, which is why the work order starts with the nights that never
 
 ## 6 · Owner decisions this brief waits on
 
-- Is the **COOSPO 808S** an expected stream? Yes ⇒ it has failed silently on every night and is a
-  Heron unit; no ⇒ remove it from the device list so it cannot red the verdict.
+- ~~Is the **COOSPO 808S** an expected stream?~~ 🟢 **ANSWERED — owner, 2026-09-23 ~20:00, verbatim:**
+  *"Coospo is just backup that can produce rr and hr only. It's not expected to be used, but it's
+  widely used device and still can provide some info. I would not expect to be used unless manually
+  entered to capture."* So: `expected: false` by default; expected for a night ONLY when manually
+  entered into that night's capture, and then its HR/RR are scored like the H10's RR. The verdict's
+  expected-stream list is therefore PER NIGHT, from the capture's own device set, never a static
+  config; the audit's `no primary stream known for model 'HRM808S'` is a non-finding on a normal
+  night. No Heron unit.
 - The **known-clock adversarial capture night** (`KNOWN-CLOCK-ADVERSARIAL-CAPTURE-2026-08-14`) is
   still the owner's to run; it is capture work and belongs in this phase.
 
