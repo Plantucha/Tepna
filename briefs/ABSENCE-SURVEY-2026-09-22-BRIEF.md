@@ -76,6 +76,24 @@ Contact 2/3 (probe fault) → `worn: False` (a lead-off); an undecryptable reply
 
 A doff instant counted in rows rather than read from a row's own stamp; a padded EDF record; a mean over a window whose gaps were compacted out. The absent samples do not leave a hole — they move every later point. **Remedy:** derive instants from stamps, never from counts, and publish the covered span beside the value (the ruling CLAUDE.md §∅ already gives: a discontinuity refuses, reduced coverage annotates).
 
+⚠️ **F5 IS TWO KINDS IN THE DATA, AND THE FAMILY ARITHMETIC ONLY CLOSES IF YOU COUNT BOTH** — a
+picker-up checks that first, so: the rows carry no `family` field, `kind` is the family key, and F5 is
+`aggregate-over-absence` **39** + `discontinuity-annotated` **2** = 41. (The rest: F1 =
+`default-reads-as-measured` 106 · F2 = `default-number` 119 · F3 = `in-band-sentinel` 24 · F4 = 0.)
+
+The 2-row kind is not a rounding detail — **it is the exact boundary the §∅ ruling governs**, which is why
+it is named apart rather than folded into the 39. Both rows sit on the line between refusing and
+annotating, and both are `low` only because of what consumes them:
+
+- `capture-host/writers.py:1544` — a RESUMED ECG file whose per-file anchor (`_first_ns`) could not be
+  recovered, so the relative `timestamp [ms]` column has no measured origin. That is a DISCONTINUITY, so
+  the ruling says it **refuses**; today it is absorbed and spent by `ecgdex-dsp.js:5572-5586`
+  (`ecgCoverage`).
+- `glucodex-render.js:321` — a CGM dropout where `glucodex-dsp.js:490/496` wrote a **linear
+  interpolation** into `gV` and the minimap draws an unbroken pen across it. A dropout is reduced
+  COVERAGE, which annotates — but the fabricated value is a §∅ violation on its own, before the drawing
+  question is reached.
+
 Every confirmed row is **path-manufactured**, so in every case the fix is ours and the recording is not
 touched (§∅: captured bytes are immutable; correction lives beside the file).
 
