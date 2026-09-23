@@ -181,6 +181,33 @@ export function verdict({ prState, dirtyCount, isMain, inUse, unlanded }) {
   return { ok: true, why: (inUse ? 'PR merged + tree clean + idle' : 'PR merged + tree clean') + (unlanded ? ' + every commit landed' : '') };
 }
 
+/* A RETRIED BRANCH CARRIES ITS PREDECESSOR'S NAME AS A PREFIX, and that is what makes `--pr` PROOF
+   rather than an override (row 2026-09-23-wt-done-cannot-be-told-the-pr-landed). Measured case:
+   `claude/p3-w2-gap-counters-hrn-v2` holds the work of PR #2627, merged as
+   `claude/p3-w2-gap-counters-hrn` — the tool looks PRs up by branch name, finds none, and refuses
+   with `no PR found for branch`, which `--force` deliberately does not override.
+   `--pr` does not weaken any check: the PR must still be MERGED, the tree still clean and idle, and
+   the post-merge commit scan still runs against THAT PR's merge time. All the flag supplies is which
+   PR to read, and this relation is what stops an unrelated number being accepted.
+   MIN_RELATED_CHARS exists because every branch here begins `claude/` (7 chars): without a floor the
+   shared stem alone could satisfy a prefix test on a short enough name. */
+const MIN_RELATED_CHARS = 12;
+export function namesRelated(branch, prHead) {
+  if (!branch || !prHead) return false;
+  const [shortName, longName] = branch.length <= prHead.length ? [branch, prHead] : [prHead, branch];
+  if (shortName.length < MIN_RELATED_CHARS) return false;
+  return longName.startsWith(shortName);
+}
+
+function prByNumber(num) {
+  try {
+    const js = JSON.parse(run('gh', ['pr', 'view', String(num), '--json', 'state,mergedAt,headRefName']));
+    return { state: js.state ?? null, mergedAt: js.mergedAt || null, headRefName: js.headRefName ?? null };
+  } catch {
+    return { state: null, mergedAt: null, headRefName: null };
+  }
+}
+
 function prFor(branch) {
   if (!branch) return { state: null, mergedAt: null };
   try {
@@ -234,7 +261,17 @@ function main(argv) {
     }
     return 0;
   }
-  const targets = argv.filter((a) => !a.startsWith('--'));
+  const prFlagAt = argv.indexOf('--pr');
+  const prArg = prFlagAt >= 0 ? argv[prFlagAt + 1] : null;
+  if (prFlagAt >= 0 && !/^[0-9]+$/.test(prArg ?? '')) {
+    console.error('usage: --pr <number>');
+    return 2;
+  }
+  const targets = argv.filter((a) => !a.startsWith('--') && a !== prArg);
+  if (prArg && targets.length !== 1) {
+    console.error(`✕ --pr names ONE PR, so it applies to ONE worktree (got ${targets.length})`);
+    return 2;
+  }
   if (!targets.length) {
     console.error('usage: node tools/wt-done.mjs --list | <worktree-path> [...]');
     return 2;
@@ -248,7 +285,19 @@ function main(argv) {
       fail++;
       continue;
     }
-    const pr = prFor(w.branch);
+    let pr;
+    if (prArg) {
+      const named = prByNumber(prArg);
+      if (!namesRelated(w.branch, named.headRefName)) {
+        console.error(`✕ REFUSE ${t}: PR #${prArg} merged as '${named.headRefName ?? '(unknown)'}', which is not a rename of '${w.branch}' — supply the PR that carries THIS branch's work`);
+        fail++;
+        continue;
+      }
+      console.log(`  proof: PR #${prArg} is ${named.state} as '${named.headRefName}' (this branch is a rename of it)`);
+      pr = named;
+    } else {
+      pr = prFor(w.branch);
+    }
     const v = verdict({
       prState: pr.state,
       dirtyCount: dirtyCountFor(w.path),
@@ -350,6 +399,22 @@ if (process.argv.includes('--selftest')) {
   );
   assert(verdict({ prState: 'MERGED', dirtyCount: 0, isMain: false }).why === 'PR merged + tree clean', 'a caller that does NOT scan for unlanded commits keeps the old text byte-for-byte');
   assert(!verdict({ prState: 'MERGED', dirtyCount: 1, isMain: false, unlanded: { ok: true, count: 0 } }).ok, 'dirty still outranks a clean landed-scan');
+  /* ── the RETRY-RENAME relation (row 2026-09-23-wt-done-cannot-be-told-the-pr-landed) ──────────
+     `--pr` is proof, not an override, and this relation is the part that makes it so. The measured
+     case is asserted by name, and the floor is asserted against the shared `claude/` stem that every
+     branch here carries. */
+  assert(namesRelated('claude/p3-w2-gap-counters-hrn-v2', 'claude/p3-w2-gap-counters-hrn'), 'a -v2 retry IS related to the name its PR merged under');
+  assert(namesRelated('claude/p3-w2-gap-counters-hrn', 'claude/p3-w2-gap-counters-hrn'), 'an identical name is related to itself');
+  assert(
+    !namesRelated('claude/render-sweep-mg', 'claude/absence-survey-mg'),
+    'two unrelated branches are NOT related'
+  ); /* test names deliberately avoid the substring `/`+`wt-`: the tool-hygiene gate reads a
+        quoted string containing it as a hardcoded checkout root, and a fake branch name in a
+        selftest is indistinguishable from one. Caught by that gate, not by review. */
+  assert(!namesRelated('claude/', 'claude/anything'), 'the shared claude/ stem alone is below the floor');
+  assert(!namesRelated('claude/x', 'claude/xy'), 'a short prefix below the floor is NOT related');
+  assert(!namesRelated('claude/some-branch-name', null), 'an unreadable PR head is NOT related');
+  assert(!namesRelated(null, 'claude/some-branch-name'), 'a detached worktree is NOT related');
   console.log(`selftest: ${ran}/${ran} ok`);
   process.exit(0);
 }
