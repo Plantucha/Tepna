@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="cfe779c53c99" data-compute-hash="5919dcbf8a8d">
+<html lang="en" data-manifest-hash="dbc0daeb74d2" data-compute-hash="5919dcbf8a8d">
 <head>
 <!--
   HRVDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0sBgsT0FUUGnrESWUupXxRjP+ZNL/bPHjx7y4A2kzYQ=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y57Wci7rsH2yIS8Q7HgWMIVwQfWAIuh8CvkvAnw04yA=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-ipb0GdWaCKvjd/h6uLR78a3da/TQxiDGge8Gzma5I+4=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/Z7I3UUPEYVbJqKiogd2GpJzq5ymayoEqgifMJjbfTY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-0sBgsT0FUUGnrESWUupXxRjP+ZNL/bPHjx7y4A2kzYQ=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-EUAm8HOe3qna7MaqXJZ2RjnuT3nxDMxTbc3GxMeGn40=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-FvE6kpPiOZOKf/shR8PEze9RQRPBsmlvDgLxIHG+CUc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-RgOIfaxTWDtIkB+7YTZeGPlhxvjrWqtSovjwb4qSsRw=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-Y57Wci7rsH2yIS8Q7HgWMIVwQfWAIuh8CvkvAnw04yA=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-kMD0PSKa5Wpd49VreEzbcJxDA3YrB8IdSuAF2nRwT+U=' 'sha256-pTsHiG3YU81obvJkalwdmUi5EMJKUcF94zWTj6ccHIo='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>HRVDex — Heart Rate Variability Analyzer · v2.14.0</title>
@@ -11863,7 +11863,16 @@ function inferFromData() {
     .map((r) => r._hr)
     .filter((v) => v > 30 && v < 120)
     .sort((a, b) => a - b);
-  const restingHR = hrs.length ? hrs[Math.floor(hrs.length / 2)] : 60;
+  /* §∅ — NO PLAUSIBLE HR READING IS NOT A RESTING HR OF 60. `hrs` is already filtered to
+     30 < v < 120, so an empty list means this dataset carries no usable heart rate at all — and the
+     fallback invented one, which a banner headed "Auto-detected from your data" then displayed as
+     detected. The HR-range line one row below already does this correctly (`hrs.length ? … : '?–?'`).
+     It does not stop at the display: `restingHR` is the denominator of the Uth-Sørensen VO₂ estimate
+     below, and BOTH are handed to `DXP().prefillFrom(…)`, which PERSISTS them into the shared
+     detected tier — so a fabricated 60 became a stored profile fact other nodes resolve against.
+     `prefillFrom` already skips null (`if (detected[k] != null)`), so refusing here needs no change
+     there; it gives that guard back the absence it was written for. */
+  const restingHR = hrs.length ? hrs[Math.floor(hrs.length / 2)] : null;
 
   // Max HR observed in ALL rows (lower bound for HRmax)
   const _hrAll = allRows.map((r) => r._hr).filter((v) => v > 0);
@@ -11892,9 +11901,13 @@ function inferFromData() {
   const _tanaka = 208 - 0.7 * currentAge;
   // resting HR: manual override else median morning HR; HRmax guard against implausible entry
   const _hrRestV = _pp.hrrest_manual > 0 ? _pp.hrrest_manual : restingHR;
-  const _hrmaxV = _pp.hrmax_manual > 0 && _pp.hrmax_manual >= 140 && _pp.hrmax_manual > _hrRestV + 45 ? _pp.hrmax_manual : _tanaka;
+  /* §∅ — the HRmax plausibility guard compares against the resting HR, and `null + 45` is 45, so an
+     absent resting HR would have waved through any manual HRmax over 45. Guarded explicitly. */
+  const _hrmaxV = _pp.hrmax_manual > 0 && _pp.hrmax_manual >= 140 && _hrRestV != null && _pp.hrmax_manual > _hrRestV + 45 ? _pp.hrmax_manual : _tanaka;
   const _altF = _pp.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((_pp.elev - 1500) / 300) * 0.01);
-  const vo2Est = Math.round(15.3 * (_hrmaxV / _hrRestV) * _altF * 10) / 10; // Uth-Sørensen + altitude
+  /* §∅ — Uth-Sørensen divides by the resting HR. With none measured the quotient is not large, it is
+     UNDEFINED — `_hrmaxV / null` is Infinity, and rounding it yields Infinity, not a VO₂. Refuse. */
+  const vo2Est = _hrRestV > 0 ? Math.round(15.3 * (_hrmaxV / _hrRestV) * _altF * 10) / 10 : null; // Uth-Sørensen + altitude
 
   // HRV→BP derivation REMOVED 2026-06-22 (DEX-SUITE-EXTERNAL-REVIEW-v2 §🔴 — same
   // class as the PulseDex SBP/DBP leak just removed): cuffless BP from HRV has no
@@ -11952,7 +11965,7 @@ function inferFromData() {
       '🔍 <strong>Auto-detected from your data</strong> &nbsp;·&nbsp;',
       allRows.length + ' measurements over ' + daySpan + ' days',
       ' &nbsp;·&nbsp; ' + morningPct + '% morning',
-      ' &nbsp;·&nbsp; Resting HR: <strong>' + restingHR + ' bpm</strong>',
+      ' &nbsp;·&nbsp; Resting HR: <strong>' + (restingHR != null ? restingHR + ' bpm' : 'not detected') + '</strong>',
       ' &nbsp;·&nbsp; HR range: <strong>' + (hrs.length ? Math.min(...hrs) + '–' + Math.max(...hrs) : '?–?') + ' bpm</strong>',
       ' &nbsp;·&nbsp; Max HR observed: <strong>' + hrMax + ' bpm</strong>',
       ' &nbsp;·&nbsp; <span style="color:var(--yellow)">🟡 Yellow = auto-estimated from HRV · Override with your real values</span>'

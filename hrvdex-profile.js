@@ -42,7 +42,16 @@ function inferFromData() {
     .map((r) => r._hr)
     .filter((v) => v > 30 && v < 120)
     .sort((a, b) => a - b);
-  const restingHR = hrs.length ? hrs[Math.floor(hrs.length / 2)] : 60;
+  /* §∅ — NO PLAUSIBLE HR READING IS NOT A RESTING HR OF 60. `hrs` is already filtered to
+     30 < v < 120, so an empty list means this dataset carries no usable heart rate at all — and the
+     fallback invented one, which a banner headed "Auto-detected from your data" then displayed as
+     detected. The HR-range line one row below already does this correctly (`hrs.length ? … : '?–?'`).
+     It does not stop at the display: `restingHR` is the denominator of the Uth-Sørensen VO₂ estimate
+     below, and BOTH are handed to `DXP().prefillFrom(…)`, which PERSISTS them into the shared
+     detected tier — so a fabricated 60 became a stored profile fact other nodes resolve against.
+     `prefillFrom` already skips null (`if (detected[k] != null)`), so refusing here needs no change
+     there; it gives that guard back the absence it was written for. */
+  const restingHR = hrs.length ? hrs[Math.floor(hrs.length / 2)] : null;
 
   // Max HR observed in ALL rows (lower bound for HRmax)
   const _hrAll = allRows.map((r) => r._hr).filter((v) => v > 0);
@@ -71,9 +80,13 @@ function inferFromData() {
   const _tanaka = 208 - 0.7 * currentAge;
   // resting HR: manual override else median morning HR; HRmax guard against implausible entry
   const _hrRestV = _pp.hrrest_manual > 0 ? _pp.hrrest_manual : restingHR;
-  const _hrmaxV = _pp.hrmax_manual > 0 && _pp.hrmax_manual >= 140 && _pp.hrmax_manual > _hrRestV + 45 ? _pp.hrmax_manual : _tanaka;
+  /* §∅ — the HRmax plausibility guard compares against the resting HR, and `null + 45` is 45, so an
+     absent resting HR would have waved through any manual HRmax over 45. Guarded explicitly. */
+  const _hrmaxV = _pp.hrmax_manual > 0 && _pp.hrmax_manual >= 140 && _hrRestV != null && _pp.hrmax_manual > _hrRestV + 45 ? _pp.hrmax_manual : _tanaka;
   const _altF = _pp.elev <= 1500 ? 1 : Math.max(0.55, 1 - ((_pp.elev - 1500) / 300) * 0.01);
-  const vo2Est = Math.round(15.3 * (_hrmaxV / _hrRestV) * _altF * 10) / 10; // Uth-Sørensen + altitude
+  /* §∅ — Uth-Sørensen divides by the resting HR. With none measured the quotient is not large, it is
+     UNDEFINED — `_hrmaxV / null` is Infinity, and rounding it yields Infinity, not a VO₂. Refuse. */
+  const vo2Est = _hrRestV > 0 ? Math.round(15.3 * (_hrmaxV / _hrRestV) * _altF * 10) / 10 : null; // Uth-Sørensen + altitude
 
   // HRV→BP derivation REMOVED 2026-06-22 (DEX-SUITE-EXTERNAL-REVIEW-v2 §🔴 — same
   // class as the PulseDex SBP/DBP leak just removed): cuffless BP from HRV has no
@@ -131,7 +144,7 @@ function inferFromData() {
       '🔍 <strong>Auto-detected from your data</strong> &nbsp;·&nbsp;',
       allRows.length + ' measurements over ' + daySpan + ' days',
       ' &nbsp;·&nbsp; ' + morningPct + '% morning',
-      ' &nbsp;·&nbsp; Resting HR: <strong>' + restingHR + ' bpm</strong>',
+      ' &nbsp;·&nbsp; Resting HR: <strong>' + (restingHR != null ? restingHR + ' bpm' : 'not detected') + '</strong>',
       ' &nbsp;·&nbsp; HR range: <strong>' + (hrs.length ? Math.min(...hrs) + '–' + Math.max(...hrs) : '?–?') + ' bpm</strong>',
       ' &nbsp;·&nbsp; Max HR observed: <strong>' + hrMax + ' bpm</strong>',
       ' &nbsp;·&nbsp; <span style="color:var(--yellow)">🟡 Yellow = auto-estimated from HRV · Override with your real values</span>'

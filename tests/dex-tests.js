@@ -50114,6 +50114,60 @@
        ⚠️ LIMIT, STATED: `vo2Percentile` is nested inside the DOM-touching `updateProfile`, so it is
        not reachable headless and is asserted against the SOURCE. Hoisting it is a refactor larger
        than the fix. The leaked sibling `calcVo2Cat` is exercised directly and shows the class. */
+    /* ── §∅ · NO PLAUSIBLE HR READING IS NOT A RESTING HR OF 60 ────────────────────────────────
+       `hrs` is already filtered to 30 < v < 120, so an empty list means the dataset carries no usable
+       heart rate at all. The fallback invented 60, which a banner headed "Auto-detected from your
+       data" displayed as detected — and, worse, `restingHR` is the DENOMINATOR of the Uth-Sørensen
+       VO₂ estimate, and both were handed to `prefillFrom`, which PERSISTS into the shared detected
+       tier that every node resolves against. A fabricated 60 became a stored profile fact. */
+    group('HRVDex §∅ — an undetected resting HR is not 60', 'hrvdex-profile · inference · absence', function (T) {
+      var R = String((env.sources || {})['hrvdex-profile.js'] || '');
+      if (!R) {
+        T.skip('hrvdex-profile.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      T.ok('ANTI-VACUITY · the profile source loaded', R.length > 5000, R.length + ' chars');
+
+      /* THE GUARD THE FIX RELIES ON, asserted behaviourally rather than assumed: `prefillFrom` must
+         skip an absent value instead of persisting it. If this ever regressed, refusing upstream
+         would write `null` into the shared detected tier rather than leaving it alone. */
+      var DP = env.DexProfile;
+      if (DP && typeof DP.prefillFrom === 'function') {
+        var seeded = null,
+          afterNull = null,
+          failed = null;
+        try {
+          /* Seed a REAL value first, then offer null: the question is whether an absent reading can
+             overwrite or erase a measured one, and that cannot be asked of an empty store. */
+          seeded = DP.prefillFrom({ hrRest: 52 }).hrRest;
+          afterNull = DP.prefillFrom({ hrRest: null, vo2: null }).hrRest;
+        } catch (e) {
+          failed = e.message;
+        }
+        if (failed) {
+          T.skip('prefillFrom exercised', 'no storage in this lane — ' + String(failed).slice(0, 40));
+        } else {
+          T.eq('ANTI-VACUITY · a real reading IS persisted', seeded, 52);
+          T.eq('…and offering null leaves it untouched rather than overwriting it', afterNull, 52);
+        }
+      }
+
+      /* THE PRODUCER, against the source — `inferFromData` is DOM-touching (it reads module-scope
+         `allRows` and writes a banner element), so it is not reachable headless. The limit is stated
+         rather than worked around. */
+      T.ok('the median refuses when no reading is plausible', /hrs\.length \? hrs\[Math\.floor\(hrs\.length \/ 2\)\] : null/.test(R));
+      T.ok('no `: 60` fallback survives on that line', !/hrs\.length \? hrs\[Math\.floor\(hrs\.length \/ 2\)\] : 60/.test(R));
+      T.ok('the VO₂ estimate refuses without a denominator', /_hrRestV > 0 \? Math\.round\(15\.3/.test(R));
+      T.ok('the HRmax guard will not compare against an absent resting HR', /_hrRestV != null && _pp\.hrmax_manual > _hrRestV \+ 45/.test(R));
+      T.ok('the banner says "not detected" rather than printing a number', /restingHR != null \? restingHR \+ ' bpm' : 'not detected'/.test(R));
+
+      /* THE COERCIONS THE GUARDS EXIST FOR, as arithmetic. */
+      var absent = null;
+      T.eq('`null + 45` is 45 — an absent resting HR would wave through any HRmax above it', absent + 45, 45);
+      T.eq('…and dividing by it is Infinity, not a large VO₂', 190 / absent, Infinity);
+      T.eq('…while Math.round(Infinity) stays Infinity — it never becomes a number', Math.round(Infinity), Infinity);
+    });
+
     group('HRVDex §∅ — an unset VO₂ is refused, not ranked', 'hrvdex-profile · vo2 · in-band-sentinel', function (T) {
       var R = String((env.sources || {})['hrvdex-profile.js'] || '');
       var vo2Cat = env.HrvCalcVo2Cat;
