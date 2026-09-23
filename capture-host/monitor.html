@@ -1258,7 +1258,7 @@ const NIGHT_DERIVED = ["3 corner hat","PAT"];
 const NIGHT_CAPTURE_ORDER = ["ECGDex","HRVDex","PulseDex","PPGDex","MotionDex","OxyDex","CPAPDex","GlucoDex","EEGDex","Integrator"];
 const NIGHT_APP = {ECGDex:"ECGDex.html", OxyDex:"OxyDex.html", PPGDex:"PpgDex.html", PulseDex:"PulseDex.html", CPAPDex:"CPAPDex.html",
   MotionDex:"MotionDex.html", GlucoDex:"GlucoDex.html", HRVDex:"HRVDex.html", EEGDex:"EEGDex.html", Integrator:"Integrator.html",
-  "3 corner hat":"sensor-trio-night.html", PAT:"PAT Feasibility.html"};
+  "3 corner hat":"sensor-trio-night.html", PAT:"pat-night.html"};
 // Which file input in each app takes which files. ECGDex splits its inputs by stream; every other app
 // takes everything through one `multiple` input.
 // Every loadable node names the input its night goes to. A node without a route REFUSES rather than
@@ -1274,7 +1274,7 @@ const NIGHT_INPUT = {ECGDex:[["_ECG.txt","#ecgInput"],["_ACC.txt","#accInput"],[
 // once the tool enables it (both enable it synchronously inside their change handler when a night is
 // eligible; measured 2026-09-21 on the box: "1 nights indexed from 10 files", button enabled, idle). If it
 // never enables, the tool found no eligible night and the toast says so instead of claiming processing.
-const NIGHT_RUN = {"3 corner hat":"#procBtn", PAT:"#run"};
+const NIGHT_RUN = {"3 corner hat":"#procBtn", PAT:"#procBtn"};
 // Figure-only columns: the raw input on disk that reaches the app through another node, never a click.
 const NIGHT_WHY_NOT = {Integrator:"raw input of a fold — folds run on rig (tools/trio-batch.mjs), not in the browser",
   HRVDex:"HRVDex reads Welltory CSV or an ECGDex export — this raw Polar input reaches it through ECGDex"};
@@ -1356,7 +1356,9 @@ function nightFilesFor(n, node){
   if(node==='3 corner hat') return [...(n.ECGDex?n.ECGDex.files:[]), ...(n.PPGDex?n.PPGDex.files:[]), ...(n.OxyDex?n.OxyDex.files:[])];
   // PAT's roles are ecg · ppg · ecgacc · ppgacc: both devices' ACC are its cross-device drift anchor and the input
   // of its ACC-corrected verdict, which the click withheld until 2026-09-21 (the ACCs sit under MotionDex, not PPGDex)
-  if(node==='PAT') return [...(n.ECGDex?n.ECGDex.files.filter(f=>f.endsWith('_ECG.txt')):[]), ...(n.PPGDex?n.PPGDex.files.filter(f=>/VeritySense.*_PPG\.txt$/.test(f)):[]),
+  // + the ring's RAW _PPG.txt (under OxyDex's files) for the third PAT leg (2026-09-22): the landing page scores the
+  // legs it can — two sites make a leg, three make the hat — and classifies ACC/HR/SPO2 to null itself
+  if(node==='PAT') return [...(n.OxyDex?n.OxyDex.files.filter(f=>/O2Ring.*_PPG\.txt$/.test(f)):[]), ...(n.ECGDex?n.ECGDex.files.filter(f=>f.endsWith('_ECG.txt')):[]), ...(n.PPGDex?n.PPGDex.files.filter(f=>/VeritySense.*_PPG\.txt$/.test(f)):[]),
     ...(n.MotionDex?n.MotionDex.files.filter(f=>/Polar_(H10|VeritySense).*_ACC\.txt$/.test(f)):[])];
   return n[node] ? n[node].files : [];
 }

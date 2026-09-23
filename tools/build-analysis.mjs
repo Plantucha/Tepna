@@ -75,6 +75,9 @@ const TOOLS = [
      engines, instead of the power tool whose simulation panels stay empty for a single night. Same worker, so it
      is bundled the same way — a page not in this list is never inlined and never served (see the PAT entry). */
   'sensor-trio-night.html',
+  /* the monitor's "PAT" click lands here (2026-09-22): all three legs and the hat on one night, on the same
+     worker as PAT Feasibility.html (its additive `threeCorner` job) — bundled the same way. */
+  'pat-night.html',
   'sigma-no-reference-analysis.html',
   'treatment-response-analysis.html'
 ];

@@ -12247,7 +12247,7 @@
        off. Adding a pair is a deliberate act that says "these two files are a boundary". */
     group('No value crosses a worker boundary unread', 'cohesion · dead-cross-boundary · pat', function (T) {
       var S = env.sources || {};
-      var PAIRS = [{ producer: 'pat-feasibility-worker.js', consumers: ['pat-feasibility.js', 'pat-gate.js'] }];
+      var PAIRS = [{ producer: 'pat-feasibility-worker.js', consumers: ['pat-feasibility.js', 'pat-gate.js', 'pat-night.js'] }]; // pat-night.js reads the `threeCorner` job (2026-09-22)
       /* KNOWN, published, ratcheted — same discipline as the visibility cap above. The set is now
          EMPTY: `detailCorr` (the packed per-beat detail for the ACC-corrected coupling) sat here at
          ratchet ONE from 2026-09-02 until its parent finding's own closure was read — ENGINE-VERIFICATION

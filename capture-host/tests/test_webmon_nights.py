@@ -257,6 +257,16 @@ def test_the_tool_classifiers_accept_box_filenames():
             "Wellue_O2Ring-S_S8AW2100_20260919002219_SPO2.csv": True,
             "Wellue_O2Ring-S_S8AW2100_20260919002219_PPG.txt": False,
         },
+        "pat-night.js": {
+            # the PAT landing page: the three RAW legs only — the H10 ECG (never its HR), a Verity PPG and the
+            # ring's raw PPG (box captures only); ACC/HR/RR/SPO2 classify to null so the monitor may send them
+            "Polar_H10_02849638_20260919183658_ECG.txt": True,
+            "Polar_VeritySense_0C301E3F_20260919183724_PPG.txt": True,
+            "Wellue_O2Ring-S_S8AW2100_20260919002219_PPG.txt": True,
+            "Polar_H10_02849638_20260919183658_HR.txt": False,
+            "Polar_H10_02849638_20260919183658_ACC.txt": False,
+            "Wellue_O2Ring-S_S8AW2100_20260919002219_SPO2.csv": False,
+        },
         "pat-feasibility.js": {
             "Polar_H10_02849638_20260919183658_ECG.txt": True,
             "Polar_VeritySense_0C301E3F_20260919183724_PPG.txt": True,
@@ -274,7 +284,8 @@ def test_the_tool_classifiers_accept_box_filenames():
     for tool, name in (("sensor-trio-power-analysis.js", "Polar_H10_02849638_20260610_211538_HR.txt"),
                        ("sensor-trio-power-analysis.js", "O2Ring S 2100_20260503210952.csv"),
                        ("sensor-trio-night.js", "Polar_H10_02849638_20260610_211538_HR.txt"),
-                       ("pat-feasibility.js", "Polar_Sense_0C301E3F_20260609_190208_PPG.txt")):
+                       ("pat-feasibility.js", "Polar_Sense_0C301E3F_20260609_190208_PPG.txt"),
+                       ("pat-night.js", "Polar_Sense_0C301E3F_20260609_190208_PPG.txt")):
         assert any(r.search(name) for r in _classifier_regexes(os.path.join(root, tool))), (tool, name)
 
 def test_the_batch_tools_get_their_process_button_pressed_and_the_selector_is_real():

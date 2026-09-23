@@ -644,6 +644,10 @@ function readSources() {
        was: the `no NEW unscannable source layer` ratchet reds a runtime source no lane can read, and it
        caught this one on its first build too. */
     'sensor-trio-night.js',
+    /* the PAT landing page and the three-leg kernel it shares with tools/pat-three-corner.mjs (2026-09-22) —
+       both added with the files themselves, for the source-visibility ratchet and the dead-cross-boundary pair. */
+    'pat-night.js',
+    'pat-three-corner.js',
     'sensor-trio-gpu.js',
     'hrvdex-render.js',
     'pat-gate.js',
@@ -1650,6 +1654,7 @@ function readNonBundleCsp() {
     'nights-icc-analysis.html',
     'sensor-trio-power-analysis.html',
     'sensor-trio-night.html',
+    'pat-night.html',
     'treatment-response-analysis.html',
     'sigma-no-reference-analysis.html',
     'qrs-equiv-analysis.html',
@@ -1766,6 +1771,7 @@ function readAnalysisTools() {
     'qrs-yield-analysis.html',
     'sensor-trio-power-analysis.html',
     'sensor-trio-night.html',
+    'pat-night.html',
     'sigma-no-reference-analysis.html',
     'treatment-response-analysis.html'
   ];

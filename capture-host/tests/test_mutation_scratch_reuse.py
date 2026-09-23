@@ -471,7 +471,8 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     rules, and test_verdict cross-validates the Python half (verdict.py) against the same JS contract.
     2026-09-22: `sensor-trio-night.js` — a MENTION, not a read: test_webmon_nights.py names it as the
     classifier-gate key for the monitor's per-night landing page, the same over-flag the power tool's
-    entry already costs (one small copy each)."""
+    entry already costs (one small copy each). Same day, `pat-night.js` — the PAT landing page's
+    classifier-gate key, the same MENTION."""
     from pathlib import Path
     import pytest
     here = Path(__file__).resolve().parent.parent
@@ -504,7 +505,7 @@ def test_the_REAL_suite_has_exactly_the_root_reads_we_know_about():
     # Without that rule the widened scan added 23 of them — measured, not assumed.
     assert got == ["Dex-Test-Suite.html", "README.md",
                    "briefs/CAPTURE-LOSS-PRECEDENCE-AUDIT-2026-09-22-BRIEF.md", "dex-badges.css",
-                   "ecgdex-dsp.js", "index.html", "pat-feasibility.js", "provenance/_meta.json",
+                   "ecgdex-dsp.js", "index.html", "pat-feasibility.js", "pat-night.js", "provenance/_meta.json",
                    "provenance/index.json", "sensor-trio-night.js", "sensor-trio-power-analysis.js",
                    "suite.manifest.json",
                    "tests/dex-tests.js", "tools/mutate-equivalence.json", "tools/o2ring-dat-timefit.mjs",

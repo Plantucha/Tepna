@@ -44,7 +44,7 @@ function loadScript(url) {
 var DSP_OK = false,
   DSP_ERR = '';
 try {
-  ['kernel-constants.js', 'clock.js', 'pat-gate.js', 'pat-align.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(loadScript);
+  ['kernel-constants.js', 'clock.js', 'pat-gate.js', 'pat-align.js', 'pat-three-corner.js', 'ecgdex-dsp.js', 'ppgdex-dsp.js'].forEach(loadScript);
   DSP_OK = !!(typeof ECGDSP !== 'undefined' && ECGDSP.parseECG && typeof PPGDSP !== 'undefined' && PPGDSP.parsePPG);
 } catch (e) {
   DSP_ERR = String((e && e.message) || e);
@@ -453,6 +453,63 @@ self.onmessage = function (e) {
     self.postMessage({ type: 'ready', ok: DSP_OK, err: DSP_ERR });
     return;
   }
+  /* ── pat-night.html — all three legs and the hat, one night (2026-09-22) ──────────────────────────
+     Same fiducials as the pair job above (ecgRpeakTimes / ppgFootTimes — the sanctioned pair, tools/
+     pat-literature-spec.mjs rule 1), solved by pat-three-corner.js, the kernel shared with the rig tool.
+     Legs are read ONE AT A TIME: three raw files are ~400 MB of text together and the beat trains that
+     survive each parse are a few hundred KB. Any site may be absent — the kernel scores the legs it can. */
+  if (m.type === 'threeCorner') {
+    var tcKey = m.key;
+    if (!DSP_OK) {
+      self.postMessage({ type: 'threeCorner', key: tcKey, error: 'DSP modules failed to load: ' + DSP_ERR });
+      return;
+    }
+    if (typeof PATThreeCorner === 'undefined') {
+      self.postMessage({ type: 'threeCorner', key: tcKey, error: 'pat-three-corner.js did not load' });
+      return;
+    }
+    var tcPhase = function (p) {
+      self.postMessage({ type: 'phase', key: tcKey, phase: p });
+    };
+    var tcTimes = {},
+      tcFs = {},
+      tcAxis = {};
+    var readLeg = function (site, file, derive, what) {
+      if (!file) return Promise.resolve();
+      tcPhase('reading ' + what);
+      return file.text().then(function (txt) {
+        tcPhase(what);
+        var r = derive(txt);
+        tcTimes[site] = Array.prototype.slice.call(r.times);
+        tcFs[site] = r.fs;
+        // forwarded as the parser decided it (ABSENCE IS NULL) — the page prints it beside every leg
+        tcAxis[site] = r.hostAxis
+          ? { timingSource: r.hostAxis.timingSource == null ? null : r.hostAxis.timingSource, independent: r.hostAxis.independent == null ? null : !!r.hostAxis.independent }
+          : null;
+      });
+    };
+    readLeg('h10', m.ecgFile, ecgRpeakTimes, 'H10 ECG → sub-sample R-peaks')
+      .then(function () {
+        return readLeg('verity', m.verityFile, ppgFootTimes, 'Verity PPG → intersecting-tangent feet');
+      })
+      .then(function () {
+        return readLeg('ring', m.ringFile, ppgFootTimes, 'O2Ring PPG → intersecting-tangent feet');
+      })
+      .then(function () {
+        tcPhase('pairing legs · 5-min grid · hat');
+        var out = PATThreeCorner.solveNight({ legs: tcTimes, fs: tcFs, winMin: m.winMin || 5 });
+        out.type = 'threeCorner';
+        out.key = tcKey;
+        out.axis = tcAxis;
+        out.fs = tcFs;
+        self.postMessage(out);
+      })
+      .catch(function (err) {
+        self.postMessage({ type: 'threeCorner', key: tcKey, error: String((err && err.message) || err) });
+      });
+    return;
+  }
+
   if (m.type !== 'job') return;
   var key = m.key;
   if (!DSP_OK) {
