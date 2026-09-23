@@ -25603,6 +25603,37 @@
          above would be guarding nothing, and this says so out loud. */
       T.eq('…because null coerces to 0: `null < 5` is TRUE (would read "good")', null < 5, true);
       T.eq('…and `null >= 90` is FALSE (would read "bad")', null >= 90, false);
+
+      /* ── §∅ · A NIGHT WITH NO COMPUTATION MUST NOT PLOT AS A REAL 0 ────────────────────────────
+         `ABSENCE-SURVEY-2026-09-22` confirmed 17 sites of ONE shape in this file —
+         `return n.X ? n.X.y : 0;` — where the container is nullable, so a night that never had that
+         metric computed contributed a real 0 to a per-night line chart. On the self-ingest path the
+         producers are explicitly nullable (`hb: obj.hypoxicBurden || null`, `stab: … || null`,
+         `comp: … || null`, `motSleep: … || null`), and `sbii`/`pred3p` REFUSE by construction
+         (`if (n < 60 || durationHr <= 0) return { sbii: null … }`) — so the renderer was overwriting
+         a deliberate refusal with a number. A 0 is not neutral on these axes: it reads as a perfect
+         night on ODI-4 and hypoxic burden, and as the worst possible night on a 0-100 stability or
+         stress score. The shared renderer already drops absence (`v != null && isFinite(v) ? … : null`,
+         then filters), so `: null` is what it expects.
+         KEYED TO THE PROPERTY, NOT TO A COUNT OR A LINE: the four containers below are EXEMPT because
+         the survey refuted them as UNREACHABLE — their producers have one top-level return and never
+         yield null, and the real absence path is already honest (e.g. `stats.motionPct = null` with
+         `motionColumnAbsent`, dropped at `barChart`). Encoding "17" or line numbers would red on the
+         next legitimate edit; naming the exempt containers says WHY each survivor survives. */
+      var UNREACHABLE = ['stats', 'cross', 'spikes', 'osc'];
+      var fabricated = [];
+      lines.forEach(function (ln, i) {
+        var m = ln.match(/n\.([A-Za-z0-9]+)\s*\?\s*n\.[A-Za-z0-9]+\.[A-Za-z0-9]+\s*:\s*0;/);
+        if (m && UNREACHABLE.indexOf(m[1]) < 0) fabricated.push(i + 1 + ': ' + ln.trim().slice(0, 62));
+      });
+      T.eq('no NULLABLE per-night metric falls back to a real 0 on a chart', fabricated, []);
+      /* ANTI-VACUITY for the scan above: the regex must still match the shape it exempts, or a
+         rename would empty it and every absence would pass unnoticed. */
+      var exemptSeen = lines.filter(function (ln) {
+        var m = ln.match(/n\.([A-Za-z0-9]+)\s*\?\s*n\.[A-Za-z0-9]+\.[A-Za-z0-9]+\s*:\s*0;/);
+        return m && UNREACHABLE.indexOf(m[1]) >= 0;
+      }).length;
+      T.ok('ANTI-VACUITY · the scan still matches the shape (the exempt sites are found)', exemptSeen === UNREACHABLE.length, exemptSeen + ' of ' + UNREACHABLE.length);
     });
 
     group('OxyDex parseJSONL round-trips every field, and tells ABSENT from ZERO', 'oxydex-dsp · parse · known-answer · mutation-pinned', function (T) {
