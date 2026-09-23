@@ -41,6 +41,7 @@ import re
 
 __all__ = ["GATE_BUDGET_SEC", "PREWORK_TRACE_FACTOR", "prework_estimate", "budget_refusal", "verdict_object", "VERDICT_STATUSES", "EXCUSING", "functions_covering", "changed_span", "is_string_only", "diff_key",
            "annotation_only", "classify", "refusal_reason", "selftest", "string_only_verdict", "scan_is_reliable",
+           "clean_run_failures",
            "STRING_ONLY", "REQUIRED", "EMPTY_DIFF", "UNDECIDABLE"]
 
 # The four outcomes of the string-literal question. `is_string_only` collapses them to a bool for
@@ -885,6 +886,31 @@ def stage_root_reads(tree, work, names) -> int:
 UNDECIDED = "undecided"
 SURVIVED = "survived"
 KILLED = "killed"
+
+
+def clean_run_failures(text: str) -> list[str]:
+    """The tests mutmut's OWN clean baseline failed on, read off its streamed output — `[]` when the
+    text carries no clean-run failure at all.
+
+    mutmut runs the covering set once before any mutant ("clean test"); if that run fails it prints
+    pytest's report and then `Failed to run clean test`, generates the mutants and tests NONE of them,
+    so the glob records 0 tested and the gate refuses. The refusal then reads "REFUSED" about a change
+    the gate never examined, on a test that is not about the change — CLAUDE.md §4b's shape, residue
+    `2026-09-09-alert-poller-test-order-dependent`. The failing test's name is in the output the whole
+    time (`FAILED tests/x.py::test_y - AssertionError…`, or `ERROR tests/x.py::test_y` when a fixture
+    errored at setup); this reads it out so the refusal can NAME the test and say whose failure it is.
+
+    Pure over text. Returns the `<path>::<test>` ids in order of appearance, de-duplicated (pytest
+    prints a FAILED line in the summary and again in `-x`'s stop banner); only lines that begin with
+    the pytest summary tokens count, so a docstring quoting "FAILED" is not a failure."""
+    if "Failed to run clean test" not in text:
+        return []
+    out: list[str] = []
+    for line in text.splitlines():
+        m = re.match(r"^(?:FAILED|ERROR) (tests/\S+?::\S+?)(?: - .*)?$", line.strip())
+        if m and m.group(1) not in out:
+            out.append(m.group(1))
+    return out
 
 
 def classify_results_line(line: str):

@@ -690,3 +690,63 @@ def test_verdict_object_maps_every_gate_outcome_onto_the_closed_enum():
     with pytest.raises(ValueError, match="checked 2 > eligible 1"):
         verdict_object("PASS", checked=2, eligible=1, reason=None, **common)
     assert len(VERDICT_STATUSES) == 7 and "PASS" in VERDICT_STATUSES and "NOT_APPLICABLE" in VERDICT_STATUSES
+
+
+# ── clean_run_failures: the gate NAMES the test that broke mutmut's baseline ──────────────────────
+# Residue 2026-09-09-alert-poller-test-order-dependent: the refusal read "REFUSED" about a change the
+# gate never examined, on a test that is not about the change, and the test's name was in the streamed
+# output the whole time. These pin the reader to the REAL shapes from CI (run 34374737213, 2026-09-09;
+# run 35521002535, 2026-09-20), not to a shape guessed from the docs.
+
+_CI_TAIL_2026_09_09 = """\
+  Full diff:
+  + []
+  - [
+  -     'Tepna: sensor offline',
+  -     'Tepna: sensor recovered',
+  - ]
+=========================== short test summary info ============================
+FAILED tests/test_capture_runners.py::test_alert_poller_fires_on_a_sustained_offline_then_recovers - AssertionError: assert [] == ['Tepna: sens...or recovered']
+  Right contains 2 more items, first extra item: 'Tepna: sensor offline'
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 374 passed, 1 deselected in 4.81s
+Failed to run clean test
+"""
+
+
+def test_clean_run_failures_names_the_test_from_the_real_2026_09_09_ci_tail():
+    assert M.clean_run_failures(_CI_TAIL_2026_09_09) == [
+        "tests/test_capture_runners.py::test_alert_poller_fires_on_a_sustained_offline_then_recovers"
+    ]
+
+
+def test_clean_run_failures_is_empty_without_mutmuts_clean_run_marker_even_if_a_FAILED_line_appears():
+    """A FAILED line alone is a mutant being killed inside a normal run, not a broken baseline — the
+    marker is mutmut's own `Failed to run clean test`, and without it the helper must say nothing."""
+    text = "FAILED tests/test_x.py::test_y - AssertionError\n1 failed, 3 passed in 0.1s\n"
+    assert M.clean_run_failures(text) == []
+
+
+def test_clean_run_failures_reads_an_ERROR_at_setup_and_dedups_the_repeated_summary_line():
+    """The 2026-09-19 shape: a fixture missing from the scratch ERRORS at setup (no FAILED line at all),
+    and pytest repeats the id in `-x`'s banner — one id, once."""
+    text = (
+        "ERROR tests/test_seam_sidecar.py::test_seam_bound_parity - FileNotFoundError: ../ecgdex-dsp.js\n"
+        "ERROR tests/test_seam_sidecar.py::test_seam_bound_parity\n"
+        "FAILED tests/test_writers_sidecars.py::test_z - KeyError\n"
+        "1 failed, 1 error in 0.3s\n"
+        "Failed to run clean test\n"
+    )
+    assert M.clean_run_failures(text) == [
+        "tests/test_seam_sidecar.py::test_seam_bound_parity",
+        "tests/test_writers_sidecars.py::test_z",
+    ]
+
+
+def test_clean_run_failures_ignores_prose_that_merely_quotes_the_tokens():
+    text = (
+        "    # a docstring saying FAILED tests/x.py::y is not a failure\n"
+        "Failed to run clean test\n"
+    )
+    assert M.clean_run_failures(text) == []
+
