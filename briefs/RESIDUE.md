@@ -30,6 +30,15 @@ them. Replacing a retired `R<n>` with a backticked key that names a real row PRE
 leaving it dangling alters it, because the row then points nowhere. `residue-ids` permits exactly that
 substitution and nothing else, checkable from the two versions of the file alone with no rename map and
 no author's assurance — and once no `R<n>` survives anywhere it can never fire again.
+⚠️ **IF YOU GENERATE A ROW FROM A SCRIPT, WATCH THE ESCAPES — a double backslash ships as literal text.**
+A row written through a quoted heredoc (`python3 - <<'PY'`) sees `"\\u2014"` as backslash-plus-`u2014`, so the
+ledger gets the seven characters `\u2014` where the author meant `—`. It renders wrong, greps wrong, and
+cannot be repaired afterwards: a row is never edited, and this is not the pointer exemption — that one is
+permitted because `residue-ids` CHECKS it, and no gate can check an intended character against a shipped
+escape. Measured 2026-09-23: **eight landed rows** carry it, all from one session's row-writing scripts.
+Use a single backslash in the literal, or simply type the character; then assert it before writing —
+`assert '\\u' not in row`. The cost of the habit is permanent and the check is one line.
+
 Open count: `grep -cE '^\| [0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]+ \|.*\| OPEN \|' briefs/RESIDUE.md`
 (verified 2026-09-02: 20 matches against 20 open rows, and 0 non-row lines match).
 ⚠️ The obvious form — `grep -c '| OPEN |'` — **counts this instruction line too**, because the line
