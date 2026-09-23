@@ -25503,7 +25503,8 @@
       out = B.computeCircadianHR('');
       T.eq('B.computeCircadianHR("") → "true"', JSON.stringify(out === null), 'true');
       out = B.computeHypoxicBurden('');
-      T.eq('B.computeHypoxicBurden("") → "0"', JSON.stringify(out.rate), '0');
+      /* §∅ — same reconciliation: no measured second means no rate, not a rate of zero. */
+      T.eq('B.computeHypoxicBurden("") → rate is NULL, not 0', JSON.stringify(out.rate), 'null');
       out = B.computeSpO2Percentiles('');
       T.eq('B.computeSpO2Percentiles("") → "null"', JSON.stringify(out), 'null');
       out = B.oxyLoadOwnExport(null);
@@ -25634,6 +25635,51 @@
         return m && UNREACHABLE.indexOf(m[1]) >= 0;
       }).length;
       T.ok('ANTI-VACUITY · the scan still matches the shape (the exempt sites are found)', exemptSeen === UNREACHABLE.length, exemptSeen + ' of ' + UNREACHABLE.length);
+    });
+
+    /* ── §∅ · THE COMMITTED CORPUS CANNOT EXPRESS THIS ONE, SO HERE IS A TWIN THAT CAN ──────────
+       `computeTIndex` and `computeHypoxicBurden` counted an absent second as below EVERY threshold
+       (`null < 80` is true) and as maximally desaturated (`94 - null` is 94). NOT ONE COMMITTED
+       FIXTURE MOVES under the fix: `parseCSV` drops invalid rows, so the O2Ring corpus carries no
+       null here at all (measured == rows on all four goldens). The paths that DO carry one — the
+       NSRR adapter's `to1Hz`, self-ingest, any SignalFrame — are not in the corpus, and the SHHS
+       lane's published T90 came through this family. A fixture that cannot express the defect
+       cannot catch its return, which is exactly why §🔏 prefers an adversarial COMMITTED twin to a
+       real recording. This is that twin. */
+    group('OxyDex §∅ — an absent second is not a desaturated one', 'oxydex-dsp · tIndex · hypoxic-burden · absence', function (T) {
+      var NS = env.OxyDex;
+      if (!NS || !NS._bare || !NS._bare.computeTIndex || !NS._bare.computeHypoxicBurden) {
+        T.skip('OxyDex._bare in env', 'not wired in this lane');
+        return;
+      }
+      /* 100 seconds: 60 measured at 98 % (healthy), 40 ABSENT. Under the old code every absent
+         second read as below all ten thresholds and added 94 to the burden. */
+      var rows = [];
+      for (var i = 0; i < 100; i++) rows.push({ spo2: i < 60 ? 98 : null, hr: 60, tMs: i * 1000 });
+
+      var ti = NS._bare.computeTIndex(rows);
+      T.eq(
+        'ANTI-VACUITY · the twin really contains absence',
+        rows.filter(function (r) {
+          return r.spo2 == null;
+        }).length,
+        40
+      );
+      T.eq('T80 counts no absent second as below 80', ti['80'].secs, 0);
+      T.eq('…and T95 too — 98 % is above every threshold', ti['95'].secs, 0);
+      T.eq('the denominator is the MEASURED seconds, published beside the value', ti['80'].measured, 60);
+      T.eq('…so the rate is 0 % of 60, not of 100', ti['80'].pct, 0);
+      /* THE OLD ARITHMETIC, stated rather than described: this is what the fix removes. */
+      T.eq('…because `null < 80` is TRUE — 40 absent seconds would have read as 40 below 80', null < 80, true);
+
+      var hb = NS._bare.computeHypoxicBurden(rows);
+      T.eq('the burden is 0 — no measured second fell below 94', hb.total, 0);
+      T.eq('…over the measured seconds only', hb.measuredSec, 60);
+      T.eq('…because `94 - null` is 94, the MAXIMUM contribution', 94 - null, 94);
+      /* And a night with nothing measured refuses rather than reporting a perfect 0. */
+      var none = NS._bare.computeHypoxicBurden([{ spo2: null, hr: 60, tMs: 0 }]);
+      T.eq('nothing measured ⇒ the burden REFUSES', none.rate, null);
+      T.eq('…and says so in the denominator', none.measuredSec, 0);
     });
 
     /* ── §∅ · AN AGGREGATE OVER AN ABSENT NIGHT (ABSENCE-SURVEY-2026-09-22, F5) ─────────────────
@@ -60149,8 +60195,15 @@
       /* mutant: cmp > → >=  @ out[t] = { secs: s, pct: n > 0 ? +((s / n) * 100).toFixed(2) : 0 };
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The percentage value for the 80th percentile is correctly calculated as 0 instead of null when the numerator i */
       {
+        /* §∅ RECONCILED 2026-09-23 — THIS MODEL-WRITTEN PROPERTY PINNED THE DEFECT AS THE SPEC. The
+         property above says the value is "correctly calculated as 0 instead of null", and its own
+         header marks it MODEL-WRITTEN provenance, not a reviewed claim. It is not correct: with no
+         measured sample the fraction is 0/0, so 0 asserts a night that spent none of its time below
+         the threshold — a perfect night, fabricated from an empty input. The expectation is now
+         null. THE MUTANT IS STILL KILLED: under `n >= 0` the empty case divides by zero and yields
+         NaN, which `null` still distinguishes. */
         var out = NS._bare.computeTIndex([]);
-        T.eq('OxyDex._bare.computeTIndex([]) → out["80"].pct', JSON.stringify(out['80'].pct), '0');
+        T.eq('OxyDex._bare.computeTIndex([]) → out["80"].pct is NULL, not a perfect 0', JSON.stringify(out['80'].pct), 'null');
       }
     });
 
@@ -60749,7 +60802,7 @@
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The percentage value should be 0 instead of null when the numerator is 0 and the denominator is greater than 0 */
         {
           var out = NS._bare.computeTIndex([]);
-          T.eq('NS._bare.computeTIndex([]) → out["80"].pct', JSON.stringify(out['80'].pct), '0');
+          T.eq('NS._bare.computeTIndex([]) → out["80"].pct is NULL, not a perfect 0', JSON.stringify(out['80'].pct), 'null');
         }
       }
     );
@@ -61043,7 +61096,7 @@
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The percentage value should be 0 instead of null when the numerator is 0 and the denominator is greater than 0 */
         {
           var out = NS._bare.computeTIndex([]);
-          T.eq('NS._bare.computeTIndex([]) → out["80"].pct', JSON.stringify(out['80'].pct), '0');
+          T.eq('NS._bare.computeTIndex([]) → out["80"].pct is NULL, not a perfect 0', JSON.stringify(out['80'].pct), 'null');
         }
       }
     );
