@@ -437,7 +437,14 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
     var baPP = ba(ppg, pulse); // PPG − Pulse
     var baPE = ba(ppg, ecg); // PPG − ECG
     // PAT-jitter dispersion isolate: extra SD of PPG−Pulse over ECG−Pulse (added in quadrature)
-    var patSD = baEP && baPP && baPP.sd > baEP.sd ? Math.sqrt(baPP.sd * baPP.sd - baEP.sd * baEP.sd) : 0;
+    /* §∅ — THREE CASES WORE ONE NUMBER. The old `: 0` was taken when the ECG−Pulse pair was absent,
+       when the PPG−Pulse pair was absent, or when the optical SD genuinely did not exceed the
+       electrical floor. Only the third is a measurement. The first two are absences, and publishing
+       0 for them negates this paper's central claim by reporting "the optical arm carries no PAT
+       jitter" (row 2026-09-16-patsd-zero-is-a-fallback). Observed, not hypothesised: a run at
+       nSubj 240 emitted patJitterSdMs 0 with only ONE of the three pairs present, because both
+       inputs need the `pulse` arm. Absent input ⇒ null; a measured non-excess is still 0. */
+    var patSD = !baEP || !baPP ? null : baPP.sd > baEP.sd ? Math.sqrt(baPP.sd * baPP.sd - baEP.sd * baEP.sd) : 0;
 
     // headline
     function ms(v) {
@@ -456,7 +463,7 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
       'PpgDex − PulseDex bias',
       'LoA ' + (baPP ? baPP.loLoA.toFixed(1) + '…' + baPP.hiLoA.toFixed(1) + ' ms' : '—') + ' · + PAT jitter'
     );
-    cards += hcard(COL.line, '±' + patSD.toFixed(1) + '<span class="hu"> ms</span>', 'PAT-jitter dispersion', 'optical-only SD = √(SD²ₚₚ − SD²ₑₚ)');
+    cards += hcard(COL.line, patSD == null ? '—' : '±' + patSD.toFixed(1) + '<span class="hu"> ms</span>', 'PAT-jitter dispersion', 'optical-only SD = √(SD²ₚₚ − SD²ₑₚ)');
     $('headline').innerHTML = cards;
 
     // table
@@ -511,18 +518,25 @@ function __mkWorker(name){ return new Worker(URL.createObjectURL(new Blob([__WSR
       ['ppg_minus_pulse', baPP],
       ['ppg_minus_ecg', baPE]
     ].forEach(function (p) {
-      if (p[1])
-        RESULT.pairs[p[0]] = {
-          n: p[1].n,
-          biasMs: +p[1].bias.toFixed(3),
-          biasPct: p[1].biasPct != null ? +p[1].biasPct.toFixed(2) : null,
-          sdMs: +p[1].sd.toFixed(3),
-          loaLoMs: +p[1].loLoA.toFixed(2),
-          loaHiMs: +p[1].hiLoA.toFixed(2),
-          pearson: p[1].r != null ? +p[1].r.toFixed(4) : null
-        };
+      /* A PAIR THAT WAS NOT COMPUTED IS PRESENT-AND-NULL, NOT ABSENT. Omitting it made a partial
+         run read as a complete one: a consumer cannot tell "this pair was not computed" from "this
+         tool never emits that pair", which is how a re-cut looked ready with two of three headline
+         comparisons missing (same row, sibling defect). */
+      if (!p[1]) {
+        RESULT.pairs[p[0]] = null;
+        return;
+      }
+      RESULT.pairs[p[0]] = {
+        n: p[1].n,
+        biasMs: +p[1].bias.toFixed(3),
+        biasPct: p[1].biasPct != null ? +p[1].biasPct.toFixed(2) : null,
+        sdMs: +p[1].sd.toFixed(3),
+        loaLoMs: +p[1].loLoA.toFixed(2),
+        loaHiMs: +p[1].hiLoA.toFixed(2),
+        pearson: p[1].r != null ? +p[1].r.toFixed(4) : null
+      };
     });
-    RESULT.patJitterSdMs = +patSD.toFixed(3);
+    RESULT.patJitterSdMs = patSD == null ? null : +patSD.toFixed(3);
     try {
       window.QRS_EQUIV = RESULT;
     } catch (e) {}
