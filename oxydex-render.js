@@ -1097,7 +1097,7 @@ function renderAll() {
             color: C.amber,
             fill: true,
             values: nights.map(function (n) {
-              return n.odi4 ? n.odi4.rate : 0;
+              return n.odi4 ? n.odi4.rate : null;
             })
           }
         ],
@@ -1123,7 +1123,7 @@ function renderAll() {
               color: C.purple,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.hrSdnn : 0;
+                return n.hrv ? n.hrv.hrSdnn : null;
               })
             }
           ],
@@ -1147,7 +1147,7 @@ function renderAll() {
               color: C.teal,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.pnn3 : 0;
+                return n.hrv ? n.hrv.pnn3 : null;
               })
             }
           ],
@@ -1169,7 +1169,7 @@ function renderAll() {
               color: C.green,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.hrFloor : 0;
+                return n.hrv ? n.hrv.hrFloor : null;
               })
             }
           ],
@@ -1193,7 +1193,7 @@ function renderAll() {
               color: C.amber,
               fill: false,
               values: nights.map(function (n) {
-                return n.hrv ? n.hrv.hrSlope : 0;
+                return n.hrv ? n.hrv.hrSlope : null;
               })
             }
           ],
@@ -1224,7 +1224,7 @@ function renderAll() {
             label: 'Restless Win%',
             color: C.amber,
             values: nights.map(function (n) {
-              return n.motion ? n.motion.arousalIndex : 0;
+              return n.motion ? n.motion.arousalIndex : null;
             })
           }
         ],
@@ -1246,7 +1246,7 @@ function renderAll() {
             color: C.red,
             fill: true,
             values: nights.map(function (n) {
-              return n.hb ? n.hb.rate : 0;
+              return n.hb ? n.hb.rate : null;
             })
           }
         ],
@@ -1267,7 +1267,7 @@ function renderAll() {
             color: C.green,
             fill: true,
             values: nights.map(function (n) {
-              return n.stab ? n.stab.score : 0;
+              return n.stab ? n.stab.score : null;
             })
           }
         ],
@@ -1342,7 +1342,7 @@ function renderAll() {
             color: C.orange,
             fill: true,
             values: nights.map(function (n) {
-              return n.desat ? n.desat.deltaIndex : 0;
+              return n.desat ? n.desat.deltaIndex : null;
             })
           }
         ],
@@ -1386,7 +1386,7 @@ function renderAll() {
             color: C.teal,
             fill: true,
             values: nights.map(function (n) {
-              return n.motSleep ? n.motSleep.sleepEff : 0;
+              return n.motSleep ? n.motSleep.sleepEff : null;
             })
           }
         ],
@@ -1445,7 +1445,7 @@ function renderAll() {
               color: C.orange,
               fill: true,
               values: nights.map(function (n) {
-                return n.spo2Adv ? n.spo2Adv.wtdsi : 0;
+                return n.spo2Adv ? n.spo2Adv.wtdsi : null;
               })
             }
           ],
@@ -1473,7 +1473,7 @@ function renderAll() {
               color: C.red,
               fill: true,
               values: nights.map(function (n) {
-                return n.comp ? n.comp.nsi : 0;
+                return n.comp ? n.comp.nsi : null;
               })
             }
           ],
@@ -1501,7 +1501,7 @@ function renderAll() {
               color: C.teal,
               fill: true,
               values: nights.map(function (n) {
-                return n.hrAdv ? n.hrAdv.rmssd : 0;
+                return n.hrAdv ? n.hrAdv.rmssd : null;
               })
             }
           ],
@@ -1529,7 +1529,7 @@ function renderAll() {
               color: C.amber,
               fill: true,
               values: nights.map(function (n) {
-                return n.comp ? n.comp.sfi : 0;
+                return n.comp ? n.comp.sfi : null;
               })
             }
           ],
@@ -1557,7 +1557,7 @@ function renderAll() {
               color: C.red,
               fill: true,
               values: nights.map(function (n) {
-                return n.sbii ? n.sbii.sbii : 0;
+                return n.sbii ? n.sbii.sbii : null;
               })
             }
           ],
@@ -1585,7 +1585,7 @@ function renderAll() {
               color: C.purple,
               fill: true,
               values: nights.map(function (n) {
-                return n.pred3p ? n.pred3p.pred3p : 0;
+                return n.pred3p ? n.pred3p.pred3p : null;
               })
             }
           ],
@@ -1613,7 +1613,7 @@ function renderAll() {
               color: C.orange,
               fill: true,
               values: nights.map(function (n) {
-                return n.desSev ? n.desSev.desSev : 0;
+                return n.desSev ? n.desSev.desSev : null;
               })
             }
           ],
