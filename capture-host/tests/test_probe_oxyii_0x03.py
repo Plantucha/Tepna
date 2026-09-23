@@ -32,8 +32,7 @@ def _payload(vals, count=None, trailer=b""):
 
 def _s(counts, dt=0.2, markers=0, iso=0):
     """A per-reply log with one reply every `dt` seconds."""
-    return [{"t": i * dt, "count": c, "body_len": c, "markers": markers, "isolated": iso}
-            for i, c in enumerate(counts)]
+    return [{"t": i * dt, "count": c, "body_len": c, "markers": markers, "isolated": iso} for i, c in enumerate(counts)]
 
 
 # ── parse_counts: the declared count and the body length, kept distinct ─────────────────────────────
@@ -95,7 +94,8 @@ def test_a_saturated_reply_takes_the_interval_AFTER_it_down_too():
     assert out["saturated_replies"] == 1
     assert out["rate_unsaturated_hz"] == 125.0
     assert out["rate_all_hz"] != out["rate_unsaturated_hz"], (
-        "the two rates must be reported separately — their disagreement IS the finding")
+        "the two rates must be reported separately — their disagreement IS the finding"
+    )
 
 
 def test_every_reply_at_the_cap_yields_NO_rate_at_all():
@@ -205,8 +205,7 @@ class _FakeRing:
     that fails CRC, a reply of some other opcode, and a live header too short to parse.
     """
 
-    def __init__(self, vals=(10, 156, 20), pr=60, *, bad_crc=False, short_live=False,
-                 other_op=False):
+    def __init__(self, vals=(10, 156, 20), pr=60, *, bad_crc=False, short_live=False, other_op=False):
         self.vals, self.pr = list(vals), pr
         self.bad_crc, self.short_live, self.other_op = bad_crc, short_live, other_op
         self.notify = None
@@ -265,8 +264,8 @@ class _FakeRing:
                 self.notify(0, oxyii.encode(oxyii.OP_LIVE, bytes(10)))
                 return
             hdr = bytearray(24)
-            hdr[6] = 96                               # spo2  (parse_live offset [6])
-            hdr[8] = next(self._prs)                  # low byte of the u16 PR at [8:10]
+            hdr[6] = 96  # spo2  (parse_live offset [6])
+            hdr[8] = next(self._prs)  # low byte of the u16 PR at [8:10]
             self.notify(0, oxyii.encode(oxyii.OP_LIVE, bytes(hdr)))
         elif self.other_op:
             self.notify(0, oxyii.encode(oxyii.OP_GET_INFO, b"\x01\x02"))
@@ -280,7 +279,9 @@ def _install(monkeypatch, ring, device=None, step=0.5):
         ring.scan_filter = a[0] if a else k.get("filterfunc")
         ring.scan_kwargs = dict(k)
         return device
+
     monkeypatch.setattr(probe.BleakScanner, "find_device_by_filter", find)
+
     # `**kw` used to SWALLOW the connection arguments, so `BleakClient(timeout=30)` -> `timeout=31`
     # was invisible to every test. Record them on the ring instead; the fixture now observes what the
     # probe asked the link for.
@@ -288,6 +289,7 @@ def _install(monkeypatch, ring, device=None, step=0.5):
         ring.connected_dev = dev
         ring.connect_kwargs = dict(kw)
         return ring
+
     monkeypatch.setattr(probe, "BleakClient", _client)
 
     # The no-op sleep DISCARDED its duration, which is why every `sleep(0.4)` -> `sleep(1.4)` mutant
@@ -296,6 +298,7 @@ def _install(monkeypatch, ring, device=None, step=0.5):
     async def no_sleep(_s):
         ring.sleeps.append(_s)
         return None
+
     monkeypatch.setattr(probe.asyncio, "sleep", no_sleep)
     # A monotonic clock advancing a fixed step per READ, so the poll loop terminates on a count of
     # clock reads rather than on how fast this machine happens to run the test.
@@ -324,7 +327,7 @@ def test_run_collects_records_markers_and_the_reported_pulse_rate(monkeypatch):
 
 def test_run_refuses_a_gatt_that_does_not_expose_the_oxyii_pair(monkeypatch):
     ring = _FakeRing()
-    ring.services = []                                # a device that is not the ring's GATT
+    ring.services = []  # a device that is not the ring's GATT
     _install(monkeypatch, ring, device=_FakeDevice())
     with pytest.raises(SystemExit, match="write/notify"):
         _run(probe.run("D1:98:62:7C:92:B3", 1.0, 5.0, None))
@@ -344,8 +347,7 @@ def test_run_honours_an_explicit_request_argument(monkeypatch):
     ring.write_gatt_char = spy
     _install(monkeypatch, ring, device=_FakeDevice())
     _run(probe.run("D1:98:62:7C:92:B3", 4.0, 5.0, "0902"))
-    args = [oxyii.decode(f)[1] for f in seen
-            if oxyii.decode(f) and oxyii.decode(f)[0] == probe.OP_SAMPLES_A]
+    args = [oxyii.decode(f)[1] for f in seen if oxyii.decode(f) and oxyii.decode(f)[0] == probe.OP_SAMPLES_A]
     assert args and all(a == b"\x09\x02" for a in args)
 
 
@@ -399,6 +401,7 @@ def test_main_runs_without_a_json_log(monkeypatch, capsys):
 # Every test below was written against a specific surviving mutant. Coverage says these lines RAN;
 # these say the lines were also OBSERVED, which is the difference the 0x05 saturation bug turned on.
 
+
 def test_a_reply_exactly_AT_the_cap_counts_as_saturated(monkeypatch):
     """THE mutant worth the whole exercise: `count >= cap` → `count > cap`.
 
@@ -428,8 +431,7 @@ def test_the_span_is_last_MINUS_first_on_a_window_that_does_not_start_at_zero():
     """`with_recs[-1]["t"] - with_recs[0]["t"]` → `+` is invisible when the first reply sits at t=0,
     which every other test here uses. `time.monotonic()` has an arbitrary origin, so on the box the
     first reply never sits at zero and the mutant would inflate the span by the whole boot time."""
-    off = [{"t": 1000.0 + i * 0.2, "count": 25, "body_len": 25, "markers": 0, "isolated": 0}
-           for i in range(4)]
+    off = [{"t": 1000.0 + i * 0.2, "count": 25, "body_len": 25, "markers": 0, "isolated": 0} for i in range(4)]
     out = probe.summarise(off)
     assert out["span_s"] == 0.6, "span must be the elapsed window, not the clock's origin"
     assert out["rate_all_hz"] == 125.0
@@ -494,8 +496,7 @@ def test_a_reply_declaring_zero_records_reads_no_body_at_all(monkeypatch):
     async def zero_count(c, frame, response=False):
         if frame[1] == probe.OP_SAMPLES_A:
             ring.write_chars.append(c)
-            ring.notify(0, oxyii.encode(probe.OP_SAMPLES_A,
-                                        _payload([], count=0, trailer=bytes([probe.BEAT_MARKER]))))
+            ring.notify(0, oxyii.encode(probe.OP_SAMPLES_A, _payload([], count=0, trailer=bytes([probe.BEAT_MARKER]))))
             return
         return await real(c, frame, response=response)
 
@@ -543,9 +544,7 @@ def test_the_probe_asks_the_link_for_what_it_needs_and_the_fixture_can_see_it(mo
     assert ring.connect_kwargs.get("timeout") == 30, (
         f"the probe asks for a 30 s connect timeout — saw {ring.connect_kwargs}"
     )
-    assert 0.4 in ring.sleeps, (
-        f"the post-auth and post-setup settles are 0.4 s each — saw {sorted(set(ring.sleeps))}"
-    )
+    assert 0.4 in ring.sleeps, f"the post-auth and post-setup settles are 0.4 s each — saw {sorted(set(ring.sleeps))}"
 
 
 # ── run(): what the probe hands the LINK is asserted, not merely accepted ─────────────────────────
@@ -565,7 +564,9 @@ def test_the_scan_filter_is_address_only_and_the_scan_and_connect_timeouts_are_t
     f = ring.scan_filter
     assert callable(f), "the probe must hand the scanner a filter, not None"
     assert f(_FakeDevice("D1:98:62:7C:92:B3"), None) is True
-    assert f(_FakeDevice("AA:BB:CC:DD:EE:FF"), None) is False, "ADDRESS-ONLY: a stranger's ring must be refused by the filter"
+    assert f(_FakeDevice("AA:BB:CC:DD:EE:FF"), None) is False, (
+        "ADDRESS-ONLY: a stranger's ring must be refused by the filter"
+    )
     assert ring.scan_kwargs == {"timeout": 25}
     assert ring.connected_dev is dev, "the client must be opened on the device the scan found"
     assert ring.connect_kwargs == {"timeout": 30}
@@ -590,11 +591,17 @@ def test_the_wire_sequence_is_auth_settle_setup_settle_then_requests_with_a_runn
     assert ring.sleeps[:2] == [0.4, 0.4], "auth and setup each settle for 0.4 s"
     assert set(ring.sleeps[2:]) == {0.5}, "the poll period is 1/hz — at 2 Hz, 0.5 s, and only that"
     ops = [fr[1] for fr in ring.frames]
-    assert ops[:2] == [oxyii.OP_AUTH, oxyii.OP_SETUP] if hasattr(oxyii, "OP_AUTH") and hasattr(oxyii, "OP_SETUP") else ops[0] != probe.OP_SAMPLES_A
+    assert (
+        ops[:2] == [oxyii.OP_AUTH, oxyii.OP_SETUP]
+        if hasattr(oxyii, "OP_AUTH") and hasattr(oxyii, "OP_SETUP")
+        else ops[0] != probe.OP_SAMPLES_A
+    )
     seqs = [fr[4] for fr in ring.frames if fr[1] == probe.OP_SAMPLES_A]
     assert len(seqs) >= 3, "the fixture must produce several requests for the sequence to be checkable"
     assert seqs == list(range(len(seqs))), "0x03 requests carry a running seq byte from 0, one per request"
-    assert ring.write_modes and all(m is False for m in ring.write_modes), "every write is write-without-response, explicitly"
+    assert ring.write_modes and all(m is False for m in ring.write_modes), (
+        "every write is write-without-response, explicitly"
+    )
 
 
 def test_the_live_poll_rides_alongside_once_per_second_of_requests(monkeypatch):
@@ -605,8 +612,12 @@ def test_the_live_poll_rides_alongside_once_per_second_of_requests(monkeypatch):
     _run(probe.run("D1:98:62:7C:92:B3", 4.0, 1.0, None))
     n_req = sum(1 for fr in ring.frames if fr[1] == probe.OP_SAMPLES_A)
     n_live = sum(1 for fr in ring.frames if fr[1] == oxyii.OP_LIVE)
-    assert n_req >= 3 and n_live == n_req, f"at 1 Hz every request is followed by a live poll, got {n_req} requests / {n_live} polls"
-    assert all(c.uuid == oxyii.OXYII_WRITE for c in ring.write_chars), "the live poll goes to the WRITE handle like every other frame"
+    assert n_req >= 3 and n_live == n_req, (
+        f"at 1 Hz every request is followed by a live poll, got {n_req} requests / {n_live} polls"
+    )
+    assert all(c.uuid == oxyii.OXYII_WRITE for c in ring.write_chars), (
+        "the live poll goes to the WRITE handle like every other frame"
+    )
 
 
 def test_a_zero_second_window_writes_no_request_at_all(monkeypatch):
@@ -627,7 +638,9 @@ def test_the_result_and_every_record_carry_exactly_the_documented_keys(monkeypat
     assert set(res) == {"summary", "samples", "beats"}
     assert set(res["samples"][0]) == {"t", "count", "body_len", "payload_len", "markers", "isolated", "body_hex"}
     assert set(res["beats"][0]) == {"t", "pr", "spo2"}
-    assert res["beats"][0]["spo2"] == 96 and res["beats"][0]["pr"] == 60, "the live fields are read from the parsed header by their names"
+    assert res["beats"][0]["spo2"] == 96 and res["beats"][0]["pr"] == 60, (
+        "the live fields are read from the parsed header by their names"
+    )
 
 
 def test_reported_pr_mean_rounds_to_one_decimal_and_records_per_beat_to_three(monkeypatch):
@@ -648,4 +661,3 @@ def test_reported_pr_mean_rounds_to_one_decimal_and_records_per_beat_to_three(mo
     rpb = s["rate_unsaturated_hz"] * 60.0 / mean
     assert round(rpb, 3) != round(rpb, 4), f"precondition: records/beat {rpb} must carry a fourth decimal"
     assert s["records_per_beat"] == round(rpb, 3)
-
