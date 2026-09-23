@@ -4625,7 +4625,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
       );
 
     // ── Hypoxic burden ──
-    if (n.hb) push('hbRate', 'Hypoxic Burden', n.hb.rate, n.hb.rate < 0.5 ? 0 : n.hb.rate < 2 ? 2 : n.hb.rate < 5 ? 5 : n.hb.rate < 10 ? 7 : 10, n.hb.rate + '%-min/hr');
+    /* §∅ — `null < 0.5` is TRUE, so an unmeasured burden would have scored the BEST bucket. */
+    if (n.hb && n.hb.rate != null) push('hbRate', 'Hypoxic Burden', n.hb.rate, n.hb.rate < 0.5 ? 0 : n.hb.rate < 2 ? 2 : n.hb.rate < 5 ? 5 : n.hb.rate < 10 ? 7 : 10, n.hb.rate + '%-min/hr');
     if (n.hypLoad) push('hypLoad', 'Hypoxic Load', n.hypLoad.hypoxicLoad, n.hypLoad.hypoxicLoad < 0.5 ? 0 : n.hypLoad.hypoxicLoad < 2 ? 2 : n.hypLoad.hypoxicLoad < 5 ? 5 : 9, n.hypLoad.hypoxicLoad);
 
     // ── AHI estimate ──
@@ -4794,7 +4795,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         return n.dfa ? 'DFA α1 ' + n.dfa.alpha1 : 'DFA unavailable';
       },
       hbRate: function () {
-        return n.hb ? 'HB rate ' + n.hb.rate + ' %-min/hr' : 'HB unavailable';
+        return n.hb && n.hb.rate != null ? 'HB rate ' + n.hb.rate + ' %-min/hr' : 'HB unavailable';
       },
       oxyCrash: function () {
         return n.oxyCrash ? 'OxyCrash ' + n.oxyCrash.oxyCrashRate + '/hr' : 'OxyCrash unavailable';
@@ -5401,17 +5402,31 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     };
   }
 
+  /* §∅ — THE SAME DEFECT `computeStats` ALREADY FIXED, IN THE FUNCTION NEXT DOOR. Its comment says
+     it outright: "`v < 95` is TRUE for null, so every absent second counted as a desaturated one and
+     T95/T90 were inflated by the dropout fraction" (residue 2026-09-13-oxydex-stats-block-absence-to-
+     number). That pass repaired the stats block and did not reach here — so this function, computing
+     the SAME class of metric over the SAME rows, still counted an absent second as below EVERY
+     threshold at once (`null < 80` is true), and fed the inflated `secs` into
+     `computeDesaturationProfile`'s weighted AUC as well.
+     Nulls do reach here: `parseCSV` drops invalid rows so the O2Ring CSV path carries none, but the
+     NSRR adapter (`to1Hz` → null), the self-ingest path and any SignalFrame do — and the SHHS lane's
+     published T90 came through this family.
+     Reduced coverage ANNOTATES (§∅ 2026-09-17): the rate is over the MEASURED seconds and `measured`
+     is published beside it, so a reader can see the denominator. Nothing measured ⇒ null, never 0. */
   function computeTIndex(rows) {
-    var spo2 = rows.map(function (r) {
-        return r.spo2;
-      }),
-      n = spo2.length,
+    var spo2 = [];
+    for (var _i = 0; _i < rows.length; _i++) {
+      var _v = rows[_i].spo2;
+      if (_v != null && isFinite(_v)) spo2.push(_v);
+    }
+    var n = spo2.length,
       out = {};
     [95, 94, 93, 92, 91, 90, 89, 88, 85, 80].forEach(function (t) {
       var s = spo2.filter(function (v) {
         return v < t;
       }).length;
-      out[t] = { secs: s, pct: n > 0 ? +((s / n) * 100).toFixed(2) : 0 };
+      out[t] = { secs: s, pct: n > 0 ? +((s / n) * 100).toFixed(2) : null, measured: n };
     });
     return out;
   }
@@ -6062,16 +6077,27 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
   // Hypoxic Burden: area-under-curve below SpO2=94% (%-min total & %-min/hr rate).
   // More sensitive than ODI for sustained mild desaturation patterns.
   // Clinical reference: >25 %-min/hr is considered elevated.
+  /* §∅ — `null < 94` is TRUE and `94 - null` is 94, so EVERY absent second added the maximum
+     possible burden, as though SpO2 had been 0. On a metric whose own reference is ">25 %-min/hr is
+     elevated" that turns dropout into severe hypoxia. Sibling of the `computeTIndex` case above and
+     of the `computeStats` fix that preceded both.
+     The sum and the duration are now both over MEASURED seconds — self-consistent, and the same rule
+     computeStats adopted ("every rate below divides by the measured count"). `measuredSec` is
+     published so the denominator is visible; nothing measured ⇒ null, never 0. */
   function computeHypoxicBurden(rows) {
     var burden = 0,
-      n = rows.length;
-    for (var i = 0; i < n; i++) {
-      if (rows[i].spo2 < 94) burden += 94 - rows[i].spo2;
+      measured = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var v = rows[i].spo2;
+      if (v == null || !isFinite(v)) continue;
+      measured++;
+      if (v < 94) burden += 94 - v;
     }
-    var durationHr = n / 3600;
+    if (!measured) return { total: null, rate: null, measuredSec: 0 };
+    var durationHr = measured / 3600;
     var totalMin = +(burden / 60).toFixed(1);
-    var rate = durationHr > 0 ? +(totalMin / durationHr).toFixed(1) : 0;
-    return { total: totalMin, rate: rate };
+    var rate = durationHr > 0 ? +(totalMin / durationHr).toFixed(1) : null;
+    return { total: totalMin, rate: rate, measuredSec: measured };
   }
 
   // Motion Profile: divide night into 30-min windows, score each for motion %.

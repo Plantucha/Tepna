@@ -3095,8 +3095,12 @@ function nightDetail(n, idx) {
   html += '<div class="sec-section">';
   html += '<div class="sec-label">T-Index · Sleep Stability</div>';
   // T90 (clinically most-cited threshold) drives the headline severity
-  var _t90 = (n.tIdx && (n.tIdx[90] || n.tIdx['t90'])) || { pct: 0 };
-  var _tCls = _t90.pct < 1 ? 'good' : _t90.pct < 5 ? 'warn' : 'bad';
+  /* §∅ — `|| { pct: 0 }` and then `null < 1` both read as a PERFECT night: the first fabricates a
+     zero for a missing block, the second grades an unmeasured rate as good. T-index is now null when
+     no second was measured, so both arms are guarded and the card carries no verdict. */
+  var _t90 = (n.tIdx && (n.tIdx[90] || n.tIdx['t90'])) || null;
+  var _t90pct = _t90 && _t90.pct != null ? _t90.pct : null;
+  var _tCls = _t90pct == null ? 'neutral' : _t90pct < 1 ? 'good' : _t90pct < 5 ? 'warn' : 'bad';
   html += '<div class="proj-grid"><div class="proj-card proj-' + _tCls + '">';
   html +=
     '<div class="proj-header">' +
@@ -3587,6 +3591,9 @@ function stsCls(sev) {
   return 'neu';
 }
 function tiClass(pct, thr) {
+  /* §∅ — an ABSENT rate gets no class. Without this, `null === 0` is false and `null < 1` is true,
+     so an unmeasured threshold rendered 'warn' — a verdict on a measurement nobody made. */
+  if (pct == null) return '';
   if (thr >= 92) return pct === 0 ? 'good' : pct < 1 ? 'warn' : 'bad';
   if (thr >= 88) return pct === 0 ? 'good' : pct < 0.5 ? 'warn' : 'bad';
   return pct === 0 ? 'good' : pct < 0.1 ? 'warn' : 'bad';
