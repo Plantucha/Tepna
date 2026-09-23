@@ -608,7 +608,9 @@
     // use windows of 30 beats; flag windows that are irregularly irregular but NOT just ectopy
     const W = 32,
       n = rr.length;
-    if (n < W + 2) return { suspiciousPct: 0, irregIndex: 0, verdict: 'insufficient', shannon: 0 };
+    /* §∅ — the metrics are null here too, for the same reason: this path has scored nothing, and a
+       0 % that a consumer prints is a claim about windows that do not exist. */
+    if (n < W + 2) return { suspiciousPct: null, irregIndex: null, verdict: 'insufficient', shannon: null };
     let flagged = 0,
       total = 0,
       shAcc = 0,
@@ -647,9 +649,21 @@
       // AF-suspicious: high CV AND high entropy AND not explained by sparse ectopy
       if (cv > 0.13 && Hn > 0.72 && ectFrac < 0.25) flagged++;
     }
-    const suspiciousPct = total ? +((flagged / total) * 100).toFixed(1) : 0;
-    const shannon = total ? +(shAcc / total).toFixed(3) : 0;
-    const irregIndex = total ? +(cvAcc / total).toFixed(3) : 0;
+    /* §∅ — A SCREEN THAT NEVER RAN IS NOT A NEGATIVE SCREEN. `total` counts the windows that had
+       enough usable beats to score; when it is 0 — every window too sparse or too noisy — the three
+       metrics fell to 0, `suspiciousPct >= 8` was false, and the function published **'no-af'**: a
+       clinical all-clear derived from zero evidence, rendered as "Clear" with an `ok` severity.
+       The vocabulary for this already exists in this very function: the `n < W + 2` guard at the top
+       returns `'insufficient'`, and BOTH consumers already map it — `'—'` for the value and
+       `neutral` for the colour. Two ways of having nothing to screen, one of them answered
+       correctly. This is the same shape as `computeSpO2Percentiles` vs `computeODI1` (#2961): a
+       precondition handled twice, differently.
+       The metrics go null with it. `0 % irregular` is a measurement claim about windows that were
+       never scored, and `suspiciousPct` is rendered directly into the UI. */
+    if (!total) return { suspiciousPct: null, irregIndex: null, shannon: null, verdict: 'insufficient' };
+    const suspiciousPct = +((flagged / total) * 100).toFixed(1);
+    const shannon = +(shAcc / total).toFixed(3);
+    const irregIndex = +(cvAcc / total).toFixed(3);
     let verdict;
     if (suspiciousPct >= 30) verdict = 'possible-af';
     else if (suspiciousPct >= 8) verdict = 'occasional-irregular';
