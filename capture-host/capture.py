@@ -1793,6 +1793,44 @@ _NOT_WORN_RECHECK_S = 90.0          # how often to reconnect-and-check once drop
 _WORN_SINCE: dict[str, float] = {}  # addr -> monotonic ts contact went False (absent = worn/unknown)
 
 
+def sdk_mode_wanted(configured, worn: bool | None, charging: bool | None) -> bool:
+    """PURE: should this pass ENTER SDK mode? Config, vetoed by an established not-worn or charging.
+
+    ⚠️ SDK MODE DISABLES BOTH RELIABLE WEAR SIGNALS AT ONCE, which is why it cannot be entered
+    unconditionally. The Verity refuses PPI in SDK mode, so `ppi_contact` — the detector that separated
+    perfectly on this hardware (contact=0 on 31 877 desk rows, contact=1 on 20 957 worn) — is gone; and
+    the device stops refusing PMD START, so `in_charger` (0x0D) never appears either, because that
+    status only exists on a REFUSED start. A docked armband then looks exactly like a worn one.
+
+    Measured 2026-09-03: with SDK mode on, a docked Verity duty-cycled at 176 Hz for hours. The
+    not-worn drop fired correctly every 180 s, but each 90 s recheck reconnected, was ACCEPTED by the
+    device, and wrote real samples — so the wear PROBE became a capture. Because 90 s is inside the
+    300 s resume window, every probe re-adopted the same file-set and it never closed. Same shape as
+    2026-08-14: 3 h 24 m at 176 Hz into a charging dock, battery pinned at 100 %.
+
+    🔴 The fix belongs HERE and not in the resume window. `CAPTURE-FILESET-RESUME` collapses exactly
+    this duty cycle ON PURPOSE — measured 2 154 sets across 76 device-nights, 28.3x — so suppressing
+    resume on a not-worn drop would undo a deliberate, evidenced feature to work around a different
+    bug. Deny SDK mode instead and the probe gets the firmware's own `in_charger` refusal back: it
+    writes nothing, the file-set ages out, and the resume logic is untouched.
+
+    ── `None` IS ALLOWED THROUGH, and that asymmetry is deliberate ──
+    `worn=None` means no detector was available or in domain, not "not worn". Denying SDK mode on None
+    would permanently deny it to any device that cannot report wear at all (the H10 reports no contact
+    bit), which is a regression for hardware that never had this problem. The docked case does not need
+    it: a device we dropped for not-worn republishes `worn=False`, not None, so the veto fires on the
+    signal that is actually present. A fresh start while docked costs ONE duty cycle — SDK mode is
+    entered, the optical detector says not-worn, and every later pass is vetoed.
+
+    `charging=True` vetoes regardless, because a device in a dock is not on a wrist — the one signal
+    here that is a physical fact rather than an inference (`telemetry.worn_verdict`)."""
+    if not configured:
+        return False
+    if charging:
+        return False
+    return worn is not False
+
+
 def should_drop_not_worn(worn_since, now, grace, pull_in_flight: bool = False) -> bool:
     """PURE: has a strap been continuously not-worn long enough to drop for power? False when the feature
     is off (grace<=0), the strap is worn/unknown (worn_since None), or the grace has not yet elapsed.
@@ -2765,7 +2803,9 @@ async def run_polar(dev: dict, root: str):
                         # Re-run on EVERY pass, not once per connect: SDK mode does not survive a power
                         # cycle, and this loop doubles as the charging retry — a device docked at
                         # bedtime and worn at 23:00 re-negotiates here with no reconnect in between.
-                        if dev.get("sdk_mode"):
+                        if sdk_mode_wanted(dev.get("sdk_mode"),
+                                           STATUS["devices"].get(name, {}).get("worn"),
+                                           STATUS["devices"].get(name, {}).get("charging")):
                             for meas in list(writers):
                                 await _ctrl(pmd.stop_cmd(meas))
                             _set(name, sdk_mode=await _enter_sdk_mode(_ctrl, name))
