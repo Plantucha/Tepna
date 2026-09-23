@@ -6188,9 +6188,27 @@
       var n = s.n != null ? s.n : s.ch[0] ? s.ch[0].length : 0;
       var fs = input.fs != null ? input.fs : s.fs;
       var relSec = s.relSec;
+      /* §∅ — A SAMPLE RATE THAT WAS NOT MEASURED IS NULL, NEVER 1. Both arms below used to read
+         `fs || 1`, so a frame carrying neither `input.fs` nor `samples.fs` silently got a 1 Hz axis:
+         measured on the synthetic Verity frame, a 540-second recording became 95,039 seconds — 176× —
+         and every beat time rode that axis through `rec.relSec` → `footSec`. An absent rate is not
+         reduced coverage, it is the absence of the time axis itself, so this REFUSES rather than
+         annotating (the 2026-09-17 ruling: a discontinuity refuses, reduced coverage annotates).
+         NARROW BY CONSTRUCTION: fs is only needed to BUILD an axis, so a frame that already carries
+         `relSec` and `durSec` never reaches this and is not convicted — pinned by two legs of the
+         `PpgDex §∅` group. Rows ppgdex-dsp.js:6193 / :6203 of ABSENCE-SURVEY-2026-09-22. */
+      var fsUsable = typeof fs === 'number' && isFinite(fs) && fs > 0;
+      var needFs = !relSec || (s.durSec == null && n > 1);
+      if (needFs && !fsUsable) {
+        throw new Error(
+          'PpgDex.compute: this ppg SignalFrame carries no usable sample rate (neither input.fs nor samples.fs) and ' +
+            (!relSec ? 'no relSec to read one from' : 'no durSec') +
+            ', so the time axis cannot be built — refusing rather than assuming 1 Hz (CLAUDE.md §∅: a rate that was not measured is null, never a number)'
+        );
+      }
       if (!relSec) {
         relSec = new Float64Array(n);
-        for (var i = 0; i < n; i++) relSec[i] = i / (fs || 1);
+        for (var i = 0; i < n; i++) relSec[i] = i / fs;
       }
       rec = {
         ch: s.ch,
@@ -6200,7 +6218,7 @@
         fs: fs,
         t0Ms: input.t0Ms != null ? input.t0Ms : s.t0Ms != null ? s.t0Ms : null,
         offsetMin: input.offsetMin != null ? input.offsetMin : null,
-        durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / (fs || 1) : 0,
+        durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / fs : 0,
         /* §1.4 — derive site here too, by the SAME rule as the text path. Omitting it let the export's
            `rec.site || 'wrist'` fallback stamp every frame-routed recording 'wrist'. A declared site
            (`s.site`) wins if an adapter ever carries one; otherwise it is the layout fact, and

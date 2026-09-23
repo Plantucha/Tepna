@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="fe4c0dc99ec5" data-compute-hash="0647db927571">
+<html lang="en" data-manifest-hash="3011f18f445d" data-compute-hash="b9a9ee7e328b">
 <head>
 <!--
   PpgDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+wwK4R0C4NW2fgchPCvkcaYqquEx4zvjELT5rJruVYs=' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-f+QT/0zTO9AolD7kxoAHfiK50gfysYkfW5t1omOsjkQ=' 'sha256-gCWeWHL/WDuToOHOSpVRk7dpGOBIt4LizLoql9xiA1U=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-+zqU9FgUOgtN4kmtChutj19+zwwNbhTi89UXArk3YBY=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Cz05XGj+Ezv0CujoHKzhDZwG5Pht7bDAeLz39xOy5KU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-IVq2ZV4bqS8z+7NbSSE2Gm0D2t6Am6PSEy4iGgiY4fw=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-PqgOb4nH94vwGV4KJcYTcKkanVtY5narYs5uXbOgCSg=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-f+QT/0zTO9AolD7kxoAHfiK50gfysYkfW5t1omOsjkQ=' 'sha256-gCWeWHL/WDuToOHOSpVRk7dpGOBIt4LizLoql9xiA1U=' 'sha256-m7W+KzkrRY04dNqv6MHoDb91d7oPh9LarnSHN1EDHcg=' 'sha256-p61rFcZK2XfCYPejFdYmOAMTDf8uZF0NWpmOOt0f47s='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>PpgDex — Raw Wrist-PPG Analyzer · v2.13.0</title>
@@ -12821,9 +12821,27 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
       var n = s.n != null ? s.n : s.ch[0] ? s.ch[0].length : 0;
       var fs = input.fs != null ? input.fs : s.fs;
       var relSec = s.relSec;
+      /* §∅ — A SAMPLE RATE THAT WAS NOT MEASURED IS NULL, NEVER 1. Both arms below used to read
+         `fs || 1`, so a frame carrying neither `input.fs` nor `samples.fs` silently got a 1 Hz axis:
+         measured on the synthetic Verity frame, a 540-second recording became 95,039 seconds — 176× —
+         and every beat time rode that axis through `rec.relSec` → `footSec`. An absent rate is not
+         reduced coverage, it is the absence of the time axis itself, so this REFUSES rather than
+         annotating (the 2026-09-17 ruling: a discontinuity refuses, reduced coverage annotates).
+         NARROW BY CONSTRUCTION: fs is only needed to BUILD an axis, so a frame that already carries
+         `relSec` and `durSec` never reaches this and is not convicted — pinned by two legs of the
+         `PpgDex §∅` group. Rows ppgdex-dsp.js:6193 / :6203 of ABSENCE-SURVEY-2026-09-22. */
+      var fsUsable = typeof fs === 'number' && isFinite(fs) && fs > 0;
+      var needFs = !relSec || (s.durSec == null && n > 1);
+      if (needFs && !fsUsable) {
+        throw new Error(
+          'PpgDex.compute: this ppg SignalFrame carries no usable sample rate (neither input.fs nor samples.fs) and ' +
+            (!relSec ? 'no relSec to read one from' : 'no durSec') +
+            ', so the time axis cannot be built — refusing rather than assuming 1 Hz (CLAUDE.md §∅: a rate that was not measured is null, never a number)'
+        );
+      }
       if (!relSec) {
         relSec = new Float64Array(n);
-        for (var i = 0; i < n; i++) relSec[i] = i / (fs || 1);
+        for (var i = 0; i < n; i++) relSec[i] = i / fs;
       }
       rec = {
         ch: s.ch,
@@ -12833,7 +12851,7 @@ body.light #exportBar{background:rgba(255,255,255,.92)}
         fs: fs,
         t0Ms: input.t0Ms != null ? input.t0Ms : s.t0Ms != null ? s.t0Ms : null,
         offsetMin: input.offsetMin != null ? input.offsetMin : null,
-        durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / (fs || 1) : 0,
+        durSec: s.durSec != null ? s.durSec : n > 1 ? (n - 1) / fs : 0,
         /* §1.4 — derive site here too, by the SAME rule as the text path. Omitting it let the export's
            `rec.site || 'wrist'` fallback stamp every frame-routed recording 'wrist'. A declared site
            (`s.site`) wins if an adapter ever carries one; otherwise it is the layout fact, and
