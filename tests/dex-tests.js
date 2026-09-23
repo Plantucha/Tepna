@@ -17114,6 +17114,50 @@
       T.eq('…and the real-dropout control (no resync) drops nothing — the key is absent', ctrl.hostAxis && ctrl.hostAxis.anchorsDroppedPreResync, undefined);
     });
 
+    /* ── §∅ · A SCREEN THAT NEVER RAN IS NOT A NEGATIVE SCREEN ─────────────────────────────────
+       `afScreen` scores 32-beat windows and needs ≥20 usable beats in one to score it. When NO
+       window qualifies, `total` is 0, the three metrics fell to 0, `suspiciousPct >= 8` was false,
+       and the verdict came out 'no-af' — rendered "Clear" with an `ok` severity. A clinical
+       all-clear from zero evidence.
+       The vocabulary already existed in the same function: the `n < W + 2` guard returns
+       'insufficient', and both consumers already map it to '—' / neutral. */
+    group('ECGDex §∅ — an AF screen with nothing to score says INSUFFICIENT, not no-af', 'ecgdex-morph · af-screen · absence', function (T) {
+      var M = env.ECGMorph;
+      if (!M || typeof M.afScreen !== 'function') {
+        T.skip('ECGMorph.afScreen available', 'not loaded');
+        return;
+      }
+      var N = 100;
+      var rr = [],
+        sqiBad = [],
+        sqiGood = [],
+        types = [];
+      for (var i = 0; i < N; i++) {
+        rr.push(900 + (i % 7) * 10);
+        sqiBad.push(0.3); // below the 0.4 usable gate — no window can score
+        sqiGood.push(0.9);
+        types.push('N');
+      }
+      /* CONTROL FIRST: the same beats with usable quality must produce a real verdict, or the case
+         below is passing for the wrong reason (too few beats, hitting the early return instead). */
+      var ok = M.afScreen(rr, sqiGood, types);
+      T.ok('ANTI-VACUITY · with usable beats the screen actually runs', ok.verdict !== 'insufficient', 'verdict=' + ok.verdict);
+      T.ok('…and reports a real percentage', ok.suspiciousPct != null, JSON.stringify(ok.suspiciousPct));
+
+      var none = M.afScreen(rr, sqiBad, types);
+      T.eq('no window had enough usable beats ⇒ INSUFFICIENT, not no-af', none.verdict, 'insufficient');
+      T.eq('…and the percentage REFUSES rather than reading 0 %', none.suspiciousPct, null);
+      T.eq('…as do the two metrics printed beside it', [none.irregIndex, none.shannon], [null, null]);
+      /* The arithmetic that made the old answer look like a finding. */
+      T.eq('…because 0 >= 8 is FALSE, which fell through to the all-clear', 0 >= 8, false);
+
+      /* The other insufficient path — too few beats overall — already answered correctly, and now
+         nulls its metrics for the same reason. */
+      var few = M.afScreen(rr.slice(0, 10), sqiGood.slice(0, 10), types.slice(0, 10));
+      T.eq('too few beats overall still says insufficient', few.verdict, 'insufficient');
+      T.eq('…with the metrics null there too', few.suspiciousPct, null);
+    });
+
     group('ECGDex parseECG reshape carries every field the timing resolver publishes', 'ecgdex-dsp · timing-reshape · export-boundary', function (T) {
       /* `parseECG` does not return `ecgTimingResolve`'s object — it copies a FIXED LIST of keys out of
          it. A field added to the resolver is therefore INERT until it is named again in that literal,
