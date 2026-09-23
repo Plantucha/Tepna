@@ -28,4 +28,8 @@ SuccessExitStatus=0
 WorkingDirectory=%h/wt-release-timer
 ExecStartPre=/usr/bin/git fetch -q origin main --tags
 ExecStartPre=/usr/bin/git checkout -q --detach origin/main
-ExecStart=/bin/sh -c '[ -f tools/release-due.mjs ] || { echo "release-due.mjs not on origin/main yet — nothing to run"; exit 0; }; exec node tools/release-due.mjs --json'
+# --foreground: the chain runs INSIDE this oneshot. Measured on the first tick (2026-09-23 13:02): a
+# detached `release.mjs --full` child was killed the moment the unit finished (KillMode=control-group),
+# its log empty, no state written, while the verdict had already said PASS. A oneshot has no start
+# timeout, so a 45–90 min attached chain is the correct shape, and the unit's exit IS the chain's.
+ExecStart=/bin/sh -c '[ -f tools/release-due.mjs ] || { echo "release-due.mjs not on origin/main yet — nothing to run"; exit 0; }; exec node tools/release-due.mjs --json --foreground'
