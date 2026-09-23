@@ -1,0 +1,390 @@
+{
+ "schema": "tepna.audit/ppg-fill-removal-verity/1",
+ "measured": "2026-09-22",
+ "question": "residue 2026-09-07-ppg-ecg-hrv-paper-predates-the-fill-removal: which way, and how far, does removing correctRR's running-median fill (#2333, 5cd8d699~1 -> 5cd8d699) move Verity per-epoch rMSSD relative to paired chest ECG?",
+ "notThePapersNights": "The paper's 26 phone-captured nights (2026-06-10 -> 07-13, Polar Sensor Logger) are NOT reachable on this machine: corpus-scope over the 9 documented roots finds them in none of the 3 local trees; the primary checkout's Polar_Sense_*_part* files are 1 MB untracked stubs; vigil:/srv/tepna holds 0 (read-only ls); the PSL drive /run/media/.../Ecg nightly is not mounted. These are the BOX's Verity+H10 nights (uploads/vigil-archive/captures, 2026-07-25 onward): same devices, same DSP path, different nights.",
+ "command": "node tools/ppg-bridge-hrv-validate.mjs --dir /srv/data/tepna-corpus/uploads/vigil-archive/captures --old 5cd8d699~1 --new 5cd8d699 --device verity --fires any --top 40",
+ "population": {
+  "candidates": 40,
+  "scored": 38,
+  "skipped": {
+   "parse-error": 0,
+   "not-a-validation-case (no gap beats)": 0,
+   "no-ecg-overlap": 2,
+   "ecg-parse-error": 0
+  },
+  "note": "candidates = the 40 largest Verity PPG FRAGMENTS in the tree, not nights; a night can contribute several"
+ },
+ "summary": {
+  "touchedEpochs": 1150,
+  "medianDRmssdOldMs": 2.5,
+  "medianDRmssdNewMs": 5.485,
+  "filesNewFarther": 33,
+  "pairedChangeMs": {
+   "median": 1.6299999999999997,
+   "q1": 0.4799999999999998,
+   "q3": 3.0100000000000002,
+   "min": -2.75,
+   "max": 6.19
+  },
+  "epochWeightedDRmssd": {
+   "old": 15.821747826086956,
+   "new": 17.496104347826087
+  },
+  "verdicts": {
+   "BETTER": 5,
+   "mixed": 23,
+   "WORSE": 10,
+   "unchanged": 0
+  }
+ },
+ "reading": "The fill was SMOOTHING finger rMSSD toward the chest reference: with it gone the per-epoch gap widens on 33 of 38 files. 'WORSE' here is the honest outcome, not a regression — the intervals the fill supplied were fabricated (Section ∅), so the smaller gap they bought was not agreement. The paper's own figure is therefore expected to move AWAY from the reference under the honest series; its exact value still needs its own nights.",
+ "producedBy": {
+  "tool": "tools/ppg-bridge-hrv-validate.mjs",
+  "commit": "63a820c3"
+ },
+ "rows": [
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260802215407_PPG.",
+   "touchedEpochs": 51,
+   "dRmssdOld": 2.72,
+   "dRmssdNew": 6.59,
+   "dSdnnOld": 1.78,
+   "dSdnnNew": 1.88,
+   "verdict": "WORSE"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260817210509_PPG.",
+   "touchedEpochs": 22,
+   "dRmssdOld": 3.55,
+   "dRmssdNew": 5.4,
+   "dSdnnOld": 3.41,
+   "dSdnnNew": 0.85,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260816001513_PPG.",
+   "touchedEpochs": 35,
+   "dRmssdOld": 1.34,
+   "dRmssdNew": 6.18,
+   "dSdnnOld": 6.71,
+   "dSdnnNew": 6.0,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260816221437_PPG.",
+   "touchedEpochs": 29,
+   "dRmssdOld": 1.82,
+   "dRmssdNew": 5.28,
+   "dSdnnOld": 8.45,
+   "dSdnnNew": 6.53,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260813231725_PPG.",
+   "touchedEpochs": 22,
+   "dRmssdOld": 2.52,
+   "dRmssdNew": 5.59,
+   "dSdnnOld": 4.15,
+   "dSdnnNew": 3.06,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260813005239_PPG.",
+   "touchedEpochs": 12,
+   "dRmssdOld": 2.9,
+   "dRmssdNew": 4.05,
+   "dSdnnOld": 4.28,
+   "dSdnnNew": 5.31,
+   "verdict": "WORSE"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260903180921_PPG.",
+   "touchedEpochs": 38,
+   "dRmssdOld": 4.1,
+   "dRmssdNew": 6.3,
+   "dSdnnOld": 16.97,
+   "dSdnnNew": 17.67,
+   "verdict": "WORSE"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260801224532_PPG.",
+   "touchedEpochs": 49,
+   "dRmssdOld": 1.95,
+   "dRmssdNew": 2.87,
+   "dSdnnOld": 2.35,
+   "dSdnnNew": 3.17,
+   "verdict": "WORSE"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260912181913_PPG.",
+   "touchedEpochs": 86,
+   "dRmssdOld": 8.5,
+   "dRmssdNew": 10.58,
+   "dSdnnOld": 30.81,
+   "dSdnnNew": 30.45,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260813203037_PPG.",
+   "touchedEpochs": 10,
+   "dRmssdOld": 2.09,
+   "dRmssdNew": 6.34,
+   "dSdnnOld": 1.94,
+   "dSdnnNew": 1.84,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260812205402_PPG.",
+   "touchedEpochs": 10,
+   "dRmssdOld": 2.48,
+   "dRmssdNew": 5.32,
+   "dSdnnOld": 3.4,
+   "dSdnnNew": 2.13,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260805212923_PPG.",
+   "touchedEpochs": 31,
+   "dRmssdOld": 1.08,
+   "dRmssdNew": 1.47,
+   "dSdnnOld": 1.17,
+   "dSdnnNew": 1.59,
+   "verdict": "WORSE"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260807215043_PPG.",
+   "touchedEpochs": 58,
+   "dRmssdOld": 1.83,
+   "dRmssdNew": 4.82,
+   "dSdnnOld": 1.96,
+   "dSdnnNew": 1.78,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260825175314_PPG.",
+   "touchedEpochs": 63,
+   "dRmssdOld": 43.85,
+   "dRmssdNew": 41.1,
+   "dSdnnOld": 23.15,
+   "dSdnnNew": 23.15,
+   "verdict": "BETTER"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260826223819_PPG.",
+   "touchedEpochs": 45,
+   "dRmssdOld": 98.79,
+   "dRmssdNew": 98.69,
+   "dSdnnOld": 52.56,
+   "dSdnnNew": 52.56,
+   "verdict": "BETTER"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260804230037_PPG.",
+   "touchedEpochs": 41,
+   "dRmssdOld": 1.49,
+   "dRmssdNew": 3.51,
+   "dSdnnOld": 2.15,
+   "dSdnnNew": 2.07,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260814223037_PPG.",
+   "touchedEpochs": 24,
+   "dRmssdOld": 3.63,
+   "dRmssdNew": 4.26,
+   "dSdnnOld": 11.51,
+   "dSdnnNew": 8.66,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260803212144_PPG.",
+   "touchedEpochs": 55,
+   "dRmssdOld": 1.23,
+   "dRmssdNew": 1.92,
+   "dSdnnOld": 1.37,
+   "dSdnnNew": 1.07,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260728213920_PPG.",
+   "touchedEpochs": 28,
+   "dRmssdOld": 1.03,
+   "dRmssdNew": 3.13,
+   "dSdnnOld": 2.16,
+   "dSdnnNew": 1.88,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260921210522_PPG.",
+   "touchedEpochs": 19,
+   "dRmssdOld": 78.46,
+   "dRmssdNew": 78.46,
+   "dSdnnOld": 48.11,
+   "dSdnnNew": 48.01,
+   "verdict": "BETTER"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260815221142_PPG.",
+   "touchedEpochs": 7,
+   "dRmssdOld": 0.45,
+   "dRmssdNew": 0.64,
+   "dSdnnOld": 4.61,
+   "dSdnnNew": 0.96,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260909211932_PPG.",
+   "touchedEpochs": 23,
+   "dRmssdOld": 8.83,
+   "dRmssdNew": 8.93,
+   "dSdnnOld": 10.95,
+   "dSdnnNew": 11.65,
+   "verdict": "WORSE"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260806232638_PPG.",
+   "touchedEpochs": 43,
+   "dRmssdOld": 2.1,
+   "dRmssdNew": 2.61,
+   "dSdnnOld": 1.91,
+   "dSdnnNew": 1.4,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260809220102_PPG.",
+   "touchedEpochs": 29,
+   "dRmssdOld": 5.12,
+   "dRmssdNew": 8.46,
+   "dSdnnOld": 5.62,
+   "dSdnnNew": 5.1,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260913213235_PPG.",
+   "touchedEpochs": 26,
+   "dRmssdOld": 2.01,
+   "dRmssdNew": 3.52,
+   "dSdnnOld": 3.36,
+   "dSdnnNew": 3.39,
+   "verdict": "WORSE"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260828100204_PPG.",
+   "touchedEpochs": 31,
+   "dRmssdOld": 172.77,
+   "dRmssdNew": 172.27,
+   "dSdnnOld": 111.85,
+   "dSdnnNew": 111.65,
+   "verdict": "BETTER"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260811214024_PPG.",
+   "touchedEpochs": 26,
+   "dRmssdOld": 1.57,
+   "dRmssdNew": 2.91,
+   "dSdnnOld": 4.8,
+   "dSdnnNew": 2.85,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260810221602_PPG.",
+   "touchedEpochs": 34,
+   "dRmssdOld": 7.66,
+   "dRmssdNew": 13.26,
+   "dSdnnOld": 5.21,
+   "dSdnnNew": 5.87,
+   "verdict": "WORSE"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260906000215_PPG.",
+   "touchedEpochs": 21,
+   "dRmssdOld": 6.51,
+   "dRmssdNew": 8.61,
+   "dSdnnOld": 44.21,
+   "dSdnnNew": 43.71,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260915220844_PPG.",
+   "touchedEpochs": 29,
+   "dRmssdOld": 1.12,
+   "dRmssdNew": 5.57,
+   "dSdnnOld": 5.79,
+   "dSdnnNew": 5.49,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260727221400_PPG.",
+   "touchedEpochs": 21,
+   "dRmssdOld": 0.9,
+   "dRmssdNew": 1.18,
+   "dSdnnOld": 1.15,
+   "dSdnnNew": 1.16,
+   "verdict": "WORSE"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260917220830_PPG.",
+   "touchedEpochs": 22,
+   "dRmssdOld": 1.05,
+   "dRmssdNew": 1.88,
+   "dSdnnOld": 1.13,
+   "dSdnnNew": 1.42,
+   "verdict": "WORSE"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260907222048_PPG.",
+   "touchedEpochs": 26,
+   "dRmssdOld": 7.19,
+   "dRmssdNew": 8.94,
+   "dSdnnOld": 45.43,
+   "dSdnnNew": 41.63,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260829234612_PPG.",
+   "touchedEpochs": 16,
+   "dRmssdOld": 5.8,
+   "dRmssdNew": 11.99,
+   "dSdnnOld": 31.73,
+   "dSdnnNew": 31.23,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260920223446_PPG.",
+   "touchedEpochs": 12,
+   "dRmssdOld": 31.45,
+   "dRmssdNew": 29.35,
+   "dSdnnOld": 24.56,
+   "dSdnnNew": 23.67,
+   "verdict": "BETTER"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260904203315_PPG.",
+   "touchedEpochs": 12,
+   "dRmssdOld": 49.67,
+   "dRmssdNew": 51.64,
+   "dSdnnOld": 37.82,
+   "dSdnnNew": 32.76,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260906232719_PPG.",
+   "touchedEpochs": 20,
+   "dRmssdOld": 1.87,
+   "dRmssdNew": 3.23,
+   "dSdnnOld": 5.55,
+   "dSdnnNew": 2.64,
+   "verdict": "mixed"
+  },
+  {
+   "file": "Polar_VeritySense_0C301E3F_20260916222609_PPG.",
+   "touchedEpochs": 24,
+   "dRmssdOld": 0.87,
+   "dRmssdNew": 1.56,
+   "dSdnnOld": 6.26,
+   "dSdnnNew": 4.93,
+   "verdict": "mixed"
+  }
+ ]
+}

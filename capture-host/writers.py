@@ -830,6 +830,36 @@ def night_dir(root: str, started: _dt.datetime) -> str:
     return d
 
 
+def _last_row_clocks(path: str, tail_bytes: int = 4096) -> "tuple[int, float] | None":
+    """(sensor_ns, phone_ms) of the last COMPLETE data row of a stream file, or None.
+
+    Every stream row this module writes starts `phone_ts;sensor_ns;…` (`_phone_ts`, then `_ns_col`),
+    so columns 0 and 1 are the same for every stream and no per-stream parser is needed. Reads only
+    the tail, skips `#` comments and the header, and returns None — never a fabricated clock — when
+    the file is absent, empty, header-only, torn, or its last row carries no device clock (`_ns_col`
+    writes absence as an empty field, and an empty field is not 0)."""
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(0, 2)
+            size = fh.tell()
+            fh.seek(max(0, size - tail_bytes))
+            chunk = fh.read().decode("utf-8", "replace")
+    except OSError:
+        return None
+    for line in reversed(chunk.split("\n")):
+        if not line or line.startswith("#") or line.startswith("Phone"):
+            continue
+        cols = line.split(";")
+        if len(cols) < 2 or not cols[1].strip().lstrip("-").isdigit():
+            return None  # a row without a device clock cannot seed one
+        try:
+            when = _dt.datetime.strptime(cols[0], "%Y-%m-%dT%H:%M:%S.%f")
+        except ValueError:
+            return None
+        return int(cols[1]), when.timestamp() * 1000.0
+    return None
+
+
 def _ns_col(sensor_ns: int | None) -> str:
     """The `sensor timestamp [ns]` field, with ABSENCE written as absence.
 
@@ -900,7 +930,26 @@ class _SeamSidecar:
     describing the stream better is not worth dropping the notifications that ARE the stream.
     """
 
-    def __init__(self, path: str, stream: str, resumed: bool = False) -> None:
+    def __init__(self, path: str, stream: str, resumed: bool = False,
+                 seed: "tuple[int, float] | None" = None, first_ns: "int | None" = None) -> None:
+        """`seed` = (sensor_ns, phone_ms) of the LAST row already on disk when this sidecar resumes.
+
+        ⚠️ WITHOUT IT, A RESUMED SIDECAR EXAMINES EVERY INTERVAL EXCEPT THE ONE A SEAM CAN OCCUPY.
+        `feed` judges the interval between the previous sample and this one, so a fresh instance
+        stores its first sample and judges nothing — correct for a first connect, where there is no
+        previous sample, and wrong for a reconnect, where the previous sample is the last row of the
+        file this instance appends to. Measured 2026-09-21 (H10 ECG, the owner's night): the device
+        clock stepped +243,739,222 s at the FIRST row of writer session 2, `ECGSEAMS.txt` carried 178
+        `# final … seams=0` lines — one per reconnect — and 0 seam rows. 177 boundaries, 177 skipped.
+        `examined=12117` on session 1 was true and reported on the wrong population: every interval
+        but the boundary. ECGDex saw the step (`clockResyncs[0].deviceStepMs`); the box did not.
+
+        The writer hands the seed over because it already owns the row format and already reads its
+        own tail on resume. An absent or unparseable last row hands over NOTHING (§∅) — the boundary
+        then goes unexamined and `examined` says so by not counting it, rather than a zero being
+        invented for the previous clock. `first_ns` keeps `at_rel_ms` on the file's own axis where the
+        writer knows it (ECG); otherwise the resumed axis starts at the seed, which is stated here so a
+        reader of a resumed SEAMS row knows what `at_rel_ms` is relative to."""
         # `<base>.txt` -> `<base>SEAMS.txt`, by the same rule `_RunSidecar` uses for `RUNS`.
         base = path[:-4] if path.endswith(".txt") else path
         self.path = base + "SEAMS.txt"
@@ -909,7 +958,11 @@ class _SeamSidecar:
         self.examined = 0
         self._prev_ns: int | None = None
         self._prev_phone_ms: float | None = None
-        self._first_ns: int | None = None
+        self._first_ns: int | None = first_ns
+        if seed is not None:
+            self._prev_ns, self._prev_phone_ms = seed
+            if self._first_ns is None:
+                self._first_ns = seed[0]  # the resumed axis starts at the last pre-seam sample
         self._resumed = resumed
         self._opened = False
         # Annotated, not inferred: a bare `= None` types the attribute as `None`, so every later
@@ -1556,7 +1609,17 @@ class StreamWriter:
         # §1.4: seams are emitted where the clocks ARRIVE. Every device-clocked writer already
         # receives `phone` and `sensor_ns` taken at the notification, so recording here costs no
         # timing quality — the stamps are passed in, not re-taken.
-        self._seams = _SeamSidecar(path, stream, resumed=self.resumed)
+        # CAPTURE-FILESET-RESUME §3.2 says a resumed writer continues on the same axis; the seam
+        # sidecar must inherit that, or the reconnect interval — the only one a seam can occupy — is
+        # the one interval it never judges (see `_SeamSidecar.__init__`). The tail read is bounded so
+        # resume stays O(1) in file size; only the last COMPLETE data row is used.
+        self._seams = _SeamSidecar(
+            path,
+            stream,
+            resumed=self.resumed,
+            seed=_last_row_clocks(path) if self.resumed else None,
+            first_ns=self._first_ns,
+        )
         self._flush_interval = flush_interval
         self._fsync = fsync
         self._last_flush = _time.monotonic()

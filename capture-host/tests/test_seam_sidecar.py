@@ -167,3 +167,106 @@ def test_a_failing_CLOSE_cannot_fail_a_night(tmp_path, monkeypatch):
     sc._fh = BadFH()
     sc.close()          # must not raise
     assert sc._fh is None, "the handle is released even when closing it failed"
+
+
+# ── THE RECONNECT BOUNDARY IS EXAMINED (2026-09-22) ─────────────────────────────────────────────
+# The real geometry: smoketest 2026-09-21, H10 ECG. Session 1's last row and session 2's first row,
+# verbatim from the file — device clock +243,739,222,431 ms over a host step of 84,638 ms.
+_S1_LAST_NS, _S1_LAST_PHONE = 599616098054140718, dt.datetime(2026, 9, 21, 21, 20, 35, 988000)
+_S2_FIRST_NS, _S2_FIRST_PHONE = 843355320485590198, dt.datetime(2026, 9, 21, 21, 22, 0, 626000)
+
+
+def _session1(tmp_path):
+    import writers
+
+    p = str(tmp_path / "Polar_H10_x_20260921211843_ECG.txt")
+    w1 = writers.StreamWriter(p, "ecg", fsync=False)
+    for i in range(3):
+        w1.write_ecg(
+            _S1_LAST_PHONE - dt.timedelta(milliseconds=8 * (2 - i)), _S1_LAST_NS - 7_690_000 * (2 - i), 0.0, -20333
+        )
+    w1.close()
+    return p
+
+
+def test_PLANT_a_resumed_writer_examines_the_reconnect_boundary(tmp_path):
+    """The unfixed code printed `seams=0 examined=0` for session 2's first interval — the seam."""
+    import writers
+
+    p = _session1(tmp_path)
+    w2 = writers.StreamWriter(p, "ecg", fsync=False)  # resumes: same path, non-empty
+    assert w2.resumed
+    w2.write_ecg(_S2_FIRST_PHONE, _S2_FIRST_NS, 0.0, -273)  # the boundary sample
+    w2.close()
+    body = open(p[:-4] + "SEAMS.txt").read()
+    rows = [x for x in body.splitlines() if x and not x.startswith("#") and not x.startswith("phone_ts")]
+    assert len(rows) == 1, body
+    dev_step_ms = float(rows[0].split(";")[2])
+    assert abs(dev_step_ms - 243_739_222_431.0) < 1.0, rows[0]
+    assert "# final stream=ecg seams=0 examined=2" in body  # session 1: two intervals, no seam
+    assert "# final stream=ecg seams=1 examined=1" in body  # session 2: THE boundary, counted
+
+
+def test_CONTROL_the_unseeded_sidecar_is_blind_to_the_same_boundary(tmp_path):
+    """Fixed and unfixed must print DIFFERENT bytes on the same two samples, or the plant proves
+    nothing: an unseeded instance stores the first sample and judges no interval."""
+    import writers
+
+    sc = writers._SeamSidecar(str(tmp_path / "X_ECG.txt"), "ecg", resumed=True)  # no seed
+    sc.feed(_S2_FIRST_PHONE, _S2_FIRST_NS)
+    sc.close()
+    assert sc.seams == 0 and sc.examined == 0
+
+
+def test_a_resumed_writer_across_a_DROPOUT_examines_the_boundary_and_finds_no_seam(tmp_path):
+    import writers
+
+    p = _session1(tmp_path)
+    w2 = writers.StreamWriter(p, "ecg", fsync=False)
+    gap = dt.timedelta(seconds=84.638)  # both clocks advance TOGETHER
+    w2.write_ecg(_S1_LAST_PHONE + gap, _S1_LAST_NS + 84_638_000_000, 0.0, -273)
+    w2.close()
+    body = open(p[:-4] + "SEAMS.txt").read()
+    assert "# final stream=ecg seams=0 examined=1" in body, body  # examined, not skipped; not a seam
+
+
+def test_the_seed_keeps_at_rel_on_the_files_own_axis_for_ecg(tmp_path):
+    import writers
+
+    p = _session1(tmp_path)
+    w2 = writers.StreamWriter(p, "ecg", fsync=False)
+    assert w2._seams._first_ns == _S1_LAST_NS - 7_690_000 * 2  # the FILE's first sample, not the seed
+    w2.close()
+
+
+def test_last_row_clocks_hands_over_NOTHING_rather_than_a_fabricated_clock(tmp_path):
+    """§∅ at the seed: absence is None, never 0. Every refusing branch, one case each."""
+    import writers
+
+    f = tmp_path / "s.txt"
+    assert writers._last_row_clocks(str(tmp_path / "absent.txt")) is None  # no file
+    f.write_text("")
+    assert writers._last_row_clocks(str(f)) is None  # empty
+    f.write_text("# comment\nPhone timestamp;sensor timestamp [ns];x\n")
+    assert writers._last_row_clocks(str(f)) is None  # header only
+    f.write_text("Phone timestamp;a;b\n2026-09-21T21:20:35.988;;1\n")
+    assert writers._last_row_clocks(str(f)) is None  # _ns_col(None) → ''
+    f.write_text("Phone timestamp;a;b\nnot-a-timestamp;599616098054140718;1\n")
+    assert writers._last_row_clocks(str(f)) is None  # bad phone ts
+    f.write_text("Phone timestamp;a;b\n2026-09-21T21:20:35.988;599616098054140718;1\n")
+    ns, ms = writers._last_row_clocks(str(f))
+    assert ns == 599616098054140718
+    assert abs(ms - dt.datetime(2026, 9, 21, 21, 20, 35, 988000).timestamp() * 1000.0) < 0.001
+
+
+def test_a_torn_last_row_is_skipped_for_the_seed_too(tmp_path):
+    """A resumed writer truncates a torn tail before appending; the seed must read the last COMPLETE
+    row (the one before the tear), matching the truncated file the writer goes on to append to."""
+    import writers
+
+    p = _session1(tmp_path)
+    with open(p, "a") as fh:
+        fh.write("2026-09-21T21:20:36.0")  # torn: no newline, no clock
+    w2 = writers.StreamWriter(p, "ecg", fsync=False)
+    assert w2._seams._prev_ns == _S1_LAST_NS
+    w2.close()
