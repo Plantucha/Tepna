@@ -19073,6 +19073,40 @@
         var camqAbs = B.computeCAMQ(_r);
         T.ok('§1.3 · CAMQ · intact row scores (control)', isFinite(camqFull) && camqFull > 0, String(camqFull));
         T.ok('§1.3 · CAMQ · an absent pNN50 no longer contributes a real 0 to the parasympathetic mean', camqAbs !== camqFull ? camqAbs > camqFull : true, 'full=' + camqFull + ' absent=' + camqAbs);
+        /* ── §∅ · NO parasympathetic indicator at all. `ABSENCE-SURVEY-2026-09-22` row
+           hrvdex-dsp.js:1074 (HIGH): `paraAvg = paraCount ? paraScore / paraCount : 50`. With
+           paraCount === 0 the score is not merely defaulted, it is CONSTANT — `sympPenalty` needs
+           `_hf > 0`, and an `_hf > 0` would itself have incremented paraCount, so the branch can only
+           ever yield exactly 50. A number that cannot vary with any input carries no information
+           about the night, and 50 is mid-scale on a 0-100 axis: it renders as an average night.
+           The consumer already filters `v != null` (hrvdex-render.js:1467), so a refusal simply drops
+           the point — no consumer change, and no fabricated midpoint on the CAMQ series. */
+        var _none = baseRow();
+        _none._rmssd = null;
+        _none._pnn50 = null;
+        _none._hf = null;
+        var camqNone = B.computeCAMQ(_none);
+        T.ok('§∅ · CAMQ · no parasympathetic indicator ⇒ null, not a mid-scale 50', camqNone === null, String(camqNone));
+        /* THE CONSTANCY, asserted rather than described: vary every other field and the pre-fix
+           branch still returns the same number, which is what makes 50 a fabrication and not a
+           conservative estimate. */
+        var _none2 = baseRow();
+        _none2._rmssd = null;
+        _none2._pnn50 = null;
+        _none2._hf = null;
+        _none2._lf = 9999;
+        _none2._sdnn = 1;
+        T.ok('§∅ · CAMQ · …and the refusal does not depend on the other fields either', B.computeCAMQ(_none2) === null, String(B.computeCAMQ(_none2)));
+        /* NARROWNESS — ONE indicator is still a score. A guard that blanked these would convict
+           every ECGDex-ingested row, which carries rMSSD and HF but no Welltory pNN50. */
+        var _one = baseRow();
+        _one._pnn50 = null;
+        _one._hf = null;
+        T.ok('§∅ · CAMQ · rMSSD alone still scores — the refusal is narrow', isFinite(B.computeCAMQ(_one)) && B.computeCAMQ(_one) > 0, String(B.computeCAMQ(_one)));
+        var _hfOnly = baseRow();
+        _hfOnly._rmssd = null;
+        _hfOnly._pnn50 = null;
+        T.ok('§∅ · CAMQ · HF alone still scores', isFinite(B.computeCAMQ(_hfOnly)), String(B.computeCAMQ(_hfOnly)));
       } else {
         T.skip('§1.3 · computeCAMQ reachable', 'not exported on _bare');
       }
@@ -21791,8 +21825,16 @@
       }
       /* Adopted from the AI-probe draft bank: 13/13 batch-verified green, zero discards. */
       var out;
+      /* ⚠ THIS DRAFT PINNED THE FABRICATION. It recorded 50 because that is what the code DID for a
+         non-row argument — `computeCAMQ(1)` has no `_rmssd`/`_pnn50`/`_hf`, so paraCount was 0 and the
+         old `: 50` branch fired. A mutation-derived draft encodes the code's OUTPUT, never its
+         CONTRACT, so when the fabrication was removed (§∅, row hrvdex-dsp.js:1074) this leg convicted
+         the correction. Updated DELIBERATELY, not silenced: `null` is still a discriminating answer —
+         more so, since only the new guard produces it — so the draft keeps the job it was adopted for.
+         The general shape is worth the line: a draft bank verified "13/13 green, zero discards" is a
+         statement about reproducibility, not about correctness. */
       out = H.computeCAMQ(1);
-      T.eq('H.computeCAMQ(1) → "50"', JSON.stringify(out), '50');
+      T.eq('H.computeCAMQ(1) → "null" (was "50": a non-row argument has no parasympathetic indicator)', JSON.stringify(out), 'null');
       out = H._hrvNum(1);
       T.eq('H._hrvNum(1) → "1"', JSON.stringify(out), '1');
       out = H._hrvNum(null);
