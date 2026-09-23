@@ -473,6 +473,42 @@ else
 fi
 
 echo
+echo "### THE DENIAL NAMES THE TREE IT MEASURED — and cd_missing is found wherever it sits"
+# Measured 2026-09-23: `cd <root> && git worktree add <wt> && cd <wt> && <edit>` was denied with
+# "91 commit(s) you do not have" and NO tree named, against a worktree that was AT origin/main.
+# The first `cd` was the root — which EXISTS — so the head -1 rule claimed it and `cd_missing`
+# stayed empty. The root has to be the first cd: it is where `git worktree add` runs.
+bashrun() { # bashrun <command> ; echoes the stderr
+  #  ⚠ ANTI-VACUITY: an UNPARSEABLE payload makes the hook exit 0 with no output, which reads
+  #     exactly like "the rule did not fire". The first draft of these legs escaped `&&` as `\&\&`,
+  #     which is not a JSON escape, so jq returned nothing and two legs failed against a hook that
+  #     was correct. Assert the payload parses before trusting any verdict drawn from it.
+  local js; js="$(printf '{"tool_input":{"command":"%s"}}' "$1")"
+  printf '%s' "$js" | jq -e '.tool_input.command' >/dev/null 2>&1 || {
+    echo "  FAIL  bashrun payload is not valid JSON — every verdict below would be vacuous"
+    fail=$((fail+1)); return
+  }
+  printf '%s' "$js" | bash "$H" 2>&1 >/dev/null
+}
+MSG_PLAIN="$(bashrun "sed -i s/a/b/ briefs/SHARED-BRIEF.md")"
+if printf '%s' "$MSG_PLAIN" | grep -q 'MEASURED AGAINST:'; then echo "  ok    a denial names the tree it measured"
+else echo "  FAIL  denial does not name the tree"; fail=$((fail+1)); fi
+if printf '%s' "$MSG_PLAIN" | grep -qE 'behind origin/main|distance from origin/main unknown'; then echo "  ok    …and how far behind that tree is"
+else echo "  FAIL  denial does not give the distance"; fail=$((fail+1)); fi
+
+# THE SHAPE THAT DEFEATED IT: a leading cd to an EXISTING dir, then the worktree that does not exist.
+MISSING="$TMP/not-created-yet"
+MSG_WT="$(bashrun "cd $WORK && git worktree add $MISSING && cd $MISSING && sed -i s/a/b/ briefs/SHARED-BRIEF.md")"
+if printf '%s' "$MSG_WT" | grep -q 'THIS BASE IS THE SHARED ROOT'; then echo "  ok    a LATER cd to a not-yet-created tree is still detected (was: only the first cd)"
+else echo "  FAIL  cd_missing missed a non-first cd — the worktree-creating shape"; fail=$((fail+1)); fi
+if printf '%s' "$MSG_WT" | grep -qF "$MISSING"; then echo "  ok    …and the notice names which directory does not exist yet"
+else echo "  FAIL  notice does not name the missing dir"; fail=$((fail+1)); fi
+# NARROWNESS: an ordinary subdirectory hop to a dir that EXISTS must not be reported as missing.
+MSG_HOP="$(bashrun "cd $WORK && cd briefs && sed -i s/a/b/ SHARED-BRIEF.md")"
+if printf '%s' "$MSG_HOP" | grep -q 'THIS BASE IS THE SHARED ROOT'; then echo "  FAIL  an existing subdirectory hop was reported as a missing tree"; fail=$((fail+1));
+else echo "  ok    an existing subdirectory hop is NOT reported as a missing tree"; fi
+
+echo
 [ "$fail" -eq 0 ] && echo "PASS — every DENY paired with an ALLOW that differs in one property" \
                   || echo "FAIL — $fail problem(s)"
 exit $((fail > 0))
