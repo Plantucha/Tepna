@@ -195,6 +195,49 @@ GUARDED_RE='(briefs/[A-Za-z0-9._@+-]+\.md|DOCS-INDEX\.md)'
 #    a read piped into a file (`grep x briefs/A.md > /tmp/o`) is write-shaped by this rule.
 #    That costs a denial only when the brief ACTUALLY moved upstream — the staleness query
 #    still gates every path — and the message names the commits and the escape hatch.
+# ── A HEREDOC BODY IS DATA — AND THIS HOOK WAS THE SIBLING THAT NEVER GOT THE RULE ─────────────
+#    #2871 gave `guard-shared-tree.sh` the data-vs-code rule under the title "a heredoc body is
+#    data for EVERY rule". "Every rule" meant every rule INSIDE THAT HOOK; this one never got it,
+#    and the gap is the half-wired-mechanism shape: a fix applied at the site it was found and not
+#    to the class. Measured 2026-09-22, twice in one hour and in opposite lanes — a peer writing a
+#    note to the MEMORY directory (no repo file touched at all) and this hook's own author writing
+#    a reproduction script were both DENIED, because each command's heredoc body QUOTED a ledger
+#    path, and one of them quoted a `sed -i` in a string literal. Describing a file read as editing
+#    it, and the remedy the denial printed was to go and read 75 commits that had nothing to do
+#    with either command.
+#
+#    The line is DATA-vs-CODE and the shell already draws it: a heredoc body is data UNLESS the
+#    heredoc feeds an interpreter (`python3 - <<PY`, `bash <<EOF`), where the body IS the program —
+#    which is precisely the computed-edit case §3 added Bash matching for, so those bodies must stay
+#    visible. Lifted verbatim from the sibling rather than re-derived, including its fail-closed
+#    terminator rule; `guard-stale-brief.test.sh` asserts the two copies stay byte-identical, so the
+#    next fix to one cannot silently skip the other again.
+# The sibling folds continuations and newlines into spaces BEFORE stripping, and that fold is
+# LOAD-BEARING rather than cosmetic: `sed` is line-oriented, so with real newlines the opener and
+# the terminator sit on different lines and the strip silently matches nothing. Measured while
+# porting this: without the fold, three of the four new test legs still passed — for reasons that
+# had nothing to do with stripping — and only the prose-`sed -i` leg exposed that the rule was
+# doing nothing at all.
+cmdf="${cmd//\\$'\n'/ }"; cmdf="${cmdf//$'\n'/ }"
+cmd_nohere="$cmdf"
+_hdw0="$(printf '%s' "$cmdf" | grep -oE "<<-?'?[A-Za-z_][A-Za-z0-9_]*'?" | head -1 | sed -E "s/^<<-?'?//; s/'$//")"
+if [ -n "$_hdw0" ]; then
+  # Does the command OWNING the heredoc read it as a program? Tested on the text before the `<<`,
+  # which is where the interpreter is named. If so the body is CODE and every rule keeps it raw.
+  _pre0="$(printf '%s' "$cmdf" | sed -E "s/<<-?'?[A-Za-z_].*//")"
+  if printf '%s' "$_pre0" | grep -qE '(^|[;&|[:space:]])(bash|sh|zsh|python3?|node|perl|ruby|php)([[:space:]]|$)'; then
+    : # interpreter heredoc — the body is the program, so it stays visible to every rule
+  # ⚠ AND THE STRIP FAILS CLOSED, reusing the rule the rebase-guard learned the hard way: `.*` is
+  #   greedy and newlines are folded, so a terminator word appearing a SECOND time as a standalone
+  #   token lets the strip swallow real commands after the heredoc (measured 2026-08-05: a body
+  #   ending `A`, then a real `git checkout origin/main -- oxydex-dsp.js`, then a stray `A` — the
+  #   checkout was stripped and the rule passed). POSIX sed has no lazy quantifier, so strip only
+  #   when the terminator appears EXACTLY ONCE standalone; anything else keeps the full text.
+  elif [ "$(printf '%s' "$cmdf" | grep -oE "(^|[[:space:]])$_hdw0([[:space:]]|$)" | wc -l)" -eq 1 ]; then
+    cmd_nohere="$(printf '%s' "$cmdf" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\\1([[:space:]]|$)/ /g")"
+  fi
+fi
+
 looks_like_write() {
   # A RUN OF ≥3 '>' IS A CONFLICT MARKER, NOT A REDIRECT — strip those runs before the redirect
   # test. Measured 2026-09-02: `grep -n "<<<<<<<\|=======\|>>>>>>>" briefs/X.md`, i.e. the standard
@@ -221,21 +264,56 @@ if [ -n "$f" ]; then
     briefs/*.md | DOCS-INDEX.md) cands="$rel" ;;
     *) : ;;
   esac
-elif looks_like_write "$cmd"; then
-  cands="$(printf '%s' "$cmd" | grep -oE "$GUARDED_RE" | sort -u)"
+elif looks_like_write "$cmd_nohere"; then
+  cands="$(printf '%s' "$cmd_nohere" | grep -oE "$GUARDED_RE" | sort -u)"
 fi
 [ -z "$cands" ] && exit 0
 
 G rev-parse --verify -q HEAD >/dev/null 2>&1 || exit 0
 G rev-parse --verify -q origin/main >/dev/null 2>&1 || exit 0
 base="$(G merge-base HEAD origin/main 2>/dev/null)" || exit 0
+# ── MID-MERGE, HEAD IS THE PRE-MERGE COMMIT AND THE TREE IS NOT ────────────────────────────────
+#    A session that is DOING what this guard asks — merging the upstream edits in — has `MERGE_HEAD`
+#    set, the upstream text already in its working tree, and a HEAD that still predates all of it.
+#    Measured against HEAD alone, every upstream commit reads as "one you do not have", so the guard
+#    denies the resolution edit and points at commits the author is looking at. Measured 2026-09-23
+#    with both controls: DENY before the merge (correct), DENY mid-merge (this false positive),
+#    allow after the merge commit (correct).
+#
+#    A false positive here is not merely noise: this hook's only way out is an escape hatch, and a
+#    guard whose hatch becomes reflex is the guard that fails the day it is right. So the "commits
+#    you do not have" set excludes anything already reachable from the merge in progress. Nothing
+#    else is relaxed — a genuinely stale branch still denies, because `MERGE_HEAD` is absent there.
+#    `CHERRY_PICK_HEAD` is covered for the same reason and on its own measurement, not by analogy:
+#    a conflicted cherry-pick of an upstream commit reads DENY before this change and allow after,
+#    with the stale control still denying.
+#
+#    ⚠ `REVERT_HEAD` is DELIBERATELY ABSENT, and it was in an earlier draft of this fix by derivation
+#    ("the commit is in the tree before it is in HEAD") until a peer asked which of the three had
+#    actually been measured. Measuring it removed it: you revert a commit you ALREADY HAVE, so
+#    `REVERT_HEAD` is an ancestor of HEAD and excluding it changes nothing — and in the one case
+#    where it would not be an ancestor (reverting a commit this branch lacks), the tree carries the
+#    NEGATION of the upstream edit rather than the edit, so suppressing the denial would be wrong.
+#    An unmeasured ref that is either a no-op or a false allow is not defence in depth.
+_gitdir="$(G rev-parse --git-dir 2>/dev/null)"
+_have_too=""
+if [ -n "$_gitdir" ]; then
+  case "$_gitdir" in /*) : ;; *) _gitdir="$root/$_gitdir" ;; esac
+  for _p in MERGE_HEAD CHERRY_PICK_HEAD; do
+    [ -f "$_gitdir/$_p" ] || continue
+    while read -r _sha _rest; do
+      [ -n "$_sha" ] && _have_too="$_have_too --not $_sha"
+    done < "$_gitdir/$_p"
+  done
+fi
 [ -z "$base" ] && exit 0
 
 # Commits on origin/main touching EACH candidate that your branch does not have.
 report=""; first=""; n=0
 while IFS= read -r rel; do
   [ -z "$rel" ] && continue
-  missed="$(G log --oneline --no-decorate "$base"..origin/main -- "$rel" 2>/dev/null)" || continue
+  # shellcheck disable=SC2086 # $_have_too is a deliberately word-split "--not <sha>" list
+  missed="$(G log --oneline --no-decorate "$base"..origin/main $_have_too -- "$rel" 2>/dev/null)" || continue
   [ -z "$missed" ] && continue
   [ -z "$first" ] && first="$rel"
   n=$((n + $(printf '%s\n' "$missed" | grep -c .)))
