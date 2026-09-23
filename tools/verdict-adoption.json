@@ -121,6 +121,11 @@
       },
       "note": "wave 2: consistency_verdict() over self_consistency()'s two pre-stated bands (|mean SpO2 - trailer avg| <= 1, |n - total_seconds| <= max(2, 2 %)) — criterion = bands violated <= 0 with each band and value in result · PASS · FAIL (the notes are the reason) · NOT_RUN no valid trailer; population = samples, None SpO2 excluded; the sample is the synthetic .dat"
     },
+    "capture-host/polar_psftp.py": {
+      "bin": "word-only",
+      "status": "exempt",
+      "reason": "the ONE match is the word VERDICT in a §∅ comment above `manifest[\"ok\"]` (\"A POSITIVE VERDICT IS PUBLISHED ONLY OVER ANSWERED READS\", #2955) — prose, not output. The module emits no verdict word at runtime: `ok` is a bool in the returned manifest, and its only logged line names short reads. Checkable: `git grep -nE '\\\\b(PASS|FAIL|VERDICT|UNDERPOWERED|SHORTFALL|CONSISTENT|INCONCLUSIVE)\\\\b' -- capture-host/polar_psftp.py` returns that comment and nothing else."
+    },
     "capture-host/probe_oxyii_0x03.py": {
       "bin": "decides",
       "status": "adopted",
@@ -531,6 +536,18 @@
       "status": "exempt",
       "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
     },
+    "tools/adev-curve.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/adev-curve.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "the CONSUMER the ADEV-curve residue said was owed before the curve shipped (2026-09-21-adev-curve-not-exported-by-either-node): it RE-DERIVES the published slope from the published curve (log-log OLS over exactly those points) and looks for a KNEE by fitting each half of the ladder. Criterion: the published slope must be the fit over the published curve within 1.96·slopeSE — FAIL names both numbers; a KNEE is SHORTFALL (the headline held, a named sub-population — one half of the ladder — did not), never FAIL; an export carrying no curve (pre-2026-09-22) is NOT_RUN, never a pass. 19 plants; the cmd is a scratch τ⁻¹ ladder, corpus-free."
+    },
     "tools/aperiodic-method-compare.mjs": {
       "bin": "word-only",
       "status": "exempt",
@@ -635,6 +652,30 @@
         ]
       },
       "note": "wave-2 adopter: --json prints ONE tepna.verdict/1 (PASS = every changeset-deleting commit in range is a release or declared exempt; FAIL names the flagged shas; NOT_RUN on a shallow clone). Was binned word-only/exempt because its rows' `verdict` field is a classification, not an emitted verdict; the CLI now emits one. Needs full history (fetch-depth: 0), which the static job has."
+    },
+    "tools/corpus-census.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/corpus-census.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "a census commits its file list (residue 2026-09-20-census-file-list-not-retained): --write records one row per file (name, bytes, sha256 of the first 8 MB — the digest the ECG census itself used) into analysis/census/<id>.json; --diff NAMES every added/removed/CHANGED file against that manifest instead of reconstructing by elimination. Criterion: no unexplained population change. A moved population is SHORTFALL — a corpus grows, and the finding is that numbers computed over the recorded set need re-running or re-stating; an EMPTY census is NOT_RUN, never a clean bill. Both dedupe keys are published with their definitions (604 by basename, 549 by content on the real ECG corpus — a 10 % gap, and the published 597/602 used the basename key). 27 plants incl. the row's own 597→602 case with all five additions named; the cmd is three scratch rows, corpus-free."
+    },
+    "tools/corpus-scope.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/corpus-scope.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "counts a file pattern across EVERY documented corpus root and names the scope it searched. Residue 2026-09-05-triage-stamps-searched-the-repo-tree-only: two triage stamps asserted this machine held zero _ECG.txt and two _PPG.txt after counting only the repo's uploads/ tree, which licensed a \"blocked on data locality\" verdict across four briefs. `population` is ROOTS (checked + excluded = documented), a root that is not on this machine counts null and never 0, and every root unreachable emits UNDERPOWERED rather than a zero-file PASS — which is exactly the stamp that shipped."
     },
     "tools/corpus-tier.mjs": {
       "bin": "decides",
@@ -971,6 +1012,18 @@
       "status": "exempt",
       "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
     },
+    "tools/pat-mode-posture.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/pat-mode-posture.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "residue 2026-09-06-a-statistic-both-hypotheses-predict: the posture covariate the §-park note asked for. Population = NIGHTS (checked + excluded = night dirs, every skip named); criterion = per-night median |Δmode| over same-posture pairs / adjacent different-posture pairs, bands pre-registered in the header before the first corpus run (PHYS median ≤ 0.5 & ≥ 70 % of nights < 1 → PASS · TIME median ≥ 1 → FAIL · between → UNKNOWN · < 5 nights → UNDERPOWERED). PASS/FAIL are the contract's words, not goodness."
+    },
     "tools/pat-per-led.mjs": {
       "bin": "word-only",
       "status": "exempt",
@@ -1208,6 +1261,18 @@
       "status": "pending",
       "note": "BAND-LESS (Magpie, 2026-09-22, read before flipping): Level B reports pseudo-tested STATEMENTS and an invalid rate as a MEASUREMENT 'reported separately' from Level A, with no pre-stated threshold and no ratchet — the only decisions it makes are refusals (baseline suite red, no eligible statement). A PASS needs a criterion; adopting it means first giving it the ratchet extreme-mutate has (a committed pseudo-tested-statement baseline, growth-gated), which is a design change, not a wrapper. Not flipped."
     },
+    "tools/stuck-run-lengths.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/stuck-run-lengths.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "residue 2026-09-06-t-stuck-validated-on-ring-only: does writers.T_STUCK = 200 SAMPLES transfer to the four streams RUN_MIN_BY_STREAM extends it to? Criterion pre-registered in the tool header before any stream was read - a bracketed multiplicative gap of >= 4x above p99.99 containing 200. The per-channel words (HOLD/FAIL-LOW/FAIL-HIGH/NO GAP/NOT-EXERCISED) are the tool's own reading and live in result; the contract's closed vocabulary is reached by an explicit map, precedence FAIL > UNKNOWN > UNDERPOWERED > PASS, never a vote. NOT-EXERCISED maps to UNKNOWN and not NOT_APPLICABLE: the contract refused that on the first attempt because NOT_APPLICABLE must carry result: null, and here the result (550M samples, p99.99, N = 0) IS the finding. Population = channel-reports; checked = those the criterion bound on."
+    },
     "tools/tch-degeneracy-stats.mjs": {
       "bin": "word-only",
       "status": "exempt",
@@ -1347,66 +1412,6 @@
       "bin": "word-only",
       "status": "exempt",
       "reason": "selftest printer; its own verdict() is a pure PR-state decision consumed by the tool itself, exit-coded — a wave-2 candidate, listed here by reason not by omission"
-    },
-    "tools/adev-curve.mjs": {
-      "bin": "decides",
-      "status": "adopted",
-      "emits": {
-        "cmd": [
-          "node",
-          "tools/adev-curve.mjs",
-          "--verdict-sample"
-        ]
-      },
-      "note": "the CONSUMER the ADEV-curve residue said was owed before the curve shipped (2026-09-21-adev-curve-not-exported-by-either-node): it RE-DERIVES the published slope from the published curve (log-log OLS over exactly those points) and looks for a KNEE by fitting each half of the ladder. Criterion: the published slope must be the fit over the published curve within 1.96·slopeSE — FAIL names both numbers; a KNEE is SHORTFALL (the headline held, a named sub-population — one half of the ladder — did not), never FAIL; an export carrying no curve (pre-2026-09-22) is NOT_RUN, never a pass. 19 plants; the cmd is a scratch τ⁻¹ ladder, corpus-free."
-    },
-    "tools/corpus-census.mjs": {
-      "bin": "decides",
-      "status": "adopted",
-      "emits": {
-        "cmd": [
-          "node",
-          "tools/corpus-census.mjs",
-          "--verdict-sample"
-        ]
-      },
-      "note": "a census commits its file list (residue 2026-09-20-census-file-list-not-retained): --write records one row per file (name, bytes, sha256 of the first 8 MB — the digest the ECG census itself used) into analysis/census/<id>.json; --diff NAMES every added/removed/CHANGED file against that manifest instead of reconstructing by elimination. Criterion: no unexplained population change. A moved population is SHORTFALL — a corpus grows, and the finding is that numbers computed over the recorded set need re-running or re-stating; an EMPTY census is NOT_RUN, never a clean bill. Both dedupe keys are published with their definitions (604 by basename, 549 by content on the real ECG corpus — a 10 % gap, and the published 597/602 used the basename key). 27 plants incl. the row's own 597→602 case with all five additions named; the cmd is three scratch rows, corpus-free."
-    },
-    "tools/corpus-scope.mjs": {
-      "bin": "decides",
-      "status": "adopted",
-      "emits": {
-        "cmd": [
-          "node",
-          "tools/corpus-scope.mjs",
-          "--verdict-sample"
-        ]
-      },
-      "note": "counts a file pattern across EVERY documented corpus root and names the scope it searched. Residue 2026-09-05-triage-stamps-searched-the-repo-tree-only: two triage stamps asserted this machine held zero _ECG.txt and two _PPG.txt after counting only the repo's uploads/ tree, which licensed a \"blocked on data locality\" verdict across four briefs. `population` is ROOTS (checked + excluded = documented), a root that is not on this machine counts null and never 0, and every root unreachable emits UNDERPOWERED rather than a zero-file PASS — which is exactly the stamp that shipped."
-    },
-    "tools/pat-mode-posture.mjs": {
-      "bin": "decides",
-      "status": "adopted",
-      "emits": {
-        "cmd": [
-          "node",
-          "tools/pat-mode-posture.mjs",
-          "--verdict-sample"
-        ]
-      },
-      "note": "residue 2026-09-06-a-statistic-both-hypotheses-predict: the posture covariate the §-park note asked for. Population = NIGHTS (checked + excluded = night dirs, every skip named); criterion = per-night median |Δmode| over same-posture pairs / adjacent different-posture pairs, bands pre-registered in the header before the first corpus run (PHYS median ≤ 0.5 & ≥ 70 % of nights < 1 → PASS · TIME median ≥ 1 → FAIL · between → UNKNOWN · < 5 nights → UNDERPOWERED). PASS/FAIL are the contract's words, not goodness."
-    },
-    "tools/stuck-run-lengths.mjs": {
-      "bin": "decides",
-      "status": "adopted",
-      "emits": {
-        "cmd": [
-          "node",
-          "tools/stuck-run-lengths.mjs",
-          "--verdict-sample"
-        ]
-      },
-      "note": "residue 2026-09-06-t-stuck-validated-on-ring-only: does writers.T_STUCK = 200 SAMPLES transfer to the four streams RUN_MIN_BY_STREAM extends it to? Criterion pre-registered in the tool header before any stream was read - a bracketed multiplicative gap of >= 4x above p99.99 containing 200. The per-channel words (HOLD/FAIL-LOW/FAIL-HIGH/NO GAP/NOT-EXERCISED) are the tool's own reading and live in result; the contract's closed vocabulary is reached by an explicit map, precedence FAIL > UNKNOWN > UNDERPOWERED > PASS, never a vote. NOT-EXERCISED maps to UNKNOWN and not NOT_APPLICABLE: the contract refused that on the first attempt because NOT_APPLICABLE must carry result: null, and here the result (550M samples, p99.99, N = 0) IS the finding. Population = channel-reports; checked = those the criterion bound on."
     }
   }
 }
