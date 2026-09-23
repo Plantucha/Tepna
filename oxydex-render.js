@@ -3312,7 +3312,25 @@ function nightDetail(n, idx) {
     var mp = n.motion;
     html +=
       '<div class="grid">' +
-      metric('Motion %', n.stats ? n.stats.motionPct + '%' : '—', 'of recording', n.stats && n.stats.motionPct < 0.5 ? 'good' : n.stats && n.stats.motionPct < 2 ? 'warn' : 'bad') +
+      /* §∅ — THE PRODUCER ALREADY EMITTED NULL AND THIS CONSUMER NEVER MIGRATED. oxydex-dsp.js:2796
+         sets `stats.motionPct = null` deliberately when the motion column is condemned as stuck or
+         absent, and records WHICH fault in `stats.motionColumnAbsent`. Here that null was string-
+         concatenated into `null%` and then graded: `null < 0.5` is TRUE, so a night whose motion
+         channel was condemned rendered "null%" badged **good** — the fault reported as its own
+         absence of fault. `_oxyFmt`/`_oxySev` in oxydex-fusion.js already do the right thing with
+         null (— and no severity class), so this site was the odd one out, not the rule.
+         The sub-label NAMES the fault rather than borrowing "of recording", because §∅ requires a
+         refusal to state the real reason — and it gives `motionColumnAbsent` its first consumer:
+         the DSP has been distinguishing "no accelerometer on this device" from "the writer emitted
+         a stuck column" and nothing has ever read it. */
+      (function () {
+        var mp = n.stats ? n.stats.motionPct : null;
+        if (mp == null) {
+          var why = !n.stats ? 'of recording' : n.stats.motionColumnAbsent ? 'no motion column in this file' : 'motion column condemned as stuck';
+          return metric('Motion %', '—', why, '');
+        }
+        return metric('Motion %', mp + '%', 'of recording', mp < 0.5 ? 'good' : mp < 2 ? 'warn' : 'bad');
+      })() +
       metric('Restless Windows', mp.restlessWindows, 'of ' + mp.totalWindows + ' (30min)', mp.restlessWindows === 0 ? 'good' : mp.restlessWindows <= 2 ? 'warn' : 'bad') +
       metric('Arousal Index', mp.arousalIndex + '%', 'restless blocks', mp.arousalIndex < 20 ? 'good' : mp.arousalIndex < 40 ? 'warn' : 'bad') +
       '</div>';

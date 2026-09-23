@@ -296,7 +296,9 @@ function exportCSV() {
       'Mean HR (bpm),' + s.meanHr,
       'Min HR (bpm),' + s.minHr,
       'Max HR (bpm),' + s.maxHr,
-      'Motion (%),' + s.motionPct,
+      /* §∅ — an absent motionPct writes an EMPTY cell, never the text "null" and never a 0.
+         oxydex-dsp.js:2796 nulls this deliberately when the motion column is stuck or absent. */
+      'Motion (%),' + (s.motionPct != null ? s.motionPct : ''),
       ''
     ]);
     lines.push('', 'DEEP ANALYSIS', 'HR Spikes,' + n.spikes.length);
@@ -319,7 +321,7 @@ function exportCSV() {
     lines.push(
       '',
       'MOVEMENT',
-      'Motion %,' + (n.stats ? n.stats.motionPct : ''),
+      'Motion %,' + (n.stats && n.stats.motionPct != null ? n.stats.motionPct : ''),
       'Arousal Index %,' + (n.motion ? n.motion.arousalIndex : ''),
       'Restless Windows,' + (n.motion ? n.motion.restlessWindows : '')
     );

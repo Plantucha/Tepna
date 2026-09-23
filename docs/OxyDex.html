@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="432b981f767e" data-compute-hash="b6793a9b63f2">
+<html lang="en" data-manifest-hash="886a826fe0e2" data-compute-hash="b6793a9b63f2">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-7+J+uoNlkK5V9TGpp2+bt5tzDjy1qYWpSuvRTcvrFRE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AXjMLqVAnFtSOC6PqX9dz6sQxGy2QOpnze3JkIZ+vXM=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UbjAAKzz0ifm5X8sJ1wUP2qtLu307xwU3KStAe1Fgf0=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bwxxukjkbs0nkO3G9uCq7MyYlhNC6VN3RFwbf1JFHQI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-pmkM4GTQroQlb4GaUI6RBETJs7WVTR03G7v/A4s2QzA=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-4Z/UAB9uVS72+hucgW/kgAVhv/MI8dwESyNivWLl4Ac=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-7+J+uoNlkK5V9TGpp2+bt5tzDjy1qYWpSuvRTcvrFRE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-Fj5mzktL67iNiq6UCSfNk4ooTGszWjPwAbkVGaAspVU=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bwxxukjkbs0nkO3G9uCq7MyYlhNC6VN3RFwbf1JFHQI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-pmkM4GTQroQlb4GaUI6RBETJs7WVTR03G7v/A4s2QzA=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.13.0</title>
@@ -24457,7 +24457,25 @@ function nightDetail(n, idx) {
     var mp = n.motion;
     html +=
       '<div class="grid">' +
-      metric('Motion %', n.stats ? n.stats.motionPct + '%' : '—', 'of recording', n.stats && n.stats.motionPct < 0.5 ? 'good' : n.stats && n.stats.motionPct < 2 ? 'warn' : 'bad') +
+      /* §∅ — THE PRODUCER ALREADY EMITTED NULL AND THIS CONSUMER NEVER MIGRATED. oxydex-dsp.js:2796
+         sets `stats.motionPct = null` deliberately when the motion column is condemned as stuck or
+         absent, and records WHICH fault in `stats.motionColumnAbsent`. Here that null was string-
+         concatenated into `null%` and then graded: `null < 0.5` is TRUE, so a night whose motion
+         channel was condemned rendered "null%" badged **good** — the fault reported as its own
+         absence of fault. `_oxyFmt`/`_oxySev` in oxydex-fusion.js already do the right thing with
+         null (— and no severity class), so this site was the odd one out, not the rule.
+         The sub-label NAMES the fault rather than borrowing "of recording", because §∅ requires a
+         refusal to state the real reason — and it gives `motionColumnAbsent` its first consumer:
+         the DSP has been distinguishing "no accelerometer on this device" from "the writer emitted
+         a stuck column" and nothing has ever read it. */
+      (function () {
+        var mp = n.stats ? n.stats.motionPct : null;
+        if (mp == null) {
+          var why = !n.stats ? 'of recording' : n.stats.motionColumnAbsent ? 'no motion column in this file' : 'motion column condemned as stuck';
+          return metric('Motion %', '—', why, '');
+        }
+        return metric('Motion %', mp + '%', 'of recording', mp < 0.5 ? 'good' : mp < 2 ? 'warn' : 'bad');
+      })() +
       metric('Restless Windows', mp.restlessWindows, 'of ' + mp.totalWindows + ' (30min)', mp.restlessWindows === 0 ? 'good' : mp.restlessWindows <= 2 ? 'warn' : 'bad') +
       metric('Arousal Index', mp.arousalIndex + '%', 'restless blocks', mp.arousalIndex < 20 ? 'good' : mp.arousalIndex < 40 ? 'warn' : 'bad') +
       '</div>';
@@ -27398,7 +27416,9 @@ function exportCSV() {
       'Mean HR (bpm),' + s.meanHr,
       'Min HR (bpm),' + s.minHr,
       'Max HR (bpm),' + s.maxHr,
-      'Motion (%),' + s.motionPct,
+      /* §∅ — an absent motionPct writes an EMPTY cell, never the text "null" and never a 0.
+         oxydex-dsp.js:2796 nulls this deliberately when the motion column is stuck or absent. */
+      'Motion (%),' + (s.motionPct != null ? s.motionPct : ''),
       ''
     ]);
     lines.push('', 'DEEP ANALYSIS', 'HR Spikes,' + n.spikes.length);
@@ -27421,7 +27441,7 @@ function exportCSV() {
     lines.push(
       '',
       'MOVEMENT',
-      'Motion %,' + (n.stats ? n.stats.motionPct : ''),
+      'Motion %,' + (n.stats && n.stats.motionPct != null ? n.stats.motionPct : ''),
       'Arousal Index %,' + (n.motion ? n.motion.arousalIndex : ''),
       'Restless Windows,' + (n.motion ? n.motion.restlessWindows : '')
     );
