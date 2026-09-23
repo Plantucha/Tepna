@@ -16750,6 +16750,74 @@
        decision explicit instead of resting on "ppm happened to be ~0".
        Both directions are pinned below, because a guard that only ever refuses is indistinguishable
        from one that has broken the feature. */
+    /* ── §∅ · THE RATE SAYS WHERE IT CAME FROM (ABSENCE-SURVEY-2026-09-22, family F2) ──────────
+       When no counter in the file is usable, `fs` stays at the H10's nominal 130 — a number with no
+       measurement behind it — and is then spent as the file's timebase. An assumed 130 and a
+       measured 129.9866 are the same JS number, so nothing downstream could tell them apart.
+       `fsSource` is the rate's counterpart to §7's `timingSource` for the axis. */
+    group('ECGDex §∅ — an ASSUMED sample rate is labelled as one', 'ecgdex-dsp · parseECG · fs-provenance', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.skip('ECGDSP.parseECG available', 'not loaded');
+        return;
+      }
+      var H = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var B0 = Date.UTC(2026, 5, 17, 1, 0, 0);
+      function mk(nsAt, msAt) {
+        var rows = [H];
+        for (var i = 0; i < 400; i++) {
+          rows.push(new Date(B0 + i * 8).toISOString() + ';' + nsAt(i) + ';' + msAt(i) + ';' + (100 + (i % 40)));
+        }
+        return rows.join('\n');
+      }
+      /* 1 · a real ns counter advancing at ~130 Hz (7 692 308 ns per sample). */
+      var ns = D.parseECG(
+        mk(
+          function (i) {
+            return i * 7692308;
+          },
+          function (i) {
+            return i * 8;
+          }
+        )
+      );
+      T.ok('ANTI-VACUITY · the ns fixture parsed at all', !!ns && ns.fs > 0, JSON.stringify(ns && ns.fs));
+      T.eq('a measured ns counter is labelled ns-counter', ns.fsSource, 'ns-counter');
+
+      /* 2 · no ns column (all zero), but the [ms] column advances — the common PSL shape. */
+      var ms = D.parseECG(
+        mk(
+          function () {
+            return 0;
+          },
+          function (i) {
+            return i * 8;
+          }
+        )
+      );
+      T.ok('ANTI-VACUITY · the ms fixture parsed at all', !!ms && ms.fs > 0, JSON.stringify(ms && ms.fs));
+      T.ok('a rate measured from [ms] is labelled as measured', ms.fsSource === 'ms-step' || ms.fsSource === 'ms-delta');
+
+      /* 3 · NEITHER usable — ns all zero and [ms] frozen. This is the case that fabricates. */
+      var none = D.parseECG(
+        mk(
+          function () {
+            return 0;
+          },
+          function () {
+            return 0;
+          }
+        )
+      );
+      if (!none || !(none.fs > 0)) {
+        T.skip('the no-counter fixture parsed', 'parser refused it outright — the twin cannot run');
+        return;
+      }
+      T.eq('…and with no usable counter the rate is the NOMINAL 130', none.fs, 130);
+      T.eq('…labelled ASSUMED, so a consumer can tell it from a measurement', none.fsSource, 'assumed');
+      T.ok('…which it could NOT before: the two rates are the same number', none.fs === 130 && ns.fs !== 130);
+    });
+
     group('ECGDex fs — a DERIVED host column is not a second clock (Clock §7)', 'ecgdex-dsp · clock-contract', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.parseECG === 'function')) {
@@ -17135,14 +17203,45 @@
         stp = 1000 / 130;
       for (var z = 0; z < 4000; z++) rws.push('2026-06-17T01:06:17.723;' + Math.round(z * stp * 1e6) + ';' + Math.round(z * stp) + ';' + (100 + (z % 50)));
       var recR = D.parseECG(rws.join('\n'));
-      var expect = ['fs', 'tMsAt', 'devMsAt', 'tMsCorrected', 'clockResyncs', 'gaps', 't0Ms', 'offsetMin', 'endEpochMs', 'firstRelMs', 'lastRelMs', 'deviceEpoch', 'hostAxis'];
+      /* 🔴 THIS GATE USED TO COMPARE A HARDCODED LIST AND SAID IT GATED THE CLASS. Its own comment
+         promised "whatever the resolver publishes must survive the reshape, so the next omission reds
+         instead of vanishing" — and the code never read the resolver. Demonstrated 2026-09-23:
+         `fsSource` was added to `ecgTimingResolve`, dropped by the reshape, and this group stayed
+         GREEN. The anti-vacuity assertion did not help, because it guarded against a SHORT list, not
+         a STALE one — the exact distinction `read-the-producer-not-the-population` names.
+         It now ASKS THE RESOLVER, by driving the same scan the parser drives. The literal below is
+         kept only as a floor, so a resolver that returns {} cannot make the comparison vacuous. */
+      var sc = D.ecgTimingScan();
+      var sawHdr = false;
+      var nRow = 0;
+      for (var qi = 0; qi < rws.length; qi++) {
+        var pp = String(rws[qi])
+          .trim()
+          .split(/[;\t,]/);
+        var vv = parseFloat(pp[pp.length - 1]);
+        if (!isFinite(vv)) {
+          if (!sawHdr && nRow === 0) {
+            sawHdr = true;
+            sc.header(pp);
+          }
+          continue;
+        }
+        nRow++;
+        sc.row(pp, nRow);
+      }
+      var published = Object.keys(D.ecgTimingResolve(sc.done()));
+      T.ok('ANTI-VACUITY · the resolver published a non-trivial field set', published.length >= 10, published.length + ' fields');
+      var droppedByReshape = published.filter(function (k) {
+        return !(k in recR);
+      });
+      T.eq('every timing field the RESOLVER publishes survives the reshape', droppedByReshape.sort(), []);
+
+      var expect = ['fs', 'fsSource', 'tMsAt', 'devMsAt', 'tMsCorrected', 'clockResyncs', 'gaps', 't0Ms', 'offsetMin', 'endEpochMs', 'firstRelMs', 'lastRelMs', 'deviceEpoch', 'hostAxis'];
       var missing = expect.filter(function (k) {
         return !(k in recR);
       });
-      T.eq('every timing field the resolver publishes survives the reshape', missing.sort(), []);
-      // ANTI-VACUITY: a trivially short list, or one omitting the field that was actually dropped,
-      // would make the assertion above meaningless.
-      T.ok('ANTI-VACUITY · the expected set is non-trivial and names devMsAt', expect.length >= 10 && expect.indexOf('devMsAt') >= 0, expect.length + ' fields required');
+      T.eq('…and the known floor is present too', missing.sort(), []);
+      T.ok('ANTI-VACUITY · the floor is non-trivial and names devMsAt', expect.length >= 10 && expect.indexOf('devMsAt') >= 0, expect.length + ' fields required');
       T.ok('…and devMsAt is CALLABLE, not merely present-and-undefined', typeof recR.devMsAt === 'function', 'typeof ' + typeof recR.devMsAt);
     });
 
