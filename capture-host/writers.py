@@ -930,7 +930,7 @@ class _SeamSidecar:
     describing the stream better is not worth dropping the notifications that ARE the stream.
     """
 
-    def __init__(self, path: str, stream: str, resumed: bool = False,
+    def __init__(self, path: str, stream: str,
                  seed: "tuple[int, float] | None" = None, first_ns: "int | None" = None) -> None:
         """`seed` = (sensor_ns, phone_ms) of the LAST row already on disk when this sidecar resumes.
 
@@ -963,7 +963,6 @@ class _SeamSidecar:
             self._prev_ns, self._prev_phone_ms = seed
             if self._first_ns is None:
                 self._first_ns = seed[0]  # the resumed axis starts at the last pre-seam sample
-        self._resumed = resumed
         self._opened = False
         self._pmd_note: str | None = None
         # Annotated, not inferred: a bare `= None` types the attribute as `None`, so every later
@@ -990,8 +989,20 @@ class _SeamSidecar:
             return False       # tried once and failed; do not retry per sample on the notify path
         self._opened = True
         try:
-            self._fh = open(self.path, "a" if self._resumed else "w", buffering=1 << 16, newline="\n")
-            if not self._resumed:
+            # RESUME IS THIS FILE'S OWN PROPERTY, self-detected at OPEN time — the idiom the three
+            # other resumable writers here already use ("a non-empty file means resume, append, and
+            # do not re-emit the header"). It was INHERITED from the parent StreamWriter until
+            # 2026-09-23, which is wrong for a reason #2902 created: the sidecar now opens LAZILY, on
+            # the first clocked sample, so "the parent is resuming a file-set" stopped implying "my
+            # own file exists with a header in it". On the resume path the parent is resumed, the
+            # sidecar's path does not exist, and this opened "a" on a new file and SKIPPED the header
+            # by design — leaving a sidecar that never says what it is. Measured on the box: last
+            # night's H10 ECGSEAMS carried no header while the Verity's did.
+            # Detected HERE and not in __init__ because open time is the only moment the answer is
+            # knowable: the file may be created between construction and the first sample.
+            resumed = os.path.exists(self.path) and os.path.getsize(self.path) > 0
+            self._fh = open(self.path, "a" if resumed else "w", buffering=1 << 16, newline="\n")
+            if not resumed:
 
                 # The file reproduces itself: a consumer reads the bound that PRODUCED these rows
                 # rather than whatever the default has moved to since.
@@ -1134,7 +1145,7 @@ class _RunSidecar:
     # one afternoon — see the BRACKETING block above.)
     HEADER = "Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule;bracket;contact"
 
-    def __init__(self, path: str, stream: str, min_run: int, resumed: bool = False,
+    def __init__(self, path: str, stream: str, min_run: int,
                  annotations: frozenset = frozenset(), contact: "ContactLedger | None" = None):
         # `<base>.txt` -> `<base>RUNS.txt`, so `…_PPG.txt` gets `…_PPGRUNS.txt` and `…_PPG2W.txt`
         # gets `…_PPG2WRUNS.txt` — derived by rule rather than by a per-stream table that could
@@ -1174,6 +1185,15 @@ class _RunSidecar:
         self._recent_len = BRACKET_WINDOW + 2 * max(self.min_run, T_STUCK)
         self._pending: dict[str, list[list]] = {}   # channel -> [[row_args, before, after_samples], …]
         self._fh: TextIO | None = None
+        # RESUME IS THIS FILE'S OWN PROPERTY, self-detected — the idiom the other resumable writers
+        # here use ("a non-empty file means resume, append, and do not re-emit the header"). This
+        # INHERITED the parent StreamWriter's flag until 2026-09-23, and was the last writer doing
+        # so after #2928 fixed the seam sidecar. Inheritance cannot see the case the idiom exists
+        # for: the parent's stream file is non-empty while THIS file is absent or 0 bytes — a crash
+        # before the 64 KB buffer flushed leaves exactly that — and the inherited `True` then opens
+        # "a" and skips the header, leaving a sidecar that never states its own rule. Two different
+        # files; only this one's size answers the question about this one.
+        resumed = os.path.exists(self.path) and os.path.getsize(self.path) > 0
         try:
             self._fh = open(self.path, "a" if resumed else "w", buffering=1 << 16, newline="\n")
             if not resumed:
@@ -1661,7 +1681,7 @@ class StreamWriter:
         self._axis_labels = tuple(self.HEADERS[stream].split(";")[2:5]) if stream in self.HEADERS else ()
         self._runs: _RunSidecar | None = None
         if stream in RUN_MIN_BY_STREAM:
-            self._runs = _RunSidecar(path, stream, RUN_MIN_BY_STREAM[stream], resumed=self.resumed,
+            self._runs = _RunSidecar(path, stream, RUN_MIN_BY_STREAM[stream],
                                      annotations=ANNOTATIONS_BY_STREAM.get(stream, frozenset()),
                                      contact=contact)
         # §1.4: seams are emitted where the clocks ARRIVE. Every device-clocked writer already
@@ -1674,7 +1694,6 @@ class StreamWriter:
         self._seams = _SeamSidecar(
             path,
             stream,
-            resumed=self.resumed,
             seed=_last_row_clocks(path) if self.resumed else None,
             first_ns=self._first_ns,
         )
