@@ -389,7 +389,7 @@ WORN_VOTES: tuple[dict, ...] = (
         "vote": "hr-contact-bit",
         "rank": 1,
         "source": "measured",
-        "means": "the HR characteristic's skin-contact bit — electrode CONTACT, not wear (2026-09-20: 131 drops)",
+        "means": "the HR characteristic's skin-contact bit — electrode CONTACT, not wear (§1a: it did not cause 09-20)",
     },
     {
         "vote": "hr-beats",
