@@ -91,6 +91,39 @@ From the parent, and from the 2026-09-06 all-hands:
    formality: one 1992 ms run at `first_index=0` (ring warmup) and three at 04:18–04:23, all
    `closed=0`, i.e. still open when recording stopped — the doff at the end of the night. The detector
    caught exactly what it was built for, and tonight was otherwise clean.
+1b. **THE FORMAT, AS SHIPPED — a description, not a design.** The writer half already exists and
+   runs on every stream (`_RunSidecar`, writers.py; retrofit #2317, end-of-night back-check #2315),
+   which is why §3.1 could measure a real night across all six sidecars. Written down here because
+   it is the contract between the writer and the node-side reader, and a reader must not infer it
+   from a sample file.
+
+   - **Placement and name.** Beside the stream, never inside it: `<base>.txt` → `<base>RUNS.txt`,
+     the rule `_SeamSidecar` mirrors for `SEAMS`. A stream with no entry in `RUN_MIN_BY_STREAM`
+     (currently `ppg1 · ppg · ppg2w · acc · accraw`, all at `T_STUCK`) has **no file at all**.
+   - **Record.** `Phone timestamp;stream;value;first_index;n_samples;dur_ms;closed;rule;bracket;contact`
+     — one row per recorded run. `first_index` and `n_samples` are in the **stream's own sample
+     index**, so a consumer answers *"is sample i inside any span?"* without a clock.
+   - **Header.** One `#` line carrying the rule that produced the rows (`rule=stuck min_run=200
+     t_stuck=200 …`), so the file states its own threshold rather than a reader assuming this
+     release's constant. `#` lines fail every row filter, the shape `# timebase=` uses.
+   - **`closed=0` means the span was STILL OPEN when recording stopped** — it is not a zero-length
+     span and not an error. Three of §3.1's four spans are `closed=0`: the doff at the end of the
+     night. A reader must treat an open span as running to the end of the stream.
+   - **⚠️ The claim the file supports is narrower than "valid".** Only runs `≥ min_run` are recorded,
+     so the sidecar supports *"valid unless a LONG blanking run was detected"*. Blanking shorter than
+     the threshold is **not in the file** and a consumer will read those samples as good. That is the
+     deliberate §∅ trade — keying on run length is what separates blanking from a beat marker — and
+     the envelope must state it rather than let `validity: true` imply more than the file can carry.
+   - **⚠️ AN ABSENT SIDECAR IS "VALIDITY UNKNOWN", NEVER "NO ABSENCES".** This is §∅ one layer up, and
+     it is the reader's single most important branch. A file is missing for reasons that are not
+     equivalent: the stream is not in `RUN_MIN_BY_STREAM`; the capture predates #2317; the sidecar
+     could not open (the writer keeps recording and counts it in `errors`). None of those is evidence
+     that the night was clean. An EMPTY sidecar is different and is informative: it has a header, so
+     it says what was looked for and that nothing met the threshold.
+   - **Provenance is not yet in the record.** Who observed the run — emitter, capture path, or the
+     end-of-night back-check — is not a column today. A reader must not infer it; if it becomes
+     load-bearing it is an additive column, and this bullet is where that gets recorded.
+
 2. **Enumerate the consumers, do not guess them.** *"No consumer can reach a sample value"* is a claim
    over a set nobody has listed. `trace-to-the-consumer`: a mechanism's consumers are the deliverable,
    not the site you wrote. Every `frame.samples` / `rec.ch` / `relSec` read is a candidate.
