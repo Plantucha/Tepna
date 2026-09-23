@@ -1397,12 +1397,27 @@ function renderAll() {
 
       // Chart: 7-day rolling mean SpO2
       if (nights.length >= 3) {
+        /* §∅ — `s + null` COERCES TO `s`, so an unmeasured night was dropped from the NUMERATOR
+           while `w.length` still counted it in the denominator. One absent night in a 7-night window
+           of 97 % plotted as 83 % — a dramatic false DIP on a chart whose whole job is to show
+           drift, and the one direction a reader would act on. Reduced coverage ANNOTATES rather than
+           refuses (§∅'s 2026-09-17 ruling: the window is sparse, not discontinuous), so the mean is
+           taken over the nights that HAVE a value; a window with none is null and the renderer drops
+           the point, exactly as the other series do since #2938's chart pass. */
         var roll7spo2 = nights.map(function (n, i) {
           var w = nights.slice(Math.max(0, i - 6), i + 1);
+          var vals = w
+            .map(function (x) {
+              return x.stats ? x.stats.meanSpo2 : null;
+            })
+            .filter(function (v) {
+              return v != null && isFinite(v);
+            });
+          if (!vals.length) return null;
           return +(
-            w.reduce(function (s, x) {
-              return s + x.stats.meanSpo2;
-            }, 0) / w.length
+            vals.reduce(function (s, v) {
+              return s + v;
+            }, 0) / vals.length
           ).toFixed(2);
         });
         html += '<div class="chart-wrap">';
@@ -1740,11 +1755,25 @@ function renderAll() {
             t4html += metric('PB Trend', pbLr.slope > 0 ? '+' + pbLr.slope : pbLr.slope, 'episodes/night', pbLr.slope < 0 ? 'good' : pbLr.slope < 1 ? 'warn' : 'bad');
           }
           // Worst-night recurrence
-          var poorNights = nights.filter(function (n) {
-            return n.stab && n.stab.score < 50;
+          /* §∅ — the NUMERATOR excluded nights with no stability score and the DENOMINATOR kept
+             them, so every unscored night silently counted as "not poor" and diluted the rate. The
+             denominator is now the SCORED nights, and the sub-label states that population rather
+             than the night count — a rate whose denominator is not the thing it was measured over is
+             not a rate. Coverage annotates (the nights are sparse, not discontinuous); with nothing
+             scored there is no rate to publish, so it refuses. */
+          var scoredNights = nights.filter(function (n) {
+            return n.stab && n.stab.score != null;
+          });
+          var poorNights = scoredNights.filter(function (n) {
+            return n.stab.score < 50;
           }).length;
-          var poorPct = +((poorNights / nights.length) * 100).toFixed(0);
-          t4html += metric('Poor Nights (<50)', poorPct + '%', poorNights + ' of ' + nights.length, poorPct < 20 ? 'good' : poorPct < 50 ? 'warn' : 'bad');
+          var poorPct = scoredNights.length ? +((poorNights / scoredNights.length) * 100).toFixed(0) : null;
+          t4html += metric(
+            'Poor Nights (<50)',
+            poorPct == null ? '—' : poorPct + '%',
+            poorPct == null ? 'no night carries a stability score' : poorNights + ' of ' + scoredNights.length + ' scored',
+            poorPct == null ? '' : poorPct < 20 ? 'good' : poorPct < 50 ? 'warn' : 'bad'
+          );
           // CPAP efficacy delta (ODI-4 change)
           var odi4Vals = nights
             .map(function (n) {
@@ -2027,8 +2056,11 @@ function renderSmartSummary(n) {
     return '<span class="' + cls + '">' + val + (unit || '') + '</span>';
   }
 
-  var durH = st ? Math.floor(st.durationMin / 60) : 0;
-  var durM = st ? Math.round(st.durationMin % 60) : 0;
+  /* §∅ — `Math.floor(null / 60)` is 0, so a night whose duration was never derived rendered
+     "0h 00m" and, at the KPI below, was graded **bad** on a measurement nobody made. `durationMin`
+     is nulled deliberately upstream (oxydex-dsp.js, the §∅ stats pass). Absent input refuses. */
+  var durH = st && st.durationMin != null ? Math.floor(st.durationMin / 60) : null;
+  var durM = st && st.durationMin != null ? Math.round(st.durationMin % 60) : null;
 
   var html = '<div class="smart-summary">';
   html += '<div class="ss-impression ' + sc + '">' + s.impression + '</div>';
@@ -2162,8 +2194,12 @@ function renderSmartSummary(n) {
   html += '<div class="proj-card proj-' + _cardSev + '">';
   html += '<div class="proj-header">' + '<span class="cat-tag cat-slp">SL</span>' + '<span class="proj-title">Sleep</span>' + '</div>';
   html += '<div class="ss-kpi-grid">';
-  var durStr = durH + 'h ' + (durM < 10 ? '0' : '') + durM + 'm';
-  html += ssKPI('Duration', '<span class="' + (durH >= 7 ? 'cv-good' : durH >= 6 ? 'cv-warn' : 'cv-bad') + '">' + durStr + '</span>', durH >= 7 ? 'good' : durH >= 6 ? 'warn' : 'bad');
+  var durStr = durH == null ? null : durH + 'h ' + (durM < 10 ? '0' : '') + durM + 'm';
+  html += ssKPI(
+    'Duration',
+    durStr == null ? '<span class="val-null">—</span>' : '<span class="' + (durH >= 7 ? 'cv-good' : durH >= 6 ? 'cv-warn' : 'cv-bad') + '">' + durStr + '</span>',
+    durStr == null ? 'neutral' : durH >= 7 ? 'good' : durH >= 6 ? 'warn' : 'bad'
+  );
   if (sa) {
     var _motPct = st ? st.motionPct : null;
     html += ssKPI('SOL', cv(sa.solMin, 15, 30, 'min'), sa.solMin == null ? 'neutral' : sa.solMin < 15 ? 'good' : sa.solMin < 30 ? 'warn' : 'bad');
@@ -2334,9 +2370,11 @@ function nrChip(label, val, cls) {
 }
 function nightRowInner(n) {
   var s = n.stats || {};
-  var durH = Math.floor((s.durationMin || 0) / 60),
-    durM = Math.round((s.durationMin || 0) % 60);
-  var durFmt = durH + 'h' + (durM < 10 ? '0' : '') + durM + 'm';
+  /* §∅ — the night-row twin of the KPI above: `|| 0` rendered an unrecorded duration as "0h00m"
+     in the row header, which reads as a measured zero-length night rather than an unknown one. */
+  var durH = s.durationMin != null ? Math.floor(s.durationMin / 60) : null,
+    durM = s.durationMin != null ? Math.round(s.durationMin % 60) : null;
+  var durFmt = durH == null ? '—' : durH + 'h' + (durM < 10 ? '0' : '') + durM + 'm';
 
   // ── Readiness pill ──
   var readScore = n.karv ? n.karv.readiness : n.stab ? n.stab.score : null;

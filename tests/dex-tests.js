@@ -25636,6 +25636,61 @@
       T.ok('ANTI-VACUITY · the scan still matches the shape (the exempt sites are found)', exemptSeen === UNREACHABLE.length, exemptSeen + ' of ' + UNREACHABLE.length);
     });
 
+    /* ── §∅ · AN AGGREGATE OVER AN ABSENT NIGHT (ABSENCE-SURVEY-2026-09-22, F5) ─────────────────
+       The sibling group above covers a single stat rendered as a verdict. This covers the shapes
+       where absence is averaged, divided or floored — where the absent night does not vanish, it
+       MOVES the number, and the reader has no way to see that it did.
+       Source scan for the same reason: oxydex-render.js is loaded as TEXT in this lane. */
+    group('OxyDex §∅ — an aggregate must not silently absorb an absent night', 'oxydex-render · aggregate-over-absence', function (T) {
+      var R = String((env.sources || {})['oxydex-render.js'] || '');
+      if (!R) {
+        T.skip('oxydex-render.js in env.sources', 'not wired in this lane');
+        return;
+      }
+      /* ANTI-VACUITY. Each scan below is a regex over a large file; a rename empties it silently. */
+      T.ok('ANTI-VACUITY · the render source loaded', R.length > 10000, R.length + ' chars');
+      T.ok('ANTI-VACUITY · the rolling-window aggregate still exists to be checked', /roll7spo2/.test(R));
+      T.ok('ANTI-VACUITY · the poor-night rate still exists to be checked', /poorNights/.test(R));
+
+      var lines = R.split('\n');
+
+      /* 1 · A SUM over a nullable stat. `s + x.stats.meanSpo2` drops the null from the NUMERATOR
+         (null coerces to 0) while the window length still counts it in the DENOMINATOR. */
+      var sums = [];
+      lines.forEach(function (ln, i) {
+        if (/\breduce\(/.test(ln)) return;
+        if (/\+\s*[A-Za-z0-9_]+\.stats\.[A-Za-z0-9_]+/.test(ln) && !/!=\s*null|==\s*null|isFinite/.test(ln)) sums.push(i + 1 + ': ' + ln.trim().slice(0, 72));
+      });
+      T.eq('no stat is summed without an absence filter', sums, []);
+
+      /* 2 · A DERIVED duration. `Math.floor(null / 60)` is 0, so an unrecorded night reads as a
+         zero-length one — and at a KPI it is then GRADED. Both sites in this file are covered. */
+      /* The guard must name durationMin ITSELF, on the line or within the 3 lines above it — an
+         enclosing `if (s0.durationMin) {` and a same-line `s.durationMin ? … : ''` both qualify.
+         Requiring the guard to name the FIELD is the load-bearing part: the defect this replaced
+         read `st ? Math.floor(st.durationMin / 60) : 0`, which HAS a ternary guard — on the wrong
+         thing. A scan that accepted any `?` on the line would have passed it. */
+      var durs = [];
+      lines.forEach(function (ln, i) {
+        if (!/Math\.(floor|round)\(\s*\(?[A-Za-z0-9_]+\.durationMin/.test(ln)) return;
+        var ctx = lines.slice(Math.max(0, i - 3), i + 1).join(' ');
+        var guarded = /durationMin\s*(!=|!==|==|===)\s*null/.test(ctx) || /durationMin\s*\?/.test(ctx) || /if\s*\(\s*[A-Za-z0-9_]+\.durationMin\s*\)/.test(ctx);
+        if (!guarded) durs.push(i + 1 + ': ' + ln.trim().slice(0, 72));
+      });
+      T.eq('no duration is derived from a possibly-absent durationMin', durs, []);
+
+      /* 3 · A RATE whose numerator filters on a nullable container while the denominator is the raw
+         night count — every unscored night then counts as "not poor" and dilutes the rate. */
+      T.ok('the poor-night rate divides by the SCORED nights, not the night count', /poorNights \/ scoredNights\.length/.test(R) && !/poorNights \/ nights\.length/.test(R));
+      T.ok('…and its sub-label names that population', /scored/.test(R));
+
+      /* 4 · THE COERCIONS THESE GUARDS EXIST FOR, asserted as arithmetic rather than described. If
+         JS ever stopped coercing this way, the scans above would be guarding nothing. */
+      T.eq('…because `0 + null` is 0 — the absent night leaves the SUM but not the COUNT', 0 + null, 0);
+      T.eq('…and `Math.floor(null / 60)` is 0 — an unrecorded night reads as zero-length', Math.floor(null / 60), 0);
+      T.eq('…while a 7-night window of 97 with ONE absent night averaged 83.1, not 97', +((97 * 6) / 7).toFixed(1), 83.1);
+    });
+
     group('OxyDex parseJSONL round-trips every field, and tells ABSENT from ZERO', 'oxydex-dsp · parse · known-answer · mutation-pinned', function (T) {
       var OB = env.OxyDex && env.OxyDex._bare;
       if (!(OB && typeof OB.parseJSONL === 'function')) {
