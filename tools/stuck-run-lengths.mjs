@@ -68,6 +68,7 @@
 //   node tools/stuck-run-lengths.mjs --dir <captures root> --stream verity-ppg|verity-acc|h10-acc|ppg2w
 import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
+import { gitShort, makeVerdict } from './verdict-emit.mjs';
 
 export const T_STUCK = 200;
 export const GAP_FACTOR = 4;
@@ -323,6 +324,83 @@ export function dropTopModalValues(hist, longByValue, k) {
   return { hist: out, excluded: top.length };
 }
 
+/* ── THE CONTRACT VERDICT ──────────────────────────────────────────────────────────────────────
+   The per-channel words above are this tool's OWN reading and stay in `result`; the contract's
+   status vocabulary is closed, so they are MAPPED, never emitted as statuses:
+     HOLD            -> PASS            the constant transfers on that channel
+     FAIL-LOW / HIGH -> FAIL            it does not — FAIL is the contract word, not a tool failure
+     NO GAP          -> UNKNOWN         the instrument cannot answer: nothing separates the populations
+     NOT-EXERCISED   -> UNKNOWN         the instrument ran fully and STILL cannot answer: there is no
+                                        long-run population to separate. ⚠️ NOT `NOT_APPLICABLE`, and
+                                        the contract refused that mapping on the first attempt —
+                                        `NOT_APPLICABLE must carry result: null`, because a criterion
+                                        that does not apply has no result. Here the result is the
+                                        whole finding (550M samples, p99.99, N = 0), so the honest
+                                        status is the one that keeps it. The two UNKNOWNs stay
+                                        distinguishable by their own word in `result.channels`.
+     UNDERPOWERED    -> UNDERPOWERED
+   Population is CHANNEL-REPORTS: checked = those the criterion bound on (PASS/FAIL), excluded = the
+   rest, counted by their own reason. Precedence FAIL > UNKNOWN > UNDERPOWERED > NOT_APPLICABLE > PASS,
+   never a vote — one channel that fails is not outweighed by five that were never exercised. */
+export const STATUS_MAP = {
+  HOLD: 'PASS',
+  'FAIL-LOW': 'FAIL',
+  'FAIL-HIGH': 'FAIL',
+  'NO GAP': 'UNKNOWN',
+  'NOT-EXERCISED': 'UNKNOWN',
+  UNDERPOWERED: 'UNDERPOWERED'
+};
+const PRECEDENCE = ['FAIL', 'UNKNOWN', 'UNDERPOWERED', 'PASS'];
+
+export function runVerdict(rows, { commit = null, evidence = [], tStuck = T_STUCK } = {}) {
+  const mapped = rows.map((r) => STATUS_MAP[r.status] || 'UNKNOWN');
+  const eligible = rows.length;
+  const checked = mapped.filter((m) => m === 'PASS' || m === 'FAIL').length;
+  const excludedBy = {};
+  rows.forEach((r, i) => {
+    if (mapped[i] !== 'PASS' && mapped[i] !== 'FAIL') excludedBy[r.status] = (excludedBy[r.status] || 0) + 1;
+  });
+  const status = eligible === 0 ? 'NOT_RUN' : PRECEDENCE.find((p) => mapped.includes(p)) || 'UNKNOWN';
+  const reason =
+    status === 'PASS'
+      ? null
+      : status === 'NOT_RUN'
+        ? 'no channel report was produced'
+        : status === 'UNKNOWN' && rows.every((r) => r.status === 'NOT-EXERCISED')
+          ? `no channel carries a long-run population, so ${tStuck} is untested in EITHER direction on every stream measured — the corpus cannot validate the constant, which is not the same as the constant failing`
+          : `${JSON.stringify(excludedBy)} — see result.channels for the per-channel reading`;
+  return makeVerdict({
+    gate: 'stuck-run-lengths',
+    tool: 'tools/stuck-run-lengths.mjs',
+    status,
+    population: { eligible, checked, excluded: eligible - checked },
+    criterion: {
+      name: 'every_channel_has_a_bracketed_multiplicative_gap_of_at_least_4x_above_p99.99_containing_T_STUCK (the per-channel words HOLD/FAIL-LOW/FAIL-HIGH/NO GAP/NOT-EXERCISED are this tool own reading and live in result)',
+      threshold: GAP_FACTOR,
+      unit: 'gap ratio',
+      direction: 'gte'
+    },
+    result: { tStuck, channels: rows, excludedBy },
+    reason,
+    evidence,
+    commit
+  });
+}
+
+/** Corpus-free sample: the measured 2026-09-23 shape — every channel NOT-EXERCISED, which is the
+    outcome a green sample would exercise none of. */
+export function sampleRows() {
+  return [
+    { channel: 'ch0', report: 'all-runs', status: 'NOT-EXERCISED', P: 2, N: 0, samples: 138736394 },
+    { channel: 'ch0', report: 'top1-values-excluded', status: 'NOT-EXERCISED', P: 2, N: 0, samples: 138736394 }
+  ];
+}
+
+if (process.argv.includes('--verdict-sample')) {
+  console.log(JSON.stringify(runVerdict(sampleRows(), { commit: gitShort(), evidence: ['<sample>'] }), null, 2));
+  process.exit(0);
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   const opt = (f, d) => {
@@ -381,6 +459,7 @@ async function main() {
     }
   }
   console.log('\nJSON ' + JSON.stringify({ stream: name, fs: spec.fs, files: files.length, tStuck: T_STUCK, rows }));
+  console.log('VERDICT ' + JSON.stringify(runVerdict(rows, { commit: gitShort(), evidence: [dir, `stream=${name}`] })));
 }
 
 if (process.argv.includes('--selftest')) await selftest();
