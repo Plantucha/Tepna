@@ -1395,6 +1395,18 @@
         ]
       },
       "note": "residue 2026-09-06-a-statistic-both-hypotheses-predict: the posture covariate the §-park note asked for. Population = NIGHTS (checked + excluded = night dirs, every skip named); criterion = per-night median |Δmode| over same-posture pairs / adjacent different-posture pairs, bands pre-registered in the header before the first corpus run (PHYS median ≤ 0.5 & ≥ 70 % of nights < 1 → PASS · TIME median ≥ 1 → FAIL · between → UNKNOWN · < 5 nights → UNDERPOWERED). PASS/FAIL are the contract's words, not goodness."
+    },
+    "tools/stuck-run-lengths.mjs": {
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/stuck-run-lengths.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "residue 2026-09-06-t-stuck-validated-on-ring-only: does writers.T_STUCK = 200 SAMPLES transfer to the four streams RUN_MIN_BY_STREAM extends it to? Criterion pre-registered in the tool header before any stream was read - a bracketed multiplicative gap of >= 4x above p99.99 containing 200. The per-channel words (HOLD/FAIL-LOW/FAIL-HIGH/NO GAP/NOT-EXERCISED) are the tool's own reading and live in result; the contract's closed vocabulary is reached by an explicit map, precedence FAIL > UNKNOWN > UNDERPOWERED > PASS, never a vote. NOT-EXERCISED maps to UNKNOWN and not NOT_APPLICABLE: the contract refused that on the first attempt because NOT_APPLICABLE must carry result: null, and here the result (550M samples, p99.99, N = 0) IS the finding. Population = channel-reports; checked = those the criterion bound on."
     }
   }
 }
