@@ -242,7 +242,6 @@ export const WO_CLAIM_RATCHET = new Set([
      is why this check keys on EMISSION and never on the reason text. A sweep keyed on the 47
      duplicated strings would have found eight of these nine and left this one behind, still
      asserting in the manifest something its source had stopped supporting. */
-  'tools/pat-fiducial-jitter.mjs',
   /* `tools/pat-window-oracle.mjs` was the ninth; it ADOPTED, so the ratchet shrank by one. */
   'tools/probe-clock-equivalence.mjs',
   'tools/probe-equivalence.mjs'
