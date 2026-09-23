@@ -50088,7 +50088,11 @@
       /* WHY THE OLD TAIL RANKED IT, as arithmetic: 0 is below every Cooper entry point, so the
          interpolation never matched and the function fell through to its floor. */
       T.eq('…because 0 is below the lowest male 40-49 cut point (26)', 0 >= 26, false);
-      T.eq('…so the loop never matched and the tail returned the 1st percentile', 0 >= 40 ? 99 : 1, 1);
+      /* The tail's own arithmetic, through variables rather than literals: a literal ternary here is
+         a `noConstantCondition` ERROR (biome.json marks it error, not warn) and reds the biome gate. */
+      var _unsetVo2 = 0,
+        _topCut = 40;
+      T.eq('…so the loop never matched and the tail returned the 1st percentile', _unsetVo2 >= _topCut ? 99 : 1, 1);
     });
 
     group('HRVDex profile personalization — known-answer (TEST-COVERAGE-FOLLOWUPS-II §1b)', 'hrvdex-profile · profile · known-answer', function (T) {
