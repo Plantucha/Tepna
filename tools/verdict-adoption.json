@@ -948,9 +948,16 @@
       "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
     },
     "tools/pat-fiducial-jitter.mjs": {
-      "bin": "word-only",
-      "status": "exempt",
-      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/pat-fiducial-jitter.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "clock-free fiducial-family jitter as a tepna.verdict/1. A MEASUREMENT whose pre-stated bands (MATERIAL >= 20 ms, INTERMEDIATE 10-20, NOT-DOMINANT < 10) are FINDINGS the charter asked for, so no band is a status: they ride in result per fs stratum with each SD's sample quantum (row 2026-09-05-fiducial-sd-quoted-without-its-sample-rate, fixed #2749). The criterion is the tool's own hard gate - >= 1 stratum with a within-file SD, a file needing >= 10 usable beats - with the population in files (given / qualified / excluded). A TCH negative variance is a named refusal in result, never clamped, never a status. FAIL and UNKNOWN reachable from nothing. scope: internal."
     },
     "tools/pat-fiducial.mjs": {
       "bin": "word-only",
