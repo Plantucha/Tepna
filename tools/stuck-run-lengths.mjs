@@ -138,12 +138,24 @@ export function widestUnbracketedGap(hist, floor) {
   return !bracketed || tail.ratio > bracketed.ratio ? tail : bracketed;
 }
 
+/* The ring's figures in PPG-ABSENCE-AS-VALUE are a LADDER — p50 1 · p90 4 · p99 14 · p99.9 31 ·
+   p99.99 48 — and the residue row's closing condition is "the same query as the ring's, per stream".
+   Reporting p99.99 alone answers what the constant is DEFINED against and still leaves that condition
+   literally unmet, so the ladder is published beside it and the comparison is like-for-like. */
+export const LADDER = [0.5, 0.9, 0.99, 0.999, 0.9999];
+
+export function ladderOf(hist) {
+  const out = {};
+  for (const q of LADDER) out[`p${String(q * 100).replace('.', '')}`] = quantile(hist, q);
+  return out;
+}
+
 export function verdictOf(hist, nSamples, { tStuck = T_STUCK, factor = GAP_FACTOR, minSamples = MIN_SAMPLES } = {}) {
   const lens = [...hist.keys()];
   const N = lens.filter((l) => l >= tStuck).reduce((s, l) => s + hist.get(l), 0);
   const P = quantile(hist, 0.9999);
   const gap = P == null ? null : widestBracketedGap(hist, P);
-  const base = { P, N, gap, samples: nSamples };
+  const base = { P, ladder: ladderOf(hist), N, gap, samples: nSamples };
   if (nSamples < minSamples) return { ...base, status: 'UNDERPOWERED', reason: `${nSamples} samples, minimum ${minSamples}` };
   if (!gap || gap.ratio < factor) {
     const g = gap ? `${gap.ratio.toFixed(2)}x` : 'none';
@@ -452,7 +464,7 @@ async function main() {
       const sec = (n) => (n == null ? 'n/a' : (n / spec.fs).toFixed(2) + ' s');
       rows.push({ channel: spec.names[c], report: label, ...v });
       console.log(
-        `  ${spec.names[c]}/${label.padEnd(17)} samples=${counts[c].toLocaleString().padStart(12)} p99.99=${String(v.P).padStart(5)} (${sec(v.P).padStart(8)})` +
+        `  ${spec.names[c]}/${label.padEnd(17)} samples=${counts[c].toLocaleString().padStart(12)} ladder p50/p90/p99/p99.9/p99.99=${[v.ladder.p50, v.ladder.p90, v.ladder.p99, v.ladder.p999, v.ladder.p9999].join('/')} (p99.99 ${sec(v.P)})` +
           `  N=${String(v.N).padStart(6)}  gap=${v.gap ? `[${v.gap.a},${v.gap.b}] ${v.gap.ratio.toFixed(2)}x` : 'none'}  → ${v.status}`
       );
       if (v.reason) console.log(`      ${v.reason}`);
