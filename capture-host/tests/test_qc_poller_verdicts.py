@@ -47,4 +47,5 @@ def test_qc_poller_writes_both_verdicts_beside_the_summary(tmp_path, monkeypatch
     )
     assert bc["gate"] == "night-backcheck" and bc["status"] == "PASS"
     assert os.path.exists(str(night / "QC-SUMMARY.json"))
+    assert json.load(open(str(night / "QC-SUMMARY.json")))["isolation"] == "thread"   # a lambda: the thread path, and the summary says so
     capture._STOP.clear()
