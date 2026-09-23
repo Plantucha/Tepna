@@ -195,6 +195,49 @@ GUARDED_RE='(briefs/[A-Za-z0-9._@+-]+\.md|DOCS-INDEX\.md)'
 #    a read piped into a file (`grep x briefs/A.md > /tmp/o`) is write-shaped by this rule.
 #    That costs a denial only when the brief ACTUALLY moved upstream — the staleness query
 #    still gates every path — and the message names the commits and the escape hatch.
+# ── A HEREDOC BODY IS DATA — AND THIS HOOK WAS THE SIBLING THAT NEVER GOT THE RULE ─────────────
+#    #2871 gave `guard-shared-tree.sh` the data-vs-code rule under the title "a heredoc body is
+#    data for EVERY rule". "Every rule" meant every rule INSIDE THAT HOOK; this one never got it,
+#    and the gap is the half-wired-mechanism shape: a fix applied at the site it was found and not
+#    to the class. Measured 2026-09-22, twice in one hour and in opposite lanes — a peer writing a
+#    note to the MEMORY directory (no repo file touched at all) and this hook's own author writing
+#    a reproduction script were both DENIED, because each command's heredoc body QUOTED a ledger
+#    path, and one of them quoted a `sed -i` in a string literal. Describing a file read as editing
+#    it, and the remedy the denial printed was to go and read 75 commits that had nothing to do
+#    with either command.
+#
+#    The line is DATA-vs-CODE and the shell already draws it: a heredoc body is data UNLESS the
+#    heredoc feeds an interpreter (`python3 - <<PY`, `bash <<EOF`), where the body IS the program —
+#    which is precisely the computed-edit case §3 added Bash matching for, so those bodies must stay
+#    visible. Lifted verbatim from the sibling rather than re-derived, including its fail-closed
+#    terminator rule; `guard-stale-brief.test.sh` asserts the two copies stay byte-identical, so the
+#    next fix to one cannot silently skip the other again.
+# The sibling folds continuations and newlines into spaces BEFORE stripping, and that fold is
+# LOAD-BEARING rather than cosmetic: `sed` is line-oriented, so with real newlines the opener and
+# the terminator sit on different lines and the strip silently matches nothing. Measured while
+# porting this: without the fold, three of the four new test legs still passed — for reasons that
+# had nothing to do with stripping — and only the prose-`sed -i` leg exposed that the rule was
+# doing nothing at all.
+cmdf="${cmd//\\$'\n'/ }"; cmdf="${cmdf//$'\n'/ }"
+cmd_nohere="$cmdf"
+_hdw0="$(printf '%s' "$cmdf" | grep -oE "<<-?'?[A-Za-z_][A-Za-z0-9_]*'?" | head -1 | sed -E "s/^<<-?'?//; s/'$//")"
+if [ -n "$_hdw0" ]; then
+  # Does the command OWNING the heredoc read it as a program? Tested on the text before the `<<`,
+  # which is where the interpreter is named. If so the body is CODE and every rule keeps it raw.
+  _pre0="$(printf '%s' "$cmdf" | sed -E "s/<<-?'?[A-Za-z_].*//")"
+  if printf '%s' "$_pre0" | grep -qE '(^|[;&|[:space:]])(bash|sh|zsh|python3?|node|perl|ruby|php)([[:space:]]|$)'; then
+    : # interpreter heredoc — the body is the program, so it stays visible to every rule
+  # ⚠ AND THE STRIP FAILS CLOSED, reusing the rule the rebase-guard learned the hard way: `.*` is
+  #   greedy and newlines are folded, so a terminator word appearing a SECOND time as a standalone
+  #   token lets the strip swallow real commands after the heredoc (measured 2026-08-05: a body
+  #   ending `A`, then a real `git checkout origin/main -- oxydex-dsp.js`, then a stray `A` — the
+  #   checkout was stripped and the rule passed). POSIX sed has no lazy quantifier, so strip only
+  #   when the terminator appears EXACTLY ONCE standalone; anything else keeps the full text.
+  elif [ "$(printf '%s' "$cmdf" | grep -oE "(^|[[:space:]])$_hdw0([[:space:]]|$)" | wc -l)" -eq 1 ]; then
+    cmd_nohere="$(printf '%s' "$cmdf" | sed -E "s/<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?.*[[:space:]]\\1([[:space:]]|$)/ /g")"
+  fi
+fi
+
 looks_like_write() {
   # A RUN OF ≥3 '>' IS A CONFLICT MARKER, NOT A REDIRECT — strip those runs before the redirect
   # test. Measured 2026-09-02: `grep -n "<<<<<<<\|=======\|>>>>>>>" briefs/X.md`, i.e. the standard
@@ -221,8 +264,8 @@ if [ -n "$f" ]; then
     briefs/*.md | DOCS-INDEX.md) cands="$rel" ;;
     *) : ;;
   esac
-elif looks_like_write "$cmd"; then
-  cands="$(printf '%s' "$cmd" | grep -oE "$GUARDED_RE" | sort -u)"
+elif looks_like_write "$cmd_nohere"; then
+  cands="$(printf '%s' "$cmd_nohere" | grep -oE "$GUARDED_RE" | sort -u)"
 fi
 [ -z "$cands" ] && exit 0
 

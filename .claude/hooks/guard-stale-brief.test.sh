@@ -334,6 +334,7 @@ else
 fi
 # Run from the STALE root's cwd, exactly as a PreToolUse hook does.
 rr() { ( cd "$STALE" && printf '%s' "$1" | bash "$H" >/dev/null 2>&1; [ $? -eq 2 ] && echo DENY || echo ALLOW ); }
+HOOKDIR="$(cd "$(dirname "$H")" && pwd)"
 expectr() { local got; got="$(rr "$3")"
   if [ "$got" = "$1" ]; then printf '  ok    %-58s %s\n' "$2" "$got"
   else printf '  FAIL  %-58s got %s, want %s\n' "$2" "$got" "$1"; fail=$((fail+1)); fi; }
@@ -351,6 +352,42 @@ expectr DENY  "…and the STALE tree by a leading cd still denies"  "{\"tool_inp
 # "you are editing this stale tree" (deny is right) from "you are editing elsewhere" (deny is a
 # false positive). Pinned so the limitation is visible, not so it is endorsed.
 expectr DENY  "no tree signal → measured against cwd (documented gap)" '{"tool_input":{"command":"sed -i s/a/b/ briefs/SHARED-BRIEF.md"}}'
+
+echo
+echo "### A HEREDOC BODY IS DATA — the sibling's rule, which this hook never got (#2871's blind half)"
+# Measured 2026-09-22, twice in one hour and in opposite lanes: a peer writing a note to the MEMORY
+# directory (no repo file touched at all) and this hook's own author writing a reproduction script
+# were both DENIED, because each command's heredoc body QUOTED a guarded path — and one quoted a
+# `sed -i` inside a string literal. Describing a file read as editing it. Every DENY below is paired
+# with an ALLOW differing in ONE property, and all of them name the STALE tree, so an ALLOW is the
+# strip working rather than the staleness query finding nothing.
+expectr ALLOW "heredoc body merely QUOTES a guarded path (cat: not an interpreter)" \
+  "{\"tool_input\":{\"command\":\"cd $STALE && cat > /tmp/note.md <<'EOF'\nthe row lives in briefs/SHARED-BRIEF.md and is appended there\nEOF\"}}"
+expectr ALLOW "…and a body quoting a sed -i as PROSE (the exact 2026-09-22 shape)" \
+  "{\"tool_input\":{\"command\":\"cd $STALE && cat > /tmp/repro.py <<'PY'\ncases = {'real': \\\"sed -i s/x/y/ briefs/SHARED-BRIEF.md\\\"}\nPY\"}}"
+# ANTI-VACUITY, and the reason the strip is INTERPRETER-AWARE: for `python3 - <<PY` the body IS the
+# program — the computed-edit case §3 added Bash matching for — so it must stay visible.
+expectr DENY  "an INTERPRETER heredoc that writes a guarded path is still seen" \
+  "{\"tool_input\":{\"command\":\"cd $STALE && python3 - <<'PY'\nopen('briefs/SHARED-BRIEF.md','w').write('x')\nPY\"}}"
+expectr DENY  "…and a plain in-place edit is unaffected by the strip" \
+  "{\"tool_input\":{\"command\":\"cd $STALE && sed -i s/a/b/ briefs/SHARED-BRIEF.md\"}}"
+
+echo
+echo "### THE TWO COPIES OF THE STRIPPER STAY BYTE-IDENTICAL"
+# The rule lives in two hooks because each is invoked standalone and must work from a checkout that
+# carries no shared helper. A copy that drifts is exactly how ONE of them was fixed in #2871 and the
+# other was not, so the parity is asserted rather than trusted.
+# Normalised on the ONE thing that legitimately differs: each hook names its folded command
+# variable for itself ($cmdn there, $cmdf here). Everything else must match byte for byte.
+_strip_of() { sed -n '/^cmd_nohere=/,/^fi$/p' "$1" | sed 's/\$cmdn/$C/g; s/\$cmdf/$C/g'; }
+_A="$(_strip_of "$HOOKDIR/guard-shared-tree.sh")"
+_B="$(_strip_of "$HOOKDIR/guard-stale-brief.sh")"
+if [ -n "$_A" ] && [ "$_A" = "$_B" ]; then
+  echo "  ok    guard-shared-tree and guard-stale-brief carry the same heredoc rule"
+else
+  echo "  FAIL  the heredoc stripper DRIFTED between the two hooks (or could not be extracted)"
+  fail=$((fail + 1))
+fi
 
 echo
 [ "$fail" -eq 0 ] && echo "PASS — every DENY paired with an ALLOW that differs in one property" \
