@@ -8064,7 +8064,8 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
     link (capture pauses, then resumes). Idempotent: pull_recording skips a file already on disk at the
     same size, so a repeat pull only fetches genuinely new bytes — true as of 2026-08-01; this docstring
     asserted it for months while the code re-downloaded the whole flash every time (audit F3b).
-    Returns {sessions, pulled, new_files, short, ok}. A truncated file is reported, never counted as
+    Returns {sessions, pulled, new_files, short, unenumerated, unanswered_sessions, ok}. A truncated
+    file is reported, never counted as
     pulled: these onboard recordings are the backup for a lossy live link, so one that looks complete
     and is not is the worst outcome available here."""
     import polar_psftp        # runtime-only (pulls bleak) — keeps `import capture` stdlib-clean for CI
@@ -8076,6 +8077,7 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
         hci = await adapter_hci()
         sessions = await polar_psftp.list_recordings(address, adapter=hci)
         pulled, new_files, short = 0, [], []
+        unenumerated, unanswered_sessions = 0, 0
         for sess in sessions:
             path = sess.get("path")
             if not path:
@@ -8086,14 +8088,30 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
             pulled += 1
             new_files.extend((m or {}).get("new_files") or [])
             short.extend((m or {}).get("short") or [])
+            # §∅ ACROSS THE FOLD. Two absences were invisible here. (a) `unenumerated` — a session
+            # whose listing was truncated or unreadable pulled a subset of unknown size, and this
+            # aggregate RECOMPUTED `ok` from `short` alone rather than reading the per-session
+            # verdict, so a producer-side refusal could never reach the caller. (b) `m or {}` — a
+            # session that returned NOTHING contributed no shorts and therefore read as clean; a
+            # missing manifest is an unanswered session, not a quiet one.
+            unenumerated += int((m or {}).get("unenumerated") or 0)
+            if not m:
+                unanswered_sessions += 1
         if short:
             # LOUD, because the journal is the only alerting surface a box with no webhook has, and a
             # truncated backup is exactly the thing you want to know about before the disk guard prunes
             # the live copy of the same night.
             log.warning("%s: %d offline file(s) came back SHORT and were left as .part — the next pull "
                         "re-fetches them: %s", dev.get("name") or address, len(short), "; ".join(short[:3]))
+        if unenumerated or unanswered_sessions:
+            log.warning("%s: pull ran over an INCOMPLETE file set — %d unenumerated director(ies), "
+                        "%d session(s) returned no manifest. `ok` is false because the set is of "
+                        "unknown size, not because a file was short.",
+                        dev.get("name") or address, unenumerated, unanswered_sessions)
         return {"sessions": len(sessions), "pulled": pulled, "new_files": new_files,
-                "short": short, "ok": not short}
+                "short": short, "unenumerated": unenumerated,
+                "unanswered_sessions": unanswered_sessions,
+                "ok": not short and not unenumerated and not unanswered_sessions}
 
     # `presence_check_s` for the SAME reason the clock sync passes it: this runs unattended on a loop
     # (`charger_pull_poller` is its only caller), so it is the second caller that must not spend the

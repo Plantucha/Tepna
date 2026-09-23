@@ -674,9 +674,16 @@ async def pull_recording(address: str, session: str, out_dir: str, adapter: str 
     os.makedirs(out_dir, exist_ok=True)
     manifest = {"session": session, "out_dir": out_dir, "files": [], "total_bytes": 0}
     async def _once():
-        m = {"files": [], "new_files": [], "short": [], "total_bytes": 0}
+        m = {"files": [], "new_files": [], "short": [], "total_bytes": 0,
+             "unreadable_dirs": [], "truncated_dirs": []}
         async with PolarPsFtp(address, adapter) as fs:
-            files = [(f, s) async for f, s, is_dir in fs.walk(session) if not is_dir and s >= 0]
+            # A LISTING THAT DID NOT ANSWER IS NOT AN EMPTY DIRECTORY. `walk` yields (path, -1, False)
+            # for a directory whose listing RAISED, and records a TRUNCATED one in `fs.truncated_dirs`
+            # — and the `s >= 0` filter here used to drop the first silently while nothing ever read
+            # the second, so the pull ran over a subset of unknown size and said `ok`.
+            walked = [(f, s) async for f, s, is_dir in fs.walk(session) if not is_dir]
+            files = [(f, s) for f, s in walked if s >= 0]
+            m["unreadable_dirs"] = [f for f, s in walked if s < 0]
             total = sum(sz for _, sz in files) or 1     # PS-FTP has no per-chunk hook, so report
             done = 0                                    # per-FILE completion — coarse but honest
             for full, size in files:
@@ -726,14 +733,26 @@ async def pull_recording(address: str, session: str, out_dir: str, adapter: str 
                         on_progress(done, total)
                     except Exception:
                         pass                            # a UI hook must never break the transfer
+            # Read INSIDE the `async with`, while `fs` is still the session that did the walking.
+            m["truncated_dirs"] = list(fs.truncated_dirs)
         return m
     got = await _with_retry(_once)
     manifest["files"] = got["files"]
     manifest["new_files"] = got["new_files"]
     manifest["short"] = got["short"]
+    manifest["unreadable_dirs"] = got["unreadable_dirs"]
+    manifest["truncated_dirs"] = got["truncated_dirs"]
     # ONE verdict a caller can branch on. The per-file `ok` existed before and was read by nobody;
     # `pull_polar_offline_all` and the /api pull handler now both surface this.
-    manifest["ok"] = not got["short"]
+    #
+    # §∅: A POSITIVE VERDICT IS PUBLISHED ONLY OVER ANSWERED READS. `not short` was computed over the
+    # files that were ENUMERATED, so a session whose listing came back truncated (`truncated_dirs`) or
+    # raised (`unreadable_dirs`) published `ok` for a file set of unknown size — the pull was complete
+    # over what it happened to see. Neither absence reached this line: one was recorded on the client
+    # object and read by nobody, the other was dropped by an `s >= 0` filter. The counts travel beside
+    # the verdict so a caller can tell "nothing was missing" from "we could not tell".
+    manifest["unenumerated"] = len(got["unreadable_dirs"]) + len(got["truncated_dirs"])
+    manifest["ok"] = not got["short"] and manifest["unenumerated"] == 0
     manifest["total_bytes"] = got["total_bytes"]
     # a small sidecar so the pull is self-describing (mirrors pull_session.py's .meta.json)
     meta = {**_session_meta(session), **{k: manifest[k] for k in ("session", "total_bytes")},
