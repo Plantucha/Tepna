@@ -25599,7 +25599,19 @@
       out = B._oxyEnsureRows(null);
       T.eq('B._oxyEnsureRows(null) → "true"', JSON.stringify(out === null), 'true');
       out = B.computeODI1('');
-      T.eq('B.computeODI1("") → "0"', JSON.stringify(out.odi1Rate), '0');
+      /* §∅ RECONCILED 2026-09-23 — the ODD ONE OUT, between two siblings that both refuse
+         (`_oxyEnsureRows` above, `computeCT94` below) in a group titled "every guard refuses, null
+         never throws". A recording too short to index has no ODI-1; a rate of 0 published the
+         healthiest possible index for a night that was never long enough to have one. */
+      T.eq('B.computeODI1("") → refuses, like the siblings either side of it', JSON.stringify(out), 'null');
+      /* PARITY — `computeODI1` and `computeSpO2Percentiles` carry the SAME `n < 60` precondition nine
+         lines apart, and used to answer it differently. Pinned so they cannot drift apart again. */
+      {
+        var _short = [];
+        for (var _s60 = 0; _s60 < 59; _s60++) _short.push({ spo2: 97, hr: 60, tMs: _s60 * 1000 });
+        T.eq('…and a 59-sample recording refuses in ODI-1', JSON.stringify(B.computeODI1(_short, null)), 'null');
+        T.eq('…exactly as it already did in computeSpO2Percentiles', JSON.stringify(B.computeSpO2Percentiles(_short)), 'null');
+      }
       out = B.computeCT94('');
       T.eq('B.computeCT94("") → "true"', JSON.stringify(out === null), 'true');
       out = B.computeCircadianHR('');
