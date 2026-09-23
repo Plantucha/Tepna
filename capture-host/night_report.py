@@ -116,16 +116,35 @@ def back_check(summary: dict | None) -> tuple[str, int | None, int | None]:
     blocks = summary.get("class_b")
     if not isinstance(blocks, list):
         return UNKNOWN, None, None
-    clips = held = 0
+    clips = held = examined = 0
     for b in blocks:
         if not isinstance(b, dict):
             continue
+        examined += 1
         got = b.get("clips")
         if isinstance(got, dict):
             clips += sum(v for v in got.values() if isinstance(v, int) and not isinstance(v, bool)
                          and v > 0)
         if b.get("held") is not None:
             held += 1
+    # §∅: AN EMPTY POPULATION IS NOT A CLEAN NIGHT. `class_b_quality` SKIPS a file it cannot judge —
+    # unreadable, no waveform column, under the minimum run — with `continue`, so a night in which
+    # every PPG file was skipped arrives here as `class_b: []`. The loop then runs zero times and this
+    # returned ("ok", 0, 0): "0 spans, back-check ok", indistinguishable from a night that was watched
+    # and was clean, and contradicting `render`'s own footer four screens down — "A missing input is
+    # never a 0 — a night nobody watched must not read like a night that went well." The producer
+    # states the opposite meaning for the same empty list (`nightqc.backcheck_verdict`: "a clean
+    # verdict about files nobody examined cannot be written").
+    #
+    # ⚠️ THIS PATH CANNOT TELL `UNKNOWN` FROM `NOT_RUN`, AND MUST NOT PRETEND TO. `backcheck_verdict`
+    # separates them because it lists the DIRECTORY: eligible = every class-B capture on disk, so
+    # `eligible > 0, checked == 0` is UNKNOWN while no class-B file at all is NOT_RUN. `back_check`
+    # receives only the summary and cannot see the files, so both collapse to UNKNOWN here — which is
+    # honest rather than coarse: neither is `ok`, and claiming the finer distinction would be a fact
+    # this function does not hold. It is also why `back_check_from_verdict` is tried FIRST in `build`;
+    # this remains only for nights written before the verdict objects existed.
+    if examined == 0:
+        return UNKNOWN, None, None
     return ("fail" if (clips or held) else "ok"), clips, held
 
 
