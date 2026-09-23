@@ -4506,5 +4506,14 @@
       "probe": "ATTEMPTED AND REVERTED: `assert writers._drain_fsync.__defaults__ == (5.0,)`. Under mutmut the function is replaced by a dispatcher whose `__defaults__` is None, so that assertion fails on the CLEAN run too — it crashed four whole globs (_do_fsync, _drain_fsync, _fsync_worker, _submit_fsync) and mutate_diff REFUSED with `0 tested mutants`. Measured 2026-09-10; the test was removed rather than kept.",
       "why": "The INVARIANT is that the exit drain is BOUNDED, and that is tested — test_THE_EXIT_DRAIN_IS_BOUNDED_SO_A_WEDGED_DISK_CANNOT_HOLD_SHUTDOWN kills `t.join(timeout)` -> `t.join(None)` by elapsed time. The specific number is a policy bound with no observable consequence at test scale: 5 s and 6 s both complete a healthy barrier and both give up on a wedged disk. The only way to assert the value is introspection of the function object, which is exactly what disables the mutation gate for the whole module — so a test here would trade one real mutant for four blinded functions."
     }
+  ],
+  "probe_oxyii_0x03.py": [
+    {
+      "class": "no-distinguishing-input",
+      "key": "- for svc in getattr(cl, \"services\", []) or []: | + for svc in getattr(cl, \"services\", None) or []:",
+      "probe": "a client WITH `services` never consults the default; a client WITHOUT it yields `[] or []` under the original and `None or []` under the mutant — both `[]`, so the loop body runs zero times and the probe refuses with the same SystemExit either way (test_a_client_without_a_services_attribute_is_refused_not_crashed covers the sibling mutant that drops the default entirely, which DOES differ: AttributeError instead of the refusal)",
+      "why": "A PROOF over both reachable branches, not an unobserved value: `x or []` maps `[]` and `None` to the same `[]`, and the default is the only thing the mutation touches. The three other run() survivors after 2026-09-22 (mutants 18, 59, 60) are SystemExit message prose — string-only, which the diff gate excludes by rule and which is not equivalence, so no entry is filed for them.",
+      "brief": "residue 2026-09-06-probe-mutation-survivors-are-fixture-limited (run() drained 63 → 4 on 2026-09-22)"
+    }
   ]
 }
