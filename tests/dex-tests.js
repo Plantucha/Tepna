@@ -25919,8 +25919,16 @@
       var mn = one(MIN);
       T.ok('a stats-only record still parses', !!mn, mn ? 'ok' : 'nothing returned');
       T.eq('…every optional block is null, not an empty object', mn && mn.hrv, null);
-      T.eq('…odi4 falls back to a zero rate rather than undefined', mn && mn.odi4 && mn.odi4.rate, 0);
-      T.eq('…odi3 falls back to a zero count', mn && mn.odi3 && mn.odi3.count, 0);
+      /* §∅ — THIS PAIR USED TO ASSERT THE DEFECT, one line under the assertion that refutes it.
+         `…every optional block is null` directly above is the correct contract, and the comment
+         heading this section states it outright: each block is `obj.X ? { … } : null`, so PRESENT
+         and ABSENT are two different code paths. `odi4`/`odi3` alone were synthesised as
+         `{ rate: 0, count: 0 }`, which is not a third path — it is the ABSENT path wearing the
+         PRESENT one's shape. Every consumer guards with `if (n.odi4)`, so the synthetic block made
+         all of them true and a night carrying no ODI-4 rendered "0/hr", graded **good**. The old
+         expectation was the bug, in a group named "tells ABSENT from ZERO". */
+      T.eq('…odi4 is NULL when absent — a synthesised zero rate reads as a good night', mn && mn.odi4, null);
+      T.eq('…odi3 is NULL when absent, for the same reason', mn && mn.odi3, null);
       T.eq('…and the stats block still round-trips in full', mn && mn.stats.meanSpo2, 94.3);
       T.eq('…minHr too', mn && mn.stats.minHr, 44);
       T.eq('…and t0Ms still comes from stats.startTs', mn && mn.t0Ms, 1780356420000);

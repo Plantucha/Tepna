@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="8adc8632e1c5" data-compute-hash="b9e102d30bc7">
+<html lang="en" data-manifest-hash="432b981f767e" data-compute-hash="b6793a9b63f2">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,7 +10,7 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-4R3kehgFdc/KaWun6609qOe4U/p9ClI7Hjdgb9Da4YQ=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AXjMLqVAnFtSOC6PqX9dz6sQxGy2QOpnze3JkIZ+vXM=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-G4i3QHMM/2Ak3OxCpfEAPt4mPoMaWYjQOGkOdrFmb2g=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bwxxukjkbs0nkO3G9uCq7MyYlhNC6VN3RFwbf1JFHQI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-pmkM4GTQroQlb4GaUI6RBETJs7WVTR03G7v/A4s2QzA=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-7+J+uoNlkK5V9TGpp2+bt5tzDjy1qYWpSuvRTcvrFRE=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-AXjMLqVAnFtSOC6PqX9dz6sQxGy2QOpnze3JkIZ+vXM=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-UbjAAKzz0ifm5X8sJ1wUP2qtLu307xwU3KStAe1Fgf0=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bwxxukjkbs0nkO3G9uCq7MyYlhNC6VN3RFwbf1JFHQI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-pmkM4GTQroQlb4GaUI6RBETJs7WVTR03G7v/A4s2QzA=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
 <title>OxyDex — Nocturnal Oximetry Analyzer · v2.13.0</title>
@@ -16653,7 +16653,10 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     if (osc.episodeCount >= 4) f.push({ code: 'PERIODIC_BREATHING(' + osc.episodeCount + ')', sev: 'warn' });
     if (stats.maxHr > 105) f.push({ code: 'MAX_HR(' + stats.maxHr + ')', sev: 'warn' });
     if (hrv) {
-      if (hrv.pnn3 < 0.2) f.push({ code: 'HRV_LOW_pNN3(' + hrv.pnn3 + '%)', sev: 'warn' });
+      /* `null < 0.2` is TRUE, so an absent proxy would raise a LOW-pNN3 warning naming `null`.
+         The sibling comparisons below are safe by luck of direction (`null > 1.5` and
+         `null > 65` are both false); this one is guarded because it is not. */
+      if (hrv.pnn3 != null && hrv.pnn3 < 0.2) f.push({ code: 'HRV_LOW_pNN3(' + hrv.pnn3 + '%)', sev: 'warn' });
       if (hrv.hrSlope > 1.5) f.push({ code: 'HRV_HR_RISING(' + hrv.hrSlope + 'bpm/hr)', sev: 'warn' });
       if (hrv.hrFloor > 65) f.push({ code: 'HRV_FLOOR_HIGH(' + hrv.hrFloor + ')', sev: 'info' });
     }
@@ -19543,20 +19546,34 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
             artifactHrCleaned: s.artifactHrCleaned || 0,
             artifactSpikesRemoved: s.artifactSpikesRemoved || 0
           },
-          odi4: obj.odi4 || { rate: 0, count: 0 },
-          odi3: obj.odi3 || { rate: 0, count: 0 },
+          /* §∅ — `|| { rate: 0, count: 0 }` DEFEATED guards that were already correct. Every
+             consumer tests the block for presence (`if (n.odi4)` at oxydex-render.js and
+             oxydex-fusion.js, `n.odi4 ? n.odi4.rate : ''` in the CSV, `: null` in oxydex-cross.js),
+             so a synthesised block made all of them true and a night that carries NO ODI-4 at all
+             rendered "ODI-4 Rate 0/hr" graded **good** — in-band, flattering, and indistinguishable
+             from a genuinely excellent night. Restoring null does not need a consumer change; it
+             gives the existing guards back the absence they were written for. */
+          odi4: obj.odi4 || null,
+          odi3: obj.odi3 || null,
           hrv: obj.hrv
             ? {
                 /* DEEP-AUDIT-IV §3-RESULT — `|| 0` turned an absent proxy into a measured 0.00 in the
                    export a consumer reads. The two proxies are still tried in order; what changes is
                    that "neither was measured" now leaves null instead of a number nobody computed. */
                 hrSdnn: obj.hrv.hrSdnnProxy != null && isFinite(obj.hrv.hrSdnnProxy) ? obj.hrv.hrSdnnProxy : obj.hrv.hrSdnn != null && isFinite(obj.hrv.hrSdnn) ? obj.hrv.hrSdnn : null,
-                pnn3: obj.hrv.pnn3 || 0,
-                hrFloor: obj.hrv.hrFloor || 0,
-                hrSlope: obj.hrv.hrSlope || 0,
-                rsaProxy: obj.hrv.rsaProxy || 0,
-                rmssd: obj.hrv.rmssd || 0,
-                maxHr: obj.hrv.maxHr || 0,
+                /* §∅ — the six siblings of `hrSdnn` directly above, which DEEP-AUDIT-IV §3-RESULT
+                   already fixed for exactly this reason; this finishes the pass it began. `|| 0`
+                   turned an absent proxy into a measured 0.00, and `hrFloor` was the costly one:
+                   oxydex-fusion.js:863 guards `if (hrv.hrFloor != null)` and then grades it against
+                   55/62, so an unmeasured floor of 0 rendered as a GOOD resting floor. `!= null`,
+                   never `||` — a genuine 0 must survive, and 0 is precisely the value `||` cannot
+                   tell from absence. */
+                pnn3: obj.hrv.pnn3 != null ? obj.hrv.pnn3 : null,
+                hrFloor: obj.hrv.hrFloor != null ? obj.hrv.hrFloor : null,
+                hrSlope: obj.hrv.hrSlope != null ? obj.hrv.hrSlope : null,
+                rsaProxy: obj.hrv.rsaProxy != null ? obj.hrv.rsaProxy : null,
+                rmssd: obj.hrv.rmssd != null ? obj.hrv.rmssd : null,
+                maxHr: obj.hrv.maxHr != null ? obj.hrv.maxHr : null,
                 n: obj.hrv.n || null
               }
             : null,
@@ -27668,13 +27685,22 @@ function exportCSV() {
     // HRV metrics (same as JSONL)
     lines.push('', 'HRV METRICS');
     if (n.hrv) {
+      /* §∅ — an absent proxy leaves the CELL EMPTY, never the text "null" and never a 0. `hrSdnn`
+         could already be null here (DEEP-AUDIT-IV §3-RESULT) and this row would have written the
+         string "null" into a spreadsheet; the other five become nullable in the same change, so the
+         emptiness is applied to all six at once. Same idiom as the ODI rows above
+         (`n.odi4 ? n.odi4.rate : ''`): a blank cell reads as "not measured" in every tool that opens
+         this file, while `null` and `0` both read as data. */
+      var _hv = function (v) {
+        return v != null ? v : '';
+      };
       lines.push(
-        '  HR-Var Proxy (SD bpm),' + n.hrv.hrSdnn,
-        '  pNN3 (%),' + n.hrv.pnn3,
-        '  RSA Proxy,' + n.hrv.rsaProxy,
-        '  HR Slope (bpm/hr),' + n.hrv.hrSlope,
-        '  HR Floor (p5 bpm),' + n.hrv.hrFloor,
-        '  Samples,' + n.hrv.n
+        '  HR-Var Proxy (SD bpm),' + _hv(n.hrv.hrSdnn),
+        '  pNN3 (%),' + _hv(n.hrv.pnn3),
+        '  RSA Proxy,' + _hv(n.hrv.rsaProxy),
+        '  HR Slope (bpm/hr),' + _hv(n.hrv.hrSlope),
+        '  HR Floor (p5 bpm),' + _hv(n.hrv.hrFloor),
+        '  Samples,' + _hv(n.hrv.n)
       );
     } else {
       lines.push('  (insufficient data)');
