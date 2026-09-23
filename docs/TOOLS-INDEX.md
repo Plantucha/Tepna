@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**216 tools** · 214 with a purpose line · **2 without**
+**217 tools** · 215 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -200,6 +200,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`severity-ladder-audit.mjs`](../tools/severity-ladder-audit.mjs) | does a node ever render the SAME metric with two different good/warn/bad boundaries? |
 | [`stmt-delete.mjs`](../tools/stmt-delete.mjs) | Level A (`tools/extreme-mutate.mjs`) empties a whole function body. |
 | [`strip-markup.mjs`](../tools/strip-markup.mjs) | import { fileURLToPath } from 'node:url'; import { resolve } from 'node:path'; |
+| [`stuck-run-lengths.mjs`](../tools/stuck-run-lengths.mjs) | // // stuck-run-lengths.mjs — is T_STUCK = 200 samples a threshold for this stream, or only for the one // it was derived from? |
 | [`survivor-witness.mjs`](../tools/survivor-witness.mjs) | A WITNESS INPUT FOR EVERY SURVIVOR THAT HAS ONE 4708 operator mutants survive the JS sweeps unresolved. |
 | [`sync-docs-index.mjs`](../tools/sync-docs-index.mjs) | `docs-ledger` check3b requires every DOCS-INDEX row's status marker to equal its brief's HEADER status, and the header is the declared source of truth. |
 | [`synth-desat-kinetics.mjs`](../tools/synth-desat-kinetics.mjs) | measure whether a synthetic SpO₂ corpus desaturates at a PHYSIOLOGICAL rate, and how much of it OxyDex's artifact self-gate rejects. |
