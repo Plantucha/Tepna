@@ -1211,3 +1211,70 @@ def test_a_transition_at_a_KNOWN_instant_is_stamped_at_that_instant_plus_the_con
     lag_hi = _phone(t_change + (HELD_CONFIRM_WINDOWS + 1) * HELD_WARMUP_RUNS * 3, hz=10.0).isoformat(timespec="milliseconds")
     assert change_ts < at <= lag_hi, (change_ts, at, lag_hi)
     assert f"confirmed={HELD_CONFIRM_WINDOWS}" in line
+
+
+# ── RESUME IS THE RUN SIDECAR'S OWN PROPERTY, NOT THE PARENT'S (2026-09-23) ─────────────────────
+# `_RunSidecar` INHERITED `resumed` from its parent StreamWriter and was the last writer here doing
+# so after #2928 fixed the seam sidecar. The parent's stream file and this sidecar are TWO DIFFERENT
+# FILES, and inheritance cannot see the case the self-detect idiom exists for: the stream file
+# non-empty while the sidecar is absent or 0 bytes — which is what a crash before the 64 KB buffer
+# flushed leaves behind. The inherited True then opens "a" and skips the header, so the sidecar never
+# states its own rule.
+def _runs_path(p):
+    return p[:-4] + "RUNS.txt"
+
+
+def test_a_resumed_PARENT_with_a_MISSING_run_sidecar_still_writes_the_header(tmp_path):
+    import writers
+    p = str(tmp_path / "Wellue_O2Ring-S_x_20260923010000_PPG.txt")
+    w1 = writers.StreamWriter(p, "ppg1", fsync=False)
+    w1.write_ppg(_dt.datetime(2026, 9, 23, 1, 0, 0), 1_000_000_000, 0.0, (100,), 5)
+    w1.close()
+    assert os.path.exists(_runs_path(p)), "the run sidecar opens eagerly — setup assumption"
+    os.remove(_runs_path(p))                    # the divergence: parent resumable, sidecar gone
+
+    w2 = writers.StreamWriter(p, "ppg1", fsync=False)
+    assert w2.resumed, "the PARENT is resuming — that is the setup"
+    w2.write_ppg(_dt.datetime(2026, 9, 23, 1, 0, 1), 1_008_000_000, 0.0, (101,), 5)
+    w2.close()
+    body = open(_runs_path(p)).read()
+    assert body.startswith("# stream=ppg1 rule=stuck"), f"a sidecar that never states its rule: {body!r}"
+
+
+def test_an_EMPTY_run_sidecar_is_NOT_a_resume_and_gets_its_header(tmp_path):
+    """A crash before the 64 KB buffer flushed leaves the file there and 0 bytes. `os.path.exists`
+    alone calls that a resume; only the SIZE separates "a file is there" from "it has something"."""
+    import writers
+    p = str(tmp_path / "Wellue_O2Ring-S_x_20260923010000_PPG.txt")
+    w1 = writers.StreamWriter(p, "ppg1", fsync=False)
+    w1.write_ppg(_dt.datetime(2026, 9, 23, 1, 0, 0), 1_000_000_000, 0.0, (100,), 5)
+    w1.close()
+    # The crash shape: the STREAM file kept its rows, this sidecar's buffer never reached disk.
+    # Truncating is what makes the two files DISAGREE — without it the parent is not resuming and
+    # the divergent branch is never reached (this test passed on main until it set that up).
+    open(_runs_path(p), "w").close()
+    assert os.path.getsize(p) > 0 and os.path.getsize(_runs_path(p)) == 0
+
+    w2 = writers.StreamWriter(p, "ppg1", fsync=False)
+    assert w2.resumed, "the PARENT is resuming from its own non-empty file"
+    w2.write_ppg(_dt.datetime(2026, 9, 23, 1, 0, 1), 1_008_000_000, 0.0, (101,), 5)
+    w2.close()
+    body = open(_runs_path(p)).read()
+    assert body.startswith("# stream=ppg1 rule=stuck"), f"an empty file is not a resume: {body!r}"
+
+
+def test_a_run_sidecar_resuming_its_OWN_non_empty_file_does_not_re_emit_the_header(tmp_path):
+    import writers
+    p = str(tmp_path / "Wellue_O2Ring-S_x_20260923010000_PPG.txt")
+    w1 = writers.StreamWriter(p, "ppg1", fsync=False)
+    w1.write_ppg(_dt.datetime(2026, 9, 23, 1, 0, 0), 1_000_000_000, 0.0, (100,), 5)
+    w1.close()
+    first = open(_runs_path(p)).read()
+    assert first.count("rule=stuck") == 1
+
+    w2 = writers.StreamWriter(p, "ppg1", fsync=False)
+    w2.write_ppg(_dt.datetime(2026, 9, 23, 1, 0, 1), 1_008_000_000, 0.0, (101,), 5)
+    w2.close()
+    body = open(_runs_path(p)).read()
+    assert body.count("rule=stuck") == 1, "the header must not be re-emitted on a real resume"
+    assert body.startswith(first), "the earlier session's bytes must survive verbatim"
