@@ -3714,6 +3714,22 @@ async def run_polar(dev: dict, root: str):
                                 chosen=used_fs, ack=pmd.CTRL_STATUS.get(st, hex(st)), how=how)
                             if pmd_started:                  # record + re-register at the ACTUAL negotiated rate
                                 stream_fs[meas] = used_fs
+                                # ...AND INTO THE ARTIFACT, not only the log and STATUS. Residue
+                                # 2026-09-22-negotiated-pmd-rate-not-written: the journal carries
+                                # `START ppg (negotiated) -> ok` and never the menu or the rate, so
+                                # what a stream was captured at survived only as an inference from
+                                # rows over a stamp span. The writer exists by now (opened per
+                                # requested stream, before negotiation — which is why this cannot be
+                                # a constructor argument) and no row has been written yet, because
+                                # data only arrives after START is ACKed.
+                                # `writers[meas]`, not `.get(meas)`: this loop iterates
+                                # `list(writers)`, so the key is present by construction. A
+                                # `is not None` guard here is a branch nothing can take — an
+                                # untakeable partial that reads as a coverage gap and is really a
+                                # statement that the invariant was not trusted.
+                                writers[meas].note_pmd(
+                                    rate=used_fs, offered=settings.get(0x00) or [],
+                                    configured=_prefer, default=pmd.SAMPLE_HZ.get(meas))
                                 if (meas == pmd.PPG and not calibrated_for(used_fs)
                                         and not sd_calibrated_for(used_fs)):
                                     # SAY IT WHERE THE RATE IS DECIDED. The optical worn calibration
