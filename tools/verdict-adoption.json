@@ -1097,9 +1097,16 @@
       "note": "wave-2 adopter (residue 2026-09-22-word-only-claims-go-stale). Keyed on the CONTROLS, not the survivors: a survivor here is the thing under investigation (the sweep could not kill it; this probe asks whether that is a test gap or a genuine equivalence), so FAIL on one would convict correct code — the tool's own `if (lo < 0) lo = 0` -> `<=` example. The criterion is the tool's soundness gate: every control (a mutant a test DID kill) must be distinguishable by this battery. PASS 0 blind; FAIL = the BATTERY is blind and every equivalence verdict in the run is void (it convicts the instrument, never clock.js); NOT_RUN = the base realm did not build; UNDERPOWERED = no control realm built. Population in CONTROLS (checked + excluded = offered); survivor findings are counts in `result`. Adoption also fixed a silent drop: the control loop's `if (r.err) continue` shrank the control set unnamed, so 14 -> 8 read as 8/8."
     },
     "tools/probe-equivalence.mjs": {
-      "bin": "word-only",
-      "status": "exempt",
-      "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/probe-equivalence.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "wave-2 adopter (residue 2026-09-22-word-only-claims-go-stale), sibling of probe-clock-equivalence and keyed the same way: on the CONTROLS, never the survivors — the survivors are the population this tool adjudicates, so scoring one would convict the `if (lo < 0) lo = 0` -> `<=` case the header names as correct code. The criterion is RULE 1 made machine-readable: every declared family's battery must separate the same-function mutants a test already killed. PASS all evaluated families separated their controls; FAIL >=1 family BLIND (convicts the BATTERY, not the subject file); UNDERPOWERED no family evaluable; NOT_RUN the baseline realm did not build. Population in FAMILIES (checked = controls ran, clean or blind; excluded = withheld, counted by named reason); survivor findings are counts in `result`. Adoption also named the partial control-load drop the all-or-nothing `!ctlRan` guard could not see."
     },
     "tools/pulse-agreement.mjs": {
       "bin": "decides",
