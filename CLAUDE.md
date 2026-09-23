@@ -1240,7 +1240,9 @@ hand-typed version onto source files — `manifestHash` already identifies code 
   → explicit-path stage → PR → merge → tag at the merge sha → **GitHub Release object** (the thing
   "Latest" reads — a tag alone is not a release) → `wt-done`. `node tools/release-land.mjs --status`
   shows the step; `--resume` continues after a fix. Do not run those steps by hand from memory; if the
-  tool cannot do one, fix the tool. Cadence: ≥25 pending changesets or weekly, on the corpus machine.
+  tool cannot do one, fix the tool. **Cadence is a MECHANISM, not a rule to remember** (owner, 2026-09-23):
+  `tools/release-due.mjs` under `tepna-release-due.timer` on the corpus machine cuts the release at
+  7 days since the last tag or 100 commits on `main` since it, whichever comes first.
 - **Parallel coders never hand-pick a number.** Each work-unit drops a collision-free **changeset** as
   its last action (`changes/*.md` — `bump`/`type`/`brief`; see `changes/README.md`). `tools/release.mjs`
   folds all pending changesets, computes the version ONCE from a **green tree**, stamps
