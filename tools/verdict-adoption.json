@@ -562,9 +562,16 @@
       "reason": "selftest assertion printer — the machine-readable result is the exit code and the `all N selftests passed` line that selftest-all parses; not a verdict about data"
     },
     "tools/beat-leg-closure.mjs": {
-      "bin": "word-only",
-      "status": "exempt",
-      "reason": "the words occur in prose inside code (docstrings, string constants, fail-closed comments), not as an emitted verdict"
+      "bin": "decides",
+      "status": "adopted",
+      "emits": {
+        "cmd": [
+          "node",
+          "tools/beat-leg-closure.mjs",
+          "--verdict-sample"
+        ]
+      },
+      "note": "leg C (V-H on device axes) as a tepna.verdict/1. The criterion is the tool's own contract bar, BL_MAX_BOUND_PPM: legC refuses to return a ppm when the unexplained excursion implies a wider rate half-width, so PASS carries ppm and boundPpm together and a bound above max is UNDERPOWERED (a measurement too imprecise to quote), as are too-few-beats, blocks < 4 and no slope pairs; no seed is UNKNOWN; extraction failure NOT_RUN. --pred prints a closure residual and declares no agreement verdict, so FAIL is reachable from nothing and criterion.name says so. Population unit is the night-pair (one decision per H10+Verity pair; the refusal object exposes no block count), with blocks and beat counts in result. scope: internal."
     },
     "tools/box-sample.mjs": {
       "bin": "decides",
