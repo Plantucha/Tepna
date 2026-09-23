@@ -344,7 +344,8 @@
     },
     "hypoxicBurden": {
       "total": 28.6,
-      "rate": 3.9
+      "rate": 3.9,
+      "measuredSec": 26145
     },
     "measurement": {
       "meanSpo2": {
@@ -360,8 +361,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "7d0f6d1aac97",
-          "computeHash": "b6793a9b63f2"
+          "manifestHash": "dcb593334486",
+          "computeHash": "14e74ddd1c46"
         },
         "evidence": {
           "envelopeRef": null,
@@ -389,8 +390,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "7d0f6d1aac97",
-          "computeHash": "b6793a9b63f2"
+          "manifestHash": "dcb593334486",
+          "computeHash": "14e74ddd1c46"
         },
         "evidence": {
           "envelopeRef": null,
@@ -418,8 +419,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "7d0f6d1aac97",
-          "computeHash": "b6793a9b63f2"
+          "manifestHash": "dcb593334486",
+          "computeHash": "14e74ddd1c46"
         },
         "evidence": {
           "envelopeRef": null,
@@ -447,8 +448,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "7d0f6d1aac97",
-          "computeHash": "b6793a9b63f2"
+          "manifestHash": "dcb593334486",
+          "computeHash": "14e74ddd1c46"
         },
         "evidence": {
           "envelopeRef": null,
@@ -1487,43 +1488,53 @@
       "tIdx": {
         "80": {
           "secs": 0,
-          "pct": 0
+          "pct": 0,
+          "measured": 26145
         },
         "85": {
           "secs": 0,
-          "pct": 0
+          "pct": 0,
+          "measured": 26145
         },
         "88": {
           "secs": 10,
-          "pct": 0.04
+          "pct": 0.04,
+          "measured": 26145
         },
         "89": {
           "secs": 39,
-          "pct": 0.15
+          "pct": 0.15,
+          "measured": 26145
         },
         "90": {
           "secs": 54,
-          "pct": 0.21
+          "pct": 0.21,
+          "measured": 26145
         },
         "91": {
           "secs": 66,
-          "pct": 0.25
+          "pct": 0.25,
+          "measured": 26145
         },
         "92": {
           "secs": 104,
-          "pct": 0.4
+          "pct": 0.4,
+          "measured": 26145
         },
         "93": {
           "secs": 327,
-          "pct": 1.25
+          "pct": 1.25,
+          "measured": 26145
         },
         "94": {
           "secs": 1112,
-          "pct": 4.25
+          "pct": 4.25,
+          "measured": 26145
         },
         "95": {
           "secs": 2649,
-          "pct": 10.13
+          "pct": 10.13,
+          "measured": 26145
         }
       },
       "period": null,

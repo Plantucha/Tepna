@@ -568,7 +568,7 @@ function exportCSV() {
     if (n.desatAsym) {
       lines.push('  Desaturation Asymmetry,' + n.desatAsym.desatAsym, '  Asym Label,' + n.desatAsym.asymLabel);
     }
-    lines.push('', 'HYPOXIC BURDEN', 'Total (%-min),' + (n.hb ? n.hb.total : ''), 'Rate (%-min/hr),' + (n.hb ? n.hb.rate : ''));
+    lines.push('', 'HYPOXIC BURDEN', 'Total (%-min),' + (n.hb && n.hb.total != null ? n.hb.total : ''), 'Rate (%-min/hr),' + (n.hb && n.hb.rate != null ? n.hb.rate : ''));
     lines.push('', 'SLEEP STABILITY', 'Score (0-100),' + (n.stab ? n.stab.score : ''), 'Grade,' + (n.stab ? n.stab.grade : ''));
     // Stability component subscores (same as JSONL)
     if (n.stab && n.stab.components) {
