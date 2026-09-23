@@ -223,6 +223,30 @@ async function main() {
   }
   if (!owned.length) console.log(paint('  \u2218 no owned bundles yet \u2014 core KAT + determinism still gate; parity legs activate as bundles migrate', C.dim));
 
+  /* ════ THE SECOND ARTIFACT A RE-STAMP DOES NOT WRITE ═══════════════════════════════════════════
+     (row 2026-09-23-build-restamp-line-counts-not-names) `restampLedgers` writes the fixture records
+     in `provenance/<App>.json` and NOTHING else. Three of the nine nodes ALSO embed
+     `code.manifestHash` inside the exported golden, and only re-running the app can move that copy.
+     The build line used to say "N fixture(s) re-stamped"; a session read that as completion and
+     pushed goldens still carrying the previous code identity. These legs pin the split as a KNOWN
+     ANSWER over committed bytes, so the day a node starts or stops embedding the stamp, the
+     message's premise reds here instead of misleading someone. */
+  {
+    const { embeddedStampCount } = await import('../tools/build.mjs');
+    const fx = (app) => Object.keys(JSON.parse(readFileSync(join(ROOT, 'provenance', app + '.json'), 'utf8')).fixtures || {});
+    for (const app of ['OxyDex', 'ECGDex', 'PpgDex']) {
+      const names = fx(app);
+      ok(embeddedStampCount(names) === names.length, app + ' is a CARRIER: every golden embeds code.manifestHash', names.length + ' of ' + names.length);
+    }
+    for (const app of ['HRVDex', 'GlucoDex', 'PulseDex', 'CPAPDex', 'MotionDex', 'Integrator']) {
+      ok(embeddedStampCount(fx(app)) === 0, app + ' is NOT a carrier: no golden embeds code.manifestHash');
+    }
+    /* ANTI-VACUITY — every leg above is a count against a count, and all of them would pass if the
+       reader silently returned 0 for everything (a wrong uploads root, a renamed key). */
+    ok(embeddedStampCount(fx('OxyDex')) > 0, 'the reader can SEE a stamp at all (else every 0 above is vacuous)');
+    ok(embeddedStampCount(['no-such-golden-9f3c.node-export.json']) === 0, 'an unreadable golden is NOT counted \u2014 absence is never claimed');
+  }
+
   console.log('');
   if (fails) {
     console.error(paint('\u2715 build-core tests: ' + fails + ' failure(s)', C.red));
