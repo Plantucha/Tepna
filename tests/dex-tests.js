@@ -25640,6 +25640,52 @@
       T.ok('ANTI-VACUITY · the scan still matches the shape (the exempt sites are found)', exemptSeen === UNREACHABLE.length, exemptSeen + ' of ' + UNREACHABLE.length);
     });
 
+    /* ── §∅ · A RECOVERY THAT WAS NEVER OBSERVED IS NOT A RECOVERY OF ZERO SECONDS ─────────────
+       The look-forward window expiring means recovery was NOT SEEN. `0` is a legal recovery time,
+       so the old sentinel was read two opposite ways in one file: `meanRecovery` averaged it in as
+       "recovered instantly" — and `nadirRecov` is goodDirection:'down', so that is the flattering
+       direction — while `oxyDesatConf` read the same 0 as "no clean recovery" and withheld its
+       bonus. Null is out of band and cannot be read either way by accident. */
+    group('OxyDex §∅ — an unobserved recovery is null, not an instant one', 'oxydex-dsp · desat-profile · in-band-sentinel', function (T) {
+      var NS = env.OxyDex;
+      var R = String((env.sources || {})['oxydex-dsp.js'] || '');
+      if (!NS || !NS._bare || !NS._bare.detectDesatEvents || !R) {
+        T.skip('OxyDex._bare + oxydex-dsp source in env', 'not wired in this lane');
+        return;
+      }
+      /* ⚠️ LIMIT, STATED: this twin does NOT drive `computeDesaturationProfile`. Four synthetic
+         shapes were tried and the oximeter self-gate classified every one as an ARTIFACT — a flat
+         or hand-drawn pulse series is not a physiological desat — so `realEvents` came back empty
+         and the assertions would have been vacuous. Rather than reverse-engineer the gate to
+         manufacture a night it accepts, the twin asserts what it CAN: that the shape is a real
+         desat to the detector, that the sentinel is out of band in the source, and the arithmetic
+         that made the old in-band value readable two opposite ways. */
+      var sp = [];
+      for (var i = 0; i < 700; i++) sp.push(i < 300 ? 97 : i < 360 ? 90 : 94);
+      var ev = NS._bare.detectDesatEvents(sp, { dropPct: 4, exitPct: 4 });
+      T.ok('ANTI-VACUITY · the shape IS a desat event to the detector', ev.length > 0, 'events=' + ev.length);
+      T.eq('…and it closes with a baseline of 97, so baseline-1 is 96', ev.length ? ev[0].baseline : null, 97);
+      T.ok(
+        '…while the series never returns to 96 after it closes — recovery is unobservable',
+        sp.slice(360).every(function (v) {
+          return v < 96;
+        })
+      );
+
+      /* THE FIX, asserted against the source because the recovery loop is inline in
+         computeDesaturationProfile and is not separately exported. */
+      T.ok('the sentinel is initialised to null, not 0', /var recov = null;/.test(R));
+      T.ok('…the slope refuses with it rather than reporting a 0 slope', /recoverySlope: recov != null && recov > 0 \?[\s\S]{0,120}: null/.test(R));
+      T.ok('…and the mean is taken over the events that RECOVERED', /recoveredSecs\.length[\s\S]{0,200}: null;/.test(R));
+      T.ok('…with that count published beside it', /recoveredCount: recoveredSecs\.length/.test(R));
+      T.ok('no `var recov = 0` survives', !/var recov = 0;/.test(R));
+
+      /* WHY IT HAD TO LEAVE THE BAND — the same 0 read two opposite ways, as arithmetic. */
+      T.eq('`null > 0` is FALSE — how oxyDesatConf read the sentinel: no clean recovery', null > 0, false);
+      T.eq('`0 < 30` is TRUE — how the Nadir Recov band read the SAME value: best colour', 0 < 30, true);
+      T.eq('…and `0 + null` is 0, so averaging nulls in would have kept the old divisor', 0 + null, 0);
+    });
+
     /* ── §∅ · THE COMMITTED CORPUS CANNOT EXPRESS THIS ONE, SO HERE IS A TWIN THAT CAN ──────────
        `computeTIndex` and `computeHypoxicBurden` counted an absent second as below EVERY threshold
        (`null < 80` is true) and as maximally desaturated (`94 - null` is 94). NOT ONE COMMITTED

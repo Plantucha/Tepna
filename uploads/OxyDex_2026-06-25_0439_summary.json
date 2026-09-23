@@ -361,8 +361,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "9367da53b0a0",
-          "computeHash": "64aa3f80bf37"
+          "manifestHash": "edce2e232da0",
+          "computeHash": "c2f701d1851f"
         },
         "evidence": {
           "envelopeRef": null,
@@ -390,8 +390,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "9367da53b0a0",
-          "computeHash": "64aa3f80bf37"
+          "manifestHash": "edce2e232da0",
+          "computeHash": "c2f701d1851f"
         },
         "evidence": {
           "envelopeRef": null,
@@ -419,8 +419,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "9367da53b0a0",
-          "computeHash": "64aa3f80bf37"
+          "manifestHash": "edce2e232da0",
+          "computeHash": "c2f701d1851f"
         },
         "evidence": {
           "envelopeRef": null,
@@ -448,8 +448,8 @@
         },
         "sourceChannel": "O2Ring:spo2",
         "code": {
-          "manifestHash": "9367da53b0a0",
-          "computeHash": "64aa3f80bf37"
+          "manifestHash": "edce2e232da0",
+          "computeHash": "c2f701d1851f"
         },
         "evidence": {
           "envelopeRef": null,
@@ -552,6 +552,7 @@
       "auc90Rate": 0,
       "nadir": {
         "count": 7,
+        "recoveredCount": 7,
         "meanDepth": 5.3,
         "meanDuration": 19,
         "meanRecovery": 34
