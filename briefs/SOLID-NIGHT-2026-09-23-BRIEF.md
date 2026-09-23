@@ -44,7 +44,8 @@ One `tepna.verdict/1` per night, gate `solid-night`, written beside the existing
 not replace them — and drawn on the monitor page as one line per night. Per configured stream:
 
 1. **Continuity.** Every gap named and attributed to one of: link drop · box stall · device blanking ·
-   doff · unattributed. An unattributed gap above the band is not solid; a named, attributed one is
+   doff · unattributed — counted ONLY inside the worn interval, which is taken from the device's own
+   beat evidence, never from the file span (§5, the Verity 09-12 case). An unattributed gap above the band is not solid; a named, attributed one is
    judged by its class. Gaps are COUNTED as well as summed — the 09-22 stall cost 2–5 s every 10.7 min,
    small minutes and a broken axis.
 2. **Timebase.** Host-anchored (`hostAxis` with `independent: true` where a second clock exists),
@@ -135,10 +136,21 @@ carry only the device ADDRESS — Wren's unit, go given 2026-09-23 ~19:50.
 **Work order this yields, top-down (corrected):**
 1. The `loss_audit.py` instrument: the resync KIND, and match on name OR address, with plants run
    with and without the fix; re-auditing re-labels the old nights (Wren).
-2. Verity 09-12 (133 min, 127 daemon not-worn drop, 74 fragments) and Verity unattributed 106 min —
-   the same attribution method; Heron's first daemon unit is whatever it names, NOT an H10 link or
-   wear fix.
-3. The night-absent class: why an expected device produced no file on six nights.
+2. **The night-absent class — Heron's first daemon unit**: why an expected device produced no file
+   on six nights (H10 missing 09-01/09-02/09-14, 50/24/68 min on 08-27/09-18/09-19; Verity and ring
+   missing 09-14/09-18). The journal per device per night: never started (daemon down, adapter down,
+   not advertising, never worn) · started and torn · started under another name.
+3. Verity unattributed 106 min — the same attribution method (Wren).
+
+**The Verity 09-12 "drop" was the daemon being RIGHT (Wren):** all 62 drops fall 18:24→20:36, before
+bed; the PPG between them carries no pulse (autocorrelation 0.1, AC amplitude at the noise floor),
+the reconnected PPI set `received no rows` 61 times, and the H10 on the same body read 81–84 bpm;
+from 20:37:51 the PPG is pulsatile and matches the H10 beat for beat, and the drops stop at that
+minute. The audit booked the pre-wear span as `worn_lost_min` because `worn_evidence` is NIGHT-level.
+Consequence for §2: **loss is counted only inside the WORN interval, taken from the device's own beat
+evidence** (first → last pulsatile window), never from the file span; outside it a gap is `doff`.
+With both corrections, every daemon-caused minute over 28 nights is already fixed (#2833, #2459) or
+correct behaviour, which is why the work order starts with the nights that never started.
 4. The 09-19 → 09-22 stall (fixed #2936, live since 06:52 on 09-23) — tonight is its acceptance.
 5. The ring is effectively solid on every night; its in-band blanking is a validity-sidecar matter
    (#2317/#2950), already recorded per night.
