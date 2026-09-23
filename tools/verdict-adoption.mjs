@@ -71,7 +71,17 @@ export function enumerate(root) {
     /* tests/*.mjs joined 2026-09-22 (Kestrel): a RUNNER that emits the object but sits outside the
        population is the one-of-N shape from the other side — tests/run-tests.mjs adopted §3d (#2835)
        and the gate could not see it. Non-recursive, like tools/. */
-    out = execFileSync('git', ['grep', '-lE', WORDS.source, '--', 'tools/*.mjs', 'capture-host/*.py', 'tests/*.mjs'], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    /* `--untracked`, because `git grep` alone enumerates TRACKED files: a brand-new producer sitting
+       untracked in the author's worktree was invisible here, the local gate read green, and CI —
+       which checks out the commit — reded on the same file (#2954, 2026-09-23). Measured before the
+       flag: a planted untracked producer left the check at ✓. A local gate that cannot see the file
+       you just created is the subset-gate-blind-to-what-you-created shape; the enumeration is the
+       working tree, not the index. */
+    out = execFileSync('git', ['grep', '-lE', '--untracked', WORDS.source, '--', 'tools/*.mjs', 'capture-host/*.py', 'tests/*.mjs'], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore']
+    });
   } catch (e) {
     if (e.status === 1) return [];
     throw e;

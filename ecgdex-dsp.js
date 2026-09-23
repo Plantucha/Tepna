@@ -4961,11 +4961,34 @@
        `nsStepN > 0` IS the "is it a counter" test: a stuck or absent column advances zero times, so it
        never reaches here, and the anchors fall back to `[ms]` in the same breath — one condition
        governing both, because an fs from one axis and anchors from the other would not compose. */
+    /* §∅ — THE RATE NOW SAYS WHERE IT CAME FROM. When none of the three counters is usable `fs`
+       stays at the H10's nominal 130 — a number with no measurement behind it — and is then spent as
+       the file's timebase: `relSec`, every duration, every epoch edge. Nothing downstream could tell
+       that 130 from the measured 129.9866–129.9966 this same corpus yields, because an assumed rate
+       and a measured one are the same JS number.
+       This is the F2 family of ABSENCE-SURVEY-2026-09-22 — "a rate or geometry defaulted, then spent
+       as a timebase" — and the remedy is the one CLAUDE.md §7 already established for the AXIS:
+       publish the provenance rather than the guess. `timingSource` exists for exactly this reason
+       ("a device whose axis was DRAWN is not a clock… it must never be spent as a second clock") and
+       has no counterpart for the RATE. §7 also warns, in the other direction, that "a refusal guards
+       the RATE, not the AXIS" — here the axis can refuse while `fs` sails on fabricated.
+       ⚠️ SCOPE: this makes the fabrication VISIBLE; it does not yet change what a consumer DOES with
+       an assumed rate. Refusing a whole recording is a policy decision with a far wider blast radius
+       and belongs in its own unit. `fsSource` is what a refusal would have to key on, and it does
+       not exist today. */
     var fs = 130;
+    var fsSource = 'assumed';
     var nsUsable = scan.nsStepN > 0;
-    if (nsUsable) fs = (1000 * scan.nsStepN) / scan.nsStepSum;
-    else if (scan.stepN > 0) fs = Math.round((1000 * scan.stepN) / scan.stepSum);
-    else if (scan.msStep && scan.msStep > 0) fs = Math.round(1000 / scan.msStep);
+    if (nsUsable) {
+      fs = (1000 * scan.nsStepN) / scan.nsStepSum;
+      fsSource = 'ns-counter';
+    } else if (scan.stepN > 0) {
+      fs = Math.round((1000 * scan.stepN) / scan.stepSum);
+      fsSource = 'ms-step';
+    } else if (scan.msStep && scan.msStep > 0) {
+      fs = Math.round(1000 / scan.msStep);
+      fsSource = 'ms-delta';
+    }
 
     /* ONE DEVICE CLOCK PER AXIS — anchors from BEFORE the last resync are not on the clock the rest
        of the file is on, so they are dropped before `hostAxis` sees them. The resync block above
@@ -5368,6 +5391,12 @@
     var deviceEpoch = deviceEpochOffsetMs !== null ? { offsetMs: Math.round(deviceEpochOffsetMs), plausible: Math.abs(deviceEpochOffsetMs) <= 48 * 3600e3 } : null;
     return {
       fs: fs,
+      /* §∅ — the rate's PROVENANCE travels with the rate. 'ns-counter' | 'ms-step' | 'ms-delta' are
+         measured from the file; 'assumed' means no counter was usable and `fs` is the H10's nominal
+         130 with nothing behind it. A consumer that spends `fs` as a timebase can now tell the two
+         apart, which it could not before — they are the same number. Same discipline as
+         `quality.timingSource` for the axis (§7). */
+      fsSource: fsSource,
       /* Absolute floating wall-clock ms of sample `i`, host-disciplined where a second clock exists
          and GAP-AWARE (see `_ecgDeadMsBefore` above — a sample index does not count the wall-clock a
          dropout consumed). `i` may be fractional — `refinePeaks` returns sub-sample R positions and
@@ -5528,6 +5557,7 @@
     return {
       int16: arr.slice(0, n),
       fs: t.fs,
+      fsSource: t.fsSource,
       /* ⚠️ THIS IS A RESHAPE AND IT DROPS WHATEVER IT DOES NOT NAME. `ecgTimingResolve` returns the
          node's whole timing product; this literal copies a fixed list out of it, so a field added
          there is INERT until it is added here too — silently, with no error and no failing test.
@@ -6481,10 +6511,15 @@
           int16[i] = vv > 32767 ? 32767 : vv < -32768 ? -32768 : vv;
         }
       }
+      /* §∅ — the SignalFrame twin of the parser's fallback: a canonical frame that arrives without
+         `fs` gets the H10's nominal 130, which is a guess about a stream that may not be an H10 at
+         all. Labelled rather than silently assumed, same vocabulary as the parser. */
       var fs = input.fs != null ? input.fs : 130;
+      var fsSource = input.fs != null ? 'caller' : 'assumed';
       rec = {
         int16: int16,
         fs: fs,
+        fsSource: fsSource,
         gaps: input.gaps || [],
         t0Ms: input.t0Ms != null ? input.t0Ms : null,
         offsetMin: input.offsetMin != null ? input.offsetMin : null,

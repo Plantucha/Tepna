@@ -16750,6 +16750,74 @@
        decision explicit instead of resting on "ppm happened to be ~0".
        Both directions are pinned below, because a guard that only ever refuses is indistinguishable
        from one that has broken the feature. */
+    /* ── §∅ · THE RATE SAYS WHERE IT CAME FROM (ABSENCE-SURVEY-2026-09-22, family F2) ──────────
+       When no counter in the file is usable, `fs` stays at the H10's nominal 130 — a number with no
+       measurement behind it — and is then spent as the file's timebase. An assumed 130 and a
+       measured 129.9866 are the same JS number, so nothing downstream could tell them apart.
+       `fsSource` is the rate's counterpart to §7's `timingSource` for the axis. */
+    group('ECGDex §∅ — an ASSUMED sample rate is labelled as one', 'ecgdex-dsp · parseECG · fs-provenance', function (T) {
+      var D = env.ECGDSP;
+      if (!(D && typeof D.parseECG === 'function')) {
+        T.skip('ECGDSP.parseECG available', 'not loaded');
+        return;
+      }
+      var H = 'Phone timestamp;sensor timestamp [ns];timestamp [ms];ecg [uV]';
+      var B0 = Date.UTC(2026, 5, 17, 1, 0, 0);
+      function mk(nsAt, msAt) {
+        var rows = [H];
+        for (var i = 0; i < 400; i++) {
+          rows.push(new Date(B0 + i * 8).toISOString() + ';' + nsAt(i) + ';' + msAt(i) + ';' + (100 + (i % 40)));
+        }
+        return rows.join('\n');
+      }
+      /* 1 · a real ns counter advancing at ~130 Hz (7 692 308 ns per sample). */
+      var ns = D.parseECG(
+        mk(
+          function (i) {
+            return i * 7692308;
+          },
+          function (i) {
+            return i * 8;
+          }
+        )
+      );
+      T.ok('ANTI-VACUITY · the ns fixture parsed at all', !!ns && ns.fs > 0, JSON.stringify(ns && ns.fs));
+      T.eq('a measured ns counter is labelled ns-counter', ns.fsSource, 'ns-counter');
+
+      /* 2 · no ns column (all zero), but the [ms] column advances — the common PSL shape. */
+      var ms = D.parseECG(
+        mk(
+          function () {
+            return 0;
+          },
+          function (i) {
+            return i * 8;
+          }
+        )
+      );
+      T.ok('ANTI-VACUITY · the ms fixture parsed at all', !!ms && ms.fs > 0, JSON.stringify(ms && ms.fs));
+      T.ok('a rate measured from [ms] is labelled as measured', ms.fsSource === 'ms-step' || ms.fsSource === 'ms-delta');
+
+      /* 3 · NEITHER usable — ns all zero and [ms] frozen. This is the case that fabricates. */
+      var none = D.parseECG(
+        mk(
+          function () {
+            return 0;
+          },
+          function () {
+            return 0;
+          }
+        )
+      );
+      if (!none || !(none.fs > 0)) {
+        T.skip('the no-counter fixture parsed', 'parser refused it outright — the twin cannot run');
+        return;
+      }
+      T.eq('…and with no usable counter the rate is the NOMINAL 130', none.fs, 130);
+      T.eq('…labelled ASSUMED, so a consumer can tell it from a measurement', none.fsSource, 'assumed');
+      T.ok('…which it could NOT before: the two rates are the same number', none.fs === 130 && ns.fs !== 130);
+    });
+
     group('ECGDex fs — a DERIVED host column is not a second clock (Clock §7)', 'ecgdex-dsp · clock-contract', function (T) {
       var D = env.ECGDSP;
       if (!(D && typeof D.parseECG === 'function')) {
@@ -17114,6 +17182,50 @@
       T.eq('…and the real-dropout control (no resync) drops nothing — the key is absent', ctrl.hostAxis && ctrl.hostAxis.anchorsDroppedPreResync, undefined);
     });
 
+    /* ── §∅ · A SCREEN THAT NEVER RAN IS NOT A NEGATIVE SCREEN ─────────────────────────────────
+       `afScreen` scores 32-beat windows and needs ≥20 usable beats in one to score it. When NO
+       window qualifies, `total` is 0, the three metrics fell to 0, `suspiciousPct >= 8` was false,
+       and the verdict came out 'no-af' — rendered "Clear" with an `ok` severity. A clinical
+       all-clear from zero evidence.
+       The vocabulary already existed in the same function: the `n < W + 2` guard returns
+       'insufficient', and both consumers already map it to '—' / neutral. */
+    group('ECGDex §∅ — an AF screen with nothing to score says INSUFFICIENT, not no-af', 'ecgdex-morph · af-screen · absence', function (T) {
+      var M = env.ECGMorph;
+      if (!M || typeof M.afScreen !== 'function') {
+        T.skip('ECGMorph.afScreen available', 'not loaded');
+        return;
+      }
+      var N = 100;
+      var rr = [],
+        sqiBad = [],
+        sqiGood = [],
+        types = [];
+      for (var i = 0; i < N; i++) {
+        rr.push(900 + (i % 7) * 10);
+        sqiBad.push(0.3); // below the 0.4 usable gate — no window can score
+        sqiGood.push(0.9);
+        types.push('N');
+      }
+      /* CONTROL FIRST: the same beats with usable quality must produce a real verdict, or the case
+         below is passing for the wrong reason (too few beats, hitting the early return instead). */
+      var ok = M.afScreen(rr, sqiGood, types);
+      T.ok('ANTI-VACUITY · with usable beats the screen actually runs', ok.verdict !== 'insufficient', 'verdict=' + ok.verdict);
+      T.ok('…and reports a real percentage', ok.suspiciousPct != null, JSON.stringify(ok.suspiciousPct));
+
+      var none = M.afScreen(rr, sqiBad, types);
+      T.eq('no window had enough usable beats ⇒ INSUFFICIENT, not no-af', none.verdict, 'insufficient');
+      T.eq('…and the percentage REFUSES rather than reading 0 %', none.suspiciousPct, null);
+      T.eq('…as do the two metrics printed beside it', [none.irregIndex, none.shannon], [null, null]);
+      /* The arithmetic that made the old answer look like a finding. */
+      T.eq('…because 0 >= 8 is FALSE, which fell through to the all-clear', 0 >= 8, false);
+
+      /* The other insufficient path — too few beats overall — already answered correctly, and now
+         nulls its metrics for the same reason. */
+      var few = M.afScreen(rr.slice(0, 10), sqiGood.slice(0, 10), types.slice(0, 10));
+      T.eq('too few beats overall still says insufficient', few.verdict, 'insufficient');
+      T.eq('…with the metrics null there too', few.suspiciousPct, null);
+    });
+
     group('ECGDex parseECG reshape carries every field the timing resolver publishes', 'ecgdex-dsp · timing-reshape · export-boundary', function (T) {
       /* `parseECG` does not return `ecgTimingResolve`'s object — it copies a FIXED LIST of keys out of
          it. A field added to the resolver is therefore INERT until it is named again in that literal,
@@ -17135,14 +17247,45 @@
         stp = 1000 / 130;
       for (var z = 0; z < 4000; z++) rws.push('2026-06-17T01:06:17.723;' + Math.round(z * stp * 1e6) + ';' + Math.round(z * stp) + ';' + (100 + (z % 50)));
       var recR = D.parseECG(rws.join('\n'));
-      var expect = ['fs', 'tMsAt', 'devMsAt', 'tMsCorrected', 'clockResyncs', 'gaps', 't0Ms', 'offsetMin', 'endEpochMs', 'firstRelMs', 'lastRelMs', 'deviceEpoch', 'hostAxis'];
+      /* 🔴 THIS GATE USED TO COMPARE A HARDCODED LIST AND SAID IT GATED THE CLASS. Its own comment
+         promised "whatever the resolver publishes must survive the reshape, so the next omission reds
+         instead of vanishing" — and the code never read the resolver. Demonstrated 2026-09-23:
+         `fsSource` was added to `ecgTimingResolve`, dropped by the reshape, and this group stayed
+         GREEN. The anti-vacuity assertion did not help, because it guarded against a SHORT list, not
+         a STALE one — the exact distinction `read-the-producer-not-the-population` names.
+         It now ASKS THE RESOLVER, by driving the same scan the parser drives. The literal below is
+         kept only as a floor, so a resolver that returns {} cannot make the comparison vacuous. */
+      var sc = D.ecgTimingScan();
+      var sawHdr = false;
+      var nRow = 0;
+      for (var qi = 0; qi < rws.length; qi++) {
+        var pp = String(rws[qi])
+          .trim()
+          .split(/[;\t,]/);
+        var vv = parseFloat(pp[pp.length - 1]);
+        if (!isFinite(vv)) {
+          if (!sawHdr && nRow === 0) {
+            sawHdr = true;
+            sc.header(pp);
+          }
+          continue;
+        }
+        nRow++;
+        sc.row(pp, nRow);
+      }
+      var published = Object.keys(D.ecgTimingResolve(sc.done()));
+      T.ok('ANTI-VACUITY · the resolver published a non-trivial field set', published.length >= 10, published.length + ' fields');
+      var droppedByReshape = published.filter(function (k) {
+        return !(k in recR);
+      });
+      T.eq('every timing field the RESOLVER publishes survives the reshape', droppedByReshape.sort(), []);
+
+      var expect = ['fs', 'fsSource', 'tMsAt', 'devMsAt', 'tMsCorrected', 'clockResyncs', 'gaps', 't0Ms', 'offsetMin', 'endEpochMs', 'firstRelMs', 'lastRelMs', 'deviceEpoch', 'hostAxis'];
       var missing = expect.filter(function (k) {
         return !(k in recR);
       });
-      T.eq('every timing field the resolver publishes survives the reshape', missing.sort(), []);
-      // ANTI-VACUITY: a trivially short list, or one omitting the field that was actually dropped,
-      // would make the assertion above meaningless.
-      T.ok('ANTI-VACUITY · the expected set is non-trivial and names devMsAt', expect.length >= 10 && expect.indexOf('devMsAt') >= 0, expect.length + ' fields required');
+      T.eq('…and the known floor is present too', missing.sort(), []);
+      T.ok('ANTI-VACUITY · the floor is non-trivial and names devMsAt', expect.length >= 10 && expect.indexOf('devMsAt') >= 0, expect.length + ' fields required');
       T.ok('…and devMsAt is CALLABLE, not merely present-and-undefined', typeof recR.devMsAt === 'function', 'typeof ' + typeof recR.devMsAt);
     });
 
@@ -25500,7 +25643,19 @@
       out = B._oxyEnsureRows(null);
       T.eq('B._oxyEnsureRows(null) → "true"', JSON.stringify(out === null), 'true');
       out = B.computeODI1('');
-      T.eq('B.computeODI1("") → "0"', JSON.stringify(out.odi1Rate), '0');
+      /* §∅ RECONCILED 2026-09-23 — the ODD ONE OUT, between two siblings that both refuse
+         (`_oxyEnsureRows` above, `computeCT94` below) in a group titled "every guard refuses, null
+         never throws". A recording too short to index has no ODI-1; a rate of 0 published the
+         healthiest possible index for a night that was never long enough to have one. */
+      T.eq('B.computeODI1("") → refuses, like the siblings either side of it', JSON.stringify(out), 'null');
+      /* PARITY — `computeODI1` and `computeSpO2Percentiles` carry the SAME `n < 60` precondition nine
+         lines apart, and used to answer it differently. Pinned so they cannot drift apart again. */
+      {
+        var _short = [];
+        for (var _s60 = 0; _s60 < 59; _s60++) _short.push({ spo2: 97, hr: 60, tMs: _s60 * 1000 });
+        T.eq('…and a 59-sample recording refuses in ODI-1', JSON.stringify(B.computeODI1(_short, null)), 'null');
+        T.eq('…exactly as it already did in computeSpO2Percentiles', JSON.stringify(B.computeSpO2Percentiles(_short)), 'null');
+      }
       out = B.computeCT94('');
       T.eq('B.computeCT94("") → "true"', JSON.stringify(out === null), 'true');
       out = B.computeCircadianHR('');
@@ -25646,6 +25801,36 @@
        "recovered instantly" — and `nadirRecov` is goodDirection:'down', so that is the flattering
        direction — while `oxyDesatConf` read the same 0 as "no clean recovery" and withheld its
        bonus. Null is out of band and cannot be read either way by accident. */
+    /* ── §∅ · NSI IS A MEAN OF THE COMPONENTS THAT EXIST ───────────────────────────────────────
+       Every corpus night carries all four terms, so the goldens cannot express this: `nsi` is
+       unchanged on all four and only `nsiComponents` is added. The PARTIAL case is the one that
+       matters and it lives here. `nsi` is goodDirection:'down', so each component silently
+       substituted as 0 pulled the score toward the healthiest reading. */
+    group('OxyDex §∅ — NSI averages the components it has, not four', 'oxydex-dsp · composite · aggregate-over-absence', function (T) {
+      var NS = env.OxyDex;
+      if (!NS || !NS._bare || !NS._bare.computeComposite) {
+        T.skip('OxyDex._bare.computeComposite in env', 'not wired in this lane');
+        return;
+      }
+      var rows = [];
+      for (var i = 0; i < 600; i++) rows.push({ spo2: 97, hr: 60, tMs: i * 1000, motion: 0 });
+      /* desat present, cross ABSENT — three terms computable, one not. */
+      var desat = { dip3Rate: 5, auc90Rate: 2, nadir: { count: 0 } };
+      var part = NS._bare.computeComposite(rows, [], desat, null, null, 1);
+      T.ok('ANTI-VACUITY · the partial night produced an NSI at all', part && part.nsi != null, JSON.stringify(part && part.nsi));
+      T.eq('…over THREE components, not four', part.nsiComponents, 3);
+      /* dip3 = min(5/5,1) = 1, hbR = min(2/2,1) = 1, t95 = 0 (97 % is never below 95). The mean of
+         the three present terms is 2/3 → 67. Averaging a fabricated 0 for the absent AAI would give
+         2/4 → 50 — a materially healthier score for a night that measured no arousals at all. */
+      T.eq('…so the score is the mean of what exists: 67', part.nsi, 67);
+      T.eq('…and NOT the 50 that a fabricated fourth term would have produced', part.nsi === 50, false);
+
+      var none = NS._bare.computeComposite([]);
+      T.eq('no component at all ⇒ NSI REFUSES', none.nsi, null);
+      T.eq('…and says so', none.nsiComponents, 0);
+      T.eq('…because `nsi` is goodDirection:down, 0 would have been the BEST possible reading', 0 < 30, true);
+    });
+
     group('OxyDex §∅ — an unobserved recovery is null, not an instant one', 'oxydex-dsp · desat-profile · in-band-sentinel', function (T) {
       var NS = env.OxyDex;
       var R = String((env.sources || {})['oxydex-dsp.js'] || '');
@@ -31248,9 +31433,26 @@
             stale.forEach(function (s) {
               bad.push(m[1] + ' → ' + s + ' (retired id scheme — keys are date-slugs since 2026-09-02)');
             });
-            var refs = body.match(/\b\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\b/g) || [];
+            /* ⚠️ A ROW KEY AND A CHANGESET FILENAME ARE THE SAME SHAPE BY CONSTRUCTION — both are
+               date-plus-slug, which §📌 mandates for both, for the same anti-collision reason. So a
+               row that cites its changeset by name was reported as pointing at a row that does not
+               exist (row 2026-09-23-check8h-reads-a-changeset-filename-as-a-row-key), and the message
+               named the CHANGESET, which is what cost the time: it reads as "your pointer is broken"
+               when the truth is "your row quotes a file".
+               And it is not merely noisy — `changes/` is PRUNED at every release (§📦), so a citation
+               that resolves today is guaranteed to dangle after the next one. There is no state in
+               which flagging it is right.
+               The discriminator is structural, not a heuristic, and matches the `R\d+\b(?!-)` fix
+               above: a ROW reference appears bare, a FILE citation carries `changes/` or `.md`. */
+            var refs = [];
+            var REF_RE = /(changes\/)?\b(\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*)\b(\.md)?/g;
+            var mm;
+            while ((mm = REF_RE.exec(body)) !== null) {
+              if (mm[1] || mm[3]) continue; // a changeset FILE citation, not a row→row reference
+              refs.push(mm[2]);
+            }
             refs.forEach(function (k) {
-              if (!ids[k] && !RR.seen[k]) bad.push(m[1] + ' → ' + k + ' (no such row)');
+              if (!ids[k] && !RR.seen[k]) bad.push(m[1] + ' → ' + k + ' (no such row — seen BARE, i.e. as a row key; a changeset is cited as `changes/<key>.md`)');
             });
           });
         return bad;
@@ -31275,8 +31477,16 @@
           var b = rowRefs(two).length === 1 && rowRefs(two)[0].indexOf('no such row') > 0;
           var c = rowRefs(prose).length === 0;
           var d = rowRefs('| 2026-09-02-a | 2026-09-02 | `X-BRIEF.md` | see 2026-09-02-a | e | OPEN |').length === 0;
+          /* A CHANGESET CITED BY NAME IS NOT A ROW REFERENCE. Both the `changes/` path form and the
+             bare `.md` suffix must pass, and the same slug WITHOUT either must still fire — otherwise
+             the exclusion would have been a blanket silencing of check8h rather than a narrowing. */
+          var chPath = rowRefs('| 2026-09-02-a | 2026-09-02 | `X-BRIEF.md` | see changes/2026-09-02-nope.md | e | OPEN |').length === 0;
+          var chSuffix = rowRefs('| 2026-09-02-a | 2026-09-02 | `X-BRIEF.md` | see 2026-09-02-nope.md | e | OPEN |').length === 0;
+          var stillFires = rowRefs('| 2026-09-02-a | 2026-09-02 | `X-BRIEF.md` | see changes/2026-09-02-nope.md and bare 2026-09-02-alsonope | e | OPEN |');
+          var mixed = stillFires.length === 1 && stillFires[0].indexOf('2026-09-02-alsonope') > 0;
+          var saysBare = stillFires.length === 1 && stillFires[0].indexOf('seen BARE') > 0;
           RR.rows = saveRows;
-          return a && b && c && d;
+          return a && b && c && d && chPath && chSuffix && mixed && saysBare;
         })()
       );
       var plantOk = residueRows('| 2026-09-02-k9 | 2026-09-02 | `' + names[0] + '` | a defect | line 1 | OPEN |');
@@ -60197,13 +60407,23 @@
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that ensures the sfi field is properly initialized to 0 instead of causing a runtime error when n */
       {
         var out = NS._bare.computeComposite([]);
-        T.eq('OxyDex._bare.computeComposite([]) → out.sfi', JSON.stringify(out.sfi), '0');
+        /* §∅ — a per-hour rate with no duration to divide by is undefined, and 0/hr is the
+           healthiest possible fragmentation reading. */
+        T.eq('OxyDex._bare.computeComposite([]) → out.sfi REFUSES', JSON.stringify(out.sfi), 'null');
       }
       /* mutant: cmp > → >=  @ var t95pct = n > 0 ? (below95 / n) * 100 : 0;
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behavior that distinguishes whether the nsi field is null or 0 when the input array is empty, which occurs */
       {
+        /* §∅ RECONCILED 2026-09-23 — the property's own text names the very distinction it then gets
+           backwards: "whether the nsi field is null or 0 when the input array is empty". With no rows
+           there is no component to average, so 0 is not a low stress score, it is a score over nothing —
+           and `nsi` is goodDirection:'down', so 0 was the BEST possible reading of an empty night.
+           ⚠️ The mutant this property targeted (`n > 0` → `n >= 0` on the t95pct line) no longer exists:
+           that line was replaced by a measured-sample count, so the comparison is gone rather than
+           merely guarded. Recorded here so the next mutation sweep is not read as having lost a kill. */
         var out = NS._bare.computeComposite([]);
-        T.eq('OxyDex._bare.computeComposite([]) → out.nsi', JSON.stringify(out.nsi), '0');
+        T.eq('OxyDex._bare.computeComposite([]) → out.nsi REFUSES', JSON.stringify(out.nsi), 'null');
+        T.eq('…and says no component contributed', JSON.stringify(out.nsiComponents), '0');
       }
       /* mutant: bool || → &&  @ if (!bytes || bytes.length < 40) return false;
          qwen PROPERTY (MODEL-WRITTEN provenance, not a reviewed claim): The behaviour this protects is ensuring that the function handles null inputs gracefully without throwing a Ty */

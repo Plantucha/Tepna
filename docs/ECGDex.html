@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="f4e2e97593da" data-compute-hash="eeeb5a6351c0">
+<html lang="en" data-manifest-hash="263262f8ec21" data-compute-hash="401c7cfe2007">
 <head>
 <!--
   ECGDex.src.html — Tepna
@@ -10,10 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-88zxKn/JqqFmm625PqVXhYdhh8OWdLYKfNIuogKwREA=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-K7rb5TcXbuX889tcnKEiKYjUbldZA2hXW+MaM4m3MOE=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-UME8VYhb3EL93FBUhAxmE9XnGv0E3R3oBybqyYIaWA0=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-/b9Ty7sct7IZSflzeAYsdGJ90rYCMoXabF1e68y+EfI=' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-E8qFHEt2A6a/g3xPUBa8iqmzqmNG2VpjPKUOtnJNDh0=' 'sha256-En5BnuJSrtGOQBjOAV0zmA/L43X1TvIisTxD5fCA3Bs=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-IgKf+YEi7LmrdT3D04V12zZGeSw0FDC163m2Yj3NmLM=' 'sha256-Kc/pHkgldAmMF4Jd1mPY9f4lAAdbPj3HQOjznsGEm7s=' 'sha256-MhWAfvHiFa7SxQS8652kU17g2jICI7xi4RWqwHSn03s=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-Qf/BSiHZRHySHJp9qQMLyzbiWkFuE0RCBBBhU5n6XYE=' 'sha256-WOIWOwpDyO4w4v6ZOQg447fDQx9+iPtlC4r37iBcHvw=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-b+hR2i2ViyedwmAqqTitKUOQmoT7nrMmSb+ENDSMNws=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>ECGDex — Raw ECG Analyzer · v2.13.0</title>
+<title>ECGDex — Raw ECG Analyzer · v2.14.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -2827,7 +2827,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
       <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
       <div>
         <div class="logo-title">ECGDex</div>
-        <div class="logo-sub">v2.13.0 · Tepna</div>
+        <div class="logo-sub">v2.14.0 · Tepna</div>
       </div>
     </div>
     <hr class="sidebar-logo-rule">
@@ -2895,7 +2895,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
   <main class="main-content">
     <div class="topbar">
       <div>
-        <div class="topbar-title">ECGDex <span class="version-badge">v2.13.0</span></div>
+        <div class="topbar-title">ECGDex <span class="version-badge">v2.14.0</span></div>
         <div class="page-sub">Raw ECG (130 Hz µV) → R-peaks → HRV · CVHR · sleep staging &middot; one signal, computed end-to-end, all local</div>
       </div>
       <div class="topbar-actions">
@@ -13628,11 +13628,34 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
        `nsStepN > 0` IS the "is it a counter" test: a stuck or absent column advances zero times, so it
        never reaches here, and the anchors fall back to `[ms]` in the same breath — one condition
        governing both, because an fs from one axis and anchors from the other would not compose. */
+    /* §∅ — THE RATE NOW SAYS WHERE IT CAME FROM. When none of the three counters is usable `fs`
+       stays at the H10's nominal 130 — a number with no measurement behind it — and is then spent as
+       the file's timebase: `relSec`, every duration, every epoch edge. Nothing downstream could tell
+       that 130 from the measured 129.9866–129.9966 this same corpus yields, because an assumed rate
+       and a measured one are the same JS number.
+       This is the F2 family of ABSENCE-SURVEY-2026-09-22 — "a rate or geometry defaulted, then spent
+       as a timebase" — and the remedy is the one CLAUDE.md §7 already established for the AXIS:
+       publish the provenance rather than the guess. `timingSource` exists for exactly this reason
+       ("a device whose axis was DRAWN is not a clock… it must never be spent as a second clock") and
+       has no counterpart for the RATE. §7 also warns, in the other direction, that "a refusal guards
+       the RATE, not the AXIS" — here the axis can refuse while `fs` sails on fabricated.
+       ⚠️ SCOPE: this makes the fabrication VISIBLE; it does not yet change what a consumer DOES with
+       an assumed rate. Refusing a whole recording is a policy decision with a far wider blast radius
+       and belongs in its own unit. `fsSource` is what a refusal would have to key on, and it does
+       not exist today. */
     var fs = 130;
+    var fsSource = 'assumed';
     var nsUsable = scan.nsStepN > 0;
-    if (nsUsable) fs = (1000 * scan.nsStepN) / scan.nsStepSum;
-    else if (scan.stepN > 0) fs = Math.round((1000 * scan.stepN) / scan.stepSum);
-    else if (scan.msStep && scan.msStep > 0) fs = Math.round(1000 / scan.msStep);
+    if (nsUsable) {
+      fs = (1000 * scan.nsStepN) / scan.nsStepSum;
+      fsSource = 'ns-counter';
+    } else if (scan.stepN > 0) {
+      fs = Math.round((1000 * scan.stepN) / scan.stepSum);
+      fsSource = 'ms-step';
+    } else if (scan.msStep && scan.msStep > 0) {
+      fs = Math.round(1000 / scan.msStep);
+      fsSource = 'ms-delta';
+    }
 
     /* ONE DEVICE CLOCK PER AXIS — anchors from BEFORE the last resync are not on the clock the rest
        of the file is on, so they are dropped before `hostAxis` sees them. The resync block above
@@ -14035,6 +14058,12 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     var deviceEpoch = deviceEpochOffsetMs !== null ? { offsetMs: Math.round(deviceEpochOffsetMs), plausible: Math.abs(deviceEpochOffsetMs) <= 48 * 3600e3 } : null;
     return {
       fs: fs,
+      /* §∅ — the rate's PROVENANCE travels with the rate. 'ns-counter' | 'ms-step' | 'ms-delta' are
+         measured from the file; 'assumed' means no counter was usable and `fs` is the H10's nominal
+         130 with nothing behind it. A consumer that spends `fs` as a timebase can now tell the two
+         apart, which it could not before — they are the same number. Same discipline as
+         `quality.timingSource` for the axis (§7). */
+      fsSource: fsSource,
       /* Absolute floating wall-clock ms of sample `i`, host-disciplined where a second clock exists
          and GAP-AWARE (see `_ecgDeadMsBefore` above — a sample index does not count the wall-clock a
          dropout consumed). `i` may be fractional — `refinePeaks` returns sub-sample R positions and
@@ -14195,6 +14224,7 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
     return {
       int16: arr.slice(0, n),
       fs: t.fs,
+      fsSource: t.fsSource,
       /* ⚠️ THIS IS A RESHAPE AND IT DROPS WHATEVER IT DOES NOT NAME. `ecgTimingResolve` returns the
          node's whole timing product; this literal copies a fixed list out of it, so a field added
          there is INERT until it is added here too — silently, with no error and no failing test.
@@ -15148,10 +15178,15 @@ td.ok{color:var(--green)!important}td.warn{color:var(--amber)!important}td.bad{c
           int16[i] = vv > 32767 ? 32767 : vv < -32768 ? -32768 : vv;
         }
       }
+      /* §∅ — the SignalFrame twin of the parser's fallback: a canonical frame that arrives without
+         `fs` gets the H10's nominal 130, which is a guess about a stream that may not be an H10 at
+         all. Labelled rather than silently assumed, same vocabulary as the parser. */
       var fs = input.fs != null ? input.fs : 130;
+      var fsSource = input.fs != null ? 'caller' : 'assumed';
       rec = {
         int16: int16,
         fs: fs,
+        fsSource: fsSource,
         gaps: input.gaps || [],
         t0Ms: input.t0Ms != null ? input.t0Ms : null,
         offsetMin: input.offsetMin != null ? input.offsetMin : null,
@@ -16498,7 +16533,9 @@ __exports.ECGUI = window.ECGUI;
     // use windows of 30 beats; flag windows that are irregularly irregular but NOT just ectopy
     const W = 32,
       n = rr.length;
-    if (n < W + 2) return { suspiciousPct: 0, irregIndex: 0, verdict: 'insufficient', shannon: 0 };
+    /* §∅ — the metrics are null here too, for the same reason: this path has scored nothing, and a
+       0 % that a consumer prints is a claim about windows that do not exist. */
+    if (n < W + 2) return { suspiciousPct: null, irregIndex: null, verdict: 'insufficient', shannon: null };
     let flagged = 0,
       total = 0,
       shAcc = 0,
@@ -16537,9 +16574,21 @@ __exports.ECGUI = window.ECGUI;
       // AF-suspicious: high CV AND high entropy AND not explained by sparse ectopy
       if (cv > 0.13 && Hn > 0.72 && ectFrac < 0.25) flagged++;
     }
-    const suspiciousPct = total ? +((flagged / total) * 100).toFixed(1) : 0;
-    const shannon = total ? +(shAcc / total).toFixed(3) : 0;
-    const irregIndex = total ? +(cvAcc / total).toFixed(3) : 0;
+    /* §∅ — A SCREEN THAT NEVER RAN IS NOT A NEGATIVE SCREEN. `total` counts the windows that had
+       enough usable beats to score; when it is 0 — every window too sparse or too noisy — the three
+       metrics fell to 0, `suspiciousPct >= 8` was false, and the function published **'no-af'**: a
+       clinical all-clear derived from zero evidence, rendered as "Clear" with an `ok` severity.
+       The vocabulary for this already exists in this very function: the `n < W + 2` guard at the top
+       returns `'insufficient'`, and BOTH consumers already map it — `'—'` for the value and
+       `neutral` for the colour. Two ways of having nothing to screen, one of them answered
+       correctly. This is the same shape as `computeSpO2Percentiles` vs `computeODI1` (#2961): a
+       precondition handled twice, differently.
+       The metrics go null with it. `0 % irregular` is a measurement claim about windows that were
+       never scored, and `suspiciousPct` is rendered directly into the UI. */
+    if (!total) return { suspiciousPct: null, irregIndex: null, shannon: null, verdict: 'insufficient' };
+    const suspiciousPct = +((flagged / total) * 100).toFixed(1);
+    const shannon = +(shAcc / total).toFixed(3);
+    const irregIndex = +(cvAcc / total).toFixed(3);
     let verdict;
     if (suspiciousPct >= 30) verdict = 'possible-af';
     else if (suspiciousPct >= 8) verdict = 'occasional-irregular';
@@ -18885,7 +18934,8 @@ self.onmessage = async (e) => {
       personalized.push({
         l: 'AF Screen',
         v: { 'no-af': 'Clear', 'occasional-irregular': 'Watch', 'possible-af': 'Flag', insufficient: '—' }[af],
-        sub: r.morph.af.suspiciousPct + '% irregular',
+        /* §∅ — an insufficient screen has no percentage; printing "null% irregular" states one. */
+        sub: r.morph.af.suspiciousPct != null ? r.morph.af.suspiciousPct + '% irregular' : 'not screened',
         s: { 'no-af': 'ok', 'occasional-irregular': 'warn', 'possible-af': 'bad', insufficient: 'neutral' }[af]
       });
     }
@@ -19149,9 +19199,9 @@ self.onmessage = async (e) => {
     })()}
     <div class="gang-summary" style="margin-top:12px">
       <div class="gang-pill" style="border-color:var(--${afColor === 'ok' ? 'green' : afColor === 'warn' ? 'amber' : afColor === 'bad' ? 'red' : 'blue'});color:var(--${afColor === 'ok' ? 'green' : afColor === 'warn' ? 'amber' : afColor === 'bad' ? 'red' : 'blue'})"><b>AF screen:</b> ${afLabel}</div>
-      <div class="gang-pill">irregularity ${af.irregIndex}</div>
-      <div class="gang-pill">ΔRR entropy ${af.shannon}</div>
-      <div class="gang-pill">${af.suspiciousPct}% windows flagged</div>
+      <div class="gang-pill">irregularity ${af.irregIndex != null ? af.irregIndex : '—'}</div>
+      <div class="gang-pill">ΔRR entropy ${af.shannon != null ? af.shannon : '—'}</div>
+      <div class="gang-pill">${af.suspiciousPct != null ? af.suspiciousPct + '% windows flagged' : 'not screened'}</div>
     </div>
     <div class="q-note" style="margin-top:10px"><b>Directional, not diagnostic.</b> A single lead at 130 Hz resolves QRS/QT/PR/ST as <b>within-subject overnight trends</b>, not 12-lead clinical measurements. AF screen is RR-irregularity-based — P-wave morphology is weak at this rate, so it screens only and never diagnoses.</div>`;
     $('morphSection').style.display = 'block';
@@ -19704,7 +19754,9 @@ self.onmessage = async (e) => {
               '—',
               'Clear',
               { 'no-af': 'ok', 'occasional-irregular': 'warn', 'possible-af': 'bad', insufficient: 'neutral' }[r.morph.af.verdict],
-              r.morph.af.suspiciousPct + '% windows irregular · ΔRR entropy ' + r.morph.af.shannon + ' · screen only'
+              r.morph.af.suspiciousPct != null
+                ? r.morph.af.suspiciousPct + '% windows irregular · ΔRR entropy ' + r.morph.af.shannon + ' · screen only'
+                : 'no window carried enough usable beats to screen'
             ]
           ]
         : []),
@@ -21321,6 +21373,6 @@ self.onmessage = async (e) => {
 function showChip(name){ document.getElementById('ecgChipName').textContent = name; document.getElementById('ecgChip').classList.add('show'); }
 </script>
 
-<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.13.0</div>
+<div data-tepna-ver style="position:fixed;right:8px;bottom:8px;z-index:2147483000;font:600 11px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#dbeafe;background:rgba(15,23,34,.82);border:1px solid rgba(120,170,220,.4);border-radius:999px;padding:2px 9px;letter-spacing:.03em;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;user-select:none" title="Tepna suite version">v2.14.0</div>
 </body>
 </html>

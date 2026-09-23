@@ -10,7 +10,7 @@ another name.
 ⚠️ This index helps by being SCANNABLE, not by matching your vocabulary. Read it end to end when
 you are about to build; a grep of it only finds the words its author happened to use.
 
-**217 tools** · 215 with a purpose line · **2 without**
+**218 tools** · 216 with a purpose line · **2 without**
 
 | tool | purpose |
 |---|---|
@@ -183,6 +183,7 @@ you are about to build; a grep of it only finds the words its author happened to
 | [`regen-oxydex-goldens.mjs`](../tools/regen-oxydex-goldens.mjs) | OxyDex was the one code-gated node WITHOUT a regenerator (CPAPDex/GlucoDex/PulseDex/MotionDex all had one), so DEEP-AUDIT-II §2.1/§2.2 — which moves every OxyDex export — had no sanctioned… |
 | [`regen-ppgdex-goldens.mjs`](../tools/regen-ppgdex-goldens.mjs) | Regenerate PpgDex's committed node-export fixtures by RE-RUNNING THE REAL MODULES on their committed inputs, then re-recording each fixture. |
 | [`regen-pulsedex-goldens.mjs`](../tools/regen-pulsedex-goldens.mjs) | It drives the SAME seam the equivalence gate drives — RR text → PulseDex.parseRRInput(frame) → PulseDex.compute({intervals,tsMs,t0Ms,offsetMin}) — in a vm realm co-loaded like… |
+| [`release-due.mjs`](../tools/release-due.mjs) | release-due — cut the release AUTOMATICALLY when it is due, and NAME the distance when it is not. |
 | [`release-land.mjs`](../tools/release-land.mjs) | THE WHOLE RELEASE, ONE COMMAND, NO OPERATOR MEMORY — stamp → build → gate → PR → merge → tag → GitHub Release → cleanup. |
 | [`release.mjs`](../tools/release.mjs) | CONTROLLED-RELEASES-2026-07-05 — cut a controlled Tepna release. |
 | [`residue-cite-drift.mjs`](../tools/residue-cite-drift.mjs) | Every row in `briefs/RESIDUE.md` cites source LINES (`capture.py:5306`), and ordinary code motion rots them into false refutations of TRUE rows: a verifier opens the cited line, finds… |

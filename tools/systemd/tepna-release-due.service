@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: Copyright 2026 Michal Planicka
+# SPDX-License-Identifier: Apache-2.0
+#
+# Tepna — cut the release automatically when it is due (owner ruling 2026-09-23: one week since the
+# last release OR 100 commits on main since it, whichever comes first). Runs tools/release-due.mjs,
+# which launches the detached `release.mjs --full` chain when due and names the distance when not.
+#
+# INSTALL (rig-x870, the corpus machine — the release wall needs the corpus, so nowhere else):
+#   git -C ~/Tepna worktree add ~/wt-release-timer --detach origin/main   # the timer's OWN checkout
+#   ln -s ~/Tepna/node_modules ~/wt-release-timer/node_modules
+#   cp tools/systemd/tepna-release-due.{service,timer} ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now tepna-release-due.timer
+#
+# The checkout is the timer's alone (nobody edits there), so fast-forwarding it to origin/main before
+# every tick is safe — the blanket-git rules of CLAUDE.md §👥.2 protect trees other sessions dirty,
+# and this one is never dirtied. Its git-common-dir is ~/Tepna, so release-land finds node_modules
+# and the corpus through the primary checkout as it does for any worktree.
+[Unit]
+Description=Tepna — cut the release when it is due (7 days or 100 commits, whichever first)
+Documentation=https://github.com/Plantucha/Tepna/blob/main/tools/release-due.mjs
+
+[Service]
+Type=oneshot
+# Exit 1 = due but not launched (a release-land run is recorded unfinished — the operator's to
+# `--resume`), exit 2 = the distance could not be read. Both must surface as failures: a timer that
+# reads green while a release is overdue is the shape this unit exists to end.
+SuccessExitStatus=0
+WorkingDirectory=%h/wt-release-timer
+ExecStartPre=/usr/bin/git fetch -q origin main --tags
+ExecStartPre=/usr/bin/git checkout -q --detach origin/main
+# --foreground: the chain runs INSIDE this oneshot. Measured on the first tick (2026-09-23 13:02): a
+# detached `release.mjs --full` child was killed the moment the unit finished (KillMode=control-group),
+# its log empty, no state written, while the verdict had already said PASS. A oneshot has no start
+# timeout, so a 45–90 min attached chain is the correct shape, and the unit's exit IS the chain's.
+ExecStart=/bin/sh -c '[ -f tools/release-due.mjs ] || { echo "release-due.mjs not on origin/main yet — nothing to run"; exit 0; }; exec node tools/release-due.mjs --json --foreground'

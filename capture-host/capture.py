@@ -5732,6 +5732,14 @@ _CLOCK_SYNC_TIMEOUT_S = 45.0
 # self-correcting, because a device that is really there will be found on the following cycle.
 _CLOCK_SYNC_PRESENCE_S = 6.0
 
+# The auto-pull's own budget, deliberately a SEPARATE constant from the clock sync's rather than a reuse:
+# the two callers pay different prices for a false "absent". A deferred clock sync costs one cycle of skew
+# and self-corrects on the next reconnect; a deferred offline pull leaves the onboard backup on the device
+# for another hour, which matters when that backup is the recovery path for a lossy live link. Same value
+# today because both are sized against the same ~1 s strap advertising interval — but they are free to
+# diverge, and coupling them would hide that they are two decisions.
+_AUTOPULL_PRESENCE_S = 6.0
+
 # THE LADDER'S TOTAL SPEND, which is the bound the previous two fixes did not draw.
 #
 # Both earlier attempts bounded ONE op and left the LOOP. 2026-07-19: an out-of-range device wedged
@@ -7822,9 +7830,21 @@ async def loss_poller(cfg: dict, root: str):
             for night in nights[-int(lcfg.get("max_nights", 14)):]:
                 nd = os.path.join(captures, night)
                 vpath = os.path.join(nd, loss_audit.VERDICT_NAME)
-                newest = await asyncio.to_thread(_newest_mtime, nd)
+                # THE NIGHT'S DATA, NOT THE NIGHT'S DIRECTORY. `nightqc.newest_data_mtime` ranks
+                # DEVICE-CAPTURE files only and excludes sidecars deliberately — its docstring says
+                # that exclusion is the whole point. A directory-wide max counts every marker any
+                # other actor writes, and the archive mirror writes `.archived` per night on every
+                # verified push: measured on vigil 2026-09-23, that marker made **12 settled nights**
+                # read as "changed" on every 30-minute poll, re-reading ~1.9 GB of H10 ECG alone
+                # (more with the other devices), re-running a journal subprocess per device, and
+                # rewriting 24 files — forever, for nights whose data had not moved in days. The
+                # docstring above already promised "the night's PRIMARY files"; this is the code
+                # doing what it said.
+                newest = await asyncio.to_thread(nightqc.newest_data_mtime, nd)
+                if newest is None:
+                    continue                                   # no capture file: nothing to audit
                 if os.path.exists(vpath) and os.path.getmtime(vpath) >= newest:
-                    continue                                   # audited since the night last changed
+                    continue                                   # audited since the night's DATA last changed
                 obj = await asyncio.to_thread(loss_audit.write_night, nd, cfg.get("devices", []), commit=commit)
                 STATUS.setdefault("loss", {})[night] = {"status": obj["status"], "at": obj["at"],
                                                         "daemon_caused_min": (obj.get("result") or {}).get("daemon_caused_min")}
@@ -7834,18 +7854,6 @@ async def loss_poller(cfg: dict, root: str):
                                 night, dc, obj.get("reason"))
         except Exception:  # noqa: BLE001 — one bad night must not stop the poller
             log.warning("loss-audit: poll failed", exc_info=True)
-
-
-def _newest_mtime(night_dir: str) -> float:
-    newest = 0.0
-    for n in os.listdir(night_dir):
-        if n in (loss_audit.AUDIT_NAME, loss_audit.VERDICT_NAME):
-            continue
-        try:
-            newest = max(newest, os.path.getmtime(os.path.join(night_dir, n)))
-        except OSError:
-            continue  # a file that vanished between listdir and stat is not newer than anything
-    return newest
 
 
 async def seal_poller(cfg: dict, root: str):
@@ -8105,7 +8113,17 @@ async def pull_polar_offline_all(dev: dict, root: str) -> dict:
                 "unanswered_sessions": unanswered_sessions,
                 "ok": not short and not unenumerated and not unanswered_sessions}
 
-    return await polar_offline_op(address, _op, timeout=_OFFLINE_OP_TIMEOUT_S)
+    # `presence_check_s` for the SAME reason the clock sync passes it: this runs unattended on a loop
+    # (`charger_pull_poller` is its only caller), so it is the second caller that must not spend the
+    # global lock proving a device is absent. The user-clicked pull stays unguarded, as designed.
+    #
+    # Measured 2026-09-03, the night this was found: the H10 stopped advertising on 09-01 and the poller
+    # kept firing at it — 253 of 350 overnight offline ops, each holding `_CONNECT_LOCK` through a doomed
+    # 45 s connect. 108 minutes of a 10 h night (18 %) with every OTHER sensor's reconnect queued behind
+    # a device that was not on the air. The clock-sync caller sat out the same night correctly, deferring
+    # ~199 times for a few seconds of scan each; only this call site paid full price.
+    return await polar_offline_op(address, _op, timeout=_OFFLINE_OP_TIMEOUT_S,
+                                  presence_check_s=_AUTOPULL_PRESENCE_S)
 
 
 # On-charger auto-pull state. A device goes on the charger the moment a night ends, so "on charger" is the

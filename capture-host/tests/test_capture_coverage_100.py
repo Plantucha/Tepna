@@ -977,6 +977,48 @@ def test_every_onboard_recording_is_pulled_into_its_own_stamped_directory(tmp_pa
     assert outs[1].endswith("Polar_Offline_0C301E3F_20260726010000")
 
 
+def test_THE_UNATTENDED_PULL_ASKS_WHETHER_THE_DEVICE_IS_THERE_BEFORE_TAKING_THE_GLOBAL_LOCK(
+        tmp_path, monkeypatch):
+    """`pull_polar_offline_all` MUST pass `presence_check_s`, because its only caller is the unattended
+    `charger_pull_poller` — the same category the clock sync is guarded for.
+
+    Regression pin for 2026-09-03: the H10 stopped advertising and this call site fired 253 offline ops
+    in one night, each holding the GLOBAL `_CONNECT_LOCK` through a doomed 45 s connect — 108 min of a
+    10 h night (18 %) in which no other sensor could reconnect. The guard existed and this caller did not
+    use it. Asserted on the KWARG rather than on elapsed time: the cost is the lock, which a unit test
+    cannot observe, so the observable proxy is that the question gets asked at all.
+
+    ⚠️ The sibling test above stubs `polar_offline_op` with `**_kw`, so it stays green whether or not the
+    kwarg is passed. That tolerance is right for a test about directory naming and is exactly why this
+    assertion needs its own test — otherwise dropping the guard breaks nothing."""
+    fake = _FakePsFtp(sessions=[{"path": "/U/0/20260725/R/220000/", "date": "20260725",
+                                 "time": "220000"}],
+                      files={"/U/0/20260725/R/220000/": ["ECG.txt"]})
+    monkeypatch.setitem(sys.modules, "polar_psftp", fake)
+
+    async def fake_hci():
+        return "hci0"
+    monkeypatch.setattr(capture, "adapter_hci", fake_hci)
+
+    seen = {}
+
+    async def run_op(address, op, timeout=None, presence_check_s=None):
+        seen["presence_check_s"] = presence_check_s
+        seen["timeout"] = timeout
+        return await op()
+    monkeypatch.setattr(capture, "polar_offline_op", run_op)
+
+    _run(capture.pull_polar_offline_all(_dev(device_id="0C301E3F"), str(tmp_path)))
+
+    assert seen["presence_check_s"] == capture._AUTOPULL_PRESENCE_S, (
+        "the unattended auto-pull must pass presence_check_s — without it an absent device costs the "
+        "global connect lock for the full op timeout, every poll cycle")
+    assert seen["presence_check_s"] is not None and seen["presence_check_s"] > 0, (
+        "a falsy budget disables the guard inside polar_offline_op (`if presence_check_s and ...`), so "
+        "0 or None would read as 'guarded' here while behaving exactly like the unguarded call")
+    assert seen["timeout"] == capture._OFFLINE_OP_TIMEOUT_S       # unchanged by this fix
+
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════════
 # charger_pull_poller — "on the charger" is the natural end-of-night trigger
 # ══════════════════════════════════════════════════════════════════════════════════════════════════

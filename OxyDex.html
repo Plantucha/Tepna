@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-manifest-hash="edce2e232da0" data-compute-hash="c2f701d1851f">
+<html lang="en" data-manifest-hash="89c7a672e085" data-compute-hash="10ebc8d09b49">
 <head>
 <!--
   OxyDex.src.html — Tepna
@@ -10,10 +10,10 @@
 -->
 <meta charset="UTF-8">
 <!-- CSP (SECURITY-REMEDIATION-2026-07-11 F7): browser-enforces the no-network invariant. connect-src 'none' blocks every outbound network request at the browser layer; object/base/form 'none' close plugin/base-tag/form-exfil. script-src is STRICT (SECURITY-CSP-STRICT-SCRIPT-SRC): 'self' + a per-inline-script sha256 hash, NO 'unsafe-inline' — an injected script cannot execute. style-src still inherits 'unsafe-inline' from default-src (inline styles are pervasive; style injection is not code execution). blob:/data: retained for the inline bundle + blob workers. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-5DETw+3Srbdn2ZDWQw6tF/u5BFjNYN8WvJHQwtgatPw=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-7X0c9H3Fe2PxUA5Np/PhKRzKq/8P1KRQhuQj9eIYNTk=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-B8Nib+3whGreeCAiUl1L8T5q+BE2N1/ZMY5zaQXnfKc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bwxxukjkbs0nkO3G9uCq7MyYlhNC6VN3RFwbf1JFHQI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-tyAgnfNFOTeVcNlJ02wwkhNdrboC2hjRoPCRq3h3xgk=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob: data:; script-src 'self' 'sha256-01CUOL47wasgrkPqopH1vSL59GwgRFpyWNZkKVKf9Yw=' 'sha256-3NYPWWICQFgxphEZl52f47cb3tZ+pDLnwp/GDpjWlkU=' 'sha256-3bPuedJeHqlAtFRw9XCQUY2RL6IBWMfwvh6D9DWEXUc=' 'sha256-6oaAlfvxuj0lp40ozjEOgupElvKSlmDCeVO/aE3cqZM=' 'sha256-752dHc+hG5ypCbgraOWnmt6w88TZfwFC6jzboNKSiGM=' 'sha256-8NOGGQR6nkCxkz7OoVF1IrK6aud2fa2uEoSszkCV8bY=' 'sha256-AFCtP53HOBIem8yrvMd8yV9VKPeC8aiXjq2o70NuL6I=' 'sha256-Av+dDSAWfNjPD1gWv+ECnBLzj5UgRoedz68hdSJHM4I=' 'sha256-B8Nib+3whGreeCAiUl1L8T5q+BE2N1/ZMY5zaQXnfKc=' 'sha256-FtPgoAi9vYkbMxYxPXAQdnPTI8suIhEs9e7vFdtDp6I=' 'sha256-OIkHDcfr1hupHaGG6ILnC22X2GoWcX3lvP0FdnvXqUc=' 'sha256-OU+QWnnq91rymIIlyC38+IERQD8zQL70mJK5nddX3MA=' 'sha256-UIW1xYDpuuQB93EBlY3TBgmdLaYbGH6ER7Ujpn/EYaI=' 'sha256-XaMKXl/Nm2cLC55fVZ8QnrXqzZsaM928n/j/RdNJ678=' 'sha256-YFid0VgLYyQkvrK1JA3K488609YbLsDgERSzaj7f7CU=' 'sha256-ZCcbHvV+fe2MBHNnUrW6Rs13VGAmi+Duz3edP562C8E=' 'sha256-bEbZZx+VqADMgdAgmmElxVI91/8uy4a88gGGArfWuF4=' 'sha256-bwxxukjkbs0nkO3G9uCq7MyYlhNC6VN3RFwbf1JFHQI=' 'sha256-bzg1xnUoGtEEHrORqt3EoMGB5ymwjbsUB/ZhpP+5EWw=' 'sha256-fey3eb50AJmuOPjNSorAPuzoYEgbNC7IuHOH82Qvq1c=' 'sha256-jxFLLlhLLHKIV27tkHwQbYmLVZ3m4jEa5ySLfpmhatM=' 'sha256-qpBTpfUMJwlHhnSP8ZnSfyZeoU1MHmVWQ80wCNrTvts=' 'sha256-tyAgnfNFOTeVcNlJ02wwkhNdrboC2hjRoPCRq3h3xgk=' 'sha256-y75M9k28IZsy0x1yuadtmxfiESGW/Mt7wopkXCi+Frc='; connect-src 'none'; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- §📦 the v-numbers in <title>/.logo-sub/.version-badge are PLACEHOLDERS — build projects suite.manifest.json's version over them (see CLAUDE.md §📦); do not hand-bump them -->
-<title>OxyDex — Nocturnal Oximetry Analyzer · v2.13.0</title>
+<title>OxyDex — Nocturnal Oximetry Analyzer · v2.14.0</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22tg%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%22100%22%20y2%3D%22100%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%233DE0D0%22%2F%3E%3Cstop%20offset%3D%22.62%22%20stop-color%3D%22%2358A6FF%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23A78BFA%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2224%22%20fill%3D%22url(%23tg)%22%2F%3E%3Cg%20transform%3D%22translate(50%2050)%20scale(.72)%20translate(-50%20-50)%22%20fill%3D%22none%22%20stroke%3D%22%2306121A%22%20stroke-width%3D%229%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%2215%2C33%2052%2C33%2060%2C15%2066%2C49%2071%2C33%2086%2C33%22%2F%3E%3Cline%20x1%3D%2249%22%20y1%3D%2233%22%20x2%3D%2249%22%20y2%3D%2286%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E">
 <style data-inline-src="licensing/dex-license.css">/*
  * dex-license.css — reusable Tepna license / attribution stamp styles
@@ -6127,7 +6127,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
     <div class="logo-badge"><svg viewBox="0 0 100 100" aria-hidden="true" style="width:23px;height:23px" fill="none" stroke="#06121A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><polyline points="15,33 52,33 60,15 66,49 71,33 86,33"/><line x1="49" y1="33" x2="49" y2="86"/></svg></div>
     <div>
       <div class="logo-title">OxyDex</div>
-      <div class="logo-sub">v2.13.0 · Tepna</div>
+      <div class="logo-sub">v2.14.0 · Tepna</div>
     </div>
   </div>
   <hr class="sidebar-logo-rule">
@@ -6167,7 +6167,7 @@ body.light .oxy-projcard { background:#fff; border-color:rgba(0,0,0,.07); }
 
 <div class="topbar">
   <div>
-    <div class="topbar-title">OxyDex <span class="version-badge">v2.13.0</span></div>
+    <div class="topbar-title">OxyDex <span class="version-badge">v2.14.0</span></div>
     <div class="topbar-sub" id="topbarSub">Nocturnal oximetry · SpO₂ · HR · HRV · 75+ metrics · Tepna</div>
   </div>
   <div class="topbar-actions">
@@ -14180,7 +14180,15 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
 
   function computeODI1(rows, blArr) {
     var n = rows.length;
-    if (n < 60) return { odi1Rate: 0, odi1Total: 0 };
+    /* §∅ — TOO SHORT TO COMPUTE IS NOT "NO EVENTS". A recording under 60 samples cannot yield an
+       ODI-1 at all, and returning a rate of 0 published the healthiest possible index for a night
+       that was never long enough to index. `computeSpO2Percentiles` nine lines below carries the
+       IDENTICAL `n < 60` precondition and already returns null — two functions, one guard, opposite
+       answers, in the same file. Absent input refuses (§∅ 2026-09-17).
+       Every consumer is already written for it: `computeNightExtras` tests `odi1.odi1Rate > 0`
+       before taking the ODI-4/ODI-1 ratio, and `computeODRI` opens with `if (!odi1 || !odi3) return
+       null`. The score push is the one that was not, and is guarded here. */
+    if (n < 60) return null;
     var spo2 = rows.map(function (r) {
       return r.spo2;
     });
@@ -14189,7 +14197,9 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // primitive instead of a private trailing-mean loop. (DEX-EVENT-UNIFY Task A)
     var events = detectDesatEvents(spo2, { dropPct: 1, exitPct: 0.5, minSec: 0, blArr: blArr }).length;
     var durationHr = n / 3600;
-    return { odi1Rate: durationHr > 0 ? +(events / durationHr).toFixed(1) : 0, odi1Total: events };
+    /* §∅ — the second fabrication in the same function: a per-hour RATE with no duration to divide
+       by is undefined, not zero. The event COUNT survives — it was really counted. */
+    return { odi1Rate: durationHr > 0 ? +(events / durationHr).toFixed(1) : null, odi1Total: events };
   }
 
   // ── Literature Scores ──────────────────────────────────────────
@@ -15238,7 +15248,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // ── ODI ──
     if (n.odi4) push('odi4', 'ODI-4/hr', n.odi4.rate, n.odi4.rate < 2 ? 0 : n.odi4.rate < 5 ? 2 : n.odi4.rate < 15 ? 5 : n.odi4.rate < 30 ? 8 : 10, n.odi4.rate + '/hr');
     if (n.odi3) push('odi3', 'ODI-3/hr', n.odi3.rate, n.odi3.rate < 3 ? 0 : n.odi3.rate < 8 ? 2 : n.odi3.rate < 20 ? 5 : n.odi3.rate < 35 ? 8 : 10, n.odi3.rate + '/hr');
-    if (n.odi1) push('odi1', 'ODI-1/hr', n.odi1.odi1Rate, n.odi1.odi1Rate < 10 ? 0 : n.odi1.odi1Rate < 20 ? 2 : n.odi1.odi1Rate < 40 ? 5 : 8, n.odi1.odi1Rate + '/hr');
+    /* §∅ — `null < 10` is TRUE, so an unindexable night would have taken the BEST bucket. */
+    if (n.odi1 && n.odi1.odi1Rate != null) push('odi1', 'ODI-1/hr', n.odi1.odi1Rate, n.odi1.odi1Rate < 10 ? 0 : n.odi1.odi1Rate < 20 ? 2 : n.odi1.odi1Rate < 40 ? 5 : 8, n.odi1.odi1Rate + '/hr');
 
     // ── Breathing disruption ──
     if (n.osc)
@@ -15289,7 +15300,8 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     if (n.sleepP) push('spi', 'Sleep Pressure', n.sleepP.spi, n.sleepP.spi < 5 ? 0 : n.sleepP.spi < 10 ? 2 : n.sleepP.spi < 20 ? 5 : 8, n.sleepP.spi);
 
     // ── Autonomic / HR ──
-    if (n.comp) push('nsi', 'NSI', n.comp.nsi, n.comp.nsi < 20 ? 0 : n.comp.nsi < 40 ? 2 : n.comp.nsi < 60 ? 5 : n.comp.nsi < 80 ? 7 : 10, n.comp.nsi);
+    /* §∅ — `null < 20` is TRUE, so an NSI nobody could compute would have scored the BEST bucket. */
+    if (n.comp && n.comp.nsi != null) push('nsi', 'NSI', n.comp.nsi, n.comp.nsi < 20 ? 0 : n.comp.nsi < 40 ? 2 : n.comp.nsi < 60 ? 5 : n.comp.nsi < 80 ? 7 : 10, n.comp.nsi);
     if (n.ssi) push('ssi', 'Symp Surge', n.ssi.ssi, n.ssi.ssi < 0.3 ? 0 : n.ssi.ssi < 0.8 ? 2 : n.ssi.ssi < 1.5 ? 5 : 8, n.ssi.ssi);
     if (n.cross && n.cross.autoArousalIdx != null)
       push('aai', 'AAI', n.cross.autoArousalIdx, n.cross.autoArousalIdx < 1 ? 0 : n.cross.autoArousalIdx < 3 ? 2 : n.cross.autoArousalIdx < 6 ? 5 : 8, n.cross.autoArousalIdx);
@@ -15429,7 +15441,7 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
         return n.rolling ? 'CDI ' + n.rolling.cdi + '/hr' : 'CDI unavailable';
       },
       nsi: function () {
-        return n.comp ? 'NSI ' + n.comp.nsi : 'NSI unavailable';
+        return n.comp && n.comp.nsi != null ? 'NSI ' + n.comp.nsi : 'NSI unavailable';
       },
       waso: function () {
         return n.sleepArch && n.sleepArch.wasoMin != null ? 'WASO ' + n.sleepArch.wasoMin + 'm' : 'WASO —';
@@ -17602,24 +17614,49 @@ if (window.OxyDex && window.OxyDex.setHooks) window.OxyDex.setHooks({ upVO2categ
     // Sleep Fragmentation Index: (WASO + HR spikes + osc episodes) / hr
     var wasoWin = motSleep ? motSleep.wasoWindows : 0;
     // Use only ODI-4 events (not autoArousalIdx which already includes spikes → avoids double-count)
-    var sfi = durationHr > 0 ? +((wasoWin + spikes.length) / durationHr).toFixed(1) : 0;
+    /* §∅ — a fragmentation RATE with no duration to divide by is undefined, not zero. `sfi` is a
+       per-hour rate and 0/hr is the healthiest possible reading. */
+    var sfi = durationHr > 0 ? +((wasoWin + spikes.length) / durationHr).toFixed(1) : null;
 
     // Nocturnal Stress Index (0-100): normalized composite
     // Components: dip3Rate (flag >5), hbRate (flag >5), t95pct (flag >15), AAI (flag >5)
-    var dip3 = desat ? Math.min(desat.dip3Rate / 5, 1) : 0;
-    var hbR = desat ? Math.min(desat.auc90Rate / 2, 1) : 0; // AUC-90 flag >2
-    var t95 = 0;
-    // Get t95pct from spo2 array
-    var below95 = spo2.filter(function (v) {
+    /* §∅ — NSI AVERAGED FOUR TERMS AND SILENTLY SUBSTITUTED 0 FOR EACH ONE IT COULD NOT COMPUTE.
+       `nsi` is goodDirection:'down', so every absent component pulled the score toward the BEST
+       value: a night with none of them measured scored 0 — "no nocturnal stress" — and rendered
+       green at four sites. `couplingScore` fifteen lines above already refuses for exactly this
+       reason and says so ("UNDEFINED, not 0 %… the renderer's own guard was already written
+       expecting null"); these four are the siblings that pass never reached.
+       ⚠️ The `aai` line carried a comment naming the trap — "`Math.min(null / 5, 1)` is 0, not
+       absent" — and then wrote `: 0` anyway, which is the same fabrication one step later. Catching
+       a coercion is not the same as refusing.
+       The t95 term also counted an ABSENT second as desaturated: `null < 95` is true and `n` was the
+       row count, the defect #2943 fixed in computeTIndex and computeHypoxicBurden and did not reach
+       here. It now measures over the measured seconds.
+       Reduced coverage ANNOTATES (§∅ 2026-09-17): NSI is the mean of the components that EXIST, and
+       `nsiComponents` publishes how many that was — a mean of two terms is a different statement
+       from a mean of four. No component ⇒ null, never 0. */
+    var dip3 = desat && desat.dip3Rate != null ? Math.min(desat.dip3Rate / 5, 1) : null;
+    var hbR = desat && desat.auc90Rate != null ? Math.min(desat.auc90Rate / 2, 1) : null; // AUC-90 flag >2
+    var _measured = [];
+    for (var _s9 = 0; _s9 < spo2.length; _s9++) {
+      if (spo2[_s9] != null && isFinite(spo2[_s9])) _measured.push(spo2[_s9]);
+    }
+    var below95 = _measured.filter(function (v) {
       return v < 95;
     }).length;
-    var t95pct = n > 0 ? (below95 / n) * 100 : 0;
-    t95 = Math.min(t95pct / 15, 1);
-    /* same trap as `aaiLoad` above: `Math.min(null / 5, 1)` is 0, not absent */
-    var aai = cross && cross.autoArousalIdx != null ? Math.min(cross.autoArousalIdx / 5, 1) : 0;
-    var nsi = +(((dip3 + hbR + t95 + aai) / 4) * 100).toFixed(0);
+    var t95 = _measured.length ? Math.min(((below95 / _measured.length) * 100) / 15, 1) : null;
+    var aai = cross && cross.autoArousalIdx != null ? Math.min(cross.autoArousalIdx / 5, 1) : null;
+    var _terms = [];
+    var _cand = [dip3, hbR, t95, aai];
+    for (var _t9 = 0; _t9 < _cand.length; _t9++) {
+      var _tv = _cand[_t9];
+      if (_tv != null && isFinite(_tv)) _terms.push(_tv);
+    }
+    var _tsum = 0;
+    for (var _u9 = 0; _u9 < _terms.length; _u9++) _tsum += _terms[_u9];
+    var nsi = _terms.length ? +((_tsum / _terms.length) * 100).toFixed(0) : null;
 
-    return { couplingScore: couplingScore, sfi: sfi, nsi: nsi };
+    return { couplingScore: couplingScore, sfi: sfi, nsi: nsi, nsiComponents: _terms.length };
   }
 
   // 8. Linear regression helper (for multi-night trend slope)
@@ -23618,8 +23655,9 @@ function nightRowInner(n) {
     chipsArr.push(nrChip('HRsl', (h.hrSlope > 0 ? '+' : '') + h.hrSlope, h.hrSlope < 0 ? 'g' : h.hrSlope < 1 ? 'w' : 'r'));
   }
   if (n.odi3) chipsArr.push(nrChip('ODI-3', n.odi3.rate + '/h', n.odi3.rate < 5 ? 'g' : n.odi3.rate < 15 ? 'w' : 'r'));
-  if (n.comp) chipsArr.push(nrChip('NSI', n.comp.nsi, n.comp.nsi < 30 ? 'g' : n.comp.nsi < 60 ? 'w' : 'r'));
-  if (n.comp) chipsArr.push(nrChip('SFI', n.comp.sfi, n.comp.sfi < 1 ? 'g' : n.comp.sfi < 3 ? 'w' : 'r'));
+  /* §∅ — `null < 30` is TRUE, so an NSI nobody could compute would have rendered GREEN. */
+  if (n.comp && n.comp.nsi != null) chipsArr.push(nrChip('NSI', n.comp.nsi, n.comp.nsi < 30 ? 'g' : n.comp.nsi < 60 ? 'w' : 'r'));
+  if (n.comp && n.comp.sfi != null) chipsArr.push(nrChip('SFI', n.comp.sfi, n.comp.sfi < 1 ? 'g' : n.comp.sfi < 3 ? 'w' : 'r'));
   if (n.motSleep) chipsArr.push(nrChip('SleepEff', n.motSleep.sleepEff + '%', n.motSleep.sleepEff >= 90 ? 'g' : n.motSleep.sleepEff >= 80 ? 'w' : 'r'));
   if (n.sleepArch && n.sleepArch.wasoMin != null) chipsArr.push(nrChip('WASO', n.sleepArch.wasoMin + 'm', n.sleepArch.wasoMin < 10 ? 'g' : n.sleepArch.wasoMin < 30 ? 'w' : 'r'));
   if (n.hrAdv) chipsArr.push(nrChip('RMSSD', n.hrAdv.rmssd, n.hrAdv.rmssd >= 2 ? 'g' : n.hrAdv.rmssd >= 1 ? 'w' : 'r'));
@@ -24208,9 +24246,10 @@ function nightDetail(n, idx) {
       html += '<div class="sec-label">Composite Scores</div>';
       html +=
         '<div class="grid">' +
-        metric('NSI', cp.nsi, '/100 stress load', cp.nsi < 30 ? 'good' : cp.nsi < 60 ? 'warn' : 'bad', 'secondary') +
+        /* §∅ — the card twin of the chip above: an absent NSI showed as a blank value badged GOOD. */
+        metric('NSI', cp.nsi != null ? cp.nsi : '—', '/100 stress load', cp.nsi == null ? '' : cp.nsi < 30 ? 'good' : cp.nsi < 60 ? 'warn' : 'bad', 'secondary') +
         (cp.couplingScore != null ? metric('Coupling', cp.couplingScore + '%', 'desat→HR link', cp.couplingScore >= 50 ? 'good' : cp.couplingScore >= 20 ? 'warn' : 'bad', 'secondary') : '') +
-        metric('Frag Index', cp.sfi, '/hr fragmentation', cp.sfi < 3 ? 'good' : cp.sfi < 6 ? 'warn' : 'bad', 'secondary') +
+        metric('Frag Index', cp.sfi != null ? cp.sfi : '—', '/hr fragmentation', cp.sfi == null ? '' : cp.sfi < 3 ? 'good' : cp.sfi < 6 ? 'warn' : 'bad', 'secondary') +
         '</div>';
     }
     if (n.spo2Adv && n.spo2Adv.nadirBins) {

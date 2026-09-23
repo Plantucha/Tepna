@@ -587,7 +587,8 @@ self.onmessage = async (e) => {
       personalized.push({
         l: 'AF Screen',
         v: { 'no-af': 'Clear', 'occasional-irregular': 'Watch', 'possible-af': 'Flag', insufficient: '—' }[af],
-        sub: r.morph.af.suspiciousPct + '% irregular',
+        /* §∅ — an insufficient screen has no percentage; printing "null% irregular" states one. */
+        sub: r.morph.af.suspiciousPct != null ? r.morph.af.suspiciousPct + '% irregular' : 'not screened',
         s: { 'no-af': 'ok', 'occasional-irregular': 'warn', 'possible-af': 'bad', insufficient: 'neutral' }[af]
       });
     }
@@ -851,9 +852,9 @@ self.onmessage = async (e) => {
     })()}
     <div class="gang-summary" style="margin-top:12px">
       <div class="gang-pill" style="border-color:var(--${afColor === 'ok' ? 'green' : afColor === 'warn' ? 'amber' : afColor === 'bad' ? 'red' : 'blue'});color:var(--${afColor === 'ok' ? 'green' : afColor === 'warn' ? 'amber' : afColor === 'bad' ? 'red' : 'blue'})"><b>AF screen:</b> ${afLabel}</div>
-      <div class="gang-pill">irregularity ${af.irregIndex}</div>
-      <div class="gang-pill">ΔRR entropy ${af.shannon}</div>
-      <div class="gang-pill">${af.suspiciousPct}% windows flagged</div>
+      <div class="gang-pill">irregularity ${af.irregIndex != null ? af.irregIndex : '—'}</div>
+      <div class="gang-pill">ΔRR entropy ${af.shannon != null ? af.shannon : '—'}</div>
+      <div class="gang-pill">${af.suspiciousPct != null ? af.suspiciousPct + '% windows flagged' : 'not screened'}</div>
     </div>
     <div class="q-note" style="margin-top:10px"><b>Directional, not diagnostic.</b> A single lead at 130 Hz resolves QRS/QT/PR/ST as <b>within-subject overnight trends</b>, not 12-lead clinical measurements. AF screen is RR-irregularity-based — P-wave morphology is weak at this rate, so it screens only and never diagnoses.</div>`;
     $('morphSection').style.display = 'block';
@@ -1406,7 +1407,9 @@ self.onmessage = async (e) => {
               '—',
               'Clear',
               { 'no-af': 'ok', 'occasional-irregular': 'warn', 'possible-af': 'bad', insufficient: 'neutral' }[r.morph.af.verdict],
-              r.morph.af.suspiciousPct + '% windows irregular · ΔRR entropy ' + r.morph.af.shannon + ' · screen only'
+              r.morph.af.suspiciousPct != null
+                ? r.morph.af.suspiciousPct + '% windows irregular · ΔRR entropy ' + r.morph.af.shannon + ' · screen only'
+                : 'no window carried enough usable beats to screen'
             ]
           ]
         : []),
