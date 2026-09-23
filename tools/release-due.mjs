@@ -34,6 +34,7 @@
  *   node tools/release-due.mjs --report    # decide only; exit 1 when due (nothing launched)
  *   node tools/release-due.mjs --json      # …plus ONE tepna.verdict/1 object on stdout
  *   node tools/release-due.mjs --selftest
+ *   node tools/release-due.mjs --verdict-sample   # ONE verdict from a planted snapshot, no git (the adoption gate reads this)
  *
  * Exit codes: 0 not due / launched · 1 due but not launched (`--report`, or `hold`) · 2 refused.
  */
@@ -231,6 +232,15 @@ if (process.argv.includes('--selftest')) {
   ok(verdictFor(decide({ now: at(2), lastReleaseAt: T0, commitsSince: 1 }), { tag: 'v', fetched: true }, null, false, 'abcdef1').status === 'PASS', 'not due is PASS');
   ok(verdictFor(decide({ now: at(2), lastReleaseAt: null, commitsSince: 1 }), { tag: null, fetched: false }, null, false, 'abcdef1').status === 'UNKNOWN', 'refuse is UNKNOWN with result null');
   console.log(`all ${ran} selftests passed`);
+  process.exit(0);
+}
+
+/* The adoption gate (tools/verdict-adoption.mjs) runs this to READ the object without a repository,
+   a clock or a network: the planted snapshot is the state this tool was written in — due by commits,
+   not launched — so the sample is the FAIL shape, the one the gate must be able to see. */
+if (process.argv.includes('--verdict-sample')) {
+  const snap = { now: '2026-09-23T12:00:00Z', lastReleaseAt: '2026-09-21T18:24:14Z', commitsSince: 172, tag: 'v2.13.0', fetched: true, running: false };
+  console.log(JSON.stringify(verdictFor(decide(snap), snap, null, true, 'abcdef1234567')));
   process.exit(0);
 }
 
