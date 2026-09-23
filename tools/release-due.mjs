@@ -30,13 +30,24 @@
  * tag, no fetch, no count ⇒ `refuse`, exit 2 — a timer that cannot read the distance must not
  * report "not due".
  *
- *   node tools/release-due.mjs             # decide, and LAUNCH the release chain when due
- *   node tools/release-due.mjs --report    # decide only; exit 1 when due (nothing launched)
+ *   node tools/release-due.mjs               # decide, and LAUNCH the release chain (detached) when due
+ *   node tools/release-due.mjs --foreground  # decide, and RUN the chain attached — the timer's mode
+ *   node tools/release-due.mjs --report      # decide only; exit 1 when due (nothing launched)
  *   node tools/release-due.mjs --json      # …plus ONE tepna.verdict/1 object on stdout
  *   node tools/release-due.mjs --selftest
  *   node tools/release-due.mjs --verdict-sample   # ONE verdict from a planted snapshot, no git (the adoption gate reads this)
  *
- * Exit codes: 0 not due / launched · 1 due but not launched (`--report`, or `hold`) · 2 refused.
+ * Exit codes: 0 not due / launched / chain finished green · 1 due but not launched (`--report`, or
+ * `hold`), or the attached chain failed · 2 refused.
+ *
+ * ⚠️ UNDER systemd THE CHAIN MUST RUN ATTACHED. The first timer tick (2026-09-23 13:02:56) decided
+ * RELEASE, spawned `release.mjs --full` detached, printed a PASS verdict with `launched: true`, and
+ * the oneshot unit FINISHED at 13:02:57 — `KillMode=control-group` then killed the detached child
+ * with the unit's cgroup. Its log was empty, no state file was written, and the verdict had read
+ * green about a chain that ran for under a second. So `--foreground` runs `release-land.mjs
+ * --foreground` in this process (45–90 min; the unit is oneshot with no start timeout) and the verdict
+ * is the CHAIN's exit status, never the spawn's: "launched" is not "ran", and this tool no longer
+ * says PASS for a launch alone.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, openSync } from 'node:fs';
@@ -126,6 +137,13 @@ function releaseLandUnfinished() {
   return r.status !== 0;
 }
 
+/* Attached: the chain runs in THIS process and its exit code is the outcome. Used by the timer unit,
+   where a detached child does not outlive the oneshot (see the header). */
+function runAttached() {
+  const r = spawnSync(process.execPath, [join(ROOT, 'tools', 'release-land.mjs'), '--foreground'], { cwd: ROOT, stdio: 'inherit' });
+  return { attached: true, exit: r.status === null ? 1 : r.status };
+}
+
 function launch() {
   const dir = join(tmpdir(), 'tepna-release-land');
   mkdirSync(dir, { recursive: true });
@@ -143,8 +161,10 @@ function launch() {
    measured position on BOTH axes, so a reader can re-derive the verdict from the record alone. */
 function verdictFor(d, snap, launched, report, commit) {
   const V = require(join(ROOT, 'verdict.js'));
-  const status = d.action === 'refuse' ? 'UNKNOWN' : d.action === 'wait' || launched ? 'PASS' : 'FAIL';
+  const ran = launched && (launched.attached ? launched.exit === 0 : true);
+  const status = d.action === 'refuse' ? 'UNKNOWN' : d.action === 'wait' || ran ? 'PASS' : 'FAIL';
   const pass = status === 'PASS';
+  const why = launched && launched.attached && launched.exit !== 0 ? `release-land exited ${launched.exit} — see \`release-land.mjs --status\`` : d.why;
   return V.make({
     gate: 'release-due',
     status,
@@ -155,8 +175,17 @@ function verdictFor(d, snap, launched, report, commit) {
       threshold: RELEASE_MAX_DAYS,
       unit: 'd'
     },
-    result: d.distance ? { ...d.distance, tag: snap.tag, action: d.action, launched: !!launched, mode: report ? 'report' : 'act' } : null,
-    reason: pass ? null : d.why,
+    result: d.distance
+      ? {
+          ...d.distance,
+          tag: snap.tag,
+          action: d.action,
+          launched: !!launched,
+          chainExit: launched && launched.attached ? launched.exit : null,
+          mode: report ? 'report' : launched && launched.attached ? 'attached' : 'detached'
+        }
+      : null,
+    reason: pass ? null : why,
     evidence: [snap.tag ? `tag ${snap.tag} @ ${snap.lastReleaseAt}` : 'no v* tag readable', `origin/main fetched: ${snap.fetched}`, 'tools/release-land.mjs --status'],
     producedBy: commit ? { tool: 'tools/release-due.mjs', commit } : { tool: 'tools/release-due.mjs', commit: null, commitReason: 'HEAD unreadable in this checkout' }
   });
@@ -168,17 +197,20 @@ function headSha() {
 
 function main(argv) {
   const REPORT = argv.includes('--report');
+  const ATTACHED = argv.includes('--foreground');
   const JSON_OUT = argv.includes('--json');
   const snap = snapshot();
   const d = decide(snap);
   let launched = null;
-  if (d.action === 'release' && !REPORT) launched = launch();
+  if (d.action === 'release' && !REPORT) launched = ATTACHED ? runAttached() : launch();
   const out = JSON_OUT ? console.error : console.log;
   out(`release-due: ${d.action.toUpperCase()} — ${d.why}` + (snap.tag ? ` (last: ${snap.tag} @ ${snap.lastReleaseAt})` : ''));
-  if (launched) out(`  launched release.mjs --full, pid ${launched.pid}\n  log:    ${launched.log}\n  status: node tools/release-land.mjs --status`);
+  if (launched && launched.attached) out(`  release-land finished with exit ${launched.exit} — status: node tools/release-land.mjs --status`);
+  else if (launched) out(`  launched release.mjs --full, pid ${launched.pid}\n  log:    ${launched.log}\n  status: node tools/release-land.mjs --status`);
   if (JSON_OUT) console.log(JSON.stringify(verdictFor(d, snap, launched, REPORT, headSha())));
   if (d.action === 'refuse') return 2;
   if (d.action === 'wait') return 0;
+  if (launched && launched.attached) return launched.exit === 0 ? 0 : 1;
   return launched ? 0 : 1;
 }
 
@@ -230,6 +262,11 @@ if (process.argv.includes('--selftest')) {
     'due and NOT launched is FAIL — a report that reads green about an overdue release is the failure being abolished'
   );
   ok(verdictFor(decide({ now: at(2), lastReleaseAt: T0, commitsSince: 1 }), { tag: 'v', fetched: true }, null, false, 'abcdef1').status === 'PASS', 'not due is PASS');
+  const DUE = decide({ now: at(9), lastReleaseAt: T0, commitsSince: 172 });
+  const att = (exit) => verdictFor(DUE, { tag: 'v', fetched: true }, { attached: true, exit }, false, 'abcdef1');
+  ok(att(0).status === 'PASS' && att(0).result.chainExit === 0 && att(0).result.mode === 'attached', 'attached chain exit 0 is PASS, and the record says so');
+  ok(att(3).status === 'FAIL' && /exited 3/.test(att(3).reason), 'attached chain exit 3 (the wall) is FAIL naming the exit — a launch is not a run');
+  ok(verdictFor(DUE, { tag: 'v', fetched: true }, { pid: 1, log: 'x' }, false, 'abcdef1').result.mode === 'detached', 'a detached launch is recorded as such, never as a run');
   ok(verdictFor(decide({ now: at(2), lastReleaseAt: null, commitsSince: 1 }), { tag: null, fetched: false }, null, false, 'abcdef1').status === 'UNKNOWN', 'refuse is UNKNOWN with result null');
   console.log(`all ${ran} selftests passed`);
   process.exit(0);
