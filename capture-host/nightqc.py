@@ -568,15 +568,21 @@ def pmd_negotiations(night_dir: str) -> dict:
             continue                      # a torn row is skipped, exactly as every sidecar reader does
         key = (p[1], p[3])
         rec = out.setdefault(key, {"chosen": None, "offered": None, "starts": 0, "_seen": set(), "_menus": set()})
-        if p[7] not in started:
-            rec["starts"] += 1
-            continue
         rec["starts"] += 1
+        # THE MENU IS A PROPERTY OF THE DEVICE, NOT OF THE OUTCOME, so it is read from every row —
+        # a refused START still carries the settings block the device reported before refusing.
+        # Measured on the box the day this shipped: a Verity left on its charger refused 63 ACC
+        # starts in an hour, every row recording `offered 52`, and this reported `offered: None`
+        # while the file said 52 sixty-three times — a null where a measurement exists, which is
+        # §∅ inverted. `chosen` stays started-only (below): what was captured at IS an outcome.
+        if p[5]:
+            rec["_menus"].add(p[5])
+        if p[7] not in started:
+            continue
         try:
             rec["_seen"].add(int(p[6]))
         except ValueError:
             pass                          # a blank or torn rate is an ABSENCE, not a zero
-        rec["_menus"].add(p[5])
     for rec in out.values():
         rec["chosen"] = next(iter(rec["_seen"])) if len(rec["_seen"]) == 1 else None
         rec["offered"] = next(iter(rec["_menus"])) if len(rec["_menus"]) == 1 else None
